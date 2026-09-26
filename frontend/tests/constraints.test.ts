@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { eligibleDay, loadReference, validateRoute } from "../lib/domain.ts";
-import type { Order, Vehicle, ReferenceData } from "../lib/types.ts";
+import type { Order, Vehicle, ReferenceData } from "../src/shared/domain/types.ts";
 const v: Vehicle = {
   vehicle_id: "V1",
   type: "van",

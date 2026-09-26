@@ -57,11 +57,17 @@ npm run test:spring
 
 The second command requires an already-created dedicated `TEST_DATABASE_URL` database. Browser tests also launch this backend against disposable schemas. See [verification.md](../docs/verification.md) for observed results and blockers.
 
-- `domain/Planning.java`: route feasibility and allocation.
-- `domain/ReferenceLoader.java`: reference CSVs and production calendar policy.
-- `service/DispatchService.java`: commands, persistence, state and demo scenarios.
-- `service/AccountAdmin.java`: trusted-host account lifecycle.
+- `planning/domain/Planning.java`: route feasibility and allocation.
+- `referencedata/infrastructure/CsvReferenceLoader.java`: reference CSVs and production calendar policy.
+- `referencedata/domain/ReferenceData.java`: the outlet, vehicle and calendar model.
+- `platform/db/Database.java`: the only PostgreSQL seam, with serializable transactions and bounded retries.
+- `platform/db/Migrator.java`: atomic migrations with checksum and advisory-lock protection.
+- `platform/config/DataConfig.java`: pool, transaction manager and DATABASE_URL parsing.
+- `service/DispatchService.java`: commands, persistence, state and demo scenarios. Being decomposed into modules; see [code-structure.md](../docs/code-structure.md).
+- `identity/application/AccountAdminUseCase.java`: trusted-host account lifecycle.
 - `api/ApiController.java`: REST routes, request guards and cookies.
-- `db/Migrator.java`: atomic migrations with checksum and advisory-lock protection.
+- `shared/error/DomainException.java`, `shared/util/Crypto.java`: shared kernel.
+
+Module boundaries are asserted by `architecture/ModuleBoundaryTest.java` under `src/test/`. Add a cross-module import only if that test still passes.
 
 These Java paths are relative to `src/main/java/com/waypoint/dispatch/`. Maven output under `target/` is generated and ignored.

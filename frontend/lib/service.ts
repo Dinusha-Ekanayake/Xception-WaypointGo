@@ -28,7 +28,7 @@ import {
   type ReferenceData,
   type Reservations,
   type User,
-} from "./types.ts";
+} from "../src/shared/domain/types.ts";
 import { z } from "zod";
 import {
   seedScenarios,
@@ -36,7 +36,7 @@ import {
   openingFuel,
   SCENARIOS,
 } from "./scenarios.ts";
-import type { AssignmentOption } from "./types.ts";
+import type { AssignmentOption } from "../src/shared/domain/types.ts";
 
 export class DomainError extends Error {
   status: number;

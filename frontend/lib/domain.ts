@@ -20,7 +20,7 @@ import {
   type ValidateRouteResult,
   type Vehicle,
   REASONS,
-} from "./types.ts";
+} from "../src/shared/domain/types.ts";
 
 export { REASONS };
 export type { ReferenceData, Order, Vehicle, PlannedRoute };
@@ -203,14 +203,14 @@ export function allocate(
   routes: PlannedRoute[];
   deferred: PlannedRoute extends never
     ? never
-    : import("./types.js").DeferredEntry[];
+    : import("../src/shared/domain/types").DeferredEntry[];
   published: boolean;
   revision: number;
 } {
   if (!operating(day, ref))
     throw Error("Planning is unavailable on a non-operating date.");
   const routes: MutableRoute[] = [];
-  const deferred: import("./types.js").DeferredEntry[] = [];
+  const deferred: import("../src/shared/domain/types").DeferredEntry[] = [];
   const vehicles = ref.vehicles
     .filter((v) => !v.status || v.status === "available")
     .sort(

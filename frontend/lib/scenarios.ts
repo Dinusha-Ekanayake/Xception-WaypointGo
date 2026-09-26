@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { csv, allocate } from "./domain.ts";
-import { parseOrThrow, type Order, type ReferenceData } from "./types.ts";
-import { OrderSchema } from "./types.ts";
+import { parseOrThrow, type Order, type ReferenceData } from "../src/shared/domain/types.ts";
+import { OrderSchema } from "../src/shared/domain/types.ts";
 import type { Service } from "./service.ts";
 
 export interface ScenarioSpec {

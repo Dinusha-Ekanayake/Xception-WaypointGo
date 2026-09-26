@@ -5,10 +5,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.waypoint.dispatch.domain.Planning;
-import com.waypoint.dispatch.domain.ReferenceData;
-import com.waypoint.dispatch.domain.ReferenceLoader;
-import com.waypoint.dispatch.util.Crypto;
+import com.waypoint.dispatch.planning.domain.Planning;
+import com.waypoint.dispatch.referencedata.domain.ReferenceData;
+import com.waypoint.dispatch.referencedata.infrastructure.CsvReferenceLoader;
+import com.waypoint.dispatch.shared.error.DomainException;
+import com.waypoint.dispatch.shared.util.Crypto;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -24,9 +25,9 @@ import java.util.TreeSet;
 import org.postgresql.util.PGobject;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataAccessException;
+import com.waypoint.dispatch.platform.db.Database;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Business logic port of lib/service.ts. Orders and plans are stored as JSONB
@@ -62,8 +63,8 @@ public class DispatchService {
   public record LoginResult(String token, Map<String, String> user) {}
 
   private final JdbcTemplate jdbc;
-  private final TransactionTemplate serializable;
-  private final ReferenceLoader loader;
+  private final Database db;
+  private final CsvReferenceLoader loader;
   private final ObjectMapper mapper;
   private final boolean demo;
   private final String demoNow;
@@ -72,14 +73,14 @@ public class DispatchService {
 
   public DispatchService(
       JdbcTemplate jdbc,
-      TransactionTemplate serializableTransactions,
-      ReferenceLoader loader,
+      Database db,
+      CsvReferenceLoader loader,
       ObjectMapper mapper,
       @Value("${app.demo-mode:1}") String demoMode,
       @Value("${app.demo-now:2026-02-13T15:30:00+05:30}") String demoNow,
       @Value("${app.seed-password:}") String seedPassword) {
     this.jdbc = jdbc;
-    this.serializable = serializableTransactions;
+    this.db = db;
     this.loader = loader;
     this.mapper = mapper;
     this.demo = !"0".equals(demoMode);
@@ -90,64 +91,25 @@ public class DispatchService {
   // ---------- low-level query helpers ----------
 
   public List<Map<String, Object>> all(String sql, Object... params) {
-    return jdbc.queryForList(sql, params);
+    return db.all(sql, params);
   }
 
   public Map<String, Object> get(String sql, Object... params) {
-    List<Map<String, Object>> rows = jdbc.queryForList(sql, params);
-    return rows.isEmpty() ? null : rows.get(0);
+    return db.get(sql, params);
   }
 
   public void run(String sql, Object... params) {
-    jdbc.update(sql, params);
+    db.run(sql, params);
   }
 
   public <T> T transaction(java.util.function.Supplier<T> fn) {
-    for (int attempt = 0; ; attempt++) {
-      try {
-        return serializable.execute(status -> fn.get());
-      } catch (RuntimeException e) {
-        if (attempt < 4 && isRetryable(e)) {
-          sleep(20L * (attempt + 1));
-          continue;
-        }
-        throw e;
-      }
-    }
+    return db.transaction(fn);
   }
 
   public void transaction(Runnable fn) {
-    transaction(() -> {
-      fn.run();
-      return null;
-    });
+    db.transaction(fn);
   }
 
-  private static boolean isRetryable(RuntimeException e) {
-    Throwable t = e;
-    while (t != null) {
-      if (t instanceof java.sql.SQLException sql) {
-        String state = sql.getSQLState();
-        if ("40001".equals(state) || "40P01".equals(state)) return true;
-        if ("23505".equals(state)
-            && sql.getMessage() != null
-            && sql.getMessage().contains("commands_pkey")) return true;
-      }
-      String msg = t.getMessage();
-      if (msg != null && msg.contains("commands_pkey")
-          && msg.contains("duplicate key")) return true;
-      t = t.getCause();
-    }
-    return false;
-  }
-
-  private static void sleep(long ms) {
-    try {
-      Thread.sleep(ms);
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-    }
-  }
 
   static String colToString(Object value) {
     if (value instanceof PGobject pg) return pg.getValue();

@@ -3,7 +3,7 @@ package com.waypoint.dispatch.api;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.waypoint.dispatch.service.DispatchService;
-import com.waypoint.dispatch.service.DomainException;
+import com.waypoint.dispatch.shared.error.DomainException;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
