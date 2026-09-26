@@ -1,5 +1,7 @@
 # Competition readiness implementation plan
 
+Historical plan from September 25, 2026. It records the earlier implementation approach, not instructions to rerun the work. The current runtime is Next.js plus Spring Boot and PostgreSQL; use the [README](../../../README.md), [deployment guide](../../deployment.md) and [verification record](../../verification.md) for current commands and status.
+
 Goal: Deliver an honest, reproducible Designathon and Hackathon entry connecting ordering, allocation, loading, delivery, receipt and recovery.
 
 Approved brief: The user approved the preceding six-point review and requested implementation with realistic operational behavior. Execute directly in this session; no additional approval gate. Retain Next.js, supplied reference data and four roles. Persistence moved from SQLite to PostgreSQL during implementation; no Datathon models, invented metrics, messaging, or public deployment as part of this local implementation.
@@ -28,5 +30,5 @@ Approved brief: The user approved the preceding six-point review and requested i
 
 ## Progress and decisions
 - Baseline: clean checkout; typecheck and production build passed during assessment; test scripts and docs missing.
-- Implementation remains in this checkout on a dedicated branch so the user can run it directly.
+- Work initially used a dedicated branch. Current integration is on `main`; `dev` replaces the former `master` branch.
 - Completed all six implementation tasks. The initial completion checkpoint recorded 20 backend tests, 8 production browser tests, typecheck, build and an extracted-package build. A later publication-review checkpoint recorded 9 browser definitions. PostgreSQL migration and proof-image work later raised this to 31 backend tests and 11 browser executions. These are historical checkpoints; see docs/verification.md for their scope, later changes and remaining external submission work.

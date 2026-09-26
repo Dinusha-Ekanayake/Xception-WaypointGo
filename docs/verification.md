@@ -1,6 +1,34 @@
-# Current Spring migration verification
+# Verification status
 
-Production-readiness branch, September 26, 2026:
+Latest source and documentation review: September 26, 2026, on `main` after the Maven-output cleanup (`1721cd1`). `dev` replaces the former `master` branch and is not evidence of the latest integration state.
+
+## Latest observed checks
+
+- `npm run typecheck`: passed.
+- `npm run build`: passed; Next.js production output and the generated offline shell completed.
+- `mvn -q test` from `backend/`: 2 Java unit tests passed.
+- `npm test`: 11 legacy tests passed; 20 database-dependent tests failed during setup because the configured `waypoint_test` database did not exist. This is an environment blocker, not evidence those application assertions failed or passed.
+- Spring HTTP integration tests were not reached by that `npm test` run. Browser tests were not rerun after the missing test database was identified.
+- Docker runtime verification was blocked by permission denied on the Docker socket.
+
+The build is verified locally. Full regression success, a fresh Docker installation and public production readiness are not established by this review. No application behavior changed during the documentation refresh.
+
+## Completing verification
+
+1. Create a separate test database and export `TEST_DATABASE_URL`; never use the application database. See [deployment.md](deployment.md#verification).
+2. From `frontend/`, install Chromium and run `npm run verify`. It runs 31 legacy Node tests, Maven unit tests, 4 Spring HTTP test definitions, typechecking, the production build and 12 browser test instances. The database-outage browser case is conditional on the local plaintext proxy being available; record skips as well as failures.
+3. Start the full demo using Docker on a host with daemon access and a fresh isolated volume. Follow the [README walkthrough](../README.md#judge-walkthrough) across all four accounts.
+4. Verify public HTTPS, secure cookies, restart persistence and offline reload/reconciliation on representative phones. Exercise a backup restore against an empty separate database and check certificate renewal and monitoring before real operations.
+
+## Documentation audit
+
+All 15 tracked Markdown files were reviewed against the active Spring/Next.js source, package scripts, SQL migrations and Compose configuration. Local file links, changed-file dash style and `git diff --check` passed. Both Compose files passed configuration validation; this does not exercise the Docker daemon. Historical notes below are retained as historical records. They must not be read as new test runs or proof of a hosted deployment. Final design-file fidelity and competition submission remain outside local build verification.
+
+---
+
+# Previously recorded Spring migration verification
+
+Earlier repository record from September 26, 2026. The following results are historical claims retained for context; they were not reproduced by the latest review:
 
 - Order creation uses UUIDs and an insert-only path; the Java regression first failed on the old short IDs, then passed.
 - Spring HTTP tests cover concurrent command replay, stale draft rejection, authorization and exception redelivery with preserved proof and one linked replacement.
@@ -15,11 +43,11 @@ The remaining rollout limits are listed in deployment.md. Historical results bel
 
 ---
 
-# Verification record
+# Earlier Node verification record
 
-Current verification recorded on September 26, 2026. Scope: Designathon and Hackathon implementation through the PostgreSQL + proof-images checkpoint (`3f3166c`). Earlier publication-review results through `c0d8706` are retained below as history; they do not certify later application changes.
+Historical verification recorded on September 26, 2026. Scope: Designathon and Hackathon implementation through the PostgreSQL + proof-images checkpoint (`3f3166c`). Earlier publication-review results through `c0d8706` are retained below as history; they do not certify later application changes.
 
-## Currently passing
+## Previously recorded passing checks
 
 - `npm run verify`: 31 backend tests, TypeScript checking, production build and 11 Chromium browser tests (9 test definitions; the sign-in recovery definition runs once per role for driver, loader and store).
 - Backend coverage includes independent vehicle constraints, workshop exclusion, delivery-day carryover, immutable plan history, duplicate command replay, concurrent command/draft/version/fuel/carryover racing, migration plus concurrent-seed preservation, shared login throttling, proof scoping and transaction rollback, draft revisions, role-scoped snapshots and the shared delivery lifecycle.
@@ -30,7 +58,7 @@ Current verification recorded on September 26, 2026. Scope: Designathon and Hack
 - Phone viewport checks at 390 by 844 cover loader, driver and store authentication recovery, horizontal overflow and starting at the top of the workspace after login.
 - Desktop dispatcher and alternative-assignment screens were visually inspected. Evidence screenshots are in the local `artifacts/screens/` directory.
 - A source ZIP was extracted into `/tmp/waypoint-fresh-review`; `npm ci`, all 18 backend tests and a production build passed without the original ignored competition directory. The final login scroll, trip-order and fuel-balance adjustments were verified in the main checkout.
-- Archive integrity and required seed/configuration entries are checked by `python3 scripts/package-submission.py`.
+- An earlier checkpoint used `scripts/package-submission.py` to check its archive. That helper is absent from the current checkout; this is not a runnable current command.
 - Independent code review identified trip ordering and a next-day fuel-balance reset; both were corrected, regression-tested and re-reviewed.
 - `git diff --check` passed.
 

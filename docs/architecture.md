@@ -1,21 +1,25 @@
 # Architecture
 
-Waypoint connects four working environments through one authoritative order record. Next.js serves the responsive web application and API. Vercel hosts the Next.js pages and Node.js API functions. A pooled connection reaches a separate PostgreSQL database; Neon is the testing deployment target. Local Docker uses PostgreSQL on a persistent volume.
+Waypoint connects four working environments through one authoritative order record. Next.js serves the responsive UI and proxies `/api/*` through its catch-all route to Spring Boot at `BACKEND_URL`. Spring owns authentication, planning, commands and PostgreSQL access. Vercel can host the frontend, but Spring requires a separate host; Neon is a supported managed PostgreSQL option. Local Compose includes PostgreSQL on a persistent volume. These are deployment configurations, not evidence of a running public deployment.
 
 ```mermaid
 flowchart LR
-  D[Dispatcher desktop] --> API[Next.js API]
+  D[Dispatcher desktop] --> API[Next.js API proxy]
   L[Loader tablet / phone] --> Q[Account-scoped IndexedDB outbox]
   R[Driver phone] --> Q
   S[Store desktop / phone] --> Q
   Q -->|Same command ID on retry| API
   SW[Versioned service worker] -->|Offline app shell| R
-  API --> Auth[Session and role checks]
+  API --> Spring[Spring Boot REST API]
+  Spring --> Auth[Session and role checks]
   Auth --> Rules[Domain validation]
   Rules --> DB[(PostgreSQL)]
-  CSV[Explicit tracked CSV seed command] --> DB
-  DB -->|Filtered snapshots and events| D
-  DB -->|Confirmed records| Q
+  CSV[Tracked reference CSVs] --> Rules
+  Init[Explicit Java migrate and seed commands] --> DB
+  DB -->|Query results| Spring
+  Spring -->|Scoped snapshots and command results| API
+  API -->|Filtered snapshots and events| D
+  API -->|Confirmed records| Q
 ```
 
 ## State and recovery
@@ -36,8 +40,8 @@ A published plan retains a demand snapshot. Deferred orders retain their identit
 
 ## Deployment boundary
 
-Multiple API instances share PostgreSQL sessions, command receipts and login throttling. Schema migrations and seeding run explicitly before deployment, never during requests or builds. See [deployment.md](deployment.md) for Vercel + Neon setup. HTTPS is required outside localhost for service workers; set COOKIE_SECURE=1. The seeded password is set at initial database creation, not on every restart. Rotating the environment variable does not rotate existing accounts. This build is a competition demonstrator, not a multi-tenant logistics deployment.
+Multiple Spring instances share PostgreSQL sessions, command receipts and login throttling. Staff administration uses trusted-host CLI commands; account changes revoke sessions and record an account audit event. The legacy Node service under `frontend/lib/` supports scripts and regression tests and does not serve browser API requests. Schema migrations and seeding run explicitly before deployment, never during requests or builds. See [deployment.md](deployment.md) for Vercel + Neon setup. HTTPS is required outside localhost for service workers; set COOKIE_SECURE=1. The seeded password is set at initial database creation, not on every restart. Rotating the environment variable does not rotate existing accounts. This build is a competition demonstrator, not a multi-tenant logistics deployment.
 
 No external maps API, SMS, live GPS, demand prediction service or background messaging integration is required. Dispatchers see the last synchronized server record, not an invented location or offline-device heartbeat.
 
-Proof bytes live in a separate PostgreSQL table for the testing release and are fetched through an authenticated, order-scoped endpoint. State and historical plan responses carry references, not embedded images. Downloaded proof is cached in account-scoped IndexedDB; uncached proof is explicitly unavailable offline. The shared service worker never caches authenticated API responses. Hidden tabs pause periodic polling and resume synchronization when visible.
+Proof bytes live in a separate PostgreSQL table for the testing release and are fetched through an authenticated, order-scoped endpoint. State and historical plan responses carry references, not embedded images. Downloaded proof is cached in account-scoped IndexedDB; uncached proof is explicitly unavailable offline. The shared service worker never caches authenticated API responses. Hidden tabs pause periodic polling and resume synchronization when visible. Visible clients synchronize every ten seconds. State requests currently read all plans and events, then filter for account access; history is not paginated. Bound history retrieval and measure representative fleet workloads before sustained production use.
