@@ -18,7 +18,7 @@ Run frontend npm commands from `frontend/`. Run `npm test` for legacy Node regre
 
 ## Development Log
 
-Several people and agents work on this repository in parallel. Read the top entries of `docs/development-docs/development-log.md` before starting, so you know what is half-finished and who is holding which area. Append an entry there when you finish a unit of work that changes code, structure, configuration or a decision, using the template at the top of that file. Keep entries to a few lines and link to the relevant document under `docs/` for detail. Skip the log for typo and formatting fixes.
+Several people and agents work on this repository in parallel. Read the top entries of `docs/development-docs/development-log.md` before starting, so you know what is half-finished and who is holding which area. Append an entry there when you finish a unit of work that changes code, structure, configuration or a decision, using the template at the top of that file. Keep entries to a few lines and link to the relevant document under `docs/` for detail. Skip the log for typo and formatting fixes. Credit the GitHub user who owns the work; never record agent, tool or model names in the log.
 
 Markdown is ignored by default in `.gitignore` because agent sessions scatter scratch `.md` files. The maintained documents are allow-listed there. If you add a document that belongs in the repository, add its exception in the same commit.
 
@@ -28,7 +28,7 @@ PostgreSQL runs in Docker and the application runs natively: `docker compose up 
 
 ## Commit & Pull Request Guidelines
 
-`main` is the integration branch; `dev` replaces `master`. Keep generated Maven `target/` directories and `*.class` files untracked. Use short, imperative subjects such as `fix: reject stale delivery commands`. In pull requests, explain the behavior changed, link the relevant issue when one exists, list verification performed, and include screenshots for visible UI changes.
+`main` is the integration branch; `dev` replaces `master`. Keep generated Maven `target/` directories and `*.class` files untracked. Use short, imperative subjects such as `fix: reject stale delivery commands`. Do not add co-author, agent or AI attribution trailers to commit messages or pull request descriptions. In pull requests, explain the behavior changed, link the relevant issue when one exists, list verification performed, and include screenshots for visible UI changes.
 
 ## Configuration & Data Safety
 
