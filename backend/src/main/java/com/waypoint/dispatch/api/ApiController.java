@@ -217,8 +217,11 @@ public class ApiController {
     if (origin == null || origin.isEmpty()) return;
     try {
       String originHost = new java.net.URI(origin).getHost();
-      String host = request.getHeader("Host");
-      if (host != null && host.contains(":")) host = host.substring(0, host.indexOf(':'));
+      // The Next.js proxy cannot override Host on its server-side fetch
+      // (undici forbids it), so it forwards the browser host here.
+      String host = request.getHeader("X-Forwarded-Host");
+      if (host == null || host.isEmpty()) host = request.getHeader("Host");
+      host = stripPort(host);
       if (originHost != null && !originHost.equalsIgnoreCase(host)) {
         throw new DomainException("Cross-origin request rejected.", 403);
       }
@@ -227,6 +230,17 @@ public class ApiController {
     } catch (Exception e) {
       throw new DomainException("Cross-origin request rejected.", 403);
     }
+  }
+
+  private static String stripPort(String host) {
+    if (host == null) return null;
+    if (host.startsWith("[")) {
+      int end = host.indexOf(']');
+      return end == -1 ? host : host.substring(0, end + 1);
+    }
+    int last = host.lastIndexOf(':');
+    if (last != -1 && host.indexOf(':') == last) host = host.substring(0, last);
+    return host;
   }
 
   private Map<String, Object> readJsonObject(HttpServletRequest request) {

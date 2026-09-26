@@ -10,7 +10,12 @@ async function proxy(request: NextRequest): Promise<Response> {
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
   }
-  headers.set("Host", request.headers.get("host") || request.nextUrl.host);
+  // Node fetch (undici) forbids overriding `Host`, so the backend would see
+  // BACKEND_URL's host instead of the browser's. Forward it separately so
+  // the backend origin guard can compare against the real page host.
+  const browserHost = request.headers.get("host") || request.nextUrl.host;
+  headers.set("Host", browserHost);
+  headers.set("X-Forwarded-Host", browserHost);
   try {
     const response = await fetch(target, {
       method: request.method, headers, cache: "no-store", redirect: "manual",
