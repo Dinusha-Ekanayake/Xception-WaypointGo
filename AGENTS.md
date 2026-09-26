@@ -31,7 +31,7 @@ Static assets in `frontend/public/`; `frontend/scripts/build-sw.mjs` generates t
 
 Documentation: `SYSTEM-ARCHITECTURE.md` at the root; `docs/architecture/` for module specs, the data model review and the edge case register; `docs/` for design rationale, deployment and submission evidence; `docs/development-docs/` for local setup and the development log.
 
-Versioned SQL migrations live in root `migrations/`, shared by both stacks. Node resolves them from the repo root or `frontend/`; Spring defaults to `../migrations` from `backend/` and accepts `MIGRATIONS_DIR`. Migrations apply atomically through the backend `migrate` command with a transaction-scoped advisory lock. Existing SQLite files in `var/` are legacy data and must be preserved.
+Versioned SQL migrations live in root `migrations/`, shared by both stacks. The target schema under `docs/architecture/schema/migrations/` is a design under review and is deliberately not applied: the migrator reads `*.sql` directly inside `migrations/` and does not recurse. Node resolves them from the repo root or `frontend/`; Spring defaults to `../migrations` from `backend/` and accepts `MIGRATIONS_DIR`. Migrations apply atomically through the backend `migrate` command with a transaction-scoped advisory lock. Existing SQLite files in `var/` are legacy data and must be preserved.
 
 ## Local Development
 
@@ -67,11 +67,27 @@ TypeScript with the repository's strict settings, two-space indentation, and the
 
 Mutations go through the command endpoint with a command id and `expected_version`. Errors cross the API as RFC 9457 `application/problem+json` with a `violations` extension carrying failed constraints; the error body is part of the contract because clients branch on it. Reads are cursor-paginated on a keyset, never `OFFSET`. Additive API changes never break; removals need a new version and a deprecation window.
 
+## External Product Catalogue
+
+The product catalogue and order-to-product mapping come from the external warehouse API. Waypoint caches them in `ref.products`; it does not own them. The catalogue is a reconstruction from order totals, accurate to 1% on weight and volume, with `verified_real_sku = False` on every row and no stock, temperature or pricing.
+
+Therefore, without exception:
+
+1. **Capacity constraints read order-level `order_weight_kg` and `order_volume_m3`.** Never sum product lines to decide whether a load fits. A 1% error on a 5,510 kg truck is 55 kg of invisible overload.
+2. **Temperature comes from the order's `temp_requirement`,** never inferred from products.
+3. **Never show a candidate product as a real SKU** without labelling it inferred.
+4. **Do not encode "at most two product types per order"** in schema, UI or validation. It is an artifact of the reconstruction.
+5. When the warehouse is unreachable, fall back to order-level totals and say so on screen.
+
 ## Data and Migration Rules
 
 Migrations are forward-only, checksummed, and run as an explicit step. Use expand and contract: add a column nullable, backfill in batches, then add the constraint. Never add `NOT NULL` without a default to a large table in one statement; it takes a full table lock.
 
 `timestamptz` everywhere, `numeric` with explicit precision for weight, volume and fuel (never floating point in a capacity constraint), UUIDv7 surrogate keys with dataset identifiers kept as unique natural keys. Index every foreign key. Operational records are never deleted; they reach terminal states.
+
+`row_version` is the concurrency revision and `plan_version` is the business plan revision; they are different things and a table may need both. Every mutation is `UPDATE ... WHERE id = ? AND row_version = ?` and fails on zero rows affected: a version column nobody checks is not concurrency control. A published plan and its children are immutable; changes create a new version that supersedes the old one. Status `CHECK` constraints restrict values but not transitions, so the legal state graph is enforced in the domain.
+
+Database roles: `waypoint_migrator` owns the tables and runs migrations; `waypoint_app` owns nothing, holds no `BYPASSRLS`, is `NOINHERIT`, and is what the pool connects as. Each module has its own role granted only its schema plus read on `ref` and `iam`, so every transaction begins `SET LOCAL ROLE waypoint_<module>; SET LOCAL app.actor_id = '<uuid>';`. Forgetting the role is a permission error, which is intended. Roles are cluster-wide, so migrations assert attributes with `ALTER ROLE` rather than assuming `CREATE ROLE` ran. Table owners bypass RLS by default, so use `FORCE ROW LEVEL SECURITY`. Mixing `=` with `&&` in a GiST exclusion constraint needs `CREATE EXTENSION btree_gist`. Outbox workers claim batches `FOR UPDATE SKIP LOCKED`, or the relay serialises to one instance.
 
 ## Security Rules
 

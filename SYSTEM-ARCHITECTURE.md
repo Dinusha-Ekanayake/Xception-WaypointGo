@@ -67,11 +67,14 @@ Non-human actors need identity too, because audit entries that say "the system d
 | System | Direction | Contract | Failure policy |
 | --- | --- | --- | --- |
 | **Warehouse and stock** | Outbound query, inbound event | `StockPort`: check availability, reserve, release. Consumes `order.confirmed`, emits `stock.reserved`, `stock.insufficient`, `stock.adjusted` | Circuit breaker. On open, orders enter `stock_unknown` and the dispatcher sees the degraded state explicitly. Never silently assume stock exists |
+| **Product catalogue** (same warehouse API) | Outbound bulk sync | `CataloguePort`: versioned catalogue and order-to-product lines, synced on a schedule into a local projection | Fall back to order-level weight and volume, which are authoritative for capacity regardless. Stale catalogue is shown as stale, never as current |
 | Identity provider (optional) | Outbound | OIDC. `iam.users.user_id` maps to the external subject | Fall back to local sessions already issued; no new logins |
 | Object storage | Outbound | `ProofStore`: put, signed get | Retry with backoff; capture blocks only if durable write fails, and the driver is told |
 | Notification channels | Outbound | Per-channel adapter | At-least-once with delivery records and dead-letter |
 
-The warehouse boundary is an **anti-corruption layer**: their model never leaks into this one. Waypoint holds a local `stock_status` on the order plus a reservation reference, and nothing else of theirs.
+The warehouse boundary is an **anti-corruption layer**: their model never leaks into this one. Waypoint holds a local `stock_status` on the order, a reservation reference, and a cached copy of the catalogue. Nothing else of theirs.
+
+One rule governs that catalogue and it outranks convenience. The catalogue is a reconstruction from order totals, accurate to 1% on weight and volume, so **capacity constraints read order-level `order_weight_kg` and `order_volume_m3`, never a sum of product lines**. On a 5,510 kg truck, 1% is 55 kg of invisible overload. Temperature likewise comes from the order, never inferred from products. Product lines are descriptive. The full rule set is in [DATA-MODEL-REVIEW.md](docs/architecture/DATA-MODEL-REVIEW.md#external-product-catalogue).
 
 ---
 
@@ -98,7 +101,11 @@ Each of those modules is already designed as if remote: it is reached through a 
 
 ### ADR-002: Schema per bounded context in one database
 
-Five PostgreSQL schemas (`ref`, `iam`, `ops`, `ml`, `integration`), one cluster. Cross-schema foreign keys are permitted only into `ref` and `iam`, which are stable and shared. Each module has its own database role with grants limited to its schema, so a boundary violation fails at the database even if it somehow passes review.
+Five PostgreSQL schemas (`ref`, `iam`, `ops`, `ml`, `integration`), one **database** in one cluster. These are namespaces, not separate databases: one connection reaches all five, foreign keys are enforced across them, and one transaction can span them, which is what lets state, event and outbox row commit together.
+
+Cross-schema foreign keys are permitted only into `ref` and `iam`, the shared kernel. Each module has its own database role with grants limited to its own schema plus read access to the kernel, so a boundary violation fails at the database even if it passes review.
+
+The deliberate trade: keeping those kernel foreign keys and the single transaction is a departure from strict database-per-service isolation, and it buys real integrity. The price is paid at extraction, when those keys become soft references. The triggers in ADR-001 are when that price is worth paying.
 
 ### ADR-003: CQRS-lite, not event sourcing
 
@@ -249,7 +256,18 @@ Rules:
 3. **Defence in depth with RLS.** PostgreSQL row-level security policies enforce scope at the database, using `SET LOCAL app.actor_id` inside the transaction. Set it with `SET LOCAL`, never `SET`, or a pooled connection leaks one user's identity into another's request. The application role must not hold `BYPASSRLS`.
 4. **Driver scope is temporal.** Access is to a vehicle on a date, not to a vehicle forever. Yesterday's driver cannot post today's delivery.
 5. **Re-check inside the transaction.** A permission revoked a second ago must not lose a race.
-6. **Externalizable.** The PDP is an interface. If policy complexity grows, it can move to OPA, Cedar or a Zanzibar-style store behind the AuthZEN interface without touching call sites. It is not worth a separate deployment today.
+6. **A database role per module.** Schema separation only bites if something enforces it. Code review and the boundary tests catch a cross-module import; neither catches a cross-module SQL query written inside the right module. Grants do. One process and one pool, so module identity is set per transaction alongside the actor:
+
+```sql
+BEGIN;
+SET LOCAL ROLE waypoint_ops;              -- which tables
+SET LOCAL app.actor_id = '<user uuid>';   -- which rows
+COMMIT;
+```
+
+`waypoint_app` is `NOINHERIT` and a member of each module role, so it holds no privilege until it assumes one. Forgetting the `SET LOCAL ROLE` is a permission error, not a silent full-access query. Roles are cluster-wide, so migrations must assert role attributes with `ALTER ROLE`, not assume that `CREATE ROLE` ran.
+
+7. **Externalizable.** The PDP is an interface. If policy complexity grows, it can move to OPA, Cedar or a Zanzibar-style store behind the AuthZEN interface without touching call sites. It is not worth a separate deployment today.
 
 ### 6.3 Events and the outbox
 
@@ -313,6 +331,29 @@ Degradation must be **visible**. A dispatcher who cannot tell that stock checkin
 | Record delivery, online | p95 latency | < 800 ms |
 | Sync queued operation after reconnect | p95 time to confirm | < 30 s |
 | Command correctness | duplicate side effects | zero, alerted |
+
+### 6.8 Policy and rule change
+
+Rules change. Time budgets get renegotiated, deferral priority gets argued about, a new access rule appears. The architecture has to absorb that without a code change at every enforcement point and without rewriting history.
+
+**One definition, many enforcement points.** Enforcement is everywhere; the decision is in one place. Authorization goes through the PDP, constraints through the registry, deferral order through the priority policy. A rule change edits the decision point, and every enforcement point inherits it.
+
+**Where a rule lives** depends on how often it changes and who changes it:
+
+| Tier | Holds | Change cost | Waypoint examples |
+| --- | --- | --- | --- |
+| Domain code | Invariants that never vary. Physics | Deploy | A reefer is required for chilled goods. Whole orders only |
+| Effective-dated parameters | Numbers and thresholds | A config row, no deploy | Fresh 270 min, Style and Tech 480 min, 16:00 cutoff, turnaround minutes |
+| Versioned decision table | Structured, authorable, arguable rules | New version, no deploy | Deferral priority order, notification routing |
+| External policy engine | Fine-grained authorization shared across services | Bundle push | Not today. The PDP interface keeps it available later |
+
+**Nothing is mutated in place.** A rule change creates a new version with an effective date and supersedes the previous one. Effective time is stored separately from modification time and never inferred from it.
+
+**Every decision records the versions that produced it.** A plan already stamps the reference-data version and predictions already stamp the model version; it stamps the **rule set version** for the same reason. Without it, a deferral recorded in March under a 270-minute budget cannot be reproduced in June once the budget is 300, and principle 3 quietly stops being true: the reason string survives but the reasoning does not.
+
+**Rollout is staged.** Shadow (evaluate the new version, log what it would have decided, change nothing), then canary on one depot, then enforce. The switch is a flag, not a deploy. A rule change that silently alters tomorrow's allocation for 120 outlets is an outage with a different name.
+
+**Constraints stay in code deliberately.** They run thousands of times inside an allocation loop, so a rules engine would cost real latency and replace a stack trace with a rule trace. Their *parameters* are config; their *predicates* are code.
 
 ---
 
@@ -455,6 +496,8 @@ The arrows are **contract dependencies, not code dependencies**:
 | 4 | Products and order line items | Adopt them; capacity maths must move to line level in one change, never half |
 | 5 | Migrate the current nine-table JSONB schema to the target model | Yes, with expand-contract, now that the timeline allows it. See the migration sequence in DATA-MODEL-REVIEW.md |
 | 6 | Duplicate rule implementation in `frontend/lib/` | Delete it and port its tests to the domain layer |
+| 7 | Outlet coordinates | **Deferred.** Additive later: a nullable column plus a check constraint. Nothing in the allocation model depends on it |
+| 8 | Driver-side temporal exclusion (one driver, one vehicle at a time) | **Deferred**, and it is a policy question, not a correctness fix. Adding the constraint later requires clean data first, because it is validated against existing rows |
 
 ---
 

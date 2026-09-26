@@ -33,7 +33,9 @@ Each module has the same five internal layers. The spec lists what belongs in ea
 | infrastructure | `JdbcReferenceRepository`, `CsvReferenceImporter`, `ReferenceCache` |
 | web | admin read endpoints |
 
-**Owns:** `ref.brands`, `ref.depots`, `ref.districts`, `ref.outlets`, `ref.vehicles`, `ref.vehicle_day_status`, `ref.calendar_days`, `ref.district_travel`, `ref.service_allowances`, `ref.products`.
+**Owns:** `ref.brands`, `ref.depots`, `ref.districts`, `ref.outlets`, `ref.vehicles`, `ref.vehicle_day_status`, `ref.calendar_days`, `ref.district_travel`, `ref.service_allowances`.
+
+**Caches, does not own:** `ref.products`. The catalogue belongs to the external warehouse and arrives by scheduled bulk sync with a catalogue version. It is a projection: never edited here, and always able to report that it is stale.
 
 **Commands:** `SetVehicleDayStatus`, `ImportReferenceData`, `OverrideCalendarDay`.
 **Queries:** `snapshotFor(day)`, `outlet(id)`, `vehicle(id)`, `isOperating(date)`, `nextOperatingDay(date)`, `travelProfile(district)`.
@@ -66,6 +68,8 @@ Each module has the same five internal layers. The spec lists what belongs in ea
 **Queries:** `permits(actor, command, target)`, `scopeOf(actor)`, `actorForSession(token)`, `driverVehicleOn(date)`.
 **Publishes:** `access.granted`, `access.revoked`, `account.disabled`, `authorization.denied`.
 **Consumes:** nothing.
+
+**Policy change.** Scope changes are **data**: rows in `user_depot_access`, `user_outlet_access` and the assignment tables, effective immediately with an audit entry. A new command type or a new predicate is **code** in the PDP. Neither requires touching an enforcement point, because every enforcement point asks `permits(...)`.
 
 **Invariants.** A session maps to exactly one account. Disabling an account revokes every session in the same transaction. A driver-to-vehicle assignment is **time-bounded and non-overlapping**: one driver per vehicle per period, enforced by a temporal exclusion constraint rather than by application code.
 
@@ -108,7 +112,7 @@ draft ─► confirmed ─┬─► stock_held ──► confirmed        (wareh
 
 **Ports:** `StockPort` to the external warehouse.
 
-**Invariants.** An order is never silently reduced: an adjustment is an explicit, attributed transition the store can see. Chilled and ambient never share an order, because vehicle eligibility is decided per order. The cutoff is evaluated on the **server clock in Asia/Colombo**, never on a client timestamp.
+**Invariants.** An order is never silently reduced: an adjustment is an explicit, attributed transition the store can see. Chilled and ambient never share an order, because vehicle eligibility is decided per order. The cutoff is evaluated on the **server clock in Asia/Colombo**, never on a client timestamp. `order_items` are **descriptive**: the order's own weight, volume and temperature stay authoritative and are never recomputed from lines.
 
 **Failure modes.** Warehouse unreachable: circuit breaker opens, the order enters `stock_unknown`, and the dispatcher sees the degraded state rather than a false confirmation. Stock unresolved at cutoff: auto-deferred with reason `stock_unresolved` and the store is notified.
 
@@ -123,7 +127,7 @@ draft ─► confirmed ─┬─► stock_held ──► confirmed        (wareh
 | Layer | Contents |
 | --- | --- |
 | contract | `PublishedPlan`, `TripView`, `AllocationView`, `DeferralView`, `PlanQuery`, `PlanEvents` |
-| domain | `PlanningRun`, `Trip`, `Allocation`, `Deferral`, `PriorityPolicy`, `ConstraintRegistry`, `Constraint`, `ConstraintResult`, `AllocationEngine` (port), `AllocationRequest`, `AllocationResult`, `TripTimeCalculator`, `FuelLedger` |
+| domain | `PlanningRun`, `Trip`, `Allocation`, `Deferral`, `PriorityPolicy` (versioned decision table), `RuleSetVersion`, `ConstraintRegistry`, `Constraint`, `ConstraintResult`, `AllocationEngine` (port), `AllocationRequest`, `AllocationResult`, `TripTimeCalculator`, `FuelLedger` |
 | application | `GenerateDraftHandler`, `OverrideAllocationHandler`, `PublishPlanHandler`, `ReplanTripHandler`, `AssignmentPreviewQuery`, `FuelReservationService` |
 | infrastructure | `PriorityInsertionEngine`, `ValidatingEngine` (decorator), `JdbcPlanRepository`, `PlanProjection` |
 | web | routed through the command endpoint |
@@ -134,8 +138,8 @@ draft ─► confirmed ─┬─► stock_held ──► confirmed        (wareh
 
 | Constraint | Rule |
 | --- | --- |
-| `WeightCapacity` | Trip weight must not exceed `weight_cap_kg` |
-| `VolumeCapacity` | Trip volume must not exceed `volume_cap_m3` |
+| `WeightCapacity` | Trip weight must not exceed `weight_cap_kg`. Reads **order-level** `order_weight_kg`, never a sum of product lines |
+| `VolumeCapacity` | Trip volume must not exceed `volume_cap_m3`. Reads **order-level** `order_volume_m3` |
 | `Temperature` | Chilled orders require `temp = reefer`; reefers may carry ambient |
 | `VanOnlyAccess` | `parking_constraint = van_only` requires `type = van` |
 | `HomeDepot` | A vehicle serves only its own depot's outlets |
@@ -147,6 +151,10 @@ draft ─► confirmed ─┬─► stock_held ──► confirmed        (wareh
 | `FuelQuota` | Weekly litres per vehicle, including return legs and other published plans that week |
 
 Four consumers read that one registry: the engine, the manual override path, the publication gate and the UI. That is what makes explainability structural instead of a feature someone remembers to add.
+
+**Predicates are code; thresholds are effective-dated parameters.** The rule "trip minutes must fit the Fresh budget" is compiled; the number 270 is a `rule_parameters` row with an effective date. Changing the budget is a config change, not a release.
+
+**`PriorityPolicy` is a versioned decision table**, not a hardcoded comparator. It is the rule most likely to change by business preference and the one dispatchers will argue about, so the ordering (prior skips, Fresh, chilled, earliest closing window) is authorable and versioned. Every `PlanningRun` stamps the `rule_set_version` that produced it, alongside the reference-data version, so a historical deferral can be replayed under the rules that were actually in force.
 
 **Commands:** `GenerateDraft`, `OverrideAllocation`, `DeferOrder`, `PublishPlan`, `ReplanTrip`, `ReviseDraft`.
 **Queries:** `publishedPlan(depot, day)`, `draft(id)`, `previewAssignments(orderId)`, `deferralsFor(day)`, `fuelRemaining(vehicle, week)`.
@@ -343,6 +351,59 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 **Invariants.** Every stored prediction records the model version that produced it, so results are reproducible and a bad model is traceable and replaceable. Predictions **never** participate in a transaction with operational state. The system plans without the predictor when it is unavailable and says so on screen.
 
 **Connections.** Planning consumes estimates through the port and degrades to the deterministic implementation when model serving is unavailable. Nothing else depends on this module.
+
+---
+
+## External warehouse integration contract
+
+The boundary was defined (port, anti-corruption layer, circuit breaker, degraded mode, who owns what). The **contract** was not: no operations, no reservation lifecycle, no inbound security. This closes that.
+
+### Outbound: Waypoint calls the warehouse
+
+| Operation | When | Timeout | On failure |
+| --- | --- | --- | --- |
+| `checkAvailability(orderRef, lines)` | Order confirmed | 2 s | Circuit opens, order enters `stock_unknown`, dispatcher sees the degraded banner |
+| `reserve(orderRef, lines, ttl)` | Order confirmed and available | 2 s | As above. **Never assume reserved** |
+| `release(reservationRef, reason)` | Order cancelled, deferred or delivered | 5 s | Retried through the outbox until acknowledged. A leaked reservation is the warehouse's stock held hostage |
+| `fetchCatalogue(sinceVersion)` | Scheduled bulk sync | 60 s | Keep the last good version, mark it stale with its age |
+
+Every call carries a correlation id and an idempotency key. `reserve` is idempotent on `orderRef`: calling it twice returns the same reservation, never a second one.
+
+### Reservation lifecycle
+
+Both sides must agree on this state machine, and Waypoint stores only the reference and the state:
+
+```
+none ──► requested ──► reserved ──┬──► consumed   (delivered)
+                │                 ├──► released   (cancelled or deferred)
+                └──► insufficient └──► expired    (TTL passed)
+```
+
+**The TTL is a business decision, not a technical one.** Proposal: until the dispatch date's cutoff plus two hours. Whatever is chosen, expiry must be **observable by Waypoint**, by event or poll. Without that, orders sit in `stock_held` forever waiting for a release that never comes, and nobody notices until a store calls.
+
+### Inbound: the warehouse notifies Waypoint
+
+This was the real gap, because inbound is where the security lives.
+
+1. **Transport**: mutual TLS, or an HMAC signature over the raw body plus a timestamp, with a replay window of a few minutes.
+2. **Land it first**: the request writes to `integration.inbound_events` and returns. Nothing is processed inside the HTTP request, so processing survives the connection that delivered it.
+3. **Exact replay detection**: unique on `(source_system, source_event_id)`. The sender retries by design.
+4. **Unverified never processes**: a `CHECK` constraint allows an unverified row only in `received`, `quarantined` or `dead`. Storing it for forensics is fine; acting on it is not.
+5. **Unknown event types are quarantined**, not ignored. Silence is how an integration drifts for months.
+
+Accepted inbound events: `stock.reserved`, `stock.insufficient`, `stock.adjusted`, `stock.released`, `stock.expired`, `catalogue.version_published`.
+
+### What Waypoint never accepts from the warehouse
+
+A requirement worth recording because the data cannot meet it: the team's requirements draft specified a **minimum order count per product**. The catalogue carries `product_id`, `brand`, `unit_weight_kg`, `unit_volume_m3`, `basis` and `verified_real_sku`, and nothing else. There is no minimum order quantity to enforce, so that rule cannot be implemented until the warehouse publishes it. Do not silently drop it; either the warehouse adds the field or the requirement is withdrawn.
+
+Authority over weight, volume or temperature for capacity decisions. Those come from the order, for the reasons in [DATA-MODEL-REVIEW.md](DATA-MODEL-REVIEW.md#external-product-catalogue). The warehouse can tell Waypoint what is in stock; it cannot tell it what fits on a truck.
+
+### Open decisions
+
+1. Reservation TTL.
+2. Is stock tracked per depot or per outlet? It changes whether availability is checked at capture or at planning.
+3. Is availability checked at order confirm, or deferred to the planning run? Confirm gives the store earlier warning; planning avoids reserving stock for orders that end up deferred.
 
 ---
 

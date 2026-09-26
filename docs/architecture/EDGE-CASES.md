@@ -41,7 +41,7 @@ Most of the cases below are instances of nine patterns. Learn the patterns and t
 | ORD-09 | Order for an outlet the actor does not manage | `403` plus audit | Authorization | Denied-attempt counter | Authorization test |
 | ORD-10 | Store cancels an already-loaded order | Cancellation refused; a return is recorded as a compensating action | Ordering domain | Return counter | Integration |
 
-## 3. Stock and the external warehouse
+## 3. Stock, catalogue and the external warehouse
 
 | ID | Trigger | Required behaviour | Enforced in | Detection | Test |
 | --- | --- | --- | --- | --- | --- |
@@ -51,6 +51,13 @@ Most of the cases below are instances of nine patterns. Learn the patterns and t
 | STK-04 | Warehouse unreachable | Circuit opens. Orders enter `stock_unknown` and the dispatcher sees the degraded banner. **Never assume stock exists** | `StockPort` adapter | Circuit-open alert over 60 s | Chaos drill |
 | STK-05 | Warehouse replies after Waypoint timed out | Late response reconciled by reservation reference, or compensated if the order already moved | Anti-corruption layer | Late-response counter | Integration |
 | STK-06 | Warehouse reports a reservation Waypoint does not know | Logged, quarantined, never auto-applied | Anti-corruption layer | Alert on any occurrence | Integration |
+| STK-07 | Warehouse API exposes no stock balances at all | Availability is `unknown`, not `available`. The stock screen must not claim a check it cannot perform | `StockPort` | Gauge: orders in `stock_unknown` | Integration |
+| CAT-01 | Catalogue sync unavailable | Plan and deliver on order-level totals, which are authoritative anyway. Catalogue shown as stale with its version and age | `CataloguePort` | Catalogue age gauge | Chaos drill |
+| CAT-02 | Product lines sum to a weight or volume different from the order total | **Order total wins.** Record the discrepancy; never adjust the order to match the lines | Ordering domain | Discrepancy histogram | Unit |
+| CAT-03 | Catalogue version changes between draft and publication | Plan records the catalogue version it was built against. Capacity is unaffected because it never reads lines | Planning | Counter | Integration |
+| CAT-04 | Order references a product absent from the current catalogue | Line renders as unknown; the order stays deliverable | Query layer | Unknown-product counter | Unit |
+| CAT-05 | New order has no product lines | Normal, not an error. Lines exist only where the warehouse supplied them | Ordering domain | n/a | Unit |
+| CAT-06 | Candidate product shown to a store manager | Labelled as inferred. Never presented as a confirmed SKU | Client | n/a | Browser test |
 
 ## 4. Planning and capacity
 
@@ -136,6 +143,12 @@ Most of the cases below are instances of nine patterns. Learn the patterns and t
 | SEC-06 | Pooled connection reused across users | Impossible: actor set with `SET LOCAL` inside the transaction | Data layer | Alert if actor unset | Integration |
 | SEC-07 | Application role holds `BYPASSRLS` | Deployment fails the check | CI policy check | Build gate | Migration test |
 | SEC-08 | Oversized or malformed request body | Rejected at the edge before it reaches the application | Edge | 4xx rate | Integration |
+| SEC-09 | A transaction forgets `SET LOCAL ROLE` | Permission denied. `waypoint_app` is `NOINHERIT` and holds nothing until it assumes a module role | Database grants | Permission-denied counter | Migration test |
+| SEC-10 | A module queries another module's schema directly | Permission denied at the database, even though the code passed review and the boundary test | Database grants | Alert on any occurrence | Migration test |
+| SEC-11 | A migration re-runs where a role already exists with wrong attributes | `ALTER ROLE` asserts them. Roles are cluster-wide, so `CREATE ROLE` alone silently keeps an inheriting role and defeats the separation | Migration | Role attribute check in CI | Migration test |
+| SEC-12 | Inbound warehouse webhook with an invalid or missing signature | Stored unverified and `quarantined`, never processed. A `CHECK` constraint makes processing an unverified row impossible | Inbound inbox | Quarantine rate, alert | Integration |
+| SEC-13 | Inbound webhook replayed | Rejected by the unique `(source_system, source_event_id)`. Replay detection is exact, not heuristic | Database constraint | Duplicate-suppressed counter | Integration |
+| SEC-14 | Inbound event of an unknown type | Quarantined for review, never silently ignored | Inbound inbox | Alert on any occurrence | Integration |
 
 ## 10. Platform, data and time
 
@@ -155,7 +168,24 @@ Most of the cases below are instances of nine patterns. Learn the patterns and t
 
 ---
 
-## 3. How this register is tested
+## 11. Policy and rule change
+
+| ID | Trigger | Required behaviour | Enforced in | Detection | Test |
+| --- | --- | --- | --- | --- | --- |
+| POL-01 | A threshold changes (Fresh budget 270 to 300) | New effective-dated `rule_parameters` row supersedes the old one. No deploy, no mutation of the previous value | Rule parameters | Parameter change audit | Integration |
+| POL-02 | A rule changes between draft generation and publication | Publication uses the rule set version the draft was built against, or refuses and says which version changed | Planning | Counter | Integration |
+| POL-03 | A historical decision is replayed after the rules changed | Replays against the `policy_version_id` and `reference_version_id` stamped on the plan, never against current rules | Planning + audit | Replay mismatch alert | Integration |
+| POL-04 | Two policy versions claim the same effective instant | Impossible: exclusion constraint on `(policy_kind, effective range)` | Database constraint | Constraint violation alert | Migration test |
+| POL-05 | A policy is published with an effective date in the past | Rejected. Retroactive rules rewrite decisions already communicated | Application | Alert on any occurrence | Unit |
+| POL-06 | A new priority policy is in shadow mode | Evaluated and logged, changes nothing. Divergence from the active policy is reported per run | Planning | Shadow divergence rate | Integration |
+| POL-07 | Shadow policy diverges beyond a threshold | Promotion blocked until reviewed. Divergence is a decision for a human, not a deployment gate to override | Rollout process | Alert | Process |
+| POL-08 | A canary policy is active on one depot only | Plans record which version applied. Two depots may legitimately differ that day | Planning | Version distribution gauge | Integration |
+| POL-09 | Authorization scope revoked while a policy decision is cached | No decision caching across a transaction. The PDP is consulted inside the transaction | Application | Race-loss counter | Concurrent test |
+| POL-10 | A rule parameter is missing for the date being planned | Refuse to plan. Never fall back to a compiled-in default, which would silently reintroduce the old value | Rule parameters | Alert on any occurrence | Unit |
+
+---
+
+## 12. How this register is tested
 
 | Layer | Covers | Cost |
 | --- | --- | --- |
