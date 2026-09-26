@@ -27,7 +27,7 @@ The product promise is: **Know what can run, explain what must wait, and never c
 8. **Driver run.** Show the next unfinished stop and one appropriate action. Delivery records distinguish full, partial and failed outcomes. Proof is captured while stopped. Completed/disputed stops do not become the next stop again.
 9. **Device sync and recovery.** Show pending, rejected and confirmed records separately. Keep command IDs and evidence across reload and session expiry. A conflict requires review; it is not silently overwritten.
 10. **Store receipt and dispute.** Arrival/proof is evidence supplied by the driver. Store confirmation is a separate event. A reported issue is not treated as a clean receipt.
-11. **Dispatcher progress.** Show synchronized delivery outcomes and exceptions for the selected day. A quiet screen says no exceptions. We do not infer GPS, network status or a live ETA from the absence of an update.
+11. **Dispatcher progress.** Show synchronized delivery outcomes and exceptions for the selected day. A quiet screen says no exceptions. We do not infer GPS, network status or a live ETA from the absence of an update. Exception review records redelivery, returned goods or closure with an explanation; linked replacement orders preserve the original evidence.
 
 ## Fully developed degradation journey: proof recorded without signal
 

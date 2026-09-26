@@ -4,6 +4,17 @@
 
 A working Designathon/Hackathon solution for Waypoint Group's four roles: store manager, dispatcher, loader and driver. It connects confirmed demand, explainable allocation, loading checks, offline delivery proof and independent store receipt. Datathon models and submissions are outside this build.
 
+## Repository and runtime
+
+`main` is the current integration branch; `dev` replaces the former `master` branch and may lag behind `main`. The repository is [Xception-WaypointGo](https://github.com/kavindamihiran/Xception-WaypointGo).
+
+- `frontend/`: Next.js UI, same-origin API proxy, offline storage and browser tests.
+- `backend/`: Spring Boot REST API, authentication, planning, account administration and PostgreSQL access.
+- `data/` and `migrations/`: tracked synthetic reference/seed data and shared versioned SQL.
+- `docs/`: architecture, deployment, design rationale and submission evidence.
+
+Maven `target/` directories and compiled Java classes are ignored and are rebuilt locally.
+
 ## Run a fresh copy
 
 The quickest fresh demo uses Docker:
@@ -36,7 +47,7 @@ Open http://localhost:3000. For development use `npm run dev` (with the Spring B
 
 [Vercel + Neon setup and local Docker commands](docs/deployment.md) cover pooled connections, initialization, environment variables and the deployment smoke test. The required CSVs are included in tracked `data/`; the ignored original competition folder is not required. SQLite is no longer a runtime dependency; existing SQLite files remain untouched and are not imported.
 
-For an isolated demonstration, point `DATABASE_URL` and `DATABASE_URL_UNPOOLED` at a separate empty PostgreSQL database and run the initialization commands. Use a separate database for future production data.
+For an isolated demonstration, point Spring's `DATABASE_URL` at a separate empty PostgreSQL database and run the initialization commands. Spring uses that URL for migrations as well as runtime access. `DATABASE_URL_UNPOOLED` is used by the backup scripts and legacy Node migration command, not automatically by Spring. Use a separate database for future production data.
 
 ## Accounts and configuration
 
@@ -49,9 +60,9 @@ For an isolated demonstration, point `DATABASE_URL` and `DATABASE_URL_UNPOOLED` 
 
 The example local demo password is `Waypoint2026!`; use the private `SEED_PASSWORD` chosen during hosted database initialization.
 
-Copy `.env.example` to `.env.local` for local Next.js configuration, or `.env` for Compose. `SEED_PASSWORD` only applies when accounts are first created. Set a private password before exposing a fresh instance; changing the variable does not rotate existing passwords. Use `COOKIE_SECURE=1` behind HTTPS. HTTPS or localhost is required for service workers. Keep deployment credentials private and share the judge accounts through the competition's intended channel.
+For Compose, copy root `.env.example` to root `.env`. For local Next.js, create `frontend/.env.local` with `BACKEND_URL=http://127.0.0.1:8080`; keep database and seed credentials in the backend environment. Spring does not automatically load either file. `SEED_PASSWORD` only applies when accounts are first created. Set a private password before exposing a fresh instance; changing the variable does not rotate existing passwords. Use `COOKIE_SECURE=1` behind HTTPS. HTTPS or localhost is required for service workers. Keep deployment credentials private and share the judge accounts through the competition's intended channel.
 
-`DEMO_MODE=1` fixes the order clock at February 13, 2026, 15:30 Sri Lanka time. The supplied calendar ends June 28, 2026. `DEMO_MODE=0` uses actual time and enforces the planning cutoff, so operating data must be extended before using current dates. Demo mode is clearly shown in the dispatcher workspace.
+`DEMO_MODE=1` uses `DEMO_NOW`, defaulting to February 13, 2026, 15:30 Sri Lanka time. The supplied calendar ends June 28, 2026. In Spring, `DEMO_MODE=0` uses actual time and extends the operating calendar at startup from one year back to two years ahead, using Monday-Saturday operations. Supplied dates and optional `CALENDAR_FILE` overrides take precedence. See [calendar configuration](docs/deployment.md) before real use. Demo mode is shown in the dispatcher workspace.
 
 ## Judge walkthrough
 
@@ -78,6 +89,7 @@ The collapsed Judge scenarios selector lists historical mixed-brand days, simula
 - Weekly fuel reservations include other published plans in the same Monday-Sunday week, this draft, return travel and the fuel-pressure fixture where applicable. The simulated opening consumption becomes effective February 17 and persists through February 22 before the weekly reset.
 - Alternative assignments test insertion positions and revalidate later trips. Draft revision and order version checks reject stale decisions. Published coverage must match the current queue.
 - Shortfall resolution means replacement and a full loader recheck. No silent reduction of the store's order.
+- Dispatcher exception resolution records redelivery, returned goods or closure with a note. Redelivery links a new order while preserving the original proof and history.
 - There is no trained lateness probability, forecast, live GPS, automatic SMS or in-app navigation claim. A district map search is not outlet-level navigation.
 
 ## Verification
@@ -92,7 +104,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-Tests require an explicit `TEST_DATABASE_URL` pointing to a separate PostgreSQL database and create disposable schemas. Browser tests start a production server on port 43219 and use independent sessions. See [verification.md](docs/verification.md) for observed results and limits. The Playwright runner uses its documented [web-server lifecycle](https://playwright.dev/docs/test-webserver) and [offline emulation](https://playwright.dev/docs/emulation#offline).
+The dedicated database named by `TEST_DATABASE_URL` must already exist and must differ from the application database; tests create disposable schemas, not databases. `npm test` runs legacy Node regressions, Maven tests and Spring HTTP integration tests. `npm run verify` adds typechecking, the production build and browser tests. The legacy `db:migrate` and `db:seed` npm scripts remain available for regression work; use Spring commands for the running application. Browser tests start a production server on port 43219 and use independent sessions. See [verification.md](docs/verification.md) for observed results and limits. The Playwright runner uses its documented [web-server lifecycle](https://playwright.dev/docs/test-webserver) and [offline emulation](https://playwright.dev/docs/emulation#offline).
 
 ## Design continuity and submission material
 

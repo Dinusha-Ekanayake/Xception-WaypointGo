@@ -1,6 +1,6 @@
 # Design-to-implementation mapping
 
-The existing README identified a Waypoint Figma overview/style guide, rather than full application frames. This implementation retains the role structure, typography and teal action color. The current session did not inspect or modify the actual Figma file, so pixel-level fidelity and final Day 5 submission contents must be verified by the team.
+This mapping describes the current four-role implementation and its intended design rationale. It retains the role structure, typography and teal action color. The final submitted design file was not inspected during this documentation audit, so pixel-level fidelity and final Day 5 submission contents remain team verification tasks.
 
 | Product decision | Working implementation | Reason for refinement |
 | --- | --- | --- |
@@ -11,8 +11,9 @@ The existing README identified a Waypoint Figma overview/style guide, rather tha
 | Loading | Every dated trip, reverse sequence, replacement recheck | Avoid hiding vehicles or mixing trips into one manifest. |
 | Driver offline | Durable local acknowledgment, reload, same-account login, retry IDs | Recovery must work beyond the happy path. |
 | Driver display | Saved Auto, Day and Night preferences across the route, proof dialogs, details and sync view | Support daylight and night work without changing the delivery workflow. |
-| Readable type | Shared 17–18 px content and 15–16 px supporting text, stronger secondary contrast and wrapping mobile controls | Keep all four roles readable on phone and desktop; shared cards inherit the active appearance. |
+| Readable type | Shared 17-18 px content and 15-16 px supporting text, stronger secondary contrast and wrapping mobile controls | Keep all four roles readable on phone and desktop; shared cards inherit the active appearance. |
 | Unfinished delivery proof | Device drafts for receiver, count, note, photo and signature, scoped to account, order and record version | Restore interrupted work without submitting it or applying proof to a changed record. Draft removal follows successful delivery enqueueing. |
+| Delivery exceptions | Dispatcher records redelivery, returned goods or closure; replacement orders retain a link to the original evidence | Resolve operational failures without rewriting delivery history. |
 | Store receipt | Actual state, planned time, independent receipt or dispute | Do not show unplanned orders as already travelling. |
 | Demo scenarios | Collapsed selector, explicitly labelled data origins | Keep judge exploration available without crowding the operator's main task. |
 

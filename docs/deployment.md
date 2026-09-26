@@ -2,6 +2,12 @@
 
 The frontend proxies `/api/*` to Spring using `BACKEND_URL` at runtime. PostgreSQL credentials belong only to Spring. Builds and normal requests never migrate or seed.
 
+## Environment and connection ownership
+
+Run Compose commands from the repository root. Root `.env` supplies Compose substitutions; it is not automatically loaded by Spring when Maven or Java runs directly. For a local frontend, create `frontend/.env.local` containing `BACKEND_URL=http://127.0.0.1:8080`. Export Spring settings in its terminal or configure them on its hosting service.
+
+Spring uses `DATABASE_URL` for every Java command, including `migrate`. To use a direct connection for a Java migration, supply that URL as `DATABASE_URL` for the command. `DATABASE_URL_UNPOOLED` is consumed by the backup scripts and legacy Node migration script only. Keep secrets out of frontend configuration except the non-public backend address.
+
 ## Competition / local demo
 
 ```sh
@@ -10,11 +16,13 @@ cp .env.example .env
 docker compose up --build -d
 ```
 
-The `init` service applies migrations and seeds the demo before the backend starts. Existing records are preserved. PostgreSQL persists in `waypoint-postgres`; never use `down -v` to redeploy. Demo mode uses the supplied historical calendar and February 2026 fixtures.
+The `init` service applies migrations and seeds the demo before the backend starts. Existing records are preserved. PostgreSQL persists in `waypoint-postgres`; never use `down -v` to redeploy. Demo mode uses the supplied historical calendar and February 2026 fixtures. Open http://localhost:3000 and follow the [judge walkthrough](../README.md#judge-walkthrough). Local Compose binds PostgreSQL to host port 5432 and Spring to `BACKEND_PORT` (default 8080); ensure those ports are available.
+
+For a fresh-install check, use a separate Compose project name with free host ports and a new volume; do not reset an existing deployment volume. A successful configuration check does not prove images build or services initialize.
 
 ## Production host
 
-Configure DOMAIN, DATABASE_URL and COOKIE_SECURE=1. `compose.prod.yaml` forces real-time mode and never seeds demo accounts or orders. Create real staff accounts using the commands below. The image includes the tracked reference CSVs, migrations and demo proof fixtures; replace synthetic business reference data with validated production records before real operations.
+Configure `DOMAIN` and `DATABASE_URL` in root `.env`; production Compose sets `COOKIE_SECURE=1` on Spring automatically. `compose.prod.yaml` forces real-time mode and never seeds demo accounts or orders. Create real staff accounts using the commands below. The image includes the tracked reference CSVs, migrations and demo proof fixtures; replace synthetic business reference data with validated production records before real operations.
 
 ```sh
 docker compose -f compose.prod.yaml build
@@ -35,23 +43,30 @@ Production uses Monday-Saturday operating days for a rolling calendar generated 
 
 Deploy `frontend/` and set BACKEND_URL to the separately hosted Spring service. Database settings on Vercel do not configure Spring. Use HTTPS for the backend link and COOKIE_SECURE=1 on Spring. The browser continues to call the frontend's same-origin `/api` routes. The earlier all-Node Vercel deployment instructions no longer apply.
 
+For a judge deployment, initialize a separate Spring/PostgreSQL instance with `DEMO_MODE=1`, the documented historical clock and a private seed password. Run Java migrations and seed explicitly before serving requests. `compose.prod.yaml` forces `DEMO_MODE=0` and does not provide this seeded competition experience without a deliberate configuration change. Verify all four accounts through the frontend URL after hosting; configuring Vercel or Neon alone does not verify the deployment.
+
 ## Verification
 
-Use a dedicated TEST_DATABASE_URL that differs from DATABASE_URL:
+Create the dedicated test database first, using a PostgreSQL administrator or hosting console. `TEST_DATABASE_URL` must point to that separate database and differ from `DATABASE_URL`; changing only the URL spelling is not isolation. The test account needs permission to create/drop schemas. Test helpers create schemas, not the database itself.
+
+For a local PostgreSQL server, an example is `createdb -h 127.0.0.1 -U waypoint waypoint_test` (requires database-creation permission). Supply credentials securely, then export the matching `TEST_DATABASE_URL` and run:
 
 ```sh
 cd frontend
 npm ci
+npx playwright install chromium
 npm run verify
 ```
 
 This runs legacy Node regressions, Maven tests, Spring HTTP integration tests, TypeScript checks, the production build and browser tests. The browser runner starts its own Spring backend against a disposable schema, applies Java migrations and seeds through Java. It never connects the tests to an existing backend. Chromium must be installed (`npx playwright install chromium`).
 
-Docker configuration can be checked with `docker compose config --quiet`. Actual fresh-volume container startup, public TLS and physical-device trials remain release checks; local browser emulation does not establish those properties.
+If tests report `database "waypoint_test" does not exist`, create the dedicated database or correct its URL; never substitute the application database.
+
+Docker configuration can be checked with `docker compose config --quiet` and `docker compose -f compose.prod.yaml config --quiet` after supplying the required variables. Actual fresh-volume container startup, public TLS and physical-device trials remain release checks; local browser emulation does not establish those properties.
 
 ## Operational limits
 
-Bounded history synchronization, calibrated real-world travel estimates and a managed backup/monitoring setup remain production rollout work. Current state snapshots include operational history and proof bytes remain in PostgreSQL. Run a measured fleet pilot before general rollout.
+Bounded history synchronization, calibrated real-world travel estimates and a managed backup/monitoring setup remain production rollout work. Visible clients refresh every ten seconds; state retrieval scans all plans/events before filtering, so response and database costs grow with retained history. Proof bytes remain in PostgreSQL and are fetched separately from state snapshots. Run a measured fleet pilot before general rollout.
 
 ## Staff accounts
 
