@@ -134,6 +134,7 @@ artifacts/
 *.md
 !README.md
 !AGENTS.md
+!SYSTEM-ARCHITECTURE.md
 !.agent/rules/*.md
 !docs/ai-disclosure.md
 !docs/architecture.md

@@ -131,6 +131,10 @@ Submission material, in `docs/`:
 - [Deployment](docs/deployment.md)
 - [Code structure and module layout](docs/code-structure.md)
 
+System design, at the repository root:
+
+- [SYSTEM-ARCHITECTURE.md](SYSTEM-ARCHITECTURE.md), actors, modules, layers, data model, edge cases and the work breakdown
+
 Working on the repository, in `docs/development-docs/`:
 
 - [Local development setup](docs/development-docs/development.md), the hybrid Docker database plus native app loop
