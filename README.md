@@ -126,7 +126,6 @@ Submission material, in `docs/`:
 - [Architecture diagram](docs/architecture.md)
 - [Data model](docs/data-model.md)
 - [AI disclosure](docs/ai-disclosure.md)
-- [Designathon and Hackathon demo scripts](docs/demo-script.md)
 - [Submission readiness](docs/submission-checklist.md)
 - [Verification record](docs/verification.md)
 - [Deployment](docs/deployment.md)
