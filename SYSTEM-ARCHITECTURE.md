@@ -1,485 +1,463 @@
 # Waypoint Dispatch: system architecture
 
-Audience: the Xception build team. This is the from-scratch enterprise design for Waypoint Dispatch: the actors, the modules and services, the layers, how the data layer maps to objects, how authentication and authorization are enforced, how every known edge case is handled, and how the work is split across developers with its dependency order.
+Audience: the Xception build team. This is the target architecture for Waypoint Dispatch as an enterprise system: the principles it obeys, the actors it serves, the modules and services it is built from, the layers inside each module, how those modules connect, and how it is operated.
 
-It consolidates three inputs: the Tech-Triathlon challenge booklet, the team's `our team identified things draft not finilized.docx`, and the team's `Waypoint_Database_Schema_Quick_Guide.pdf` (40 tables, 5 schemas, 76 foreign keys). Where those three disagree with what is currently built, this document states the gap rather than hiding it.
+It consolidates the Tech-Triathlon challenge booklet, the team's requirements draft, and the team's 40-table schema guide, then applies current enterprise practice on top. Where the inputs disagree with each other or with what is built today, this document states the gap rather than hiding it.
 
-Companion documents: [docs/code-structure.md](docs/code-structure.md) is the folder layout and its enforced rules. [docs/development-docs/enterprise-architecture-plan.md](docs/development-docs/enterprise-architecture-plan.md) is the phased plan against the competition deadlines. This document is the design those two serve.
+## Document map
 
----
-
-## 0. Read this first: two different targets
-
-There are two systems in play and confusing them wastes the most time.
-
-**The target architecture** is what this document describes: six actors, thirteen modules, five database schemas, an event backbone. It is what Waypoint Group would actually run.
-
-**The competition deliverable** is due October 4. It must let a judge complete the four-role workflow, respect the operating constraints, run from `docker compose up`, and be faithful to the Day 5 design.
-
-A 40-table rebuild from scratch will not ship in eight days alongside the Datathon. So every section below marks scope as one of:
-
-- **NOW** - in the competition build. Judged.
-- **NEXT** - designed now, built after the deadline. Must not be blocked by NOW decisions.
-- **LATER** - acknowledged, deliberately out of scope.
-
-The value of designing the whole thing now is that the NOW subset stops painting us into corners.
-
----
-
-## 1. The problem, stated precisely
-
-Waypoint Group runs 120 outlets across three brands from two depots with 60 vehicles. The three brands compete for the same fleet every day. On most days the fleet cannot serve everyone.
-
-The business problem is not routing. It is **accountable decision-making under scarcity**:
-
-1. Demand must be captured before a 16:00 cutoff and be trustworthy (stock actually exists).
-2. Capacity must be allocated against hard physical constraints, and what cannot be served must be **deferred with a recorded, defensible reason**.
-3. The decision must reach the dock, the road and the outlet without a phone call.
-4. Field work happens where there is no signal and must not be lost or applied twice.
-5. Every handoff must leave evidence, because disputes currently depend on memory.
-
-Five failure modes follow directly, and the architecture exists to close them:
-
-| Current failure | Architectural answer |
+| Document | Contains |
 | --- | --- |
-| Planning lives in one dispatcher's spreadsheet and head | Constraints as executable rules, one definition, every consumer |
-| No shared view after vehicles leave | Event-sourced status projected per role |
-| Deferrals leave no record, outlets get skipped twice running | Deferral is a first-class record with reason, count and carry-forward |
-| Verbal instructions, no proof | Proof of delivery and receipt confirmation as separate, linked records |
-| No signal in the hill country | Offline-first write path with idempotent replay |
+| **This document** | Principles, context, style decision, layers, module map, cross-cutting concerns, API standards, runtime, delivery plan |
+| [docs/architecture/MODULES.md](docs/architecture/MODULES.md) | Every module in detail: its layers, owned data, inbound contract, outbound dependencies, events, invariants and failure modes |
+| [docs/architecture/DATA-MODEL-REVIEW.md](docs/architecture/DATA-MODEL-REVIEW.md) | Validation of the team's schema, 20 findings, and the corrected target schema |
+| [docs/architecture/EDGE-CASES.md](docs/architecture/EDGE-CASES.md) | The edge case register: trigger, required behaviour, enforcement point, detection and test for each |
+| [docs/code-structure.md](docs/code-structure.md) | The folder layout that implements this, and its enforced boundary rules |
+
+Scope note: the warehouse and stock system is built separately by the team. This architecture treats it as an **external system behind an anti-corruption layer**, not as a module to build here.
 
 ---
 
-## 2. Actors
+## 1. Principles
 
-The booklet names four roles. The team's document introduces a fifth, and operating the system needs a sixth. Getting this list right now matters, because authorization scoping is built on it.
+Ten rules. Every decision later in this document traces back to one of them, and a design that violates one needs an explicit ADR.
 
-| Actor | Scope | Device and context | Core responsibility |
+1. **The domain is the asset.** Business rules live in pure code with no framework, no SQL and no clock. They are the cheapest thing in the build to test and the most expensive thing to get wrong.
+2. **One definition of every rule.** A constraint expressed twice will diverge. The allocation engine, the manual override path, the publication gate and the UI all read the same constraint registry.
+3. **Decisions are recorded, not implied.** A deferral, an override, a stock rejection and a failed delivery are all first-class records with an actor, a reason and a timestamp. If a human made a choice under pressure, the system can reconstruct why.
+4. **The server is authoritative; the client is a buffer.** Clients propose. The server decides, validates and versions. This is what makes offline safe.
+5. **Every write is idempotent and versioned.** Networks retry. Devices replay. A command applied twice must be indistinguishable from a command applied once.
+6. **Consistency inside an aggregate, eventual consistency between them.** One transaction never spans two aggregates. Cross-aggregate work happens through events.
+7. **Authorization is a data-layer contract, not an application afterthought.** Scope is enforced in SQL predicates and database policies, not by filtering in application code after loading everything.
+8. **Boundaries are enforced by the build, not by review.** A module boundary that only exists in a document is already broken.
+9. **Operability is a feature.** Traces, metrics, health, audit and replay are designed in, not added after the first incident.
+10. **Build the monolith well so the services are optional.** Extraction is earned with evidence, never assumed.
+
+---
+
+## 2. Context
+
+### 2.1 Actors
+
+| Actor | Scope | Device and conditions | Responsibility |
 | --- | --- | --- | --- |
-| Store manager | One outlet | Desktop or phone at the counter | Place orders, confirm receipt, report issues |
-| **Stock manager** | One depot | Warehouse terminal | Release or adjust orders locked for insufficient stock |
-| Dispatcher | One or more depots | Large screen, stable network | Close orders, allocate, defer, override, resolve exceptions |
-| Loader | One depot | Shared dock tablet | Load to stop sequence, flag shortfalls, release for departure |
-| Driver | One vehicle, one day | Personal phone, intermittent signal | Execute stops, capture proof, report vehicle and road faults |
-| Admin | Global | CLI or admin screen | Accounts, roles, reference data, calendar |
+| Store manager | One outlet | Desktop or phone at the counter | Place orders, confirm receipt, report issues, see expected arrival |
+| Dispatcher | One or more depots | Large screen, stable network | Close orders, allocate, defer, override, publish, resolve exceptions |
+| Loader | One depot | Shared dock tablet, plans change under them | Load to stop sequence, flag shortfalls, request vehicle interchange, release for departure |
+| Driver | One vehicle, one day | Personal phone, intermittent coverage, operated while stopped | Execute stops, capture proof, report vehicle and road faults |
+| Stock controller | One depot | Warehouse terminal | Approve, adjust or reject orders held for stock. **Served by the external warehouse system** |
+| Administrator | Global | Admin console or trusted host CLI | Accounts, roles, scopes, reference data, calendar |
+| Auditor | Global, read-only | Desktop | Reconstruct any decision after the fact |
 
-The stock manager is **NOW-critical to decide** even if the screen is NEXT, because "order locked pending stock approval" is an order state, and states are expensive to add later.
+### 2.2 System actors
 
-Non-human actors, which need identity for audit just as much:
+Non-human actors need identity too, because audit entries that say "the system did it" are worthless.
 
-| System actor | What it does |
+| Actor | Responsibility |
 | --- | --- |
-| Planner | Runs the allocation engine, produces a draft plan with reasons |
-| Outbox worker | Publishes committed domain events, delivers notifications |
+| Planner | Runs the allocation engine, produces a draft plan with per-order reasons |
+| Outbox relay | Publishes committed domain events, at least once |
+| Notifier | Turns events into notifications with per-channel delivery tracking |
 | Sync reconciler | Applies queued offline operations exactly once |
 | Predictor | Serves service-time, lateness and demand estimates behind a port |
+| Scheduler | Cutoff enforcement, calendar rollover, escalation timers, retention jobs |
+
+### 2.3 External systems
+
+| System | Direction | Contract | Failure policy |
+| --- | --- | --- | --- |
+| **Warehouse and stock** | Outbound query, inbound event | `StockPort`: check availability, reserve, release. Consumes `order.confirmed`, emits `stock.reserved`, `stock.insufficient`, `stock.adjusted` | Circuit breaker. On open, orders enter `stock_unknown` and the dispatcher sees the degraded state explicitly. Never silently assume stock exists |
+| Identity provider (optional) | Outbound | OIDC. `iam.users.user_id` maps to the external subject | Fall back to local sessions already issued; no new logins |
+| Object storage | Outbound | `ProofStore`: put, signed get | Retry with backoff; capture blocks only if durable write fails, and the driver is told |
+| Notification channels | Outbound | Per-channel adapter | At-least-once with delivery records and dead-letter |
+
+The warehouse boundary is an **anti-corruption layer**: their model never leaks into this one. Waypoint holds a local `stock_status` on the order plus a reservation reference, and nothing else of theirs.
 
 ---
 
-## 3. Module map
+## 3. Architecture style
 
-Modules are bounded contexts. Each owns its tables, exposes commands, queries and events, and imports nothing from another module except its published contract. This maps cleanly onto the team's five schemas.
+### ADR-001: Modular monolith with earned extraction
 
-```
-                         ┌───────────────────────────────┐
-                         │  Reference data  (ref)        │  outlets, vehicles,
-                         │  read-mostly master data      │  calendar, travel, products
-                         └──────────────┬────────────────┘
-                                        │ read
-  ┌─────────────────┐   ┌───────────────▼───────────────┐   ┌──────────────────┐
-  │ Identity & (iam)│   │      Ordering       (ops)     │   │  Inventory  (ops)│
-  │ access          │   │  capture, cutoff, status      │◄─►│  stock, ATP,     │
-  └────────┬────────┘   └───────────────┬───────────────┘   │  reservations    │
-           │                            │ confirmed demand   └──────────────────┘
-           │            ┌───────────────▼───────────────┐
-           │ authorizes │      Planning       (ops)     │  runs, trips, allocations,
-           │            │  allocate, defer, publish     │  deferrals, route legs, fuel
-           │            └───────────────┬───────────────┘
-           │                            │ published plan
-           │            ┌───────────────▼───────────────┐
-           │            │      Loading        (ops)     │  sessions, checks,
-           │            │  manifest, shortfall, release │  vehicle interchange
-           │            └───────────────┬───────────────┘
-           │                            │ released trip
-           │            ┌───────────────▼───────────────┐
-           │            │     Execution       (ops)     │  delivery records,
-           │            │  stops, outcomes, POD         │  attachments, proof
-           │            └───────────────┬───────────────┘
-           │                            │ delivery outcome
-           │            ┌───────────────▼───────────────┐
-           │            │      Receipt        (ops)     │  confirmations, disputes
-           │            └───────────────────────────────┘
-           │
-  ┌────────▼───────────────────────────────────────────────────────────────────┐
-  │ Cross-cutting: Issues (ops) · Notification (ops + integration.outbox)       │
-  │ Sync (integration) · Audit (integration) · Intelligence (ml)               │
-  └────────────────────────────────────────────────────────────────────────────┘
-```
+**Decision.** One deployable Spring Boot application composed of strictly bounded modules, one PostgreSQL cluster with a schema per context, an event backbone via transactional outbox. Services are extracted only when a written trigger fires.
 
-| Module | Owns | Scope | Publishes |
-| --- | --- | --- | --- |
-| Reference data | brands, depots, districts, outlets, vehicles, vehicle_day_status, calendar_days, district_travel, service_allowances, products | NOW (products NEXT) | `vehicle.status_changed` |
-| Identity and access | users, roles, user_roles, user_depot_access, user_outlet_access, vehicle_driver_assignments, devices, sessions | NOW (fine-grained access tables NEXT) | `access.revoked` |
-| Ordering | orders, order_items, order_status_history | NOW (items NEXT) | `order.confirmed`, `order.locked`, `order.amended` |
-| Inventory | stock_levels, stock_reservations, stock_adjustments | **NEXT, state NOW** | `stock.insufficient`, `stock.released` |
-| Planning | planning_runs, trips, order_allocations, order_deferrals, route_legs, vehicle_trip_fuel_usage | NOW | `plan.published`, `order.deferred` |
-| Loading | loading_sessions, loading_checks | NOW | `loading.shortfall`, `trip.released` |
-| Execution | delivery_records, proof_of_delivery, attachments | NOW | `delivery.completed`, `delivery.failed` |
-| Receipt | receipt_confirmations | NOW | `receipt.confirmed`, `receipt.disputed` |
-| Issues | operational_issues | NOW | `issue.raised`, `issue.resolved` |
-| Notification | notifications, outbox_events | NEXT (polling NOW) | fan-out only |
-| Sync | sync_operations | NOW | none |
-| Audit | audit_log | NOW (as `events`) | none |
-| Intelligence | model_versions, delivery_predictions, demand_forecasts | LATER (port NOW) | none |
+**Why not microservices now.** The modules in this domain share one transactional core: an allocation references an order, a loading check references an allocation, a delivery record references the same allocation. Splitting those across services replaces a serializable transaction with a distributed saga, and buys nothing at 120 outlets, 60 vehicles and roughly 200 orders a day. The failure modes of a distributed system are worse than the problem being solved.
 
-### Gaps found in the team's schema
+**Why not a plain monolith.** Without enforced boundaries a service layer absorbs everything. The repository has already seen exactly that happen once.
 
-Four things the current schema does not cover but the requirements document demands. Decide these before writing migrations:
+**Extraction triggers.** A module becomes a service when one of these is true and is measured, not asserted:
 
-1. **No inventory tables.** The docx requires that orders with insufficient stock are locked and the stock manager is notified. There is nowhere to hold stock levels, reservations or available-to-promise. Add an inventory module.
-2. **No outlet coordinates.** The docx states GPS coordinates were added for every outlet. `ref.outlets` needs `latitude` and `longitude`, otherwise distance-ordered dispatch and the map view have no input.
-3. **Vehicle interchange is not modelled.** `ops.trips.vehicle_id` is a single column. Swapping the truck at the dock must be an auditable event that revalidates the whole trip, not a silent `UPDATE`.
-4. **Return cost has no home.** The docx requires calculating return cost for the vehicle pool. `ops.vehicle_trip_fuel_usage` covers a trip; the pool-level figure needs either a computed view or explicit columns.
+| Module | Trigger |
+| --- | --- |
+| Planning | Allocation for a depot-day exceeds 30 seconds at p95, or the optimizer needs a different runtime or a GPU |
+| Notification | Sustained outbound volume makes channel latency affect request latency, or a channel needs independent scaling |
+| Intelligence | Model serving needs a Python runtime, independent release cadence, or GPU scheduling |
+| Sync ingest | Reconnect storms after a regional outage saturate the request tier |
+
+Each of those modules is already designed as if remote: it is reached through a port, it owns its data, and it communicates by events. Extraction is a deployment change plus an adapter, not a rewrite.
+
+### ADR-002: Schema per bounded context in one database
+
+Five PostgreSQL schemas (`ref`, `iam`, `ops`, `ml`, `integration`), one cluster. Cross-schema foreign keys are permitted only into `ref` and `iam`, which are stable and shared. Each module has its own database role with grants limited to its schema, so a boundary violation fails at the database even if it somehow passes review.
+
+### ADR-003: CQRS-lite, not event sourcing
+
+Writes go through aggregates with full validation. An append-only event log records what happened. Reads are served by projections shaped per screen and rebuilt from that log. The aggregate state table remains the source of truth, not a fold over events.
+
+Full event sourcing is rejected: it would give replay and audit that the event log already provides, at the cost of schema evolution pain and a much steeper on-ramp for the team.
 
 ---
 
 ## 4. Layers
 
-Seven layers. A request enters at the top, business rules live in the middle, the database is at the bottom, and four concerns cut across all of them.
+Seven layers. A request enters at the top; rules live in the middle; four concerns cut across.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│ 1. CLIENT            Four role apps + service worker + IndexedDB outbox      │
-│    Responsibility: capture intent, show state, survive losing the network.   │
-│    Never: business rules. The client proposes; the server decides.           │
+│ 1  CLIENT        role apps · service worker · IndexedDB outbox               │
+│    does: capture intent, render projections, survive losing the network      │
+│    never: decide anything. Proposes commands, shows what the server returned │
 ├──────────────────────────────────────────────────────────────────────────────┤
-│ 2. EDGE              TLS, Next.js /api proxy, cookies, rate limit, body caps │
-│    Responsibility: transport safety. Rejects malformed traffic cheaply.      │
+│ 2  EDGE          TLS · reverse proxy · rate limit · body caps · CORS/CSRF    │
+│    does: cheap rejection of malformed and abusive traffic before it costs    │
 ├──────────────────────────────────────────────────────────────────────────────┤
-│ 3. API               Command endpoint + query endpoints, DTO validation      │
-│    Responsibility: shape and identity. Who is calling, is the payload valid. │
-│    Never: business decisions, SQL.                                           │
+│ 3  API           command + query endpoints · DTO validation · problem+json   │
+│    does: authenticate, validate shape, map errors to RFC 9457                │
+│    never: business decisions, SQL, transactions                              │
 ├──────────────────────────────────────────────────────────────────────────────┤
-│ 4. APPLICATION       Use cases, command bus, idempotency, TRANSACTIONS       │
-│    Responsibility: orchestrate one decision, atomically. The ONLY layer      │
-│    that opens a transaction or enforces authorization.                       │
+│ 4  APPLICATION   use cases · command bus · idempotency · AUTHZ · TRANSACTION │
+│    does: orchestrate exactly one decision atomically; emit events + outbox   │
+│    the only layer that opens a transaction or makes an access decision       │
 ├──────────────────────────────────────────────────────────────────────────────┤
-│ 5. DOMAIN            Aggregates, invariants, constraint registry, engines    │
-│    Responsibility: the rules. Pure. No Spring, no SQL, no JSON, no clock.    │
-│    Testable in milliseconds. This is where Waypoint's value lives.           │
+│ 5  DOMAIN        aggregates · invariants · constraint registry · engines     │
+│    does: the rules. Pure functions and value objects.                        │
+│    never: Spring, SQL, Jackson, System.currentTimeMillis                     │
 ├──────────────────────────────────────────────────────────────────────────────┤
-│ 6. DATA              Repositories, projections, outbox, sync store           │
-│    Responsibility: persistence and scoped reads. Scope filters run in SQL.   │
+│ 6  DATA          repositories · projections · outbox · RLS policies          │
+│    does: persistence and scoped reads. Scope predicates run IN SQL.          │
 ├──────────────────────────────────────────────────────────────────────────────┤
-│ 7. PLATFORM          Pool, migrations, config, clock, metrics, tracing       │
+│ 7  PLATFORM      pool · migrations · config · clock · telemetry · resilience │
 └──────────────────────────────────────────────────────────────────────────────┘
-   Cross-cutting, applied at a single chosen layer, never scattered:
-   Authentication (3) · Authorization (4 + 6) · Audit (4) · Observability (all)
+  cross-cutting, each applied at exactly one layer, never scattered:
+  authentication (3) · authorization (4 decide, 6 filter) · audit (4) · telemetry (7)
 ```
 
-Three rules that make the layering real rather than decorative:
+**The rules that make this real**
 
-1. **Dependencies point inward.** Layer 5 knows nothing about 4, 3 or 6. Enforced by `ModuleBoundaryTest`.
-2. **One transaction per command, opened in layer 4.** The domain never sees a connection.
-3. **Authorization is enforced twice**: as a decision in layer 4 (may this actor do this?) and as a filter in layer 6 (which rows may this actor see?). Never by filtering in Java after loading everything, which is both a security smell and the current performance bug.
+1. Dependencies point inward. Layer 5 knows nothing of 4, 3 or 6. Enforced by `ModuleBoundaryTest`.
+2. One command, one transaction, opened in layer 4 only.
+3. The domain receives time as a parameter. A rule that reads the system clock cannot be tested.
+4. Authorization is decided in 4 and filtered in 6. Never filtered in application code after a broad read.
+5. Errors cross layer 3 as RFC 9457 `application/problem+json`, never as stack traces or bare strings.
 
 ---
 
-## 5. Authentication layer
+## 5. Module map
 
-**Question it answers: who is this?**
-
-| Concern | Design | Scope |
-| --- | --- | --- |
-| Credential store | Per-user salt, PBKDF2 or Argon2 hash. Never a shared password | NOW |
-| Session | Opaque server-side token in an `HttpOnly`, `SameSite=Strict`, `Secure` cookie. Server-side session table so revocation is instant | NOW |
-| Brute force | Per-email attempt table with a lockout window, shared across instances | NOW |
-| Device identity | `iam.devices` row, separate from user identity. A shared dock tablet is one device with many users | NEXT |
-| Offline re-auth | Session expiry must never clear the local queue. Re-auth restores the same account and the queue drains | NOW |
-| First login offline | Not supported, stated explicitly. A device must be online once | NOW |
-| Token rotation | Rotate session on privilege change; revoke all sessions on role change or disable | NOW |
-
-Device identity is worth the extra table: without it, an audit trail for a shared tablet says "the loader account did it" and cannot distinguish which of four tablets or which shift.
-
----
-
-## 6. Authorization layer
-
-**Question it answers: may this actor do this, to this row, right now?**
-
-Role alone is not enough. Every role in Waypoint is scoped to something: a store manager to an outlet, a loader to a depot, a driver to a vehicle for a day. So this is role-based access control for the verb plus attribute-based scoping for the row.
+Twelve modules. Full specifications, including the layers inside each and its service connections, are in [MODULES.md](docs/architecture/MODULES.md).
 
 ```
-Decision = Role grants the command?  AND  Scope covers the target row?
-                    │                              │
-              iam.user_roles              iam.user_depot_access
-                                          iam.user_outlet_access
-                                          iam.vehicle_driver_assignments (date-bounded)
+                  ┌──────────────────────────────────────────┐
+                  │  ref · Reference data                     │
+                  │  outlets vehicles calendar travel products│
+                  └───────────────┬──────────────────────────┘
+                                  │ read-only, cached
+   ┌───────────────┐   ┌──────────▼───────────┐   ╔═══════════════════════╗
+   │ iam · Identity│   │ ops · Ordering        │──►║ EXTERNAL              ║
+   │ and access    │   │ capture cutoff status │◄──║ Warehouse and stock   ║
+   └───────┬───────┘   └──────────┬───────────┘   ╚═══════════════════════╝
+           │                      │ order.confirmed         via StockPort +
+           │ authorizes           ▼                         anti-corruption layer
+           │           ┌──────────────────────┐
+           │           │ ops · Planning        │  runs trips allocations
+           │           │ allocate defer publish│  deferrals legs fuel
+           │           └──────────┬───────────┘
+           │                      │ plan.published
+           │           ┌──────────▼───────────┐
+           │           │ ops · Loading         │  sessions checks interchange
+           │           └──────────┬───────────┘
+           │                      │ trip.released
+           │           ┌──────────▼───────────┐
+           │           │ ops · Execution       │  stops outcomes proof
+           │           └──────────┬───────────┘
+           │                      │ delivery.completed / failed
+           │           ┌──────────▼───────────┐
+           │           │ ops · Receipt         │  confirmation dispute
+           │           └──────────────────────┘
+           │
+  ┌────────▼────────────────────────────────────────────────────────────────┐
+  │ Issues · Notification · Sync · Audit · Intelligence · Query (projections)│
+  └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-| Role | May command | Scoped by |
-| --- | --- | --- |
-| store_manager | place order, amend before cutoff, confirm receipt, report issue | `user_outlet_access` |
-| stock_manager | approve, adjust or reject a locked order | `user_depot_access` |
-| dispatcher | close orders, generate draft, override allocation, publish, resolve exception | `user_depot_access` |
-| loader | start and finish loading, record check, flag shortfall, request interchange | `user_depot_access` |
-| driver | start stop, record outcome, capture proof, report fault, set vehicle status | `vehicle_driver_assignments` on the plan date |
-| admin | manage accounts, roles, reference data, calendar | global, host-trusted only |
-
-Enforcement rules, all NOW:
-
-1. **One policy object.** `AuthorizationPolicy` in `identity/domain` answers `permits(actor, command, target)`. Nothing else makes access decisions.
-2. **Deny by default.** An unlisted command or unmatched scope is a 403 with an audit entry, never a silently empty result.
-3. **Reads are scoped in SQL.** The scope predicate is part of the query, not a post-filter. This is a security property and the fix for the current full-table read.
-4. **Driver scope is time-bounded.** Access is to a vehicle on a date. Yesterday's driver cannot post today's delivery.
-5. **Write authorization is re-checked inside the transaction.** A permission revoked a second ago must not win a race.
-6. **Every denied attempt is audited** with actor, device, command and target.
-
----
-
-## 7. Data layer, and how it maps to objects
-
-### 7.1 Schema separation
-
-Five PostgreSQL schemas, as the team designed. The separation buys real things, not tidiness:
-
-| Schema | Why separate |
-| --- | --- |
-| `ref` | Read-mostly, cacheable, changes on a different cadence. Safe to replicate |
-| `iam` | Security-sensitive. Different grants, different audit requirements |
-| `ops` | The transactional core. Highest write rate, strictest consistency |
-| `ml` | Model outputs must never be mixed into OLTP tables, so a bad model is never a data-integrity problem |
-| `integration` | Sync, outbox and audit are infrastructure, not business state. Different retention |
-
-### 7.2 Aggregates: the object-to-table mapping
-
-An aggregate is a consistency boundary: **one aggregate, one transaction, one lock**. This is the most important design decision in the data layer, because it decides what can be changed together.
-
-| Aggregate | Root table | Included tables | Invariant it protects |
+| Module | Purpose | Owns | Extractable |
 | --- | --- | --- | --- |
-| `Order` | `ops.orders` | `order_items`, `order_status_history` | Status transitions are legal; quantities never silently shrink |
-| `PlanningRun` | `ops.planning_runs` | `trips`, `order_allocations`, `order_deferrals`, `route_legs`, `vehicle_trip_fuel_usage` | **Every constraint holds across the whole plan**, which is why the plan, not the trip, is the aggregate |
-| `LoadingSession` | `ops.loading_sessions` | `loading_checks` | A trip is released only when every allocated order is checked |
-| `DeliveryRecord` | `ops.delivery_records` | `proof_of_delivery`, `attachments` | An outcome is recorded once, with its evidence |
-| `ReceiptConfirmation` | `ops.receipt_confirmations` | none | Confirmation refers to a real delivery |
-| `VehicleDayStatus` | `ref.vehicle_day_status` | none | One availability state per vehicle per day |
-| `StockPosition` | `ops.stock_levels` | `stock_reservations` | Reserved never exceeds on-hand |
+| Reference data | Master data and calendar policy | `ref.*` | no, shared by all |
+| Identity and access | Who you are, what you may do, where | `iam.*` | yes, standard boundary |
+| Ordering | Demand capture, cutoff, order lifecycle | `ops.orders`, `order_items`, `order_status_history` | no |
+| Planning | Allocation, deferral, publication | `ops.planning_runs`, `trips`, `order_allocations`, `order_deferrals`, `route_legs`, `vehicle_trip_fuel_usage` | yes, on CPU trigger |
+| Loading | Dock workflow, shortfalls, interchange | `ops.loading_sessions`, `loading_checks`, `trip_vehicle_assignments` | no |
+| Execution | Stop outcomes and proof | `ops.delivery_records`, `proof_of_delivery`, `attachments` | no |
+| Receipt | Store confirmation and dispute | `ops.receipt_confirmations` | no |
+| Issues | Operational problem lifecycle | `ops.operational_issues` | no |
+| Notification | Event to message fan-out and delivery tracking | `ops.notifications`, `notification_deliveries` | yes, on volume trigger |
+| Sync | Offline operation reconciliation | `integration.sync_operations` | yes, on reconnect-storm trigger |
+| Audit | Immutable record of who did what from where | `integration.audit_log` | no |
+| Intelligence | Predictions and forecasts | `ml.*` | yes, on runtime trigger |
 
-Aggregates reference each other **by identifier only, never by object graph**. An allocation holds an `order_id`, not an `Order`. This keeps transactions small and makes later extraction possible.
+**How modules connect.** Three mechanisms only, in this order of preference:
 
-### 7.3 Identity, versioning and concurrency
+1. **Domain event** through the outbox. Default for anything that is a consequence rather than a precondition. Asynchronous, at least once, consumer idempotent.
+2. **Contract query** into another module's published read interface. Synchronous, read-only, no transaction sharing.
+3. **Port** for anything outside the process: warehouse, object storage, predictor, channels. Always behind a circuit breaker with a defined fallback.
 
-| Concern | Rule |
+Never: reading another module's tables, sharing an entity class, or joining across context schemas.
+
+---
+
+## 6. Cross-cutting design
+
+### 6.1 Authentication
+
+| Concern | Design |
 | --- | --- |
-| Primary keys | UUIDs generated by the writer, so an offline device can mint an id without the server |
-| Natural keys | `ref` tables keep their CSV identifiers (`OUT001`, `VEH014`) as the key; they are stable and appear in the dataset |
-| Optimistic concurrency | Every mutable aggregate root has `version`. Commands carry `expected_version`; a mismatch is rejected, never merged |
-| Isolation | `SERIALIZABLE` for command transactions, with bounded retry on `40001` and `40P01` |
-| Idempotency | `(command_id, user_id)` receipt with a payload fingerprint. Same id and payload returns the stored response; same id and different payload is rejected |
-| Time | Server clock is authoritative in `Asia/Colombo`. Client time is stored alongside, never used for decisions |
+| Credentials | Argon2id, per-user salt, never a shared password. OIDC optional, mapped to `iam.users` |
+| Session | Opaque server-side token, `HttpOnly` `Secure` `SameSite=Strict` cookie, server-side table so revocation is immediate |
+| Brute force | Per-identity attempt ledger with lockout, shared across instances |
+| Device identity | `iam.devices`, separate from user identity. A shared dock tablet is one device used by many people, and audit must say which |
+| Offline | Session expiry never clears the local queue. Re-authentication restores the account and drains it. First login requires connectivity, stated in the UI |
+| Rotation | Session rotates on privilege change; all sessions revoke on role change or disable |
 
-### 7.4 Reading: projections, not joins-at-request-time
+### 6.2 Authorization
 
-Each role reads a projection shaped for its screen, built from the event log and refreshed on write:
+Every role here is scoped to something, so role alone is insufficient. The model is **RBAC for the verb, ABAC for the row**, structured as a policy decision point (PDP) separate from the enforcement points (PEP).
 
-| Projection | Consumer | Key |
+```
+PEP (application layer)  ──ask──►  PDP  ──uses──►  role grants        (iam.user_roles)
+       │                            │              depot scope        (iam.user_depot_access)
+       │ permits?                   │              outlet scope       (iam.user_outlet_access)
+       │                            │              vehicle assignment (temporal, date-bounded)
+       ▼                            ▼              resource state     (is the plan published?)
+   command executes            allow / deny + reason
+PEP (data layer) ──► RLS policy on every ops table, using the transaction-scoped actor
+```
+
+Rules:
+
+1. **Deny by default.** An unlisted command or unmatched scope is `403` plus an audit entry, never an empty list that looks like no data.
+2. **Decide once, in the PDP.** `AuthorizationPolicy.permits(actor, command, target)` is the only place an access decision is made.
+3. **Defence in depth with RLS.** PostgreSQL row-level security policies enforce scope at the database, using `SET LOCAL app.actor_id` inside the transaction. Set it with `SET LOCAL`, never `SET`, or a pooled connection leaks one user's identity into another's request. The application role must not hold `BYPASSRLS`.
+4. **Driver scope is temporal.** Access is to a vehicle on a date, not to a vehicle forever. Yesterday's driver cannot post today's delivery.
+5. **Re-check inside the transaction.** A permission revoked a second ago must not lose a race.
+6. **Externalizable.** The PDP is an interface. If policy complexity grows, it can move to OPA, Cedar or a Zanzibar-style store behind the AuthZEN interface without touching call sites. It is not worth a separate deployment today.
+
+### 6.3 Events and the outbox
+
+```
+command ──► aggregate ──► [ state change + event + outbox row ] one transaction, committed
+                                           │
+                            relay polls ───┴──► broker / in-process bus ──► consumers
+                                                     at least once, ordered per aggregate
+```
+
+- Business state and the intent to publish commit **together**. No event is lost because the process died after commit.
+- Consumers are idempotent and keyed by `event_id`. At-least-once plus idempotency beats exactly-once, which does not exist.
+- The relay carries `attempts`, `next_attempt_at` and a **dead-letter** state. A poison event never blocks the queue and never disappears quietly.
+- Ordering is guaranteed per aggregate, not globally. Any consumer that needs global order is mis-designed.
+
+### 6.4 Offline and sync
+
+The pattern is **local store as buffer, server authoritative**. Not CRDTs: proof of delivery is not collaborative text, and last-writer-wins would silently destroy evidence.
+
+1. The device writes intent to IndexedDB inside a local transaction and only then acknowledges. "Saved" means durable on this device.
+2. A background worker drains the queue with exponential backoff **and jitter**. Without jitter, a regional outage ends with every device retrying in lockstep; measured results put p99 at roughly 2600 ms and ~17% errors without jitter versus 1400 ms and ~6% with it.
+3. Every operation carries a client-generated id and an expected version.
+4. A conflict is never auto-merged. It is held for human review against the current server record.
+5. Operations are applied in submission order per aggregate.
+
+### 6.5 Audit
+
+Two separate concerns, often wrongly merged:
+
+| Layer | What it records | Retention |
 | --- | --- | --- |
-| `DispatcherBoard` | dispatcher | (depot, day) |
-| `LoaderManifest` | loader | (depot, trip) |
-| `DriverRunSheet` | driver | (vehicle, day) |
-| `StoreTimeline` | store manager | (outlet, order) |
+| Business audit (`integration.audit_log`) | Actor, device, command, target, before and after, reason | Years. Partitioned monthly |
+| Database audit (pgaudit) | Statement-level activity for privileged roles | Weeks. Security forensics |
 
-Clients poll a **cursor**: `GET /sync?since=<cursor>` returns only entitled events after that point. Server-sent events push the cursor when something changes, with polling as fallback. History is keyset-paginated. NOW.
+Every state-changing command writes a business audit row in the same transaction. Denied attempts are audited too, because failed access attempts are the interesting ones.
 
-### 7.5 Files
+### 6.6 Resilience
 
-Proof photos and signatures are file metadata in `ops.attachments` with bytes in object storage, fetched through short-lived signed URLs. NOW ships bytes in PostgreSQL behind a `ProofStore` port, which is an accepted trade at 120 outlets and a one-adapter change later.
+| Pattern | Applied to | Setting |
+| --- | --- | --- |
+| Timeout | Every outbound call and every query | Budgeted per request; no unbounded waits |
+| Retry with jitter | Transient database and port failures | Exponential, plus or minus 50% jitter, capped attempts, only for idempotent operations |
+| Circuit breaker | Warehouse, object storage, channels, predictor | Open after a failure-rate threshold, half-open probe, and a **defined degraded behaviour per port** |
+| Bulkhead | Connection pools and worker pools | Planning, sync ingest and request serving get separate pools, so a reconnect storm cannot starve the dispatcher |
+| Backpressure | Sync ingest | Queue depth limits with explicit client signalling |
+| Graceful degradation | Predictor, notification | The system plans without predictions; it simply says so |
 
-### 7.6 Reliable messaging
+Degradation must be **visible**. A dispatcher who cannot tell that stock checking is down will trust a plan they should not.
 
-A notification is never sent inside the request transaction. The state change and an `integration.outbox_events` row commit together; a worker publishes after commit, at least once, and consumers are idempotent. This is what makes "the store was told its order was deferred" as reliable as the deferral itself.
+### 6.7 Observability
+
+- **Traces:** OpenTelemetry, propagated from the client through the command to the database and outbox consumers. A driver's failed sync is one trace.
+- **Metrics:** RED for the API, plus domain metrics that matter to the business: orders deferred per run, constraint violations by type, sync queue age p95, time from delivery to receipt confirmation.
+- **Logs:** structured, correlation id on every line, no payload bodies containing personal data.
+- **SLOs:** defined per user-visible flow with error budgets, not one global uptime number.
+
+| Flow | SLI | Target |
+| --- | --- | --- |
+| Place order | p95 latency | < 500 ms |
+| Generate draft plan | p95 duration | < 10 s per depot-day |
+| Record delivery, online | p95 latency | < 800 ms |
+| Sync queued operation after reconnect | p95 time to confirm | < 30 s |
+| Command correctness | duplicate side effects | zero, alerted |
 
 ---
 
-## 8. Edge cases
+## 7. API contract standards
 
-This is the section that separates a demo from a system. Each case names the trigger, the required behaviour and where it is enforced.
+These are the conventions every endpoint follows. They are cheap to adopt early and expensive to retrofit.
 
-### 8.1 Ordering and stock
-
-| Case | Behaviour | Enforced in |
-| --- | --- | --- |
-| Order arrives after 16:00 | Accepted for the next operating run. Cutoff evaluated server-side in Asia/Colombo | Ordering domain |
-| Order for a non-operating day | Rolled to the next `is_operating` date, shown to the store before confirm | Ordering + Reference |
-| Chilled and ambient in one request | Split into two orders. A vehicle eligibility decision cannot straddle temperature | Ordering domain |
-| Double submit or lost acknowledgment | Same `command_id` returns the original order, no duplicate | Application |
-| Amend after allocation | Version conflict. Requires dispatcher revalidation, never silent | Ordering + Planning |
-| **Insufficient stock** | Order state `locked`, stock manager notified, excluded from allocation. If unresolved at cutoff, auto-defer with reason `stock_unresolved` | Inventory + Ordering |
-| Stock partially available | Stock manager may adjust down with a mandatory reason; the store is notified of the adjusted quantity | Inventory |
-| Outlet window shorter than its service allowance | Rejected at capture with the arithmetic shown, not discovered at 04:00 | Reference + Ordering |
-
-### 8.2 Planning and capacity
-
-| Case | Behaviour | Enforced in |
-| --- | --- | --- |
-| Demand exceeds capacity | Defer by policy: prior skips, then Fresh, then chilled, then earliest closing window. Every deferral records the **binding constraint** | Planning domain |
-| Order exceeds every vehicle's capacity | Marked `unservable`, surfaced for a split decision. Never silently deferred forever | Constraint registry |
-| Outlet skipped on consecutive runs | Skip count escalates priority; publishing requires an explanation | Planning |
-| Vehicle enters workshop after publication | Only affected trips are replanned. Untouched trips keep identity and loading state | Planning |
-| Weekly fuel quota exhausted | Allocation blocked with remaining litres shown. Reservations include other published plans in the same Monday-to-Sunday week | Constraint registry |
-| Two dispatchers edit one draft | Draft revision check rejects the stale edit with a diff | Application |
-| Order set changed since draft | Publication blocked, regeneration required. Coverage must match the queue | Planning |
-| Mall window conflicts with the Fresh window | Infeasible, named explicitly. Not silently dropped | Constraint registry |
-| Chilled order to a van-only outlet above reefer-van capacity | Unservable, named. This is the documented `OVERLOAD-001` fixture | Constraint registry |
-| Longest-distance-first conflicts with a delivery window | **Windows win.** Distance ordering is a tie-break, never a constraint override | Planning domain |
-| Plan generated for a non-operating day | Refused | Reference |
-
-### 8.3 Loading
-
-| Case | Behaviour | Enforced in |
-| --- | --- | --- |
-| Missing or damaged goods at the dock | Departure blocked. Dispatcher records a replacement, loader rechecks every order in the trip | Loading |
-| **Assigned truck unavailable at the dock** | Interchange request. The substitute is revalidated for capacity, temperature, access, depot and fuel **across the whole trip**. Recorded as an event, never an `UPDATE` | Loading + Planning |
-| No compatible substitute vehicle | Trip deferred as a unit with reason, orders carried forward with identity | Planning |
-| Loader shift ends mid-session | Session persists with partial checks. Another loader resumes; both are recorded | Loading |
-| Loading complete, no driver assigned | Trip waits in `ready_for_departure`. Dispatcher is notified rather than the trip silently stalling | Loading + Notification |
-| Loader marks loaded twice | Idempotent, no duplicate check rows | Application |
-
-### 8.4 Execution and offline
-
-| Case | Behaviour | Enforced in |
-| --- | --- | --- |
-| Offline for an entire run | All outcomes queue locally. UI acknowledges only after the **local** write is durable | Client + Sync |
-| Reconnect with a queue | Operations replay in order, each idempotent. Accepted items leave the queue only on server confirmation | Sync |
-| Server state changed while offline | Conflict held in "Needs review". The user inspects the current record and explicitly discards or re-enters. **Never auto-overwrite** | Sync |
-| Arrive before the window opens | Vehicle waits. Service time starts at window open, not at arrival | Execution domain |
-| Arrive after the window closes | Delivery still recorded, lateness flagged with a reason | Execution domain |
-| Outlet closed or refuses goods | `failed` outcome plus an issue. Dispatcher chooses redelivery, return or closure. Redelivery links a new order and preserves the original evidence | Execution + Issues |
-| Vehicle breaks down mid-route | Vehicle set `fault`, issue raised, remaining stops released for replanning, goods disposition recorded | Execution + Planning |
-| Camera denied or photo too large | Delivery may complete with a recorded reason, flagged as lower-evidence. Work is never blocked by a device limitation | Client + Execution |
-| Device lost or data cleared before sync | Unsynced work is lost. Stated plainly in the UI; the durable-save acknowledgment is the contract | Client |
-| Device clock wrong | Server timestamps decide. Client time is stored for forensics only | Application |
-| Session expires with a pending queue | Re-authenticate without clearing the queue. Sign-out is blocked while work is pending | Identity + Client |
-
-### 8.5 Receipt, platform and data
-
-| Case | Behaviour |
+| Concern | Standard |
 | --- | --- |
-| Store confirms partial receipt | Recorded as `partial` with quantities, raises a dispute issue |
-| Store never confirms | Auto-closes after a configured window with status `unconfirmed`, never silently "delivered" |
-| Store disputes after proof exists | Dispute recorded alongside the proof. Evidence is never deleted or overwritten |
-| Role changed or account disabled mid-session | All sessions revoked, account audit written, pending queue preserved for review |
-| Scope violation attempt | 403 plus audit entry. Never an empty list that looks like "no data" |
-| Serialization failure or deadlock | Bounded retry that re-runs validation, never a blind replay |
-| Outbox worker crashes after commit | Events redelivered at least once. Consumers are idempotent |
-| Supplied calendar runs out (ends June 2026) | Extension policy at startup, Monday to Saturday, with supplied dates and `CALENDAR_FILE` overrides taking precedence |
-| Reference CSV changes between releases | Versioned reference load; published plans keep the snapshot they were built against |
+| Mutations | `POST /api/commands`, one envelope, `command_id` + `expected_version` + typed payload |
+| Idempotency | `Idempotency-Key` header, receipt stored with a payload fingerprint. Same key and payload returns the original response; same key and different payload is `409`. A convention popularised by Stripe, not an RFC |
+| Errors | RFC 9457 `application/problem+json` with `type`, `title`, `status`, `detail`, `instance`, plus a `violations` extension carrying the failed constraints. **The error body is part of the contract**, because clients branch on it |
+| Optimistic concurrency | `ETag` on reads, `If-Match` on writes, mapped to the aggregate version |
+| Pagination | Cursor based on a keyset, never `OFFSET`. Offset pagination degrades exactly when the table grows |
+| Delta sync | `GET /api/sync?since=<cursor>` returning only entitled events since the cursor |
+| Push | Server-sent events for cursor advancement, with polling fallback for hostile networks |
+| Versioning | Media type versioning, `Accept: application/vnd.waypoint.v1+json`, with `/v1` URI fallback. Additive changes never break; removals require a new version and a deprecation window |
+| Contract testing | Consumer-driven contract tests between the client and API, and between modules across their published contracts. Breaking a contract fails CI, not production |
+| Health | `/health/live` and `/health/ready` separated, so a slow dependency does not get the process killed |
 
 ---
 
-## 9. Notification matrix
+## 8. Data architecture
 
-From the team's document, formalized. Every row is an outbox event with a durable delivery record.
+Summary only. The validation of the team's schema, the twenty findings and the corrected target model are in [DATA-MODEL-REVIEW.md](docs/architecture/DATA-MODEL-REVIEW.md).
 
-| Event | From | To | Trigger |
-| --- | --- | --- | --- |
-| `stock.insufficient` | Inventory | Stock manager | Order exceeds available-to-promise |
-| `stock.released` | Inventory | Store manager | Locked order approved or adjusted |
-| `order.deferred` | Planning | Store manager | Plan published without this order, with reason |
-| `plan.published` | Planning | Loader, driver | Trips available for loading |
-| `loading.shortfall` | Loading | Dispatcher | Missing or damaged goods |
-| `trip.released` | Loading | Driver | Vehicle ready, dock assigned |
-| `delivery.completed` | Execution | Store manager | Proof captured |
-| `delivery.failed` | Execution | Dispatcher, store manager | Refused, closed or undeliverable |
-| `issue.raised` | Any | Dispatcher | Fault, delay, damage, access problem |
-| `vehicle.status_changed` | Execution | Dispatcher | Available, on trip, workshop, fault |
-| `eta.changed` | Planning | Store manager | Material change to expected arrival |
+**Aggregates**, the consistency boundaries that decide what may change together:
+
+| Aggregate | Root | Why this boundary |
+| --- | --- | --- |
+| `Order` | `ops.orders` | Status transitions and quantities must not change under a plan without a version bump |
+| `PlanningRun` | `ops.planning_runs` | **Constraints hold across the whole plan**, so the plan is the aggregate, not the trip |
+| `LoadingSession` | `ops.loading_sessions` | A trip releases only when every allocated order is checked |
+| `DeliveryRecord` | `ops.delivery_records` | One outcome, recorded once, with its evidence attached |
+| `ReceiptConfirmation` | `ops.receipt_confirmations` | Store acceptance is a separate event from driver proof |
+| `VehicleDay` | `ref.vehicle_day_status` | One availability state per vehicle per day |
+
+Aggregates reference each other **by identifier only**. An allocation holds an `order_id`, never an `Order` object. This keeps transactions small and extraction possible.
+
+**Key conventions**: UUIDv7 surrogate primary keys for time-ordered index locality, natural dataset keys (`OUT001`, `VEH014`) kept as unique constraints, `timestamptz` everywhere, `numeric` with explicit precision for weight, volume and fuel, and expand-contract migrations so a deploy never requires downtime.
 
 ---
 
-## 10. Work breakdown and developer assignment
+## 9. Runtime and delivery
+
+### 9.1 Topology
+
+```
+          ┌──────────┐
+ clients ─┤   CDN    ├─► Next.js (stateless, N replicas) ─┐
+          └──────────┘                                     │ same-origin /api proxy
+                                                           ▼
+                                        ┌─────────────────────────────────┐
+                                        │ Spring Boot app tier, N replicas│
+                                        │ request pool | worker pool      │ bulkheads
+                                        └───────┬─────────────────┬───────┘
+                                                │                 │
+                              ┌─────────────────▼───┐   ┌─────────▼────────┐
+                              │ PostgreSQL primary  │   │ Object storage   │
+                              │  + read replicas    │   │  proof artifacts │
+                              └─────────────────────┘   └──────────────────┘
+                                                │
+                                   ┌────────────▼─────────────┐
+                                   │ Outbox relay + scheduler │ single-writer leases
+                                   └──────────────────────────┘
+```
+
+The app tier is stateless: sessions in PostgreSQL, no sticky routing, any replica serves any request. The relay and scheduler use advisory-lock leases so exactly one instance runs each job.
+
+### 9.2 Environments and pipeline
+
+`local` (Docker database, native app) → `ci` (ephemeral database per run) → `staging` (production-shaped, anonymised data) → `production`.
+
+CI gates, all blocking: compile, domain unit tests, module boundary tests, integration tests on an ephemeral database, contract tests, migration dry-run against a production-shaped schema, security scan, image build.
+
+Deployment is rolling with health gates; migrations run as a separate explicit step, never on boot or on request. Expand-contract means the previous version keeps working during the rollout.
+
+### 9.3 Data lifecycle and privacy
+
+Signatures, recipient names, device identifiers and driver activity are personal data. Retention is defined per table, high-volume tables (`route_legs`, `delivery_records`, `audit_log`, `outbox_events`, `sync_operations`) are range-partitioned by date, and archival moves closed periods out of the hot path. Proof artifacts have an explicit retention period and are served only through short-lived signed URLs.
+
+---
+
+## 10. Delivery plan
 
 ### 10.1 Workstreams and dependency order
 
 ```
-WS0 Platform foundation ───────────────────────────────┐  blocks everything
-    schemas, migrations, Database seam, config, clock  │
-                                                        │
-WS1 Identity & access ◄─────────────────────────────────┤  blocks every write
-WS2 Reference data    ◄─────────────────────────────────┘  blocks planning
-        │                    │
-        ▼                    ▼
-WS3 Ordering + Inventory ──► WS4 Planning engine ──► WS5 Loading ──► WS6 Execution ──► WS7 Receipt
-        │                    │                       │              │
-        └────────────────────┴───────────────────────┴──────────────┘
-                                     │
-                     WS8 Notification + outbox  (consumes all events)
-                     WS9 Read models + role UIs (consumes all projections)
-                     WS10 Intelligence ports    (independent, port first)
+WS0 Platform foundation ────────────────────────────────┐ blocks everything
+    schemas, migrations, db seam, config, clock,        │
+    telemetry, error contract, boundary tests            │
+WS1 Identity and access ◄───────────────────────────────┤ blocks every write
+WS2 Reference data      ◄───────────────────────────────┘ blocks planning
+        │                      │
+        ▼                      ▼
+WS3 Ordering ─────────────► WS4 Planning ──► WS5 Loading ──► WS6 Execution ──► WS7 Receipt
+   (+ warehouse ACL)           │                │               │                │
+        └──────────────────────┴────────────────┴───────────────┴────────────────┘
+                                        │
+                   WS8 Notification and outbox · WS9 Query, projections and UIs
+                   WS10 Intelligence ports · WS11 Platform hardening
 ```
 
 ### 10.2 Assignment
 
-Five developers is the natural split. With fewer, merge adjacent rows and keep the order.
-
-| Stream | Owner | Deliverable | Depends on | Parallel from |
-| --- | --- | --- | --- | --- |
-| WS0 Platform | Dev A | Schemas, migrations, `platform/db`, config, clock, boundary tests | none | day 0 |
-| WS1 Identity | Dev A | Authn, `AuthorizationPolicy`, scope tables, device registry | WS0 | day 1 |
-| WS2 Reference | Dev B | Loaders, caches, calendar policy, vehicle day status | WS0 | day 1 |
-| WS3 Ordering + Inventory | Dev B | Capture, cutoff, status machine, stock lock and release | WS0, WS2 | day 2 |
-| WS4 Planning | Dev C | Constraint registry, allocation engine, deferral, publication | WS2, WS3 contract | day 2 |
-| WS5 Loading | Dev D | Sessions, checks, shortfall, vehicle interchange | WS4 contract | day 3 |
-| WS6 Execution + Offline | Dev D | Stops, outcomes, proof, sync reconciliation | WS5 contract | day 3 |
-| WS7 Receipt + Issues | Dev E | Confirmation, dispute, issue lifecycle | WS6 contract | day 4 |
-| WS8 Notification | Dev E | Outbox, worker, notification matrix | WS0, events | day 4 |
-| WS9 Read models + UI | Dev C, E | Projections, cursor sync, four role shells | WS1, projections | day 2 |
-| WS10 Intelligence | Dev B | `TravelAndServiceEstimator` port + deterministic implementation | WS4 contract | day 5 |
+| Stream | Deliverable | Depends on | Starts |
+| --- | --- | --- | --- |
+| WS0 Platform | Schemas, migrations, database seam, config, clock, telemetry, problem+json, boundary tests | none | week 1 |
+| WS1 Identity | Authentication, PDP, scope tables, RLS policies, device registry | WS0 | week 1 |
+| WS2 Reference | Loaders, caches, calendar policy, vehicle day status | WS0 | week 1 |
+| WS3 Ordering | Capture, cutoff, state machine, warehouse anti-corruption layer | WS0, WS2 | week 2 |
+| WS4 Planning | Constraint registry, allocation engine, deferral, publication, fuel | WS2, WS3 contract | week 2 |
+| WS5 Loading | Sessions, checks, shortfall, vehicle interchange | WS4 contract | week 3 |
+| WS6 Execution | Stops, outcomes, proof, sync reconciliation | WS5 contract | week 3 |
+| WS7 Receipt and Issues | Confirmation, dispute, issue lifecycle | WS6 contract | week 4 |
+| WS8 Notification | Outbox relay, notifier, channels, dead-letter | WS0, events | week 3 |
+| WS9 Query and UI | Projections, cursor sync, role applications | WS1, projections | week 2 |
+| WS10 Intelligence | Estimator ports, deterministic implementations, model registry | WS4 contract | week 5 |
+| WS11 Hardening | Load testing, chaos drills, SLO instrumentation, runbooks | all | week 6 |
 
 ### 10.3 How parallel work stays unblocked
 
-The dependency arrows above are **contract dependencies, not code dependencies**. The unlock is to land contracts first:
+The arrows are **contract dependencies, not code dependencies**:
 
-1. **Day 0 and 1, contracts only.** Every module's `contract` package (DTOs, event payloads, query interfaces) is written and merged before implementations start. A downstream stream codes against the interface and a stub.
-2. **Migrations are additive and owned by one stream.** Only WS0 writes migration files, on request, so two developers never author conflicting schema versions.
-3. **Events are the integration point.** If WS5 needs something from WS4, it consumes an event or calls a contract query. It never reads `ops.trips` directly. `ModuleBoundaryTest` fails the build if it tries.
-4. **One branch per workstream**, rebased daily onto `main`. Long-lived branches across a 40-table change are how teams lose a weekend.
-5. **Definition of done per stream:** domain unit tests without a database, one integration test through the command bus, authorization test for a denied scope, boundary test passing, an entry in `docs/development-docs/development-log.md`.
-
-### 10.4 Repository maintenance
-
-| Practice | Rule |
-| --- | --- |
-| Branching | `main` is integration. One branch per workstream, PR review, no direct pushes |
-| Ownership | One owner per module folder. Cross-module changes need both owners |
-| Boundaries | `ModuleBoundaryTest` (backend) and `tests/boundaries.test.ts` (frontend) run in CI. A violation fails the build |
-| Migrations | Forward-only, checksummed, applied by an explicit command. Never on build or request |
-| Contracts | A change to a `contract` package is a breaking change and is announced in the log |
-| Log | Append to the development log when a unit of work lands. It is how parallel sessions stay informed |
-| Documentation | Architecture diagram and data model regenerated when the schema changes, since the Hackathon requires both in `docs/` |
+1. **Contracts land first.** Every module's `contract` package, its event payloads and its problem types are merged before implementations begin. Downstream streams build against the interface and a stub.
+2. **One stream owns migrations.** Only WS0 authors migration files, on request, so two developers never write conflicting versions.
+3. **Integrate by event or contract query.** Never by reading another module's tables. The boundary test fails the build if someone tries.
+4. **Short-lived branches**, rebased daily. Long-lived branches across a schema change lose weekends.
+5. **Definition of done:** domain tests without a database, one integration test through the command bus, an authorization test for a denied scope, a contract test, boundary tests passing, telemetry emitted, and a development log entry.
 
 ---
 
-## 11. What to build for October 4
+## 11. Open decisions
 
-Against the target above, the competition subset is:
-
-**Build now:** WS0, WS1 (roles and scoping, simplified access tables), WS2, WS3 ordering with the `locked` state present even if the stock screen is stubbed, WS4 complete, WS5 including interchange, WS6 complete with offline, WS7 complete, WS9 with cursor sync, WS10 port only.
-
-**Design now, build later:** full inventory module and stock manager screen, outbox-driven notifications (poll instead), device registry, object storage for proof, ML serving, products and order items.
-
-**Deliberately out:** live GPS tracking, in-app turn-by-turn navigation, SMS or email gateways, automatic order splitting, multi-tenancy.
-
-The single most valuable thing the target design buys the competition build is that **the `locked` order state, the deferral record, the allocation-as-a-decision separation and the event log all exist from day one**. Each is cheap now and expensive to retrofit.
+| # | Decision | Recommendation |
+| --- | --- | --- |
+| 1 | Local identity or OIDC provider | Local now; the `iam.users` mapping keeps OIDC a later adapter |
+| 2 | Policy engine in-process or externalized | In-process PDP behind an interface. Externalize only if policy authoring moves outside engineering |
+| 3 | Event bus: outbox polling or a broker | Outbox with in-process dispatch now; the relay is broker-ready when a second consumer appears |
+| 4 | Products and order line items | Adopt them; capacity maths must move to line level in one change, never half |
+| 5 | Migrate the current nine-table JSONB schema to the target model | Yes, with expand-contract, now that the timeline allows it. See the migration sequence in DATA-MODEL-REVIEW.md |
+| 6 | Duplicate rule implementation in `frontend/lib/` | Delete it and port its tests to the domain layer |
 
 ---
 
-## 12. Open decisions
+## Sources
 
-These need a team answer, not an architect's guess:
-
-1. **Supabase Auth or self-hosted identity?** The schema guide raises it. Supabase removes password handling but adds a dependency and complicates the offline story. Recommendation: self-hosted for the competition, since it already works.
-2. **Inventory depth.** Full stock ledger, or a single available-to-promise number per outlet and product? Recommendation: the simple version now, with the `locked` state reserved.
-3. **Duplicate implementation.** `frontend/lib/` still holds a second copy of the rules in Node. Delete it and port its tests to the domain layer, or isolate and document it.
-4. **Products.** The docx requires item type, volume, minimum order count and weight. Order-level totals work today. Introducing line items changes every capacity calculation, so it is a NEXT decision that must not be half-done.
-5. **Migration path.** The current nine-table JSONB schema and the target 40-table schema are not compatible. Either migrate before October 4 (high risk, high reward for the architecture mark) or ship the current schema and present this document as the design. Recommendation: ship the current schema, refactor the module boundaries as already started, and present this as the target with the gap stated honestly. Judges reward a defensible plan over a half-finished rewrite.
+Practice references behind the decisions above: [Modular Monolith, domain-centric design](https://www.kamilgrzybek.com/blog/posts/modular-monolith-domain-centric-design) · [Event sourcing pattern](https://microservices.io/patterns/data/event-sourcing.html) · [Timefold Solver](https://solver.timefold.ai/) · [RFC 9457 problem details in practice](https://zuplo.com/learning-center/best-practices-for-api-error-handling) · [REST API design reference 2026](https://www.digitalapplied.com/blog/rest-api-design-2026-engineering-reference-best-practices) · [Idempotency keys in practice](https://www.alekseialeinikov.com/en/blog/topics/architecture/idempotency-in-practice-api-retries-2026) · [PostgreSQL row-level security in practice](https://queryplane.com/blog/postgres-row-level-security-in-practice/) · [PostgreSQL security best practices 2026](https://www.postgresql.fastware.com/blog/postgresql-security-best-practices-for-enterprise-databases-in-2026) · [Database schema design 2026](https://www.digitalapplied.com/blog/database-schema-design-2026-engineering-reference) · [Fine-grained authorization concepts](https://openfga.dev/docs/authorization-concepts) · [OPA vs Cedar vs Zanzibar](https://www.osohq.com/learn/opa-vs-cedar-vs-zanzibar) · [Resilience patterns with jitter measurements](https://1xapi.com/blog/resilient-api-circuit-breaker-bulkhead-retry-nodejs-2026) · [Offline-first sync patterns](https://developersvoice.com/blog/mobile/offline-first-sync-patterns/)

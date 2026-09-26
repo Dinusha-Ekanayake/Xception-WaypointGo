@@ -135,6 +135,9 @@ artifacts/
 !README.md
 !AGENTS.md
 !SYSTEM-ARCHITECTURE.md
+!docs/architecture/MODULES.md
+!docs/architecture/DATA-MODEL-REVIEW.md
+!docs/architecture/EDGE-CASES.md
 !.agent/rules/*.md
 !docs/ai-disclosure.md
 !docs/architecture.md

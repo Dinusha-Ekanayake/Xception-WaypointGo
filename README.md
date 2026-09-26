@@ -133,7 +133,10 @@ Submission material, in `docs/`:
 
 System design, at the repository root:
 
-- [SYSTEM-ARCHITECTURE.md](SYSTEM-ARCHITECTURE.md), actors, modules, layers, data model, edge cases and the work breakdown
+- [SYSTEM-ARCHITECTURE.md](SYSTEM-ARCHITECTURE.md), principles, actors, layers, module map, cross-cutting design, API standards and the delivery plan
+- [docs/architecture/MODULES.md](docs/architecture/MODULES.md), every module: its layers, owned data, commands, events, invariants and failure modes
+- [docs/architecture/DATA-MODEL-REVIEW.md](docs/architecture/DATA-MODEL-REVIEW.md), validation of the team schema, 20 findings and the corrected model
+- [docs/architecture/EDGE-CASES.md](docs/architecture/EDGE-CASES.md), 82 edge cases with behaviour, enforcement point, detection and test
 
 Working on the repository, in `docs/development-docs/`:
 
