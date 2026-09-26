@@ -4,12 +4,12 @@ Why things changed and what state they left behind. Git history says what change
 
 ## How to write an entry
 
-Same style as a commit message: a short imperative subject, then a few terse lines. Newest first. Credit the GitHub user who owns the work; never record agent, tool or model names. Skip typo and formatting fixes.
+Short imperative subject, then a few terse lines. Newest first. Credit the GitHub user who owns the work; never record agent, tool or model names. Skip typo and formatting fixes.
 
 ```markdown
 ## YYYY-MM-DD - type: short imperative subject
 
-`<commit>` · `<branch>` · @<github-user>
+`<branch>` · @<github-user>
 
 What changed, one or two lines.
 Why: one line.
@@ -23,7 +23,7 @@ Entries before 2026-09-26 are in `git log`.
 
 ## 2026-09-26 - docs: add local development guide and development log
 
-`6ba9b42` · `refactor/module-structure` · @Oxshadha
+`refactor/module-structure` · @Oxshadha
 
 Added `development.md` (hybrid loop: PostgreSQL in Docker, app native) and this log, both under `docs/development-docs/`. Markdown is now ignored by default in `.gitignore` with an allow-list.
 Why: agent sessions scatter scratch `.md`, and parallel work needs shared context.
@@ -32,7 +32,7 @@ Open: nothing.
 
 ## 2026-09-26 - refactor: organize backend by module and frontend by role
 
-`43e8111` · `refactor/module-structure` · @Oxshadha
+`refactor/module-structure` · @Oxshadha
 
 Backend split into `shared/`, `platform/`, `referencedata/`, `identity/`, `planning/`; `platform/db/Database` extracted as the single PostgreSQL seam. Frontend moved to `src/app-shell/`, `src/roles/*`, `src/shared/*` behind path aliases. Added 7 ArchUnit rules and 5 frontend import rules.
 Why: `DispatchService` had absorbed eight responsibilities at 1780 lines because packages were organized by layer.
@@ -41,7 +41,7 @@ Open: `DispatchService` still 1742 lines; `ApiController` still one controller. 
 
 ## 2026-09-26 - docs: add architecture plan and code structure spec
 
-`43e8111` · `refactor/module-structure` · @Oxshadha
+`refactor/module-structure` · @Oxshadha
 
 Added [enterprise-architecture-plan.md](enterprise-architecture-plan.md) and [code-structure.md](../code-structure.md).
 Why: needed one agreed target before refactoring, and the Hackathon requires an architecture document.
