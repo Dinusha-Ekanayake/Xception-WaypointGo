@@ -4,7 +4,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.waypoint.dispatch.domain.ReferenceLoader;
+import com.waypoint.dispatch.platform.db.Database;
+import com.waypoint.dispatch.referencedata.infrastructure.CsvReferenceLoader;
 import java.util.*;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -13,9 +14,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 class OrderCreationTest {
   @Test void newOrderUsesInsertOnlyAndUuid() {
     var jdbc = mock(JdbcTemplate.class);
-    var loader = new ReferenceLoader("../data");
+    var loader = new CsvReferenceLoader("../data");
     loader.init();
-    var service = new DispatchService(jdbc, mock(TransactionTemplate.class), loader,
+    var service = new DispatchService(jdbc, new Database(jdbc, mock(TransactionTemplate.class)), loader,
         new ObjectMapper(), "1", "2026-02-13T15:30:00+05:30", "Waypoint2026!");
     var result = service.apply(new DispatchService.User("store@waypoint.local", "store", "OUT001"),
         Map.of("kind", "order", "temp", "ambient", "units", 1, "weight", 1, "volume", 1));

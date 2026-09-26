@@ -1,6 +1,6 @@
 package com.waypoint.dispatch;
 
-import com.waypoint.dispatch.db.Migrator;
+import com.waypoint.dispatch.platform.db.Migrator;
 import com.waypoint.dispatch.service.DispatchService;
 import java.util.List;
 import org.springframework.boot.ApplicationArguments;
@@ -19,11 +19,11 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  */
 @SpringBootApplication
 public class WaypointApplication implements ApplicationRunner {
-  private final com.waypoint.dispatch.service.AccountAdmin accounts;
+  private final com.waypoint.dispatch.identity.application.AccountAdminUseCase accounts;
   private final Migrator migrator;
   private final DispatchService service;
 
-  public WaypointApplication(Migrator migrator, DispatchService service, com.waypoint.dispatch.service.AccountAdmin accounts) {
+  public WaypointApplication(Migrator migrator, DispatchService service, com.waypoint.dispatch.identity.application.AccountAdminUseCase accounts) {
     this.accounts = accounts;
     this.migrator = migrator;
     this.service = service;

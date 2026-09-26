@@ -4,7 +4,7 @@ import { Database } from "../lib/database.ts";
 import { Service } from "../lib/service.ts";
 import { migrate } from "../lib/migrate.ts";
 import { createTestDatabase } from "./helpers/database.ts";
-import type { User } from "../lib/types.ts";
+import type { User } from "../src/shared/domain/types.ts";
 
 const dispatcher: User = { id: "dispatcher@waypoint.local", role: "dispatcher", scope: "all" };
 const store: User = { id: "store@waypoint.local", role: "store", scope: "OUT001" };

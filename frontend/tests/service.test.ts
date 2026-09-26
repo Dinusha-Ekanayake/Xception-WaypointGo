@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { testDatabase } from "./helpers/database.ts";
 import { Service } from "../lib/service.ts";
 import { allocate, validateRoute, loadReference } from "../lib/domain.ts";
-import type { User, Order } from "../lib/types.ts";
+import type { User, Order } from "../src/shared/domain/types.ts";
 
 const dispatcher: User = {
   id: "dispatcher@waypoint.local",

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { sortDeliveryStops } from "../lib/route-order.ts";
-import type { Order, PlannedRoute } from "../lib/types.ts";
+import { sortDeliveryStops } from "../src/shared/domain/route-order.ts";
+import type { Order, PlannedRoute } from "../src/shared/domain/types.ts";
 
 test("driver follows planned departure and stop sequence regardless of random trip IDs", () => {
   const orders = [
