@@ -19,21 +19,32 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  */
 @SpringBootApplication
 public class WaypointApplication implements ApplicationRunner {
+  private final com.waypoint.dispatch.service.AccountAdmin accounts;
   private final Migrator migrator;
   private final DispatchService service;
 
-  public WaypointApplication(Migrator migrator, DispatchService service) {
+  public WaypointApplication(Migrator migrator, DispatchService service, com.waypoint.dispatch.service.AccountAdmin accounts) {
+    this.accounts = accounts;
     this.migrator = migrator;
     this.service = service;
   }
 
   public static void main(String[] args) {
-    SpringApplication.run(WaypointApplication.class, args);
+    SpringApplication app = new SpringApplication(WaypointApplication.class);
+    if (java.util.Arrays.stream(args).anyMatch(a -> !a.startsWith("--"))) {
+      app.setWebApplicationType(org.springframework.boot.WebApplicationType.NONE);
+    }
+    app.run(args);
   }
 
   @Override
   public void run(ApplicationArguments args) {
     List<String> commands = args.getNonOptionArgs();
+    if (commands.size() == 1 && commands.get(0).startsWith("account-")) {
+      accounts.execute(commands.get(0), System.getenv());
+      System.out.println("Account change recorded; prior sessions revoked.");
+      System.exit(0);
+    }
     if (commands.contains("migrate")) {
       migrator.migrate();
       System.out.println("Database migrations applied.");

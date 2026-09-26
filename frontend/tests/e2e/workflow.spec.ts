@@ -525,3 +525,22 @@ test("database connection outage retains a queued command and retries the same I
     expect(state.events.filter((e: any) => e.order_id === result.order_id && e.kind === "order")).toHaveLength(1);
   } finally { await control("resume"); }
 });
+
+test("dispatcher resolves a failed delivery with a linked replacement", async ({ page }, testInfo) => {
+  await login(page, "dispatcher");
+  await page.getByLabel("Run day", { exact: true }).selectOption("2026-02-09");
+  await page.getByRole("button", { name: "Live runs", exact: true }).click();
+  await page.getByRole("button", { name: "Resolve delivery exception", exact: true }).first().click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Replacement weight (kg)").fill("1");
+  await dialog.getByLabel("Replacement volume (m³)").fill("0.1");
+  await dialog.getByLabel("Agreement and follow-up details").fill("Store agreed to replacement on the next eligible run.");
+  await page.screenshot({ path: testInfo.outputPath("exception-resolution.png") });
+  await dialog.getByRole("button", { name: "Confirm resolution", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  const state = await (await page.request.get("/api/state")).json();
+  const resolved = state.orders.find((o: any) => o.exception_resolution?.decision === "redeliver");
+  expect(resolved).toBeTruthy();
+  expect(resolved.proof).toBeTruthy();
+  expect(state.orders.filter((o: any) => o.parent_order_id === resolved.id)).toHaveLength(1);
+});

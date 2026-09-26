@@ -22,9 +22,8 @@ public class DataConfig {
   public DataSource dataSource(
       @Value("${DATABASE_URL:}") String databaseUrl,
       @Value("${spring.datasource.hikari.maximum-pool-size:3}") int maxPool) {
-    String raw = databaseUrl == null || databaseUrl.isBlank()
-        ? "postgresql://waypoint:local-testing-only@localhost:5432/waypoint"
-        : databaseUrl.trim();
+    if (databaseUrl == null || databaseUrl.isBlank()) throw new IllegalStateException("DATABASE_URL is required");
+    String raw = databaseUrl.trim();
     String jdbc = toJdbcUrl(raw);
     String username = username(raw);
     String password = password(raw);

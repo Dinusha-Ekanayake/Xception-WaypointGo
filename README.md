@@ -6,15 +6,28 @@ A working Designathon/Hackathon solution for Waypoint Group's four roles: store 
 
 ## Run a fresh copy
 
-Node.js 22.13+ is required; Node 24 is the Docker runtime.
+The quickest fresh demo uses Docker:
 
-Use PostgreSQL 16 or newer locally, or a fresh Neon database. Copy `.env.example` to `frontend/.env.local` and set the server-only database connection and seed password before initializing:
+```sh
+cp .env.example .env
+# Set private POSTGRES_PASSWORD and SEED_PASSWORD values.
+docker compose up --build -d
+```
+
+For local development use Node.js 22.13+, Java 17+, Maven and PostgreSQL 16+. Export DATABASE_URL, DEMO_MODE=1 and a private SEED_PASSWORD in the backend terminal (Spring does not read Next.js .env files):
+
+```sh
+cd backend
+mvn spring-boot:run -Dspring-boot.run.arguments="migrate"
+mvn spring-boot:run -Dspring-boot.run.arguments="seed"
+mvn spring-boot:run
+```
+
+In a second terminal:
 
 ```sh
 cd frontend
 npm ci
-npm run db:migrate
-npm run db:seed
 npm run build
 npm start
 ```

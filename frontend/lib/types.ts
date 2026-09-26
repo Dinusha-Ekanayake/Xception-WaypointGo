@@ -42,6 +42,7 @@ export const OrderStatusSchema = z.enum([
   "confirmed",
   "disputed",
   "deferred",
+  "resolved",
 ]);
 export type OrderStatus = z.infer<typeof OrderStatusSchema>;
 
@@ -221,6 +222,12 @@ export const OrderSchema = z.object({
   proof: ProofSchema.optional(),
   dispute: DisputeSchema.optional(),
   source: OrderSourceSchema.optional(),
+  parent_order_id: z.string().optional(),
+  exception_resolution: z.object({
+    decision: z.enum(["redeliver", "returned", "close"]), note: z.string(), actor: z.string(),
+    created: z.string(), previous_status: z.string(), replacement_order_id: z.string().optional(),
+    count: z.number().optional(),
+  }).optional(),
 });
 export type Order = z.infer<typeof OrderSchema>;
 
@@ -454,6 +461,12 @@ export const DisputeCommandSchema = z.object({
   note: z.string().min(1).max(500),
 });
 
+export const ResolveExceptionCommandSchema = z.object({
+  ...BaseCommandFields, kind: z.literal("resolve_exception"), order_id: z.string().min(1).max(100),
+  version: z.number().int().nonnegative(), decision: z.enum(["redeliver", "returned", "close"]),
+  note: z.string().min(1).max(500), count: z.number().int().positive().optional(),
+  weight: z.number().positive().optional(), volume: z.number().positive().optional(),
+});
 export const CommandSchema = z.discriminatedUnion("kind", [
   PlanCommandSchema,
   PublishCommandSchema,
@@ -463,6 +476,7 @@ export const CommandSchema = z.discriminatedUnion("kind", [
   LoadCommandSchema,
   ShortfallCommandSchema,
   ResolveCommandSchema,
+  ResolveExceptionCommandSchema,
   DepartCommandSchema,
   ArriveCommandSchema,
   DeliverCommandSchema,

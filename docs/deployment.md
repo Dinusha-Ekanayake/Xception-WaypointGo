@@ -1,122 +1,87 @@
-# Testing on Vercel and Neon
+# Deployment
 
-Deploy the whole Next.js application to Vercel: pages and `/api/*` share one origin. Use a fresh Neon PostgreSQL database for hosted testing. No browser connects directly to PostgreSQL. Existing SQLite files are not imported, deleted or used by this version.
+The frontend proxies `/api/*` to Spring using `BACKEND_URL` at runtime. PostgreSQL credentials belong only to Spring. Builds and normal requests never migrate or seed.
 
-## 1. Create the testing database
+## Competition / local demo
 
-Create a Neon Free project and choose a database region near the Vercel function region you intend to use. Copy its pooled connection string for the application and its direct connection string for migrations. Keep the supplied TLS settings. Free-plan quotas and idle wake-up behavior apply; this setup is for testing, not a capacity guarantee.
-
-Paste credentials into `.env.local` on your own machine; never commit them or put them in a `NEXT_PUBLIC_*` variable:
-
-```dotenv
-DATABASE_URL=postgresql://USER:PASSWORD@POOLED_HOST/DATABASE?sslmode=require
-DATABASE_URL_UNPOOLED=postgresql://USER:PASSWORD@DIRECT_HOST/DATABASE?sslmode=require
-DEMO_MODE=1
-DEMO_NOW=2026-02-13T15:30:00+05:30
-SEED_PASSWORD=REPLACE_WITH_A_PRIVATE_PASSWORD
-COOKIE_SECURE=0
+```sh
+cp .env.example .env
+# Set POSTGRES_PASSWORD and a private SEED_PASSWORD (at least 12 characters).
+docker compose up --build -d
 ```
 
-Use a password of at least 12 characters. The four demo account emails stay as listed in the README; all receive this password when first seeded. Later seed runs preserve existing accounts and records, and do not rotate passwords. Use a separate empty database for a fresh demo.
+The `init` service applies migrations and seeds the demo before the backend starts. Existing records are preserved. PostgreSQL persists in `waypoint-postgres`; never use `down -v` to redeploy. Demo mode uses the supplied historical calendar and February 2026 fixtures.
 
-## 2. Initialize explicitly
+## Production host
+
+Configure DOMAIN, DATABASE_URL and COOKIE_SECURE=1. `compose.prod.yaml` forces real-time mode and never seeds demo accounts or orders. Create real staff accounts using the commands below. The image includes the tracked reference CSVs, migrations and demo proof fixtures; replace synthetic business reference data with validated production records before real operations.
+
+```sh
+docker compose -f compose.prod.yaml build
+docker compose -f compose.prod.yaml run --rm backend java -jar /app/backend.jar migrate
+docker compose -f compose.prod.yaml up -d nginx backend frontend
+docker compose -f compose.prod.yaml run --rm --entrypoint certbot certbot \
+  certonly --webroot -w /var/www/certbot \
+  --email "$CERTBOT_EMAIL" --agree-tos --no-eff-email -d "$DOMAIN"
+docker compose -f compose.prod.yaml restart nginx
+docker compose -f compose.prod.yaml --profile renewal up -d certbot
+```
+
+Export DOMAIN and CERTBOT_EMAIL in the shell for the issuance command. Nginx validates and reloads its configuration every 12 hours to pick up renewed certificates. Check HTTPS `/api/health` and sign in after deployment. Take a database backup before migrations and verify a restore on a separate database. Monitor HTTP failures, database availability, disk space and unsynchronized device work.
+
+Production uses Monday-Saturday operating days for a rolling calendar generated at startup (one year back, two years forward). Historical supplied dates retain their original flags. Set `CALENDAR_FILE` to a CSV with `date,is_operating` (`0` or `1`) to override closures and special operating dates; paths are relative to DATA_DIR or absolute inside the container. Mount that file read-only into the backend and restart after changes. This policy does not invent public-holiday closures; operations must supply them.
+
+## Vercel frontend
+
+Deploy `frontend/` and set BACKEND_URL to the separately hosted Spring service. Database settings on Vercel do not configure Spring. Use HTTPS for the backend link and COOKIE_SECURE=1 on Spring. The browser continues to call the frontend's same-origin `/api` routes. The earlier all-Node Vercel deployment instructions no longer apply.
+
+## Verification
+
+Use a dedicated TEST_DATABASE_URL that differs from DATABASE_URL:
 
 ```sh
 cd frontend
 npm ci
-npm run db:migrate
-npm run db:seed
-npm run typecheck
-npm run build
-npm start
-```
-
-The migration and seed scripts read Next.js environment files. Migrations use `DATABASE_URL_UNPOOLED` when present. Requests and builds never create tables or seed data. Migrations record checksums; do not edit a migration after applying it. Add another migration instead. Never run destructive test commands against the hosted app database.
-
-## 3. Configure Vercel
-
-Import this repository as a Next.js project. Use Node.js 24, the default install command (`npm ci` with this lockfile), and `npm run build`. Deploy the existing API as Node.js functions; do not export the application as a static-only site.
-
-Set these server environment variables for the intended deployment environment:
-
-| Variable | Value |
-| --- | --- |
-| `DATABASE_URL` | Neon pooled connection string, including TLS settings |
-| `DEMO_MODE` | `1` |
-| `DEMO_NOW` | `2026-02-13T15:30:00+05:30` |
-| `COOKIE_SECURE` | `1` |
-
-`SEED_PASSWORD` and the direct URL are needed by the local initialization commands, not by the running Vercel app. Do not set `DATABASE_SCHEMA` in hosted deployments; it exists for isolated local browser tests. Give preview deployments a separate testing database or Neon branch; never silently share a future production database with previews.
-
-Choose the closest available Vercel function region to the Neon database. Redeploy after changing environment variables. Verify `/api/health`, then sign into all four roles using the private seed password. Verify one order through publication, loading, offline delivery proof, reconnect and receipt. Open a receipt online until it says its proof is saved, then reload offline to check downloaded proof. Cold starts or temporary database outages must leave queued work pending with the same command IDs.
-
-## Local PostgreSQL with Docker
-
-```sh
-cp .env.example .env
-# Set POSTGRES_PASSWORD and SEED_PASSWORD in .env (PORT defaults to 3000).
-docker compose up -d db
-docker compose build backend
-docker compose run --rm backend java -jar /app/backend.jar migrate
-docker compose run --rm backend java -jar /app/backend.jar seed
-docker compose up -d backend waypoint
-```
-
-Compose binds PostgreSQL to localhost and retains it in `waypoint-postgres`. The previous SQLite volume is not removed. Do not use `docker compose down -v` unless you intend to delete the local PostgreSQL data.
-
-For automated tests, create a separate database once:
-
-```sh
-docker compose exec db createdb -U waypoint waypoint_test
-# Export the dedicated connection; use the actual password from your .env.
-export TEST_DATABASE_URL='postgresql://waypoint:LOCAL_PASSWORD@localhost:5432/waypoint_test'
-npx playwright install chromium
 npm run verify
 ```
 
-Tests create random schemas only inside `TEST_DATABASE_URL`, then drop those schemas. They never fall back to `DATABASE_URL`. The browser runner initializes its own schema and starts a production server on port 43219. Run `npm run build` first when running `npm run test:e2e` alone.
+This runs legacy Node regressions, Maven tests, Spring HTTP integration tests, TypeScript checks, the production build and browser tests. The browser runner starts its own Spring backend against a disposable schema, applies Java migrations and seeds through Java. It never connects the tests to an existing backend. Chromium must be installed (`npx playwright install chromium`).
 
-## Limits and later production work
+Docker configuration can be checked with `docker compose config --quiet`. Actual fresh-volume container startup, public TLS and physical-device trials remain release checks; local browser emulation does not establish those properties.
 
-Proof images are stored as PostgreSQL bytes for this testing release and fetched individually through an authenticated endpoint. They are excluded from state and plan JSON. The existing command size limit remains 3.5 MB; each proof image response is bounded below Vercel's function payload limit. Cached proof is scoped to the browser account; clearing browser data removes it. Images that have not been downloaded are explicitly unavailable offline.
+## Operational limits
 
-The state endpoint still returns an account's full operational history. Before large deployments, add bounded history queries/pagination and move proof bytes to private object storage. Stop hidden-tab polling to reduce unnecessary activity; an actively open workspace still polls every 10 seconds and can consume free-tier compute/transfer allowances.
+Bounded history synchronization, calibrated real-world travel estimates and a managed backup/monitoring setup remain production rollout work. Current state snapshots include operational history and proof bytes remain in PostgreSQL. Run a measured fleet pilot before general rollout.
 
-Production requires separate credentials and data, real account provisioning, current operating calendars, backups with restore testing, monitoring, workload testing and a decision on storage retention. `DEMO_MODE=0` alone does not convert historical demo data into production data. Standard PostgreSQL connection strings keep a later database-provider change possible.
+## Staff accounts
 
-Provider references: [Neon plans](https://neon.com/docs/introduction/plans), [Neon connection pooling](https://neon.com/docs/connect/connection-pooling), [Vercel function limits](https://vercel.com/docs/functions/limitations).
-
-## Production (single host, nginx + Docker)
-
-Single origin: nginx terminates TLS and routes `/api/*` to the Spring Boot
-backend, everything else to the Next.js frontend. Browsers never touch
-PostgreSQL (managed Neon) directly, so session cookies need no CORS handling.
+After migrations, create an individual account for each staff member. These commands require trusted access to the deployment host; no public account-administration endpoint is exposed. Passwords are prompted without echoing. ACCOUNT_OPERATOR identifies the operator in the audit trail (defaults to the host user).
 
 ```sh
-# On the host: point DNS at it, then set the required values in .env
-DOMAIN=dispatch.example.com
-CERTBOT_EMAIL=ops@example.com
-DATABASE_URL=postgresql://USER:PASSWORD@POOLED_HOST/DATABASE?sslmode=require
-SEED_PASSWORD=REPLACE_WITH_A_PRIVATE_PASSWORD
-DEMO_MODE=1
-DEMO_NOW=2026-02-13T15:30:00+05:30
-
-docker compose -f compose.prod.yaml up -d nginx backend frontend
-# Issue the first certificate (nginx serves plain HTTP until this exists):
-docker compose -f compose.prod.yaml run --rm certbot \
-  certonly --webroot -w /var/www/certbot \
-  --email "$CERTBOT_EMAIL" --agree-tos --no-eff-email -d "$DOMAIN"
-docker compose -f compose.prod.yaml restart nginx
-# Initialize the database explicitly (never on boot or requests):
-docker compose -f compose.prod.yaml run --rm backend java -jar /app/backend.jar migrate
-docker compose -f compose.prod.yaml run --rm backend java -jar /app/backend.jar seed
+scripts/account.sh create dispatcher@example.com dispatcher all
+scripts/account.sh create loader@example.com loader Peliyagoda
+scripts/account.sh create driver@example.com driver VEH001
+scripts/account.sh create store@example.com store OUT001
+scripts/account.sh update driver@example.com driver VEH002
+scripts/account.sh password store@example.com
+scripts/account.sh disable driver@example.com
+scripts/account.sh enable driver@example.com
 ```
 
-Notes:
+Use actual reference IDs. Assignment changes, password resets and disable/enable revoke existing sessions. Disabled users cannot sign in. The final enabled dispatcher cannot be disabled or reassigned to another role. Synchronize field work before planned assignment changes.
 
-- `COOKIE_SECURE=1` is baked into `compose.prod.yaml`; nginx adds HSTS.
-- Renewals run automatically in the `certbot` service; nginx picks renewed
-  certificates on container restart (add a cron `docker compose ... restart nginx`
-  weekly if you want hands-free rotation).
-- Redeploy with `docker compose -f compose.prod.yaml up -d --build`.
-- Monitor `https://$DOMAIN/api/health` externally.
+Without Docker, export ACCOUNT_ID, ACCOUNT_OPERATOR, ACCOUNT_ROLE, ACCOUNT_SCOPE and (only for create/password) ACCOUNT_PASSWORD, then run `java -jar backend.jar account-create` or the corresponding `account-*` command. CLI commands do not open an HTTP port. Never pass passwords as command-line arguments or commit them.
+
+## Backup and recovery
+
+Install PostgreSQL client tools matching the server major version. Export DATABASE_URL_UNPOOLED securely, then:
+
+```sh
+scripts/backup.sh /secure-backups/waypoint-2026-09-26.dump
+# Set RESTORE_TEST_DATABASE_URL to a separate empty database first.
+scripts/restore-check.sh /secure-backups/waypoint-2026-09-26.dump
+```
+
+The backup script uses private file permissions and refuses to overwrite a backup. Restore checking refuses known source URLs and a nonempty target; it does not delete existing tables. Keep encrypted off-host copies, schedule daily backups, and record recovery time after exercising restored orders, accounts and proof images. These scripts are provided but have not been restore-tested against your hosting provider.
+
+Configure an external monitor for HTTPS `/api/health`, alert on failures, and retain backend/nginx error logs. The endpoint must return HTTP 200 with `ok: true`; a healthy process alone does not verify the entire role workflow.

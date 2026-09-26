@@ -265,7 +265,7 @@ public class ApiController {
   private static String envelopeError(Map<String, Object> body) {
     Object kind = body.get("kind");
     List<String> kinds = List.of("plan", "publish", "move", "defer_note", "order", "load",
-        "shortfall", "resolve", "depart", "arrive", "deliver", "receive", "dispute");
+        "shortfall", "resolve", "resolve_exception", "depart", "arrive", "deliver", "receive", "dispute");
     if (!(kind instanceof String) || !kinds.contains(kind)) {
       return "kind: Invalid option.";
     }

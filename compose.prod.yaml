@@ -5,16 +5,8 @@
 #   DOMAIN            public hostname, DNS pointed at this host
 #   CERTBOT_EMAIL     contact for Let's Encrypt expiry notices
 #   DATABASE_URL      pooled connection string (app traffic)
-#   SEED_PASSWORD     private value, >= 12 chars (only used by one-shot seed)
 #
-# First deploy:
-#   docker compose -f compose.prod.yaml up -d nginx backend frontend
-#   docker compose -f compose.prod.yaml run --rm certbot \
-#     certonly --webroot -w /var/www/certbot \
-#     --email "$CERTBOT_EMAIL" --agree-tos --no-eff-email -d "$DOMAIN"
-#   docker compose -f compose.prod.yaml restart nginx   # picks up the certificate
-#   docker compose -f compose.prod.yaml run --rm backend java -jar /app/backend.jar migrate
-#   docker compose -f compose.prod.yaml run --rm backend java -jar /app/backend.jar seed
+# Deployment and certificate issuance: see docs/deployment.md.
 
 services:
   nginx:
@@ -39,20 +31,23 @@ services:
     volumes:
       - certbot-www:/var/www/certbot
       - certs:/etc/letsencrypt
-    # Renewal loop; actual issuance is the documented one-shot above.
+    profiles: ["renewal"]
+    # Issuance overrides entrypoint; renewal is an explicitly enabled service.
     entrypoint: ["/bin/sh", "-c", "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --deploy-hook 'true'; sleep 12h & wait $${!}; done"]
     restart: unless-stopped
 
   backend:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     expose:
       - "8080"
     environment:
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL to the pooled connection string}
-      DEMO_MODE: ${DEMO_MODE:-1}
+      CALENDAR_FILE: ${CALENDAR_FILE:-}
+      DEMO_MODE: "0"
       DEMO_NOW: ${DEMO_NOW:-2026-02-13T15:30:00+05:30}
-      SEED_PASSWORD: ${SEED_PASSWORD:-}
-      COOKIE_SECURE: 1
+      COOKIE_SECURE: "1"
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/api/health | grep -q '\"ok\"'"]
@@ -66,9 +61,9 @@ services:
       - "3000"
     environment:
       BACKEND_URL: http://backend:8080
-      DEMO_MODE: ${DEMO_MODE:-1}
+      DEMO_MODE: "0"
       DEMO_NOW: ${DEMO_NOW:-2026-02-13T15:30:00+05:30}
-      COOKIE_SECURE: 1
+      COOKIE_SECURE: "1"
     depends_on:
       backend:
         condition: service_healthy

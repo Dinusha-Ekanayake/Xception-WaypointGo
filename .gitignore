@@ -124,3 +124,6 @@ outputs/
 Tech-Triathlon 2026/
 .playwright-mcp/
 artifacts/
+
+# Maven build output
+backend/target/

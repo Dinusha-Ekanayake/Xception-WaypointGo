@@ -128,7 +128,7 @@ export default function Driver({
     else setOfflineSince(null);
   }, [online]);
 
-  const [selectedDay, setSelectedDay] = useState("2026-02-14");
+  const [selectedDay, setSelectedDay] = useState(state.demo ? "2026-02-14" : new Date(state.now).toLocaleDateString("en-CA", { timeZone: "Asia/Colombo" }));
   const days = [...new Set(orders.map((o) => o.day))].sort();
   const day = days.includes(selectedDay) ? selectedDay : days.at(-1);
   const stops = sortDeliveryStops(

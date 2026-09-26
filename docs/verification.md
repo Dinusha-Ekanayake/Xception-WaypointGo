@@ -1,3 +1,20 @@
+# Current Spring migration verification
+
+Production-readiness branch, September 26, 2026:
+
+- Order creation uses UUIDs and an insert-only path; the Java regression first failed on the old short IDs, then passed.
+- Spring HTTP tests cover concurrent command replay, stale draft rejection, authorization and exception redelivery with preserved proof and one linked replacement.
+- `npm run verify` passed: 31 legacy Node tests, 2 Java tests, 4 Spring HTTP tests, TypeScript, production build and 12 browser tests. Browser coverage includes four-role delivery, offline reload, expired-session recovery, stale commands, proof downloads, database outage retry and exception resolution with a linked replacement.
+- Staff account provisioning, password reset, assignment change, session revocation, disabled-account rejection and last-dispatcher protection pass against Spring/PostgreSQL.
+- Backup/restore scripts and certificate reload hook pass shell syntax checks; actual restore and TLS renewal remain unverified.
+- TypeScript checking and the production Next.js build passed.
+- Both Compose files pass configuration validation. Docker runtime execution is not verified: the local Docker socket is inaccessible.
+- Production calendar supports current dates with an explicit Monday-Saturday policy and configured closure overrides. Synthetic datasets remain unchanged.
+
+The remaining rollout limits are listed in deployment.md. Historical results below describe the earlier Node implementation and are not evidence for the Java port.
+
+---
+
 # Verification record
 
 Current verification recorded on September 26, 2026. Scope: Designathon and Hackathon implementation through the PostgreSQL + proof-images checkpoint (`3f3166c`). Earlier publication-review results through `c0d8706` are retained below as history; they do not certify later application changes.

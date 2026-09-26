@@ -106,7 +106,7 @@ public class DispatchService {
     for (int attempt = 0; ; attempt++) {
       try {
         return serializable.execute(status -> fn.get());
-      } catch (DataAccessException e) {
+      } catch (RuntimeException e) {
         if (attempt < 4 && isRetryable(e)) {
           sleep(20L * (attempt + 1));
           continue;
@@ -123,7 +123,7 @@ public class DispatchService {
     });
   }
 
-  private static boolean isRetryable(DataAccessException e) {
+  private static boolean isRetryable(RuntimeException e) {
     Throwable t = e;
     while (t != null) {
       if (t instanceof java.sql.SQLException sql) {
@@ -266,8 +266,7 @@ public class DispatchService {
     try {
       body = mapper.writeValueAsString(stored);
     } catch (Exception e) {
-      if (e instanceof DataAccessException databaseError) throw databaseError;
-        throw new IllegalStateException(e);
+      throw new IllegalStateException(e);
     }
     jdbc.update(
         "INSERT INTO orders(id,body) VALUES(?,?::jsonb) ON CONFLICT(id) DO UPDATE SET body=excluded.body",
@@ -358,7 +357,7 @@ public class DispatchService {
   // ---------- seed ----------
 
   public void seed() {
-    if (!demo) throw new DomainException("Demo seeding requires DEMO_MODE=1. Use account commands for production.");
+    if (!demo) throw new DomainException("Demo seeding requires DEMO_MODE=1. Provision real accounts separately for production.");
     if (seedPassword.length() < 12) {
       throw new DomainException(
           "Set SEED_PASSWORD to at least 12 characters before seeding.");
@@ -578,7 +577,6 @@ public class DispatchService {
         run("INSERT INTO settings VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
             "scenario_days", mapper.writeValueAsString(installed));
       } catch (Exception e) {
-        if (e instanceof DataAccessException databaseError) throw databaseError;
         throw new IllegalStateException(e);
       }
       if (installed.contains("2026-02-09")) seedOutcomes();
@@ -657,8 +655,7 @@ public class DispatchService {
     try {
       plan = Planning.allocate(rows, loader.get(), day, reservations(day, null), mapper);
     } catch (Exception e) {
-      if (e instanceof DataAccessException databaseError) throw databaseError;
-        throw new IllegalStateException(e);
+      throw new IllegalStateException(e);
     }
     for (JsonNode d : plan.get("deferred")) {
       ((ObjectNode) d).put("justification",
@@ -667,8 +664,7 @@ public class DispatchService {
     try {
       run("INSERT INTO plans VALUES(?,?::jsonb)", day, mapper.writeValueAsString(plan));
     } catch (Exception e) {
-      if (e instanceof DataAccessException databaseError) throw databaseError;
-        throw new IllegalStateException(e);
+      throw new IllegalStateException(e);
     }
     Map<String, Object> publish = new LinkedHashMap<>();
     publish.put("id", "seed-publish-" + day);
@@ -815,15 +811,20 @@ public class DispatchService {
   }
 
   public LoginResult login(Object email, Object password) {
+    return transaction(() -> loginAccount(email, password));
+  }
+
+  private LoginResult loginAccount(Object email, Object password) {
     if (!(email instanceof String) || !(password instanceof String)
         || ((String) password).length() >= 200) {
       throw new DomainException("Invalid credentials.", 401);
     }
     String id = ((String) email).toLowerCase();
+    all("SELECT pg_advisory_xact_lock(hashtextextended(?,1))", id);
     Map<String, Object> row = get("SELECT * FROM users WHERE id=?", id);
     String salt = row == null ? "missing-user-salt" : String.valueOf(row.get("salt"));
     byte[] candidate = Crypto.passwordHash((String) password, salt);
-    boolean ok = row != null
+    boolean ok = row != null && Boolean.TRUE.equals(row.get("enabled"))
         && Crypto.timingSafeEqual(candidate, Crypto.fromHex(String.valueOf(row.get("hash"))));
     if (!ok) throw new DomainException("Invalid email or password.", 401);
     String token = Crypto.randomHex(40);
@@ -840,7 +841,7 @@ public class DispatchService {
   public User session(String token) {
     if (token == null || token.isEmpty()) throw new DomainException("Please sign in again.", 401);
     Map<String, Object> row = get(
-        "SELECT u.id,u.role,u.scope FROM sessions s JOIN users u ON s.user_id=u.id WHERE s.token=? AND s.expires>?",
+        "SELECT u.id,u.role,u.scope FROM sessions s JOIN users u ON s.user_id=u.id WHERE s.token=? AND s.expires>? AND u.enabled",
         Crypto.sha256Hex(token), System.currentTimeMillis());
     if (row == null) throw new DomainException("Please sign in again.", 401);
     return new User(String.valueOf(row.get("id")), String.valueOf(row.get("role")),
@@ -1010,7 +1011,6 @@ public class DispatchService {
       try {
         out.add(mapper.treeToValue(n, Object.class));
       } catch (Exception e) {
-        if (e instanceof DataAccessException databaseError) throw databaseError;
         throw new IllegalStateException(e);
       }
     }
@@ -1314,8 +1314,7 @@ public class DispatchService {
     try {
       detailJson = mapper.writeValueAsString(detail == null ? Map.of() : detail);
     } catch (Exception e) {
-      if (e instanceof DataAccessException databaseError) throw databaseError;
-        throw new IllegalStateException(e);
+      throw new IllegalStateException(e);
     }
     run("INSERT INTO events(order_id,actor,kind,created,client_time,detail) VALUES(?,?,?,?,?,?::jsonb)",
         orderId, user.id(), kind, Instant.now().toString(),
@@ -1333,8 +1332,7 @@ public class DispatchService {
     try {
       fingerprint = Crypto.sha256Hex(mapper.writeValueAsString(cmd));
     } catch (Exception e) {
-      if (e instanceof DataAccessException databaseError) throw databaseError;
-        throw new IllegalStateException(e);
+      throw new IllegalStateException(e);
     }
     return transaction(() -> {
       Map<String, Object> old =
@@ -1347,8 +1345,7 @@ public class DispatchService {
           return mapper.readValue(colToString(old.get("response")),
               new TypeReference<Map<String, Object>>() {});
         } catch (Exception e) {
-          if (e instanceof DataAccessException databaseError) throw databaseError;
-        throw new IllegalStateException(e);
+          throw new IllegalStateException(e);
         }
       }
       Map<String, Object> result;
@@ -1366,7 +1363,6 @@ public class DispatchService {
         run("INSERT INTO commands VALUES(?,?,?,?::jsonb)", key, user.id(), fingerprint,
             mapper.writeValueAsString(result));
       } catch (Exception e) {
-        if (e instanceof DataAccessException databaseError) throw databaseError;
         throw new IllegalStateException(e);
       }
       return result;
@@ -1388,6 +1384,7 @@ public class DispatchService {
     if ("order".equals(kind)) {
       return applyOrder(user, cmd);
     }
+    if ("resolve_exception".equals(kind)) return resolveException(user, cmd);
     return applyField(user, cmd, kind);
   }
 
@@ -1537,8 +1534,7 @@ public class DispatchService {
       run("INSERT INTO plans(day,body) VALUES(?,?::jsonb) ON CONFLICT(day) DO UPDATE SET body=excluded.body",
           day, mapper.writeValueAsString(plan));
     } catch (Exception e) {
-      if (e instanceof DataAccessException databaseError) throw databaseError;
-        throw new IllegalStateException(e);
+      throw new IllegalStateException(e);
     }
     event(user, kind, "*", cmd.get("client_time"), Map.of("day", day));
     return Map.of("ok", true);
@@ -1587,6 +1583,60 @@ public class DispatchService {
     result.put("order_id", o.get("id").asText());
     result.put("day", target);
     return result;
+  }
+
+  private Map<String, Object> resolveException(User user, Map<String, Object> cmd) {
+    if (!"dispatcher".equals(user.role())) throw new DomainException("Dispatcher access required.", 403);
+    String id = text(cmd.get("order_id"), 100);
+    var row = get("SELECT body FROM orders WHERE id=?", id);
+    if (row == null) throw new DomainException("Order not found.", 404);
+    ObjectNode original = parseBody(row.get("body"));
+    int version = (int) number(cmd.get("version"), 0, Integer.MAX_VALUE, true);
+    if (version != original.path("version").asInt() || original.has("exception_resolution")) {
+      throw new DomainException("This record changed. Review the latest state before retrying.", 409);
+    }
+    boolean partialReceipt = "confirmed".equals(optText(original, "status"))
+        && "partial".equals(original.path("proof").path("outcome").asText());
+    if (!List.of("partial", "failed", "disputed").contains(optText(original, "status")) && !partialReceipt) {
+      throw new DomainException("This order has no unresolved delivery exception.", 409);
+    }
+    String decision = text(cmd.get("decision"), 20);
+    if (!List.of("redeliver", "returned", "close").contains(decision)) throw new DomainException("Invalid resolution.");
+    ObjectNode resolution = mapper.createObjectNode();
+    resolution.put("decision", decision);
+    resolution.put("note", text(cmd.get("note")));
+    resolution.put("actor", user.id());
+    resolution.put("created", Instant.now().toString());
+    resolution.put("previous_status", optText(original, "status"));
+    if ("redeliver".equals(decision)) {
+      int remaining = "disputed".equals(optText(original, "status")) ? original.path("units").asInt()
+          : original.path("units").asInt() - original.path("proof").path("count").asInt();
+      int count = (int) number(cmd.get("count"), 1, remaining, true);
+      String day = Planning.eligibleDay(now(), loader.get());
+      while (hasPublishedPlan(day)) day = Planning.nextOperating(day, loader.get());
+      ObjectNode replacement = mapper.createObjectNode();
+      for (String field : List.of("outlet_id", "brand", "district", "depot", "dock_type", "parking_constraint",
+          "mall_window", "window_open_time", "window_close_time", "temp")) replacement.set(field, original.get(field));
+      replacement.put("id", "ORD-" + java.util.UUID.randomUUID());
+      replacement.put("parent_order_id", id);
+      replacement.put("day", day);
+      replacement.put("units", count);
+      // Explicit measurements: cases need not have equal weight or volume.
+      replacement.put("weight", number(cmd.get("weight"), 0.01));
+      replacement.put("volume", number(cmd.get("volume"), 0.001, 10000, false));
+      replacement.put("status", "confirmed_order"); replacement.put("version", 0); replacement.put("skips", 0);
+      insertOrder(replacement);
+      resolution.put("replacement_order_id", optText(replacement, "id"));
+      event(user, "replacement_order", optText(replacement, "id"), cmd.get("client_time"), Map.of("parent_order_id", id));
+    }
+    if ("returned".equals(decision)) {
+      resolution.put("count", (int) number(cmd.get("count"), 1, original.path("units").asInt(), true));
+    }
+    original.set("exception_resolution", resolution);
+    original.put("status", "resolved"); original.put("version", version + 1);
+    save(original);
+    event(user, "resolve_exception", id, cmd.get("client_time"), resolution);
+    return Map.of("ok", true, "order_id", id, "version", version + 1);
   }
 
   private Map<String, Object> applyField(User user, Map<String, Object> cmd, String kind) {
@@ -1646,7 +1696,7 @@ public class DispatchService {
             && !optText(x, "route_id").isEmpty()) same.add(x);
       }
       Set<String> ready = Set.of("loaded", "departed", "arrived", "delivered", "partial", "failed",
-          "confirmed", "disputed");
+          "confirmed", "disputed", "resolved");
       boolean every = same.stream().allMatch(x -> ready.contains(optText(x, "status")));
       // Shortfalls surface as status "shortfall", which is not in the ready set.
       if (!every) {

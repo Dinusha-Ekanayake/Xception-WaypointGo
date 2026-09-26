@@ -14,6 +14,7 @@ import {
 } from "./components";
 import AssignmentReview from "./AssignmentReview";
 import PublishReview from "./PublishReview";
+import ExceptionReview from "./ExceptionReview";
 import type {
   ActFn,
   AppState,
@@ -31,7 +32,7 @@ export interface DispatcherProps {
   onDetail: (o: Order) => void;
   tab: string;
 }
-const terminal = ["delivered", "partial", "failed", "confirmed", "disputed"];
+const terminal = ["delivered", "partial", "failed", "confirmed", "disputed", "resolved"];
 const time = (n: number) =>
   `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(Math.floor(n % 60)).padStart(2, "0")}`;
 const minutes = (s: string) => {
@@ -262,12 +263,13 @@ export default function Dispatcher({
     )[tab] ||
     tab ||
     "plan";
-  const [day, setDay] = useState("2026-02-14");
+  const [day, setDay] = useState(state.demo ? "2026-02-14" : new Date(state.now).toLocaleDateString("en-CA", { timeZone: "Asia/Colombo" }));
   const [depot, setDepot] = useState("All depots");
   const [query, setQuery] = useState("");
   const [move, setMove] = useState<Order | null>(null);
   const [publication, setPublication] = useState<{ plan: Plan; orders: Order[] } | null>(null);
   const [guide, setGuide] = useState(false);
+  const [exception, setException] = useState<Order | null>(null);
   const [note, setNote] = useState<{
     kind: "resolve" | "defer_note";
     order: Order;
@@ -303,7 +305,7 @@ export default function Dispatcher({
     (o) =>
       o.day === day &&
       inDepot(o) &&
-      ["shortfall", "partial", "failed", "disputed"].includes(o.status),
+      (["shortfall", "partial", "failed", "disputed"].includes(o.status) || (o.status === "confirmed" && o.proof?.outcome === "partial")),
   );
   const days = [
     ...new Set([
@@ -1051,6 +1053,9 @@ export default function Dispatcher({
                         ? "dispatcher, then loader recheck"
                         : "dispatcher and store manager"}
                     </p>
+                    {["partial", "failed", "disputed"].includes(o.status) || (o.status === "confirmed" && o.proof?.outcome === "partial") ? (
+                      <Btn onClick={() => setException(o)}>Resolve delivery exception</Btn>
+                    ) : null}
                     {o.status === "shortfall" && (
                       <Btn
                         size="sm"
@@ -1206,6 +1211,7 @@ export default function Dispatcher({
           </div>
         </section>
       )}
+      {exception && <ExceptionReview order={exception} act={act} busy={busy} onClose={() => setException(null)} />}
       {note && (
         <NoteForm
           title={

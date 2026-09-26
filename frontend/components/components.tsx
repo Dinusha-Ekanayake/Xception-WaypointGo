@@ -170,6 +170,7 @@ export function dockNote(dockType: string | undefined): string {
 /* ---------- domain badges: pills ---------- */
 
 export const STATUS_LABELS: Record<OrderStatus, string> = {
+  resolved: "Resolved",
   confirmed_order: "Confirmed order",
   planned: "Planned",
   loaded: "Loaded",
@@ -397,6 +398,12 @@ export function OrderDetail({
           <div className="mt-3"><Brand order={order} /></div>
         </div>
 
+        {order.parent_order_id && <p>Follow-up for order {order.parent_order_id}</p>}
+        {order.exception_resolution && <div className="rounded-xl bg-okbg p-4">
+          <strong>Exception resolved: {order.exception_resolution.decision}</strong>
+          <p>{order.exception_resolution.note}</p>
+          {order.exception_resolution.replacement_order_id && <p>Replacement order: {order.exception_resolution.replacement_order_id}</p>}
+        </div>}
         <dl className="grid grid-cols-1 min-[400px]:grid-cols-2 gap-3 text-copy">
           <div className="rounded-2xl bg-[var(--ui-soft)] p-3.5">
             <dt className="text-caption text-muted">Load</dt><dd className="m-0 mt-0.5 font-semibold">{order.units} cases · {order.weight} kg · {order.volume} m³</dd>

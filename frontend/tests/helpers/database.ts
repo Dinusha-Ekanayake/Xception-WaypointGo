@@ -3,7 +3,7 @@ import type { TestContext } from "node:test";
 import { Database } from "../../lib/database.ts";
 import { migrate } from "../../lib/migrate.ts";
 
-export async function createTestDatabase() {
+export async function createTestDatabase(migrateSchema = true) {
   const url = process.env.TEST_DATABASE_URL;
   if (!url) throw new Error("Set TEST_DATABASE_URL to a dedicated disposable PostgreSQL database. Application DATABASE_URL is never used for tests.");
   if (url === process.env.DATABASE_URL) throw new Error("TEST_DATABASE_URL must differ from application DATABASE_URL.");
@@ -16,7 +16,7 @@ export async function createTestDatabase() {
     await admin.run(`DROP SCHEMA ${schema} CASCADE`);
     await admin.close();
   };
-  try { await migrate(db); } catch (error) { await close(); throw error; }
+  try { if (migrateSchema) await migrate(db); } catch (error) { await close(); throw error; }
   return { db, schema, url, close };
 }
 

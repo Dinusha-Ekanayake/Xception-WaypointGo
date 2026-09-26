@@ -1,13 +1,8 @@
-const backend = process.env.BACKEND_URL || "http://127.0.0.1:8080";
 const config = {
   poweredByHeader: false,
   output: "standalone",
   allowedDevOrigins: ["127.0.0.1", "localhost"],
   serverExternalPackages: ["pg"],
-  async rewrites() {
-    // UI only: every /api/* request is served by the Spring Boot backend.
-    return [{ source: "/api/:path*", destination: `${backend}/api/:path*` }];
-  },
   async headers() {
     return [
       {

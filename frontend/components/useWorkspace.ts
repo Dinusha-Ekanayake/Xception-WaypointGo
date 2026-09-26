@@ -228,7 +228,7 @@ export function useWorkspace(): WorkspaceApi {
         ...data,
         client_time: new Date().toISOString(),
       };
-      if (["plan", "publish", "move", "defer_note", "resolve"].includes(kind)) {
+      if (["plan", "publish", "move", "defer_note", "resolve", "resolve_exception"].includes(kind)) {
         await api("command", command);
         await refresh();
         setNotice("Changes saved.");

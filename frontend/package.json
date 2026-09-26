@@ -11,11 +11,14 @@
     "build": "next build --webpack && node scripts/build-sw.mjs",
     "start": "next start --hostname 0.0.0.0",
     "typecheck": "tsc --noEmit",
-    "test": "node --test --experimental-strip-types tests/*.test.ts",
-    "test:e2e": "node --experimental-strip-types scripts/test-e2e.ts",
+    "test": "npm run test:legacy && npm run test:spring",
+    "test:e2e": "npm run backend:build && node --experimental-strip-types scripts/test-e2e.ts",
     "verify": "npm test && npm run typecheck && npm run build && npm run test:e2e",
     "db:migrate": "node --experimental-strip-types scripts/database.ts migrate",
-    "db:seed": "node --experimental-strip-types scripts/database.ts seed"
+    "db:seed": "node --experimental-strip-types scripts/database.ts seed",
+    "test:legacy": "node --test --experimental-strip-types tests/*.test.ts",
+    "backend:build": "mvn -q -f ../backend/pom.xml package",
+    "test:spring": "npm run backend:build && node --test --experimental-strip-types tests/spring/*.test.ts"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.2.0",

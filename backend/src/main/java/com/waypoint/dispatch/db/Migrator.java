@@ -44,8 +44,7 @@ public class Migrator {
     var manager = new org.springframework.jdbc.datasource.DataSourceTransactionManager(jdbc.getDataSource());
     var transaction = new org.springframework.transaction.support.TransactionTemplate(manager);
     transaction.executeWithoutResult(status -> {
-    jdbc.execute("SELECT pg_advisory_xact_lock(71842001)");
-    try {
+      jdbc.execute("SELECT pg_advisory_xact_lock(71842001)");
       jdbc.execute(
           "CREATE TABLE IF NOT EXISTS schema_migrations (name text PRIMARY KEY, checksum text NOT NULL)");
       for (String name : names) {
@@ -68,9 +67,6 @@ public class Migrator {
         jdbc.update("INSERT INTO schema_migrations VALUES (?,?)", name, checksum);
         log.warn("Applied migration {}", name);
       }
-    } finally {
-      // Transaction-scoped lock is released by commit or rollback.
-    }
     });
   }
 }

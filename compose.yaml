@@ -14,8 +14,23 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+  init:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://waypoint:${POSTGRES_PASSWORD:-local-testing-only}@db:5432/waypoint
+      DEMO_MODE: "1"
+      SEED_PASSWORD: ${SEED_PASSWORD:-Waypoint2026!}
+    command: ["sh", "-c", "java -jar /app/backend.jar migrate && java -jar /app/backend.jar seed"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
   backend:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     ports:
       - "127.0.0.1:${BACKEND_PORT:-8080}:8080"
     environment:
@@ -30,10 +45,10 @@ services:
     volumes:
       - ./data:/app/data:ro
       - ./migrations:/app/migrations:ro
-      - ./public:/app/public:ro
+      - ./frontend/public:/app/frontend/public:ro
     depends_on:
-      db:
-        condition: service_healthy
+      init:
+        condition: service_completed_successfully
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/api/health | grep -q '\"ok\"'"]
