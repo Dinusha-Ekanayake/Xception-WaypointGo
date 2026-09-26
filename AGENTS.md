@@ -1,0 +1,25 @@
+# Repository Guidelines
+
+## Project Structure & Module Organization
+
+Waypoint Dispatch is a Next.js App Router frontend plus a Spring Boot backend. `frontend/` holds the UI (`frontend/app/` pages, layout and styles) plus shared client types and the legacy Node service used by scripts and tests; every `/api/*` request is proxied to the backend (see `frontend/next.config.mjs` rewrites and `BACKEND_URL`). `frontend/components/` holds the role-specific React screens and browser-side state. `backend/` is a Maven Spring Boot 3 service (`com.waypoint.dispatch`) that owns the REST contract, planning rules, auth and PostgreSQL access. Static images and the manifest live in `frontend/public/`; `frontend/scripts/build-sw.mjs` generates the service worker during production builds. Reference CSVs are read from tracked `data/` at the repo root; the ignored original `Tech-Triathlon 2026/` directory is not required at runtime. The Node service resolves `data/` from either the repo root or `frontend/` so scripts and tests work from both directories. Backend tests live in `frontend/tests/` and browser tests in `frontend/tests/e2e/`. Versioned SQL migrations live in root `migrations/` and are shared by both stacks; the Node and Spring code both resolve `migrations/` from either directory, and the backend applies them via its `migrate` command with serializable transactions. Existing SQLite files in `var/` are legacy data and must be preserved.
+
+## Build, Test, and Development Commands
+
+Use Node.js 22.13 or newer, Java 17 or newer with Maven, and PostgreSQL 16 or newer. Run `npm ci` from `frontend/` to install locked dependencies, configure `DATABASE_URL`, apply migrations and seed via the backend (`cd backend && mvn spring-boot:run -Dspring-boot.run.arguments="migrate"` then `... "seed"`), then `npm run dev` from `frontend/` for the local development server at `http://localhost:3000` with `BACKEND_URL=http://127.0.0.1:8080` pointing at `mvn spring-boot:run` from `backend/`. Run `npm run typecheck` for TypeScript checks and `npm run build` for a production Next.js build plus service-worker generation. `npm start` serves that build; use it when checking offline behavior. See `docs/deployment.md` for explicit Docker initialization and Vercel + Neon setup. Builds and requests must not migrate or seed.
+
+## Coding Style & Naming Conventions
+
+Use TypeScript with the repository's strict compiler settings and two-space indentation. Follow the surrounding file's quote style. Name React components and types in `PascalCase`, functions and variables in `camelCase`, and keep role-specific UI in the matching component file. Frontend validation schemas live in `frontend/lib/types.ts`. Backend business rules live in `backend/src/main/java/com/waypoint/dispatch/domain/Planning.java`, persistence and command handling in `.../service/DispatchService.java`, and the REST contract in `.../api/ApiController.java`. There is currently no configured formatter or lint command.
+
+## Testing Guidelines
+
+Run `npm test` for backend tests and `npm run test:e2e` for Playwright browser tests. Install Chromium first with `npx playwright install chromium`; browser tests require a production build and start an isolated server on port 43219. `npm run verify` runs backend tests, TypeScript checking, the production build and browser tests in sequence. Tests require a dedicated `TEST_DATABASE_URL` and use disposable PostgreSQL schemas; never fall back to the application database. Before submitting changes, run `npm run typecheck` and `npm run build`, then manually exercise any affected role flow. For offline changes, test a production build through disconnect, reload, and synchronization. Use descriptive `*.test.ts` names for backend tests and `*.spec.ts` names under `tests/e2e/` for browser tests.
+
+## Commit & Pull Request Guidelines
+
+Use short, imperative subjects such as `fix: reject stale delivery commands`. In pull requests, explain the behavior changed, link the relevant issue when one exists, list verification performed, and include screenshots for visible UI changes.
+
+## Configuration & Data Safety
+
+Copy `.env.example` to `.env.local` for local Next.js settings or `.env` for Compose; do not commit secrets or database files. Set a private `SEED_PASSWORD` before creating accounts for an exposed instance; changing it does not rotate existing passwords. Use `COOKIE_SECURE=1` behind HTTPS. Preserve tracked `data/` and a persistent PostgreSQL volume for deployed instances.

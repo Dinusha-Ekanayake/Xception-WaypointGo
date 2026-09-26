@@ -1,0 +1,84 @@
+# Production stack: nginx (TLS + routing) -> frontend (Next.js) + backend
+# (Spring Boot) -> managed PostgreSQL (Neon). No local database service.
+#
+# Required environment (see .env.example / docs/deployment.md):
+#   DOMAIN            public hostname, DNS pointed at this host
+#   CERTBOT_EMAIL     contact for Let's Encrypt expiry notices
+#   DATABASE_URL      pooled connection string (app traffic)
+#   SEED_PASSWORD     private value, >= 12 chars (only used by one-shot seed)
+#
+# First deploy:
+#   docker compose -f compose.prod.yaml up -d nginx backend frontend
+#   docker compose -f compose.prod.yaml run --rm certbot \
+#     certonly --webroot -w /var/www/certbot \
+#     --email "$CERTBOT_EMAIL" --agree-tos --no-eff-email -d "$DOMAIN"
+#   docker compose -f compose.prod.yaml restart nginx   # picks up the certificate
+#   docker compose -f compose.prod.yaml run --rm backend java -jar /app/backend.jar migrate
+#   docker compose -f compose.prod.yaml run --rm backend java -jar /app/backend.jar seed
+
+services:
+  nginx:
+    build: ./nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN to the public hostname}
+    volumes:
+      - certbot-www:/var/www/certbot:ro
+      - certs:/etc/letsencrypt:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_started
+    restart: unless-stopped
+
+  certbot:
+    image: certbot/certbot:v2.11.0
+    volumes:
+      - certbot-www:/var/www/certbot
+      - certs:/etc/letsencrypt
+    # Renewal loop; actual issuance is the documented one-shot above.
+    entrypoint: ["/bin/sh", "-c", "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --deploy-hook 'true'; sleep 12h & wait $${!}; done"]
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    expose:
+      - "8080"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL to the pooled connection string}
+      DEMO_MODE: ${DEMO_MODE:-1}
+      DEMO_NOW: ${DEMO_NOW:-2026-02-13T15:30:00+05:30}
+      SEED_PASSWORD: ${SEED_PASSWORD:-}
+      COOKIE_SECURE: 1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/api/health | grep -q '\"ok\"'"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    build: ./frontend
+    expose:
+      - "3000"
+    environment:
+      BACKEND_URL: http://backend:8080
+      DEMO_MODE: ${DEMO_MODE:-1}
+      DEMO_NOW: ${DEMO_NOW:-2026-02-13T15:30:00+05:30}
+      COOKIE_SECURE: 1
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  certbot-www:
+  certs:

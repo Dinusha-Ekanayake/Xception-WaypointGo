@@ -1,0 +1,51 @@
+[
+  {
+    "file": "General Data/outlets.csv",
+    "source": "Tech-Triathlon 2026/data/General Data/outlets.csv",
+    "sha256": "206a915f16c9b522473d4ad314d1c7c435345911427d9e0878d6e66241c32c42",
+    "transform": "unchanged"
+  },
+  {
+    "file": "General Data/vehicles.csv",
+    "source": "Tech-Triathlon 2026/data/General Data/vehicles.csv",
+    "sha256": "f70175f786574f4c4d07480df263b5ba59918bcecd7a91e5c59d3f7a75b52b1f",
+    "transform": "unchanged"
+  },
+  {
+    "file": "General Data/calendar.csv",
+    "source": "Tech-Triathlon 2026/data/General Data/calendar.csv",
+    "sha256": "2201b18787287dc9621cde516c22ac7ce656da76ff0ccc956e1325a7b2fc3113",
+    "transform": "unchanged"
+  },
+  {
+    "file": "General Data/district_travel.csv",
+    "source": "Tech-Triathlon 2026/data/General Data/district_travel.csv",
+    "sha256": "ac31c4d7a8adcbf8e020bec42d9037bc6ece0fc2cabbf116269710dbe2d239c5",
+    "transform": "unchanged"
+  },
+  {
+    "file": "General Data/service_allowance.csv",
+    "source": "Tech-Triathlon 2026/data/General Data/service_allowance.csv",
+    "sha256": "9b0fe764a50e663ef293a4cb1f9b104ce71b77a3afc863db08228f6e497590a9",
+    "transform": "unchanged"
+  },
+  {
+    "file": "Test Data/task2b_peak_day_scenarios.csv",
+    "source": "Tech-Triathlon 2026/data/Test Data/task2b_peak_day_scenarios.csv",
+    "sha256": "1abdd311eeac9eee8f403a2653bbf81758759635c38ee9bd4b16e67562116799",
+    "transform": "unchanged"
+  },
+  {
+    "file": "Test Data/task2b_peak_day_fleet.csv",
+    "source": "Tech-Triathlon 2026/data/Test Data/task2b_peak_day_fleet.csv",
+    "sha256": "b3c3b81ec18772b86a871e468c9daaaed6048b46d8ff223b7c114f3268c51427",
+    "transform": "unchanged"
+  },
+  {
+    "file": "Training Data/deliveries_train.csv",
+    "source": "Tech-Triathlon 2026/data/Training Data/deliveries_train.csv",
+    "sha256": "a2197c2ed9d08d6dfded800cafff8e70942df995a8d70844cad7afd1df87a24c",
+    "transform": "Only order_date 2026-02-09, 12, 13, 14; all columns and IDs preserved",
+    "rows": 560
+  }
+]

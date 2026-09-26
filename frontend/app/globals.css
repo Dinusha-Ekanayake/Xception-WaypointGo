@@ -1,0 +1,147 @@
+@import 'tailwindcss';
+
+:root {
+  --ui-surface: #ffffff;
+  --ui-soft: #f6f8f7;
+  --ui-text: #14231e;
+  --ui-line: #d9e3de;
+  --ui-link: #0a6b63;
+  --ui-hover: #e6eeea;
+}
+
+.driver-workspace {
+  --driver-base: #f4f7f5;
+  --driver-card: #ffffff;
+  --driver-text: #14231e;
+  --driver-muted: #52645a;
+  --driver-line: #d9e3de;
+  --driver-soft: #e5efe9;
+  --driver-accent: #08633d;
+  --driver-warning: #775000;
+  background: var(--driver-base);
+  color: var(--driver-text);
+  color-scheme: light;
+}
+
+.driver-workspace[data-theme='dark'] {
+  --driver-base: #0b1712;
+  --driver-card: #14271e;
+  --driver-text: #edf5f0;
+  --driver-muted: #a8bdb0;
+  --driver-line: #304b3b;
+  --driver-soft: #1e392a;
+  --driver-accent: #70e7a5;
+  --driver-warning: #f2c875;
+  --ui-surface: #14271e;
+  --ui-soft: #1e392a;
+  --ui-text: #edf5f0;
+  --ui-line: #304b3b;
+  --ui-link: #70e7a5;
+  --ui-hover: #2a4938;
+  --color-muted: #a8bdb0;
+  --color-ink: #edf5f0;
+  --color-accentbg: #1e392a;
+  --color-accentdark: #70e7a5;
+  --color-okbg: #1e392a;
+  --color-ok: #70e7a5;
+  --color-badbg: #45231e;
+  --color-bad: #ffb4a5;
+  --color-warnbg: #3d321d;
+  --color-warn: #f2c875;
+  --color-grapebg: #322c43;
+  --color-grape: #cdbcff;
+  color-scheme: dark;
+}
+
+@theme {
+  --text-caption: 0.9375rem;
+  --text-caption--line-height: 1.5;
+  --text-copy: 1.0625rem;
+  --text-copy--line-height: 1.55;
+  --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, -apple-system, 'Inter', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+
+  /* Neutrals - near black & white */
+  --color-ink: #000000;
+  --color-body: #1f1f1f;
+  --color-muted: #4c5851;
+  --color-faint: #66736b;
+  --color-line: #e2e2e2;
+  --color-track: #efefef;
+  --color-canvas: #f6f6f6;
+
+  /* Primary green palette */
+  --color-accent: #0a6b63;
+  --color-accentdark: #084f4a;
+  --color-accentbg: #ddefec;
+  --color-brandblue: #0a6b63;
+  --color-ok: #068b4a;
+  --color-okbg: #e6f9ed;
+  --color-warn: #7a4a00;
+  --color-warnbg: #fff3d6;
+  --color-bad: #e11900;
+  --color-badbg: #fdecea;
+  --color-grape: #5b2eb5;
+  --color-grapebg: #efe8fb;
+  --color-royal: #0a6b63;
+  --color-royalbg: #ddefec;
+
+  /* Driver dark theme - deep green night */
+  --color-coal: #0a2723;
+  --color-coalcard: #11413a;
+  --color-coalline: #1d5a50;
+  --color-mint: #4fd8a4;
+}
+
+body {
+  @apply bg-canvas font-sans text-copy text-ink antialiased;
+  letter-spacing: 0;
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --text-caption: 1rem;
+    --text-copy: 1.125rem;
+  }
+}
+
+/* Preserve readable labels and IDs when text wraps on narrow screens. */
+p, dd, dt, h1, h2, h3, label { overflow-wrap: anywhere; }
+button, input, select, textarea { font-family: inherit; }
+
+h1, h2 {
+  letter-spacing: -0.03em;
+}
+
+/* Pill CTAs, 16px cards, big legible type */
+.wp-card {
+  border-radius: 16px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-line);
+}
+
+.wp-pill {
+  border-radius: 999px;
+}
+
+/* thin custom scrollbar for boards */
+.wp-scroll::-webkit-scrollbar { height: 8px; width: 8px; }
+.wp-scroll::-webkit-scrollbar-thumb { background: #d4d4d4; border-radius: 999px; }
+
+/* route line */
+.wp-route-line {
+  background-image: linear-gradient(to bottom, #0a6b63 55%, rgba(10,107,99,0) 45%);
+  background-size: 2px 10px;
+  background-repeat: repeat-y;
+}
+
+/* Keep the type scale explicit so phone layouts do not silently overflow. */
+button, a, input, select, textarea { touch-action: manipulation; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 3px solid #0a6b63;
+  outline-offset: 3px;
+}
+dialog { color: var(--ui-text); }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
+}

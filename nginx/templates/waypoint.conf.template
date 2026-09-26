@@ -1,0 +1,129 @@
+# Production reverse proxy: single origin for UI + API.
+#
+#   browser --HTTPS--> nginx --http--> frontend:3000 (everything except /api/*)
+#                                \--> backend:8080  (/api/* -> Spring Boot)
+#
+# Rendered by the stock nginx image (envsubst) from /etc/nginx/templates/.
+# The 25-conditional-tls.sh entrypoint hook activates the blocks below
+# according to whether a certificate already exists, so the very first boot
+# (pre-certificate) serves plain HTTP and every later boot redirects to HTTPS.
+
+limit_req_zone $binary_remote_addr zone=login:10m rate=10r/m;
+limit_req_zone $binary_remote_addr zone=api:10m rate=60r/s;
+
+upstream frontend {
+  server frontend:3000 max_fails=3 fail_timeout=10s;
+}
+
+upstream backend {
+  server backend:8080 max_fails=3 fail_timeout=10s;
+}
+
+server {
+  listen 80;
+  server_name ${DOMAIN};
+
+  location /.well-known/acme-challenge/ {
+    root /var/www/certbot;
+  }
+
+# BEGIN-REDIRECT
+  location / {
+    return 301 https://$host$request_uri;
+  }
+# END-REDIRECT
+# BEGIN-FALLBACK
+  # Temporary plain-HTTP service until the first certificate is issued.
+  # Removed automatically once /etc/letsencrypt/live/${DOMAIN}/ exists.
+  location /api/ {
+    proxy_pass http://backend;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 30s;
+  }
+
+  location = /api/login {
+    proxy_pass http://backend;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 30s;
+  }
+
+  location / {
+    proxy_pass http://frontend;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_read_timeout 60s;
+  }
+# END-FALLBACK
+}
+
+# BEGIN-TLS
+# HTTPS: single origin keeps session cookies + offline behavior intact.
+server {
+  listen 443 ssl;
+  server_name ${DOMAIN};
+
+  ssl_certificate /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
+  ssl_protocols TLSv1.2 TLSv1.3;
+  ssl_prefer_server_ciphers on;
+  ssl_session_cache shared:SSL:10m;
+  ssl_session_timeout 1d;
+
+  add_header X-Content-Type-Options nosniff always;
+  add_header X-Frame-Options DENY always;
+  add_header Referrer-Policy same-origin always;
+  add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
+
+  client_max_body_size 4m;
+
+  # API -> Spring Boot. Host is forwarded untouched so the backend's
+  # same-origin check compares the real browser origin.
+  location /api/ {
+    limit_req zone=api burst=120 nodelay;
+    proxy_pass http://backend;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 30s;
+  }
+
+  # Login gets a tighter rate limit on top of the application's own limiter.
+  location = /api/login {
+    limit_req zone=login burst=5 nodelay;
+    proxy_pass http://backend;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 30s;
+  }
+
+  location / {
+    proxy_pass http://frontend;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_read_timeout 60s;
+  }
+}
+# END-TLS

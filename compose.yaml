@@ -1,0 +1,63 @@
+services:
+  db:
+    image: postgres:16-bookworm
+    environment:
+      POSTGRES_USER: waypoint
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-testing-only}
+      POSTGRES_DB: waypoint
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - waypoint-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U waypoint -d waypoint"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  backend:
+    build: ./backend
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-8080}:8080"
+    environment:
+      DATABASE_URL: postgresql://waypoint:${POSTGRES_PASSWORD:-local-testing-only}@db:5432/waypoint
+      DATA_DIR: /app/data
+      MIGRATIONS_DIR: /app/migrations
+      PUBLIC_DIR: /app/public
+      DEMO_MODE: ${DEMO_MODE:-1}
+      DEMO_NOW: ${DEMO_NOW:-2026-02-13T15:30:00+05:30}
+      SEED_PASSWORD: ${SEED_PASSWORD:-Waypoint2026!}
+      COOKIE_SECURE: ${COOKIE_SECURE:-0}
+    volumes:
+      - ./data:/app/data:ro
+      - ./migrations:/app/migrations:ro
+      - ./public:/app/public:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/api/health | grep -q '\"ok\"'"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+  waypoint:
+    build: ./frontend
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      BACKEND_URL: http://backend:8080
+      DEMO_MODE: ${DEMO_MODE:-1}
+      DEMO_NOW: ${DEMO_NOW:-2026-02-13T15:30:00+05:30}
+      SEED_PASSWORD: ${SEED_PASSWORD:-Waypoint2026!}
+      COOKIE_SECURE: ${COOKIE_SECURE:-0}
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+volumes:
+  waypoint-postgres:
