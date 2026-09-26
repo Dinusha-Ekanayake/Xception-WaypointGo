@@ -26,6 +26,7 @@ next-env.d.ts
 .env
 .env.*
 !.env.example
+!.env.local.example
 *.pem
 *.key
 
@@ -124,6 +125,29 @@ outputs/
 Tech-Triathlon 2026/
 .playwright-mcp/
 artifacts/
+
+# ─── Markdown ───
+# Agent sessions scatter scratch .md files (plans, notes, summaries). Markdown is
+# ignored by default and the maintained documents are allow-listed below. To add a
+# new document, add its exception here in the same commit, or `git add -f` once.
+# Note: files already tracked are unaffected by these rules.
+*.md
+!README.md
+!AGENTS.md
+!.agent/rules/*.md
+!docs/ai-disclosure.md
+!docs/architecture.md
+!docs/code-structure.md
+!docs/data-model.md
+!docs/demo-script.md
+!docs/deployment.md
+!docs/design-mapping.md
+!docs/design-rationale.md
+!docs/development-docs/development.md
+!docs/development-docs/development-log.md
+!docs/development-docs/enterprise-architecture-plan.md
+!docs/submission-checklist.md
+!docs/verification.md
 
 # Java / Maven build output (including nested modules)
 target/

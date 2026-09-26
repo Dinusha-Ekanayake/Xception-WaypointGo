@@ -2,7 +2,7 @@
 
 Audience: the Xception build team. This document explains how a delivery planning platform of this shape is built at enterprise level, what that means for Waypoint Dispatch specifically, where this repository already matches that target, where it does not, and the order in which to close the gap against the three competition deadlines.
 
-It is a plan, not a record of completed work. Nothing here is claimed as implemented unless the gap table says so. The concrete folder layout, its rules and the migration stages live in [code-structure.md](code-structure.md).
+It is a plan, not a record of completed work. Nothing here is claimed as implemented unless the gap table says so. The concrete folder layout, its rules and the migration stages live in [code-structure.md](../code-structure.md).
 
 ## 1. What the problem actually is
 
