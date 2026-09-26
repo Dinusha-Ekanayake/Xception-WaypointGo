@@ -21,6 +21,17 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-09-27 - docs: plan the reference data and IAM foundation
+
+`dev` · @Oxshadha
+
+Added `docs/architecture/FOUNDATION-PLAN.md`: a seven-point stability contract, five baseline defects found in the target schema, and full specs for the Reference data and Identity modules (ownership, versioning model, import validation, contracts, edge cases, definition of done) plus the build sequence.
+Why: these two modules are what every other module depends on, and the parts of the current target schema that would force change later needed fixing before anything is built on them.
+Verified: not applicable, planning only. No code, no migrations, no application changes.
+Open: seven decisions in section 3.4. The largest is the reference versioning model, recommended as snapshot-per-version.
+
+---
+
 ## 2026-09-26 - schema: move into version control and add module roles
 
 `dev` · @Oxshadha
