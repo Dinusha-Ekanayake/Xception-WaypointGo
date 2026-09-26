@@ -12,6 +12,7 @@ A working Designathon/Hackathon solution for Waypoint Group's four roles: store 
 - `backend/`: Spring Boot REST API, authentication, planning, account administration and PostgreSQL access.
 - `data/` and `migrations/`: tracked synthetic reference/seed data and shared versioned SQL.
 - `docs/`: architecture, deployment, design rationale and submission evidence.
+- `docs/development-docs/`: how to work on the repository. Local setup, the architecture plan and the development log.
 
 Maven `target/` directories and compiled Java classes are ignored and are rebuilt locally.
 
@@ -25,7 +26,17 @@ cp .env.example .env
 docker compose up --build -d
 ```
 
-For local development use Node.js 22.13+, Java 17+, Maven and PostgreSQL 16+. Export DATABASE_URL, DEMO_MODE=1 and a private SEED_PASSWORD in the backend terminal (Spring does not read Next.js .env files):
+For day to day development the database runs in Docker and your code runs natively, which keeps hot reload and the debugger fast. Full setup is in [docs/development-docs/development.md](docs/development-docs/development.md); the short version is three terminals:
+
+```sh
+docker compose up -d db   # PostgreSQL alone on 127.0.0.1:5432
+cd backend && mvn spring-boot:run
+cd frontend && npm run dev
+```
+
+`compose.yaml` builds production images and is the path judges follow, not a development environment. Run the full stack before pushing anything that touches configuration, and twice before each deadline.
+
+You need Node.js 22.13+, Java 17+ and Maven. PostgreSQL 16+ is only needed if you prefer a local install over the Compose database. Export DATABASE_URL, DEMO_MODE=1 and a private SEED_PASSWORD in the backend terminal (Spring does not read Next.js .env files):
 
 ```sh
 cd backend
@@ -106,15 +117,25 @@ npm run test:e2e
 
 The dedicated database named by `TEST_DATABASE_URL` must already exist and must differ from the application database; tests create disposable schemas, not databases. `npm test` runs legacy Node regressions, Maven tests and Spring HTTP integration tests. `npm run verify` adds typechecking, the production build and browser tests. The legacy `db:migrate` and `db:seed` npm scripts remain available for regression work; use Spring commands for the running application. Browser tests start a production server on port 43219 and use independent sessions. See [verification.md](docs/verification.md) for observed results and limits. The Playwright runner uses its documented [web-server lifecycle](https://playwright.dev/docs/test-webserver) and [offline emulation](https://playwright.dev/docs/emulation#offline).
 
-## Design continuity and submission material
+## Documentation
+
+Submission material, in `docs/`:
 
 - [Design rationale, personas and degradation journey](docs/design-rationale.md)
 - [Design-to-code mapping and departures](docs/design-mapping.md)
 - [Architecture diagram](docs/architecture.md)
 - [Data model](docs/data-model.md)
 - [AI disclosure](docs/ai-disclosure.md)
-- [Designathon and Hackathon demo scripts](docs/demo-script.md)
 - [Submission readiness](docs/submission-checklist.md)
+- [Verification record](docs/verification.md)
+- [Deployment](docs/deployment.md)
+- [Code structure and module layout](docs/code-structure.md)
+
+Working on the repository, in `docs/development-docs/`:
+
+- [Local development setup](docs/development-docs/development.md), the hybrid Docker database plus native app loop
+- [Development log](docs/development-docs/development-log.md), read the top entries before starting work
+- [Enterprise architecture plan](docs/development-docs/enterprise-architecture-plan.md), target architecture and the phased plan
 
 The refinement preserves the existing role flows, Instrument Sans / IBM Plex Mono and teal action palette. It replaces static operational placeholders with real state, adds validated assignment alternatives and actual deferral carryover, exposes all loading manifests, and supports reauthentication for every role. No Figma file was changed or claimed to be submitted; the team must compare these refinements to its actual Day 5 design export.
 

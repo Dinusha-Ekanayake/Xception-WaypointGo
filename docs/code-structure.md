@@ -2,7 +2,7 @@
 
 Audience: the Xception build team. This is the target folder structure for the repository, the layering rules that keep it that way, and the order in which to migrate to it without breaking a working system.
 
-The goal is the one stated in the architecture plan: business modules with explicit boundaries, layers inside each module, so a feature is found in one place and a change does not ripple. See [enterprise-architecture-plan.md](enterprise-architecture-plan.md) for why this shape was chosen.
+The goal is the one stated in the architecture plan: business modules with explicit boundaries, layers inside each module, so a feature is found in one place and a change does not ripple. See [enterprise-architecture-plan.md](development-docs/enterprise-architecture-plan.md) for why this shape was chosen.
 
 ## 0. Current state
 
