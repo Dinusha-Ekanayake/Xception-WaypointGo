@@ -43,7 +43,12 @@ public class Database {
             status -> {
               jdbc.execute("SET LOCAL ROLE " + role.roleName());
               if (actorId != null) {
-                jdbc.update("SELECT set_config('app.actor_id', ?, true)", actorId.toString());
+                // set_config is a SELECT, not a statement: calling it through
+                // update() throws "a result was returned when none was expected",
+                // which means the actor is never set and row-level security sees
+                // nobody. Parameterised rather than interpolated so an actor id
+                // can never be injected into SQL.
+                jdbc.queryForList("SELECT set_config('app.actor_id', ?, true)", actorId.toString());
               }
               return work.get();
             });

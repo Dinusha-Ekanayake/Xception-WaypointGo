@@ -21,6 +21,19 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-09-27 - feat: policy administration, and the integration tests that were missing
+
+`dev` · @Oxshadha
+
+Added `PolicyAdminUseCase` and `PolicyAdminController` for authoring, versioning, attaching and detaching policy at runtime, and `FoundationIntegrationTest`: ten tests against a real PostgreSQL covering migrations, reference import, sign-in, Argon2 storage, policy decisions, runtime policy change, catalogue validation, row-level security and session revocation on disable.
+Why: every earlier database claim in this log was verified by hand with curl and psql, never by a test. That is not the same thing, and the gap was mine.
+Verified: 74 tests green with `TEST_DATABASE_URL` set, of which 64 are unit and 10 integration. Without that variable the integration tests skip, so `mvn package` alone does not prove the database paths.
+Open: nothing in the foundation. Ordering is next.
+
+**The integration tests found a real bug on their first run.** `Database.asModule` set the actor with `jdbc.update("SELECT set_config(...)")`, and calling a SELECT through `update()` throws. The actor was therefore never set through the Java path, so row-level security would have seen nobody and returned nothing for every request. Manual testing missed it because RLS was exercised through psql, where the plumbing is different. This is the argument for integration tests in one paragraph.
+
+---
+
 ## 2026-09-27 - feat: row level security, and the docs it changes
 
 `dev` · @Oxshadha

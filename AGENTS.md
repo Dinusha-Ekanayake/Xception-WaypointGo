@@ -45,7 +45,7 @@ Node.js 22.13+, Java 17+ with Maven, PostgreSQL 16+. From `frontend/`: `npm ci` 
 
 ## Testing Requirements
 
-Tests require an already-created dedicated database in `TEST_DATABASE_URL` and use disposable PostgreSQL schemas. Never fall back to the application database.
+Tests require an already-created dedicated database in `TEST_DATABASE_URL`, and `FoundationIntegrationTest` refuses to run when it equals `DATABASE_URL`. Unit tests run without it; integration tests are skipped when it is unset, so `mvn package` alone does **not** prove the database paths work. Run `TEST_DATABASE_URL=... mvn package` before claiming a database change is verified.
 
 | Level | Covers | Required for |
 | --- | --- | --- |
