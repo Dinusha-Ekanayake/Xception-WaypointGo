@@ -21,6 +21,19 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-09-27 - docs: make the documentation set answerable
+
+`dev` · @Oxshadha
+
+Removed `plan.md`, which had been committed empty. Untracked `TEARDOWN-PLAN.md`, keeping the file on disk: the teardown happened, so it is a record rather than a plan. Replaced the README's flat list with a three-question map, and marked the four documents that predate the rewrite.
+Why: "where is the plan we follow" had no clear answer, and four tracked documents still described the prototype deleted at `prototype-v0`.
+Verified: 79 links across all tracked markdown, 0 broken.
+Open: `docs/architecture.md`, `docs/data-model.md`, `docs/code-structure.md` and `enterprise-architecture-plan.md` describe the deleted prototype. They are now labelled as history; deleting or rewriting them is a separate decision.
+
+`SYSTEM-ARCHITECTURE.md` stays at the repository root deliberately. It is the entry point the way `README.md` is, and `docs/architecture/` holds the detail behind it.
+
+---
+
 ## 2026-09-27 - feat: policy administration, and the integration tests that were missing
 
 `dev` · @Oxshadha

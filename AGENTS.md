@@ -2,7 +2,7 @@
 
 Waypoint Dispatch is a delivery planning and execution system: a Next.js App Router frontend and a Spring Boot backend over PostgreSQL, serving four field roles across ordering, planning, loading, delivery and receipt.
 
-**Read before changing anything structural:** [SYSTEM-ARCHITECTURE.md](SYSTEM-ARCHITECTURE.md) for the principles and layers, [docs/architecture/MODULES.md](docs/architecture/MODULES.md) for module contracts, [docs/code-structure.md](docs/code-structure.md) for the folder layout, and the top entries of [docs/development-docs/development-log.md](docs/development-docs/development-log.md) for what is in flight.
+**Three documents answer three questions.** What are we building and why: [SYSTEM-ARCHITECTURE.md](SYSTEM-ARCHITECTURE.md). What next and in what order: [docs/architecture/FOUNDATION-PLAN.md](docs/architecture/FOUNDATION-PLAN.md). What is already done: the top entries of [docs/development-docs/development-log.md](docs/development-docs/development-log.md). Before any structural change also read [docs/architecture/MODULES.md](docs/architecture/MODULES.md) for module contracts and [docs/architecture/RULES-AND-POLICIES.md](docs/architecture/RULES-AND-POLICIES.md) for the rule a change might break. `docs/architecture.md`, `docs/data-model.md`, `docs/code-structure.md` and `docs/development-docs/enterprise-architecture-plan.md` predate the rewrite and describe the deleted prototype.
 
 ## Architecture Rules
 
