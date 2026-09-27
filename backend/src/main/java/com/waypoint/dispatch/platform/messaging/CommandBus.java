@@ -1,12 +1,11 @@
 package com.waypoint.dispatch.platform.messaging;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.waypoint.dispatch.shared.domain.Actor;
 import com.waypoint.dispatch.platform.audit.AuditEntry;
 import com.waypoint.dispatch.platform.audit.AuditLog;
 import com.waypoint.dispatch.platform.db.Database;
-import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.platform.observability.Metrics;
+import com.waypoint.dispatch.shared.domain.Actor;
 import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
 import java.util.List;
@@ -42,6 +41,8 @@ public class CommandBus {
       AuditLog audit,
       Metrics metrics,
       ObjectMapper mapper) {
+    // Duplicate kinds fail here, at startup, rather than routing a command to
+    // whichever handler happened to be registered last.
     this.handlers =
         handlers.stream().collect(Collectors.toMap(CommandHandler::kind, Function.identity()));
     this.authorizer = authorizer;
@@ -52,7 +53,7 @@ public class CommandBus {
     this.mapper = mapper;
   }
 
-  public CommandResult dispatch(Actor actor, ModuleRole role, Command command) {
+  public CommandResult dispatch(Actor actor, Command command) {
     CommandHandler handler = handlers.get(command.kind());
     if (handler == null) {
       throw new DomainException(ErrorCode.NOT_FOUND, "No handler for command " + command.kind());
@@ -60,11 +61,16 @@ public class CommandBus {
 
     // Fail closed. A system with no authorizer wired refuses work rather than
     // performing it unchecked.
+    //
+    // Spelt out rather than chained through Optional.map: mapping to null
+    // collapses to an empty Optional, so the fail-closed default fired on every
+    // ALLOWED command and the bus denied everything with an authorizer present.
+    // Nothing caught it because nothing had ever dispatched a command.
     String resource = handler.resource(command);
     String denial =
-        authorizer
-            .map(a -> a.denyReason(actor, handler.action(), resource, command).orElse(null))
-            .orElse("Authorization is not configured");
+        authorizer.isPresent()
+            ? authorizer.get().denyReason(actor, handler.action(), resource, command).orElse(null)
+            : "Authorization is not configured";
     if (denial != null) {
       metrics.increment("waypoint.command.denied", "kind", command.kind());
       // The decision point already audited a policy denial; this covers the
@@ -79,7 +85,7 @@ public class CommandBus {
     String fingerprint = idempotency.fingerprint(command.kind(), command.payload());
 
     return database.asModule(
-        role,
+        handler.moduleRole(),
         actor.userId(),
         () -> {
           Map<String, Object> receipt =
@@ -92,7 +98,7 @@ public class CommandBus {
               idempotency.replayOrReject(command.commandId(), fingerprint, receipt);
           if (replay.isPresent()) {
             metrics.increment("waypoint.command.replayed", "kind", command.kind());
-            return CommandResult.replayed(replay.get());
+            return CommandResult.replayed(fromJson(replay.get()));
           }
 
           Object value = handler.handle(actor, command);
@@ -122,6 +128,21 @@ public class CommandBus {
       return mapper.writeValueAsString(value);
     } catch (Exception e) {
       throw new IllegalStateException("Command result is not serialisable", e);
+    }
+  }
+
+  /**
+   * A jsonb column comes back as driver-specific text, so a replay would
+   * otherwise answer with a string of JSON where the first call answered with an
+   * object. A retry must be indistinguishable from the original, including its
+   * shape.
+   */
+  private Object fromJson(Object stored) {
+    try {
+      String json = String.valueOf(stored);
+      return json.isBlank() || "null".equals(json) ? null : mapper.readTree(json);
+    } catch (Exception e) {
+      throw new IllegalStateException("Stored command result is not readable JSON", e);
     }
   }
 }

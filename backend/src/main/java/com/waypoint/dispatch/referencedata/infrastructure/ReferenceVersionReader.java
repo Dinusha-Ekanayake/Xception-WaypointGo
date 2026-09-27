@@ -17,6 +17,7 @@ import com.waypoint.dispatch.referencedata.domain.VehicleType;
 import com.waypoint.dispatch.shared.domain.DepotCode;
 import java.math.BigDecimal;
 import java.sql.Time;
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.List;
@@ -129,10 +130,7 @@ public class ReferenceVersionReader {
                         (BigDecimal) r.get("service_allowance_min")))
             .toList();
 
-    List<CalendarDay> calendar =
-        database.query("SELECT * FROM ref.calendar_days ORDER BY calendar_date").stream()
-            .map(ReferenceVersionReader::toCalendarDay)
-            .toList();
+    List<CalendarDay> calendar = calendarWithOverrides();
 
     return Optional.of(
         new ReferenceSnapshot(
@@ -167,6 +165,58 @@ public class ReferenceVersionReader {
         (BigDecimal) r.get("km_per_l"),
         (BigDecimal) r.get("weekly_fuel_quota_l"),
         new DepotCode((String) r.get("depot_code")));
+  }
+
+  /**
+   * The supplied and generated calendar, with any recorded override laid on top.
+   *
+   * <p>Applied here rather than at every read so a constraint evaluation stays in
+   * memory. An overridden day is never marked generated: a person decided it, so
+   * R-CAL-03's distinction between a real day and an assumed one still holds.
+   *
+   * <p>An override can name a date the calendar does not reach, which is the
+   * normal case for declaring a holiday months ahead. That day is generated from
+   * policy first and then overruled.
+   */
+  private List<CalendarDay> calendarWithOverrides() {
+    Map<LocalDate, Boolean> overrides = new java.util.LinkedHashMap<>();
+    for (Map<String, Object> r :
+        database.query(
+            "SELECT calendar_date, is_operating FROM ref.calendar_overrides ORDER BY calendar_date")) {
+      overrides.put(
+          ((java.sql.Date) r.get("calendar_date")).toLocalDate(), (Boolean) r.get("is_operating"));
+    }
+
+    Map<LocalDate, CalendarDay> days = new java.util.LinkedHashMap<>();
+    for (Map<String, Object> r :
+        database.query("SELECT * FROM ref.calendar_days ORDER BY calendar_date")) {
+      CalendarDay day = toCalendarDay(r);
+      days.put(day.date(), day);
+    }
+    for (Map.Entry<LocalDate, Boolean> override : overrides.entrySet()) {
+      CalendarDay base =
+          days.computeIfAbsent(
+              override.getKey(),
+              com.waypoint.dispatch.referencedata.domain.OperatingCalendarPolicy::generate);
+      days.put(override.getKey(), operating(base, override.getValue()));
+    }
+    return List.copyOf(days.values());
+  }
+
+  private static CalendarDay operating(CalendarDay day, boolean operating) {
+    return new CalendarDay(
+        day.date(),
+        day.dayOfWeek(),
+        day.weekend(),
+        day.isoYear(),
+        day.isoWeek(),
+        day.payday(),
+        day.festival(),
+        day.festivalRamp(),
+        day.holiday(),
+        day.monsoon(),
+        operating,
+        false);
   }
 
   private static CalendarDay toCalendarDay(Map<String, Object> r) {

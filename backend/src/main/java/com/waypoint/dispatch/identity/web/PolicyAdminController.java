@@ -1,10 +1,7 @@
 package com.waypoint.dispatch.identity.web;
 
 import com.waypoint.dispatch.identity.application.PolicyAdminUseCase;
-import com.waypoint.dispatch.identity.application.PolicyDecisionPoint;
-import com.waypoint.dispatch.identity.application.SessionRegistry;
-import com.waypoint.dispatch.identity.contract.SessionView;
-import com.waypoint.dispatch.identity.domain.policy.Decision;
+import com.waypoint.dispatch.platform.web.RequestAuthorizer;
 import com.waypoint.dispatch.shared.domain.Actor;
 import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
@@ -35,14 +32,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/policies")
 public class PolicyAdminController {
   private final PolicyAdminUseCase policies;
-  private final PolicyDecisionPoint decisions;
-  private final SessionRegistry sessions;
+  private final RequestAuthorizer authorizer;
 
-  public PolicyAdminController(
-      PolicyAdminUseCase policies, PolicyDecisionPoint decisions, SessionRegistry sessions) {
+  public PolicyAdminController(PolicyAdminUseCase policies, RequestAuthorizer authorizer) {
     this.policies = policies;
-    this.decisions = decisions;
-    this.sessions = sessions;
+    this.authorizer = authorizer;
   }
 
   public record CreateRequest(String name, String description, Object document) {}
@@ -99,18 +93,12 @@ public class PolicyAdminController {
     return ResponseEntity.noContent().build();
   }
 
-  /** Resolves the session and applies policy. Denials carry the statement that caused them. */
+  /**
+   * Shared with every other read surface. It used to be a private copy here, which
+   * is one copy away from a controller that forgets to audit its denials.
+   */
   private Actor authorize(HttpServletRequest request, String action, String resource) {
-    SessionView session =
-        sessions
-            .resolve(AuthController.tokenFrom(request))
-            .orElseThrow(() -> new DomainException(ErrorCode.UNAUTHENTICATED, "Not signed in"));
-    Actor actor = sessions.actorOf(session);
-    Decision decision = decisions.decide(actor, action, resource, Map.of());
-    if (decision.denied()) {
-      throw new DomainException(ErrorCode.FORBIDDEN, decision.reason());
-    }
-    return actor;
+    return authorizer.require(request, action, resource);
   }
 
   private static String json(Object document) {

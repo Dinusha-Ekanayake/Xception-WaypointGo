@@ -89,6 +89,10 @@ class FoundationIntegrationTest {
   @Order(2)
   void referenceImportPublishesAndReImportIsANoOp() {
     clearAccounts();
+    // A publish can only be asserted from a known starting point. Another test
+    // class importing first would otherwise turn the first call into the no-op
+    // and the second assertion into the only one that ran.
+    clearReferenceVersions();
     var first = referenceImport.importFrom(Path.of("../data"), null);
     assertTrue(first.published());
     assertEquals(120, first.outlets());
@@ -272,6 +276,18 @@ class FoundationIntegrationTest {
                     () -> database.queryOne("SELECT user_id FROM iam.users WHERE email = ?", email))
                 .get("user_id");
     return Actor.user(id);
+  }
+
+  /** Everything version-scoped cascades from the version row. The identity
+   * registries are deliberately left: an outlet id outlives the snapshot that
+   * described it. */
+  private void clearReferenceVersions() {
+    database.asModule(
+        ModuleRole.REF,
+        null,
+        () -> {
+          database.update("DELETE FROM ref.reference_versions");
+        });
   }
 
   private void clearAccounts() {

@@ -21,6 +21,36 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-09-28 - feat: administer accounts, scope and the calendar over HTTP
+
+`dev` · @Oxshadha
+
+Eight identity command handlers in `IdentityCommandHandlers`: create, update, disable, reset password, grant and revoke scope, assign a driver and end an assignment. `AccountQuery` plus `AccountAdminController` and `ReferenceController` for the reads, both authorized through a new `RequestAuthorizer` port that identity implements, so a module's web layer never imports another module. `PolicyAdminController` now shares that guard instead of its own copy. `calendar:Override` is a command; its override lives in `ref.calendar_overrides` and is applied when a snapshot is loaded. Migration `009`.
+Why: every account change was a host command, so nothing outside a terminal could make one, and the four read surfaces the frontend needs did not exist.
+Verified: 97 tests green with `TEST_DATABASE_URL` set, twice in a row. `AdministrationIntegrationTest` proves over HTTP that a stale `expectedVersion` is `409`, an overlapping driver assignment is `409` naming R-IAM-13 while an abutting one is accepted, a scope naming `OUT999` is `404` rather than stored, an account cannot disable itself, a reset revokes live sessions, and a driver reading `/api/accounts` is `403` rather than an empty list.
+Open: devices are still unbuilt, deliberately. Ordering is next.
+
+**Writes and reads split deliberately.** Every change goes through `POST /api/commands`; the controllers are read only. A second write path would have no receipt, no version guard and no audit row, and it would be the one a client reached for. The consequence is that every account read returns `rowVersion`: a read surface that hides the version makes the version guard unusable.
+
+**An override had to be a table, not a column.** `ref.calendar_days` is rewritten by every reference import, so an override stored there would vanish the first time the supplied CSV changed. It also has nowhere to put an actor or a reason, which architecture rule 8 requires of any override. Recorded as R-CAL-04, with R-IAM-13 through R-IAM-17 for the assignment, session and scope rules the handlers enforce.
+
+---
+
+## 2026-09-27 - feat: serve POST /api/commands and route the first commands through the bus
+
+`dev` · @Oxshadha
+
+Added `platform/web/CommandController` and an `ActorResolver` port that identity implements, so platform serves the endpoint without importing a business module. `CommandHandler` now declares its own `ModuleRole`, which keeps the web layer from knowing which module owns a kind. Converted `SetVehicleDayStatusHandler` and `ImportReferenceDataHandler` to handlers; the import keeps a separate CLI entry point because `import-reference` runs with no session and no receipt. Migration `008` corrects `iam.action_catalogue.implemented` to match what is actually enforced.
+Why: the command bus, the idempotency guard and the fail-closed authorizer were wired and unit tested, and nothing served `/api/commands` although the frontend write path and the offline queue both post there. Ordering should not be the first thing to run a command.
+Verified: 86 tests green with `TEST_DATABASE_URL` set. `CommandPathIntegrationTest` goes over HTTP with a real session cookie: a command posted twice applies once and the retry is answered from the receipt with the same shape, the same id with a changed payload is `409` and changes nothing, a driver posting `reference:Import` is `403` with the denial in `integration.audit_log` and no receipt, and an unsigned caller is `401`.
+Open: nothing in this unit. Account administration and reference reads followed in the next entry.
+
+**Two defects the first real dispatch exposed.** The fail-closed check was a chain of `Optional.map`, and mapping to null collapses to empty: with an authorizer present and the command allowed, the bus took the fail-closed branch and denied everything. A replay also returned the receipt's `result_body` as raw jsonb text, so a retry answered with a string where the first call answered with an object. Both are now unit tested in `CommandBusTest` without a database. A mechanism nobody has run is not a mechanism that works.
+
+**The audit log would have stopped accepting writes on 1 November 2026.** `005` created two monthly partitions and said a scheduler would create more. There is no scheduler, and every command commits its audit row in the same transaction as the change, so a missing partition fails the command rather than losing the row. `008` extends the range to July 2027 and closes a related hole: the parent was append only but each partition carried UPDATE from the schema-wide grant.
+
+---
+
 ## 2026-09-27 - docs: make the documentation set answerable
 
 `dev` · @Oxshadha

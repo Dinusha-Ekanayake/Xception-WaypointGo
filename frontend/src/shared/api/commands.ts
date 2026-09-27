@@ -27,6 +27,19 @@ export function newCommand<TPayload>(
   };
 }
 
-export async function send<TResult>(command: Command): Promise<TResult> {
-  return request<TResult>("/api/commands", { method: "POST", body: command });
+/**
+ * What the server answers with. `replayed` is true when a stored receipt answered
+ * instead of the handler running again, so a queued write that was already
+ * accepted before the connection dropped reads as "done" rather than "done just
+ * now" and never as a second execution.
+ */
+export type CommandAck<TResult = unknown> = {
+  commandId: string;
+  kind: string;
+  replayed: boolean;
+  result: TResult;
+};
+
+export async function send<TResult>(command: Command): Promise<CommandAck<TResult>> {
+  return request<CommandAck<TResult>>("/api/commands", { method: "POST", body: command });
 }

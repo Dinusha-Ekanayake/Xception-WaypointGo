@@ -331,7 +331,7 @@ Both are transaction-scoped. `SET LOCAL`, never plain `SET`: a pooled connection
 
 ### 2.9 Definition of done
 
-**Status on 2026-09-27:** authentication, the decision point and row-level security are met; policy administration endpoints are outstanding. Verified live: identical responses and identical hashing work for a wrong password and an unknown account; Argon2id storage; an `HttpOnly` cookie holding a 43 character opaque token; RLS returning only the actor's own depot with a correct actor, and zero rows with none set. 64 tests green, including 18 on the evaluator and 10 evaluating the shipped role policies parsed from the migration itself.
+**Status on 2026-09-28:** met. Authentication, the decision point, row-level security, policy administration and account administration are all built. The decision point authorizes commands through the bus and reads through the `RequestAuthorizer` port, so a denied read is audited exactly like a denied write. Verified live: identical responses and identical hashing work for a wrong password and an unknown account; Argon2id storage; an `HttpOnly` cookie holding a 43 character opaque token; RLS returning only the actor's own depot with a correct actor, and zero rows with none set; a driver denied `reference:Import` over HTTP with the denial in `integration.audit_log`; a stale `expectedVersion` refused; two drivers refused one vehicle over the same days. 97 tests green, including 18 on the evaluator, 10 evaluating the shipped role policies parsed from the migration itself, and 19 on the command and administration paths end to end.
 
 1. Every command has an authorization test that asserts a **denied** case, not only the happy path.
 2. RLS is proven: a connection carrying the wrong actor returns zero rows for another outlet's data.
@@ -423,13 +423,15 @@ Two levels, deliberately. This document is the base in detail; section 10 is eve
 
 Ordering is the first module built on the foundation rather than as part of it, so it is also the first real test of whether the base holds. It gets, without building any of it:
 
-- `CommandBus` with idempotency receipts and audit, and a `PolicyDecisionPoint` that already answers for `order:*`
+- `POST /api/commands`, `CommandBus` with idempotency receipts and audit, and a `PolicyDecisionPoint` that already answers for `order:*`. Proven by `reference:Import` and `vehicle:SetDayStatus`, which were converted to handlers first so ordering would not be the thing that debugs the bus. Adding a command is a handler and a catalogue row, never a route
+- A warning worth carrying forward: the bus was wired, unit tested and had never executed a command, and its fail-closed branch was inverted. It denied every *allowed* command as soon as an authorizer existed. A mechanism nobody has run is not a mechanism that works
 - `ReferenceQuery` for outlets, calendar and windows, versioned so a decision can be replayed
-- `app.actor_has_outlet`, the predicate its row-level security policies are built from
+- `app.actor_has_outlet`, the predicate its row-level security policies are built from, and `iam:GrantScope` to put outlets in it
+- A read surface pattern to copy: commands for every write, a `*Query` and a controller for reads, and `rowVersion` in every response so a caller can satisfy the version guard
 - The `integration` schema, so the outbox needs no retrofit
 
 ### What it must decide first
 
 - **Q8, still open**: do Waypoint orders carry product lines at capture? Stock is held per product, so without lines there is nothing to check against the warehouse. See [ASSUMPTIONS.md](ASSUMPTIONS.md) A-18.
-- The seven action entries `order:*` in `iam.action_catalogue` are marked `implemented = false`. Each becomes true when its handler exists, and the catalogue row plus the handler are the two halves of adding an action.
+- The four action entries `order:*` in `iam.action_catalogue` are marked `implemented = false`. Each becomes true when its handler exists, and the catalogue row plus the handler are the two halves of adding an action. `CommandPathIntegrationTest` now fails when a handler exists whose catalogue row says otherwise, so the flag cannot drift quietly.
 - `ops` is the first schema with rows worth scoping, so it is where row-level security stops being a mechanism and starts being protection.

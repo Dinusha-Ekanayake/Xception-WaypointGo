@@ -256,6 +256,7 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-CAL-01 | Operating dates come from `calendar.csv`; non-operating days and holidays are excluded from the schedule | Booklet, team | Binding |
 | R-CAL-02 | Paydays, festivals, weekends and monsoon affect demand or travel time | Booklet | Binding |
 | R-CAL-03 | Beyond the supplied calendar range, generate Monday to Saturday as operating, mark generated, and alert before exhaustion | Policy | Policy |
+| R-CAL-04 | A person may override one day's operating status. The override carries an actor, a reason and a timestamp, lives in `ref.calendar_overrides` so a reference import cannot discard it, and is never marked generated: a decided day is not an assumed one | Policy | Policy |
 | R-NOT-01 | Warehouse to store manager: insufficient quantity | Team draft | Team |
 | R-NOT-02 | Loader to dispatcher: damage or other problem | Team draft | Team |
 | R-NOT-03 | Driver to dispatcher: report messages | Team draft | Team |
@@ -280,6 +281,11 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-IAM-10 | Any policy change clears the whole policy cache. A cache clever about invalidation is a cache that eventually serves a revoked permission | Policy | Policy |
 | R-IAM-11 | Sessions are opaque and server side. Revocation must be immediate, which a self-contained token cannot do | Policy | Policy |
 | R-IAM-12 | A wrong password and an unknown account return the same message and spend the same hashing work | Policy | Policy |
+| R-IAM-13 | A vehicle has at most one driver on any date, enforced by an exclusion constraint on `(vehicle_id, validity)`. A check followed by an insert is a race; a constraint is not. Ranges are half open, so one assignment ending the day another begins is not an overlap | Policy | Policy |
+| R-IAM-14 | A driver assignment is ended by shortening its range, never by deleting the row, so who held a vehicle on a past date stays answerable | Policy | Policy |
+| R-IAM-15 | A password reset and a disable both revoke every session in the same transaction. A reset that leaves old sessions alive protects nobody, because the reason to reset is usually that someone else has the account | Policy | Policy |
+| R-IAM-16 | An account cannot disable itself. An administrator holding the only admin policy would otherwise lock everyone out permanently | Policy | Policy |
+| R-IAM-17 | A scope may only name a depot or outlet that exists. A scope naming nothing is a permanent silent denial, which is the same class of mistake as an uncatalogued action | Policy | Policy |
 
 ## 8. Conflicts found
 
