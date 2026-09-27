@@ -32,9 +32,21 @@ function imports(rel: string): string[] {
 
 const posix = (rel: string) => rel.split(path.sep).join("/");
 
+// A rule that matches nothing passes vacuously, which is worse than no rule.
+// ArchUnit fails on the backend for exactly this reason; mirror it here.
+function requireFiles(files: string[], what: string): string[] {
+  assert.ok(files.length > 0, `no ${what} found to check; the boundary test would pass vacuously`);
+  return files;
+}
+
+test("the source tree exists and is being checked", () => {
+  requireFiles(sources("src"), "files under src/");
+  requireFiles(sources("app"), "files under app/");
+});
+
 test("a role never imports another role", () => {
   const roles = ["dispatcher", "loader", "driver", "store"];
-  for (const file of sources("src/roles")) {
+  for (const file of requireFiles(sources("src/roles"), "role files")) {
     const owner = posix(file).split("/")[2];
     for (const spec of imports(file)) {
       const target = /^@roles\/([^/]+)/.exec(spec)?.[1];
@@ -50,7 +62,7 @@ test("a role never imports another role", () => {
 });
 
 test("shared depends on neither roles nor the app shell", () => {
-  for (const file of sources("src/shared")) {
+  for (const file of requireFiles(sources("src/shared"), "shared files")) {
     for (const spec of imports(file)) {
       assert.ok(
         !spec.startsWith("@roles/") && !spec.startsWith("@app-shell/"),
