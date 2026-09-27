@@ -402,3 +402,34 @@ The seven from the first draft, plus two forced by the full dataset. Each is a r
 - **D8 changes the schema baseline.** `ref.district_travel` currently has `PRIMARY KEY (district_id, depot_id)`, which implies a district can be served by more than one depot. The data says otherwise. Fixing this before operational tables exist is cheap; afterwards it is a rewrite of every join that assumed the composite key.
 - **D1 means a plan stamps one `reference_version_id`** and that is sufficient to reproduce every structural input. Calendar and road conditions are reproduced by date, which is already immutable.
 - **D3 and D4 together** mean the role list is data. Adding `stock_controller` later, if the warehouse is ever brought in-house, is an insert.
+
+---
+
+## Part 4: Where this document ends
+
+The foundation is complete. Reference data and Identity both meet their definitions of done (1.11 and 2.9), so the trail continues in [../../SYSTEM-ARCHITECTURE.md](../../SYSTEM-ARCHITECTURE.md) section 10, which plans the whole system rather than just its base.
+
+Two levels, deliberately. This document is the base in detail; section 10 is every workstream at a coarser grain.
+
+| Workstream | Covered by | State |
+| --- | --- | --- |
+| WS0 Platform | section 0.3 here, built | **done** |
+| WS1 Identity | Part 2 here, built | **done** |
+| WS2 Reference | Part 1 here, built | **done** |
+| **WS3 Ordering** | SYSTEM-ARCHITECTURE 10.2 | **next** |
+| WS4 Planning onward | SYSTEM-ARCHITECTURE 10.2 | not started |
+
+### What WS3 inherits
+
+Ordering is the first module built on the foundation rather than as part of it, so it is also the first real test of whether the base holds. It gets, without building any of it:
+
+- `CommandBus` with idempotency receipts and audit, and a `PolicyDecisionPoint` that already answers for `order:*`
+- `ReferenceQuery` for outlets, calendar and windows, versioned so a decision can be replayed
+- `app.actor_has_outlet`, the predicate its row-level security policies are built from
+- The `integration` schema, so the outbox needs no retrofit
+
+### What it must decide first
+
+- **Q8, still open**: do Waypoint orders carry product lines at capture? Stock is held per product, so without lines there is nothing to check against the warehouse. See [ASSUMPTIONS.md](ASSUMPTIONS.md) A-18.
+- The seven action entries `order:*` in `iam.action_catalogue` are marked `implemented = false`. Each becomes true when its handler exists, and the catalogue row plus the handler are the two halves of adding an action.
+- `ops` is the first schema with rows worth scoping, so it is where row-level security stops being a mechanism and starts being protection.
