@@ -39,7 +39,7 @@ PostgreSQL runs in Docker, the application runs natively: `docker compose up -d 
 
 ## Build and Test Commands
 
-Node.js 22.13+, Java 17+ with Maven, PostgreSQL 16+. From `frontend/`: `npm ci` to install, `npm run typecheck`, `npm run build` (production build plus service worker), `npm start` to serve that build when checking offline behaviour. Initialize the database explicitly through the backend (`mvn spring-boot:run -Dspring-boot.run.arguments="migrate"` then `"seed"`). **Builds and requests must never migrate or seed.**
+Node.js 22.13+, Java 17+ with Maven, PostgreSQL 16+. From `frontend/`: `npm ci` to install, `npm run typecheck`, `npm run build` (production build plus service worker), `npm start` to serve that build when checking offline behaviour. Initialize the database explicitly through the backend: `migrate`, then `import-reference` to stage, validate and publish a reference version. **Builds and requests must never migrate, import or seed.** An import either publishes completely or changes nothing, and identical content is a no-op by content hash rather than a new version.
 
 `npm test` runs legacy Node regressions, Maven tests and Spring HTTP integration tests. `npm run test:e2e` runs Playwright browser tests (install Chromium first with `npx playwright install chromium`; they need a production build and start an isolated server on port 43219). `npm run verify` runs the sequence.
 

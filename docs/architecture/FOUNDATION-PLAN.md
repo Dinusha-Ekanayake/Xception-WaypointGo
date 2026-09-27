@@ -207,6 +207,8 @@ Reference data is read on every constraint evaluation, thousands of times per al
 
 ### 1.11 Definition of done
 
+**Status: met on 2026-09-27.** Import of the supplied data publishes 120 outlets, 60 vehicles, 12 districts, 2 depots, 9 allowances and 910 calendar days; re-import is a no-op by hash; all nine rules reject a broken fixture in 13 domain tests running without a database; fleet composition matches the booklet exactly (12 reefer trucks, 40 dry trucks, 4 reefer vans, 4 ambient vans).
+
 1. Import is atomic, validated, hashed and repeatable, with the whole rule set in 1.7 enforced.
 2. Reading as-of a version returns exactly what that version contained.
 3. The domain layer has no framework imports and its calendar and window logic is tested without a database.

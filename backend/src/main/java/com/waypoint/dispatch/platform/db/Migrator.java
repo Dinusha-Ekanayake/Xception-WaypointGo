@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.waypoint.dispatch.platform.config.DirectoryLocator;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -98,7 +99,7 @@ public class Migrator {
   }
 
   private List<Path> discover() {
-    Path dir = resolveDirectory();
+    Path dir = DirectoryLocator.resolve(migrationsDir, "migrations");
     try (var stream = Files.list(dir)) {
       return stream
           .filter(p -> p.getFileName().toString().endsWith(".sql"))
@@ -107,24 +108,6 @@ public class Migrator {
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
-  }
-
-  /**
-   * The configured path first, then the obvious alternatives. Running from the
-   * repository root and from backend/ are both normal, and a migrate that fails
-   * only because of the working directory wastes someone's morning.
-   */
-  private Path resolveDirectory() {
-    List<Path> candidates =
-        List.of(Path.of(migrationsDir), Path.of("migrations"), Path.of("..", "migrations"));
-    for (Path candidate : candidates) {
-      if (Files.isDirectory(candidate)) {
-        return candidate;
-      }
-    }
-    throw new IllegalStateException(
-        "Migrations directory not found. Tried: "
-            + candidates.stream().map(p -> p.toAbsolutePath().normalize().toString()).toList());
   }
 
   private static String read(Path path) {

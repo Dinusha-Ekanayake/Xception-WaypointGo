@@ -124,20 +124,20 @@ class ModuleBoundaryTest {
   }
 
   @Test
-  void auditIsReachedThroughItsOwnComponent() {
+  void onlyInfrastructureAndApplicationTouchTheDatabaseSeam() {
     noClasses()
         .that()
-        .resideOutsideOfPackages(ROOT + ".platform..")
+        .resideInAnyPackage(ROOT + "..domain..", ROOT + "..web..", ROOT + "..contract..")
         .should()
         .dependOnClassesThat()
-        .haveFullyQualifiedName(ROOT + ".platform.db.ModuleRole")
+        .haveFullyQualifiedName(ROOT + ".platform.db.Database")
         .orShould()
         .dependOnClassesThat()
-        .haveFullyQualifiedName(ROOT + ".platform.db.Database")
+        .haveFullyQualifiedName(ROOT + ".platform.db.ModuleRole")
         .because(
-            "a module reaches PostgreSQL through its own repository, which is the only place"
-                + " allowed to name the seam directly")
-        .allowEmptyShould(true)
+            "a domain rule must be testable with no database, and a controller must not reach"
+                + " past the application layer. Repositories and handlers are where the seam"
+                + " belongs")
         .check(production());
   }
 

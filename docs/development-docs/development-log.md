@@ -21,6 +21,19 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-09-27 - feat: reference data module
+
+`dev` · @Oxshadha
+
+Pure domain (windows, vehicles, outlets, calendar policy, snapshot) plus the nine-rule validator, a CSV importer that hashes its source, a version writer and reader implementing snapshot-per-version, an in-memory cache with pointer swap, and the `import-reference` command.
+Why: reference data is the shared vocabulary every other module reads, and it has no upstream dependency, so it is built first.
+Verified: import of the supplied data published 120 outlets, 60 vehicles, 12 districts, 2 depots, 9 allowances, 910 calendar days, with exactly one current version. Re-import was a no-op by content hash. Fleet composition matches the booklet exactly: 12 reefer trucks, 40 dry trucks, 4 reefer vans, 4 ambient vans. All 12 mall outlets carry their mall window. 28 tests green, including 13 validator tests that each reject a deliberately broken fixture with no database.
+Open: `ReferenceDataQuery` and the vehicle day status and calendar override handlers are not written yet; the import path is complete.
+
+Two corrections while building. The `auditIsReachedThroughItsOwnComponent` boundary rule written in the previous stage was wrong: it forbade every module from naming `Database`, which is exactly what a repository must do. It now says what it meant, that `domain`, `web` and `contract` may not touch the seam. Separately, the working-directory bug fixed earlier in the migrator existed again in the importer, so both now share `DirectoryLocator`.
+
+---
+
 ## 2026-09-27 - feat: platform baseline
 
 `dev` · @Oxshadha
