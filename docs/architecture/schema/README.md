@@ -1,5 +1,12 @@
 # Target database schema
 
+> **Superseded for `ref` and `iam`.** The live foundation schema is now in the
+> repository's root `migrations/`, created fresh with decisions D1 to D9 applied
+> rather than as corrections layered on `001_baseline.sql`. This directory stays
+> as the design record and as the source for `ops`, `ml` and `integration`, which
+> land with their own modules.
+
+
 The schema Waypoint Dispatch is moving to: five schemas, 47 tables, row-level security and a database role per module.
 
 **Status: design, not yet adopted, and now pending revision.** Decisions D1 to D9 in [../FOUNDATION-PLAN.md](../FOUNDATION-PLAN.md#34-decisions-resolved) change the reference and identity tables: natural keys for depots and districts, `district_travel` keyed by district alone, value `CHECK`s removed from lookup tables, `auditor` added, `iam.sessions` and `iam.login_attempts` added, and `ref.traffic_speed` and `ref.road_conditions` introduced. Those land as new numbered migrations after 019, not as edits to existing files.

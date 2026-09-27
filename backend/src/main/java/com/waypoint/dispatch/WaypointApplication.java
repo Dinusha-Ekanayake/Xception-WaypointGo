@@ -1,5 +1,6 @@
 package com.waypoint.dispatch;
 
+import com.waypoint.dispatch.platform.db.Migrator;
 import java.util.List;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -10,9 +11,18 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 /**
  * Entry point. Serving is the default. Operational commands run explicitly and
  * never as a side effect of a build, a deployment or a request.
+ *
+ * <ul>
+ *   <li>{@code migrate} applies pending SQL migrations
+ * </ul>
  */
 @SpringBootApplication
 public class WaypointApplication implements ApplicationRunner {
+  private final Migrator migrator;
+
+  public WaypointApplication(Migrator migrator) {
+    this.migrator = migrator;
+  }
 
   public static void main(String[] args) {
     SpringApplication app = new SpringApplication(WaypointApplication.class);
@@ -29,9 +39,13 @@ public class WaypointApplication implements ApplicationRunner {
     if (commands.isEmpty()) {
       return;
     }
-    System.out.println(
-        "Command " + commands + " is not implemented yet. Migrate and seed arrive with the"
-            + " reference data module.");
+    if (commands.contains("migrate")) {
+      int applied = migrator.migrate();
+      System.out.println(
+          applied == 0 ? "Schema already up to date." : "Applied " + applied + " migration(s).");
+      System.exit(0);
+    }
+    System.out.println("Unknown command " + commands + ". Use: migrate, or no argument to serve.");
     System.exit(2);
   }
 }
