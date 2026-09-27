@@ -2,6 +2,8 @@
 
 The schema Waypoint Dispatch is moving to: five schemas, 47 tables, row-level security and a database role per module.
 
+**Status: design, not yet adopted, and now pending revision.** Decisions D1 to D9 in [../FOUNDATION-PLAN.md](../FOUNDATION-PLAN.md#34-decisions-resolved) change the reference and identity tables: natural keys for depots and districts, `district_travel` keyed by district alone, value `CHECK`s removed from lookup tables, `auditor` added, `iam.sessions` and `iam.login_attempts` added, and `ref.traffic_speed` and `ref.road_conditions` introduced. Those land as new numbered migrations after 019, not as edits to existing files.
+
 **Status: design, not yet adopted.** The running application still uses the nine-table schema in the repository's root `migrations/`. Nothing here is applied automatically: the backend migrator reads `*.sql` directly inside `migrations/` and does not recurse, so these files are inert until someone moves them.
 
 ## Layout

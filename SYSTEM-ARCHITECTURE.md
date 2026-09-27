@@ -66,8 +66,8 @@ Non-human actors need identity too, because audit entries that say "the system d
 
 | System | Direction | Contract | Failure policy |
 | --- | --- | --- | --- |
-| **Warehouse and stock** | Outbound query, inbound event | `StockPort`: check availability, reserve, release. Consumes `order.confirmed`, emits `stock.reserved`, `stock.insufficient`, `stock.adjusted` | Circuit breaker. On open, orders enter `stock_unknown` and the dispatcher sees the degraded state explicitly. Never silently assume stock exists |
-| **Product catalogue** (same warehouse API) | Outbound bulk sync | `CataloguePort`: versioned catalogue and order-to-product lines, synced on a schedule into a local projection | Fall back to order-level weight and volume, which are authoritative for capacity regardless. Stale catalogue is shown as stale, never as current |
+| **Warehouse and stock** | Outbound query, inbound event | Verified surface: base `/api/v1`, `x-api-key` auth, errors as `{"error":{"code","message"}}`, `GET /products` and `GET|POST /orders`. **No stock resource exists**, so `StockPort` has no availability call yet. `StockPort`: check availability, reserve, release. Consumes `order.confirmed`, emits `stock.reserved`, `stock.insufficient`, `stock.adjusted` | Circuit breaker. On open, orders enter `stock_unknown` and the dispatcher sees the degraded state explicitly. Never silently assume stock exists |
+| **Product catalogue** (same warehouse API) | Outbound bulk sync | `CataloguePort`: `GET /api/v1/products`, read-only, `x-api-key` header, synced on a schedule into a local projection | Fall back to order-level weight and volume, which are authoritative for capacity regardless. Stale catalogue is shown as stale, never as current |
 | Identity provider (optional) | Outbound | OIDC. `iam.users.user_id` maps to the external subject | Fall back to local sessions already issued; no new logins |
 | Object storage | Outbound | `ProofStore`: put, signed get | Retry with backoff; capture blocks only if durable write fails, and the driver is told |
 | Notification channels | Outbound | Per-channel adapter | At-least-once with delivery records and dead-letter |

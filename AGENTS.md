@@ -29,7 +29,7 @@ Boundaries are enforced by `ModuleBoundaryTest.java` and `frontend/tests/boundar
 
 Static assets in `frontend/public/`; `frontend/scripts/build-sw.mjs` generates the service worker during production builds. Reference CSVs are read from tracked `data/` at the repo root; the Node service resolves `data/` from either the repo root or `frontend/`. Java tests in `backend/src/test/`, Spring HTTP integration tests in `frontend/tests/spring/`, legacy Node tests in `frontend/tests/`, browser tests in `frontend/tests/e2e/`.
 
-Documentation: `SYSTEM-ARCHITECTURE.md` at the root; `docs/architecture/` for module specs, the data model review and the edge case register; `docs/` for design rationale, deployment and submission evidence; `docs/development-docs/` for local setup and the development log.
+Documentation: `SYSTEM-ARCHITECTURE.md` at the root; `docs/architecture/` for module specs, the rule catalogue, the assumption and parameter registers, the data model review and the edge case register; `docs/` for design rationale, deployment and submission evidence; `docs/development-docs/` for local setup and the development log.
 
 Versioned SQL migrations live in root `migrations/`, shared by both stacks. The target schema under `docs/architecture/schema/migrations/` is a design under review and is deliberately not applied: the migrator reads `*.sql` directly inside `migrations/` and does not recurse. Node resolves them from the repo root or `frontend/`; Spring defaults to `../migrations` from `backend/` and accepts `MIGRATIONS_DIR`. Migrations apply atomically through the backend `migrate` command with a transaction-scoped advisory lock. Existing SQLite files in `var/` are legacy data and must be preserved.
 

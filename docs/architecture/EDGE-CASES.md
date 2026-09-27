@@ -39,6 +39,8 @@ Most of the cases below are instances of nine patterns. Learn the patterns and t
 | ORD-07 | Order volume or weight is zero or negative | Rejected at capture with a field-level problem detail | API validation | 4xx rate by field | Unit |
 | ORD-08 | Outlet window shorter than its service allowance | Rejected at capture with the arithmetic shown, not discovered at 04:00 | Reference + Ordering | Alert on any occurrence | Unit |
 | ORD-09 | Order for an outlet the actor does not manage | `403` plus audit | Authorization | Denied-attempt counter | Authorization test |
+| ORD-11 | A Fresh outlet submits both a dry and a chilled order for the same day | Two separate orders. Never merged or de-duplicated, because vehicle eligibility differs (R-ORD-02) | Ordering domain | Merge-attempt counter | Unit |
+| ORD-12 | Order placed on a holiday for a later operating day | Accepted; delivery date rolls to the next operating day and the store is shown it (R-ORD-08, conflict C-6) | Ordering + Reference | Rolled-date counter | Unit |
 | ORD-10 | Store cancels an already-loaded order | Cancellation refused; a return is recorded as a compensating action | Ordering domain | Return counter | Integration |
 
 ## 3. Stock, catalogue and the external warehouse
@@ -76,6 +78,9 @@ Most of the cases below are instances of nine patterns. Learn the patterns and t
 | PLN-11 | Allocation engine exceeds its time budget | Returns the best feasible result so far, marked partial. Never an empty plan and never an unbounded wait | `AllocationEngine` | p95 duration, partial-result rate | Load test |
 | PLN-12 | Engine returns an infeasible plan | `ValidatingEngine` rejects it before it leaves the module | Planning infrastructure | Alert on any occurrence | Property test |
 | PLN-13 | Plan requested for a non-operating day | Refused | Reference | n/a | Unit |
+| PLN-15 | Trip volume or weight sits within `1e-6` of the cap | Treated as fitting, matching the supplied validator's tolerance exactly (R-PLN-06). Never compared with bare floating point | Constraint registry | n/a | Property test |
+| PLN-16 | An order requires `frozen` | Treated as reefer-requiring, identically to chilled (R-PLN-26). The supplied data carries only ambient and chilled | Constraint registry | Frozen-order counter | Unit |
+| PLN-17 | Allocation output regresses against the official rules | CI runs the supplied `check_allocation.py` over generated output; a failure blocks the build | CI | Build gate | CI job |
 | PLN-14 | Reference data changed between draft and publication | Publication uses the snapshot the draft was built against, or refuses and says why | Reference versioning | Counter | Integration |
 
 ## 5. Loading and the dock
@@ -100,7 +105,11 @@ Most of the cases below are instances of nine patterns. Learn the patterns and t
 | EXE-03 | Server state changed while offline | Conflict held for review against the current record. **Never auto-merge** | Sync | Conflict counter | Browser test |
 | EXE-04 | Mass reconnect after a regional outage | Backoff with jitter plus ingest bulkhead. Recovery must not become the outage | Client + Platform | Ingest queue depth | Load test |
 | EXE-05 | Arrive before the window opens | Vehicle waits; service time starts at window open | Execution domain | Wait-time histogram | Unit |
-| EXE-06 | Arrive after the window closes | Delivery still recorded, lateness flagged with a reason | Execution domain | Late-arrival rate | Unit |
+| EXE-06 | Arrive after the window closes | Delivery still recorded, lateness flagged with a reason (R-EXE-05) | Execution domain | Late-arrival rate | Unit |
+| EXE-16 | Arrive later than planned but still inside the window | **Not late.** Lateness is measured against `window_close_time`, never against planned arrival (R-EXE-14) | Execution domain | n/a | Unit |
+| EXE-17 | Arrive on plan but the window has already closed | **Late**, even though the plan was met. The plan was wrong, and that is the signal | Execution domain | Plan-vs-window divergence | Unit |
+| EXE-18 | Arrive before the window and wait | Waiting time recorded separately from service time, so a long wait does not inflate the service-time history the model learns from (R-EXE-13) | Execution domain | Wait-time histogram | Unit |
+| EXE-19 | Mall outlet where the mall window and the outlet window differ | The effective window is the **intersection** of the two. If the intersection is empty the stop is unservable and is surfaced, never silently attempted (R-PLN-29) | Constraint registry | Empty-intersection alert | Unit |
 | EXE-07 | Outlet closed or refuses goods | `failed` outcome plus an issue. Dispatcher chooses redelivery, return or closure. Redelivery links a new order and preserves the original evidence | Execution + Issues | Failure rate by reason | End to end |
 | EXE-08 | Vehicle breaks down mid-route | Vehicle set `fault`, issue raised, remaining stops released for replanning, goods disposition recorded | Execution + Planning | Breakdown counter | Integration |
 | EXE-09 | Camera denied or photo too large | Delivery may complete with a recorded reason, flagged lower-evidence. A device limit must never block the work | Client + Execution | Low-evidence rate | Browser test |
@@ -118,6 +127,9 @@ Most of the cases below are instances of nine patterns. Learn the patterns and t
 | RCP-01 | Store confirms partial receipt | Recorded as `partial` with quantities; raises a dispute issue | Receipt + Issues | Partial rate | Integration |
 | RCP-02 | Store never confirms | Auto-closes after a configured window as `unconfirmed`. Never silently "delivered" | Scheduler | Auto-close rate | Integration, time-travel |
 | RCP-03 | Store disputes after proof exists | Dispute recorded alongside the proof. Evidence is never deleted or overwritten | Receipt | Dispute rate | Integration |
+| RCP-06 | Loader passed every check, driver recorded delivered, store reports items missing | Shortage investigation opened, linked to the loading check, the proof of delivery and the receipt. **No record is amended to make the three agree**, and it is not auto-resolved for either party (R-RCP-07) | Receipt + Issues | Shortage rate by depot and by route | End to end |
+| RCP-07 | Store reports missing goods and the proof photo shows a complete load | Both stand as evidence. The investigation records the contradiction; the system does not adjudicate it | Issues | Contradiction counter | Integration |
+| RCP-08 | Shortage reported after the auto-close window | Still accepted and investigated; auto-close is a state, not a deadline for the truth | Receipt | Late-shortage counter | Integration |
 | RCP-04 | Receipt confirmed for a delivery that never happened | Rejected: confirmation requires a delivery record | Receipt domain | Alert | Unit |
 | RCP-05 | Proof requested by a different outlet's manager | `403` plus audit | Authorization | Denied counter | Authorization test |
 

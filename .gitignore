@@ -137,6 +137,8 @@ artifacts/
 !SYSTEM-ARCHITECTURE.md
 !docs/architecture/MODULES.md
 !docs/architecture/FOUNDATION-PLAN.md
+!docs/architecture/RULES-AND-POLICIES.md
+!docs/architecture/ASSUMPTIONS.md
 !docs/architecture/DATA-MODEL-REVIEW.md
 !docs/architecture/EDGE-CASES.md
 !docs/architecture/schema/README.md

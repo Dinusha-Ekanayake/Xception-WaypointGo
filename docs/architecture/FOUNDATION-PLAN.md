@@ -73,6 +73,8 @@ The shape is settled by the dataset and should not be re-litigated. What needs d
 | `calendar_days` | one per date | Supplied range is authoritative; beyond it, policy applies (1.5) |
 | `district_travel` | one per district-depot | Planning inputs; versioned with the rest |
 | `service_allowances` | one per brand and dock type | Versioned with the rest |
+| `traffic_speed` | one per district, hour and monsoon flag | 576 rows. Structural, versioned with the rest |
+| `road_conditions` | one per district and date | 10,920 rows. Date-keyed series, **not** versioned. See D1 |
 | `products` | one per catalogue entry | Cache. Never edited locally. Rules in [DATA-MODEL-REVIEW.md](DATA-MODEL-REVIEW.md#external-product-catalogue) |
 
 ### 1.4 The versioning model: the one decision that matters
@@ -357,14 +359,24 @@ Steps 2 and 4 are schema; steps 3 and 5 are behaviour. Nothing downstream starts
 4. The reference domain and the authorization policy are both tested with no database.
 5. Nothing in `ref` or `iam` depends on any operational table. The dependency arrow points one way only.
 
-### 3.4 Decisions needed before step 2
+### 3.4 Decisions, resolved
 
-| # | Question | Recommendation |
-| --- | --- | --- |
-| 1 | Versioning model for reference data | Option A, snapshot per version, all tables in one version |
-| 2 | Keys for depots and districts | Natural codes, never regenerated identities |
-| 3 | Remove value `CHECK`s from `brands` and `roles` | Yes. Keep the tables and the foreign keys |
-| 4 | Add `auditor` to the role list | Yes |
-| 5 | Session storage | Server-side rows, opaque token |
-| 6 | Is `vehicle_day_status` versioned | No, it is operational state |
-| 7 | Calendar beyond the supplied range | Generate by policy, mark generated, alert before exhaustion |
+The seven from the first draft, plus two forced by the full dataset. Each is a recommendation with its reason; change any of them here rather than in code.
+
+| # | Decision | Resolution | Reason |
+| --- | --- | --- | --- |
+| **D1** | Versioning model for reference data | **Snapshot per version, structural tables only.** One import, one content hash, one version, covering brands, depots, districts, outlets, vehicles, district_travel, service_allowances and traffic_speed. **Calendar and road_conditions are excluded**: they are date-keyed series, append-only, and a correction to one date is an explicit override, not a new version of the world | Reference data is small and arrives as whole files. Versioning a date series would mint a new version every time a single day's disruption index is corrected |
+| **D2** | Keys for depots and districts | **Natural codes.** `depot_code` and `district_name` are the identity. No generated identity that could renumber on re-import | A `depot_id` that differs between environments makes a backup unrestorable and a stored reference meaningless (F3) |
+| **D3** | Remove value `CHECK`s from `brands` and `roles` | **Yes.** Keep the tables and the foreign keys; drop the embedded value lists | A lookup table whose values are also fixed in a `CHECK` needs a migration to add a row, which is the thing lookup tables exist to avoid (F2) |
+| **D4** | Add `auditor` to the role list | **Yes.** Read-only, global | Named in the architecture, forbidden by the current `CHECK`. It is also the safe way to grant investigative access during a dispute |
+| **D5** | Session storage | **Server-side rows, opaque token.** Add `iam.sessions` and `iam.login_attempts` | Revocation must be immediate, which a self-contained token cannot do. Throttling must be shared across replicas or a second replica is a bypass (F5) |
+| **D6** | Is `vehicle_day_status` versioned | **No.** It is daily operational state | Versioning it would create a new reference version every time a truck enters the workshop |
+| **D7** | Calendar beyond the supplied range | **Generate by policy**, Monday to Saturday operating, mark generated, alert before exhaustion | Planning silently stops working when the calendar runs out. A dispatcher must be able to tell a real holiday from an assumed one |
+| **D8** | District to depot relationship | **`districts.depot_id`.** Depot is a function of district, and `district_travel` is keyed by **district alone** | Verified in the data: all 120 outlets have `outlet.depot` equal to their district's depot, zero exceptions, and `district_travel` has exactly one row per district. The supplied validator also indexes it by district alone. `outlet.depot_id` becomes derived and is kept only as a checked redundancy |
+| **D9** | Where `traffic_speed` and `road_conditions` live | **Reference module.** They are General Data and are read during planning and estimation | They are supplied master data, not operational records, and nothing else owns them |
+
+### 3.5 Consequences worth stating
+
+- **D8 changes the schema baseline.** `ref.district_travel` currently has `PRIMARY KEY (district_id, depot_id)`, which implies a district can be served by more than one depot. The data says otherwise. Fixing this before operational tables exist is cheap; afterwards it is a rewrite of every join that assumed the composite key.
+- **D1 means a plan stamps one `reference_version_id`** and that is sufficient to reproduce every structural input. Calendar and road conditions are reproduced by date, which is already immutable.
+- **D3 and D4 together** mean the role list is data. Adding `stock_controller` later, if the warehouse is ever brought in-house, is an insert.

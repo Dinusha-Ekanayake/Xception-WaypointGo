@@ -33,7 +33,9 @@ Each module has the same five internal layers. The spec lists what belongs in ea
 | infrastructure | `JdbcReferenceRepository`, `CsvReferenceImporter`, `ReferenceCache` |
 | web | admin read endpoints |
 
-**Owns:** `ref.brands`, `ref.depots`, `ref.districts`, `ref.outlets`, `ref.vehicles`, `ref.vehicle_day_status`, `ref.calendar_days`, `ref.district_travel`, `ref.service_allowances`.
+**Owns:** `ref.brands`, `ref.depots`, `ref.districts`, `ref.outlets`, `ref.vehicles`, `ref.vehicle_day_status`, `ref.calendar_days`, `ref.district_travel`, `ref.service_allowances`, `ref.traffic_speed`, `ref.road_conditions`.
+
+`district_travel` is keyed by **district alone**: depot is a function of district in the supplied data, and the official validator indexes it that way.
 
 **Caches, does not own:** `ref.products`. The catalogue belongs to the external warehouse and arrives by scheduled bulk sync with a catalogue version. It is a projection: never edited here, and always able to report that it is stale.
 
@@ -149,6 +151,8 @@ draft ─► confirmed ─┬─► stock_held ──► confirmed        (wareh
 | `TimeBudget` | Fresh 270 min in 03:30-08:00; Style and Tech 480 min combined; checked separately |
 | `DeliveryWindow` | Arrival within the outlet window; mall outlets within the mall window; early arrival waits |
 | `FuelQuota` | Weekly litres per vehicle, including return legs and other published plans that week |
+
+Capacity comparisons use the supplied validator's tolerance of `1e-6`, never bare floating point. Every rule here carries its identifier from [RULES-AND-POLICIES.md](RULES-AND-POLICIES.md), and the rules marked Validated are re-checked in CI by running our allocation output through the supplied `check_allocation.py`, so a regression fails the build rather than the submission.
 
 Four consumers read that one registry: the engine, the manual override path, the publication gate and the UI. That is what makes explainability structural instead of a feature someone remembers to add.
 
