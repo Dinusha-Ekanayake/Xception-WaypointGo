@@ -21,6 +21,19 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-09-27 - feat: policy schema and evaluator
+
+`dev` · @Oxshadha
+
+Migration `006_iam_policies.sql` adds `action_catalogue`, `policies`, immutable `policy_versions` with one enforced default, and `policy_attachments`, seeded with six role policies as data. Added the pure evaluator: patterns with wildcards, six condition operators, and the ordering contract of default Deny, explicit Deny wins, then Allow.
+Why: authorization becomes data an administrator edits at runtime rather than code that needs a release. Evaluation stays in process, so the ruling against an external policy service still holds.
+Verified: 54 tests green, 18 on the evaluator alone. Migration applied to an empty database: six policies, each with one default version, each attached to its role, and 32 catalogued actions of which 3 are implemented.
+Open: the decision point, authentication and row-level security are next. Nothing calls the evaluator yet, so the command bus still fails closed.
+
+Two things the tests caught. A request with no specific resource was matching nothing at all; it is now normalised to `*`, which makes an unscoped request match only an unscoped grant rather than quietly satisfying a scoped one. A missing context key deliberately fails its condition rather than passing it, because treating absence as satisfied would grant access whenever a caller simply forgot to supply the value.
+
+---
+
 ## 2026-09-27 - feat: reference read API
 
 `dev` · @Oxshadha
