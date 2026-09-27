@@ -1,31 +1,37 @@
 package com.waypoint.dispatch.platform.observability;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.LongAdder;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
+import java.util.concurrent.TimeUnit;
 import org.springframework.stereotype.Component;
 
 /**
- * Minimal counters until a metrics backend is wired. Every edge case in
- * EDGE-CASES.md names a detection signal; this is where those signals live, so
- * that a case handled in code is also visible in production.
+ * The domain-facing metrics API.
+ *
+ * <p>Every edge case in docs/architecture/EDGE-CASES.md names a detection signal.
+ * This is where those signals live, so a case handled in code is also visible in
+ * production rather than only in a test.
+ *
+ * <p>Call sites use this, never Micrometer directly, so the backend can change
+ * without touching business code.
  */
 @Component
 public class Metrics {
-  private final Map<String, LongAdder> counters = new ConcurrentHashMap<>();
+  private final MeterRegistry registry;
 
-  public void increment(String name) {
-    counters.computeIfAbsent(name, k -> new LongAdder()).increment();
+  public Metrics(MeterRegistry registry) {
+    this.registry = registry;
   }
 
-  public long count(String name) {
-    LongAdder adder = counters.get(name);
-    return adder == null ? 0L : adder.sum();
+  public void increment(String name, String... tags) {
+    registry.counter(name, tags).increment();
   }
 
-  public Map<String, Long> snapshot() {
-    Map<String, Long> out = new ConcurrentHashMap<>();
-    counters.forEach((k, v) -> out.put(k, v.sum()));
-    return out;
+  public void record(String name, long durationMs, String... tags) {
+    Timer.builder(name).tags(tags).register(registry).record(durationMs, TimeUnit.MILLISECONDS);
+  }
+
+  public void gauge(String name, Number value, String... tags) {
+    registry.gauge(name, io.micrometer.core.instrument.Tags.of(tags), value);
   }
 }

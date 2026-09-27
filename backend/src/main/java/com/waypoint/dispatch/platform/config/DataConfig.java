@@ -25,11 +25,14 @@ public class DataConfig {
 
   @Bean(destroyMethod = "close")
   public DataSource dataSource(
-      @Value("${DATABASE_URL:}") String databaseUrl,
+      AppProperties properties,
       @Value("${spring.datasource.hikari.maximum-pool-size:8}") int maxPool) {
     HikariDataSource ds = new HikariDataSource();
-    String raw = databaseUrl == null ? "" : databaseUrl.trim();
-    ds.setJdbcUrl(raw.isBlank() ? "jdbc:postgresql://127.0.0.1:5432/waypoint" : toJdbcUrl(raw));
+    // Validated as non-blank by AppProperties, so reaching here means it is set.
+    // It may still point at a database that is down: that is an outage, reported
+    // by readiness, not a misconfiguration.
+    String raw = properties.databaseUrl().trim();
+    ds.setJdbcUrl(toJdbcUrl(raw));
     String username = username(raw);
     String password = password(raw);
     if (username != null) {

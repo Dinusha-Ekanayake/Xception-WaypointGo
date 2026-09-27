@@ -63,6 +63,16 @@ Naming: `*Test.java` under `backend/src/test/`, `*.test.ts` for Node and Spring 
 
 TypeScript with the repository's strict settings, two-space indentation, and the surrounding file's quote style. React components and types in `PascalCase`, functions and variables in `camelCase`. Frontend validation schemas live in `frontend/src/shared/domain/types.ts`. A component file over roughly 300 lines gets split into a container and a view. There is no configured formatter or lint command.
 
+## Platform Conventions
+
+Configuration is typed and validated in `platform/config/`; the process refuses to start rather than run misconfigured. `DATABASE_URL` must be set, but may point at a database that is down: that is an outage, not a misconfiguration.
+
+Every command goes through `platform/messaging/CommandBus`, which authorizes, checks the idempotency receipt, runs the handler, and commits the state change, the receipt and the audit row together. **It fails closed**: with no `CommandAuthorizer` wired, every command is denied. Never reach around it.
+
+Metrics go through `platform/observability/Metrics`, never Micrometer directly, so the backend can change without touching business code. Every edge case in EDGE-CASES.md names a detection signal, and that signal belongs here.
+
+Liveness is `/health/liveness` and readiness is `/health/readiness`; readiness includes the database, liveness deliberately does not. Prometheus is at `/prometheus`. Structured JSON logging is off locally and enabled with `LOG_FORMAT=ecs`. Never log payloads containing personal data.
+
 ## API and Error Contract
 
 Mutations go through the command endpoint with a command id and `expected_version`. Errors cross the API as RFC 9457 `application/problem+json` with a `violations` extension carrying failed constraints; the error body is part of the contract because clients branch on it. Reads are cursor-paginated on a keyset, never `OFFSET`. Additive API changes never break; removals need a new version and a deprecation window.

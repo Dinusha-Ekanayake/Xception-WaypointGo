@@ -106,6 +106,42 @@ class ModuleBoundaryTest {
   }
 
   @Test
+  void platformMessagingDependsOnlyOnContracts() {
+    noClasses()
+        .that()
+        .resideInAPackage(ROOT + ".platform.messaging..")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage(
+            ROOT + ".identity.domain..",
+            ROOT + ".identity.application..",
+            ROOT + ".identity.infrastructure..",
+            ROOT + ".referencedata.domain..",
+            ROOT + ".referencedata.application..",
+            ROOT + ".referencedata.infrastructure..")
+        .because("the command bus routes commands; it must not know any module's internals")
+        .check(production());
+  }
+
+  @Test
+  void auditIsReachedThroughItsOwnComponent() {
+    noClasses()
+        .that()
+        .resideOutsideOfPackages(ROOT + ".platform..")
+        .should()
+        .dependOnClassesThat()
+        .haveFullyQualifiedName(ROOT + ".platform.db.ModuleRole")
+        .orShould()
+        .dependOnClassesThat()
+        .haveFullyQualifiedName(ROOT + ".platform.db.Database")
+        .because(
+            "a module reaches PostgreSQL through its own repository, which is the only place"
+                + " allowed to name the seam directly")
+        .allowEmptyShould(true)
+        .check(production());
+  }
+
+  @Test
   void noClassIsNamedService() {
     noClasses()
         .should()

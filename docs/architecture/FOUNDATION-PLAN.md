@@ -25,6 +25,7 @@ Seven conventions. Once agreed they do not change, and every later module inheri
 | B5 | **History.** Operational rows are never deleted and never overwritten in place when the change is a decision. Terminal states and supersession, not `DELETE` | Deleted evidence cannot be recovered when a dispute arrives three months later |
 | B6 | **Access.** Two-part identity per transaction: `SET LOCAL ROLE waypoint_<module>` for what the code may touch, `SET LOCAL app.actor_id` for which rows the person may see | Retrofitting row-level security means auditing every query ever written |
 | B7 | **Provenance.** Every derived decision records the versions of its inputs: reference data, rules, model | Without it, a past decision cannot be explained once its inputs change |
+| B8 | **Configuration is typed and validated, and the process refuses to start rather than run misconfigured** | A missing value found at 03:30 through odd behaviour costs more than one found at startup through a clear message. Note the distinction from a dependency being down: `DATABASE_URL` must be present, but it may point at a database that is unreachable. That is an outage, reported by readiness, not a misconfiguration |
 
 ### 0.2 Five baseline defects to fix before building on it
 
@@ -41,6 +42,23 @@ The target schema in [schema/migrations/](schema/migrations/) is good work, and 
 None of these is large. All five are cheap now and expensive after the operational tables are populated.
 
 ---
+
+### 0.3 The platform baseline
+
+Cross-cutting machinery that every module uses. It lands before either module, because retrofitting any of it means touching every write path already written. Described in full in [../../SYSTEM-ARCHITECTURE.md](../../SYSTEM-ARCHITECTURE.md) sections 6.5 to 6.7 and 7; listed here so the foundation is legible from one document.
+
+| Concern | What exists | Where |
+| --- | --- | --- |
+| Configuration | Typed, validated, fail fast; a startup report with secrets redacted | `platform/config/` |
+| Database seam | Pool as `waypoint_app`, module role and actor set per transaction, bounded retry on serialization failure | `platform/db/Database` |
+| Migrations | Forward only, checksummed, advisory lock, explicit command | `platform/db/Migrator` |
+| Logging | Structured, correlation and trace id in context, no personal data | `logging.structured.format.console` |
+| Metrics | Micrometer with a Prometheus endpoint; the domain-facing API is `Metrics` | `platform/observability/Metrics` |
+| Tracing | OpenTelemetry over OTLP, client through command to database | Micrometer Tracing |
+| Health | Liveness and readiness separated: a slow database stops traffic, it does not kill the process | `/health/liveness`, `/health/readiness` |
+| Command bus | One envelope, idempotency receipt, audit and state committed together. **Fails closed** with no authorizer wired | `platform/messaging/` |
+| Audit | Append only, written in the same transaction, denials included | `platform/audit/` |
+| Errors | RFC 9457 `application/problem+json` carrying violated rule identifiers | `platform/web/` |
 
 ## Part 1: Reference data module
 
