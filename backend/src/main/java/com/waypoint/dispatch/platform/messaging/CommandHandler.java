@@ -14,5 +14,13 @@ public interface CommandHandler {
   /** The action string checked against policy before this runs. */
   String action();
 
+  /**
+   * What this command acts on, so a scoped policy can be evaluated. Null when
+   * the action has no specific target, which only an unscoped grant can allow.
+   */
+  default String resource(Command command) {
+    return null;
+  }
+
   Object handle(Actor actor, Command command);
 }

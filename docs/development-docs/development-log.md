@@ -21,6 +21,21 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-09-27 - feat: identity module, authentication and the decision point
+
+`dev` · @Oxshadha
+
+Policy parsing and repository, a policy cache, and `PolicyDecisionPoint` implementing `CommandAuthorizer`, which is what unblocks the command bus. Authentication: Argon2id hashing, server-side sessions with absolute and idle expiry, a database-backed login throttle, `/api/session` for sign in, resolve and sign out, and an `account-create` command for the first administrator.
+Why: nothing can run until an authorizer exists, because the command bus fails closed by design.
+Verified: 64 tests green. Live checks against a seeded database: unauthenticated `/api/session` is 401 problem+json; a wrong password and an unknown account return the identical message, with a dummy hash burned on the unknown path so timing does not enumerate accounts; a correct sign in returns the session and sets an HttpOnly cookie holding a 43 character opaque token; the cookie resolves the session. Passwords are stored as `$argon2id$v=19$m=16384...`.
+Open: row-level security, the policy administration endpoints and the doc edits remain.
+
+The `SeededPolicyTest` parses `006_iam_policies.sql` and evaluates the shipped documents rather than a copy of them, so the six role policies cannot drift from what the tests claim. It proves the dispatcher is fenced out of administration by an explicit Deny and the auditor writes nothing.
+
+Two corrections. `SessionService` violated the rule against `*Service` names and the boundary test caught it, so it is `SessionRegistry`. `Clock` had no bean, so nothing that injected it could start; it is now registered in `platform/config/TimeConfig`.
+
+---
+
 ## 2026-09-27 - feat: policy schema and evaluator
 
 `dev` · @Oxshadha

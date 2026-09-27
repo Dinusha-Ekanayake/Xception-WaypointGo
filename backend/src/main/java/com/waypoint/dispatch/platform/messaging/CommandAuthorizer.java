@@ -11,6 +11,11 @@ import com.waypoint.dispatch.shared.domain.Actor;
  */
 public interface CommandAuthorizer {
 
-  /** @return a reason when denied, or empty when allowed */
-  java.util.Optional<String> denyReason(Actor actor, String action, Command command);
+  /**
+   * @param resource what is being acted on, as {@code wpt:<module>:<type>:<id>}, or null
+   *     when the action has no specific target
+   * @return a reason when denied, or empty when allowed
+   */
+  java.util.Optional<String> denyReason(
+      Actor actor, String action, String resource, Command command);
 }

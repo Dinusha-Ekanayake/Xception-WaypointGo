@@ -60,14 +60,19 @@ public class CommandBus {
 
     // Fail closed. A system with no authorizer wired refuses work rather than
     // performing it unchecked.
+    String resource = handler.resource(command);
     String denial =
         authorizer
-            .map(a -> a.denyReason(actor, handler.action(), command).orElse(null))
+            .map(a -> a.denyReason(actor, handler.action(), resource, command).orElse(null))
             .orElse("Authorization is not configured");
     if (denial != null) {
       metrics.increment("waypoint.command.denied", "kind", command.kind());
-      audit.recordStandalone(
-          AuditEntry.denied(actor.userId(), actor.deviceId(), handler.action(), null, denial));
+      // The decision point already audited a policy denial; this covers the
+      // fail-closed case where no authorizer exists at all.
+      if (authorizer.isEmpty()) {
+        audit.recordStandalone(
+            AuditEntry.denied(actor.userId(), actor.deviceId(), handler.action(), resource, denial));
+      }
       throw new DomainException(ErrorCode.FORBIDDEN, denial);
     }
 
@@ -106,7 +111,7 @@ public class CommandBus {
               toJson(value));
           audit.record(
               AuditEntry.allowed(
-                  actor.userId(), actor.deviceId(), handler.action(), null, "command applied"));
+                  actor.userId(), actor.deviceId(), handler.action(), resource, "command applied"));
           metrics.increment("waypoint.command.applied", "kind", command.kind());
           return CommandResult.executed(value);
         });
