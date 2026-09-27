@@ -269,7 +269,9 @@ That provenance drives five rules. They are not negotiable, because breaking the
 
 **Coverage gap.** The mapping keys on the historical `delivery_id` values. Orders created in Waypoint have their own identifiers and **no product lines at all**. So either store managers select products at capture time, which makes the catalogue load-bearing in the ordering flow, or product lines exist only for historical analysis. That is a product decision, and it should be made before anyone builds an order-line UI.
 
-**Stock is the real gap.** The catalogue has no stock balances. `StockPort.checkAvailability` therefore has nothing to answer with today, which means the `stock_held` order state, the stock controller role and edge cases STK-01 to STK-06 have no data source behind them. Either the warehouse API adds stock state, or that entire flow stays designed but inert. Do not ship a stock screen that always says yes.
+**Stock exists after all.** An earlier draft of this document said the catalogue had no stock balances. That was wrong: the warehouse carries a `stock` figure per product and enforces it, rejecting an over-quantity order line with `409 insufficient_stock` and naming requested and available. The `stock_held` state and edge cases STK-01 to STK-06 are implementable today.
+
+The real constraint is different and narrower: **availability is per product, so a stock check requires product lines.** An order described only by weight and volume cannot be checked against stock. That is assumption A-18 and it is the open question, not the absence of stock.
 
 **Integration shape.** Bulk sync on a schedule into the local projection, not a per-request call: 194k mapping rows is not a request-path fetch. The port carries a catalogue version so a plan can record which version it was built against, and the circuit breaker's fallback is simply order-level totals, which is exactly what rule 1 already requires. That fallback is why the system keeps working when the warehouse is down.
 

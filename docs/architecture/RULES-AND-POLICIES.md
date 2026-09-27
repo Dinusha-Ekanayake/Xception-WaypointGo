@@ -66,14 +66,49 @@ Values that will change are not listed here. They live in the parameter register
 The warehouse is a separate system. Verified contract, by probing the deployed service:
 
 ```
-base     https://triathon-warehouse-simple.vercel.app/api/v1
-auth     x-api-key header; keys are revocable
-errors   {"error":{"code":"unauthorized","message":"..."}}
-GET      /api/v1/products     read-only   (allow: GET, HEAD, OPTIONS)
-GET|POST /api/v1/orders
+base    https://triathon-warehouse-simple.vercel.app/api/v1
+auth    x-api-key: <key>   or   Authorization: Bearer <key>      (both verified)
+errors  {"error":{"code","message"}}
+        400 bad JSON · 401 missing or revoked key · 404 not found
+        409 insufficient stock or invalid status change · 422 validation
+
+GET   /products            ?brand=Fresh|Style|Tech &q= &page= &limit=   limit caps at 100
+                           280 products: Fresh 55, Style 47, Tech 178
+GET   /products/:id
+PATCH /products/:id        {"stock": n}  absolute,  or  {"adjust": +n|-n}  relative
+GET   /orders              ?status=pending|shipped|delivered|cancelled &page= &limit=
+GET   /orders/:id          includes items:[{product_id, quantity}]
+POST  /orders              {"items":[{product_id, quantity}]}  ->  201
+PUT   /orders/:id/status   {"status": "..."}
+
+Product  product_id, brand, unit_weight_kg, unit_volume_m3,
+         basis, verified_real_sku, stock, updated_at
 ```
 
-No other resource exists: `stock`, `inventory`, `reservations`, `availability`, `holds` and `adjustments` all return 404 while `products` and `orders` return 401. **There is no stock endpoint.**
+Verified against the live service: the published documentation matches behaviour exactly.
+
+### What this means for the design
+
+| ID | Rule | Status |
+| --- | --- | --- |
+| R-STK-08 | **Creating the order is the reservation.** There is no separate reserve call. `POST /orders` decrements stock **atomically and all-or-nothing**: if any line lacks stock the whole order fails with `409` | Verified |
+| R-STK-09 | **Cancelling restores stock.** `PUT /orders/:id/status` to `cancelled` is the compensating action | Verified |
+| R-STK-10 | The warehouse runs **its own order lifecycle**: `pending -> shipped | cancelled`, `shipped -> delivered`. It is one-way; an invalid transition is `409` | Verified |
+| R-STK-11 | **`POST /orders` is not idempotent.** No idempotency key exists, so a blind retry creates a second order and decrements stock twice. The adapter must reconcile by query before retrying, never replay | Policy, critical |
+| R-STK-12 | Stock is writable: `PATCH /products/:id` sets or adjusts it. This is how a stock manager's approval or adjustment (R-STK-02) is applied | Verified |
+| R-STK-13 | Waypoint's order state machine and the warehouse's are **two state machines for one real order**. Keeping them aligned is a saga, and every transition can fail independently | Policy |
+
+**Two lifecycles, mapped.** Waypoint owns the delivery workflow; the warehouse owns stock. The mapping is deliberately narrow:
+
+| Waypoint state | Warehouse state | Transition trigger |
+| --- | --- | --- |
+| `confirmed`, stock reserved | `pending` | `POST /orders` succeeded |
+| `stock_held` | no warehouse order exists | `POST` returned `409` |
+| `in_transit` | `shipped` | trip released |
+| `delivered` | `delivered` | driver recorded the outcome |
+| `cancelled` | `cancelled` | compensating call, stock restored |
+
+Current warehouse data: all 97,321 orders are `delivered` and there are zero `pending`, `shipped` or `cancelled`. The lifecycle is therefore **untested in their seed data**; the first order we create will be the first `pending` one, which is a reason to exercise it early rather than at integration time.
 
 | ID | Rule | Source | Status |
 | --- | --- | --- | --- |
@@ -85,7 +120,7 @@ No other resource exists: `stock`, `inventory`, `reservations`, `availability`, 
 | R-STK-06 | Stock unresolved at the cutoff auto-defers with reason `stock_unresolved` | Policy | Policy |
 | R-STK-07 | Waypoint stores only `stock_status` and a reservation reference. The warehouse model never leaks past the adapter | Policy | Policy |
 
-**Open:** with no stock endpoint, R-STK-01 has nothing to call. See question Q3.
+**Open:** R-STK-01 is implementable. What is undecided is whether a Waypoint order carries product lines at capture, without which nothing can be checked. See A-18.
 
 ## 3. Planning and allocation
 
@@ -272,8 +307,9 @@ Rules with status **Validated** get a second gate: our allocation output is run 
 | --- | --- | --- |
 | **Q1** | C-1: do reefers carry ambient goods? | The capacity of the whole fleet on low-chilled days |
 | **Q2** | C-4: what does "reefers run at full capacity" mean? | Whether reefer usable volume is derated |
-| **Q3** | The warehouse API exposes only `/products` and `/orders`, with no stock resource. How is availability queried? | R-STK-01 to R-STK-06, and the stock-hold flow |
-| **Q4** | An API key for the warehouse, so the response schemas can be specified | The integration contract |
+| ~~Q3~~ | ~~How is availability queried?~~ **Answered:** `stock` per product, enforced by `POST /orders` with `409 insufficient_stock` | closed |
+| ~~Q4~~ | ~~An API key, so response schemas can be specified~~ **Answered:** contract recorded in section 2 | closed |
+| **Q8** | Do Waypoint orders carry product lines at capture? Without them there is no stock check (A-18) | The entire stock-hold flow |
 | **Q5** | C-2: what does "nearest available department" mean, given depot is fixed by district? | Whether any depot-choice logic exists at all |
 | **Q6** | C-6: block order placement on holidays, or roll the delivery date? | Store manager flow |
 | **Q7** | R-PLN-24: does the weekly fuel quota include the return leg? | Fuel feasibility and the number of servable orders |
