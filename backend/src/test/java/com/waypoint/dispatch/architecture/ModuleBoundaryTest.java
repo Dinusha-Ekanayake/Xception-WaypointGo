@@ -1,6 +1,5 @@
 package com.waypoint.dispatch.architecture;
 
-import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 import com.tngtech.archunit.core.domain.JavaClasses;
@@ -9,12 +8,11 @@ import com.tngtech.archunit.core.importer.ImportOption;
 import org.junit.jupiter.api.Test;
 
 /**
- * Guards the module layout documented in docs/code-structure.md. A rule here is
- * cheaper than a review comment, and it fails the build instead of decaying.
+ * Guards the layout in docs/architecture/MODULES.md and docs/code-structure.md.
  *
- * <p>Rules marked "target" are not asserted yet because the extraction of
- * service/DispatchService is still in progress; see the migration stages in
- * docs/code-structure.md. Every rule below passes today.
+ * <p>ArchUnit fails a rule that matches no classes, which is deliberate: a rule
+ * that passes vacuously is worse than no rule. Add a module's rules when that
+ * module gains its first class, not before.
  */
 class ModuleBoundaryTest {
   private static final String ROOT = "com.waypoint.dispatch";
@@ -33,41 +31,20 @@ class ModuleBoundaryTest {
         .should()
         .dependOnClassesThat()
         .resideInAnyPackage(
-            ROOT + ".planning..",
-            ROOT + ".ordering..",
-            ROOT + ".loading..",
-            ROOT + ".execution..",
-            ROOT + ".receipt..",
-            ROOT + ".identity..",
-            ROOT + ".referencedata..",
-            ROOT + ".messaging..",
-            ROOT + ".query..",
-            ROOT + ".platform..",
-            ROOT + ".service..",
-            ROOT + ".api..")
+            ROOT + ".platform..", ROOT + ".referencedata..", ROOT + ".identity..")
         .because("shared is the kernel: every module may use it, it may use no module")
         .check(production());
   }
 
   @Test
-  void platformDependsOnlyOnSharedAndFrameworks() {
+  void platformCarriesNoBusinessModule() {
     noClasses()
         .that()
         .resideInAPackage(ROOT + ".platform..")
         .should()
         .dependOnClassesThat()
-        .resideInAnyPackage(
-            ROOT + ".planning..",
-            ROOT + ".ordering..",
-            ROOT + ".loading..",
-            ROOT + ".execution..",
-            ROOT + ".receipt..",
-            ROOT + ".identity..",
-            ROOT + ".messaging..",
-            ROOT + ".query..",
-            ROOT + ".service..",
-            ROOT + ".api..")
-        .because("platform is technical infrastructure and carries no business rules")
+        .resideInAnyPackage(ROOT + ".referencedata..", ROOT + ".identity..")
+        .because("platform is technical infrastructure and holds no business rules")
         .check(production());
   }
 
@@ -83,42 +60,21 @@ class ModuleBoundaryTest {
             "javax.sql..",
             "jakarta.servlet..",
             "com.zaxxer..",
-            "org.postgresql..")
+            "org.postgresql..",
+            "com.fasterxml..")
         .because("business rules must be testable without Spring, a servlet or a database")
         .check(production());
   }
 
   @Test
-  void referenceDataDomainDoesNotDependOnItsOwnAdapters() {
+  void contractPackagesStayFrameworkFree() {
     noClasses()
         .that()
-        .resideInAPackage(ROOT + ".referencedata.domain..")
+        .resideInAPackage(ROOT + "..contract..")
         .should()
         .dependOnClassesThat()
-        .resideInAPackage(ROOT + ".referencedata.infrastructure..")
-        .because("a domain model does not know which adapter loaded it")
-        .check(production());
-  }
-
-  @Test
-  void planningDomainDoesNotReachIntoOtherModules() {
-    noClasses()
-        .that()
-        .resideInAPackage(ROOT + ".planning.domain..")
-        .should()
-        .dependOnClassesThat()
-        .resideInAnyPackage(
-            ROOT + ".identity..",
-            ROOT + ".ordering..",
-            ROOT + ".loading..",
-            ROOT + ".execution..",
-            ROOT + ".receipt..",
-            ROOT + ".messaging..",
-            ROOT + ".query..",
-            ROOT + ".service..",
-            ROOT + ".api..",
-            ROOT + ".platform..")
-        .because("the constraint set is the core and depends on nothing but shared and reference data")
+        .resideInAnyPackage("org.springframework..", "jakarta.servlet..", "javax.sql..")
+        .because("a contract is what other modules import; it must not drag a framework with it")
         .check(production());
   }
 
@@ -126,10 +82,7 @@ class ModuleBoundaryTest {
   void onlyThePlatformSeamTouchesJdbcDirectly() {
     noClasses()
         .that()
-        .resideOutsideOfPackages(
-            ROOT + ".platform..",
-            // remaining debt: DispatchService still queries directly, stage 2 of the migration
-            ROOT + ".service..")
+        .resideOutsideOfPackage(ROOT + ".platform..")
         .should()
         .dependOnClassesThat()
         .haveFullyQualifiedName("org.springframework.jdbc.core.JdbcTemplate")
@@ -138,16 +91,29 @@ class ModuleBoundaryTest {
   }
 
   @Test
-  void noNewClassIsNamedService() {
-    classes()
+  void referenceDataAndIdentityDoNotReachIntoEachOther() {
+    noClasses()
         .that()
-        .haveSimpleNameEndingWith("Service")
+        .resideInAPackage(ROOT + ".referencedata..")
         .should()
-        .haveFullyQualifiedName(ROOT + ".service.DispatchService")
+        .dependOnClassesThat()
+        .resideInAnyPackage(
+            ROOT + ".identity.domain..",
+            ROOT + ".identity.application..",
+            ROOT + ".identity.infrastructure..")
+        .because("a module imports another module's contract package and nothing else")
+        .check(production());
+  }
+
+  @Test
+  void noClassIsNamedService() {
+    noClasses()
+        .should()
+        .haveSimpleNameEndingWith("Service")
         .because(
-            "the *Service name is what let one class absorb eight responsibilities; "
-                + "use *Handler, *Query, *Policy or *Repository. DispatchService is the "
-                + "documented exception until its extraction completes.")
+            "the *Service name is what let one class absorb eight responsibilities. Use *Handler"
+                + " for commands, *Query for reads, *Policy for decisions, *Repository for"
+                + " persistence")
         .check(production());
   }
 }
