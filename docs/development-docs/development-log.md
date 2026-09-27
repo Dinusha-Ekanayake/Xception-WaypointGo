@@ -21,6 +21,17 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-09-27 - feat: row level security, and the docs it changes
+
+`dev` · @Oxshadha
+
+Migration `007_row_level_security.sql` adds `app.current_actor()`, `app.actor_has_depot` and `app.actor_has_outlet`, creates the `waypoint_ops` role, and enables RLS with `FORCE` on the two scope tables. Shipped the eleven doc edits this stage owes: policy as data in SYSTEM-ARCHITECTURE 6.2 and 6.8, FOUNDATION-PLAN 2.4, 2.6 and 2.9, MODULES section 2, a new `R-IAM-*` rule group, five new `SEC-*` edge cases, assumption A-21 and an Authorization section in AGENTS.md.
+Why: the composition rule needs both halves. Policies decide actions, RLS decides rows, and without the second half a forgotten WHERE clause is a leak.
+Verified against the live database: as `waypoint_ops` with the admin actor set, only Peliyagoda is visible; with the driver actor, only Kandy; with no actor, zero rows. `app.actor_has_depot` returns false for everything when no actor is set. Both tables report `relrowsecurity` and `relforcerowsecurity` true, with four policies in place.
+Open: policy administration endpoints. A caveat worth knowing: a PostgreSQL superuser bypasses RLS whatever `FORCE` says, so the deployed owner must not be superuser.
+
+---
+
 ## 2026-09-27 - feat: identity module, authentication and the decision point
 
 `dev` · @Oxshadha

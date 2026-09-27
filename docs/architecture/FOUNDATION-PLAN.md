@@ -276,12 +276,12 @@ One decision point, many enforcement points, plus a database backstop.
 Rules, in priority order:
 
 1. **Deny by default.** An unlisted command or unmatched scope is `403` with an audit entry, never an empty result that reads as "no data".
-2. **Decide in one place.** `AuthorizationPolicy.permits(actor, command, target)` is the only place an access decision is made.
+2. **Decide in one place.** `PolicyDecisionPoint.decide(actor, action, resource, context)` is the only place an access decision is made. Its content is data: policy documents attached to users and roles, evaluated by `PolicyEvaluator`.
 3. **Filter in SQL.** Scope predicates are part of the query. RLS is the backstop for a forgotten predicate, not the primary mechanism.
 4. **Driver scope is temporal.** Access is to a vehicle **on a date**. Yesterday's driver cannot post today's delivery. This is what the exclusion constraint in `008` protects.
 5. **Re-check inside the transaction.** A permission revoked a second ago must not lose a race.
-6. **Scope changes are data; new command types are code.** Granting a depot is a row. Adding a verb is a release.
-7. **Externalizable later.** The PDP is an interface. Moving to OPA or Cedar is an adapter, and is not justified today.
+6. **Grants and policies are data; a new action type is code.** Granting a depot, authoring a policy and attaching it are all rows. Introducing a brand new action is a release, being a catalogue entry plus a handler.
+7. **Externalizable later.** Policy is already data; what is still not justified is an external policy **service**. The PDP is an interface, so moving to OPA or Cedar remains an adapter.
 
 ### 2.5 Relationship to database roles
 
@@ -298,7 +298,7 @@ Both are transaction-scoped. `SET LOCAL`, never plain `SET`: a pooled connection
 
 **Queries:** `permits(actor, command, target)`, `actorForSession(token)`, `scopeOf(actor)`, `driverVehicleOn(userId, date)`, `accountsFor(scope)`.
 
-**Commands:** `Login`, `Logout`, `CreateAccount`, `UpdateAccount`, `ResetPassword`, `DisableAccount`, `GrantScope`, `RevokeScope`, `AssignDriverToVehicle`, `EndDriverAssignment`, `RegisterDevice`, `RetireDevice`.
+**Commands:** `Login`, `Logout`, `CreateAccount`, `UpdateAccount`, `ResetPassword`, `DisableAccount`, `GrantScope`, `RevokeScope`, `AssignDriverToVehicle`, `EndDriverAssignment`, `RegisterDevice`, `RetireDevice`, `CreatePolicy`, `CreatePolicyVersion`, `SetDefaultPolicyVersion`, `AttachPolicy`, `DetachPolicy`.
 
 **Events:** `account.created`, `account.disabled`, `access.granted`, `access.revoked`, `authorization.denied`, `driver.assigned`.
 
@@ -330,6 +330,8 @@ Both are transaction-scoped. `SET LOCAL`, never plain `SET`: a pooled connection
 | Last active dispatcher disabled | Refused. The operation cannot be left without a planner |
 
 ### 2.9 Definition of done
+
+**Status on 2026-09-27:** authentication, the decision point and row-level security are met; policy administration endpoints are outstanding. Verified live: identical responses and identical hashing work for a wrong password and an unknown account; Argon2id storage; an `HttpOnly` cookie holding a 43 character opaque token; RLS returning only the actor's own depot with a correct actor, and zero rows with none set. 64 tests green, including 18 on the evaluator and 10 evaluating the shipped role policies parsed from the migration itself.
 
 1. Every command has an authorization test that asserts a **denied** case, not only the happy path.
 2. RLS is proven: a connection carrying the wrong actor returns zero rows for another outlet's data.

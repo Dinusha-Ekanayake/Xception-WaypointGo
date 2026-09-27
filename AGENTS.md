@@ -99,6 +99,21 @@ Migrations are forward-only, checksummed, and run as an explicit step. Use expan
 
 Database roles: `waypoint_migrator` owns the tables and runs migrations; `waypoint_app` owns nothing, holds no `BYPASSRLS`, is `NOINHERIT`, and is what the pool connects as. Each module has its own role granted only its schema plus read on `ref` and `iam`, so every transaction begins `SET LOCAL ROLE waypoint_<module>; SET LOCAL app.actor_id = '<uuid>';`. Forgetting the role is a permission error, which is intended. Roles are cluster-wide, so migrations assert attributes with `ALTER ROLE` rather than assuming `CREATE ROLE` ran. Table owners bypass RLS by default, so use `FORCE ROW LEVEL SECURITY`. Mixing `=` with `&&` in a GiST exclusion constraint needs `CREATE EXTENSION btree_gist`. Outbox workers claim batches `FOR UPDATE SKIP LOCKED`, or the relay serialises to one instance.
 
+## Authorization
+
+Authorization is **policy as data**, not code. An administrator authors a document with `Effect`, `Action`, `Resource` and `Condition`, attaches it to a user or a role, and permissions change with no deployment. Evaluation runs in process in `identity/domain/policy/`; an external policy service is still not justified.
+
+Rules that are not negotiable, catalogued as `R-IAM-*` in RULES-AND-POLICIES.md:
+
+- Actions are `<module>:<Verb>`, resources are `wpt:<module>:<type>:<id>`, both accepting `*`.
+- Order is fixed: default Deny, any matching Deny wins, then Allow, else Deny.
+- **A new action needs a catalogue row and a handler.** An action absent from `iam.action_catalogue` is rejected when the policy is written, because a typo would otherwise deny silently forever.
+- A policy version is immutable. Changing a policy creates a new version and moves the default.
+- **Effective access is `policy AND scope`.** Policies decide actions; the scope tables decide rows, and row-level security enforces them through `app.actor_has_depot` and `app.actor_has_outlet`. A policy can never widen someone's reach past their scope.
+- Any policy change clears the whole policy cache. Do not make invalidation clever; a clever cache eventually serves a revoked permission.
+
+Sessions are opaque and server-side, never JWTs: disabling an account and changing a policy must both take effect on the next request, not at token expiry.
+
 ## Security Rules
 
 Deny by default: an unlisted command or unmatched scope is `403` plus an audit entry, never an empty result. Authorization is re-checked inside the transaction. The database actor is set with `SET LOCAL` inside the transaction, never plain `SET`, because a pooled connection would leak it into the next request. The application database role must not hold `BYPASSRLS`. Denied attempts are audited. Never log payloads containing personal data.

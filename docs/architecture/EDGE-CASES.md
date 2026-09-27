@@ -159,6 +159,11 @@ Most of the cases below are instances of nine patterns. Learn the patterns and t
 | SEC-05 | Credential stuffing | Per-identity lockout shared across instances | Identity | Lockout rate | Integration |
 | SEC-06 | Pooled connection reused across users | Impossible: actor set with `SET LOCAL` inside the transaction | Data layer | Alert if actor unset | Integration |
 | SEC-07 | Application role holds `BYPASSRLS` | Deployment fails the check | CI policy check | Build gate | Migration test |
+| SEC-09 | A policy names an action that does not exist | Rejected at authoring time against the catalogue (R-IAM-03). Accepting it would deny silently forever | Identity application | Rejected-policy counter | Unit |
+| SEC-10 | An actor has no policy attached at all | Default deny with "no policy allows", not an empty screen | Policy evaluator | Actors with no policy gauge | Unit |
+| SEC-11 | One policy allows an action and another denies it | Deny wins, and the denial names the statement responsible (R-IAM-02, R-IAM-08) | Policy evaluator | n/a | Unit |
+| SEC-12 | A policy changes while a session is live | The whole policy cache is cleared, so the next command re-evaluates. No sign-out required | Policy cache | Cache clear counter | Integration |
+| SEC-13 | A transaction runs with no `app.actor_id` set | Every scope predicate is false and row-level security returns zero rows. Fails closed | Database policies | Alert on unset actor | Migration test |
 | SEC-08 | Oversized or malformed request body | Rejected at the edge before it reaches the application | Edge | 4xx rate | Integration |
 | SEC-09 | A transaction forgets `SET LOCAL ROLE` | Permission denied. `waypoint_app` is `NOINHERIT` and holds nothing until it assumes a module role | Database grants | Permission-denied counter | Migration test |
 | SEC-10 | A module queries another module's schema directly | Permission denied at the database, even though the code passed review and the boundary test | Database grants | Alert on any occurrence | Migration test |

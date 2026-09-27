@@ -267,7 +267,8 @@ COMMIT;
 
 `waypoint_app` is `NOINHERIT` and a member of each module role, so it holds no privilege until it assumes one. Forgetting the `SET LOCAL ROLE` is a permission error, not a silent full-access query. Roles are cluster-wide, so migrations must assert role attributes with `ALTER ROLE`, not assume that `CREATE ROLE` ran.
 
-7. **Externalizable.** The PDP is an interface. If policy complexity grows, it can move to OPA, Cedar or a Zanzibar-style store behind the AuthZEN interface without touching call sites. It is not worth a separate deployment today.
+7. **Policy is data, not code.** An administrator authors a policy document with `Effect`, `Action`, `Resource` and `Condition`, attaches it to a user or a role, and effective permissions change with no deployment. Documents are versioned and a version is immutable, so a decision taken under an older policy stays explainable. Evaluation runs in process; an external policy **service** such as OPA or Cedar is still not justified, and the PDP remains an interface so that stays a later adapter.
+8. **Effective access is `policy AND scope`.** Policies decide which actions are allowed. The scope tables decide which rows are visible, because row-level security can filter on a table and cannot read a JSON document. A policy therefore can never widen someone's reach beyond their scope: the rows are simply not returned. The predicates live once, in `app.actor_has_depot` and `app.actor_has_outlet`.
 
 ### 6.3 Events and the outbox
 
@@ -344,8 +345,8 @@ Rules change. Time budgets get renegotiated, deferral priority gets argued about
 | --- | --- | --- | --- |
 | Domain code | Invariants that never vary. Physics | Deploy | A reefer is required for chilled goods. Whole orders only |
 | Effective-dated parameters | Numbers and thresholds | A config row, no deploy | Fresh 270 min, Style and Tech 480 min, 16:00 cutoff, turnaround minutes |
-| Versioned decision table | Structured, authorable, arguable rules | New version, no deploy | Deferral priority order, notification routing |
-| External policy engine | Fine-grained authorization shared across services | Bundle push | Not today. The PDP interface keeps it available later |
+| Versioned decision table | Structured, authorable, arguable rules | New version, no deploy | **Authorization policies**, deferral priority order, notification routing |
+| External policy engine | Fine-grained authorization shared across services | Bundle push | Not today. Authorization is now tier 3, versioned data evaluated in process. A separate policy **service** stays unjustified, and the PDP interface keeps it available later |
 
 **Nothing is mutated in place.** A rule change creates a new version with an effective date and supersedes the previous one. Effective time is stored separately from modification time and never inferred from it.
 

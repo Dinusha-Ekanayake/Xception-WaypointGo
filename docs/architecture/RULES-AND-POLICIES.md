@@ -264,6 +264,23 @@ Binding for the delivered system even though Task 2B does not score them.
 
 ---
 
+## 7a. Authorization policy
+
+| ID | Rule | Source | Status |
+| --- | --- | --- | --- |
+| R-IAM-01 | An action is `<module>:<Verb>`; a resource is `wpt:<module>:<type>:<id>`. Both accept `*` wildcards | Policy | Policy |
+| R-IAM-02 | Evaluation order is fixed: default Deny, any matching Deny wins, then Allow, else Deny | Policy | Policy |
+| R-IAM-03 | An action a policy names must exist in `iam.action_catalogue`. A typo like `order:Plase` is rejected when the policy is written, because it would otherwise deny silently forever and look exactly like a permissions bug nobody can find | Policy | Policy |
+| R-IAM-04 | A policy version is immutable. Changing a policy creates a new version and moves the default, so a decision taken under an older policy stays explainable | Policy | Policy |
+| R-IAM-05 | Exactly one default version per policy, enforced by a partial unique index | Policy | Policy |
+| R-IAM-06 | A request with no specific resource is normalised to `*`, so an unscoped request matches only an unscoped grant and never satisfies a scoped one | Policy | Policy |
+| R-IAM-07 | A missing context key fails its condition rather than passing it. Treating absence as satisfied would grant access whenever a caller simply forgot to supply the value | Policy | Policy |
+| R-IAM-08 | A denial names the statement that caused it. A denial with no explanation is indistinguishable from missing data | Policy | Policy |
+| R-IAM-09 | Effective access is `policy AND scope`. Policies decide actions; the scope tables decide rows, and row-level security enforces them | Policy | Policy |
+| R-IAM-10 | Any policy change clears the whole policy cache. A cache clever about invalidation is a cache that eventually serves a revoked permission | Policy | Policy |
+| R-IAM-11 | Sessions are opaque and server side. Revocation must be immediate, which a self-contained token cannot do | Policy | Policy |
+| R-IAM-12 | A wrong password and an unknown account return the same message and spend the same hashing work | Policy | Policy |
+
 ## 8. Conflicts found
 
 Six places where the sources disagree. Each needs a decision; recommendations are given but none is settled.

@@ -40,6 +40,8 @@ The practice is an assumption register: description, category, basis, impact if 
 | **A-19** | **`POST /orders` has no idempotency key**, so the adapter can never safely replay it | Official API documentation and probing. No key parameter exists | A retry after a timeout creates a second order and decrements stock twice, silently. This is the highest-risk integration behaviour in the system | Ask the warehouse team for an idempotency key, or accept query-before-create as the permanent pattern | **Confirmed**, mitigated by R-STK-11 |
 | **A-20** | **The warehouse order lifecycle is untested.** All 97,321 seeded orders are `delivered`; there are zero `pending`, `shipped` or `cancelled` | Verified live | Transitions may behave differently from the documentation the first time they run in anger | Exercise `pending -> shipped -> delivered` and `pending -> cancelled` against one throwaway order early, not at integration time | **Confirmed** |
 
+| **A-21** | **In-process policy evaluation is fast enough to sit in front of every command.** Statements are cached per actor and evaluation is pattern matching over a small list | Policies are few and small: six role policies with one or two statements each | If evaluation became a bottleneck, the cache would need to be keyed more finely or decisions memoised per request | Measure p95 authorization time once commands carry real traffic. Budget: under 2 ms | **Assumed** |
+
 ### Assumptions that are currently blocking
 
 `A-02`, `A-03`, `A-08` and `A-09` are **Assumed** rather than Confirmed and each changes behaviour. They map to questions Q2, Q7, Q3 and C-6 in the rules document.

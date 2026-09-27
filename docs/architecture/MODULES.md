@@ -59,14 +59,14 @@ Each module has the same five internal layers. The spec lists what belongs in ea
 | Layer | Contents |
 | --- | --- |
 | contract | `CurrentActor`, `Role`, `Scope`, `AuthorizationDecision`, `IdentityQuery` |
-| domain | `Account`, `Session`, `Role`, `ScopeGrant`, `VehicleAssignment` (temporal), `AuthorizationPolicy`, `PasswordPolicy` |
-| application | `LoginHandler`, `LogoutHandler`, `SessionService`, `LoginThrottle`, `AccountAdminUseCase`, `PolicyDecisionPoint` |
-| infrastructure | `JdbcAccountRepository`, `JdbcSessionRepository`, `JdbcScopeRepository`, `RlsContextSetter` |
+| domain | `Account`, `Session`, `Role`, `ScopeGrant`, `VehicleAssignment` (temporal), `PasswordPolicy`, and `domain/policy/`: `PolicyDocument`, `Statement`, `Effect`, `Pattern`, `Condition`, `ConditionOperator`, `AccessRequest`, `Decision`, `PolicyEvaluator` |
+| application | `LoginHandler`, `SessionRegistry`, `LoginThrottle`, `AccountAdminUseCase`, `PolicyDecisionPoint` |
+| infrastructure | `JdbcPolicyRepository`, `PolicyDocumentParser`, `PolicyCache`, `Argon2PasswordHasher` |
 | web | `AuthController` |
 
-**Owns:** `iam.users`, `iam.roles`, `iam.user_roles`, `iam.user_depot_access`, `iam.user_outlet_access`, `iam.vehicle_driver_assignments`, `iam.devices`, `iam.sessions`, `iam.login_attempts`.
+**Owns:** `iam.users`, `iam.roles`, `iam.user_roles`, `iam.user_depot_access`, `iam.user_outlet_access`, `iam.vehicle_driver_assignments`, `iam.devices`, `iam.sessions`, `iam.login_attempts`, `iam.policies`, `iam.policy_versions`, `iam.policy_attachments`, `iam.action_catalogue`.
 
-**Commands:** `Login`, `Logout`, `CreateAccount`, `UpdateAccount`, `ResetPassword`, `DisableAccount`, `GrantScope`, `RevokeScope`, `RegisterDevice`, `AssignDriverToVehicle`.
+**Commands:** `Login`, `Logout`, `CreateAccount`, `UpdateAccount`, `ResetPassword`, `DisableAccount`, `GrantScope`, `RevokeScope`, `RegisterDevice`, `AssignDriverToVehicle`, `CreatePolicy`, `CreatePolicyVersion`, `SetDefaultPolicyVersion`, `AttachPolicy`, `DetachPolicy`.
 **Queries:** `permits(actor, command, target)`, `scopeOf(actor)`, `actorForSession(token)`, `driverVehicleOn(date)`.
 **Publishes:** `access.granted`, `access.revoked`, `account.disabled`, `authorization.denied`.
 **Consumes:** nothing.
