@@ -21,6 +21,19 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-09-27 - feat: reference read API
+
+`dev` · @Oxshadha
+
+Added the `ReferenceQuery` contract with its own view types, `ReferenceDataQuery` reading from cache for the current version and from the database for a historical one, `SetVehicleDayStatusHandler`, and `ReferenceBootstrap` which loads the current version once the application is ready.
+Why: other modules must read reference data through a contract, never through its domain, or the boundary test will stop Planning before it starts.
+Verified: 36 tests green, including 8 new window tests covering early arrival waiting, late measured against the close rather than the plan, and the mall window intersection. Booting against the imported database loads version d8a5ba89 into the cache and readiness returns 200.
+Open: calendar override is not implemented; the `CALENDAR_FILE` path from R-CAL-03 is still only policy-based generation.
+
+Note: loading the cache is deliberately tied to application-ready rather than startup, so an unreachable database leaves the instance up and reporting the problem instead of boot-looping.
+
+---
+
 ## 2026-09-27 - feat: reference data module
 
 `dev` · @Oxshadha

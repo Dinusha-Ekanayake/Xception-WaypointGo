@@ -27,9 +27,9 @@ Each module has the same five internal layers. The spec lists what belongs in ea
 
 | Layer | Contents |
 | --- | --- |
-| contract | `ReferenceSnapshot`, `OutletView`, `VehicleView`, `CalendarQuery`, `TravelQuery` |
+| contract | `ReferenceQuery`, and the views it returns: `OutletView`, `VehicleView`, `TravelView`, `AllowanceView`, `CalendarDayView` |
 | domain | `Outlet`, `Vehicle`, `District`, `Depot`, `CalendarDay`, `DeliveryWindow`, `TravelProfile`, `ServiceAllowance`, `OperatingCalendarPolicy`, `ReferenceSnapshot`, `ReferenceValidator` |
-| application | `ImportReferenceDataHandler`, `ReferenceDataQuery`, `CalendarService`, `VehicleAvailabilityHandler` |
+| application | `ImportReferenceDataHandler`, `ReferenceDataQuery`, `SetVehicleDayStatusHandler`, `ReferenceBootstrap` |
 | infrastructure | `CsvReferenceImporter`, `ReferenceVersionWriter`, `ReferenceVersionReader`, `ReferenceCache` |
 | web | admin read endpoints |
 
