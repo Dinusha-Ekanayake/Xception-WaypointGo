@@ -119,23 +119,33 @@ The dedicated database named by `TEST_DATABASE_URL` must already exist and must 
 
 ## Documentation
 
-Submission material, in `docs/`:
+**Start here.** Three questions, three documents:
 
-- [Design rationale, personas and degradation journey](docs/design-rationale.md)
-- [Design-to-code mapping and departures](docs/design-mapping.md)
-- [Architecture diagram](docs/architecture.md)
-- [Data model](docs/data-model.md)
-- [AI disclosure](docs/ai-disclosure.md)
-- [Submission readiness](docs/submission-checklist.md)
-- [Verification record](docs/verification.md)
-- [Deployment](docs/deployment.md)
-- [Code structure and module layout](docs/code-structure.md)
+| Question | Document |
+| --- | --- |
+| **What are we building, and why this shape?** | [SYSTEM-ARCHITECTURE.md](SYSTEM-ARCHITECTURE.md) |
+| **What do we build next, in what order?** | [docs/architecture/FOUNDATION-PLAN.md](docs/architecture/FOUNDATION-PLAN.md) |
+| **What is already done, and what is in flight?** | [docs/development-docs/development-log.md](docs/development-docs/development-log.md) |
 
-Working on the repository, in `docs/development-docs/`:
+`SYSTEM-ARCHITECTURE.md` sits at the root on purpose: it is the entry point, the way `README.md` is. `docs/architecture/` holds the detail behind it.
 
-- [Local development setup](docs/development-docs/development.md), the hybrid Docker database plus native app loop
-- [Development log](docs/development-docs/development-log.md), read the top entries before starting work
-- [Enterprise architecture plan](docs/development-docs/enterprise-architecture-plan.md), target architecture and the phased plan
+**The design, in `docs/architecture/`:**
+
+- [MODULES.md](docs/architecture/MODULES.md), every module: its layers, owned data, commands, events, invariants and failure modes
+- [RULES-AND-POLICIES.md](docs/architecture/RULES-AND-POLICIES.md), every operational rule with its source and status, and the conflicts between sources
+- [ASSUMPTIONS.md](docs/architecture/ASSUMPTIONS.md), what we treat as true but have not proved, plus the parameter register
+- [EDGE-CASES.md](docs/architecture/EDGE-CASES.md), each case with its behaviour, enforcement point, detection signal and test
+- [DATA-MODEL-REVIEW.md](docs/architecture/DATA-MODEL-REVIEW.md), the schema findings and the corrected model
+- [schema/](docs/architecture/schema/README.md), the target schema design, superseded for `ref` and `iam` by the live `migrations/`
+
+**Working on the repository, in `docs/development-docs/`:**
+
+- [development.md](docs/development-docs/development.md), local setup: PostgreSQL in Docker, the application native
+- [development-log.md](docs/development-docs/development-log.md), what changed and why, newest first
+
+**Submission material, in `docs/`:** [design rationale](docs/design-rationale.md), [design mapping](docs/design-mapping.md), [AI disclosure](docs/ai-disclosure.md), [deployment](docs/deployment.md), [verification](docs/verification.md) and the [submission checklist](docs/submission-checklist.md).
+
+**Predating the rewrite**, and describing the prototype removed at tag `prototype-v0` rather than the current system: [docs/architecture.md](docs/architecture.md), [docs/data-model.md](docs/data-model.md), [docs/code-structure.md](docs/code-structure.md) and [docs/development-docs/enterprise-architecture-plan.md](docs/development-docs/enterprise-architecture-plan.md). Read them as history, not as a description of what is built.
 
 The refinement preserves the existing role flows, Instrument Sans / IBM Plex Mono and teal action palette. It replaces static operational placeholders with real state, adds validated assignment alternatives and actual deferral carryover, exposes all loading manifests, and supports reauthentication for every role. No Figma file was changed or claimed to be submitted; the team must compare these refinements to its actual Day 5 design export.
 

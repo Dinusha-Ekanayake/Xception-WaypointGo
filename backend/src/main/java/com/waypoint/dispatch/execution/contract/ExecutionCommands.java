@@ -1,0 +1,55 @@
+package com.waypoint.dispatch.execution.contract;
+
+import com.waypoint.dispatch.execution.contract.ExecutionViews.DeliveryOutcome;
+import java.time.Instant;
+import java.util.Optional;
+import java.util.UUID;
+
+/**
+ * Payloads of Execution's commands. All are safe to replay from an offline
+ * device: the command id is the idempotency key, and the server's clock decides.
+ */
+public final class ExecutionCommands {
+  private ExecutionCommands() {}
+
+  public static final String START_STOP = "delivery:Start";
+  public static final String RECORD_ARRIVAL = "delivery:RecordArrival";
+  public static final String RECORD = "delivery:Record";
+  public static final String CAPTURE_PROOF = "delivery:CaptureProof";
+  public static final String REPORT_VEHICLE_STATUS = "delivery:ReportVehicleStatus";
+  public static final String REPORT_FAULT = "delivery:ReportFault";
+
+  public record StartStop(UUID deliveryId) {}
+
+  public record RecordArrival(UUID deliveryId, Optional<Instant> deviceArrivedAt) {}
+
+  /**
+   * @param outcome {@code DELIVERED}, {@code PARTIAL} or {@code FAILED}
+   * @param dispositionNote what happened to undelivered goods; there is no
+   *     returns workflow (A-10)
+   */
+  public record RecordDelivery(
+      UUID deliveryId,
+      DeliveryOutcome outcome,
+      Optional<Integer> deliveredUnits,
+      Optional<String> reason,
+      Optional<String> dispositionNote) {}
+
+  /**
+   * A device limitation never blocks the work: with no photo or signature the
+   * driver records why and continues (R-EXE-11).
+   */
+  public record CaptureProof(
+      UUID deliveryId,
+      Optional<UUID> photoAttachmentId,
+      Optional<UUID> signatureAttachmentId,
+      Optional<String> recipientName,
+      Optional<String> fallbackReason) {}
+
+  /** The driver's report of the vehicle's state; the dispatcher applies any status change. */
+  public record ReportVehicleStatus(String vehicleId, String status, Optional<String> note) {}
+
+  /** @param kind {@code vehicle} or {@code road} */
+  public record ReportFault(
+      String vehicleId, Optional<UUID> deliveryId, String kind, String description) {}
+}

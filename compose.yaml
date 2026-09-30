@@ -51,7 +51,7 @@ services:
         condition: service_completed_successfully
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/api/health | grep -q '\"ok\"'"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health/readiness | grep -q UP"]
       interval: 15s
       timeout: 5s
       retries: 5

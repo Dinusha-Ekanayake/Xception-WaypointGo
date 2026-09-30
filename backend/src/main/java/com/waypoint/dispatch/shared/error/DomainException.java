@@ -1,27 +1,32 @@
 package com.waypoint.dispatch.shared.error;
 
-/** HTTP-aware domain failure. Carries the status the API must respond with. */
+import java.util.List;
+
+/**
+ * A rule was broken. Carries the violated rule identifiers from
+ * docs/architecture/RULES-AND-POLICIES.md, so the API can report which
+ * constraint failed rather than a bare message.
+ */
 public class DomainException extends RuntimeException {
-  private final int status;
+  private final ErrorCode code;
+  private final List<String> violations;
 
-  public DomainException(String message, int status) {
+  public DomainException(ErrorCode code, String message) {
+    this(code, message, List.of());
+  }
+
+  public DomainException(ErrorCode code, String message, List<String> violations) {
     super(message);
-    this.status = status;
+    this.code = code;
+    this.violations = List.copyOf(violations);
   }
 
-  public DomainException(String message) {
-    this(message, 400);
+  public ErrorCode code() {
+    return code;
   }
 
-  public int getStatus() {
-    return status;
-  }
-
-  public static void require(boolean ok, String message) {
-    if (!ok) throw new DomainException(message, 400);
-  }
-
-  public static void require(boolean ok, String message, int status) {
-    if (!ok) throw new DomainException(message, status);
+  /** Rule identifiers such as R-PLN-06. Empty when the failure is not rule-specific. */
+  public List<String> violations() {
+    return violations;
   }
 }

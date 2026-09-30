@@ -12,36 +12,41 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * Builds the PostgreSQL pool from DATABASE_URL (pooled Neon URL or local URL).
- * Accepts both `postgresql://...` and `jdbc:postgresql://...` forms.
+ * The connection pool. Connects as waypoint_app, which is NOINHERIT, owns no
+ * tables and holds no BYPASSRLS, so a transaction that forgets SET LOCAL ROLE
+ * fails with a permission error instead of running with full access.
+ *
+ * <p>Startup never blocks on the database: initializationFailTimeout is negative,
+ * so the process comes up and reports liveness even when PostgreSQL is down.
+ * Readiness is what tells you the database is reachable.
  */
 @Configuration
 public class DataConfig {
 
   @Bean(destroyMethod = "close")
   public DataSource dataSource(
-      @Value("${DATABASE_URL:}") String databaseUrl,
-      @Value("${spring.datasource.hikari.maximum-pool-size:3}") int maxPool) {
-    if (databaseUrl == null || databaseUrl.isBlank()) throw new IllegalStateException("DATABASE_URL is required");
-    String raw = databaseUrl.trim();
-    String jdbc = toJdbcUrl(raw);
+      AppProperties properties,
+      @Value("${spring.datasource.hikari.maximum-pool-size:8}") int maxPool) {
+    HikariDataSource ds = new HikariDataSource();
+    // Validated as non-blank by AppProperties, so reaching here means it is set.
+    // It may still point at a database that is down: that is an outage, reported
+    // by readiness, not a misconfiguration.
+    String raw = properties.databaseUrl().trim();
+    ds.setJdbcUrl(toJdbcUrl(raw));
     String username = username(raw);
     String password = password(raw);
-
-    HikariDataSource ds = new HikariDataSource();
-    ds.setJdbcUrl(jdbc);
-    if (username != null) ds.setUsername(username);
-    if (password != null) ds.setPassword(password);
-    String schema = System.getenv("DATABASE_SCHEMA");
-    if (schema != null && !schema.isBlank()) {
-      if (!schema.matches("waypoint_test_[a-f0-9]+")) throw new IllegalArgumentException("Invalid test schema");
-      ds.setSchema(schema);
+    if (username != null) {
+      ds.setUsername(username);
+    }
+    if (password != null) {
+      ds.setPassword(password);
     }
     ds.setMaximumPoolSize(maxPool);
-    ds.setConnectionTimeout(10_000);
-    ds.setIdleTimeout(10_000);
-    ds.addDataSourceProperty("socketTimeout", "15");
-    ds.addDataSourceProperty("connectTimeout", "10");
+    ds.setInitializationFailTimeout(-1);
+    // Fail fast when PostgreSQL is unreachable so readiness answers 503 instead of hanging.
+    ds.setConnectionTimeout(3000);
+    ds.setValidationTimeout(2000);
+    ds.setPoolName("waypoint");
     return ds;
   }
 
@@ -57,7 +62,7 @@ public class DataConfig {
     return new DataSourceTransactionManager(dataSource);
   }
 
-  /** Serializable transactions with statement timeouts, mirroring lib/database.ts. */
+  /** Serializable by default. Anything weaker is a deliberate, argued exception. */
   @Bean
   public TransactionTemplate serializableTransactions(PlatformTransactionManager manager) {
     TransactionTemplate template = new TransactionTemplate(manager);
@@ -67,58 +72,44 @@ public class DataConfig {
   }
 
   static String toJdbcUrl(String raw) {
-    try {
-      String normalized = raw;
-      if (normalized.startsWith("postgres://")) {
-        normalized = "postgresql://" + normalized.substring("postgres://".length());
-      }
-      if (normalized.startsWith("postgresql://")) {
-        URI uri = new URI(normalized);
-        StringBuilder jdbc = new StringBuilder("jdbc:postgresql://").append(uri.getHost());
-        if (uri.getPort() > 0) jdbc.append(':').append(uri.getPort());
-        jdbc.append(uri.getPath() == null || uri.getPath().isEmpty() ? "/postgres" : uri.getPath());
-        if (uri.getQuery() != null && !uri.getQuery().isEmpty()) {
-          jdbc.append('?').append(uri.getQuery());
-        }
-        return jdbc.toString();
-      }
-      return normalized;
-    } catch (Exception e) {
-      throw new IllegalStateException("Invalid DATABASE_URL", e);
+    if (raw.startsWith("jdbc:")) {
+      return raw;
     }
+    URI uri = URI.create(raw.startsWith("postgres://") ? "postgresql://" + raw.substring(11) : raw);
+    StringBuilder sb = new StringBuilder("jdbc:postgresql://").append(uri.getHost());
+    if (uri.getPort() > 0) {
+      sb.append(':').append(uri.getPort());
+    }
+    sb.append(uri.getPath() == null || uri.getPath().isBlank() ? "/waypoint" : uri.getPath());
+    if (uri.getQuery() != null) {
+      sb.append('?').append(uri.getQuery());
+    }
+    return sb.toString();
   }
 
   static String username(String raw) {
-    String userInfo = userInfo(raw);
-    if (userInfo == null || userInfo.isEmpty()) return null;
-    int idx = userInfo.indexOf(':');
-    return idx < 0 ? userInfo : userInfo.substring(0, idx);
+    String info = userInfo(raw);
+    if (info == null) {
+      return null;
+    }
+    int colon = info.indexOf(':');
+    return colon < 0 ? info : info.substring(0, colon);
   }
 
   static String password(String raw) {
-    String userInfo = userInfo(raw);
-    if (userInfo == null) return null;
-    int idx = userInfo.indexOf(':');
-    if (idx < 0) return null;
-    try {
-      return java.net.URLDecoder.decode(
-          userInfo.substring(idx + 1), java.nio.charset.StandardCharsets.UTF_8);
-    } catch (Exception e) {
-      return userInfo.substring(idx + 1);
+    String info = userInfo(raw);
+    if (info == null) {
+      return null;
     }
+    int colon = info.indexOf(':');
+    return colon < 0 ? null : info.substring(colon + 1);
   }
 
   private static String userInfo(String raw) {
-    try {
-      String normalized = raw;
-      if (normalized.startsWith("postgres://")) {
-        normalized = "http://" + normalized.substring("postgres://".length());
-      } else if (normalized.startsWith("postgresql://")) {
-        normalized = "http://" + normalized.substring("postgresql://".length());
-      }
-      return new URI(normalized).getUserInfo();
-    } catch (Exception e) {
+    if (raw.isBlank() || raw.startsWith("jdbc:")) {
       return null;
     }
+    return URI.create(raw.startsWith("postgres://") ? "postgresql://" + raw.substring(11) : raw)
+        .getUserInfo();
   }
 }

@@ -1,5 +1,5 @@
-import Workspace from "@app-shell/Workspace";
+import AppShell from "@app-shell/AppShell";
 
 export default function Page(): React.JSX.Element {
-  return <Workspace />;
+  return <AppShell />;
 }

@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
 
+const HAS_BODY = new Set(["POST", "PUT", "PATCH"]);
+
 async function proxy(request: NextRequest): Promise<Response> {
   const target = new URL(request.nextUrl.pathname + request.nextUrl.search,
     process.env.BACKEND_URL || "http://127.0.0.1:8080");
@@ -19,7 +21,7 @@ async function proxy(request: NextRequest): Promise<Response> {
   try {
     const response = await fetch(target, {
       method: request.method, headers, cache: "no-store", redirect: "manual",
-      ...(request.method === "POST" ? { body: request.body, duplex: "half" } : {}),
+      ...(HAS_BODY.has(request.method) ? { body: request.body, duplex: "half" } : {}),
       signal: AbortSignal.timeout(25000),
     } as RequestInit);
     const outgoing = new Headers({ "Cache-Control": "no-store" });
@@ -32,5 +34,11 @@ async function proxy(request: NextRequest): Promise<Response> {
     return Response.json({ error: "Backend unavailable. Saved commands can be retried." }, { status: 503 });
   }
 }
+// PUT and DELETE are here because policy administration uses them. Exporting only
+// GET and POST made those routes reachable from curl against the backend and not
+// from the browser, which is the kind of gap nobody finds until a demo.
 export const GET = proxy;
 export const POST = proxy;
+export const PUT = proxy;
+export const PATCH = proxy;
+export const DELETE = proxy;
