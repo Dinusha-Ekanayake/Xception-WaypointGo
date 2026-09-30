@@ -66,7 +66,7 @@ export default function Loader({
   }, [online, waiting, gateway]);
 
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-[720px] flex-col bg-go-canvas font-go text-go-ink">
+    <div className="mx-auto flex min-h-dvh w-full max-w-[720px] flex-col lg:max-w-[1280px] bg-go-canvas font-go text-go-ink">
       <TopBar
         displayName={displayName}
         online={online}
