@@ -62,11 +62,17 @@ public class JdbcOrderRepository {
         "SELECT " + COLUMNS + " FROM ordering.orders WHERE trip_id = ? ORDER BY order_ref", tripId);
   }
 
-  /** Orders still waiting on the warehouse for a service day, for the cutoff (R-STK-06). */
-  public List<Order> stockUnknownDue(LocalDate serviceDate) {
+  /**
+   * Orders due on or before {@code serviceDate} that the warehouse has still not
+   * reserved, for the cutoff (R-STK-06). Includes those an earlier cutoff already
+   * deferred, so an unreserved order keeps moving rather than sitting behind a
+   * date that has passed; "on or before" lets a missed run catch up.
+   */
+  public List<Order> unreservedDueBy(LocalDate serviceDate) {
     return many(
         "SELECT " + COLUMNS + " FROM ordering.orders"
-            + " WHERE status = 'stock_unknown' AND delivery_date = ? ORDER BY order_ref",
+            + " WHERE delivery_date <= ? AND warehouse_order_ref IS NULL"
+            + " AND status IN ('stock_unknown','deferred') ORDER BY delivery_date, order_ref",
         Date.valueOf(serviceDate));
   }
 
