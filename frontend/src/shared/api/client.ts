@@ -32,6 +32,12 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   const text = await response.text();
   const payload: unknown = text ? JSON.parse(text) : null;
 
-  if (!response.ok) throw new ApiError(parseProblem(response.status, payload));
+  if (!response.ok) {
+    const problem = parseProblem(response.status, payload);
+    // A lockout or backpressure says when to try again; the sign-in screen counts it down.
+    const retryAfter = Number(response.headers.get("retry-after"));
+    if (retryAfter > 0) problem.extensions.retryAfterSeconds = retryAfter;
+    throw new ApiError(problem);
+  }
   return payload as T;
 }

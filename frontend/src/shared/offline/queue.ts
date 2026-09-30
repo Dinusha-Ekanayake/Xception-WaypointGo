@@ -65,6 +65,11 @@ export async function drain(accountId: string): Promise<DrainReport> {
       await remove(accountId, entry.commandId);
       sent++;
     } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        // The session expired. The write is still good: keep it, untouched,
+        // until the person signs in again.
+        break;
+      }
       if (error instanceof ApiError && error.isVersionConflict) {
         await put(accountId, { ...entry, needsReview: true, lastError: error.message });
         heldForReview++;
@@ -88,6 +93,15 @@ export async function drain(accountId: string): Promise<DrainReport> {
 
   const left = await all(accountId);
   return { sent, heldForReview, remaining: left.length };
+}
+
+/** How many writes this account still has on the device, sent or not. */
+export async function pendingCount(accountId: string): Promise<number> {
+  try {
+    return (await all(accountId)).length;
+  } catch {
+    return 0;
+  }
 }
 
 export type { StoredEntry };
