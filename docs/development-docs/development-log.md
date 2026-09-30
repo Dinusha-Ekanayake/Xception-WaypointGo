@@ -21,6 +21,36 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-01 - feat: store manager screens from the Figma design
+
+`feat/store-ui` · @kavindamihiran
+
+The following screens, from Figma "15 Store Manager · Mobile":
+- Home: next delivery, notices, and the order against the 16:00 cutoff.
+- Place order and amend.
+- Order sent.
+- Orders, with history and cancel.
+- Deliveries.
+- Receive delivery.
+
+Behaviour:
+- One `order:Place` per temperature class (R-ORD-06).
+- A short line shows per-line availability from the `409 INSUFFICIENT_STOCK` problem (D-F).
+- A non-operating delivery day shows the rolled date before sending (D-I).
+- With the warehouse down, the screen shows a degraded banner and `STOCK_UNKNOWN` (D-G).
+- Receipt is confirm, confirm partial or dispute, and is kept apart from the driver's proof (R-RCP-04).
+- Resilient tier: writes made offline are queued and sent on reconnect.
+
+`Problem` now keeps extension members in `extensions`.
+Why: #18, built frontend first while Ordering (#8) and Receipt (#13) are not served.
+Sample data: `NEXT_PUBLIC_STORE_FIXTURES=1`, the same pattern as the loader, never active in production.
+Verified: `npm run typecheck`, boundary tests and `npm run build` pass. I drove the full flow at 393px in `next dev` with sample data: short stock, holiday roll, cancel, partial receipt, offline place then sync, warehouse down. Not verified against a live backend.
+Open:
+- The `/api/orders`, `/api/receipts` and `/api/warehouse` paths are assumed.
+- ETA shows the outlet window only (#18 decision 2).
+- No product names in the contract, so product ids are shown, labelled "inferred".
+- Not built yet: issues tab, notification inbox (#14), supply probability (#16), order template, and the Playwright e2e tests.
+
 ## 2026-09-30 - feat: loader phone screens from the Figma design
 
 `feat/loader-ui` · @kavindamihiran

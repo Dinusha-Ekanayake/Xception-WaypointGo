@@ -1,0 +1,159 @@
+import type { ReactNode } from "react";
+import { Icon, cx, type IconName } from "@shared/ui";
+import type { StatusTone } from "./data/format.ts";
+
+// Store pieces from Figma "15 Store Manager · Mobile". Touch targets are at
+// least 48px; the manager works at the counter, often one handed.
+
+const CHIP: Record<StatusTone, string> = {
+  mint: "bg-go-mint text-black",
+  ink: "bg-[#031a0c] text-white",
+  warn: "bg-go-warning-tint text-go-warning-text",
+  danger: "bg-go-danger-tint text-go-danger-strong",
+  muted: "bg-go-canvas text-go-muted",
+  ok: "bg-[#e3f8ee] text-go-success",
+};
+
+export function Chip({ children, tone = "mint", outline }: { children: ReactNode; tone?: StatusTone; outline?: boolean }): React.JSX.Element {
+  return (
+    <span
+      className={cx(
+        "inline-flex shrink-0 items-center rounded-full px-2.5 py-[5px] text-[13px] font-medium whitespace-nowrap",
+        outline ? "border border-[#031b08] bg-white text-black" : CHIP[tone],
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+type ButtonTone = "mint" | "ink" | "plain" | "danger";
+const BUTTON: Record<ButtonTone, string> = {
+  mint: "bg-go-mint text-black",
+  ink: "bg-[#031a0c] text-white",
+  plain: "border border-go-mint bg-white text-black",
+  danger: "bg-[#ea2525] text-white",
+};
+
+export function Button({
+  children,
+  tone = "ink",
+  onClick,
+  disabled,
+  large,
+}: {
+  children: ReactNode;
+  tone?: ButtonTone;
+  onClick?: () => void;
+  disabled?: boolean;
+  large?: boolean;
+}): React.JSX.Element {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={cx(
+        "flex w-full min-w-0 items-center justify-center rounded-[22px] px-4 font-medium disabled:cursor-not-allowed disabled:opacity-50",
+        large ? "min-h-16 text-[20px]" : "min-h-12 text-[15px]",
+        BUTTON[tone],
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+export function Card({ children, label, className }: { children: ReactNode; label?: string; className?: string }): React.JSX.Element {
+  return (
+    <section aria-label={label} className={cx("flex w-full flex-col gap-3.5 rounded-[26px] bg-white p-[18px]", className)}>
+      {children}
+    </section>
+  );
+}
+
+export function Muted({ children }: { children: ReactNode }): React.JSX.Element {
+  return <p className="text-[13px] font-light text-go-muted">{children}</p>;
+}
+
+/** Minus, count, plus. The count turns teal when it differs from the usual. */
+export function Stepper({ value, onChange, label, highlight }: { value: number; onChange: (n: number) => void; label: string; highlight?: boolean }): React.JSX.Element {
+  const round = "flex size-12 shrink-0 items-center justify-center rounded-full bg-go-canvas text-[22px] leading-none disabled:opacity-40";
+  return (
+    <div className="flex items-center gap-1" role="group" aria-label={label}>
+      <button type="button" className={round} aria-label={`One less ${label}`} disabled={value <= 0} onClick={() => onChange(Math.max(0, value - 1))}>
+        −
+      </button>
+      <span aria-live="polite" className={cx("w-9 text-center text-[17px] font-semibold", highlight ? "text-[#0f766e]" : "text-black")}>
+        {value}
+      </span>
+      <button type="button" className={round} aria-label={`One more ${label}`} onClick={() => onChange(value + 1)}>
+        +
+      </button>
+    </div>
+  );
+}
+
+/** A bottom sheet over a blurred page, as in "04 Order sent". */
+export function Sheet({ label, onClose, children }: { label: string; onClose: () => void; children: ReactNode }): React.JSX.Element {
+  return (
+    <div className="fixed inset-0 z-40 flex items-end justify-center" role="presentation">
+      <button type="button" aria-label="Close" onClick={onClose} className="absolute inset-0 bg-black/20 backdrop-blur-[6px]" />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={label}
+        className="relative flex max-h-[92dvh] w-full max-w-[520px] flex-col gap-4 overflow-y-auto rounded-t-[32px] bg-white px-6 pt-6 pb-8"
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+export function BackButton({ onClick, label = "Back" }: { onClick: () => void; label?: string }): React.JSX.Element {
+  return (
+    <button type="button" onClick={onClick} className="flex min-h-12 items-center gap-2 self-start pr-3 text-[17px] text-black">
+      <Icon name="arrow-left" />
+      {label}
+    </button>
+  );
+}
+
+export type Tab = "home" | "orders" | "deliveries";
+const TABS: { id: Tab; icon: IconName; label: string }[] = [
+  { id: "home", icon: "home", label: "Home" },
+  { id: "orders", icon: "cart", label: "Orders" },
+  { id: "deliveries", icon: "truck", label: "Deliveries" },
+];
+
+/** "SM / Tab bar": floating, dark, the active tab on a white pill. */
+export function TabBar({ tab, onTab, badges }: { tab: Tab; onTab: (t: Tab) => void; badges: Partial<Record<Tab, number>> }): React.JSX.Element {
+  return (
+    <nav aria-label="Store" className="fixed inset-x-0 bottom-0 z-30 flex justify-center bg-gradient-to-b from-go-canvas/0 via-go-canvas via-45% to-go-canvas px-4 pt-10 pb-6">
+      <div className="flex h-16 w-full max-w-[324px] items-center justify-around rounded-[32px] bg-[#031b08] px-2 drop-shadow-[0_8px_12px_rgba(0,0,0,0.18)]">
+        {TABS.map((t) => {
+          const active = t.id === tab;
+          const badge = badges[t.id] ?? 0;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              aria-label={t.label}
+              aria-current={active ? "page" : undefined}
+              onClick={() => onTab(t.id)}
+              className={cx("relative flex h-12 w-[64px] items-center justify-center rounded-[24px]", active && "bg-white")}
+            >
+              <span className={cx(!active && "opacity-75 invert")}>
+                <Icon name={t.icon} />
+              </span>
+              {badge > 0 && (
+                <span className="absolute top-1.5 left-[38px] rounded-[9px] bg-go-mint px-[5px] py-px text-[11px] font-semibold text-black">{badge}</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
