@@ -30,7 +30,9 @@ function describe(error: unknown): Failure {
   return { kind: "outage", message: "Could not reach Waypoint. Check the connection and try again." };
 }
 
-const field = "min-h-12 w-full rounded-[16px] border border-[#dfe7e6] bg-white px-4 text-[16px] text-black outline-none focus:border-go-teal";
+// Filled fields with the label as placeholder, as in "01 Sign in"; each keeps
+// an aria-label because a placeholder is not a label.
+const field = "min-h-14 w-full rounded-[16px] bg-[#f1f3f5] px-4 text-[16px] text-black outline-none placeholder:text-go-muted focus:ring-2 focus:ring-go-teal";
 
 export default function SignIn({ onSignedIn, notice }: { onSignedIn: (session: Session) => void; notice?: string }): React.JSX.Element {
   const online = useOnline();
@@ -64,36 +66,36 @@ export default function SignIn({ onSignedIn, notice }: { onSignedIn: (session: S
   const blocked = !online || busy || lockedFor > 0;
 
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-go-canvas px-4 py-10 font-go text-go-ink">
-      <form onSubmit={(e) => void submit(e)} className="flex w-full max-w-[400px] flex-col gap-5 rounded-[31px] bg-white px-6 py-8 shadow-[0_5px_20px_rgba(0,0,0,0.09)]">
-        <div className="flex flex-col gap-1">
-          <span className="text-[40px] leading-none font-extrabold text-black">GO</span>
-          <h1 className="text-[24px] font-medium text-black">Sign in to Waypoint</h1>
+    <div className="flex min-h-dvh flex-col bg-go-canvas px-4 pt-6 pb-10 font-go text-go-ink md:px-16 md:pt-12">
+      <span className="text-[40px] leading-none font-extrabold text-black">GO</span>
+      <div className="mx-auto flex w-full max-w-[440px] flex-1 flex-col justify-center gap-5 py-10 md:justify-start md:pt-[10vh]">
+        <div className="flex flex-col gap-1.5">
+          <h1 className="text-[40px] leading-tight font-medium text-black md:text-[48px]">Welcome back</h1>
+          <p className="text-[15px] text-black/80">Sign in to open your workspace.</p>
         </div>
 
-        {notice && <Notice tone="info" title={notice} />}
-        {!online && (
-          <Notice tone="warning" live title="This device is offline">
-            Signing in needs a connection the first time. Once signed in, your work keeps going offline.
-          </Notice>
-        )}
-        {failure && (
-          <Notice tone={failure.kind === "outage" ? "warning" : "danger"} live title={failure.kind === "locked" && lockedFor > 0 ? `Too many failed attempts. Try again in ${Math.floor(lockedFor / 60)}:${String(lockedFor % 60).padStart(2, "0")}.` : failure.message} />
-        )}
+        <form onSubmit={(e) => void submit(e)} className="flex w-full flex-col gap-4 rounded-[31px] bg-white p-7 shadow-[0_5px_20px_rgba(0,0,0,0.09)]">
+          {notice && <Notice tone="info" title={notice} />}
+          {!online && (
+            <Notice tone="warning" live title="This device is offline">
+              Signing in needs a connection the first time. Once signed in, your work keeps going offline.
+            </Notice>
+          )}
+          {failure && (
+            <Notice tone={failure.kind === "outage" ? "warning" : "danger"} live title={failure.kind === "locked" && lockedFor > 0 ? `Too many failed attempts. Try again in ${Math.floor(lockedFor / 60)}:${String(lockedFor % 60).padStart(2, "0")}.` : failure.message} />
+          )}
 
-        <label className="flex flex-col gap-1.5 text-[13px] font-medium text-go-muted">
-          Email
-          <input className={field} type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} />
-        </label>
-        <label className="flex flex-col gap-1.5 text-[13px] font-medium text-go-muted">
-          Password
-          <input className={field} type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
-        </label>
+          <input className={field} type="email" aria-label="Email" placeholder="Enter your email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} />
+          <input className={field} type="password" aria-label="Password" placeholder="Enter your password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+          <p className="px-1 text-[13px] text-go-muted">Forgot password? Ask your administrator to reset it.</p>
 
-        <button type="submit" disabled={blocked} className="min-h-14 rounded-[22px] bg-[#031a0c] text-[17px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-50">
-          {busy ? "Signing in…" : "Sign in"}
-        </button>
-      </form>
+          <button type="submit" disabled={blocked} className="min-h-14 rounded-[16px] bg-[#031a0c] text-[17px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-50">
+            {busy ? "Signing in…" : "Sign in"}
+          </button>
+        </form>
+
+        <p className="px-1 text-[13px] text-go-muted">After your first sign-in, GO keeps working offline. Your work syncs when the connection returns.</p>
+      </div>
     </div>
   );
 }

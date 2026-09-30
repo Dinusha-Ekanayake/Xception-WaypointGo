@@ -21,6 +21,15 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-01 - fix: sign-in matches Figma "01 Sign in"
+
+`fix/sign-in-figma-match` · @kavindamihiran
+
+Sign-in follows the dispatcher and store "01 Sign in" frames: GO in the corner, "Welcome back" above the card, filled fields with placeholders (each still has an aria-label), a password-reset line, and the note about working offline. The error, lockout and outage handling is unchanged.
+Why: the sign-in card did not match any design frame.
+Verified: `npm run typecheck`, `npm run build`. In the browser at 1440x900 and 393x852: a wrong password shows the generic error, the right one signs in, and "Switch user" in the loader header signs out with the notice.
+Open: the background map artwork, the theme toggle, staff ID sign-in (the backend signs in by email), and the loader's employee and PIN sign-in (Figma 07/08) are not built.
+
 ## 2026-10-01 - fix: dispatcher shell controls in the sidebar, compact nav below lg
 
 `fix/dispatcher-figma-match` · @kavindamihiran
