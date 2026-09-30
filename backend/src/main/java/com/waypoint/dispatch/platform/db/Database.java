@@ -5,10 +5,12 @@ import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -28,37 +30,75 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class Database {
   private static final int MAX_ATTEMPTS = 5;
 
+  /** The actor of the unit of work running on this thread, for contract reads made inside it. */
+  private static final ThreadLocal<UUID> AMBIENT_ACTOR = new ThreadLocal<>();
+
   private final JdbcTemplate jdbc;
   private final TransactionTemplate serializable;
+  private final TransactionTemplate separateRead;
 
   public Database(JdbcTemplate jdbc, TransactionTemplate serializableTransactions) {
     this.jdbc = jdbc;
     this.serializable = serializableTransactions;
+    this.separateRead = new TransactionTemplate(serializableTransactions.getTransactionManager());
+    separateRead.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+    separateRead.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
+    separateRead.setReadOnly(true);
   }
 
   /** Runs one command as a module, on behalf of an actor, in one serializable transaction. */
   public <T> T asModule(ModuleRole role, UUID actorId, Supplier<T> work) {
     for (int attempt = 0; ; attempt++) {
       try {
-        return serializable.execute(
-            status -> {
-              jdbc.execute("SET LOCAL ROLE " + role.roleName());
-              if (actorId != null) {
-                // set_config is a SELECT, not a statement: calling it through
-                // update() throws "a result was returned when none was expected",
-                // which means the actor is never set and row-level security sees
-                // nobody. Parameterised rather than interpolated so an actor id
-                // can never be injected into SQL.
-                jdbc.queryForList("SELECT set_config('app.actor_id', ?, true)", actorId.toString());
-              }
-              return work.get();
-            });
+        return serializable.execute(status -> runAs(role, actorId, work));
       } catch (RuntimeException e) {
         if (attempt < MAX_ATTEMPTS - 1 && isRetryable(e)) {
           sleep(20L * (attempt + 1));
           continue;
         }
         throw e;
+      }
+    }
+  }
+
+  /**
+   * A module's contract query, answered in a read-only transaction of its own.
+   *
+   * <p>A contract query is called from inside another module's command, whose
+   * transaction runs as that module's role. Joining it would switch the caller's
+   * role mid-transaction, and the caller's role cannot read this module's tables
+   * anyway (D-B). So the read suspends the caller's transaction, borrows another
+   * connection, and runs as the owning module for the same actor, which keeps
+   * row-level security deciding the rows. With no actor on the thread, it runs
+   * as nobody and sees nothing.
+   */
+  public <T> T readAs(ModuleRole role, UUID actorId, Supplier<T> work) {
+    return separateRead.execute(status -> runAs(role, actorId, work));
+  }
+
+  /** The actor of the unit of work this thread is inside, if any. */
+  public Optional<UUID> ambientActor() {
+    return Optional.ofNullable(AMBIENT_ACTOR.get());
+  }
+
+  private <T> T runAs(ModuleRole role, UUID actorId, Supplier<T> work) {
+    jdbc.execute("SET LOCAL ROLE " + role.roleName());
+    if (actorId != null) {
+      // set_config is a SELECT, not a statement: calling it through update()
+      // throws "a result was returned when none was expected", which means the
+      // actor is never set and row-level security sees nobody. Parameterised
+      // rather than interpolated so an actor id can never be injected into SQL.
+      jdbc.queryForList("SELECT set_config('app.actor_id', ?, true)", actorId.toString());
+    }
+    UUID previous = AMBIENT_ACTOR.get();
+    AMBIENT_ACTOR.set(actorId);
+    try {
+      return work.get();
+    } finally {
+      if (previous == null) {
+        AMBIENT_ACTOR.remove();
+      } else {
+        AMBIENT_ACTOR.set(previous);
       }
     }
   }
