@@ -372,7 +372,7 @@ The boundary was defined (port, anti-corruption layer, circuit breaker, degraded
 
 ### Outbound: Waypoint calls the warehouse
 
-Revised 2026-09-30 against the verified API (RULES-AND-POLICIES §2) and decisions D-E to D-H and D-M. Creating a warehouse order **is** the reservation; there is no separate reserve call and no TTL.
+Revised 2026-09-30 against the verified API (RULES-AND-POLICIES §2) and decisions D-E to D-H and D-M. Creating a warehouse order **is** the reservation; there is no separate reserve call. **Revised 2026-10-01:** a partial placement (`202`) is a `reserved` order with an expiry, so the adapter cancels it at once and answers `Insufficient`; only a `201` (`pending`, no expiry) is a reservation Waypoint keeps. Orders are placed in the depot's warehouse, `Kandy` or `Peliyagoda` (A-25).
 
 | Operation | Caller | When | Timeout | On failure |
 | --- | --- | --- | --- | --- |

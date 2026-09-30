@@ -81,6 +81,21 @@ This trips people up, so it is worth stating plainly.
 
 Spring does not load `.env` files. If the backend cannot find the database, the usual cause is that `DATABASE_URL` was set in the wrong terminal. Keep the export in your shell profile or a small `source`d file that is not committed.
 
+### The external warehouse API
+
+Stock, reservations and the product catalogue come from the warehouse service. Its documentation is at [triathon-warehouse-simple.vercel.app/docs](https://triathon-warehouse-simple.vercel.app/docs), and the contract Waypoint relies on is summarised in [RULES-AND-POLICIES §2](../architecture/RULES-AND-POLICIES.md#2-stock-and-the-external-warehouse).
+
+Create your own key on the service's API keys page; a key per developer keeps usage (`GET /api/v1/usage`) and revocation per person. It is a backend secret: put it in root `.env` for Compose, and export it in the backend shell for a native run:
+
+```bash
+export WAREHOUSE_API_KEY=wh_...
+# optional, these are the defaults
+export WAREHOUSE_BASE_URL=https://triathon-warehouse-simple.vercel.app/api/v1
+export WAREHOUSE_TIMEOUT_MS=3000
+```
+
+Never put it in `frontend/.env.local` or a `NEXT_PUBLIC_*` variable: the browser never calls the warehouse. With the key blank the backend still starts, and every order saves as `STOCK_UNKNOWN` with the reason on screen. The warehouse is shared by the whole team, so do not place or cancel orders against it by hand except to test the lifecycle on purpose; a placed order locks real stock.
+
 ## Tests
 
 ```sh

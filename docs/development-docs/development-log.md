@@ -21,6 +21,15 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-01 - docs: record the revised warehouse API and wire its key
+
+`feat/ordering-module` · @Oxshadha
+
+The warehouse API now has two warehouses (KDY, PLG), requires `warehouse` on `POST /orders`, and answers a short order with a `202` partial reservation that expires. RULES §2 (contract, R-STK-08 to R-STK-10, lifecycle mapping), MODULES, A-07 and A-20 corrected; A-25 added. `WAREHOUSE_*` passed through both Compose files, documented in `.env.example` and [development.md](development.md#the-external-warehouse-api).
+Why: the recorded contract said all-or-nothing and no TTL; both are now false.
+Verified: read endpoints probed live with a key (200, 401 without); no order was placed.
+Open: `StockPort` needs a depot parameter, and the #7 adapter must cancel a `202` and answer `Insufficient` (R-STK-08). Both owned by #7.
+
 ## 2026-10-01 - feat: build the Ordering module (issue #8)
 
 `feat/ordering-module` · @Oxshadha
