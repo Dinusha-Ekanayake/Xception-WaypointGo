@@ -45,7 +45,7 @@ test("the source tree exists and is being checked", () => {
 });
 
 test("a role never imports another role", () => {
-  const roles = ["dispatcher", "loader", "driver", "store"];
+  const roles = ["dispatcher", "loader", "driver", "store", "admin"];
   for (const file of requireFiles(sources("src/roles"), "role files")) {
     const owner = posix(file).split("/")[2];
     for (const spec of imports(file)) {

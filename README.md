@@ -6,6 +6,14 @@ A working Designathon/Hackathon solution for Waypoint Group's four roles: store 
 
 ## Repository and runtime
 
+### Admin console UI preview
+
+Run the frontend and open `/super-admin/demo` or `/admin/demo`. The responsive console includes account forms, role permission toggles, individual overrides, depot/outlet/vehicle assignments and an activity log. Demo changes persist only in the current browser tab; no real accounts or invitations are created.
+
+Only the super admin preview can create or manage admins. The authenticated `/admin` and `/super-admin` routes explicitly show that live account administration is not connected yet. The [permission map and integration notes](docs/architecture/ADMIN-CONSOLE.md) distinguish booklet requirements from proposed additions and describe the backend work still required.
+
+Run UI checks with `npx playwright test --config playwright.admin.config.ts` from `frontend/` (installed Chrome required).
+
 `main` is the current integration branch; `dev` replaces the former `master` branch and may lag behind `main`. The repository is [Xception-WaypointGo](https://github.com/kavindamihiran/Xception-WaypointGo).
 
 - `frontend/`: Next.js UI, same-origin API proxy, offline storage and browser tests.

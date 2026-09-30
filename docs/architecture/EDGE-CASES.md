@@ -207,6 +207,19 @@ Most of the cases below are instances of nine patterns. Learn the patterns and t
 
 ---
 
+## Admin console UI (demo only)
+
+These tests cover the new UI proposal, not production authorization. The live console stays unavailable until the corresponding backend commands exist. See [ADMIN-CONSOLE.md](ADMIN-CONSOLE.md).
+
+| ID | Trigger | Required behaviour | Enforced in | Detection | Test |
+| --- | --- | --- | --- | --- | --- |
+| AUI-01 | Admin attempts to create or manage an admin | No admin option or management screen; demo validation rejects the target role | UI and demo validation | Validation message | `admin-permissions.test.ts`, `console.spec.ts` |
+| AUI-02 | Permission override tries to add another persona's action | Ignore actions outside the persona; explicit individual deny removes the inherited grant | UI model | Effective permission display | `admin-permissions.test.ts` |
+| AUI-03 | Driver assignment has impossible dates or overlaps an existing vehicle assignment | Reject the save, including shared end/start date | Demo validation | Validation message | `admin-permissions.test.ts` |
+| AUI-04 | Account email is duplicated or scope has invalid cardinality | Reject the save | Demo validation | Validation message | `admin-permissions.test.ts` |
+| AUI-05 | Permission changes lack an explanation | Keep draft unsaved and request a reason | Permission editor | Inline error | `console.spec.ts` |
+| AUI-06 | An admin opens the live super admin route | Show access restricted and no demo directory | Session gate (UI only) | Restricted screen | `console.spec.ts` |
+
 ## 12. How this register is tested
 
 | Layer | Covers | Cost |

@@ -21,6 +21,17 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-09-27 - feat: add admin and super admin console UI
+
+`dev` · @Oxshadha
+
+Added responsive `/admin/demo` and `/super-admin/demo` consoles with account creation/editing/suspension, persona templates, individual overrides, scope assignments and reasoned activity export. The 24 permission proposals identify booklet pages or product-extension provenance. Only super admin can create/manage admins in the UI; four field roles remain separate. See [ADMIN-CONSOLE.md](../architecture/ADMIN-CONSOLE.md).
+Why: administrators need to assign the four booklet personas and toggle their permissions; the user introduced a distinct super admin with exclusive admin creation.
+Verified: TypeScript, production build, 10 unit/boundary tests and 5 Chrome browser tests pass. Desktop and 390px screenshots reviewed. Browser checks cover persistence, required reasons, account updates, blocked live routes and mobile navigation.
+Open: this is a complete interactive UI demo, not production account administration. Backend super-admin hierarchy, directory/lifecycle/assignment endpoints and effective-permission adapters are still required. Authenticated routes show that gap explicitly. Demo data is isolated in session storage and never sent to mutation APIs.
+
+---
+
 ## 2026-09-27 - docs: make the documentation set answerable
 
 `dev` · @Oxshadha

@@ -34,11 +34,11 @@ export default function AppShell(): React.JSX.Element {
   }, []);
 
   if (!checked) return <main className="shell">Checking your session...</main>;
-  if (!session) return <main className="shell">Sign in to continue.</main>;
+  if (!session) return <main className="ac-auth"><section><h1>Welcome to Waypoint.</h1><p>Sign in to administer your team, or explore the access console demo.</p><a className="ac-button primary" href="/admin">Admin sign in</a><a href="/super-admin/demo">Preview super admin console</a><a href="/admin/demo">Preview admin console</a></section></main>;
 
   return (
-    <main className="shell">
-      <RoleRouter role={session.roles[0]!} />
-    </main>
+    <div className="shell">
+      <RoleRouter role={session.roles.includes("super_admin") ? "super_admin" : session.roles.includes("admin") ? "admin" : session.roles[0]!} />
+    </div>
   );
 }

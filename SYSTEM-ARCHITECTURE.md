@@ -1,4 +1,4 @@
-# Waypoint Dispatch: system architecture
+ # Waypoint Dispatch: system architecture
 
 Audience: the Xception build team. This is the target architecture for Waypoint Dispatch as an enterprise system: the principles it obeys, the actors it serves, the modules and services it is built from, the layers inside each module, how those modules connect, and how it is operated.
 

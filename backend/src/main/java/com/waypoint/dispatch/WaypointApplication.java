@@ -1,5 +1,4 @@
 package com.waypoint.dispatch;
-
 import com.waypoint.dispatch.identity.application.AccountAdminUseCase;
 import com.waypoint.dispatch.platform.config.AppProperties;
 import com.waypoint.dispatch.platform.db.Migrator;

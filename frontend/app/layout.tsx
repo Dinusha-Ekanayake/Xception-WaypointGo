@@ -7,6 +7,7 @@ import "@fontsource/ibm-plex-mono/500.css";
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
+import "./admin.css";
 
 export const metadata: Metadata = {
   title: "Waypoint Dispatch",

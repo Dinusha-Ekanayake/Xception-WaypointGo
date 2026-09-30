@@ -141,6 +141,7 @@ artifacts/
 !docs/architecture/ASSUMPTIONS.md
 !docs/architecture/DATA-MODEL-REVIEW.md
 !docs/architecture/EDGE-CASES.md
+!docs/architecture/ADMIN-CONSOLE.md
 !docs/architecture/schema/README.md
 !.agent/rules/*.md
 !docs/ai-disclosure.md

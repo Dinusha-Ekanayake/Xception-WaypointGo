@@ -4,7 +4,7 @@ import type { Role } from "@shared/offline";
 export type Session = {
   userId: string;
   displayName: string;
-  roles: Role[];
+  roles: (Role | "admin" | "super_admin" | "auditor")[];
   /** Depot codes, outlet ids or a vehicle id, depending on the role. */
   scope: string[];
 };
