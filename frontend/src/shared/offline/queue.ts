@@ -15,6 +15,8 @@ import { queuesWrites, type Role } from "./tiers.ts";
 // Draining uses exponential backoff with jitter. Without jitter a regional
 // reconnect arrives in lockstep and the recovery becomes the outage.
 
+export const QUEUED_EVENT = "waypoint:queued";
+
 export type EnqueueResult = { durable: true } | { durable: false; reason: string };
 
 export async function enqueue(
@@ -33,6 +35,8 @@ export async function enqueue(
       enqueuedAt: command.clientRecordedAt,
       attempts: 0,
     });
+    // Tell the sync engine there is something to send.
+    globalThis.dispatchEvent?.(new Event(QUEUED_EVENT));
     return { durable: true };
   } catch (error) {
     // Private windows, cleared site data and blocked storage all land here. The
@@ -49,8 +53,22 @@ export function backoffMs(attempt: number): number {
 
 export type DrainReport = { sent: number; heldForReview: number; remaining: number };
 
-/** Sends what it can, once. Callers schedule it on reconnect and on visibility. */
-export async function drain(accountId: string): Promise<DrainReport> {
+const running = new Map<string, Promise<DrainReport>>();
+
+/**
+ * Sends what it can, once. Callers schedule it on reconnect and on visibility.
+ * Concurrent calls for one account share a single pass, so two schedulers never
+ * send the same write twice or out of order.
+ */
+export function drain(accountId: string): Promise<DrainReport> {
+  const current = running.get(accountId);
+  if (current) return current;
+  const pass = drainOnce(accountId).finally(() => running.delete(accountId));
+  running.set(accountId, pass);
+  return pass;
+}
+
+async function drainOnce(accountId: string): Promise<DrainReport> {
   const entries = await all(accountId);
   let sent = 0;
   let heldForReview = 0;
@@ -65,6 +83,11 @@ export async function drain(accountId: string): Promise<DrainReport> {
       await remove(accountId, entry.commandId);
       sent++;
     } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        // The session expired. The write is still good: keep it, untouched,
+        // until the person signs in again.
+        break;
+      }
       if (error instanceof ApiError && error.isVersionConflict) {
         await put(accountId, { ...entry, needsReview: true, lastError: error.message });
         heldForReview++;
@@ -88,6 +111,34 @@ export async function drain(accountId: string): Promise<DrainReport> {
 
   const left = await all(accountId);
   return { sent, heldForReview, remaining: left.length };
+}
+
+/** Writes the server refused, waiting for a person to decide. */
+export async function heldForReview(accountId: string): Promise<StoredEntry[]> {
+  try {
+    return (await all(accountId)).filter((e) => e.needsReview);
+  } catch {
+    return [];
+  }
+}
+
+/** Drop a held write. Only a person does this, never the engine. */
+export function discard(accountId: string, commandId: string): Promise<void> {
+  return remove(accountId, commandId);
+}
+
+/** Put a held write back in line, for when the cause was fixed elsewhere. */
+export async function retry(accountId: string, entry: StoredEntry): Promise<void> {
+  await put(accountId, { ...entry, needsReview: false });
+}
+
+/** How many writes this account still has on the device, sent or not. */
+export async function pendingCount(accountId: string): Promise<number> {
+  try {
+    return (await all(accountId)).length;
+  } catch {
+    return 0;
+  }
 }
 
 export type { StoredEntry };

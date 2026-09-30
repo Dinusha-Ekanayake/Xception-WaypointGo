@@ -57,7 +57,7 @@ export default function Loader({
             `${report.heldForReview} saved ${report.heldForReview === 1 ? "check" : "checks"} could not be applied because the load sheet changed. Check those orders again.`,
           );
         }
-        setWaiting(report.remaining);
+        setWaiting(report.remaining - report.heldForReview);
       })
       .catch(() => undefined);
     return () => {

@@ -21,6 +21,27 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-01 - feat: frontend sync engine schedule and review list
+
+`feat/app-shell` · @kavindamihiran
+
+`useSync` in `src/shared/offline` drains the queue on reconnect, on focus and visibility, right after a write is queued (`waypoint:queued` event) and every 30 s. `drain()` is now single-flight per account, so it never double-sends beside a role's own flush. The shell shows "n to send" or "n saved on this device" and "n to review". The review list shows each refused write with the server's reason, and offers "send again" or "discard" (a person decides; the engine never drops one). Sign-out reads the same pending count. The loader and store no longer count held writes as still sending.
+Why: frontend half of #15.
+Verified: typecheck, `npm test` and `npm run build` pass. In the browser with the live store gateway and stubbed APIs: placed offline, sign-out blocked, reconnected, the server answered 409 (sent once), then review and discard.
+Open: Background Sync, driver working-set prefetch, queue-age telemetry, and the backend `sync` module (`POST /api/sync`, `sync:Resolve`).
+
+## 2026-10-01 - feat: sign-in, sign-out and role switcher in the app shell
+
+`feat/app-shell` · @kavindamihiran
+
+Sign-in screen on `POST /api/session`, with separate messages for wrong credentials, lockout (countdown from `Retry-After` when sent) and outage. The shell tells apart signed out, server unreachable and offline; an outage no longer reads as "sign in". Sign-out uses `POST /api/session/end` and warns while writes are still queued on the device (SEC-01). Multi-role users switch roles and the last role is remembered per user. Scope is read as prefixed grants (`depot:`, `outlet:`) and each role gets its own values. Admin and auditor routes are placeholders. Queued writes survive a 401 instead of being held for review.
+Why: #17, and the sign-out and 401 parts of #15.
+Verified: `npm run typecheck`, boundary tests and `npm run build` pass. In the browser at 393px with `/api/session` stubbed: outage, wrong password, 429 countdown, sign in, role switch remembered across reload, sign out, offline.
+Open:
+- #17: the component gallery and the dark theme.
+- #15: scheduled drain, the shared pending indicator and conflict list, and the backend `sync` module.
+- The backend returns a 403 for lockout without `Retry-After`, so no countdown is shown there.
+
 ## 2026-10-01 - feat: store manager screens from the Figma design
 
 `feat/store-ui` · @kavindamihiran
