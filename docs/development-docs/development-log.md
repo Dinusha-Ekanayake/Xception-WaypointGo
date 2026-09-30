@@ -21,6 +21,16 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-09-30 - feat: loader phone screens from the Figma design
+
+`feat/loader-ui` · @kavindamihiran
+
+Dock board, load sheet (stops in reverse order, per-order check), report an issue, confirm and release, from Figma "08 Loader · Phone". Writes are `loading:*` commands carrying the manifest `rowVersion`. Resilient tier: checks made offline go to the device queue and are sent on reconnect; release always needs a connection. A new plan version shows "plan changed" and marks the reset orders for recheck (R-LOD-03). Release is refused while an order is unchecked (R-LOD-07).
+Why: #20, built frontend first while Loading (#10) is not served.
+Sample data: departs from D-D by decision. `NEXT_PUBLIC_LOADER_FIXTURES=1` swaps in an in-memory gateway (`roles/loader/data/fixtures.ts`) enforcing the same rules; never active in a production build, and the screen shows "Sample data".
+Verified: `npm run typecheck`, `npm test`, `npm run build` green; full flow driven at 393px in `next dev` with sample data, including an offline check and a plan change. Not verified against a live backend.
+Open: `/api/loading/trips` and `/api/loading/trips/{id}/manifest` are assumed paths until #10; `ReadyTripView` has no route, stop count, temperature or claimant, so the board card omits them; damage photo, interchange, shift-handover sign-in and Playwright e2e remain.
+
 ## 2026-09-30 - feat: dispatcher shell, overview and vehicles from the Figma design
 
 `feat/dispatcher-ui` · @kavindamihiran
