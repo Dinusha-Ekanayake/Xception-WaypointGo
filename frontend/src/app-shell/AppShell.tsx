@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useOnline } from "@shared/api/useResource";
 import { useSync } from "@shared/offline";
-import { Notice, cx } from "@shared/ui";
+import { Notice, ShellProvider, cx, type ShellControls } from "@shared/ui";
 import RoleRouter from "./RoleRouter.tsx";
 import SignIn from "./SignIn.tsx";
 import SyncStatus from "./SyncStatus.tsx";
@@ -16,6 +16,13 @@ import {
   type SessionState,
   type ShellRole,
 } from "./session.ts";
+
+/**
+ * Roles whose design puts sign-out, the role switcher and the sync badge in
+ * their own top bar. For these the shell draws no strip of its own and lends
+ * the controls through ShellProvider instead.
+ */
+const OWN_HEADER = new Set<ShellRole>(["loader"]);
 
 /**
  * Session gate and role routing. Signed out, server unreachable and offline are
@@ -101,59 +108,74 @@ export default function AppShell(): React.JSX.Element {
     }
   };
 
+  const controls: ShellControls = {
+    roles: session.roles.map((r) => ({ value: r, label: ROLE_LABEL[r] })),
+    active,
+    onRole: (r) => {
+      rememberRole(session, r as ShellRole);
+      setRole(r as ShellRole);
+    },
+    onSignOut: () => void leave(false),
+    sync: <SyncStatus sync={sync} online={online} />,
+  };
+
   return (
-    <main className="shell">
-      <div className="mx-auto flex w-full max-w-[1440px] flex-wrap items-center justify-end gap-2 bg-go-canvas px-4 pt-2 font-go">
-        <SyncStatus sync={sync} online={online} />
-        {session.roles.length > 1 && (
-          <div role="tablist" aria-label="Role" className="flex gap-1 rounded-full bg-white p-1">
-            {session.roles.map((r) => (
-              <button
-                key={r}
-                type="button"
-                role="tab"
-                aria-selected={r === active}
-                onClick={() => {
-                  rememberRole(session, r);
-                  setRole(r);
-                }}
-                className={cx("min-h-10 rounded-full px-3 text-[13px] font-medium", r === active ? "bg-[#031a0c] text-white" : "text-go-muted")}
-              >
-                {ROLE_LABEL[r]}
-              </button>
-            ))}
+    <ShellProvider value={controls}>
+      <main className="shell">
+        {!OWN_HEADER.has(active) && (
+          <div className="mx-auto flex w-full max-w-[1440px] flex-wrap items-center justify-end gap-2 bg-go-canvas px-4 pt-2 font-go">
+            <SyncStatus sync={sync} online={online} />
+            {session.roles.length > 1 && (
+              <div role="tablist" aria-label="Role" className="flex gap-1 rounded-full bg-white p-1">
+                {session.roles.map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    role="tab"
+                    aria-selected={r === active}
+                    onClick={() => {
+                      rememberRole(session, r);
+                      setRole(r);
+                    }}
+                    className={cx("min-h-10 rounded-full px-3 text-[13px] font-medium", r === active ? "bg-[#031a0c] text-white" : "text-go-muted")}
+                  >
+                    {ROLE_LABEL[r]}
+                  </button>
+                ))}
+              </div>
+            )}
+            <button type="button" onClick={() => void leave(false)} className="min-h-10 rounded-full border border-[#dfe7e6] bg-white px-3.5 text-[13px] font-medium text-[#031b08]">
+              Sign out
+            </button>
           </div>
         )}
-        <button type="button" onClick={() => void leave(false)} className="min-h-10 rounded-full border border-[#dfe7e6] bg-white px-3.5 text-[13px] font-medium text-[#031b08]">
-          Sign out
-        </button>
-      </div>
-      {(pending !== null || signOutError) && (
-        <div className="mx-auto w-full max-w-[720px] px-4 pt-2 font-go">
-          {signOutError ? (
-            <Notice tone="danger" live title={signOutError} action={<button type="button" className="min-h-12 px-2 text-[13px] font-medium text-go-teal" onClick={() => setSignOutError(null)}>Dismiss</button>} />
-          ) : (
-            <Notice
-              tone="warning"
-              live
-              title={`${pending} ${pending === 1 ? "change is" : "changes are"} still only on this device`}
-              action={
-                <span className="flex shrink-0 gap-1">
-                  <button type="button" className="min-h-12 px-2 text-[13px] font-medium text-go-teal" onClick={() => setPending(null)}>
-                    Stay
-                  </button>
-                  <button type="button" className="min-h-12 px-2 text-[13px] font-medium text-go-danger-strong" onClick={() => void leave(true)}>
-                    Sign out anyway
-                  </button>
-                </span>
-              }
-            >
-              {online ? "Send them first: tap sync now, or review any the server refused." : "Reconnect so they can be sent. If you sign out now, they wait here until you sign in again."}
-            </Notice>
-          )}
-        </div>
-      )}
-      <RoleRouter key={active} session={session} role={active} />
-    </main>
+        {(pending !== null || signOutError) && (
+          <div className="mx-auto w-full max-w-[720px] px-4 pt-2 font-go">
+            {signOutError ? (
+              <Notice tone="danger" live title={signOutError} action={<button type="button" className="min-h-12 px-2 text-[13px] font-medium text-go-teal" onClick={() => setSignOutError(null)}>Dismiss</button>} />
+            ) : (
+              <Notice
+                tone="warning"
+                live
+                title={`${pending} ${pending === 1 ? "change is" : "changes are"} still only on this device`}
+                action={
+                  <span className="flex shrink-0 gap-1">
+                    <button type="button" className="min-h-12 px-2 text-[13px] font-medium text-go-teal" onClick={() => setPending(null)}>
+                      Stay
+                    </button>
+                    <button type="button" className="min-h-12 px-2 text-[13px] font-medium text-go-danger-strong" onClick={() => void leave(true)}>
+                      Sign out anyway
+                    </button>
+                  </span>
+                }
+              >
+                {online ? "Send them first: tap sync now, or review any the server refused." : "Reconnect so they can be sent. If you sign out now, they wait here until you sign in again."}
+              </Notice>
+            )}
+          </div>
+        )}
+        <RoleRouter key={active} session={session} role={active} />
+      </main>
+    </ShellProvider>
   );
 }

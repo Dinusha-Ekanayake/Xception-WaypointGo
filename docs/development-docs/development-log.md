@@ -21,6 +21,15 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-01 - fix: loader matches Figma on phone, portrait and landscape tablet
+
+`fix/loader-figma-match` · @kavindamihiran
+
+Loader rechecked against Figma pages 07, 08 and 09. The dock board is a trip table from `md` (768px) and cards on phones. The top bar follows the designs: brand or trip title, a sync pill, an avatar pill, and "Switch user". The load sheet gets a "Locked to you" strip with Hand back, side-by-side actions, "orders loaded" with time to departure, and outlined stop markers. The issue dialog is top-anchored at 560px with tile reasons and a stepper panel. Sign-out, the role switcher and the sync badge move from a strip above the page into the role header through `ShellProvider` in `shared/ui`. The shell still draws its strip for roles not yet converted.
+Why: the loader drifted from the design; the tablet dock board was a card grid where Figma has a table.
+Verified: `npm run typecheck`, `npm run build`, boundaries test. Screenshots at 393x852, 768x1024 and 1280x800 compared with the Figma frames.
+Open: route, stops, load, loader and temperature columns need those fields on `ReadyTripView` (#10). The "Mine" and "Available" filters need the assigned loader. Release as a full page with the seal and driver checklist needs data that does not exist yet. Lock, theme and notifications are not built.
+
 ## 2026-10-01 - feat: backend sync module and batch ingest
 
 `feat/sync-module` · @kavindamihiran

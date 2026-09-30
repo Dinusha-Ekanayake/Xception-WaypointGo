@@ -53,6 +53,7 @@ export function BigButton({
   onClick,
   disabled,
   size = "m",
+  fit = false,
   type = "button",
 }: {
   children: ReactNode;
@@ -61,6 +62,8 @@ export function BigButton({
   onClick?: () => void;
   disabled?: boolean;
   size?: "m" | "l";
+  /** Sized to its label, as the side-by-side actions in the designs are. */
+  fit?: boolean;
   type?: "button" | "submit";
 }): React.JSX.Element {
   return (
@@ -69,7 +72,8 @@ export function BigButton({
       onClick={onClick}
       disabled={disabled}
       className={cx(
-        "flex w-full items-center justify-center gap-2 px-[18px] font-medium disabled:cursor-not-allowed disabled:opacity-50",
+        "flex items-center justify-center gap-2 px-[18px] font-medium disabled:cursor-not-allowed disabled:opacity-50",
+        fit ? "w-auto min-w-[170px] px-7" : "w-full",
         size === "l" ? "min-h-14 rounded-[22px] text-[20px]" : "min-h-12 rounded-full text-[15px]",
         TONE[tone],
       )}
@@ -116,22 +120,22 @@ export function Ring({ percent }: { percent: number }): React.JSX.Element {
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-[36px] font-semibold text-black">{percent}%</span>
-        <span className="text-[15px] text-go-muted">Checked</span>
+        <span className="text-[15px] text-go-muted">Completed</span>
       </div>
     </div>
   );
 }
 
-/** A bottom sheet over a dimmed page, as in the design's release and issue states; a centred dialog on wide screens. */
+/** A bottom sheet over a dimmed page on phones, as in the design's release and issue states; a dialog near the top on tablets. */
 export function Sheet({ label, onClose, children }: { label: string; onClose: () => void; children: ReactNode }): React.JSX.Element {
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center lg:items-center lg:p-6" role="presentation">
+    <div className="fixed inset-0 z-40 flex items-end justify-center md:items-start md:p-6 md:pt-10" role="presentation">
       <button type="button" aria-label="Close" onClick={onClose} className="absolute inset-0 bg-black/25 backdrop-blur-[6px]" />
       <div
         role="dialog"
         aria-modal="true"
         aria-label={label}
-        className="relative flex max-h-[92dvh] w-full max-w-[520px] flex-col gap-4 overflow-y-auto rounded-t-[32px] bg-white lg:max-h-[85dvh] lg:rounded-[32px] px-5 pt-6 pb-8"
+        className="relative flex max-h-[92dvh] w-full max-w-[560px] flex-col gap-4 overflow-y-auto rounded-t-[32px] bg-white px-5 pt-6 pb-8 md:max-h-[calc(100dvh-64px)] md:rounded-[32px] md:px-7 md:pb-7"
       >
         {children}
       </div>

@@ -5,12 +5,12 @@ import { useOnline, useResource } from "@shared/api/useResource";
 import { Notice } from "@shared/ui";
 import TopBar from "./TopBar.tsx";
 import { createGateway } from "./data/gateway.ts";
-import { depotToday } from "./data/manifest.ts";
+import { depotToday, hhmm } from "./data/manifest.ts";
 import DockBoard from "./screens/DockBoard.tsx";
 import LoadSheet from "./screens/LoadSheet.tsx";
 
-// The loader workspace from Figma "08 Loader · Phone", phone first and usable
-// on a dock tablet. Resilient offline tier (src/shared/offline/tiers.ts):
+// The loader workspace from Figma "08 Loader · Phone", "07 Loader · Tablet"
+// and "09 Loader · Tablet portrait". Resilient offline tier (src/shared/offline/tiers.ts):
 // checks are kept on the device while offline and sent when it returns.
 
 export default function Loader({
@@ -66,9 +66,12 @@ export default function Loader({
   }, [online, waiting, gateway]);
 
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-[720px] flex-col lg:max-w-[1280px] bg-go-canvas font-go text-go-ink">
+    <div className="mx-auto flex min-h-dvh w-full max-w-[720px] flex-col bg-go-canvas font-go text-go-ink md:max-w-[1280px]">
       <TopBar
         displayName={displayName}
+        depot={depot}
+        title={open ? `${open.vehicleId} · Trip ${open.tripNumber}` : undefined}
+        subtitle={open ? `Departs ${hhmm(open.plannedDeparture)}` : undefined}
         online={online}
         syncedAt={open ? tripSync : trips.loadedAt}
         waiting={waiting}

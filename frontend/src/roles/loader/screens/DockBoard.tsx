@@ -7,7 +7,9 @@ import { Icon, Notice, cx } from "@shared/ui";
 import { hhmm } from "../data/manifest.ts";
 import { BigButton, StatusChip } from "../ui.tsx";
 
-// Figma "01 Dock board": the trips ready to load at this depot today (R-LOD-04).
+// Figma "01 Dock board" (phone, cards) and "02 Dock board" (tablet, a table):
+// the trips ready to load at this depot today (R-LOD-04). The design's route,
+// load and loader columns wait on those fields in ReadyTripView (#10).
 
 type Filter = "all" | "todo" | "loading" | "done";
 const FILTERS: Array<{ value: Filter; label: string; match: (s: SessionStatus) => boolean }> = [
@@ -34,48 +36,54 @@ export default function DockBoard({
   const match = FILTERS.find((f) => f.value === filter)!.match;
   const shown = all.filter((t) => match(t.status) && t.vehicleId.toLowerCase().includes(query.trim().toLowerCase()));
 
+  const actionFor = (trip: ReadyTripView) => () => onOpen(trip.tripId);
+
   return (
-    <div className="flex flex-col gap-4 px-5 pb-6">
-      <div className="flex flex-col gap-3.5 pt-2">
-        <h1 className="text-[30px] font-semibold text-black">Today&apos;s departures</h1>
-        <span className="flex min-h-12 w-fit items-center gap-2 rounded-full bg-white px-3.5 shadow-[0_5px_20px_rgba(0,0,0,0.09)]">
-          <Icon name="dock" />
-          <span className="text-base font-medium">Depot {depot}</span>
-        </span>
-      </div>
+    <div className="flex flex-col gap-4 px-5 pb-6 md:px-8 lg:px-[42px]">
+      <div className="flex flex-col gap-4 pt-2 md:flex-row md:flex-wrap md:items-start md:justify-between md:gap-x-4 md:gap-y-3">
+        <div className="flex flex-col gap-3.5">
+          <h1 className="text-[30px] font-semibold text-black">Tonight&apos;s departures</h1>
+          <span className="flex min-h-12 w-fit items-center gap-2 rounded-full bg-white px-3.5 shadow-[0_5px_20px_rgba(0,0,0,0.09)]">
+            <Icon name="dock" />
+            <span className="text-base font-medium">Depot {depot}</span>
+          </span>
+        </div>
 
-      <label className="flex h-12 w-full lg:max-w-[480px] items-center gap-2.5 rounded-[16px] border border-[#dfe3e8] bg-white pr-3 pl-4">
-        <Icon name="search" />
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search vehicle"
-          aria-label="Search vehicle"
-          className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-go-muted"
-        />
-      </label>
+        <div className="flex flex-col gap-3.5 md:items-end">
+          <label className="flex h-12 w-full items-center gap-2.5 rounded-[16px] border border-[#dfe3e8] bg-white pr-3 pl-4 md:w-[420px]">
+            <Icon name="search" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search vehicle"
+              aria-label="Search vehicle"
+              className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-go-muted"
+            />
+          </label>
 
-      <div role="tablist" aria-label="Filter trips" className="-mx-5 flex gap-1.5 overflow-x-auto px-5">
-        {FILTERS.map((f) => (
-          <button
-            key={f.value}
-            type="button"
-            role="tab"
-            aria-selected={filter === f.value}
-            onClick={() => setFilter(f.value)}
-            className={cx(
-              "shrink-0 rounded-full px-2.5 py-[11px] text-[14px] font-medium whitespace-nowrap",
-              filter === f.value ? "bg-go-mint text-black" : "bg-[#f1f3f5] text-black",
-            )}
-          >
-            {f.label} ({all.filter((t) => f.match(t.status)).length})
-          </button>
-        ))}
+          <div role="tablist" aria-label="Filter trips" className="-mx-5 flex gap-2 overflow-x-auto px-5 md:mx-0 md:px-0">
+            {FILTERS.map((f) => (
+              <button
+                key={f.value}
+                type="button"
+                role="tab"
+                aria-selected={filter === f.value}
+                onClick={() => setFilter(f.value)}
+                className={cx(
+                  "shrink-0 rounded-full px-[18px] py-[11px] text-[15px] font-medium whitespace-nowrap max-md:px-2.5 max-md:text-[14px]",
+                  filter === f.value ? "bg-go-mint text-black" : "bg-[#f1f3f5] text-black",
+                )}
+              >
+                {f.label} ({all.filter((t) => f.match(t.status)).length})
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {!online && (
         <Notice tone="warning" title="Offline: this list may be out of date" live>
-          Checks you record are saved on this phone and sent when the connection returns.
+          Checks you record are saved on this device and sent when the connection returns.
         </Notice>
       )}
       {trips.error && (
@@ -98,14 +106,66 @@ export default function DockBoard({
         </p>
       )}
 
-      <ul className="flex flex-col gap-3 md:grid md:grid-cols-2 lg:grid-cols-3">
+      {/* Phone: cards. */}
+      <ul className="flex flex-col gap-3 md:hidden">
         {shown.map((trip) => (
           <li key={trip.tripId}>
-            <TripCard trip={trip} onOpen={() => onOpen(trip.tripId)} />
+            <TripCard trip={trip} onOpen={actionFor(trip)} />
           </li>
         ))}
       </ul>
+
+      {/* Tablet and up: the trip table from "02 Dock board". */}
+      {shown.length > 0 && (
+        <div className="hidden rounded-[25px] bg-white px-4 pt-3.5 pb-2 shadow-[0_5px_20px_rgba(0,0,0,0.09)] md:block">
+          <table className="w-full border-collapse text-left">
+            <thead>
+              <tr className="text-[14px] text-go-muted">
+                <th scope="col" className="py-2 pl-4 font-normal">Vehicle</th>
+                <th scope="col" className="py-2 font-normal">Departs</th>
+                <th scope="col" className="py-2 font-normal">Status</th>
+                <th scope="col" className="py-2 pr-3.5"><span className="sr-only">Action</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((trip) => (
+                <tr key={trip.tripId} className="border-b border-[#d3e3e2] last:border-b-0">
+                  <td className="py-3 pl-4">
+                    <span className="flex flex-col gap-0.5">
+                      <span className="text-[18px] font-medium">{trip.vehicleId}</span>
+                      <span className="text-[14px] text-go-muted">Trip {trip.tripNumber}</span>
+                    </span>
+                  </td>
+                  <td className="py-3 text-[18px] font-medium">{hhmm(trip.plannedDeparture)}</td>
+                  <td className="py-3">
+                    <StatusChip status={trip.status} />
+                  </td>
+                  <td className="w-[172px] py-3 pr-3.5">
+                    <TripAction trip={trip} onOpen={actionFor(trip)} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
+  );
+}
+
+function TripAction({ trip, onOpen }: { trip: ReadyTripView; onOpen: () => void }): React.JSX.Element {
+  return trip.status === "NOT_STARTED" ? (
+    <BigButton icon="hand" onClick={onOpen}>
+      Take trip
+    </BigButton>
+  ) : trip.status === "COMPLETED" ? (
+    <BigButton tone="plain" onClick={onOpen}>
+      View
+    </BigButton>
+  ) : (
+    <BigButton icon="arrow-right" onClick={onOpen}>
+      Continue
+    </BigButton>
   );
 }
 
@@ -131,19 +191,7 @@ function TripCard({
       <div className="flex justify-end">
         <StatusChip status={trip.status} />
       </div>
-      {trip.status === "NOT_STARTED" ? (
-        <BigButton icon="hand" onClick={onOpen}>
-          Take trip
-        </BigButton>
-      ) : trip.status === "COMPLETED" ? (
-        <BigButton tone="plain" onClick={onOpen}>
-          View
-        </BigButton>
-      ) : (
-        <BigButton icon="arrow-right" onClick={onOpen}>
-          Continue
-        </BigButton>
-      )}
+      <TripAction trip={trip} onOpen={onOpen} />
     </article>
   );
 }
