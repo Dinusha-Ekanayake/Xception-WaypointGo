@@ -38,7 +38,7 @@ export default function AppShell(): React.JSX.Element {
 
   return (
     <main className="shell">
-      <RoleRouter role={session.roles[0]!} />
+      <RoleRouter session={session} />
     </main>
   );
 }

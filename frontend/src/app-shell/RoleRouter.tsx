@@ -1,6 +1,6 @@
 "use client";
 
-import type { Role } from "@shared/offline";
+import type { Session } from "./session.ts";
 import Dispatcher from "@roles/dispatcher";
 import Driver from "@roles/driver";
 import Loader from "@roles/loader";
@@ -10,10 +10,10 @@ import Store from "@roles/store";
  * One responsive application serving four roles, as the brief requires. The
  * shell chooses the surface; roles never reach into each other.
  */
-export default function RoleRouter({ role }: { role: Role }): React.JSX.Element {
-  switch (role) {
+export default function RoleRouter({ session }: { session: Session }): React.JSX.Element {
+  switch (session.roles[0]!) {
     case "dispatcher":
-      return <Dispatcher />;
+      return <Dispatcher displayName={session.displayName} scope={session.scope} />;
     case "loader":
       return <Loader />;
     case "driver":
