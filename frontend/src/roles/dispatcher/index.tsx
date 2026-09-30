@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useOnline } from "@shared/api/useResource";
-import Sidebar from "./Sidebar.tsx";
+import Sidebar, { CompactNav } from "./Sidebar.tsx";
 import { useView } from "./navigation.ts";
 import { depotToday, depotsFor, scopeLabel, type DepotFilter } from "./data/scope.ts";
 import { useFleet } from "./data/fleet.ts";
@@ -42,7 +42,8 @@ export default function Dispatcher({
   }, [online, refresh]);
 
   return (
-    <div className="flex h-dvh w-full bg-go-canvas font-go text-go-ink">
+    <div className="flex min-h-dvh w-full flex-col bg-go-canvas font-go text-go-ink lg:h-dvh lg:flex-row">
+      <CompactNav view={view} onNavigate={navigate} depots={scope} depotFilter={depotFilter} onDepotFilter={setDepotFilter} />
       <Sidebar
         view={view}
         onNavigate={navigate}
@@ -51,7 +52,7 @@ export default function Dispatcher({
         depotFilter={depotFilter}
         onDepotFilter={setDepotFilter}
       />
-      <div className="flex min-w-0 flex-1 flex-col gap-5 overflow-y-auto px-9 py-7">
+      <div className="flex min-w-0 flex-1 flex-col gap-5 px-4 py-5 md:px-9 md:py-7 lg:overflow-y-auto">
         {scope.length === 0 ? (
           <p className="text-sm text-go-secondary">Your account has no depot in scope. Ask an administrator to grant one.</p>
         ) : view === "overview" ? (

@@ -22,7 +22,7 @@ import {
  * their own top bar. For these the shell draws no strip of its own and lends
  * the controls through ShellProvider instead.
  */
-const OWN_HEADER = new Set<ShellRole>(["loader", "store_manager"]);
+const OWN_HEADER = new Set<ShellRole>(["loader", "store_manager", "dispatcher"]);
 
 /**
  * Session gate and role routing. Signed out, server unreachable and offline are

@@ -21,6 +21,15 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-01 - fix: dispatcher shell controls in the sidebar, compact nav below lg
+
+`fix/dispatcher-figma-match` · @kavindamihiran
+
+Dispatcher rechecked against Figma page 05. "Switch user" and the role switcher move into the sidebar's user block; the shell strip that pushed the page down and cut off the sidebar foot is gone. Below `lg` the sidebar becomes a top bar: brand, depot scope, and a scrollable nav. Page headers wrap. With this, every built role draws its own header and the shell strip is only a fallback.
+Why: the strip was not in the design, and the dispatcher had no layout below 1024px.
+Verified: `npm run typecheck`, `npm run build`, boundaries test. Screenshots at 393x852, 768x1024 and 1440x900.
+Open: Orders, Plan, Live, Forecast and Issues content wait on their modules. Figma has no tablet or phone frames for the dispatcher, so the compact nav is a proposal.
+
 ## 2026-10-01 - fix: store manager desktop layout matches Figma
 
 `fix/store-figma-match` · @kavindamihiran
