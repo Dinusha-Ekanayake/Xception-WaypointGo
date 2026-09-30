@@ -13,10 +13,10 @@ import OrderSheet from "./screens/OrderSheet.tsx";
 import Orders from "./screens/Orders.tsx";
 import PlaceOrder from "./screens/PlaceOrder.tsx";
 import Receive from "./screens/Receive.tsx";
-import { TabBar, type Tab } from "./ui.tsx";
+import { SideNav, TabBar, type Tab } from "./ui.tsx";
 
-// The store manager workspace from Figma "15 Store Manager · Mobile", phone
-// first and usable at a counter desktop. Resilient offline tier
+// The store manager workspace from Figma "15 Store Manager · Mobile" and
+// "14 Store Manager · Desktop": a tab bar on phones, a sidebar from lg. Resilient offline tier
 // (src/shared/offline/tiers.ts): orders and receipts are kept on the device
 // while offline and sent when the connection returns.
 
@@ -80,6 +80,7 @@ export default function Store({
   const toReceive = pending.data ?? [];
   const warehouseDown = warehouse.data?.circuitState === "open" || warehouse.data?.stale === true;
   const backToTabs = () => setView({ kind: "tabs" });
+  const badges = { deliveries: toReceive.length, orders: all.filter((o) => o.status === "DEFERRED" || o.status === "STOCK_UNKNOWN").length };
   const open = all.find((o) => o.orderId === openOrder) ?? null;
   const receive = (orderId: string) => setView({ kind: "receive", orderId });
   const place = () => setView({ kind: "place", amend: null });
@@ -127,7 +128,7 @@ export default function Store({
   }
 
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-[720px] flex-col gap-5 bg-go-canvas px-4 pt-5 pb-36 font-go text-go-ink sm:px-[25px]">
+    <div className="relative mx-auto flex min-h-dvh w-full max-w-[720px] flex-col gap-5 bg-go-canvas px-4 pt-5 pb-36 font-go text-go-ink sm:px-[25px] lg:max-w-none lg:pt-8 lg:pr-10 lg:pb-10 lg:pl-[300px]">
       <TopBar online={online} syncedAt={orders.loadedAt} waiting={waiting} sample={gateway.sample} />
       {warehouseDown && (
         <Notice tone="warning" live title="The warehouse is not answering">
@@ -173,13 +174,17 @@ export default function Store({
           )}
         </div>
       )}
-      {view.kind === "tabs" && (
-        <TabBar
-          tab={tab}
-          onTab={setTab}
-          badges={{ deliveries: toReceive.length, orders: all.filter((o) => o.status === "DEFERRED" || o.status === "STOCK_UNKNOWN").length }}
-        />
-      )}
+      {view.kind === "tabs" && <TabBar tab={tab} onTab={setTab} badges={badges} />}
+      <SideNav
+        tab={view.kind === "place" ? "orders" : view.kind === "receive" ? "deliveries" : tab}
+        onTab={(t) => {
+          setView({ kind: "tabs" });
+          setTab(t);
+        }}
+        badges={badges}
+        outlet={outlet.data}
+        displayName={displayName}
+      />
       {open && (
         <OrderSheet
           gateway={gateway}

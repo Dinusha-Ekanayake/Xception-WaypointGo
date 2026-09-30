@@ -45,7 +45,7 @@ export default function Deliveries({
         <h1 className="text-[32px] leading-tight font-medium text-black">Deliveries</h1>
         <Muted>{outlet ? `${outlet.districtName} · ${outlet.outletId}` : "…"}</Muted>
       </div>
-      <div role="tablist" aria-label="When" className="flex gap-1 rounded-full bg-white p-1">
+      <div role="tablist" aria-label="When" className="flex gap-1 rounded-full bg-white p-1 lg:w-fit">
         {(["today", "upcoming", "past"] as const).map((r) => (
           <button
             key={r}
@@ -53,7 +53,7 @@ export default function Deliveries({
             role="tab"
             aria-selected={r === range}
             onClick={() => setRange(r)}
-            className={cx("min-h-12 flex-1 rounded-full px-2 text-[15px] font-medium", r === range ? "bg-[#031a0c] text-white" : "text-black")}
+            className={cx("min-h-12 flex-1 rounded-full px-2 text-[15px] font-medium lg:flex-none lg:px-5", r === range ? "bg-[#031a0c] text-white" : "text-black")}
           >
             {r === "today" ? "Today" : r === "upcoming" ? "Upcoming" : "Past 7 days"} <span className="opacity-60">{lists[r].length}</span>
           </button>
@@ -65,7 +65,35 @@ export default function Deliveries({
         const s = ORDER_STATUS[o.status];
         const receivable = pending.has(o.orderId);
         return (
-          <article key={o.orderId} className={cx("flex flex-col gap-3.5 rounded-[26px] bg-white p-5", receivable && "outline-2 outline-[#0f766e]")}>
+          <div key={o.orderId}>
+          {/* Desktop: one row per delivery, as in "05a Deliveries". */}
+          <article className={cx("hidden items-center gap-4 rounded-[20px] bg-white py-3 pr-4 pl-3 lg:flex", receivable && "outline-2 outline-[#0f766e]")}>
+            <span className={cx("flex w-[84px] shrink-0 flex-col items-center rounded-[14px] py-2", receivable ? "bg-go-mint" : "bg-[#fbf1e1]")}>
+              <span className="text-[11px] text-go-muted">{receivable ? "Arrived" : "Window"}</span>
+              <span className="text-[18px] font-semibold text-black">{outlet ? hhmm(outlet.windowOpen) : "—"}</span>
+            </span>
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <span className="flex items-center gap-2">
+                <span className="text-[17px] font-medium text-black">{o.orderRef}</span>
+                <Chip outline>{temperatureLabel(o.temperature)}</Chip>
+              </span>
+              <span className="text-[13px] text-go-muted">
+                {dayLabel(o.deliveryDate)} · {cases(o.itemCount)}
+              </span>
+            </span>
+            <Chip tone={s.tone}>{s.label}</Chip>
+            <span className="w-[112px] shrink-0">
+              <Button tone="plain" onClick={() => onOpen(o.orderId)}>
+                Details
+              </Button>
+            </span>
+            {receivable && (
+              <span className="w-[112px] shrink-0">
+                <Button onClick={() => onReceive(o.orderId)}>Receive</Button>
+              </span>
+            )}
+          </article>
+          <article className={cx("flex flex-col gap-3.5 rounded-[26px] bg-white p-5 lg:hidden", receivable && "outline-2 outline-[#0f766e]")}>
             {(onTheWay(o.status) || receivable) && (
               <div className={cx("flex flex-col items-center rounded-[20px] px-4 py-4", receivable ? "bg-go-mint" : "bg-[#fbf1e1]")}>
                 <span className="text-[13px] text-go-muted">{receivable ? "Arrived" : "Your window"}</span>
@@ -94,6 +122,7 @@ export default function Deliveries({
               </Button>
             )}
           </article>
+          </div>
         );
       })}
     </div>
