@@ -22,9 +22,9 @@ export default function PageHeader({
 }): React.JSX.Element {
   return (
     <>
-      <header className="flex w-full items-center gap-3">
-        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <h1 className="truncate text-[30px] font-medium tracking-normal text-go-ink">{title}</h1>
+      <header className="flex w-full flex-wrap items-center gap-3">
+        <div className="flex min-w-[240px] flex-1 flex-col gap-0.5">
+          <h1 className="text-[26px] md:truncate md:text-[30px] font-medium tracking-normal text-go-ink">{title}</h1>
           <p className="truncate text-sm text-go-secondary">{subtitle}</p>
         </div>
         {tools}
