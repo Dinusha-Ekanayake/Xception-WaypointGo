@@ -66,7 +66,7 @@ Non-human actors need identity too, because audit entries that say "the system d
 
 | System | Direction | Contract | Failure policy |
 | --- | --- | --- | --- |
-| **Warehouse and stock** | Outbound query, inbound event | Verified surface: base `/api/v1`, `x-api-key` auth, errors as `{"error":{"code","message"}}`, `GET /products`, `GET /orders/{id}`, `POST /orders`. Stock is a field on each product and is enforced on order creation with `409 insufficient_stock`. `StockPort`: check availability, reserve, release. Consumes `order.confirmed`, emits `stock.reserved`, `stock.insufficient`, `stock.adjusted` | Circuit breaker. On open, orders enter `stock_unknown` and the dispatcher sees the degraded state explicitly. Never silently assume stock exists |
+| **Warehouse and stock** | Outbound query, inbound event | Verified surface: base `/api/v1`, `x-api-key` auth, errors as `{"error":{"code","message"}}`, `GET /products`, `GET /orders/{id}`, `POST /orders`. Stock is a field on each product and is enforced on order creation with `409 insufficient_stock`. Creating the warehouse order *is* the reservation. `StockPort.placeOrder` is called synchronously at placement and returns reserved (with authoritative totals and temperature), insufficient (per-line availability, order rejected) or unavailable. The Warehouse module consumes `order.cancelled`, `trip.released` and `delivery.completed` to cancel, ship and deliver the warehouse order, and emits `warehouse.order_status_changed` | Circuit breaker. On open, orders enter `stock_unknown` and the dispatcher sees the degraded state explicitly. Never silently assume stock exists |
 | **Product catalogue** (same warehouse API) | Outbound bulk sync | `CataloguePort`: `GET /api/v1/products`, read-only, `x-api-key` header, synced on a schedule into a local projection | Fall back to order-level weight and volume, which are authoritative for capacity regardless. Stale catalogue is shown as stale, never as current |
 | Identity provider (optional) | Outbound | OIDC. `iam.users.user_id` maps to the external subject | Fall back to local sessions already issued; no new logins |
 | Object storage | Outbound | `ProofStore`: put, signed get | Retry with backoff; capture blocks only if durable write fails, and the driver is told |
@@ -99,11 +99,13 @@ One rule governs that catalogue and it outranks convenience. The catalogue is a 
 
 Each of those modules is already designed as if remote: it is reached through a port, it owns its data, and it communicates by events. Extraction is a deployment change plus an adapter, not a rewrite.
 
-### ADR-002: Schema per bounded context in one database
+### ADR-002: Schema per module in one database
 
-Five PostgreSQL schemas (`ref`, `iam`, `ops`, `ml`, `integration`), one **database** in one cluster. These are namespaces, not separate databases: one connection reaches all five, foreign keys are enforced across them, and one transaction can span them, which is what lets state, event and outbox row commit together.
+One PostgreSQL schema per module, one **database** in one cluster: the kernel `ref` and `iam`, the platform `integration`, and one schema each for `ordering`, `planning`, `loading`, `execution`, `receipt`, `issues`, `notification`, `sync`, `warehouse` and `ml`. These are namespaces, not separate databases: one connection reaches all of them and one transaction can span them, which is what lets state, audit row and outbox event commit together.
 
-Cross-schema foreign keys are permitted only into `ref` and `iam`, the shared kernel. Each module has its own database role with grants limited to its own schema plus read access to the kernel, so a boundary violation fails at the database even if it passes review.
+**Revised 2026-09-30 (decision D-B).** The first version put every operational module in one shared `ops` schema under one role. That made the per-module role meaningless, because any module could read any other module's tables. Each module now owns a schema and a `waypoint_<module>` role granted that schema alone (`SELECT, INSERT, UPDATE`, never `DELETE`), plus read on `ref` and the scope tables. Reading another module's tables is therefore a permission error, not a review comment.
+
+Foreign keys are permitted only into `ref` and `iam`, the shared kernel. Between modules, references are **by id with no foreign key**, and consistency comes from events. This is what lets five people build five modules at once: no module's migration waits for another's table.
 
 The deliberate trade: keeping those kernel foreign keys and the single transaction is a departure from strict database-per-service isolation, and it buys real integrity. The price is paid at extraction, when those keys become soft references. The triggers in ADR-001 are when that price is worth paying.
 
@@ -170,26 +172,26 @@ Twelve modules. Full specifications, including the layers inside each and its se
                   └───────────────┬──────────────────────────┘
                                   │ read-only, cached
    ┌───────────────┐   ┌──────────▼───────────┐   ╔═══════════════════════╗
-   │ iam · Identity│   │ ops · Ordering        │──►║ EXTERNAL              ║
+   │ iam · Identity│   │ ordering · Ordering   │──►║ EXTERNAL              ║
    │ and access    │   │ capture cutoff status │◄──║ Warehouse and stock   ║
    └───────┬───────┘   └──────────┬───────────┘   ╚═══════════════════════╝
-           │                      │ order.confirmed         via StockPort +
+           │                      │ orders.closed           via StockPort +
            │ authorizes           ▼                         anti-corruption layer
            │           ┌──────────────────────┐
-           │           │ ops · Planning        │  runs trips allocations
+           │           │ planning · Planning   │  runs trips allocations
            │           │ allocate defer publish│  deferrals legs fuel
            │           └──────────┬───────────┘
            │                      │ plan.published
            │           ┌──────────▼───────────┐
-           │           │ ops · Loading         │  sessions checks interchange
+           │           │ loading · Loading     │  sessions checks interchange
            │           └──────────┬───────────┘
            │                      │ trip.released
            │           ┌──────────▼───────────┐
-           │           │ ops · Execution       │  stops outcomes proof
+           │           │ execution · Execution │  stops outcomes proof
            │           └──────────┬───────────┘
            │                      │ delivery.completed / failed
            │           ┌──────────▼───────────┐
-           │           │ ops · Receipt         │  confirmation dispute
+           │           │ receipt · Receipt     │  confirmation dispute
            │           └──────────────────────┘
            │
   ┌────────▼────────────────────────────────────────────────────────────────┐
@@ -201,16 +203,19 @@ Twelve modules. Full specifications, including the layers inside each and its se
 | --- | --- | --- | --- |
 | Reference data | Master data and calendar policy | `ref.*` | no, shared by all |
 | Identity and access | Who you are, what you may do, where | `iam.*` | yes, standard boundary |
-| Ordering | Demand capture, cutoff, order lifecycle | `ops.orders`, `order_items`, `order_status_history` | no |
-| Planning | Allocation, deferral, publication | `ops.planning_runs`, `trips`, `order_allocations`, `order_deferrals`, `route_legs`, `vehicle_trip_fuel_usage` | yes, on CPU trigger |
-| Loading | Dock workflow, shortfalls, interchange | `ops.loading_sessions`, `loading_checks`, `trip_vehicle_assignments` | no |
-| Execution | Stop outcomes and proof | `ops.delivery_records`, `proof_of_delivery`, `attachments` | no |
-| Receipt | Store confirmation and dispute | `ops.receipt_confirmations` | no |
-| Issues | Operational problem lifecycle | `ops.operational_issues` | no |
-| Notification | Event to message fan-out and delivery tracking | `ops.notifications`, `notification_deliveries` | yes, on volume trigger |
-| Sync | Offline operation reconciliation | `integration.sync_operations` | yes, on reconnect-storm trigger |
-| Audit | Immutable record of who did what from where | `integration.audit_log` | no |
+| Ordering | Demand capture, cutoff, order lifecycle | `ordering.*` | no |
+| Planning | Allocation, deferral, publication, rule parameters | `planning.*` | yes, on CPU trigger |
+| Loading | Dock workflow, shortfalls, interchange requests | `loading.*` | no |
+| Execution | Stop outcomes, actual times and proof | `execution.*` | no |
+| Receipt | Store confirmation and dispute | `receipt.*` | no |
+| Issues | Operational problem lifecycle | `issues.*` | no |
+| Notification | Event to message fan-out and delivery tracking | `notification.*` | yes, on volume trigger |
+| Sync | Offline operation reconciliation | `sync.*` | yes, on reconnect-storm trigger |
+| Warehouse | Anti-corruption layer to the external warehouse: stock, catalogue cache, inbound events | `warehouse.*` | yes, standard boundary |
+| Audit | Immutable record of who did what from where | `integration.audit_log` (platform) | no |
 | Intelligence | Predictions and forecasts | `ml.*` | yes, on runtime trigger |
+
+Every module's contract (views, query interfaces, command payloads, events) lives in `<module>/contract/` and is mirrored for the frontend in `frontend/src/shared/domain/`. The full event catalogue, with producer and consumers, is in [MODULES.md](docs/architecture/MODULES.md#module-connection-summary).
 
 **How modules connect.** Three mechanisms only, in this order of preference:
 
@@ -246,7 +251,7 @@ PEP (application layer)  ──ask──►  PDP  ──uses──►  role gran
        │                            │              vehicle assignment (temporal, date-bounded)
        ▼                            ▼              resource state     (is the plan published?)
    command executes            allow / deny + reason
-PEP (data layer) ──► RLS policy on every ops table, using the transaction-scoped actor
+PEP (data layer) ──► RLS policy on every module table, using the transaction-scoped actor
 ```
 
 Rules:
@@ -260,7 +265,7 @@ Rules:
 
 ```sql
 BEGIN;
-SET LOCAL ROLE waypoint_ops;              -- which tables
+SET LOCAL ROLE waypoint_ordering;         -- which tables
 SET LOCAL app.actor_id = '<user uuid>';   -- which rows
 COMMIT;
 ```
@@ -385,11 +390,11 @@ Summary only. The validation of the team's schema, the twenty findings and the c
 
 | Aggregate | Root | Why this boundary |
 | --- | --- | --- |
-| `Order` | `ops.orders` | Status transitions and quantities must not change under a plan without a version bump |
-| `PlanningRun` | `ops.planning_runs` | **Constraints hold across the whole plan**, so the plan is the aggregate, not the trip |
-| `LoadingSession` | `ops.loading_sessions` | A trip releases only when every allocated order is checked |
-| `DeliveryRecord` | `ops.delivery_records` | One outcome, recorded once, with its evidence attached |
-| `ReceiptConfirmation` | `ops.receipt_confirmations` | Store acceptance is a separate event from driver proof |
+| `Order` | `ordering.orders` | Status transitions and quantities must not change under a plan without a version bump |
+| `PlanningRun` | `planning.runs` | **Constraints hold across the whole plan**, so the plan is the aggregate, not the trip |
+| `LoadingSession` | `loading.sessions` | A trip releases only when every allocated order is checked |
+| `DeliveryRecord` | `execution.delivery_records` | One outcome, recorded once, with its evidence attached |
+| `ReceiptConfirmation` | `receipt.confirmations` | Store acceptance is a separate event from driver proof |
 | `VehicleDay` | `ref.vehicle_day_status` | One availability state per vehicle per day |
 
 Aggregates reference each other **by identifier only**. An allocation holds an `order_id`, never an `Order` object. This keeps transactions small and extraction possible.
@@ -480,7 +485,7 @@ WS3 Ordering ─────────────► WS4 Planning ──► W
 The arrows are **contract dependencies, not code dependencies**:
 
 1. **Contracts land first.** Every module's `contract` package, its event payloads and its problem types are merged before implementations begin. Downstream streams build against the interface and a stub.
-2. **One stream owns migrations.** Only WS0 authors migration files, on request, so two developers never write conflicting versions.
+2. **Migrations are named by timestamp**, `YYYYMMDDTHHMM_<module>_<what>.sql`, and each module writes its own. Timestamps sort after `001`–`009` and never collide between parallel branches, and because modules share no foreign keys, one module's migration never waits for another's. (Revised 2026-09-30; previously a single stream owned every migration.)
 3. **Integrate by event or contract query.** Never by reading another module's tables. The boundary test fails the build if someone tries.
 4. **Short-lived branches**, rebased daily. Long-lived branches across a schema change lose weekends.
 5. **Definition of done:** domain tests without a database, one integration test through the command bus, an authorization test for a denied scope, a contract test, boundary tests passing, telemetry emitted, and a development log entry.
@@ -494,7 +499,7 @@ The arrows are **contract dependencies, not code dependencies**:
 | 1 | Local identity or OIDC provider | Local now; the `iam.users` mapping keeps OIDC a later adapter |
 | 2 | Policy engine in-process or externalized | In-process PDP behind an interface. Externalize only if policy authoring moves outside engineering |
 | 3 | Event bus: outbox polling or a broker | Outbox with in-process dispatch now; the relay is broker-ready when a second consumer appears |
-| 4 | Products and order line items | Adopt them; capacity maths must move to line level in one change, never half |
+| 4 | Products and order line items | **Decided 2026-09-30 (D-E).** Orders carry descriptive lines `(product_id, quantity)`; the warehouse returns weight, volume and temperature at placement, and those order-level totals stay authoritative. Capacity never moves to line level |
 | 5 | Migrate the current nine-table JSONB schema to the target model | Yes, with expand-contract, now that the timeline allows it. See the migration sequence in DATA-MODEL-REVIEW.md |
 | 6 | Duplicate rule implementation in `frontend/lib/` | Delete it and port its tests to the domain layer |
 | 7 | Outlet coordinates | **Deferred.** Additive later: a nullable column plus a check constraint. Nothing in the allocation model depends on it |
