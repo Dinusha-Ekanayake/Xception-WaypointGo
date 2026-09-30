@@ -22,7 +22,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * An issue asked for the goods again: a new order linked to the original,
- * confirmed at once because it carries the original's reservation (A-11 in
+ * confirmed at once because it carries the original's reservation (A-24 in
  * ASSUMPTIONS.md). Planning sees it as ordinary demand through
  * {@code order.placed}; it does not consume {@code delivery.failed}.
  *

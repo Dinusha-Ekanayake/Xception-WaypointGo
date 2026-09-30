@@ -106,21 +106,22 @@ place ─┬─► confirmed ─┬─► allocated ──► loading ──► 
        ├─► stock_unknown ──► confirmed           (warehouse reachable again)
        └─► rejected at placement, nothing saved  (short stock, decision D-F)
 
-any state before in_transit ──► cancelled        (releases the warehouse reservation)
+any state before loading ──► cancelled           (releases the warehouse reservation)
 ```
 
 Revised 2026-09-30. `OrderStatus` in `ordering/contract` is the one vocabulary; other modules keep their own state and never write it. There is no `stock_held`, `adjusted` or `rejected` state: short stock rejects placement with per-line availability and the store resubmits (D-F). A failed delivery is not redelivered in place: Issues emits `redelivery.requested` and Ordering creates a new order linked to the original.
 
 **Commands:** `order:Place`, `order:Amend`, `order:Cancel`, `order:CloseForDay`.
 **Queries:** `confirmedDemand(depot, day)`, `order(id)`, `timeline(orderId)`, `ordersForOutlet(outletId, cursor)`.
-**Publishes:** `order.placed`, `order.amended`, `order.cancelled`, `orders.closed`.
-**Consumes:** `plan.published`, `plan.revised`, `order.deferred`, `order.unservable`, `trip.released`, `delivery.completed`, `delivery.failed`, `receipt.confirmed`, `receipt.auto_closed`, `redelivery.requested`, `warehouse.order_status_changed`.
+**Publishes:** `order.placed`, `order.amended`, `order.cancelled`, `order.auto_deferred`, `orders.closed`.
+**Consumes:** `plan.published`, `plan.revised`, `order.deferred`, `order.unservable`, `loading.started`, `trip.released`, `delivery.completed`, `delivery.failed`, `receipt.confirmed`, `receipt.auto_closed`, `redelivery.requested`, `warehouse.order_status_changed`. `loading.started` is what makes an order `loading`, after which amendment is refused (ORD-06).
+**Job:** `ordering.cutoff` at 16:00 Asia/Colombo.
 
 **Ports:** `StockPort` (Warehouse contract), called synchronously at placement.
 
 **Invariants.** An order is never silently reduced: short stock rejects placement and the store sees the available quantity. Chilled and ambient never share an order, because vehicle eligibility is decided per order. The cutoff is evaluated on the **server clock in Asia/Colombo**, never on a client timestamp. `order_lines` are **descriptive**: the order's own weight, volume and temperature stay authoritative and are never recomputed from lines.
 
-**Failure modes.** Warehouse unreachable: circuit breaker opens, the order enters `stock_unknown`, and the dispatcher sees the degraded state rather than a false confirmation. Stock unresolved at cutoff: auto-deferred with reason `stock_unresolved` and the store is notified.
+**Failure modes.** Warehouse unreachable: circuit breaker opens, the order enters `stock_unknown`, and the dispatcher sees the degraded state rather than a false confirmation. Stock unresolved at cutoff: auto-deferred with reason `stock_unresolved`, still without a reservation and so still not demand, and `order.auto_deferred` tells Notification to inform the store. A consumed event that the state machine cannot apply is counted (`waypoint.order.event_illegal`) and skipped, never thrown, so one bad event cannot block a consumer.
 
 **Connections.** Publishes confirmed demand that Planning consumes. Calls `StockPort` through the anti-corruption layer; the warehouse model never leaks past that adapter.
 
@@ -300,6 +301,7 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 | `warehouse.order_status_changed` | Store manager | A `stock_unknown` order was confirmed, or found short |
 | `order.unservable` | Dispatcher, store manager | No vehicle can take it; needs a decision |
 | `order.deferred` | Store manager | With the binding reason and the next planned date |
+| `order.auto_deferred` | Store manager | The warehouse never confirmed stock before the cutoff (STK-03) |
 | `plan.published` | Loader, driver | Work is available |
 | `loading.shortfall` | Dispatcher | Departure is blocked now |
 | `trip.released` | Driver | Vehicle ready, dock assigned |
@@ -444,10 +446,11 @@ Modules connect three ways: a contract query (synchronous, read only), an event 
 | Event | Producer | Consumers |
 | --- | --- | --- |
 | `order.placed`, `order.amended`, `order.cancelled` | Ordering | Planning, Warehouse (cancel), Notification |
+| `order.auto_deferred` | Ordering | Notification |
 | `orders.closed` | Ordering | Planning |
 | `plan.published`, `plan.revised` | Planning | Ordering, Loading, Execution, Notification |
 | `order.deferred`, `order.unservable` | Planning | Ordering, Notification |
-| `loading.started` | Loading | Notification |
+| `loading.started` | Loading | Ordering, Notification |
 | `loading.shortfall` | Loading | Issues, Notification |
 | `loading.interchange_requested` | Loading | Planning |
 | `trip.released` | Loading | Execution, Ordering, Warehouse (shipped), Notification |

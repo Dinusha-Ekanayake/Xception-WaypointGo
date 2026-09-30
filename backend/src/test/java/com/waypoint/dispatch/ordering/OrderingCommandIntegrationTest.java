@@ -191,6 +191,29 @@ class OrderingCommandIntegrationTest {
   }
 
   @Test
+  void aReplyWithoutTotalsIsStockUnknownNeverGuessed() throws Exception {
+    stock.answer(lines -> new com.waypoint.dispatch.warehouse.contract.StockPort.Reserved("WH-BARE", null, null, null, 0));
+
+    JsonNode result = mapper.readTree(send(manager, place(UUID.randomUUID(), serviceDate), 200)).get("result");
+
+    assertEquals("STOCK_UNKNOWN", result.get("status").asText(), "STK-07");
+    assertTrue(result.get("degraded").asText().contains("WH-BARE"), result.toString());
+  }
+
+  @Test
+  void aConfirmedOrderIsNotAmendedWhileTheWarehouseIsDown() throws Exception {
+    UUID orderId = placed();
+    stock.answer(lines -> new Unavailable("circuit open"));
+
+    String problem = send(manager, amend(UUID.randomUUID(), orderId, 1L, 20), 503);
+
+    assertTrue(problem.contains("unchanged"), problem);
+    JsonNode view = mapper.readTree(read(manager, "/api/orders/" + orderId, 200));
+    assertEquals(1, view.get("rowVersion").asInt(), "ORD-14: nothing was written");
+    assertEquals(12, view.get("itemCount").asInt());
+  }
+
+  @Test
   void aShortLineRejectsThePlacementWithTheAvailableQuantities() throws Exception {
     stock.answer(
         lines -> new Insufficient(List.of(new LineAvailability("P-1", 12, 4))));
