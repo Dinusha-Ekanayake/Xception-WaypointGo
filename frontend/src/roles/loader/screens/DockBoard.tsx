@@ -44,7 +44,7 @@ export default function DockBoard({
         </span>
       </div>
 
-      <label className="flex h-12 w-full items-center gap-2.5 rounded-[16px] border border-[#dfe3e8] bg-white pr-3 pl-4">
+      <label className="flex h-12 w-full lg:max-w-[480px] items-center gap-2.5 rounded-[16px] border border-[#dfe3e8] bg-white pr-3 pl-4">
         <Icon name="search" />
         <input
           value={query}
@@ -98,7 +98,7 @@ export default function DockBoard({
         </p>
       )}
 
-      <ul className="flex flex-col gap-3">
+      <ul className="flex flex-col gap-3 md:grid md:grid-cols-2 lg:grid-cols-3">
         {shown.map((trip) => (
           <li key={trip.tripId}>
             <TripCard trip={trip} onOpen={() => onOpen(trip.tripId)} />

@@ -91,7 +91,9 @@ export default function LoadSheet({
         />
       )}
 
-      <section aria-label="Truck" className="flex flex-col gap-4 rounded-[31px] bg-white px-[22px] py-5 shadow-[0_5px_20px_rgba(0,0,0,0.09)]">
+      {/* Landscape tablet: truck summary pinned left, load list beside it. */}
+      <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[400px_minmax(0,1fr)] lg:items-start lg:gap-6">
+      <section aria-label="Truck" className="flex flex-col gap-4 lg:sticky lg:top-4 rounded-[31px] bg-white px-[22px] py-5 shadow-[0_5px_20px_rgba(0,0,0,0.09)]">
         <div className="flex items-center gap-2.5">
           <span className="rounded-full bg-black px-3.5 py-1.5 text-[15px] font-medium text-white">
             {status === "COMPLETED" ? "Released" : status === "NOT_STARTED" ? "Not started" : "Loading"}
@@ -173,6 +175,7 @@ export default function LoadSheet({
         onToggle={(line) => void t.check(line, line.status === "LOADED" ? "PENDING" : "LOADED")}
         onReport={(line) => setIssueFor(line)}
       />
+      </div>
 
       {issueFor !== undefined && (
         <IssueSheet

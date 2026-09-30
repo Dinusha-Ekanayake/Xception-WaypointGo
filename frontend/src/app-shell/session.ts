@@ -50,24 +50,10 @@ export async function currentSession(): Promise<SessionState> {
   }
 }
 
-const DEVICE_KEY = "waypoint.deviceId";
-
-/** A stable id for this browser, so sessions and queued writes can name the device. */
-function deviceId(): string | undefined {
-  try {
-    let id = localStorage.getItem(DEVICE_KEY);
-    if (!id) {
-      id = globalThis.crypto?.randomUUID?.() ?? null;
-      if (id) localStorage.setItem(DEVICE_KEY, id);
-    }
-    return id ?? undefined;
-  } catch {
-    return undefined;
-  }
-}
-
+// No device id yet: the backend only accepts ids already in iam.devices, and
+// nothing registers devices until the device-registration flow exists.
 export function signIn(email: string, password: string): Promise<Session> {
-  return request<Session>("/api/session", { method: "POST", body: { email, password, deviceId: deviceId() } });
+  return request<Session>("/api/session", { method: "POST", body: { email, password } });
 }
 
 export async function signOut(): Promise<void> {

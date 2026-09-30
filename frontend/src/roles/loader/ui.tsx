@@ -122,16 +122,16 @@ export function Ring({ percent }: { percent: number }): React.JSX.Element {
   );
 }
 
-/** A bottom sheet over a dimmed page, as in the design's release and issue states. */
+/** A bottom sheet over a dimmed page, as in the design's release and issue states; a centred dialog on wide screens. */
 export function Sheet({ label, onClose, children }: { label: string; onClose: () => void; children: ReactNode }): React.JSX.Element {
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center" role="presentation">
+    <div className="fixed inset-0 z-40 flex items-end justify-center lg:items-center lg:p-6" role="presentation">
       <button type="button" aria-label="Close" onClick={onClose} className="absolute inset-0 bg-black/25 backdrop-blur-[6px]" />
       <div
         role="dialog"
         aria-modal="true"
         aria-label={label}
-        className="relative flex max-h-[92dvh] w-full max-w-[520px] flex-col gap-4 overflow-y-auto rounded-t-[32px] bg-white px-5 pt-6 pb-8"
+        className="relative flex max-h-[92dvh] w-full max-w-[520px] flex-col gap-4 overflow-y-auto rounded-t-[32px] bg-white lg:max-h-[85dvh] lg:rounded-[32px] px-5 pt-6 pb-8"
       >
         {children}
       </div>
