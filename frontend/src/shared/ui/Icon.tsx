@@ -23,6 +23,19 @@ const ICONS = {
   "wrench-outline": { box: 16 },
   board: { box: 16 },
   "dot-online": { box: 8 },
+  // Loader (Figma "08 Loader · Phone").
+  "arrow-left": { box: 22, inset: "5% 10.62% 5% 10.63%" },
+  "arrow-right": { box: 16, inset: "5% 10.62% 5% 10.63%" },
+  check: { box: 18 },
+  "check-white": { box: 16 },
+  clock: { box: 18 },
+  hand: { box: 16 },
+  lock: { box: 16 },
+  triangle: { box: 18, inset: "5%" },
+  loading: { box: 18 },
+  dock: { box: 20 },
+  "truck-go": { box: 18 },
+  chilled: { box: 16 },
 } satisfies Record<string, IconSpec>;
 
 export type IconName = keyof typeof ICONS;
