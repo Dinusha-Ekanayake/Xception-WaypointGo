@@ -15,7 +15,7 @@ export default function RoleRouter({ session }: { session: Session }): React.JSX
     case "dispatcher":
       return <Dispatcher displayName={session.displayName} scope={session.scope} />;
     case "loader":
-      return <Loader />;
+      return <Loader userId={session.userId} displayName={session.displayName} scope={session.scope} />;
     case "driver":
       return <Driver />;
     case "store_manager":
