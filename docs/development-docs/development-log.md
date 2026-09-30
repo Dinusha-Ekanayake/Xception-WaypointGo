@@ -21,6 +21,15 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-01 - feat: backend sync module and batch ingest
+
+`feat/sync-module` · @kavindamihiran
+
+New `sync.operations` table with row-level security limiting each account to its own rows. `POST /api/sync` applies a device's queued writes in sequence order. Each write goes through `CommandBus` in its own transaction. Conflicts and refusals are recorded and the batch continues; an outage stops it. A replayed batch is answered from the record. At capacity it answers 429 with a jittered `Retry-After`. Also `GET /api/sync?since=` (keyset) and `sync:Acknowledge`. The frontend queue now drains through `/api/sync` with a per-browser device id. `SyncQuery.pendingFor` now takes the user id, because RLS needs an actor.
+Why: #28. The device-side queue from #15 had no server record of what it sent.
+Verified: `TEST_DATABASE_URL=... mvn package`, 116 tests, 0 failures, including the new `SyncIntegrationTest` (7) and `OperationOutcomeTest`. `npm run typecheck` and `npm run build`. Against the local backend: a loader batch is recorded, replayed without running again, and listed.
+Open: `sync:Discard` and `sync:Resolve` wait on D-O (who reviews another person's conflict; RLS is own-rows only for now). Also open: Background Sync, working-set prefetch, browser e2e tests, and the lockout `Retry-After`.
+
 ## 2026-10-01 - fix: loader layout on landscape tablets, and one-command local dev
 
 `fix/loader-tablet-and-local-dev` · @kavindamihiran
