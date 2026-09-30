@@ -11,7 +11,7 @@ They are not the same thing and the split matters:
 | | [RULES-AND-POLICIES.md](RULES-AND-POLICIES.md) | [EDGE-CASES.md](EDGE-CASES.md) |
 | --- | --- | --- |
 | Answers | What must be true | What happens when it cannot be |
-| Example | R-EXE-13, a vehicle arriving early waits until the window opens | EXE-05, arrival before the window, with detection and test |
+| Example | R-EXE-04, a vehicle arriving early waits until the window opens | EXE-05, arrival before the window, with detection and test |
 | Changes when | The business changes its mind | We find a new way for reality to break the rule |
 
 Every edge case traces to a rule; a rule may have several edge cases or none. A rule with no edge case is one nobody has asked "and what if not?" about yet.
@@ -56,7 +56,7 @@ Values that will change are not listed here. They live in the parameter register
 | R-ORD-06 | Chilled and ambient never share one order, because vehicle eligibility is decided per order | Derived from R-ORD-02 | Policy |
 | R-ORD-07 | The cutoff is evaluated on the **server clock in `Asia/Colombo`**, never a client timestamp | Policy | Policy |
 | R-ORD-08 | An order for a non-operating date rolls to the next `is_operating` date, shown to the store before confirmation | Policy, from R-CAL-01 | Policy |
-| R-ORD-09 | Store managers cannot place orders on holidays | Team draft | Conflict, see C-6 |
+| R-ORD-09 | ~~Store managers cannot place orders on holidays~~ **Withdrawn 2026-09-30 (D-I):** placement is allowed and R-ORD-08 rolls the date | Team draft | Withdrawn |
 | R-ORD-10 | An order whose outlet window is shorter than its brand and dock service allowance is rejected at capture, because it can never be served | Policy | Policy |
 | R-ORD-11 | Scheduled orders are mandatory for their scheduled date | Team draft | Team |
 | R-ORD-12 | Order weight and volume at **order level** are authoritative for every capacity decision. Product lines are descriptive | Policy, from catalogue accuracy | Policy |
@@ -112,15 +112,16 @@ Current warehouse data: all 97,321 orders are `delivered` and there are zero `pe
 
 | ID | Rule | Source | Status |
 | --- | --- | --- | --- |
-| R-STK-01 | An order with insufficient stock is **locked** and the stock manager is notified immediately | Team draft | Team |
-| R-STK-02 | When the stock manager approves or adjusts, processing continues normally | Team draft | Team |
-| R-STK-03 | An adjustment requires a reason and an audit trail; the store is told the adjusted quantity | Team draft | Team |
+| R-STK-01 | ~~An order with insufficient stock is locked and the stock manager is notified~~ **Withdrawn 2026-09-30 (D-F):** a short line rejects placement outright; the store sees per-line availability and resubmits | Team draft | Withdrawn |
+| R-STK-02 | ~~When the stock manager approves or adjusts, processing continues~~ **Withdrawn 2026-09-30 (D-F):** there is no held state to release | Team draft | Withdrawn |
+| R-STK-03 | ~~An adjustment requires a reason and an audit trail~~ **Withdrawn 2026-09-30 (D-F):** Waypoint never adjusts a placed order; the store amends it | Team draft | Withdrawn |
 | R-STK-04 | Stock availability is queried through the warehouse API, never held as a second copy here | Policy | Policy |
 | R-STK-05 | When the warehouse is unreachable, the order state is `stock_unknown`, shown as degraded. **Never assume stock exists** | Policy | Policy |
 | R-STK-06 | Stock unresolved at the cutoff auto-defers with reason `stock_unresolved` | Policy | Policy |
-| R-STK-07 | Waypoint stores only `stock_status` and a reservation reference. The warehouse model never leaks past the adapter | Policy | Policy |
+| R-STK-07 | Waypoint stores the warehouse order reference (the reservation), the order-level totals and temperature the warehouse returned, and descriptive lines. The warehouse model never leaks past the adapter | Policy | Policy |
+| R-STK-14 | A deferral keeps the warehouse reservation; only cancelling the Waypoint order cancels the warehouse order (D-H) | Team decision 2026-09-30 | Policy |
 
-**Open:** R-STK-01 is implementable. What is undecided is whether a Waypoint order carries product lines at capture, without which nothing can be checked. See A-18.
+**Resolved 2026-09-30 (A-18, D-E):** the store picks products from the catalogue, so a Waypoint order carries lines at capture and the warehouse checks them at placement. The warehouse returns weight, volume and temperature, and those order-level values stay authoritative for capacity.
 
 ## 3. Planning and allocation
 
@@ -184,6 +185,7 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-PLN-20 | Outlets already skipped must be identifiable, so the same outlet is not unserved on consecutive runs | Booklet | Binding |
 | R-PLN-29 | **Effective window = intersection of the outlet window and the mall window.** A `mall_dock` outlet must satisfy both. In the supplied data the two are identical for all 12 mall outlets, so the intersection is currently a no-op, but they are separate facts and a mall may change its access hours independently | Booklet, dataset | Binding |
 | R-PLN-30 | An outlet whose effective window is shorter than its service allowance is **unservable**, not merely tight. Detected at reference import (R-ORD-10) and again at allocation | Policy | Policy |
+| R-PLN-31 | **One temperature class per trip.** A reefer carries chilled or ambient on a trip, never both (refrigeration on or off); it may run a chilled trip and an ambient trip on the same day | Team decision 2026-09-30 (D-J, A-04) | Policy |
 
 ### 3.4 Planning policy we own
 
@@ -192,7 +194,7 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-PLN-21 | **Deferral priority.** The booklet requires a recorded reason but prescribes no order | Prior skips first, then Fresh, then chilled, then earliest closing window, then largest unmet volume. Deterministic tie-break by order identifier |
 | R-PLN-22 | **Oversized order.** An order exceeding every vehicle's capacity | Mark `unservable`, surface for a manual split decision. Never defer silently forever. R-PLN-05 forbids automatic splitting |
 | R-PLN-23 | **Fuel week boundary** | Monday to Sunday, matching `iso_week` |
-| R-PLN-24 | **Does fuel include the return leg?** The booklet excludes the return from *time* but says route distance consumes fuel | Include the return distance. Fuel is physical; the time budget exclusion is a planning simplification, not a statement about diesel. Recorded as assumption A-03, still unconfirmed |
+| R-PLN-24 | **Does fuel include the return leg?** The booklet excludes the return from *time* but says route distance consumes fuel | Include the return distance. Fuel is physical; the time budget exclusion is a planning simplification, not a statement about diesel. **Confirmed 2026-09-30 (D-K, A-03, Q7 closed)** |
 | R-PLN-25 | **Longest distance first** conflicts with delivery windows | **Windows win.** Distance ordering is a tie-break inside a feasible sequence, never a constraint override |
 | R-PLN-26 | **Frozen goods.** The schema allows `frozen`; the supplied data contains only `ambient` and `chilled` | Treat `frozen` as reefer-requiring, identically to `chilled` |
 | R-PLN-27 | **Balanced routes without unnecessary looping** (team) | Interpreted as: minimise stop count variance across trips in a district, and never revisit a district within one trip. Not a hard constraint |
@@ -207,9 +209,9 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-LOD-03 | Loading lists must not go stale when the plan changes | Booklet | Binding |
 | R-LOD-04 | The loader sees only loading-ready vehicles, starts loading, marks finish, and reports destroyed items | Team draft | Team |
 | R-LOD-05 | **Truck interchange:** if the assigned truck becomes unavailable at the dock, another may take the trip | Team draft | Team |
-| R-LOD-06 | An interchange revalidates the **whole trip** against the substitute: capacity, temperature, access, depot, time budget, fuel. It is recorded as history, never an update of the vehicle column | Policy | Policy |
+| R-LOD-06 | An interchange revalidates the **whole trip** against the substitute: capacity, temperature, access, depot, time budget, fuel. It is recorded as history, never an update of the vehicle column: Planning publishes a new plan version (`plan.revised`) | Policy | Policy |
 | R-LOD-07 | A trip is released only when every allocated order has a passing check | Policy | Policy |
-| R-LOD-08 | Mall deliveries are prioritised in the loading order | Team draft | Team |
+| R-LOD-08 | ~~Mall deliveries are prioritised in the loading order~~ **Withdrawn 2026-09-30 (D-L):** loading follows the reversed stop sequence only | Team draft | Withdrawn |
 | R-LOD-09 | If no compatible substitute exists, the trip defers as a unit and its orders carry forward with identity | Policy | Policy |
 
 ## 5. Execution
@@ -219,9 +221,9 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-EXE-01 | Drivers record delivery outcomes and proof of delivery so disputes do not depend on memory | Booklet | Binding |
 | R-EXE-02 | Work must be recordable **offline** and reconcile when connectivity returns | Booklet | Binding |
 | R-EXE-03 | Interactions are designed for use when safely stopped | Booklet | Binding |
-| R-EXE-04 | Early arrival waits: service starts at window open, not at arrival | Booklet | Binding |
+| R-EXE-04 | **Early arrival waits.** Service starts at `max(arrival_time, window_open_time)`, never at arrival. Waiting time is recorded separately from service time | Booklet | Binding |
 | R-EXE-05 | A late arrival is **still delivered**. Lateness is recorded with a reason | Booklet | Binding |
-| R-EXE-13 | **Early arrival waits.** Service starts at `max(arrival_time, window_open_time)`, never at arrival. Waiting time is recorded separately from service time | Booklet | Binding |
+| R-EXE-13 | Merged into R-EXE-04, which it duplicated | Booklet | Merged |
 | R-EXE-14 | **Lateness means arrival after `window_close_time`**, not arrival after the planned time. A stop can be later than planned and not late, or on time and late | Booklet | Binding |
 | R-EXE-15 | Lateness has a cost even though the goods are delivered: receiving staff may have moved to other duties, and a Fresh outlet may miss morning sales. Lateness is surfaced to the dispatcher and the store, not buried in a log | Booklet | Binding |
 | R-EXE-06 | The driver reports vehicle status: available, on trip, at workshop, fault | Team draft | Team |
@@ -289,16 +291,16 @@ Binding for the delivered system even though Task 2B does not score them.
 
 ## 8. Conflicts found
 
-Six places where the sources disagree. Each needs a decision; recommendations are given but none is settled.
+Six places where the sources disagree. C-1, C-3, C-5 and C-6 are settled; C-2 and C-4 remain open.
 
 | # | Conflict | Detail | Recommendation |
 | --- | --- | --- | --- |
-| **C-1** | **Reefers carrying ambient goods** | Team draft: "Refrigerated vehicles exclusively transport chilled items." Booklet: "Refrigerated vehicles may also carry ambient goods." **Settled by the data**: of 9,734 reefer routes in training, 4 carried only ambient orders, and no ambient vehicle ever carried chilled | **Resolved: follow the booklet.** Reefers may carry ambient. Recorded as A-01. In practice it is rare, 0.04% of reefer routes, so the planner treats reefers as chilled-first and uses them for ambient only when it improves the plan |
+| **C-1** | **Reefers carrying ambient goods** | Team draft: "Refrigerated vehicles exclusively transport chilled items." Booklet: "Refrigerated vehicles may also carry ambient goods." **Settled by the data**: of 9,734 reefer routes in training, 4 carried only ambient orders, and no ambient vehicle ever carried chilled | **Resolved: follow the booklet.** Reefers may carry ambient. Recorded as A-01. In practice it is rare, 0.04% of reefer routes, so the planner treats reefers as chilled-first and uses them for ambient only when it improves the plan. **Refined 2026-09-30 (D-J):** one temperature class per trip, R-PLN-31 |
 | **C-2** | **"Each order mapped to the nearest available department"** | Team draft implies a depot choice. The data makes depot a **function of district**: all 120 outlets have `outlet.depot` equal to their district's depot, with zero exceptions, and R-PLN-04 forbids serving another depot's outlets | The rule is inert as written. Either drop it, or confirm it means something else |
 | **C-3** | **GPS coordinates** | Team draft: "the operational dataset includes newly added GPS coordinates for all delivery outlets." The shipped `outlets.csv` has nine columns and none is latitude or longitude | Treat coordinates as absent. Distance ordering must use `district_travel`, not point geometry |
 | **C-4** | **"Reefers are assumed to run at full capacity"** | Team draft. Meaning unclear: it could mean reefers are always loaded to capacity, that their capacity is not derated when chilled, or that refrigeration does not reduce usable volume | Undecided. See question Q2 |
 | **C-5** | **Longest distance first** | Team draft requires longest distances dispatched earliest. Delivery windows and the Fresh 03:30 to 08:00 window may require the opposite | Windows win; distance is a tie-break. Recorded as R-PLN-25 |
-| **C-6** | **No ordering on holidays** | Team draft. The booklet does not restrict *placing* an order, only *delivering* on a non-operating day. Blocking placement stops a store preparing Monday's order on a Sunday | Allow placement, roll the delivery date to the next operating day, and show the store the date it will arrive |
+| **C-6** | **No ordering on holidays** | Team draft. The booklet does not restrict *placing* an order, only *delivering* on a non-operating day. Blocking placement stops a store preparing Monday's order on a Sunday | **Resolved 2026-09-30 (D-I):** allow placement, roll the delivery date to the next operating day, and show the store the date it will arrive. R-ORD-09 withdrawn |
 
 ---
 
@@ -328,11 +330,11 @@ Rules with status **Validated** get a second gate: our allocation output is run 
 
 | # | Question | Blocks |
 | --- | --- | --- |
-| **Q1** | C-1: do reefers carry ambient goods? | The capacity of the whole fleet on low-chilled days |
+| ~~Q1~~ | ~~C-1: do reefers carry ambient goods?~~ **Answered:** yes, one temperature class per trip (C-1, R-PLN-31) | closed |
 | **Q2** | C-4: what does "reefers run at full capacity" mean? | Whether reefer usable volume is derated |
 | ~~Q3~~ | ~~How is availability queried?~~ **Answered:** `stock` per product, enforced by `POST /orders` with `409 insufficient_stock` | closed |
 | ~~Q4~~ | ~~An API key, so response schemas can be specified~~ **Answered:** contract recorded in section 2 | closed |
-| **Q8** | Do Waypoint orders carry product lines at capture? Without them there is no stock check (A-18) | The entire stock-hold flow |
 | **Q5** | C-2: what does "nearest available department" mean, given depot is fixed by district? | Whether any depot-choice logic exists at all |
-| **Q6** | C-6: block order placement on holidays, or roll the delivery date? | Store manager flow |
-| **Q7** | R-PLN-24: does the weekly fuel quota include the return leg? | Fuel feasibility and the number of servable orders |
+| ~~Q6~~ | ~~C-6: block order placement on holidays, or roll the delivery date?~~ **Answered:** roll the date (D-I) | closed |
+| ~~Q7~~ | ~~R-PLN-24: does the weekly fuel quota include the return leg?~~ **Answered:** yes (D-K) | closed |
+| ~~Q8~~ | ~~Do Waypoint orders carry product lines at capture?~~ **Answered:** yes, descriptive lines checked by the warehouse at placement (D-E) | closed |

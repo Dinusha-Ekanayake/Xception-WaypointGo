@@ -225,7 +225,7 @@ class FoundationIntegrationTest {
         ((Number)
                 database
                     .asModule(
-                        ModuleRole.OPS,
+                        ModuleRole.ORDERING,
                         null,
                         () ->
                             database.queryOne(
@@ -240,7 +240,7 @@ class FoundationIntegrationTest {
         ((Number)
                 database
                     .asModule(
-                        ModuleRole.OPS,
+                        ModuleRole.ORDERING,
                         admin.userId(),
                         () ->
                             database.queryOne(

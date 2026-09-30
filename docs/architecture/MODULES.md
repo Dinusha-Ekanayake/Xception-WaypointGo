@@ -81,40 +81,44 @@ Each module has the same five internal layers. The spec lists what belongs in ea
 
 ---
 
-## 3. Ordering (`ops`)
+## 3. Ordering (`ordering`)
 
 **Purpose.** Capture demand, enforce the cutoff, own the order lifecycle, and mediate with the external warehouse.
 
 | Layer | Contents |
 | --- | --- |
-| contract | `OrderSnapshot`, `OrderStatus`, `ConfirmedDemandQuery`, `OrderEvents` |
+| contract | `OrderViews`, `OrderStatus`, `OrderQuery` (incl. `confirmedDemand`), `OrderCommands`, `OrderEvents` |
 | domain | `Order`, `OrderLine`, `OrderStatus` state machine, `Cutoff`, `TemperatureRequirement`, `OrderVersion` |
-| application | `PlaceOrderHandler`, `AmendOrderHandler`, `CancelOrderHandler`, `ApplyStockDecisionHandler`, `CloseOrdersHandler`, `OrderQuery` |
-| infrastructure | `JdbcOrderRepository`, `WarehouseStockAdapter` (anti-corruption layer), `OrderProjection` |
+| application | `PlaceOrderHandler`, `AmendOrderHandler`, `CancelOrderHandler`, `CloseOrdersHandler`, `OrderDataQuery` |
+| infrastructure | `JdbcOrderRepository`, `OrderProjection`. The warehouse adapter lives in the Warehouse module, behind `StockPort` |
 | web | routed through the command endpoint |
 
-**Owns:** `ops.orders`, `ops.order_items`, `ops.order_status_history`.
+**Owns:** `ordering.orders`, `ordering.order_lines`, `ordering.order_status_history`.
 
 **State machine.** This is the module's core asset and every transition is guarded:
 
 ```
-draft ─► confirmed ─┬─► stock_held ──► confirmed        (warehouse released)
-                    │            └──► adjusted ──► confirmed
-                    │            └──► rejected ──► cancelled
-                    ├─► allocated ──► loading ──► in_transit ──► delivered ──► confirmed_receipt
-                    │                                        └──► failed ──► redelivery_scheduled
-                    └─► deferred ──► (next run) confirmed
-                                  └──► cancelled
+place ─┬─► confirmed ─┬─► allocated ──► loading ──► in_transit ──┬─► delivered ───────────┬─► received
+       │   (reserved) │                                          ├─► partially_delivered ─┤
+       │              │                                          └─► failed               └─► unconfirmed
+       │              ├─► deferred ──► (next run) allocated │ deferred │ unservable
+       │              └─► unservable
+       ├─► stock_unknown ──► confirmed           (warehouse reachable again)
+       └─► rejected at placement, nothing saved  (short stock, decision D-F)
+
+any state before in_transit ──► cancelled        (releases the warehouse reservation)
 ```
 
-**Commands:** `PlaceOrder`, `AmendOrder`, `CancelOrder`, `CloseOrdersForDay`, `ApplyStockDecision`.
-**Queries:** `confirmedDemand(depot, day)`, `order(id)`, `timeline(orderId)`, `ordersForOutlet(outletId)`.
-**Publishes:** `order.confirmed`, `order.amended`, `order.cancelled`, `order.stock_held`, `orders.closed`.
-**Consumes:** `stock.reserved`, `stock.insufficient`, `stock.adjusted` (from the warehouse), `order.deferred` (from Planning, to move the order to the next run), `delivery.completed`, `receipt.confirmed`.
+Revised 2026-09-30. `OrderStatus` in `ordering/contract` is the one vocabulary; other modules keep their own state and never write it. There is no `stock_held`, `adjusted` or `rejected` state: short stock rejects placement with per-line availability and the store resubmits (D-F). A failed delivery is not redelivered in place: Issues emits `redelivery.requested` and Ordering creates a new order linked to the original.
 
-**Ports:** `StockPort` to the external warehouse.
+**Commands:** `order:Place`, `order:Amend`, `order:Cancel`, `order:CloseForDay`.
+**Queries:** `confirmedDemand(depot, day)`, `order(id)`, `timeline(orderId)`, `ordersForOutlet(outletId, cursor)`.
+**Publishes:** `order.placed`, `order.amended`, `order.cancelled`, `orders.closed`.
+**Consumes:** `plan.published`, `plan.revised`, `order.deferred`, `order.unservable`, `trip.released`, `delivery.completed`, `delivery.failed`, `receipt.confirmed`, `receipt.auto_closed`, `redelivery.requested`, `warehouse.order_status_changed`.
 
-**Invariants.** An order is never silently reduced: an adjustment is an explicit, attributed transition the store can see. Chilled and ambient never share an order, because vehicle eligibility is decided per order. The cutoff is evaluated on the **server clock in Asia/Colombo**, never on a client timestamp. `order_items` are **descriptive**: the order's own weight, volume and temperature stay authoritative and are never recomputed from lines.
+**Ports:** `StockPort` (Warehouse contract), called synchronously at placement.
+
+**Invariants.** An order is never silently reduced: short stock rejects placement and the store sees the available quantity. Chilled and ambient never share an order, because vehicle eligibility is decided per order. The cutoff is evaluated on the **server clock in Asia/Colombo**, never on a client timestamp. `order_lines` are **descriptive**: the order's own weight, volume and temperature stay authoritative and are never recomputed from lines.
 
 **Failure modes.** Warehouse unreachable: circuit breaker opens, the order enters `stock_unknown`, and the dispatcher sees the degraded state rather than a false confirmation. Stock unresolved at cutoff: auto-deferred with reason `stock_unresolved` and the store is notified.
 
@@ -122,19 +126,19 @@ draft ─► confirmed ─┬─► stock_held ──► confirmed        (wareh
 
 ---
 
-## 4. Planning (`ops`)
+## 4. Planning (`planning`)
 
 **Purpose.** Turn confirmed demand plus a fleet snapshot into a defensible allocation. This is the system's highest-value module.
 
 | Layer | Contents |
 | --- | --- |
-| contract | `PublishedPlan`, `TripView`, `AllocationView`, `DeferralView`, `PlanQuery`, `PlanEvents` |
+| contract | `PlanViews` (`PlanView`, `TripView`, `AllocationView`, `ConstraintResultView`, `DeferralView`, `FuelView`, `InterchangePreview`), `PlanQuery`, `PlanCommands`, `PlanEvents` |
 | domain | `PlanningRun`, `Trip`, `Allocation`, `Deferral`, `PriorityPolicy` (versioned decision table), `RuleSetVersion`, `ConstraintRegistry`, `Constraint`, `ConstraintResult`, `AllocationEngine` (port), `AllocationRequest`, `AllocationResult`, `TripTimeCalculator`, `FuelLedger` |
-| application | `GenerateDraftHandler`, `OverrideAllocationHandler`, `PublishPlanHandler`, `ReplanTripHandler`, `AssignmentPreviewQuery`, `FuelReservationService` |
+| application | `GenerateDraftHandler`, `OverrideAllocationHandler`, `PublishPlanHandler`, `ReplanTripHandler`, `AssignmentPreviewQuery`, `FuelLedgerRepository` |
 | infrastructure | `PriorityInsertionEngine`, `ValidatingEngine` (decorator), `JdbcPlanRepository`, `PlanProjection` |
 | web | routed through the command endpoint |
 
-**Owns:** `ops.planning_runs`, `ops.trips`, `ops.order_allocations`, `ops.order_deferrals`, `ops.route_legs`, `ops.vehicle_trip_fuel_usage`.
+**Owns:** `planning.runs`, `planning.trips`, `planning.allocations`, `planning.deferrals`, `planning.route_legs` (planned times only; actual times belong to Execution), `planning.fuel_usage`, `planning.rule_parameters`, `planning.policy_versions`.
 
 **The constraint registry.** Every rule is a named unit reporting pass, fail with a human-readable reason, and remaining slack:
 
@@ -160,10 +164,10 @@ Four consumers read that one registry: the engine, the manual override path, the
 
 **`PriorityPolicy` is a versioned decision table**, not a hardcoded comparator. It is the rule most likely to change by business preference and the one dispatchers will argue about, so the ordering (prior skips, Fresh, chilled, earliest closing window) is authorable and versioned. Every `PlanningRun` stamps the `rule_set_version` that produced it, alongside the reference-data version, so a historical deferral can be replayed under the rules that were actually in force.
 
-**Commands:** `GenerateDraft`, `OverrideAllocation`, `DeferOrder`, `PublishPlan`, `ReplanTrip`, `ReviseDraft`.
-**Queries:** `publishedPlan(depot, day)`, `draft(id)`, `previewAssignments(orderId)`, `deferralsFor(day)`, `fuelRemaining(vehicle, week)`.
-**Publishes:** `plan.published`, `plan.revised`, `order.deferred`, `order.unservable`, `trip.replanned`.
-**Consumes:** `order.confirmed`, `orders.closed`, `vehicle.status_changed`, `loading.interchange_requested`, `delivery.failed`.
+**Commands:** `plan:Generate`, `plan:Override`, `plan:Defer`, `plan:Publish`, `plan:Revise`, `plan:Replan`. A published plan and every child row are immutable; revise and replan create a new version that supersedes it.
+**Queries:** `publishedPlan(depot, day)`, `draft(id)`, `previewAssignments(orderId)`, `previewInterchange(tripId, vehicleId)`, `deferralsFor(depot, day)`, `fuelRemaining(vehicle, week)`.
+**Publishes:** `plan.published`, `plan.revised` (both carry trips and stops, so consumers never read Planning's tables), `order.deferred`, `order.unservable`.
+**Consumes:** `order.placed`, `order.amended`, `order.cancelled`, `orders.closed`, `vehicle.status_changed`, `reference.version_published`, `calendar.overridden`, `loading.interchange_requested`. It does not consume `delivery.failed`: a redelivery arrives as a new order.
 
 **Ports:** `AllocationEngine`, `TravelAndServiceEstimator`.
 
@@ -175,33 +179,33 @@ Four consumers read that one registry: the engine, the manual override path, the
 
 ---
 
-## 5. Loading (`ops`)
+## 5. Loading (`loading`)
 
 **Purpose.** The dock workflow: load to the planned stop sequence, catch shortfalls before departure, and handle a vehicle substitution safely.
 
 | Layer | Contents |
 | --- | --- |
-| contract | `ManifestView`, `LoadingStatus`, `LoadingEvents` |
+| contract | `LoadingViews`, `LoadingQuery`, `LoadingCommands`, `LoadingEvents` |
 | domain | `LoadingSession`, `LoadingCheck`, `Shortfall`, `DepartureGate`, `VehicleInterchange` |
 | application | `StartLoadingHandler`, `RecordCheckHandler`, `FlagShortfallHandler`, `RequestInterchangeHandler`, `ReleaseTripHandler`, `ManifestQuery` |
 | infrastructure | `JdbcLoadingRepository`, `ManifestProjection` |
 | web | routed through the command endpoint |
 
-**Owns:** `ops.loading_sessions`, `ops.loading_checks`, `ops.trip_vehicle_assignments`.
+**Owns:** `loading.sessions`, `loading.checks`, `loading.shortfalls`, and its own copy of each trip and stop sequence built from `plan.published` and `plan.revised`.
 
-**Commands:** `StartLoading`, `RecordCheck`, `FlagShortfall`, `RequestVehicleInterchange`, `ConfirmInterchange`, `ReleaseTrip`.
+**Commands:** `loading:Start`, `loading:Check`, `loading:Shortfall`, `loading:RequestInterchange`, `loading:Release`, `loading:Handover`.
 **Queries:** `manifest(tripId)`, `readyTrips(depot, day)`, `openShortfalls(depot)`.
 **Publishes:** `loading.started`, `loading.shortfall`, `loading.interchange_requested`, `trip.released`.
 **Consumes:** `plan.published`, `plan.revised`, `shortfall.resolved` (from Issues).
 
-**Invariants.** A trip releases only when **every** allocated order has a passing check. A shortfall blocks departure until a dispatcher records a replacement and the loader rechecks the whole trip; the store's order is never silently reduced. Manifest order follows the planned stop sequence reversed for loading, so the first stop is unloaded first.
+**Invariants.** A trip releases only when **every** allocated order has a passing check. A shortfall blocks departure until a dispatcher records a replacement and the loader rechecks the whole trip; the store's order is never silently reduced. Manifest order is the planned stop sequence reversed, so the first stop is unloaded first. There is no separate mall-first loading rule (decision D-L, R-LOD-08 withdrawn).
 
-**Vehicle interchange.** This is the subtle one. Swapping the truck is not an `UPDATE` to `trips.vehicle_id`. It is a request that:
+**Vehicle interchange.** This is the subtle one. Swapping the truck is not an `UPDATE` to a trip's vehicle, and Loading never changes a trip itself. It is a request that:
 
-1. asks Planning to revalidate the **entire trip** against the substitute (capacity, temperature, access, home depot, fuel, time budget),
-2. is accepted only if every constraint still passes,
-3. writes a new `trip_vehicle_assignments` row so history shows both vehicles,
-4. invalidates loading checks if the substitute changes stop feasibility.
+1. previews the swap through Planning's `previewInterchange` contract query, which revalidates the **entire trip** against the substitute (capacity, temperature, access, home depot, fuel, time budget),
+2. emits `loading.interchange_requested`; Planning accepts it only if every constraint still passes, with `plan:Replan`,
+3. arrives back as `plan.revised`, a new plan version, so history shows both vehicles and the published plan is never edited in place,
+4. rebuilds the manifest from the new version, so checks made against the old one no longer count toward release.
 
 If no compatible substitute exists, the trip is deferred as a unit and the orders carry forward with identity intact.
 
@@ -209,7 +213,7 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 
 ---
 
-## 6. Execution (`ops`)
+## 6. Execution (`execution`)
 
 **Purpose.** What actually happened on the road, captured on a phone that may have no signal.
 
@@ -221,7 +225,7 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 | infrastructure | `ObjectStorageProofStore`, `JdbcDeliveryRepository`, `RunSheetProjection` |
 | web | routed through the command endpoint |
 
-**Owns:** `ops.delivery_records`, `ops.proof_of_delivery`, `ops.attachments`.
+**Owns:** `execution.delivery_records` (with actual times), `execution.proofs`, `execution.attachments`, and its run sheets built from `trip.released`.
 
 **Commands:** `StartStop`, `RecordArrival`, `RecordDelivery`, `RecordFailedDelivery`, `CaptureProof`, `ReportVehicleStatus`, `ReportRoadFault`.
 **Queries:** `runSheet(vehicle, day)`, `deliveryRecord(allocationId)`, `proof(deliveryRecordId)`.
@@ -238,7 +242,7 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 
 ---
 
-## 7. Receipt (`ops`)
+## 7. Receipt (`receipt`)
 
 **Purpose.** The outlet's independent acceptance, deliberately separate from the driver's proof.
 
@@ -249,7 +253,7 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 | application | `ConfirmReceiptHandler`, `ReportDiscrepancyHandler`, `AutoCloseJob`, `ReceiptQuery` |
 | infrastructure | `JdbcReceiptRepository`, `StoreTimelineProjection` |
 
-**Owns:** `ops.receipt_confirmations`.
+**Owns:** `receipt.confirmations`.
 
 **Commands:** `ConfirmReceipt`, `ConfirmPartialReceipt`, `DisputeReceipt`.
 **Queries:** `receiptFor(orderId)`, `pendingConfirmations(outletId)`.
@@ -262,11 +266,11 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 
 ---
 
-## 8. Issues (`ops`)
+## 8. Issues (`issues`)
 
 **Purpose.** One lifecycle for every operational problem, wherever it is raised.
 
-**Owns:** `ops.operational_issues`.
+**Owns:** `issues.issues`.
 
 **Commands:** `RaiseIssue`, `AssignIssue`, `ResolveIssue`, `RecordReplacement`, `ScheduleRedelivery`, `CloseIssue`.
 **Queries:** `openIssues(depot)`, `issuesFor(order|trip|allocation)`.
@@ -277,24 +281,24 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 
 ---
 
-## 9. Notification (`ops` + `integration`)
+## 9. Notification (`notification`)
 
 **Purpose.** Turn domain events into messages people actually receive, with delivery tracked per channel.
 
 | Layer | Contents |
 | --- | --- |
 | domain | `Notification`, `Recipient`, `Channel`, `DeliveryAttempt`, `NotificationPolicy` |
-| application | `NotifierWorker`, `OutboxRelay`, `DeadLetterHandler` |
-| infrastructure | `JdbcOutboxRepository`, channel adapters |
+| application | `NotifierWorker`, `DeadLetterHandler`. The outbox relay is platform, not Notification |
+| infrastructure | `JdbcNotificationRepository`, channel adapters (in-app inbox, web push; decision D-N) |
 
-**Owns:** `ops.notifications`, `ops.notification_deliveries`, `integration.outbox_events`.
+**Owns:** `notification.notifications`, `notification.deliveries`, `notification.push_subscriptions`. It consumes events like any other module; `integration.outbox_events` and the relay belong to the platform.
 
 **The matrix.** Every row is an outbox event with a durable delivery record:
 
 | Event | To | Why it matters |
 | --- | --- | --- |
-| `stock.insufficient` | Stock controller | Order blocked before it reaches planning |
-| `stock.adjusted` | Store manager | Quantity changed; the store must know before delivery |
+| `warehouse.order_status_changed` | Store manager | A `stock_unknown` order was confirmed, or found short |
+| `order.unservable` | Dispatcher, store manager | No vehicle can take it; needs a decision |
 | `order.deferred` | Store manager | With the binding reason and the next planned date |
 | `plan.published` | Loader, driver | Work is available |
 | `loading.shortfall` | Dispatcher | Departure is blocked now |
@@ -302,6 +306,8 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 | `delivery.completed` | Store manager | Proof is available to review |
 | `delivery.failed` | Dispatcher, store manager | Requires a decision |
 | `issue.raised` | Dispatcher | Fault, delay, damage, access problem |
+| `vehicle.fault_reported` | Dispatcher | A driver reported the vehicle; the dispatcher decides its status |
+| `receipt.disputed` | Dispatcher | The store disagrees with what arrived |
 | `vehicle.status_changed` | Dispatcher | Fleet availability changed |
 | `eta.changed` | Store manager | Staffing decision at the outlet |
 
@@ -309,11 +315,11 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 
 ---
 
-## 10. Sync (`integration`)
+## 10. Sync (`sync`)
 
 **Purpose.** Apply operations that were created while a device was offline, exactly once, in order, with conflicts surfaced rather than resolved silently.
 
-**Owns:** `integration.sync_operations`.
+**Owns:** `sync.operations`.
 
 **Commands:** `SubmitOperation`, `AcknowledgeOperation`, `DiscardOperation`.
 **Queries:** `pendingFor(device)`, `conflictsFor(actor)`.
@@ -364,38 +370,46 @@ The boundary was defined (port, anti-corruption layer, circuit breaker, degraded
 
 ### Outbound: Waypoint calls the warehouse
 
-| Operation | When | Timeout | On failure |
-| --- | --- | --- | --- |
-| `checkAvailability(orderRef, lines)` | Order confirmed | 2 s | Circuit opens, order enters `stock_unknown`, dispatcher sees the degraded banner |
-| `reserve(orderRef, lines, ttl)` | Order confirmed and available | 2 s | As above. **Never assume reserved** |
-| `release(reservationRef, reason)` | Order cancelled, deferred or delivered | 5 s | Retried through the outbox until acknowledged. A leaked reservation is the warehouse's stock held hostage |
-| `fetchCatalogue(sinceVersion)` | Scheduled bulk sync | 60 s | Keep the last good version, mark it stale with its age |
+Revised 2026-09-30 against the verified API (RULES-AND-POLICIES §2) and decisions D-E to D-H and D-M. Creating a warehouse order **is** the reservation; there is no separate reserve call and no TTL.
 
-Every call carries a correlation id and an idempotency key. `reserve` is idempotent on `orderRef`: calling it twice returns the same reservation, never a second one.
+| Operation | Caller | When | Timeout | On failure |
+| --- | --- | --- | --- | --- |
+| `StockPort.placeOrder(orderRef, lines)` | Ordering, synchronously | Order placed | 2 s | Circuit opens, the order saves as `stock_unknown` and the dispatcher sees the degraded banner. **Never assume reserved** |
+| `StockPort.amendOrder(ref, lines)` | Ordering, synchronously | Order amended | 2 s | As above |
+| Retry of a `stock_unknown` placement | Warehouse module | Warehouse reachable again | 2 s | Queries by `orderRef` first, because `POST /orders` is not idempotent (R-STK-11) |
+| Cancel (`PUT status cancelled`) | Warehouse module, on `order.cancelled` | Order cancelled | 5 s | Retried through the outbox until acknowledged. Deferral does **not** cancel (D-H) |
+| Ship and deliver (`PUT status`) | Warehouse module, on `trip.released` and `delivery.completed` | Trip leaves, stop completes | 5 s | Retried through the outbox; an invalid transition is recorded and alerted |
+| Catalogue sync (`GET /products`) | Warehouse module, scheduled | Bulk sync | 60 s | Keep the last good copy, mark it stale with its age |
+
+A short line rejects the whole placement with `409 insufficient_stock`; Waypoint returns per-line availability to the store and saves nothing (D-F). Every call carries a correlation id, and an `Idempotency-Key` once the warehouse accepts one.
 
 ### Reservation lifecycle
 
-Both sides must agree on this state machine, and Waypoint stores only the reference and the state:
+The warehouse's own order lifecycle is the reservation's lifecycle. Waypoint stores only the warehouse order reference and reads the state:
 
 ```
-none ──► requested ──► reserved ──┬──► consumed   (delivered)
-                │                 ├──► released   (cancelled or deferred)
-                └──► insufficient └──► expired    (TTL passed)
+placeOrder ──► pending ──┬──► shipped ──► delivered      (trip released, stop completed)
+     │                   └──► cancelled                  (Waypoint order cancelled only)
+     └──► 409: nothing reserved, order rejected at placement
 ```
 
-**The TTL is a business decision, not a technical one.** Proposal: until the dispatch date's cutoff plus two hours. Whatever is chosen, expiry must be **observable by Waypoint**, by event or poll. Without that, orders sit in `stock_held` forever waiting for a release that never comes, and nobody notices until a store calls.
+A deferred order keeps its `pending` warehouse order, so the store's stock stays held across runs (D-H).
+
+### Change requests to the warehouse team
+
+The team owns the warehouse service and may change it (D-M). Waypoint asks for: temperature per product; weight, volume and temperature totals in the `POST /orders` response; an `Idempotency-Key` on `POST /orders`; per-line available quantity on `409`; an HMAC-signed webhook for order and stock changes; and `updated_since` on `GET /products`.
 
 ### Inbound: the warehouse notifies Waypoint
 
-This was the real gap, because inbound is where the security lives.
+Inbound is where the security lives.
 
-1. **Transport**: mutual TLS, or an HMAC signature over the raw body plus a timestamp, with a replay window of a few minutes.
-2. **Land it first**: the request writes to `integration.inbound_events` and returns. Nothing is processed inside the HTTP request, so processing survives the connection that delivered it.
+1. **Transport**: an HMAC signature over the raw body plus a timestamp, with a replay window of a few minutes.
+2. **Land it first**: the request writes to `warehouse.inbound_events` and returns. Nothing is processed inside the HTTP request, so processing survives the connection that delivered it.
 3. **Exact replay detection**: unique on `(source_system, source_event_id)`. The sender retries by design.
 4. **Unverified never processes**: a `CHECK` constraint allows an unverified row only in `received`, `quarantined` or `dead`. Storing it for forensics is fine; acting on it is not.
 5. **Unknown event types are quarantined**, not ignored. Silence is how an integration drifts for months.
 
-Accepted inbound events: `stock.reserved`, `stock.insufficient`, `stock.adjusted`, `stock.released`, `stock.expired`, `catalogue.version_published`.
+Until the webhook exists, the Warehouse module polls order status. Either way it publishes `warehouse.order_status_changed` for Ordering.
 
 ### What Waypoint never accepts from the warehouse
 
@@ -405,25 +419,45 @@ Authority over weight, volume or temperature for capacity decisions. Those come 
 
 ### Open decisions
 
-1. Reservation TTL.
-2. Is stock tracked per depot or per outlet? It changes whether availability is checked at capture or at planning.
-3. Is availability checked at order confirm, or deferred to the planning run? Confirm gives the store earlier warning; planning avoids reserving stock for orders that end up deferred.
+1. Is stock tracked per depot or per outlet? It decides whether the warehouse needs a location on the order.
+2. HMAC (recommended) or mutual TLS for the webhook.
 
 ---
 
 ## Module connection summary
 
-| From | To | Mechanism | Synchronous |
-| --- | --- | --- | --- |
-| every module | Identity | contract query `permits(...)` | yes |
-| every module | Reference | contract query, cached | yes |
-| Ordering | Warehouse | `StockPort` with circuit breaker | yes, degradable |
-| Ordering | Planning | `order.confirmed`, `orders.closed` | no |
-| Planning | Loading | `plan.published` | no |
-| Loading | Planning | `loading.interchange_requested`, revalidation query | mixed |
-| Loading | Execution | `trip.released` | no |
-| Execution | Receipt | `delivery.completed`, `delivery.failed` | no |
-| Execution, Loading, Receipt | Issues | `*.failed`, `*.shortfall`, `*.disputed` | no |
-| all | Notification | outbox events | no |
-| all | Audit | written in the same transaction | yes |
-| Planning | Intelligence | `TravelAndServiceEstimator` port | yes, degradable |
+Modules connect three ways: a contract query (synchronous, read only), an event through the outbox (asynchronous, at least once), or a port. The contracts are code in each module's `contract` package, mirrored for the frontend in `frontend/src/shared/domain/`; `EventCatalogueTest` holds the event records to the table below.
+
+| Synchronous connection | From | To |
+| --- | --- | --- |
+| `IdentityQuery` (`permits`, `scopeOf`, `driverVehicleOn`, `recipientsFor`) | every module | Identity |
+| `ReferenceQuery`, cached | every module | Reference |
+| `StockPort.placeOrder`, `amendOrder`, with circuit breaker | Ordering | Warehouse |
+| `OrderQuery.confirmedDemand` | Planning | Ordering |
+| `PlanQuery.previewInterchange` | Loading | Planning |
+| `TravelAndServiceEstimator`, degradable | Planning | Intelligence |
+| `CatalogueQuery` | store UI, admin | Warehouse |
+| audit row, written in the same transaction | all | platform |
+
+**Event catalogue.** Envelope `{eventId (UUIDv7), type, version, occurredAt, producer, correlationId, actorId, payload}`. Each consumer records `(consumer, eventId)` so a redelivery is a no-op.
+
+| Event | Producer | Consumers |
+| --- | --- | --- |
+| `order.placed`, `order.amended`, `order.cancelled` | Ordering | Planning, Warehouse (cancel), Notification |
+| `orders.closed` | Ordering | Planning |
+| `plan.published`, `plan.revised` | Planning | Ordering, Loading, Execution, Notification |
+| `order.deferred`, `order.unservable` | Planning | Ordering, Notification |
+| `loading.started` | Loading | Notification |
+| `loading.shortfall` | Loading | Issues, Notification |
+| `loading.interchange_requested` | Loading | Planning |
+| `trip.released` | Loading | Execution, Ordering, Warehouse (shipped), Notification |
+| `delivery.started`, `delivery.completed`, `delivery.failed`, `eta.changed` | Execution | Ordering, Receipt, Warehouse (delivered), Issues, Notification |
+| `vehicle.fault_reported`, `road.disruption_reported` | Execution | Issues, Notification |
+| `receipt.confirmed`, `receipt.disputed`, `receipt.auto_closed` | Receipt | Ordering, Issues, Notification |
+| `issue.raised`, `issue.resolved` | Issues | Notification |
+| `shortfall.resolved` | Issues | Loading |
+| `redelivery.requested` | Issues | Ordering |
+| `warehouse.order_status_changed` | Warehouse | Ordering, Notification |
+| `warehouse.discrepancy_found` | Warehouse | Issues |
+| `catalogue.synced` | Warehouse | Ordering |
+| `reference.version_published`, `vehicle.status_changed`, `calendar.overridden` | Reference | Planning, Notification |

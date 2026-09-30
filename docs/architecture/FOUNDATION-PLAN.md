@@ -416,8 +416,8 @@ Two levels, deliberately. This document is the base in detail; section 10 is eve
 | WS0 Platform | section 0.3 here, built | **done** |
 | WS1 Identity | Part 2 here, built | **done** |
 | WS2 Reference | Part 1 here, built | **done** |
-| **WS3 Ordering** | SYSTEM-ARCHITECTURE 10.2 | **next** |
-| WS4 Planning onward | SYSTEM-ARCHITECTURE 10.2 | not started |
+| Contracts for every remaining module | `<module>/contract/`, MODULES "Module connection summary" | **done** 2026-09-30 |
+| **WS3 Ordering** and every later module | SYSTEM-ARCHITECTURE 10.2 | **next, in parallel** |
 
 ### What WS3 inherits
 
@@ -429,9 +429,11 @@ Ordering is the first module built on the foundation rather than as part of it, 
 - `app.actor_has_outlet`, the predicate its row-level security policies are built from, and `iam:GrantScope` to put outlets in it
 - A read surface pattern to copy: commands for every write, a `*Query` and a controller for reads, and `rowVersion` in every response so a caller can satisfy the version guard
 - The `integration` schema, so the outbox needs no retrofit
+- **Its own schema and role**: `ordering` and `waypoint_ordering`, with the scope-table grants row-level security needs, created by `20260930T1200_platform_module_schemas.sql`
+- **Its contract, already written**: `ordering/contract` (`OrderViews`, `OrderStatus`, `OrderQuery`, `OrderCommands`, `OrderEvents`), plus every other module's contract it talks to: `StockPort` in `warehouse/contract`, the plan and trip events it consumes, and the `EventPublisher` port with `RecordingEventPublisher` for unit tests until the relay lands
 
 ### What it must decide first
 
-- **Q8, still open**: do Waypoint orders carry product lines at capture? Stock is held per product, so without lines there is nothing to check against the warehouse. See [ASSUMPTIONS.md](ASSUMPTIONS.md) A-18.
-- The four action entries `order:*` in `iam.action_catalogue` are marked `implemented = false`. Each becomes true when its handler exists, and the catalogue row plus the handler are the two halves of adding an action. `CommandPathIntegrationTest` now fails when a handler exists whose catalogue row says otherwise, so the flag cannot drift quietly.
-- `ops` is the first schema with rows worth scoping, so it is where row-level security stops being a mechanism and starts being protection.
+- ~~Q8~~ **decided 2026-09-30**: orders carry descriptive lines, checked by the warehouse at placement, which returns authoritative totals and temperature. See [ASSUMPTIONS.md](ASSUMPTIONS.md) A-18.
+- The action entries `order:*` in `iam.action_catalogue` are marked `implemented = false`. Each becomes true when its handler exists, and the catalogue row plus the handler are the two halves of adding an action. `CommandPathIntegrationTest` now fails when a handler exists whose catalogue row says otherwise, so the flag cannot drift quietly.
+- `ordering` is the first schema with rows worth scoping, so it is where row-level security stops being a mechanism and starts being protection.

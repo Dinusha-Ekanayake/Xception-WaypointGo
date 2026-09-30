@@ -41,19 +41,19 @@ Most of the cases below are instances of nine patterns. Learn the patterns and t
 | ORD-09 | Order for an outlet the actor does not manage | `403` plus audit | Authorization | Denied-attempt counter | Authorization test |
 | ORD-11 | A Fresh outlet submits both a dry and a chilled order for the same day | Two separate orders. Never merged or de-duplicated, because vehicle eligibility differs (R-ORD-02) | Ordering domain | Merge-attempt counter | Unit |
 | ORD-12 | Order placed on a holiday for a later operating day | Accepted; delivery date rolls to the next operating day and the store is shown it (R-ORD-08, conflict C-6) | Ordering + Reference | Rolled-date counter | Unit |
-| ORD-10 | Store cancels an already-loaded order | Cancellation refused; a return is recorded as a compensating action | Ordering domain | Return counter | Integration |
+| ORD-10 | Store cancels an already-loaded order | Cancellation refused with the reason; the store raises an issue instead. There is no returns workflow (A-10) | Ordering domain | Refused-cancel counter | Integration |
 
 ## 3. Stock, catalogue and the external warehouse
 
 | ID | Trigger | Required behaviour | Enforced in | Detection | Test |
 | --- | --- | --- | --- | --- | --- |
-| STK-01 | Insufficient stock reported | Order moves to `stock_held`, excluded from allocation, stock controller notified | Ordering + Notification | Held-order gauge | Integration, stubbed port |
-| STK-02 | Stock adjusted down | Store notified of the adjusted quantity with a reason before delivery. The order is never silently reduced | Ordering | Adjustment counter | Integration |
+| STK-01 | Insufficient stock at placement | Placement rejected with per-line available quantities; nothing is saved and the store adjusts and resubmits (D-F). Revised 2026-09-30: there is no `stock_held` state | Ordering + `StockPort` | Short-stock rejection counter | Integration, stubbed port |
+| STK-02 | ~~Stock adjusted down~~ | **Withdrawn 2026-09-30 (D-F):** Waypoint never adjusts a placed order. A quantity change is the store's own amendment | n/a | n/a | n/a |
 | STK-03 | Stock unresolved at cutoff | Auto-deferred with reason `stock_unresolved`, store notified | Scheduler | Alert if above a threshold | Integration, time-travel |
 | STK-04 | Warehouse unreachable | Circuit opens. Orders enter `stock_unknown` and the dispatcher sees the degraded banner. **Never assume stock exists** | `StockPort` adapter | Circuit-open alert over 60 s | Chaos drill |
 | STK-05 | Warehouse replies after Waypoint timed out | Late response reconciled by reservation reference, or compensated if the order already moved | Anti-corruption layer | Late-response counter | Integration |
 | STK-06 | Warehouse reports a reservation Waypoint does not know | Logged, quarantined, never auto-applied | Anti-corruption layer | Alert on any occurrence | Integration |
-| STK-07 | Warehouse API exposes no stock balances at all | Availability is `unknown`, not `available`. The stock screen must not claim a check it cannot perform | `StockPort` | Gauge: orders in `stock_unknown` | Integration |
+| STK-07 | Warehouse returns no totals or temperature for a placed order | Placement is treated as `stock_unknown`, never as reserved with guessed totals; capacity is never computed from product lines. Revised 2026-09-30: stock balances do exist (A-08) | `StockPort` | Gauge: orders in `stock_unknown` | Integration |
 | STK-08 | `POST /orders` succeeded, the Waypoint transaction then failed | A warehouse order exists holding stock that no Waypoint order points at. The reconciler finds it by query and cancels it, restoring stock (R-STK-09) | Warehouse adapter + reconciler | Orphaned-order gauge | Integration |
 | STK-09 | `POST /orders` timed out, outcome unknown | **Never blind-retry**: the call is not idempotent and a retry double-decrements stock. Query by our reference first, then create only if absent (R-STK-11) | Warehouse adapter | Timeout-then-query counter | Integration |
 | STK-10 | `PUT /orders/:id/status` rejected as an invalid transition | The two lifecycles have diverged. Surface it rather than forcing; the warehouse is authoritative for its own states (R-STK-10) | Warehouse adapter | Divergence counter | Integration |
@@ -165,11 +165,11 @@ Most of the cases below are instances of nine patterns. Learn the patterns and t
 | SEC-12 | A policy changes while a session is live | The whole policy cache is cleared, so the next command re-evaluates. No sign-out required | Policy cache | Cache clear counter | Integration |
 | SEC-13 | A transaction runs with no `app.actor_id` set | Every scope predicate is false and row-level security returns zero rows. Fails closed | Database policies | Alert on unset actor | Migration test |
 | SEC-08 | Oversized or malformed request body | Rejected at the edge before it reaches the application | Edge | 4xx rate | Integration |
-| SEC-09 | A transaction forgets `SET LOCAL ROLE` | Permission denied. `waypoint_app` is `NOINHERIT` and holds nothing until it assumes a module role | Database grants | Permission-denied counter | Migration test |
-| SEC-10 | A module queries another module's schema directly | Permission denied at the database, even though the code passed review and the boundary test | Database grants | Alert on any occurrence | Migration test |
-| SEC-11 | A migration re-runs where a role already exists with wrong attributes | `ALTER ROLE` asserts them. Roles are cluster-wide, so `CREATE ROLE` alone silently keeps an inheriting role and defeats the separation | Migration | Role attribute check in CI | Migration test |
-| SEC-12 | Inbound warehouse webhook with an invalid or missing signature | Stored unverified and `quarantined`, never processed. A `CHECK` constraint makes processing an unverified row impossible | Inbound inbox | Quarantine rate, alert | Integration |
-| SEC-13 | Inbound webhook replayed | Rejected by the unique `(source_system, source_event_id)`. Replay detection is exact, not heuristic | Database constraint | Duplicate-suppressed counter | Integration |
+| SEC-15 | A transaction forgets `SET LOCAL ROLE` | Permission denied. `waypoint_app` is `NOINHERIT` and holds nothing until it assumes a module role | Database grants | Permission-denied counter | Migration test |
+| SEC-16 | A module queries another module's schema directly | Permission denied at the database, even though the code passed review and the boundary test | Database grants | Alert on any occurrence | Migration test |
+| SEC-17 | A migration re-runs where a role already exists with wrong attributes | `ALTER ROLE` asserts them. Roles are cluster-wide, so `CREATE ROLE` alone silently keeps an inheriting role and defeats the separation | Migration | Role attribute check in CI | Migration test |
+| SEC-18 | Inbound warehouse webhook with an invalid or missing signature | Stored unverified and `quarantined`, never processed. A `CHECK` constraint makes processing an unverified row impossible | Inbound inbox | Quarantine rate, alert | Integration |
+| SEC-19 | Inbound webhook replayed | Rejected by the unique `(source_system, source_event_id)`. Replay detection is exact, not heuristic | Database constraint | Duplicate-suppressed counter | Integration |
 | SEC-14 | Inbound event of an unknown type | Quarantined for review, never silently ignored | Inbound inbox | Alert on any occurrence | Integration |
 
 ## 10. Platform, data and time
