@@ -67,7 +67,7 @@ export default function Store({
         if (report.heldForReview > 0) {
           setFlushError(`${report.heldForReview} saved ${report.heldForReview === 1 ? "change was" : "changes were"} refused when sent. Check your orders.`);
         }
-        setWaiting(report.remaining);
+        setWaiting(report.remaining - report.heldForReview);
         refresh();
       })
       .catch(() => undefined);

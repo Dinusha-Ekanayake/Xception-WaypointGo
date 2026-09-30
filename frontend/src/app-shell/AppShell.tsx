@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useOnline } from "@shared/api/useResource";
-import { pendingCount } from "@shared/offline";
+import { useSync } from "@shared/offline";
 import { Notice, cx } from "@shared/ui";
 import RoleRouter from "./RoleRouter.tsx";
 import SignIn from "./SignIn.tsx";
+import SyncStatus from "./SyncStatus.tsx";
 import {
   ROLE_LABEL,
   currentSession,
@@ -28,6 +29,7 @@ export default function AppShell(): React.JSX.Element {
   const [notice, setNotice] = useState<string | undefined>();
   const [pending, setPending] = useState<number | null>(null);
   const [signOutError, setSignOutError] = useState<string | null>(null);
+  const sync = useSync(state?.kind === "signed-in" ? state.session.userId : null);
 
   const check = useCallback(() => {
     setState(null);
@@ -84,7 +86,7 @@ export default function AppShell(): React.JSX.Element {
   const leave = async (force: boolean) => {
     // Writes still on this device belong to this account; signing out would
     // strand them until the same person signs in again (SEC-01).
-    const waiting = await pendingCount(session.userId);
+    const waiting = sync.pending;
     if (waiting > 0 && !force) {
       setPending(waiting);
       return;
@@ -101,7 +103,8 @@ export default function AppShell(): React.JSX.Element {
 
   return (
     <main className="shell">
-      <div className="mx-auto flex w-full max-w-[1440px] items-center justify-end gap-2 bg-go-canvas px-4 pt-2 font-go">
+      <div className="mx-auto flex w-full max-w-[1440px] flex-wrap items-center justify-end gap-2 bg-go-canvas px-4 pt-2 font-go">
+        <SyncStatus sync={sync} online={online} />
         {session.roles.length > 1 && (
           <div role="tablist" aria-label="Role" className="flex gap-1 rounded-full bg-white p-1">
             {session.roles.map((r) => (
@@ -145,7 +148,7 @@ export default function AppShell(): React.JSX.Element {
                 </span>
               }
             >
-              {online ? "They are being sent. Wait for them to finish, then sign out." : "Reconnect so they can be sent. If you sign out now, they wait here until you sign in again."}
+              {online ? "Send them first: tap sync now, or review any the server refused." : "Reconnect so they can be sent. If you sign out now, they wait here until you sign in again."}
             </Notice>
           )}
         </div>

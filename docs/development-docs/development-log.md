@@ -21,6 +21,15 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-01 - feat: frontend sync engine schedule and review list
+
+`feat/app-shell` · @kavindamihiran
+
+`useSync` in `src/shared/offline` drains the queue on reconnect, on focus and visibility, right after a write is queued (`waypoint:queued` event) and every 30 s. `drain()` is now single-flight per account, so it never double-sends beside a role's own flush. The shell shows "n to send" or "n saved on this device" and "n to review". The review list shows each refused write with the server's reason, and offers "send again" or "discard" (a person decides; the engine never drops one). Sign-out reads the same pending count. The loader and store no longer count held writes as still sending.
+Why: frontend half of #15.
+Verified: typecheck, `npm test` and `npm run build` pass. In the browser with the live store gateway and stubbed APIs: placed offline, sign-out blocked, reconnected, the server answered 409 (sent once), then review and discard.
+Open: Background Sync, driver working-set prefetch, queue-age telemetry, and the backend `sync` module (`POST /api/sync`, `sync:Resolve`).
+
 ## 2026-10-01 - feat: sign-in, sign-out and role switcher in the app shell
 
 `feat/app-shell` · @kavindamihiran
