@@ -47,13 +47,8 @@ export default function ManifestList({
                 onClick={() => setOpen((o) => ({ ...o, [stop.stopSequence]: !expanded }))}
                 className="flex min-h-14 w-full items-center gap-3.5 py-3.5 text-left"
               >
-                <span
-                  className={cx(
-                    "flex size-8 shrink-0 items-center justify-center rounded-[16px] text-[14px] font-medium",
-                    done === stop.lines.length ? "bg-go-signal" : "bg-go-mint",
-                  )}
-                >
-                  {done === stop.lines.length ? <Icon name="check-white" /> : index + 1}
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-[16px] border-[1.5px] border-black bg-white text-[14px] font-medium">
+                  {done === stop.lines.length ? <Icon name="check" label="All loaded" /> : index + 1}
                 </span>
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <span className="text-base font-medium">

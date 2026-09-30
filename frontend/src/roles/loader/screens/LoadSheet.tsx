@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { OutletView, ReadyTripView } from "@shared/domain/types";
-import { Notice } from "@shared/ui";
+import { Icon, Notice } from "@shared/ui";
 import type { LoadingGateway } from "../data/gateway.ts";
 import { hhmm, kg, loadedTotals, m3, progress, tripTemperature } from "../data/manifest.ts";
 import { useTrip, type Line, type Outcome } from "../data/useTrip.ts";
@@ -12,6 +12,14 @@ import ManifestList from "./ManifestList.tsx";
 import ReleaseSheet from "./ReleaseSheet.tsx";
 
 // Figma "02 Load sheet". Container: the trip hook, the sheets and the notices.
+
+/** Minutes until the planned departure, in the depot's day; nothing once it has passed. */
+function untilDeparture(time: string, now: Date = new Date()): string {
+  const [h, m] = time.split(":").map(Number);
+  const minutes = (h ?? 0) * 60 + (m ?? 0) - (now.getHours() * 60 + now.getMinutes());
+  if (minutes <= 0 || minutes >= 12 * 60) return "";
+  return minutes < 60 ? `${minutes} min to departure` : `${Math.floor(minutes / 60)} h ${minutes % 60} min to departure`;
+}
 
 export default function LoadSheet({
   gateway,
@@ -63,7 +71,7 @@ export default function LoadSheet({
   };
 
   return (
-    <div className="flex flex-col gap-4 px-5 pb-8">
+    <div className="flex flex-col gap-4 px-5 pb-8 md:px-8 lg:px-10">
       {t.planChangedFrom !== null && (
         <Notice
           tone="warning"
@@ -92,15 +100,15 @@ export default function LoadSheet({
       )}
 
       {/* Landscape tablet: truck summary pinned left, load list beside it. */}
-      <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[400px_minmax(0,1fr)] lg:items-start lg:gap-6">
-      <section aria-label="Truck" className="flex flex-col gap-4 lg:sticky lg:top-4 rounded-[31px] bg-white px-[22px] py-5 shadow-[0_5px_20px_rgba(0,0,0,0.09)]">
+      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[440px_minmax(0,1fr)] lg:items-start">
+      <section aria-label="Truck" className="flex flex-col gap-4 rounded-[31px] bg-white px-[22px] py-5 shadow-[0_5px_20px_rgba(0,0,0,0.09)] lg:sticky lg:top-[132px]">
         <div className="flex items-center gap-2.5">
           <span className="rounded-full bg-black px-3.5 py-1.5 text-[15px] font-medium text-white">
             {status === "COMPLETED" ? "Released" : status === "NOT_STARTED" ? "Not started" : "Loading"}
           </span>
           <TempBadge temperature={tripTemperature(t.lines)} />
           <span className="flex-1" />
-          <span className="text-right text-[13px] text-go-muted">
+          <span className="text-right text-[13px] text-go-muted md:hidden">
             {m.vehicleId} · Trip {m.tripNumber}
             <br />
             Departs {hhmm(trip.plannedDeparture)}
@@ -109,11 +117,27 @@ export default function LoadSheet({
         <div className="flex justify-center py-2">
           <Ring percent={p.percent} />
         </div>
-        <Bar label="Volume loaded" value={`${m3(totals.volume)} / ${m3(totals.volumeAll)}`} share={totals.volumeAll ? totals.volume / totals.volumeAll : 0} />
-        <Bar label="Weight loaded" value={`${kg(totals.weight)} / ${kg(totals.weightAll)}`} share={totals.weightAll ? totals.weight / totals.weightAll : 0} />
+        <Bar label="Volume" value={`${m3(totals.volume)} / ${m3(totals.volumeAll)}`} share={totals.volumeAll ? totals.volume / totals.volumeAll : 0} />
+        <Bar label="Weight" value={`${kg(totals.weight)} / ${kg(totals.weightAll)}`} share={totals.weightAll ? totals.weight / totals.weightAll : 0} />
+        {editable && (
+          <div className="flex items-center gap-2 rounded-[16px] bg-[#e7f3f2] py-2 pr-2 pl-4">
+            <Icon name="lock" />
+            <span className="flex-1 text-[14px] font-medium text-go-success">Locked to you</span>
+            <button
+              type="button"
+              onClick={() => window.confirm("Hand this trip back? Your checks stay, and another loader can take it.") && void t.handBack()}
+              className="min-h-12 rounded-full bg-white px-4 text-[14px] font-medium text-black"
+            >
+              Hand back
+            </button>
+          </div>
+        )}
         <div className="flex flex-col gap-1">
           <p className="text-[28px] font-semibold">
-            {p.checked} of {p.total} orders checked
+            {p.checked} of {p.total} orders loaded
+          </p>
+          <p className="text-[15px] font-medium text-go-success">
+            {[left > 0 ? `${left} left` : "All loaded", untilDeparture(trip.plannedDeparture)].filter(Boolean).join(" · ")}
           </p>
           {p.flagged > 0 && <p className="text-[15px] font-medium text-go-danger-strong">{p.flagged} reported to the dispatcher</p>}
         </div>
@@ -124,13 +148,14 @@ export default function LoadSheet({
           </BigButton>
         )}
         {editable && (
-          <div className="flex flex-col gap-3">
-            <BigButton tone="danger" size="l" onClick={() => setIssueFor(null)}>
+          <div className="flex flex-wrap gap-3">
+            <BigButton tone="danger" size="l" fit onClick={() => setIssueFor(null)}>
               Report issue
             </BigButton>
             <BigButton
               tone={left === 0 && t.planChangedFrom === null ? "ink" : "muted"}
               size="l"
+              fit
               onClick={() => {
                 setBlockedBy(
                   waiting > 0
@@ -144,9 +169,6 @@ export default function LoadSheet({
             >
               {left === 0 ? "Release vehicle" : `Release · ${left} left`}
             </BigButton>
-            <button type="button" onClick={() => window.confirm("Hand this trip back? Your checks stay, and another loader can take it.") && void t.handBack()} className="min-h-12 text-[14px] font-medium text-go-muted underline">
-              Hand back this trip
-            </button>
           </div>
         )}
         {status === "COMPLETED" && (

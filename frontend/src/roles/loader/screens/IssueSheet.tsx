@@ -74,14 +74,15 @@ export default function IssueSheet({
           </select>
         </label>
 
-        <fieldset className="flex flex-col gap-2">
-          <legend className="mb-1.5 text-[13px] text-go-muted">What is wrong?</legend>
+        <fieldset className="grid gap-2 md:grid-cols-2 md:gap-3">
+          <legend className="mb-1.5 text-[13px] text-go-muted md:col-span-2">What is wrong?</legend>
           {KINDS.map((k) => (
             <label
               key={k.value}
               className={cx(
-                "flex min-h-14 cursor-pointer flex-col justify-center rounded-[16px] border bg-[#f1f3f5] px-4 py-2.5",
-                kind === k.value ? "border-2 border-go-ink" : "border-[#dfe3e8]",
+                "flex min-h-14 cursor-pointer flex-col justify-center rounded-[16px] px-4 py-2.5 md:min-h-[94px]",
+                k.value === "MISSING" && "md:col-span-2",
+                kind === k.value ? "border-2 border-[#dfe3e8] bg-white shadow-[0_2px_6px_rgba(0,0,0,0.08)]" : "border border-[#dfe3e8] bg-[#f1f3f5]",
               )}
             >
               <input type="radio" name="kind" value={k.value} checked={kind === k.value} onChange={() => setKind(k.value)} className="sr-only" />
@@ -92,18 +93,19 @@ export default function IssueSheet({
         </fieldset>
 
         {kind !== "MISSING" && (
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-[15px]">
-              Items {kind === "SHORT" ? "short" : "damaged"} <span className="text-go-muted">of {max}</span>
+          <div className="flex items-center justify-between gap-3 rounded-[16px] bg-[#f1f3f5] py-3 pr-4 pl-4">
+            <span className="flex flex-col">
+              <span className="text-[17px] font-medium">Items {kind === "SHORT" ? "short" : "damaged"}</span>
+              <span className="text-[13px] text-go-muted">of {max} in this order</span>
             </span>
             <div className="flex items-center gap-2">
-              <button type="button" aria-label="Fewer" onClick={() => setUnits((u) => Math.max(1, u - 1))} className="size-12 rounded-full bg-[#f1f3f5] text-xl">
+              <button type="button" aria-label="Fewer" onClick={() => setUnits((u) => Math.max(1, u - 1))} className="size-14 rounded-[16px] bg-[#e5e7eb] text-[28px]">
                 −
               </button>
-              <output aria-live="polite" className="w-8 text-center text-xl font-semibold">
+              <output aria-live="polite" className="w-10 text-center text-[28px] font-semibold">
                 {missing}
               </output>
-              <button type="button" aria-label="More" onClick={() => setUnits((u) => Math.min(max, u + 1))} className="size-12 rounded-full bg-[#f1f3f5] text-xl">
+              <button type="button" aria-label="More" onClick={() => setUnits((u) => Math.min(max, u + 1))} className="size-14 rounded-[16px] bg-[#e5e7eb] text-[28px]">
                 +
               </button>
             </div>
@@ -127,7 +129,7 @@ export default function IssueSheet({
           </Notice>
         )}
 
-        <div className="flex flex-col gap-3">
+        <div className="grid gap-3 md:grid-cols-2">
           <BigButton tone="muted" size="l" onClick={onClose}>
             Cancel
           </BigButton>

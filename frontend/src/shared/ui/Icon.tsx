@@ -31,6 +31,7 @@ const ICONS = {
   clock: { box: 18 },
   hand: { box: 16 },
   lock: { box: 16 },
+  "switch-user": { box: 20 },
   triangle: { box: 18, inset: "5%" },
   loading: { box: 18 },
   dock: { box: 20 },
