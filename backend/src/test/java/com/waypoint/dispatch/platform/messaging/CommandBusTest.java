@@ -7,9 +7,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.waypoint.dispatch.platform.audit.AuditEntry;
 import com.waypoint.dispatch.platform.audit.AuditLog;
 import com.waypoint.dispatch.platform.db.Database;
 import com.waypoint.dispatch.platform.db.ModuleRole;
@@ -23,6 +26,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 /**
  * Whether a command runs at all, tested without a database.
@@ -72,6 +76,50 @@ class CommandBusTest {
     assertFalse(handler.ran, "a denied command must not have run");
   }
 
+  /**
+   * A scope check fails inside the transaction, which rolls back its own audit
+   * row. The bus must record the denial again once the transaction is gone,
+   * because a 403 that leaves no trace is how an access problem goes unseen.
+   */
+  @Test
+  void aDenialRaisedInsideTheTransactionIsAuditedAfterTheRollback() {
+    AuditLog audit = mock(AuditLog.class);
+    CommandHandler outOfScope =
+        new RecordingHandler() {
+          @Override
+          public Object handle(Actor actor, Command command) {
+            throw new DomainException(ErrorCode.FORBIDDEN, "outlet OUT009 is outside your scope");
+          }
+        };
+    CommandBus bus = bus(Optional.of(allowEverything()), outOfScope, audit);
+
+    DomainException thrown =
+        assertThrows(DomainException.class, () -> bus.dispatch(ACTOR, command()));
+
+    assertEquals(ErrorCode.FORBIDDEN, thrown.code());
+    ArgumentCaptor<AuditEntry> entry = ArgumentCaptor.forClass(AuditEntry.class);
+    verify(audit).recordStandalone(entry.capture());
+    assertEquals("DENY", entry.getValue().decision());
+    assertEquals("outlet OUT009 is outside your scope", entry.getValue().reason());
+  }
+
+  @Test
+  void aRejectionThatIsNotADenialIsNotAuditedAsOne() {
+    AuditLog audit = mock(AuditLog.class);
+    CommandHandler invalid =
+        new RecordingHandler() {
+          @Override
+          public Object handle(Actor actor, Command command) {
+            throw new DomainException(ErrorCode.VALIDATION_FAILED, "quantity must be positive");
+          }
+        };
+    CommandBus bus = bus(Optional.of(allowEverything()), invalid, audit);
+
+    assertThrows(DomainException.class, () -> bus.dispatch(ACTOR, command()));
+
+    verify(audit, never()).recordStandalone(any());
+  }
+
   @Test
   void anUnknownKindIsNotFoundRatherThanForbidden() {
     CommandBus bus = bus(Optional.of(allowEverything()));
@@ -105,8 +153,13 @@ class CommandBusTest {
     return bus(authorizer, new RecordingHandler());
   }
 
-  @SuppressWarnings("unchecked")
   private static CommandBus bus(Optional<CommandAuthorizer> authorizer, CommandHandler handler) {
+    return bus(authorizer, handler, mock(AuditLog.class));
+  }
+
+  @SuppressWarnings("unchecked")
+  private static CommandBus bus(
+      Optional<CommandAuthorizer> authorizer, CommandHandler handler, AuditLog audit) {
     ObjectMapper mapper = new ObjectMapper();
     Database database = mock(Database.class);
     // Run the work rather than pretending to: the point is what the bus decides
@@ -120,12 +173,12 @@ class CommandBusTest {
         authorizer,
         new IdempotencyGuard(mapper),
         database,
-        mock(AuditLog.class),
+        audit,
         mock(Metrics.class),
         mapper);
   }
 
-  private static final class RecordingHandler implements CommandHandler {
+  private static class RecordingHandler implements CommandHandler {
     private boolean ran;
 
     @Override

@@ -84,6 +84,25 @@ public class CommandBus {
 
     String fingerprint = idempotency.fingerprint(command.kind(), command.payload());
 
+    try {
+      return execute(actor, command, handler, resource, fingerprint);
+    } catch (DomainException e) {
+      // Scope is decided inside the transaction, because only there does row
+      // level security see the actor. A denial raised there rolls back with
+      // everything else, its audit row included, so it is recorded again here,
+      // after the rollback, in a transaction of its own.
+      if (e.code() == ErrorCode.FORBIDDEN) {
+        metrics.increment("waypoint.command.denied", "kind", command.kind());
+        audit.recordStandalone(
+            AuditEntry.denied(
+                actor.userId(), actor.deviceId(), handler.action(), resource, e.getMessage()));
+      }
+      throw e;
+    }
+  }
+
+  private CommandResult execute(
+      Actor actor, Command command, CommandHandler handler, String resource, String fingerprint) {
     return database.asModule(
         handler.moduleRole(),
         actor.userId(),

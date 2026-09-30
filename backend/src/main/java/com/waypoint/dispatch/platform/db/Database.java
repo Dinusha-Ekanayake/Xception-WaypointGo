@@ -1,5 +1,6 @@
 package com.waypoint.dispatch.platform.db;
 
+import com.waypoint.dispatch.shared.domain.Actor;
 import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
 import java.util.List;
@@ -60,6 +61,20 @@ public class Database {
         throw e;
       }
     }
+  }
+
+  /**
+   * Work the process does on its own behalf, such as consuming an event or
+   * running a scheduled job. Row-level security sees {@link Actor#SYSTEM_ID},
+   * which module policies admit through {@code app.actor_is_system()}, so the
+   * work reaches its own module's rows and still nothing outside the role.
+   */
+  public <T> T asSystem(ModuleRole role, Supplier<T> work) {
+    return asModule(role, Actor.SYSTEM_ID, work);
+  }
+
+  public void asSystem(ModuleRole role, Runnable work) {
+    asModule(role, Actor.SYSTEM_ID, work);
   }
 
   public void asModule(ModuleRole role, UUID actorId, Runnable work) {
