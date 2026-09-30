@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type { ApiError } from "@shared/api/problem";
 import type { OrderStatus, OrderView, OutletView, PendingReceiptView } from "@shared/domain/types";
-import { Icon, Notice, cx } from "@shared/ui";
+import { Icon, Notice, Pending, cx } from "@shared/ui";
 import { cases, addDays, cutoffLabel, dayLabel, depotToday, editable, greeting, hhmm, onTheWay, temperatureLabel, untilCutoff } from "../data/format.ts";
 import { Button, Card, Chip, Muted } from "../ui.tsx";
 
@@ -84,102 +84,117 @@ export default function Home({
         </Muted>
       </div>
 
-      {error && <Notice tone="danger" title="Could not load your orders">{error.message}</Notice>}
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
+        <div className="flex min-w-0 flex-col gap-5">
+          {error && <Notice tone="danger" title="Could not load your orders">{error.message}</Notice>}
 
-      {toReceive.map((r) => (
-        <Notice
-          key={r.orderId}
-          tone="info"
-          live
-          title={`${orders.find((o) => o.orderId === r.orderId)?.orderRef ?? "An order"} was delivered. Count it and confirm what arrived.`}
-          action={
-            <button type="button" onClick={() => onReceive(r.orderId)} className="min-h-12 shrink-0 px-2 text-[13px] font-medium text-go-teal">
-              Receive
-            </button>
-          }
-        />
-      ))}
-      {attention.map((o) => (
-        <Notice
-          key={o.orderId}
-          tone={o.status === "UNSERVABLE" ? "danger" : "warning"}
-          title={
-            o.status === "DEFERRED"
-              ? `${o.orderRef} was deferred to ${dayLabel(o.deliveryDate)}`
-              : o.status === "UNSERVABLE"
-                ? `${o.orderRef} cannot be served`
-                : `${o.orderRef}: stock not checked yet`
-          }
-          action={
-            <button type="button" onClick={() => onOpen(o.orderId)} className="min-h-12 shrink-0 px-2 text-[13px] font-medium text-go-teal">
-              Why
-            </button>
-          }
-        />
-      ))}
+          {toReceive.map((r) => (
+            <Notice
+              key={r.orderId}
+              tone="info"
+              live
+              title={`${orders.find((o) => o.orderId === r.orderId)?.orderRef ?? "An order"} was delivered. Count it and confirm what arrived.`}
+              action={
+                <button type="button" onClick={() => onReceive(r.orderId)} className="min-h-12 shrink-0 px-2 text-[13px] font-medium text-go-teal">
+                  Receive
+                </button>
+              }
+            />
+          ))}
+          {attention.map((o) => (
+            <Notice
+              key={o.orderId}
+              tone={o.status === "UNSERVABLE" ? "danger" : "warning"}
+              title={
+                o.status === "DEFERRED"
+                  ? `${o.orderRef} was deferred to ${dayLabel(o.deliveryDate)}`
+                  : o.status === "UNSERVABLE"
+                    ? `${o.orderRef} cannot be served`
+                    : `${o.orderRef}: stock not checked yet`
+              }
+              action={
+                <button type="button" onClick={() => onOpen(o.orderId)} className="min-h-12 shrink-0 px-2 text-[13px] font-medium text-go-teal">
+                  Why
+                </button>
+              }
+            />
+          ))}
 
-      <Card label="Next delivery">
-        <div className="flex items-center gap-1.5">
-          <p className="flex-1 text-[13px] font-light text-go-muted">
-            {coming ? `Next delivery · ${todays.indexOf(coming) + 1} of ${todays.length} today` : "No delivery on the way"}
-          </p>
-          {coming && <Chip>{onTheWay(coming.status) ? "On the way" : "Arrived"}</Chip>}
-          {coming && <Chip outline>{temperatureLabel(coming.temperature)}</Chip>}
-        </div>
-        {coming ? (
-          <>
-            <div className="flex flex-col items-center rounded-[20px] bg-go-canvas px-4 pt-3 pb-3.5">
-              <span className="text-[15px] text-black">Expected in your window</span>
-              <span className="text-[40px] leading-tight font-semibold text-black">
-                {outlet ? `${hhmm(outlet.windowOpen)}–${hhmm(outlet.windowClose)}` : "—"}
-              </span>
-              <span className="text-[13px] text-go-muted">
-                {coming.orderRef} · {cases(coming.itemCount)}
-              </span>
+          <Card label="Next delivery">
+            <div className="flex items-center gap-1.5">
+              <p className="flex-1 text-[13px] font-light text-go-muted">
+                {coming ? `Next delivery · ${todays.indexOf(coming) + 1} of ${todays.length} today` : "No delivery on the way"}
+              </p>
+              {coming && <Chip>{onTheWay(coming.status) ? "On the way" : "Arrived"}</Chip>}
+              {coming && <Chip outline>{temperatureLabel(coming.temperature)}</Chip>}
             </div>
-            <Progress status={coming.status} />
-            <div className="flex gap-2.5">
-              <Button tone="plain" onClick={onTrack}>
-                Track delivery
-              </Button>
-              <Button disabled={!toReceive.some((r) => r.orderId === coming.orderId)} onClick={() => onReceive(coming.orderId)}>
-                Receive delivery
-              </Button>
-            </div>
-          </>
-        ) : (
-          <Muted>{loading ? "Loading…" : "Nothing is on the way to you today."}</Muted>
-        )}
-      </Card>
-
-      <Card label={`Order for ${dayLabel(next)}`}>
-        <div className="flex items-start gap-2">
-          <div className="flex flex-1 flex-col gap-[3px]">
-            <h2 className="text-[18px] font-medium text-black">Order for {dayLabel(next)}</h2>
-            <Muted>Closes 4:00 PM · {cutoffLabel(left)}</Muted>
-          </div>
-          <Chip tone={forNext.length ? "ok" : "muted"}>{forNext.length ? `${forNext.length} placed` : "Not placed yet"}</Chip>
-        </div>
-        {forNext.length > 0 && (
-          <ul className="flex flex-col gap-2">
-            {forNext.map((o) => (
-              <li key={o.orderId}>
-                <button type="button" onClick={() => onOpen(o.orderId)} className="flex min-h-12 w-full items-center gap-2 rounded-[16px] bg-go-canvas px-3.5 py-2.5 text-left">
-                  <span className="flex-1 text-[15px] font-medium">
-                    {o.orderRef} · {temperatureLabel(o.temperature)}
+            {coming ? (
+              <>
+                <div className="flex flex-col items-center rounded-[20px] bg-go-canvas px-4 pt-3 pb-3.5">
+                  <span className="text-[15px] text-black">Expected in your window</span>
+                  <span className="text-[40px] leading-tight font-semibold text-black">
+                    {outlet ? `${hhmm(outlet.windowOpen)}–${hhmm(outlet.windowClose)}` : "—"}
                   </span>
                   <span className="text-[13px] text-go-muted">
-                    {cases(o.itemCount)}{editable(o.status) ? " · change" : ""}
+                    {coming.orderRef} · {cases(coming.itemCount)}
                   </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-        <button type="button" onClick={onPlace} className="flex min-h-12 w-full items-center justify-center rounded-[22px] bg-go-mint px-4 text-[16px] font-medium text-black">
-          +&nbsp;&nbsp;{forNext.length ? "Place another order" : `Place order for ${dayLabel(next)}`}
-        </button>
-      </Card>
+                </div>
+                <Progress status={coming.status} />
+                <div className="flex gap-2.5">
+                  <Button tone="plain" onClick={onTrack}>
+                    Track delivery
+                  </Button>
+                  <Button disabled={!toReceive.some((r) => r.orderId === coming.orderId)} onClick={() => onReceive(coming.orderId)}>
+                    Receive delivery
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <Muted>{loading ? "Loading…" : "Nothing is on the way to you today."}</Muted>
+            )}
+          </Card>
+
+          <Card label={`Order for ${dayLabel(next)}`}>
+            <div className="flex items-start gap-2">
+              <div className="flex flex-1 flex-col gap-[3px]">
+                <h2 className="text-[18px] font-medium text-black">Order for {dayLabel(next)}</h2>
+                <Muted>Closes 4:00 PM · {cutoffLabel(left)}</Muted>
+              </div>
+              <Chip tone={forNext.length ? "ok" : "muted"}>{forNext.length ? `${forNext.length} placed` : "Not placed yet"}</Chip>
+            </div>
+            {forNext.length > 0 && (
+              <ul className="flex flex-col gap-2">
+                {forNext.map((o) => (
+                  <li key={o.orderId}>
+                    <button type="button" onClick={() => onOpen(o.orderId)} className="flex min-h-12 w-full items-center gap-2 rounded-[16px] bg-go-canvas px-3.5 py-2.5 text-left">
+                      <span className="flex-1 text-[15px] font-medium">
+                        {o.orderRef} · {temperatureLabel(o.temperature)}
+                      </span>
+                      <span className="text-[13px] text-go-muted">
+                        {cases(o.itemCount)}{editable(o.status) ? " · change" : ""}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <button type="button" onClick={onPlace} className="flex min-h-12 w-full items-center justify-center rounded-[22px] bg-go-mint px-4 text-[16px] font-medium text-black">
+              +&nbsp;&nbsp;{forNext.length ? "Place another order" : `Place order for ${dayLabel(next)}`}
+            </button>
+          </Card>
+        </div>
+
+        {/* Desktop: the notifications column from "02 Home". */}
+        <aside className="hidden lg:block">
+          <Card label="Notifications">
+            <h2 className="flex items-center gap-2 text-[18px] font-medium text-black">
+              <Icon name="bell" />
+              Notifications
+            </h2>
+            <Pending what="Your notifications" waitingOn="the Notification module (#14)" />
+          </Card>
+        </aside>
+      </div>
     </div>
   );
 }

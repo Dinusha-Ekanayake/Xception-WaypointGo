@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { Icon, cx, type IconName } from "@shared/ui";
+import { Icon, ShellActions, cx, type IconName } from "@shared/ui";
+import type { OutletView } from "@shared/domain/types";
 import type { StatusTone } from "./data/format.ts";
 
 // Store pieces from Figma "15 Store Manager · Mobile". Touch targets are at
@@ -97,13 +98,13 @@ export function Stepper({ value, onChange, label, highlight }: { value: number; 
 /** A bottom sheet over a blurred page, as in "04 Order sent". */
 export function Sheet({ label, onClose, children }: { label: string; onClose: () => void; children: ReactNode }): React.JSX.Element {
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center" role="presentation">
+    <div className="fixed inset-0 z-40 flex items-end justify-center md:items-center md:p-6" role="presentation">
       <button type="button" aria-label="Close" onClick={onClose} className="absolute inset-0 bg-black/20 backdrop-blur-[6px]" />
       <div
         role="dialog"
         aria-modal="true"
         aria-label={label}
-        className="relative flex max-h-[92dvh] w-full max-w-[520px] flex-col gap-4 overflow-y-auto rounded-t-[32px] bg-white px-6 pt-6 pb-8"
+        className="relative flex max-h-[92dvh] w-full max-w-[520px] flex-col gap-4 overflow-y-auto rounded-t-[32px] bg-white px-6 pt-6 pb-8 md:max-h-[85dvh] md:rounded-[32px]"
       >
         {children}
       </div>
@@ -130,7 +131,7 @@ const TABS: { id: Tab; icon: IconName; label: string }[] = [
 /** "SM / Tab bar": floating, dark, the active tab on a white pill. */
 export function TabBar({ tab, onTab, badges }: { tab: Tab; onTab: (t: Tab) => void; badges: Partial<Record<Tab, number>> }): React.JSX.Element {
   return (
-    <nav aria-label="Store" className="fixed inset-x-0 bottom-0 z-30 flex justify-center bg-gradient-to-b from-go-canvas/0 via-go-canvas via-45% to-go-canvas px-4 pt-10 pb-6">
+    <nav aria-label="Store" className="fixed inset-x-0 bottom-0 z-30 flex justify-center lg:hidden bg-gradient-to-b from-go-canvas/0 via-go-canvas via-45% to-go-canvas px-4 pt-10 pb-6">
       <div className="flex h-16 w-full max-w-[324px] items-center justify-around rounded-[32px] bg-[#031b08] px-2 drop-shadow-[0_8px_12px_rgba(0,0,0,0.18)]">
         {TABS.map((t) => {
           const active = t.id === tab;
@@ -155,5 +156,80 @@ export function TabBar({ tab, onTab, badges }: { tab: Tab; onTab: (t: Tab) => vo
         })}
       </div>
     </nav>
+  );
+}
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : "")).toUpperCase();
+}
+
+/**
+ * "Shell / Sidebar" from "14 Store Manager · Desktop": brand, the destinations
+ * with their counts, and at the foot the outlet and the person signed in. From
+ * lg only; phones keep the floating tab bar.
+ */
+export function SideNav({
+  tab,
+  onTab,
+  badges,
+  outlet,
+  displayName,
+}: {
+  tab: Tab;
+  onTab: (t: Tab) => void;
+  badges: Partial<Record<Tab, number>>;
+  outlet: OutletView | null;
+  displayName: string;
+}): React.JSX.Element {
+  return (
+    <aside className="fixed inset-y-0 left-0 z-30 hidden w-[260px] flex-col gap-6 bg-white px-5 pt-8 pb-6 lg:flex">
+      <div className="flex items-center gap-2.5 px-2">
+        <span className="text-[40px] leading-none font-extrabold text-black">GO</span>
+        <span className="rounded-full bg-go-mint px-3 py-[5px] text-[13px] font-medium text-black">WayPoint Store</span>
+      </div>
+      <nav aria-label="Store" className="flex flex-col gap-1">
+        {TABS.map((t) => {
+          const active = t.id === tab;
+          const badge = badges[t.id] ?? 0;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              aria-current={active ? "page" : undefined}
+              onClick={() => onTab(t.id)}
+              className={cx(
+                "flex min-h-12 items-center gap-3 rounded-[16px] px-4 text-left text-[16px]",
+                active ? "bg-[#e7f3f2] font-medium text-black" : "text-go-muted",
+              )}
+            >
+              <Icon name={t.icon} />
+              <span className="flex-1">{t.label}</span>
+              {badge > 0 && <span className="flex size-7 items-center justify-center rounded-full bg-go-mint text-[12px] font-semibold text-black">{badge}</span>}
+            </button>
+          );
+        })}
+      </nav>
+      <span className="flex-1" />
+      {outlet && (
+        <div className="flex flex-col gap-0.5 rounded-[16px] bg-[#e7f3f2] px-4 py-3">
+          <span className="text-[13px] font-medium text-go-teal">Your outlet</span>
+          <span className="text-[16px] font-medium text-black">
+            {outlet.districtName} · {outlet.outletId}
+          </span>
+          <span className="text-[13px] text-go-muted">
+            {outlet.dockType} dock · {outlet.windowOpen.slice(0, 5)}–{outlet.windowClose.slice(0, 5)}
+          </span>
+        </div>
+      )}
+      <div className="flex items-center gap-3">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-go-mint text-[14px] font-semibold text-black">{initials(displayName)}</span>
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate text-[15px] font-medium text-black">{displayName}</span>
+          <span className="text-[13px] text-go-muted">Store manager</span>
+        </span>
+        <ShellActions compact />
+      </div>
+    </aside>
   );
 }

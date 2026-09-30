@@ -21,6 +21,15 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-01 - fix: store manager desktop layout matches Figma
+
+`fix/store-figma-match` · @kavindamihiran
+
+Store manager rechecked against Figma pages 14 (Desktop) and 15 (Mobile). From `lg` there is a sidebar with Home, Orders and Deliveries plus their counts, the outlet card, and the signed-in person with "Switch user". It replaces the floating tab bar. Home becomes two columns with a Notifications panel (pending #14). Deliveries become one row each. Place order puts the list on the left and a sticky "Order summary" card on the right, replacing the bottom bar. The sync pill sits top right. On phones the shell controls move into the store header, and dialogs centre from `md`.
+Why: on desktop the store showed the phone column centred on the page.
+Verified: `npm run typecheck`, `npm run build`, boundaries test. Screenshots at 393x852, 768x1024 and 1440x900 compared with the Figma frames.
+Open: Issues, notifications, driver and ETA details, call options and draft orders need modules not built yet (#13, #14, #12).
+
 ## 2026-10-01 - fix: loader matches Figma on phone, portrait and landscape tablet
 
 `fix/loader-figma-match` · @kavindamihiran

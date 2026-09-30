@@ -105,7 +105,7 @@ export default function PlaceOrder({
   };
 
   return (
-    <div className="flex flex-col gap-4 pb-44">
+    <div className="flex flex-col gap-4 pb-44 lg:pb-0">
       <BackButton onClick={onBack} />
       <div className="flex flex-col gap-1">
         <h1 className="text-[32px] leading-tight font-medium text-black">{amend ? `Change ${amend.orderRef}` : "Place order"}</h1>
@@ -114,6 +114,9 @@ export default function PlaceOrder({
         </Muted>
       </div>
 
+      {/* Desktop: the list on the left and the summary card on the right, as in "03 Place order". */}
+      <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start lg:gap-6">
+      <div className="flex min-w-0 flex-col gap-4">
       {!amend && (
         <fieldset className="flex flex-col gap-2">
           <legend className="mb-2 text-[13px] text-go-muted">Delivery day</legend>
@@ -200,9 +203,11 @@ export default function PlaceOrder({
         })}
         {catalogue.loading && <Muted>Loading the catalogue…</Muted>}
       </ul>
+      </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-30 flex justify-center">
-        <div className="flex w-full max-w-[720px] flex-col gap-3 rounded-t-[32px] bg-white px-6 pt-5 pb-7 shadow-[0_-5px_20px_rgba(0,0,0,0.06)]">
+      <div className="fixed inset-x-0 bottom-0 z-30 flex justify-center lg:sticky lg:top-8 lg:z-auto">
+        <div className="flex w-full max-w-[720px] flex-col gap-3 rounded-t-[32px] bg-white px-6 pt-5 pb-7 shadow-[0_-5px_20px_rgba(0,0,0,0.06)] lg:rounded-[26px] lg:shadow-[0_5px_20px_rgba(0,0,0,0.09)]">
+          <h2 className="hidden text-[20px] font-medium text-black lg:block">Order summary</h2>
           <Muted>
             Delivery {dayLabel(rolled ?? date)}
             {outlet ? ` · ${hhmm(outlet.windowOpen)}–${hhmm(outlet.windowClose)}` : ""}
@@ -220,6 +225,7 @@ export default function PlaceOrder({
             </Button>
           </div>
         </div>
+      </div>
       </div>
 
       {sent && (
