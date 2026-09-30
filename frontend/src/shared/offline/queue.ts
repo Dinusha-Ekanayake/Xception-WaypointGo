@@ -1,5 +1,7 @@
-import { send, type Command } from "@shared/api/commands";
+import { request } from "@shared/api/client";
+import type { Command } from "@shared/api/commands";
 import { ApiError } from "@shared/api/problem";
+import type { SubmitBatch, SyncAck } from "@shared/domain/sync";
 import { all, put, remove, type StoredEntry } from "./store.ts";
 import { queuesWrites, type Role } from "./tiers.ts";
 
@@ -68,44 +70,73 @@ export function drain(accountId: string): Promise<DrainReport> {
   return pass;
 }
 
+const DEVICE_KEY = "waypoint.deviceId";
+
+/**
+ * This browser's id, minted once. The server orders a device's operations by
+ * it, so it outlives sign-in and sign-out. Blocked storage gets a fresh id per
+ * page load, which only costs ordering across reloads, never a write.
+ */
+function deviceId(): string {
+  try {
+    const known = localStorage.getItem(DEVICE_KEY);
+    if (known) return known;
+    const minted = crypto.randomUUID();
+    localStorage.setItem(DEVICE_KEY, minted);
+    return minted;
+  } catch {
+    return crypto.randomUUID();
+  }
+}
+
+/** The server takes at most this many per batch (SubmitBatchHandler.MAX_BATCH). */
+const BATCH = 100;
+
 async function drainOnce(accountId: string): Promise<DrainReport> {
   const entries = await all(accountId);
+  const ready = entries.filter((e) => !e.needsReview).slice(0, BATCH);
   let sent = 0;
-  let heldForReview = 0;
+  let heldForReview = entries.length - entries.filter((e) => !e.needsReview).length;
+  if (ready.length === 0) return { sent, heldForReview, remaining: entries.length };
 
-  for (const entry of entries) {
-    if (entry.needsReview) {
-      heldForReview++;
-      continue;
+  const batch: SubmitBatch = {
+    deviceId: deviceId(),
+    // The recording time is the sequence: stable across retries, and in the
+    // order the person did things.
+    operations: ready.map((e, i) => ({ sequence: Date.parse(e.enqueuedAt) || i, command: e.payload as Command })),
+  };
+
+  let ack: SyncAck;
+  try {
+    ack = await request<SyncAck>("/api/sync", { method: "POST", body: batch });
+  } catch (error) {
+    // 401: the session expired and the writes are still good; keep them until
+    // the person signs in again. 429 and outages: try later. Either way nothing
+    // is marked for review, because nothing was decided.
+    const first = ready[0]!;
+    if (!(error instanceof ApiError && error.status === 401)) {
+      await put(accountId, { ...first, attempts: first.attempts + 1, lastError: String(error) });
     }
-    try {
-      await send(entry.payload as Command);
+    return { sent, heldForReview, remaining: entries.length };
+  }
+
+  const byId = new Map(ready.map((e) => [e.commandId, e]));
+  for (const result of ack.results) {
+    const entry = byId.get(result.operationId);
+    if (!entry) continue;
+    if (result.status === "APPLIED") {
+      // Only the server's confirmation lets a write leave the device.
       await remove(accountId, entry.commandId);
       sent++;
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 401) {
-        // The session expired. The write is still good: keep it, untouched,
-        // until the person signs in again.
-        break;
-      }
-      if (error instanceof ApiError && error.isVersionConflict) {
-        await put(accountId, { ...entry, needsReview: true, lastError: error.message });
-        heldForReview++;
-        continue;
-      }
-      if (error instanceof ApiError && !error.isRetryable) {
-        // The server rejected it on the rules. Retrying cannot help, and
-        // discarding silently would lose the driver's work.
-        await put(accountId, { ...entry, needsReview: true, lastError: error.message });
-        heldForReview++;
-        continue;
-      }
-      await put(accountId, {
-        ...entry,
-        attempts: entry.attempts + 1,
-        lastError: String(error),
-      });
-      break; // Preserve submission order per account.
+    } else if (result.status === "CONFLICT" || result.status === "REJECTED") {
+      // A conflict is never auto-merged, and a refusal cannot be fixed by
+      // resending. Discarding silently would lose the person's work.
+      await put(accountId, { ...entry, needsReview: true, lastError: result.detail ?? result.problemCode ?? result.status });
+      heldForReview++;
+    } else {
+      // Recorded but not decided. The server stopped here to keep the order.
+      await put(accountId, { ...entry, attempts: entry.attempts + 1, lastError: result.detail ?? "Not applied yet" });
+      break;
     }
   }
 
