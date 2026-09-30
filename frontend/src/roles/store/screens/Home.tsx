@@ -1,0 +1,185 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import type { ApiError } from "@shared/api/problem";
+import type { OrderStatus, OrderView, OutletView, PendingReceiptView } from "@shared/domain/types";
+import { Icon, Notice, cx } from "@shared/ui";
+import { cases, addDays, cutoffLabel, dayLabel, depotToday, editable, greeting, hhmm, onTheWay, temperatureLabel, untilCutoff } from "../data/format.ts";
+import { Button, Card, Chip, Muted } from "../ui.tsx";
+
+// Figma "02 Home": the next delivery, what needs attention, and tomorrow's order
+// against the 16:00 cutoff. ETA before a plan is published is the outlet's
+// window only; a predicted time needs the plan (issue #18, open decision 2).
+
+const STEPS = ["Confirmed", "Loaded", "Left", "Arriving", "Received"] as const;
+const REACHED: Partial<Record<OrderStatus, number>> = { CONFIRMED: 1, ALLOCATED: 1, LOADING: 1, IN_TRANSIT: 3, DELIVERED: 4, PARTIALLY_DELIVERED: 4, RECEIVED: 5 };
+
+export function Progress({ status }: { status: OrderStatus }): React.JSX.Element {
+  const done = REACHED[status] ?? 0;
+  return (
+    <ol className="flex w-full" aria-label="Delivery progress">
+      {STEPS.map((step, i) => (
+        <li key={step} className="relative flex flex-1 flex-col items-center gap-1" aria-current={i === done ? "step" : undefined}>
+          {i > 0 && <span aria-hidden className={cx("absolute top-3 -left-1/2 h-0.5 w-full", i <= done ? "bg-go-success" : "bg-[#dfe7e6]")} />}
+          <span
+            className={cx(
+              "relative flex size-[26px] items-center justify-center rounded-full",
+              i < done ? "bg-go-success" : i === done ? "border-[3px] border-go-success bg-white" : "bg-[#f1f6f5]",
+            )}
+          >
+            {i < done && <Icon name="check-white" />}
+          </span>
+          <span className={cx("text-[12px] font-medium", i <= done ? "text-black" : "text-[#a9a9a9]")}>{step}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+export default function Home({
+  orders,
+  loading,
+  error,
+  displayName,
+  outlet,
+  toReceive,
+  onOpen,
+  onPlace,
+  onReceive,
+  onTrack,
+}: {
+  orders: OrderView[];
+  loading: boolean;
+  error: ApiError | Error | null;
+  displayName: string;
+  outlet: OutletView | null;
+  toReceive: PendingReceiptView[];
+  onOpen: (orderId: string) => void;
+  onPlace: () => void;
+  onReceive: (orderId: string) => void;
+  onTrack: () => void;
+}): React.JSX.Element {
+  const [left, setLeft] = useState(() => untilCutoff());
+  useEffect(() => {
+    const t = setInterval(() => setLeft(untilCutoff()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+
+  const today = depotToday();
+  // Before the cutoff an order is for tomorrow's run; after it, the day after (R-ORD-01).
+  const next = addDays(today, left > 0 ? 1 : 2);
+  const todays = orders.filter((o) => o.deliveryDate === today && o.status !== "CANCELLED");
+  const coming = todays.find((o) => onTheWay(o.status)) ?? todays.find((o) => o.status === "DELIVERED") ?? null;
+  const forNext = orders.filter((o) => o.deliveryDate === next && o.status !== "CANCELLED");
+  const attention = orders.filter((o) => o.status === "DEFERRED" || o.status === "UNSERVABLE" || o.status === "STOCK_UNKNOWN");
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-1">
+        <h1 className="text-[32px] leading-tight font-medium text-black">
+          {greeting()}, {displayName}
+        </h1>
+        <Muted>
+          {dayLabel(today)} · {outlet ? `${outlet.districtName} ${outlet.outletId} · delivery window ${hhmm(outlet.windowOpen)}–${hhmm(outlet.windowClose)}` : "…"}
+        </Muted>
+      </div>
+
+      {error && <Notice tone="danger" title="Could not load your orders">{error.message}</Notice>}
+
+      {toReceive.map((r) => (
+        <Notice
+          key={r.orderId}
+          tone="info"
+          live
+          title={`${orders.find((o) => o.orderId === r.orderId)?.orderRef ?? "An order"} was delivered. Count it and confirm what arrived.`}
+          action={
+            <button type="button" onClick={() => onReceive(r.orderId)} className="min-h-12 shrink-0 px-2 text-[13px] font-medium text-go-teal">
+              Receive
+            </button>
+          }
+        />
+      ))}
+      {attention.map((o) => (
+        <Notice
+          key={o.orderId}
+          tone={o.status === "UNSERVABLE" ? "danger" : "warning"}
+          title={
+            o.status === "DEFERRED"
+              ? `${o.orderRef} was deferred to ${dayLabel(o.deliveryDate)}`
+              : o.status === "UNSERVABLE"
+                ? `${o.orderRef} cannot be served`
+                : `${o.orderRef}: stock not checked yet`
+          }
+          action={
+            <button type="button" onClick={() => onOpen(o.orderId)} className="min-h-12 shrink-0 px-2 text-[13px] font-medium text-go-teal">
+              Why
+            </button>
+          }
+        />
+      ))}
+
+      <Card label="Next delivery">
+        <div className="flex items-center gap-1.5">
+          <p className="flex-1 text-[13px] font-light text-go-muted">
+            {coming ? `Next delivery · ${todays.indexOf(coming) + 1} of ${todays.length} today` : "No delivery on the way"}
+          </p>
+          {coming && <Chip>{onTheWay(coming.status) ? "On the way" : "Arrived"}</Chip>}
+          {coming && <Chip outline>{temperatureLabel(coming.temperature)}</Chip>}
+        </div>
+        {coming ? (
+          <>
+            <div className="flex flex-col items-center rounded-[20px] bg-go-canvas px-4 pt-3 pb-3.5">
+              <span className="text-[15px] text-black">Expected in your window</span>
+              <span className="text-[40px] leading-tight font-semibold text-black">
+                {outlet ? `${hhmm(outlet.windowOpen)}–${hhmm(outlet.windowClose)}` : "—"}
+              </span>
+              <span className="text-[13px] text-go-muted">
+                {coming.orderRef} · {cases(coming.itemCount)}
+              </span>
+            </div>
+            <Progress status={coming.status} />
+            <div className="flex gap-2.5">
+              <Button tone="plain" onClick={onTrack}>
+                Track delivery
+              </Button>
+              <Button disabled={!toReceive.some((r) => r.orderId === coming.orderId)} onClick={() => onReceive(coming.orderId)}>
+                Receive delivery
+              </Button>
+            </div>
+          </>
+        ) : (
+          <Muted>{loading ? "Loading…" : "Nothing is on the way to you today."}</Muted>
+        )}
+      </Card>
+
+      <Card label={`Order for ${dayLabel(next)}`}>
+        <div className="flex items-start gap-2">
+          <div className="flex flex-1 flex-col gap-[3px]">
+            <h2 className="text-[18px] font-medium text-black">Order for {dayLabel(next)}</h2>
+            <Muted>Closes 4:00 PM · {cutoffLabel(left)}</Muted>
+          </div>
+          <Chip tone={forNext.length ? "ok" : "muted"}>{forNext.length ? `${forNext.length} placed` : "Not placed yet"}</Chip>
+        </div>
+        {forNext.length > 0 && (
+          <ul className="flex flex-col gap-2">
+            {forNext.map((o) => (
+              <li key={o.orderId}>
+                <button type="button" onClick={() => onOpen(o.orderId)} className="flex min-h-12 w-full items-center gap-2 rounded-[16px] bg-go-canvas px-3.5 py-2.5 text-left">
+                  <span className="flex-1 text-[15px] font-medium">
+                    {o.orderRef} · {temperatureLabel(o.temperature)}
+                  </span>
+                  <span className="text-[13px] text-go-muted">
+                    {cases(o.itemCount)}{editable(o.status) ? " · change" : ""}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <button type="button" onClick={onPlace} className="flex min-h-12 w-full items-center justify-center rounded-[22px] bg-go-mint px-4 text-[16px] font-medium text-black">
+          +&nbsp;&nbsp;{forNext.length ? "Place another order" : `Place order for ${dayLabel(next)}`}
+        </button>
+      </Card>
+    </div>
+  );
+}

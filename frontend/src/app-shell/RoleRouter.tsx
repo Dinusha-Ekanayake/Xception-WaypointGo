@@ -19,6 +19,6 @@ export default function RoleRouter({ session }: { session: Session }): React.JSX
     case "driver":
       return <Driver />;
     case "store_manager":
-      return <Store />;
+      return <Store userId={session.userId} displayName={session.displayName} scope={session.scope} />;
   }
 }

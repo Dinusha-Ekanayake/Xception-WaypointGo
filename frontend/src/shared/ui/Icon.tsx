@@ -36,6 +36,9 @@ const ICONS = {
   dock: { box: 20 },
   "truck-go": { box: 18 },
   chilled: { box: 16 },
+  // Store manager (Figma "15 Store Manager · Mobile").
+  home: { box: 18 },
+  cart: { box: 20 },
 } satisfies Record<string, IconSpec>;
 
 export type IconName = keyof typeof ICONS;

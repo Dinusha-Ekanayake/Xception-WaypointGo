@@ -105,7 +105,7 @@ function seed(): Trip[] {
 }
 
 function problem(status: number, title: string, detail: string, violations: string[] = []): ApiError {
-  return new ApiError({ type: "about:blank", title, status, detail, instance: "", violations });
+  return new ApiError({ type: "about:blank", title, status, detail, instance: "", violations, extensions: {} });
 }
 
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
