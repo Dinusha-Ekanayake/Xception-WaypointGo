@@ -21,12 +21,13 @@ import jakarta.servlet.http.Cookie;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.UUID;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import com.waypoint.dispatch.support.TestDatabase;
 import org.junit.jupiter.api.TestMethodOrder;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -49,10 +50,7 @@ import org.springframework.test.web.servlet.MvcResult;
 @SpringBootTest
 @AutoConfigureMockMvc
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-@EnabledIfEnvironmentVariable(
-    named = "TEST_DATABASE_URL",
-    matches = ".+",
-    disabledReason = "Set TEST_DATABASE_URL to a dedicated database to run integration tests")
+@ExtendWith(TestDatabase.class)
 class AdministrationIntegrationTest {
 
   private static final String ADMIN = "adm-admin@waypoint.test";
@@ -73,21 +71,13 @@ class AdministrationIntegrationTest {
   @Autowired SessionRegistry sessions;
   @Autowired ImportReferenceDataHandler referenceImport;
   @Autowired ReferenceQuery reference;
+  @Autowired MeterRegistry meters;
 
   @DynamicPropertySource
   static void databaseUrl(DynamicPropertyRegistry registry) {
-    registry.add("app.database-url", () -> System.getenv("TEST_DATABASE_URL"));
+    registry.add("app.database-url", TestDatabase::url);
   }
 
-  @BeforeAll
-  static void guardAgainstTheApplicationDatabase() {
-    String url = System.getenv("TEST_DATABASE_URL");
-    String application = System.getenv("DATABASE_URL");
-    if (application != null && application.equals(url)) {
-      throw new IllegalStateException(
-          "TEST_DATABASE_URL must differ from DATABASE_URL; tests destroy data");
-    }
-  }
 
   @Test
   @Order(1)
@@ -151,6 +141,7 @@ class AdministrationIntegrationTest {
     assertEquals(version + 1, versionOf(userId), "a change bumps the row version");
 
     // The same version again is a second writer working from a stale read.
+    double conflictsBefore = total("waypoint.version.conflict");
     command(
         ADMIN,
         "iam:UpdateUser",
@@ -160,6 +151,59 @@ class AdministrationIntegrationTest {
         """
             .formatted(userId),
         409);
+    assertEquals(
+        conflictsBefore + 1,
+        total("waypoint.version.conflict"),
+        "ORD-05/PLN-06/EXE-14: a refused stale write is counted");
+  }
+
+  /**
+   * PLT-01: two serializable transactions that read the same row and then both
+   * write it cannot both commit. The loser is retried, re-running its read, and the
+   * retry is counted rather than silent.
+   */
+  @Test
+  @Order(20)
+  void aSerializationFailureIsRetriedAndCounted() throws Exception {
+    double retriesBefore = total("waypoint.db.retry");
+    java.util.concurrent.CountDownLatch bothRead = new java.util.concurrent.CountDownLatch(2);
+    Runnable writer =
+        () ->
+            database.asModule(
+                ModuleRole.IAM,
+                null,
+                () -> {
+                  database.queryOne(
+                      "SELECT row_version FROM iam.users WHERE email = ?", ADMIN);
+                  bothRead.countDown();
+                  try {
+                    // Only the first attempt waits; a retry finds the latch open.
+                    bothRead.await(5, java.util.concurrent.TimeUnit.SECONDS);
+                  } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                  }
+                  database.update(
+                      "UPDATE iam.users SET updated_at = now() WHERE email = ?", ADMIN);
+                });
+    java.util.concurrent.ExecutorService pool =
+        java.util.concurrent.Executors.newFixedThreadPool(2);
+    try {
+      var first = pool.submit(writer);
+      var second = pool.submit(writer);
+      first.get(30, java.util.concurrent.TimeUnit.SECONDS);
+      second.get(30, java.util.concurrent.TimeUnit.SECONDS);
+    } finally {
+      pool.shutdownNow();
+    }
+    assertTrue(
+        total("waypoint.db.retry") > retriesBefore,
+        "both writers completed, so the conflict was retried, and the retry was counted");
+  }
+
+  private double total(String counter) {
+    return meters.find(counter).counters().stream()
+        .mapToDouble(io.micrometer.core.instrument.Counter::count)
+        .sum();
   }
 
   @Test
@@ -276,6 +320,7 @@ class AdministrationIntegrationTest {
                 .formatted(otherDriverId),
             409);
     assertTrue(problem.contains("R-IAM-13"), problem);
+    assertTrue(total("waypoint.race.lost") >= 1, "the overlap the constraint caught is counted");
 
     // Abutting the day the first one ends is not an overlap: the range is half open.
     ack(

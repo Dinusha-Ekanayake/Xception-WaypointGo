@@ -53,7 +53,33 @@ public class CommandBus {
     this.mapper = mapper;
   }
 
+  /**
+   * Times the whole command, outcome tagged, for the p95 SLOs in
+   * SYSTEM-ARCHITECTURE section 6.7. A failure is tagged by its error code so a
+   * spike of conflicts is distinguishable from a spike of denials.
+   */
   public CommandResult dispatch(Actor actor, Command command) {
+    long start = System.nanoTime();
+    String outcome = "failed";
+    try {
+      CommandResult result = dispatchUntimed(actor, command);
+      outcome = result.replayed() ? "replayed" : "applied";
+      return result;
+    } catch (DomainException e) {
+      outcome = e.code() == ErrorCode.FORBIDDEN ? "denied" : e.code().name().toLowerCase();
+      throw e;
+    } finally {
+      metrics.record(
+          "waypoint.command.duration",
+          (System.nanoTime() - start) / 1_000_000,
+          "kind",
+          handlers.containsKey(command.kind()) ? command.kind() : "unknown",
+          "outcome",
+          outcome);
+    }
+  }
+
+  private CommandResult dispatchUntimed(Actor actor, Command command) {
     CommandHandler handler = handlers.get(command.kind());
     if (handler == null) {
       throw new DomainException(ErrorCode.NOT_FOUND, "No handler for command " + command.kind());
@@ -101,7 +127,12 @@ public class CommandBus {
             return CommandResult.replayed(fromJson(replay.get()));
           }
 
-          Object value = handler.handle(actor, command);
+          Object value =
+              metrics.time(
+                  "waypoint.command.handler.duration",
+                  () -> handler.handle(actor, command),
+                  "kind",
+                  command.kind());
 
           database.update(
               """

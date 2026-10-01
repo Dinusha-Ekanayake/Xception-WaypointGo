@@ -8,6 +8,7 @@ import com.waypoint.dispatch.identity.infrastructure.PolicyCache;
 import com.waypoint.dispatch.identity.infrastructure.PolicyDocumentParser;
 import com.waypoint.dispatch.platform.audit.AuditEntry;
 import com.waypoint.dispatch.platform.audit.AuditLog;
+import com.waypoint.dispatch.platform.observability.Metrics;
 import com.waypoint.dispatch.platform.db.Database;
 import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.shared.domain.Actor;
@@ -38,18 +39,21 @@ public class PolicyAdminUseCase {
   private final PolicyDocumentParser parser;
   private final PolicyCache cache;
   private final AuditLog audit;
+  private final Metrics metrics;
 
   public PolicyAdminUseCase(
       Database database,
       JdbcPolicyRepository policies,
       PolicyDocumentParser parser,
       PolicyCache cache,
-      AuditLog audit) {
+      AuditLog audit,
+      Metrics metrics) {
     this.database = database;
     this.policies = policies;
     this.parser = parser;
     this.cache = cache;
     this.audit = audit;
+    this.metrics = metrics;
   }
 
   public record PolicySummary(UUID policyId, String name, int defaultVersion) {}
@@ -237,6 +241,16 @@ public class PolicyAdminUseCase {
    * {@code order:*} is accepted when the catalogue has any order action.
    */
   private void validate(String documentJson) {
+    try {
+      validateDocument(documentJson);
+    } catch (DomainException e) {
+      // SEC-09: a rejected document is someone trying, and failing, to change access.
+      metrics.increment("waypoint.policy.rejected");
+      throw e;
+    }
+  }
+
+  private void validateDocument(String documentJson) {
     PolicyDocument document = parser.parse(documentJson);
     List<String> catalogue = policies.catalogueActions();
     List<String> unknown = new ArrayList<>();

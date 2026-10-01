@@ -1,6 +1,7 @@
 package com.waypoint.dispatch.identity.infrastructure;
 
 import com.waypoint.dispatch.identity.domain.policy.Statement;
+import com.waypoint.dispatch.platform.observability.Metrics;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -27,6 +28,12 @@ public class PolicyCache {
   private static final Logger log = LoggerFactory.getLogger(PolicyCache.class);
 
   private final Map<UUID, List<Statement>> byActor = new ConcurrentHashMap<>();
+  private final Metrics metrics;
+
+  public PolicyCache(Metrics metrics) {
+    this.metrics = metrics;
+    metrics.gauge("waypoint.policy.cache.size", byActor::size);
+  }
 
   public List<Statement> statementsFor(UUID userId, Supplier<List<Statement>> loader) {
     return byActor.computeIfAbsent(userId, id -> List.copyOf(loader.get()));
@@ -36,6 +43,9 @@ public class PolicyCache {
   public void invalidateAll() {
     int size = byActor.size();
     byActor.clear();
+    // SEC-12: every policy change must show up here. A change with no clear is a
+    // revoked permission still being served.
+    metrics.increment("waypoint.policy.cache.cleared");
     if (size > 0) {
       log.info("Policy cache cleared: {} actor(s) will be re-evaluated", size);
     }

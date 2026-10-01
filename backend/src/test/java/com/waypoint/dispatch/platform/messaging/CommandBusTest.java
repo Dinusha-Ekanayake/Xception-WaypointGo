@@ -121,7 +121,7 @@ class CommandBusTest {
         new IdempotencyGuard(mapper),
         database,
         mock(AuditLog.class),
-        mock(Metrics.class),
+        new Metrics(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()),
         mapper);
   }
 

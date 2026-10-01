@@ -4,6 +4,7 @@ import com.waypoint.dispatch.identity.infrastructure.Argon2PasswordHasher;
 import com.waypoint.dispatch.identity.infrastructure.PolicyCache;
 import com.waypoint.dispatch.platform.audit.AuditEntry;
 import com.waypoint.dispatch.platform.audit.AuditLog;
+import com.waypoint.dispatch.platform.observability.Metrics;
 import com.waypoint.dispatch.platform.db.Database;
 import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.shared.error.DomainException;
@@ -36,18 +37,21 @@ public class AccountAdminUseCase {
   private final SessionRegistry sessions;
   private final PolicyCache policyCache;
   private final AuditLog audit;
+  private final Metrics metrics;
 
   public AccountAdminUseCase(
       Database database,
       Argon2PasswordHasher hasher,
       SessionRegistry sessions,
       PolicyCache policyCache,
-      AuditLog audit) {
+      AuditLog audit,
+      Metrics metrics) {
     this.database = database;
     this.hasher = hasher;
     this.sessions = sessions;
     this.policyCache = policyCache;
     this.audit = audit;
+    this.metrics = metrics;
   }
 
   // ---- host commands: they open the transaction themselves ----
@@ -269,6 +273,9 @@ public class AccountAdminUseCase {
           until == null ? null : java.sql.Date.valueOf(until),
           actorId);
     } catch (org.springframework.dao.DataIntegrityViolationException e) {
+      // FLT-03, SEC-03: the exclusion constraint caught an overlap, possibly one a
+      // concurrent assignment created after this one's checks passed.
+      metrics.increment("waypoint.race.lost", "path", "iam:AssignDriver");
       throw new DomainException(
           ErrorCode.CONFLICT,
           vehicleId + " already has a driver for part of that period",

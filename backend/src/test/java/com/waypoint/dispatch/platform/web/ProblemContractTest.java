@@ -131,7 +131,9 @@ class ProblemContractTest {
         .andExpect(jsonPath("$.violations[0].rule").value("R-IAM-01"))
         .andExpect(jsonPath("$.violations[0].field").value("expectedVersion"))
         .andExpect(jsonPath("$.violations[0].message").value("stale"));
-    assertEquals(1.0, registry.counter("waypoint.version.conflict", "path", "unmatched").count());
+    assertEquals(
+        1.0,
+        registry.get("waypoint.version.conflict").tag("path", "/probe/version-conflict").counter().count());
   }
 
   @Test
@@ -157,7 +159,8 @@ class ProblemContractTest {
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("BAD_REQUEST"))
         .andExpect(jsonPath("$.violations[0].field").value("id"))
-        .andExpect(content().string(not(containsString("not-a-uuid\""))));
+        .andExpect(jsonPath("$.detail").value("id must be a UUID"))
+        .andExpect(jsonPath("$.violations[0].message", not(containsString("not-a-uuid"))));
   }
 
   @Test
@@ -181,7 +184,8 @@ class ProblemContractTest {
         .andExpect(jsonPath("$.code").value("CONFLICT"))
         .andExpect(content().string(not(containsString("a@b.c"))))
         .andExpect(content().string(not(containsString("users_email_key"))));
-    assertEquals(1.0, registry.counter("waypoint.race.lost", "path", "unmatched").count());
+    assertEquals(
+        1.0, registry.get("waypoint.race.lost").tag("path", "/probe/duplicate").counter().count());
   }
 
   @Test

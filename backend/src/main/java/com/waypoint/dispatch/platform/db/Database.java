@@ -1,11 +1,14 @@
 package com.waypoint.dispatch.platform.db;
 
+import com.waypoint.dispatch.platform.observability.Metrics;
 import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Supplier;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -27,16 +30,28 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class Database {
   private static final int MAX_ATTEMPTS = 5;
 
+  private static final Logger log = LoggerFactory.getLogger(Database.class);
+
   private final JdbcTemplate jdbc;
   private final TransactionTemplate serializable;
+  private final Metrics metrics;
 
-  public Database(JdbcTemplate jdbc, TransactionTemplate serializableTransactions) {
+  public Database(
+      JdbcTemplate jdbc, TransactionTemplate serializableTransactions, Metrics metrics) {
     this.jdbc = jdbc;
     this.serializable = serializableTransactions;
+    this.metrics = metrics;
   }
 
   /** Runs one command as a module, on behalf of an actor, in one serializable transaction. */
   public <T> T asModule(ModuleRole role, UUID actorId, Supplier<T> work) {
+    String module = role.roleName();
+    if (actorId == null) {
+      // SEC-06, SEC-13. Legitimate for sign-in and startup, which have no actor yet,
+      // but row-level security sees nobody here, so a request path showing up in
+      // this count is a scope bug.
+      metrics.increment("waypoint.db.no_actor", "module", module);
+    }
     for (int attempt = 0; ; attempt++) {
       try {
         return serializable.execute(
@@ -53,9 +68,22 @@ public class Database {
               return work.get();
             });
       } catch (RuntimeException e) {
-        if (attempt < MAX_ATTEMPTS - 1 && isRetryable(e)) {
+        String state = sqlState(e);
+        if ("42501".equals(state)) {
+          // SEC-16: a grant refused the statement. Either a module reached into a
+          // schema it does not own, or a migration forgot a grant.
+          metrics.increment("waypoint.db.permission_denied", "module", module);
+        }
+        boolean retryable = "40001".equals(state) || "40P01".equals(state);
+        if (retryable && attempt < MAX_ATTEMPTS - 1) {
+          // PLT-01: the retry re-runs the whole unit of work, validation included.
+          metrics.increment("waypoint.db.retry", "module", module);
           sleep(20L * (attempt + 1));
           continue;
+        }
+        if (retryable) {
+          metrics.increment("waypoint.db.retry.exhausted", "module", module);
+          log.warn("Gave up after {} attempts as {} (SQLSTATE {})", MAX_ATTEMPTS, module, state);
         }
         throw e;
       }
@@ -102,18 +130,13 @@ public class Database {
     return jdbc.update(sql, params);
   }
 
-  private static boolean isRetryable(RuntimeException e) {
-    Throwable t = e;
-    while (t != null) {
-      if (t instanceof java.sql.SQLException sql) {
-        String state = sql.getSQLState();
-        if ("40001".equals(state) || "40P01".equals(state)) {
-          return true;
-        }
+  private static String sqlState(Throwable e) {
+    for (Throwable t = e; t != null; t = t.getCause()) {
+      if (t instanceof java.sql.SQLException sql && sql.getSQLState() != null) {
+        return sql.getSQLState();
       }
-      t = t.getCause();
     }
-    return false;
+    return null;
   }
 
   private static void sleep(long ms) {
