@@ -10,8 +10,8 @@ Updated after every step, so any agent or person can resume. Work on branch `fea
 | --- | --- | --- | --- |
 | 0 Plan | done | `88d73d7` | |
 | 1 CI and validator | done | see `git log -- .github` | `.github/workflows/ci.yml`; validator vendored byte-identical. The validator step **fails until step 3** writes `backend/target/task2b/submission_task2b.csv`. Frontend job runs `typecheck` only; legacy Node tests left out of CI |
-| 2 Domain | in progress | | |
-| 3 Engine and S1 fixture | todo | | |
+| 2 Domain | done | see `git log -- backend/src/main/java/com/waypoint/dispatch/planning/domain` | `planning/domain/`: `PlanOrder`, `FleetVehicle`, `DistrictTravel`, `RuleSet` (keys and booklet values), `Trip`, `VehicleDay` (trip numbers = position, Fresh first), `TripTimeline`, `FuelLedger`, `Constraints` (13 nested classes), `ConstraintRegistry`, `PriorityPolicy`, `AllocationEngine` (port with `Problem`, `OrderDecision`, `AllocationResult`), `PlanVerification`. 28 unit tests in `src/test/.../planning/domain/`. **`PlanningRun` aggregate moved to step 5** |
+| 3 Engine and S1 fixture | in progress | | |
 | 4 Schema, repository, reads | todo | | |
 | 5 Generate, Override, Defer, Publish | todo | | |
 | 6 Revise, Replan, previews, consumers | todo | | |
