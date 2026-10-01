@@ -82,7 +82,7 @@ public class JdbcLoadingRepository {
         database.queryOne(
             """
             SELECT s.trip_id, s.status, s.holder_user_id, s.holder_name, s.holder_code, s.held_since,
-                   s.row_version, t.temperature
+                   s.holder_active_at, s.row_version, t.temperature
             FROM loading.sessions s
             JOIN loading.trips t ON t.trip_id = s.trip_id AND t.superseded_at IS NULL
             WHERE s.trip_id = ?
@@ -112,7 +112,8 @@ public class JdbcLoadingRepository {
                     (UUID) s.get("holder_user_id"),
                     (String) s.get("holder_name"),
                     Optional.ofNullable((String) s.get("holder_code")),
-                    ((Timestamp) s.get("held_since")).toInstant()));
+                    ((Timestamp) s.get("held_since")).toInstant(),
+                    ((Timestamp) s.get("holder_active_at")).toInstant()));
     return Optional.of(
         new LoadingSession(
             tripId,
@@ -182,6 +183,7 @@ public class JdbcLoadingRepository {
         """
         UPDATE loading.sessions
            SET status = ?, holder_user_id = ?, holder_name = ?, holder_code = ?, held_since = ?,
+               holder_active_at = ?,
                started_at = coalesce(started_at, CASE WHEN ? = 'in_progress' THEN ?::timestamptz END),
                released_at = ?, released_by = ?,
                row_version = row_version + 1, updated_at = ?
@@ -192,6 +194,7 @@ public class JdbcLoadingRepository {
         h.map(Holder::name).orElse(null),
         h.flatMap(Holder::employeeCode).orElse(null),
         h.map(x -> Timestamp.from(x.since())).orElse(null),
+        h.map(x -> Timestamp.from(x.lastActive())).orElse(null),
         code(next.phase()),
         Timestamp.from(at),
         release.map(r -> Timestamp.from(r.at())).orElse(null),

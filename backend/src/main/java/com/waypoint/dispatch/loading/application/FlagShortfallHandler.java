@@ -80,7 +80,7 @@ public class FlagShortfallHandler implements CommandHandler {
     Change change = loaded.session().flag(actor.userId(), orderId, lineNo, kind, missingUnits);
     int affected = lineNo.isPresent() ? missingUnits : LoadingSession.unitsAffected(change.changed());
 
-    long version = trips.updateSession(change.session(), expected, now, Optional.empty());
+    long version = trips.updateSession(change.session().active(now), expected, now, Optional.empty());
     UUID shortfallId = UuidV7.generate(now, random);
     int planVersion = loaded.trip().planVersion();
     trips.insertShortfall(

@@ -228,7 +228,7 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-LOD-08 | ~~Mall deliveries are prioritised in the loading order~~ **Withdrawn 2026-09-30 (D-L):** loading follows the reversed stop sequence only | Team draft | Withdrawn |
 | R-LOD-09 | If no compatible substitute exists, the trip defers as a unit and its orders carry forward with identity | Policy | Policy |
 | R-LOD-10 | Release requires the loader to confirm doors sealed, orders secured and driver present. No reefer reading or seal number is required | Confirmed product decision | Binding |
-| R-LOD-11 | One loader holds a trip at a time; only that holder writes. Hand back retains the names and times on earlier checks | Confirmed product decision | Binding |
+| R-LOD-11 | One loader holds a trip at a time; only that holder writes. Hand back retains the names and times on earlier checks. A hold with no accepted command from its holder for 30 minutes lapses and another loader may take the trip (decision 2026-10-01) | Confirmed product decision | Binding |
 
 ## 5. Execution
 

@@ -197,7 +197,7 @@ public class JdbcManifestWriter {
           """
           UPDATE loading.sessions
              SET row_version = row_version + 1, holder_user_id = NULL, holder_name = NULL,
-                 holder_code = NULL, held_since = NULL, updated_at = ?
+                 holder_code = NULL, held_since = NULL, holder_active_at = NULL, updated_at = ?
            WHERE trip_id = ? AND status <> 'released'
           """,
           Timestamp.from(at), tripId);

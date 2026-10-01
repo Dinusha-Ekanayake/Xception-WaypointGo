@@ -1,4 +1,4 @@
-import type { CheckStatus, IssueKind, ItemView, ManifestLineView, OutletView, SessionStatus, Temperature } from "@shared/domain/types";
+import type { CheckStatus, HolderView, IssueKind, ItemView, ManifestLineView, OutletView, SessionStatus, Temperature } from "@shared/domain/types";
 
 // Pure helpers over a manifest. Capacity reads order totals only (AGENTS.md,
 // External Product Catalogue): weight and volume never come from product lines.
@@ -121,6 +121,14 @@ export const kg = (n: number) => `${Math.round(n).toLocaleString("en-US")} kg`;
 export const m3 = (n: number) => `${n.toFixed(1)} m³`;
 
 /** Minutes until the planned departure, read in Asia/Colombo; nothing once it has passed. */
+/** LoadingSession.IDLE_RELEASE: a hold with no activity for this long lapses. */
+export const IDLE_RELEASE_MINUTES = 30;
+
+/** Whether a holder has been idle long enough that anyone may take the trip over. */
+export function holdLapsed(holder: HolderView, now: Date = new Date()): boolean {
+  return now.getTime() - Date.parse(holder.lastActiveAt) >= IDLE_RELEASE_MINUTES * 60_000;
+}
+
 export function untilDeparture(time: string, now: Date = new Date()): string {
   const minutes = minutesUntil(time, now);
   if (minutes <= 0 || minutes >= 12 * 60) return "";

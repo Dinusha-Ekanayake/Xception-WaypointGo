@@ -72,15 +72,19 @@ public class StartLoadingHandler implements CommandHandler {
     PersonView person =
         people.person(actor.userId()).orElse(new PersonView(actor.userId(), "Loader", Optional.empty()));
     boolean first = loaded.session().neverStarted();
+    LoadingSession before = loaded.session();
     LoadingSession next =
-        loaded.session().take(actor.userId(), person.displayName(), person.employeeCode(), now).session();
+        before.take(actor.userId(), person.displayName(), person.employeeCode(), now).session().active(now);
+    boolean lapsed =
+        before.holder().map(h -> !h.userId().equals(actor.userId())).orElse(false);
 
     long version = trips.updateSession(next, expected, now, Optional.empty());
     if (first) {
       events.publish(
           actor, new LoadingStarted(tripId, loaded.trip().planId(), loaded.trip().vehicleId()));
     }
-    metrics.increment("waypoint.loading.taken", "first", String.valueOf(first));
+    metrics.increment(
+        "waypoint.loading.taken", "first", String.valueOf(first), "lapsed", String.valueOf(lapsed));
     return LoadingMessages.result(tripId, version, next);
   }
 }

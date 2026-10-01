@@ -13,7 +13,7 @@ export const SESSION = {
   operator: OPERATOR,
 };
 
-const HOLDER = { userId: OPERATOR.userId, name: OPERATOR.displayName, employeeCode: OPERATOR.employeeCode, since: OPERATOR.since };
+const HOLDER = { userId: OPERATOR.userId, name: OPERATOR.displayName, employeeCode: OPERATOR.employeeCode, since: OPERATOR.since, lastActiveAt: new Date().toISOString() };
 
 /** One trip with one order of two items, held by the signed-in operator. */
 export function manifest(tripId: string, loaded: boolean, rowVersion: number): ManifestView {

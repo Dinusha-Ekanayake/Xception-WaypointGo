@@ -165,7 +165,8 @@ final class LoadingViewMapper {
             (UUID) r.get("holder_user_id"),
             (String) r.get("holder_name"),
             Optional.ofNullable((String) r.get("holder_code")),
-            ((Timestamp) r.get("held_since")).toInstant()));
+            ((Timestamp) r.get("held_since")).toInstant(),
+            ((Timestamp) r.get("holder_active_at")).toInstant()));
   }
 
   private static int integer(Map<String, Object> r, String column) {

@@ -67,7 +67,7 @@ public class RecordCheckHandler implements CommandHandler {
     Loaded loaded = LoadingMessages.load(trips, tripId, expected);
     Change change = loaded.session().check(actor.userId(), orderId, lineNo, status);
 
-    long version = trips.updateSession(change.session(), expected, now, Optional.empty());
+    long version = trips.updateSession(change.session().active(now), expected, now, Optional.empty());
     trips.appendChecks(
         tripId,
         loaded.trip().planVersion(),

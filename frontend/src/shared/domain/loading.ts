@@ -13,6 +13,8 @@ export type HolderView = {
   name: string;
   employeeCode: string | null;
   since: IsoInstant;
+  /** The hold lapses 30 minutes after this, and the trip is free to take (R-LOD-11). */
+  lastActiveAt: IsoInstant;
 };
 
 /**

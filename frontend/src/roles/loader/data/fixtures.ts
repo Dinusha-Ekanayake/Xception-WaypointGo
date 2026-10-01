@@ -143,7 +143,7 @@ function trip(n: number, vehicle: string, departs: string, phase: Phase, stops: 
       weightCapKg: temp === "chilled" ? "5510" : "7200",
       volumeCapM3: temp === "chilled" ? "26.4" : "32.0",
       status: "NOT_STARTED",
-      holder: phase === "in_progress" ? { ...ME, since: new Date(Date.now() - 35 * 60_000).toISOString() } : null,
+      holder: phase === "in_progress" ? { ...ME, since: new Date(Date.now() - 35 * 60_000).toISOString(), lastActiveAt: new Date(Date.now() - 4 * 60_000).toISOString() } : null,
       releasedAt: phase === "released" ? new Date().toISOString() : null,
       lines: lines(stops, temp, n, phase === "released" ? 99 : loaded),
       rowVersion: 1,
@@ -218,7 +218,7 @@ export function sampleGateway(): LoadingGateway {
     switch (command.kind) {
       case LoadingCommandKind.start:
         t.phase = "in_progress";
-        m.holder = m.holder ?? { ...ME, since: now };
+        m.holder = m.holder ?? { ...ME, since: now, lastActiveAt: now };
         break;
       case LoadingCommandKind.check: {
         const p = command.payload as RecordCheck;

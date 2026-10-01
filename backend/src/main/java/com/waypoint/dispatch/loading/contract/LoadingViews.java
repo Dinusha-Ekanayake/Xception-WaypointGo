@@ -49,8 +49,12 @@ public final class LoadingViews {
     DOES_NOT_FIT
   }
 
-  /** The loader a trip is locked to, one at a time until release or hand back (R-LOD-11). */
-  public record HolderView(UUID userId, String name, Optional<String> employeeCode, Instant since) {}
+  /**
+   * The loader a trip is locked to, one at a time until release or hand back (R-LOD-11).
+   * The hold lapses {@code IDLE_RELEASE} after {@code lastActiveAt}; the board then offers the trip.
+   */
+  public record HolderView(
+      UUID userId, String name, Optional<String> employeeCode, Instant since, Instant lastActiveAt) {}
 
   /**
    * @param attempt increases on every recheck or undo; a recheck never overwrites

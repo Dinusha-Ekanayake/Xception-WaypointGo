@@ -21,6 +21,15 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-01 - feat(loading): unlock a trip after 30 idle minutes
+
+`feat/loading` · @Dinusha-Ekanayake
+
+A hold now lapses 30 minutes after the holder's last accepted command (`loading.sessions.holder_active_at`, migration 1509), and another loader's take replaces them. The dock board shows a lapsed hold as free to take. Replaces forced takeover. R-LOD-11 and LOD-09 updated.
+Why: a loader who walks away must not block a trip until a dispatcher intervenes (decision 2026-10-01).
+Verified: `LoadingSessionTest` (26) and `ModuleBoundaryTest` pass; frontend typecheck and `loader-hold.test.ts` pass. The new integration test compiles but was not run: no test database here.
+Open: run `LoadingIntegrationTest` against a database.
+
 ## 2026-10-01 - feat(loader): load item by item, as the Day 5 design does
 
 `feat/loading` · @Dinusha-Ekanayake

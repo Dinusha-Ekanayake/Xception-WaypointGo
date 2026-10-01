@@ -4,6 +4,7 @@ import com.waypoint.dispatch.loading.contract.LoadingViews.CheckStatus;
 import com.waypoint.dispatch.loading.contract.LoadingViews.SessionStatus;
 import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -22,6 +23,7 @@ import java.util.UUID;
  *
  * <ul>
  *   <li>R-LOD-11: one loader holds a trip at a time; only the holder writes to it.
+ *       A hold with no activity for {@link #IDLE_RELEASE} lapses and anyone may take it.
    *   <li>R-LOD-02: a missing, damaged or ill-fitting item is flagged before
  *       departure. A flagged item is not loaded, and loading carries on.
  *   <li>R-LOD-07: release is refused while any item is still unchecked. Flagged
@@ -43,8 +45,20 @@ public record LoadingSession(
     RELEASED
   }
 
-  /** @param employeeCode the dock badge, for example LDR-00038, when the account has one */
-  public record Holder(UUID userId, String name, Optional<String> employeeCode, Instant since) {}
+  /** A hold with no activity from its holder for this long lapses, so another loader can take over. */
+  public static final Duration IDLE_RELEASE = Duration.ofMinutes(30);
+
+  /**
+   * @param employeeCode the dock badge, for example LDR-00038, when the account has one
+   * @param lastActive the holder's last accepted command on this trip
+   */
+  public record Holder(
+      UUID userId, String name, Optional<String> employeeCode, Instant since, Instant lastActive) {
+
+    public boolean isIdle(Instant now) {
+      return !now.isBefore(lastActive.plus(IDLE_RELEASE));
+    }
+  }
 
   /** What an operation changed: the new session and the lines to append an attempt for. */
   public record Change(LoadingSession session, List<ItemLine> changed) {
@@ -64,7 +78,8 @@ public record LoadingSession(
 
   /**
    * Take the trip. Taking a trip you already hold is a no-op, so a retried tap
-   * does not fail. Taking someone else's is refused: they hand it back first.
+   * does not fail. Taking someone else's is refused, unless they have been idle
+   * for {@link #IDLE_RELEASE}: then the hold has lapsed and the taker replaces them.
    *
    * @return the change; {@code changed} is always empty
    */
@@ -75,16 +90,29 @@ public record LoadingSession(
         return new Change(this, List.of());
       }
       Holder other = holder.get();
-      throw new DomainException(
+      if (!other.isIdle(now)) {
+        throw new DomainException(
           ErrorCode.CONFLICT,
-          "This trip is in use by " + other.name() + other.employeeCode().map(c -> " (" + c + ")").orElse("")
-              + ". One loader per trip: ask them to hand it back, or call dispatch.",
-          List.of("R-LOD-11"));
+            "This trip is in use by " + other.name() + other.employeeCode().map(c -> " (" + c + ")").orElse("")
+                + ". One loader per trip: ask them to hand it back, or wait until it has been idle for "
+                + IDLE_RELEASE.toMinutes() + " minutes.",
+            List.of("R-LOD-11"));
+      }
     }
-    Holder taker = new Holder(actor, name, employeeCode, now);
+    Holder taker = new Holder(actor, name, employeeCode, now, now);
     return new Change(
         new LoadingSession(tripId, Phase.IN_PROGRESS, Optional.of(taker), chilled, items, rowVersion),
         List.of());
+  }
+
+  /** The holder did something at {@code now}: their hold runs another {@link #IDLE_RELEASE}. */
+  public LoadingSession active(Instant now) {
+    return holder
+        .map(h -> new LoadingSession(
+            tripId, phase,
+            Optional.of(new Holder(h.userId(), h.name(), h.employeeCode(), h.since(), now)),
+            chilled, items, rowVersion))
+        .orElse(this);
   }
 
   /** Whether this take is the first one, which is when loading.started is announced. */

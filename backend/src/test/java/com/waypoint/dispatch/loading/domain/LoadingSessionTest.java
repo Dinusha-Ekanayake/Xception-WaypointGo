@@ -89,6 +89,24 @@ class LoadingSessionTest {
   }
 
   @Test
+  void aTripIdleForThirtyMinutesCanBeTakenOver() {
+    LoadingSession s = taken();
+    refused(() -> s.take(KASUN, "Kasun", Optional.empty(), NOW.plus(LoadingSession.IDLE_RELEASE).minusSeconds(1)));
+
+    LoadingSession next = s.take(KASUN, "Kasun", Optional.empty(), NOW.plus(LoadingSession.IDLE_RELEASE)).session();
+    assertEquals(KASUN, next.holder().orElseThrow().userId());
+    assertEquals(NOW.plus(LoadingSession.IDLE_RELEASE), next.holder().orElseThrow().since());
+  }
+
+  @Test
+  void idlenessCountsFromTheHoldersLastActivityNotFromTheTake() {
+    LoadingSession s = taken().active(NOW.plusSeconds(20 * 60));
+    assertTrue(s.holder().orElseThrow().isIdle(NOW.plusSeconds(50 * 60)));
+    assertFalse(s.holder().orElseThrow().isIdle(NOW.plusSeconds(49 * 60)));
+    refused(() -> s.take(KASUN, "Kasun", Optional.empty(), NOW.plusSeconds(40 * 60)));
+  }
+
+  @Test
   void retakingYourOwnTripChangesNothing() {
     LoadingSession s = taken();
     assertEquals(s, s.take(ISURU, "Isuru", Optional.empty(), NOW.plusSeconds(60)).session());

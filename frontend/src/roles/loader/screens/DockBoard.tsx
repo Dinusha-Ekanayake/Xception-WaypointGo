@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { Resource } from "@shared/api/useResource";
 import type { ReadyTripView } from "@shared/domain/types";
 import { Icon, Notice, cx } from "@shared/ui";
-import { hhmm } from "../data/manifest.ts";
+import { IDLE_RELEASE_MINUTES, hhmm, holdLapsed } from "../data/manifest.ts";
 import { BigButton, StatusChip, TempBadge } from "../ui.tsx";
 
 // Figma "01 Dock board", "06 Change dock", "E3 offline" and "E4 no trips here":
@@ -41,7 +41,8 @@ export default function DockBoard({
   const [query, setQuery] = useState("");
   const all = [...(trips.data ?? [])].sort((a, b) => a.plannedDeparture.localeCompare(b.plannedDeparture));
   const docks = [...new Set(all.map((t) => t.dockCode))].sort();
-  const who: Who = (t) => (t.holder === null ? "free" : t.holder.userId === meId ? "mine" : "other");
+  const who: Who = (t) =>
+    t.holder === null ? "free" : t.holder.userId === meId ? "mine" : holdLapsed(t.holder) ? "free" : "other";
   const q = query.trim().toLowerCase();
   const atDock = all.filter((t) => dock === "" || t.dockCode === dock);
   const match = FILTERS.find((f) => f.value === filter)!.match;
@@ -177,6 +178,7 @@ function TripCard({
           <span className="text-[13px] text-go-muted">
             {trip.brandCode} · {trip.stopCount} {trip.stopCount === 1 ? "stop" : "stops"}
             {trip.holder && ` · ${who === "mine" ? "You" : trip.holder.name}${trip.holder.employeeCode ? ` · ${trip.holder.employeeCode}` : ""}`}
+            {trip.holder && who === "free" && ` · idle ${IDLE_RELEASE_MINUTES} min, free to take`}
           </span>
         </div>
         <StatusChip status={trip.status} />

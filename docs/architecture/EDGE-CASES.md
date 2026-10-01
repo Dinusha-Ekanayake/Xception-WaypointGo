@@ -103,6 +103,7 @@ Most of the cases below are instances of nine patterns. Learn the patterns and t
 | LOD-05 | Loading complete, no driver assigned | Planned departure policy: hold and notify the dispatcher. Automated driver-assignment gating and escalation are outside issue #10 | Loading + Notification | Gauge: trips waiting for driver | Deferred |
 | LOD-06 | Mark-loaded submitted twice | Idempotent, no duplicate check rows | Application | Duplicate-suppressed counter | Integration |
 | LOD-07 | Loader works from a stale manifest after a replan | The command's expected row version is rejected with 409; refresh the manifest and visibly recheck work reset by the new plan | Loading | Stale-manifest counter | Loading integration and Loader UI |
+| LOD-09 | Loader takes a trip and walks away | After 30 minutes with no accepted command from the holder the hold lapses; the board offers the trip and the next loader's take replaces the holder, earlier checks keep their names | Loading | Counter `waypoint.loading.taken{lapsed=true}` | LoadingSessionTest, LoadingIntegrationTest, loader-hold.test.ts |
 | LOD-08 | Shared tablet used by two loaders in one session | Both attributed via device plus user identity | Identity + Audit | n/a | Integration |
 
 ## 6. Execution, the road and offline

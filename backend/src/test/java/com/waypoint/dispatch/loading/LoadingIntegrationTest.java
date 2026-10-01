@@ -30,6 +30,7 @@ import com.waypoint.dispatch.shared.event.EventEnvelope;
 import com.waypoint.dispatch.shared.util.Clock;
 import jakarta.servlet.http.Cookie;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -273,6 +274,25 @@ class LoadingIntegrationTest {
     JsonNode item = manifest(kasun).get("lines").get(1).get("items").get(0);
     assertEquals("LOADED", item.get("status").asText());
     assertEquals(isuruId.toString(), item.get("checkedBy").asText(), "the tick keeps Isuru's name");
+  }
+
+  @Test
+  void aHoldLapsesAfterThirtyIdleMinutesSoAnotherLoaderCanTakeOver() throws Exception {
+    Instant start = clock.now();
+    send(isuru, "loading:Start", 1L, "{\"tripId\":\"" + tripId + "\"}", 200);
+    clock.set(start.plus(Duration.ofMinutes(20)));
+    send(isuru, "loading:Check", 2L, check(orderA, 1, "LOADED"), 200);
+
+    // Thirty minutes after the take, but only ten after Isuru's tick: still held.
+    clock.set(start.plus(Duration.ofMinutes(30)));
+    send(kasun, "loading:Start", 3L, "{\"tripId\":\"" + tripId + "\"}", 409);
+
+    clock.set(start.plus(Duration.ofMinutes(50)));
+    send(kasun, "loading:Start", 3L, "{\"tripId\":\"" + tripId + "\"}", 200);
+    JsonNode m = manifest(kasun);
+    assertEquals(kasunId.toString(), m.get("holder").get("userId").asText());
+    assertEquals(isuruId.toString(), m.get("lines").get(1).get("items").get(0).get("checkedBy").asText());
+    send(isuru, "loading:Check", 4L, check(orderA, 2, "LOADED"), 409);
   }
 
   @Test
