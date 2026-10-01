@@ -304,6 +304,9 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-IAM-15 | A password reset and a disable both revoke every session in the same transaction. A reset that leaves old sessions alive protects nobody, because the reason to reset is usually that someone else has the account | Policy | Policy |
 | R-IAM-16 | An account cannot disable itself. An administrator holding the only admin policy would otherwise lock everyone out permanently | Policy | Policy |
 | R-IAM-17 | A scope may only name a depot or outlet that exists. A scope naming nothing is a permanent silent denial, which is the same class of mistake as an uncatalogued action | Policy | Policy |
+| R-IAM-18 | On a shared loader device, loading writes are made by the operator who entered their PIN, named in the command's `actingUserId`. A device with no operator is locked and every loading write is refused | Confirmed product decision | Binding |
+| R-IAM-19 | An operator PIN is four digits. Five wrong tries pause PIN entry for that person for five minutes | Confirmed product decision | Binding |
+| R-IAM-20 | A loader may switch with their PIN while offline against the crew list the device downloaded: a PBKDF2 verifier per member, never the PIN, valid for 12 hours and wiped at sign-out, with the same five-try pause kept on the device. On reconnect the switches are replayed into the operator history before any queued work, only for crew of that device, in order, after the history the server has, and audited as offline. A four-digit PIN is recoverable from its verifier; that risk is accepted because the list reaches only a supervisor-signed-in loader device (decision 2026-10-01) | Confirmed product decision | Binding |
 
 ## 8. Conflicts found
 

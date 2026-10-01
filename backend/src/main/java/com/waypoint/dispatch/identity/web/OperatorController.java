@@ -6,7 +6,13 @@ import com.waypoint.dispatch.identity.contract.SessionView;
 import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
+import com.waypoint.dispatch.identity.domain.OfflineSwitchPolicy;
+import com.waypoint.dispatch.identity.domain.OfflineSwitchPolicy.Switch;
+import com.waypoint.dispatch.shared.util.Clock;
+import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Optional;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.http.HttpHeaders;
@@ -24,22 +30,64 @@ import org.springframework.web.bind.annotation.RestController;
 public class OperatorController {
   private final SessionRegistry sessions;
   private final OperatorRegistry operators;
+  private final Clock clock;
 
-  public OperatorController(SessionRegistry sessions, OperatorRegistry operators) {
+  public OperatorController(SessionRegistry sessions, OperatorRegistry operators, Clock clock) {
     this.sessions = sessions;
     this.operators = operators;
+    this.clock = clock;
   }
 
   public record SwitchRequest(String userId, String pin) {}
 
+  public record OfflineSwitch(String userId, String at) {}
+
+  public record OfflineRequest(List<OfflineSwitch> switches) {}
+
+  /**
+   * The crew a loader may switch to on this device, with the PIN check each one
+   * may use offline until {@code expiresAt} (R-IAM-20). Never the PIN itself.
+   */
   @GetMapping("/crew")
-  public List<Map<String, String>> crew(HttpServletRequest request) {
+  public Map<String, Object> crew(HttpServletRequest request) {
     String token = AuthController.tokenFrom(request);
     SessionView device = signedIn(token);
-    return operators.crew(device).stream().map(member -> Map.of(
-        "userId", member.userId().toString(),
-        "displayName", member.displayName(),
-        "employeeCode", member.employeeCode() == null ? "" : member.employeeCode())).toList();
+    List<Map<String, Object>> members = operators.crew(device).stream().map(member -> {
+      Map<String, Object> m = new LinkedHashMap<>();
+      m.put("userId", member.userId().toString());
+      m.put("displayName", member.displayName());
+      m.put("employeeCode", member.employeeCode() == null ? "" : member.employeeCode());
+      m.put("offlineVerifier", member.offlineVerifier().orElse(null));
+      return m;
+    }).toList();
+    return Map.of(
+        "members", members,
+        "expiresAt", clock.now().plus(OfflineSwitchPolicy.CREW_LIST_LIFETIME).toString());
+  }
+
+  /** Switches made while offline, sent on reconnect before the queued work they cover. */
+  @PostMapping("/operator/offline")
+  public Map<String, Object> replayOffline(@RequestBody OfflineRequest body, HttpServletRequest request) {
+    String token = AuthController.tokenFrom(request);
+    SessionView device = signedIn(token);
+    if (body == null || body.switches() == null) {
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, "switches are required");
+    }
+    List<Switch> switches;
+    try {
+      switches = body.switches().stream().map(s -> new Switch(
+          s.userId() == null ? Optional.<UUID>empty() : Optional.of(UUID.fromString(s.userId())),
+          Instant.parse(s.at()))).toList();
+    } catch (RuntimeException e) {
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, "Each switch needs a uuid or null userId and an instant");
+    }
+    Map<String, Object> result = new LinkedHashMap<>();
+    result.put("operator", operators.replayOffline(token, device, switches).map(operator -> Map.of(
+        "userId", operator.userId().toString(),
+        "displayName", operator.displayName(),
+        "employeeCode", operator.employeeCode().orElse(""),
+        "since", operator.since().toString())).orElse(null));
+    return result;
   }
 
   @PostMapping("/operator")

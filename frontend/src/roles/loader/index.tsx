@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { useOnline, useResource } from "@shared/api/useResource";
 import { useSync } from "@shared/offline";
 import { Notice } from "@shared/ui";
-import { lockOperator } from "@app-shell/operators";
+import { crew, lockOperator, replayBeforeSync } from "@app-shell/operators";
+import { logOfflineSwitch } from "@app-shell/offlinePin";
 import type { Operator } from "@app-shell/session";
 import TopBar from "./TopBar.tsx";
 import { LangProvider, useT } from "./i18n.tsx";
@@ -45,6 +46,8 @@ function LoaderWorkspace({
   const date = depotToday();
   const [openId, setOpenId] = useState<string | null>(null);
   const [tripSync, setTripSync] = useState<Date | null>(null);
+  // Before the first sync pass: queued work goes after the switches it was recorded under.
+  useLayoutEffect(() => replayBeforeSync(userId), [userId]);
   const sync = useSync(userId);
   const [operator, setOperator] = useState<Operator | null>(initialOperator);
   const [lockError, setLockError] = useState<string | null>(null);
@@ -60,18 +63,29 @@ function LoaderWorkspace({
     refresh();
   }, [refresh]);
   useEffect(() => setOperator(initialOperator), [initialOperator]);
+  // Keep the crew list fresh while online, so the next loader can switch with
+  // their PIN even if the connection is gone by then. A failure leaves the last
+  // list, and the PIN screen says when there is none.
+  useEffect(() => {
+    if (online) crew(userId).catch(() => undefined);
+  }, [online, userId]);
 
   const lock = useCallback(async () => {
-    if (!online || sync.pending > 0) return;
     try {
-      await lockOperator();
+      if (!online) {
+        if (!logOfflineSwitch(userId, { userId: null, at: new Date().toISOString() })) {
+          throw new Error("This device can't save the lock. Connect and try again.");
+        }
+      } else {
+        await lockOperator(userId);
+      }
       setOperator(null);
       setOpenId(null);
       setLockError(null);
     } catch (failure) {
       setLockError(failure instanceof Error ? failure.message : "Could not lock this device.");
     }
-  }, [online, sync.pending]);
+  }, [online, userId]);
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-[720px] flex-col bg-go-canvas font-go text-go-ink md:max-w-[1280px]">
@@ -86,7 +100,6 @@ function LoaderWorkspace({
         sample={gateway.sample}
         onBack={open ? back : undefined}
         onLock={operator ? () => void lock() : undefined}
-        lockDisabled={!online || sync.pending > 0}
       />
       {lockError && (
         <div className="px-5 pb-3">
@@ -103,7 +116,7 @@ function LoaderWorkspace({
         </div>
       )}
       {!operator ? (
-        <OperatorGate online={online} pending={sync.pending} onOperator={setOperator} />
+        <OperatorGate account={userId} online={online} onOperator={setOperator} />
       ) : !depot ? (
         <p className="px-5 text-[15px] text-go-muted">Your account has no depot in scope. Ask an administrator to grant one.</p>
       ) : open ? (

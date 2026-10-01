@@ -1,7 +1,10 @@
 package com.waypoint.dispatch.identity.application;
 
 import com.waypoint.dispatch.identity.contract.SessionView;
+import com.waypoint.dispatch.identity.domain.OfflineSwitchPolicy;
+import com.waypoint.dispatch.identity.domain.OfflineSwitchPolicy.Switch;
 import com.waypoint.dispatch.identity.domain.PinPolicy;
+import com.waypoint.dispatch.identity.domain.PinVerifier;
 import com.waypoint.dispatch.identity.infrastructure.Argon2PasswordHasher;
 import com.waypoint.dispatch.platform.audit.AuditEntry;
 import com.waypoint.dispatch.platform.audit.AuditLog;
@@ -15,6 +18,7 @@ import com.waypoint.dispatch.shared.util.Clock;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
@@ -22,6 +26,8 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
 
@@ -45,6 +51,7 @@ public class OperatorRegistry {
   private final AuditLog audit;
   private final Metrics metrics;
   private final Clock clock;
+  private final SecureRandom random = new SecureRandom();
 
   public OperatorRegistry(
       Database database, Argon2PasswordHasher hasher, AuditLog audit, Metrics metrics, Clock clock) {
@@ -55,7 +62,8 @@ public class OperatorRegistry {
     this.clock = clock;
   }
 
-  public record CrewMember(UUID userId, String displayName, String employeeCode) {}
+  /** @param offlineVerifier the PIN check this device may run offline; empty until the PIN is used online once */
+  public record CrewMember(UUID userId, String displayName, String employeeCode, Optional<String> offlineVerifier) {}
 
   public record Operator(UUID userId, String displayName, Optional<String> employeeCode, Instant since) {}
 
@@ -78,7 +86,7 @@ public class OperatorRegistry {
             database
                 .query(
                     """
-                    SELECT DISTINCT u.user_id, u.display_name, u.employee_code
+                    SELECT DISTINCT u.user_id, u.display_name, u.employee_code, u.pin_offline_verifier
                     FROM iam.users u
                     JOIN iam.user_roles r ON r.user_id = u.user_id AND r.role_code = ?
                     JOIN iam.user_depot_access d ON d.user_id = u.user_id
@@ -90,7 +98,8 @@ public class OperatorRegistry {
                     device.userId())
                 .stream()
                 .map(r -> new CrewMember(
-                    (UUID) r.get("user_id"), (String) r.get("display_name"), (String) r.get("employee_code")))
+                    (UUID) r.get("user_id"), (String) r.get("display_name"), (String) r.get("employee_code"),
+                    Optional.ofNullable((String) r.get("pin_offline_verifier"))))
                 .toList());
   }
 
@@ -148,6 +157,10 @@ public class OperatorRegistry {
               database.update(
                   "INSERT INTO iam.session_operators (session_key, user_id, started_at) VALUES (?, ?, ?)",
                   key, userId, Timestamp.from(now));
+              // The PIN was right, so this is the moment to write its offline check;
+              // accounts provisioned before offline switching get one here.
+              database.update("UPDATE iam.users SET pin_offline_verifier = ? WHERE user_id = ?",
+                  verifier(pin), userId);
               database.update(
                   "UPDATE iam.sessions SET operator_user_id = ?, operator_since = ? WHERE session_token = ?",
                   userId, Timestamp.from(now), token);
@@ -217,6 +230,7 @@ public class OperatorRegistry {
       throw new DomainException(ErrorCode.VALIDATION_FAILED, "Employee code must look like LDR-00038");
     }
     String hash = hasher.hash(pin);
+    String offline = verifier(pin);
     UUID userId =
         database.asModule(
             ModuleRole.IAM,
@@ -231,9 +245,10 @@ public class OperatorRegistry {
               }
               UUID id = (UUID) user.get("user_id");
               int changed = database.update(
-                  "UPDATE iam.users SET pin_hash = ?, employee_code = coalesce(?, employee_code),"
+                  "UPDATE iam.users SET pin_hash = ?, pin_offline_verifier = ?,"
+                      + " employee_code = coalesce(?, employee_code),"
                       + " row_version = row_version + 1, updated_at = now() WHERE user_id = ? AND is_active",
-                  hash, employeeCode, id);
+                  hash, offline, employeeCode, id);
               if (changed == 1) {
                 audit.record(AuditEntry.allowed(Actor.SYSTEM_ID, null, "iam:SetPin", "wpt:iam:user:" + id,
                     "PIN provisioned through the trusted host command"));
@@ -247,7 +262,68 @@ public class OperatorRegistry {
     return userId;
   }
 
+  /**
+   * Adds switches the device made offline to its operator history, in order, so
+   * work queued under each operator syncs under them (R-IAM-20). Each is audited
+   * as offline: the device checked the PIN, the server could not.
+   *
+   * @return the operator the device has after the last switch
+   */
+  public Optional<Operator> replayOffline(String token, SessionView device, List<Switch> switches) {
+    requireLoaderDevice(device);
+    Map<UUID, CrewMember> crew =
+        crew(device).stream().collect(Collectors.toMap(CrewMember::userId, c -> c));
+    Instant now = clock.now();
+    String key = key(token);
+    Optional<Operator> current =
+        database.asModule(
+            ModuleRole.IAM,
+            null,
+            () -> {
+              // One replay per device at a time, or two could interleave history.
+              database.queryOne("SELECT session_token FROM iam.sessions WHERE session_token = ? FOR UPDATE", token);
+              Map<String, Object> last = database.queryOne(
+                  "SELECT max(coalesce(ended_at, started_at)) AS at FROM iam.session_operators WHERE session_key = ?",
+                  key);
+              Optional<Instant> lastAt =
+                  Optional.ofNullable(last == null ? null : (Timestamp) last.get("at")).map(Timestamp::toInstant);
+              OfflineSwitchPolicy.requireReplayable(switches, Set.copyOf(crew.keySet()), lastAt, now);
+              Optional<Operator> operator = Optional.empty();
+              for (Switch s : switches) {
+                closeOpen(key, s.at(), s.userId().isPresent() ? "switch" : "lock");
+                if (s.userId().isEmpty()) {
+                  operator = Optional.empty();
+                  continue;
+                }
+                UUID userId = s.userId().get();
+                CrewMember member = crew.get(userId);
+                database.update(
+                    "INSERT INTO iam.session_operators (session_key, user_id, started_at, offline)"
+                        + " VALUES (?, ?, ?, true)",
+                    key, userId, Timestamp.from(s.at()));
+                audit.record(AuditEntry.allowed(userId, device.deviceId(), "iam:SwitchOperator",
+                    "wpt:iam:user:" + userId, "switched offline at " + s.at() + "; PIN checked on the device"));
+                operator = Optional.of(new Operator(
+                    userId, member.displayName(), Optional.ofNullable(member.employeeCode()), s.at()));
+              }
+              database.update(
+                  "UPDATE iam.sessions SET operator_user_id = ?, operator_since = ? WHERE session_token = ?",
+                  operator.map(Operator::userId).orElse(null),
+                  operator.map(o -> Timestamp.from(o.since())).orElse(null),
+                  token);
+              return operator;
+            });
+    metrics.increment("waypoint.operator.offline_switch");
+    return current;
+  }
+
   // ---- internals ---------------------------------------------------------------
+
+  private String verifier(String pin) {
+    byte[] salt = new byte[PinVerifier.SALT_BYTES];
+    random.nextBytes(salt);
+    return PinVerifier.create(pin, salt, PinVerifier.ITERATIONS);
+  }
 
   private List<Instant> recentFailures(UUID userId, Instant now) {
     return database

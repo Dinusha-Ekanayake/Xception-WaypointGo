@@ -2,7 +2,7 @@ import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./tests/e2e-loader",
-  testMatch: ["offline.spec.ts", "release.spec.ts", "language.spec.ts"],
+  testMatch: ["offline.spec.ts", "release.spec.ts", "language.spec.ts", "offline-pin.spec.ts"],
   timeout: 30_000,
   workers: 1,
   reporter: "list",

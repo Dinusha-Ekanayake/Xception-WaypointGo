@@ -1,5 +1,6 @@
 import { request } from "@shared/api/client";
 import { ApiError } from "@shared/api/problem";
+import { forgetCrew } from "./offlinePin.ts";
 
 // Who is signed in, according to the server. The client never decides this: it
 // asks, and renders what it is told. Mirrors identity's SessionView.
@@ -67,6 +68,7 @@ export function signIn(email: string, password: string): Promise<Session> {
 
 export async function signOut(): Promise<void> {
   await request<null>("/api/session/end", { method: "POST" });
+  forgetCrew();
 }
 
 const ROLE_KEY = "waypoint.lastRole";

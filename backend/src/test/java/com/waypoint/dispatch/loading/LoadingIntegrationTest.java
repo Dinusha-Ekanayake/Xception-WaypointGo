@@ -418,6 +418,40 @@ class LoadingIntegrationTest {
   }
 
   @Test
+  void workQueuedAfterAnOfflinePinSwitchSyncsUnderTheOfflineOperator() throws Exception {
+    JsonNode crew = json(read(isuru, "/api/session/crew", 200));
+    assertTrue(crew.get("expiresAt").isTextual());
+    for (JsonNode member : crew.get("members")) {
+      String verifier = member.get("offlineVerifier").asText();
+      assertTrue(verifier.startsWith("pbkdf2-sha256$"), "PINs entered online leave an offline check");
+      assertFalse(verifier.contains("2468") || verifier.contains("1357"));
+    }
+
+    Instant switchedAt = clock.now().plusSeconds(1);
+    clock.set(switchedAt.plusSeconds(1));
+    String op = envelope(UUID.randomUUID(), "loading:Start", 1L, "{\"tripId\":\"" + tripId + "\"}", kasunId);
+    clock.set(clock.now().plusSeconds(5));
+
+    String replay = "{\"switches\":[{\"userId\":\"" + kasunId + "\",\"at\":\"" + switchedAt + "\"}]}";
+    MvcResult replayed = http.perform(post("/api/session/operator/offline").cookie(isuru)
+        .contentType(MediaType.APPLICATION_JSON).content(replay)).andReturn();
+    assertEquals(200, replayed.getResponse().getStatus(), replayed.getResponse().getContentAsString());
+    assertEquals(kasunId.toString(), json(replayed.getResponse().getContentAsString()).get("operator").get("userId").asText());
+
+    String batch = "{\"deviceId\":\"" + UUID.randomUUID()
+        + "\",\"operations\":[{\"sequence\":1,\"command\":" + op + "}]}";
+    assertEquals("APPLIED", json(sync(isuru, batch)).get("results").get(0).get("status").asText());
+    assertEquals(kasunId.toString(), manifest(kasun).get("holder").get("userId").asText());
+
+    // Replaying the same history again, or naming someone off the crew, is refused.
+    assertEquals(409, http.perform(post("/api/session/operator/offline").cookie(isuru)
+        .contentType(MediaType.APPLICATION_JSON).content(replay)).andReturn().getResponse().getStatus());
+    String stranger = "{\"switches\":[{\"userId\":\"" + UUID.randomUUID() + "\",\"at\":\"" + clock.now() + "\"}]}";
+    assertEquals(409, http.perform(post("/api/session/operator/offline").cookie(isuru)
+        .contentType(MediaType.APPLICATION_JSON).content(stranger)).andReturn().getResponse().getStatus());
+  }
+
+  @Test
   void fiveWrongOperatorPinsStartAFiveMinuteRetryAfterPause() throws Exception {
     MvcResult locked = http.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
         .delete("/api/session/operator").cookie(isuru)).andReturn();
