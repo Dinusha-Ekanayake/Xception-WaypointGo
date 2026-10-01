@@ -162,6 +162,9 @@ public class ReceiptDataQuery implements ReceiptQuery {
         check =
             loadingQuery.manifest(r.tripId())
                 .flatMap(m -> m.lines().stream().filter(l -> l.orderId().equals(r.orderId())).findFirst());
+        if (check.isEmpty()) {
+          unavailable.add("loading check: no matching order in the trip manifest");
+        }
       } catch (DomainException e) {
         unavailable.add("loading check: " + e.getMessage());
       }
