@@ -21,6 +21,15 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-01 - fix: store screens read the paged orders list
+
+`fix/store-orders-page` · @kavindamihiran
+
+The store gateway treated `GET /api/orders?outlet=` as an array, but Ordering returns a keyset page, so the store workspace crashed with "filter is not a function" as soon as an account had an outlet. It now reads every page through `requestAll`, which takes the cursor parameter name because Ordering reads `cursor` where reference data reads `after`. The order timeline is fetched from `/timeline`, the path Ordering serves, not `/history`.
+Why: the store manager's workspace would not open on preview once the demo account was granted OUT001.
+Verified: `npm run typecheck`, `npm run build`; signed in as the store manager in headless Chrome on the fixed build against the preview API: Home, Orders and Deliveries render the seeded orders with no page error.
+Open: `/api/reference/outlets/{id}` and the calendar answer 403 for a store manager (no policy allows `reference:Read`), and the warehouse catalogue status and pending receipts endpoints do not exist yet; the screens show those as unavailable. The preview database was seeded by hand with `scripts/seed-scenarios.sql`.
+
 ## 2026-10-01 - feat: preview opens on a role picker
 
 `feat/preview-role-picker` · @kavindamihiran
