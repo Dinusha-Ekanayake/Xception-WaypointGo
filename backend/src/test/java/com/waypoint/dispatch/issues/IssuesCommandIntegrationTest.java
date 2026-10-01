@@ -101,6 +101,11 @@ class IssuesCommandIntegrationTest extends ReceiptIssuesSupport {
         ((Number) database.asSystem(ModuleRole.ORDERING, () -> database.queryOne(
             "SELECT count(*) AS n FROM ordering.orders WHERE source_issue_id = ?", issueId).get("n"))).longValue(),
         "exactly one new order linked to the original");
+    assertEquals(
+        1L,
+        ((Number) database.asSystem(ModuleRole.ORDERING, () -> database.queryOne(
+            "SELECT deferral_count AS n FROM ordering.orders WHERE source_issue_id = ?", issueId).get("n"))).longValue(),
+        "the redelivery carries a skip, so the next plan serves the outlet first (R-PLN-20)");
   }
 
   @Test

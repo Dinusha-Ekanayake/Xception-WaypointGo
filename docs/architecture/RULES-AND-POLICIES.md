@@ -236,7 +236,7 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-EXE-02 | Work must be recordable **offline** and reconcile when connectivity returns | Booklet | Binding |
 | R-EXE-03 | Interactions are designed for use when safely stopped | Booklet | Binding |
 | R-EXE-04 | **Early arrival waits.** Service starts at `max(arrival_time, window_open_time)`, never at arrival. Waiting time is recorded separately from service time | Booklet | Binding |
-| R-EXE-05 | A late arrival is **still delivered**. Lateness is recorded with a reason | Booklet | Binding |
+| R-EXE-05 | A late arrival is **still delivered**. Lateness is recorded with a reason. **Except at a mall outlet:** after its effective window closes the mall does not accept goods (R-PLN-14, R-PLN-29), so the stop is a failed delivery with reason `mall_window_closed`, and the dispatcher decides on a redelivery (C-7, EXE-20) | Booklet | Binding |
 | R-EXE-13 | Merged into R-EXE-04, which it duplicated | Booklet | Merged |
 | R-EXE-14 | **Lateness means arrival after `window_close_time`**, not arrival after the planned time. A stop can be later than planned and not late, or on time and late | Booklet | Binding |
 | R-EXE-15 | Lateness has a cost even though the goods are delivered: receiving staff may have moved to other duties, and a Fresh outlet may miss morning sales. Lateness is surfaced to the dispatcher and the store, not buried in a log | Booklet | Binding |
@@ -268,7 +268,7 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-ISS-01 | **One lifecycle.** OPEN to ASSIGNED (reassign allowed) to RESOLVED to CLOSED; OPEN or ASSIGNED may be CANCELLED with a reason. Resolved, closed and cancelled are history: a recurring problem is a new issue | Policy, settles conflict B17 | Policy |
 | R-ISS-02 | Every resolution and cancellation records an action from a fixed vocabulary (replacement, redelivery, write-off, no fault found, other), a reason, a person and a time. There is no return action (R-EXE-12, A-10) | Rule 8 | Policy |
 | R-ISS-03 | An issue names a depot, a description and at least one subject: order, trip, delivery, receipt, shortfall or vehicle. A vehicle alone is valid, because fault and disruption reports carry no trip. A named outlet must belong to the depot | Policy | Policy |
-| R-ISS-04 | A replacement answers only a loading shortfall about that trip and order, and `shortfall.resolved` names the shortfall when the issue was raised from one, so Loading resolves that shortfall alone; a redelivery answers only a failed, disputed, damaged, late or discrepant order the issue is about | Policy | Policy |
+| R-ISS-04 | A replacement answers only a loading shortfall about that trip and order, and `shortfall.resolved` names the shortfall when the issue was raised from one. A redelivery answers only an issue where **nothing reached the outlet**: a failed delivery or a stock discrepancy. A redelivery is the whole order (A-24), so for a disputed, damaged or late delivery it would ship the goods twice; those are resolved as write-off, no fault found or other, and the store reorders what is missing | Policy | Policy |
 | R-ISS-05 | A redelivery is requested at most once per issue and never for a past date. Ordering creates one order linked to the original (B17, A-24) | Policy | Policy |
 | R-ISS-06 | **Escalation timer.** An issue still OPEN and unassigned past its severity's deadline (P-20 to P-23) is stamped escalated once, with a history row, a metric and `issue.escalated` for Notification to route to the depot's dispatchers | Policy | Policy |
 | R-ISS-07 | **Who may raise what is policy data.** `issue:Raise` is evaluated on `wpt:issue:type:<TYPE>`, and the role policies name each role's types; scope is the issue's depot or outlet. Store: damaged goods, late delivery, other. Loader: loading shortfall, damaged goods, other. Driver: failed delivery, vehicle fault, road disruption, late delivery, damaged goods, other. Dispatcher: all | Policy, issue #13 decision 2 | Policy |
@@ -317,7 +317,7 @@ Binding for the delivered system even though Task 2B does not score them.
 
 ## 8. Conflicts found
 
-Six places where the sources disagree. C-1, C-2, C-3, C-5 and C-6 are settled; C-4 remains open.
+Seven places where the sources disagree. C-1, C-2, C-3, C-5, C-6 and C-7 are settled; C-4 remains open.
 
 | # | Conflict | Detail | Recommendation |
 | --- | --- | --- | --- |
@@ -327,6 +327,7 @@ Six places where the sources disagree. C-1, C-2, C-3, C-5 and C-6 are settled; C
 | **C-4** | **"Reefers are assumed to run at full capacity"** | Team draft. Meaning unclear: it could mean reefers are always loaded to capacity, that their capacity is not derated when chilled, or that refrigeration does not reduce usable volume | Undecided. See question Q2 |
 | **C-5** | **Longest distance first** | Team draft requires longest distances dispatched earliest. Delivery windows and the Fresh 03:30 to 08:00 window may require the opposite | Windows win; distance is a tie-break. Recorded as R-PLN-25 |
 | **C-6** | **No ordering on holidays** | Team draft. The booklet does not restrict *placing* an order, only *delivering* on a non-operating day. Blocking placement stops a store preparing Monday's order on a Sunday | **Resolved 2026-09-30 (D-I):** allow placement, roll the delivery date to the next operating day, and show the store the date it will arrive. R-ORD-09 withdrawn |
+| **C-7** | **A late arrival at a mall** | R-EXE-05 (booklet): a late arrival is still delivered. R-PLN-14 (booklet): a mall accepts deliveries only inside its fixed access window. After the window closes the goods physically cannot be unloaded | **Resolved 2026-10-02 (issue #13):** R-EXE-05 holds for ordinary outlets. At a mall outlet, arrival after the effective window is a failed delivery (`mall_window_closed`), raised as an issue; the dispatcher decides on a redelivery, which carries a skip so the next plan serves it first (EXE-20, ORD-15) |
 
 ---
 

@@ -239,6 +239,8 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 
 **Invariants.** One outcome per allocated stop, recorded once. Proof is attached to the outcome, never replaces it. **Server time decides**; the device clock is stored alongside for forensics but never used for a decision. Early arrival waits: service time starts at window open, not at arrival. A late arrival is still delivered and flagged with a reason.
 
+**Late at a mall.** After a mall's effective window closes the goods cannot be unloaded, so the stop is recorded `failed` with reason `mall_window_closed`, not delivered late (C-7, EXE-20).
+
 **Failure modes.** Offline for a whole run: every outcome queues locally, and the UI acknowledges only after the local write is durable. Camera denied or photo too large: delivery may complete with a recorded reason and is flagged lower-evidence, because a device limitation must not block the work. Vehicle breakdown: vehicle set to `fault`, issue raised, remaining stops released for replanning, goods disposition recorded.
 
 **Connections.** The most offline-sensitive module. Every command it accepts is designed to be replayable and version-checked, because it will be replayed.
@@ -287,6 +289,8 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 **Queries:** `openIssues(depot)` (most severe first, keyset), `issuesFor(subject)`. Web: `/api/issues?depot=`, `/by-subject?type=&id=`, `/{id}`, `/{id}/history`.
 **Publishes:** `issue.raised`, `issue.resolved`, `issue.escalated`, `shortfall.resolved` (naming the shortfall when the issue came from one), `redelivery.requested`.
 **Consumes:** `loading.shortfall`, `delivery.failed`, `vehicle.fault_reported`, `road.disruption_reported`, `receipt.disputed`, `receipt.confirmed` (partial only), `warehouse.discrepancy_found`. One issue per source event.
+
+**Redelivery.** Only when nothing reached the outlet (failed delivery, stock discrepancy), at most once per issue, and the new order carries a skip so the next plan serves it first (R-ISS-04, R-ISS-05, ORD-15).
 
 **Invariants.** An issue links at least one subject: order, trip, delivery, receipt, shortfall or vehicle (a vehicle alone is valid). A shortage investigation is never resolved by the system (R-RCP-07). Resolution requires a recorded action and a reason. A redelivery links a new order while preserving the original proof and history.
 

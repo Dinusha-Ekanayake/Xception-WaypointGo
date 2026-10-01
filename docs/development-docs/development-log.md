@@ -21,6 +21,18 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-02 - fix(issues): redeliver only when nothing arrived; a redelivery keeps its priority (issue #13)
+
+`feat/receipt-issues` · @Oxshadha
+
+- `issue:ScheduleRedelivery` now answers only a failed delivery or a stock discrepancy. A disputed, damaged or late delivery is refused (ISS-08): a redelivery is the whole order and would ship the goods twice. A-24 is now decided.
+- `Order.redeliveryOf` carries the original's skips plus one, so Planning serves the outlet first next time (ORD-15).
+- Settled conflict C-7: a late arrival at a mall is a failed delivery, `mall_window_closed` (EXE-20). R-EXE-05 still holds elsewhere. #12 implements the detection.
+
+Why: review of A-24 and of late deliveries to malls.
+Verified: on a fresh database, `TEST_DATABASE_URL=... mvn test`, 391 tests, 0 failures.
+Open: comment on #12 for EXE-20; partial redelivery as a follow-up for Ordering and Warehouse.
+
 ## 2026-10-02 - fix(issues): raise rights build on each role's current policy (issue #13)
 
 `feat/receipt-issues` · @Oxshadha

@@ -56,11 +56,14 @@ public record Issue(
   public static final Set<String> SUBJECT_TYPES =
       Set.of("order", "trip", "delivery", "receipt", "shortfall", "vehicle");
 
-  /** Problems a redelivery can answer: goods that did not reach the outlet intact. */
+  /**
+   * Problems a redelivery can answer: nothing reached the outlet. A redelivery
+   * is the whole order (A-24), so where most goods arrived (a disputed, damaged
+   * or late delivery) it would ship the order twice; those are resolved without
+   * one, and the store reorders what is missing.
+   */
   public static final Set<IssueType> REDELIVERABLE =
-      EnumSet.of(
-          IssueType.FAILED_DELIVERY, IssueType.RECEIPT_DISPUTE, IssueType.DAMAGED_GOODS,
-          IssueType.LATE_DELIVERY, IssueType.STOCK_DISCREPANCY, IssueType.OTHER);
+      EnumSet.of(IssueType.FAILED_DELIVERY, IssueType.STOCK_DISCREPANCY);
 
   /** @param by the person who decided; never the system for an investigation */
   public record Resolution(ResolutionAction action, String note, UUID by, Instant at) {}
@@ -135,7 +138,11 @@ public record Issue(
       UUID orderId, LocalDate requestedDate, LocalDate today, String note, UUID actor, Instant at) {
     if (!REDELIVERABLE.contains(type)) {
       throw new DomainException(
-          ErrorCode.CONFLICT, "a " + type + " issue is not answered by a redelivery", List.of("R-ISS-04"));
+          ErrorCode.CONFLICT,
+          "a " + type + " issue is not answered by a redelivery: goods reached the outlet, and a redelivery"
+              + " resends the whole order. Resolve it as write-off, no fault found or other; the store"
+              + " reorders the missing lines (A-24)",
+          List.of("R-ISS-04"));
     }
     if (redeliveryRequestedAt.isPresent()) {
       throw new DomainException(

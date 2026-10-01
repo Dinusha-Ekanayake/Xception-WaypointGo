@@ -145,6 +145,23 @@ class IssueTest {
   }
 
   @Test
+  void aRedeliveryAnswersOnlyAnIssueWhereNothingArrived() {
+    for (IssueType arrived : List.of(IssueType.RECEIPT_DISPUTE, IssueType.DAMAGED_GOODS, IssueType.LATE_DELIVERY)) {
+      DomainException refused =
+          assertThrows(
+              DomainException.class,
+              () -> raise(arrived, false).scheduleRedelivery(order, TODAY, TODAY, "resend", DISPATCHER, RAISED),
+              arrived + ": goods reached the outlet; a whole-order redelivery would ship them twice (A-24)");
+      assertEquals(List.of("R-ISS-04"), refused.rules());
+    }
+    assertEquals(
+        ResolutionAction.REDELIVERY,
+        raise(IssueType.STOCK_DISCREPANCY, false)
+            .scheduleRedelivery(order, TODAY, TODAY, "cancelled at the warehouse", DISPATCHER, RAISED)
+            .resolution().orElseThrow().action());
+  }
+
+  @Test
   void anUnassignedIssueEscalatesOnceAtItsDeadline() {
     Issue issue = raise(IssueType.DAMAGED_GOODS, false);
     Duration hour = Duration.ofHours(1);
