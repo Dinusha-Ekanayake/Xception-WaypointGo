@@ -1,0 +1,39 @@
+# VPS overlay for the judge deployment. Layered over the root compose.yaml:
+#
+#   docker compose -f compose.yaml -f deploy/vps/compose.vps.yaml up -d
+#
+# It changes two things and nothing else: the frontend stops publishing a host
+# port, and Caddy becomes the only public listener, terminating TLS on 80/443.
+# Docker publishes ports ahead of ufw, so a port left published here is open to
+# the internet whatever the firewall says. PostgreSQL and the backend stay bound
+# to 127.0.0.1 by compose.yaml.
+#
+# Paths are relative to the repository root (the first -f file sets the project
+# directory). Required in root .env: SITE_ADDRESS. See docs/deployment.md.
+
+services:
+  waypoint:
+    ports: !reset []
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?Set SITE_ADDRESS to the public hostname}
+    volumes:
+      - ./deploy/vps/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      waypoint:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  # Certificates and ACME account keys. Losing this volume means re-issuing, and
+  # Let's Encrypt rate-limits repeated issuance for the same name.
+  caddy-data:
+  caddy-config:
