@@ -77,7 +77,7 @@ Updated after every finished step. Branch `feat/receipt-issues`, from `dev` at `
      - HIGH: shortfall, failed delivery, receipt dispute.
      - MEDIUM: road disruption, stock discrepancy.
    - **Escalation deadline** for an issue still OPEN: CRITICAL 15 min, HIGH 60, MEDIUM 240, LOW 1440.
-   - Escalation stamps `escalated_at`, writes a history row and counts a metric. It publishes no new event, until Notification exists.
+   - Escalation stamps `escalated_at`, writes a history row, counts a metric and publishes `issue.escalated` for Notification to route (added after the first review, so escalation does not depend on someone watching the inbox).
 9. **Custody chain view (R-RCP-08, A-17).** `GET /api/receipts/{orderId}/custody` puts the receipt next to the delivery facts it captured, the loading check and the proof. The last two come through optional providers (see the dependency table).
 10. **Receipt does not consume `delivery.failed`.** There is nothing to accept. Issues consumes it.
 11. **An issue links at least one subject.** A vehicle counts, because fault and disruption events carry no trip.

@@ -50,6 +50,16 @@ class IssuesConsumersIntegrationTest extends ReceiptIssuesSupport {
     assertEquals("LOADING_SHORTFALL", raised.get(0).get("type").asText());
     assertEquals("HIGH", raised.get(0).get("severity").asText());
     assertEquals(outlet.outletId(), raised.get(0).get("outletId").asText(), "the outlet comes from Ordering");
+
+    String issueId = raised.get(0).get("issueId").asText();
+    send(dispatcher,
+        envelope("issue:RecordReplacement", 1L,
+            "{\"issueId\":\"" + issueId + "\",\"tripId\":\"" + event.tripId() + "\",\"orderId\":\""
+                + order.orderId() + "\",\"note\":\"carton from the reserve\"}"),
+        200);
+    JsonNode resolved = mapper.readTree(String.valueOf(outbox(issueId, "shortfall.resolved").get(0).get("payload")));
+    assertEquals(shortfall.toString(), resolved.get("shortfallId").asText(),
+        "Loading resolves just this shortfall, not every open one of the trip and order");
   }
 
   @Test
@@ -129,9 +139,14 @@ class IssuesConsumersIntegrationTest extends ReceiptIssuesSupport {
 
     escalation.runAt(raisedAt.plus(Duration.ofMinutes(60)));
     assertEquals(Optional.of(raisedAt.plus(Duration.ofMinutes(60))), stored(issueId).escalatedAt());
+    assertEquals(1, outbox(issueId.toString(), "issue.escalated").size(), "Notification routes it (R-ISS-06)");
+    JsonNode escalatedEvent =
+        mapper.readTree(String.valueOf(outbox(issueId.toString(), "issue.escalated").get(0).get("payload")));
+    assertEquals(60, escalatedEvent.get("waitedMinutes").asLong());
     long version = stored(issueId).rowVersion();
     escalation.runAt(raisedAt.plus(Duration.ofHours(3)));
     assertEquals(version, stored(issueId).rowVersion(), "escalates once");
+    assertEquals(1, outbox(issueId.toString(), "issue.escalated").size(), "and announces once");
     JsonNode history = read(dispatcher, "/api/issues/" + issueId + "/history", 200);
     assertEquals("escalated", history.get(history.size() - 1).get("action").asText());
     assertFalse(history.get(history.size() - 1).get("reason").asText().isBlank());

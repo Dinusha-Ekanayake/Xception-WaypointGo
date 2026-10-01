@@ -1,5 +1,6 @@
 package com.waypoint.dispatch.issues.application;
 
+import com.waypoint.dispatch.issues.contract.IssueEvents.IssueEscalated;
 import com.waypoint.dispatch.issues.contract.IssueViews.IssueSeverity;
 import com.waypoint.dispatch.issues.contract.IssueViews.IssueStatus;
 import com.waypoint.dispatch.issues.domain.Issue;
@@ -9,6 +10,7 @@ import com.waypoint.dispatch.issues.infrastructure.JdbcIssueRepository.Backlog;
 import com.waypoint.dispatch.issues.infrastructure.JdbcIssueRepository.Stored;
 import com.waypoint.dispatch.platform.db.Database;
 import com.waypoint.dispatch.platform.db.ModuleRole;
+import com.waypoint.dispatch.platform.messaging.EventPublisher;
 import com.waypoint.dispatch.platform.observability.Metrics;
 import com.waypoint.dispatch.platform.scheduling.ScheduledJob;
 import com.waypoint.dispatch.shared.domain.Actor;
@@ -27,8 +29,8 @@ import org.springframework.stereotype.Component;
 /**
  * An escalation timer: "waiting forever" is not a state. An issue still open and
  * unassigned past its severity's deadline is stamped escalated, with a history
- * row and a metric, once (decision 8). It publishes no event until Notification
- * exists to route one; the dispatcher's inbox shows the stamp.
+ * row, a metric and {@code issue.escalated}, once (R-ISS-06). Notification routes
+ * the event to the depot's dispatchers; the inbox shows the stamp meanwhile.
  *
  * <p>Also refreshes the backlog gauges: open issues by severity and the age of
  * the oldest, which are the detection signals for an inbox nobody is clearing.
@@ -37,13 +39,16 @@ import org.springframework.stereotype.Component;
 public class IssueEscalationJob implements ScheduledJob {
   private final Database database;
   private final JdbcIssueRepository issues;
+  private final EventPublisher events;
   private final Metrics metrics;
   private final Map<IssueSeverity, AtomicLong> open = new EnumMap<>(IssueSeverity.class);
   private final AtomicLong oldestOpenSeconds = new AtomicLong();
 
-  public IssueEscalationJob(Database database, JdbcIssueRepository issues, Metrics metrics) {
+  public IssueEscalationJob(
+      Database database, JdbcIssueRepository issues, EventPublisher events, Metrics metrics) {
     this.database = database;
     this.issues = issues;
+    this.events = events;
     this.metrics = metrics;
     for (IssueSeverity s : IssueSeverity.values()) {
       AtomicLong count = new AtomicLong();
@@ -114,6 +119,11 @@ public class IssueEscalationJob implements ScheduledJob {
         current.issueId(), Optional.of(IssueStatus.OPEN), IssueStatus.OPEN, "escalated",
         "unassigned past the " + current.severity() + " deadline of " + deadline.toMinutes() + " minutes",
         Actor.SYSTEM_ID, Optional.empty(), now);
+    events.publish(
+        Actor.SYSTEM,
+        new IssueEscalated(
+            current.issueId(), current.type(), current.severity(), current.depotCode(), current.outletId(), now,
+            Duration.between(current.raisedAt(), now).toMinutes()));
     metrics.increment("waypoint.issue.escalated", "severity", current.severity().name());
     return true;
   }

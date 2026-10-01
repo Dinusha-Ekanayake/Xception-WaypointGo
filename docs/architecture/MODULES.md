@@ -285,7 +285,7 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 
 **Commands:** `RaiseIssue`, `AssignIssue`, `ResolveIssue`, `RecordReplacement`, `ScheduleRedelivery`, `CloseIssue`, `CancelIssue`. Raise rights by type are policy data (R-ISS-07).
 **Queries:** `openIssues(depot)` (most severe first, keyset), `issuesFor(subject)`. Web: `/api/issues?depot=`, `/by-subject?type=&id=`, `/{id}`, `/{id}/history`.
-**Publishes:** `issue.raised`, `issue.resolved`, `shortfall.resolved`, `redelivery.requested`.
+**Publishes:** `issue.raised`, `issue.resolved`, `issue.escalated`, `shortfall.resolved` (naming the shortfall when the issue came from one), `redelivery.requested`.
 **Consumes:** `loading.shortfall`, `delivery.failed`, `vehicle.fault_reported`, `road.disruption_reported`, `receipt.disputed`, `receipt.confirmed` (partial only), `warehouse.discrepancy_found`. One issue per source event.
 
 **Invariants.** An issue links at least one subject: order, trip, delivery, receipt, shortfall or vehicle (a vehicle alone is valid). A shortage investigation is never resolved by the system (R-RCP-07). Resolution requires a recorded action and a reason. A redelivery links a new order while preserving the original proof and history.
@@ -318,6 +318,7 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 | `delivery.completed` | Store manager | Proof is available to review |
 | `delivery.failed` | Dispatcher, store manager | Requires a decision |
 | `issue.raised` | Dispatcher | Fault, delay, damage, access problem |
+| `issue.escalated` | Dispatcher | An issue waited unassigned past its severity's deadline (R-ISS-06) |
 | `vehicle.fault_reported` | Dispatcher | A driver reported the vehicle; the dispatcher decides its status |
 | `receipt.disputed` | Dispatcher | The store disagrees with what arrived |
 | `vehicle.status_changed` | Dispatcher | Fleet availability changed |
@@ -467,7 +468,7 @@ Modules connect three ways: a contract query (synchronous, read only), an event 
 | `delivery.started`, `delivery.completed`, `delivery.failed`, `eta.changed` | Execution | Ordering, Receipt, Warehouse (delivered), Issues, Notification |
 | `vehicle.fault_reported`, `road.disruption_reported` | Execution | Issues, Notification |
 | `receipt.confirmed`, `receipt.disputed`, `receipt.auto_closed` | Receipt | Ordering, Issues, Notification |
-| `issue.raised`, `issue.resolved` | Issues | Notification |
+| `issue.raised`, `issue.resolved`, `issue.escalated` | Issues | Notification |
 | `shortfall.resolved` | Issues | Loading |
 | `redelivery.requested` | Issues | Ordering |
 | `warehouse.order_status_changed` | Warehouse | Ordering, Notification |

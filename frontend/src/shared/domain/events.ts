@@ -187,7 +187,23 @@ export type EventPayloads = {
     action: string;
     at: IsoInstant;
   };
-  "shortfall.resolved": { issueId: Uuid; tripId: Uuid; orderId: Uuid; resolution: string };
+  "issue.escalated": {
+    issueId: Uuid;
+    issueType: IssueType;
+    severity: IssueSeverity;
+    depotCode: string;
+    outletId: string | null;
+    escalatedAt: IsoInstant;
+    waitedMinutes: number;
+  };
+  /** shortfallId names the one shortfall a replacement answers; null for one raised by hand. */
+  "shortfall.resolved": {
+    issueId: Uuid;
+    tripId: Uuid;
+    orderId: Uuid;
+    resolution: string;
+    shortfallId: Uuid | null;
+  };
   "redelivery.requested": {
     issueId: Uuid;
     originalOrderId: Uuid;

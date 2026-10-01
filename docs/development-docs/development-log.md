@@ -21,6 +21,19 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-02 - fix(issues): name the shortfall, announce escalation, correct the gaps (issue #13)
+
+`feat/receipt-issues` · @Oxshadha
+
+- `shortfall.resolved` gains an optional `shortfallId`, so Loading can resolve the one shortfall a replacement answers (ISS-07).
+- New event `issue.escalated`, published once by `IssueEscalationJob` and routed to dispatchers in MODULES §9.
+- A-29 is rewritten as temporary: the team's driver scope is vehicle and date (`driverVehicleOn`, #5).
+- The walkthrough's gaps table is checked against each module issue's full description.
+
+Why: review of the open gaps against the module issues.
+Verified: `TEST_DATABASE_URL=... mvn test`, 349 tests, 0 failures; frontend `npm run typecheck` and `npm test` (12) pass.
+Open: comments for #5, #10 and #19 (see the walkthrough), and the A-24 decision.
+
 ## 2026-10-02 - docs: receipt and issues walkthrough and registers (issue #13, step 5)
 
 `feat/receipt-issues` · @Oxshadha

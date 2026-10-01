@@ -16,7 +16,7 @@ All paths are under `backend/src/main/java/com/waypoint/dispatch/` unless they s
 
 | Layer | Receipt (`receipt/`) | Issues (`issues/`) |
 | --- | --- | --- |
-| contract | `ReceiptViews` gains `tripId`, `depotCode`, `deliveredAt`, `autoClosesAt`, `late`, `CustodyChainView`, `DeliveryFacts`; `ReceiptQuery.custodyChain`. Additive only | `IssueViews.IssueHistoryView`. Additive only |
+| contract | `ReceiptViews` gains `tripId`, `depotCode`, `deliveredAt`, `autoClosesAt`, `late`, `CustodyChainView`, `DeliveryFacts`; `ReceiptQuery.custodyChain`. Additive only | `IssueViews.IssueHistoryView`; new event `IssueEscalated` (`issue.escalated`); `ShortfallResolved` gains an optional `shortfallId`. Additive only |
 | domain | `Receipt`, `ReceiptLine`, `ReceiptStateMachine`, `AutoClosePolicy`, `ReceiptParameters` | `Issue`, `IssueLifecycle`, `ResolutionAction`, `SeverityPolicy` |
 | application | `ReceiptAnswerHandler` and `ReceiptHandlers` (three commands), `ReceiptConsumers.OnDeliveryCompleted`, `ReceiptAutoCloseJob`, `ReceiptDataQuery` | `RaiseIssueHandler`, `IssueCommandHandler` and `IssueHandlers` (six decisions), `IssueScope`, `IssuesConsumers` (seven events), `IssueEscalationJob`, `IssueDataQuery` |
 | infrastructure | `JdbcReceiptRepository` | `JdbcIssueRepository` |
@@ -99,7 +99,7 @@ Outside the two modules:
 `IssueCommandHandler` uses the same scope, version and transaction pattern as receipts. Every decision writes a history row with the actor, the action and the reason.
 - **Assign:** OPEN → ASSIGNED, and a reassign is allowed.
 - **Resolve:** needs an action and a note. An investigation is refused for the system actor.
-- **Record a replacement:** loading shortfalls only. Publishes `shortfall.resolved` for Loading.
+- **Record a replacement:** loading shortfalls only. Publishes `shortfall.resolved` for Loading, naming the shortfall when the issue was raised from one, so Loading resolves that shortfall alone (ISS-07).
 - **Schedule a redelivery:** exactly once per issue, never for a past date. Publishes `redelivery.requested`, and Ordering creates one linked order.
 - **Close:** RESOLVED → CLOSED.
 - **Cancel:** needs a reason.
@@ -107,7 +107,7 @@ Outside the two modules:
 
 ### Escalation (`issues.escalation`, every 5 minutes)
 
-`IssueEscalationJob` stamps an OPEN, unassigned issue once at its severity's deadline (P-20 to P-23), with a history row and a metric. It also refreshes the gauges for open issues by severity and the oldest open age.
+`IssueEscalationJob` stamps an OPEN, unassigned issue once at its severity's deadline (P-20 to P-23), with a history row and a metric, and publishes one `issue.escalated` for Notification to route to the depot's dispatchers. It also refreshes the gauges for open issues by severity and the oldest open age.
 
 ### Reads
 
@@ -152,12 +152,16 @@ cd ../frontend && npm run typecheck && npm test
 
 ## Known gaps and who owns them
 
-| Gap | Owner |
-| --- | --- |
-| No relay or scheduler runs the consumers and the two jobs; the tests stand in for both | Platform, #6 |
-| The custody view's loading check and proof are "unavailable" until Loading and Execution provide their query beans; RCP-06 and RCP-07 are then testable end to end | Loading (`feat/loading`), Execution |
-| `redelivery.requested` carries no lines, so a redelivery is the whole order (A-24) | Issues with Ordering |
-| `shortfall.resolved` names no shortfall id, so Loading resolves every open shortfall of the trip and order | Issues with Loading |
-| Escalation and raised issues reach the dispatcher only through the inbox until Notification consumes them (R-NOT-02, R-NOT-03) | Notification |
-| An assignee is checked to exist, not to hold the issue's depot | Issues follow-up |
-| The store and dispatcher screens for receipts and the issue inbox | #18, #19 |
+Checked against the full description of each module issue. A gap goes to the module that owns the code: a comment or checklist item on that issue, never a separate issue for its own sake.
+
+| Gap | Owner | State |
+| --- | --- | --- |
+| No relay or scheduler runs the consumers and the two jobs; the tests stand in for both | #6 Event backbone, open. Its checklist names receipt auto-close | Covered |
+| The custody view's loading check and proof are "unavailable" until their query beans exist (`LoadingQuery.manifest`, `ExecutionQuery.deliveryRecord`); RCP-06 and RCP-07 then become testable end to end | #10 Loading and #12 Execution, open; both list these queries | Covered |
+| Routing `issue.raised`, `issue.escalated` and `receipt.disputed` to dispatchers | #14 Notification, open. Its matrix covers every catalogue event; MODULES §9 now has the `issue.escalated` row | Covered |
+| Loading's consumer should resolve only the shortfall `shortfall.resolved` names (ISS-07) | #10 Loading, open. Not in its description: comment needed | Needs a comment on #10 |
+| Driver raise scope by vehicle and date instead of the temporary depot grant (A-29) | #13 code, using `driverVehicleOn` from #5, open | Needs a comment on #5; #13 follow-up |
+| An assignee is checked to exist, not to hold the issue's depot | #13, using `scopeOf` from #5 | #13 follow-up, blocked on #5 |
+| A redelivery is always the whole order (A-24 asks the Issues owner to decide) | #13 | Decision pending in #13 |
+| The dispatcher's issues inbox screen | #19 Dispatcher UI lists it, but #19 closed on 2026-09-30 before this backend existed; on `dev` the screen is a placeholder | Ask the owner to reopen #19, or open a follow-up linked to it |
+| The store's receipt screen | #18 Store manager UI, closed; the screen exists and calls these endpoints | Done |

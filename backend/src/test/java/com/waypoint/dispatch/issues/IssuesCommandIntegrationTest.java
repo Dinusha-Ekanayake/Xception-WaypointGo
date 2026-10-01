@@ -123,6 +123,10 @@ class IssuesCommandIntegrationTest extends ReceiptIssuesSupport {
         200);
 
     assertEquals(1, outbox(issueId.toString(), "shortfall.resolved").size());
+    assertTrue(
+        mapper.readTree(String.valueOf(outbox(issueId.toString(), "shortfall.resolved").get(0).get("payload")))
+            .get("shortfallId").isNull(),
+        "raised by hand, so no single shortfall is named");
     assertEquals("REPLACEMENT", read(dispatcher, "/api/issues/" + issueId, 200).get("resolutionAction").asText());
   }
 

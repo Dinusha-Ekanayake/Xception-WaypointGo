@@ -123,7 +123,11 @@ final class IssueHandlers {
       CommandPayload p = CommandPayload.of(command);
       return List.of(
           new ShortfallResolved(
-              after.issueId(), p.uuid("tripId"), p.uuid("orderId"), after.resolution().orElseThrow().note()),
+              after.issueId(), p.uuid("tripId"), p.uuid("orderId"), after.resolution().orElseThrow().note(),
+              after.subjects().stream()
+                  .filter(sub -> sub.type().equals("shortfall"))
+                  .map(sub -> UUID.fromString(sub.id()))
+                  .findFirst()),
           resolved(after));
     }
   }
