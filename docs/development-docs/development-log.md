@@ -21,6 +21,15 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-01 - feat: preview role addresses
+
+`feat/preview-role-hostnames` · @kavindamihiran
+
+Preview gets `dispatcher-preview.` to `auditor-preview.waypointgo.live`, served by the preview stack and pinned to the role the same way; the certificate request includes them. See [deployment.md](../deployment.md).
+Why: the role addresses could only be tried on production.
+Verified: `npm test` (10 pass), `npm run typecheck`, `npm run build`; `nginx -t` and the preview role names reaching the preview server block in a throwaway container.
+Open: six proxied A records for the `-preview` names. nginx is deployed with production, so these names answer only once the proxy is replaced.
+
 ## 2026-10-01 - feat: one address per role
 
 `feat/role-hostnames` · @kavindamihiran
