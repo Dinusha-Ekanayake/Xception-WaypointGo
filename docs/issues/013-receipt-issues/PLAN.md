@@ -10,9 +10,9 @@ Updated after every finished step. Branch `feat/receipt-issues`, from `dev` at `
 | --- | --- | --- | --- |
 | 0 Plan | **done** | `84a09c7` | |
 | 1 Domains | **done** | `8696e96` | `receipt/domain/*`, `issues/domain/*`; `ReceiptTest`, `ReceiptStateMachineTest`, `IssueTest` (24 tests) |
-| 2 Schema, repositories, reads | **done** | `feat: receipt and issues schema and reads` | Migrations `20261002T0100`, `T0200`; `JdbcReceiptRepository`, `JdbcIssueRepository`; `ReceiptDataQuery`, `IssueDataQuery`; `/api/receipts`, `/api/issues`; `ReceiptView` fields, `CustodyChainView`, `IssueHistoryView` mirrored in TS; 11 schema tests |
-| 3 Receipt commands, consumer, auto-close, Ordering `OnReceiptDisputed` | todo — start here | | |
-| 4 Issues commands, consumers, escalation, catalogue and raise rights | todo | | |
+| 2 Schema, repositories, reads | **done** | `7083be7` | Migrations `20261002T0100`, `T0200`; `JdbcReceiptRepository`, `JdbcIssueRepository`; `ReceiptDataQuery`, `IssueDataQuery`; `/api/receipts`, `/api/issues`; `ReceiptView` fields, `CustodyChainView`, `IssueHistoryView` mirrored in TS; 11 schema tests |
+| 3 Receipt commands, consumer, auto-close, Ordering `OnReceiptDisputed` | **done** | `feat(receipt): confirm, dispute, delivery consumer and auto-close` | `ReceiptAnswerHandler` and its three handlers, `ReceiptConsumers.OnDeliveryCompleted`, `ReceiptAutoCloseJob`, `OrderingConsumers.OnReceiptDisputed`. Migration `20261002T0300` flips the receipt actions here, not in step 4, because `CommandPathIntegrationTest` fails a handler whose row says unimplemented. 11 tests |
+| 4 Issues commands, consumers, escalation, catalogue and raise rights | todo — start here | | Migration `20261002T0400` for the issue actions and the version-3 role policies |
 | 5 Docs closeout | todo | | WALKTHROUGH, EDGE-CASES, RULES, ASSUMPTIONS, MODULES, development log |
 
 **Environment.** Database tests need `TEST_DATABASE_URL` pointing at a dedicated database, for example `postgresql://waypoint:local-testing-only@127.0.0.1:55432/waypoint_test`. Migrations are checksummed: after editing an unmerged migration, drop and recreate the test database.
@@ -92,7 +92,7 @@ Updated after every finished step. Branch `feat/receipt-issues`, from `dev` at `
 | 1 | Domains: `Receipt`, `ReceiptStateMachine`, `AutoClosePolicy`, `ReceiptParameters`; `Issue`, `IssueLifecycle`, `ResolutionAction`, `SeverityPolicy` | State machine edges and `onEvent`; partial arithmetic; late report; a confirmation with no delivery (RCP-04); a resolution needs an action and a reason; the system cannot resolve an investigation |
 | 2 | Migrations `20261002T0100_receipt_confirmations`, `20261002T0200_issues_issues`; repositories; `ReceiptDataQuery`, `IssueDataQuery`; read controllers; additive contract changes | Scope by outlet, depot and system; version guard; keyset paging; another outlet's manager gets 403 plus audit (RCP-05) |
 | 3 | Receipt handlers, `OnDeliveryCompleted`, `ReceiptAutoCloseJob`, Ordering `OnReceiptDisputed` | Every command over HTTP; a duplicate delivery makes one receipt; auto-close one second either side of 24 h, and a re-run is a no-op (RCP-02); a dispute after auto-close is accepted and linked (RCP-08); a disputed receipt never auto-closes |
-| 4 | Issues handlers, consumers, `IssueEscalationJob`, migration `20261002T0300` (catalogue flags, raise rights) | Every command; a driver resolving gets 403; a store raising VEHICLE_FAULT gets 403; a redelivery emits exactly one `redelivery.requested`; a replacement emits `shortfall.resolved`; each consumed event makes one issue; a partial receipt opens one investigation (RCP-01, RCP-06); escalation |
+| 4 | Issues handlers, consumers, `IssueEscalationJob`, migration `20261002T0400` (catalogue flags, raise rights) | Every command; a driver resolving gets 403; a store raising VEHICLE_FAULT gets 403; a redelivery emits exactly one `redelivery.requested`; a replacement emits `shortfall.resolved`; each consumed event makes one issue; a partial receipt opens one investigation (RCP-01, RCP-06); escalation |
 | 5 | WALKTHROUGH and register updates | Full suite and frontend checks |
 
 ## Out of scope, and who owns it

@@ -21,6 +21,20 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-02 - feat(receipt): confirm, dispute, delivery consumer and auto-close (issue #13, step 3)
+
+`feat/receipt-issues` · @Oxshadha
+
+- **Commands:** `receipt:Confirm`, `receipt:ConfirmPartial` and `receipt:Dispute` share one flow, `ReceiptAnswerHandler`. A missing delivery is 404 (RCP-04). Another outlet is 403 plus audit (RCP-05); scope is read as the system in its own transaction, so the bus can answer forbidden rather than absent.
+- **Delivery consumer:** `delivery.completed` opens a PENDING receipt with the order's lines and the driver named, once per delivery.
+- **Auto-close:** `ReceiptAutoCloseJob` closes silence after 24 h as the system (RCP-02). A shortage after auto-close is accepted as late and announced as `receipt.disputed` (RCP-08).
+- **Ordering:** gains `OnReceiptDisputed`. A dispute marks the order RECEIVED; a late one leaves it UNCONFIRMED and is counted.
+- **Migration** `20261002T0300` flips the receipt actions.
+
+Why: issue #13. See [PLAN.md](../issues/013-receipt-issues/PLAN.md).
+Verified: `TEST_DATABASE_URL=... mvn test`, 338 tests, 0 failures.
+Open: steps 4 and 5.
+
 ## 2026-10-02 - feat: receipt and issues schema and reads (issue #13, step 2)
 
 `feat/receipt-issues` · @Oxshadha
