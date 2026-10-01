@@ -9,6 +9,8 @@ export type Problem = {
   instance: string;
   /** Rule identifiers such as R-PLN-06, from docs/architecture/RULES-AND-POLICIES.md. */
   violations: string[];
+  /** Any other members of the problem body, such as per-line stock availability. */
+  extensions: Record<string, unknown>;
 };
 
 export class ApiError extends Error {
@@ -36,7 +38,8 @@ export class ApiError extends Error {
 }
 
 export function parseProblem(status: number, body: unknown): Problem {
-  const record = (body ?? {}) as Partial<Problem>;
+  const record = (body ?? {}) as Partial<Problem> & Record<string, unknown>;
+  const { type: _t, title: _ti, status: _s, detail: _d, instance: _i, violations: _v, ...extensions } = record;
   return {
     type: record.type ?? "about:blank",
     title: record.title ?? "ERROR",
@@ -44,5 +47,6 @@ export function parseProblem(status: number, body: unknown): Problem {
     detail: record.detail ?? "",
     instance: record.instance ?? "",
     violations: Array.isArray(record.violations) ? record.violations : [],
+    extensions,
   };
 }

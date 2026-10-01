@@ -5,6 +5,8 @@ import com.waypoint.dispatch.shared.error.ErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.ErrorResponse;
@@ -14,6 +16,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 /** Maps domain failures onto RFC 9457 application/problem+json. */
 @RestControllerAdvice
 public class ApiExceptionHandler {
+  private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
+
 
   @ExceptionHandler(DomainException.class)
   public ResponseEntity<Map<String, Object>> onDomain(DomainException e, HttpServletRequest req) {
@@ -55,6 +59,9 @@ public class ApiExceptionHandler {
       status = spring.getStatusCode().value();
       title = status == 404 ? "NOT_FOUND" : "REQUEST_REJECTED";
       detail = e.getMessage();
+    } else {
+      // The client sees a generic 500; the cause must still reach the log.
+      log.error("Unhandled exception on {}", req.getRequestURI(), e);
     }
     ProblemDetails problem =
         new ProblemDetails(

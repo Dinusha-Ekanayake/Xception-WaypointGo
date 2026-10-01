@@ -86,10 +86,17 @@ public class WaypointApplication implements ApplicationRunner {
       System.out.println("Created account " + userId + " as " + env.get("ACCOUNT_ROLE") + ".");
       System.exit(0);
     }
+    if (commands.contains("account-grant-depot")) {
+      var env = System.getenv();
+      String depot = required(env, "ACCOUNT_DEPOT");
+      accounts.grantDepot(required(env, "ACCOUNT_EMAIL"), depot);
+      System.out.println("Granted depot " + depot + " to " + env.get("ACCOUNT_EMAIL") + ".");
+      System.exit(0);
+    }
     System.out.println(
         "Unknown command "
             + commands
-            + ". Use: migrate | import-reference | account-create, or no argument to serve.");
+            + ". Use: migrate | import-reference | account-create | account-grant-depot, or no argument to serve.");
     System.exit(2);
   }
 
