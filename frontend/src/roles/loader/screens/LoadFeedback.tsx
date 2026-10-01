@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Icon } from "@shared/ui";
 import { BigButton, Sheet } from "../ui.tsx";
+import { useT } from "../i18n.tsx";
 
 // Small states around the load sheet, from Figma "08 Loader · Phone":
 // E5 order loaded with Undo, E6 out-of-sequence warning, E7 hand back,
@@ -12,6 +13,7 @@ export type ToastMessage = { title: string; detail?: string; undo?: () => void }
 
 /** E5 and E8: a short confirmation at the bottom of the screen, with Undo when it applies. */
 export function Toast({ message, onDone }: { message: ToastMessage; onDone: () => void }): React.JSX.Element {
+  const tr = useT();
   useEffect(() => {
     const timer = window.setTimeout(onDone, message.undo ? 6000 : 4000);
     return () => window.clearTimeout(timer);
@@ -33,11 +35,11 @@ export function Toast({ message, onDone }: { message: ToastMessage; onDone: () =
             }}
             className="min-h-12 shrink-0 rounded-full bg-white/15 px-4 text-[14px] font-medium"
           >
-            Undo
+            {tr("Undo")}
           </button>
         )}
         <button type="button" onClick={onDone} className="min-h-12 shrink-0 px-2 text-[14px] font-medium">
-          Done
+          {tr("Done")}
         </button>
       </div>
     </div>
@@ -56,9 +58,10 @@ export function OutOfSequence({
   onAnyway: () => void;
   onClose: () => void;
 }): React.JSX.Element {
+  const tr = useT();
   const stop = (n: number) => `Stop ${String(n).padStart(2, "0")}`;
   return (
-    <Sheet label="Out of sequence" onClose={onClose}>
+    <Sheet label={tr("Out of sequence")} onClose={onClose}>
       <h2 className="text-[26px] font-semibold">Load {stop(firstStop)} first?</h2>
       <p className="text-[15px] text-go-muted">
         {stop(thisStop)} loads after {stop(firstStop)}. Loading it now blocks {stop(firstStop)} at the doors.
@@ -66,7 +69,7 @@ export function OutOfSequence({
       <p className="text-[14px] text-go-muted">Only if it&apos;s really on the vehicle. Dispatch will see.</p>
       <div className="grid gap-3 md:grid-cols-2">
         <BigButton tone="plain" size="l" onClick={onAnyway}>
-          Mark loaded anyway
+          {tr("Mark loaded anyway")}
         </BigButton>
         <BigButton size="l" onClick={onClose}>
           Load {stop(firstStop)} first
@@ -86,6 +89,7 @@ export function Released({
   summary: string;
   onBack: () => void;
 }): React.JSX.Element {
+  const tr = useT();
   const [seconds, setSeconds] = useState(3);
   useEffect(() => {
     if (seconds <= 0) {
@@ -105,7 +109,7 @@ export function Released({
       <p className="text-[15px] text-go-muted">{summary}</p>
       <p className="text-[15px] font-medium text-go-success">Run sheet live · trip unlocked · dispatch notified</p>
       <BigButton size="l" onClick={onBack}>
-        Back to departures
+        {tr("Back to departures")}
       </BigButton>
       <p className="text-[13px] text-go-muted">Going back automatically in {seconds} s</p>
     </section>
@@ -126,8 +130,9 @@ export function HandBack({
   onConfirm: () => void;
   onClose: () => void;
 }): React.JSX.Element {
+  const tr = useT();
   return (
-    <Sheet label="Hand back this trip" onClose={onClose}>
+    <Sheet label={tr("Hand back this trip")} onClose={onClose}>
       <h2 className="text-[26px] font-semibold">Hand back {vehicleId}?</h2>
       <p className="text-[15px] text-go-muted">
         Your {checked} checked {checked === 1 ? "order keeps" : "orders keep"} your name and time. Another loader can take the
@@ -135,10 +140,10 @@ export function HandBack({
       </p>
       <div className="grid gap-3 md:grid-cols-2">
         <BigButton tone="muted" size="l" onClick={onClose}>
-          Keep loading
+          {tr("Keep loading")}
         </BigButton>
         <BigButton size="l" disabled={busy} onClick={onConfirm}>
-          Hand back
+          {tr("Hand back")}
         </BigButton>
       </div>
     </Sheet>

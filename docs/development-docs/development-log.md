@@ -21,6 +21,15 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-01 - feat(loader): switch the loader between English, Sinhala and Tamil
+
+`feat/loading` · @Dinusha-Ekanayake
+
+A language picker in the loader's top bar switches every loader screen between English, Sinhala and Tamil. The strings are hardcoded in `frontend/src/roles/loader/data/strings.ts`, keyed by the English text, so switching works offline; a missing translation falls back to English. The choice is kept per device and sets `<html lang>`.
+Why: dock crews read Sinhala or Tamil first (decision 2026-10-01).
+Verified: typecheck, build, `npm test` (16 pass), mocked loader browser tests at 393x852 (3 pass, including `language.spec.ts`: switch, reload, switch again).
+Open: Sinhala and Tamil are drafts; a native speaker should review them. Server error messages stay in English.
+
 ## 2026-10-01 - feat(loading): unlock a trip after 30 idle minutes
 
 `feat/loading` · @Dinusha-Ekanayake

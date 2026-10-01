@@ -4,20 +4,22 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Icon, cx, type IconName } from "@shared/ui";
 import type { SessionStatus, Temperature } from "@shared/domain/types";
 import { STATUS_LABEL } from "./data/manifest.ts";
+import { useT } from "./i18n.tsx";
 
 // Loader pieces from Figma "08 Loader · Phone". Touch targets are at least 48px
 // and the main actions 56px: the dock is worked in gloves.
 
 export function TempBadge({ temperature }: { temperature: Temperature }): React.JSX.Element {
+  const tr = useT();
   return temperature === "chilled" ? (
     <span className="inline-flex shrink-0 items-center gap-[5px] rounded-full border border-black px-2.5 py-1 text-[13px] font-medium tracking-[0.52px] text-black">
       <Icon name="chilled" />
-      CHILLED
+      {tr("CHILLED")}
     </span>
   ) : (
     <span className="inline-flex shrink-0 items-center gap-[5px] rounded-[6px] bg-[#f7eddf] py-1 pr-2.5 pl-2 text-[13px] font-medium tracking-[0.52px] text-[#8a5a1c]">
       <Icon name="box" />
-      AMBIENT
+      {tr("AMBIENT")}
     </span>
   );
 }
@@ -31,11 +33,12 @@ const STATUS: Record<SessionStatus, { icon: IconName; text: string }> = {
 };
 
 export function StatusChip({ status }: { status: SessionStatus }): React.JSX.Element {
+  const tr = useT();
   const s = STATUS[status];
   return (
     <span className={cx("inline-flex items-center gap-1.5 py-1.5 text-[15px] font-medium", s.text)}>
       <Icon name={s.icon} />
-      {STATUS_LABEL[status]}
+      {tr(STATUS_LABEL[status])}
     </span>
   );
 }
@@ -88,10 +91,11 @@ export function BigButton({
 }
 
 export function Bar({ label, value, share }: { label: string; value: string; share: number }): React.JSX.Element {
+  const tr = useT();
   return (
     <div className="flex w-full flex-col gap-1.5">
       <div className="flex w-full text-[13px] font-medium">
-        <span className="flex-1 text-go-muted">{label}</span>
+        <span className="flex-1 text-go-muted">{tr(label)}</span>
         <span className="text-go-ink">{value}</span>
       </div>
       <div className="h-2.5 w-full overflow-hidden rounded-[5px] bg-[#e5e7eb]">

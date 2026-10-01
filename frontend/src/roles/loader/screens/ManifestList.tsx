@@ -5,6 +5,7 @@ import type { ItemView, OutletView } from "@shared/domain/types";
 import { Icon, cx } from "@shared/ui";
 import { byStop, CHECK_LABEL, clockTime, isChecked, isFlagged, kg, orderLabel, placeName } from "../data/manifest.ts";
 import type { Line } from "../data/useTrip.ts";
+import { useT } from "../i18n.tsx";
 
 // Figma "02 Load sheet", load list: stops in loading order, last stop first
 // (D-L), each order opened into its items. The loader ticks each item as it goes
@@ -23,6 +24,7 @@ export default function ManifestList({
   onToggle: (line: Line, item: ItemView | null) => void;
   onReport: (line: Line, item: ItemView | null) => void;
 }): React.JSX.Element {
+  const tr = useT();
   const stops = byStop(lines);
   const firstOpen = stops.find((s) => s.lines.some((l) => !isChecked(l.status)))?.stopSequence;
   const [open, setOpen] = useState<Record<number, boolean>>({});
@@ -32,8 +34,8 @@ export default function ManifestList({
   return (
     <section aria-label="Load list" className="flex flex-col gap-3">
       <div className="flex flex-col gap-0.5">
-        <h2 className="text-[26px] font-semibold">Load list</h2>
-        <p className="text-[14px] text-go-muted">Last stop loads first. Tick each item.</p>
+        <h2 className="text-[26px] font-semibold">{tr("Load list")}</h2>
+        <p className="text-[14px] text-go-muted">{tr("Last stop loads first. Tick each item.")}</p>
         <p className="text-[13px] text-go-muted">
           {total} {total === 1 ? "stop" : "stops"} · {lines.length} {lines.length === 1 ? "order" : "orders"} · {items} items
         </p>
@@ -61,7 +63,7 @@ export default function ManifestList({
                   </span>
                   <span className="text-[13px] text-go-muted">
                     {stop.lines.length} {stop.lines.length === 1 ? "order" : "orders"} · {done} of {stopItems.length} items loaded
-                    {flagged > 0 && <span className="text-go-danger-strong"> · {flagged} reported</span>}
+                    {flagged > 0 && <span className="text-go-danger-strong"> · {tr("{n} reported", { n: flagged })}</span>}
                   </span>
                 </span>
                 <span className={cx("transition-transform", expanded && "rotate-180")}>
@@ -94,6 +96,7 @@ function OrderBlock({
   onToggle: (line: Line, item: ItemView | null) => void;
   onReport: (line: Line, item: ItemView | null) => void;
 }): React.JSX.Element {
+  const tr = useT();
   const loaded = line.items.filter((i) => i.status === "LOADED").length;
   const units = line.items.reduce((n, i) => n + i.units, 0);
   return (
@@ -101,14 +104,14 @@ function OrderBlock({
       <div className="flex items-center gap-2 px-2 py-2">
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="text-base font-medium text-black">
-            {orderLabel(line)} · {line.temperature === "chilled" ? "Chilled" : "Ambient"}
+            {orderLabel(line)} · {tr(line.temperature === "chilled" ? "Chilled" : "Ambient")}
           </span>
           <span className="text-[13px] text-go-muted">
             {line.items.length} items · {units} units · {kg(Number(line.weightKg))} ·{" "}
             <span className={cx("font-medium", line.recheck ? "text-go-warning-text" : "text-go-teal")}>
-              {line.recheck ? "Plan changed: check again" : `${loaded} of ${line.items.length} loaded`}
+              {line.recheck ? tr("Plan changed: check again") : tr("{a} of {b} loaded", { a: loaded, b: line.items.length })}
             </span>
-            {line.waiting && <span className="text-go-warning-text"> · saved on this device</span>}
+            {line.waiting && <span className="text-go-warning-text"> · {tr("saved on this device")}</span>}
           </span>
         </div>
         {editable && (
@@ -117,7 +120,7 @@ function OrderBlock({
             onClick={() => onReport(line, null)}
             className="min-h-12 shrink-0 rounded-full px-3 text-[13px] font-medium text-go-danger-strong"
           >
-            Report
+            {tr("Report")}
           </button>
         )}
       </div>
@@ -143,6 +146,7 @@ function ItemRow({
   onToggle: (line: Line, item: ItemView | null) => void;
   onReport: (line: Line, item: ItemView | null) => void;
 }): React.JSX.Element {
+  const tr = useT();
   const loaded = item.status === "LOADED";
   const flagged = isFlagged(item.status);
   const label = `item ${item.lineNo} of ${orderLabel(line)}`;
@@ -166,16 +170,16 @@ function ItemRow({
       </button>
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="truncate text-[15px] font-medium text-black">
-          {item.productId} <span className="text-[12px] font-normal text-go-muted">(inferred)</span>
+          {item.productId} <span className="text-[12px] font-normal text-go-muted">{tr("(inferred)")}</span>
         </span>
         <span className="text-[13px] text-go-muted">
           {item.units} {item.units === 1 ? "unit" : "units"} ·{" "}
           <span className={cx("font-medium", flagged ? "text-go-danger-strong" : loaded ? "text-go-success" : "text-go-teal")}>
             {flagged
-              ? `${CHECK_LABEL[item.status]} · ${item.units - item.loadedUnits} of ${item.units} not loaded`
+              ? `${tr(CHECK_LABEL[item.status])} · ${tr("{a} of {b} not loaded", { a: item.units - item.loadedUnits, b: item.units })}`
               : loaded
-                ? `Loaded${item.checkedAt ? ` ${clockTime(item.checkedAt)}` : ""}`
-                : "Tap when loaded"}
+                ? item.checkedAt ? tr("Loaded {time}", { time: clockTime(item.checkedAt) }) : tr("Loaded")
+                : tr("Tap when loaded")}
           </span>
         </span>
       </div>

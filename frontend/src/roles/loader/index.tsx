@@ -7,6 +7,7 @@ import { Notice } from "@shared/ui";
 import { lockOperator } from "@app-shell/operators";
 import type { Operator } from "@app-shell/session";
 import TopBar from "./TopBar.tsx";
+import { LangProvider, useT } from "./i18n.tsx";
 import { createGateway } from "./data/gateway.ts";
 import { depotToday, hhmm } from "./data/manifest.ts";
 import DockBoard from "./screens/DockBoard.tsx";
@@ -17,7 +18,15 @@ import OperatorGate from "./screens/OperatorGate.tsx";
 // and "09 Loader · Tablet portrait". Resilient offline tier (src/shared/offline/tiers.ts):
 // checks are kept on the device while offline and sent when it returns.
 
-export default function Loader({
+export default function Loader(props: Parameters<typeof LoaderWorkspace>[0]): React.JSX.Element {
+  return (
+    <LangProvider>
+      <LoaderWorkspace {...props} />
+    </LangProvider>
+  );
+}
+
+function LoaderWorkspace({
   userId,
   displayName,
   scope,
@@ -29,6 +38,7 @@ export default function Loader({
   scope: string[];
   operator: Operator | null;
 }): React.JSX.Element {
+  const tr = useT();
   const gateway = useMemo(() => createGateway(userId), [userId]);
   const online = useOnline();
   const depot = scope[0] ?? "";
@@ -68,8 +78,8 @@ export default function Loader({
       <TopBar
         displayName={operator?.displayName ?? displayName}
         depot={depot}
-        title={open ? `${open.vehicleId} · Trip ${open.tripNumber}` : undefined}
-        subtitle={open ? `Departs ${hhmm(open.plannedDeparture)}` : undefined}
+        title={open ? `${open.vehicleId} · ${tr("Trip {n}", { n: open.tripNumber })}` : undefined}
+        subtitle={open ? tr("Departs {time}", { time: hhmm(open.plannedDeparture) }) : undefined}
         online={online}
         syncedAt={open ? tripSync : trips.loadedAt}
         waiting={sync.pending}
@@ -86,7 +96,7 @@ export default function Loader({
             title={lockError}
             action={
               <button type="button" onClick={() => setLockError(null)} className="min-h-12 shrink-0 px-2 text-[13px] font-medium text-go-teal">
-                Dismiss
+                {tr("Dismiss")}
               </button>
             }
           />

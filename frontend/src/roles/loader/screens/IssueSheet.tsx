@@ -6,6 +6,7 @@ import { Icon, Notice, cx } from "@shared/ui";
 import { ISSUE_KIND_LABEL, isFlagged, orderLabel, placeName } from "../data/manifest.ts";
 import type { Line } from "../data/useTrip.ts";
 import { BigButton, Sheet } from "../ui.tsx";
+import { useT } from "../i18n.tsx";
 
 // Figma "03 Report an issue": flag a missing, damaged or ill-fitting item before
 // the vehicle leaves (R-LOD-02). The flagged item is not loaded, the dispatcher
@@ -35,6 +36,7 @@ export default function IssueSheet({
   onSend: (payload: Omit<FlagShortfall, "tripId">) => Promise<boolean>;
   onClose: () => void;
 }): React.JSX.Element {
+  const tr = useT();
   const [orderId, setOrderId] = useState(initial?.line.orderId ?? lines[0]?.orderId ?? "");
   // 0 is the whole order; otherwise the item's lineNo.
   const [lineNo, setLineNo] = useState(initial?.item?.lineNo ?? 0);
@@ -74,17 +76,17 @@ export default function IssueSheet({
   };
 
   return (
-    <Sheet label="Report an issue" onClose={onClose}>
+    <Sheet label={tr("Report an issue")} onClose={onClose}>
       <form onSubmit={submit} className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-[28px] font-semibold">Report an issue</h2>
+          <h2 className="text-[28px] font-semibold">{tr("Report an issue")}</h2>
           <button type="button" onClick={onClose} aria-label="Close" className="flex size-12 items-center justify-center rounded-full bg-[#f1f3f5]">
             <Icon name="close" />
           </button>
         </div>
 
         <label className="flex flex-col gap-1.5">
-          <span className="text-[13px] text-go-muted">Which order?</span>
+          <span className="text-[13px] text-go-muted">{tr("Which order?")}</span>
           <select
             value={orderId}
             onChange={(e) => chooseOrder(e.target.value)}
@@ -99,7 +101,7 @@ export default function IssueSheet({
         </label>
 
         <label className="flex flex-col gap-1.5">
-          <span className="text-[13px] text-go-muted">Which item?</span>
+          <span className="text-[13px] text-go-muted">{tr("Which item?")}</span>
           <select
             value={lineNo}
             onChange={(e) => {
@@ -109,7 +111,7 @@ export default function IssueSheet({
             }}
             className="min-h-14 rounded-[16px] border border-[#dfe3e8] bg-[#f1f3f5] px-4 text-base font-medium"
           >
-            <option value={0}>Whole order</option>
+            <option value={0}>{tr("Whole order")}</option>
             {(line?.items ?? []).map((i) => (
               <option key={i.lineNo} value={i.lineNo}>
                 {i.productId} (inferred) · {i.units} units
@@ -119,7 +121,7 @@ export default function IssueSheet({
         </label>
 
         <fieldset className="grid gap-2 md:grid-cols-2 md:gap-3">
-          <legend className="mb-1.5 text-[13px] text-go-muted md:col-span-2">What is wrong?</legend>
+          <legend className="mb-1.5 text-[13px] text-go-muted md:col-span-2">{tr("What is wrong?")}</legend>
           {Object.entries(ISSUE_KIND_LABEL).map(([value, label]) => {
             const kindValue = value as Kind;
             return (
@@ -139,9 +141,9 @@ export default function IssueSheet({
                 onChange={() => setKind(kindValue)}
                 className="sr-only"
               />
-              <span className="text-[17px] font-medium">{label}</span>
+              <span className="text-[17px] font-medium">{tr(label)}</span>
               <span className="text-[13px] text-go-muted">
-                {kindValue === "SHORT" && !shortAllowed ? "Choose one item with more than one unit" : ISSUE_HINT[kindValue]}
+                {tr(kindValue === "SHORT" && !shortAllowed ? "Choose one item with more than one unit" : ISSUE_HINT[kindValue])}
               </span>
             </label>
             );
@@ -171,7 +173,7 @@ export default function IssueSheet({
         )}
 
         <label className="flex flex-col gap-1.5">
-          <span className="text-[13px] text-go-muted">Reason (required)</span>
+          <span className="text-[13px] text-go-muted">{tr("Reason (required)")}</span>
           <textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
@@ -182,17 +184,17 @@ export default function IssueSheet({
         </label>
 
         {item !== null && isFlagged(item.status) && (
-          <Notice tone="info" title="This item is already reported">
+          <Notice tone="info" title={tr("This item is already reported")}>
             Sending again records a new report; the earlier one stays on record.
           </Notice>
         )}
 
         <div className="grid gap-3 md:grid-cols-2">
           <BigButton tone="muted" size="l" onClick={onClose}>
-            Cancel
+            {tr("Cancel")}
           </BigButton>
           <BigButton tone="danger" size="l" type="submit" disabled={!ready || busy}>
-            {busy ? "Sending…" : "Send to dispatcher"}
+            {tr(busy ? "Sending…" : "Send to dispatcher")}
           </BigButton>
         </div>
       </form>

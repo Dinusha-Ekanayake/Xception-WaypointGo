@@ -11,6 +11,7 @@ import IssueSheet from "./IssueSheet.tsx";
 import { HandBack, OutOfSequence, Released, Toast, type ToastMessage } from "./LoadFeedback.tsx";
 import ManifestList from "./ManifestList.tsx";
 import ReleaseSheet from "./ReleaseSheet.tsx";
+import { useT } from "../i18n.tsx";
 
 // Figma "02 Load sheet". Container: the trip hook, the sheets and the notices.
 
@@ -36,6 +37,7 @@ export default function LoadSheet({
   onBack: () => void;
   actingUserId: string;
 }): React.JSX.Element {
+  const tr = useT();
   const t = useTrip(gateway, trip.tripId, online, waiting, onQueued, actingUserId);
   const [issueFor, setIssueFor] = useState<{ line: Line; item: ItemView | null } | null | undefined>(undefined);
   const [handingBack, setHandingBack] = useState(false);
@@ -51,12 +53,12 @@ export default function LoadSheet({
   if (!m) {
     return t.manifest.error ? (
       <div className="px-5">
-        <Notice tone="danger" title="Could not load this trip's load sheet">
+        <Notice tone="danger" title={tr("Could not load this trip's load sheet")}>
           {t.manifest.error.message}
         </Notice>
       </div>
     ) : (
-      <p className="py-10 text-center text-[15px] text-go-muted">Loading the load sheet…</p>
+      <p className="py-10 text-center text-[15px] text-go-muted">{tr("Loading the load sheet…")}</p>
     );
   }
 
@@ -93,7 +95,7 @@ export default function LoadSheet({
     if (outcome.ok && to === "LOADED") {
       setToast({
         title: `${item.productId} loaded`,
-        detail: outcome.queued ? "Saved on this device; sends when you're back online." : undefined,
+        detail: outcome.queued ? tr("Saved on this device; sends when you're back online.") : undefined,
         undo: () => void t.check(line, { ...item, status: "LOADED" }, "PENDING"),
       });
     }
@@ -119,7 +121,7 @@ export default function LoadSheet({
           title={`Plan changed: version ${t.planChangedFrom} → ${m.planVersion}`}
           action={
             <button type="button" onClick={t.acknowledgePlan} className="min-h-12 shrink-0 px-2 text-[13px] font-medium text-go-teal">
-              Got it
+              {tr("Got it")}
             </button>
           }
         >
@@ -133,7 +135,7 @@ export default function LoadSheet({
           title={t.error.message}
           action={
             <button type="button" onClick={t.clearError} className="min-h-12 shrink-0 px-2 text-[13px] font-medium text-go-teal">
-              Dismiss
+              {tr("Dismiss")}
             </button>
           }
         />
@@ -144,7 +146,7 @@ export default function LoadSheet({
       <section aria-label="Truck" className="flex flex-col gap-4 rounded-[31px] bg-white px-[22px] py-5 shadow-[0_5px_20px_rgba(0,0,0,0.09)] lg:sticky lg:top-[132px]">
         <div className="flex items-center gap-2.5">
           <span className="rounded-full bg-black px-3.5 py-1.5 text-[15px] font-medium text-white">
-            {status === "COMPLETED" ? "Released" : status === "NOT_STARTED" ? "Not started" : status === "READY" ? "Ready to release" : "Loading"}
+            {tr(status === "COMPLETED" ? "Released" : status === "NOT_STARTED" ? "Not started" : status === "READY" ? "Ready to release" : "Loading")}
           </span>
           <TempBadge temperature={m.temperature} />
           <span className="flex-1" />
@@ -170,7 +172,7 @@ export default function LoadSheet({
               onClick={() => setHandingBack(true)}
               className="min-h-12 rounded-full bg-white px-4 text-[14px] font-medium text-black"
             >
-              Hand back
+              {tr("Hand back")}
             </button>
           </div>
         )}
@@ -179,20 +181,20 @@ export default function LoadSheet({
             {p.checked} of {p.total} orders loaded
           </p>
           <p className="text-[15px] font-medium text-go-success">
-            {[left > 0 ? `${left} left` : "All loaded", untilDeparture(m.plannedDeparture)].filter(Boolean).join(" · ")}
+            {[left > 0 ? tr("{n} left", { n: left }) : tr("All loaded"), untilDeparture(m.plannedDeparture)].filter(Boolean).join(" · ")}
           </p>
-          {p.flagged > 0 && <p className="text-[15px] font-medium text-go-danger-strong">{p.flagged} reported to the dispatcher</p>}
+          {p.flagged > 0 && <p className="text-[15px] font-medium text-go-danger-strong">{tr("{n} reported to the dispatcher", { n: p.flagged })}</p>}
         </div>
 
         {status === "NOT_STARTED" && (
           <BigButton size="l" onClick={() => void t.start()} disabled={t.busy}>
-            Start loading
+            {tr("Start loading")}
           </BigButton>
         )}
         {editable && (
           <div className="flex flex-wrap gap-3">
             <BigButton tone="danger" size="l" fit onClick={() => setIssueFor(null)}>
-              Report issue
+              {tr("Report issue")}
             </BigButton>
             <BigButton
               tone={left === 0 && t.planChangedFrom === null ? "mint" : "muted"}
@@ -201,21 +203,21 @@ export default function LoadSheet({
               onClick={() => {
                 setBlockedBy(
                   waiting > 0
-                    ? "Some checks are still saved only on this phone. Release once they are sent."
+                    ? tr("Some checks are still saved only on this phone. Release once they are sent.")
                     : t.planChangedFrom !== null
-                      ? "The plan changed. Confirm the change and recheck the marked orders first."
+                      ? tr("The plan changed. Confirm the change and recheck the marked orders first.")
                       : null,
                 );
                 setReleasing(true);
               }}
             >
-              {left === 0 ? "Release vehicle" : `Release · ${left} left`}
+              {left === 0 ? tr("Release vehicle") : tr("Release · {n} left", { n: left })}
             </BigButton>
           </div>
         )}
         {status === "COMPLETED" && (
-          <Notice tone="info" title="Vehicle released">
-            The driver can depart. Reports made here stay with the trip.
+          <Notice tone="info" title={tr("Vehicle released")}>
+            {tr("The driver can depart. Reports made here stay with the trip.")}
           </Notice>
         )}
         {gateway.revisePlan && editable && (
@@ -252,7 +254,7 @@ export default function LoadSheet({
           onSend={async (payload) => {
             const outcome = await t.flag(payload);
             if (outcome.ok && outcome.queued) {
-              setToast({ title: "Issue saved on this device", detail: "Sends to the dispatcher when you're back online. Keep loading." });
+              setToast({ title: tr("Issue saved on this device"), detail: tr("Sends to the dispatcher when you're back online. Keep loading.") });
             }
             return outcome.ok;
           }}
