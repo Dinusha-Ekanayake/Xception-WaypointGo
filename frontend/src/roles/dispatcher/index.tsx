@@ -8,6 +8,9 @@ import { depotToday, depotsFor, scopeLabel, type DepotFilter } from "./data/scop
 import { useFleet } from "./data/fleet.ts";
 import Overview from "./screens/Overview.tsx";
 import Vehicles from "./screens/Vehicles.tsx";
+import Live from "./screens/Live.tsx";
+import Orders from "./screens/Orders.tsx";
+import Plan from "./screens/Plan.tsx";
 import UpcomingScreen from "./screens/Upcoming.tsx";
 
 // The dispatcher workspace from the Figma "Dispatcher · Desktop" page. It is
@@ -59,6 +62,12 @@ export default function Dispatcher({
           <Overview displayName={displayName} scopeLabel={label} fleet={fleet} online={online} onNavigate={navigate} />
         ) : view === "vehicles" ? (
           <Vehicles scopeLabel={label} date={date} onDate={setDate} fleet={fleet} online={online} />
+        ) : view === "orders" ? (
+          <Orders depots={depots} scopeLabel={label} date={date} onDate={setDate} online={online} />
+        ) : view === "plan" ? (
+          <Plan depots={depots} date={date} onDate={setDate} online={online} />
+        ) : view === "live" ? (
+          <Live depots={depots} scopeLabel={label} date={date} onDate={setDate} online={online} />
         ) : (
           <UpcomingScreen view={view} scopeLabel={label} online={online} lastSyncedAt={fleet.loadedAt} />
         )}
