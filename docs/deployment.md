@@ -26,8 +26,8 @@ The server runs two environments from the same `compose.yaml` a judge runs, with
 
 | Environment | Branch | URL | Checkout | Compose project |
 | --- | --- | --- | --- | --- |
-| Production | `main` | `https://62-171-128-70.sslip.io` | `/opt/waypoint/app` | `app` |
-| Preview | `dev` | `https://preview.62-171-128-70.sslip.io` | `/opt/waypoint/preview` | `preview` |
+| Production | `main` | `https://waypointgo.live` | `/opt/waypoint/app` | `app` |
+| Preview | `dev` | `https://preview.waypointgo.live` | `/opt/waypoint/preview` | `preview` |
 
 Each has its own database volume, accounts and `.env`. The overlay removes every published host port, so the two stacks do not collide and nothing but nginx is reachable from outside. Docker publishes ports ahead of `ufw`, so never add a published port to the overlay expecting the firewall to cover it. nginx runs once, in the production stack, and reaches each frontend over the shared `waypoint-edge` network by an alias named after its environment. Its configuration is baked into an image built from [deploy/vps/nginx/](../deploy/vps/nginx/), so a change there takes effect on a production deploy, not a preview one. The deploy tests the new configuration in a throwaway container before replacing the running one.
 
@@ -66,7 +66,7 @@ cd /opt/waypoint/app && docker compose -f compose.yaml -f deploy/vps/compose.vps
 cd /opt/waypoint/app && docker compose -f compose.yaml -f deploy/vps/compose.vps.yaml exec db psql -U waypoint waypoint
 ```
 
-`SITE_ADDRESS` started as `62-171-128-70.sslip.io`, a wildcard DNS name for the server's address, because HTTPS needs a hostname and service workers and Secure cookies need HTTPS. The preview is always `preview.` in front of it. To move to a real domain, point both A records at the server, change `SITE_ADDRESS` in both `.env` files and deploy production, then preview. `SEED_PASSWORD` only applies when an account is first created; changing it later does not rotate the six demo accounts.
+`SITE_ADDRESS` is `waypointgo.live`, and the preview is always `preview.` in front of it. To move to another domain, point both A records at the server, change `SITE_ADDRESS` in both `.env` files and deploy production, then preview; the previous hostnames stop answering at once. `SEED_PASSWORD` only applies when an account is first created; changing it later does not rotate the six demo accounts.
 
 ## Production host
 
