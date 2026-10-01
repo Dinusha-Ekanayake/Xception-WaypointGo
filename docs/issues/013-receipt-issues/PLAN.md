@@ -9,9 +9,9 @@ Updated after every finished step. Branch `feat/receipt-issues`, from `dev` at `
 | Step | Status | Commit | Notes |
 | --- | --- | --- | --- |
 | 0 Plan | **done** | `84a09c7` | |
-| 1 Domains | **done** | `feat: receipt and issues domains` | `receipt/domain/*`, `issues/domain/*`; `ReceiptTest`, `ReceiptStateMachineTest`, `IssueTest` (24 tests) |
-| 2 Schema, repositories, reads | todo — start here | | Two migrations, read endpoints, additive contract changes |
-| 3 Receipt commands, consumer, auto-close, Ordering `OnReceiptDisputed` | todo | | |
+| 1 Domains | **done** | `8696e96` | `receipt/domain/*`, `issues/domain/*`; `ReceiptTest`, `ReceiptStateMachineTest`, `IssueTest` (24 tests) |
+| 2 Schema, repositories, reads | **done** | `feat: receipt and issues schema and reads` | Migrations `20261002T0100`, `T0200`; `JdbcReceiptRepository`, `JdbcIssueRepository`; `ReceiptDataQuery`, `IssueDataQuery`; `/api/receipts`, `/api/issues`; `ReceiptView` fields, `CustodyChainView`, `IssueHistoryView` mirrored in TS; 11 schema tests |
+| 3 Receipt commands, consumer, auto-close, Ordering `OnReceiptDisputed` | todo — start here | | |
 | 4 Issues commands, consumers, escalation, catalogue and raise rights | todo | | |
 | 5 Docs closeout | todo | | WALKTHROUGH, EDGE-CASES, RULES, ASSUMPTIONS, MODULES, development log |
 

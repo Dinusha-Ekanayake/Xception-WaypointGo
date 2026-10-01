@@ -21,6 +21,15 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-02 - feat: receipt and issues schema and reads (issue #13, step 2)
+
+`feat/receipt-issues` · @Oxshadha
+
+Migrations `20261002T0100` (receipt) and `T0200` (issues): FORCE RLS by outlet, depot and system (issues also by who raised it), no DELETE, and effective-dated parameters that the runtime role cannot edit. Database CHECKs back the rules: an answered receipt has a person behind it, and the system never resolves an investigation. Adds the repositories and the reads `/api/receipts/pending`, `/{orderId}`, `/{orderId}/custody`, `/api/issues?depot=` (keyset, most severe first), `/by-subject`, `/{id}` and `/{id}/history`. Contract changes are additive: `ReceiptView` fields, `CustodyChainView` and `IssueHistoryView`, mirrored in the frontend.
+Why: issue #13. See [PLAN.md](../issues/013-receipt-issues/PLAN.md).
+Verified: `TEST_DATABASE_URL=... mvn test`, 327 tests, 0 failures; `npm run typecheck` passes.
+Open: steps 3 to 5.
+
 ## 2026-10-02 - feat: receipt and issues domains (issue #13, step 1)
 
 `feat/receipt-issues` · @Oxshadha
