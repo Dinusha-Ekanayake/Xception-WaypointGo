@@ -12,8 +12,10 @@ Updated after every finished step. Branch `feat/receipt-issues`, from `dev` at `
 | 1 Domains | **done** | `8696e96` | `receipt/domain/*`, `issues/domain/*`; `ReceiptTest`, `ReceiptStateMachineTest`, `IssueTest` (24 tests) |
 | 2 Schema, repositories, reads | **done** | `7083be7` | Migrations `20261002T0100`, `T0200`; `JdbcReceiptRepository`, `JdbcIssueRepository`; `ReceiptDataQuery`, `IssueDataQuery`; `/api/receipts`, `/api/issues`; `ReceiptView` fields, `CustodyChainView`, `IssueHistoryView` mirrored in TS; 11 schema tests |
 | 3 Receipt commands, consumer, auto-close, Ordering `OnReceiptDisputed` | **done** | `5707c68` | `ReceiptAnswerHandler` and its three handlers, `ReceiptConsumers.OnDeliveryCompleted`, `ReceiptAutoCloseJob`, `OrderingConsumers.OnReceiptDisputed`. Migration `20261002T0300` flips the receipt actions here, not in step 4, because `CommandPathIntegrationTest` fails a handler whose row says unimplemented. 11 tests |
-| 4 Issues commands, consumers, escalation, catalogue and raise rights | **done** | `feat(issues): commands, consumers, escalation and raise rights` | `RaiseIssueHandler`, `IssueCommandHandler` and six decisions, `IssuesConsumers` (seven events), `IssueEscalationJob`, `IssueScope`; migration `20261002T0400`. A driver needs depot scope to raise an issue (A-29). 17 tests |
-| 5 Docs closeout | todo — start here | | WALKTHROUGH, EDGE-CASES, RULES, ASSUMPTIONS, MODULES, development log |
+| 4 Issues commands, consumers, escalation, catalogue and raise rights | **done** | `d9eefcb` | `RaiseIssueHandler`, `IssueCommandHandler` and six decisions, `IssuesConsumers` (seven events), `IssueEscalationJob`, `IssueScope`; migration `20261002T0400`. A driver needs depot scope to raise an issue (A-29). 17 tests |
+| 5 Docs closeout | **done** | `docs: receipt and issues walkthrough and registers` | [WALKTHROUGH.md](WALKTHROUGH.md); R-ISS-01 to 07, RCP-09, ISS-01 to 06, P-10, P-20 to 23, A-29, A-30; MODULES §7 and §8 |
+
+**All steps are done.** What was built is in [WALKTHROUGH.md](WALKTHROUGH.md); what is left is its "Known gaps" table.
 
 **Environment.** Database tests need `TEST_DATABASE_URL` pointing at a dedicated database, for example `postgresql://waypoint:local-testing-only@127.0.0.1:55432/waypoint_test`. Migrations are checksummed: after editing an unmerged migration, drop and recreate the test database.
 

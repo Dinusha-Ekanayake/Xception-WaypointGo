@@ -252,16 +252,16 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 | Layer | Contents |
 | --- | --- |
 | contract | `ReceiptStatus`, `ReceiptEvents` |
-| domain | `ReceiptConfirmation`, `AcceptanceOutcome`, `AutoCloseePolicy` |
-| application | `ConfirmReceiptHandler`, `ReportDiscrepancyHandler`, `AutoCloseJob`, `ReceiptQuery` |
-| infrastructure | `JdbcReceiptRepository`, `StoreTimelineProjection` |
+| domain | `Receipt`, `ReceiptLine`, `ReceiptStateMachine`, `AutoClosePolicy`, `ReceiptParameters` |
+| application | `ReceiptAnswerHandler` with `ConfirmReceiptHandler`, `ConfirmPartialReceiptHandler`, `DisputeReceiptHandler`; `ReceiptConsumers.OnDeliveryCompleted`; `ReceiptAutoCloseJob`; `ReceiptDataQuery` |
+| infrastructure | `JdbcReceiptRepository` |
 
-**Owns:** `receipt.confirmations`.
+**Owns:** `receipt.confirmations`, `receipt.confirmation_lines`, `receipt.confirmation_history`, `receipt.parameters`.
 
 **Commands:** `ConfirmReceipt`, `ConfirmPartialReceipt`, `DisputeReceipt`.
-**Queries:** `receiptFor(orderId)`, `pendingConfirmations(outletId)`.
-**Publishes:** `receipt.confirmed`, `receipt.partial`, `receipt.disputed`, `receipt.auto_closed`.
-**Consumes:** `delivery.completed`, `delivery.failed`.
+**Queries:** `receiptFor(orderId)`, `pendingConfirmations(outletId)`, `custodyChain(orderId)`, the loading check, the proof and the receipt side by side (R-RCP-08). Web: `/api/receipts/pending?outlet=`, `/{orderId}`, `/{orderId}/custody`.
+**Publishes:** `receipt.confirmed` (with `partial`), `receipt.disputed`, `receipt.auto_closed`. A shortage reported after auto-close is announced as `receipt.disputed`, because the order is already UNCONFIRMED.
+**Consumes:** `delivery.completed`, which opens the receipt. Not `delivery.failed`: nothing arrived, so there is nothing to accept, and Issues raises the failure.
 
 **Invariants.** Confirmation refers to a real delivery record. Driver proof and store acceptance are separate events and neither overwrites the other, which is the entire point: disputes become evidence-based rather than memory-based.
 
@@ -273,14 +273,22 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 
 **Purpose.** One lifecycle for every operational problem, wherever it is raised.
 
-**Owns:** `issues.issues`.
+| Layer | Contents |
+| --- | --- |
+| contract | `IssueViews` (`IssueView`, `IssueHistoryView`, `SubjectRef`), `IssueQuery`, `IssueCommands`, `IssueEvents` |
+| domain | `Issue`, `IssueLifecycle`, `ResolutionAction`, `SeverityPolicy` |
+| application | `RaiseIssueHandler`, `IssueCommandHandler` with six decisions in `IssueHandlers`, `IssueScope`, `IssuesConsumers`, `IssueEscalationJob`, `IssueDataQuery` |
+| infrastructure | `JdbcIssueRepository` |
+| web | `IssueController`, reads only |
 
-**Commands:** `RaiseIssue`, `AssignIssue`, `ResolveIssue`, `RecordReplacement`, `ScheduleRedelivery`, `CloseIssue`.
-**Queries:** `openIssues(depot)`, `issuesFor(order|trip|allocation)`.
-**Publishes:** `issue.raised`, `issue.resolved`, `shortfall.resolved`, `redelivery.scheduled`.
-**Consumes:** `loading.shortfall`, `delivery.failed`, `vehicle.fault_reported`, `receipt.disputed`.
+**Owns:** `issues.issues`, `issues.issue_subjects`, `issues.issue_history`, `issues.parameters`.
 
-**Invariants.** An issue always links to at least one of order, trip or allocation. Resolution requires a recorded action and a reason. A redelivery links a new order while preserving the original proof and history.
+**Commands:** `RaiseIssue`, `AssignIssue`, `ResolveIssue`, `RecordReplacement`, `ScheduleRedelivery`, `CloseIssue`, `CancelIssue`. Raise rights by type are policy data (R-ISS-07).
+**Queries:** `openIssues(depot)` (most severe first, keyset), `issuesFor(subject)`. Web: `/api/issues?depot=`, `/by-subject?type=&id=`, `/{id}`, `/{id}/history`.
+**Publishes:** `issue.raised`, `issue.resolved`, `shortfall.resolved`, `redelivery.requested`.
+**Consumes:** `loading.shortfall`, `delivery.failed`, `vehicle.fault_reported`, `road.disruption_reported`, `receipt.disputed`, `receipt.confirmed` (partial only), `warehouse.discrepancy_found`. One issue per source event.
+
+**Invariants.** An issue links at least one subject: order, trip, delivery, receipt, shortfall or vehicle (a vehicle alone is valid). A shortage investigation is never resolved by the system (R-RCP-07). Resolution requires a recorded action and a reason. A redelivery links a new order while preserving the original proof and history.
 
 ---
 

@@ -21,6 +21,20 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-02 - docs: receipt and issues walkthrough and registers (issue #13, step 5)
+
+`feat/receipt-issues` · @Oxshadha
+
+- **Walkthrough:** adds [the issue #13 walkthrough](../issues/013-receipt-issues/WALKTHROUGH.md).
+- **RULES:** R-ISS-01 to R-ISS-07 (lifecycle, resolution vocabulary, subjects, replacement and redelivery fit, redelivery once, escalation, raise rights as policy).
+- **EDGE-CASES:** a test named for every RCP row and for the Issues halves of EXE-07, EXE-08, LOD-01 and STK-11; new RCP-09 and ISS-01 to ISS-06.
+- **ASSUMPTIONS:** P-10 = 24 h, P-20 to P-23, A-29 and A-30.
+- **MODULES:** §7 and §8 match the code.
+
+Why: issue #13 closeout.
+Verified: `TEST_DATABASE_URL=... mvn test`, 349 tests, 0 failures; frontend `npm run typecheck` and `npm test` pass.
+Open: the walkthrough's "Known gaps" table (relay #6, Loading and Execution query beans for the custody view, partial redelivery, Notification).
+
 ## 2026-10-02 - feat(issues): commands, consumers, escalation and raise rights (issue #13, step 4)
 
 `feat/receipt-issues` · @Oxshadha

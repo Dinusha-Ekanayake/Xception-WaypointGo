@@ -48,6 +48,8 @@ The practice is an assumption register: description, category, basis, impact if 
 | **A-26** | **A vehicle's next trip leaves when its previous trip's last service ends, with no return leg** | The booklet's worked example: 101 + 112 = 213 of 270 Fresh minutes adds no return drive; the supplied validator checks the formula alone | Second-trip arrivals are optimistic by the return drive, so a planned arrival may slip later than the plan says | Compare planned and actual second-trip departures once Execution records them (#16 lateness) | **Assumed** (issue #9) |
 | **A-27** | **Reefers are not derated** for chilled loads (A-02 stands) | Q2 answered "no derating" for now | Chilled trips planned to full volume may not fit physically | Confirm usable reefer volume with the fleet team | **Assumed** (issue #9) |
 | **A-28** | **An outlet Planning has never served counts as served 0 days ago** in the priority tie-break | There is no service history before Waypoint's first published plan | A long-waiting outlet with no history in the system ranks below one with history on the last tie-break key only | Seed days-since-served from the dataset's history if the tie-break starts deciding real deferrals | **Assumed** (issue #9) |
+| **A-29** | **A driver is scoped to their home depot** in `iam.user_depot_access`, so they can raise an issue there | Issues are placed by depot; the only scope tables are depot and outlet, and a driver's own run scope (EXE-13) is not built yet | A driver without depot scope can read what they raised but cannot raise a new issue (403) | Grant drivers their depot when accounts are created; revisit when Execution scopes a driver to a vehicle and date | **Assumed** (issue #13) |
+| **A-30** | **A store's whole-order confirmation means every line arrived in full**, and a partial confirmation lists only the short lines | The store screen sends no lines for a confirmation; listing every line would be noise | A store that confirms without checking hides a shortage until a later dispute (still accepted, RCP-08) | Watch the late-dispute rate | **Assumed** (issue #13) |
 
 ### Assumptions that are currently blocking
 
@@ -70,7 +72,7 @@ Values that are correct today and will change. **None of them is a literal in co
 | **P-07** | Operating days | Monday to Saturday | Booklet | Calendar generation beyond the supplied range |
 | **P-08** | Capacity comparison tolerance | 1e-6 | Validator source | Whether a borderline load fits. Must match the validator exactly |
 | **P-09** | Fuel quota week boundary | Monday to Sunday, ISO week | Our policy | Which trips share a quota |
-| **P-10** | Receipt auto-close window | to decide | Our policy | When an unconfirmed receipt stops waiting |
+| **P-10** | Receipt auto-close window | 24 hours (`receipt.parameters` `auto_close.hours`) | Our policy, issue #13 | When an unconfirmed receipt stops waiting. Stamped on each receipt when it opens, so a change never moves a deadline already given |
 | **P-11** | Stock hold timeout | to decide | Our policy | When an unresolved stock hold auto-defers |
 | **P-12** | Repeated-deferral escalation threshold | 1 skip (`escalation.skips`) | Our policy, issue #9 | When a skipped outlet is forced up the priority order |
 | **P-13** | Login lockout threshold and window | to decide | Our policy | Brute-force resistance against usability |
@@ -79,6 +81,10 @@ Values that are correct today and will change. **None of them is a literal in co
 | **P-17** | Strict window threshold for priority | 120 min (`strict.window.min`) | Our policy, issue #9 | Which outlets are placed early as hard to fit |
 | **P-18** | Brand cadence, days until the brand's next run | Fresh 1, Style 7, Tech 1 (`cadence.days.<brand>`) | Our policy, issue #9 | How costly a deferral is: a weekly order deferred waits a week |
 | **P-19** | Allocation engine time budget per depot-day | 10 s (`engine.budget.ms`) | Our policy, issue #9 | When a run returns a partial plan (PLN-11) |
+| **P-20** | Escalation deadline, CRITICAL issue unassigned | 15 min (`issues.parameters`) | Our policy, issue #13 | When a critical issue nobody owns is escalated |
+| **P-21** | Escalation deadline, HIGH | 60 min | Our policy, issue #13 | As above |
+| **P-22** | Escalation deadline, MEDIUM | 240 min | Our policy, issue #13 | As above |
+| **P-23** | Escalation deadline, LOW | 1440 min | Our policy, issue #13 | As above |
 
 ### How a parameter changes
 

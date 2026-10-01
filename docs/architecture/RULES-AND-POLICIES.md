@@ -261,6 +261,18 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-RCP-07 | **Loaded but not received.** When a passing loading check, a completed delivery and a short receipt disagree, the system raises a shortage investigation linked to all three records. It is **never auto-resolved in favour of either party**, and no record is amended to make them agree | Policy | Policy |
 | R-RCP-08 | Each link in the custody chain is attributed: who checked it at the dock, who delivered it, who received it. That chain is the evidence, and it is what replaces memory in a dispute | Booklet, policy | Policy |
 
+### 6a. Operational issues (issue #13)
+
+| ID | Rule | Source | Status |
+| --- | --- | --- | --- |
+| R-ISS-01 | **One lifecycle.** OPEN to ASSIGNED (reassign allowed) to RESOLVED to CLOSED; OPEN or ASSIGNED may be CANCELLED with a reason. Resolved, closed and cancelled are history: a recurring problem is a new issue | Policy, settles conflict B17 | Policy |
+| R-ISS-02 | Every resolution and cancellation records an action from a fixed vocabulary (replacement, redelivery, write-off, no fault found, other), a reason, a person and a time. There is no return action (R-EXE-12, A-10) | Rule 8 | Policy |
+| R-ISS-03 | An issue names a depot, a description and at least one subject: order, trip, delivery, receipt, shortfall or vehicle. A vehicle alone is valid, because fault and disruption reports carry no trip. A named outlet must belong to the depot | Policy | Policy |
+| R-ISS-04 | A replacement answers only a loading shortfall about that trip and order; a redelivery answers only a failed, disputed, damaged, late or discrepant order the issue is about | Policy | Policy |
+| R-ISS-05 | A redelivery is requested at most once per issue and never for a past date. Ordering creates one order linked to the original (B17, A-24) | Policy | Policy |
+| R-ISS-06 | **Escalation timer.** An issue still OPEN and unassigned past its severity's deadline (P-20 to P-23) is stamped escalated once, with a history row and a metric | Policy | Policy |
+| R-ISS-07 | **Who may raise what is policy data.** `issue:Raise` is evaluated on `wpt:issue:type:<TYPE>`, and the role policies name each role's types; scope is the issue's depot or outlet. Store: damaged goods, late delivery, other. Loader: loading shortfall, damaged goods, other. Driver: failed delivery, vehicle fault, road disruption, late delivery, damaged goods, other. Dispatcher: all | Policy, issue #13 decision 2 | Policy |
+
 ## 7. Fleet, calendar and notification
 
 | ID | Rule | Source | Status |
@@ -332,7 +344,8 @@ One rule, one enforcement point, so a change has one home.
 | R-PLN-21 to 28 | Priority policy and publication gate, versioned | Domain unit tests |
 | R-LOD-* | Loading domain and departure gate | Integration tests |
 | R-EXE-* | Execution domain and offline queue | Browser tests |
-| R-RCP-* | Receipt domain and scheduler | Integration tests |
+| R-RCP-* | Receipt domain, `ReceiptAutoCloseJob`, `ReceiptAnswerHandler` | Domain unit tests, integration tests with the job run at chosen instants |
+| R-ISS-* | Issues domain, `IssueCommandHandler`, role policies (R-ISS-07), `IssueEscalationJob` | Domain unit tests, integration tests through the command bus |
 | R-FLT-*, R-CAL-* | Reference data module | Domain unit tests |
 | R-NOT-* | Notification outbox | Integration tests |
 
