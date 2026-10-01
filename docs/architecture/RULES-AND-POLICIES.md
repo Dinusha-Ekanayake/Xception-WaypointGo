@@ -238,7 +238,7 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-EXE-02 | Work must be recordable **offline** and reconcile when connectivity returns | Booklet | Binding |
 | R-EXE-03 | Interactions are designed for use when safely stopped | Booklet | Binding |
 | R-EXE-04 | **Early arrival waits.** Service starts at `max(arrival_time, window_open_time)`, never at arrival. Waiting time is recorded separately from service time | Booklet | Binding |
-| R-EXE-05 | A late arrival is **still delivered**. Lateness is recorded with a reason | Booklet | Binding |
+| R-EXE-05 | A late arrival is **still delivered**. Lateness is recorded with a reason. The exception is a mall outlet, which takes goods only inside its window (R-PLN-14): a late arrival there is recorded as failed with `mall_window_closed` (EXE-20) | Booklet | Binding |
 | R-EXE-13 | Merged into R-EXE-04, which it duplicated | Booklet | Merged |
 | R-EXE-14 | **Lateness means arrival after `window_close_time`**, not arrival after the planned time. A stop can be later than planned and not late, or on time and late | Booklet | Binding |
 | R-EXE-15 | Lateness has a cost even though the goods are delivered: receiving staff may have moved to other duties, and a Fresh outlet may miss morning sales. Lateness is surfaced to the dispatcher and the store, not buried in a log | Booklet | Binding |
@@ -246,7 +246,7 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-EXE-07 | The driver reports road faults and delays | Team draft | Team |
 | R-EXE-08 | The driver is notified which dock to load at, and when loading and unloading finish | Team draft | Team |
 | R-EXE-09 | A report option is available at every stage | Team draft | Team |
-| R-EXE-10 | **Server time is authoritative.** Device time is stored for forensics only | Policy | Policy |
+| R-EXE-10 | **Server time is authoritative.** Device time is stored for forensics only. A record whose two clocks differ by more than five minutes is marked `timing_uncertain` (A-29) | Policy | Policy |
 | R-EXE-11 | A device limitation, such as a denied camera, never blocks completing the work. The outcome records the reason and is flagged lower-evidence | Policy | Policy |
 | R-EXE-12 | **Returns are out of scope.** A failed delivery records the outcome and raises an issue; goods disposition is recorded but no return workflow exists | Team draft | Team |
 
