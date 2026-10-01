@@ -388,7 +388,7 @@ class WarehouseIntegrationTest {
   }
 
   private List<StatusRequest> due(String warehouseRef) {
-    return database.asSystem(ModuleRole.WAREHOUSE, () -> statusRequests.due(Instant.now().plusSeconds(60), 500))
+    return database.asSystem(ModuleRole.WAREHOUSE, () -> statusRequests.due(Instant.now().plusSeconds(7200), 500))
         .stream().filter(r -> r.warehouseOrderRef().equals(warehouseRef)).toList();
   }
 
