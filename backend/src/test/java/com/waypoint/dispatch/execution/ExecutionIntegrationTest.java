@@ -318,6 +318,13 @@ class ExecutionIntegrationTest {
     assertEquals(1, outbox("delivery.completed", stopA));
     drain();
     assertEquals("DELIVERED", orderStatus(orderA));
+
+    // The same event opened the store's receipt, and the custody chain reads the delivery record.
+    JsonNode receipt = json(read(manager, "/api/receipts/" + orderA, 200));
+    assertEquals("PENDING", receipt.get("status").asText());
+    assertEquals(stopA.toString(), receipt.get("deliveryId").asText());
+    JsonNode custody = json(read(dispatcher, "/api/receipts/" + orderA + "/custody", 200));
+    assertEquals("DELIVERED", custody.path("proof").path("outcome").asText(), custody.toString());
   }
 
   @Test
@@ -361,6 +368,10 @@ class ExecutionIntegrationTest {
     drain();
     assertEquals("PARTIALLY_DELIVERED", orderStatus(orderA));
     assertEquals("FAILED", orderStatus(orderB));
+
+    // The failed delivery is an issue for the dispatcher, raised from the event (EXE-07).
+    JsonNode issues = json(read(dispatcher, "/api/issues/by-subject?type=order&id=" + orderB, 200));
+    assertEquals(1, issues.size(), issues.toString());
   }
 
   @Test
