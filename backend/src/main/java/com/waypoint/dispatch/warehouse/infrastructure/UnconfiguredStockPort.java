@@ -2,7 +2,6 @@ package com.waypoint.dispatch.warehouse.infrastructure;
 
 import com.waypoint.dispatch.platform.observability.Metrics;
 import com.waypoint.dispatch.warehouse.contract.StockPort;
-import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Conditional;
@@ -16,8 +15,8 @@ import org.springframework.stereotype.Component;
  * {@code STOCK_UNKNOWN} and say so (decision D-G, architecture rule 9) rather
  * than fail or pretend to reserve. Stock is never assumed (R-STK-05).
  *
- * <p>Registered only while the key is blank. The HTTP adapter (#7) registers
- * under the opposite condition, so exactly one {@link StockPort} exists. A key
+ * <p>Registered only while the key is blank. The HTTP adapter
+ * ({@code WarehouseStockPort}) registers under the opposite condition, so exactly one {@link StockPort} exists. A key
  * set with no HTTP adapter deployed is a startup failure naming the missing
  * bean, which is the intended answer to configuration the code cannot honour.
  */
@@ -36,16 +35,21 @@ public class UnconfiguredStockPort implements StockPort {
   }
 
   @Override
-  public PlacementResult placeOrder(String orderRef, List<StockLine> lines) {
+  public PlacementResult placeOrder(PlacementRequest request) {
     return unavailable("place");
   }
 
   @Override
-  public PlacementResult amendOrder(String warehouseOrderRef, List<StockLine> lines) {
+  public PlacementResult amendOrder(String warehouseOrderRef, PlacementRequest request) {
     return unavailable("amend");
   }
 
-  private PlacementResult unavailable(String operation) {
+  @Override
+  public ConfirmResult confirmReservation(String warehouseOrderRef) {
+    return unavailable("confirm");
+  }
+
+  private Unavailable unavailable(String operation) {
     metrics.increment(
         "waypoint.warehouse.unavailable", "operation", operation, "reason", "unconfigured");
     return new Unavailable(REASON);

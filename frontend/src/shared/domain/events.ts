@@ -197,7 +197,7 @@ export type EventPayloads = {
   "warehouse.order_status_changed": {
     orderId: Uuid;
     warehouseOrderRef: string | null;
-    status: "pending" | "shipped" | "delivered" | "cancelled" | "insufficient";
+    status: "pending" | "shipped" | "delivered" | "cancelled" | "expired" | "insufficient";
     reservation: {
       warehouseOrderRef: string;
       weightKg: Decimal;
