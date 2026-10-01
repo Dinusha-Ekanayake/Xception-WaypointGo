@@ -12,7 +12,7 @@ It consolidates the Tech-Triathlon challenge booklet, the team's requirements dr
 | [docs/architecture/MODULES.md](docs/architecture/MODULES.md) | Every module in detail: its layers, owned data, inbound contract, outbound dependencies, events, invariants and failure modes |
 | [docs/architecture/DATA-MODEL-REVIEW.md](docs/architecture/DATA-MODEL-REVIEW.md) | Validation of the team's schema, 20 findings, and the corrected target schema |
 | [docs/architecture/EDGE-CASES.md](docs/architecture/EDGE-CASES.md) | The edge case register: trigger, required behaviour, enforcement point, detection and test for each |
-| [docs/code-structure.md](docs/code-structure.md) | The folder layout that implements this, and its enforced boundary rules |
+| [docs/architecture/MODULES.md](docs/architecture/MODULES.md) | Each module, its packages and contracts; the boundary rules are enforced by `ModuleBoundaryTest` |
 
 Scope note: the warehouse and stock system is built separately by the team. This architecture treats it as an **external system behind an anti-corruption layer**, not as a module to build here.
 
@@ -370,15 +370,16 @@ These are the conventions every endpoint follows. They are cheap to adopt early 
 | Concern | Standard |
 | --- | --- |
 | Mutations | `POST /api/commands`, one envelope, `command_id` + `expected_version` + typed payload |
-| Idempotency | `Idempotency-Key` header, receipt stored with a payload fingerprint. Same key and payload returns the original response; same key and different payload is `409`. A convention popularised by Stripe, not an RFC |
-| Errors | RFC 9457 `application/problem+json` with `type`, `title`, `status`, `detail`, `instance`, plus a `violations` extension carrying the failed constraints. **The error body is part of the contract**, because clients branch on it |
-| Optimistic concurrency | `ETag` on reads, `If-Match` on writes, mapped to the aggregate version |
-| Pagination | Cursor based on a keyset, never `OFFSET`. Offset pagination degrades exactly when the table grows |
+| Idempotency | **Built:** the command envelope's `commandId` is the key, with a receipt stored with a payload fingerprint. Same id and payload returns the original response; same id and different payload is `409`. **Planned:** the same contract on an `Idempotency-Key` header for non-command endpoints |
+| Errors | RFC 9457 `application/problem+json` with `type`, `title`, `status`, `detail`, `instance`, plus extensions `code` (stable, what clients branch on; `title` is for people), `correlationId` (the request's id in logs and audit) and `violations: [{rule, field?, message}]`. `type` is `PROBLEM_TYPE_BASE` + the code. **The error body is part of the contract**, because clients branch on it. A client's mistake is a 4xx, never a 500, and a detail never echoes framework or driver text |
+| Optimistic concurrency | **Built:** `rowVersion` on reads, `expectedVersion` in the command envelope, `409 VERSION_CONFLICT` when stale. **Planned:** `ETag` on reads and `If-Match` on writes, mapped to the same version |
+| Pagination | Cursor based on a keyset, never `OFFSET`. Offset pagination degrades exactly when the table grows. Lists return `{items, nextCursor}`; the cursor is opaque, carries no personal data, is passed back as `after`, and is `null` on the last page. `limit` defaults to 50, capped at 200 |
 | Delta sync | `GET /api/sync?since=<cursor>` returning only entitled events since the cursor |
 | Push | Server-sent events for cursor advancement, with polling fallback for hostile networks |
 | Versioning | Media type versioning, `Accept: application/vnd.waypoint.v1+json`, with `/v1` URI fallback. Additive changes never break; removals require a new version and a deprecation window |
 | Contract testing | Consumer-driven contract tests between the client and API, and between modules across their published contracts. Breaking a contract fails CI, not production |
-| Health | `/health/live` and `/health/ready` separated, so a slow dependency does not get the process killed |
+| Error codes | `BAD_REQUEST` 400, `UNAUTHENTICATED` 401, `FORBIDDEN` 403, `NOT_FOUND` 404, `REQUEST_TIMEOUT` 408, `CONFLICT` / `VERSION_CONFLICT` / `CONSTRAINT_VIOLATED` 409, `PAYLOAD_TOO_LARGE` 413, `VALIDATION_FAILED` 422, `RATE_LIMITED` 429 with `Retry-After`, `INTERNAL_ERROR` 500, `DEPENDENCY_UNAVAILABLE` 503 |
+| Health | `/health/liveness` and `/health/readiness` separated, so a slow dependency does not get the process killed |
 
 ---
 

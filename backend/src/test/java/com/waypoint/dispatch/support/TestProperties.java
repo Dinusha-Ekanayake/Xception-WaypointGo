@@ -8,6 +8,10 @@ public final class TestProperties {
   private TestProperties() {}
 
   public static AppProperties app() {
+    return withMaxBody(4L * 1024 * 1024);
+  }
+
+  public static AppProperties withMaxBody(long maxBodyBytes) {
     return new AppProperties(
         "postgresql://localhost/test",
         "../data",
@@ -16,7 +20,7 @@ public final class TestProperties {
         "urn:waypoint:problem:",
         new AppProperties.Session(Duration.ofHours(12), Duration.ofHours(2)),
         new AppProperties.LoginThrottle(8, Duration.ofMinutes(15)),
-        new AppProperties.Http(4L * 1024 * 1024),
+        new AppProperties.Http(maxBodyBytes),
         new AppProperties.Observability(false, "", 0.1));
   }
 }

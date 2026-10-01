@@ -12,6 +12,8 @@ import com.waypoint.dispatch.platform.observability.Metrics;
 import com.waypoint.dispatch.platform.db.Database;
 import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.shared.domain.Actor;
+import com.waypoint.dispatch.shared.domain.Cursor;
+import com.waypoint.dispatch.shared.domain.Page;
 import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
 import java.util.ArrayList;
@@ -210,27 +212,38 @@ public class PolicyAdminUseCase {
         });
   }
 
-  public List<PolicySummary> list() {
-    return database
-        .asModule(
-            ModuleRole.IAM,
-            null,
-            () ->
-                database.query(
-                    """
-                    SELECT p.policy_id, p.name, v.version_number
-                    FROM iam.policies p
-                    JOIN iam.policy_versions v ON v.policy_id = p.policy_id AND v.is_default
-                    ORDER BY p.name
-                    """))
-        .stream()
-        .map(
-            r ->
-                new PolicySummary(
-                    (UUID) r.get("policy_id"),
-                    (String) r.get("name"),
-                    ((Number) r.get("version_number")).intValue()))
-        .toList();
+  /** Keyset paginated on the policy name, which is unique and not personal data. */
+  public Page<PolicySummary> list(String after, Integer limit) {
+    int size = Page.limit(limit);
+    List<String> key = Cursor.decode(after, 1);
+    String afterName = key.isEmpty() ? null : key.get(0);
+    List<PolicySummary> rows =
+        database
+            .asModule(
+                ModuleRole.IAM,
+                null,
+                () ->
+                    database.query(
+                        """
+                        SELECT p.policy_id, p.name, v.version_number
+                        FROM iam.policies p
+                        JOIN iam.policy_versions v ON v.policy_id = p.policy_id AND v.is_default
+                        WHERE (?::text IS NULL OR p.name > ?::text)
+                        ORDER BY p.name
+                        LIMIT ?
+                        """,
+                        afterName,
+                        afterName,
+                        size + 1))
+            .stream()
+            .map(
+                r ->
+                    new PolicySummary(
+                        (UUID) r.get("policy_id"),
+                        (String) r.get("name"),
+                        ((Number) r.get("version_number")).intValue()))
+            .toList();
+    return Page.fromOverfetch(rows, size, policy -> Cursor.encode(policy.name()));
   }
 
   /**

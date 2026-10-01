@@ -40,6 +40,19 @@ services:
     entrypoint: ["/bin/sh", "-c", "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --deploy-hook 'true'; sleep 12h & wait $${!}; done"]
     restart: unless-stopped
 
+  # Schema and reference data, explicitly, before the backend starts. Both steps
+  # are idempotent. Accounts are created with scripts/account.sh, never here.
+  init:
+    labels:
+      com.waypoint.logs: "true"
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL to the pooled connection string}
+    command: ["sh", "-c", "java -jar /app/backend.jar migrate && java -jar /app/backend.jar import-reference"]
+    restart: "no"
+
   backend:
     labels:
       com.waypoint.logs: "true"
@@ -50,14 +63,14 @@ services:
       - "8080"
     environment:
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL to the pooled connection string}
-      CALENDAR_FILE: ${CALENDAR_FILE:-}
-      DEMO_MODE: "0"
-      DEMO_NOW: ${DEMO_NOW:-2026-02-13T15:30:00+05:30}
       COOKIE_SECURE: "1"
       LOG_FORMAT: ecs
+    depends_on:
+      init:
+        condition: service_completed_successfully
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/api/health | grep -q '\"ok\"'"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health/readiness | grep -q UP"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -70,15 +83,12 @@ services:
       - "3000"
     environment:
       BACKEND_URL: http://backend:8080
-      DEMO_MODE: "0"
-      DEMO_NOW: ${DEMO_NOW:-2026-02-13T15:30:00+05:30}
-      COOKIE_SECURE: "1"
     depends_on:
       backend:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
       timeout: 10s
       retries: 3

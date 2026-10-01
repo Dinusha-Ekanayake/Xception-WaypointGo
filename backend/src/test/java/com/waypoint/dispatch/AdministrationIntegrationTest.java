@@ -346,7 +346,9 @@ class AdministrationIntegrationTest {
             """.formatted(assignmentId),
             200));
     JsonNode assignments = mapper.readTree(read(ADMIN, "/api/accounts/driver-assignments?on=2027-05-07", 200));
-    assertEquals(0, assignments.size(), "the released days are no longer held by anyone");
+    assertEquals(
+        0, assignments.get("items").size(), "the released days are no longer held by anyone");
+    assertTrue(assignments.get("nextCursor").isNull(), "a short page is the last page");
   }
 
   @Test

@@ -215,4 +215,22 @@ class ProblemContractTest {
         !line.getFormattedMessage().contains("someone@example.com"),
         "the message line itself carries no exception text");
   }
+
+  @Test
+  void aBodyOverTheLimitIs413BeforeItIsRead() throws Exception {
+    MockMvc limited =
+        MockMvcBuilders.standaloneSetup(new Probe())
+            .setControllerAdvice(new ApiExceptionHandler(TestProperties.app(), new Metrics(registry)))
+            .addFilters(new CorrelationIdFilter(), new RequestSizeFilter(TestProperties.withMaxBody(16)))
+            .build();
+    limited
+        .perform(
+            post("/probe/json")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"" + "x".repeat(64) + "\"}"))
+        .andExpect(status().isPayloadTooLarge())
+        .andExpect(content().contentType("application/problem+json"))
+        .andExpect(jsonPath("$.code").value("PAYLOAD_TOO_LARGE"))
+        .andExpect(jsonPath("$.correlationId").isNotEmpty());
+  }
 }

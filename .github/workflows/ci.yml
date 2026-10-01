@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [dev]
+  push:
+    branches: [dev]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend (mvn verify, boundary tests, integration on PostgreSQL 16)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-bookworm
+        env:
+          POSTGRES_USER: waypoint
+          POSTGRES_PASSWORD: ci-only
+          POSTGRES_DB: waypoint
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U waypoint -d waypoint"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      # A dedicated database, so the integration tests run here instead of being
+      # skipped. Never the application database (TestDatabase refuses that).
+      TEST_DATABASE_URL: postgresql://waypoint:ci-only@localhost:5432/waypoint_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+      - name: Create the test database
+        run: PGPASSWORD=ci-only psql -h localhost -U waypoint -d waypoint -c 'CREATE DATABASE waypoint_test'
+      - name: mvn verify
+        working-directory: backend
+        run: mvn -B verify
+
+  frontend:
+    name: Frontend (typecheck, boundary tests, build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run typecheck
+        working-directory: frontend
+      - name: Boundary tests
+        run: npm test
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+
+  compose:
+    name: Compose files parse
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose config -q
+      - run: docker compose -f compose.prod.yaml config -q
+        env:
+          DOMAIN: ci.example.test
+          DATABASE_URL: postgresql://ci@localhost/ci

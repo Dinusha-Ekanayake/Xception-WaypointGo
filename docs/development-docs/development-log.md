@@ -21,6 +21,17 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-01 - fix: make the platform trustworthy (issue #4)
+
+`feat/module-contracts` · @jv-ransika
+
+Error contract: every problem body carries `code`, `correlationId` and `violations: [{rule, field?, message}]`; client mistakes are 400/409/413/422/429, never 500; every 500 logs one line with its stack. Correlation id accepted only UUID-shaped and tied to the trace. Emails removed from audit rows, problem details and the accounts cursor. `Metrics.gauge` fixed, command timers with p95, and the detection signals for PLT-01, PLT-07, SEC-03/06/09/10/12/13/16, ORD-05/PLN-06/EXE-14 (names in EDGE-CASES). Tracing export off unless configured; JDBC spans. Shared keyset `Cursor`/`Page` on accounts, policies, assignments and reference lists. Body limit in backend, Next proxy and nginx; CSP in Next and nginx. `AppProperties` types sessions, throttle, body size, tracing and the problem type base. Compose `init` runs `migrate`, `import-reference`, `account-create` (now idempotent); health checks use real endpoints; nginx limits `POST /api/session`. CI in `.github/workflows/ci.yml`. Integration tests fall back to Testcontainers. Prototype docs deleted; README, development, deployment, verification rewritten.
+Why: a 500 left no trace, personal data reached logs and audit, `docker compose up` could not start, and nine modules were about to build on all of it.
+Verified: `mvn test` green for unit and architecture tests (integration tests skipped, no database configured); backend booted and answered with the new problem bodies and metrics; `npm run typecheck` and `npm test` pass; both compose files validate.
+Open: integration tests against PostgreSQL, the backend image build, `nginx -t`, a fresh `docker compose up` and CI are unverified (Docker Hub unreachable during this session). The login lockout rolls back with its own transaction and never triggers, and the pool still connects as the owner role: both are issue #5. Lockout now answers 429 with `Retry-After`; `GET /api/accounts` and the other lists now return `{items, nextCursor}`.
+
+---
+
 ## 2026-10-01 - feat: add an opt-in log store (Loki, Alloy, Grafana)
 
 `feat/module-contracts` · @jv-ransika

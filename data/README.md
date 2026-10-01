@@ -1,12 +1,11 @@
-# Reproducible competition data
+# Reference data
 
-This is the application seed, copied from the supplied synthetic Tech-Triathlon 2026 records. It is included in the repository and Docker image so judges do not need the original download folder.
+Copied from the supplied synthetic Tech-Triathlon 2026 records and tracked here so a fresh clone and the Docker image need no separate download.
 
-- General Data: all 120 outlets, all 60 vehicles, full operating calendar, district travel and service allowances, unchanged.
-- Training Data/deliveries_train.csv: only February 9, 12, 13 and 14, 2026. All source columns and order identifiers are preserved. This is representative operational seed data, not model training.
-- Test Data: supplied S1 peak-day orders and vehicle availability, unchanged. The app assigns this scenario February 16, 2026 for demonstration. These are not Datathon outputs.
+- `General Data/`: all 120 outlets, all 60 vehicles, the operating calendar, district travel profiles and service allowances, unchanged.
+- `Training Data/` and `Test Data/`: supplied order and availability records, kept for reference and fixtures.
 - `provenance.json`: original locations, transformations and SHA-256 hashes.
 
-The active Spring seed and scenario logic lives in `backend/src/main/java/com/waypoint/dispatch/service/DispatchService.java`; `frontend/lib/scenarios.ts` is the legacy Node equivalent used by regression tests. February 9 has simulated delivery outcomes, February 17 has simulated fuel pressure, and February 18 has isolated constraint boundary fixtures. No production transactions or personal information are included.
+`java -jar backend.jar import-reference` stages these CSVs, validates them and publishes them as one reference version in `ref`, or changes nothing if the content hash matches the current version. Past the end of the supplied calendar, days come from the extension policy (R-CAL-03), and single days are overridden with the `calendar:Override` command, never by editing these files. `waypoint_reference_calendar_days_remaining` warns before the supplied calendar runs out.
 
-The original `Tech-Triathlon 2026/` directory remains untouched and ignored. The app's runtime source is this tracked `data/` directory, loaded by Spring's `ReferenceLoader`. Production mode extends the calendar in memory and can apply `CALENDAR_FILE` overrides without changing these source CSVs. This does not turn the synthetic outlet, fleet or travel records into validated production data.
+The original `Tech-Triathlon 2026/` directory remains untouched and ignored. These are synthetic records, not validated production data, and contain no personal information.

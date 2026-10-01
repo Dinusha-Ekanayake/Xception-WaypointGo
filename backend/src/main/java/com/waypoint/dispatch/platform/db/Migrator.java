@@ -13,7 +13,7 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.waypoint.dispatch.platform.config.DirectoryLocator;
-import org.springframework.beans.factory.annotation.Value;
+import com.waypoint.dispatch.platform.config.AppProperties;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -41,10 +41,10 @@ public class Migrator {
   public Migrator(
       JdbcTemplate jdbc,
       TransactionTemplate serializableTransactions,
-      @Value("${app.migrations-dir:../migrations}") String migrationsDir) {
+      AppProperties properties) {
     this.jdbc = jdbc;
     this.transactions = serializableTransactions;
-    this.migrationsDir = migrationsDir;
+    this.migrationsDir = properties.migrationsDir();
   }
 
   /** Returns the number of migrations applied by this run. */

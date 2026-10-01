@@ -67,6 +67,13 @@ public class ApiExceptionHandler {
   @ExceptionHandler(HttpMessageNotReadableException.class)
   public ResponseEntity<Map<String, Object>> onUnreadable(
       HttpMessageNotReadableException e, HttpServletRequest req) {
+    // A streamed body cut off by RequestSizeFilter surfaces here, wrapped by the
+    // JSON reader. It is too large, not malformed.
+    for (Throwable t = e.getCause(); t != null; t = t.getCause()) {
+      if (t instanceof DomainException tooLarge) {
+        return onDomain(tooLarge, req);
+      }
+    }
     return problem(ErrorCode.BAD_REQUEST, "The request body is not valid JSON for this endpoint", req);
   }
 

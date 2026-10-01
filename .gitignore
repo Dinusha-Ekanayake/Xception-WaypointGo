@@ -144,15 +144,11 @@ artifacts/
 !docs/architecture/schema/README.md
 !.agent/rules/*.md
 !docs/ai-disclosure.md
-!docs/architecture.md
-!docs/code-structure.md
-!docs/data-model.md
 !docs/deployment.md
 !docs/design-mapping.md
 !docs/design-rationale.md
 !docs/development-docs/development.md
 !docs/development-docs/development-log.md
-!docs/development-docs/enterprise-architecture-plan.md
 !docs/submission-checklist.md
 !docs/verification.md
 

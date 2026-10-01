@@ -8,6 +8,7 @@ import com.waypoint.dispatch.referencedata.contract.ReferenceViews.OutletView;
 import com.waypoint.dispatch.referencedata.contract.ReferenceViews.VehicleView;
 import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
+import com.waypoint.dispatch.shared.domain.Page;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.LocalDate;
 import java.util.List;
@@ -55,12 +56,18 @@ public class ReferenceController {
   }
 
   @GetMapping("/outlets")
-  public List<OutletView> outletsOfDepot(
+  public Page<OutletView> outletsOfDepot(
       @RequestParam String depot,
       @RequestParam(required = false) String version,
+      @RequestParam(required = false) String after,
+      @RequestParam(required = false) Integer limit,
       HttpServletRequest request) {
     authorizer.require(request, READ, "wpt:ref:depot:" + depot);
-    return reference.outletsOfDepot(depot, RequestValues.optionalUuid("version", version));
+    return Page.slice(
+        reference.outletsOfDepot(depot, RequestValues.optionalUuid("version", version)),
+        after,
+        limit,
+        OutletView::outletId);
   }
 
   @GetMapping("/outlets/{outletId}")
@@ -80,13 +87,20 @@ public class ReferenceController {
    * how a broken truck gets planned.
    */
   @GetMapping("/vehicles")
-  public List<VehicleView> availableVehicles(
+  public Page<VehicleView> availableVehicles(
       @RequestParam String depot,
       @RequestParam String date,
       @RequestParam(required = false) String version,
+      @RequestParam(required = false) String after,
+      @RequestParam(required = false) Integer limit,
       HttpServletRequest request) {
     authorizer.require(request, READ, "wpt:ref:depot:" + depot);
-    return reference.availableVehicles(depot, RequestValues.date("date", date), RequestValues.optionalUuid("version", version));
+    return Page.slice(
+        reference.availableVehicles(
+            depot, RequestValues.date("date", date), RequestValues.optionalUuid("version", version)),
+        after,
+        limit,
+        VehicleView::vehicleId);
   }
 
   @GetMapping("/vehicles/{vehicleId}")
