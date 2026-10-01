@@ -1,6 +1,7 @@
 package com.waypoint.dispatch.planning;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -42,6 +43,19 @@ class PlanningCommandIntegrationTest extends PlanningIntegrationSupport {
 
     String again = send(dispatcher, envelope("plan:Generate", null, generatePayload()), 409);
     assertTrue(again.contains("R-PLN-28"), "a published day is revised, not regenerated: " + again);
+  }
+
+  @Test
+  void aNonOperatingDayIsNotPlanned() throws Exception {
+    serviceDate = serviceDate.plusDays(1);
+    for (int i = 0; i < 30 && reference.isOperating(serviceDate); i++) {
+      serviceDate = serviceDate.plusDays(1);
+    }
+    assertFalse(reference.isOperating(serviceDate), "the calendar has no closed day within a month");
+
+    String refused = send(dispatcher, envelope("plan:Generate", null, generatePayload()), 409);
+
+    assertTrue(refused.contains("PLN-13"), refused);
   }
 
   @Test

@@ -40,7 +40,7 @@ Each module has the same five internal layers. The spec lists what belongs in ea
 **Caches, does not own:** `ref.products`. The catalogue belongs to the external warehouse and arrives by scheduled bulk sync with a catalogue version. It is a projection: never edited here, and always able to report that it is stale.
 
 **Commands:** `SetVehicleDayStatus`, `ImportReferenceData`, `OverrideCalendarDay`.
-**Queries:** `snapshotFor(day)`, `outlet(id)`, `vehicle(id)`, `isOperating(date)`, `nextOperatingDay(date)`, `travelProfile(district)`.
+**Queries:** `snapshotFor(day)`, `outlet(id)`, `vehicle(id)`, `availableVehicles(depot, date)`, `vehiclesOfDepot(depot)` (the whole fleet, so Planning can tell unservable from deferred), `isOperating(date)`, `nextOperatingDay(date)`, `travelProfile(district)`.
 **Publishes:** `vehicle.status_changed`, `reference.version_published`.
 **Consumes:** nothing.
 
@@ -91,7 +91,7 @@ Each module has the same five internal layers. The spec lists what belongs in ea
 | domain | `Order`, `OrderLine`, `OrderStatus` state machine, `Cutoff`, `TemperatureRequirement`, `OrderVersion` |
 | application | `PlaceOrderHandler`, `AmendOrderHandler`, `CancelOrderHandler`, `CloseOrdersHandler`, `OrderDataQuery` |
 | infrastructure | `JdbcOrderRepository`, `OrderProjection`. The warehouse adapter lives in the Warehouse module, behind `StockPort` |
-| web | routed through the command endpoint |
+| web | `PlanController`: reads under `/api/plans` (published plan, plan by id, deferrals, fuel, the two previews). Commands go through the command endpoint |
 
 **Owns:** `ordering.orders`, `ordering.order_lines`, `ordering.order_status_history`.
 
@@ -134,12 +134,12 @@ Revised 2026-09-30. `OrderStatus` in `ordering/contract` is the one vocabulary; 
 | Layer | Contents |
 | --- | --- |
 | contract | `PlanViews` (`PlanView`, `TripView`, `AllocationView`, `ConstraintResultView`, `DeferralView`, `FuelView`, `InterchangePreview`), `PlanQuery`, `PlanCommands`, `PlanEvents` |
-| domain | `PlanningRun`, `Trip`, `Allocation`, `Deferral`, `PriorityPolicy` (versioned decision table), `RuleSetVersion`, `ConstraintRegistry`, `Constraint`, `ConstraintResult`, `AllocationEngine` (port), `AllocationRequest`, `AllocationResult`, `TripTimeCalculator`, `FuelLedger` |
-| application | `GenerateDraftHandler`, `OverrideAllocationHandler`, `PublishPlanHandler`, `ReplanTripHandler`, `AssignmentPreviewQuery`, `FuelLedgerRepository` |
-| infrastructure | `PriorityInsertionEngine`, `ValidatingEngine` (decorator), `JdbcPlanRepository`, `PlanProjection` |
+| domain | `PlanningRun` (the aggregate: draft, override, defer, revision, trip move and replan, options), `VehicleDay`, `Trip`, `PlanOrder`, `FleetVehicle`, `DistrictTravel`, `PlanContext`, `RuleSet`, `PriorityPolicy` (versioned decision table), `ConstraintRegistry`, `Constraint`, `Constraints`, `ConstraintResult`, `PlanVerification`, `PublicationGate`, `DemandFingerprint`, `TripTimeline`, `FuelLedger`, `TemperatureClass`, `AllocationEngine` (port, with `Problem` and `AllocationResult`) |
+| application | `GeneratePlanHandler`, `OverrideAllocationHandler`, `DeferOrderHandler`, `PublishPlanHandler`, `RevisePlanHandler`, `ReplanTripHandler`, `PlanDataQuery` (implements `PlanQuery`, previews included), `PlanningProblems`, `PlanningDrafts`, `PlanningRevisions`, `PlanPublication` (the gate), `PlanRecords` (translation only), `PlanningConsumers` |
+| infrastructure | `PriorityInsertionEngine`, `ValidatingEngine` (decorator), `PlanningEngineConfiguration`, `JdbcPlanRepository`, `PeakDayScenario` (the Task 2B fixture and CSV export) |
 | web | routed through the command endpoint |
 
-**Owns:** `planning.runs`, `planning.trips`, `planning.allocations`, `planning.deferrals`, `planning.route_legs` (planned times only; actual times belong to Execution), `planning.fuel_usage`, `planning.rule_parameters`, `planning.policy_versions`.
+**Owns:** `planning.runs`, `planning.trips`, `planning.allocations`, `planning.deferrals`, `planning.route_legs` (planned times only; actual times belong to Execution), `planning.fuel_usage`, `planning.rule_sets`, `planning.rule_parameters`, `planning.policy_versions`. A trip id is unique within a plan and stable across versions while the trip carries the same orders, whichever vehicle carries it.
 
 **The constraint registry.** Every rule is a named unit reporting pass, fail with a human-readable reason, and remaining slack:
 
@@ -156,6 +156,8 @@ Revised 2026-09-30. `OrderStatus` in `ordering/contract` is the one vocabulary; 
 | `TimeBudget` | Fresh 270 min in 03:30-08:00; Style and Tech 480 min combined; checked separately |
 | `DeliveryWindow` | Arrival within the outlet window; mall outlets within the mall window; early arrival waits |
 | `FuelQuota` | Weekly litres per vehicle, including return legs and other published plans that week |
+| `SingleTemperaturePerTrip` | Refrigeration on or off for the whole trip (R-PLN-31) |
+| `VehicleAvailable` | No vehicle in the workshop or unavailable that day (R-FLT-03) |
 
 Capacity comparisons use the supplied validator's tolerance of `1e-6`, never bare floating point. Every rule here carries its identifier from [RULES-AND-POLICIES.md](RULES-AND-POLICIES.md), and the rules marked Validated are re-checked in CI by running our allocation output through the supplied `check_allocation.py`, so a regression fails the build rather than the submission.
 
@@ -163,16 +165,16 @@ Four consumers read that one registry: the engine, the manual override path, the
 
 **Predicates are code; thresholds are effective-dated parameters.** The rule "trip minutes must fit the Fresh budget" is compiled; the number 270 is a `rule_parameters` row with an effective date. Changing the budget is a config change, not a release.
 
-**`PriorityPolicy` is a versioned decision table**, not a hardcoded comparator. It is the rule most likely to change by business preference and the one dispatchers will argue about, so the ordering (prior skips, Fresh, chilled, earliest closing window) is authorable and versioned. Every `PlanningRun` stamps the `rule_set_version` that produced it, alongside the reference-data version, so a historical deferral can be replayed under the rules that were actually in force.
+**`PriorityPolicy` is a versioned decision table**, not a hardcoded comparator. It is the rule most likely to change by business preference and the one dispatchers will argue about, so the ordering is authorable and versioned: prior skips, Fresh, chilled, strict access, brand cadence, earliest closing window, then distance, volume and time unserved as tie-breaks (R-PLN-21). Every `PlanningRun` stamps the `rule_set_version` that produced it, alongside the reference-data version, so a historical deferral can be replayed under the rules that were actually in force.
 
 **Commands:** `plan:Generate`, `plan:Override`, `plan:Defer`, `plan:Publish`, `plan:Revise`, `plan:Replan`. A published plan and every child row are immutable; revise and replan create a new version that supersedes it.
 **Queries:** `publishedPlan(depot, day)`, `draft(id)`, `previewAssignments(orderId)`, `previewInterchange(tripId, vehicleId)`, `deferralsFor(depot, day)`, `fuelRemaining(vehicle, week)`.
 **Publishes:** `plan.published`, `plan.revised` (both carry trips and stops, so consumers never read Planning's tables), `order.deferred`, `order.unservable`.
-**Consumes:** `order.placed`, `order.amended`, `order.cancelled`, `orders.closed`, `vehicle.status_changed`, `reference.version_published`, `calendar.overridden`, `loading.interchange_requested`. It does not consume `delivery.failed`: a redelivery arrives as a new order.
+**Consumes:** `order.placed`, `order.amended`, `order.cancelled`, `orders.closed`, `vehicle.status_changed`, `reference.version_published`, `calendar.overridden`, `loading.interchange_requested`. It does not consume `delivery.failed`: a redelivery arrives as a new order. Consumers never publish, except an interchange that moves exactly the requested trip and passes the whole gate: `orders.closed` generates a draft as the system; order changes, a new reference version and a calendar override mark drafts stale; a vehicle lost after publication drafts a revision for the dispatcher. Detail in [the issue #9 walkthrough](../issues/009-planning/WALKTHROUGH.md).
 
 **Ports:** `AllocationEngine`, `TravelAndServiceEstimator`.
 
-**Invariants.** A published plan is **immutable**; a change creates a new version. Every constraint holds across the whole plan, which is why `PlanningRun` and not `Trip` is the aggregate. Every deferral records the binding constraint, never a generic message. Deferred orders keep identity, original requested date, skip count and history when carried to the next run.
+**Invariants.** A published plan is **immutable**; a change creates a new version. Every constraint holds across the whole plan, which is why `PlanningRun` and not `Trip` is the aggregate. Every deferral records the binding constraint, never a generic message. Deferred orders keep identity, original requested date, skip count and history when carried to the next run. One open draft per depot and day. A revision carries the published plan's orders, drops cancelled ones, defers late arrivals under `PLN-07`, and announces only the deferrals it made.
 
 **Failure modes.** Demand exceeds capacity: defer by policy (prior skips, Fresh, chilled, earliest closing window) with reasons. Order larger than any vehicle: `unservable`, surfaced for a split decision, never deferred forever. Vehicle removed after publication: only affected trips replan. Concurrent draft edits: revision check rejects the stale one with a diff.
 

@@ -14,10 +14,10 @@ Updated after every finished step. Branch `feat/planning-module` (stacked on `fe
 | 3 Engine and S1 fixture | **done** | `9e2f088` | See "Step 3 result" below. Official validator: `FEASIBILITY: PASSED` |
 | 4 Schema, repository, reads | **done** | `8286e96` | See "Step 4 result" below |
 | 5 Generate, Override, Defer, Publish | **done** | `5131047` | See "Step 5 result" below |
-| 6 Revise, Replan, previews, consumers | **done** | `feat(planning): revise, replan, previews and consumers` | See "Step 6 result" below |
-| 7 Docs closeout | **todo — start here** | | See "Resume at step 7" |
+| 6 Revise, Replan, previews, consumers | **done** | `83c1977` | See "Step 6 result" below |
+| 7 Docs closeout | **done** | `docs(planning): walkthrough and register updates` | [WALKTHROUGH.md](WALKTHROUGH.md). Added `UnservableScreenTest` (PLN-09) and `aNonOperatingDayIsNotPlanned` (PLN-13) so every register row names a test |
 
-**To resume:** read this table, then **"Resume at step 7"** if that row is still todo. Then the matching row in "Work breakdown" and the decision it cites. Copy Ordering patterns: `backend/src/main/java/com/waypoint/dispatch/ordering/` (handlers, `JdbcOrderRepository`, `OrderController`, `OrderDataQuery`), migration `migrations/20261001T0200_ordering_orders.sql`, tests `OrderingSchemaIntegrationTest`, `OrderingCommandIntegrationTest`, `OrderingTestConfig`.
+**All steps are done.** What was built is in [WALKTHROUGH.md](WALKTHROUGH.md); what is left is its "Known gaps" table. Then the matching row in "Work breakdown" and the decision it cites. Copy Ordering patterns: `backend/src/main/java/com/waypoint/dispatch/ordering/` (handlers, `JdbcOrderRepository`, `OrderController`, `OrderDataQuery`), migration `migrations/20261001T0200_ordering_orders.sql`, tests `OrderingSchemaIntegrationTest`, `OrderingCommandIntegrationTest`, `OrderingTestConfig`.
 
 **Environment notes.**
 - Database tests need `TEST_DATABASE_URL` (dedicated, never equal to `DATABASE_URL`): `docker compose up -d db`, then `TEST_DATABASE_URL=... mvn test` from `backend/`.
@@ -119,14 +119,15 @@ Known gaps:
 - An order that Ordering already rolled to tomorrow, then overridden back into today's revision, would disagree with Ordering. It is not guarded; recorded for the walkthrough.
 - A vehicle removed from reference data between publication and revision makes the revision fail loudly instead of replanning around it.
 
-### Resume at step 7
+### Step 7 result
 
-Docs only, no code. Write `docs/issues/009-planning/WALKTHROUGH.md`, copying the shape of `docs/issues/008-ordering/WALKTHROUGH.md`. Then update:
-- **EDGE-CASES:** set the test column for PLN-01 to PLN-17, POL-02 to POL-05, POL-08, POL-10 and LOD-03, naming the test classes above.
-- **RULES-AND-POLICIES:** R-PLN-21 (decision 1); P-12, P-15, P-17, P-18 and P-19.
-- **ASSUMPTIONS:** A-26 and A-27; and "never served counts as 0 days" (step 5).
-- **MODULES:** Planning's commands, events and consumers, and `ReferenceQuery.vehiclesOfDepot`.
-- **The development log.**
+The walkthrough is written. Registers updated:
+- **EDGE-CASES:** the test column for PLN-01 to PLN-17, LOD-02, LOD-03, FLT-01 and POL-02 to POL-10; new rows PLN-18 and PLN-19; POL-06 and POL-07 superseded by decision 6.
+- **RULES-AND-POLICIES:** R-PLN-21 revised; C-2 and Q5 closed.
+- **ASSUMPTIONS:** A-26 to A-28; P-12 valued; P-15, P-17, P-18 and P-19 added; parameter changes now go through what-if runs.
+- **MODULES:** Planning and Reference data sections.
+
+Verified: 252 tests, 0 failures; the official validator prints `FEASIBILITY: PASSED`.
 
 **Known gaps already parked:**
 - `PlanningRun` aggregate: step 5
