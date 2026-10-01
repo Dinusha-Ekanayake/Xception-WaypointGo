@@ -218,7 +218,7 @@ export function SideNav({
             {outlet.districtName} · {outlet.outletId}
           </span>
           <span className="text-[13px] text-go-muted">
-            {outlet.dockType} dock · {outlet.windowOpen.slice(0, 5)}–{outlet.windowClose.slice(0, 5)}
+            {outlet.dockType} dock · {outlet.windowOpen.slice(0, 5)}-{outlet.windowClose.slice(0, 5)}
           </span>
         </div>
       )}

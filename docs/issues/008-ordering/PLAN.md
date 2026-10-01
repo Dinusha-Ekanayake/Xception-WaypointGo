@@ -1,4 +1,4 @@
-# Issue #8: Ordering module (`ordering` schema) — plan
+# Issue #8: Ordering module (`ordering` schema) plan
 
 Written before code, per AGENTS.md "Issue Documents". What was actually built is in [WALKTHROUGH.md](WALKTHROUGH.md).
 

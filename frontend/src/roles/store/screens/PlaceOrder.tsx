@@ -210,7 +210,7 @@ export default function PlaceOrder({
           <h2 className="hidden text-[20px] font-medium text-black lg:block">Order summary</h2>
           <Muted>
             Delivery {dayLabel(rolled ?? date)}
-            {outlet ? ` · ${hhmm(outlet.windowOpen)}–${hhmm(outlet.windowClose)}` : ""}
+            {outlet ? ` · ${hhmm(outlet.windowOpen)}-${hhmm(outlet.windowClose)}` : ""}
           </Muted>
           <p className="text-[28px] leading-tight font-semibold text-black">
             {cases === 1 ? "1 case" : `${cases} cases`}

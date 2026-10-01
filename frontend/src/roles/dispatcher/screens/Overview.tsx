@@ -91,7 +91,7 @@ function FleetTile({ value, label, warning = false }: { value: number | null | u
   return (
     <div className="flex h-[74px] min-w-0 flex-1 flex-col gap-1 rounded-go-card-s bg-go-surface px-3 py-2">
       <p className={cx("truncate text-xl font-medium", warning ? "text-go-warning-text" : "text-go-teal")}>
-        {value === undefined ? "…" : value === null ? "—" : value}
+        {value === undefined ? "…" : value === null ? "-" : value}
       </p>
       <p className="text-[11px] text-go-secondary">{label}</p>
     </div>

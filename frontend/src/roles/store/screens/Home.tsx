@@ -80,7 +80,7 @@ export default function Home({
           {greeting()}, {displayName}
         </h1>
         <Muted>
-          {dayLabel(today)} · {outlet ? `${outlet.districtName} ${outlet.outletId} · delivery window ${hhmm(outlet.windowOpen)}–${hhmm(outlet.windowClose)}` : "…"}
+          {dayLabel(today)} · {outlet ? `${outlet.districtName} ${outlet.outletId} · delivery window ${hhmm(outlet.windowOpen)}-${hhmm(outlet.windowClose)}` : "…"}
         </Muted>
       </div>
 
@@ -133,7 +133,7 @@ export default function Home({
                 <div className="flex flex-col items-center rounded-[20px] bg-go-canvas px-4 pt-3 pb-3.5">
                   <span className="text-[15px] text-black">Expected in your window</span>
                   <span className="text-[40px] leading-tight font-semibold text-black">
-                    {outlet ? `${hhmm(outlet.windowOpen)}–${hhmm(outlet.windowClose)}` : "—"}
+                    {outlet ? `${hhmm(outlet.windowOpen)}-${hhmm(outlet.windowClose)}` : "-"}
                   </span>
                   <span className="text-[13px] text-go-muted">
                     {coming.orderRef} · {cases(coming.itemCount)}

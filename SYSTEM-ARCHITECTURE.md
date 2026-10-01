@@ -485,7 +485,7 @@ WS3 Ordering ─────────────► WS4 Planning ──► W
 The arrows are **contract dependencies, not code dependencies**:
 
 1. **Contracts land first.** Every module's `contract` package, its event payloads and its problem types are merged before implementations begin. Downstream streams build against the interface and a stub.
-2. **Migrations are named by timestamp**, `YYYYMMDDTHHMM_<module>_<what>.sql`, and each module writes its own. Timestamps sort after `001`–`009` and never collide between parallel branches, and because modules share no foreign keys, one module's migration never waits for another's. (Revised 2026-09-30; previously a single stream owned every migration.)
+2. **Migrations are named by timestamp**, `YYYYMMDDTHHMM_<module>_<what>.sql`, and each module writes its own. Timestamps sort after `001`-`009` and never collide between parallel branches, and because modules share no foreign keys, one module's migration never waits for another's. (Revised 2026-09-30; previously a single stream owned every migration.)
 3. **Integrate by event or contract query.** Never by reading another module's tables. The boundary test fails the build if someone tries.
 4. **Short-lived branches**, rebased daily. Long-lived branches across a schema change lose weekends.
 5. **Definition of done:** domain tests without a database, one integration test through the command bus, an authorization test for a denied scope, a contract test, boundary tests passing, telemetry emitted, and a development log entry.
