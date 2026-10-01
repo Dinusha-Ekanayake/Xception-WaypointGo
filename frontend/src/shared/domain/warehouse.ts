@@ -26,7 +26,7 @@ export type CatalogueStatusView = {
   circuitState: "closed" | "open" | "half_open";
 };
 
-/** Returned in a problem body when placement is rejected for short stock. */
+/** Per line: requested, and what was available (or locked, for a partial reservation). */
 export type LineAvailability = {
   productId: string;
   requested: number;

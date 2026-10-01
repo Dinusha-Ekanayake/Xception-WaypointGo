@@ -54,6 +54,9 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:-0}
       WAREHOUSE_BASE_URL: ${WAREHOUSE_BASE_URL:-https://triathon-warehouse-simple.vercel.app/api/v1}
       WAREHOUSE_API_KEY: ${WAREHOUSE_API_KEY:-}
+      WAREHOUSE_TIMEOUT_MS: ${WAREHOUSE_TIMEOUT_MS:-2000}
+      WAREHOUSE_CATALOGUE_STALE_AFTER: ${WAREHOUSE_CATALOGUE_STALE_AFTER:-2h}
+      WAREHOUSE_WEBHOOK_SECRET: ${WAREHOUSE_WEBHOOK_SECRET:-}
       LOG_FORMAT: ecs
     volumes:
       - ./data:/app/data:ro

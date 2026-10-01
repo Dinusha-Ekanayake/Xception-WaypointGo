@@ -84,6 +84,52 @@ public record Order(
   }
 
   /**
+   * A new order the warehouse could only partly fill. It holds the reservation
+   * of what was locked, and the lines the store asked for, until the store
+   * accepts the shortfall or cancels (D-F revised 2026-10-01).
+   */
+  public static Order placePartially(
+      UUID orderId,
+      String orderRef,
+      String outletId,
+      String depotCode,
+      String brandCode,
+      String districtName,
+      DeliveryDate date,
+      Reservation locked,
+      List<OrderLine> requested) {
+    return new Order(
+        orderId,
+        orderRef,
+        outletId,
+        depotCode,
+        brandCode,
+        districtName,
+        date.requested(),
+        date.requested(),
+        date.delivery(),
+        OrderStatus.PARTIALLY_RESERVED,
+        Optional.of(locked),
+        Optional.empty(),
+        Optional.empty(),
+        0,
+        OrderLine.forSubmission(requested),
+        0);
+  }
+
+  /** The store takes what was locked: the lines become the locked quantities. */
+  public Order acceptShortfall(Reservation confirmed, List<OrderLine> lockedLines) {
+    if (status != OrderStatus.PARTIALLY_RESERVED) {
+      throw new DomainException(
+          ErrorCode.CONFLICT, "Order " + orderRef + " is " + status + ", not partially reserved");
+    }
+    OrderStateMachine.require(status, OrderStatus.CONFIRMED);
+    return copy(
+        OrderStatus.CONFIRMED, Optional.of(confirmed), tripId, deliveryDate, deferralCount,
+        OrderLine.forSubmission(lockedLines));
+  }
+
+  /**
    * A new order for goods that did not arrive. It carries the original's
    * reservation and measures: the goods are the same goods, still reserved at
    * the warehouse, so asking again would reserve them twice.

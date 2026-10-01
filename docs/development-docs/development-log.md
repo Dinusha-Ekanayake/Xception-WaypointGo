@@ -30,6 +30,19 @@ Why: an audit found the lockout could never trigger, nothing checked Origin, aut
 Verified: `TEST_DATABASE_URL=... mvn verify`, 338 tests, twice on the same database; the deploy path rehearsed locally from a `dev`-built database (old session survived the hash migration, forwarded address recorded, ninth wrong password 429, cross-site POST 403). Not yet run on the server.
 Open: callers of `iam:GrantScope`, `iam:RevokeScope`, `iam:AssignDriver` and `iam:EndDriverAssignment` must send `expectedVersion`; an unknown kind is 403; sessions end by the injected clock, so a test that moves the clock signs in again. Behind HTTPS everyone signs in once after the deploy. A non-superuser `waypoint_migrator` owner and depot-scoped reference reads are not done.
 
+---
+
+## 2026-10-01 - feat: warehouse integration module (issue #7)
+
+`feat/warehouse` · @jv-ransika
+
+The warehouse adapter behind `StockPort`: HTTP client with a circuit breaker, placement records, retry that finds a lost placement by content, status calls from events, polling and reconcile, catalogue sync, an HMAC webhook inbox. A `202` is now kept as `partially_reserved` and the store accepts it (`order:AcceptShortfall`). See [issue 007](../issues/007-warehouse/WALKTHROUGH.md).
+Why: the warehouse has no idempotency key or client reference, so safety comes from recording every attempt and matching by content; partial reservations are kept (D-F revised).
+Verified: domain, architecture and boundary tests pass; Ordering integration 15 of 15; warehouse integration against a stub 15 of 16 (all run in Docker Maven with Postgres 16); lifecycle probed live (A-20). CI on the PR ran the full suite: everything passed except `anOrderWithNoWaypointOrderIsReleasedAndRaised`, a test-helper horizon bug since fixed.
+Open: the warehouse change requests; the catalogue picker (#18); the relay and scheduler (#6).
+
+---
+
 ## 2026-10-01 - perf: deploys run init once and before anything is replaced
 
 `chore/faster-deploy` · @kavindamihiran

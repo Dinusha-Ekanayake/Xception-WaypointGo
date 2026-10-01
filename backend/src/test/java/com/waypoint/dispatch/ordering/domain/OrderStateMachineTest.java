@@ -9,6 +9,7 @@ import static com.waypoint.dispatch.ordering.contract.OrderStatus.FAILED;
 import static com.waypoint.dispatch.ordering.contract.OrderStatus.IN_TRANSIT;
 import static com.waypoint.dispatch.ordering.contract.OrderStatus.LOADING;
 import static com.waypoint.dispatch.ordering.contract.OrderStatus.PARTIALLY_DELIVERED;
+import static com.waypoint.dispatch.ordering.contract.OrderStatus.PARTIALLY_RESERVED;
 import static com.waypoint.dispatch.ordering.contract.OrderStatus.RECEIVED;
 import static com.waypoint.dispatch.ordering.contract.OrderStatus.STOCK_UNKNOWN;
 import static com.waypoint.dispatch.ordering.contract.OrderStatus.UNCONFIRMED;
@@ -35,6 +36,7 @@ class OrderStateMachineTest {
   private static final Map<OrderStatus, Set<OrderStatus>> LEGAL =
       Map.ofEntries(
           Map.entry(STOCK_UNKNOWN, EnumSet.of(CONFIRMED, DEFERRED, CANCELLED)),
+          Map.entry(PARTIALLY_RESERVED, EnumSet.of(CONFIRMED, CANCELLED)),
           Map.entry(CONFIRMED, EnumSet.of(ALLOCATED, DEFERRED, UNSERVABLE, CANCELLED)),
           Map.entry(DEFERRED, EnumSet.of(ALLOCATED, DEFERRED, UNSERVABLE, CANCELLED)),
           Map.entry(UNSERVABLE, EnumSet.of(ALLOCATED, DEFERRED, CANCELLED)),

@@ -61,6 +61,7 @@ class OrderingTestConfig {
 
     void reset() {
       next = ScriptedStockPort::reserveAll;
+      confirm = () -> new Expired("not scripted");
       delayMs = 0;
       calls.set(0);
     }
@@ -75,14 +76,27 @@ class OrderingTestConfig {
           items);
     }
 
-    @Override
-    public PlacementResult placeOrder(String orderRef, List<StockLine> lines) {
-      return respond(lines);
+    private volatile java.util.function.Supplier<ConfirmResult> confirm =
+        () -> new Expired("not scripted");
+
+    void confirmWith(java.util.function.Supplier<ConfirmResult> script) {
+      this.confirm = script;
     }
 
     @Override
-    public PlacementResult amendOrder(String warehouseOrderRef, List<StockLine> lines) {
-      return respond(lines);
+    public PlacementResult placeOrder(PlacementRequest request) {
+      return respond(request.lines());
+    }
+
+    @Override
+    public PlacementResult amendOrder(String warehouseOrderRef, PlacementRequest request) {
+      return respond(request.lines());
+    }
+
+    @Override
+    public ConfirmResult confirmReservation(String warehouseOrderRef) {
+      calls.incrementAndGet();
+      return confirm.get();
     }
 
     private PlacementResult respond(List<StockLine> lines) {
