@@ -4,6 +4,8 @@ Every module in Waypoint Dispatch: what it owns, the layers inside it, the comma
 
 Read [../../SYSTEM-ARCHITECTURE.md](../../SYSTEM-ARCHITECTURE.md) first for the principles and layer rules. Each module is a top-level package under `backend/src/main/java/com/waypoint/dispatch/`.
 
+A spec is the contract a module is held to. How much of it is built, and what is left, is in [../development-docs/STATUS.md](../development-docs/STATUS.md); a section marked **Not built** below is a design, not a description of code.
+
 ## How to read a module spec
 
 Each module has the same five internal layers. The spec lists what belongs in each.
@@ -222,11 +224,11 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 
 | Layer | Contents |
 | --- | --- |
-| contract | `RunSheetView`, `DeliveryOutcome`, `ExecutionEvents` |
-| domain | `Stop`, `StopOutcome`, `DeliveryRecord`, `ProofOfDelivery`, `ServiceWindow`, `LatenessPolicy`, `ProofStore` (port) |
-| application | `StartStopHandler`, `RecordArrivalHandler`, `RecordDeliveryHandler`, `CaptureProofHandler`, `ReportFaultHandler`, `RunSheetQuery` |
-| infrastructure | `ObjectStorageProofStore`, `JdbcDeliveryRepository`, `RunSheetProjection` |
-| web | routed through the command endpoint |
+| contract | `ExecutionViews`, `ExecutionQuery`, `ExecutionCommands`, `ExecutionEvents` |
+| domain | `DeliveryRecord`, `ProofOfDelivery`, `ProofLink`, `ServiceWindow`, `LatenessPolicy`, `EtaPolicy`, `FailureReason`, `ProofStore` (port) |
+| application | `StartStopHandler`, `RecordArrivalHandler`, `RecordDeliveryHandler`, `CaptureProofHandler`, `ReportVehicleStatusHandler`, `ReportFaultHandler`, `ExecutionConsumers`, `RunSheetBuilder`, `ExecutionDataQuery` |
+| infrastructure | `LocalProofStore`, `JdbcDeliveryRepository`, `JdbcExecutionReads` |
+| web | `ExecutionController`; state changes go through the shared command endpoint |
 
 **Owns:** `execution.delivery_records` (with actual times), `execution.proofs`, `execution.attachments`, and its run sheets built from `trip.released`.
 
@@ -298,6 +300,8 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 
 ## 9. Notification (`notification`)
 
+**Not built.** Only `notification/contract` exists; the work is issue #14.
+
 **Purpose.** Turn domain events into messages people actually receive, with delivery tracked per channel.
 
 | Layer | Contents |
@@ -338,7 +342,7 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 
 **Owns:** `sync.operations`.
 
-**Commands:** `SubmitOperation`, `AcknowledgeOperation`, `DiscardOperation`.
+**Commands:** `SubmitOperation`, `AcknowledgeOperation`, `DiscardOperation`. Batch submit and acknowledge are built. Discard, and a resolve that reapplies a held write, are not: they wait on decision D-O, who may review another person's conflict (issue #28).
 **Queries:** `pendingFor(device)`, `conflictsFor(actor)`.
 
 **Protocol.**
@@ -364,6 +368,8 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 ---
 
 ## 12. Intelligence (`ml`)
+
+**Not built.** Only `intelligence/contract` exists; the work is issue #16. Planning marks every plan `plannedWithoutPredictor` until it lands.
 
 **Purpose.** Predictions that support planning, kept strictly out of the transactional core.
 

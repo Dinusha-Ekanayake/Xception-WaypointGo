@@ -74,6 +74,8 @@ cd /opt/waypoint/app && docker compose -f compose.yaml -f deploy/vps/compose.vps
 
 ## Production host
 
+Not the running deployment. This is the single-host path with `compose.prod.yaml` and the root `nginx/` folder, which predates the VPS setup above. CI keeps the file parsing, but nobody has deployed with it since the VPS went live, so treat the steps as unverified.
+
 Configure `DOMAIN` and `DATABASE_URL` in root `.env`; production Compose sets `COOKIE_SECURE=1` and `LOG_FORMAT=ecs` on Spring automatically. Its `init` service runs `migrate` and `import-reference` before the backend starts; it never creates accounts. Create staff accounts with `scripts/account.sh` (below). The image includes the tracked reference CSVs and migrations; replace synthetic business reference data with validated production records before real operations.
 
 ```sh
@@ -91,6 +93,8 @@ Export DOMAIN and CERTBOT_EMAIL in the shell for the issuance command. Nginx val
 Past the end of the supplied calendar, operating days come from the extension policy (Monday to Saturday, R-CAL-03). Closures and special operating days are set by an administrator with the `calendar:Override` command, recorded with an actor and a reason; there is no calendar file. The policy does not invent public-holiday closures; operations must supply them. `waypoint_reference_calendar_days_remaining` warns before the supplied calendar runs out.
 
 ## Vercel frontend
+
+Not in use. Kept as the outline of a split deployment; it has not been tried against the current build.
 
 Deploy `frontend/` and set BACKEND_URL to the separately hosted Spring service. Database settings on Vercel do not configure Spring. Use HTTPS for the backend link and COOKIE_SECURE=1 on Spring. The browser continues to call the frontend's same-origin `/api` routes. The earlier all-Node Vercel deployment instructions no longer apply.
 
@@ -127,26 +131,30 @@ Alloy reads every container labelled `com.waypoint.logs=true` through the read-o
 
 ## Operational limits
 
-Bounded history synchronization, calibrated real-world travel estimates and a managed backup/monitoring setup remain production rollout work. Visible clients refresh every ten seconds; state retrieval scans all plans/events before filtering, so response and database costs grow with retained history. Proof bytes remain in PostgreSQL and are fetched separately from state snapshots. Run a measured fleet pilot before general rollout.
+What a rollout beyond the competition would have to change, as things stand on 2026-10-02. The full list per module is in [STATUS.md](development-docs/STATUS.md).
+
+- **Proof files live on one host's disk.** Photos and signatures are written under `PROOF_DIR` by `LocalProofStore` and read back through signed five-minute links. A second backend instance would not see them (A-33), nothing purges them past `retain_until`, and with `PROOF_URL_SECRET` unset the links die at a restart.
+- **The audit log is partitioned by month and the last partition ends 2027-07-01.** The job that creates partitions ahead is not built (issue #6); after that date every command fails.
+- **No retention jobs.** Expired sessions, old login attempts, command receipts and delivered outbox rows are not purged (issue #6).
+- **Nobody is told.** The Notification module is not built (issue #14), so a deferral, a shortfall or a dispute reaches a person only when they open the screen that shows it.
+- **Travel and service times are the planning allowances,** not observed durations. Every plan is marked as planned without a predictor (issue #16).
+- **No automatic rollback and no scheduled database backup on the VPS.** Recorded in the development log on 2026-10-01; the scripts under Backup and recovery exist and have not been restore-tested there.
+
+Run a measured fleet pilot before general rollout.
 
 ## Staff accounts
 
-After migrations, create an individual account for each staff member. These commands require trusted access to the deployment host; no public account-administration endpoint is exposed. Passwords are prompted without echoing. ACCOUNT_OPERATOR identifies the operator in the audit trail (defaults to the host user).
+The first administrator cannot come from an endpoint that requires one, so it is created from the host. On the local Compose path the `init` step does this from `ADMIN_EMAIL` and `ADMIN_PASSWORD`. On the `compose.prod.yaml` path, which creates no accounts:
 
 ```sh
-scripts/account.sh create dispatcher@example.com dispatcher all
-scripts/account.sh create loader@example.com loader Peliyagoda
-scripts/account.sh create driver@example.com driver VEH001
-scripts/account.sh create store@example.com store OUT001
-scripts/account.sh update driver@example.com driver VEH002
-scripts/account.sh password store@example.com
-scripts/account.sh disable driver@example.com
-scripts/account.sh enable driver@example.com
+scripts/account.sh admin@example.com "Full Name" admin
 ```
 
-Use actual reference IDs. Assignment changes, password resets and disable/enable revoke existing sessions. Disabled users cannot sign in. The final enabled dispatcher cannot be disabled or reassigned to another role. Synchronize field work before planned assignment changes.
+The password is prompted without echo and never passed as an argument. Roles are `admin`, `dispatcher`, `loader`, `driver`, `store_manager` and `auditor`.
 
-Without Docker, export ACCOUNT_ID, ACCOUNT_OPERATOR, ACCOUNT_ROLE, ACCOUNT_SCOPE and (only for create/password) ACCOUNT_PASSWORD, then run `java -jar backend.jar account-create` or the corresponding `account-*` command. CLI commands do not open an HTTP port. Never pass passwords as command-line arguments or commit them.
+Every later change is a command an administrator sends through `POST /api/commands`: create and update an account, reset a password, disable it, grant or revoke a depot or outlet, assign a driver to a vehicle for a period. Disabling an account revokes its sessions in the same transaction, and the last active dispatcher cannot be disabled. There is no admin screen for these yet (issue #22).
+
+Three backend commands cover what a fresh instance needs before anyone can send a command: `account-grant-depot`, `operator-pin` for a loader's PIN on a shared dock device, and `demo-accounts` for one account per role. Their variables are in the [README](../README.md#backend-commands).
 
 ## Backup and recovery
 

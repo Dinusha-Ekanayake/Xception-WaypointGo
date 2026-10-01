@@ -12,7 +12,7 @@ It consolidates the Tech-Triathlon challenge booklet, the team's requirements dr
 | [docs/architecture/MODULES.md](docs/architecture/MODULES.md) | Every module in detail: its layers, owned data, inbound contract, outbound dependencies, events, invariants and failure modes |
 | [docs/architecture/DATA-MODEL-REVIEW.md](docs/architecture/DATA-MODEL-REVIEW.md) | Validation of the team's schema, 20 findings, and the corrected target schema |
 | [docs/architecture/EDGE-CASES.md](docs/architecture/EDGE-CASES.md) | The edge case register: trigger, required behaviour, enforcement point, detection and test for each |
-| [docs/architecture/MODULES.md](docs/architecture/MODULES.md) | Each module, its packages and contracts; the boundary rules are enforced by `ModuleBoundaryTest` |
+| [docs/development-docs/STATUS.md](docs/development-docs/STATUS.md) | How much of this architecture is built: every module and screen, what is left, and what to pick up next |
 
 Scope note: the warehouse and stock system is built separately by the team. This architecture treats it as an **external system behind an anti-corruption layer**, not as a module to build here.
 
@@ -481,6 +481,8 @@ WS3 Ordering ─────────────► WS4 Planning ──► W
 | WS10 Intelligence | Estimator ports, deterministic implementations, model registry | WS4 contract | week 5 |
 | WS11 Hardening | Load testing, chaos drills, SLO instrumentation, runbooks | all | week 6 |
 
+The "Starts" column is the plan as first written. WS0 to WS7 are built, WS8 has its relay and no Notification module, WS9 has four of the six role applications, and WS10 has only its contract. The current state of each, and what is left in it, is kept in [STATUS.md](docs/development-docs/STATUS.md) rather than here.
+
 ### 10.3 How parallel work stays unblocked
 
 The arrows are **contract dependencies, not code dependencies**:
@@ -501,8 +503,8 @@ The arrows are **contract dependencies, not code dependencies**:
 | 2 | Policy engine in-process or externalized | In-process PDP behind an interface. Externalize only if policy authoring moves outside engineering |
 | 3 | Event bus: outbox polling or a broker | Outbox with in-process dispatch now; the relay is broker-ready when a second consumer appears |
 | 4 | Products and order line items | **Decided 2026-09-30 (D-E).** Orders carry descriptive lines `(product_id, quantity)`; the warehouse returns weight, volume and temperature at placement, and those order-level totals stay authoritative. Capacity never moves to line level |
-| 5 | Migrate the current nine-table JSONB schema to the target model | Yes, with expand-contract, now that the timeline allows it. See the migration sequence in DATA-MODEL-REVIEW.md |
-| 6 | Duplicate rule implementation in `frontend/lib/` | Delete it and port its tests to the domain layer |
+| 5 | Migrate the current nine-table JSONB schema to the target model | **Closed 2026-09-27.** Not migrated: the backend was rewritten on the baseline in FOUNDATION-PLAN and the prototype, with its schema, was removed at tag `prototype-v0` |
+| 6 | Duplicate rule implementation in `frontend/lib/` | **Closed.** `frontend/lib/` went with the prototype; rules live once, in each module's `domain/` |
 | 7 | Outlet coordinates | **Deferred.** Additive later: a nullable column plus a check constraint. Nothing in the allocation model depends on it |
 | 8 | Driver-side temporal exclusion (one driver, one vehicle at a time) | **Deferred**, and it is a policy question, not a correctness fix. Adding the constraint later requires clean data first, because it is validated against existing rows |
 
