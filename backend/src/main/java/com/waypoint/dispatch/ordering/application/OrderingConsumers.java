@@ -13,8 +13,10 @@ import com.waypoint.dispatch.planning.contract.PlanEvents.OrderDeferred;
 import com.waypoint.dispatch.planning.contract.PlanEvents.OrderUnservable;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlanPublished;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlanRevised;
+import com.waypoint.dispatch.platform.observability.Metrics;
 import com.waypoint.dispatch.receipt.contract.ReceiptEvents.ReceiptAutoClosed;
 import com.waypoint.dispatch.receipt.contract.ReceiptEvents.ReceiptConfirmed;
+import com.waypoint.dispatch.receipt.contract.ReceiptEvents.ReceiptDisputed;
 import com.waypoint.dispatch.referencedata.contract.ReferenceQuery;
 import com.waypoint.dispatch.shared.event.EventEnvelope;
 import java.time.LocalDate;
@@ -299,6 +301,49 @@ final class OrderingConsumers {
     public void on(EventEnvelope<ReceiptAutoClosed> envelope) {
       transitions.move(
           envelope.payload().orderId(), OrderStatus.UNCONFIRMED, "receipt auto-closed", envelope);
+    }
+  }
+
+  /**
+   * The store answered with a dispute. The goods are at the outlet and the
+   * store has spoken, so the order is received; what is in dispute lives in an
+   * Issues investigation, not in the order's status (issue #13, decision 1).
+   *
+   * <p>A dispute after auto-close finds the order already UNCONFIRMED, which is
+   * terminal. That is expected, not illegal: it is counted and left alone, and
+   * the late report is investigated in Issues (RCP-08).
+   */
+  @Component
+  static class OnReceiptDisputed extends OrderingConsumer<ReceiptDisputed> {
+    private final JdbcOrderRepository orders;
+    private final Metrics metrics;
+
+    OnReceiptDisputed(OrderTransitions transitions, JdbcOrderRepository orders, Metrics metrics) {
+      super(transitions);
+      this.orders = orders;
+      this.metrics = metrics;
+    }
+
+    @Override
+    public String consumerName() {
+      return "ordering.on-receipt-disputed";
+    }
+
+    @Override
+    public Class<ReceiptDisputed> eventType() {
+      return ReceiptDisputed.class;
+    }
+
+    @Override
+    public void on(EventEnvelope<ReceiptDisputed> envelope) {
+      ReceiptDisputed e = envelope.payload();
+      boolean closedAlready =
+          orders.find(e.orderId()).map(o -> o.status() == OrderStatus.UNCONFIRMED).orElse(false);
+      if (closedAlready) {
+        metrics.increment("waypoint.order.late_dispute");
+        return;
+      }
+      transitions.move(e.orderId(), OrderStatus.RECEIVED, "received, disputed", envelope);
     }
   }
 }
