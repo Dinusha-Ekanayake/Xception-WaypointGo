@@ -80,15 +80,7 @@ Every pooled connection also runs `SET ROLE waypoint_app` when it is opened. Log
 
 ## Pull request breakdown
 
-One branch, `fix/identity-hardening`, one pull request into `dev`, commits in this order so each compiles and passes:
-
-1. Plan (this file).
-2. Authentication: lockout, throttle, cookie, session hashing, Origin.
-3. Authorization: generation, re-check, after-commit, unknown kind, `implemented`, policy and version-guarded commands.
-4. Privilege changes and devices.
-5. Database roles and deployment.
-6. Contract implementation and `app.actor_drives`.
-7. Registers, walkthrough, log.
+One branch, `fix/identity-hardening`, one pull request into `dev`, then `dev` into `main`. The parts depend on each other too closely to land separately: the bus's re-check needs the generation, the generation is moved by the account and policy commands, and the tests of all of them need the pool to behave as it will in production. Commits: this plan, the implementation with its tests, the registers and walkthrough.
 
 ## Out of scope, and who owns it
 

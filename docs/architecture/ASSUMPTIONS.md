@@ -73,7 +73,7 @@ Values that are correct today and will change. **None of them is a literal in co
 | **P-10** | Receipt auto-close window | to decide | Our policy | When an unconfirmed receipt stops waiting |
 | **P-11** | Stock hold timeout | to decide | Our policy | When an unresolved stock hold auto-defers |
 | **P-12** | Repeated-deferral escalation threshold | 1 skip (`escalation.skips`) | Our policy, issue #9 | When a skipped outlet is forced up the priority order |
-| **P-13** | Login lockout threshold and window | to decide | Our policy | Brute-force resistance against usability |
+| **P-13** | Login lockout threshold and window | 8 failures for one identity from one address, 40 for one address, 40 for one identity from anywhere, each within 15 min (`LOGIN_MAX_FAILURES`, `LOGIN_ADDRESS_MAX_FAILURES`, `LOGIN_IDENTITY_MAX_FAILURES`, `LOGIN_THROTTLE_WINDOW`). No separate lock duration: a counter clears as its failures leave the window | Our policy, issue #5 | Brute-force resistance against usability |
 | **P-14** | Proof artifact retention | to decide | Our policy, legal | How long evidence survives |
 | **P-15** | Earliest departure of a daytime trip with no Fresh trip before it | 08:00 (`daytime.departure.minute.of.day`) | Our policy, issue #9 | When Style and Tech trips can start, and so how much of the 480 minutes is usable |
 | **P-17** | Strict window threshold for priority | 120 min (`strict.window.min`) | Our policy, issue #9 | Which outlets are placed early as hard to fit |
