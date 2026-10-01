@@ -1,0 +1,47 @@
+@import url("https://fonts.googleapis.com/css2?family=Google+Sans+Flex:wght@400;500;600;700&display=swap");
+
+.access-demo {
+  background: #e7f3f2;
+  font-family: "Google Sans Flex", "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+}
+
+.access-demo .go-mark {
+  color: #09261d;
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: -0.1em;
+  line-height: 1;
+}
+
+.access-demo .go-nav-glyph {
+  display: inline-grid;
+  width: 1.3rem;
+  flex: 0 0 1.3rem;
+  place-items: center;
+  font-size: 1.15rem;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.access-demo button,
+.access-demo a,
+.access-demo input,
+.access-demo select,
+.access-demo textarea {
+  transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.access-demo :is(button, a, input, select, textarea, summary):focus-visible {
+  outline: 3px solid #18a98a;
+  outline-offset: 2px;
+}
+
+.access-demo button:disabled {
+  cursor: not-allowed;
+}
+
+@media (min-width: 1024px) {
+  .access-demo .go-sidebar {
+    box-shadow: 6px 0 24px rgba(14, 51, 42, 0.025);
+  }
+}

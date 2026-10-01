@@ -21,6 +21,50 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-01 - feat: align access demo with GO visual language
+
+`22-admin-console` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Refine the isolated permission demo with the Figma style guide and dispatcher desktop shell: Google Sans Flex preference, pale mint canvas, GO navigation, white surfaces and clearer persona cards. Add a demo link to the signed-out root page.
+Why: the mock route was hard to discover from `/` and its styling did not read as part of the GO product.
+Verified: non-incremental TypeScript check passed; the development server returned HTTP 200 for `/access-demo` after launching with the required local filesystem access.
+Open: production build and visual browser inspection remain unverified in this run.
+
+---
+
+## 2026-10-01 - feat: align access demo with GO visual language
+
+`22-admin-console` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Refine the isolated permission demo with the Figma style guide and dispatcher desktop shell: Google Sans Flex preference, pale mint canvas, GO navigation, white surfaces and clearer persona cards. Add a demo link to the signed-out root page.
+Why: the mock route was hard to discover from `/` and its styling did not read as part of the GO product.
+Verified: non-incremental TypeScript check passed. Browser verification and build remain open because the sandbox denied Next.js writes to `.next`; the elevated build request was rejected.
+Open: rerun the production build and inspect the refreshed route when filesystem access permits.
+
+---
+
+## 2026-10-01 - docs: plan capability management screens
+
+`22-admin-console` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Define persona modules, member exceptions, review and history in [the capability UI plan](../issues/022-admin-console/CAPABILITY-UI-PLAN.md), with isolated mock data and reusable components.
+Why: the full action catalogue obscures relevant persona access; scoped and expiring mock exceptions must not imply backend support.
+Verified: compared existing IAM plans and repository structure; documentation only, no application tests run.
+Open: build the mock UI next; current checkout lacks the earlier admin source directory.
+
+---
+
+## 2026-10-01 - feat: build access capability mock
+
+`22-admin-console` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Add the isolated `/access-demo` route with persona modules, member access, all 76 inventory actions, review, simulated saves and mock history. See [capability UI plan](../issues/022-admin-console/CAPABILITY-UI-PLAN.md).
+Why: operators need relevant business capabilities and clear member exceptions instead of an unfiltered technical list.
+Verified: non-incremental TypeScript check, production build and browser walkthrough of persona edit/review/save.
+Open: live permissions, scope/expiry, impact and history require backend contracts; mock saves have no server effect.
+
+---
+
 ## 2026-09-30 - feat: contracts, schemas and roles for every remaining module
 
 `feat/module-contracts` · @jv-ransika
