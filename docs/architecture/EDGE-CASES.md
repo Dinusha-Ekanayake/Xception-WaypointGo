@@ -211,8 +211,8 @@ Most of the cases below are instances of nine patterns. Learn the patterns and t
 | ID | Trigger | Required behaviour | Enforced in | Detection | Test |
 | --- | --- | --- | --- | --- | --- |
 | PLT-01 | Serialization failure or deadlock | Bounded retry that **re-runs validation**, never a blind replay | Platform | Retry rate (`waypoint_db_retry_total`), exhaustion alert (`waypoint_db_retry_exhausted_total`) | Concurrent test |
-| PLT-02 | Outbox relay crashes after commit | Events redelivered at least once; consumers idempotent | Notification | Relay lag gauge | Chaos drill |
-| PLT-03 | Poison event | Dead-lettered with attempt history after N attempts. Never blocks the queue, never disappears | Outbox relay | Dead-letter alert | Integration |
+| PLT-02 | Outbox relay crashes after commit | Events redelivered at least once; consumers idempotent. A claim is a lease: a relay that dies mid-batch loses it when the lease lapses, and the inbox makes the redelivery a no-op for consumers that had applied it | Outbox relay (`OutboxRelay`, `ConsumerInbox`) | Relay lag gauge (`waypoint_outbox_lag_seconds`, `waypoint_outbox_open`) | Integration (`OutboxRelayIntegrationTest` `aClaimAbandoned...`, `aRedeliveryAppliesOncePerConsumer`); chaos drill |
+| PLT-03 | Poison event | Dead-lettered with its last error after 8 attempts (`RELAY_MAX_ATTEMPTS`). Never blocks the queue, never disappears: listed at `/api/platform/events/dead`, replayed with `platform:ReplayEvent` | Outbox relay | Dead-letter alert (`waypoint_outbox_dead`, `waypoint_outbox_dead_lettered_total`) | Integration (`OutboxRelayIntegrationTest` `aPoisonEvent...`) |
 | PLT-04 | Two app instances run the same scheduled job | Advisory-lock lease means exactly one runs | Platform | Duplicate-run alert | Integration |
 | PLT-05 | Database failover | Connections drain and reconnect; in-flight transactions fail cleanly and are retried by the client | Platform | Error-budget burn | Chaos drill |
 | PLT-06 | Read replica lag visible in the dispatcher view | Lag displayed when above threshold, or the read is routed to the primary | Query layer | Lag gauge | Load test |
@@ -221,6 +221,9 @@ Most of the cases below are instances of nine patterns. Learn the patterns and t
 | PLT-09 | Partition for the current month missing | Created ahead by the scheduler; alert if the next partition is absent | Platform | Alert | Integration |
 | PLT-10 | Proof artifact retention expires | Detached and purged on schedule, with the audit record retained | Retention job | Purge counter | Integration |
 | PLT-11 | Clock changes on the server | All decisions use `timestamptz`; no wall-clock arithmetic across a change | Domain | n/a | Unit |
+| PLT-12 | Two relay instances poll the same outbox | Each event is claimed by one: `FOR UPDATE SKIP LOCKED`, then `processing` under a lease | Outbox relay | `waypoint_outbox_consumed_total{outcome="duplicate"}` | Integration (`OutboxRelayIntegrationTest` `twoRelaysNeverClaimTheSameEvent`) |
+| PLT-13 | An event fails while a later event of the same aggregate is waiting | The later event waits: only the oldest undelivered event of an aggregate is claimable, in write order (`seq`). Other aggregates are unaffected. A dead letter stops holding its aggregate back, so a replay arrives out of order | Outbox relay | Relay lag gauge | Integration (`OutboxRelayIntegrationTest` `oneAggregatesEvents...`) |
+| PLT-14 | An event is published in a transaction that rolls back | Never written, so never delivered | `OutboxEventPublisher` | n/a | Integration (`OutboxRelayIntegrationTest` `anEventFromARolledBack...`) |
 
 ---
 

@@ -137,6 +137,19 @@ Why: issue #13. The decisions are in [PLAN.md](../issues/013-receipt-issues/PLAN
 Verified: `mvn test -Dtest=ReceiptTest,ReceiptStateMachineTest,IssueTest,ModuleBoundaryTest`, 33 tests, 0 failures.
 Open: steps 2 to 5 (schema, commands, consumers, jobs, docs).
 
+---
+
+## 2026-10-01 - feat: outbox relay delivers events between modules (issue #6, delivery slice)
+
+`feat/outbox-relay` · @kavindamihiran
+
+`OutboxRelay` claims committed events (`FOR UPDATE SKIP LOCKED`, a lease), hands each to every `EventSubscriber` of its type in a transaction of its own, and settles it: published, retried with backoff, or dead-lettered after 8 attempts. One aggregate's events arrive in write order (new `outbox_events.seq`). `platform:ReplayEvent` and `GET /api/platform/events/dead` for dead letters. Detail in [docs/issues/006-event-backbone/WALKTHROUGH.md](../issues/006-event-backbone/WALKTHROUGH.md).
+Why: events were written and never delivered, so no module's work reached the next one: a placed order never reached Planning or Warehouse, a published plan never reached Ordering or Loading.
+Verified: `TEST_DATABASE_URL=... mvn verify`, 456 tests on a fresh database with Loading merged; by hand, the wired relay drained the 43 events the other integration tests left behind to the real subscribers with none failing. Not run on the server.
+Open: the first start delivers every event still pending from before the relay existed, including Warehouse status calls. Tests run with the worker off (`app.relay.enabled=false`) and deliver explicitly. Scheduler jobs and audit completion remain on #6.
+
+---
+
 ## 2026-10-01 - feat(loader): switch loaders by PIN while offline
 
 `feat/loading` · @Dinusha-Ekanayake
