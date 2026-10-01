@@ -29,7 +29,7 @@ Boundaries are enforced by `ModuleBoundaryTest.java` and `frontend/tests/boundar
 
 Static assets in `frontend/public/`; `frontend/scripts/build-sw.mjs` generates the service worker during production builds. Reference CSVs are read from tracked `data/` at the repo root; the Node service resolves `data/` from either the repo root or `frontend/`. Java tests in `backend/src/test/`, Spring HTTP integration tests in `frontend/tests/spring/`, legacy Node tests in `frontend/tests/`, browser tests in `frontend/tests/e2e/`.
 
-Documentation: `SYSTEM-ARCHITECTURE.md` at the root; `docs/architecture/` for module specs, the rule catalogue, the assumption and parameter registers, the data model review and the edge case register; `docs/` for design rationale, deployment and submission evidence; `docs/development-docs/` for local setup and the development log.
+Documentation: `SYSTEM-ARCHITECTURE.md` at the root; `docs/architecture/` for module specs, the rule catalogue, the assumption and parameter registers, the data model review and the edge case register; `docs/` for design rationale, deployment and submission evidence; `docs/development-docs/` for local setup and the development log; `docs/issues/` for one folder per GitHub issue (see Issue Documents below).
 
 Versioned SQL migrations live in root `migrations/`, shared by both stacks. The target schema under `docs/architecture/schema/migrations/` is a design under review and is deliberately not applied: the migrator reads `*.sql` directly inside `migrations/` and does not recurse. Node resolves them from the repo root or `frontend/`; Spring defaults to `../migrations` from `backend/` and accepts `MIGRATIONS_DIR`. Migrations apply atomically through the backend `migrate` command with a transaction-scoped advisory lock. New migration files are named `YYYYMMDDTHHMM_<module>_<what>.sql` (they sort after `001`–`009`); each module writes its own, and because modules share no foreign keys, one module's migration never waits for another's. Existing SQLite files in `var/` are legacy data and must be preserved.
 
@@ -123,6 +123,15 @@ Deny by default: an unlisted command or unmatched scope is `403` plus an audit e
 Several people and agents work here in parallel. Read the top entries of [docs/development-docs/development-log.md](docs/development-docs/development-log.md) before starting. Append an entry when you finish a unit of work that changes code, structure, configuration or a decision, using the template at the top of that file. Keep entries to a few terse lines and link to the relevant document for detail. Skip typo and formatting fixes. Credit the GitHub user who owns the work; never record agent, tool or model names.
 
 Markdown is ignored by default in `.gitignore` because agent sessions scatter scratch `.md` files. Maintained documents are allow-listed there; if you add one that belongs in the repository, add its exception in the same commit.
+
+## Issue Documents
+
+Every GitHub issue that builds a module or changes structure gets a folder `docs/issues/<NNN>-<slug>/`, where `<NNN>` is the issue number padded to three digits and `<slug>` is the module or subject in kebab case, for example `docs/issues/008-ordering/`. It holds two files, both allow-listed by `!docs/issues/**/*.md`:
+
+- `PLAN.md`, written **before code**: current state, which layer owns each dependency, the open decisions with the one chosen, and the PR breakdown. Review the plan, not the diff, when the approach is in question.
+- `WALKTHROUGH.md`, written **before the issue closes**: what was built, layer by layer with file paths; each flow (command, event, job) end to end; how to run and verify it locally; decisions taken and the documents they were recorded in; known gaps and which issue owns them.
+
+A walkthrough explains; it does not replace the rule catalogue, the edge case register or the development log. Record the rule in RULES-AND-POLICIES, the case in EDGE-CASES and the entry in the log, and link to them from the walkthrough rather than restating them.
 
 ## Commit and Pull Requests
 

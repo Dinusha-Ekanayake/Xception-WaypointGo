@@ -145,6 +145,24 @@ Why: first slice of #19 that the backend can serve today.
 Verified: `npm run typecheck`, `npm test` and `npm run build` green; screens checked in a production build against the Figma frames with API reads stubbed from `vehicles.csv`. Not verified against a live backend.
 Open: the rest of #19 waits on #8, #9, #12, #13, #14 and #16. Reference data has no read listing workshop vehicles, `VehicleView` has no `rowVersion` so the command goes with a null `expectedVersion`, and `BigDecimal` is serialised as a JSON number. No Playwright e2e yet.
 
+## 2026-10-01 - docs: record the revised warehouse API and wire its key
+
+`feat/ordering-module` · @Oxshadha
+
+The warehouse API now has two warehouses (KDY, PLG), requires `warehouse` on `POST /orders`, and answers a short order with a `202` partial reservation that expires. RULES §2 (contract, R-STK-08 to R-STK-10, lifecycle mapping), MODULES, A-07 and A-20 corrected; A-25 added. `WAREHOUSE_*` passed through both Compose files, documented in `.env.example` and [development.md](development.md#the-external-warehouse-api).
+Why: the recorded contract said all-or-nothing and no TTL; both are now false.
+Verified: read endpoints probed live with a key (200, 401 without); no order was placed.
+Open: `StockPort` needs a depot parameter, and the #7 adapter must cancel a `202` and answer `Insufficient` (R-STK-08). Both owned by #7.
+
+## 2026-10-01 - feat: build the Ordering module (issue #8)
+
+`feat/ordering-module` · @Oxshadha
+
+Ordering end to end: pure domain, `ordering` schema with forced row-level security (`20261001T0200`), `JdbcOrderRepository`, `OrderDataQuery` behind `OrderQuery`, read-only `/api/orders`, the `order:Place/Amend/Cancel/CloseForDay` handlers, twelve event consumers and the 16:00 `ordering.cutoff` job. Platform pieces it needed: outbox writer, consumer inbox, system actor with `app.actor_is_system()` (`20261001T0100`), `Database.readAs` so a contract read never switches its caller's role, the bus auditing scope denials raised inside the transaction, and `UnconfiguredStockPort` for a blank warehouse key. New event `order.auto_deferred`; Ordering now consumes `loading.started`.
+Why: issue #8. The walkthrough is [docs/issues/008-ordering/WALKTHROUGH.md](../issues/008-ordering/WALKTHROUGH.md); decisions are in EDGE-CASES (ORD-03 revised, ORD-13, ORD-14) and ASSUMPTIONS (A-22 to A-24).
+Verified: `TEST_DATABASE_URL=... mvn test` on PostgreSQL 16, 170 tests, 0 failures, 0 skipped. Frontend `npm run typecheck` and `npm test` pass.
+Open: no relay or scheduler runs the consumers and the job yet (#6); no real `StockPort` or `CatalogueQuery` (#7); partial redelivery (A-24).
+
 ---
 
 ## 2026-09-30 - feat: contracts, schemas and roles for every remaining module

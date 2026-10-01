@@ -100,6 +100,38 @@ public final class OrderEvents {
     }
   }
 
+  /**
+   * The cutoff passed while the warehouse had not answered, so the order moved
+   * to a later run with reason {@code stock_unresolved} (R-STK-06, STK-03). It
+   * is still not demand: stock is never assumed (R-STK-05). Notification tells
+   * the store.
+   */
+  public record OrderAutoDeferred(
+      UUID orderId,
+      String outletId,
+      String depotCode,
+      LocalDate fromDate,
+      LocalDate toDate,
+      String reason)
+      implements DomainEvent {
+    public static final String TYPE = "order.auto_deferred";
+
+    @Override
+    public String type() {
+      return TYPE;
+    }
+
+    @Override
+    public String aggregateType() {
+      return "order";
+    }
+
+    @Override
+    public String aggregateId() {
+      return orderId.toString();
+    }
+  }
+
   /** Demand for this depot and day is final; Planning may generate. */
   public record OrdersClosed(String depotCode, LocalDate serviceDate, List<UUID> orderIds)
       implements DomainEvent {
