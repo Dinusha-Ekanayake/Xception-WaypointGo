@@ -187,19 +187,19 @@ Four consumers read that one registry: the engine, the manual override path, the
 | Layer | Contents |
 | --- | --- |
 | contract | `LoadingViews`, `LoadingQuery`, `LoadingCommands`, `LoadingEvents` |
-| domain | `LoadingSession`, `LoadingCheck`, `Shortfall`, `DepartureGate`, `VehicleInterchange` |
-| application | `StartLoadingHandler`, `RecordCheckHandler`, `FlagShortfallHandler`, `RequestInterchangeHandler`, `ReleaseTripHandler`, `ManifestQuery` |
-| infrastructure | `JdbcLoadingRepository`, `ManifestProjection` |
-| web | routed through the command endpoint |
+| domain | `LoadingSession`, `ItemLine`, `ReleaseChecklist` |
+| application | `StartLoadingHandler`, `RecordCheckHandler`, `FlagShortfallHandler`, `HandBackHandler`, `ReleaseTripHandler`, `ManifestBuilder`, `LoadingDataQuery` |
+| infrastructure | `JdbcLoadingRepository`, `JdbcManifestWriter`, `JdbcLoadingReads` |
+| web | `LoadingController` for reads; writes through the shared command endpoint |
 
-**Owns:** `loading.sessions`, `loading.checks`, `loading.shortfalls`, and its own copy of each trip and stop sequence built from `plan.published` and `plan.revised`.
+**Owns:** `loading.trips`, `loading.stops`, `loading.items`, `loading.sessions`, append-only `loading.item_checks` and `loading.shortfalls`, built from `plan.published` and `plan.revised`.
 
-**Commands:** `loading:Start`, `loading:Check`, `loading:Shortfall`, `loading:RequestInterchange`, `loading:Release`, `loading:Handover`.
+**Commands:** `loading:Start`, `loading:Check`, `loading:Shortfall`, `loading:HandBack`, `loading:Release`. Interchange and dispatcher handover are deferred.
 **Queries:** `manifest(tripId)`, `readyTrips(depot, day)`, `openShortfalls(depot)`.
 **Publishes:** `loading.started`, `loading.shortfall`, `loading.interchange_requested`, `trip.released`.
 **Consumes:** `plan.published`, `plan.revised`, `shortfall.resolved` (from Issues).
 
-**Invariants.** A trip releases only when **every** allocated order has a passing check. A shortfall blocks departure until a dispatcher records a replacement and the loader rechecks the whole trip; the store's order is never silently reduced. Manifest order is the planned stop sequence reversed, so the first stop is unloaded first. There is no separate mall-first loading rule (decision D-L, R-LOD-08 withdrawn).
+**Invariants.** A trip releases only when **every** allocated item has a recorded check on the current plan version, including any Damaged, Doesn't fit or Missing exception. The loader also confirms doors sealed, orders secured and driver present; there is no temperature-reading or seal-number gate. One loader holds a trip at a time, and hand back preserves earlier checks. Manifest order is the planned stop sequence reversed, so the first stop is unloaded first. There is no separate mall-first loading rule (decision D-L, R-LOD-08 withdrawn).
 
 **Vehicle interchange.** This is the subtle one. Swapping the truck is not an `UPDATE` to a trip's vehicle, and Loading never changes a trip itself. It is a request that:
 

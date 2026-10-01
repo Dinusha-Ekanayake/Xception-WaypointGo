@@ -219,14 +219,16 @@ Binding for the delivered system even though Task 2B does not score them.
 | ID | Rule | Source | Status |
 | --- | --- | --- | --- |
 | R-LOD-01 | The loader sees the stop sequence so goods load in an order that supports unloading | Booklet | Binding |
-| R-LOD-02 | The loader flags missing or damaged items **before** the vehicle leaves | Booklet | Binding |
+| R-LOD-02 | The loader flags **damaged, doesn't fit, or missing** items **before** the vehicle leaves | Booklet and confirmed product decision | Binding |
 | R-LOD-03 | Loading lists must not go stale when the plan changes | Booklet | Binding |
 | R-LOD-04 | The loader sees only loading-ready vehicles, starts loading, marks finish, and reports destroyed items | Team draft | Team |
 | R-LOD-05 | **Truck interchange:** if the assigned truck becomes unavailable at the dock, another may take the trip | Team draft | Team |
 | R-LOD-06 | An interchange revalidates the **whole trip** against the substitute: capacity, temperature, access, depot, time budget, fuel. It is recorded as history, never an update of the vehicle column: Planning publishes a new plan version (`plan.revised`) | Policy | Policy |
-| R-LOD-07 | A trip is released only when every allocated order has a passing check | Policy | Policy |
+| R-LOD-07 | A trip is released only when every allocated item has a recorded check on the current plan version. A flagged item is a recorded exception and does not by itself block release | Confirmed product decision | Binding |
 | R-LOD-08 | ~~Mall deliveries are prioritised in the loading order~~ **Withdrawn 2026-09-30 (D-L):** loading follows the reversed stop sequence only | Team draft | Withdrawn |
 | R-LOD-09 | If no compatible substitute exists, the trip defers as a unit and its orders carry forward with identity | Policy | Policy |
+| R-LOD-10 | Release requires the loader to confirm doors sealed, orders secured and driver present. No reefer reading or seal number is required | Confirmed product decision | Binding |
+| R-LOD-11 | One loader holds a trip at a time; only that holder writes. Hand back retains the names and times on earlier checks | Confirmed product decision | Binding |
 
 ## 5. Execution
 

@@ -15,7 +15,7 @@ The `feat/loading` branch contains the schema, domain, contracts and command han
 
 ## Confirmed decisions
 
-Use item and units, with one check per product line. Flag and continue: exceptions are recorded and release waits for no unchecked lines plus the release checklist. Only the holder writes; hand back keeps previous checks. Each accepted command and revision advances rowVersion once. Chilled release requires a reefer reading at or below 4 C. A supervisor signs in the shared device and loaders select their identities using PINs. Lock clears the active operator. Offline checks and flags retain the operator who recorded them, verified against session history. PIN switching remains online only. Docks default to four per depot with configurable overrides and departure-ordered round robin. Handover and interchange remain explicitly deferred.
+Use item and units, with one check per product line. Loader issue choices are exactly Damaged, Doesn't fit, and Missing; Short and Wrong temp are not offered. Flag and continue: exceptions are recorded and release waits for no unchecked lines plus the release checklist. The release checklist confirms doors sealed, orders secured, and driver present. Only the holder writes; hand back keeps previous checks. Each accepted command and revision advances rowVersion once. A supervisor signs in the shared device and loaders select their identities using PINs. Lock clears the active operator. Offline checks and flags retain the operator who recorded them, verified against session history. PIN switching remains online only. Docks default to four per depot with configurable overrides and departure-ordered round robin. Handover and interchange remain explicitly deferred.
 
 ## Ordered work and acceptance checks
 
