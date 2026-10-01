@@ -37,14 +37,16 @@ public class SessionActorResolver implements ActorResolver {
   @Override
   public Optional<Actor> resolve(HttpServletRequest request) {
     String token = AuthController.tokenFrom(request);
-    return sessions
-        .resolve(token)
-        .map(
-            session ->
-                operators
-                    .operatorOf(token)
-                    .map(op -> new Actor(op.userId(), session.deviceId()))
-                    .orElseGet(() -> sessions.actorOf(session)));
+    return sessions.resolve(token).map(sessions::actorOf);
+  }
+
+  /** Only loading reads may use the PIN-switched operator as their actor. */
+  public Optional<Actor> resolveLoading(HttpServletRequest request) {
+    String token = AuthController.tokenFrom(request);
+    return sessions.resolve(token).map(session ->
+        operators.operatorOf(token)
+            .map(op -> new Actor(op.userId(), session.deviceId()))
+            .orElseGet(() -> sessions.actorOf(session)));
   }
 
   @Override

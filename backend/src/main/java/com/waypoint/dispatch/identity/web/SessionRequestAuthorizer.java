@@ -13,9 +13,8 @@ import org.springframework.stereotype.Component;
  * Resolve the session, then apply policy. One place, so no controller invents its
  * own version of the check and forgets the audit row.
  *
- * <p>The actor comes from {@link SessionActorResolver}, the same as a command's,
- * so on a shared loader device a read is the operator's read, not the
- * supervisor's.
+ * <p>Only loading reads use the PIN-switched operator. Other modules keep the
+ * signed-in device account as their actor.
  */
 @Component
 public class SessionRequestAuthorizer implements RequestAuthorizer {
@@ -30,8 +29,9 @@ public class SessionRequestAuthorizer implements RequestAuthorizer {
   @Override
   public Actor require(HttpServletRequest request, String action, String resource) {
     Actor actor =
-        actors
-            .resolve(request)
+        (resource != null && resource.startsWith("wpt:loading:")
+                ? actors.resolveLoading(request)
+                : actors.resolve(request))
             .orElseThrow(() -> new DomainException(ErrorCode.UNAUTHENTICATED, "Not signed in"));
     // The same call a command goes through, so a denied read is audited the same
     // way a denied write is. decide() answers without recording, which is not what
