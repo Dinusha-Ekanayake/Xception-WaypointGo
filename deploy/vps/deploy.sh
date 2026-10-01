@@ -15,10 +15,32 @@ set -euo pipefail
 
 APP_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../.." && pwd)"
 
+compose=()
+
 die() { echo "deploy: $*" >&2; exit 1; }
 
 # Last value of KEY in .env, or nothing. Values are never shell-evaluated.
 env_value() { sed -n "s/^$1=//p" "$APP_DIR/.env" | tail -1; }
+
+# Requests the certificate for SITE and preview.SITE the first time, or after
+# SITE_ADDRESS changes. Until it succeeds nginx serves a self-signed placeholder,
+# which is enough to answer the HTTP-01 challenge on port 80.
+ensure_certificate() {
+  local site="$1"
+  if "${compose[@]}" exec -T nginx test -f "/etc/letsencrypt/live/$site/fullchain.pem"; then
+    return 0
+  fi
+  echo "==> requesting a certificate for $site and preview.$site"
+  if "${compose[@]}" run --rm --no-deps -T --entrypoint certbot certbot certonly \
+      --webroot -w /var/www/certbot --cert-name "$site" -d "$site" -d "preview.$site" \
+      --key-type ecdsa --non-interactive --agree-tos --register-unsafely-without-email; then
+    "${compose[@]}" exec -T nginx sh -c \
+      '/docker-entrypoint.d/25-tls-certificate.sh && nginx -t && nginx -s reload'
+  else
+    echo "deploy: no certificate issued; check that $site and preview.$site resolve to this server." >&2
+    echo "deploy: nginx keeps serving its self-signed placeholder until the next deploy." >&2
+  fi
+}
 
 # The body is a function so bash has parsed all of it before `git reset` can
 # replace this file underneath the running shell.
@@ -45,9 +67,13 @@ main() {
     exec "$APP_DIR/deploy/vps/deploy.sh" --fetched
   fi
 
-  local compose=(docker compose -f compose.yaml -f deploy/vps/compose.vps.yaml)
-  # Caddy runs once, with production, and fronts both environments.
+  compose=(docker compose -f compose.yaml -f deploy/vps/compose.vps.yaml)
+  # nginx runs once, with production, and fronts both environments.
   [[ "$environment" == production ]] && compose+=(--profile edge)
+
+  local site
+  site="$(env_value SITE_ADDRESS)"
+  [[ -n "$site" ]] || die "SITE_ADDRESS is not set in .env"
 
   echo "==> deploying $environment: $(git log -1 --format='%h %s')"
 
@@ -55,19 +81,22 @@ main() {
 
   # Build first: the running stack keeps serving until the images are ready.
   "${compose[@]}" build --quiet
+
+  if [[ "$environment" == production ]]; then
+    # Test the new proxy configuration in a throwaway container before the
+    # running one is replaced. A typo stops the deploy here, site still up.
+    "${compose[@]}" run --rm --no-deps -T nginx nginx -t \
+      || die "the nginx configuration does not test clean; nothing was replaced"
+    # The proxy goes first and is back within seconds, so the public site does
+    # not wait on the database step below.
+    "${compose[@]}" up -d --no-deps --remove-orphans --wait nginx certbot
+    ensure_certificate "$site"
+  fi
+
   # `init` migrates and imports before the backend is replaced, and --wait holds
   # until the backend reports ready and the frontend answers. A failed migration
   # stops here with the previous containers still running.
   "${compose[@]}" up -d --remove-orphans --wait --wait-timeout 600
-
-  if [[ "$environment" == production ]]; then
-    # Picks up a changed Caddyfile without dropping connections.
-    "${compose[@]}" exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
-  fi
-
-  local site
-  site="$(env_value SITE_ADDRESS)"
-  [[ -n "$site" ]] || die "SITE_ADDRESS is not set in .env"
 
   echo "==> checking https://$site"
   local attempt
