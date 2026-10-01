@@ -106,10 +106,11 @@ export default function Loader({
           waiting={sync.pending}
           onQueued={sync.syncNow}
           onSynced={setTripSync}
+          onBack={back}
           actingUserId={operator.userId}
         />
       ) : (
-        <DockBoard depot={depot} trips={trips} online={online} onOpen={setOpenId} />
+        <DockBoard depot={depot} meId={operator.userId} trips={trips} online={online} onOpen={setOpenId} />
       )}
     </div>
   );

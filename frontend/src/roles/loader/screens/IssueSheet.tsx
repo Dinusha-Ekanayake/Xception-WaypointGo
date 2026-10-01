@@ -1,21 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import type { CheckStatus, FlagShortfall, OutletView } from "@shared/domain/types";
+import type { CheckStatus, FlagShortfall, ItemView, OutletView } from "@shared/domain/types";
 import { Icon, Notice, cx } from "@shared/ui";
-import { ISSUE_KIND_LABEL, orderLabel, placeName } from "../data/manifest.ts";
+import { ISSUE_KIND_LABEL, isFlagged, orderLabel, placeName } from "../data/manifest.ts";
 import type { Line } from "../data/useTrip.ts";
 import { BigButton, Sheet } from "../ui.tsx";
 
 // Figma "03 Report an issue": flag a missing, damaged or ill-fitting item before
-// the vehicle leaves (R-LOD-02). The dispatcher is told; the order counts as
-// checked for release, with the exception recorded.
+// the vehicle leaves (R-LOD-02). The flagged item is not loaded, the dispatcher
+// and store are told, and loading carries on (R-LOD-07).
 
 type Kind = Extract<CheckStatus, "MISSING" | "DAMAGED" | "DOES_NOT_FIT">;
 const ISSUE_HINT: Record<Kind, string> = {
   DAMAGED: "Crushed, leaking, torn",
   DOES_NOT_FIT: "Does not fit safely in the vehicle",
-  MISSING: "The whole order is not at the dock",
+  MISSING: "Not at the dock",
 };
 
 export default function IssueSheet({
@@ -27,25 +27,44 @@ export default function IssueSheet({
   onClose,
 }: {
   lines: Line[];
-  initial: Line | null;
+  /** The order, and optionally the item, the loader reported from. */
+  initial: { line: Line; item: ItemView | null } | null;
   outlets: Map<string, OutletView>;
   busy: boolean;
   onSend: (payload: Omit<FlagShortfall, "tripId">) => Promise<boolean>;
   onClose: () => void;
 }): React.JSX.Element {
-  const [orderId, setOrderId] = useState(initial?.orderId ?? lines[0]?.orderId ?? "");
+  const [orderId, setOrderId] = useState(initial?.line.orderId ?? lines[0]?.orderId ?? "");
+  // 0 is the whole order; otherwise the item's lineNo.
+  const [lineNo, setLineNo] = useState(initial?.item?.lineNo ?? 0);
   const [kind, setKind] = useState<Kind>("DAMAGED");
   const [units, setUnits] = useState(1);
   const [reason, setReason] = useState("");
   const line = lines.find((l) => l.orderId === orderId);
-  const max = line?.itemCount ?? 1;
-  const missing = kind === "MISSING" ? max : Math.min(units, max);
+  const item = line?.items.find((i) => i.lineNo === lineNo) ?? null;
+  // The whole order flags every item not already flagged, in full (the server's rule).
+  const open = (line?.items ?? []).filter((i) => !isFlagged(i.status));
+  const max = item ? item.units : open.reduce((n, i) => n + i.units, 0);
+  const missing = item === null || kind === "MISSING" ? max : Math.min(units, max);
   const ready = line !== undefined && reason.trim().length > 0 && missing > 0;
+
+  const chooseOrder = (id: string) => {
+    setOrderId(id);
+    setLineNo(0);
+    setUnits(1);
+  };
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!ready) return;
-    const ok = await onSend({ orderId, kind, missingUnits: missing, reason: reason.trim(), photoAttachmentId: null });
+    const ok = await onSend({
+      orderId,
+      lineNo: item ? item.lineNo : null,
+      kind,
+      missingUnits: missing,
+      reason: reason.trim(),
+      photoAttachmentId: null,
+    });
     if (ok) onClose();
   };
 
@@ -63,12 +82,31 @@ export default function IssueSheet({
           <span className="text-[13px] text-go-muted">Which order?</span>
           <select
             value={orderId}
-            onChange={(e) => setOrderId(e.target.value)}
+            onChange={(e) => chooseOrder(e.target.value)}
             className="min-h-14 rounded-[16px] border border-[#dfe3e8] bg-[#f1f3f5] px-4 text-base font-medium"
           >
             {lines.map((l) => (
               <option key={l.orderId} value={l.orderId}>
-                Order {orderLabel(l.orderId)} · Stop {String(l.stopSequence).padStart(2, "0")} · {placeName(l.outletId, outlets)} · {l.itemCount} items
+                {orderLabel(l)} · Stop {String(l.stopSequence).padStart(2, "0")} · {placeName(l.outletId, outlets)} · {l.items.length} items
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="flex flex-col gap-1.5">
+          <span className="text-[13px] text-go-muted">Which item?</span>
+          <select
+            value={lineNo}
+            onChange={(e) => {
+              setLineNo(Number(e.target.value));
+              setUnits(1);
+            }}
+            className="min-h-14 rounded-[16px] border border-[#dfe3e8] bg-[#f1f3f5] px-4 text-base font-medium"
+          >
+            <option value={0}>Whole order</option>
+            {(line?.items ?? []).map((i) => (
+              <option key={i.lineNo} value={i.lineNo}>
+                {i.productId} (inferred) · {i.units} units
               </option>
             ))}
           </select>
@@ -95,11 +133,11 @@ export default function IssueSheet({
           })}
         </fieldset>
 
-        {kind !== "MISSING" && (
+        {item !== null && kind !== "MISSING" && (
           <div className="flex items-center justify-between gap-3 rounded-[16px] bg-[#f1f3f5] py-3 pr-4 pl-4">
             <span className="flex flex-col">
-              <span className="text-[17px] font-medium">Items {kind === "DAMAGED" ? "damaged" : "that don't fit"}</span>
-              <span className="text-[13px] text-go-muted">of {max} in this order</span>
+              <span className="text-[17px] font-medium">Units {kind === "DAMAGED" ? "damaged" : "that don't fit"}</span>
+              <span className="text-[13px] text-go-muted">of {max} for this item</span>
             </span>
             <div className="flex items-center gap-2">
               <button type="button" aria-label="Fewer" onClick={() => setUnits((u) => Math.max(1, u - 1))} className="size-14 rounded-[16px] bg-[#e5e7eb] text-[28px]">
@@ -126,8 +164,8 @@ export default function IssueSheet({
           />
         </label>
 
-        {line && line.status !== "PENDING" && line.status !== "LOADED" && (
-          <Notice tone="info" title="This order is already flagged">
+        {item !== null && isFlagged(item.status) && (
+          <Notice tone="info" title="This item is already reported">
             Sending again records a new report; the earlier one stays on record.
           </Notice>
         )}

@@ -5,11 +5,11 @@ import type { OutletView, ReleaseTrip } from "@shared/domain/types";
 import { Icon, cx } from "@shared/ui";
 import { byStop, isChecked, isFlagged, orderLabel, placeName } from "../data/manifest.ts";
 import type { Line } from "../data/useTrip.ts";
-import { BigButton, Sheet } from "../ui.tsx";
+import { BigButton, HoldButton, Sheet } from "../ui.tsx";
 
 // Figma "04 Confirm & release" and "E9 Release blocked". Release is refused
-// while any order is unchecked (R-LOD-07), and the refusal lists what is left.
-// Flagged orders do not block: they are on record and the dispatcher knows.
+// while any item is unchecked (R-LOD-07), and the refusal lists what is left.
+// Flagged items do not block: they are on record and the dispatcher knows.
 
 const ORDINAL = (n: number) => `${n}${n % 10 === 1 && n !== 11 ? "st" : n % 10 === 2 && n !== 12 ? "nd" : n % 10 === 3 && n !== 13 ? "rd" : "th"}`;
 type Checklist = Omit<ReleaseTrip, "tripId">;
@@ -56,13 +56,13 @@ export default function ReleaseSheet({
           </span>
           <h2 className="text-[24px] font-medium">Can&apos;t release yet</h2>
           <p className="text-[15px] text-go-muted">
-            {blockedBy ?? `${left.length} ${left.length === 1 ? "order" : "orders"} still to load, or report what's missing.`}
+            {blockedBy ?? `${left.length} ${left.length === 1 ? "order has" : "orders have"} items still to load, or report what's missing.`}
           </p>
           {left.length > 0 && (
             <ul className="mt-1 flex flex-col gap-1 text-[14px]">
               {left.map((l) => (
                 <li key={l.orderId}>
-                  Order {orderLabel(l.orderId)} · Stop {String(l.stopSequence).padStart(2, "0")} · {placeName(l.outletId, outlets)}
+                  {orderLabel(l)} · Stop {String(l.stopSequence).padStart(2, "0")} · {placeName(l.outletId, outlets)}
                   {l.recheck && <span className="text-go-warning-text"> · recheck after plan change</span>}
                 </li>
               ))}
@@ -89,9 +89,11 @@ export default function ReleaseSheet({
           <Icon name="check-white" />
         </span>
         <div>
-          <h2 className="text-[26px] leading-tight font-semibold">All {lines.length} orders checked</h2>
+          <h2 className="text-[26px] leading-tight font-semibold">All {lines.length} orders loaded</h2>
           <p className="text-[14px] text-go-muted">
-            {flagged.length === 0 ? "Nothing reported" : `${flagged.length} reported to the dispatcher`}
+            {flagged.length === 0
+              ? "Nothing reported"
+              : `${flagged.length} ${flagged.length === 1 ? "order has" : "orders have"} items reported to the dispatcher`}
           </p>
         </div>
       </div>
@@ -136,9 +138,10 @@ export default function ReleaseSheet({
         <BigButton tone="muted" size="l" onClick={onClose}>
           Not yet
         </BigButton>
-        <BigButton tone="mint" size="l" onClick={() => onRelease(checklist)} disabled={busy || !confirmed}>
-          {busy ? "Releasing…" : "Release vehicle"}
-        </BigButton>
+        <HoldButton onHeld={() => onRelease(checklist)} disabled={busy || !confirmed}>
+          {busy ? "Releasing…" : "Hold to release vehicle"}
+        </HoldButton>
+        <p className="text-center text-[13px] text-go-muted">Releasing sends the run sheet to the driver.</p>
       </div>
     </Sheet>
   );

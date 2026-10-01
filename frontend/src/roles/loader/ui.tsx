@@ -1,4 +1,6 @@
-import type { ReactNode } from "react";
+"use client";
+
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Icon, cx, type IconName } from "@shared/ui";
 import type { SessionStatus, Temperature } from "@shared/domain/types";
 import { STATUS_LABEL } from "./data/manifest.ts";
@@ -127,19 +129,118 @@ export function Ring({ percent }: { percent: number }): React.JSX.Element {
   );
 }
 
-/** A bottom sheet over a dimmed page on phones, as in the design's release and issue states; a dialog near the top on tablets. */
+/**
+ * A bottom sheet over a dimmed page on phones, as in the design's release and
+ * issue states; a dialog near the top on tablets. Escape closes it, focus moves
+ * into it on open, stays inside while it is open, and returns where it was.
+ */
 export function Sheet({ label, onClose, children }: { label: string; onClose: () => void; children: ReactNode }): React.JSX.Element {
+  const panel = useRef<HTMLDivElement>(null);
+  const close = useRef(onClose);
+  close.current = onClose;
+
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    const focusable = () =>
+      Array.from(
+        panel.current?.querySelectorAll<HTMLElement>("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])") ?? [],
+      ).filter((el) => !el.hasAttribute("disabled"));
+    (focusable()[0] ?? panel.current)?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        close.current();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const items = focusable();
+      if (items.length === 0) return;
+      const first = items[0]!;
+      const last = items[items.length - 1]!;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      previous?.focus();
+    };
+  }, []);
+
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center md:items-start md:p-6 md:pt-10" role="presentation">
-      <button type="button" aria-label="Close" onClick={onClose} className="absolute inset-0 bg-black/25 backdrop-blur-[6px]" />
+      <button type="button" tabIndex={-1} aria-label="Close" onClick={onClose} className="absolute inset-0 bg-black/25 backdrop-blur-[6px]" />
       <div
+        ref={panel}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label={label}
-        className="relative flex max-h-[92dvh] w-full max-w-[560px] flex-col gap-4 overflow-y-auto rounded-t-[32px] bg-white px-5 pt-6 pb-8 md:max-h-[calc(100dvh-64px)] md:rounded-[32px] md:px-7 md:pb-7"
+        className="relative flex max-h-[92dvh] w-full max-w-[560px] flex-col gap-4 overflow-y-auto rounded-t-[32px] bg-white px-5 pt-6 pb-8 outline-none md:max-h-[calc(100dvh-64px)] md:rounded-[32px] md:px-7 md:pb-7"
       >
         {children}
       </div>
     </div>
+  );
+}
+
+/**
+ * Figma 04 "Hold to release vehicle": a deliberate press, so a brushed tap in a
+ * glove never releases a truck. Keyboard users hold Space or Enter the same way.
+ */
+export function HoldButton({
+  children,
+  onHeld,
+  disabled,
+  holdMs = 1200,
+}: {
+  children: ReactNode;
+  onHeld: () => void;
+  disabled?: boolean;
+  holdMs?: number;
+}): React.JSX.Element {
+  const [progress, setProgress] = useState(0);
+  const timer = useRef<number | null>(null);
+
+  const stop = () => {
+    if (timer.current !== null) window.clearInterval(timer.current);
+    timer.current = null;
+    setProgress(0);
+  };
+  const start = () => {
+    if (disabled || timer.current !== null) return;
+    const began = Date.now();
+    timer.current = window.setInterval(() => {
+      const share = Math.min(1, (Date.now() - began) / holdMs);
+      setProgress(share);
+      if (share >= 1) {
+        stop();
+        onHeld();
+      }
+    }, 30);
+  };
+  useEffect(() => stop, []);
+
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onPointerDown={start}
+      onPointerUp={stop}
+      onPointerLeave={stop}
+      onPointerCancel={stop}
+      onKeyDown={(e) => (e.key === " " || e.key === "Enter") && (e.preventDefault(), start())}
+      onKeyUp={stop}
+      aria-label="Hold to release vehicle"
+      className="relative flex min-h-16 w-full items-center justify-center overflow-hidden rounded-full bg-[#0b2a1a] px-[18px] text-[17px] font-medium text-white select-none disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      <span aria-hidden className="absolute inset-y-0 left-0 bg-go-signal" style={{ width: `${progress * 100}%` }} />
+      <span className="relative">{children}</span>
+    </button>
   );
 }

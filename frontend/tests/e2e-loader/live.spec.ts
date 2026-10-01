@@ -27,35 +27,42 @@ test("a real shared-device loader signs in, saves offline, syncs and releases", 
   await tripAction.click();
   const start = page.getByRole("button", { name: "Start loading" });
   if (await start.isVisible()) await start.click();
-  const stop = page.getByRole("button", { name: /Stop 01 of 01/ });
+  const stop = page.getByRole("button", { name: /^Stop 01/ });
   if (await stop.getAttribute("aria-expanded") === "false") await stop.click();
-  const markLoaded = page.getByRole("button", { name: /Mark order .* loaded/ });
-  const undoLoaded = page.getByRole("button", { name: /Undo loaded, order/ });
-  if (await undoLoaded.isVisible()) {
-    await undoLoaded.click();
-    await expect(markLoaded).toBeEnabled();
+  // Item by item (decision 2026-10-01): start from a clean sheet, then tick each item.
+  const undo = page.getByRole("button", { name: /^Undo loaded, item/ });
+  while (await undo.count() > 0) {
+    await undo.first().click();
+    await page.getByRole("button", { name: "Done" }).click({ trial: false }).catch(() => undefined);
   }
-  await expect(markLoaded).toBeEnabled();
+  const markLoaded = page.getByRole("button", { name: /^Mark item \d+ of .* loaded$/ });
+  await expect(markLoaded.first()).toBeEnabled();
 
   await context.setOffline(true);
-  await markLoaded.click();
+  await markLoaded.first().click();
   await expect(page.getByRole("status").filter({ hasText: "1 saved on this device" }).first()).toBeVisible();
   await context.setOffline(false);
   await expect(page.getByRole("status").filter({ hasText: "1 saved on this device" })).toHaveCount(0);
-  await expect(page.getByText("1 of 1 orders loaded")).toBeVisible();
+  while (await markLoaded.count() > 0) await markLoaded.first().click();
+  await expect(markLoaded).toHaveCount(0);
+  await expect(page.getByText(/All loaded/)).toBeVisible();
   await expect(page.getByRole("button", { name: "Lock loader" })).toBeEnabled();
 
   await page.getByRole("button", { name: "Release vehicle" }).click();
   const dialog = page.getByRole("dialog", { name: "Confirm and release" });
-  const release = dialog.getByRole("button", { name: "Release vehicle" });
+  const release = dialog.getByRole("button", { name: "Hold to release vehicle" });
   await expect(release).toBeDisabled();
   await dialog.getByRole("checkbox", { name: "Doors sealed" }).check();
   await dialog.getByRole("checkbox", { name: "Orders secured" }).check();
   await dialog.getByRole("checkbox", { name: "Driver present" }).check();
   await expect(release).toBeEnabled();
-  await release.click();
-  await expect(page.getByText("Vehicle released")).toBeVisible();
+  await release.hover();
+  await page.mouse.down();
+  await page.waitForTimeout(1500);
+  await page.mouse.up();
+  await expect(page.getByRole("heading", { name: / released$/ })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("loader-phone-released.png") });
+  await expect(page.getByRole("heading", { name: "Tonight's departures" })).toBeVisible({ timeout: 6000 });
 
   await page.getByRole("button", { name: "Lock loader" }).click();
   await expect(page.getByRole("heading", { name: "Who's loading?" })).toBeVisible();

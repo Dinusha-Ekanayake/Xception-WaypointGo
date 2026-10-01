@@ -8,12 +8,13 @@ import {
   LoadingCommandKind,
   type CheckStatus,
   type FlagShortfall,
-  type IssueKind,
+  type ItemView,
   type ManifestLineView,
   type ManifestView,
   type ReleaseTrip,
 } from "@shared/domain/types";
 import type { LoadingGateway } from "./gateway.ts";
+import { itemKey, orderStatusOf } from "./manifest.ts";
 
 // One trip's load sheet and every write against it.
 //
@@ -23,6 +24,8 @@ import type { LoadingGateway } from "./gateway.ts";
 //   when the connection returns. A rule rejection is shown, never queued.
 // - A new plan version under the loader (R-LOD-03) is a visible state that must
 //   be acknowledged, and the orders it reset are marked for recheck.
+// - Loading is item by item (decision 2026-10-01). An order's state is derived
+//   from its items with the same rule the server applies.
 
 export type Line = ManifestLineView & { waiting: boolean; recheck: boolean };
 
@@ -38,7 +41,8 @@ export type Trip = {
   planChangedFrom: number | null;
   acknowledgePlan: () => void;
   start: () => Promise<Outcome>;
-  check: (line: ManifestLineView, status: CheckStatus) => Promise<Outcome>;
+  /** Tick or untick one item, or with no item every unchecked item of the order. */
+  check: (line: ManifestLineView, item: ItemView | null, status: "LOADED" | "PENDING") => Promise<Outcome>;
   flag: (payload: Omit<FlagShortfall, "tripId">) => Promise<Outcome>;
   release: (checklist: Omit<ReleaseTrip, "tripId">) => Promise<Outcome>;
   handBack: () => Promise<Outcome>;
@@ -60,7 +64,7 @@ export function useTrip(
 ): Trip {
   const manifest = useResource((signal) => gateway.manifest(tripId, signal), `${tripId}`, 15_000);
   const [baseline, setBaseline] = useState<number | null>(null);
-  const [local, setLocal] = useState<Record<string, Pick<ManifestLineView, "status" | "loadedUnits">>>({});
+  const [local, setLocal] = useState<Record<string, Pick<ItemView, "status" | "loadedUnits">>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<ApiError | Error | null>(null);
   const expected = useRef<number | null>(null);
@@ -123,18 +127,34 @@ export function useTrip(
   const lines = useMemo<Line[]>(() => {
     if (!data) return [];
     return data.lines.map((line) => {
-      const override = local[line.orderId];
+      let touched = false;
+      const items = line.items.map((item) => {
+        const override = local[itemKey(line.orderId, item.lineNo)];
+        if (!override) return item;
+        touched = true;
+        return { ...item, ...override };
+      });
+      const status = items.length > 0 ? orderStatusOf(items) : line.status;
       return {
         ...line,
-        ...override,
-        waiting: override !== undefined && waiting > 0,
-        recheck: line.attempt > 1 && (override?.status ?? line.status) === "PENDING",
+        items,
+        status,
+        loadedUnits: items.length > 0 ? items.reduce((n, i) => n + i.loadedUnits, 0) : line.loadedUnits,
+        waiting: touched && waiting > 0,
+        recheck: line.attempt > 1 && status === "PENDING",
       };
     });
   }, [data, local, waiting]);
 
-  const setLine = (orderId: string, status: CheckStatus, loadedUnits: number) => () =>
-    setLocal((all) => ({ ...all, [orderId]: { status, loadedUnits } }));
+  /** Optimistic view of the items a write changes, kept until the server answers or the queue drains. */
+  const setItems = (orderId: string, changes: { lineNo: number; status: CheckStatus; loadedUnits: number }[]) => () =>
+    setLocal((all) => {
+      const next = { ...all };
+      for (const c of changes) next[itemKey(orderId, c.lineNo)] = { status: c.status, loadedUnits: c.loadedUnits };
+      return next;
+    });
+
+  const current = (orderId: string) => lines.find((l) => l.orderId === orderId);
 
   return {
     manifest,
@@ -145,18 +165,31 @@ export function useTrip(
     planChangedFrom: data && baseline !== null && data.planVersion > baseline ? baseline : null,
     acknowledgePlan: () => data && setBaseline(data.planVersion),
     start: () => run(LoadingCommandKind.start, { tripId }),
-    check: (line, status) => {
-      const loadedUnits = status === "LOADED" ? line.itemCount : 0;
+    check: (line, item, status) => {
+      const items = current(line.orderId)?.items ?? line.items;
+      // Same targets as the server: one item, or every item of the order still in the
+      // opposite state. A whole-order tick never clears a flag.
+      const targets = item
+        ? [item]
+        : items.filter((i) => (status === "LOADED" ? i.status === "PENDING" : i.status === "LOADED"));
+      const loadedUnits = item ? (status === "LOADED" ? item.units : 0) : targets.reduce((n, i) => n + (status === "LOADED" ? i.units : 0), 0);
       return run(
         LoadingCommandKind.check,
-        { tripId, orderId: line.orderId, status, loadedUnits, reason: null },
-        setLine(line.orderId, status, loadedUnits),
+        { tripId, orderId: line.orderId, lineNo: item?.lineNo ?? null, status, loadedUnits, reason: null },
+        setItems(line.orderId, targets.map((i) => ({ lineNo: i.lineNo, status, loadedUnits: status === "LOADED" ? i.units : 0 }))),
       );
     },
     flag: (payload) => {
-      const line = data?.lines.find((l) => l.orderId === payload.orderId);
-      const loaded = line ? Math.max(0, line.itemCount - payload.missingUnits) : 0;
-      return run(LoadingCommandKind.shortfall, { ...payload, tripId }, setLine(payload.orderId, payload.kind, loaded));
+      const items = current(payload.orderId)?.items ?? [];
+      const changes =
+        payload.lineNo !== null
+          ? items
+              .filter((i) => i.lineNo === payload.lineNo)
+              .map((i) => ({ lineNo: i.lineNo, status: payload.kind as CheckStatus, loadedUnits: Math.max(0, i.units - payload.missingUnits) }))
+          : items
+              .filter((i) => i.status === "PENDING" || i.status === "LOADED")
+              .map((i) => ({ lineNo: i.lineNo, status: payload.kind as CheckStatus, loadedUnits: 0 }));
+      return run(LoadingCommandKind.shortfall, { ...payload, tripId }, setItems(payload.orderId, changes));
     },
     release: async (checklist) => {
       // Release needs the server's answer; it is never queued.

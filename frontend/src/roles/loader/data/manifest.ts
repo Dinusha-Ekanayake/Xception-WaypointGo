@@ -1,4 +1,4 @@
-import type { CheckStatus, IssueKind, ManifestLineView, OutletView, SessionStatus, Temperature } from "@shared/domain/types";
+import type { CheckStatus, IssueKind, ItemView, ManifestLineView, OutletView, SessionStatus, Temperature } from "@shared/domain/types";
 
 // Pure helpers over a manifest. Capacity reads order totals only (AGENTS.md,
 // External Product Catalogue): weight and volume never come from product lines.
@@ -60,9 +60,35 @@ export function placeName(outletId: string, outlets: Map<string, OutletView>): s
   return outlets.get(outletId)?.districtName ?? outletId;
 }
 
-/** Order ids are UUIDs; the dock reads the last block, as printed on the pick label. */
-export function orderLabel(orderId: string): string {
-  return orderId.split("-").pop()!.slice(-6).toUpperCase();
+/** The order's business reference, as printed on the pick label (for example ORD0092336). */
+export function orderLabel(line: Pick<ManifestLineView, "orderRef" | "orderId">): string {
+  return line.orderRef || line.orderId.slice(-6).toUpperCase();
+}
+
+/** Stable key for one item line of one order. */
+export const itemKey = (orderId: string, lineNo: number) => `${orderId}:${lineNo}`;
+
+/**
+ * An order's status from its items, the same rule the server applies: pending
+ * while any item is unchecked, loaded when every item is, otherwise the first flag.
+ */
+export function orderStatusOf(items: ItemView[]): CheckStatus {
+  if (items.some((i) => i.status === "PENDING")) return "PENDING";
+  return items.find((i) => isFlagged(i.status))?.status ?? "LOADED";
+}
+
+/** "HH:mm" of an instant in the depot's timezone. */
+export function clockTime(instant: string): string {
+  return new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Colombo", hour: "2-digit", minute: "2-digit", hour12: false }).format(
+    new Date(instant),
+  );
+}
+
+/** Minutes until a depot wall-clock time today, read in Asia/Colombo whatever the device's timezone. */
+export function minutesUntil(time: string, now: Date = new Date()): number {
+  const [h, m] = time.split(":").map(Number);
+  const [nh, nm] = clockTime(now.toISOString()).split(":").map(Number);
+  return (h ?? 0) * 60 + (m ?? 0) - ((nh ?? 0) * 60 + (nm ?? 0));
 }
 
 export function hhmm(time: string): string {
@@ -92,3 +118,10 @@ export const CHECK_LABEL: Record<CheckStatus, string> = {
 
 export const kg = (n: number) => `${Math.round(n).toLocaleString("en-US")} kg`;
 export const m3 = (n: number) => `${n.toFixed(1)} m³`;
+
+/** Minutes until the planned departure, read in Asia/Colombo; nothing once it has passed. */
+export function untilDeparture(time: string, now: Date = new Date()): string {
+  const minutes = minutesUntil(time, now);
+  if (minutes <= 0 || minutes >= 12 * 60) return "";
+  return minutes < 60 ? `${minutes} min to departure` : `${Math.floor(minutes / 60)} h ${minutes % 60} min to departure`;
+}

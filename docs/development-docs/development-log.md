@@ -21,6 +21,15 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-01 - feat(loader): load item by item, as the Day 5 design does
+
+`feat/loading` · @Dinusha-Ekanayake
+
+The loader UI now reads the full Loading contract: `shared/domain/loading.ts` had fallen behind `LoadingViews.java` and lacked items, order references, windows, vehicle capacity, holder and dock. Items are ticked and undone one by one (`lineNo`), an issue names an item or the whole order, capacity bars compare against the vehicle's limits, and the dock board has the dock selector, All/Available/Mine/In use and a holder per trip. Added hold to release (04), undo toast (E5), out-of-sequence warning (E6), hand-back dialog (E7), issue saved offline (E8) and the released screen (E11); sheets close on Escape and keep focus inside. `typecheck` now runs with `--incremental false`: with TypeScript 7 a cached `tsconfig.tsbuildinfo` passed files it had not rechecked.
+Why: the booklet judges the loader on fidelity to the Day 5 design at phone size, and the item-by-item decision of 2026-10-01.
+Verified: `npm run typecheck`, `npm test` (13 pass), `npm run build`; mocked loader browser tests at 393x852 (2 pass: offline item check syncs once under the operator with its `lineNo`; release needs the three checks and a hold). Not verified against a live backend; the database suites were not rerun after merging `dev`.
+Open: run the backend suite and the live loader browser test against a database; Planning's two integration test classes do not skip without `TEST_DATABASE_URL` because the guard sits on their abstract base class.
+
 ## 2026-10-01 - feat: add the loader backend and shared-device flow
 
 `feat/loading` · @Dinusha-Ekanayake
