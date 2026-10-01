@@ -24,7 +24,7 @@ import {
  * their own top bar. For these the shell draws no strip of its own and lends
  * the controls through ShellProvider instead.
  */
-const OWN_HEADER = new Set<ShellRole>(["loader", "store_manager", "dispatcher"]);
+const OWN_HEADER = new Set<ShellRole>(["loader", "store_manager", "dispatcher", "driver"]);
 
 /**
  * Session gate and role routing. Signed out, server unreachable and offline are
@@ -34,6 +34,7 @@ const OWN_HEADER = new Set<ShellRole>(["loader", "store_manager", "dispatcher"])
 export default function AppShell(): React.JSX.Element {
   const online = useOnline();
   const [state, setState] = useState<SessionState | null>(null);
+  const unverified = state?.kind === "signed-in" && state.unverified === true;
   const [role, setRole] = useState<ShellRole | null>(null);
   const [notice, setNotice] = useState<string | undefined>();
   const [pending, setPending] = useState<number | null>(null);
@@ -46,6 +47,14 @@ export default function AppShell(): React.JSX.Element {
   }, []);
 
   useEffect(check, [check]);
+
+  // Working from the remembered session because the server could not be asked:
+  // ask again when the connection returns, so an expired session is found out
+  // before the queue is sent rather than by it.
+  useEffect(() => {
+    if (!unverified || !online) return;
+    void currentSession().then(setState);
+  }, [unverified, online]);
 
   // A role address such as loader.waypointgo.live shows that role and no other.
   // Read only once the session is known, so the first paint matches the server's.

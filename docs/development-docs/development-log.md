@@ -21,6 +21,17 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-02 - feat: driver phone screens, a full day with no signal (issue #21)
+
+`feat/driver-ui` · @kavindamihiran
+
+The driver role is built: Home, Route, Delivery report with proof (recipient, signature pad, shrunk photo, or a reason for neither), not delivered, Report a problem, Run complete, light and dark. `shared/offline` gains kept reads and queued uploads beside the command queue; the shell lets a full-offline role carry on from the last session the server confirmed when it cannot be asked. Detail in [docs/issues/021-driver-ui/WALKTHROUGH.md](../issues/021-driver-ui/WALKTHROUGH.md).
+Why: Execution (#12) had no screen, so nothing after the dock could be done by a person.
+Verified: `npm test` (30), `npm run typecheck`, `npm run build`; `npx playwright test -c playwright.driver.config.ts`, 10 browser tests at phone width against a mocked API, including a stop worked and reloaded with no signal then sent once in order; loader and shell browser suites still pass. Not run against a live backend: that needs a released trip, which the fresh-install seed will provide.
+Open: English only. Design features with no backend are left out and listed in the walkthrough. Browser tests are not in CI.
+
+---
+
 ## 2026-10-02 - feat: execution module, the driver's stops (issue #12)
 
 `feat/execution` · @kavindamihiran
