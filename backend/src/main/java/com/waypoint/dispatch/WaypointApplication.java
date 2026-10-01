@@ -7,6 +7,7 @@ import com.waypoint.dispatch.platform.config.AppProperties;
 import com.waypoint.dispatch.platform.config.LoadingProperties;
 import com.waypoint.dispatch.platform.db.Migrator;
 import com.waypoint.dispatch.referencedata.application.ImportReferenceDataHandler;
+import com.waypoint.dispatch.referencedata.application.ReferenceBootstrap;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -44,6 +45,7 @@ public class WaypointApplication implements ApplicationRunner {
   private final LoadingFixture loadingFixture;
   private final LoadingProperties loadingProperties;
   private final Environment environment;
+  private final ReferenceBootstrap referenceBootstrap;
 
   public WaypointApplication(
       Migrator migrator,
@@ -53,7 +55,8 @@ public class WaypointApplication implements ApplicationRunner {
       AppProperties properties,
       LoadingFixture loadingFixture,
       LoadingProperties loadingProperties,
-      Environment environment) {
+      Environment environment,
+      ReferenceBootstrap referenceBootstrap) {
     this.migrator = migrator;
     this.referenceImport = referenceImport;
     this.accounts = accounts;
@@ -62,6 +65,7 @@ public class WaypointApplication implements ApplicationRunner {
     this.loadingFixture = loadingFixture;
     this.loadingProperties = loadingProperties;
     this.environment = environment;
+    this.referenceBootstrap = referenceBootstrap;
   }
 
   public static void main(String[] args) {
@@ -132,7 +136,7 @@ public class WaypointApplication implements ApplicationRunner {
       }
       String depot = required(args, "depot", "LOADING_DEPOT");
       java.time.LocalDate date = java.time.LocalDate.parse(required(args, "date", "LOADING_DATE"));
-      int trips = loadingFixture.build(depot, date);
+      int trips = buildLoadingFixture(depot, date);
       System.out.println(
           trips == 0
               ? "No confirmed orders to load for " + depot + " on " + date + "."
@@ -145,6 +149,13 @@ public class WaypointApplication implements ApplicationRunner {
             + ". Use: migrate | import-reference | account-create | account-grant-depot"
             + " | operator-pin | loading-fixture, or no argument to serve.");
     System.exit(2);
+  }
+
+  int buildLoadingFixture(String depot, java.time.LocalDate date) {
+    // ApplicationReadyEvent runs after ApplicationRunner, so CLI commands must
+    // load the published reference version explicitly before reading it.
+    referenceBootstrap.loadCurrentVersion();
+    return loadingFixture.build(depot, date);
   }
 
   private static String required(Map<String, String> env, String name) {
