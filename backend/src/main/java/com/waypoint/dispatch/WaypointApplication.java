@@ -34,21 +34,32 @@ import org.springframework.core.env.Environment;
  *   <li>{@code account-create} creates an account from a trusted host. The first
  *       administrator cannot come from an endpoint that requires one
  *   <li>{@code account-grant-depot} grants an account a depot scope
+ *   <li>{@code demo-accounts} creates one {@code <role>@waypoint.local} account per
+ *       role with {@code SEED_PASSWORD}, and grants the depot roles {@code DEMO_DEPOT}
  *   <li>{@code operator-pin} provisions a loader PIN from a trusted host
  *   <li>{@code loading-fixture} builds a depot-day's loading manifests from its
  *       confirmed orders, for a development demo without a published plan
  * </ul>
+ *
+ * <p>Commands can be combined: {@code migrate import-reference demo-accounts}.
  */
 @SpringBootApplication
 @ConfigurationPropertiesScan
 public class WaypointApplication implements ApplicationRunner {
   private static final Logger log = LoggerFactory.getLogger(WaypointApplication.class);
+  private static final List<String> COMMANDS =
+      List.of(
+          "migrate", "import-reference", "account-create", "account-grant-depot", "demo-accounts",
+          "operator-pin", "loading-fixture");
+  private static final List<String> DEMO_ROLES =
+      List.of("dispatcher", "loader", "driver", "store_manager", "admin", "auditor");
+  private static final List<String> DEMO_DEPOT_ROLES = List.of("dispatcher", "loader", "driver");
 
   private final Migrator migrator;
   private final ImportReferenceDataHandler referenceImport;
   private final AccountAdminUseCase accounts;
-  private final OperatorRegistry operators;
   private final AppProperties properties;
+  private final OperatorRegistry operators;
   private final LoadingFixture loadingFixture;
   private final LoadingProperties loadingProperties;
   private final Environment environment;
@@ -67,8 +78,8 @@ public class WaypointApplication implements ApplicationRunner {
     this.migrator = migrator;
     this.referenceImport = referenceImport;
     this.accounts = accounts;
-    this.operators = operators;
     this.properties = properties;
+    this.operators = operators;
     this.loadingFixture = loadingFixture;
     this.loadingProperties = loadingProperties;
     this.environment = environment;
@@ -90,10 +101,15 @@ public class WaypointApplication implements ApplicationRunner {
     if (commands.isEmpty()) {
       return;
     }
+    if (!COMMANDS.containsAll(commands)) {
+      log.error("Unknown command in {}. Use any of {}, or no argument to serve.", commands, COMMANDS);
+      System.exit(2);
+    }
+    // Several commands may be given at once and always run in this order, so an
+    // init step pays for one start of the application instead of one per command.
     if (commands.contains("migrate")) {
       int applied = migrator.migrate();
       log.info(applied == 0 ? "Schema already up to date." : "Applied {} migration(s).", applied);
-      System.exit(0);
     }
     if (commands.contains("import-reference")) {
       var outcome = referenceImport.importFrom(Path.of(properties.dataDir()), null);
@@ -106,36 +122,29 @@ public class WaypointApplication implements ApplicationRunner {
       } else {
         log.info("Reference data unchanged; version {} already holds it.", outcome.versionId());
       }
-      System.exit(0);
     }
     if (commands.contains("account-create")) {
       var env = System.getenv();
-      String role = required(env, "ACCOUNT_ROLE");
-      try {
-        UUID userId =
-            accounts.createAccount(
-                required(env, "ACCOUNT_EMAIL"),
-                required(env, "ACCOUNT_NAME"),
-                required(env, "ACCOUNT_PASSWORD"),
-                role);
-        log.info("Created account {} as {}.", userId, role);
-      } catch (DomainException e) {
-        if (e.code() != ErrorCode.CONFLICT) {
-          throw e;
-        }
-        // Idempotent like import-reference, so an init step can run on every start.
-        // The existing account is left as it is: its password is not reset.
-        log.info("Account already exists; left unchanged.");
-      }
-      System.exit(0);
+      createAccount(
+          required(env, "ACCOUNT_EMAIL"),
+          required(env, "ACCOUNT_NAME"),
+          required(env, "ACCOUNT_PASSWORD"),
+          required(env, "ACCOUNT_ROLE"));
     }
     if (commands.contains("account-grant-depot")) {
       var env = System.getenv();
-      String depot = required(env, "ACCOUNT_DEPOT");
-      accounts.grantDepot(required(env, "ACCOUNT_EMAIL"), depot);
-      // The depot only: an email in a log line is personal data.
-      log.info("Granted depot {}.", depot);
-      System.exit(0);
+      grantDepot(required(env, "ACCOUNT_EMAIL"), required(env, "ACCOUNT_DEPOT"));
+    }
+    if (commands.contains("demo-accounts")) {
+      var env = System.getenv();
+      String password = required(env, "SEED_PASSWORD");
+      String depot = env.getOrDefault("DEMO_DEPOT", "Peliyagoda");
+      for (String role : DEMO_ROLES) {
+        createAccount(role + "@waypoint.local", "Demo " + role.replace('_', ' '), password, role);
+      }
+      for (String role : DEMO_DEPOT_ROLES) {
+        grantDepot(role + "@waypoint.local", depot);
+      }
     }
     if (commands.contains("operator-pin")) {
       var env = System.getenv();
@@ -146,7 +155,6 @@ public class WaypointApplication implements ApplicationRunner {
           code == null || code.isBlank() ? null : code.trim());
       // The account id only: an email in a log line is personal data.
       log.info("Provisioned a loader PIN for account {}.", userId);
-      System.exit(0);
     }
     if (commands.contains("loading-fixture")) {
       if (environment.acceptsProfiles("prod", "production")) {
@@ -164,13 +172,8 @@ public class WaypointApplication implements ApplicationRunner {
       } else {
         log.info("Built {} loading manifest(s) for {} on {}.", trips, depot, date);
       }
-      System.exit(0);
     }
-    log.error(
-        "Unknown command {}. Use: migrate | import-reference | account-create |"
-            + " account-grant-depot | operator-pin | loading-fixture, or no argument to serve.",
-        commands);
-    System.exit(2);
+    System.exit(0);
   }
 
   int buildLoadingFixture(String depot, java.time.LocalDate date) {
@@ -178,6 +181,26 @@ public class WaypointApplication implements ApplicationRunner {
     // load the published reference version explicitly before reading it.
     referenceBootstrap.loadCurrentVersion();
     return loadingFixture.build(depot, date);
+  }
+
+  private void createAccount(String email, String name, String password, String role) {
+    try {
+      UUID userId = accounts.createAccount(email, name, password, role);
+      log.info("Created account {} as {}.", userId, role);
+    } catch (DomainException e) {
+      if (e.code() != ErrorCode.CONFLICT) {
+        throw e;
+      }
+      // Idempotent like import-reference, so an init step can run on every start.
+      // The existing account is left as it is: its password is not reset.
+      log.info("Account for {} already exists; left unchanged.", role);
+    }
+  }
+
+  private void grantDepot(String email, String depot) {
+    accounts.grantDepot(email, depot);
+    // The depot only: an email in a log line is personal data.
+    log.info("Granted depot {}.", depot);
   }
 
   private static String required(Map<String, String> env, String name) {

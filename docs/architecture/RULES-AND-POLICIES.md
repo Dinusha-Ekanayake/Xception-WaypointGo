@@ -98,16 +98,16 @@ Order    order_id, status, warehouse, source, total_weight_kg, total_volume_m3, 
          created_at, item_count (lines, not units)
 ```
 
-Still absent: an idempotency key on `POST /orders`, a client reference on an order, and temperature anywhere. Those keep R-STK-11, D-E's temperature gap and the change requests in MODULES open.
+**Verified live 2026-10-01 (issue #7):** `temp_requirement` (`chilled`, `ambient`, `mixed`) is on every product and order, `POST /orders` returns totals and temperature, `PUT /status` and `confirm` behave as documented (A-20). **Still absent:** an idempotency key on `POST /orders`, a client reference or `?ref=` filter on orders, a webhook, and `updated_since` on products (ignored). Those keep R-STK-11 content matching, polling and full catalogue resync in place.
 
 ### What this means for the design
 
 | ID | Rule | Status |
 | --- | --- | --- |
-| R-STK-08 | **Creating the order is the reservation**, in the depot's own warehouse. **Revised 2026-10-01:** it is no longer all-or-nothing. `201` takes every line; `202` locks what is available as `reserved` with an expiry and reports the shortfall; `409` means nothing was available. To keep D-F (a short line rejects placement, nothing is held), the adapter must cancel a `202` reservation at once and answer `Insufficient` with the per-line quantities the `202` reported. Owner: #7 | Documented, not yet probed |
+| R-STK-08 | **Creating the order is the reservation**, in the depot's own warehouse. `201` takes every line (`pending`); `202` locks what is available as `reserved` with a 15-minute expiry and reports the shortfall and the other warehouse's stock; `409` means nothing was available. **Revised 2026-10-01 (issue #7):** a `202` is kept, not cancelled. The order is saved `partially_reserved`; the store accepts it (`order:AcceptShortfall`, the warehouse `confirm` call) or cancels it, and an expiry cancels it. Amendment stays strict: a partial answer is released and refused. Owner: #7 | Verified live 2026-10-01 |
 | R-STK-09 | **Cancelling restores stock.** `PUT /orders/:id/status` to `cancelled` is the compensating action, from `reserved` or `pending` | Verified for `pending` |
 | R-STK-10 | The warehouse runs **its own order lifecycle**: `reserved -> pending | cancelled | expired`, `pending -> shipped | cancelled`, `shipped -> delivered`. It is one-way; an invalid transition is `409`. A `reserved` order left alone expires and its units return | Documented; `reserved` and `expired` not yet probed |
-| R-STK-11 | **`POST /orders` is not idempotent.** No idempotency key exists, so a blind retry creates a second order and decrements stock twice. The adapter must reconcile by query before retrying, never replay | Policy, critical |
+| R-STK-11 | **`POST /orders` is not idempotent.** No idempotency key and no client reference exist, so a blind retry creates a second order and decrements stock twice. The adapter records every attempt (lines, time) in `warehouse.placements` before sending, in a transaction of its own. After an unknown outcome it looks for the order **by content**: same warehouse, same products and requested quantities, created within the match window of an attempt, not already claimed. Exactly one match is adopted; none is placed again only after the window passes; several are raised, never guessed | Policy, critical |
 | R-STK-12 | Stock is writable: `PATCH /products/:id` sets or adjusts it. This is how a stock manager's approval or adjustment (R-STK-02) is applied | Verified |
 | R-STK-13 | Waypoint's order state machine and the warehouse's are **two state machines for one real order**. Keeping them aligned is a saga, and every transition can fail independently | Policy |
 

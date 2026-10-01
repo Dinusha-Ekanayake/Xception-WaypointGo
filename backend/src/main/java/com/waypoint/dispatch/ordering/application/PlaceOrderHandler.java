@@ -28,7 +28,10 @@ import com.waypoint.dispatch.shared.util.UuidV7;
 import com.waypoint.dispatch.warehouse.contract.CatalogueQuery;
 import com.waypoint.dispatch.warehouse.contract.StockPort;
 import com.waypoint.dispatch.warehouse.contract.StockPort.Insufficient;
+import com.waypoint.dispatch.warehouse.contract.StockPort.PartiallyReserved;
+import com.waypoint.dispatch.warehouse.contract.StockPort.PlacementRequest;
 import com.waypoint.dispatch.warehouse.contract.StockPort.PlacementResult;
+import com.waypoint.dispatch.warehouse.contract.StockPort.Rejected;
 import com.waypoint.dispatch.warehouse.contract.StockPort.Reserved;
 import com.waypoint.dispatch.warehouse.contract.StockPort.Unavailable;
 import java.security.SecureRandom;
@@ -48,6 +51,11 @@ import org.springframework.stereotype.Component;
  * scope (ORD-09), the outlet's window against its service allowance (R-ORD-10),
  * one temperature per order (R-ORD-06), the delivery date (R-ORD-01, 07, 08),
  * then the warehouse, whose order <em>is</em> the reservation (R-STK-08).
+ *
+ * <p>A partial answer is kept: the order is saved {@code PARTIALLY_RESERVED} with
+ * the locked quantities' measures, and the response tells the store what is
+ * short, what the other warehouse has, and when the lock runs out (D-F revised
+ * 2026-10-01). Nothing available at all rejects the placement.
  *
  * <p>The warehouse is called inside the transaction. A serializable retry calls
  * it again with the same reference, derived from the actor and the command id,
@@ -128,11 +136,26 @@ public class PlaceOrderHandler implements CommandHandler {
 
     DeliveryDate date = dates.resolve(outlet.depotCode(), requested, now);
     String orderRef = OrderRef.derive(actor.userId(), command.commandId());
+    java.util.UUID orderId = UuidV7.generate(now, random);
 
-    PlacementResult result = stock.placeOrder(orderRef, OrderMessages.stockLines(lines));
+    PlacementResult result =
+        stock.placeOrder(
+            new PlacementRequest(orderId, orderRef, outlet.depotCode(), OrderMessages.stockLines(lines)));
     Optional<Reservation> reservation = Optional.empty();
+    Optional<PartiallyReserved> partial = Optional.empty();
     String degraded = null;
-    if (result instanceof Reserved r) {
+    if (result instanceof PartiallyReserved p) {
+      reservation = OrderMessages.reservation(p.reservation());
+      if (reservation.isEmpty()) {
+        degraded = "warehouse returned no usable totals for " + p.reservation().warehouseOrderRef();
+        metrics.increment("waypoint.order.reservation_unusable");
+      } else {
+        partial = Optional.of(p);
+      }
+    } else if (result instanceof Rejected rejected) {
+      metrics.increment("waypoint.order.rejected", "reason", "warehouse_refused");
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, rejected.reason(), List.of("R-STK-08"));
+    } else if (result instanceof Reserved r) {
       reservation = OrderMessages.reservation(r);
       if (reservation.isEmpty()) {
         degraded = "warehouse returned no usable totals for " + r.warehouseOrderRef();
@@ -146,22 +169,37 @@ public class PlaceOrderHandler implements CommandHandler {
     }
 
     Order order =
-        Order.place(
-            UuidV7.generate(now, random),
-            orderRef,
-            outletId,
-            outlet.depotCode(),
-            outlet.brandCode(),
-            outlet.districtName(),
-            date,
-            reservation,
-            lines);
-    orders.insert(order, actor.userId(), now, command.commandId(), Optional.empty());
+        partial.isPresent()
+            ? Order.placePartially(
+                orderId,
+                orderRef,
+                outletId,
+                outlet.depotCode(),
+                outlet.brandCode(),
+                outlet.districtName(),
+                date,
+                reservation.get(),
+                lines)
+            : Order.place(
+                orderId,
+                orderRef,
+                outletId,
+                outlet.depotCode(),
+                outlet.brandCode(),
+                outlet.districtName(),
+                date,
+                reservation,
+                lines);
+    orders.insert(
+        order, actor.userId(), now, command.commandId(), Optional.empty(),
+        partial.map(PartiallyReserved::expiresAt));
     orders.recordStatus(
         order.orderId(),
         Optional.empty(),
         order.status(),
-        degraded == null ? "placed" : "placed; stock unknown: " + degraded,
+        partial.isPresent()
+            ? "placed; partly reserved until " + partial.get().expiresAt()
+            : degraded == null ? "placed" : "placed; stock unknown: " + degraded,
         actor.userId(),
         Optional.empty(),
         now);
@@ -185,6 +223,7 @@ public class PlaceOrderHandler implements CommandHandler {
       // Degrade visibly: the store is told the stock is unconfirmed and why.
       body.put("degraded", degraded);
     }
+    partial.ifPresent(p -> body.put("shortfall", OrderMessages.shortfall(p)));
     return body;
   }
 

@@ -164,6 +164,18 @@ public class JdbcOrderRepository {
 
   public void insert(
       Order order, UUID placedBy, Instant at, UUID commandId, Optional<UUID> sourceIssueId) {
+    insert(order, placedBy, at, commandId, sourceIssueId, Optional.empty());
+  }
+
+  /**
+   * @param reservationExpiresAt when the warehouse releases a partial reservation
+   *     the store has not accepted; required for {@code PARTIALLY_RESERVED}. Kept
+   *     beside the aggregate: the warehouse decides it, and Ordering learns it ran
+   *     out by event
+   */
+  public void insert(
+      Order order, UUID placedBy, Instant at, UUID commandId, Optional<UUID> sourceIssueId,
+      Optional<Instant> reservationExpiresAt) {
     Optional<Reservation> r = order.reservation();
     database.update(
         """
@@ -172,8 +184,8 @@ public class JdbcOrderRepository {
              requested_date, original_requested_date, delivery_date, status,
              warehouse_order_ref, temperature, weight_kg, volume_m3, item_count,
              redelivery_of, source_issue_id, trip_id, deferral_count, placed_by, placed_at,
-             command_id, row_version, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+             command_id, row_version, updated_at, reservation_expires_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
         """,
         order.orderId(),
         order.orderRef(),
@@ -197,7 +209,8 @@ public class JdbcOrderRepository {
         placedBy,
         Timestamp.from(at),
         commandId,
-        Timestamp.from(at));
+        Timestamp.from(at),
+        reservationExpiresAt.map(Timestamp::from).orElse(null));
     insertLines(order.orderId(), 1, order.lines());
   }
 

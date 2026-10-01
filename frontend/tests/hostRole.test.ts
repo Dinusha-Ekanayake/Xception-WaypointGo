@@ -29,12 +29,12 @@ test("a role's address is a sibling of the one being visited", () => {
   assert.equal(hostForRole("loader-preview.waypointgo.live", "store_manager"), "store-preview.waypointgo.live");
 });
 
-test("the shared preview address sends each role to its own preview address", () => {
+test("the shared preview address knows each role's own preview address", () => {
   assert.equal(previewHomeFor("preview.waypointgo.live", "loader"), "loader-preview.waypointgo.live");
   assert.equal(previewHomeFor("Preview.WaypointGo.live", "store_manager"), "store-preview.waypointgo.live");
 });
 
-test("no other address moves anyone", () => {
+test("no other address is the shared preview", () => {
   for (const host of ["waypointgo.live", "www.waypointgo.live", "loader-preview.waypointgo.live", "loader.waypointgo.live", "preview.live", "localhost", ""]) {
     assert.equal(previewHomeFor(host, "loader"), null, host);
   }

@@ -32,13 +32,18 @@ class LoadingTestConfig {
 
   static final class ReservingStockPort implements StockPort {
     @Override
-    public PlacementResult placeOrder(String orderRef, List<StockLine> lines) {
-      return reserve(lines);
+    public PlacementResult placeOrder(PlacementRequest request) {
+      return reserve(request.lines());
     }
 
     @Override
-    public PlacementResult amendOrder(String warehouseOrderRef, List<StockLine> lines) {
-      return reserve(lines);
+    public PlacementResult amendOrder(String warehouseOrderRef, PlacementRequest request) {
+      return reserve(request.lines());
+    }
+
+    @Override
+    public ConfirmResult confirmReservation(String warehouseOrderRef) {
+      return new Expired("Loading tests never hold a partial reservation");
     }
 
     private static PlacementResult reserve(List<StockLine> lines) {

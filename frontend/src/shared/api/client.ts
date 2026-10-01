@@ -66,14 +66,15 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
 /**
  * Every item of a keyset-paginated list, following `nextCursor` until it is null.
  * For lists bounded by the domain, such as one depot's outlets or fleet; an
- * unbounded list is paged on screen instead.
+ * unbounded list is paged on screen instead. `cursorParam` is the query
+ * parameter the endpoint reads the cursor from.
  */
-export async function requestAll<T>(path: string, options: RequestOptions = {}): Promise<T[]> {
+export async function requestAll<T>(path: string, options: RequestOptions = {}, cursorParam = "after"): Promise<T[]> {
   const items: T[] = [];
   const separator = path.includes("?") ? "&" : "?";
   let cursor: string | null = null;
   do {
-    const query: string = cursor === null ? "" : `${separator}after=${encodeURIComponent(cursor)}`;
+    const query: string = cursor === null ? "" : `${separator}${cursorParam}=${encodeURIComponent(cursor)}`;
     const page: Page<T> = await request<Page<T>>(`${path}${query}`, options);
     items.push(...page.items);
     cursor = page.nextCursor;

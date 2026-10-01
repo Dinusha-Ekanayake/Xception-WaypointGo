@@ -374,7 +374,7 @@ The boundary was defined (port, anti-corruption layer, circuit breaker, degraded
 
 ### Outbound: Waypoint calls the warehouse
 
-Revised 2026-09-30 against the verified API (RULES-AND-POLICIES §2) and decisions D-E to D-H and D-M. Creating a warehouse order **is** the reservation; there is no separate reserve call. **Revised 2026-10-01:** a partial placement (`202`) is a `reserved` order with an expiry, so the adapter cancels it at once and answers `Insufficient`; only a `201` (`pending`, no expiry) is a reservation Waypoint keeps. Orders are placed in the depot's warehouse, `Kandy` or `Peliyagoda` (A-25).
+Revised 2026-09-30 against the verified API (RULES-AND-POLICIES §2) and decisions D-E to D-H and D-M. Creating a warehouse order **is** the reservation; there is no separate reserve call. **Revised 2026-10-01 (issue #7):** a partial placement (`202`) is a `reserved` warehouse order with a 15-minute expiry. Waypoint keeps it as `partially_reserved` and shows the store the shortfall and the other warehouse's stock; the store accepts it (`order:AcceptShortfall`, the warehouse `confirm` call) or cancels, and an expiry cancels it. Only a `201` (`pending`, no expiry) or a confirmed `202` is a reservation Waypoint plans against. Orders are placed in the depot's warehouse, `Kandy` or `Peliyagoda` (A-25).
 
 | Operation | Caller | When | Timeout | On failure |
 | --- | --- | --- | --- | --- |
@@ -385,7 +385,7 @@ Revised 2026-09-30 against the verified API (RULES-AND-POLICIES §2) and decisio
 | Ship and deliver (`PUT status`) | Warehouse module, on `trip.released` and `delivery.completed` | Trip leaves, stop completes | 5 s | Retried through the outbox; an invalid transition is recorded and alerted |
 | Catalogue sync (`GET /products`) | Warehouse module, scheduled | Bulk sync | 60 s | Keep the last good copy, mark it stale with its age |
 
-A short line rejects the whole placement with `409 insufficient_stock`; Waypoint returns per-line availability to the store and saves nothing (D-F). Every call carries a correlation id, and an `Idempotency-Key` once the warehouse accepts one.
+Nothing available is `409 insufficient_stock`: Waypoint returns per-line availability to the store and saves nothing. A short line with some stock is the partial reservation above (D-F revised). Every call carries a correlation id, and an `Idempotency-Key` once the warehouse accepts one.
 
 ### Reservation lifecycle
 
