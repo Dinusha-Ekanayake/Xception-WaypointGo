@@ -21,6 +21,15 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-01 - chore: test data for every order status
+
+`chore/seed-scenarios` · @kavindamihiran
+
+`scripts/seed-scenarios.sql` writes 329 orders with timelines and lines directly into the database: one of each of the 13 statuses at OUT001, plus a day's demand at both depots (tomorrow's chilled demand at Peliyagoda exceeds the refrigerated fleet, with two reefer trucks in the workshop), deferrals, a redelivery, an amended order and a date rolled past a Sunday. It also grants the store manager OUT001, the dispatcher both depots and the driver VEH035. Dates are relative to the day it runs; `-v reset=1` removes the seeded orders first. The header of the file has the commands.
+Why: Planning, Loading, Execution and Receipt do not exist yet, so nothing else can put an order past `confirmed`.
+Verified on production: store manager sees 21 orders in 13 statuses through `/api/orders` and a full timeline, and is refused another outlet (403); dispatcher sees demand for both depots; no timeline is out of order or in the future.
+Open: it bypasses the command bus, so there are no audit rows, receipts or events, and every warehouse reference is invented (`SEED-WH-...`). Cancelling or amending a seeded order from the UI will ask the real warehouse about a reservation it never made. Not run on the preview.
+
 ## 2026-10-01 - ci: nginx replaces Caddy at the edge, ready for Cloudflare
 
 `ci/nginx-edge` · @kavindamihiran
