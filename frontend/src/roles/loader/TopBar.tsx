@@ -25,6 +25,8 @@ export default function TopBar({
   waiting,
   sample,
   onBack,
+  onLock,
+  lockDisabled = false,
 }: {
   displayName: string;
   depot: string;
@@ -36,6 +38,8 @@ export default function TopBar({
   waiting: number;
   sample: boolean;
   onBack?: () => void;
+  onLock?: () => void;
+  lockDisabled?: boolean;
 }): React.JSX.Element {
   const sync = !online
     ? waiting > 0
@@ -91,7 +95,10 @@ export default function TopBar({
               <Icon name="lock" />
             </span>
           </span>
-          <ShellActions compact />
+          <div className="flex items-center gap-1">
+            {onLock && <button type="button" onClick={onLock} disabled={lockDisabled} aria-label="Lock loader" title={lockDisabled ? "Sync saved work before locking" : "Lock loader"} className="flex size-12 items-center justify-center rounded-full bg-white disabled:opacity-50"><Icon name="lock" /></button>}
+            <ShellActions compact />
+          </div>
         </div>
       </div>
 
@@ -111,6 +118,7 @@ export default function TopBar({
           </span>
           <span className="text-[14px] text-go-muted max-lg:hidden">{displayName}</span>
         </span>
+        {onLock && <button type="button" onClick={onLock} disabled={lockDisabled} title={lockDisabled ? "Sync saved work before locking" : "Lock loader"} className="flex min-h-12 items-center gap-2 rounded-full bg-white px-4 text-[14px] font-medium disabled:opacity-50"><Icon name="lock" /> Lock</button>}
         <ShellActions />
       </div>
     </header>

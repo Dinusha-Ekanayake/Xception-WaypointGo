@@ -10,8 +10,17 @@ export type Session = {
   userId: string;
   displayName: string;
   roles: ShellRole[];
+  /** Loader working on this shared device, or null while the screen is locked. */
+  operator: Operator | null;
   /** Prefixed grants such as `depot:PELIYAGODA` or `outlet:OUT001`. */
   scope: string[];
+};
+
+export type Operator = {
+  userId: string;
+  displayName: string;
+  employeeCode: string;
+  since: string;
 };
 
 /** The three states the shell must tell apart, because each needs different words. */

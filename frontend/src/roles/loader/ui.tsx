@@ -24,6 +24,7 @@ const STATUS: Record<SessionStatus, { icon: IconName; text: string }> = {
   NOT_STARTED: { icon: "clock", text: "text-go-muted" },
   IN_PROGRESS: { icon: "loading", text: "text-[#b45309]" },
   BLOCKED: { icon: "triangle", text: "text-go-danger-strong" },
+  READY: { icon: "check", text: "text-go-success" },
   COMPLETED: { icon: "check", text: "text-go-success" },
 };
 
@@ -74,7 +75,7 @@ export function BigButton({
       className={cx(
         "flex items-center justify-center gap-2 px-[18px] font-medium disabled:cursor-not-allowed disabled:opacity-50",
         fit ? "w-auto min-w-[170px] px-7" : "w-full",
-        size === "l" ? "min-h-14 rounded-[22px] text-[20px]" : "min-h-12 rounded-full text-[15px]",
+        size === "l" ? "min-h-16 rounded-[22px] text-[20px]" : "min-h-12 rounded-full text-[15px]",
         TONE[tone],
       )}
     >

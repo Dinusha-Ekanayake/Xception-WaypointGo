@@ -1,6 +1,6 @@
 import { request } from "@shared/api/client";
 import { send, type Command, type CommandAck } from "@shared/api/commands";
-import { drain, enqueue } from "@shared/offline";
+import { enqueue } from "@shared/offline";
 import type { ManifestView, OutletView, ReadyTripView } from "@shared/domain/types";
 import { sampleGateway } from "./fixtures.ts";
 
@@ -19,8 +19,6 @@ export type LoadingGateway = {
   send: (command: Command) => Promise<CommandAck>;
   /** Keep a write on this device until the connection returns (resilient tier). */
   queue: (command: Command) => Promise<{ durable: boolean; reason?: string }>;
-  /** Send what was kept. Returns how many are still waiting. */
-  flush: () => Promise<{ sent: number; remaining: number; heldForReview: number }>;
   /** Sample only: publish a new plan version under the loader, to show R-LOD-03. */
   revisePlan?: (tripId: string) => void;
 };
@@ -35,7 +33,6 @@ function liveGateway(accountId: string): LoadingGateway {
     outlets: (depot, signal) => request(`/api/reference/outlets?depot=${encodeURIComponent(depot)}`, { signal }),
     send: (command) => send(command),
     queue: (command) => enqueue(accountId, "loader", command),
-    flush: () => drain(accountId),
   };
 }
 

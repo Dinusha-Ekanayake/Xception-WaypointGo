@@ -7,7 +7,7 @@ import type { StoredEntry } from "./store.ts";
 // The sync engine's schedule. Queued writes are sent when the connection
 // returns, when the app comes back to the foreground, right after something is
 // queued, and on a slow interval as a safety net. drain() is shared per
-// account, so this running beside a role's own flush never sends twice.
+// account, so multiple role shells never send the same write twice.
 
 const INTERVAL_MS = 30_000;
 

@@ -9,6 +9,7 @@ import {
   type OutletView,
   type ReadyTripView,
   type RecordCheck,
+  type ReleaseTrip,
   type SessionStatus,
 } from "@shared/domain/types";
 import type { LoadingGateway } from "./gateway.ts";
@@ -150,14 +151,18 @@ export function sampleGateway(): LoadingGateway {
         break;
       }
       case LoadingCommandKind.release: {
+        const checklist = command.payload as ReleaseTrip;
         const left = m.lines.filter((l) => l.status === "PENDING").length;
         if (left > 0) {
           throw problem(422, "RELEASE_BLOCKED", `${left} ${left === 1 ? "order is" : "orders are"} still to load.`, ["R-LOD-07"]);
         }
+        if (!checklist.doorsSealed || !checklist.ordersSecured || !checklist.driverPresent) {
+          throw problem(422, "RELEASE_BLOCKED", "Confirm doors sealed, orders secured, and driver present.", ["R-LOD-10"]);
+        }
         setStatus(t, "COMPLETED");
         break;
       }
-      case LoadingCommandKind.handover:
+      case LoadingCommandKind.handBack:
         setStatus(t, "NOT_STARTED");
         break;
       default:
@@ -182,24 +187,7 @@ export function sampleGateway(): LoadingGateway {
       await pause();
       return { commandId: command.commandId, kind: command.kind, replayed: false, result: apply(command) };
     },
-    queue: async (command) => {
-      held = [...held, command];
-      return { durable: true };
-    },
-    flush: async () => {
-      let sent = 0;
-      let heldForReview = 0;
-      for (const command of held) {
-        try {
-          apply(command);
-          sent++;
-        } catch {
-          heldForReview++;
-        }
-      }
-      held = [];
-      return { sent, remaining: 0, heldForReview };
-    },
+    queue: async () => ({ durable: false, reason: "Sample data cannot save offline changes." }),
     revisePlan: (tripId) => {
       const m = find(tripId).manifest;
       m.planVersion++;

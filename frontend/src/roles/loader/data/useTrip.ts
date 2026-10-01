@@ -8,8 +8,10 @@ import {
   LoadingCommandKind,
   type CheckStatus,
   type FlagShortfall,
+  type IssueKind,
   type ManifestLineView,
   type ManifestView,
+  type ReleaseTrip,
 } from "@shared/domain/types";
 import type { LoadingGateway } from "./gateway.ts";
 
@@ -38,7 +40,7 @@ export type Trip = {
   start: () => Promise<Outcome>;
   check: (line: ManifestLineView, status: CheckStatus) => Promise<Outcome>;
   flag: (payload: Omit<FlagShortfall, "tripId">) => Promise<Outcome>;
-  release: () => Promise<Outcome>;
+  release: (checklist: Omit<ReleaseTrip, "tripId">) => Promise<Outcome>;
   handBack: () => Promise<Outcome>;
 };
 
@@ -54,6 +56,7 @@ export function useTrip(
   online: boolean,
   waiting: number,
   onQueued: () => void,
+  actingUserId: string,
 ): Trip {
   const manifest = useResource((signal) => gateway.manifest(tripId, signal), `${tripId}`, 15_000);
   const [baseline, setBaseline] = useState<number | null>(null);
@@ -75,7 +78,7 @@ export function useTrip(
 
   const run = useCallback(
     async (kind: string, payload: unknown, optimistic?: () => void): Promise<Outcome> => {
-      const command = newCommand(kind, payload, expected.current);
+      const command = newCommand(kind, payload, expected.current, actingUserId);
       const keep = async (): Promise<Outcome> => {
         const kept = await gateway.queue(command);
         if (!kept.durable) {
@@ -94,8 +97,9 @@ export function useTrip(
       setBusy(true);
       optimistic?.();
       try {
-        await gateway.send(command);
-        if (expected.current !== null) expected.current++;
+        const ack = await gateway.send(command);
+        const rowVersion = (ack.result as { rowVersion?: unknown } | null)?.rowVersion;
+        if (typeof rowVersion === "number") expected.current = rowVersion;
         refresh();
         return { ok: true, queued: false };
       } catch (failure) {
@@ -108,7 +112,7 @@ export function useTrip(
         setBusy(false);
       }
     },
-    [gateway, online, refresh, onQueued],
+    [gateway, online, refresh, onQueued, actingUserId],
   );
 
   // Once the container has sent what waited, read the server's view again.
@@ -154,7 +158,7 @@ export function useTrip(
       const loaded = line ? Math.max(0, line.itemCount - payload.missingUnits) : 0;
       return run(LoadingCommandKind.shortfall, { ...payload, tripId }, setLine(payload.orderId, payload.kind, loaded));
     },
-    release: async () => {
+    release: async (checklist) => {
       // Release needs the server's answer; it is never queued.
       if (!online) {
         const failure = new Error("Release needs a connection, so the dispatcher sees it before the vehicle leaves.");
@@ -162,7 +166,9 @@ export function useTrip(
       }
       setBusy(true);
       try {
-        await gateway.send(newCommand(LoadingCommandKind.release, { tripId }, expected.current));
+        const ack = await gateway.send(newCommand(LoadingCommandKind.release, { tripId, ...checklist }, expected.current, actingUserId));
+        const rowVersion = (ack.result as { rowVersion?: unknown } | null)?.rowVersion;
+        if (typeof rowVersion === "number") expected.current = rowVersion;
         refresh();
         return { ok: true, queued: false };
       } catch (failure) {
@@ -171,6 +177,6 @@ export function useTrip(
         setBusy(false);
       }
     },
-    handBack: () => run(LoadingCommandKind.handover, { tripId }),
+    handBack: () => run(LoadingCommandKind.handBack, { tripId }),
   };
 }

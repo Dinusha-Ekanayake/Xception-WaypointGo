@@ -15,7 +15,7 @@ type Filter = "all" | "todo" | "loading" | "done";
 const FILTERS: Array<{ value: Filter; label: string; match: (s: SessionStatus) => boolean }> = [
   { value: "all", label: "All", match: () => true },
   { value: "todo", label: "To load", match: (s) => s === "NOT_STARTED" },
-  { value: "loading", label: "Loading", match: (s) => s === "IN_PROGRESS" || s === "BLOCKED" },
+  { value: "loading", label: "Loading", match: (s) => s === "IN_PROGRESS" || s === "BLOCKED" || s === "READY" },
   { value: "done", label: "Released", match: (s) => s === "COMPLETED" },
 ];
 

@@ -33,7 +33,7 @@ export class ApiError extends Error {
 
   /** Worth queueing and retrying. A rejection on rules is not. */
   get isRetryable(): boolean {
-    return this.problem.status >= 500 || this.problem.status === 503;
+    return this.problem.status >= 500 || this.problem.status === 408 || this.problem.status === 429;
   }
 }
 

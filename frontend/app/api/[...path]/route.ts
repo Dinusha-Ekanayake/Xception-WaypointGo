@@ -8,7 +8,7 @@ async function proxy(request: NextRequest): Promise<Response> {
   const target = new URL(request.nextUrl.pathname + request.nextUrl.search,
     process.env.BACKEND_URL || "http://127.0.0.1:8080");
   const headers = new Headers();
-  for (const name of ["cookie", "content-type", "origin"]) {
+  for (const name of ["cookie", "content-type", "origin", "x-correlation-id"]) {
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
   }
@@ -25,7 +25,7 @@ async function proxy(request: NextRequest): Promise<Response> {
       signal: AbortSignal.timeout(25000),
     } as RequestInit);
     const outgoing = new Headers({ "Cache-Control": "no-store" });
-    for (const name of ["content-type", "set-cookie"]) {
+    for (const name of ["content-type", "set-cookie", "retry-after", "x-correlation-id"]) {
       const value = response.headers.get(name);
       if (value) outgoing.set(name, value);
     }

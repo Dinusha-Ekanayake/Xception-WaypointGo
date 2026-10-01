@@ -3,20 +3,20 @@
 import { useState } from "react";
 import type { CheckStatus, FlagShortfall, OutletView } from "@shared/domain/types";
 import { Icon, Notice, cx } from "@shared/ui";
-import { orderLabel, placeName } from "../data/manifest.ts";
+import { ISSUE_KIND_LABEL, orderLabel, placeName } from "../data/manifest.ts";
 import type { Line } from "../data/useTrip.ts";
 import { BigButton, Sheet } from "../ui.tsx";
 
-// Figma "03 Report an issue": flag a short, missing or damaged order before
+// Figma "03 Report an issue": flag a missing, damaged or ill-fitting item before
 // the vehicle leaves (R-LOD-02). The dispatcher is told; the order counts as
-// checked for release, with what is missing on record.
+// checked for release, with the exception recorded.
 
-type Kind = Extract<CheckStatus, "SHORT" | "MISSING" | "DAMAGED">;
-const KINDS: Array<{ value: Kind; label: string; hint: string }> = [
-  { value: "SHORT", label: "Short", hint: "Fewer items than picked" },
-  { value: "DAMAGED", label: "Damaged", hint: "Crushed, leaking, torn" },
-  { value: "MISSING", label: "Missing", hint: "The whole order is not at the dock" },
-];
+type Kind = Extract<CheckStatus, "MISSING" | "DAMAGED" | "DOES_NOT_FIT">;
+const ISSUE_HINT: Record<Kind, string> = {
+  DAMAGED: "Crushed, leaking, torn",
+  DOES_NOT_FIT: "Does not fit safely in the vehicle",
+  MISSING: "The whole order is not at the dock",
+};
 
 export default function IssueSheet({
   lines,
@@ -34,7 +34,7 @@ export default function IssueSheet({
   onClose: () => void;
 }): React.JSX.Element {
   const [orderId, setOrderId] = useState(initial?.orderId ?? lines[0]?.orderId ?? "");
-  const [kind, setKind] = useState<Kind>("SHORT");
+  const [kind, setKind] = useState<Kind>("DAMAGED");
   const [units, setUnits] = useState(1);
   const [reason, setReason] = useState("");
   const line = lines.find((l) => l.orderId === orderId);
@@ -76,26 +76,29 @@ export default function IssueSheet({
 
         <fieldset className="grid gap-2 md:grid-cols-2 md:gap-3">
           <legend className="mb-1.5 text-[13px] text-go-muted md:col-span-2">What is wrong?</legend>
-          {KINDS.map((k) => (
+          {Object.entries(ISSUE_KIND_LABEL).map(([value, label]) => {
+            const kindValue = value as Kind;
+            return (
             <label
-              key={k.value}
+              key={kindValue}
               className={cx(
                 "flex min-h-14 cursor-pointer flex-col justify-center rounded-[16px] px-4 py-2.5 md:min-h-[94px]",
-                k.value === "MISSING" && "md:col-span-2",
-                kind === k.value ? "border-2 border-[#dfe3e8] bg-white shadow-[0_2px_6px_rgba(0,0,0,0.08)]" : "border border-[#dfe3e8] bg-[#f1f3f5]",
+                kindValue === "MISSING" && "md:col-span-2",
+                kind === kindValue ? "border-2 border-[#dfe3e8] bg-white shadow-[0_2px_6px_rgba(0,0,0,0.08)]" : "border border-[#dfe3e8] bg-[#f1f3f5]",
               )}
             >
-              <input type="radio" name="kind" value={k.value} checked={kind === k.value} onChange={() => setKind(k.value)} className="sr-only" />
-              <span className="text-[17px] font-medium">{k.label}</span>
-              <span className="text-[13px] text-go-muted">{k.hint}</span>
+              <input type="radio" name="kind" value={kindValue} checked={kind === kindValue} onChange={() => setKind(kindValue)} className="sr-only" />
+              <span className="text-[17px] font-medium">{label}</span>
+              <span className="text-[13px] text-go-muted">{ISSUE_HINT[kindValue]}</span>
             </label>
-          ))}
+            );
+          })}
         </fieldset>
 
         {kind !== "MISSING" && (
           <div className="flex items-center justify-between gap-3 rounded-[16px] bg-[#f1f3f5] py-3 pr-4 pl-4">
             <span className="flex flex-col">
-              <span className="text-[17px] font-medium">Items {kind === "SHORT" ? "short" : "damaged"}</span>
+              <span className="text-[17px] font-medium">Items {kind === "DAMAGED" ? "damaged" : "that don't fit"}</span>
               <span className="text-[13px] text-go-muted">of {max} in this order</span>
             </span>
             <div className="flex items-center gap-2">

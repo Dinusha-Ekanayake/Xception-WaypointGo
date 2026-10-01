@@ -2,8 +2,9 @@ import type { Decimal, IsoInstant, IsoTime, Temperature, Uuid } from "./common.t
 
 // Mirrors com.waypoint.dispatch.loading.contract.
 
-export type SessionStatus = "NOT_STARTED" | "IN_PROGRESS" | "BLOCKED" | "COMPLETED";
-export type CheckStatus = "PENDING" | "LOADED" | "SHORT" | "MISSING" | "DAMAGED";
+export type SessionStatus = "NOT_STARTED" | "IN_PROGRESS" | "BLOCKED" | "READY" | "COMPLETED";
+export type CheckStatus = "PENDING" | "LOADED" | "SHORT" | "MISSING" | "DAMAGED" | "DOES_NOT_FIT";
+export type IssueKind = Extract<CheckStatus, "MISSING" | "DAMAGED" | "DOES_NOT_FIT">;
 
 /** In loading order: last stop first. */
 export type ManifestLineView = {
@@ -44,7 +45,7 @@ export type ShortfallView = {
   shortfallId: Uuid;
   tripId: Uuid;
   orderId: Uuid;
-  kind: CheckStatus;
+  kind: IssueKind;
   missingUnits: number;
   reason: string;
   reportedBy: Uuid;
@@ -57,7 +58,7 @@ export const LoadingCommandKind = {
   shortfall: "loading:Shortfall",
   requestInterchange: "loading:RequestInterchange",
   release: "loading:Release",
-  handover: "loading:Handover",
+  handBack: "loading:HandBack",
 } as const;
 
 export type StartLoading = { tripId: Uuid };
@@ -71,11 +72,16 @@ export type RecordCheck = {
 export type FlagShortfall = {
   tripId: Uuid;
   orderId: Uuid;
-  kind: CheckStatus;
+  kind: IssueKind;
   missingUnits: number;
   reason: string;
   photoAttachmentId: Uuid | null;
 };
 export type RequestInterchange = { tripId: Uuid; replacementVehicleId: string; reason: string };
-export type ReleaseTrip = { tripId: Uuid };
+export type ReleaseTrip = {
+  tripId: Uuid;
+  doorsSealed: boolean;
+  ordersSecured: boolean;
+  driverPresent: boolean;
+};
 export type HandoverSession = { tripId: Uuid };

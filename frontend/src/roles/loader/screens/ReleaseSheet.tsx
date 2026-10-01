@@ -1,6 +1,7 @@
 "use client";
 
-import type { OutletView } from "@shared/domain/types";
+import { useState } from "react";
+import type { OutletView, ReleaseTrip } from "@shared/domain/types";
 import { Icon, cx } from "@shared/ui";
 import { byStop, isChecked, isFlagged, orderLabel, placeName } from "../data/manifest.ts";
 import type { Line } from "../data/useTrip.ts";
@@ -11,6 +12,12 @@ import { BigButton, Sheet } from "../ui.tsx";
 // Flagged orders do not block: they are on record and the dispatcher knows.
 
 const ORDINAL = (n: number) => `${n}${n % 10 === 1 && n !== 11 ? "st" : n % 10 === 2 && n !== 12 ? "nd" : n % 10 === 3 && n !== 13 ? "rd" : "th"}`;
+type Checklist = Omit<ReleaseTrip, "tripId">;
+const CHECKS = [
+  { key: "doorsSealed", label: "Doors sealed" },
+  { key: "ordersSecured", label: "Orders secured" },
+  { key: "driverPresent", label: "Driver present" },
+] as const;
 
 export default function ReleaseSheet({
   lines,
@@ -26,10 +33,16 @@ export default function ReleaseSheet({
   /** The server's refusal, or a local reason, when release cannot go ahead. */
   blockedBy: string | null;
   busy: boolean;
-  onRelease: () => void;
+  onRelease: (checklist: Checklist) => void;
   onReport: () => void;
   onClose: () => void;
 }): React.JSX.Element {
+  const [checklist, setChecklist] = useState<Checklist>({
+    doorsSealed: false,
+    ordersSecured: false,
+    driverPresent: false,
+  });
+  const confirmed = CHECKS.every(({ key }) => checklist[key]);
   const left = lines.filter((l) => !isChecked(l.status));
   const flagged = lines.filter((l) => isFlagged(l.status));
 
@@ -105,11 +118,25 @@ export default function ReleaseSheet({
           })}
         </tbody>
       </table>
+      <fieldset className="flex flex-col gap-2">
+        <legend className="mb-2 text-[15px] font-semibold">Release checklist</legend>
+        {CHECKS.map(({ key, label }) => (
+          <label key={key} className="flex min-h-14 items-center gap-3 rounded-[16px] bg-go-canvas px-4 text-[15px] font-medium">
+            <input
+              type="checkbox"
+              checked={checklist[key]}
+              onChange={(event) => setChecklist((current) => ({ ...current, [key]: event.target.checked }))}
+              className="size-5 accent-go-success"
+            />
+            {label}
+          </label>
+        ))}
+      </fieldset>
       <div className="flex flex-col gap-3">
         <BigButton tone="muted" size="l" onClick={onClose}>
           Not yet
         </BigButton>
-        <BigButton tone="ink" size="l" onClick={onRelease} disabled={busy}>
+        <BigButton tone="mint" size="l" onClick={() => onRelease(checklist)} disabled={busy || !confirmed}>
           {busy ? "Releasing…" : "Release vehicle"}
         </BigButton>
       </div>

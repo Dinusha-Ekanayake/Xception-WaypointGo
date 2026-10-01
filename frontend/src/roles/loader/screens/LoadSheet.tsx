@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { OutletView, ReadyTripView } from "@shared/domain/types";
+import type { OutletView, ReadyTripView, ReleaseTrip } from "@shared/domain/types";
 import { Icon, Notice } from "@shared/ui";
 import type { LoadingGateway } from "../data/gateway.ts";
 import { hhmm, kg, loadedTotals, m3, progress, tripTemperature } from "../data/manifest.ts";
@@ -29,6 +29,7 @@ export default function LoadSheet({
   waiting,
   onQueued,
   onSynced,
+  actingUserId,
 }: {
   gateway: LoadingGateway;
   trip: ReadyTripView;
@@ -37,8 +38,9 @@ export default function LoadSheet({
   waiting: number;
   onQueued: () => void;
   onSynced: (at: Date | null) => void;
+  actingUserId: string;
 }): React.JSX.Element {
-  const t = useTrip(gateway, trip.tripId, online, waiting, onQueued);
+  const t = useTrip(gateway, trip.tripId, online, waiting, onQueued, actingUserId);
   const [issueFor, setIssueFor] = useState<Line | null | undefined>(undefined);
   const [releasing, setReleasing] = useState(false);
   const [blockedBy, setBlockedBy] = useState<string | null>(null);
@@ -61,11 +63,11 @@ export default function LoadSheet({
   const status = m.status;
   const p = progress(t.lines);
   const totals = loadedTotals(t.lines);
-  const editable = status === "IN_PROGRESS" || status === "BLOCKED";
+  const editable = status === "IN_PROGRESS" || status === "BLOCKED" || status === "READY";
   const left = p.total - p.checked;
 
-  const release = async () => {
-    const outcome: Outcome = await t.release();
+  const release = async (checklist: Omit<ReleaseTrip, "tripId">) => {
+    const outcome: Outcome = await t.release(checklist);
     if (outcome.ok) setReleasing(false);
     else setBlockedBy(outcome.error.message);
   };
@@ -104,7 +106,7 @@ export default function LoadSheet({
       <section aria-label="Truck" className="flex flex-col gap-4 rounded-[31px] bg-white px-[22px] py-5 shadow-[0_5px_20px_rgba(0,0,0,0.09)] lg:sticky lg:top-[132px]">
         <div className="flex items-center gap-2.5">
           <span className="rounded-full bg-black px-3.5 py-1.5 text-[15px] font-medium text-white">
-            {status === "COMPLETED" ? "Released" : status === "NOT_STARTED" ? "Not started" : "Loading"}
+            {status === "COMPLETED" ? "Released" : status === "NOT_STARTED" ? "Not started" : status === "READY" ? "Ready to release" : "Loading"}
           </span>
           <TempBadge temperature={tripTemperature(t.lines)} />
           <span className="flex-1" />
@@ -153,7 +155,7 @@ export default function LoadSheet({
               Report issue
             </BigButton>
             <BigButton
-              tone={left === 0 && t.planChangedFrom === null ? "ink" : "muted"}
+              tone={left === 0 && t.planChangedFrom === null ? "mint" : "muted"}
               size="l"
               fit
               onClick={() => {
@@ -215,7 +217,7 @@ export default function LoadSheet({
           outlets={outlets}
           blockedBy={blockedBy}
           busy={t.busy}
-          onRelease={() => void release()}
+          onRelease={(checklist) => void release(checklist)}
           onReport={() => {
             setReleasing(false);
             setIssueFor(null);

@@ -1,4 +1,4 @@
-import type { CheckStatus, ManifestLineView, OutletView, SessionStatus, Temperature } from "@shared/domain/types";
+import type { CheckStatus, IssueKind, ManifestLineView, OutletView, SessionStatus, Temperature } from "@shared/domain/types";
 
 // Pure helpers over a manifest. Capacity reads order totals only (AGENTS.md,
 // External Product Catalogue): weight and volume never come from product lines.
@@ -21,7 +21,14 @@ export function byStop<L extends ManifestLineView>(lines: L[]): StopGroup<L>[] {
 }
 
 export const isChecked = (status: CheckStatus) => status !== "PENDING";
-export const isFlagged = (status: CheckStatus) => status === "SHORT" || status === "MISSING" || status === "DAMAGED";
+export const isFlagged = (status: CheckStatus) => status === "SHORT" || status === "MISSING" || status === "DAMAGED" || status === "DOES_NOT_FIT";
+
+/** Exactly the three issues loaders may report. SHORT is displayed only for historical records. */
+export const ISSUE_KIND_LABEL: Record<IssueKind, string> = {
+  DAMAGED: "Damaged",
+  DOES_NOT_FIT: "Doesn't fit",
+  MISSING: "Missing",
+};
 
 export function progress(lines: ManifestLineView[]): { checked: number; total: number; flagged: number; percent: number } {
   const checked = lines.filter((l) => isChecked(l.status)).length;
@@ -70,6 +77,7 @@ export const STATUS_LABEL: Record<SessionStatus, string> = {
   NOT_STARTED: "Not started",
   IN_PROGRESS: "Loading",
   BLOCKED: "Flagged",
+  READY: "Ready to release",
   COMPLETED: "Released",
 };
 
@@ -79,6 +87,7 @@ export const CHECK_LABEL: Record<CheckStatus, string> = {
   SHORT: "Short",
   MISSING: "Missing",
   DAMAGED: "Damaged",
+  DOES_NOT_FIT: "Doesn't fit",
 };
 
 export const kg = (n: number) => `${Math.round(n).toLocaleString("en-US")} kg`;
