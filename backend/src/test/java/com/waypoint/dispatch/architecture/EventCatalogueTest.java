@@ -28,6 +28,7 @@ class EventCatalogueTest {
           "order.placed",
           "order.amended",
           "order.cancelled",
+          "order.auto_deferred",
           "orders.closed",
           "plan.published",
           "plan.revised",

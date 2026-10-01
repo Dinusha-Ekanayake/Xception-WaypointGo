@@ -16,7 +16,20 @@ import java.util.UUID;
  */
 public record Actor(UUID userId, UUID deviceId) {
 
+  /**
+   * The process itself: the outbox relay, a scheduled job. Its id is the same
+   * constant {@code app.actor_is_system()} compares against in SQL. The version
+   * nibble is zero, so no generated user id (v4 or v7) can ever equal it.
+   */
+  public static final UUID SYSTEM_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
+
+  public static final Actor SYSTEM = new Actor(SYSTEM_ID, null);
+
   public static Actor user(UUID userId) {
     return new Actor(userId, null);
+  }
+
+  public boolean isSystem() {
+    return SYSTEM_ID.equals(userId);
   }
 }

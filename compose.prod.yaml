@@ -48,6 +48,8 @@ services:
       DEMO_MODE: "0"
       DEMO_NOW: ${DEMO_NOW:-2026-02-13T15:30:00+05:30}
       COOKIE_SECURE: "1"
+      WAREHOUSE_BASE_URL: ${WAREHOUSE_BASE_URL:-https://triathon-warehouse-simple.vercel.app/api/v1}
+      WAREHOUSE_API_KEY: ${WAREHOUSE_API_KEY:-}
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/api/health | grep -q '\"ok\"'"]

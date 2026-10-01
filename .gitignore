@@ -155,6 +155,7 @@ artifacts/
 !docs/development-docs/enterprise-architecture-plan.md
 !docs/submission-checklist.md
 !docs/verification.md
+!docs/issues/**/*.md
 
 # Java / Maven build output (including nested modules)
 target/

@@ -63,37 +63,50 @@ Values that will change are not listed here. They live in the parameter register
 
 ## 2. Stock and the external warehouse
 
-The warehouse is a separate system. Verified contract, by probing the deployed service:
+The warehouse is a separate system. Documentation: [triathon-warehouse-simple.vercel.app/docs](https://triathon-warehouse-simple.vercel.app/docs). **Revised 2026-10-01** from the published documentation; the read endpoints were re-probed live the same day, the write endpoints were not (placing an order locks shared stock).
 
 ```
 base    https://triathon-warehouse-simple.vercel.app/api/v1
-auth    x-api-key: <key>   or   Authorization: Bearer <key>      (both verified)
+auth    x-api-key: <key>   or   Authorization: Bearer <key>      (401 without)
 errors  {"error":{"code","message"}}
         400 bad JSON · 401 missing or revoked key · 404 not found
-        409 insufficient stock or invalid status change · 422 validation
+        409 insufficient stock, invalid status change, reservation expired · 422 validation
 
-GET   /products            ?brand=Fresh|Style|Tech &q= &page= &limit=   limit caps at 100
-                           280 products: Fresh 55, Style 47, Tech 178
+Warehouses  KDY Kandy, PLG Peliyagoda. A name is accepted wherever a code is (case-insensitive)
+
+GET   /usage               ?range=24h|7d|30d                 usage of the caller's keys
+GET   /warehouses          units available and reserved, order counts by status
+GET   /products            ?brand= &q= &warehouse= &sort=stock &low_stock=true &page= &limit<=100
 GET   /products/:id
-PATCH /products/:id        {"stock": n}  absolute,  or  {"adjust": +n|-n}  relative
-GET   /orders              ?status=pending|shipped|delivered|cancelled &page= &limit=
-GET   /orders/:id          includes items:[{product_id, quantity}]
-POST  /orders              {"items":[{product_id, quantity}]}  ->  201
-PUT   /orders/:id/status   {"status": "..."}
+PATCH /products/:id        {"warehouse", "stock": n} absolute, or {"warehouse", "adjust": +n|-n}
+POST  /products/:id/transfer  {"from", "to", "quantity"}     409 if the source is short
+GET   /orders              ?warehouse= &status=reserved|pending|shipped|delivered|cancelled|expired
+GET   /orders/:id          items:[{product_id, quantity, requested_quantity}]; reserved orders add shortfall
+POST  /orders              {"warehouse", "items":[{product_id, quantity}]}
+                           201 all lines taken, status pending
+                           202 some lines short: available units locked, status reserved, until
+                               confirm, cancel or expires_at; body lists shortfall per line and
+                               what the other warehouse has
+                           409 nothing available
+POST  /orders/:id/confirm  reserved -> pending with the locked quantities; 409 reservation_expired
+PUT   /orders/:id/status   reserved -> pending | cancelled, pending -> shipped | cancelled,
+                           shipped -> delivered. Cancelling returns units to the order's warehouse
 
-Product  product_id, brand, unit_weight_kg, unit_volume_m3,
-         basis, verified_real_sku, stock, updated_at
+Product  product_id, brand, unit_weight_kg, unit_volume_m3, basis, verified_real_sku,
+         stock:{KDY:{available,reserved}, PLG:{...}}, total_available, total_reserved, updated_at
+Order    order_id, status, warehouse, source, total_weight_kg, total_volume_m3, expires_at,
+         created_at, item_count (lines, not units)
 ```
 
-Verified against the live service: the published documentation matches behaviour exactly.
+Still absent: an idempotency key on `POST /orders`, a client reference on an order, and temperature anywhere. Those keep R-STK-11, D-E's temperature gap and the change requests in MODULES open.
 
 ### What this means for the design
 
 | ID | Rule | Status |
 | --- | --- | --- |
-| R-STK-08 | **Creating the order is the reservation.** There is no separate reserve call. `POST /orders` decrements stock **atomically and all-or-nothing**: if any line lacks stock the whole order fails with `409` | Verified |
-| R-STK-09 | **Cancelling restores stock.** `PUT /orders/:id/status` to `cancelled` is the compensating action | Verified |
-| R-STK-10 | The warehouse runs **its own order lifecycle**: `pending -> shipped | cancelled`, `shipped -> delivered`. It is one-way; an invalid transition is `409` | Verified |
+| R-STK-08 | **Creating the order is the reservation**, in the depot's own warehouse. **Revised 2026-10-01:** it is no longer all-or-nothing. `201` takes every line; `202` locks what is available as `reserved` with an expiry and reports the shortfall; `409` means nothing was available. To keep D-F (a short line rejects placement, nothing is held), the adapter must cancel a `202` reservation at once and answer `Insufficient` with the per-line quantities the `202` reported. Owner: #7 | Documented, not yet probed |
+| R-STK-09 | **Cancelling restores stock.** `PUT /orders/:id/status` to `cancelled` is the compensating action, from `reserved` or `pending` | Verified for `pending` |
+| R-STK-10 | The warehouse runs **its own order lifecycle**: `reserved -> pending | cancelled | expired`, `pending -> shipped | cancelled`, `shipped -> delivered`. It is one-way; an invalid transition is `409`. A `reserved` order left alone expires and its units return | Documented; `reserved` and `expired` not yet probed |
 | R-STK-11 | **`POST /orders` is not idempotent.** No idempotency key exists, so a blind retry creates a second order and decrements stock twice. The adapter must reconcile by query before retrying, never replay | Policy, critical |
 | R-STK-12 | Stock is writable: `PATCH /products/:id` sets or adjusts it. This is how a stock manager's approval or adjustment (R-STK-02) is applied | Verified |
 | R-STK-13 | Waypoint's order state machine and the warehouse's are **two state machines for one real order**. Keeping them aligned is a saga, and every transition can fail independently | Policy |
@@ -102,13 +115,14 @@ Verified against the live service: the published documentation matches behaviour
 
 | Waypoint state | Warehouse state | Transition trigger |
 | --- | --- | --- |
-| `confirmed`, stock reserved | `pending` | `POST /orders` succeeded |
-| `stock_held` | no warehouse order exists | `POST` returned `409` |
+| `confirmed`, stock reserved | `pending` | `POST /orders` returned `201` |
+| placement rejected, per-line availability shown (D-F) | none, or `cancelled` | `POST` returned `409`, or `202` and the adapter cancelled the `reserved` order at once |
+| `stock_unknown` | unknown | timeout, `5xx` or no key configured |
 | `in_transit` | `shipped` | trip released |
 | `delivered` | `delivered` | driver recorded the outcome |
 | `cancelled` | `cancelled` | compensating call, stock restored |
 
-Current warehouse data: all 97,321 orders are `delivered` and there are zero `pending`, `shipped` or `cancelled`. The lifecycle is therefore **untested in their seed data**; the first order we create will be the first `pending` one, which is a reason to exercise it early rather than at integration time.
+Waypoint never keeps a warehouse order in `reserved`: it has an expiry, and D-F holds nothing on a short line. Current warehouse data (2026-10-01): all 97,321 orders are `delivered` and there are zero `reserved`, `pending`, `shipped`, `cancelled` or `expired`. The lifecycle is therefore **untested in their seed data**; the first order we create will be the first `pending` one, which is a reason to exercise it early rather than at integration time.
 
 | ID | Rule | Source | Status |
 | --- | --- | --- | --- |

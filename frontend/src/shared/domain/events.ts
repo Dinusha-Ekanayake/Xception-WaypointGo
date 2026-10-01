@@ -29,9 +29,10 @@ export type EventPayloads = {
     brandCode: string;
     districtName: string;
     deliveryDate: IsoDate;
-    temperature: Temperature;
-    weightKg: Decimal;
-    volumeM3: Decimal;
+    // Null while STOCK_UNKNOWN: the warehouse has not answered, and totals are never guessed.
+    temperature: Temperature | null;
+    weightKg: Decimal | null;
+    volumeM3: Decimal | null;
     itemCount: number;
     status: OrderStatus;
   };
@@ -40,9 +41,9 @@ export type EventPayloads = {
     outletId: string;
     depotCode: string;
     deliveryDate: IsoDate;
-    temperature: Temperature;
-    weightKg: Decimal;
-    volumeM3: Decimal;
+    temperature: Temperature | null;
+    weightKg: Decimal | null;
+    volumeM3: Decimal | null;
     itemCount: number;
   };
   "order.cancelled": {
@@ -51,6 +52,14 @@ export type EventPayloads = {
     depotCode: string;
     warehouseOrderRef: string | null;
     reason: string;
+  };
+  "order.auto_deferred": {
+    orderId: Uuid;
+    outletId: string;
+    depotCode: string;
+    fromDate: IsoDate;
+    toDate: IsoDate;
+    reason: "stock_unresolved";
   };
   "orders.closed": { depotCode: string; serviceDate: IsoDate; orderIds: Uuid[] };
   "plan.published": {
