@@ -1,0 +1,44 @@
+name: Deploy preview
+
+# A push to dev runs the checks and, only if they pass, deploys the tip of dev
+# to the preview environment on the VPS: the same stack as production with its
+# own database, so a problem shows up here before dev is merged into main.
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    uses: ./.github/workflows/checks.yml
+
+  deploy:
+    name: Deploy preview to VPS
+    needs: checks
+    if: github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # One deploy at a time, and never cancel one halfway through a migration.
+    concurrency:
+      group: deploy-vps-preview
+      cancel-in-progress: false
+    steps:
+      - name: Deploy the tip of dev
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_KEY: ${{ secrets.VPS_PREVIEW_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          # This key is bound on the server to the preview checkout's
+          # deploy/vps/deploy.sh by a forced command. It cannot deploy production.
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=20 \
+            "$VPS_USER@$VPS_HOST" deploy

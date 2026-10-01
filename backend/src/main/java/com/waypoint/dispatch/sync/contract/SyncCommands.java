@@ -18,6 +18,7 @@ public final class SyncCommands {
   public static final String ACKNOWLEDGE = "sync:Acknowledge";
   public static final String DISCARD = "sync:Discard";
   public static final String RESOLVE = "sync:Resolve";
+  public static final String READ = "sync:Read";
 
   public record SubmittedOperation(long sequence, Command command) {}
 

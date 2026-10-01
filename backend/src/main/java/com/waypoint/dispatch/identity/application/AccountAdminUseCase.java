@@ -4,6 +4,7 @@ import com.waypoint.dispatch.identity.infrastructure.Argon2PasswordHasher;
 import com.waypoint.dispatch.identity.infrastructure.PolicyCache;
 import com.waypoint.dispatch.platform.audit.AuditEntry;
 import com.waypoint.dispatch.platform.audit.AuditLog;
+import com.waypoint.dispatch.platform.observability.Metrics;
 import com.waypoint.dispatch.platform.db.Database;
 import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.shared.error.DomainException;
@@ -36,18 +37,21 @@ public class AccountAdminUseCase {
   private final SessionRegistry sessions;
   private final PolicyCache policyCache;
   private final AuditLog audit;
+  private final Metrics metrics;
 
   public AccountAdminUseCase(
       Database database,
       Argon2PasswordHasher hasher,
       SessionRegistry sessions,
       PolicyCache policyCache,
-      AuditLog audit) {
+      AuditLog audit,
+      Metrics metrics) {
     this.database = database;
     this.hasher = hasher;
     this.sessions = sessions;
     this.policyCache = policyCache;
     this.audit = audit;
+    this.metrics = metrics;
   }
 
   // ---- host commands: they open the transaction themselves ----
@@ -92,7 +96,7 @@ public class AccountAdminUseCase {
       throw new DomainException(ErrorCode.VALIDATION_FAILED, "Unknown role " + roleCode);
     }
     if (database.queryOne("SELECT user_id FROM iam.users WHERE email = ?", normalised) != null) {
-      throw new DomainException(ErrorCode.CONFLICT, normalised + " already exists");
+      throw new DomainException(ErrorCode.CONFLICT, "An account with that email already exists");
     }
 
     UUID userId = UUID.randomUUID();
@@ -125,7 +129,8 @@ public class AccountAdminUseCase {
 
     if (!newEmail.equals(current.get("email"))
         && database.queryOne("SELECT user_id FROM iam.users WHERE email = ?", newEmail) != null) {
-      throw new DomainException(ErrorCode.CONFLICT, newEmail + " already belongs to another account");
+      throw new DomainException(
+          ErrorCode.CONFLICT, "That email already belongs to another account");
     }
 
     guardVersion(userId, expectedVersion, current);
@@ -158,7 +163,7 @@ public class AccountAdminUseCase {
         actorId,
         userId,
         "iam:DisableUser",
-        "disabled, " + revoked + " session(s) revoked, was " + current.get("email"));
+        "disabled, " + revoked + " session(s) revoked");
     return revoked;
   }
 
@@ -268,6 +273,9 @@ public class AccountAdminUseCase {
           until == null ? null : java.sql.Date.valueOf(until),
           actorId);
     } catch (org.springframework.dao.DataIntegrityViolationException e) {
+      // FLT-03, SEC-03: the exclusion constraint caught an overlap, possibly one a
+      // concurrent assignment created after this one's checks passed.
+      metrics.increment("waypoint.race.lost", "path", "iam:AssignDriver");
       throw new DomainException(
           ErrorCode.CONFLICT,
           vehicleId + " already has a driver for part of that period",
@@ -315,7 +323,7 @@ public class AccountAdminUseCase {
     Map<String, Object> row =
         database.queryOne("SELECT user_id FROM iam.users WHERE email = ?", email);
     if (row == null) {
-      throw new DomainException(ErrorCode.NOT_FOUND, "No account for " + email);
+      throw new DomainException(ErrorCode.NOT_FOUND, "No account with that email");
     }
     return (UUID) row.get("user_id");
   }
@@ -391,7 +399,7 @@ public class AccountAdminUseCase {
   private static String normaliseEmail(String email) {
     String normalised = email == null ? "" : email.trim().toLowerCase(Locale.ROOT);
     if (!normalised.matches("[^\\s@]+@[^\\s@]+\\.[^\\s@]+")) {
-      throw new DomainException(ErrorCode.VALIDATION_FAILED, "Not an email address: " + email);
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, "Not a valid email address");
     }
     return normalised;
   }

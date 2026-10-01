@@ -1,0 +1,78 @@
+# VPS overlay, layered over the root compose.yaml for both environments on the
+# server: production (the tip of main) and preview (the tip of dev).
+#
+#   docker compose -f compose.yaml -f deploy/vps/compose.vps.yaml up -d
+#
+# It changes two things and nothing else. No service publishes a host port, so
+# two stacks can run side by side and nothing but nginx is reachable from
+# outside. And the frontend joins the shared `waypoint-edge` network under an
+# alias named after its environment, which is how nginx tells the two apart.
+#
+# Docker publishes ports ahead of ufw, so a port published here is open to the
+# internet whatever the firewall says.
+#
+# nginx and certbot belong to the `edge` profile and run in the production
+# stack only; deploy/vps/deploy.sh enables the profile there. Paths are relative
+# to the repository root (the first -f file sets the project directory).
+# Root .env: SITE_ADDRESS, and DEPLOY_ENV=preview in the preview checkout.
+
+services:
+  db:
+    ports: !reset []
+
+  backend:
+    ports: !reset []
+
+  waypoint:
+    ports: !reset []
+    networks:
+      default:
+      edge:
+        aliases:
+          - ${DEPLOY_ENV:-production}-waypoint
+
+  nginx:
+    build: ./deploy/vps/nginx
+    profiles: ["edge"]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?Set SITE_ADDRESS to the public hostname}
+      # 1 refuses anything that did not come through Cloudflare. Only once the
+      # DNS records are proxied.
+      CLOUDFLARE_ONLY: ${CLOUDFLARE_ONLY:-0}
+    volumes:
+      - letsencrypt:/etc/letsencrypt:ro
+      - certbot-www:/var/www/certbot:ro
+    networks:
+      - edge
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8081/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Renews through the webroot nginx serves. First issuance is a one-off run of
+  # this service from deploy/vps/deploy.sh. nginx reloads on its own schedule,
+  # so certbot never needs the Docker socket.
+  certbot:
+    image: certbot/certbot:v4.0.0
+    profiles: ["edge"]
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - certbot-www:/var/www/certbot
+    entrypoint: ["/bin/sh", "-c", "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done"]
+    restart: unless-stopped
+
+networks:
+  edge:
+    name: waypoint-edge
+    external: true
+
+volumes:
+  # Certificates and the ACME account key. Losing this volume means re-issuing,
+  # and Let's Encrypt rate-limits repeated issuance for the same name.
+  letsencrypt:
+  certbot-www:

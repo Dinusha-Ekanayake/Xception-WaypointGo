@@ -61,6 +61,208 @@ Why: issue #9 step 4. Detail in [PLAN.md](../issues/009-planning/PLAN.md#step-4-
 Verified: `TEST_DATABASE_URL=... mvn test` on PostgreSQL 16, 216 tests, 0 failures, 0 skipped.
 Open: step 5 (Generate, Override, Defer and Publish), with an open decision on overrides recorded in the plan. EDGE-CASES test columns for POL-04 and POL-08 get updated at step 7.
 
+## 2026-10-01 - fix: make the platform trustworthy (issue #4)
+
+`feat/platform-hardening` · @jv-ransika
+
+Error contract: every problem body carries `code`, `correlationId` and `violations: [{rule, field?, message}]`; client mistakes are 400/409/413/422/429, never 500; every 500 logs one line with its stack. Correlation id accepted only UUID-shaped and tied to the trace. Emails removed from audit rows, problem details and the accounts cursor. `Metrics.gauge` fixed, command timers with p95, and the detection signals for PLT-01, PLT-07, SEC-03/06/09/10/12/13/16, ORD-05/PLN-06/EXE-14 (names in EDGE-CASES). Tracing export off unless configured; JDBC spans. Shared keyset `Cursor`/`Page` on accounts, policies, assignments and reference lists. Body limit in backend, Next proxy and nginx; CSP in Next and nginx. `AppProperties` types sessions, throttle, body size, tracing and the problem type base. `account-create` is idempotent and `account-grant-depot` logs no email; health checks use real endpoints; nginx limits `POST /api/session`. CI `checks.yml` now runs `mvn verify` and parses both compose files. Integration tests fall back to Testcontainers. Prototype docs deleted; README, development, deployment, verification rewritten.
+Why: a 500 left no trace, personal data reached logs and audit, `docker compose up` could not start, and nine modules were about to build on all of it.
+Verified: after the rebuild on `dev`, `TEST_DATABASE_URL=... mvn verify` on PostgreSQL 16: 210 tests, 0 failures, 0 skipped; `npm run typecheck` and `npm test` pass.
+Rebuilt on `dev` after ordering and sync: `Database` keeps `readAs` and the system actor beside the new counters; compose keeps `scripts/compose-init.sh`; the client `Problem` keeps `extensions` beside `code`, `correlationId` and structured violations. Ordering and sync adapted: `CutoffJob` gauge reads a live value, sync's 429 goes through `DomainException.rateLimited`, `OperationOutcome` covers the new error codes, and the fleet and loader outlet reads follow `nextCursor` via `requestAll`.
+Open: integration tests against PostgreSQL, the backend image build, `nginx -t`, a fresh `docker compose up` and CI are unverified (Docker Hub unreachable during this session). The login lockout rolls back with its own transaction and never triggers, and the pool still connects as the owner role: both are issue #5. Lockout now answers 429 with `Retry-After`; `GET /api/accounts` and the other lists now return `{items, nextCursor}`.
+
+---
+
+## 2026-10-01 - feat: add an opt-in log store (Loki, Alloy, Grafana)
+
+`feat/platform-hardening` · @jv-ransika
+
+Compose profile `observability` in `compose.yaml` and `compose.prod.yaml` runs Loki (14-day retention), Alloy and Grafana on 127.0.0.1. Alloy collects containers labelled `com.waypoint.logs=true` and, for a natively run backend, `var/log/*.log` written when `LOG_FILE` is set. Backend services now set `LOG_FORMAT=ecs`. Config in `observability/`, usage in development.md "Searching logs" and deployment.md "Logs". No module code changed.
+Why: logs only reached a console, so nothing could be searched and a correlation id could not be followed across requests or services.
+Verified: both compose files validate with and without the profile. Backend jar run with `LOG_FORMAT=ecs` and `LOG_FILE`: one request's line reached Loki from the container and from the file, found by `correlationId`, with `level` as the only new label. Logs survive a Loki restart; backend liveness stays 200 with Loki stopped.
+Open: the backend Docker image does not build (`mvn dependency:go-offline` fails in `backend/Dockerfile`), and `init` still runs the missing `seed`, so full-stack `docker compose up` is unproven (issue #4). Metrics and traces have no store yet.
+
+---
+
+## 2026-10-01 - ci: www redirects to the bare name
+
+`ci/www-redirect` · @kavindamihiran
+
+nginx answers `www.SITE_ADDRESS` with a 301 to `SITE_ADDRESS`, and the deploy now requests the certificate again when the one on disk is missing any of the three names, instead of only when there is none. Since the entry below, `preview.waypointgo.live` has its record and is on the certificate, and `CLOUDFLARE_ONLY=1` is set, so the server's address no longer answers directly.
+Why: `www.waypointgo.live` has a proxied record and answered 520/525, because the server drops names it does not know.
+Verified: `nginx -t` and both redirects in a throwaway container on the server. The certificate request for `www` runs on the first production deploy and is not verified until then.
+Open: Cloudflare's address ranges in `00-cloudflare.conf` are a dated static list.
+
+## 2026-10-01 - ops: production moves to waypointgo.live
+
+`docs/domain-waypointgo-live` · @kavindamihiran
+
+Production is `https://waypointgo.live`, proxied by Cloudflare, with a Let's Encrypt certificate on the server. The temporary wildcard-DNS hostnames no longer answer; their certificate, the unused Caddy volumes and every mention of them in the documents are removed. The preview's `SITE_ADDRESS` is `preview.waypointgo.live`. Details in [deployment.md](../deployment.md#judge-deployment-on-the-vps).
+Why: decision of @kavindamihiran to serve the app from a bought domain behind Cloudflare.
+Verified: `https://waypointgo.live` answers 200 through Cloudflare, the server presents the Let's Encrypt certificate for it, and the dispatcher signs in.
+Open: closed by the entry above.
+
+## 2026-10-01 - chore: test data for every order status
+
+`chore/seed-scenarios` · @kavindamihiran
+
+`scripts/seed-scenarios.sql` writes 329 orders with timelines and lines directly into the database: one of each of the 13 statuses at OUT001, plus a day's demand at both depots (tomorrow's chilled demand at Peliyagoda exceeds the refrigerated fleet, with two reefer trucks in the workshop), deferrals, a redelivery, an amended order and a date rolled past a Sunday. It also grants the store manager OUT001, the dispatcher both depots and the driver VEH035. Dates are relative to the day it runs; `-v reset=1` removes the seeded orders first. The header of the file has the commands.
+Why: Planning, Loading, Execution and Receipt do not exist yet, so nothing else can put an order past `confirmed`.
+Verified on production: store manager sees 21 orders in 13 statuses through `/api/orders` and a full timeline, and is refused another outlet (403); dispatcher sees demand for both depots; no timeline is out of order or in the future.
+Open: it bypasses the command bus, so there are no audit rows, receipts or events, and every warehouse reference is invented (`SEED-WH-...`). Cancelling or amending a seeded order from the UI will ask the real warehouse about a reservation it never made. Not run on the preview.
+
+## 2026-10-01 - ci: nginx replaces Caddy at the edge, ready for Cloudflare
+
+`ci/nginx-edge` · @kavindamihiran
+
+The VPS edge is now an nginx image built from `deploy/vps/nginx/`, with certbot for Let's Encrypt. It adds what Caddy lacked: per-address rate limits (sign-in, API, pages), no answer for the bare IP or unknown hostnames, a method allowlist, TLS 1.2+ only. It restores the visitor address from Cloudflare and can refuse traffic that bypasses Cloudflare (`CLOUDFLARE_ONLY`, off until DNS is proxied). The deploy tests the new nginx configuration before replacing the running proxy, and brings the proxy up before the database step. Details in [deployment.md](../deployment.md#judge-deployment-on-the-vps).
+Why: decision of @kavindamihiran to front the app with nginx behind Cloudflare on a bought domain.
+Verified on the server, on localhost-only ports beside the live site and against the real frontends: both hostnames route, HTTP redirects, bare IP gets no response, `/.env` 404, TRACE 405, 5 MB body 413, sign-in works and the sixth rapid bad attempt is 429 while session GETs are not limited, a spoofed `CF-Connecting-IP` is ignored, TLS 1.1 refused. Compose frees the removed service's ports before starting the new one. **Not verified: certificate issuance, the cutover itself, and the Cloudflare lock from outside.**
+Open: cutover on merge, then the domain and Cloudflare records. `nginx/` at the root and `compose.prod.yaml` are the prototype's proxy and are not used by the VPS. The `app_caddy-data` and `app_caddy-config` volumes are left on the server.
+
+## 2026-10-01 - ci: preview environment for dev
+
+`ci/preview-deploy` · @kavindamihiran
+
+A push to `dev` now runs the checks and deploys to a preview on the same VPS, with its own database and accounts. The checks moved to a reusable `checks.yml` and also run on pull requests into `dev`. `deploy.sh` serves both environments, chosen by the checkout it sits in; each has its own CI key. No stack publishes a host port any more, including production's PostgreSQL and backend; Caddy reaches both frontends over a shared network. Details in [deployment.md](../deployment.md#judge-deployment-on-the-vps).
+Why: problems should show on a real deployment before `dev` is merged into `main`.
+Verified: both compose configurations and the Caddyfile validate, the latter inside the running Caddy. **Not verified: neither the production change to the proxy nor a preview deploy has run yet.**
+Open: first production deploy with the new proxy layout, then the first preview deploy once `dev` has these files.
+
+## 2026-10-01 - ci: deploy main to the VPS, repair the compose init step
+
+`ci/vps-deploy` · @kavindamihiran
+
+A merge to `main` now runs backend tests against PostgreSQL and the frontend typecheck, boundary test and build, then deploys to the VPS (62.171.128.70) over one SSH connection bound to `deploy/vps/deploy.sh`. Caddy fronts the stack with TLS through `deploy/vps/compose.vps.yaml`. The host is hardened: ufw, fail2ban, unattended upgrades; SSH password login stays on for the team by decision of @kavindamihiran. Details in [deployment.md](../deployment.md#judge-deployment-on-the-vps).
+`compose.yaml`'s `init` ran `migrate && seed`, and `seed` went with the prototype, so the backend could never start under Compose. It now runs `scripts/compose-init.sh`: migrate, import-reference, six demo accounts, depot grants, as `scripts/dev.sh setup` does. The frontend healthcheck pointed at `/api/health`, which no longer exists; it now checks `/`.
+Why: the Hackathon needs a public URL that stays live, and `docker compose up` is the judged path.
+Verified: the merge of #38 deployed `1d5dc15` through the workflow (181 backend tests, frontend checks, then the deploy job). On a fresh volume `init` applied 15 migrations, published 120 outlets and 60 vehicles and created six accounts. The public URL answers 200 with a Let's Encrypt certificate, HTTP redirects, and dispatcher, loader, driver and store manager sign in through it; a wrong password is 401. The server listens publicly on 22, 80 and 443 only.
+Open: nobody has walked the judge walkthrough on the live URL. The store manager account has no outlet scope, because there is no CLI command to grant one. `README.md`, `development.md` and `backend/README.md` still document the removed `seed` command and `/api/health`. `compose.prod.yaml` has the same stale healthcheck. No automatic rollback and no database backup schedule on the VPS.
+
+## 2026-10-01 - fix: sign-in matches Figma "01 Sign in"
+
+`fix/sign-in-figma-match` · @kavindamihiran
+
+Sign-in follows the dispatcher and store "01 Sign in" frames: GO in the corner, "Welcome back" above the card, filled fields with placeholders (each still has an aria-label), a password-reset line, and the note about working offline. The error, lockout and outage handling is unchanged.
+Why: the sign-in card did not match any design frame.
+Verified: `npm run typecheck`, `npm run build`. In the browser at 1440x900 and 393x852: a wrong password shows the generic error, the right one signs in, and "Switch user" in the loader header signs out with the notice.
+Open: the background map artwork, the theme toggle, staff ID sign-in (the backend signs in by email), and the loader's employee and PIN sign-in (Figma 07/08) are not built.
+
+## 2026-10-01 - fix: dispatcher shell controls in the sidebar, compact nav below lg
+
+`fix/dispatcher-figma-match` · @kavindamihiran
+
+Dispatcher rechecked against Figma page 05. "Switch user" and the role switcher move into the sidebar's user block; the shell strip that pushed the page down and cut off the sidebar foot is gone. Below `lg` the sidebar becomes a top bar: brand, depot scope, and a scrollable nav. Page headers wrap. With this, every built role draws its own header and the shell strip is only a fallback.
+Why: the strip was not in the design, and the dispatcher had no layout below 1024px.
+Verified: `npm run typecheck`, `npm run build`, boundaries test. Screenshots at 393x852, 768x1024 and 1440x900.
+Open: Orders, Plan, Live, Forecast and Issues content wait on their modules. Figma has no tablet or phone frames for the dispatcher, so the compact nav is a proposal.
+
+## 2026-10-01 - fix: store manager desktop layout matches Figma
+
+`fix/store-figma-match` · @kavindamihiran
+
+Store manager rechecked against Figma pages 14 (Desktop) and 15 (Mobile). From `lg` there is a sidebar with Home, Orders and Deliveries plus their counts, the outlet card, and the signed-in person with "Switch user". It replaces the floating tab bar. Home becomes two columns with a Notifications panel (pending #14). Deliveries become one row each. Place order puts the list on the left and a sticky "Order summary" card on the right, replacing the bottom bar. The sync pill sits top right. On phones the shell controls move into the store header, and dialogs centre from `md`.
+Why: on desktop the store showed the phone column centred on the page.
+Verified: `npm run typecheck`, `npm run build`, boundaries test. Screenshots at 393x852, 768x1024 and 1440x900 compared with the Figma frames.
+Open: Issues, notifications, driver and ETA details, call options and draft orders need modules not built yet (#13, #14, #12).
+
+## 2026-10-01 - fix: loader matches Figma on phone, portrait and landscape tablet
+
+`fix/loader-figma-match` · @kavindamihiran
+
+Loader rechecked against Figma pages 07, 08 and 09. The dock board is a trip table from `md` (768px) and cards on phones. The top bar follows the designs: brand or trip title, a sync pill, an avatar pill, and "Switch user". The load sheet gets a "Locked to you" strip with Hand back, side-by-side actions, "orders loaded" with time to departure, and outlined stop markers. The issue dialog is top-anchored at 560px with tile reasons and a stepper panel. Sign-out, the role switcher and the sync badge move from a strip above the page into the role header through `ShellProvider` in `shared/ui`. The shell still draws its strip for roles not yet converted.
+Why: the loader drifted from the design; the tablet dock board was a card grid where Figma has a table.
+Verified: `npm run typecheck`, `npm run build`, boundaries test. Screenshots at 393x852, 768x1024 and 1280x800 compared with the Figma frames.
+Open: route, stops, load, loader and temperature columns need those fields on `ReadyTripView` (#10). The "Mine" and "Available" filters need the assigned loader. Release as a full page with the seal and driver checklist needs data that does not exist yet. Lock, theme and notifications are not built.
+
+## 2026-10-01 - feat: backend sync module and batch ingest
+
+`feat/sync-module` · @kavindamihiran
+
+New `sync.operations` table with row-level security limiting each account to its own rows. `POST /api/sync` applies a device's queued writes in sequence order. Each write goes through `CommandBus` in its own transaction. Conflicts and refusals are recorded and the batch continues; an outage stops it. A replayed batch is answered from the record. At capacity it answers 429 with a jittered `Retry-After`. Also `GET /api/sync?since=` (keyset) and `sync:Acknowledge`. The frontend queue now drains through `/api/sync` with a per-browser device id. `SyncQuery.pendingFor` now takes the user id, because RLS needs an actor.
+Why: #28. The device-side queue from #15 had no server record of what it sent.
+Verified: `TEST_DATABASE_URL=... mvn package`, 116 tests, 0 failures, including the new `SyncIntegrationTest` (7) and `OperationOutcomeTest`. `npm run typecheck` and `npm run build`. Against the local backend: a loader batch is recorded, replayed without running again, and listed.
+Open: `sync:Discard` and `sync:Resolve` wait on D-O (who reviews another person's conflict; RLS is own-rows only for now). Also open: Background Sync, working-set prefetch, browser e2e tests, and the lockout `Retry-After`.
+
+## 2026-10-01 - fix: loader layout on landscape tablets, and one-command local dev
+
+`fix/loader-tablet-and-local-dev` · @kavindamihiran
+
+Loader widens to 1280px at `lg`: the dock board shows trips in two or three columns, the load sheet pins the truck summary beside the load list, and the release and issue sheets become centred dialogs. Phones are unchanged. `scripts/dev.sh` runs the local stack (`setup`, default, `sample`) against the Docker database only. New `account-grant-depot` CLI command. Sign-in no longer sends a device id, which the backend rejected with a 500 through the `iam.devices` foreign key. Unhandled API exceptions are now logged.
+Why: the loader showed a phone-width strip on dock tablets, and the app could not be run locally end to end.
+Verified: `npm run typecheck`. In the browser at 1180x820 and 390x844 with loader sample data: dock board and load sheet. Sign-in against the local backend returns 200; depot grants applied.
+Open: no outlet-grant command, so the store role needs `sample` mode locally; device registration; sign-in shows "not answering" for a 500.
+
+## 2026-10-01 - feat: frontend sync engine schedule and review list
+
+`feat/app-shell` · @kavindamihiran
+
+`useSync` in `src/shared/offline` drains the queue on reconnect, on focus and visibility, right after a write is queued (`waypoint:queued` event) and every 30 s. `drain()` is now single-flight per account, so it never double-sends beside a role's own flush. The shell shows "n to send" or "n saved on this device" and "n to review". The review list shows each refused write with the server's reason, and offers "send again" or "discard" (a person decides; the engine never drops one). Sign-out reads the same pending count. The loader and store no longer count held writes as still sending.
+Why: frontend half of #15.
+Verified: typecheck, `npm test` and `npm run build` pass. In the browser with the live store gateway and stubbed APIs: placed offline, sign-out blocked, reconnected, the server answered 409 (sent once), then review and discard.
+Open: Background Sync, driver working-set prefetch, queue-age telemetry, and the backend `sync` module (`POST /api/sync`, `sync:Resolve`).
+
+## 2026-10-01 - feat: sign-in, sign-out and role switcher in the app shell
+
+`feat/app-shell` · @kavindamihiran
+
+Sign-in screen on `POST /api/session`, with separate messages for wrong credentials, lockout (countdown from `Retry-After` when sent) and outage. The shell tells apart signed out, server unreachable and offline; an outage no longer reads as "sign in". Sign-out uses `POST /api/session/end` and warns while writes are still queued on the device (SEC-01). Multi-role users switch roles and the last role is remembered per user. Scope is read as prefixed grants (`depot:`, `outlet:`) and each role gets its own values. Admin and auditor routes are placeholders. Queued writes survive a 401 instead of being held for review.
+Why: #17, and the sign-out and 401 parts of #15.
+Verified: `npm run typecheck`, boundary tests and `npm run build` pass. In the browser at 393px with `/api/session` stubbed: outage, wrong password, 429 countdown, sign in, role switch remembered across reload, sign out, offline.
+Open:
+- #17: the component gallery and the dark theme.
+- #15: scheduled drain, the shared pending indicator and conflict list, and the backend `sync` module.
+- The backend returns a 403 for lockout without `Retry-After`, so no countdown is shown there.
+
+## 2026-10-01 - feat: store manager screens from the Figma design
+
+`feat/store-ui` · @kavindamihiran
+
+The following screens, from Figma "15 Store Manager · Mobile":
+- Home: next delivery, notices, and the order against the 16:00 cutoff.
+- Place order and amend.
+- Order sent.
+- Orders, with history and cancel.
+- Deliveries.
+- Receive delivery.
+
+Behaviour:
+- One `order:Place` per temperature class (R-ORD-06).
+- A short line shows per-line availability from the `409 INSUFFICIENT_STOCK` problem (D-F).
+- A non-operating delivery day shows the rolled date before sending (D-I).
+- With the warehouse down, the screen shows a degraded banner and `STOCK_UNKNOWN` (D-G).
+- Receipt is confirm, confirm partial or dispute, and is kept apart from the driver's proof (R-RCP-04).
+- Resilient tier: writes made offline are queued and sent on reconnect.
+
+`Problem` now keeps extension members in `extensions`.
+Why: #18, built frontend first while Ordering (#8) and Receipt (#13) are not served.
+Sample data: `NEXT_PUBLIC_STORE_FIXTURES=1`, the same pattern as the loader, never active in production.
+Verified: `npm run typecheck`, boundary tests and `npm run build` pass. I drove the full flow at 393px in `next dev` with sample data: short stock, holiday roll, cancel, partial receipt, offline place then sync, warehouse down. Not verified against a live backend.
+Open:
+- The `/api/orders`, `/api/receipts` and `/api/warehouse` paths are assumed.
+- ETA shows the outlet window only (#18 decision 2).
+- No product names in the contract, so product ids are shown, labelled "inferred".
+- Not built yet: issues tab, notification inbox (#14), supply probability (#16), order template, and the Playwright e2e tests.
+
+## 2026-09-30 - feat: loader phone screens from the Figma design
+
+`feat/loader-ui` · @kavindamihiran
+
+Dock board, load sheet (stops in reverse order, per-order check), report an issue, confirm and release, from Figma "08 Loader · Phone". Writes are `loading:*` commands carrying the manifest `rowVersion`. Resilient tier: checks made offline go to the device queue and are sent on reconnect; release always needs a connection. A new plan version shows "plan changed" and marks the reset orders for recheck (R-LOD-03). Release is refused while an order is unchecked (R-LOD-07).
+Why: #20, built frontend first while Loading (#10) is not served.
+Sample data: departs from D-D by decision. `NEXT_PUBLIC_LOADER_FIXTURES=1` swaps in an in-memory gateway (`roles/loader/data/fixtures.ts`) enforcing the same rules; never active in a production build, and the screen shows "Sample data".
+Verified: `npm run typecheck`, `npm test`, `npm run build` green; full flow driven at 393px in `next dev` with sample data, including an offline check and a plan change. Not verified against a live backend.
+Open: `/api/loading/trips` and `/api/loading/trips/{id}/manifest` are assumed paths until #10; `ReadyTripView` has no route, stop count, temperature or claimant, so the board card omits them; damage photo, interchange, shift-handover sign-in and Playwright e2e remain.
+
+## 2026-09-30 - feat: dispatcher shell, overview and vehicles from the Figma design
+
+`feat/dispatcher-ui` · @kavindamihiran
+
+GO design tokens and Google Sans Flex in `src/shared/ui/theme.css`, shared components (card, pill, tiles, buttons, sync pill, notice) and the Figma icons in `public/icons/go/`. Dispatcher sidebar, depot scope and hash navigation. Overview and Vehicles read `/api/reference/vehicles`; the vehicle drawer sends `vehicle:SetDayStatus` with a required reason and reuses the command id on retry. Orders, Plan, Live, Forecast and Issues say which module they wait on (D-D, no mocks). Offline turns the screens read only and says so. Mirrored the reference data contract in `src/shared/domain/referencedata.ts`.
+Why: first slice of #19 that the backend can serve today.
+Verified: `npm run typecheck`, `npm test` and `npm run build` green; screens checked in a production build against the Figma frames with API reads stubbed from `vehicles.csv`. Not verified against a live backend.
+Open: the rest of #19 waits on #8, #9, #12, #13, #14 and #16. Reference data has no read listing workshop vehicles, `VehicleView` has no `rowVersion` so the command goes with a null `expectedVersion`, and `BigDecimal` is serialised as a JSON number. No Playwright e2e yet.
+
 ## 2026-10-01 - docs: record the revised warehouse API and wire its key
 
 `feat/ordering-module` · @Oxshadha

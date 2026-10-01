@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@import '../src/shared/ui/theme.css';
 
 :root {
   --ui-surface: #ffffff;

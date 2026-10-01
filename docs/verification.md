@@ -1,24 +1,23 @@
 # Verification status
 
-Latest source and documentation review: September 26, 2026, on `main` after the Maven-output cleanup (`1721cd1`). `dev` replaces the former `master` branch and is not evidence of the latest integration state.
+Latest review: 2026-10-01, on `feat/module-contracts` with the issue #4 platform changes uncommitted. `dev` is the integration branch for CI.
 
 ## Latest observed checks
 
-- `npm run typecheck`: passed.
-- `npm run build`: passed; Next.js production output and the generated offline shell completed.
-- `mvn -q test` from `backend/`: 2 Java unit tests passed.
-- `npm test`: 11 legacy tests passed; 20 database-dependent tests failed during setup because the configured `waypoint_test` database did not exist. This is an environment blocker, not evidence those application assertions failed or passed.
-- Spring HTTP integration tests were not reached by that `npm test` run. Browser tests were not rerun after the missing test database was identified.
-- Docker runtime verification was blocked by permission denied on the Docker socket.
+- `mvn test` (JDK 17 container): all unit and architecture tests pass, including the new problem-contract, correlation-id, configuration-redaction, metrics, paging and login-audit tests. The 29 database integration tests were skipped: no test database was configured for this run.
+- Backend jar booted with no database: liveness 200, readiness `{"status":"DOWN"}` without details, problem bodies carry `code` and `correlationId`, a non-UUID `X-Correlation-Id` is replaced, `/prometheus` lists the new detection signals, no OTLP export errors.
+- `npm run typecheck` and `npm test`: pass.
+- Log store: a request's log line reached Loki from both the container and the native log file, found by correlation id.
 
-The build is verified locally. Full regression success, a fresh Docker installation and public production readiness are not established by this review. No application behavior changed during the documentation refresh.
+Not yet observed: integration tests against PostgreSQL (with the new Testcontainers fallback), `docker compose up` from a fresh clone, the nginx configuration under `nginx -t`, the backend image build, browser tests and CI. Docker Hub was unreachable from the verifying machine.
 
 ## Completing verification
 
-1. Create a separate test database and export `TEST_DATABASE_URL`; never use the application database. See [deployment.md](deployment.md#verification).
-2. From `frontend/`, install Chromium and run `npm run verify`. It runs 31 legacy Node tests, Maven unit tests, 4 Spring HTTP test definitions, typechecking, the production build and 12 browser test instances. The database-outage browser case is conditional on the local plaintext proxy being available; record skips as well as failures.
-3. Start the full demo using Docker on a host with daemon access and a fresh isolated volume. Follow the [README walkthrough](../README.md#judge-walkthrough) across all four accounts.
-4. Verify public HTTPS, secure cookies, restart persistence and offline reload/reconciliation on representative phones. Exercise a backup restore against an empty separate database and check certificate renewal and monitoring before real operations.
+1. `cd backend && mvn verify` with Docker running, or with `TEST_DATABASE_URL` set to a dedicated database. Confirm the integration tests ran rather than skipped.
+2. `cd frontend && npm run verify`, then `npm run build && npm run test:e2e` after `npx playwright install chromium`.
+3. `docker compose -p waypoint-verify up --build` with free ports (`DB_PORT`, `BACKEND_PORT`, `PORT`) and a new volume; sign in as the administrator; `docker compose -p waypoint-verify down -v`.
+4. Open a pull request to `dev` and confirm CI is green.
+5. Before real operations: public HTTPS, secure cookies, restart persistence, offline reload on representative phones, a backup restore into an empty separate database, certificate renewal and monitoring.
 
 ## Documentation audit
 
