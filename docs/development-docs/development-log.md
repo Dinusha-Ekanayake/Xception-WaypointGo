@@ -21,6 +21,17 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-01 - feat: outbox relay delivers events between modules (issue #6, delivery slice)
+
+`feat/outbox-relay` · @kavindamihiran
+
+`OutboxRelay` claims committed events (`FOR UPDATE SKIP LOCKED`, a lease), hands each to every `EventSubscriber` of its type in a transaction of its own, and settles it: published, retried with backoff, or dead-lettered after 8 attempts. One aggregate's events arrive in write order (new `outbox_events.seq`). `platform:ReplayEvent` and `GET /api/platform/events/dead` for dead letters. Detail in [docs/issues/006-event-backbone/WALKTHROUGH.md](../issues/006-event-backbone/WALKTHROUGH.md).
+Why: events were written and never delivered, so no module's work reached the next one: a placed order never reached Planning or Warehouse, a published plan never reached Ordering or Loading.
+Verified: `TEST_DATABASE_URL=... mvn verify`, 394 tests on a fresh database; by hand, the wired relay drained the 43 events the other integration tests left behind to the real subscribers with none failing. Not run on the server.
+Open: the first start delivers every event still pending from before the relay existed, including Warehouse status calls. Tests run with the worker off (`app.relay.enabled=false`) and deliver explicitly. Scheduler jobs and audit completion remain on #6.
+
+---
+
 ## 2026-10-01 - fix: identity and auth hardening (issue #5)
 
 `fix/identity-hardening` · @kavindamihiran

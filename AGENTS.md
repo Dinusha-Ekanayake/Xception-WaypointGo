@@ -69,6 +69,8 @@ Configuration is typed and validated in `platform/config/`; the process refuses 
 
 Every command goes through `platform/messaging/CommandBus`, which authorizes, checks the idempotency receipt, runs the handler, and commits the state change, the receipt and the audit row together. **It fails closed**: with no `CommandAuthorizer` wired, every command is denied. Never reach around it.
 
+Events are published with `platform/messaging/EventPublisher` inside the transaction that made the change, and delivered afterwards by `OutboxRelay`, at least once, to every `EventSubscriber` of the type, each in its own transaction under its module role. A subscriber needs only to exist as a bean: never call one directly, and write it so that applying an event twice is harmless. One aggregate's events arrive in write order; there is no order between aggregates. An event that keeps failing is dead-lettered and replayed with `platform:ReplayEvent`. Tests run with the relay worker off (`app.relay.enabled=false`) and deliver explicitly.
+
 Metrics go through `platform/observability/Metrics`, never Micrometer directly, so the backend can change without touching business code. Every edge case in EDGE-CASES.md names a detection signal, and that signal belongs here.
 
 Liveness is `/health/liveness` and readiness is `/health/readiness`; readiness includes the database, liveness deliberately does not. Prometheus is at `/prometheus`. Structured JSON logging is off locally and enabled with `LOG_FORMAT=ecs`. Never log payloads containing personal data.
