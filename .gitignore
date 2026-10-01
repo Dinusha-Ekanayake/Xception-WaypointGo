@@ -160,3 +160,5 @@ artifacts/
 # Java / Maven build output (including nested modules)
 target/
 *.class
+
+/competition-docs
