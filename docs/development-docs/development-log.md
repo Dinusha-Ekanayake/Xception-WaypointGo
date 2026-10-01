@@ -85,6 +85,15 @@ Why: issue #13. The decisions are in [PLAN.md](../issues/013-receipt-issues/PLAN
 Verified: `mvn test -Dtest=ReceiptTest,ReceiptStateMachineTest,IssueTest,ModuleBoundaryTest`, 33 tests, 0 failures.
 Open: steps 2 to 5 (schema, commands, consumers, jobs, docs).
 
+## 2026-10-01 - perf: deploys run init once and before anything is replaced
+
+`chore/faster-deploy` · @kavindamihiran
+
+A preview deploy of a frontend-only change took about seven minutes, 2m40s of it in `init`, which started the application eleven times (migrate, import, six accounts, three depot grants) at about 13 s each. Backend commands can now be combined in one run, and a new `demo-accounts` command covers the accounts and grants, so `scripts/compose-init.sh` is one start. `deploy/vps/deploy.sh` runs `init` on its own before `up`, then replaces only `db backend waypoint` with `--no-deps`: before, Compose removed the changed containers first and the site was down for the whole of `init`, whatever the comment said about a failed migration. The frontend image keeps npm's and the compiler's cache between builds, and the backend and frontend health checks poll every two seconds while starting.
+Why: the wait was mostly repeated JVM starts and a full health interval, not work; the checks before a deploy are unchanged.
+Verified: `mvn verify` compiles and passes locally except the two planning integration classes, which need a database this machine does not have; `docker compose config` parses both stacks; `bash -n deploy/vps/deploy.sh`. Not run on the server: the first preview deploy after merge is the test, and it fails before replacing anything if `--no-deps` behaves differently than expected.
+Open: `scripts/dev.sh setup` still runs one command per start. The checks before a deploy take about 1m50s, most of it the backend tests.
+
 ## 2026-10-01 - fix: store screens read the paged orders list
 
 `fix/store-orders-page` · @kavindamihiran

@@ -109,10 +109,14 @@ main() {
     ensure_certificate "$site"
   fi
 
-  # `init` migrates and imports before the backend is replaced, and --wait holds
-  # until the backend reports ready and the frontend answers. A failed migration
-  # stops here with the previous containers still running.
-  "${compose[@]}" up -d --remove-orphans --wait --wait-timeout 600
+  # `init` migrates and imports in a container of its own while the running
+  # stack keeps serving. A failed migration stops here with nothing replaced.
+  "${compose[@]}" run --rm -T init
+
+  # Only now are the changed containers replaced. init has just run, so it is
+  # left out, and --wait holds until the backend reports ready and the frontend
+  # answers.
+  "${compose[@]}" up -d --no-deps --remove-orphans --wait --wait-timeout 600 db backend waypoint
 
   echo "==> checking https://$site"
   local attempt
