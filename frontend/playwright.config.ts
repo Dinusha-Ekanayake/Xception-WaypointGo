@@ -1,7 +1,8 @@
 import { defineConfig } from "@playwright/test";
-if (!process.env.DATABASE_SCHEMA?.startsWith("waypoint_test_")) {
-  throw new Error("Use npm run test:e2e with a dedicated TEST_DATABASE_URL.");
-}
+
+// Browser tests run against a production build (`npm run build` first), because
+// the service worker only exists there. The Next server proxies /api/* to
+// BACKEND_URL; tests that need the backend start it themselves.
 export default defineConfig({
   testDir: "./tests/e2e",
   timeout: 60000,
@@ -15,15 +16,11 @@ export default defineConfig({
   },
   webServer: {
     command: "npm start -- --port 43219",
-    url: "http://127.0.0.1:43219/api/health",
+    url: "http://127.0.0.1:43219/healthz",
     reuseExistingServer: false,
     timeout: 60000,
     env: {
-      DATABASE_URL: process.env.DATABASE_URL!,
-      DATABASE_SCHEMA: process.env.DATABASE_SCHEMA!,
-      DEMO_MODE: "1",
-      SEED_PASSWORD: "Waypoint2026!",
-      COOKIE_SECURE: "0",
+      BACKEND_URL: process.env.BACKEND_URL ?? "http://127.0.0.1:8080",
     },
   },
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { request } from "@shared/api/client";
+import { requestAll } from "@shared/api/client";
 import { useResource, type Resource } from "@shared/api/useResource";
 import type { VehicleView } from "@shared/domain/types";
 
@@ -18,7 +18,7 @@ export function useFleet(depots: string[], date: string): Resource<VehicleView[]
       : async (signal: AbortSignal) => {
           const perDepot = await Promise.all(
             depots.map((depot) =>
-              request<VehicleView[]>(
+              requestAll<VehicleView>(
                 `/api/reference/vehicles?depot=${encodeURIComponent(depot)}&date=${encodeURIComponent(date)}`,
                 { signal },
               ),

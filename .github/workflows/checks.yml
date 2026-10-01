@@ -40,9 +40,9 @@ jobs:
           distribution: temurin
           java-version: "17"
           cache: maven
-      - name: Unit and integration tests
+      - name: Unit, architecture and integration tests
         working-directory: backend
-        run: mvn -B --no-transfer-progress package
+        run: mvn -B --no-transfer-progress verify
 
   frontend:
     name: Frontend checks
@@ -62,3 +62,15 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+  compose:
+    name: Compose files parse
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - run: docker compose config -q
+      - run: docker compose -f compose.prod.yaml config -q
+        env:
+          DOMAIN: ci.example.test
+          DATABASE_URL: postgresql://ci@localhost/ci

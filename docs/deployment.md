@@ -1,22 +1,22 @@
 # Deployment
 
-The frontend proxies `/api/*` to Spring using `BACKEND_URL` at runtime. PostgreSQL credentials belong only to Spring. Builds and normal requests never migrate or seed.
+The frontend proxies `/api/*` to Spring using `BACKEND_URL` at runtime. PostgreSQL credentials belong only to Spring. Builds and normal requests never migrate or import.
 
 ## Environment and connection ownership
 
 Run Compose commands from the repository root. Root `.env` supplies Compose substitutions; it is not automatically loaded by Spring when Maven or Java runs directly. For a local frontend, create `frontend/.env.local` containing `BACKEND_URL=http://127.0.0.1:8080`. Export Spring settings in its terminal or configure them on its hosting service.
 
-Spring uses `DATABASE_URL` for every Java command, including `migrate`. To use a direct connection for a Java migration, supply that URL as `DATABASE_URL` for the command. `DATABASE_URL_UNPOOLED` is consumed by the backup scripts and legacy Node migration script only. Keep secrets out of frontend configuration except the non-public backend address.
+Spring uses `DATABASE_URL` for every Java command, including `migrate`. To use a direct connection for a Java migration, supply that URL as `DATABASE_URL` for the command. `DATABASE_URL_UNPOOLED` is consumed by the backup scripts only. Keep secrets out of frontend configuration except the non-public backend address.
 
 ## Competition / local demo
 
 ```sh
 cp .env.example .env
-# Set POSTGRES_PASSWORD and a private SEED_PASSWORD (at least 12 characters).
+# Set POSTGRES_PASSWORD and a private ADMIN_PASSWORD (at least 12 characters).
 docker compose up --build -d
 ```
 
-The `init` service applies migrations and seeds the demo before the backend starts. Existing records are preserved. PostgreSQL persists in `waypoint-postgres`; never use `down -v` to redeploy. Demo mode uses the supplied historical calendar and February 2026 fixtures. Open http://localhost:3000 and follow the [judge walkthrough](../README.md#judge-walkthrough). Local Compose binds PostgreSQL to host port 5432 and Spring to `BACKEND_PORT` (default 8080); ensure those ports are available.
+The `init` service runs `migrate`, `import-reference` and `account-create` (the administrator from `ADMIN_EMAIL`/`ADMIN_PASSWORD`) before the backend starts. Each is idempotent, so restarts preserve existing records and never reset the administrator's password. PostgreSQL persists in `waypoint-postgres`; never use `down -v` to redeploy. Open http://localhost:3000 and sign in as the administrator. Local Compose binds PostgreSQL to host port `DB_PORT` (default 5432) and Spring to `BACKEND_PORT` (default 8080); ensure those ports are available.
 
 For a fresh-install check, use a separate Compose project name with free host ports and a new volume; do not reset an existing deployment volume. A successful configuration check does not prove images build or services initialize.
 
@@ -70,12 +70,11 @@ cd /opt/waypoint/app && docker compose -f compose.yaml -f deploy/vps/compose.vps
 
 ## Production host
 
-Configure `DOMAIN` and `DATABASE_URL` in root `.env`; production Compose sets `COOKIE_SECURE=1` on Spring automatically. `compose.prod.yaml` forces real-time mode and never seeds demo accounts or orders. Create real staff accounts using the commands below. The image includes the tracked reference CSVs, migrations and demo proof fixtures; replace synthetic business reference data with validated production records before real operations.
+Configure `DOMAIN` and `DATABASE_URL` in root `.env`; production Compose sets `COOKIE_SECURE=1` and `LOG_FORMAT=ecs` on Spring automatically. Its `init` service runs `migrate` and `import-reference` before the backend starts; it never creates accounts. Create staff accounts with `scripts/account.sh` (below). The image includes the tracked reference CSVs and migrations; replace synthetic business reference data with validated production records before real operations.
 
 ```sh
 docker compose -f compose.prod.yaml build
-docker compose -f compose.prod.yaml run --rm backend java -jar /app/backend.jar migrate
-docker compose -f compose.prod.yaml up -d nginx backend frontend
+docker compose -f compose.prod.yaml up -d nginx backend frontend   # init runs first
 docker compose -f compose.prod.yaml run --rm --entrypoint certbot certbot \
   certonly --webroot -w /var/www/certbot \
   --email "$CERTBOT_EMAIL" --agree-tos --no-eff-email -d "$DOMAIN"
@@ -83,15 +82,15 @@ docker compose -f compose.prod.yaml restart nginx
 docker compose -f compose.prod.yaml --profile renewal up -d certbot
 ```
 
-Export DOMAIN and CERTBOT_EMAIL in the shell for the issuance command. Nginx validates and reloads its configuration every 12 hours to pick up renewed certificates. Check HTTPS `/api/health` and sign in after deployment. Take a database backup before migrations and verify a restore on a separate database. Monitor HTTP failures, database availability, disk space and unsynchronized device work.
+Export DOMAIN and CERTBOT_EMAIL in the shell for the issuance command. Nginx validates and reloads its configuration every 12 hours to pick up renewed certificates. Check `/health/readiness` on the backend and sign in after deployment. Take a database backup before migrations and verify a restore on a separate database. Monitor HTTP failures, database availability, disk space and unsynchronized device work.
 
-Production uses Monday-Saturday operating days for a rolling calendar generated at startup (one year back, two years forward). Historical supplied dates retain their original flags. Set `CALENDAR_FILE` to a CSV with `date,is_operating` (`0` or `1`) to override closures and special operating dates; paths are relative to DATA_DIR or absolute inside the container. Mount that file read-only into the backend and restart after changes. This policy does not invent public-holiday closures; operations must supply them.
+Past the end of the supplied calendar, operating days come from the extension policy (Monday to Saturday, R-CAL-03). Closures and special operating days are set by an administrator with the `calendar:Override` command, recorded with an actor and a reason; there is no calendar file. The policy does not invent public-holiday closures; operations must supply them. `waypoint_reference_calendar_days_remaining` warns before the supplied calendar runs out.
 
 ## Vercel frontend
 
 Deploy `frontend/` and set BACKEND_URL to the separately hosted Spring service. Database settings on Vercel do not configure Spring. Use HTTPS for the backend link and COOKIE_SECURE=1 on Spring. The browser continues to call the frontend's same-origin `/api` routes. The earlier all-Node Vercel deployment instructions no longer apply.
 
-For a judge deployment, initialize a separate Spring/PostgreSQL instance with `DEMO_MODE=1`, the documented historical clock and a private seed password. Run Java migrations and seed explicitly before serving requests. `compose.prod.yaml` forces `DEMO_MODE=0` and does not provide this seeded competition experience without a deliberate configuration change. Verify all four accounts through the frontend URL after hosting; configuring Vercel or Neon alone does not verify the deployment.
+For a judge deployment, run `migrate`, `import-reference` and `account-create` explicitly against the hosted Spring/PostgreSQL instance before serving requests, then verify sign-in through the frontend URL; configuring Vercel or Neon alone does not verify the deployment.
 
 ## Verification
 
@@ -106,11 +105,21 @@ npx playwright install chromium
 npm run verify
 ```
 
-This runs legacy Node regressions, Maven tests, Spring HTTP integration tests, TypeScript checks, the production build and browser tests. The browser runner starts its own Spring backend against a disposable schema, applies Java migrations and seeds through Java. It never connects the tests to an existing backend. Chromium must be installed (`npx playwright install chromium`).
+This runs the frontend boundary tests, TypeScript checks, the production build and `mvn verify` (unit, architecture and integration tests). Browser smoke tests are separate: `npm run test:e2e` after a build.
 
 If tests report `database "waypoint_test" does not exist`, create the dedicated database or correct its URL; never substitute the application database.
 
 Docker configuration can be checked with `docker compose config --quiet` and `docker compose -f compose.prod.yaml config --quiet` after supplying the required variables. Actual fresh-volume container startup, public TLS and physical-device trials remain release checks; local browser emulation does not establish those properties.
+
+## Logs
+
+The backend logs ECS JSON (`LOG_FORMAT=ecs` in both compose files). To store and search them, set `GRAFANA_ADMIN_PASSWORD` and enable the opt-in profile:
+
+```sh
+docker compose -f compose.prod.yaml --profile observability up -d
+```
+
+Alloy reads every container labelled `com.waypoint.logs=true` through the read-only Docker socket and ships to Loki, which keeps 14 days on the `loki-data` volume (budget roughly 1 GB per week at pilot volume). Grafana listens on `127.0.0.1:3001` only and is never routed through nginx; reach it with `ssh -L 3001:127.0.0.1:3001 <host>` and open http://127.0.0.1:3001. Grafana refuses to start without `GRAFANA_ADMIN_PASSWORD`. The application does not depend on the log store: with Loki down, Alloy retries and requests are served normally.
 
 ## Operational limits
 
@@ -147,4 +156,4 @@ scripts/restore-check.sh /secure-backups/waypoint-2026-09-26.dump
 
 The backup script uses private file permissions and refuses to overwrite a backup. Restore checking refuses known source URLs and a nonempty target; it does not delete existing tables. Keep encrypted off-host copies, schedule daily backups, and record recovery time after exercising restored orders, accounts and proof images. These scripts are provided but have not been restore-tested against your hosting provider.
 
-Configure an external monitor for HTTPS `/api/health`, alert on failures, and retain backend/nginx error logs. The endpoint must return HTTP 200 with `ok: true`; a healthy process alone does not verify the entire role workflow.
+Configure an external monitor for the backend's `/health/readiness` (HTTP 200 with `"status":"UP"`), alert on failures, and scrape `/prometheus` for the detection signals in EDGE-CASES.md. Keep logs in the log store (see Logs). A healthy process alone does not verify the entire role workflow.

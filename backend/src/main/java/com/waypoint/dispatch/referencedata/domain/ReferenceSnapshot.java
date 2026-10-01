@@ -121,6 +121,21 @@ public final class ReferenceSnapshot {
     return calendar.values();
   }
 
+  /** The last date the supplied calendar covers. Past it, days come from the extension policy. */
+  public Optional<LocalDate> lastSuppliedDay() {
+    return calendar.keySet().stream().max(LocalDate::compareTo);
+  }
+
+  /**
+   * Whole days of supplied calendar left after {@code today}; negative once it has
+   * run out (PLT-07).
+   */
+  public long calendarDaysRemaining(LocalDate today) {
+    return lastSuppliedDay()
+        .map(last -> java.time.temporal.ChronoUnit.DAYS.between(today, last))
+        .orElse(0L);
+  }
+
   /** Outlets served by a depot, via their district (decision D8). */
   public List<Outlet> outletsOf(DepotCode depot) {
     return outlets.values().stream()

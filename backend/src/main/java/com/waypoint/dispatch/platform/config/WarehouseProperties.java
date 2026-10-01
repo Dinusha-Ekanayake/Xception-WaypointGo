@@ -1,6 +1,7 @@
 package com.waypoint.dispatch.platform.config;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
@@ -18,7 +19,8 @@ import org.springframework.validation.annotation.Validated;
 @Validated
 @ConfigurationProperties(prefix = "app.warehouse")
 public record WarehouseProperties(
-    @NotBlank String baseUrl, String apiKey, @Positive int timeoutMs) {
+    @NotBlank @Pattern(regexp = "https?://.+", message = "WAREHOUSE_BASE_URL must be an http(s) URL")
+        String baseUrl, String apiKey, @Positive int timeoutMs) {
 
   public boolean isConfigured() {
     return apiKey != null && !apiKey.isBlank();

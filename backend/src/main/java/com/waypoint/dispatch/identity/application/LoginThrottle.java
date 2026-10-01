@@ -1,8 +1,8 @@
 package com.waypoint.dispatch.identity.application;
 
+import com.waypoint.dispatch.platform.config.AppProperties;
 import com.waypoint.dispatch.platform.db.Database;
 import com.waypoint.dispatch.shared.error.DomainException;
-import com.waypoint.dispatch.shared.error.ErrorCode;
 import java.time.Duration;
 import java.util.Map;
 import org.springframework.stereotype.Component;
@@ -19,13 +19,14 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class LoginThrottle {
-  private static final int MAX_FAILURES = 8;
-  private static final Duration WINDOW = Duration.ofMinutes(15);
-
   private final Database database;
+  private final int maxFailures;
+  private final Duration window;
 
-  public LoginThrottle(Database database) {
+  public LoginThrottle(Database database, AppProperties properties) {
     this.database = database;
+    this.maxFailures = properties.loginThrottle().maxFailures();
+    this.window = properties.loginThrottle().window();
   }
 
   /** Throws when this identity has failed too often recently. */
@@ -40,12 +41,12 @@ public class LoginThrottle {
               AND attempted_at > now() - CAST(? AS interval)
             """,
             email,
-            WINDOW.toMinutes() + " minutes");
+            window.toSeconds() + " seconds");
     long failures = row == null ? 0 : ((Number) row.get("failures")).longValue();
-    if (failures >= MAX_FAILURES) {
-      throw new DomainException(
-          ErrorCode.FORBIDDEN,
-          "Too many failed sign-in attempts. Try again in " + WINDOW.toMinutes() + " minutes.");
+    if (failures >= maxFailures) {
+      throw DomainException.rateLimited(
+          "Too many failed sign-in attempts. Try again in " + window.toMinutes() + " minutes.",
+          window.toSeconds());
     }
   }
 

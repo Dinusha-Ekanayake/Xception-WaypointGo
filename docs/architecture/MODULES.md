@@ -2,7 +2,7 @@
 
 Every module in Waypoint Dispatch: what it owns, the layers inside it, the commands and queries it exposes, the events it publishes and consumes, the ports it depends on, the invariants it guarantees and how it fails.
 
-Read [../../SYSTEM-ARCHITECTURE.md](../../SYSTEM-ARCHITECTURE.md) first for the principles and layer rules. [../code-structure.md](../code-structure.md) maps these modules onto folders.
+Read [../../SYSTEM-ARCHITECTURE.md](../../SYSTEM-ARCHITECTURE.md) first for the principles and layer rules. Each module is a top-level package under `backend/src/main/java/com/waypoint/dispatch/`.
 
 ## How to read a module spec
 
