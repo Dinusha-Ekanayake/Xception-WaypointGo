@@ -36,6 +36,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -56,7 +57,34 @@ final class PlanRecords {
       List<FuelRow> fuel,
       List<DeferralRow> deferrals) {}
 
+  /**
+   * The version before this one, so a trip carrying the same orders keeps its
+   * id (PLN-04, R-LOD-06) and a deferral already communicated is copied rather
+   * than counted again.
+   */
+  record Predecessor(Map<Set<UUID>, UUID> tripIds, Map<UUID, DeferralRow> deferrals) {
+    static final Predecessor NONE = new Predecessor(Map.of(), Map.of());
+
+    static Predecessor of(List<TripRow> trips, List<AllocationRow> allocations, List<DeferralRow> deferrals) {
+      Map<UUID, Set<UUID>> orders = new HashMap<>();
+      for (AllocationRow a : allocations) {
+        a.tripId().ifPresent(t -> orders.computeIfAbsent(t, k -> new java.util.HashSet<>()).add(a.orderId()));
+      }
+      Map<Set<UUID>, UUID> ids = new HashMap<>();
+      for (TripRow t : trips) {
+        ids.put(Set.copyOf(orders.getOrDefault(t.tripId(), Set.of())), t.tripId());
+      }
+      return new Predecessor(
+          ids, deferrals.stream().collect(Collectors.toMap(DeferralRow::orderId, d -> d)));
+    }
+  }
+
   static Rows of(PlanningRun run, Built built, UUID generatedBy, Instant at, Supplier<UUID> ids) {
+    return of(run, built, generatedBy, at, ids, Predecessor.NONE);
+  }
+
+  static Rows of(
+      PlanningRun run, Built built, UUID generatedBy, Instant at, Supplier<UUID> ids, Predecessor predecessor) {
     Map<String, DistrictTravel> travel = built.problem().travel();
     List<TripRow> trips = new ArrayList<>();
     List<LegRow> legs = new ArrayList<>();
@@ -68,7 +96,8 @@ final class PlanRecords {
       for (TripSchedule s : TripTimeline.schedule(day, travel, built.problem().rules())) {
         Trip trip = s.trip();
         DistrictTravel d = travel.get(trip.district());
-        UUID tripId = ids.get();
+        Set<UUID> carried = trip.orders().stream().map(PlanOrder::orderId).collect(Collectors.toSet());
+        UUID tripId = Optional.ofNullable(predecessor.tripIds().get(carried)).orElseGet(ids);
         trips.add(
             new TripRow(
                 tripId,
@@ -117,7 +146,13 @@ final class PlanRecords {
               decision.bindingRule(),
               decision.reason(),
               decision.checks()));
-      if (decision.decision() == AllocationDecision.DEFERRED) {
+      DeferralRow earlier = predecessor.deferrals().get(o.orderId());
+      if (decision.decision() == AllocationDecision.DEFERRED
+          && earlier != null
+          && earlier.ruleId().equals(decision.bindingRule().orElse(""))
+          && earlier.reason().equals(decision.reason())) {
+        deferrals.add(earlier);
+      } else if (decision.decision() == AllocationDecision.DEFERRED) {
         deferrals.add(
             new DeferralRow(
                 o.orderId(),
@@ -142,6 +177,7 @@ final class PlanRecords {
             run.stamps().ruleSetId(),
             run.stamps().policyVersionId(),
             run.supersedes(),
+            run.revisionReason(),
             run.demandFingerprint(),
             run.stale(),
             run.partial(),
@@ -162,6 +198,24 @@ final class PlanRecords {
    */
   static PlanningRun load(
       RunRow run, List<TripRow> trips, List<AllocationRow> allocations, List<DeferralRow> deferrals, Built built) {
+    return load(run, trips, allocations, deferrals, built, false);
+  }
+
+  /**
+   * @param dropMissing true for a revision: an order no longer in the demand
+   *     (cancelled since publication) leaves its trip instead of refusing
+   */
+  static PlanningRun load(
+      RunRow run,
+      List<TripRow> trips,
+      List<AllocationRow> allocations,
+      List<DeferralRow> deferrals,
+      Built built,
+      boolean dropMissing) {
+    if (dropMissing) {
+      allocations = allocations.stream().filter(a -> built.orders().containsKey(a.orderId())).toList();
+      deferrals = deferrals.stream().filter(d -> built.orders().containsKey(d.orderId())).toList();
+    }
     Map<UUID, TripRow> tripById = trips.stream().collect(Collectors.toMap(TripRow::tripId, t -> t));
     Map<UUID, List<PlanOrder>> onTrip = new HashMap<>();
     for (AllocationRow a : allocations) {
@@ -172,6 +226,9 @@ final class PlanRecords {
         trips.stream().collect(Collectors.groupingBy(TripRow::vehicleId));
     List<VehicleDay> days = new ArrayList<>();
     for (Map.Entry<String, List<TripRow>> e : byVehicle.entrySet()) {
+      if (e.getValue().stream().allMatch(t -> onTrip.getOrDefault(t.tripId(), List.of()).isEmpty())) {
+        continue;
+      }
       FleetVehicle vehicle = built.fleet().get(e.getKey());
       if (vehicle == null) {
         throw new IllegalStateException(
@@ -180,6 +237,7 @@ final class PlanRecords {
       List<Trip> vehicleTrips =
           e.getValue().stream()
               .sorted(Comparator.comparingInt(TripRow::tripNumber))
+              .filter(t -> !onTrip.getOrDefault(t.tripId(), List.of()).isEmpty())
               .map(
                   t ->
                       new Trip(
@@ -215,6 +273,7 @@ final class PlanRecords {
         run.status(),
         new Stamps(run.referenceVersionId(), run.ruleSetId(), run.priorityPolicyVersionId()),
         run.supersedes(),
+        run.revisionReason(),
         run.demandFingerprint(),
         run.stale(),
         run.partial(),

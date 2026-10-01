@@ -11,6 +11,17 @@ import com.waypoint.dispatch.planning.contract.PlanViews.PlanStatus;
 import com.waypoint.dispatch.planning.contract.PlanViews.PlanView;
 import com.waypoint.dispatch.planning.contract.PlanViews.StopView;
 import com.waypoint.dispatch.planning.contract.PlanViews.TripView;
+import com.waypoint.dispatch.planning.application.PlanningDrafts.Opened;
+import com.waypoint.dispatch.planning.application.PlanningProblems.Built;
+import com.waypoint.dispatch.planning.application.PlanningRevisions.Place;
+import com.waypoint.dispatch.planning.application.PlanningRevisions.Revision;
+import com.waypoint.dispatch.planning.domain.ConstraintRegistry;
+import com.waypoint.dispatch.planning.domain.ConstraintResult;
+import com.waypoint.dispatch.planning.domain.FleetVehicle;
+import com.waypoint.dispatch.planning.domain.PlanOrder;
+import com.waypoint.dispatch.planning.domain.PlanningRun;
+import com.waypoint.dispatch.planning.domain.PlanningRun.Placement;
+import com.waypoint.dispatch.planning.domain.PlanningRun.TripMove;
 import com.waypoint.dispatch.planning.infrastructure.JdbcPlanRepository;
 import com.waypoint.dispatch.planning.infrastructure.JdbcPlanRepository.AllocationRow;
 import com.waypoint.dispatch.planning.infrastructure.JdbcPlanRepository.DeferralRow;
@@ -49,10 +60,10 @@ import org.springframework.stereotype.Component;
  * audit row, never an empty answer, because "no plan" and "not yours" must not
  * look alike (AGENTS.md, Security).
  *
- * <p>{@link #previewAssignments} and {@link #previewInterchange} throw
- * {@link UnsupportedOperationException} until step 6 of issue #9. An empty
- * answer would read as "nowhere fits" to Loading, which is a silent wrong
- * answer; a failure is visible (rule 9).
+ * <p>The previews are the commands they preview, run read-only: the same
+ * registry, the same revision under the versions in force now, nothing stored.
+ * An order in no open draft, or a trip in no live plan, is {@code 404}, never an
+ * empty answer that would read as "nowhere fits" (rule 9).
  */
 @Component
 public class PlanDataQuery implements PlanQuery {
@@ -62,13 +73,25 @@ public class PlanDataQuery implements PlanQuery {
   private final JdbcPlanRepository plans;
   private final ReferenceQuery reference;
   private final AuditLog audit;
+  private final PlanningDrafts drafts;
+  private final PlanningRevisions revisions;
+  private final ConstraintRegistry registry;
 
-  public PlanDataQuery(
-      Database database, JdbcPlanRepository plans, ReferenceQuery reference, AuditLog audit) {
+  PlanDataQuery(
+      Database database,
+      JdbcPlanRepository plans,
+      ReferenceQuery reference,
+      AuditLog audit,
+      PlanningDrafts drafts,
+      PlanningRevisions revisions,
+      ConstraintRegistry registry) {
     this.database = database;
     this.plans = plans;
     this.reference = reference;
     this.audit = audit;
+    this.drafts = drafts;
+    this.revisions = revisions;
+    this.registry = registry;
   }
 
   // ---- contract: as the ambient actor --------------------------------------
@@ -87,14 +110,20 @@ public class PlanDataQuery implements PlanQuery {
 
   @Override
   public List<AllocationView> previewAssignments(UUID orderId) {
-    throw new UnsupportedOperationException(
-        "previewAssignments arrives with plan revision (issue #9, step 6)");
+    return read(ambient(), () -> assignments(orderId));
   }
 
   @Override
   public InterchangePreview previewInterchange(UUID tripId, String replacementVehicleId) {
-    throw new UnsupportedOperationException(
-        "previewInterchange arrives with plan revision (issue #9, step 6)");
+    return read(ambient(), () -> interchange(tripId, replacementVehicleId));
+  }
+
+  public List<AllocationView> previewAssignments(Actor actor, UUID orderId) {
+    return read(actor.userId(), () -> assignments(orderId));
+  }
+
+  public InterchangePreview previewInterchange(Actor actor, UUID tripId, String replacementVehicleId) {
+    return read(actor.userId(), () -> interchange(tripId, replacementVehicleId));
   }
 
   @Override
@@ -169,6 +198,73 @@ public class PlanDataQuery implements PlanQuery {
       audit.recordStandalone(AuditEntry.denied(actor.userId(), actor.deviceId(), READ, resource, reason));
       throw new DomainException(ErrorCode.FORBIDDEN, resource + " is " + reason);
     }
+  }
+
+  /** Every place the order could take in its open draft, feasible first, each with its checks. */
+  private List<AllocationView> assignments(UUID orderId) {
+    RunRow row =
+        plans.openDraftsWithOrder(orderId).stream().findFirst()
+            .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "order " + orderId + " is in no open draft"));
+    Opened opened = drafts.rebuild(row);
+    PlanOrder order = opened.built().orders().get(orderId);
+    if (order == null) {
+      throw new DomainException(
+          ErrorCode.CONSTRAINT_VIOLATED, "order " + orderId + " is no longer in the demand", List.of("PLN-07"));
+    }
+    Map<String, UUID> tripIds = new java.util.HashMap<>();
+    plans.trips(row.planId()).forEach(t -> tripIds.put(t.vehicleId() + "/" + t.tripNumber(), t.tripId()));
+    return drafts.run(opened)
+        .options(order, new java.util.ArrayList<>(opened.built().fleet().values()), registry,
+            opened.built().problem().context())
+        .stream()
+        .sorted(java.util.Comparator.comparing((Placement p) -> !p.feasible()))
+        .map(p -> toView(orderId, p, tripIds))
+        .toList();
+  }
+
+  /** Whether {@code replacement} could take the trip whole, judged as the interchange itself would be. */
+  private InterchangePreview interchange(UUID tripId, String replacementVehicleId) {
+    RunRow row =
+        plans.runsWithTrip(tripId).stream().findFirst()
+            .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No live plan carries trip " + tripId));
+    PlanningRun run;
+    Built built;
+    if (row.status() == PlanStatus.PUBLISHED) {
+      Revision revision =
+          revisions.revise(row, "interchange preview", Actor.SYSTEM_ID, UUID.randomUUID(), row.planVersion() + 1);
+      run = revision.run();
+      built = revision.built();
+    } else {
+      Opened opened = drafts.rebuild(row);
+      run = drafts.run(opened);
+      built = opened.built();
+    }
+    Place place = revisions.locate(row.planId(), tripId, run);
+    FleetVehicle replacement = built.fleet().get(replacementVehicleId);
+    if (replacement == null) {
+      throw new DomainException(
+          ErrorCode.VALIDATION_FAILED, replacementVehicleId + " is not a vehicle of depot " + row.depotCode());
+    }
+    TripMove move = run.moveTrip(place.vehicleId(), place.tripNumber(), replacement, registry, built.problem().context());
+    return new InterchangePreview(
+        tripId, place.vehicleId(), replacementVehicleId, move.feasible(),
+        move.checks().stream().map(PlanDataQuery::toView).toList());
+  }
+
+  private static AllocationView toView(UUID orderId, Placement p, Map<String, UUID> tripIds) {
+    Optional<ConstraintResult> failed = ConstraintRegistry.firstFailure(p.checks());
+    String where = (p.joins() ? "join " : "new trip ") + p.vehicleId() + " trip " + p.tripNumber();
+    return new AllocationView(
+        orderId,
+        p.feasible() ? AllocationDecision.SERVED : AllocationDecision.DEFERRED,
+        p.joins() ? Optional.ofNullable(tripIds.get(p.vehicleId() + "/" + p.tripNumber())) : Optional.empty(),
+        failed.map(ConstraintResult::ruleId),
+        failed.map(f -> where + ": " + f.reason()).orElse(where),
+        p.checks().stream().map(PlanDataQuery::toView).toList());
+  }
+
+  private static ConstraintResultView toView(ConstraintResult c) {
+    return new ConstraintResultView(c.ruleId(), c.passed(), c.reason(), c.slack());
   }
 
   /**

@@ -1,7 +1,9 @@
 package com.waypoint.dispatch.planning.application;
 
 import com.waypoint.dispatch.ordering.contract.OrderQuery;
+import com.waypoint.dispatch.ordering.contract.OrderStatus;
 import com.waypoint.dispatch.ordering.contract.OrderViews.DemandView;
+import com.waypoint.dispatch.ordering.contract.OrderViews.OrderView;
 import com.waypoint.dispatch.planning.domain.AllocationEngine.Problem;
 import com.waypoint.dispatch.planning.domain.DemandFingerprint;
 import com.waypoint.dispatch.planning.domain.DistrictTravel;
@@ -57,10 +59,6 @@ public class PlanningProblems {
    */
   public record Built(Problem problem, String fingerprint, Map<UUID, PlanOrder> orders, Map<String, FleetVehicle> fleet) {}
 
-  /**
-   * @param fuelExcluding a published run the result will supersede: its litres
-   *     are replaced, not added to
-   */
   public Built build(
       String depotCode,
       LocalDate serviceDate,
@@ -68,7 +66,31 @@ public class PlanningProblems {
       RuleSet rules,
       PriorityPolicy policy,
       Optional<UUID> fuelExcluding) {
-    List<DemandView> demand = orders.confirmedDemand(depotCode, serviceDate);
+    return build(depotCode, serviceDate, referenceVersionId, rules, policy, fuelExcluding, Set.of());
+  }
+
+  /**
+   * @param fuelExcluding a published run the result will supersede: its litres
+   *     are replaced, not added to
+   * @param carried orders a revision inherits from the plan it supersedes. Once
+   *     published they are no longer confirmed demand, so each is read by id;
+   *     one cancelled since is left out, and the revision drops it
+   */
+  public Built build(
+      String depotCode,
+      LocalDate serviceDate,
+      UUID referenceVersionId,
+      RuleSet rules,
+      PriorityPolicy policy,
+      Optional<UUID> fuelExcluding,
+      Set<UUID> carried) {
+    List<DemandView> demand = new ArrayList<>(orders.confirmedDemand(depotCode, serviceDate));
+    Set<UUID> confirmed = demand.stream().map(DemandView::orderId).collect(Collectors.toSet());
+    for (UUID id : carried.stream().sorted().toList()) {
+      if (!confirmed.contains(id)) {
+        orders.order(id).flatMap(PlanningProblems::asDemand).ifPresent(demand::add);
+      }
+    }
     Map<String, LocalDate> lastServed = plans.lastServed(depotCode, serviceDate);
 
     Map<UUID, PlanOrder> byId = new LinkedHashMap<>();
@@ -113,11 +135,15 @@ public class PlanningProblems {
     return new Built(problem, DemandFingerprint.of(versions), byId, fleet);
   }
 
-  /** The demand fingerprint alone, for a gate that needs nothing else. */
-  public String fingerprint(String depotCode, LocalDate serviceDate) {
-    return DemandFingerprint.of(
-        orders.confirmedDemand(depotCode, serviceDate).stream()
-            .collect(Collectors.toMap(DemandView::orderId, DemandView::rowVersion)));
+  /** A carried order as demand, unless it was cancelled or never measured. */
+  private static Optional<DemandView> asDemand(OrderView o) {
+    if (o.status() == OrderStatus.CANCELLED || o.weightKg() == null || o.volumeM3() == null || o.temperature() == null) {
+      return Optional.empty();
+    }
+    return Optional.of(
+        new DemandView(
+            o.orderId(), o.orderRef(), o.outletId(), o.brandCode(), o.districtName(), o.temperature(),
+            o.weightKg(), o.volumeM3(), o.itemCount(), o.requestedDate(), o.deferralCount(), o.rowVersion()));
   }
 
   private PlanOrder toPlanOrder(

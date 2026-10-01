@@ -21,6 +21,19 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-01 - feat(planning): revise, replan, previews and consumers (issue #9, step 6)
+
+`feat/planning-module` · @Oxshadha
+
+Adds `plan:Revise` and `plan:Replan`, `previewAssignments` and `previewInterchange` (also on `/api/plans/preview/*`), and the decision-7 consumers.
+- Migration `20261001T0600` keys trips by `(plan_id, trip_id)`, so a trip keeps its id across versions while it carries the same orders, even on a substitute vehicle (PLN-04, R-LOD-06). It also allows one open draft per depot-day and records `revision_reason`.
+- A revision carries the published plan's orders, drops cancelled ones and defers late arrivals under PLN-07. It is announced as `plan.revised`, and only new deferrals are announced again.
+- Interchange is auto-published only when exactly that trip moved; a lost vehicle drafts a revision for the dispatcher.
+
+Why: issue #9 step 6. Detail in [PLAN.md](../issues/009-planning/PLAN.md#step-6-result-do-not-re-do).
+Verified: `TEST_DATABASE_URL=... mvn test` on PostgreSQL 16, 250 tests, 0 failures, 0 skipped.
+Open: step 7 (walkthrough and registers). The relay that delivers events to consumers is #6.
+
 ## 2026-10-01 - feat(planning): generate, override, defer and publish (issue #9, step 5)
 
 `feat/planning-module` · @Oxshadha

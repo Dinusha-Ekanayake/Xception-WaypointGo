@@ -43,8 +43,8 @@ public class JdbcPlanRepository {
   private static final String RUN_COLUMNS =
       """
       plan_id, depot_code, service_date, plan_version, row_version, status, reference_version_id,
-      rule_set_id, priority_policy_version_id, supersedes, demand_fingerprint, stale, partial, engine,
-      planned_without_predictor, generated_at, generated_by, published_at, published_by
+      rule_set_id, priority_policy_version_id, supersedes, revision_reason, demand_fingerprint, stale,
+      partial, engine, planned_without_predictor, generated_at, generated_by, published_at, published_by
       """;
 
   private static final TypeReference<List<Map<String, Object>>> CHECKS = new TypeReference<>() {};
@@ -63,6 +63,7 @@ public class JdbcPlanRepository {
    * The run header.
    *
    * @param ruleSetId the rule set the run read its thresholds from
+   * @param revisionReason why a revision was made; present only with {@code supersedes}
    * @param generatedBy the actor who asked for the run; the system actor for a consumer
    */
   public record RunRow(
@@ -75,6 +76,7 @@ public class JdbcPlanRepository {
       UUID ruleSetId,
       UUID priorityPolicyVersionId,
       Optional<UUID> supersedes,
+      Optional<String> revisionReason,
       String demandFingerprint,
       boolean stale,
       boolean partial,
@@ -164,6 +166,51 @@ public class JdbcPlanRepository {
             + " WHERE depot_code = ? AND service_date = ? AND status = 'draft'"
             + " ORDER BY plan_version DESC LIMIT 1",
         depotCode,
+        Date.valueOf(serviceDate));
+  }
+
+  /** Every open draft the actor can see, oldest day first. */
+  public List<RunRow> openDrafts() {
+    return runs(
+        "SELECT " + RUN_COLUMNS + " FROM planning.runs WHERE status = 'draft' ORDER BY service_date, depot_code");
+  }
+
+  /** Open drafts that decided this order, for a cancellation that carries no date (decision 7). */
+  public List<RunRow> openDraftsWithOrder(UUID orderId) {
+    return runs(
+        "SELECT " + RUN_COLUMNS + " FROM planning.runs r WHERE r.status = 'draft' AND EXISTS"
+            + " (SELECT 1 FROM planning.allocations a WHERE a.plan_id = r.plan_id AND a.order_id = ?)"
+            + " ORDER BY r.service_date, r.plan_version DESC",
+        orderId);
+  }
+
+  /** Runs that carry a trip, published first, then newest. A trip id spans versions. */
+  public List<RunRow> runsWithTrip(UUID tripId) {
+    return runs(
+        "SELECT " + RUN_COLUMNS + " FROM planning.runs r WHERE r.status IN ('published','draft') AND EXISTS"
+            + " (SELECT 1 FROM planning.trips t WHERE t.plan_id = r.plan_id AND t.trip_id = ?)"
+            + " ORDER BY (r.status = 'published') DESC, r.plan_version DESC",
+        tripId);
+  }
+
+  /** The published plans of a day that use a vehicle. */
+  public List<RunRow> publishedUsing(String vehicleId, LocalDate serviceDate) {
+    return runs(
+        "SELECT " + RUN_COLUMNS + " FROM planning.runs r WHERE r.status = 'published' AND r.service_date = ?"
+            + " AND EXISTS (SELECT 1 FROM planning.trips t WHERE t.plan_id = r.plan_id AND t.vehicle_id = ?)",
+        Date.valueOf(serviceDate),
+        vehicleId);
+  }
+
+  public List<RunRow> publishedOn(LocalDate serviceDate) {
+    return runs(
+        "SELECT " + RUN_COLUMNS + " FROM planning.runs WHERE status = 'published' AND service_date = ?",
+        Date.valueOf(serviceDate));
+  }
+
+  public List<RunRow> openDraftsOn(LocalDate serviceDate) {
+    return runs(
+        "SELECT " + RUN_COLUMNS + " FROM planning.runs WHERE status = 'draft' AND service_date = ?",
         Date.valueOf(serviceDate));
   }
 
@@ -261,15 +308,16 @@ public class JdbcPlanRepository {
     return deferrals;
   }
 
-  public List<LegRow> legs(UUID tripId) {
+  public List<LegRow> legs(UUID planId, UUID tripId) {
     List<LegRow> legs = new ArrayList<>();
     for (Map<String, Object> row :
         database.query(
             """
             SELECT trip_id, leg_sequence, from_outlet_id, to_outlet_id, planned_departure,
                    planned_arrival, planned_minutes
-              FROM planning.route_legs WHERE trip_id = ? ORDER BY leg_sequence
+              FROM planning.route_legs WHERE plan_id = ? AND trip_id = ? ORDER BY leg_sequence
             """,
+            planId,
             tripId)) {
       legs.add(
           new LegRow(
@@ -400,10 +448,10 @@ public class JdbcPlanRepository {
         """
         INSERT INTO planning.runs
             (plan_id, depot_code, service_date, plan_version, row_version, status,
-             reference_version_id, rule_set_id, priority_policy_version_id, supersedes,
+             reference_version_id, rule_set_id, priority_policy_version_id, supersedes, revision_reason,
              demand_fingerprint, stale, partial, engine, planned_without_predictor,
              generated_at, generated_by, command_id, published_at, published_by, updated_at)
-        VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         run.planId(),
         run.depotCode(),
@@ -414,6 +462,7 @@ public class JdbcPlanRepository {
         run.ruleSetId(),
         run.priorityPolicyVersionId(),
         run.supersedes().orElse(null),
+        run.revisionReason().orElse(null),
         run.demandFingerprint(),
         run.stale(),
         run.partial(),
@@ -661,8 +710,12 @@ public class JdbcPlanRepository {
   }
 
   private Optional<RunRow> oneRun(String sql, Object... params) {
-    List<Map<String, Object>> rows = database.query(sql, params);
-    return rows.isEmpty() ? Optional.empty() : Optional.of(run(rows.get(0)));
+    List<RunRow> rows = runs(sql, params);
+    return rows.isEmpty() ? Optional.empty() : Optional.of(rows.get(0));
+  }
+
+  private List<RunRow> runs(String sql, Object... params) {
+    return database.query(sql, params).stream().map(JdbcPlanRepository::run).toList();
   }
 
   private static RunRow run(Map<String, Object> row) {
@@ -676,6 +729,7 @@ public class JdbcPlanRepository {
         (UUID) row.get("rule_set_id"),
         (UUID) row.get("priority_policy_version_id"),
         Optional.ofNullable((UUID) row.get("supersedes")),
+        Optional.ofNullable((String) row.get("revision_reason")),
         (String) row.get("demand_fingerprint"),
         (Boolean) row.get("stale"),
         (Boolean) row.get("partial"),

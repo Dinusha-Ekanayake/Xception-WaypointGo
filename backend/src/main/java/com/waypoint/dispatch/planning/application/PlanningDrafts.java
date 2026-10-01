@@ -80,13 +80,40 @@ class PlanningDrafts {
       throw new DomainException(
           ErrorCode.CONFLICT, "plan " + planId + " is " + row.status() + "; only a draft changes", List.of("R-PLN-28"));
     }
+    return rebuild(row);
+  }
+
+  /**
+   * Any run against the versions it was stamped with, with no version check:
+   * for previews, and for a consumer acting on what is there now.
+   */
+  Opened rebuild(RunRow row) {
     RuleSet rules = plans.ruleSet(row.ruleSetId());
     PriorityPolicy policy =
         plans.policy(row.priorityPolicyVersionId())
-            .orElseThrow(() -> new IllegalStateException("plan " + planId + " names a missing policy version"));
+            .orElseThrow(() -> new IllegalStateException("plan " + row.planId() + " names a missing policy version"));
     Built built =
-        problems.build(row.depotCode(), row.serviceDate(), row.referenceVersionId(), rules, policy, row.supersedes());
+        problems.build(
+            row.depotCode(), row.serviceDate(), row.referenceVersionId(), rules, policy, row.supersedes(),
+            carried(row));
     return new Opened(row, built, rules);
+  }
+
+  /** A revision decides the orders of the plan it supersedes as well as the day's demand. */
+  java.util.Set<UUID> carried(RunRow row) {
+    return row.supersedes()
+        .map(s -> plans.allocations(s).stream().map(AllocationRow::orderId).collect(Collectors.toSet()))
+        .orElse(java.util.Set.of());
+  }
+
+  /** The version before {@code planId}, so unchanged trips keep their ids and deferrals are not recounted. */
+  PlanRecords.Predecessor predecessor(UUID planId) {
+    return PlanRecords.Predecessor.of(plans.trips(planId), plans.allocations(planId), plans.deferrals(planId));
+  }
+
+  /** One open draft per depot and day: whatever replaces it closes the one before (uq_runs_one_draft). */
+  void cancelOpen(String depotCode, java.time.LocalDate serviceDate, Instant now) {
+    plans.latestDraft(depotCode, serviceDate).ifPresent(open -> plans.cancel(open.planId(), open.rowVersion(), now));
   }
 
   /** An override or a deferral on a draft whose demand moved would decide for orders nobody saw (PLN-07). */
@@ -115,13 +142,19 @@ class PlanningDrafts {
 
   /** Cancels the version the caller edited and stores its successor, in one transaction. */
   long replace(Opened opened, PlanningRun next, UUID actor, Instant now, UUID commandId) {
+    PlanRecords.Predecessor before = predecessor(opened.row().planId());
     plans.cancel(opened.row().planId(), opened.row().rowVersion(), now);
-    write(next, opened.built(), actor, now, commandId);
+    write(next, opened.built(), actor, now, commandId, before);
     return next.rowVersion();
   }
 
   void write(PlanningRun run, Built built, UUID actor, Instant now, UUID commandId) {
-    Rows rows = PlanRecords.of(run, built, actor, now, () -> newId(now));
+    write(run, built, actor, now, commandId, PlanRecords.Predecessor.NONE);
+  }
+
+  void write(
+      PlanningRun run, Built built, UUID actor, Instant now, UUID commandId, PlanRecords.Predecessor predecessor) {
+    Rows rows = PlanRecords.of(run, built, actor, now, () -> newId(now), predecessor);
     String depot = run.depotCode();
     plans.insertRun(rows.run(), commandId, now);
     plans.insertTrips(run.planId(), depot, rows.trips());

@@ -450,6 +450,7 @@ class PlanningSchemaIntegrationTest {
         rules.id(),
         policy.id(),
         supersedes,
+        supersedes.map(p -> "revised for a test"),
         "fingerprint-" + planVersion,
         false,
         false,

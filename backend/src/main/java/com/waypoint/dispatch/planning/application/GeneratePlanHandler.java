@@ -101,6 +101,14 @@ public class GeneratePlanHandler implements CommandHandler {
     if (!Boolean.TRUE.equals(scope.get("ok"))) {
       throw new DomainException(ErrorCode.FORBIDDEN, "Depot " + depot + " is outside the actor's scope");
     }
+    return PlanningDrafts.body(generate(actor, depot, serviceDate, now, command.commandId()));
+  }
+
+  /**
+   * Generates and stores a draft. The caller has decided the actor may; the
+   * {@code orders.closed} consumer calls this as the system.
+   */
+  public PlanningRun generate(Actor actor, String depot, LocalDate serviceDate, Instant now, UUID commandId) {
     if (!reference.isOperating(serviceDate)) {
       throw new DomainException(
           ErrorCode.CONSTRAINT_VIOLATED, serviceDate + " is not an operating day", List.of("PLN-13"));
@@ -141,7 +149,7 @@ public class GeneratePlanHandler implements CommandHandler {
     AllocationResult result = engine.allocate(built.problem());
     metrics.record("waypoint.plan.engine_ms", (System.nanoTime() - started) / 1_000_000L, "engine", engine.name());
 
-    plans.latestDraft(depot, serviceDate).ifPresent(open -> plans.cancel(open.planId(), open.rowVersion(), now));
+    drafts.cancelOpen(depot, serviceDate, now);
     PlanningRun run =
         PlanningRun.draft(
             drafts.newId(now),
@@ -153,12 +161,12 @@ public class GeneratePlanHandler implements CommandHandler {
             built.fingerprint(),
             result,
             Actor.SYSTEM_ID);
-    drafts.write(run, built, actor.userId(), now, command.commandId());
+    drafts.write(run, built, actor.userId(), now, commandId);
 
     metrics.increment("waypoint.plan.generated");
     if (run.partial()) {
       metrics.increment("waypoint.plan.partial");
     }
-    return PlanningDrafts.body(run);
+    return run;
   }
 }

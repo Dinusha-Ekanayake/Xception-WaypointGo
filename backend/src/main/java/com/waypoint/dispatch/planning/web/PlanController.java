@@ -1,8 +1,10 @@
 package com.waypoint.dispatch.planning.web;
 
 import com.waypoint.dispatch.planning.application.PlanDataQuery;
+import com.waypoint.dispatch.planning.contract.PlanViews.AllocationView;
 import com.waypoint.dispatch.planning.contract.PlanViews.DeferralView;
 import com.waypoint.dispatch.planning.contract.PlanViews.FuelView;
+import com.waypoint.dispatch.planning.contract.PlanViews.InterchangePreview;
 import com.waypoint.dispatch.planning.contract.PlanViews.PlanView;
 import com.waypoint.dispatch.platform.web.RequestAuthorizer;
 import jakarta.servlet.http.HttpServletRequest;
@@ -55,6 +57,21 @@ public class PlanController {
       @RequestParam String depot, @RequestParam LocalDate date, HttpServletRequest request) {
     var actor = authorizer.require(request, READ, "wpt:plan:depot:" + depot);
     return plans.deferralsFor(actor, depot, date);
+  }
+
+  /** Where an order could go in its open draft, each place with every check (the override screen). */
+  @GetMapping("/preview/assignments")
+  public List<AllocationView> previewAssignments(@RequestParam UUID order, HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:plan:order:" + order);
+    return plans.previewAssignments(actor, order);
+  }
+
+  /** Whether a substitute vehicle could take a trip whole, checked against the whole registry. */
+  @GetMapping("/preview/interchange")
+  public InterchangePreview previewInterchange(
+      @RequestParam UUID trip, @RequestParam String vehicle, HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:plan:trip:" + trip);
+    return plans.previewInterchange(actor, trip, vehicle);
   }
 
   /** Weekly fuel for the ISO week containing {@code date}, published plans only (D-K). */

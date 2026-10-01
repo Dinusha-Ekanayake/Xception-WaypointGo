@@ -136,7 +136,7 @@ class PlanningRunTest {
     PlanningRun published =
         new PlanningRun(
             d.planId(), d.depotCode(), d.serviceDate(), d.planVersion(), PlanStatus.PUBLISHED, d.stamps(),
-            d.supersedes(), d.demandFingerprint(), false, false, d.engine(), d.days(), d.decisions(),
+            d.supersedes(), d.revisionReason(), d.demandFingerprint(), false, false, d.engine(), d.days(), d.decisions(),
             d.deferredBy(), 2);
     DomainException refused =
         assertThrows(
@@ -155,6 +155,109 @@ class PlanningRunTest {
             () -> draft().override(UUID.randomUUID(), 2, stranger, t2, 1, "who is this", REGISTRY, CONTEXT));
     assertEquals(ErrorCode.NOT_FOUND, missing.code());
     assertNotEquals(stranger.orderId(), a.orderId());
+  }
+
+  // ---- revisions and replanning (step 6) -------------------------------------
+
+  PlanningRun published(PlanningRun d) {
+    return new PlanningRun(
+        d.planId(), d.depotCode(), d.serviceDate(), d.planVersion(), PlanStatus.PUBLISHED, d.stamps(),
+        d.supersedes(), d.revisionReason(), d.demandFingerprint(), false, false, d.engine(), d.days(), d.decisions(),
+        d.deferredBy(), 2);
+  }
+
+  /** c served alone on the reefer, a and b on truck T1. */
+  PlanningRun withChilledTrip() {
+    return draft().override(UUID.randomUUID(), 2, c, r1, 1, "reefer free", REGISTRY, CONTEXT);
+  }
+
+  @Test
+  void aRevisionDropsCancelledOrdersAndDefersOnesThatArrivedAfterPublication() {
+    PlanningRun plan = published(draft());
+    UUID late = UUID.randomUUID();
+    Stamps now = new Stamps(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
+
+    PlanningRun revision =
+        plan.revision(UUID.randomUUID(), 2, now, "fp2", Set.of(a.orderId(), c.orderId(), late),
+            "b cancelled", ENGINE, REGISTRY, CONTEXT);
+
+    assertEquals(PlanStatus.DRAFT, revision.status());
+    assertEquals(Optional.of(plan.planId()), revision.supersedes());
+    assertEquals(Optional.of("b cancelled"), revision.revisionReason());
+    assertEquals(now, revision.stamps(), "a revision is built under what is in force now");
+    assertTrue(revision.decisionFor(b.orderId()).isEmpty(), "a cancelled order leaves the plan");
+    assertFalse(revision.days().get(0).carries(b.orderId()));
+    OrderDecision arrived = revision.decisionFor(late).orElseThrow();
+    assertEquals(AllocationDecision.DEFERRED, arrived.decision());
+    assertEquals(Optional.of(PlanningRun.ARRIVED_AFTER_PUBLICATION_RULE), arrived.bindingRule());
+    assertEquals(PlanStatus.PUBLISHED, plan.status(), "the published plan itself is untouched");
+  }
+
+  @Test
+  void onlyAPublishedPlanIsRevised() {
+    DomainException refused =
+        assertThrows(
+            DomainException.class,
+            () -> draft().revision(UUID.randomUUID(), 2, draft().stamps(), "fp", Set.of(), "why", ENGINE, REGISTRY, CONTEXT));
+    assertEquals(List.of("R-PLN-28"), refused.violations());
+  }
+
+  @Test
+  void aTripMovesWholeOntoAVehicleThatCanTakeIt() {
+    PlanningRun.TripMove move = draft().moveTrip("T1", 1, t2, REGISTRY, CONTEXT);
+    assertTrue(move.feasible());
+    assertTrue(move.from().trips().isEmpty());
+    assertEquals(Set.of(a.orderId(), b.orderId()),
+        Set.copyOf(move.to().trip(1).orders().stream().map(PlanOrder::orderId).toList()));
+  }
+
+  @Test
+  void aChilledTripCannotMoveToAnAmbientTruck() {
+    PlanningRun.TripMove move = withChilledTrip().moveTrip("R1", 1, t2, REGISTRY, CONTEXT);
+    assertFalse(move.feasible());
+    assertTrue(move.checks().stream().anyMatch(r -> !r.passed() && r.ruleId().equals("R-PLN-02")));
+  }
+
+  @Test
+  void aReplanTakesTheFirstCandidateThatFitsAndTouchesNothingElse() {
+    PlanningRun before = withChilledTrip();
+
+    PlanningRun.Replanned replanned =
+        before.replanTrip(UUID.randomUUID(), 3, "T1", 1, List.of(t1, t2), "brakes", DISPATCHER, REGISTRY, CONTEXT);
+
+    assertEquals(Optional.of("T2"), replanned.movedTo(), "never back onto the vehicle being replaced");
+    PlanningRun next = replanned.run();
+    assertEquals(Optional.of("T2"), next.decisionFor(a.orderId()).orElseThrow().vehicleId());
+    assertTrue(next.decisionFor(a.orderId()).orElseThrow().reason().startsWith("replanned onto T2"));
+    assertEquals(before.decisionFor(c.orderId()), next.decisionFor(c.orderId()), "PLN-04: other trips untouched");
+  }
+
+  @Test
+  void aTripNoVehicleCanTakeDefersAsAUnitUnderTheRuleThatStoppedIt() {
+    PlanningRun.Replanned replanned =
+        withChilledTrip().replanTrip(UUID.randomUUID(), 3, "R1", 1, List.of(t2), "compressor failed", DISPATCHER,
+            REGISTRY, CONTEXT);
+
+    assertTrue(replanned.movedTo().isEmpty());
+    OrderDecision deferred = replanned.run().decisionFor(c.orderId()).orElseThrow();
+    assertEquals(AllocationDecision.DEFERRED, deferred.decision());
+    assertEquals(Optional.of("R-PLN-02"), deferred.bindingRule(), "R-LOD-09: named, never generic");
+    assertEquals(DISPATCHER, replanned.run().deferredBy().get(c.orderId()));
+
+    PlanningRun.Replanned alone =
+        withChilledTrip().replanTrip(UUID.randomUUID(), 3, "R1", 1, List.of(), "no fleet", DISPATCHER, REGISTRY, CONTEXT);
+    assertEquals(Optional.of("R-LOD-09"), alone.run().decisionFor(c.orderId()).orElseThrow().bindingRule());
+  }
+
+  @Test
+  void theOptionsForAnOrderAreEveryPlaceWithItsChecks() {
+    List<PlanningRun.Placement> options = draft().options(c, List.of(t1, t2, r1), REGISTRY, CONTEXT);
+
+    assertTrue(options.stream().anyMatch(p -> p.vehicleId().equals("R1") && p.feasible()));
+    assertTrue(options.stream()
+        .filter(p -> p.vehicleId().equals("T2"))
+        .allMatch(p -> !p.feasible() && p.checks().stream().anyMatch(r -> r.ruleId().equals("R-PLN-02") && !r.passed())));
+    assertEquals(2, options.stream().filter(p -> p.vehicleId().equals("T1")).count(), "join trip 1, or open trip 2");
   }
 
   private static OrderDecision served(PlanOrder o, String vehicle) {
