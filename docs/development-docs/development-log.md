@@ -21,6 +21,15 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-01 - ci: preview environment for dev
+
+`ci/preview-deploy` · @kavindamihiran
+
+A push to `dev` now runs the checks and deploys to a preview on the same VPS, `https://preview.62-171-128-70.sslip.io`, with its own database and accounts. The checks moved to a reusable `checks.yml` and also run on pull requests into `dev`. `deploy.sh` serves both environments, chosen by the checkout it sits in; each has its own CI key. No stack publishes a host port any more, including production's PostgreSQL and backend; Caddy reaches both frontends over a shared network. Details in [deployment.md](../deployment.md#judge-deployment-on-the-vps).
+Why: problems should show on a real deployment before `dev` is merged into `main`.
+Verified: both compose configurations and the Caddyfile validate, the latter inside the running Caddy. **Not verified: neither the production change to the proxy nor a preview deploy has run yet.**
+Open: first production deploy with the new proxy layout, then the first preview deploy once `dev` has these files.
+
 ## 2026-10-01 - ci: deploy main to the VPS, repair the compose init step
 
 `ci/vps-deploy` · @kavindamihiran
