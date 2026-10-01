@@ -12,7 +12,7 @@ import java.util.Optional;
  *
  * <p>A PIN is a second factor on a device a supervisor has already signed in,
  * never a way in on its own, so four digits are enough. Five wrong tries pause
- * PIN entry for that person for five minutes (R-IAM-19). The count is per
+ * PIN entry for that person for five minutes (R-IAM-26). The count is per
  * person and shared across replicas, because the attempts live in the database.
  */
 public final class PinPolicy {
@@ -23,7 +23,7 @@ public final class PinPolicy {
 
   public static void requireWellFormed(String pin) {
     if (pin == null || !pin.matches("\\d{4}")) {
-      throw new DomainException(ErrorCode.VALIDATION_FAILED, "A PIN is four digits", List.of("R-IAM-19"));
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, "A PIN is four digits", List.of("R-IAM-26"));
     }
   }
 

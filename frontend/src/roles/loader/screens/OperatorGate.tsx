@@ -11,7 +11,7 @@ import { useT } from "../i18n.tsx";
 
 // Figma "00 Who's loading", "00b PIN", E1 wrong PIN and E2 paused. Online the
 // server checks the PIN. Offline the device checks it against the crew list it
-// kept, and logs the switch for the server (R-IAM-20).
+// kept, and logs the switch for the server (R-IAM-27).
 
 export default function OperatorGate({
   account,

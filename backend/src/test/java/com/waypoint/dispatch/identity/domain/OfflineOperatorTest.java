@@ -60,7 +60,7 @@ class OfflineOperatorTest {
     var switches = List.of(new Switch(Optional.of(UUID.randomUUID()), NOW.minusSeconds(60)));
     DomainException e = assertThrows(DomainException.class,
         () -> OfflineSwitchPolicy.requireReplayable(switches, CREW, Optional.empty(), NOW));
-    assertEquals(List.of("R-IAM-20"), e.rules());
+    assertEquals(List.of("R-IAM-27"), e.rules());
   }
 
   @Test

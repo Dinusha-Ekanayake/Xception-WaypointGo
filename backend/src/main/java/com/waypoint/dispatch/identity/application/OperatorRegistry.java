@@ -162,8 +162,8 @@ public class OperatorRegistry {
               database.update("UPDATE iam.users SET pin_offline_verifier = ? WHERE user_id = ?",
                   verifier(pin), userId);
               database.update(
-                  "UPDATE iam.sessions SET operator_user_id = ?, operator_since = ? WHERE session_token = ?",
-                  userId, Timestamp.from(now), token);
+                  "UPDATE iam.sessions SET operator_user_id = ?, operator_since = ? WHERE token_hash = ?",
+                  userId, Timestamp.from(now), key);
               audit.record(AuditEntry.allowed(userId, device.deviceId(), "iam:SwitchOperator",
                   "wpt:iam:user:" + userId, "operator on a shared device"));
               return new Switched(new Operator(
@@ -186,8 +186,8 @@ public class OperatorRegistry {
               sessionKey);
           closeOpen(sessionKey, now, reason);
           database.update(
-              "UPDATE iam.sessions SET operator_user_id = NULL, operator_since = NULL WHERE session_token = ?",
-              token);
+              "UPDATE iam.sessions SET operator_user_id = NULL, operator_since = NULL WHERE token_hash = ?",
+              sessionKey);
           if (active != null) {
             audit.record(AuditEntry.allowed(
                 (UUID) active.get("user_id"), null, "iam:EndOperator",
@@ -210,9 +210,9 @@ public class OperatorRegistry {
                     """
                     SELECT u.user_id, u.display_name, u.employee_code, s.operator_since
                     FROM iam.sessions s JOIN iam.users u ON u.user_id = s.operator_user_id
-                    WHERE s.session_token = ? AND u.is_active
+                    WHERE s.token_hash = ? AND u.is_active
                     """,
-                    token));
+                    key(token)));
     if (row == null) {
       return Optional.empty();
     }
@@ -264,7 +264,7 @@ public class OperatorRegistry {
 
   /**
    * Adds switches the device made offline to its operator history, in order, so
-   * work queued under each operator syncs under them (R-IAM-20). Each is audited
+   * work queued under each operator syncs under them (R-IAM-27). Each is audited
    * as offline: the device checked the PIN, the server could not.
    *
    * @return the operator the device has after the last switch
@@ -281,7 +281,7 @@ public class OperatorRegistry {
             null,
             () -> {
               // One replay per device at a time, or two could interleave history.
-              database.queryOne("SELECT session_token FROM iam.sessions WHERE session_token = ? FOR UPDATE", token);
+              database.queryOne("SELECT token_hash FROM iam.sessions WHERE token_hash = ? FOR UPDATE", key);
               Map<String, Object> last = database.queryOne(
                   "SELECT max(coalesce(ended_at, started_at)) AS at FROM iam.session_operators WHERE session_key = ?",
                   key);
@@ -307,14 +307,28 @@ public class OperatorRegistry {
                     userId, member.displayName(), Optional.ofNullable(member.employeeCode()), s.at()));
               }
               database.update(
-                  "UPDATE iam.sessions SET operator_user_id = ?, operator_since = ? WHERE session_token = ?",
+                  "UPDATE iam.sessions SET operator_user_id = ?, operator_since = ? WHERE token_hash = ?",
                   operator.map(Operator::userId).orElse(null),
                   operator.map(o -> Timestamp.from(o.since())).orElse(null),
-                  token);
+                  key);
               return operator;
             });
     metrics.increment("waypoint.operator.offline_switch");
     return current;
+  }
+
+  /**
+   * Ends the open operator interval of every session the query selects, in the
+   * caller's transaction, before those sessions are deleted. A session's key is
+   * its token hash, so history and session stay joined without the token.
+   *
+   * @param sessionKeys a query returning {@code token_hash} for the sessions being revoked
+   */
+  public void endForSessionsInTransaction(String sessionKeys, Object parameter, String reason) {
+    database.update(
+        "UPDATE iam.session_operators SET ended_at = ?, end_reason = ?"
+            + " WHERE ended_at IS NULL AND session_key IN (" + sessionKeys + ")",
+        Timestamp.from(clock.now()), reason, parameter);
   }
 
   // ---- internals ---------------------------------------------------------------
@@ -351,7 +365,7 @@ public class OperatorRegistry {
   private static void requireLoaderDevice(SessionView device) {
     if (!device.roles().contains(LOADER_ROLE)) {
       throw new DomainException(
-          ErrorCode.FORBIDDEN, "Switching operators is for shared loader devices", List.of("R-IAM-18"));
+          ErrorCode.FORBIDDEN, "Switching operators is for shared loader devices", List.of("R-IAM-25"));
     }
   }
 

@@ -41,7 +41,8 @@ class LoginAuditTest {
           mock(LoginThrottle.class),
           mock(SessionRegistry.class),
           audit,
-          new Metrics(new SimpleMeterRegistry()));
+          new Metrics(new SimpleMeterRegistry()),
+          com.waypoint.dispatch.shared.util.Clock.system());
 
   @SuppressWarnings("unchecked")
   private void runTransactionsInline() {

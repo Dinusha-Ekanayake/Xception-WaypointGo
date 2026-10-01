@@ -58,6 +58,21 @@ ensure_certificate() {
   fi
 }
 
+# The backend logs in to PostgreSQL as waypoint_app, with a password of its own
+# that only this checkout's .env holds. The first deploy that needs it creates
+# it; `migrate` then sets it on the role, and re-sets it if it is ever changed
+# here. It is hex so it needs no quoting in a connection URL.
+ensure_app_db_password() {
+  [[ -n "$(env_value APP_DB_PASSWORD)" ]] && return 0
+  local secret
+  secret="$(openssl rand -hex 24)" || die "could not generate APP_DB_PASSWORD"
+  # A final newline may be missing; never join the new key onto the last line.
+  [[ -z "$(tail -c1 "$APP_DIR/.env")" ]] || echo >> "$APP_DIR/.env"
+  echo "APP_DB_PASSWORD=$secret" >> "$APP_DIR/.env" \
+    || die "could not write APP_DB_PASSWORD to $APP_DIR/.env; nothing was replaced"
+  echo "==> generated APP_DB_PASSWORD in .env"
+}
+
 # The body is a function so bash has parsed all of it before `git reset` can
 # replace this file underneath the running shell.
 main() {
@@ -92,6 +107,8 @@ main() {
   [[ -n "$site" ]] || die "SITE_ADDRESS is not set in .env"
 
   echo "==> deploying $environment: $(git log -1 --format='%h %s')"
+
+  ensure_app_db_password
 
   docker network inspect waypoint-edge >/dev/null 2>&1 || docker network create waypoint-edge >/dev/null
 

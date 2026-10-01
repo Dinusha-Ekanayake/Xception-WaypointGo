@@ -13,6 +13,7 @@ import com.waypoint.dispatch.identity.application.SessionRegistry;
 import com.waypoint.dispatch.identity.contract.SessionView;
 import com.waypoint.dispatch.identity.web.AuthController;
 import com.waypoint.dispatch.identity.web.SessionActorResolver;
+import com.waypoint.dispatch.identity.web.SessionCookie;
 import com.waypoint.dispatch.identity.web.SessionRequestAuthorizer;
 import com.waypoint.dispatch.shared.domain.Actor;
 import jakarta.servlet.http.Cookie;
@@ -27,7 +28,8 @@ class SessionActorScopeTest {
   private final SessionRegistry sessions = mock(SessionRegistry.class);
   private final OperatorRegistry operators = mock(OperatorRegistry.class);
   private final PolicyDecisionPoint decisions = mock(PolicyDecisionPoint.class);
-  private final SessionActorResolver resolver = new SessionActorResolver(sessions, operators);
+  private final SessionCookie cookie = mock(SessionCookie.class);
+  private final SessionActorResolver resolver = new SessionActorResolver(sessions, operators, cookie);
   private final SessionRequestAuthorizer authorizer = new SessionRequestAuthorizer(resolver, decisions);
 
   @Test
@@ -38,6 +40,7 @@ class SessionActorScopeTest {
     Actor account = new Actor(accountId, deviceId);
     MockHttpServletRequest request = new MockHttpServletRequest();
     request.setCookies(new Cookie(AuthController.COOKIE, "session-token"));
+    when(cookie.read(request)).thenReturn("session-token");
     SessionView session = new SessionView(accountId, "Device", List.of("loader", "dispatcher"), List.of(), deviceId);
     when(sessions.resolve("session-token")).thenReturn(Optional.of(session));
     when(sessions.actorOf(session)).thenReturn(account);

@@ -16,10 +16,12 @@ public final class TestProperties {
         "postgresql://localhost/test",
         "../data",
         "../migrations",
+        "",
         false,
+        java.util.List.of(),
         "urn:waypoint:problem:",
-        new AppProperties.Session(Duration.ofHours(12), Duration.ofHours(2)),
-        new AppProperties.LoginThrottle(8, Duration.ofMinutes(15)),
+        new AppProperties.Session(Duration.ofHours(12), Duration.ofHours(2), Duration.ofMinutes(1)),
+        new AppProperties.LoginThrottle(8, 40, 40, Duration.ofMinutes(15)),
         new AppProperties.Http(maxBodyBytes),
         new AppProperties.Observability(false, "", 0.1));
   }

@@ -33,7 +33,7 @@ export async function replayOfflineSwitches(account: string): Promise<void> {
       body: { switches },
     });
   } catch (failure) {
-    // A refusal is final (R-IAM-20): drop the switches so the queue is not stuck
+    // A refusal is final (R-IAM-27): drop the switches so the queue is not stuck
     // behind them. Work recorded under them is then refused by the server and
     // held on screen for review, which is visible; a stuck queue is not.
     if (!(failure instanceof ApiError) || failure.status >= 500 || [401, 408, 429].includes(failure.status)) throw failure;

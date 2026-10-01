@@ -32,7 +32,7 @@ public class OperatorDataQuery implements OperatorQuery {
             """
             SELECT u.user_id, s.device_id
             FROM iam.session_operators o
-            JOIN iam.sessions s ON s.session_token = ?
+            JOIN iam.sessions s ON s.token_hash = ?
             JOIN iam.users u ON u.user_id = o.user_id AND u.is_active
             JOIN iam.user_roles r ON r.user_id = u.user_id AND r.role_code = ?
             WHERE o.session_key = ? AND o.user_id = ? AND o.started_at <= ?
@@ -40,7 +40,7 @@ public class OperatorDataQuery implements OperatorQuery {
             ORDER BY o.started_at DESC
             LIMIT 1
             """,
-            sessionToken,
+            OperatorRegistry.key(sessionToken),
             OperatorRegistry.LOADER_ROLE,
             OperatorRegistry.key(sessionToken),
             userId,

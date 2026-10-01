@@ -121,8 +121,9 @@ class CommandBusTest {
   }
 
   @Test
-  void anUnknownKindIsNotFoundRatherThanForbidden() {
-    CommandBus bus = bus(Optional.of(allowEverything()));
+  void anUnknownKindIsRefusedAndRecordedLikeAnyOtherDenial() {
+    AuditLog audit = mock(AuditLog.class);
+    CommandBus bus = bus(Optional.of(allowEverything()), new RecordingHandler(), audit);
 
     DomainException thrown =
         assertThrows(
@@ -132,7 +133,48 @@ class CommandBusTest {
                     ACTOR,
                     new Command(UUID.randomUUID(), "vehicle:Teleport", null, null, null)));
 
-    assertEquals(ErrorCode.NOT_FOUND, thrown.code());
+    // Deny by default: 403 plus an audit row. A 404 would tell a caller which
+    // kinds exist.
+    assertEquals(ErrorCode.FORBIDDEN, thrown.code());
+    ArgumentCaptor<AuditEntry> denial = ArgumentCaptor.forClass(AuditEntry.class);
+    verify(audit).recordStandalone(denial.capture());
+    assertEquals("DENY", denial.getValue().decision());
+    assertTrue(denial.getValue().reason().contains("vehicle:Teleport"), denial.getValue().reason());
+  }
+
+  /**
+   * SEC-03. The permission held when the command arrived and was gone by the time
+   * its transaction opened. The second answer is the one that counts: the handler
+   * does not run, and the refusal is recorded once the transaction has rolled back.
+   */
+  @Test
+  void aPermissionRevokedBeforeTheTransactionOpensStopsTheCommand() {
+    AuditLog audit = mock(AuditLog.class);
+    RecordingHandler handler = new RecordingHandler();
+    CommandAuthorizer revokedInFlight =
+        new CommandAuthorizer() {
+          @Override
+          public Optional<String> denyReason(
+              Actor actor, String action, String resource, Command command) {
+            return Optional.empty();
+          }
+
+          @Override
+          public Optional<String> denyReasonInTransaction(
+              Actor actor, String action, String resource, Command command) {
+            return Optional.of("No policy allows test:Do");
+          }
+        };
+    CommandBus bus = bus(Optional.of(revokedInFlight), handler, audit);
+
+    DomainException thrown =
+        assertThrows(DomainException.class, () -> bus.dispatch(ACTOR, command()));
+
+    assertEquals(ErrorCode.FORBIDDEN, thrown.code());
+    assertFalse(handler.ran, "the handler must not run on a permission that no longer holds");
+    ArgumentCaptor<AuditEntry> entry = ArgumentCaptor.forClass(AuditEntry.class);
+    verify(audit).recordStandalone(entry.capture());
+    assertEquals("No policy allows test:Do", entry.getValue().reason());
   }
 
   // ---- fixtures ----

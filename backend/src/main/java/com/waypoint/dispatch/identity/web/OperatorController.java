@@ -31,11 +31,14 @@ public class OperatorController {
   private final SessionRegistry sessions;
   private final OperatorRegistry operators;
   private final Clock clock;
+  private final SessionCookie cookie;
 
-  public OperatorController(SessionRegistry sessions, OperatorRegistry operators, Clock clock) {
+  public OperatorController(
+      SessionRegistry sessions, OperatorRegistry operators, Clock clock, SessionCookie cookie) {
     this.sessions = sessions;
     this.operators = operators;
     this.clock = clock;
+    this.cookie = cookie;
   }
 
   public record SwitchRequest(String userId, String pin) {}
@@ -46,11 +49,11 @@ public class OperatorController {
 
   /**
    * The crew a loader may switch to on this device, with the PIN check each one
-   * may use offline until {@code expiresAt} (R-IAM-20). Never the PIN itself.
+   * may use offline until {@code expiresAt} (R-IAM-27). Never the PIN itself.
    */
   @GetMapping("/crew")
   public Map<String, Object> crew(HttpServletRequest request) {
-    String token = AuthController.tokenFrom(request);
+    String token = cookie.read(request);
     SessionView device = signedIn(token);
     List<Map<String, Object>> members = operators.crew(device).stream().map(member -> {
       Map<String, Object> m = new LinkedHashMap<>();
@@ -68,7 +71,7 @@ public class OperatorController {
   /** Switches made while offline, sent on reconnect before the queued work they cover. */
   @PostMapping("/operator/offline")
   public Map<String, Object> replayOffline(@RequestBody OfflineRequest body, HttpServletRequest request) {
-    String token = AuthController.tokenFrom(request);
+    String token = cookie.read(request);
     SessionView device = signedIn(token);
     if (body == null || body.switches() == null) {
       throw new DomainException(ErrorCode.VALIDATION_FAILED, "switches are required");
@@ -92,7 +95,7 @@ public class OperatorController {
 
   @PostMapping("/operator")
   public ResponseEntity<?> switchOperator(@RequestBody SwitchRequest body, HttpServletRequest request) {
-    String token = AuthController.tokenFrom(request);
+    String token = cookie.read(request);
     SessionView device = signedIn(token);
     UUID userId;
     try {
@@ -121,7 +124,7 @@ public class OperatorController {
 
   @DeleteMapping("/operator")
   public ResponseEntity<Void> lock(HttpServletRequest request) {
-    String token = AuthController.tokenFrom(request);
+    String token = cookie.read(request);
     signedIn(token);
     operators.end(token, "lock");
     return ResponseEntity.noContent().build();

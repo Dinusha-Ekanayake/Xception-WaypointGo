@@ -1,4 +1,4 @@
--- Offline PIN switching on a shared loader device (decision 2026-10-01, R-IAM-20).
+-- Offline PIN switching on a shared loader device (decision 2026-10-01, R-IAM-27).
 -- The device downloads a PBKDF2 verifier per crew member, never the PIN, and
 -- checks a PIN against it while offline. Each verifier is written when the PIN
 -- is set or entered online; members without one can only switch online.

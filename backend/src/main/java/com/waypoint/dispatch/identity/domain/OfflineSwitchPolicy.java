@@ -11,7 +11,7 @@ import java.util.UUID;
 
 /**
  * Which operator switches made offline the server adds to a device's operator
- * history when it reconnects (decision 2026-10-01, R-IAM-20).
+ * history when it reconnects (decision 2026-10-01, R-IAM-27).
  *
  * <p>The device checked the PIN against the crew list it downloaded; the server
  * cannot recheck it. So it accepts a switch only to someone on that device's
@@ -52,6 +52,6 @@ public final class OfflineSwitchPolicy {
   }
 
   private static DomainException refused(String message) {
-    return new DomainException(ErrorCode.CONFLICT, message, List.of("R-IAM-20"));
+    return new DomainException(ErrorCode.CONFLICT, message, List.of("R-IAM-27"));
   }
 }

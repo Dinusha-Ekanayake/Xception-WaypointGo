@@ -15,7 +15,7 @@ import javax.crypto.spec.SecretKeySpec;
  * browser recomputes with WebCrypto. A four-digit PIN has ten thousand values,
  * so anyone holding a verifier can find the PIN whatever the iteration count.
  * It is downloaded only to a supervisor-signed-in loader device, expires with
- * the crew list and is wiped at sign-out; that is the accepted risk (R-IAM-20).
+ * the crew list and is wiped at sign-out; that is the accepted risk (R-IAM-27).
  */
 public final class PinVerifier {
   public static final int ITERATIONS = 100_000;

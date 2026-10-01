@@ -1,4 +1,4 @@
-// Offline PIN switching on a shared loader device (decision 2026-10-01, R-IAM-20).
+// Offline PIN switching on a shared loader device (decision 2026-10-01, R-IAM-27).
 //
 // Online, the device keeps the crew list with each member's PBKDF2 verifier
 // (identity PinVerifier.java), never a PIN. Offline, a PIN is checked against
