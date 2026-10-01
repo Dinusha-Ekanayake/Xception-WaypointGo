@@ -112,6 +112,7 @@ public class LoadingFixture {
             fleet.stream()
                 .filter(v -> !chilled || v.refrigerated())
                 .filter(v -> tripsUsed.getOrDefault(v.vehicleId(), 0) < 2)
+                .filter(v -> remaining.stream().anyMatch(d -> v.van() || !vanOnly(d)))
                 .max(Comparator.comparing(VehicleView::weightCapKg));
         if (vehicle.isEmpty()) {
           break; // the rest would be deferred; that decision is Planning's
