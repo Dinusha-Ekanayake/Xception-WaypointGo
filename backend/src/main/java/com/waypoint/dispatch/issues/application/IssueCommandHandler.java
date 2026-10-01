@@ -40,14 +40,21 @@ abstract class IssueCommandHandler implements CommandHandler {
   protected final EventPublisher events;
   protected final Metrics metrics;
   protected final Clock clock;
+  protected final IssueScope scope;
 
   IssueCommandHandler(
-      Database database, JdbcIssueRepository issues, EventPublisher events, Metrics metrics, Clock clock) {
+      Database database,
+      JdbcIssueRepository issues,
+      EventPublisher events,
+      Metrics metrics,
+      Clock clock,
+      IssueScope scope) {
     this.database = database;
     this.issues = issues;
     this.events = events;
     this.metrics = metrics;
     this.clock = clock;
+    this.scope = scope;
   }
 
   /** The decision on the issue as it stands. */
@@ -89,7 +96,7 @@ abstract class IssueCommandHandler implements CommandHandler {
     UUID issueId = CommandPayload.of(command).uuid("issueId");
     Instant now = clock.now();
 
-    requireScope(issueId);
+    requireScope(actor, issueId);
     Issue current =
         issues.find(issueId).map(Stored::issue)
             .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No issue " + issueId));
@@ -114,11 +121,11 @@ abstract class IssueCommandHandler implements CommandHandler {
   }
 
   /** The issue's depot or outlet, read as the system; then the actor's scope, in this transaction. */
-  private void requireScope(UUID issueId) {
+  private void requireScope(Actor actor, UUID issueId) {
     Issue issue =
         database.readAs(ModuleRole.ISSUES, Actor.SYSTEM_ID, () -> issues.find(issueId).map(Stored::issue))
             .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No issue " + issueId));
-    IssueScope.require(database, issue.depotCode(), issue.outletId());
+    scope.require(actor, issue.depotCode(), issue.outletId());
   }
 
   /** A reason of at least three characters, which every decision on an issue carries (rule 8). */

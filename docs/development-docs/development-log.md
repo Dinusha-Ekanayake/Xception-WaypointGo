@@ -21,6 +21,15 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-02 - fix(issues): drivers raise by the vehicle they drive today; assignees must work the depot (issue #13)
+
+`feat/receipt-issues` · @Oxshadha
+
+`IssueScope` now admits a driver for the depot of the vehicle they drive today, through Identity's `driverVehicleOn` (#5, R-IAM-13), so drivers need no depot grant and A-29 is withdrawn. `issue:Assign` requires the assignee to be scoped to the issue's depot through `scopeOf` (R-ISS-08). Both read only Identity's and Reference data's contracts.
+Why: #5 shipped the vehicle-and-date scope this was waiting for.
+Verified: on a fresh database, `TEST_DATABASE_URL=... mvn test`, 439 tests, 0 failures; frontend `npm run typecheck` and `npm test` (12) pass.
+Open: nothing for #13 beyond the walkthrough's gaps owned by other modules.
+
 ## 2026-10-02 - test: cap the connection pool per cached test context
 
 `feat/receipt-issues` · @Oxshadha

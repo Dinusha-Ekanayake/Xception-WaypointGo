@@ -58,11 +58,37 @@ class IssuesCommandIntegrationTest extends ReceiptIssuesSupport {
 
   @Test
   void raiseRightsArePolicyDataByType() throws Exception {
+    assignToday(driver);
     raise(manager, "VEHICLE_FAULT", Optional.of(outlet.outletId()), "vehicle", "VEH001", 403);
     raise(manager, "DAMAGED_GOODS", Optional.of(outlet.outletId()), "order", UUID.randomUUID(), 200);
     raise(loader, "LOADING_SHORTFALL", Optional.empty(), "order", UUID.randomUUID(), 200);
     raise(loader, "FAILED_DELIVERY", Optional.empty(), "order", UUID.randomUUID(), 403);
     raise(driver, "VEHICLE_FAULT", Optional.empty(), "vehicle", "VEH001", 200);
+  }
+
+  @Test
+  void aDriverRaisesOnlyForTheDepotOfTheVehicleTheyDriveToday() throws Exception {
+    long before = denials(roamingDriver.id(), "issue:Raise");
+    raise(roamingDriver, "VEHICLE_FAULT", Optional.empty(), "vehicle", "VEH001", 403);
+    assertEquals(before + 1, denials(roamingDriver.id(), "issue:Raise"), "no vehicle today, no scope (R-IAM-13)");
+
+    String vehicle = assignToday(roamingDriver);
+    raise(roamingDriver, "VEHICLE_FAULT", Optional.empty(), "vehicle", vehicle, 200);
+    send(roamingDriver, envelope("issue:Raise", null,
+        "{\"type\":\"VEHICLE_FAULT\",\"severity\":\"HIGH\",\"depotCode\":\"" + otherDepot + "\","
+            + "\"subjects\":[{\"type\":\"vehicle\",\"id\":\"" + vehicle + "\"}],\"description\":\"elsewhere\"}"), 403);
+  }
+
+  @Test
+  void anIssueIsAssignedOnlyToSomeoneWhoWorksItsDepot() throws Exception {
+    UUID issueId = raise(dispatcher, "OTHER", Optional.empty(), "order", UUID.randomUUID(), 200);
+
+    JsonNode refused = send(dispatcher, envelope("issue:Assign", 1L,
+        "{\"issueId\":\"" + issueId + "\",\"assigneeUserId\":\"" + stranger.id() + "\"}"), 422);
+    assertTrue(refused.toString().contains("R-ISS-08"), refused.toString());
+
+    send(dispatcher, envelope("issue:Assign", 1L,
+        "{\"issueId\":\"" + issueId + "\",\"assigneeUserId\":\"" + loader.id() + "\"}"), 200);
   }
 
   @Test
@@ -81,6 +107,7 @@ class IssuesCommandIntegrationTest extends ReceiptIssuesSupport {
   @Test
   void aRedeliveryIsRequestedExactlyOnceAndOrderingCreatesOneOrder() throws Exception {
     Order failed = deliveredOrder(outlet);
+    assignToday(driver);
     UUID issueId = raise(driver, "FAILED_DELIVERY", Optional.of(outlet.outletId()), "order", failed.orderId(), 200);
     LocalDate tomorrow = LocalDate.now(ZoneId.of("Asia/Colombo")).plusDays(1);
     String body =

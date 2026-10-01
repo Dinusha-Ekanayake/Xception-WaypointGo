@@ -83,7 +83,7 @@ public abstract class ReceiptIssuesSupport {
   protected Person dispatcher;
   protected Person farDispatcher;
   protected Person driver;
-  /** A driver with no depot scope: sees only what they raised. */
+  /** A driver never assigned a vehicle: no scope at all, sees only what they raised. */
   protected Person roamingDriver;
   protected Person loader;
 
@@ -131,7 +131,7 @@ public abstract class ReceiptIssuesSupport {
     stranger = person("ris-" + run, "store_manager", Optional.empty(), Optional.of(otherOutlet.outletId()));
     dispatcher = person("rid-" + run, "dispatcher", Optional.of(depot), Optional.empty());
     farDispatcher = person("rif-" + run, "dispatcher", Optional.of(otherDepot), Optional.empty());
-    driver = person("rdr-" + run, "driver", Optional.of(depot), Optional.empty());
+    driver = person("rdr-" + run, "driver", Optional.empty(), Optional.empty());
     roamingDriver = person("rrd-" + run, "driver", Optional.empty(), Optional.empty());
     loader = person("rlo-" + run, "loader", Optional.of(depot), Optional.empty());
   }
@@ -150,6 +150,46 @@ public abstract class ReceiptIssuesSupport {
                         "INSERT INTO iam.user_outlet_access (user_id, outlet_id) VALUES (?, ?)", id, o)));
     Cookie session = new Cookie(AuthController.COOKIE, login.login(email, PASSWORD, null, "127.0.0.1"));
     return new Person(id, email, session);
+  }
+
+  /**
+   * Assigns {@code who} to a vehicle of the test depot for today, the way a
+   * driver gets scope (R-IAM-13). A vehicle takes one driver per date, and the
+   * test database is shared, so this picks one no one drives today.
+   */
+  protected String assignToday(Person who) {
+    LocalDate today = LocalDate.now(com.waypoint.dispatch.shared.util.Clock.OPERATING_ZONE);
+    String vehicle =
+        database.asModule(
+            ModuleRole.IAM,
+            null,
+            () ->
+                (String)
+                    Optional.ofNullable(
+                            database.queryOne(
+                                "SELECT v.vehicle_id FROM ref.vehicles v WHERE v.reference_version_id = ?"
+                                    + " AND v.depot_code = ? AND NOT EXISTS (SELECT 1 FROM"
+                                    + " iam.vehicle_driver_assignments a WHERE a.vehicle_id = v.vehicle_id"
+                                    + " AND a.validity @> ?::date) ORDER BY v.vehicle_id LIMIT 1",
+                                reference.currentVersionId().orElseThrow(),
+                                depot,
+                                java.sql.Date.valueOf(today)))
+                        .orElseThrow(
+                            () -> new IllegalStateException(
+                                "every vehicle of " + depot + " already has a driver today; recreate the test database"))
+                        .get("vehicle_id"));
+    database.asModule(
+        ModuleRole.IAM,
+        null,
+        () ->
+            database.update(
+                "INSERT INTO iam.vehicle_driver_assignments (vehicle_id, driver_user_id, validity)"
+                    + " VALUES (?, ?, daterange(?, ?))",
+                vehicle,
+                who.id(),
+                java.sql.Date.valueOf(today),
+                java.sql.Date.valueOf(today.plusDays(1))));
+    return vehicle;
   }
 
   // ---- orders and deliveries -------------------------------------------------

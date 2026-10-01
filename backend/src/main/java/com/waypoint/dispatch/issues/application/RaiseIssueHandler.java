@@ -9,7 +9,6 @@ import com.waypoint.dispatch.issues.contract.IssueViews.IssueType;
 import com.waypoint.dispatch.issues.contract.IssueViews.SubjectRef;
 import com.waypoint.dispatch.issues.domain.Issue;
 import com.waypoint.dispatch.issues.infrastructure.JdbcIssueRepository;
-import com.waypoint.dispatch.platform.db.Database;
 import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.platform.messaging.Command;
 import com.waypoint.dispatch.platform.messaging.CommandHandler;
@@ -41,32 +40,33 @@ import java.util.Optional;
  *       role may raise (issue #13, decision 2). A store raising a vehicle fault is
  *       refused by the bus before this runs.
  *   <li><b>Where</b> is scope: the actor must hold the issue's depot, or the
- *       outlet it names, and that outlet must belong to the depot.
+ *       outlet it names, or drive a vehicle of that depot today; a named outlet
+ *       must belong to the depot.
  * </ul>
  */
 @org.springframework.stereotype.Component
 public class RaiseIssueHandler implements CommandHandler {
-  private final Database database;
   private final JdbcIssueRepository issues;
   private final ReferenceQuery reference;
   private final EventPublisher events;
   private final Metrics metrics;
   private final Clock clock;
+  private final IssueScope scope;
   private final SecureRandom random = new SecureRandom();
 
   RaiseIssueHandler(
-      Database database,
       JdbcIssueRepository issues,
       ReferenceQuery reference,
       EventPublisher events,
       Metrics metrics,
-      Clock clock) {
-    this.database = database;
+      Clock clock,
+      IssueScope scope) {
     this.issues = issues;
     this.reference = reference;
     this.events = events;
     this.metrics = metrics;
     this.clock = clock;
+    this.scope = scope;
   }
 
   @Override
@@ -112,7 +112,7 @@ public class RaiseIssueHandler implements CommandHandler {
                 List.of("R-ISS-03"));
           }
         });
-    IssueScope.require(database, depot, outlet);
+    scope.require(actor, depot, outlet);
 
     Issue issue =
         Issue.raise(

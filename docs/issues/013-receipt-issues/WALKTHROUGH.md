@@ -81,7 +81,7 @@ Outside the two modules:
 
 **Raised by a person** (`issue:Raise`):
 - The bus checks the type against the role policies (R-ISS-07).
-- The handler checks that any outlet named belongs to the depot, and that the actor holds the depot or that outlet.
+- The handler checks that any outlet named belongs to the depot, and that the actor holds the depot or that outlet, or, for a driver, drives a vehicle of that depot today (ISS-10).
 
 **Raised by an event** (`IssuesConsumers`), one issue per event at the policy's default severity:
 
@@ -97,7 +97,7 @@ Outside the two modules:
 ### Decisions on an issue
 
 `IssueCommandHandler` uses the same scope, version and transaction pattern as receipts. Every decision writes a history row with the actor, the action and the reason.
-- **Assign:** OPEN → ASSIGNED, and a reassign is allowed.
+- **Assign:** OPEN → ASSIGNED, and a reassign is allowed. The assignee must be scoped to the issue's depot (R-ISS-08).
 - **Resolve:** needs an action and a note. An investigation is refused for the system actor.
 - **Record a replacement:** loading shortfalls only. Publishes `shortfall.resolved` for Loading, naming the shortfall when the issue was raised from one, so Loading resolves that shortfall alone (ISS-07).
 - **Schedule a redelivery:** only when nothing reached the outlet (a failed delivery or a stock discrepancy), exactly once per issue, never for a past date. Publishes `redelivery.requested`, and Ordering creates one linked order that carries a skip, so the next plan serves the outlet first (ORD-15). A disputed, damaged or late delivery is refused (ISS-08): a redelivery is the whole order and would ship the goods twice, so it is resolved as write-off, no fault found or other, and the store reorders what is missing.
@@ -160,8 +160,8 @@ Checked against the full description of each module issue. A gap goes to the mod
 | The custody view's loading check and proof are "unavailable" until their query beans exist (`LoadingQuery.manifest`, `ExecutionQuery.deliveryRecord`); RCP-06 and RCP-07 then become testable end to end | #10 Loading and #12 Execution, open; both list these queries | Covered |
 | Routing `issue.raised`, `issue.escalated` and `receipt.disputed` to dispatchers | #14 Notification, open. Its matrix covers every catalogue event; MODULES §9 now has the `issue.escalated` row | Covered |
 | Loading's consumer should resolve only the shortfall `shortfall.resolved` names (ISS-07) | #10 Loading, open. Not in its description: comment needed | Needs a comment on #10 |
-| Driver raise scope by vehicle and date instead of the temporary depot grant (A-29) | #13 code, using `driverVehicleOn` from #5, open | Needs a comment on #5; #13 follow-up |
-| An assignee is checked to exist, not to hold the issue's depot | #13, using `scopeOf` from #5 | #13 follow-up, blocked on #5 |
+| Driver raise scope by vehicle and date (A-29 withdrawn) | #13, using `driverVehicleOn` from #5 | Done: a driver raises for the depot of the vehicle they drive today (ISS-10) |
+| An assignee must hold the issue's depot | #13, using `scopeOf` from #5 | Done (R-ISS-08, ISS-09) |
 | A redelivery is the whole order, so it is allowed only where nothing arrived (A-24, decided here) | #13 | Decided. Partial redelivery (lines on `redelivery.requested`, a subset order, a new reservation) is a follow-up for Ordering and Warehouse |
 | A late arrival at a mall must be recorded as a failed delivery, `mall_window_closed` (C-7, EXE-20) | #12 Execution, open. Not in its description: comment needed | Needs a comment on #12; Issues already raises FAILED_DELIVERY from it |
 | The dispatcher's issues inbox screen | #19 Dispatcher UI lists it, but #19 closed on 2026-09-30 before this backend existed; on `dev` the screen is a placeholder | Ask the owner to reopen #19, or open a follow-up linked to it |

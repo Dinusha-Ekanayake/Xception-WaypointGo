@@ -159,6 +159,8 @@ Most of the cases below are instances of nine patterns. Learn the patterns and t
 | ISS-06 | Two people change one issue at once | The stale one is refused with 409; never last-writer-wins | `row_version` guard | `waypoint.version.conflict` | `IssuesCommandIntegrationTest.aStaleVersionIsRefusedAndAnIssueRaisedInErrorIsCancelledWithAReason` |
 | ISS-07 | A replacement answers one of several open shortfalls on the same trip and order | `shortfall.resolved` names that shortfall, so the others stay open at the dock | Issues, Loading | n/a | `IssuesConsumersIntegrationTest.eachReportedProblemRaisesExactlyOneIssueWithTheDefaultSeverity` (Issues half; Loading's consumer must read `shortfallId`, #10) |
 | ISS-08 | A redelivery is asked for an issue where the goods arrived (dispute, damage, late) | Refused with `R-ISS-04`: a redelivery is the whole order and would ship the goods twice. Resolved as write-off, no fault found or other; the store reorders what is missing (A-24) | Issues domain | Refusal counter | `IssueTest.aRedeliveryAnswersOnlyAnIssueWhereNothingArrived` |
+| ISS-09 | An issue is assigned to someone outside its depot | Refused with `R-ISS-08`; the assignee could not see it | `IssueScope` via Identity's `scopeOf` | Refusal counter | `IssuesCommandIntegrationTest.anIssueIsAssignedOnlyToSomeoneWhoWorksItsDepot` |
+| ISS-10 | A driver raises an issue with no vehicle today, or for another depot | `403` plus audit: a driver's scope is the depot of the vehicle they drive today (R-IAM-13) | `IssueScope` via Identity's `driverVehicleOn` | Denied counter | `IssuesCommandIntegrationTest.aDriverRaisesOnlyForTheDepotOfTheVehicleTheyDriveToday` |
 
 ## 8. Fleet and vehicles
 

@@ -32,8 +32,8 @@ final class IssueHandlers {
 
   @Component
   static class AssignIssueHandler extends IssueCommandHandler {
-    AssignIssueHandler(Database d, JdbcIssueRepository i, EventPublisher e, Metrics m, Clock c) {
-      super(d, i, e, m, c);
+    AssignIssueHandler(Database d, JdbcIssueRepository i, EventPublisher e, Metrics m, Clock c, IssueScope s) {
+      super(d, i, e, m, c, s);
     }
 
     @Override
@@ -43,7 +43,9 @@ final class IssueHandlers {
 
     @Override
     protected Issue decide(Issue current, Command command, Actor actor, Instant now) {
-      return current.assign(CommandPayload.of(command).uuid("assigneeUserId"));
+      UUID assignee = CommandPayload.of(command).uuid("assigneeUserId");
+      scope.requireAssignable(assignee, current.depotCode());
+      return current.assign(assignee);
     }
 
     @Override
@@ -59,8 +61,8 @@ final class IssueHandlers {
 
   @Component
   static class ResolveIssueHandler extends IssueCommandHandler {
-    ResolveIssueHandler(Database d, JdbcIssueRepository i, EventPublisher e, Metrics m, Clock c) {
-      super(d, i, e, m, c);
+    ResolveIssueHandler(Database d, JdbcIssueRepository i, EventPublisher e, Metrics m, Clock c, IssueScope s) {
+      super(d, i, e, m, c, s);
     }
 
     @Override
@@ -93,8 +95,8 @@ final class IssueHandlers {
   /** A replacement for a loading shortfall was loaded; Loading may recheck and release (LOD-01). */
   @Component
   static class RecordReplacementHandler extends IssueCommandHandler {
-    RecordReplacementHandler(Database d, JdbcIssueRepository i, EventPublisher e, Metrics m, Clock c) {
-      super(d, i, e, m, c);
+    RecordReplacementHandler(Database d, JdbcIssueRepository i, EventPublisher e, Metrics m, Clock c, IssueScope s) {
+      super(d, i, e, m, c, s);
     }
 
     @Override
@@ -139,8 +141,8 @@ final class IssueHandlers {
    */
   @Component
   static class ScheduleRedeliveryHandler extends IssueCommandHandler {
-    ScheduleRedeliveryHandler(Database d, JdbcIssueRepository i, EventPublisher e, Metrics m, Clock c) {
-      super(d, i, e, m, c);
+    ScheduleRedeliveryHandler(Database d, JdbcIssueRepository i, EventPublisher e, Metrics m, Clock c, IssueScope s) {
+      super(d, i, e, m, c, s);
     }
 
     @Override
@@ -179,8 +181,8 @@ final class IssueHandlers {
 
   @Component
   static class CloseIssueHandler extends IssueCommandHandler {
-    CloseIssueHandler(Database d, JdbcIssueRepository i, EventPublisher e, Metrics m, Clock c) {
-      super(d, i, e, m, c);
+    CloseIssueHandler(Database d, JdbcIssueRepository i, EventPublisher e, Metrics m, Clock c, IssueScope s) {
+      super(d, i, e, m, c, s);
     }
 
     @Override
@@ -206,8 +208,8 @@ final class IssueHandlers {
 
   @Component
   static class CancelIssueHandler extends IssueCommandHandler {
-    CancelIssueHandler(Database d, JdbcIssueRepository i, EventPublisher e, Metrics m, Clock c) {
-      super(d, i, e, m, c);
+    CancelIssueHandler(Database d, JdbcIssueRepository i, EventPublisher e, Metrics m, Clock c, IssueScope s) {
+      super(d, i, e, m, c, s);
     }
 
     @Override
