@@ -152,7 +152,7 @@ class PeakDayAllocationTest {
     DomainException e =
         assertThrows(DomainException.class, () -> new ValidatingEngine(cheat, registry, alerts::add).allocate(s1.problem()));
 
-    assertTrue(e.violations().contains("R-PLN-06"));
+    assertTrue(e.rules().contains("R-PLN-06"));
     assertEquals(1, alerts.size(), "PLN-12 raises an alert on any occurrence");
   }
 }

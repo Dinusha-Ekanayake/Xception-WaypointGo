@@ -171,7 +171,7 @@ class ConstraintsTest {
     params.remove(RuleSet.FRESH_BUDGET_MIN);
     RuleSet incomplete = new RuleSet(UUID.randomUUID(), params);
     DomainException e = assertThrows(DomainException.class, incomplete::freshBudgetMinutes);
-    assertEquals(java.util.List.of("POL-10"), e.violations());
+    assertEquals(java.util.List.of("POL-10"), e.rules());
   }
 
   @Test

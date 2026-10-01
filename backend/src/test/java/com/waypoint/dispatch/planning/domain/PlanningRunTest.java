@@ -86,7 +86,7 @@ class PlanningRunTest {
             DomainException.class,
             () -> draft().override(UUID.randomUUID(), 2, c, t2, 1, "dispatcher insists", REGISTRY, CONTEXT));
     assertEquals(ErrorCode.CONSTRAINT_VIOLATED, refused.code());
-    assertTrue(refused.violations().contains("R-PLN-02"), refused.violations().toString());
+    assertTrue(refused.rules().contains("R-PLN-02"), refused.rules().toString());
   }
 
   @Test
@@ -143,7 +143,7 @@ class PlanningRunTest {
             DomainException.class,
             () -> published.defer(UUID.randomUUID(), 2, a.orderId(), "late change", DISPATCHER, REGISTRY, CONTEXT));
     assertEquals(ErrorCode.CONFLICT, refused.code());
-    assertEquals(List.of("R-PLN-28"), refused.violations());
+    assertEquals(List.of("R-PLN-28"), refused.rules());
   }
 
   @Test
@@ -199,7 +199,7 @@ class PlanningRunTest {
         assertThrows(
             DomainException.class,
             () -> draft().revision(UUID.randomUUID(), 2, draft().stamps(), "fp", Set.of(), "why", ENGINE, REGISTRY, CONTEXT));
-    assertEquals(List.of("R-PLN-28"), refused.violations());
+    assertEquals(List.of("R-PLN-28"), refused.rules());
   }
 
   @Test
