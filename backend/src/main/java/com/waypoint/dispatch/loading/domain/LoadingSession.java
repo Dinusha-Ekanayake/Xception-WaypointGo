@@ -22,7 +22,7 @@ import java.util.UUID;
  *
  * <ul>
  *   <li>R-LOD-11: one loader holds a trip at a time; only the holder writes to it.
- *   <li>R-LOD-02: a missing, damaged, short or oversized item is flagged before
+   *   <li>R-LOD-02: a missing, damaged or ill-fitting item is flagged before
  *       departure. A flagged item is not loaded, and loading carries on.
  *   <li>R-LOD-07: release is refused while any item is still unchecked. Flagged
  *       items travel as recorded exceptions; they do not block.
@@ -139,16 +139,16 @@ public record LoadingSession(
 
   /**
    * Flag an item before departure. It is not loaded; the units that did arrive
-   * stay counted for a short line. Without a line, every line of the order that
+   * stay counted for a partial line. Without a line, every line of the order that
    * is not already flagged is flagged in full.
    *
    * @param missingUnits for one line, how many of its units are affected
    */
   public Change flag(UUID actor, UUID orderId, Optional<Integer> lineNo, CheckStatus kind, int missingUnits) {
     requireHolder(actor);
-    if (!ItemLine.isFlag(kind)) {
+    if (kind != CheckStatus.MISSING && kind != CheckStatus.DAMAGED && kind != CheckStatus.DOES_NOT_FIT) {
       throw new DomainException(
-          ErrorCode.VALIDATION_FAILED, "An issue is MISSING, DAMAGED, SHORT or DOES_NOT_FIT, not " + kind + ".");
+          ErrorCode.VALIDATION_FAILED, "An issue is MISSING, DAMAGED or DOES_NOT_FIT, not " + kind + ".");
     }
     if (missingUnits <= 0) {
       throw new DomainException(ErrorCode.VALIDATION_FAILED, "Say how many units are affected.");
@@ -194,7 +194,7 @@ public record LoadingSession(
               + (orders == 1 ? " order" : " orders") + " still to load, or report what's missing.",
           List.of("R-LOD-07"));
     }
-    checklist.requireSatisfied(chilled);
+    checklist.requireSatisfied();
     return new LoadingSession(tripId, Phase.RELEASED, Optional.empty(), chilled, items, rowVersion);
   }
 
@@ -202,18 +202,22 @@ public record LoadingSession(
 
   /** What the dock board and manifest show. */
   public SessionStatus status() {
-    if (phase == Phase.RELEASED) {
-      return SessionStatus.COMPLETED;
-    }
-    boolean pending = items.stream().anyMatch(ItemLine::pending);
-    boolean flagged = items.stream().anyMatch(ItemLine::flagged);
-    if (!pending && phase == Phase.IN_PROGRESS) {
-      return SessionStatus.READY;
-    }
-    if (phase == Phase.NOT_STARTED) {
-      return SessionStatus.NOT_STARTED;
-    }
-    return flagged ? SessionStatus.BLOCKED : SessionStatus.IN_PROGRESS;
+    return statusOf(
+        phase, items.stream().anyMatch(ItemLine::pending), items.stream().anyMatch(ItemLine::flagged));
+  }
+
+  /** The one rule for a session's status, shared with the dock board's summary query. */
+  public static SessionStatus statusOf(Phase phase, boolean anyPending, boolean anyFlagged) {
+    return switch (phase) {
+      case RELEASED -> SessionStatus.COMPLETED;
+      case NOT_STARTED -> SessionStatus.NOT_STARTED;
+      case IN_PROGRESS -> {
+        if (!anyPending) {
+          yield SessionStatus.READY;
+        }
+        yield anyFlagged ? SessionStatus.BLOCKED : SessionStatus.IN_PROGRESS;
+      }
+    };
   }
 
   /** D-L: the last stop is loaded first. */

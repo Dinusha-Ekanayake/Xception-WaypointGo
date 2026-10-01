@@ -47,7 +47,7 @@ public record ItemLine(
     return new ItemLine(orderId, lineNo, stopSequence, productId, units, to, attempt + 1, loaded);
   }
 
-  /** Missing, damaged, short and doesn't fit are flags: the item is not loaded and people are told. */
+  /** Missing, damaged and doesn't fit are flags: the item is not loaded and people are told. */
   public static boolean isFlag(CheckStatus status) {
     return status == CheckStatus.MISSING
         || status == CheckStatus.DAMAGED

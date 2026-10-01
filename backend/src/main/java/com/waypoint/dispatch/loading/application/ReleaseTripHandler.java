@@ -71,10 +71,9 @@ public class ReleaseTripHandler implements CommandHandler {
     UUID tripId = payload.uuid("tripId");
     ReleaseChecklist checklist =
         new ReleaseChecklist(
+            LoadingMessages.requiredFlag(command, "doorsSealed"),
             LoadingMessages.requiredFlag(command, "ordersSecured"),
-            payload.text("sealNumber"),
-            LoadingMessages.requiredFlag(command, "driverPresent"),
-            LoadingMessages.optionalDecimal(command, "reeferTempC"));
+            LoadingMessages.requiredFlag(command, "driverPresent"));
     Instant now = clock.now();
 
     Loaded loaded = LoadingMessages.load(trips, tripId, expected);
@@ -92,8 +91,7 @@ public class ReleaseTripHandler implements CommandHandler {
             released,
             expected,
             now,
-            Optional.of(
-                new Release(actor.userId(), now, checklist.sealNumber().trim(), checklist.reeferTempC())));
+            Optional.of(new Release(actor.userId(), now)));
     var trip = loaded.trip();
     events.publish(
         actor,

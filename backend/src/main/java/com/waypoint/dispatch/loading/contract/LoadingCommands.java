@@ -1,7 +1,6 @@
 package com.waypoint.dispatch.loading.contract;
 
 import com.waypoint.dispatch.loading.contract.LoadingViews.CheckStatus;
-import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -42,7 +41,7 @@ public final class LoadingCommands {
       Optional<String> reason) {}
 
   /**
-   * Missing, damaged, short or doesn't fit, before departure (R-LOD-02). The
+   * Missing, damaged or doesn't fit, before departure (R-LOD-02). The
    * item is not loaded, the dispatcher and store are told, and loading carries
    * on (R-LOD-07).
    *
@@ -68,15 +67,13 @@ public final class LoadingCommands {
 
   /**
    * Refused while an item is still unchecked on the current plan version
-   * (R-LOD-07), or the checklist fails. A chilled trip needs a reefer reading at
-   * or below 4 °C (R-LOD-10).
+   * (R-LOD-07), or the three-item checklist fails (R-LOD-10).
    */
   public record ReleaseTrip(
       UUID tripId,
+      boolean doorsSealed,
       boolean ordersSecured,
-      String sealNumber,
-      boolean driverPresent,
-      Optional<BigDecimal> reeferTempC) {}
+      boolean driverPresent) {}
 
   /** A dispatcher takes a trip over from a loader who cannot hand it back. Not built yet. */
   public record HandoverSession(UUID tripId) {}

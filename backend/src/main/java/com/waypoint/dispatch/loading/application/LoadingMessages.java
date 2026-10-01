@@ -9,7 +9,6 @@ import com.waypoint.dispatch.platform.messaging.Command;
 import com.waypoint.dispatch.platform.messaging.CommandPayload;
 import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
-import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -42,13 +41,17 @@ final class LoadingMessages {
   }
 
   /**
-   * Not found covers both a trip that does not exist and one outside the actor's
-   * depots: row-level security hides it, and saying which would leak that it exists.
+   * Refuse inaccessible commands before comparing versions. An absent and an
+   * out-of-scope trip have the same denial, so existence is not disclosed. The
+   * bus audits FORBIDDEN after the command transaction rolls back.
    */
   static Loaded load(JdbcLoadingRepository trips, UUID tripId, long expected) {
     TripHeader header =
         trips.header(tripId)
-            .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No trip " + tripId + " at your depot"));
+            .orElseThrow(() -> new DomainException(ErrorCode.FORBIDDEN, "Trip is unavailable within your depot scope"));
+    if (!trips.depotInScope(header.depotCode())) {
+      throw new DomainException(ErrorCode.FORBIDDEN, "Trip is unavailable within your depot scope");
+    }
     LoadingSession session =
         trips.session(tripId)
             .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No trip " + tripId + " at your depot"));
@@ -74,17 +77,6 @@ final class LoadingMessages {
   static int requiredInt(Command command, String field) {
     return optionalInt(command, field)
         .orElseThrow(() -> new DomainException(ErrorCode.VALIDATION_FAILED, field + " is required"));
-  }
-
-  static Optional<BigDecimal> optionalDecimal(Command command, String field) {
-    JsonNode node = command.payload() == null ? null : command.payload().get(field);
-    if (node == null || node.isNull()) {
-      return Optional.empty();
-    }
-    if (!node.isNumber()) {
-      throw new DomainException(ErrorCode.VALIDATION_FAILED, field + " must be a number");
-    }
-    return Optional.of(node.decimalValue());
   }
 
   static boolean requiredFlag(Command command, String field) {

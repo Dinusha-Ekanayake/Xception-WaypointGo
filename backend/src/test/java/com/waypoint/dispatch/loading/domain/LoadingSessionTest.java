@@ -10,7 +10,6 @@ import com.waypoint.dispatch.loading.contract.LoadingViews.SessionStatus;
 import com.waypoint.dispatch.loading.domain.LoadingSession.Phase;
 import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -19,6 +18,16 @@ import org.junit.jupiter.api.Test;
 
 class LoadingSessionTest {
 
+  @Test
+  void loaderIssuesAreDamagedDoesNotFitAndMissingOnly() {
+    for (CheckStatus kind : List.of(CheckStatus.MISSING, CheckStatus.DAMAGED, CheckStatus.DOES_NOT_FIT)) {
+      assertTrue(taken().flag(ISURU, STOP2, Optional.of(1), kind, 1).changed().get(0).flagged());
+    }
+    assertThrows(
+        DomainException.class,
+        () -> taken().flag(ISURU, STOP2, Optional.of(1), CheckStatus.SHORT, 1));
+  }
+
   private static final UUID TRIP = UUID.randomUUID();
   private static final UUID ISURU = UUID.randomUUID();
   private static final UUID KASUN = UUID.randomUUID();
@@ -26,7 +35,7 @@ class LoadingSessionTest {
   private static final UUID STOP2 = UUID.randomUUID();
   private static final Instant NOW = Instant.parse("2027-03-03T21:00:00Z");
   private static final ReleaseChecklist GOOD =
-      new ReleaseChecklist(true, "WP-448213", true, Optional.of(new BigDecimal("3.5")));
+      new ReleaseChecklist(true, true, true);
 
   private static LoadingSession fresh(boolean chilled) {
     return new LoadingSession(
@@ -141,8 +150,8 @@ class LoadingSessionTest {
   }
 
   @Test
-  void aShortLineKeepsTheUnitsThatArrived() {
-    ItemLine line = taken().flag(ISURU, STOP2, Optional.of(1), CheckStatus.SHORT, 1).changed().get(0);
+  void aDamagedLineKeepsTheUnitsThatArrived() {
+    ItemLine line = taken().flag(ISURU, STOP2, Optional.of(1), CheckStatus.DAMAGED, 1).changed().get(0);
     assertEquals(3, line.loadedUnits());
   }
 
@@ -201,22 +210,21 @@ class LoadingSessionTest {
 
   @Test
   void theChecklistNamesEveryFailure() {
-    ReleaseChecklist bad = new ReleaseChecklist(false, " ", false, Optional.empty());
-    DomainException e = refused(() -> bad.requireSatisfied(true));
+    ReleaseChecklist bad = new ReleaseChecklist(false, false, false);
+    DomainException e = refused(bad::requireSatisfied);
     assertEquals(ErrorCode.VALIDATION_FAILED, e.code());
+    assertTrue(e.getMessage().contains("doors"));
     assertTrue(e.getMessage().contains("secured"));
-    assertTrue(e.getMessage().contains("seal number"));
     assertTrue(e.getMessage().contains("driver"));
-    assertTrue(e.getMessage().contains("reefer"));
     assertEquals(List.of("R-LOD-10"), e.violations());
   }
 
   @Test
-  void aWarmReeferBlocksAChilledTripOnly() {
-    ReleaseChecklist warm = new ReleaseChecklist(true, "WP-1", true, Optional.of(new BigDecimal("4.1")));
-    assertThrows(DomainException.class, () -> warm.requireSatisfied(true));
-    warm.requireSatisfied(false);
-    new ReleaseChecklist(true, "WP-1", true, Optional.of(new BigDecimal("4.0"))).requireSatisfied(true);
+  void theThreeChecksAlsoReleaseAChilledTrip() {
+    LoadingSession ready = fresh(true).take(ISURU, "Isuru", Optional.empty(), NOW).session()
+        .check(ISURU, STOP1, Optional.empty(), CheckStatus.LOADED).session()
+        .check(ISURU, STOP2, Optional.empty(), CheckStatus.LOADED).session();
+    assertEquals(Phase.RELEASED, ready.release(ISURU, GOOD).phase());
   }
 
   @Test

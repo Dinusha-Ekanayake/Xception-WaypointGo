@@ -8,7 +8,6 @@ import com.waypoint.dispatch.loading.domain.LoadingSession.Holder;
 import com.waypoint.dispatch.loading.domain.LoadingSession.Phase;
 import com.waypoint.dispatch.platform.db.Database;
 import com.waypoint.dispatch.shared.util.UuidV7;
-import java.math.BigDecimal;
 import java.security.SecureRandom;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -48,7 +47,12 @@ public class JdbcLoadingRepository {
       String temperature) {}
 
   /** What a release writes beside the status. */
-  public record Release(UUID by, Instant at, String sealNumber, Optional<BigDecimal> reeferTempC) {}
+  public record Release(UUID by, Instant at) {}
+
+  public boolean depotInScope(String depotCode) {
+    return Boolean.TRUE.equals(database.queryOne(
+        "SELECT (app.actor_is_system() OR app.actor_has_depot(?)) AS allowed", depotCode).get("allowed"));
+  }
 
   public Optional<TripHeader> header(UUID tripId) {
     Map<String, Object> row =
@@ -179,7 +183,7 @@ public class JdbcLoadingRepository {
         UPDATE loading.sessions
            SET status = ?, holder_user_id = ?, holder_name = ?, holder_code = ?, held_since = ?,
                started_at = coalesce(started_at, CASE WHEN ? = 'in_progress' THEN ?::timestamptz END),
-               released_at = ?, released_by = ?, seal_number = ?, reefer_temp_c = ?,
+               released_at = ?, released_by = ?,
                row_version = row_version + 1, updated_at = ?
          WHERE trip_id = ? AND row_version = ?
         """,
@@ -192,8 +196,6 @@ public class JdbcLoadingRepository {
         Timestamp.from(at),
         release.map(r -> Timestamp.from(r.at())).orElse(null),
         release.map(Release::by).orElse(null),
-        release.map(Release::sealNumber).orElse(null),
-        release.flatMap(Release::reeferTempC).orElse(null),
         Timestamp.from(at),
         next.tripId(),
         expectedVersion);

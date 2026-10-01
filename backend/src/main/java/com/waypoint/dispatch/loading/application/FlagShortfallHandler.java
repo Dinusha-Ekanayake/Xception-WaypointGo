@@ -23,7 +23,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Component;
 
 /**
- * Flag a missing, damaged, short or oversized item before departure (Figma 03
+ * Flag a missing, damaged or ill-fitting item before departure (Figma 03
  * Report an issue, R-LOD-02). The item is not loaded, the dispatcher and store
  * are told through loading.shortfall, and loading carries on (R-LOD-07).
  */

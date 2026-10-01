@@ -36,12 +36,14 @@ public final class LoadingViews {
   }
 
   /**
-   * PENDING not checked yet, LOADED on the vehicle. The other four are flags:
+   * PENDING not checked yet, LOADED on the vehicle. MISSING, DAMAGED and
+   * DOES_NOT_FIT are offered issue choices. SHORT is a read-only historical value:
    * the item is not loaded and the dispatcher and store are told (R-LOD-02).
    */
   public enum CheckStatus {
     PENDING,
     LOADED,
+    /** Read-only compatibility for shortfall rows written before the issue choices were narrowed. */
     SHORT,
     MISSING,
     DAMAGED,
