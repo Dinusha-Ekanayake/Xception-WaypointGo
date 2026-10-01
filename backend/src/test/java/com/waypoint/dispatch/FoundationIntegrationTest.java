@@ -8,7 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.waypoint.dispatch.identity.application.AccountAdminUseCase;
 import com.waypoint.dispatch.identity.application.LoginHandler;
-import com.waypoint.dispatch.identity.application.PolicyAdminUseCase;
+import com.waypoint.dispatch.platform.messaging.Command;
+import com.waypoint.dispatch.platform.messaging.CommandBus;
 import com.waypoint.dispatch.identity.application.PolicyDecisionPoint;
 import com.waypoint.dispatch.identity.application.SessionRegistry;
 import com.waypoint.dispatch.platform.db.Database;
@@ -56,7 +57,8 @@ class FoundationIntegrationTest {
   @Autowired LoginHandler login;
   @Autowired SessionRegistry sessions;
   @Autowired PolicyDecisionPoint decisions;
-  @Autowired PolicyAdminUseCase policies;
+  @Autowired CommandBus bus;
+  @Autowired com.fasterxml.jackson.databind.ObjectMapper mapper;
   @Autowired ImportReferenceDataHandler referenceImport;
   @Autowired ReferenceQuery reference;
 
@@ -164,21 +166,34 @@ class FoundationIntegrationTest {
         decisions.decide(driver, "plan:Publish", "*", Map.of()).allowed(),
         "a driver must not publish plans to begin with");
 
-    policies.createPolicy(
+    policyCommand(
         admin,
-        "ItDriverMayPublish",
-        "Integration test grant",
+        "iam:CreatePolicy",
+        null,
         """
-        {"Version":"test","Statement":[
-          {"Sid":"LetDriverPublish","Effect":"Allow","Action":["plan:Publish"],"Resource":["*"]}]}
+        {"name":"ItDriverMayPublish","description":"Integration test grant","document":
+          {"Version":"test","Statement":[
+            {"Sid":"LetDriverPublish","Effect":"Allow","Action":["plan:Publish"],"Resource":["*"]}]}}
         """);
-    policies.attach(admin, "ItDriverMayPublish", "role", "driver");
+    policyCommand(
+        admin,
+        "iam:AttachPolicy",
+        policyVersion("ItDriverMayPublish"),
+        """
+        {"name":"ItDriverMayPublish","principalType":"role","principalId":"driver"}
+        """);
 
     assertTrue(
         decisions.decide(driver, "plan:Publish", "*", Map.of()).allowed(),
         "the change must take effect on the next decision, with no restart");
 
-    policies.detach(admin, "ItDriverMayPublish", "role", "driver");
+    policyCommand(
+        admin,
+        "iam:DetachPolicy",
+        policyVersion("ItDriverMayPublish"),
+        """
+        {"name":"ItDriverMayPublish","principalType":"role","principalId":"driver"}
+        """);
     assertFalse(
         decisions.decide(driver, "plan:Publish", "*", Map.of()).allowed(),
         "detaching must take effect just as immediately");
@@ -191,13 +206,14 @@ class FoundationIntegrationTest {
         assertThrows(
             DomainException.class,
             () ->
-                policies.createPolicy(
+                policyCommand(
                     actorFor(ADMIN),
-                    "ItTypoPolicy",
-                    "Contains a typo",
+                    "iam:CreatePolicy",
+                    null,
                     """
-                    {"Version":"test","Statement":[
-                      {"Sid":"Typo","Effect":"Allow","Action":["order:Plase"],"Resource":["*"]}]}
+                    {"name":"ItTypoPolicy","description":"Contains a typo","document":
+                      {"Version":"test","Statement":[
+                        {"Sid":"Typo","Effect":"Allow","Action":["order:Plase"],"Resource":["*"]}]}}
                     """));
 
     assertEquals(ErrorCode.VALIDATION_FAILED, thrown.code());
@@ -253,6 +269,30 @@ class FoundationIntegrationTest {
   }
 
   // ---- helpers ----
+
+  /** Policy is changed the way an administrator changes it: a command on the bus. */
+  private void policyCommand(Actor actor, String kind, Long expectedVersion, String payload) {
+    try {
+      bus.dispatch(
+          actor,
+          new Command(UUID.randomUUID(), kind, expectedVersion, mapper.readTree(payload), null));
+    } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+      throw new IllegalStateException(e);
+    }
+  }
+
+  private long policyVersion(String name) {
+    return ((Number)
+            database
+                .asModule(
+                    ModuleRole.IAM,
+                    null,
+                    () ->
+                        database.queryOne(
+                            "SELECT row_version FROM iam.policies WHERE name = ?", name))
+                .get("row_version"))
+        .longValue();
+  }
 
   private Actor actorFor(String email) {
     UUID id =

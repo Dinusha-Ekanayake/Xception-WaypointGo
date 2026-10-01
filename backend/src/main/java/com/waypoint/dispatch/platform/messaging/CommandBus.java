@@ -19,8 +19,9 @@ import org.springframework.stereotype.Component;
  * Runs exactly one business decision, atomically.
  *
  * <p>The sequence is fixed and is the reason this class exists rather than each
- * module repeating it: authorize, check for a replay, run the handler, then
- * commit the state change, the receipt and the audit row together. Nothing here
+ * module repeating it: authorize, open the transaction and authorize again inside
+ * it, check for a replay, run the handler, then commit the state change, the
+ * receipt and the audit row together. Nothing here
  * decides business rules; it decides that a decision happens once.
  */
 @Component
@@ -82,7 +83,18 @@ public class CommandBus {
   private CommandResult dispatchUntimed(Actor actor, Command command) {
     CommandHandler handler = handlers.get(command.kind());
     if (handler == null) {
-      throw new DomainException(ErrorCode.NOT_FOUND, "No handler for command " + command.kind());
+      // Deny by default: an unlisted command is refused and recorded, exactly as
+      // a listed one the caller may not run. A 404 here would let anyone map the
+      // kinds that exist by asking.
+      metrics.increment("waypoint.command.denied", "kind", "unknown");
+      audit.recordStandalone(
+          AuditEntry.denied(
+              actor.userId(),
+              actor.deviceId(),
+              "platform:UnknownCommand",
+              null,
+              "no such command kind: " + abbreviate(command.kind())));
+      throw new DomainException(ErrorCode.FORBIDDEN, "This command is not permitted");
     }
 
     // Fail closed. A system with no authorizer wired refuses work rather than
@@ -133,6 +145,16 @@ public class CommandBus {
         handler.moduleRole(),
         actor.userId(),
         () -> {
+          // SEC-03: asked again here, where the answer is consistent with what
+          // the handler is about to read and write. Thrown, so everything rolls
+          // back; dispatchUntimed records the denial once it has.
+          authorizer
+              .flatMap(a -> a.denyReasonInTransaction(actor, handler.action(), resource, command))
+              .ifPresent(
+                  reason -> {
+                    throw new DomainException(ErrorCode.FORBIDDEN, reason);
+                  });
+
           Map<String, Object> receipt =
               database.queryOne(
                   "SELECT payload_hash, result_body FROM integration.command_receipts"
@@ -171,6 +193,11 @@ public class CommandBus {
           metrics.increment("waypoint.command.applied", "kind", command.kind());
           return CommandResult.executed(value);
         });
+  }
+
+  /** A kind nobody recognised is the caller's text; an audit row keeps a bounded piece of it. */
+  private static String abbreviate(String kind) {
+    return kind.length() <= 80 ? kind : kind.substring(0, 80) + "...";
   }
 
   private String toJson(Object value) {

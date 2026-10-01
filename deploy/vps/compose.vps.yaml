@@ -3,10 +3,12 @@
 #
 #   docker compose -f compose.yaml -f deploy/vps/compose.vps.yaml up -d
 #
-# It changes two things and nothing else. No service publishes a host port, so
+# It changes three things and nothing else. No service publishes a host port, so
 # two stacks can run side by side and nothing but nginx is reachable from
-# outside. And the frontend joins the shared `waypoint-edge` network under an
-# alias named after its environment, which is how nginx tells the two apart.
+# outside. The frontend joins the shared `waypoint-edge` network under an alias
+# named after its environment, which is how nginx tells the two apart. And the
+# session cookie is always Secure, because everything here is behind nginx on
+# HTTPS whatever the checkout's .env says.
 #
 # Docker publishes ports ahead of ufw, so a port published here is open to the
 # internet whatever the firewall says.
@@ -15,6 +17,7 @@
 # stack only; deploy/vps/deploy.sh enables the profile there. Paths are relative
 # to the repository root (the first -f file sets the project directory).
 # Root .env: SITE_ADDRESS, and DEPLOY_ENV=preview in the preview checkout.
+# deploy.sh adds APP_DB_PASSWORD there the first time it is missing.
 
 services:
   db:
@@ -22,6 +25,8 @@ services:
 
   backend:
     ports: !reset []
+    environment:
+      COOKIE_SECURE: "1"
 
   waypoint:
     ports: !reset []

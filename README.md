@@ -51,11 +51,13 @@ Typed and validated in `backend/.../platform/config/AppProperties`; the process 
 | Variable | Meaning |
 | --- | --- |
 | `DATABASE_URL` | Required. May point at a database that is down: that is an outage, not a misconfiguration |
-| `COOKIE_SECURE` | `1` behind HTTPS |
+| `MIGRATION_DATABASE_URL` | The owner's connection, read only by `migrate`. Unset, `DATABASE_URL` does both. Set, `DATABASE_URL` must log in as `waypoint_app` |
+| `COOKIE_SECURE` | On by default. `0` only for local development over plain HTTP |
+| `ALLOWED_ORIGINS` | Extra origins a state-changing request may come from. Usually empty |
 | `LOG_FORMAT` | `ecs` for JSON logs (set in both compose files) |
 | `OTLP_EXPORT`, `OTLP_ENDPOINT`, `TRACE_SAMPLE` | Trace export, off unless both of the first two are set |
 | `SESSION_ABSOLUTE_LIFETIME`, `SESSION_IDLE_LIFETIME` | Default `12h`, `2h` |
-| `LOGIN_MAX_FAILURES`, `LOGIN_THROTTLE_WINDOW` | Default `8`, `15m` |
+| `LOGIN_MAX_FAILURES`, `LOGIN_ADDRESS_MAX_FAILURES`, `LOGIN_IDENTITY_MAX_FAILURES`, `LOGIN_THROTTLE_WINDOW` | Default `8`, `40`, `40`, `15m` |
 | `MAX_BODY_BYTES` | Default 4 MiB |
 | `WAREHOUSE_BASE_URL`, `WAREHOUSE_API_KEY` | External warehouse API; the key never reaches a browser |
 

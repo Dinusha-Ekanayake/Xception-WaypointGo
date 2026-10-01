@@ -48,7 +48,8 @@ public class AccountQuery {
       UUID driverUserId,
       String driverName,
       LocalDate from,
-      LocalDate until) {}
+      LocalDate until,
+      long rowVersion) {}
 
   /**
    * Keyset paginated on the user id, which is unique, stable and not personal
@@ -127,7 +128,8 @@ public class AccountQuery {
                 .query(
                     """
                     SELECT a.assignment_id, a.vehicle_id, a.driver_user_id, u.display_name,
-                           lower(a.validity) AS starts_on, upper(a.validity) AS ends_on
+                           lower(a.validity) AS starts_on, upper(a.validity) AS ends_on,
+                           a.row_version
                     FROM iam.vehicle_driver_assignments a
                     JOIN iam.users u ON u.user_id = a.driver_user_id
                     WHERE (?::date IS NULL OR a.validity @> ?::date)
@@ -153,7 +155,8 @@ public class AccountQuery {
                             (UUID) r.get("driver_user_id"),
                             (String) r.get("display_name"),
                             date(r.get("starts_on")),
-                            date(r.get("ends_on"))))
+                            date(r.get("ends_on")),
+                            ((Number) r.get("row_version")).longValue()))
                 .toList());
     return Page.fromOverfetch(
         rows,
