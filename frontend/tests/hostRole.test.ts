@@ -12,8 +12,13 @@ test("a role address names its role", () => {
   assert.equal(roleForHost("Loader.WaypointGo.live"), "loader");
 });
 
+test("a preview role address names the same role", () => {
+  assert.equal(roleForHost("loader-preview.waypointgo.live"), "loader");
+  assert.equal(roleForHost("store-preview.waypointgo.live"), "store_manager");
+});
+
 test("every other address is shared by all roles", () => {
-  for (const host of ["waypointgo.live", "preview.waypointgo.live", "www.waypointgo.live", "localhost", "127.0.0.1", "loader.live", "constructor.waypointgo.live", ""]) {
+  for (const host of ["waypointgo.live", "preview.waypointgo.live", "www.waypointgo.live", "localhost", "127.0.0.1", "loader.live", "constructor.waypointgo.live", "-preview.waypointgo.live", "loader-preview-preview.waypointgo.live", ""]) {
     assert.equal(roleForHost(host), null, host);
   }
 });
@@ -21,4 +26,5 @@ test("every other address is shared by all roles", () => {
 test("a role's address is a sibling of the one being visited", () => {
   assert.equal(hostForRole("loader.waypointgo.live", "store_manager"), "store.waypointgo.live");
   assert.equal(hostForRole("loader.waypointgo.live", "driver"), "driver.waypointgo.live");
+  assert.equal(hostForRole("loader-preview.waypointgo.live", "store_manager"), "store-preview.waypointgo.live");
 });

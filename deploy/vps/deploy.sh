@@ -22,11 +22,13 @@ die() { echo "deploy: $*" >&2; exit 1; }
 # Last value of KEY in .env, or nothing. Values are never shell-evaluated.
 env_value() { sed -n "s/^$1=//p" "$APP_DIR/.env" | tail -1; }
 
-# One address per role, each serving production. The same names are in
+# One address per role for production, and the same with -preview for preview:
+# loader.SITE and loader-preview.SITE. The same names are in
 # nginx/templates/10-edge.conf.template and frontend/src/app-shell/hostRole.ts.
 ROLE_HOSTS=(dispatcher loader driver store admin auditor)
 
-# Keeps one certificate for SITE, www.SITE, preview.SITE and the role addresses.
+# Keeps one certificate for SITE, www.SITE, preview.SITE and the role addresses
+# of both environments.
 # A name joins the request once it resolves, so a DNS record added later is
 # picked up by the next deploy, and a name already on the certificate is never
 # dropped. Until the first request succeeds nginx serves a self-signed
@@ -35,7 +37,7 @@ ensure_certificate() {
   local site="$1" name role
   local live="/etc/letsencrypt/live/$site/fullchain.pem"
   local names=("$site" "www.$site" "preview.$site") request=() added=()
-  for role in "${ROLE_HOSTS[@]}"; do names+=("$role.$site"); done
+  for role in "${ROLE_HOSTS[@]}"; do names+=("$role.$site" "$role-preview.$site"); done
 
   for name in "${names[@]}"; do
     if "${compose[@]}" exec -T nginx sh -c \

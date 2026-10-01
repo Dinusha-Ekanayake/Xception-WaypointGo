@@ -1,9 +1,12 @@
 import type { ShellRole } from "./session.ts";
 
-// Each role has an address of its own, such as loader.waypointgo.live, beside
-// the shared one. The address only chooses which surface the shell shows; what
-// an account may do is still decided by the server. The same six names are
-// listed for nginx and the certificate in deploy/vps.
+// Each role has an address of its own beside the shared one:
+// loader.waypointgo.live on production, loader-preview.waypointgo.live on
+// preview. The address only chooses which surface the shell shows; what an
+// account may do is still decided by the server. The same six names are listed
+// for nginx and the certificate in deploy/vps.
+
+const PREVIEW = "-preview";
 
 const HOST_ROLE = new Map<string, ShellRole>([
   ["dispatcher", "dispatcher"],
@@ -18,11 +21,13 @@ const HOST_ROLE = new Map<string, ShellRole>([
 export function roleForHost(hostname: string): ShellRole | null {
   const labels = hostname.toLowerCase().split(".");
   if (labels.length < 3) return null;
-  return HOST_ROLE.get(labels[0]!) ?? null;
+  const first = labels[0]!;
+  return HOST_ROLE.get(first.endsWith(PREVIEW) ? first.slice(0, -PREVIEW.length) : first) ?? null;
 }
 
-/** The address of another role, seen from a role address. */
+/** The address of another role in the same environment, seen from a role address. */
 export function hostForRole(hostname: string, role: ShellRole): string {
+  const [first, ...rest] = hostname.toLowerCase().split(".");
   const label = [...HOST_ROLE].find(([, r]) => r === role)![0];
-  return [label, ...hostname.toLowerCase().split(".").slice(1)].join(".");
+  return [first!.endsWith(PREVIEW) ? label + PREVIEW : label, ...rest].join(".");
 }
