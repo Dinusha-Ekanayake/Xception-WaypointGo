@@ -13,6 +13,8 @@ MODE="${1:-up}"
 
 export DATABASE_URL='postgresql://waypoint:local-testing-only@127.0.0.1:5432/waypoint'
 export DEMO_MODE=1
+# Plain HTTP on localhost: a Secure cookie would not be sent back by every browser.
+export COOKIE_SECURE=0
 export SEED_PASSWORD="${SEED_PASSWORD:-Waypoint2026!}"
 
 docker_cmd() {

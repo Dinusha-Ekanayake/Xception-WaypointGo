@@ -243,7 +243,7 @@ class AdministrationIntegrationTest {
         command(
             ADMIN,
             "iam:GrantScope",
-            null,
+            versionOf(userId),
             """
             {"userId":"%s","outletId":"OUT001"}
             """.formatted(userId),
@@ -257,7 +257,7 @@ class AdministrationIntegrationTest {
     command(
         ADMIN,
         "iam:GrantScope",
-        null,
+        versionOf(userId),
         """
         {"userId":"%s","outletId":"OUT999"}
         """.formatted(userId),
@@ -267,7 +267,7 @@ class AdministrationIntegrationTest {
     command(
         ADMIN,
         "iam:GrantScope",
-        null,
+        versionOf(userId),
         """
         {"userId":"%s","outletId":"OUT001","depotCode":"Peliyagoda"}
         """.formatted(userId),
@@ -277,7 +277,7 @@ class AdministrationIntegrationTest {
         command(
             ADMIN,
             "iam:RevokeScope",
-            null,
+            versionOf(userId),
             """
             {"userId":"%s","outletId":"OUT001"}
             """.formatted(userId),
@@ -299,7 +299,7 @@ class AdministrationIntegrationTest {
             command(
                 ADMIN,
                 "iam:AssignDriver",
-                null,
+                versionOf(driverId),
                 """
                 {"vehicleId":"VEH002","driverUserId":"%s","from":"2027-05-03","until":"2027-05-10"}
                 """
@@ -313,7 +313,7 @@ class AdministrationIntegrationTest {
         command(
             ADMIN,
             "iam:AssignDriver",
-            null,
+            versionOf(otherDriverId),
             """
             {"vehicleId":"VEH002","driverUserId":"%s","from":"2027-05-05","until":"2027-05-12"}
             """
@@ -327,7 +327,7 @@ class AdministrationIntegrationTest {
         command(
             ADMIN,
             "iam:AssignDriver",
-            null,
+            versionOf(otherDriverId),
             """
             {"vehicleId":"VEH002","driverUserId":"%s","from":"2027-05-10","until":"2027-05-17"}
             """
@@ -340,7 +340,8 @@ class AdministrationIntegrationTest {
         command(
             ADMIN,
             "iam:EndDriverAssignment",
-            null,
+            // A new assignment is at version 1; the read surface carries it as rowVersion.
+            1L,
             """
             {"assignmentId":"%s","on":"2027-05-06"}
             """.formatted(assignmentId),
@@ -357,7 +358,7 @@ class AdministrationIntegrationTest {
     command(
         ADMIN,
         "iam:AssignDriver",
-        null,
+        versionOf(userIdOf(MANAGER).toString()),
         """
         {"vehicleId":"VEH003","driverUserId":"%s","from":"2027-06-01","until":"2027-06-08"}
         """

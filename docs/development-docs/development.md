@@ -55,6 +55,7 @@ docker compose up -d db
 # 2. backend
 cd backend
 export DATABASE_URL='postgresql://waypoint:local-testing-only@127.0.0.1:5432/waypoint'
+export COOKIE_SECURE=0   # plain HTTP on localhost; the default is a Secure cookie
 mvn spring-boot:run
 
 # 3. frontend

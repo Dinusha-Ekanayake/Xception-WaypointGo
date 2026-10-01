@@ -21,6 +21,17 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-01 - fix: identity and auth hardening (issue #5)
+
+`fix/identity-hardening` · @kavindamihiran
+
+Lockout fires and keeps its history (three counters, P-13); sessions stored by hash and expired on the injected clock; `__Host-` cookie and an Origin guard; a policy generation every decision and every command's transaction re-reads; policy, role, scope, assignment and device administration as versioned commands; the pool runs as `waypoint_app` with `migrate` on the owner's own connection. Detail in [docs/issues/005-identity-hardening/WALKTHROUGH.md](../issues/005-identity-hardening/WALKTHROUGH.md).
+Why: an audit found the lockout could never trigger, nothing checked Origin, authorization was decided only before the transaction, and every deployment's pool was the table owner.
+Verified: `TEST_DATABASE_URL=... mvn verify`, 338 tests, twice on the same database; the deploy path rehearsed locally from a `dev`-built database (old session survived the hash migration, forwarded address recorded, ninth wrong password 429, cross-site POST 403). Not yet run on the server.
+Open: callers of `iam:GrantScope`, `iam:RevokeScope`, `iam:AssignDriver` and `iam:EndDriverAssignment` must send `expectedVersion`; an unknown kind is 403; sessions end by the injected clock, so a test that moves the clock signs in again. Behind HTTPS everyone signs in once after the deploy. A non-superuser `waypoint_migrator` owner and depot-scoped reference reads are not done.
+
+---
+
 ## 2026-10-01 - feat: warehouse integration module (issue #7)
 
 `feat/warehouse` · @jv-ransika
@@ -31,6 +42,7 @@ Verified: domain, architecture and boundary tests pass; Ordering integration 15 
 Open: the warehouse change requests; the catalogue picker (#18); the relay and scheduler (#6).
 
 ---
+
 ## 2026-10-01 - perf: deploys run init once and before anything is replaced
 
 `chore/faster-deploy` · @kavindamihiran

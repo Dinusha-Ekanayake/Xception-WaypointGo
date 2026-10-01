@@ -14,6 +14,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -106,6 +108,28 @@ public class Database {
    */
   public <T> T readAs(ModuleRole role, UUID actorId, Supplier<T> work) {
     return separateRead.execute(status -> runAs(role, actorId, work));
+  }
+
+  /**
+   * Runs {@code work} once the transaction this thread is inside has committed,
+   * and not at all if it rolls back. With no transaction open it runs now.
+   *
+   * <p>For effects that live outside the database, such as clearing an in-memory
+   * cache: done before the commit, another request can refill the cache from the
+   * state that is about to be replaced.
+   */
+  public void afterCommit(Runnable work) {
+    if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+      work.run();
+      return;
+    }
+    TransactionSynchronizationManager.registerSynchronization(
+        new TransactionSynchronization() {
+          @Override
+          public void afterCommit() {
+            work.run();
+          }
+        });
   }
 
   /**
