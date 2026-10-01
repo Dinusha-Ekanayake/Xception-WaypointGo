@@ -21,6 +21,15 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-01 - chore: one wildcard DNS record, simpler certificate request
+
+`chore/simplify-certificate-names` · @kavindamihiran
+
+Cloudflare now has two proxied A records, the bare name and `*`, in place of one per address. With every name resolving, the deploy no longer checks each name's DNS before the certificate request: it asks for the full list whenever the certificate on disk is missing one. See [deployment.md](../deployment.md).
+Why: fifteen hand-made DNS records and a resolve check per name were more than the job needs.
+Verified: `bash -n deploy/vps/deploy.sh`; from the server, the role names resolve through the wildcard and the challenge path answers over HTTP through Cloudflare. The request itself runs only in a production deploy and has not run yet.
+Open: the role addresses, the preview ones and `www` answer only after a production deploy from `main`. The per-name records for `-preview` and the entries below that call for them are superseded.
+
 ## 2026-10-01 - feat: preview role addresses
 
 `feat/preview-role-hostnames` · @kavindamihiran
