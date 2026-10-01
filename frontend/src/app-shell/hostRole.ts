@@ -26,9 +26,9 @@ export function roleForHost(hostname: string): ShellRole | null {
 }
 
 /**
- * Where someone signed in on the shared preview address belongs: their role's
- * own preview address. Null anywhere else, so production's shared address and
- * local development keep every role in one place.
+ * A role's own preview address, seen from the shared preview address. Null
+ * anywhere else, so production's shared address and local development keep
+ * every role in one place.
  */
 export function previewHomeFor(hostname: string, role: ShellRole): string | null {
   const [first, ...rest] = hostname.toLowerCase().split(".");
