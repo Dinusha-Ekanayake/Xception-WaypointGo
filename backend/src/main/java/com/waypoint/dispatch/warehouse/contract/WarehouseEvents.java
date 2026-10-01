@@ -16,8 +16,11 @@ public final class WarehouseEvents {
    *
    * @param orderId Waypoint's order
    * @param status the warehouse status: {@code pending}, {@code shipped},
-   *     {@code delivered}, {@code cancelled}, or {@code insufficient} when a
-   *     retried placement found stock short
+   *     {@code delivered}, {@code cancelled}, {@code expired} when a partial
+   *     reservation ran out before the store accepted it, or {@code insufficient}
+   *     when a retried placement found stock short. A retried placement that was
+   *     only partly available is released and reported as {@code insufficient}:
+   *     the store is no longer there to accept it
    * @param reservation present when a retried placement succeeded, carrying the
    *     authoritative totals
    */

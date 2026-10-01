@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
 import com.waypoint.dispatch.platform.observability.Metrics;
+import com.waypoint.dispatch.warehouse.contract.StockPort;
 import com.waypoint.dispatch.warehouse.contract.StockPort.StockLine;
 import com.waypoint.dispatch.warehouse.contract.StockPort.Unavailable;
 import java.util.List;
@@ -19,7 +20,9 @@ class UnconfiguredStockPortTest {
 
   @Test
   void placementIsUnavailableSoTheOrderIsSavedAsStockUnknown() {
-    var result = port.placeOrder("WPO-TEST", List.of(new StockLine("P-1", 2)));
+    var result = port.placeOrder(
+        new StockPort.PlacementRequest(
+            java.util.UUID.randomUUID(), "WPO-TEST", "Kandy", List.of(new StockLine("P-1", 2))));
 
     Unavailable unavailable = assertInstanceOf(Unavailable.class, result);
     assertEquals(UnconfiguredStockPort.REASON, unavailable.reason());
@@ -27,7 +30,8 @@ class UnconfiguredStockPortTest {
 
   @Test
   void amendmentIsUnavailableToo() {
-    assertInstanceOf(Unavailable.class, port.amendOrder("WH-1", List.of()));
+    assertInstanceOf(Unavailable.class, port.amendOrder(
+        "WH-1", new StockPort.PlacementRequest(java.util.UUID.randomUUID(), "WPO-TEST", "Kandy", List.of())));
   }
 
   @Test

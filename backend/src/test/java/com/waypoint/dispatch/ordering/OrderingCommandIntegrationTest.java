@@ -315,6 +315,97 @@ class OrderingCommandIntegrationTest {
     assertTrue(again.contains("ORD-10"), again);
   }
 
+  private static final String PARTIAL_REF = "WH-PART";
+
+  private void partialAnswer() {
+    stock.answer(
+        lines ->
+            new com.waypoint.dispatch.warehouse.contract.StockPort.PartiallyReserved(
+                new com.waypoint.dispatch.warehouse.contract.StockPort.Reserved(
+                    PARTIAL_REF, new java.math.BigDecimal("7.500"),
+                    new java.math.BigDecimal("0.0300"), "ambient", 3),
+                java.time.Instant.parse("2040-01-01T00:00:00Z"),
+                List.of(new LineAvailability("P-1", 12, 3)),
+                List.of(new com.waypoint.dispatch.warehouse.contract.StockPort.Alternative(
+                    "P-1", "PLG", 1000))));
+  }
+
+  @Test
+  void aPartialReservationIsKeptAndTheStoreIsToldWhatIsShort() throws Exception {
+    partialAnswer();
+
+    JsonNode result = mapper.readTree(send(manager, place(UUID.randomUUID(), serviceDate), 200)).get("result");
+
+    assertEquals("PARTIALLY_RESERVED", result.get("status").asText(), "STK-13: kept, not rejected");
+    JsonNode shortfall = result.get("shortfall");
+    assertEquals(PARTIAL_REF, shortfall.get("warehouseOrderRef").asText());
+    assertEquals(3, shortfall.get("lines").get(0).get("reserved").asInt());
+    assertEquals("PLG", shortfall.get("otherWarehouse").get(0).get("warehouse").asText());
+    UUID orderId = UUID.fromString(result.get("orderId").asText());
+    JsonNode view = mapper.readTree(read(manager, "/api/orders/" + orderId, 200));
+    assertEquals(3, view.get("itemCount").asInt(), "totals are the locked quantities'");
+    assertEquals(12, view.get("lines").get(0).get("quantity").asInt(), "what the store asked for");
+  }
+
+  @Test
+  void acceptingTheShortfallConfirmsTheLockedQuantities() throws Exception {
+    partialAnswer();
+    JsonNode placed = mapper.readTree(send(manager, place(UUID.randomUUID(), serviceDate), 200)).get("result");
+    UUID orderId = UUID.fromString(placed.get("orderId").asText());
+    stock.confirmWith(
+        () ->
+            new com.waypoint.dispatch.warehouse.contract.StockPort.Confirmed(
+                new com.waypoint.dispatch.warehouse.contract.StockPort.Reserved(
+                    PARTIAL_REF, new java.math.BigDecimal("7.500"),
+                    new java.math.BigDecimal("0.0300"), "ambient", 3),
+                List.of(new com.waypoint.dispatch.warehouse.contract.StockPort.StockLine("P-1", 3))));
+
+    JsonNode accepted =
+        mapper.readTree(
+            send(manager, envelope(UUID.randomUUID(), "order:AcceptShortfall", 1L,
+                "{\"orderId\":\"" + orderId + "\"}"), 200)).get("result");
+
+    assertEquals("CONFIRMED", accepted.get("status").asText());
+    JsonNode view = mapper.readTree(read(manager, "/api/orders/" + orderId, 200));
+    assertEquals(3, view.get("lines").get(0).get("quantity").asInt(), "lines become the locked quantities");
+    assertEquals(2, view.get("rowVersion").asInt());
+  }
+
+  @Test
+  void acceptingAfterTheLockRanOutCancelsTheOrder() throws Exception {
+    partialAnswer();
+    JsonNode placed = mapper.readTree(send(manager, place(UUID.randomUUID(), serviceDate), 200)).get("result");
+    UUID orderId = UUID.fromString(placed.get("orderId").asText());
+    stock.confirmWith(
+        () -> new com.waypoint.dispatch.warehouse.contract.StockPort.Expired("the reservation is expired"));
+
+    JsonNode result =
+        mapper.readTree(
+            send(manager, envelope(UUID.randomUUID(), "order:AcceptShortfall", 1L,
+                "{\"orderId\":\"" + orderId + "\"}"), 200)).get("result");
+
+    assertEquals("CANCELLED", result.get("status").asText(), "STK-13");
+    assertEquals("reservation_expired", result.get("reason").asText());
+    assertTrue(
+        outbox(orderId).stream().anyMatch(e -> "order.cancelled".equals(e.get("event_type"))),
+        "the warehouse learns of it through the event");
+  }
+
+  @Test
+  void aWarehouseThatCannotConfirmLeavesTheOrderUnchanged() throws Exception {
+    partialAnswer();
+    JsonNode placed = mapper.readTree(send(manager, place(UUID.randomUUID(), serviceDate), 200)).get("result");
+    UUID orderId = UUID.fromString(placed.get("orderId").asText());
+    stock.confirmWith(() -> new Unavailable("circuit open"));
+
+    send(manager, envelope(UUID.randomUUID(), "order:AcceptShortfall", 1L,
+        "{\"orderId\":\"" + orderId + "\"}"), 503);
+
+    JsonNode view = mapper.readTree(read(manager, "/api/orders/" + orderId, 200));
+    assertEquals("PARTIALLY_RESERVED", view.get("status").asText());
+    assertEquals(1, view.get("rowVersion").asInt());
+  }
+
   @Test
   void aDayClosesOnlyAfterTheCutoffAndThenPlacementRollsPastIt() throws Exception {
     String close = "{\"depotCode\":\"" + depot + "\",\"serviceDate\":\"" + serviceDate + "\"}";

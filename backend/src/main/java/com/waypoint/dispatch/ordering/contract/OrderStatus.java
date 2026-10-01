@@ -9,12 +9,19 @@ package com.waypoint.dispatch.ordering.contract;
  * having two opinions about where it is. The legal transitions are enforced in
  * Ordering's domain, not here: a status {@code CHECK} restricts values, not moves.
  *
- * <p>There is no {@code stock_held}, {@code adjusted} or {@code rejected}: a
- * short line rejects placement outright and the store resubmits (decision D-F).
+ * <p>There is no {@code adjusted} or {@code rejected}. A short order is either
+ * rejected outright when nothing is available, or kept as
+ * {@link #PARTIALLY_RESERVED} for the store to accept or cancel (decision D-F,
+ * revised 2026-10-01).
  */
 public enum OrderStatus {
   /** Saved while the warehouse was unreachable. Never counts as reserved (D-G). */
   STOCK_UNKNOWN,
+  /**
+   * Some lines were short. The warehouse locked what it had until an expiry; the
+   * store accepts it ({@code order:AcceptShortfall}) or cancels. Not demand.
+   */
+  PARTIALLY_RESERVED,
   /** Reserved at the warehouse; demand Planning may allocate. */
   CONFIRMED,
   ALLOCATED,
