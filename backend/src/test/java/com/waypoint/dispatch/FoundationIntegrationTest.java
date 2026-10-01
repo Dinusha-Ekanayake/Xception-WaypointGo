@@ -213,7 +213,7 @@ class FoundationIntegrationTest {
                     """));
 
     assertEquals(ErrorCode.VALIDATION_FAILED, thrown.code());
-    assertTrue(thrown.violations().contains("order:Plase"), thrown.violations().toString());
+    assertTrue(thrown.rules().contains("order:Plase"), thrown.rules().toString());
   }
 
   @Test

@@ -68,6 +68,29 @@ Open http://localhost:3000. Seeded accounts are listed in the [README](../../REA
 
 Use `npm run build && npm start` instead of `npm run dev` when testing offline behaviour, because the service worker is only generated for a production build.
 
+## Searching logs
+
+Optional. Loki stores logs, Alloy collects them, Grafana searches them. Off unless you start the `observability` profile.
+
+```sh
+# once per session, beside the database
+docker compose --profile observability up -d loki alloy grafana
+
+# backend: also write JSON logs to var/log, which Alloy tails
+export LOG_FILE=../var/log/backend.log
+mvn spring-boot:run
+```
+
+Open http://127.0.0.1:3001 (user `admin`, password `GRAFANA_ADMIN_PASSWORD`, default `local-testing-only`), then Explore. Every container labelled `com.waypoint.logs=true` is collected too.
+
+| Find | LogQL |
+| --- | --- |
+| Backend errors | `{service="backend", level="ERROR"}` |
+| One request, every service | `{service=~".+"} \| correlationId="<X-Correlation-Id from the response>"` |
+| One module | `{service="backend"} \| logger=~"com.waypoint.dispatch.ordering.*"` |
+
+`level` is a label. `correlationId`, `traceId` and `logger` are structured metadata, never labels, because one value per request would explode the index. Logs are kept 14 days. The console stays readable; only the file is JSON. Config is in `observability/`; the Alloy pipeline UI is at http://127.0.0.1:12345.
+
 ## Which process reads which configuration
 
 This trips people up, so it is worth stating plainly.

@@ -94,7 +94,12 @@ public class LoginHandler {
     throttle.record(email, false, sourceIp);
     audit.record(
         AuditEntry.denied(
-            userId, null, "iam:Login", "wpt:iam:user:" + email, "invalid credentials"));
+            userId,
+            null,
+            "iam:Login",
+            // Never the email: an audit resource is personal data kept for years.
+            "wpt:iam:user:" + (userId == null ? "unknown" : userId),
+            "invalid credentials"));
     metrics.increment("waypoint.login.failed");
     // One message for every failure mode. Anything more specific is a hint.
     throw new DomainException(ErrorCode.UNAUTHENTICATED, "Email or password is incorrect");

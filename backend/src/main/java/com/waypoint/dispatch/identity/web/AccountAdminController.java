@@ -2,10 +2,8 @@ package com.waypoint.dispatch.identity.web;
 
 import com.waypoint.dispatch.identity.application.AccountQuery;
 import com.waypoint.dispatch.platform.web.RequestAuthorizer;
-import com.waypoint.dispatch.shared.error.DomainException;
-import com.waypoint.dispatch.shared.error.ErrorCode;
+import com.waypoint.dispatch.platform.web.RequestValues;
 import jakarta.servlet.http.HttpServletRequest;
-import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -57,7 +55,7 @@ public class AccountAdminController {
 
   @GetMapping("/{userId}")
   public AccountQuery.AccountView one(@PathVariable String userId, HttpServletRequest request) {
-    UUID id = uuid(userId);
+    UUID id = RequestValues.uuid("userId", userId);
     authorizer.require(request, "iam:UpdateUser", "wpt:iam:user:" + id);
     return accounts.byId(id);
   }
@@ -66,23 +64,8 @@ public class AccountAdminController {
   public List<AccountQuery.AssignmentView> assignments(
       @RequestParam(required = false) String on, HttpServletRequest request) {
     authorizer.require(request, "iam:AssignDriver", "wpt:iam:assignment:*");
-    return accounts.assignments(on == null || on.isBlank() ? null : date(on));
+    return accounts.assignments(RequestValues.optionalDate("on", on));
   }
 
-  private static UUID uuid(String value) {
-    try {
-      return UUID.fromString(value);
-    } catch (IllegalArgumentException e) {
-      throw new DomainException(ErrorCode.VALIDATION_FAILED, "Not a uuid: " + value);
-    }
-  }
 
-  private static LocalDate date(String value) {
-    try {
-      return LocalDate.parse(value);
-    } catch (RuntimeException e) {
-      throw new DomainException(
-          ErrorCode.VALIDATION_FAILED, "on must be a date as yyyy-mm-dd, not " + value);
-    }
-  }
 }

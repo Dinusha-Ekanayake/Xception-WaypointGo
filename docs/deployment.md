@@ -64,6 +64,16 @@ If tests report `database "waypoint_test" does not exist`, create the dedicated 
 
 Docker configuration can be checked with `docker compose config --quiet` and `docker compose -f compose.prod.yaml config --quiet` after supplying the required variables. Actual fresh-volume container startup, public TLS and physical-device trials remain release checks; local browser emulation does not establish those properties.
 
+## Logs
+
+The backend logs ECS JSON (`LOG_FORMAT=ecs` in both compose files). To store and search them, set `GRAFANA_ADMIN_PASSWORD` and enable the opt-in profile:
+
+```sh
+docker compose -f compose.prod.yaml --profile observability up -d
+```
+
+Alloy reads every container labelled `com.waypoint.logs=true` through the read-only Docker socket and ships to Loki, which keeps 14 days on the `loki-data` volume (budget roughly 1 GB per week at pilot volume). Grafana listens on `127.0.0.1:3001` only and is never routed through nginx; reach it with `ssh -L 3001:127.0.0.1:3001 <host>` and open http://127.0.0.1:3001. Grafana refuses to start without `GRAFANA_ADMIN_PASSWORD`. The application does not depend on the log store: with Loki down, Alloy retries and requests are served normally.
+
 ## Operational limits
 
 Bounded history synchronization, calibrated real-world travel estimates and a managed backup/monitoring setup remain production rollout work. Visible clients refresh every ten seconds; state retrieval scans all plans/events before filtering, so response and database costs grow with retained history. Proof bytes remain in PostgreSQL and are fetched separately from state snapshots. Run a measured fleet pilot before general rollout.

@@ -34,7 +34,7 @@ public class AuditLog {
         entry.resource(),
         entry.decision(),
         entry.reason(),
-        entry.correlationId() != null ? entry.correlationId() : MDC.get("correlationId"));
+        entry.correlationId() != null ? entry.correlationId() : MDC.get(com.waypoint.dispatch.platform.web.CorrelationIdFilter.MDC_KEY));
   }
 
   /** For denials raised outside a business transaction, such as at the edge. */
