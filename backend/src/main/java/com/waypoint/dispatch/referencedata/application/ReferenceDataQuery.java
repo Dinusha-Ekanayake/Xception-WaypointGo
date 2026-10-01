@@ -69,7 +69,7 @@ public class ReferenceDataQuery implements ReferenceQuery {
     return cache
         .current()
         .filter(s -> s.versionId().equals(versionId))
-        .or(() -> database.asModule(ModuleRole.REF, null, () -> reader.load(versionId)))
+        .or(() -> database.readAs(ModuleRole.REF, null, () -> reader.load(versionId)))
         .orElseThrow(
             () ->
                 new DomainException(ErrorCode.NOT_FOUND, "Unknown reference version " + versionId));
@@ -104,7 +104,7 @@ public class ReferenceDataQuery implements ReferenceQuery {
 
   private Set<String> unavailableOn(LocalDate date) {
     List<Map<String, Object>> rows =
-        database.asModule(
+        database.readAs(
             ModuleRole.REF,
             null,
             () ->
