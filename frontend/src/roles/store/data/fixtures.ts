@@ -136,6 +136,11 @@ export function sampleGateway(): StoreGateway {
       confirmedBy: null,
       confirmedAt: null,
       rowVersion: 1,
+      tripId: null,
+      depotCode: o.depotCode,
+      deliveredAt: new Date().toISOString(),
+      autoClosesAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      late: false,
     });
   };
 

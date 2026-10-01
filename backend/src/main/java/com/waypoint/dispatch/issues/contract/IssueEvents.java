@@ -66,9 +66,48 @@ public final class IssueEvents {
   }
 
   /** Loading may recheck the order and release the trip. */
-  public record ShortfallResolved(UUID issueId, UUID tripId, UUID orderId, String resolution)
+  /**
+   * @param shortfallId the shortfall this replacement answers, when the issue was
+   *     raised from one; Loading resolves just that shortfall rather than every
+   *     open one of the trip and order. Absent for a shortfall raised by hand
+   */
+  public record ShortfallResolved(
+      UUID issueId, UUID tripId, UUID orderId, String resolution, Optional<UUID> shortfallId)
       implements DomainEvent {
     public static final String TYPE = "shortfall.resolved";
+
+    @Override
+    public String type() {
+      return TYPE;
+    }
+
+    @Override
+    public String aggregateType() {
+      return "issue";
+    }
+
+    @Override
+    public String aggregateId() {
+      return issueId.toString();
+    }
+  }
+
+  /**
+   * An issue waited unassigned past its severity's deadline (R-ISS-06). Raised
+   * once per issue. Notification routes it to the depot's dispatchers.
+   *
+   * @param waitedMinutes how long it had waited when it escalated
+   */
+  public record IssueEscalated(
+      UUID issueId,
+      IssueType issueType,
+      IssueSeverity severity,
+      String depotCode,
+      Optional<String> outletId,
+      Instant escalatedAt,
+      long waitedMinutes)
+      implements DomainEvent {
+    public static final String TYPE = "issue.escalated";
 
     @Override
     public String type() {

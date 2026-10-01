@@ -28,7 +28,125 @@ Entries before 2026-09-26 are in `git log`.
 `trip.released` becomes the driver's run sheet, one delivery record per order. Six commands through the bus: start, arrive, record (delivered, partial, failed), capture proof, report vehicle status, report fault. Lateness against the window close, waiting kept apart, a mall outlet late is failed not delivered (EXE-20), ETA shift announced to the stops ahead, replanned stops skipped. Proof photos and signatures through a `ProofStore` port (files under `PROOF_DIR`, a volume in both compose files) read back by signed five-minute links. Detail in [docs/issues/012-execution/WALKTHROUGH.md](../issues/012-execution/WALKTHROUGH.md).
 Why: the driver role could sign in and do nothing; nothing recorded what happened on the road, so orders stopped at in transit.
 Verified: `TEST_DATABASE_URL=... mvn verify`, 502 tests on a fresh database; the integration test runs plan published, loaded, released and delivered through the real relay to Ordering. Not run on the server; the Docker image was not built here.
-Open: built on the relay (PR #65), which must merge first. Server time decides, so a stop recorded offline and synced late reads as late and is marked uncertain (A-29). A rule violation is `409 CONSTRAINT_VIOLATED`, like Loading. `PROOF_URL_SECRET` unset means proof links die at a restart. The driver screens are #21. No retention job purges proofs yet (#6).
+Open: built on the relay (PR #65), which must merge first. Server time decides, so a stop recorded offline and synced late reads as late and is marked uncertain (A-31). A rule violation is `409 CONSTRAINT_VIOLATED`, like Loading. `PROOF_URL_SECRET` unset means proof links die at a restart. The driver screens are #21. No retention job purges proofs yet (#6).
+
+---
+
+## 2026-10-02 - fix(issues): drivers raise by the vehicle they drive today; assignees must work the depot (issue #13)
+
+`feat/receipt-issues` · @Oxshadha
+
+`IssueScope` now admits a driver for the depot of the vehicle they drive today, through Identity's `driverVehicleOn` (#5, R-IAM-13), so drivers need no depot grant and A-29 is withdrawn. `issue:Assign` requires the assignee to be scoped to the issue's depot through `scopeOf` (R-ISS-08). Both read only Identity's and Reference data's contracts.
+Why: #5 shipped the vehicle-and-date scope this was waiting for.
+Verified: on a fresh database, `TEST_DATABASE_URL=... mvn test`, 439 tests, 0 failures; frontend `npm run typecheck` and `npm test` (12) pass.
+Open: nothing for #13 beyond the walkthrough's gaps owned by other modules.
+
+## 2026-10-02 - test: cap the connection pool per cached test context
+
+`feat/receipt-issues` · @Oxshadha
+
+`src/test/resources/config/application.properties` sets the Hikari pool to 5 for tests only; production stays at 8. Spring caches one context per distinct test configuration, and each keeps its whole pool open. After #5 and this branch there are thirteen, which at 8 each need 104 connections, more than PostgreSQL's default 100, so the last test classes failed with "too many clients".
+Why: merging `dev` after #5 turned 29 tests red on connection errors, not logic. CI's PostgreSQL has the same limit.
+Verified: on a fresh database, `TEST_DATABASE_URL=... mvn test`, 437 tests, 0 failures.
+Open: nothing.
+
+## 2026-10-02 - fix(issues): redeliver only when nothing arrived; a redelivery keeps its priority (issue #13)
+
+`feat/receipt-issues` · @Oxshadha
+
+- `issue:ScheduleRedelivery` now answers only a failed delivery or a stock discrepancy. A disputed, damaged or late delivery is refused (ISS-08): a redelivery is the whole order and would ship the goods twice. A-24 is now decided.
+- `Order.redeliveryOf` carries the original's skips plus one, so Planning serves the outlet first next time (ORD-15).
+- Settled conflict C-7: a late arrival at a mall is a failed delivery, `mall_window_closed` (EXE-20). R-EXE-05 still holds elsewhere. #12 implements the detection.
+
+Why: review of A-24 and of late deliveries to malls.
+Verified: on a fresh database, `TEST_DATABASE_URL=... mvn test`, 391 tests, 0 failures.
+Open: comment on #12 for EXE-20; partial redelivery as a follow-up for Ordering and Warehouse.
+
+## 2026-10-02 - fix(issues): raise rights build on each role's current policy (issue #13)
+
+`feat/receipt-issues` · @Oxshadha
+
+Migration `20261002T0400` no longer restates the Loader, Driver and StoreManager policies. It builds each new version from the role's current default: it takes `issue:Raise` out of the statement that grants it and appends one typed raise statement, as `20261001T1501` does. Restating version 2 had silently dropped the store manager's `order:AcceptShortfall`, which #7 granted in between. The Receipt and Issues tests now switch off `ScheduledJobRunner` (from #7), so the real auto-close cannot fire mid-test; the jobs now run in the app on their crons.
+Why: merging `dev` after #7 turned three Ordering tests red (403 on `order:AcceptShortfall`).
+Verified: on a fresh database, `TEST_DATABASE_URL=... mvn test`, 390 tests, 0 failures; the store manager's default policy keeps `order:AcceptShortfall` and gains `RaiseStoreIssues`. Frontend `npm run typecheck` and `npm test` (12) pass.
+Open: nothing new; see the walkthrough's gaps.
+
+## 2026-10-02 - fix(issues): name the shortfall, announce escalation, correct the gaps (issue #13)
+
+`feat/receipt-issues` · @Oxshadha
+
+- `shortfall.resolved` gains an optional `shortfallId`, so Loading can resolve the one shortfall a replacement answers (ISS-07).
+- New event `issue.escalated`, published once by `IssueEscalationJob` and routed to dispatchers in MODULES §9.
+- A-29 is rewritten as temporary: the team's driver scope is vehicle and date (`driverVehicleOn`, #5).
+- The walkthrough's gaps table is checked against each module issue's full description.
+
+Why: review of the open gaps against the module issues.
+Verified: `TEST_DATABASE_URL=... mvn test`, 349 tests, 0 failures; frontend `npm run typecheck` and `npm test` (12) pass.
+Open: comments for #5, #10 and #19 (see the walkthrough), and the A-24 decision.
+
+## 2026-10-02 - docs: receipt and issues walkthrough and registers (issue #13, step 5)
+
+`feat/receipt-issues` · @Oxshadha
+
+- **Walkthrough:** adds [the issue #13 walkthrough](../issues/013-receipt-issues/WALKTHROUGH.md).
+- **RULES:** R-ISS-01 to R-ISS-07 (lifecycle, resolution vocabulary, subjects, replacement and redelivery fit, redelivery once, escalation, raise rights as policy).
+- **EDGE-CASES:** a test named for every RCP row and for the Issues halves of EXE-07, EXE-08, LOD-01 and STK-11; new RCP-09 and ISS-01 to ISS-06.
+- **ASSUMPTIONS:** P-10 = 24 h, P-20 to P-23, A-29 and A-30.
+- **MODULES:** §7 and §8 match the code.
+
+Why: issue #13 closeout.
+Verified: `TEST_DATABASE_URL=... mvn test`, 349 tests, 0 failures; frontend `npm run typecheck` and `npm test` pass.
+Open: the walkthrough's "Known gaps" table (relay #6, Loading and Execution query beans for the custody view, partial redelivery, Notification).
+
+## 2026-10-02 - feat(issues): commands, consumers, escalation and raise rights (issue #13, step 4)
+
+`feat/receipt-issues` · @Oxshadha
+
+- **Commands:** all seven `issue:*` commands through the bus. Scope is the issue's depot or outlet, read as the system, so out of scope is 403 plus audit.
+- **Raise rights are policy data:** the resource is `wpt:issue:type:<TYPE>`, and migration `20261002T0400` publishes version 3 of the Loader, Driver and StoreManager policies, scoping `issue:Raise` by type.
+- **Redelivery:** `issue:ScheduleRedelivery` emits exactly one `redelivery.requested`.
+- **Replacement:** `issue:RecordReplacement` emits `shortfall.resolved`.
+- **Consumers:** seven events each raise one issue (deduplicated by source key) at the policy's default severity. A partial or disputed receipt opens one investigation linked to the order, receipt, delivery and trip (R-RCP-07).
+- **Escalation:** `IssueEscalationJob` stamps an unassigned issue once at its severity's deadline and refreshes the backlog gauges.
+
+Why: issue #13. See [PLAN.md](../issues/013-receipt-issues/PLAN.md).
+Verified: `TEST_DATABASE_URL=... mvn test`, 349 tests, 0 failures; frontend `npm run typecheck` and `npm test` pass.
+Open: step 5 (walkthrough and registers).
+
+## 2026-10-02 - feat(receipt): confirm, dispute, delivery consumer and auto-close (issue #13, step 3)
+
+`feat/receipt-issues` · @Oxshadha
+
+- **Commands:** `receipt:Confirm`, `receipt:ConfirmPartial` and `receipt:Dispute` share one flow, `ReceiptAnswerHandler`. A missing delivery is 404 (RCP-04). Another outlet is 403 plus audit (RCP-05); scope is read as the system in its own transaction, so the bus can answer forbidden rather than absent.
+- **Delivery consumer:** `delivery.completed` opens a PENDING receipt with the order's lines and the driver named, once per delivery.
+- **Auto-close:** `ReceiptAutoCloseJob` closes silence after 24 h as the system (RCP-02). A shortage after auto-close is accepted as late and announced as `receipt.disputed` (RCP-08).
+- **Ordering:** gains `OnReceiptDisputed`. A dispute marks the order RECEIVED; a late one leaves it UNCONFIRMED and is counted.
+- **Migration** `20261002T0300` flips the receipt actions.
+
+Why: issue #13. See [PLAN.md](../issues/013-receipt-issues/PLAN.md).
+Verified: `TEST_DATABASE_URL=... mvn test`, 338 tests, 0 failures.
+Open: steps 4 and 5.
+
+## 2026-10-02 - feat: receipt and issues schema and reads (issue #13, step 2)
+
+`feat/receipt-issues` · @Oxshadha
+
+Migrations `20261002T0100` (receipt) and `T0200` (issues): FORCE RLS by outlet, depot and system (issues also by who raised it), no DELETE, and effective-dated parameters that the runtime role cannot edit. Database CHECKs back the rules: an answered receipt has a person behind it, and the system never resolves an investigation. Adds the repositories and the reads `/api/receipts/pending`, `/{orderId}`, `/{orderId}/custody`, `/api/issues?depot=` (keyset, most severe first), `/by-subject`, `/{id}` and `/{id}/history`. Contract changes are additive: `ReceiptView` fields, `CustodyChainView` and `IssueHistoryView`, mirrored in the frontend.
+Why: issue #13. See [PLAN.md](../issues/013-receipt-issues/PLAN.md).
+Verified: `TEST_DATABASE_URL=... mvn test`, 327 tests, 0 failures; `npm run typecheck` passes.
+Open: steps 3 to 5.
+
+## 2026-10-02 - feat: receipt and issues domains (issue #13, step 1)
+
+`feat/receipt-issues` · @Oxshadha
+
+Pure domains for both modules.
+- **Receipt:** the `Receipt` aggregate, plus `ReceiptStateMachine` (PENDING to CONFIRMED, PARTIAL, DISPUTED or AUTO_CLOSED; AUTO_CLOSED still accepts a late shortage), `AutoClosePolicy` and `ReceiptParameters`.
+- **Issues:** the `Issue` aggregate, plus `IssueLifecycle`, `ResolutionAction` (no RETURN) and `SeverityPolicy`. The system actor can never resolve a shortage investigation (R-RCP-07).
+
+Why: issue #13. The decisions are in [PLAN.md](../issues/013-receipt-issues/PLAN.md).
+Verified: `mvn test -Dtest=ReceiptTest,ReceiptStateMachineTest,IssueTest,ModuleBoundaryTest`, 33 tests, 0 failures.
+Open: steps 2 to 5 (schema, commands, consumers, jobs, docs).
 
 ---
 
@@ -86,9 +204,6 @@ Open: run the backend suite and the live loader browser test against a database;
 Loading now builds scoped live manifests, retains safe checks across plan revisions, limits issue reports to Damaged, Doesn't fit and Missing, and releases only after doors sealed, orders secured and driver present are confirmed. Shared-device PIN switching records operator history and attributes queued commands to the person active when they were recorded. The loader screens use those contracts and the shared sync queue.
 Why: issue #10 needs a traceable dock workflow that remains correct through a plan change or an offline period.
 Verified: the full backend suite passed 231 tests with zero failures, errors or skips after focused red/green tests covered both fixture fixes. A separate disposable PostgreSQL 18 database imported reference data, provisioned a test PIN and built one manifest from synthetic demand. The live 393x852 browser flow passed sign-in, PIN failure and success, loading, offline check, sync, three-check release and lock. The 768x1024 locked tablet state had no horizontal overflow. The latest frontend run passed seven unit/boundary tests, typecheck, production build and two mocked browser tests. No external warehouse data was changed.
-Open: compare more tablet states with Figma and reconcile against `dev` before delivery. Interchange, dispatcher handover and driver-assignment gating remain deferred.
-
----
 
 ## 2026-10-01 - fix: identity and auth hardening (issue #5)
 

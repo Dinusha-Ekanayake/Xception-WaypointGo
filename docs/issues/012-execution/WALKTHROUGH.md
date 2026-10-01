@@ -1,6 +1,6 @@
 # Issue #12: Execution module: walkthrough
 
-What was built. Rules are R-EXE-01 to R-EXE-15 in [RULES-AND-POLICIES.md](../../architecture/RULES-AND-POLICIES.md), cases EXE-05 to EXE-25 in [EDGE-CASES.md](../../architecture/EDGE-CASES.md), assumptions A-29 to A-31 and parameter P-14 in [ASSUMPTIONS.md](../../architecture/ASSUMPTIONS.md). The plan and its twelve decisions are in [PLAN.md](PLAN.md).
+What was built. Rules are R-EXE-01 to R-EXE-15 in [RULES-AND-POLICIES.md](../../architecture/RULES-AND-POLICIES.md), cases EXE-05 to EXE-25 in [EDGE-CASES.md](../../architecture/EDGE-CASES.md), assumptions A-31 to A-33 and parameter P-14 in [ASSUMPTIONS.md](../../architecture/ASSUMPTIONS.md). The plan and its twelve decisions are in [PLAN.md](PLAN.md).
 
 ## Layers
 
@@ -44,14 +44,14 @@ By hand, with a released trip: sign in as the driver assigned to its vehicle, `G
 Recorded in [PLAN.md](PLAN.md). Three that shape what a client must do:
 
 - A rule violation is `409` with code `CONSTRAINT_VIOLATED` and the rule in `violations`, as in Loading. `422` is a malformed command; `409` with `VERSION_CONFLICT` is a stale version.
-- Lateness needs a reason from the driver unless the record is timing-uncertain (A-29).
+- Lateness needs a reason from the driver unless the record is timing-uncertain (A-31).
 - An attachment upload is a `PUT` of the raw bytes, not a command, so the offline queue must send it itself. It is idempotent by id and content.
 
 ## Known gaps
 
 - The driver screens (#21).
-- Receipt and Issues (#13) consume `delivery.completed`, `delivery.failed` and `vehicle.fault_reported`; until they land a failed delivery raises no issue and nothing confirms receipt.
+- Receipt and Issues (#13) landed on `dev` while this was built and consume `delivery.completed`, `delivery.failed` and `vehicle.fault_reported`. This branch's tests cover Execution's half and Ordering's; the two together are covered only by running both suites on the merged tree.
 - Nobody consumes `eta.changed`, `delivery.started` or `road.disruption_reported` yet (Notification, #14).
 - No virus scan: `scan_status` stays `not_scanned`. No retention job purges artifacts past `retain_until` (#6).
-- `LocalProofStore` is one host's disk (A-31).
+- `LocalProofStore` is one host's disk (A-33).
 - Not run on the server; the Docker image with the new volume was not built here.

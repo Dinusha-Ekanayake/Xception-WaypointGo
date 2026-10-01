@@ -238,7 +238,7 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-EXE-02 | Work must be recordable **offline** and reconcile when connectivity returns | Booklet | Binding |
 | R-EXE-03 | Interactions are designed for use when safely stopped | Booklet | Binding |
 | R-EXE-04 | **Early arrival waits.** Service starts at `max(arrival_time, window_open_time)`, never at arrival. Waiting time is recorded separately from service time | Booklet | Binding |
-| R-EXE-05 | A late arrival is **still delivered**. Lateness is recorded with a reason. The exception is a mall outlet, which takes goods only inside its window (R-PLN-14): a late arrival there is recorded as failed with `mall_window_closed` (EXE-20) | Booklet | Binding |
+| R-EXE-05 | A late arrival is **still delivered**. Lateness is recorded with a reason. **Except at a mall outlet:** after its effective window closes the mall does not accept goods (R-PLN-14, R-PLN-29), so the stop is a failed delivery with reason `mall_window_closed`, and the dispatcher decides on a redelivery (C-7, EXE-20) | Booklet | Binding |
 | R-EXE-13 | Merged into R-EXE-04, which it duplicated | Booklet | Merged |
 | R-EXE-14 | **Lateness means arrival after `window_close_time`**, not arrival after the planned time. A stop can be later than planned and not late, or on time and late | Booklet | Binding |
 | R-EXE-15 | Lateness has a cost even though the goods are delivered: receiving staff may have moved to other duties, and a Fresh outlet may miss morning sales. Lateness is surfaced to the dispatcher and the store, not buried in a log | Booklet | Binding |
@@ -246,7 +246,7 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-EXE-07 | The driver reports road faults and delays | Team draft | Team |
 | R-EXE-08 | The driver is notified which dock to load at, and when loading and unloading finish | Team draft | Team |
 | R-EXE-09 | A report option is available at every stage | Team draft | Team |
-| R-EXE-10 | **Server time is authoritative.** Device time is stored for forensics only. A record whose two clocks differ by more than five minutes is marked `timing_uncertain` (A-29) | Policy | Policy |
+| R-EXE-10 | **Server time is authoritative.** Device time is stored for forensics only. A record whose two clocks differ by more than five minutes is marked `timing_uncertain` (A-31) | Policy | Policy |
 | R-EXE-11 | A device limitation, such as a denied camera, never blocks completing the work. The outcome records the reason and is flagged lower-evidence | Policy | Policy |
 | R-EXE-12 | **Returns are out of scope.** A failed delivery records the outcome and raises an issue; goods disposition is recorded but no return workflow exists | Team draft | Team |
 
@@ -262,6 +262,19 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-RCP-06 | The store sees the probability that an order can be supplied on its scheduled day | Team draft | Team, needs a model |
 | R-RCP-07 | **Loaded but not received.** When a passing loading check, a completed delivery and a short receipt disagree, the system raises a shortage investigation linked to all three records. It is **never auto-resolved in favour of either party**, and no record is amended to make them agree | Policy | Policy |
 | R-RCP-08 | Each link in the custody chain is attributed: who checked it at the dock, who delivered it, who received it. That chain is the evidence, and it is what replaces memory in a dispute | Booklet, policy | Policy |
+
+### 6a. Operational issues (issue #13)
+
+| ID | Rule | Source | Status |
+| --- | --- | --- | --- |
+| R-ISS-01 | **One lifecycle.** OPEN to ASSIGNED (reassign allowed) to RESOLVED to CLOSED; OPEN or ASSIGNED may be CANCELLED with a reason. Resolved, closed and cancelled are history: a recurring problem is a new issue | Policy, settles conflict B17 | Policy |
+| R-ISS-02 | Every resolution and cancellation records an action from a fixed vocabulary (replacement, redelivery, write-off, no fault found, other), a reason, a person and a time. There is no return action (R-EXE-12, A-10) | Rule 8 | Policy |
+| R-ISS-03 | An issue names a depot, a description and at least one subject: order, trip, delivery, receipt, shortfall or vehicle. A vehicle alone is valid, because fault and disruption reports carry no trip. A named outlet must belong to the depot | Policy | Policy |
+| R-ISS-04 | A replacement answers only a loading shortfall about that trip and order, and `shortfall.resolved` names the shortfall when the issue was raised from one. A redelivery answers only an issue where **nothing reached the outlet**: a failed delivery or a stock discrepancy. A redelivery is the whole order (A-24), so for a disputed, damaged or late delivery it would ship the goods twice; those are resolved as write-off, no fault found or other, and the store reorders what is missing | Policy | Policy |
+| R-ISS-05 | A redelivery is requested at most once per issue and never for a past date. Ordering creates one order linked to the original (B17, A-24) | Policy | Policy |
+| R-ISS-06 | **Escalation timer.** An issue still OPEN and unassigned past its severity's deadline (P-20 to P-23) is stamped escalated once, with a history row, a metric and `issue.escalated` for Notification to route to the depot's dispatchers | Policy | Policy |
+| R-ISS-07 | **Who may raise what is policy data.** `issue:Raise` is evaluated on `wpt:issue:type:<TYPE>`, and the role policies name each role's types; scope is the issue's depot, the outlet it names, or for a driver the depot of the vehicle they drive today (R-IAM-13, `driverVehicleOn`). Store: damaged goods, late delivery, other. Loader: loading shortfall, damaged goods, other. Driver: failed delivery, vehicle fault, road disruption, late delivery, damaged goods, other. Dispatcher: all | Policy, issue #13 decision 2 | Policy |
+| R-ISS-08 | An issue is assigned only to someone scoped to its depot, so it never lands with a person who cannot see it | Policy | Policy |
 
 ## 7. Fleet, calendar and notification
 
@@ -317,7 +330,7 @@ Binding for the delivered system even though Task 2B does not score them.
 
 ## 8. Conflicts found
 
-Six places where the sources disagree. C-1, C-2, C-3, C-5 and C-6 are settled; C-4 remains open.
+Seven places where the sources disagree. C-1, C-2, C-3, C-5, C-6 and C-7 are settled; C-4 remains open.
 
 | # | Conflict | Detail | Recommendation |
 | --- | --- | --- | --- |
@@ -327,6 +340,7 @@ Six places where the sources disagree. C-1, C-2, C-3, C-5 and C-6 are settled; C
 | **C-4** | **"Reefers are assumed to run at full capacity"** | Team draft. Meaning unclear: it could mean reefers are always loaded to capacity, that their capacity is not derated when chilled, or that refrigeration does not reduce usable volume | Undecided. See question Q2 |
 | **C-5** | **Longest distance first** | Team draft requires longest distances dispatched earliest. Delivery windows and the Fresh 03:30 to 08:00 window may require the opposite | Windows win; distance is a tie-break. Recorded as R-PLN-25 |
 | **C-6** | **No ordering on holidays** | Team draft. The booklet does not restrict *placing* an order, only *delivering* on a non-operating day. Blocking placement stops a store preparing Monday's order on a Sunday | **Resolved 2026-09-30 (D-I):** allow placement, roll the delivery date to the next operating day, and show the store the date it will arrive. R-ORD-09 withdrawn |
+| **C-7** | **A late arrival at a mall** | R-EXE-05 (booklet): a late arrival is still delivered. R-PLN-14 (booklet): a mall accepts deliveries only inside its fixed access window. After the window closes the goods physically cannot be unloaded | **Resolved 2026-10-02 (issue #13):** R-EXE-05 holds for ordinary outlets. At a mall outlet, arrival after the effective window is a failed delivery (`mall_window_closed`), raised as an issue; the dispatcher decides on a redelivery, which carries a skip so the next plan serves it first (EXE-20, ORD-15) |
 
 ---
 
@@ -344,7 +358,8 @@ One rule, one enforcement point, so a change has one home.
 | R-PLN-21 to 28 | Priority policy and publication gate, versioned | Domain unit tests |
 | R-LOD-* | Loading domain and departure gate | Integration tests |
 | R-EXE-* | Execution domain and offline queue | Browser tests |
-| R-RCP-* | Receipt domain and scheduler | Integration tests |
+| R-RCP-* | Receipt domain, `ReceiptAutoCloseJob`, `ReceiptAnswerHandler` | Domain unit tests, integration tests with the job run at chosen instants |
+| R-ISS-* | Issues domain, `IssueCommandHandler`, role policies (R-ISS-07), `IssueEscalationJob` | Domain unit tests, integration tests through the command bus |
 | R-FLT-*, R-CAL-* | Reference data module | Domain unit tests |
 | R-NOT-* | Notification outbox | Integration tests |
 
