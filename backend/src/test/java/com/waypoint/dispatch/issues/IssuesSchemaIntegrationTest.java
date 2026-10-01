@@ -65,12 +65,12 @@ class IssuesSchemaIntegrationTest extends ReceiptIssuesSupport {
   @Test
   void anOutletsManagerSeesItsIssuesAndADriverSeesWhatTheyRaised() throws Exception {
     Issue atOutlet = raised(IssueType.DAMAGED_GOODS, IssueSeverity.HIGH, Optional.of(outlet.outletId()), Actor.SYSTEM_ID);
-    Issue byDriver = raised(IssueType.ROAD_DISRUPTION, IssueSeverity.MEDIUM, Optional.empty(), driver.id());
+    Issue byDriver = raised(IssueType.ROAD_DISRUPTION, IssueSeverity.MEDIUM, Optional.empty(), roamingDriver.id());
 
     read(manager, "/api/issues/" + atOutlet.issueId(), 200);
     read(stranger, "/api/issues/" + atOutlet.issueId(), 404);
-    read(driver, "/api/issues/" + byDriver.issueId(), 200);
-    read(driver, "/api/issues/" + atOutlet.issueId(), 404);
+    read(roamingDriver, "/api/issues/" + byDriver.issueId(), 200);
+    read(roamingDriver, "/api/issues/" + atOutlet.issueId(), 404);
     JsonNode bySubject = read(manager, "/api/issues/by-subject?type=order&id=" + orderOf(atOutlet), 200);
     assertEquals(1, bySubject.size());
   }

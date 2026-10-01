@@ -11,9 +11,9 @@ Updated after every finished step. Branch `feat/receipt-issues`, from `dev` at `
 | 0 Plan | **done** | `84a09c7` | |
 | 1 Domains | **done** | `8696e96` | `receipt/domain/*`, `issues/domain/*`; `ReceiptTest`, `ReceiptStateMachineTest`, `IssueTest` (24 tests) |
 | 2 Schema, repositories, reads | **done** | `7083be7` | Migrations `20261002T0100`, `T0200`; `JdbcReceiptRepository`, `JdbcIssueRepository`; `ReceiptDataQuery`, `IssueDataQuery`; `/api/receipts`, `/api/issues`; `ReceiptView` fields, `CustodyChainView`, `IssueHistoryView` mirrored in TS; 11 schema tests |
-| 3 Receipt commands, consumer, auto-close, Ordering `OnReceiptDisputed` | **done** | `feat(receipt): confirm, dispute, delivery consumer and auto-close` | `ReceiptAnswerHandler` and its three handlers, `ReceiptConsumers.OnDeliveryCompleted`, `ReceiptAutoCloseJob`, `OrderingConsumers.OnReceiptDisputed`. Migration `20261002T0300` flips the receipt actions here, not in step 4, because `CommandPathIntegrationTest` fails a handler whose row says unimplemented. 11 tests |
-| 4 Issues commands, consumers, escalation, catalogue and raise rights | todo — start here | | Migration `20261002T0400` for the issue actions and the version-3 role policies |
-| 5 Docs closeout | todo | | WALKTHROUGH, EDGE-CASES, RULES, ASSUMPTIONS, MODULES, development log |
+| 3 Receipt commands, consumer, auto-close, Ordering `OnReceiptDisputed` | **done** | `5707c68` | `ReceiptAnswerHandler` and its three handlers, `ReceiptConsumers.OnDeliveryCompleted`, `ReceiptAutoCloseJob`, `OrderingConsumers.OnReceiptDisputed`. Migration `20261002T0300` flips the receipt actions here, not in step 4, because `CommandPathIntegrationTest` fails a handler whose row says unimplemented. 11 tests |
+| 4 Issues commands, consumers, escalation, catalogue and raise rights | **done** | `feat(issues): commands, consumers, escalation and raise rights` | `RaiseIssueHandler`, `IssueCommandHandler` and six decisions, `IssuesConsumers` (seven events), `IssueEscalationJob`, `IssueScope`; migration `20261002T0400`. A driver needs depot scope to raise an issue (A-29). 17 tests |
+| 5 Docs closeout | todo — start here | | WALKTHROUGH, EDGE-CASES, RULES, ASSUMPTIONS, MODULES, development log |
 
 **Environment.** Database tests need `TEST_DATABASE_URL` pointing at a dedicated database, for example `postgresql://waypoint:local-testing-only@127.0.0.1:55432/waypoint_test`. Migrations are checksummed: after editing an unmerged migration, drop and recreate the test database.
 

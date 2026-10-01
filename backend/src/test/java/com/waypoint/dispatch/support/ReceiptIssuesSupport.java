@@ -83,6 +83,8 @@ public abstract class ReceiptIssuesSupport {
   protected Person dispatcher;
   protected Person farDispatcher;
   protected Person driver;
+  /** A driver with no depot scope: sees only what they raised. */
+  protected Person roamingDriver;
   protected Person loader;
 
   /** An account with its id and a live session. */
@@ -126,7 +128,8 @@ public abstract class ReceiptIssuesSupport {
     stranger = person("ris-" + run, "store_manager", Optional.empty(), Optional.of(otherOutlet.outletId()));
     dispatcher = person("rid-" + run, "dispatcher", Optional.of(depot), Optional.empty());
     farDispatcher = person("rif-" + run, "dispatcher", Optional.of(otherDepot), Optional.empty());
-    driver = person("rdr-" + run, "driver", Optional.empty(), Optional.empty());
+    driver = person("rdr-" + run, "driver", Optional.of(depot), Optional.empty());
+    roamingDriver = person("rrd-" + run, "driver", Optional.empty(), Optional.empty());
     loader = person("rlo-" + run, "loader", Optional.of(depot), Optional.empty());
   }
 

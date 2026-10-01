@@ -21,6 +21,21 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-02 - feat(issues): commands, consumers, escalation and raise rights (issue #13, step 4)
+
+`feat/receipt-issues` · @Oxshadha
+
+- **Commands:** all seven `issue:*` commands through the bus. Scope is the issue's depot or outlet, read as the system, so out of scope is 403 plus audit.
+- **Raise rights are policy data:** the resource is `wpt:issue:type:<TYPE>`, and migration `20261002T0400` publishes version 3 of the Loader, Driver and StoreManager policies, scoping `issue:Raise` by type.
+- **Redelivery:** `issue:ScheduleRedelivery` emits exactly one `redelivery.requested`.
+- **Replacement:** `issue:RecordReplacement` emits `shortfall.resolved`.
+- **Consumers:** seven events each raise one issue (deduplicated by source key) at the policy's default severity. A partial or disputed receipt opens one investigation linked to the order, receipt, delivery and trip (R-RCP-07).
+- **Escalation:** `IssueEscalationJob` stamps an unassigned issue once at its severity's deadline and refreshes the backlog gauges.
+
+Why: issue #13. See [PLAN.md](../issues/013-receipt-issues/PLAN.md).
+Verified: `TEST_DATABASE_URL=... mvn test`, 349 tests, 0 failures; frontend `npm run typecheck` and `npm test` pass.
+Open: step 5 (walkthrough and registers).
+
 ## 2026-10-02 - feat(receipt): confirm, dispute, delivery consumer and auto-close (issue #13, step 3)
 
 `feat/receipt-issues` · @Oxshadha
