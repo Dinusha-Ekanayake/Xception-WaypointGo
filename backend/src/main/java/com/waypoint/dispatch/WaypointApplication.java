@@ -4,10 +4,14 @@ import com.waypoint.dispatch.identity.application.AccountAdminUseCase;
 import com.waypoint.dispatch.platform.config.AppProperties;
 import com.waypoint.dispatch.platform.db.Migrator;
 import com.waypoint.dispatch.referencedata.application.ImportReferenceDataHandler;
+import com.waypoint.dispatch.shared.error.DomainException;
+import com.waypoint.dispatch.shared.error.ErrorCode;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
@@ -24,11 +28,14 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
  *   <li>{@code import-reference} stages, validates and publishes a reference version
  *   <li>{@code account-create} creates an account from a trusted host. The first
  *       administrator cannot come from an endpoint that requires one
+ *   <li>{@code account-grant-depot} grants an account a depot scope
  * </ul>
  */
 @SpringBootApplication
 @ConfigurationPropertiesScan
 public class WaypointApplication implements ApplicationRunner {
+  private static final Logger log = LoggerFactory.getLogger(WaypointApplication.class);
+
   private final Migrator migrator;
   private final ImportReferenceDataHandler referenceImport;
   private final AccountAdminUseCase accounts;
@@ -62,48 +69,62 @@ public class WaypointApplication implements ApplicationRunner {
     }
     if (commands.contains("migrate")) {
       int applied = migrator.migrate();
-      System.out.println(
-          applied == 0 ? "Schema already up to date." : "Applied " + applied + " migration(s).");
+      log.info(applied == 0 ? "Schema already up to date." : "Applied {} migration(s).", applied);
       System.exit(0);
     }
     if (commands.contains("import-reference")) {
       var outcome = referenceImport.importFrom(Path.of(properties.dataDir()), null);
-      System.out.println(
-          outcome.published()
-              ? "Published reference version " + outcome.versionId() + " with "
-                  + outcome.outlets() + " outlets and " + outcome.vehicles() + " vehicles."
-              : "Reference data unchanged; version " + outcome.versionId() + " already holds it.");
+      if (outcome.published()) {
+        log.info(
+            "Published reference version {} with {} outlets and {} vehicles.",
+            outcome.versionId(),
+            outcome.outlets(),
+            outcome.vehicles());
+      } else {
+        log.info("Reference data unchanged; version {} already holds it.", outcome.versionId());
+      }
       System.exit(0);
     }
     if (commands.contains("account-create")) {
       var env = System.getenv();
-      UUID userId =
-          accounts.createAccount(
-              required(env, "ACCOUNT_EMAIL"),
-              required(env, "ACCOUNT_NAME"),
-              required(env, "ACCOUNT_PASSWORD"),
-              required(env, "ACCOUNT_ROLE"));
-      System.out.println("Created account " + userId + " as " + env.get("ACCOUNT_ROLE") + ".");
+      String role = required(env, "ACCOUNT_ROLE");
+      try {
+        UUID userId =
+            accounts.createAccount(
+                required(env, "ACCOUNT_EMAIL"),
+                required(env, "ACCOUNT_NAME"),
+                required(env, "ACCOUNT_PASSWORD"),
+                role);
+        log.info("Created account {} as {}.", userId, role);
+      } catch (DomainException e) {
+        if (e.code() != ErrorCode.CONFLICT) {
+          throw e;
+        }
+        // Idempotent like import-reference, so an init step can run on every start.
+        // The existing account is left as it is: its password is not reset.
+        log.info("Account already exists; left unchanged.");
+      }
       System.exit(0);
     }
     if (commands.contains("account-grant-depot")) {
       var env = System.getenv();
       String depot = required(env, "ACCOUNT_DEPOT");
       accounts.grantDepot(required(env, "ACCOUNT_EMAIL"), depot);
-      System.out.println("Granted depot " + depot + " to " + env.get("ACCOUNT_EMAIL") + ".");
+      // The depot only: an email in a log line is personal data.
+      log.info("Granted depot {}.", depot);
       System.exit(0);
     }
-    System.out.println(
-        "Unknown command "
-            + commands
-            + ". Use: migrate | import-reference | account-create | account-grant-depot, or no argument to serve.");
+    log.error(
+        "Unknown command {}. Use: migrate | import-reference | account-create |"
+            + " account-grant-depot, or no argument to serve.",
+        commands);
     System.exit(2);
   }
 
   private static String required(Map<String, String> env, String name) {
     String value = env.get(name);
     if (value == null || value.isBlank()) {
-      throw new IllegalArgumentException(name + " must be set for account-create");
+      throw new IllegalArgumentException(name + " must be set for this command");
     }
     return value;
   }

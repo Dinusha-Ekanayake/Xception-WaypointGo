@@ -21,6 +21,29 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-01 - fix: make the platform trustworthy (issue #4)
+
+`feat/platform-hardening` · @jv-ransika
+
+Error contract: every problem body carries `code`, `correlationId` and `violations: [{rule, field?, message}]`; client mistakes are 400/409/413/422/429, never 500; every 500 logs one line with its stack. Correlation id accepted only UUID-shaped and tied to the trace. Emails removed from audit rows, problem details and the accounts cursor. `Metrics.gauge` fixed, command timers with p95, and the detection signals for PLT-01, PLT-07, SEC-03/06/09/10/12/13/16, ORD-05/PLN-06/EXE-14 (names in EDGE-CASES). Tracing export off unless configured; JDBC spans. Shared keyset `Cursor`/`Page` on accounts, policies, assignments and reference lists. Body limit in backend, Next proxy and nginx; CSP in Next and nginx. `AppProperties` types sessions, throttle, body size, tracing and the problem type base. `account-create` is idempotent and `account-grant-depot` logs no email; health checks use real endpoints; nginx limits `POST /api/session`. CI `checks.yml` now runs `mvn verify` and parses both compose files. Integration tests fall back to Testcontainers. Prototype docs deleted; README, development, deployment, verification rewritten.
+Why: a 500 left no trace, personal data reached logs and audit, `docker compose up` could not start, and nine modules were about to build on all of it.
+Verified: after the rebuild on `dev`, `TEST_DATABASE_URL=... mvn verify` on PostgreSQL 16: 210 tests, 0 failures, 0 skipped; `npm run typecheck` and `npm test` pass.
+Rebuilt on `dev` after ordering and sync: `Database` keeps `readAs` and the system actor beside the new counters; compose keeps `scripts/compose-init.sh`; the client `Problem` keeps `extensions` beside `code`, `correlationId` and structured violations. Ordering and sync adapted: `CutoffJob` gauge reads a live value, sync's 429 goes through `DomainException.rateLimited`, `OperationOutcome` covers the new error codes, and the fleet and loader outlet reads follow `nextCursor` via `requestAll`.
+Open: integration tests against PostgreSQL, the backend image build, `nginx -t`, a fresh `docker compose up` and CI are unverified (Docker Hub unreachable during this session). The login lockout rolls back with its own transaction and never triggers, and the pool still connects as the owner role: both are issue #5. Lockout now answers 429 with `Retry-After`; `GET /api/accounts` and the other lists now return `{items, nextCursor}`.
+
+---
+
+## 2026-10-01 - feat: add an opt-in log store (Loki, Alloy, Grafana)
+
+`feat/platform-hardening` · @jv-ransika
+
+Compose profile `observability` in `compose.yaml` and `compose.prod.yaml` runs Loki (14-day retention), Alloy and Grafana on 127.0.0.1. Alloy collects containers labelled `com.waypoint.logs=true` and, for a natively run backend, `var/log/*.log` written when `LOG_FILE` is set. Backend services now set `LOG_FORMAT=ecs`. Config in `observability/`, usage in development.md "Searching logs" and deployment.md "Logs". No module code changed.
+Why: logs only reached a console, so nothing could be searched and a correlation id could not be followed across requests or services.
+Verified: both compose files validate with and without the profile. Backend jar run with `LOG_FORMAT=ecs` and `LOG_FILE`: one request's line reached Loki from the container and from the file, found by `correlationId`, with `level` as the only new label. Logs survive a Loki restart; backend liveness stays 200 with Loki stopped.
+Open: the backend Docker image does not build (`mvn dependency:go-offline` fails in `backend/Dockerfile`), and `init` still runs the missing `seed`, so full-stack `docker compose up` is unproven (issue #4). Metrics and traces have no store yet.
+
+---
+
 ## 2026-10-01 - ci: www redirects to the bare name
 
 `ci/www-redirect` · @kavindamihiran

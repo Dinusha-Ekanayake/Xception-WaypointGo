@@ -1,9 +1,11 @@
+# syntax=docker/dockerfile:1
 FROM maven:3.9-eclipse-temurin-17 AS build
 WORKDIR /src
 COPY backend/pom.xml ./
-RUN mvn -q dependency:go-offline
 COPY backend/src ./src
-RUN mvn -q package -DskipTests
+# The Maven cache survives between builds without a go-offline step, which
+# failed on plugins resolved only at package time.
+RUN --mount=type=cache,target=/root/.m2 mvn -q -B package -DskipTests
 
 FROM eclipse-temurin:17-jre
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
@@ -13,5 +15,7 @@ COPY data /app/data
 COPY migrations /app/migrations
 COPY frontend/public/assets /app/frontend/public/assets
 ENV DATA_DIR=/app/data MIGRATIONS_DIR=/app/migrations
+RUN useradd --system --uid 10001 --home /app waypoint
+USER waypoint
 EXPOSE 8080
 CMD ["java","-jar","/app/backend.jar"]

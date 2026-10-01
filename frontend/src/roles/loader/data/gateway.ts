@@ -1,4 +1,4 @@
-import { request } from "@shared/api/client";
+import { request, requestAll } from "@shared/api/client";
 import { send, type Command, type CommandAck } from "@shared/api/commands";
 import { drain, enqueue } from "@shared/offline";
 import type { ManifestView, OutletView, ReadyTripView } from "@shared/domain/types";
@@ -32,7 +32,7 @@ function liveGateway(accountId: string): LoadingGateway {
     readyTrips: (depot, date, signal) =>
       request(`/api/loading/trips?depot=${encodeURIComponent(depot)}&date=${date}`, { signal }),
     manifest: (tripId, signal) => request(`/api/loading/trips/${tripId}/manifest`, { signal }),
-    outlets: (depot, signal) => request(`/api/reference/outlets?depot=${encodeURIComponent(depot)}`, { signal }),
+    outlets: (depot, signal) => requestAll(`/api/reference/outlets?depot=${encodeURIComponent(depot)}`, { signal }),
     send: (command) => send(command),
     queue: (command) => enqueue(accountId, "loader", command),
     flush: () => drain(accountId),

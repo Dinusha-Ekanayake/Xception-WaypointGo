@@ -4,6 +4,7 @@ import com.waypoint.dispatch.identity.application.LoginHandler;
 import com.waypoint.dispatch.identity.application.SessionRegistry;
 import com.waypoint.dispatch.identity.contract.SessionView;
 import com.waypoint.dispatch.platform.config.AppProperties;
+import com.waypoint.dispatch.platform.web.RequestValues;
 import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
 import jakarta.servlet.http.Cookie;
@@ -46,7 +47,7 @@ public class AuthController {
   @PostMapping("/session")
   public ResponseEntity<Map<String, Object>> signIn(
       @RequestBody LoginRequest body, HttpServletRequest request, HttpServletResponse response) {
-    UUID deviceId = body.deviceId() == null ? null : UUID.fromString(body.deviceId());
+    UUID deviceId = RequestValues.optionalUuid("deviceId", body.deviceId());
     String token = login.login(body.email(), body.password(), deviceId, request.getRemoteAddr());
 
     Cookie cookie = new Cookie(COOKIE, token);

@@ -84,7 +84,9 @@ public class PolicyDecisionPoint implements CommandAuthorizer {
       return Optional.empty();
     }
     metrics.increment("waypoint.authorization.denied", "action", action);
-    log.info(
+    // Debug only: the audit row below is the record. An INFO line per denial would
+    // let a scripted probe flood the log with resource ids.
+    log.debug(
         "Denied {} on {} for {}: {}", action, resource, actor.userId(), decision.reason());
     // A denial that leaves no trace is how an access problem becomes invisible.
     audit.recordStandalone(
