@@ -39,6 +39,16 @@ export type IssueView = {
   rowVersion: number;
 };
 
+/** One change to an issue, with who made it, what they did and why (rule 8). */
+export type IssueHistoryView = {
+  from: IssueStatus | null;
+  to: IssueStatus;
+  action: string;
+  reason: string;
+  actorId: Uuid | null;
+  at: IsoInstant;
+};
+
 export const IssueCommandKind = {
   raise: "issue:Raise",
   assign: "issue:Assign",

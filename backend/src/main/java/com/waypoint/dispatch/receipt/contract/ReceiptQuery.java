@@ -1,5 +1,6 @@
 package com.waypoint.dispatch.receipt.contract;
 
+import com.waypoint.dispatch.receipt.contract.ReceiptViews.CustodyChainView;
 import com.waypoint.dispatch.receipt.contract.ReceiptViews.PendingReceiptView;
 import com.waypoint.dispatch.receipt.contract.ReceiptViews.ReceiptView;
 import java.util.List;
@@ -12,4 +13,7 @@ public interface ReceiptQuery {
   Optional<ReceiptView> receiptFor(UUID orderId);
 
   List<PendingReceiptView> pendingConfirmations(String outletId);
+
+  /** The loading check, the proof and the receipt side by side (R-RCP-08), for audits and disputes. */
+  Optional<CustodyChainView> custodyChain(UUID orderId);
 }

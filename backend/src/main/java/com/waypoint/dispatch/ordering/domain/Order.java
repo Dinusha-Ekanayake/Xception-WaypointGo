@@ -132,7 +132,8 @@ public record Order(
   /**
    * A new order for goods that did not arrive. It carries the original's
    * reservation and measures: the goods are the same goods, still reserved at
-   * the warehouse, so asking again would reserve them twice.
+   * the warehouse, so asking again would reserve them twice. It also carries the
+   * original's skips plus one, so Planning serves the outlet first next time.
    */
   public static Order redeliveryOf(
       Order original, UUID orderId, String orderRef, LocalDate requested, LocalDate delivery) {
@@ -154,7 +155,9 @@ public record Order(
         original.reservation(),
         Optional.of(original.orderId()),
         Optional.empty(),
-        0,
+        // The failed delivery skipped the outlet, so the redelivery carries one
+        // more skip and the next plan serves it first (R-PLN-20, PRIOR_SKIP).
+        original.deferralCount() + 1,
         original.lines(),
         0);
   }

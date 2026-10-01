@@ -164,6 +164,9 @@ class OrderTest {
     assertEquals(Optional.of(original.orderId()), redelivery.redeliveryOf());
     assertEquals(original.reservation(), redelivery.reservation());
     assertEquals(OrderStatus.CONFIRMED, redelivery.status());
+    assertEquals(
+        original.deferralCount() + 1, redelivery.deferralCount(),
+        "the failed delivery skipped the outlet, so the next plan serves it first (R-PLN-20)");
   }
 
   @Test
