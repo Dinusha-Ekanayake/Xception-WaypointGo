@@ -9,6 +9,7 @@ import static com.waypoint.dispatch.ordering.contract.OrderStatus.FAILED;
 import static com.waypoint.dispatch.ordering.contract.OrderStatus.IN_TRANSIT;
 import static com.waypoint.dispatch.ordering.contract.OrderStatus.LOADING;
 import static com.waypoint.dispatch.ordering.contract.OrderStatus.PARTIALLY_DELIVERED;
+import static com.waypoint.dispatch.ordering.contract.OrderStatus.PARTIALLY_RESERVED;
 import static com.waypoint.dispatch.ordering.contract.OrderStatus.RECEIVED;
 import static com.waypoint.dispatch.ordering.contract.OrderStatus.STOCK_UNKNOWN;
 import static com.waypoint.dispatch.ordering.contract.OrderStatus.UNCONFIRMED;
@@ -45,6 +46,8 @@ public final class OrderStateMachine {
 
   static {
     EDGES.put(STOCK_UNKNOWN, EnumSet.of(CONFIRMED, DEFERRED, CANCELLED));
+    // The store accepts the locked quantities, or cancels; expiry cancels too.
+    EDGES.put(PARTIALLY_RESERVED, EnumSet.of(CONFIRMED, CANCELLED));
     EDGES.put(CONFIRMED, EnumSet.of(ALLOCATED, DEFERRED, UNSERVABLE, CANCELLED));
     EDGES.put(DEFERRED, EnumSet.of(ALLOCATED, DEFERRED, UNSERVABLE, CANCELLED));
     EDGES.put(UNSERVABLE, EnumSet.of(ALLOCATED, DEFERRED, CANCELLED));
@@ -65,7 +68,7 @@ public final class OrderStateMachine {
 
   /** States a store may still cancel from. Loading or later is refused (ORD-10). */
   public static final Set<OrderStatus> CANCELLABLE =
-      EnumSet.of(STOCK_UNKNOWN, CONFIRMED, DEFERRED, UNSERVABLE, ALLOCATED);
+      EnumSet.of(STOCK_UNKNOWN, PARTIALLY_RESERVED, CONFIRMED, DEFERRED, UNSERVABLE, ALLOCATED);
 
   /** States a store may amend in. Everything Planning holds is a conflict (ORD-05). */
   public static final Set<OrderStatus> AMENDABLE = EnumSet.of(STOCK_UNKNOWN, CONFIRMED);

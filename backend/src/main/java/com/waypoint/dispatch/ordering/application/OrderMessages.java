@@ -97,6 +97,27 @@ final class OrderMessages {
     }
   }
 
+  /** What a partial reservation left short, for the store to decide on. */
+  static java.util.Map<String, Object> shortfall(
+      com.waypoint.dispatch.warehouse.contract.StockPort.PartiallyReserved p) {
+    java.util.Map<String, Object> body = new java.util.LinkedHashMap<>();
+    body.put("warehouseOrderRef", p.reservation().warehouseOrderRef());
+    body.put("expiresAt", p.expiresAt().toString());
+    body.put(
+        "lines",
+        p.lines().stream()
+            .map(l -> java.util.Map.of(
+                "productId", l.productId(), "requested", l.requested(), "reserved", l.available()))
+            .toList());
+    body.put(
+        "otherWarehouse",
+        p.alternatives().stream()
+            .map(a -> java.util.Map.of(
+                "productId", a.productId(), "warehouse", a.warehouse(), "available", a.available()))
+            .toList());
+    return body;
+  }
+
   /** STK-01: nothing was reserved; say exactly which lines are short and by how much. */
   static DomainException insufficient(Insufficient result) {
     String detail =

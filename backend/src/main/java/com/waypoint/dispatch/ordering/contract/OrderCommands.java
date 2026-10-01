@@ -18,14 +18,16 @@ public final class OrderCommands {
   public static final String AMEND = "order:Amend";
   public static final String CANCEL = "order:Cancel";
   public static final String CLOSE_FOR_DAY = "order:CloseForDay";
+  public static final String ACCEPT_SHORTFALL = "order:AcceptShortfall";
 
   /** A product and how many of it. Sent to the warehouse; descriptive in Waypoint. */
   public record OrderLine(String productId, int quantity) {}
 
   /**
-   * Placement calls the warehouse synchronously. A short line rejects the whole
-   * order with the available quantities (D-F); an unreachable warehouse saves it
-   * as {@code STOCK_UNKNOWN} (D-G).
+   * Placement calls the warehouse synchronously. A short order is kept as
+   * {@code PARTIALLY_RESERVED} with what was available, or rejected when nothing
+   * was (D-F revised 2026-10-01); an unreachable warehouse saves it as
+   * {@code STOCK_UNKNOWN} (D-G).
    */
   public record PlaceOrder(String outletId, LocalDate requestedDate, List<OrderLine> lines) {
 
@@ -41,6 +43,12 @@ public final class OrderCommands {
       lines = List.copyOf(lines);
     }
   }
+
+  /**
+   * The store takes the quantities a partial reservation locked. Refusing them
+   * is {@link CancelOrder}.
+   */
+  public record AcceptShortfall(UUID orderId) {}
 
   /** The only command that releases the warehouse reservation (D-H). */
   public record CancelOrder(UUID orderId, String reason) {}

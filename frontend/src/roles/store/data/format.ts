@@ -65,6 +65,7 @@ export type StatusTone = "mint" | "ink" | "warn" | "danger" | "muted" | "ok";
 
 export const ORDER_STATUS: Record<OrderStatus, { label: string; tone: StatusTone }> = {
   STOCK_UNKNOWN: { label: "Stock not checked", tone: "warn" },
+  PARTIALLY_RESERVED: { label: "Partly in stock", tone: "warn" },
   CONFIRMED: { label: "Confirmed", tone: "ok" },
   ALLOCATED: { label: "Planned", tone: "ok" },
   DEFERRED: { label: "Deferred", tone: "warn" },
