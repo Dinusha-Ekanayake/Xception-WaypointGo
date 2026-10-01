@@ -1,6 +1,6 @@
 # Issue #10: Loading implementation walkthrough
 
-Status: backend loader HTTP/database flow verified; frontend build and browser verification remain. The entire issue is not complete.
+Status: backend loader HTTP/database flow, frontend typecheck/build and the phone release interaction are verified. The live-backend browser and offline walkthrough remain. The entire issue is not complete.
 
 ## Implemented backend flow
 
@@ -28,7 +28,7 @@ mvn -o -Dtest=LoadingIntegrationTest,LoadingSessionTest,LoadingPropertiesTest,Mo
 
 At the earlier manifest/read checkpoint, 48 tests passed against a separate PostgreSQL 18 instance. Subsequent code changes are not covered by that database result. Java 24 caused ArchUnit warnings while resolving JDK classes; use Java 21 for the next database run if available.
 
-Current checks (2026-10-01): focused `LoadingSessionTest,PinPolicyTest` passed; `mvn -q test` passed with the environment-gated database tests skipped on that run; `npm.cmd test` passed 7 tests; `git diff --check` passed. A separate disposable PostgreSQL 18 cluster then ran `LoadingIntegrationTest`: 18 tests, zero failures, zero errors, zero skips. The first database run exposed an unauthorized Reference Data table lookup in test setup; the second exposed same-timestamp PIN failures being undercounted. Both were corrected, and the third run passed. Frontend typecheck, build and Playwright remain unverified: `npm ci --offline` lacked a cached package, and the networked retry failed with `ECONNRESET`.
+Current checks (2026-10-01): focused `LoadingSessionTest,PinPolicyTest` passed; `mvn -q test` passed with the environment-gated database tests skipped on that run; `npm.cmd test` passed 7 tests; `git diff --check` passed. A separate disposable PostgreSQL 18 cluster then ran `LoadingIntegrationTest`: 18 tests, zero failures, zero errors, zero skips. The first database run exposed an unauthorized Reference Data table lookup in test setup; the second exposed same-timestamp PIN failures being undercounted. Both were corrected, and the third run passed. After a successful locked dependency install, `npm.cmd run typecheck` and `npm.cmd run build` passed. At 393x852, `npx.cmd playwright test --config=playwright.loader.config.ts` passed one browser test of the chilled-trip release checklist and command payload using mocked API responses. A full browser walkthrough against the live backend, including offline sync, is still unverified.
 
 | Guarantee | Evidence |
 | --- | --- |
@@ -47,7 +47,7 @@ Current checks (2026-10-01): focused `LoadingSessionTest,PinPolicyTest` passed; 
 
 - Add or verify any remaining append-only database enforcement and the explicit auditor HandBack denial.
 - Verify the development fixture and operator PIN flow with a live browser; the HTTP/database paths pass integration tests.
-- Typecheck, build and verify Part C against current Figma frames and the live backend.
+- Verify the full Part C path against current Figma frames and the live backend, including offline sync and tablet layout.
 - Finish rule/assumption/departure documentation, full database suite, frontend checks, browser tests and manual walkthrough before issue closure.
 - Handover and interchange remain deferred by the plan. Offline PIN switching is intentionally excluded.
 

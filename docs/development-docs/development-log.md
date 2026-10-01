@@ -27,8 +27,8 @@ Entries before 2026-09-26 are in `git log`.
 
 Loading now builds scoped live manifests, retains safe checks across plan revisions, limits issue reports to Damaged, Doesn't fit and Missing, and releases only after doors sealed, orders secured and driver present are confirmed. Shared-device PIN switching records operator history and attributes queued commands to the person active when they were recorded. The loader screens use those contracts and the shared sync queue.
 Why: issue #10 needs a traceable dock workflow that remains correct through a plan change or an offline period.
-Verified: `mvn -q test` passed locally; a separate disposable PostgreSQL 18 cluster ran `LoadingIntegrationTest` with 18 passed, zero failed or skipped. `npm.cmd test` passed 7 tests; `git diff --check` passed. The disposable cluster was stopped and removed afterward.
-Open: frontend typecheck, build and Playwright verification are pending because dependency installation failed (`ENOTCACHED` offline, then `ECONNRESET` online). Finish the remaining database enforcement and manual walkthrough before closing issue #10.
+Verified: `mvn -q test` passed locally; a separate disposable PostgreSQL 18 cluster ran `LoadingIntegrationTest` with 18 passed, zero failed or skipped. `npm.cmd test` passed 7 tests; `npm.cmd run typecheck` and `npm.cmd run build` passed. A 393x852 Playwright test passed for the release checklist with mocked API responses. `git diff --check` passed. The disposable cluster was stopped and removed afterward.
+Open: verify the full live-backend and offline browser flow, tablet layout and remaining database enforcement before closing issue #10.
 
 ## 2026-10-01 - ci: deploy main to the VPS, repair the compose init step
 
