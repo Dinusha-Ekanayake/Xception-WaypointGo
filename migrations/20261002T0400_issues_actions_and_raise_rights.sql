@@ -11,87 +11,64 @@ UPDATE iam.action_catalogue SET implemented = true
  WHERE action IN ('issue:Raise', 'issue:Assign', 'issue:Resolve', 'issue:RecordReplacement',
                   'issue:ScheduleRedelivery', 'issue:Close', 'issue:Cancel', 'issue:Read');
 
--- ---- role policies, version 3 ----------------------------------------
--- Version 2 (20260930T1201) granted issue:Raise on every resource. Version 3
--- copies it and narrows only that grant. A policy version is immutable, so this
--- is a new version and the default moves to it; version 2 stays explainable.
+-- ---- raise rights: the next version of three role policies -------------
+-- A policy version is immutable, so the change is a new version and the default
+-- moves to it. Built from each role's current default rather than restated, so
+-- a grant another branch added survives (as 20261001T1501 does): issue:Raise is
+-- taken out of whatever statement grants it today, empty statements are dropped,
+-- and one statement granting issue:Raise on the role's types is appended.
 
-CREATE TEMP TABLE policy_v3 (name text PRIMARY KEY, document jsonb NOT NULL) ON COMMIT DROP;
+CREATE TEMP TABLE raise_rights (name text PRIMARY KEY, sid text NOT NULL, types text[] NOT NULL) ON COMMIT DROP;
+INSERT INTO raise_rights VALUES
+    ('WaypointLoader',       'RaiseDockIssues',  ARRAY['LOADING_SHORTFALL','DAMAGED_GOODS','OTHER']),
+    ('WaypointDriver',       'RaiseRoadIssues',  ARRAY['FAILED_DELIVERY','VEHICLE_FAULT','ROAD_DISRUPTION',
+                                                       'LATE_DELIVERY','DAMAGED_GOODS','OTHER']),
+    ('WaypointStoreManager', 'RaiseStoreIssues', ARRAY['DAMAGED_GOODS','LATE_DELIVERY','OTHER']);
 
-INSERT INTO policy_v3 (name, document) VALUES
-    ('WaypointLoader', '{
-        "Version": "2026-10-02",
-        "Statement": [
-          {"Sid": "DockWork", "Effect": "Allow",
-           "Action": ["loading:*", "plan:Read", "reference:Read"],
-           "Resource": ["*"]},
-          {"Sid": "ReadAndSync", "Effect": "Allow",
-           "Action": ["issue:Read", "notification:*", "sync:Submit", "sync:Acknowledge", "sync:Read"],
-           "Resource": ["*"]},
-          {"Sid": "RaiseDockIssues", "Effect": "Allow",
-           "Action": ["issue:Raise"],
-           "Resource": ["wpt:issue:type:LOADING_SHORTFALL", "wpt:issue:type:DAMAGED_GOODS",
-                        "wpt:issue:type:OTHER"]}
-        ]}'::jsonb),
-    ('WaypointDriver', '{
-        "Version": "2026-10-02",
-        "Statement": [
-          {"Sid": "RoadWork", "Effect": "Allow",
-           "Action": ["delivery:*", "plan:Read", "reference:Read"],
-           "Resource": ["*"]},
-          {"Sid": "ReadAndSync", "Effect": "Allow",
-           "Action": ["issue:Read", "notification:*", "sync:Submit", "sync:Acknowledge", "sync:Read"],
-           "Resource": ["*"]},
-          {"Sid": "RaiseRoadIssues", "Effect": "Allow",
-           "Action": ["issue:Raise"],
-           "Resource": ["wpt:issue:type:FAILED_DELIVERY", "wpt:issue:type:VEHICLE_FAULT",
-                        "wpt:issue:type:ROAD_DISRUPTION", "wpt:issue:type:LATE_DELIVERY",
-                        "wpt:issue:type:DAMAGED_GOODS", "wpt:issue:type:OTHER"]}
-        ]}'::jsonb),
-    ('WaypointStoreManager', '{
-        "Version": "2026-10-02",
-        "Statement": [
-          {"Sid": "OrderAndReceive", "Effect": "Allow",
-           "Action": ["order:Place", "order:Amend", "order:Cancel", "order:Read", "receipt:*",
-                      "warehouse:ReadCatalogue", "delivery:Read"],
-           "Resource": ["*"]},
-          {"Sid": "ReadAndSync", "Effect": "Allow",
-           "Action": ["issue:Read", "notification:*", "sync:Submit", "sync:Acknowledge", "sync:Read"],
-           "Resource": ["*"]},
-          {"Sid": "RaiseStoreIssues", "Effect": "Allow",
-           "Action": ["issue:Raise"],
-           "Resource": ["wpt:issue:type:DAMAGED_GOODS", "wpt:issue:type:LATE_DELIVERY",
-                        "wpt:issue:type:OTHER"]}
-        ]}'::jsonb);
+CREATE TEMP TABLE raise_docs ON COMMIT DROP AS
+SELECT p.policy_id,
+       jsonb_set(
+           pv.document, '{Statement}',
+           coalesce(
+               (SELECT jsonb_agg(
+                           CASE WHEN (s -> 'Action') ? 'issue:Raise'
+                                THEN jsonb_set(s, '{Action}', (s -> 'Action') - 'issue:Raise')
+                                ELSE s END
+                           ORDER BY ord)
+                  FROM jsonb_array_elements(pv.document -> 'Statement') WITH ORDINALITY AS t(s, ord)
+                 WHERE s ->> 'Sid' IS DISTINCT FROM r.sid
+                   AND NOT ((s -> 'Action') ? 'issue:Raise' AND jsonb_array_length(s -> 'Action') = 1)),
+               '[]'::jsonb)
+           || jsonb_build_array(
+                  jsonb_build_object(
+                      'Sid', r.sid,
+                      'Effect', 'Allow',
+                      'Action', jsonb_build_array('issue:Raise'),
+                      'Resource', (SELECT jsonb_agg('wpt:issue:type:' || t ORDER BY t) FROM unnest(r.types) AS t)))) AS document,
+       pv.document AS previous
+FROM iam.policies p
+JOIN raise_rights r ON r.name = p.name
+JOIN iam.policy_versions pv ON pv.policy_id = p.policy_id AND pv.is_default;
 
--- Every action a v3 document names must exist, or the policy would deny it
--- silently forever. Wildcard entries are checked as patterns.
+-- Each of the three roles must have had a default to build from.
 DO $$
-DECLARE
-    missing text;
 BEGIN
-    SELECT string_agg(DISTINCT a.action, ', ') INTO missing
-    FROM policy_v3 v,
-         jsonb_array_elements(v.document -> 'Statement') s,
-         jsonb_array_elements_text(s -> 'Action') AS a(action)
-    WHERE NOT EXISTS (
-        SELECT 1 FROM iam.action_catalogue c
-        WHERE c.action LIKE replace(a.action, '*', '%')
-    );
-    IF missing IS NOT NULL THEN
-        RAISE EXCEPTION 'Policy version 3 names actions absent from the catalogue: %', missing;
+    IF (SELECT count(*) FROM raise_docs) <> 3 THEN
+        RAISE EXCEPTION 'raise rights: expected three role policies with a default version, found %',
+            (SELECT count(*) FROM raise_docs);
     END IF;
 END $$;
 
+DELETE FROM raise_docs WHERE document = previous;
+
 UPDATE iam.policy_versions pv
 SET is_default = false
-FROM iam.policies p, policy_v3 v
-WHERE pv.policy_id = p.policy_id AND p.name = v.name AND pv.is_default;
+FROM raise_docs d
+WHERE pv.policy_id = d.policy_id AND pv.is_default;
 
 INSERT INTO iam.policy_versions (policy_id, version_number, document, is_default)
-SELECT p.policy_id,
-       (SELECT max(version_number) + 1 FROM iam.policy_versions x WHERE x.policy_id = p.policy_id),
-       v.document,
+SELECT d.policy_id,
+       (SELECT max(version_number) + 1 FROM iam.policy_versions x WHERE x.policy_id = d.policy_id),
+       d.document,
        true
-FROM iam.policies p
-JOIN policy_v3 v ON v.name = p.name;
+FROM raise_docs d;

@@ -156,7 +156,7 @@ Checked against the full description of each module issue. A gap goes to the mod
 
 | Gap | Owner | State |
 | --- | --- | --- |
-| No relay or scheduler runs the consumers and the two jobs; the tests stand in for both | #6 Event backbone, open. Its checklist names receipt auto-close | Covered |
+| No relay runs the consumers yet; the tests stand in for it. The two jobs already run: `platform/scheduling/ScheduledJobRunner` (from #7) schedules every `ScheduledJob` on its cron under an advisory-lock lease | #6 Event backbone, open, for the relay and the full scheduler | Covered |
 | The custody view's loading check and proof are "unavailable" until their query beans exist (`LoadingQuery.manifest`, `ExecutionQuery.deliveryRecord`); RCP-06 and RCP-07 then become testable end to end | #10 Loading and #12 Execution, open; both list these queries | Covered |
 | Routing `issue.raised`, `issue.escalated` and `receipt.disputed` to dispatchers | #14 Notification, open. Its matrix covers every catalogue event; MODULES §9 now has the `issue.escalated` row | Covered |
 | Loading's consumer should resolve only the shortfall `shortfall.resolved` names (ISS-07) | #10 Loading, open. Not in its description: comment needed | Needs a comment on #10 |

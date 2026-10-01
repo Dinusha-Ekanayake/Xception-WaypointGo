@@ -97,6 +97,9 @@ public abstract class ReceiptIssuesSupport {
   @DynamicPropertySource
   static void databaseUrl(DynamicPropertyRegistry registry) {
     registry.add("app.database-url", TestDatabase::url);
+    // The auto-close and escalation jobs are run at chosen instants here; the
+    // real scheduler firing on a quarter hour mid-test would close receipts early.
+    registry.add("app.scheduling.enabled", () -> "false");
   }
 
   @BeforeEach

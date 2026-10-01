@@ -21,6 +21,15 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-02 - fix(issues): raise rights build on each role's current policy (issue #13)
+
+`feat/receipt-issues` · @Oxshadha
+
+Migration `20261002T0400` no longer restates the Loader, Driver and StoreManager policies. It builds each new version from the role's current default: it takes `issue:Raise` out of the statement that grants it and appends one typed raise statement, as `20261001T1501` does. Restating version 2 had silently dropped the store manager's `order:AcceptShortfall`, which #7 granted in between. The Receipt and Issues tests now switch off `ScheduledJobRunner` (from #7), so the real auto-close cannot fire mid-test; the jobs now run in the app on their crons.
+Why: merging `dev` after #7 turned three Ordering tests red (403 on `order:AcceptShortfall`).
+Verified: on a fresh database, `TEST_DATABASE_URL=... mvn test`, 390 tests, 0 failures; the store manager's default policy keeps `order:AcceptShortfall` and gains `RaiseStoreIssues`. Frontend `npm run typecheck` and `npm test` (12) pass.
+Open: nothing new; see the walkthrough's gaps.
+
 ## 2026-10-02 - fix(issues): name the shortfall, announce escalation, correct the gaps (issue #13)
 
 `feat/receipt-issues` · @Oxshadha
