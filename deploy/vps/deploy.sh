@@ -22,30 +22,44 @@ die() { echo "deploy: $*" >&2; exit 1; }
 # Last value of KEY in .env, or nothing. Values are never shell-evaluated.
 env_value() { sed -n "s/^$1=//p" "$APP_DIR/.env" | tail -1; }
 
-# Requests one certificate for SITE, www.SITE and preview.SITE the first time,
-# after SITE_ADDRESS changes, or when the one on disk is missing a name. Until
-# it succeeds nginx keeps serving what it has (a self-signed placeholder at
-# first), which is enough to answer the HTTP-01 challenge on port 80.
-ensure_certificate() {
-  local site="$1" name missing=0
-  local live="/etc/letsencrypt/live/$site/fullchain.pem"
-  local names=("$site" "www.$site" "preview.$site")
-  for name in "${names[@]}"; do
-    "${compose[@]}" exec -T nginx sh -c \
-      'test -f "$1" && openssl x509 -in "$1" -noout -checkhost "$2" | grep -q "does match"' \
-      sh "$live" "$name" || missing=1
-  done
-  [[ "$missing" == 1 ]] || return 0
+# One address per role, each serving production. The same names are in
+# nginx/templates/10-edge.conf.template and frontend/src/app-shell/hostRole.ts.
+ROLE_HOSTS=(dispatcher loader driver store admin auditor)
 
-  echo "==> requesting a certificate for ${names[*]}"
+# Keeps one certificate for SITE, www.SITE, preview.SITE and the role addresses.
+# A name joins the request once it resolves, so a DNS record added later is
+# picked up by the next deploy, and a name already on the certificate is never
+# dropped. Until the first request succeeds nginx serves a self-signed
+# placeholder, which is enough to answer the HTTP-01 challenge on port 80.
+ensure_certificate() {
+  local site="$1" name role
+  local live="/etc/letsencrypt/live/$site/fullchain.pem"
+  local names=("$site" "www.$site" "preview.$site") request=() added=()
+  for role in "${ROLE_HOSTS[@]}"; do names+=("$role.$site"); done
+
+  for name in "${names[@]}"; do
+    if "${compose[@]}" exec -T nginx sh -c \
+        'test -f "$1" && openssl x509 -in "$1" -noout -checkhost "$2" | grep -q "does match"' \
+        sh "$live" "$name"; then
+      request+=("$name")
+    elif getent hosts "$name" >/dev/null; then
+      request+=("$name")
+      added+=("$name")
+    else
+      echo "deploy: $name does not resolve; it joins the certificate on the first deploy after it does." >&2
+    fi
+  done
+  [[ ${#added[@]} -gt 0 ]] || return 0
+
+  echo "==> requesting a certificate for ${request[*]}"
   if "${compose[@]}" run --rm --no-deps -T --entrypoint certbot certbot certonly \
-      --webroot -w /var/www/certbot --cert-name "$site" "${names[@]/#/--domain=}" \
+      --webroot -w /var/www/certbot --cert-name "$site" "${request[@]/#/--domain=}" \
       --key-type ecdsa --non-interactive --agree-tos --register-unsafely-without-email \
       --renew-with-new-domains; then
     "${compose[@]}" exec -T nginx sh -c \
       '/docker-entrypoint.d/25-tls-certificate.sh && nginx -t && nginx -s reload'
   else
-    echo "deploy: no certificate issued; check that ${names[*]} all resolve to this server." >&2
+    echo "deploy: no certificate issued for ${added[*]}; check that each points at this server." >&2
     echo "deploy: nginx keeps serving its current certificate until the next deploy." >&2
   fi
 }

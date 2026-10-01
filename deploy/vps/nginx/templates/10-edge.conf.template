@@ -79,7 +79,8 @@ server {
 
 server {
   listen 80;
-  server_name ${SITE_ADDRESS} www.${SITE_ADDRESS} preview.${SITE_ADDRESS};
+  server_name ${SITE_ADDRESS} www.${SITE_ADDRESS} preview.${SITE_ADDRESS}
+    dispatcher.${SITE_ADDRESS} loader.${SITE_ADDRESS} driver.${SITE_ADDRESS} store.${SITE_ADDRESS} admin.${SITE_ADDRESS} auditor.${SITE_ADDRESS};
 
   if ($deny_direct) {
     return 444;
@@ -97,11 +98,15 @@ server {
   }
 }
 
-# Production: the tip of main.
+# Production: the tip of main. Each role also has an address of its own, which
+# serves the same application; the frontend reads the name and shows that role
+# (frontend/src/app-shell/hostRole.ts). The six names are repeated in
+# entrypoint.d/25-tls-certificate.sh and in deploy.sh for the certificate.
 server {
   listen 443 ssl;
   http2 on;
-  server_name ${SITE_ADDRESS};
+  server_name ${SITE_ADDRESS}
+    dispatcher.${SITE_ADDRESS} loader.${SITE_ADDRESS} driver.${SITE_ADDRESS} store.${SITE_ADDRESS} admin.${SITE_ADDRESS} auditor.${SITE_ADDRESS};
 
   set $frontend http://production-waypoint:3000;
   include /etc/nginx/snippets/site.conf;
