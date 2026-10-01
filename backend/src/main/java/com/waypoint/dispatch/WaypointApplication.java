@@ -1,9 +1,13 @@
 package com.waypoint.dispatch;
 
 import com.waypoint.dispatch.identity.application.AccountAdminUseCase;
+import com.waypoint.dispatch.identity.application.OperatorRegistry;
+import com.waypoint.dispatch.loading.application.LoadingFixture;
 import com.waypoint.dispatch.platform.config.AppProperties;
+import com.waypoint.dispatch.platform.config.LoadingProperties;
 import com.waypoint.dispatch.platform.db.Migrator;
 import com.waypoint.dispatch.referencedata.application.ImportReferenceDataHandler;
+import com.waypoint.dispatch.referencedata.application.ReferenceBootstrap;
 import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
 import java.nio.file.Path;
@@ -18,6 +22,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
+import org.springframework.core.env.Environment;
 
 /**
  * Entry point. Serving is the default. Operational commands run explicitly and
@@ -31,6 +36,9 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
  *   <li>{@code account-grant-depot} grants an account a depot scope
  *   <li>{@code demo-accounts} creates one {@code <role>@waypoint.local} account per
  *       role with {@code SEED_PASSWORD}, and grants the depot roles {@code DEMO_DEPOT}
+ *   <li>{@code operator-pin} provisions a loader PIN from a trusted host
+ *   <li>{@code loading-fixture} builds a depot-day's loading manifests from its
+ *       confirmed orders, for a development demo without a published plan
  * </ul>
  *
  * <p>Commands can be combined: {@code migrate import-reference demo-accounts}.
@@ -40,7 +48,9 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 public class WaypointApplication implements ApplicationRunner {
   private static final Logger log = LoggerFactory.getLogger(WaypointApplication.class);
   private static final List<String> COMMANDS =
-      List.of("migrate", "import-reference", "account-create", "account-grant-depot", "demo-accounts");
+      List.of(
+          "migrate", "import-reference", "account-create", "account-grant-depot", "demo-accounts",
+          "operator-pin", "loading-fixture");
   private static final List<String> DEMO_ROLES =
       List.of("dispatcher", "loader", "driver", "store_manager", "admin", "auditor");
   private static final List<String> DEMO_DEPOT_ROLES = List.of("dispatcher", "loader", "driver");
@@ -49,16 +59,31 @@ public class WaypointApplication implements ApplicationRunner {
   private final ImportReferenceDataHandler referenceImport;
   private final AccountAdminUseCase accounts;
   private final AppProperties properties;
+  private final OperatorRegistry operators;
+  private final LoadingFixture loadingFixture;
+  private final LoadingProperties loadingProperties;
+  private final Environment environment;
+  private final ReferenceBootstrap referenceBootstrap;
 
   public WaypointApplication(
       Migrator migrator,
       ImportReferenceDataHandler referenceImport,
       AccountAdminUseCase accounts,
-      AppProperties properties) {
+      OperatorRegistry operators,
+      AppProperties properties,
+      LoadingFixture loadingFixture,
+      LoadingProperties loadingProperties,
+      Environment environment,
+      ReferenceBootstrap referenceBootstrap) {
     this.migrator = migrator;
     this.referenceImport = referenceImport;
     this.accounts = accounts;
     this.properties = properties;
+    this.operators = operators;
+    this.loadingFixture = loadingFixture;
+    this.loadingProperties = loadingProperties;
+    this.environment = environment;
+    this.referenceBootstrap = referenceBootstrap;
   }
 
   public static void main(String[] args) {
@@ -121,7 +146,41 @@ public class WaypointApplication implements ApplicationRunner {
         grantDepot(role + "@waypoint.local", depot);
       }
     }
+    if (commands.contains("operator-pin")) {
+      var env = System.getenv();
+      String code = env.get("OPERATOR_EMPLOYEE_CODE");
+      UUID userId = operators.setPin(
+          required(env, "OPERATOR_EMAIL"),
+          required(env, "OPERATOR_PIN"),
+          code == null || code.isBlank() ? null : code.trim());
+      // The account id only: an email in a log line is personal data.
+      log.info("Provisioned a loader PIN for account {}.", userId);
+    }
+    if (commands.contains("loading-fixture")) {
+      if (environment.acceptsProfiles("prod", "production")) {
+        throw new IllegalStateException("loading-fixture is disabled in production profiles");
+      }
+      if (!loadingProperties.fixtureEnabled()) {
+        throw new IllegalStateException(
+            "loading-fixture requires LOADING_FIXTURE_ENABLED=true in a development environment");
+      }
+      String depot = required(args, "depot", "LOADING_DEPOT");
+      java.time.LocalDate date = java.time.LocalDate.parse(required(args, "date", "LOADING_DATE"));
+      int trips = buildLoadingFixture(depot, date);
+      if (trips == 0) {
+        log.info("No confirmed orders to load for {} on {}.", depot, date);
+      } else {
+        log.info("Built {} loading manifest(s) for {} on {}.", trips, depot, date);
+      }
+    }
     System.exit(0);
+  }
+
+  int buildLoadingFixture(String depot, java.time.LocalDate date) {
+    // ApplicationReadyEvent runs after ApplicationRunner, so CLI commands must
+    // load the published reference version explicitly before reading it.
+    referenceBootstrap.loadCurrentVersion();
+    return loadingFixture.build(depot, date);
   }
 
   private void createAccount(String email, String name, String password, String role) {
@@ -150,5 +209,13 @@ public class WaypointApplication implements ApplicationRunner {
       throw new IllegalArgumentException(name + " must be set for this command");
     }
     return value;
+  }
+
+  private static String required(ApplicationArguments args, String option, String environment) {
+    List<String> values = args.getOptionValues(option);
+    if (values != null && !values.isEmpty() && !values.get(0).isBlank()) {
+      return values.get(0);
+    }
+    return required(System.getenv(), environment);
   }
 }

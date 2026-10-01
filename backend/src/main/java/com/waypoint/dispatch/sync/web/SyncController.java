@@ -45,12 +45,13 @@ public class SyncController {
 
   @PostMapping
   public ResponseEntity<?> submit(@RequestBody SubmitBatch body, HttpServletRequest request) {
-    Actor actor = actor(request);
+    Actor actor = deviceActor(request);
     if (body == null) {
       throw new DomainException(ErrorCode.VALIDATION_FAILED, "A batch is required");
     }
     try {
-      return ResponseEntity.ok(new SyncAck(submit.submit(actor, body)));
+      return ResponseEntity.ok(new SyncAck(submit.submit(
+          actor, actors.flatMap(resolver -> Optional.ofNullable(resolver.sessionCredential(request))).orElse(null), body)));
     } catch (SubmitBatchHandler.Busy e) {
       // ApiExceptionHandler answers 429 RATE_LIMITED with this Retry-After, in the
       // same problem body as every other failure.
@@ -69,6 +70,12 @@ public class SyncController {
   private Actor actor(HttpServletRequest request) {
     return actors
         .flatMap(resolver -> resolver.resolve(request))
+        .orElseThrow(() -> new DomainException(ErrorCode.UNAUTHENTICATED, "Not signed in"));
+  }
+
+  private Actor deviceActor(HttpServletRequest request) {
+    return actors
+        .flatMap(resolver -> resolver.resolveDevice(request))
         .orElseThrow(() -> new DomainException(ErrorCode.UNAUTHENTICATED, "Not signed in"));
   }
 }

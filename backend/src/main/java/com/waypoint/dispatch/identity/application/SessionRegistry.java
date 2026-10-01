@@ -42,6 +42,7 @@ import org.springframework.stereotype.Component;
 public class SessionRegistry {
   private final Database database;
   private final SessionTokens tokens;
+  private final OperatorRegistry operators;
   private final Clock clock;
   private final Metrics metrics;
 
@@ -52,11 +53,13 @@ public class SessionRegistry {
   public SessionRegistry(
       Database database,
       SessionTokens tokens,
+      OperatorRegistry operators,
       Clock clock,
       AppProperties properties,
       Metrics metrics) {
     this.database = database;
     this.tokens = tokens;
+    this.operators = operators;
     this.clock = clock;
     this.metrics = metrics;
     this.absoluteLifetime = properties.session().absoluteLifetime();
@@ -163,6 +166,9 @@ public class SessionRegistry {
 
   /** One session, inside the caller's transaction. */
   public void revokeInTransaction(String token) {
+    // A shared loader device's operator history ends with its session.
+    operators.endForSessionsInTransaction(
+        "SELECT token_hash FROM iam.sessions WHERE token_hash = ?", tokens.hash(token), "sign_out");
     int revoked =
         database.update("DELETE FROM iam.sessions WHERE token_hash = ?", tokens.hash(token));
     count(revoked, "replaced");
@@ -177,6 +183,8 @@ public class SessionRegistry {
    *     {@code scope}
    */
   public int revokeAllFor(UUID userId, String reason) {
+    operators.endForSessionsInTransaction(
+        "SELECT token_hash FROM iam.sessions WHERE user_id = ?", userId, "revoked");
     int revoked = database.update("DELETE FROM iam.sessions WHERE user_id = ?", userId);
     count(revoked, reason);
     return revoked;
@@ -184,6 +192,8 @@ public class SessionRegistry {
 
   /** Every session opened from one device, when it is retired. In the caller's transaction. */
   public int revokeAllOn(UUID deviceId) {
+    operators.endForSessionsInTransaction(
+        "SELECT token_hash FROM iam.sessions WHERE device_id = ?", deviceId, "revoked");
     int revoked = database.update("DELETE FROM iam.sessions WHERE device_id = ?", deviceId);
     count(revoked, "device");
     return revoked;
