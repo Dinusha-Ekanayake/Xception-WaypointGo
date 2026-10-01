@@ -21,6 +21,15 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-01 - feat: preview sign-in moves to the role address
+
+`feat/preview-redirect-to-role` · @kavindamihiran
+
+Signing in on `preview.waypointgo.live` sends the account to its role's `-preview` address (`previewHomeFor` in [hostRole.ts](../../frontend/src/app-shell/hostRole.ts)); production's shared address is unchanged. See [deployment.md](../deployment.md).
+Why: preview should be tried through the role addresses, not a shared workspace.
+Verified: `npm test` (12 pass), `npm run typecheck`, `npm run build`. Not checked in a browser.
+Open: the account signs in a second time on the role address (sessions are per address). An account with several roles lands on the address of the role it used last.
+
 ## 2026-10-01 - chore: one wildcard DNS record, simpler certificate request
 
 `chore/simplify-certificate-names` · @kavindamihiran

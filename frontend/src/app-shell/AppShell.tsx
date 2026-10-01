@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useOnline } from "@shared/api/useResource";
 import { useSync } from "@shared/offline";
 import { Notice, ShellProvider, cx, type ShellControls } from "@shared/ui";
-import { hostForRole, roleForHost } from "./hostRole.ts";
+import { hostForRole, previewHomeFor, roleForHost } from "./hostRole.ts";
 import RoleRouter from "./RoleRouter.tsx";
 import SignIn from "./SignIn.tsx";
 import SyncStatus from "./SyncStatus.tsx";
@@ -51,6 +51,13 @@ export default function AppShell(): React.JSX.Element {
   const host = state ? window.location.hostname : "";
   const pinned = roleForHost(host);
 
+  // Preview has no shared workspace: signing in on preview.waypointgo.live moves
+  // to the account's own role address, where the session starts again.
+  const moveTo = state?.kind === "signed-in" ? previewHomeFor(host, rememberedRole(state.session)) : null;
+  useEffect(() => {
+    if (moveTo) window.location.replace(`${window.location.protocol}//${moveTo}/`);
+  }, [moveTo]);
+
   useEffect(() => {
     if (state?.kind === "signed-in") setRole(rememberedRole(state.session));
   }, [state]);
@@ -65,6 +72,8 @@ export default function AppShell(): React.JSX.Element {
   }, []);
 
   if (!state) return <main className="flex min-h-dvh items-center justify-center bg-go-canvas font-go text-go-muted">Checking your session…</main>;
+
+  if (moveTo) return <main className="flex min-h-dvh items-center justify-center bg-go-canvas font-go text-go-muted">Taking you to {moveTo}…</main>;
 
   if (state.kind === "unreachable") {
     return (
