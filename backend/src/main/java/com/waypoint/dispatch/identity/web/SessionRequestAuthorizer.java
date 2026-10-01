@@ -19,17 +19,20 @@ import org.springframework.stereotype.Component;
 public class SessionRequestAuthorizer implements RequestAuthorizer {
   private final SessionRegistry sessions;
   private final PolicyDecisionPoint decisions;
+  private final SessionCookie cookie;
 
-  public SessionRequestAuthorizer(SessionRegistry sessions, PolicyDecisionPoint decisions) {
+  public SessionRequestAuthorizer(
+      SessionRegistry sessions, PolicyDecisionPoint decisions, SessionCookie cookie) {
     this.sessions = sessions;
     this.decisions = decisions;
+    this.cookie = cookie;
   }
 
   @Override
   public Actor require(HttpServletRequest request, String action, String resource) {
     SessionView session =
         sessions
-            .resolve(AuthController.tokenFrom(request))
+            .resolve(cookie.read(request))
             .orElseThrow(() -> new DomainException(ErrorCode.UNAUTHENTICATED, "Not signed in"));
     Actor actor = sessions.actorOf(session);
     // The same call a command goes through, so a denied read is audited the same

@@ -51,8 +51,9 @@ async function proxy(request: NextRequest): Promise<Response> {
     if (value) headers.set(name, value);
   }
   // Node fetch (undici) forbids overriding `Host`, so the backend would see
-  // BACKEND_URL's host instead of the browser's. Forward it separately so
-  // the backend origin guard can compare against the real page host.
+  // BACKEND_URL's host instead of the browser's. Forward it separately: the
+  // backend's OriginGuardFilter compares `Origin` with X-Forwarded-Host and
+  // refuses a state-changing request that came from another site.
   const browserHost = request.headers.get("host") || request.nextUrl.host;
   headers.set("Host", browserHost);
   headers.set("X-Forwarded-Host", browserHost);
@@ -85,9 +86,9 @@ async function proxy(request: NextRequest): Promise<Response> {
   for (const cookie of response.headers.getSetCookie()) outgoing.append("set-cookie", cookie);
   return new Response(response.body, { status: response.status, headers: outgoing });
 }
-// PUT and DELETE are here because policy administration uses them. Exporting only
-// GET and POST made those routes reachable from curl against the backend and not
-// from the browser, which is the kind of gap nobody finds until a demo.
+// Every write is a POST to /api/commands today. The other methods are forwarded
+// so that what the browser can reach and what curl can reach against the backend
+// never drift apart.
 export const GET = proxy;
 export const POST = proxy;
 export const PUT = proxy;

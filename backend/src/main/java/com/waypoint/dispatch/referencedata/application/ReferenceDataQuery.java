@@ -43,12 +43,17 @@ public class ReferenceDataQuery implements ReferenceQuery {
   private final ReferenceCache cache;
   private final ReferenceVersionReader reader;
   private final Database database;
+  private final ReferenceBootstrap bootstrap;
 
   public ReferenceDataQuery(
-      ReferenceCache cache, ReferenceVersionReader reader, Database database) {
+      ReferenceCache cache,
+      ReferenceVersionReader reader,
+      Database database,
+      ReferenceBootstrap bootstrap) {
     this.cache = cache;
     this.reader = reader;
     this.database = database;
+    this.bootstrap = bootstrap;
   }
 
   @Override
@@ -58,6 +63,7 @@ public class ReferenceDataQuery implements ReferenceQuery {
 
   private ReferenceSnapshot snapshot(UUID versionId) {
     if (versionId == null) {
+      bootstrap.refreshIfStale();
       return cache
           .current()
           .orElseThrow(

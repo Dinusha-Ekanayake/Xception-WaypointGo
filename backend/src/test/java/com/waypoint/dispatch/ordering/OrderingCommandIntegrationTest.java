@@ -134,15 +134,11 @@ class OrderingCommandIntegrationTest {
                 "INSERT INTO iam.user_outlet_access (user_id, outlet_id) VALUES (?, ?)",
                 managerId,
                 OUTLET));
-    manager = session(managerEmail);
-    stranger = session(strangerEmail);
-    dispatcher = session(dispatcherEmail);
-
     // A day no earlier run has closed, with "now" the morning before it.
     serviceDate =
         reference.nextOperatingDay(
             LocalDate.of(2040, 1, 1).plusDays(ThreadLocalRandom.current().nextInt(0, 15_000)));
-    clock.set(at(serviceDate.minusDays(1), LocalTime.of(10, 0)));
+    moveTo(at(serviceDate.minusDays(1), LocalTime.of(10, 0)));
   }
 
   @AfterEach
@@ -239,7 +235,7 @@ class OrderingCommandIntegrationTest {
 
   @Test
   void aPlacementAfterTheCutoffRollsToTheNextRun() throws Exception {
-    clock.set(at(serviceDate.minusDays(1), LocalTime.of(16, 0)));
+    moveTo(at(serviceDate.minusDays(1), LocalTime.of(16, 0)));
 
     JsonNode result = mapper.readTree(send(manager, place(UUID.randomUUID(), serviceDate), 200)).get("result");
 
@@ -322,14 +318,14 @@ class OrderingCommandIntegrationTest {
     String early = send(dispatcher, envelope(UUID.randomUUID(), "order:CloseForDay", null, close), 409);
     assertTrue(early.contains("R-ORD-01"), early);
 
-    clock.set(at(serviceDate.minusDays(1), LocalTime.of(16, 5)));
+    moveTo(at(serviceDate.minusDays(1), LocalTime.of(16, 5)));
     JsonNode closed = mapper.readTree(send(dispatcher, envelope(UUID.randomUUID(), "order:CloseForDay", null, close), 200));
     assertFalse(closed.get("result").get("alreadyClosed").asBoolean());
     JsonNode twice = mapper.readTree(send(dispatcher, envelope(UUID.randomUUID(), "order:CloseForDay", null, close), 200));
     assertTrue(twice.get("result").get("alreadyClosed").asBoolean());
 
     // Back to the morning: the cutoff has not passed, but the day is closed.
-    clock.set(at(serviceDate.minusDays(1), LocalTime.of(10, 0)));
+    moveTo(at(serviceDate.minusDays(1), LocalTime.of(10, 0)));
     JsonNode rolled = mapper.readTree(send(manager, place(UUID.randomUUID(), serviceDate), 200)).get("result");
     assertTrue(rolled.get("rolledBecause").toString().contains("closed"), rolled.toString());
 
@@ -345,6 +341,17 @@ class OrderingCommandIntegrationTest {
 
   private static Instant at(LocalDate date, LocalTime time) {
     return date.atTime(time).atZone(Clock.OPERATING_ZONE).toInstant();
+  }
+
+  /**
+   * Sessions end by the same clock the cutoff reads, so a jump past their idle
+   * lifetime signs everyone out. Each person signs in again at the new time.
+   */
+  private void moveTo(Instant instant) {
+    clock.set(instant);
+    manager = session(managerEmail);
+    stranger = session(strangerEmail);
+    dispatcher = session(dispatcherEmail);
   }
 
   private Cookie session(String email) {

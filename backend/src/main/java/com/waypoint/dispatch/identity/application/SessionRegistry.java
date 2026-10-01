@@ -1,16 +1,16 @@
 package com.waypoint.dispatch.identity.application;
 
 import com.waypoint.dispatch.identity.contract.SessionView;
-import com.waypoint.dispatch.identity.infrastructure.PolicyCache;
+import com.waypoint.dispatch.identity.infrastructure.SessionTokens;
 import com.waypoint.dispatch.platform.config.AppProperties;
 import com.waypoint.dispatch.platform.db.Database;
 import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.shared.domain.Actor;
 import com.waypoint.dispatch.shared.util.Clock;
-import java.security.SecureRandom;
+import com.waypoint.dispatch.platform.observability.Metrics;
+import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -33,45 +33,60 @@ import org.springframework.stereotype.Component;
  * <p>Two expiries, because they answer different questions. Absolute caps how
  * long one sign-in can last; idle ends a session nobody is using. A driver's
  * phone left in a cab overnight should not stay signed in.
+ *
+ * <p>Only a hash of the token is stored, and both expiries are compared with the
+ * injected clock, so a test can move time and the database's clock is not a
+ * second opinion on when a session ends.
  */
 @Component
 public class SessionRegistry {
-  private static final int TOKEN_BYTES = 32;
-
   private final Database database;
-  private final PolicyCache policyCache;
+  private final SessionTokens tokens;
   private final Clock clock;
-  private final SecureRandom random = new SecureRandom();
+  private final Metrics metrics;
 
   private final Duration absoluteLifetime;
   private final Duration idleLifetime;
+  private final Duration touchInterval;
 
   public SessionRegistry(
-      Database database, PolicyCache policyCache, Clock clock, AppProperties properties) {
+      Database database,
+      SessionTokens tokens,
+      Clock clock,
+      AppProperties properties,
+      Metrics metrics) {
     this.database = database;
-    this.policyCache = policyCache;
+    this.tokens = tokens;
     this.clock = clock;
+    this.metrics = metrics;
     this.absoluteLifetime = properties.session().absoluteLifetime();
     this.idleLifetime = properties.session().idleLifetime();
+    this.touchInterval = properties.session().touchInterval();
   }
 
+  /** How long a sign-in can last, which is also how long its cookie is kept. */
+  public Duration absoluteLifetime() {
+    return absoluteLifetime;
+  }
+
+  /** Runs in the caller's transaction, so a session never outlives a sign-in that rolled back. */
   public String issue(UUID userId, UUID deviceId) {
-    String token = newToken();
+    String token = tokens.newToken();
     Instant now = clock.now();
     database.update(
         """
         INSERT INTO iam.sessions
-            (session_token, user_id, device_id, issued_at, last_seen_at,
+            (token_hash, user_id, device_id, issued_at, last_seen_at,
              absolute_expiry, idle_expiry)
         VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
-        token,
+        tokens.hash(token),
         userId,
         deviceId,
-        java.sql.Timestamp.from(now),
-        java.sql.Timestamp.from(now),
-        java.sql.Timestamp.from(now.plus(absoluteLifetime)),
-        java.sql.Timestamp.from(now.plus(idleLifetime)));
+        Timestamp.from(now),
+        Timestamp.from(now),
+        Timestamp.from(now.plus(absoluteLifetime)),
+        Timestamp.from(now.plus(idleLifetime)));
     return token;
   }
 
@@ -80,30 +95,40 @@ public class SessionRegistry {
     if (token == null || token.isBlank()) {
       return Optional.empty();
     }
+    String hash = tokens.hash(token);
     return database.<Optional<SessionView>>asModule(
         ModuleRole.IAM,
         null,
         () -> {
+          Instant now = clock.now();
           Map<String, Object> row =
               database.queryOne(
                   """
-                  SELECT s.session_token, s.user_id, s.device_id, u.display_name, u.is_active
+                  SELECT s.user_id, s.device_id, s.last_seen_at, u.display_name, u.is_active
                   FROM iam.sessions s
                   JOIN iam.users u ON u.user_id = s.user_id
-                  WHERE s.session_token = ?
-                    AND s.absolute_expiry > now()
-                    AND s.idle_expiry > now()
+                  WHERE s.token_hash = ?
+                    AND s.absolute_expiry > ?
+                    AND s.idle_expiry > ?
                   """,
-                  token);
+                  hash,
+                  Timestamp.from(now),
+                  Timestamp.from(now));
           if (row == null || !Boolean.TRUE.equals(row.get("is_active"))) {
             return Optional.<SessionView>empty();
           }
           UUID userId = (UUID) row.get("user_id");
-          database.update(
-              "UPDATE iam.sessions SET last_seen_at = now(), idle_expiry = now() + CAST(? AS interval)"
-                  + " WHERE session_token = ?",
-              idleLifetime.toSeconds() + " seconds",
-              token);
+          // Every authenticated request reads the session. Writing it back each
+          // time made every read a write; once a minute keeps the idle expiry
+          // honest to within that minute.
+          Instant lastSeen = ((Timestamp) row.get("last_seen_at")).toInstant();
+          if (!now.isBefore(lastSeen.plus(touchInterval))) {
+            database.update(
+                "UPDATE iam.sessions SET last_seen_at = ?, idle_expiry = ? WHERE token_hash = ?",
+                Timestamp.from(now),
+                Timestamp.from(now.plus(idleLifetime)),
+                hash);
+          }
           List<String> roles =
               database.query("SELECT role_code FROM iam.user_roles WHERE user_id = ?", userId)
                   .stream()
@@ -131,28 +156,48 @@ public class SessionRegistry {
     return List.copyOf(scope);
   }
 
+  /** Sign-out: one session, in a transaction of its own. */
   public void revoke(String token) {
-    database.asModule(
-        ModuleRole.IAM, null, () -> database.update("DELETE FROM iam.sessions WHERE session_token = ?", token));
+    database.asModule(ModuleRole.IAM, null, () -> revokeInTransaction(token));
+  }
+
+  /** One session, inside the caller's transaction. */
+  public void revokeInTransaction(String token) {
+    int revoked =
+        database.update("DELETE FROM iam.sessions WHERE token_hash = ?", tokens.hash(token));
+    count(revoked, "replaced");
   }
 
   /**
    * Every session for one account, used when it is disabled or its access
    * changes. Runs in the caller's transaction so revocation commits with the
    * change that caused it rather than a moment later.
+   *
+   * @param reason why, as a metric tag: {@code disabled}, {@code password}, {@code role} or
+   *     {@code scope}
    */
-  public int revokeAllFor(UUID userId) {
-    policyCache.invalidate(userId);
-    return database.update("DELETE FROM iam.sessions WHERE user_id = ?", userId);
+  public int revokeAllFor(UUID userId, String reason) {
+    int revoked = database.update("DELETE FROM iam.sessions WHERE user_id = ?", userId);
+    count(revoked, reason);
+    return revoked;
+  }
+
+  /** Every session opened from one device, when it is retired. In the caller's transaction. */
+  public int revokeAllOn(UUID deviceId) {
+    int revoked = database.update("DELETE FROM iam.sessions WHERE device_id = ?", deviceId);
+    count(revoked, "device");
+    return revoked;
   }
 
   public Actor actorOf(SessionView session) {
     return new Actor(session.userId(), session.deviceId());
   }
 
-  private String newToken() {
-    byte[] bytes = new byte[TOKEN_BYTES];
-    random.nextBytes(bytes);
-    return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+  /** SEC-02: counted once the change that revoked them has committed, not if it rolls back. */
+  private void count(int revoked, String reason) {
+    if (revoked > 0) {
+      database.afterCommit(
+          () -> metrics.count("waypoint.session.revoked", revoked, "reason", reason));
+    }
   }
 }

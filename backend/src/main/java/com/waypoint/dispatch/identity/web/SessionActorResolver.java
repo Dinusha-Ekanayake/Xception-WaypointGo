@@ -18,13 +18,15 @@ import org.springframework.stereotype.Component;
 @Component
 public class SessionActorResolver implements ActorResolver {
   private final SessionRegistry sessions;
+  private final SessionCookie cookie;
 
-  public SessionActorResolver(SessionRegistry sessions) {
+  public SessionActorResolver(SessionRegistry sessions, SessionCookie cookie) {
     this.sessions = sessions;
+    this.cookie = cookie;
   }
 
   @Override
   public Optional<Actor> resolve(HttpServletRequest request) {
-    return sessions.resolve(AuthController.tokenFrom(request)).map(sessions::actorOf);
+    return sessions.resolve(cookie.read(request)).map(sessions::actorOf);
   }
 }

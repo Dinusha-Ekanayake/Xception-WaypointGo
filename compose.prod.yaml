@@ -4,7 +4,10 @@
 # Required environment (see .env.example / docs/deployment.md):
 #   DOMAIN            public hostname, DNS pointed at this host
 #   CERTBOT_EMAIL     contact for Let's Encrypt expiry notices
-#   DATABASE_URL      pooled connection string (app traffic)
+#   DATABASE_URL      pooled connection string (app traffic). Log in as
+#                     waypoint_app when MIGRATION_DATABASE_URL is set
+#   MIGRATION_DATABASE_URL  optional: the owner's direct connection string,
+#                     read only by `migrate`. Unset, DATABASE_URL does both
 #
 # Deployment and certificate issuance: see docs/deployment.md.
 
@@ -50,7 +53,8 @@ services:
       dockerfile: backend/Dockerfile
     environment:
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL to the pooled connection string}
-    command: ["sh", "-c", "java -jar /app/backend.jar migrate && java -jar /app/backend.jar import-reference"]
+      MIGRATION_DATABASE_URL: ${MIGRATION_DATABASE_URL:-}
+    command: ["java", "-jar", "/app/backend.jar", "migrate", "import-reference"]
     restart: "no"
 
   backend:

@@ -184,8 +184,10 @@ class CommandPathIntegrationTest {
 
   @Test
   @Order(7)
-  void anUnknownKindAndAMalformedEnvelopeReadAsTheClientsMistake() throws Exception {
-    send(DISPATCHER, envelope(UUID.randomUUID().toString(), "vehicle:Teleport", "{}"), 404);
+  void anUnknownKindIsForbiddenAndAMalformedEnvelopeIsTheClientsMistake() throws Exception {
+    // Deny by default: an unlisted command is 403 plus an audit row, never a 404
+    // that maps which kinds exist.
+    send(DISPATCHER, envelope(UUID.randomUUID().toString(), "vehicle:Teleport", "{}"), 403);
     send(DISPATCHER, envelope("not-a-uuid", "vehicle:SetDayStatus", "{}"), 422);
     send(DISPATCHER, envelope(UUID.randomUUID().toString(), "vehicle:SetDayStatus", "{}"), 422);
   }

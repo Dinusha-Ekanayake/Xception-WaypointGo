@@ -30,6 +30,11 @@ public class Metrics {
     registry.counter(name, tags).increment();
   }
 
+  /** Several of the same thing at once, such as the sessions one change revoked. */
+  public void count(String name, long amount, String... tags) {
+    registry.counter(name, tags).increment(amount);
+  }
+
   /**
    * A latency. Publishes p95 and a histogram, because the SLOs in
    * SYSTEM-ARCHITECTURE section 6.7 are p95 targets and an average hides the tail.
