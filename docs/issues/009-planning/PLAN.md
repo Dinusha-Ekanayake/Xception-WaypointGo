@@ -2,6 +2,28 @@
 
 Written before code, per AGENTS.md "Issue Documents". What was actually built goes in `WALKTHROUGH.md`.
 
+## Progress (handoff)
+
+Updated after every step, so any agent or person can resume. Work on branch `feat/planning-module` (stacked on `feat/ordering-module`); one commit per step, subject `feat(planning): ...`.
+
+| Step | Status | Commit | Notes |
+| --- | --- | --- | --- |
+| 0 Plan | done | `88d73d7` | |
+| 1 CI and validator | done | see `git log -- .github` | `.github/workflows/ci.yml`; validator vendored byte-identical. The validator step **fails until step 3** writes `backend/target/task2b/submission_task2b.csv`. Frontend job runs `typecheck` only; legacy Node tests left out of CI |
+| 2 Domain | in progress | | |
+| 3 Engine and S1 fixture | todo | | |
+| 4 Schema, repository, reads | todo | | |
+| 5 Generate, Override, Defer, Publish | todo | | |
+| 6 Revise, Replan, previews, consumers | todo | | |
+| 7 Docs closeout | todo | | |
+
+**To resume:** read this table, then the step's row in "Work breakdown" below, then the decision it cites. Patterns to copy are in the Ordering module (`backend/src/main/java/com/waypoint/dispatch/ordering/`): handlers in `application/`, `JdbcOrderRepository`, migration `migrations/20261001T0200_ordering_orders.sql`, tests `OrderingCommandIntegrationTest` and `OrderingTestConfig`.
+
+**Environment notes.**
+- Database tests need `TEST_DATABASE_URL` (a dedicated database, never `DATABASE_URL`): `docker compose up -d db`, then `TEST_DATABASE_URL=... mvn test` from `backend/`.
+- Python with pandas segfaults inside the agent sandbox; run the validator unsandboxed.
+- The official validator source came from the dataset bundle (`check_allocation.py`); step 1 vendors it to `tools/check_allocation/`.
+
 ## Where the branch stands
 
 `feat/planning-module` is stacked on `feat/ordering-module` and rebases onto `dev` once the Ordering PR merges.
