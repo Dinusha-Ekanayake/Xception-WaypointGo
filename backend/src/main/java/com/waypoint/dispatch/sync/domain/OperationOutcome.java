@@ -24,10 +24,18 @@ public final class OperationOutcome {
   public static Optional<OperationStatus> forFailure(ErrorCode code) {
     return switch (code) {
       case VERSION_CONFLICT -> Optional.of(OperationStatus.CONFLICT);
-      case VALIDATION_FAILED, NOT_FOUND, CONFLICT, FORBIDDEN, CONSTRAINT_VIOLATED ->
+      case BAD_REQUEST,
+              VALIDATION_FAILED,
+              NOT_FOUND,
+              CONFLICT,
+              FORBIDDEN,
+              CONSTRAINT_VIOLATED,
+              PAYLOAD_TOO_LARGE ->
           Optional.of(OperationStatus.REJECTED);
-      // A dependency outage and an expired session are not the operation's fault.
-      case DEPENDENCY_UNAVAILABLE, UNAUTHENTICATED -> Optional.empty();
+      // An outage, an expired session, a timeout or backpressure are not the
+      // operation's fault, and the same operation can succeed later.
+      case DEPENDENCY_UNAVAILABLE, UNAUTHENTICATED, REQUEST_TIMEOUT, RATE_LIMITED ->
+          Optional.empty();
     };
   }
 

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useOnline } from "@shared/api/useResource";
 import { useSync } from "@shared/offline";
 import { Notice, ShellProvider, cx, type ShellControls } from "@shared/ui";
+import { hostForRole, previewHomeFor, roleForHost } from "./hostRole.ts";
 import RoleRouter from "./RoleRouter.tsx";
 import SignIn from "./SignIn.tsx";
 import SyncStatus from "./SyncStatus.tsx";
@@ -45,6 +46,18 @@ export default function AppShell(): React.JSX.Element {
 
   useEffect(check, [check]);
 
+  // A role address such as loader.waypointgo.live shows that role and no other.
+  // Read only once the session is known, so the first paint matches the server's.
+  const host = state ? window.location.hostname : "";
+  const pinned = roleForHost(host);
+
+  // Preview has no shared workspace: signing in on preview.waypointgo.live moves
+  // to the account's own role address, where the session starts again.
+  const moveTo = state?.kind === "signed-in" ? previewHomeFor(host, rememberedRole(state.session)) : null;
+  useEffect(() => {
+    if (moveTo) window.location.replace(`${window.location.protocol}//${moveTo}/`);
+  }, [moveTo]);
+
   useEffect(() => {
     if (state?.kind === "signed-in") setRole(rememberedRole(state.session));
   }, [state]);
@@ -59,6 +72,8 @@ export default function AppShell(): React.JSX.Element {
   }, []);
 
   if (!state) return <main className="flex min-h-dvh items-center justify-center bg-go-canvas font-go text-go-muted">Checking your session…</main>;
+
+  if (moveTo) return <main className="flex min-h-dvh items-center justify-center bg-go-canvas font-go text-go-muted">Taking you to {moveTo}…</main>;
 
   if (state.kind === "unreachable") {
     return (
@@ -78,6 +93,7 @@ export default function AppShell(): React.JSX.Element {
   if (state.kind === "signed-out") {
     return (
       <SignIn
+        role={pinned}
         notice={notice}
         onSignedIn={(session) => {
           setNotice(undefined);
@@ -88,7 +104,11 @@ export default function AppShell(): React.JSX.Element {
   }
 
   const { session } = state;
-  const active = role ?? rememberedRole(session);
+  // Signed in on another role's address: say so and point at their own,
+  // rather than show a surface the account does not hold.
+  const misplaced = pinned !== null && !session.roles.includes(pinned);
+  const roles = pinned ? (misplaced ? [] : [pinned]) : session.roles;
+  const active = pinned && !misplaced ? pinned : role ?? rememberedRole(session);
 
   const leave = async (force: boolean) => {
     // Writes still on this device belong to this account; signing out would
@@ -109,7 +129,7 @@ export default function AppShell(): React.JSX.Element {
   };
 
   const controls: ShellControls = {
-    roles: session.roles.map((r) => ({ value: r, label: ROLE_LABEL[r] })),
+    roles: roles.map((r) => ({ value: r, label: ROLE_LABEL[r] })),
     active,
     onRole: (r) => {
       rememberRole(session, r as ShellRole);
@@ -122,12 +142,12 @@ export default function AppShell(): React.JSX.Element {
   return (
     <ShellProvider value={controls}>
       <main className="shell">
-        {!OWN_HEADER.has(active) && (
+        {(misplaced || !OWN_HEADER.has(active)) && (
           <div className="mx-auto flex w-full max-w-[1440px] flex-wrap items-center justify-end gap-2 bg-go-canvas px-4 pt-2 font-go">
             <SyncStatus sync={sync} online={online} />
-            {session.roles.length > 1 && (
+            {roles.length > 1 && (
               <div role="tablist" aria-label="Role" className="flex gap-1 rounded-full bg-white p-1">
-                {session.roles.map((r) => (
+                {roles.map((r) => (
                   <button
                     key={r}
                     type="button"
@@ -174,7 +194,20 @@ export default function AppShell(): React.JSX.Element {
             )}
           </div>
         )}
-        <RoleRouter key={active} session={session} role={active} />
+        {misplaced ? (
+          <section aria-label="Wrong address" className="mx-auto flex w-full max-w-[720px] flex-col gap-3 px-4 py-10 font-go">
+            <Notice tone="warning" title={`This address is for the ${ROLE_LABEL[pinned].toLowerCase()} role`}>
+              {session.displayName} does not hold it. Open your own address and sign in there.
+            </Notice>
+            {session.roles.map((r) => (
+              <a key={r} href={`https://${hostForRole(host, r)}/`} className="flex min-h-12 items-center rounded-[16px] bg-white px-4 text-[15px] font-medium text-go-teal">
+                {ROLE_LABEL[r]}: {hostForRole(host, r)}
+              </a>
+            ))}
+          </section>
+        ) : (
+          <RoleRouter key={active} session={session} role={active} />
+        )}
       </main>
     </ShellProvider>
   );

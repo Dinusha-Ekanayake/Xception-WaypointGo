@@ -2,6 +2,7 @@ package com.waypoint.dispatch.identity.application;
 
 import com.waypoint.dispatch.identity.contract.SessionView;
 import com.waypoint.dispatch.identity.infrastructure.PolicyCache;
+import com.waypoint.dispatch.platform.config.AppProperties;
 import com.waypoint.dispatch.platform.db.Database;
 import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.shared.domain.Actor;
@@ -35,8 +36,6 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class SessionRegistry {
-  private static final Duration ABSOLUTE_LIFETIME = Duration.ofHours(12);
-  private static final Duration IDLE_LIFETIME = Duration.ofHours(2);
   private static final int TOKEN_BYTES = 32;
 
   private final Database database;
@@ -45,12 +44,21 @@ public class SessionRegistry {
   private final Clock clock;
   private final SecureRandom random = new SecureRandom();
 
+  private final Duration absoluteLifetime;
+  private final Duration idleLifetime;
+
   public SessionRegistry(
-      Database database, PolicyCache policyCache, OperatorRegistry operators, Clock clock) {
+      Database database,
+      PolicyCache policyCache,
+      OperatorRegistry operators,
+      Clock clock,
+      AppProperties properties) {
     this.database = database;
     this.policyCache = policyCache;
     this.operators = operators;
     this.clock = clock;
+    this.absoluteLifetime = properties.session().absoluteLifetime();
+    this.idleLifetime = properties.session().idleLifetime();
   }
 
   public String issue(UUID userId, UUID deviceId) {
@@ -68,8 +76,8 @@ public class SessionRegistry {
         deviceId,
         java.sql.Timestamp.from(now),
         java.sql.Timestamp.from(now),
-        java.sql.Timestamp.from(now.plus(ABSOLUTE_LIFETIME)),
-        java.sql.Timestamp.from(now.plus(IDLE_LIFETIME)));
+        java.sql.Timestamp.from(now.plus(absoluteLifetime)),
+        java.sql.Timestamp.from(now.plus(idleLifetime)));
     return token;
   }
 
@@ -100,7 +108,7 @@ public class SessionRegistry {
           database.update(
               "UPDATE iam.sessions SET last_seen_at = now(), idle_expiry = now() + CAST(? AS interval)"
                   + " WHERE session_token = ?",
-              IDLE_LIFETIME.toMinutes() + " minutes",
+              idleLifetime.toSeconds() + " seconds",
               token);
           List<String> roles =
               database.query("SELECT role_code FROM iam.user_roles WHERE user_id = ?", userId)

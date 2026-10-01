@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { ApiError } from "@shared/api/problem";
 import { useOnline } from "@shared/api/useResource";
 import { Notice } from "@shared/ui";
-import { signIn, type Session } from "./session.ts";
+import { ROLE_LABEL, signIn, type Session, type ShellRole } from "./session.ts";
 
 // Sign in. Three failures read differently, because the person does something
 // different about each: a wrong password (one generic message, so accounts
@@ -34,7 +34,16 @@ function describe(error: unknown): Failure {
 // an aria-label because a placeholder is not a label.
 const field = "min-h-14 w-full rounded-[16px] bg-[#f1f3f5] px-4 text-[16px] text-black outline-none placeholder:text-go-muted focus:ring-2 focus:ring-go-teal";
 
-export default function SignIn({ onSignedIn, notice }: { onSignedIn: (session: Session) => void; notice?: string }): React.JSX.Element {
+export default function SignIn({
+  onSignedIn,
+  notice,
+  role = null,
+}: {
+  onSignedIn: (session: Session) => void;
+  notice?: string;
+  /** Set on a role address: the workspace this sign-in opens. */
+  role?: ShellRole | null;
+}): React.JSX.Element {
   const online = useOnline();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -71,7 +80,7 @@ export default function SignIn({ onSignedIn, notice }: { onSignedIn: (session: S
       <div className="mx-auto flex w-full max-w-[440px] flex-1 flex-col justify-center gap-5 py-10 md:justify-start md:pt-[10vh]">
         <div className="flex flex-col gap-1.5">
           <h1 className="text-[40px] leading-tight font-medium text-black md:text-[48px]">Welcome back</h1>
-          <p className="text-[15px] text-black/80">Sign in to open your workspace.</p>
+          <p className="text-[15px] text-black/80">{role ? `Sign in to open the ${ROLE_LABEL[role].toLowerCase()} workspace.` : "Sign in to open your workspace."}</p>
         </div>
 
         <form onSubmit={(e) => void submit(e)} className="flex w-full flex-col gap-4 rounded-[31px] bg-white p-7 shadow-[0_5px_20px_rgba(0,0,0,0.09)]">

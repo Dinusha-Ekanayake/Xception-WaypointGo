@@ -82,7 +82,7 @@ public class ReleaseTripHandler implements CommandHandler {
       released = loaded.session().release(actor.userId(), checklist);
     } catch (DomainException e) {
       metrics.increment("waypoint.loading.release_refused", "rule",
-          e.violations().isEmpty() ? "none" : e.violations().get(0));
+          e.rules().isEmpty() ? "none" : e.rules().get(0));
       throw e;
     }
 

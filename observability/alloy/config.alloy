@@ -1,0 +1,105 @@
+// Grafana Alloy: collects every Waypoint log and ships it to Loki.
+//
+// Two sources, one destination:
+//   - containers, read from Docker. Only containers carrying the label
+//     com.waypoint.logs=true, so other projects on the same host are not shipped.
+//   - the natively run backend in local development, which writes ECS JSON to
+//     var/log/*.log when LOG_FILE is set (mounted here at /var/log/waypoint).
+//
+// Labels stay low-cardinality (service, level, source). The correlation id and
+// the trace id are structured metadata: one value per request would explode a
+// label index.
+
+// ── Containers ────────────────────────────────────────────────────────────
+
+discovery.docker "waypoint" {
+  host = "unix:///var/run/docker.sock"
+
+  filter {
+    name   = "label"
+    values = ["com.waypoint.logs=true"]
+  }
+}
+
+discovery.relabel "waypoint" {
+  targets = []
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+
+  rule {
+    target_label = "source"
+    replacement  = "docker"
+  }
+}
+
+loki.source.docker "waypoint" {
+  host          = "unix:///var/run/docker.sock"
+  targets       = discovery.docker.waypoint.targets
+  relabel_rules = discovery.relabel.waypoint.rules
+  forward_to    = [loki.process.waypoint.receiver]
+}
+
+// ── Native backend (local development) ────────────────────────────────────
+
+local.file_match "native_backend" {
+  path_targets = [{
+    __path__ = "/var/log/waypoint/*.log",
+    service  = "backend",
+    source   = "native",
+  }]
+}
+
+loki.source.file "native_backend" {
+  targets    = local.file_match.native_backend.targets
+  forward_to = [loki.process.waypoint.receiver]
+}
+
+// ── Parsing ───────────────────────────────────────────────────────────────
+
+loki.process "waypoint" {
+  // The backend logs ECS JSON when LOG_FORMAT=ecs (container) or LOG_FILE is
+  // set (native). Spring Boot 3.4 writes dotted keys ("log.level"); later
+  // versions nest them (log.level). Both are accepted. A line that is not JSON,
+  // such as the startup banner, passes through unparsed.
+  stage.match {
+    selector = "{service=\"backend\"}"
+
+    stage.json {
+      expressions = {
+        level         = "\"log.level\" || log.level",
+        logger        = "\"log.logger\" || log.logger",
+        correlationId = "correlationId",
+        traceId       = "traceId || \"trace.id\" || trace.id",
+      }
+    }
+
+    stage.labels {
+      values = { level = "" }
+    }
+
+    stage.structured_metadata {
+      values = {
+        correlationId = "",
+        traceId       = "",
+        logger        = "",
+      }
+    }
+  }
+
+  forward_to = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

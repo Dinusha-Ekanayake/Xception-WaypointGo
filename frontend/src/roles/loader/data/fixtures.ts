@@ -1,5 +1,5 @@
 import type { Command, CommandAck } from "@shared/api/commands";
-import { ApiError } from "@shared/api/problem";
+import { ApiError, parseProblem } from "@shared/api/problem";
 import {
   LoadingCommandKind,
   type CheckStatus,
@@ -106,7 +106,8 @@ function seed(): Trip[] {
 }
 
 function problem(status: number, title: string, detail: string, violations: string[] = []): ApiError {
-  return new ApiError({ type: "about:blank", title, status, detail, instance: "", violations, extensions: {} });
+  // Parsed like a real body, so a sample failure has the same shape as a live one.
+  return new ApiError(parseProblem(status, { code: title, title, status, detail, violations }));
 }
 
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;

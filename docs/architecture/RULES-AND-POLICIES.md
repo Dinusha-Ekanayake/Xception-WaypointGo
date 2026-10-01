@@ -205,7 +205,7 @@ Binding for the delivered system even though Task 2B does not score them.
 
 | ID | Rule | Recommendation |
 | --- | --- | --- |
-| R-PLN-21 | **Deferral priority.** The booklet requires a recorded reason but prescribes no order | Prior skips first, then Fresh, then chilled, then earliest closing window, then largest unmet volume. Deterministic tie-break by order identifier |
+| R-PLN-21 | **Deferral priority.** The booklet requires a recorded reason but prescribes no order | **Revised 2026-10-01 (issue #9, decision 1).** A lexicographic, versioned decision table in `planning.policy_versions`, not a weighted score, so every deferral can be explained by rank. Highest first: prior skip (P-12), Fresh, chilled, strict access (mall dock or a window under P-17), brand cadence (P-18), earliest closing window, longest outbound distance (a tie-break only, R-PLN-25), largest volume, longest unserved, then order reference and id. A depot-scoped version wins over the global one (POL-08) |
 | R-PLN-22 | **Oversized order.** An order exceeding every vehicle's capacity | Mark `unservable`, surface for a manual split decision. Never defer silently forever. R-PLN-05 forbids automatic splitting |
 | R-PLN-23 | **Fuel week boundary** | Monday to Sunday, matching `iso_week` |
 | R-PLN-24 | **Does fuel include the return leg?** The booklet excludes the return from *time* but says route distance consumes fuel | Include the return distance. Fuel is physical; the time budget exclusion is a planning simplification, not a statement about diesel. **Confirmed 2026-09-30 (D-K, A-03, Q7 closed)** |
@@ -307,12 +307,12 @@ Binding for the delivered system even though Task 2B does not score them.
 
 ## 8. Conflicts found
 
-Six places where the sources disagree. C-1, C-3, C-5 and C-6 are settled; C-2 and C-4 remain open.
+Six places where the sources disagree. C-1, C-2, C-3, C-5 and C-6 are settled; C-4 remains open.
 
 | # | Conflict | Detail | Recommendation |
 | --- | --- | --- | --- |
 | **C-1** | **Reefers carrying ambient goods** | Team draft: "Refrigerated vehicles exclusively transport chilled items." Booklet: "Refrigerated vehicles may also carry ambient goods." **Settled by the data**: of 9,734 reefer routes in training, 4 carried only ambient orders, and no ambient vehicle ever carried chilled | **Resolved: follow the booklet.** Reefers may carry ambient. Recorded as A-01. In practice it is rare, 0.04% of reefer routes, so the planner treats reefers as chilled-first and uses them for ambient only when it improves the plan. **Refined 2026-09-30 (D-J):** one temperature class per trip, R-PLN-31 |
-| **C-2** | **"Each order mapped to the nearest available department"** | Team draft implies a depot choice. The data makes depot a **function of district**: all 120 outlets have `outlet.depot` equal to their district's depot, with zero exceptions, and R-PLN-04 forbids serving another depot's outlets | The rule is inert as written. Either drop it, or confirm it means something else |
+| **C-2** | **"Each order mapped to the nearest available department"** | Team draft implies a depot choice. The data makes depot a **function of district**: all 120 outlets have `outlet.depot` equal to their district's depot, with zero exceptions, and R-PLN-04 forbids serving another depot's outlets | **Closed 2026-10-01 as inert** (issue #9): depot is a function of district, so there is no depot to choose; `HomeDepot` (R-PLN-04) covers it |
 | **C-3** | **GPS coordinates** | Team draft: "the operational dataset includes newly added GPS coordinates for all delivery outlets." The shipped `outlets.csv` has nine columns and none is latitude or longitude | Treat coordinates as absent. Distance ordering must use `district_travel`, not point geometry |
 | **C-4** | **"Reefers are assumed to run at full capacity"** | Team draft. Meaning unclear: it could mean reefers are always loaded to capacity, that their capacity is not derated when chilled, or that refrigeration does not reduce usable volume | Undecided. See question Q2 |
 | **C-5** | **Longest distance first** | Team draft requires longest distances dispatched earliest. Delivery windows and the Fresh 03:30 to 08:00 window may require the opposite | Windows win; distance is a tie-break. Recorded as R-PLN-25 |
@@ -350,7 +350,7 @@ Rules with status **Validated** get a second gate: our allocation output is run 
 | **Q2** | C-4: what does "reefers run at full capacity" mean? | Whether reefer usable volume is derated |
 | ~~Q3~~ | ~~How is availability queried?~~ **Answered:** `stock` per product, enforced by `POST /orders` with `409 insufficient_stock` | closed |
 | ~~Q4~~ | ~~An API key, so response schemas can be specified~~ **Answered:** contract recorded in section 2 | closed |
-| **Q5** | C-2: what does "nearest available department" mean, given depot is fixed by district? | Whether any depot-choice logic exists at all |
+| ~~Q5~~ | ~~C-2: what does "nearest available department" mean, given depot is fixed by district?~~ **Answered:** no depot choice exists (C-2 closed) | closed |
 | ~~Q6~~ | ~~C-6: block order placement on holidays, or roll the delivery date?~~ **Answered:** roll the date (D-I) | closed |
 | ~~Q7~~ | ~~R-PLN-24: does the weekly fuel quota include the return leg?~~ **Answered:** yes (D-K) | closed |
 | ~~Q8~~ | ~~Do Waypoint orders carry product lines at capture?~~ **Answered:** yes, descriptive lines checked by the warehouse at placement (D-E) | closed |

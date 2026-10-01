@@ -67,7 +67,7 @@ class LoadingSessionTest {
     DomainException e = refused(() -> s.take(KASUN, "Kasun", Optional.empty(), NOW));
     assertEquals(ErrorCode.CONFLICT, e.code());
     assertTrue(e.getMessage().contains("Isuru"));
-    assertEquals(List.of("R-LOD-11"), e.violations());
+    assertEquals(List.of("R-LOD-11"), e.rules());
   }
 
   @Test
@@ -174,7 +174,7 @@ class LoadingSessionTest {
   void anItemOffTheCurrentPlanIsNotFound() {
     DomainException e = refused(() -> taken().check(ISURU, STOP1, Optional.of(9), CheckStatus.LOADED));
     assertEquals(ErrorCode.NOT_FOUND, e.code());
-    assertEquals(List.of("R-LOD-03"), e.violations());
+    assertEquals(List.of("R-LOD-03"), e.rules());
   }
 
   @Test
@@ -182,7 +182,7 @@ class LoadingSessionTest {
     LoadingSession s = taken().check(ISURU, STOP1, Optional.empty(), CheckStatus.LOADED).session();
     DomainException e = refused(() -> s.release(ISURU, GOOD));
     assertEquals(ErrorCode.CONFLICT, e.code());
-    assertEquals(List.of("R-LOD-07"), e.violations());
+    assertEquals(List.of("R-LOD-07"), e.rules());
     assertTrue(e.getMessage().contains("1 item in 1 order"));
   }
 
@@ -216,7 +216,7 @@ class LoadingSessionTest {
     assertTrue(e.getMessage().contains("doors"));
     assertTrue(e.getMessage().contains("secured"));
     assertTrue(e.getMessage().contains("driver"));
-    assertEquals(List.of("R-LOD-10"), e.violations());
+    assertEquals(List.of("R-LOD-10"), e.rules());
   }
 
   @Test

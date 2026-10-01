@@ -5,6 +5,7 @@ import com.waypoint.dispatch.platform.web.RequestAuthorizer;
 import com.waypoint.dispatch.shared.domain.Actor;
 import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
+import com.waypoint.dispatch.shared.domain.Page;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Map;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -46,9 +48,12 @@ public class PolicyAdminController {
   public record AttachRequest(String principalType, String principalId) {}
 
   @GetMapping
-  public List<PolicyAdminUseCase.PolicySummary> list(HttpServletRequest request) {
+  public Page<PolicyAdminUseCase.PolicySummary> list(
+      @RequestParam(required = false) String after,
+      @RequestParam(required = false) Integer limit,
+      HttpServletRequest request) {
     authorize(request, "iam:ReadPolicy", "wpt:iam:policy:*");
-    return policies.list();
+    return policies.list(after, limit);
   }
 
   @PostMapping

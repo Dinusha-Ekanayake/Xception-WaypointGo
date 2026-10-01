@@ -176,6 +176,7 @@ The feasibility and coverage checks are the valuable ones: they catch data that 
 | `travelProfile(districtId, depotId)` | Depot-to-district and inter-stop times |
 | `serviceAllowance(brand, dockType)` | Planning allowance in minutes |
 | `availableVehicles(depotId, date)` | Fleet minus workshop and unavailable |
+| `vehiclesOfDepot(depotId, versionId?)` | The whole fleet, available or not, so Planning can tell unservable from deferred (R-PLN-22) |
 
 **Commands:** `ImportReferenceData`, `PublishReferenceVersion`, `SetVehicleDayStatus`, `OverrideCalendarDay`.
 

@@ -45,6 +45,9 @@ The practice is an assumption register: description, category, basis, impact if 
 | **A-23** | **Style's weekly and Tech's as-needed cadence is guidance, not validation** (R-ORD-03, R-ORD-04) | No schedule data exists to validate against | Orders off cadence would be accepted; the UI can only suggest | Obtain Style's delivery schedule, then add it as reference data | **Assumed** (issue #8) |
 | **A-24** | **A redelivery is the whole original order and carries its reservation**, so it is confirmed without calling the warehouse | Issues emits `redelivery.requested` with no lines; the goods were already picked | A partial redelivery would ship too much and a consumed reservation would overstate stock. Partial redelivery is a known gap | Settle with the Issues owner whether `redelivery.requested` should carry lines | **Assumed** (issue #8) |
 | **A-25** | **An order is placed in its own depot's warehouse** (`Kandy` to KDY, `Peliyagoda` to PLG), never split across the two | The API scopes stock and orders per warehouse since 2026-10-01, and each depot's trucks load from one site | A short line that the other warehouse could fill is rejected; filling it needs a transfer (`POST /products/:id/transfer`), which is a stock decision, not an automatic one | Confirm with operations whether a cross-warehouse transfer before cutoff is expected | **Assumed** (2026-10-01) |
+| **A-26** | **A vehicle's next trip leaves when its previous trip's last service ends, with no return leg** | The booklet's worked example: 101 + 112 = 213 of 270 Fresh minutes adds no return drive; the supplied validator checks the formula alone | Second-trip arrivals are optimistic by the return drive, so a planned arrival may slip later than the plan says | Compare planned and actual second-trip departures once Execution records them (#16 lateness) | **Assumed** (issue #9) |
+| **A-27** | **Reefers are not derated** for chilled loads (A-02 stands) | Q2 answered "no derating" for now | Chilled trips planned to full volume may not fit physically | Confirm usable reefer volume with the fleet team | **Assumed** (issue #9) |
+| **A-28** | **An outlet Planning has never served counts as served 0 days ago** in the priority tie-break | There is no service history before Waypoint's first published plan | A long-waiting outlet with no history in the system ranks below one with history on the last tie-break key only | Seed days-since-served from the dataset's history if the tie-break starts deciding real deferrals | **Assumed** (issue #9) |
 
 ### Assumptions that are currently blocking
 
@@ -69,14 +72,18 @@ Values that are correct today and will change. **None of them is a literal in co
 | **P-09** | Fuel quota week boundary | Monday to Sunday, ISO week | Our policy | Which trips share a quota |
 | **P-10** | Receipt auto-close window | to decide | Our policy | When an unconfirmed receipt stops waiting |
 | **P-11** | Stock hold timeout | to decide | Our policy | When an unresolved stock hold auto-defers |
-| **P-12** | Repeated-deferral escalation threshold | to decide | Our policy | When a skipped outlet is forced up the priority order |
+| **P-12** | Repeated-deferral escalation threshold | 1 skip (`escalation.skips`) | Our policy, issue #9 | When a skipped outlet is forced up the priority order |
 | **P-13** | Login lockout threshold and window | to decide | Our policy | Brute-force resistance against usability |
 | **P-14** | Proof artifact retention | to decide | Our policy, legal | How long evidence survives |
+| **P-15** | Earliest departure of a daytime trip with no Fresh trip before it | 08:00 (`daytime.departure.minute.of.day`) | Our policy, issue #9 | When Style and Tech trips can start, and so how much of the 480 minutes is usable |
+| **P-17** | Strict window threshold for priority | 120 min (`strict.window.min`) | Our policy, issue #9 | Which outlets are placed early as hard to fit |
+| **P-18** | Brand cadence, days until the brand's next run | Fresh 1, Style 7, Tech 1 (`cadence.days.<brand>`) | Our policy, issue #9 | How costly a deferral is: a weekly order deferred waits a week |
+| **P-19** | Allocation engine time budget per depot-day | 10 s (`engine.budget.ms`) | Our policy, issue #9 | When a run returns a partial plan (PLN-11) |
 
 ### How a parameter changes
 
 1. A new `rule_parameters` row with an `effective_from` date. The previous row is superseded, never updated.
-2. Shadow the change: evaluate the new value, log what it would have decided, change nothing.
+2. Compare before promoting: a what-if run under the candidate set, never publishable, compared side by side with the plan in force. Hidden shadow evaluation is withdrawn (issue #9, decision 6); the what-if run is a follow-up issue.
 3. Canary on one depot, then enforce.
 4. Every plan already stamps its rule set version, so historical decisions continue to replay under the values that were in force.
 

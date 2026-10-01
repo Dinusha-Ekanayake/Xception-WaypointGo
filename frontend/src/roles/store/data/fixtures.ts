@@ -1,5 +1,5 @@
 import type { Command, CommandAck } from "@shared/api/commands";
-import { ApiError } from "@shared/api/problem";
+import { ApiError, parseProblem } from "@shared/api/problem";
 import {
   OrderCommandKind,
   ReceiptCommandKind,
@@ -69,7 +69,8 @@ const PRODUCTS: ProductView[] = CATALOGUE.map(([id, temperature, kg]) => ({
 const STOCK = new Map(CATALOGUE.map(([id, , , stock]) => [id, stock]));
 
 const problem = (status: number, title: string, detail: string, extensions: Record<string, unknown> = {}, violations: string[] = []) =>
-  new ApiError({ type: "about:blank", title, status, detail, instance: "", violations, extensions });
+  // Parsed like a real body, so a sample failure has the same shape as a live one.
+  new ApiError(parseProblem(status, { ...extensions, code: title, title, status, detail, violations }));
 
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 const wait = () => new Promise((r) => setTimeout(r, 250));

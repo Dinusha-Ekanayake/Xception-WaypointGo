@@ -1,12 +1,14 @@
 package com.waypoint.dispatch.referencedata.web;
 
 import com.waypoint.dispatch.platform.web.RequestAuthorizer;
+import com.waypoint.dispatch.platform.web.RequestValues;
 import com.waypoint.dispatch.referencedata.contract.ReferenceQuery;
 import com.waypoint.dispatch.referencedata.contract.ReferenceViews.CalendarDayView;
 import com.waypoint.dispatch.referencedata.contract.ReferenceViews.OutletView;
 import com.waypoint.dispatch.referencedata.contract.ReferenceViews.VehicleView;
 import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
+import com.waypoint.dispatch.shared.domain.Page;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.LocalDate;
 import java.util.List;
@@ -54,12 +56,18 @@ public class ReferenceController {
   }
 
   @GetMapping("/outlets")
-  public List<OutletView> outletsOfDepot(
+  public Page<OutletView> outletsOfDepot(
       @RequestParam String depot,
       @RequestParam(required = false) String version,
+      @RequestParam(required = false) String after,
+      @RequestParam(required = false) Integer limit,
       HttpServletRequest request) {
     authorizer.require(request, READ, "wpt:ref:depot:" + depot);
-    return reference.outletsOfDepot(depot, uuid(version));
+    return Page.slice(
+        reference.outletsOfDepot(depot, RequestValues.optionalUuid("version", version)),
+        after,
+        limit,
+        OutletView::outletId);
   }
 
   @GetMapping("/outlets/{outletId}")
@@ -69,7 +77,7 @@ public class ReferenceController {
       HttpServletRequest request) {
     authorizer.require(request, READ, "wpt:ref:outlet:" + outletId);
     return reference
-        .outlet(outletId, uuid(version))
+        .outlet(outletId, RequestValues.optionalUuid("version", version))
         .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No outlet " + outletId));
   }
 
@@ -79,13 +87,20 @@ public class ReferenceController {
    * how a broken truck gets planned.
    */
   @GetMapping("/vehicles")
-  public List<VehicleView> availableVehicles(
+  public Page<VehicleView> availableVehicles(
       @RequestParam String depot,
       @RequestParam String date,
       @RequestParam(required = false) String version,
+      @RequestParam(required = false) String after,
+      @RequestParam(required = false) Integer limit,
       HttpServletRequest request) {
     authorizer.require(request, READ, "wpt:ref:depot:" + depot);
-    return reference.availableVehicles(depot, date(date), uuid(version));
+    return Page.slice(
+        reference.availableVehicles(
+            depot, RequestValues.date("date", date), RequestValues.optionalUuid("version", version)),
+        after,
+        limit,
+        VehicleView::vehicleId);
   }
 
   @GetMapping("/vehicles/{vehicleId}")
@@ -95,7 +110,7 @@ public class ReferenceController {
       HttpServletRequest request) {
     authorizer.require(request, READ, "wpt:ref:vehicle:" + vehicleId);
     return reference
-        .vehicle(vehicleId, uuid(version))
+        .vehicle(vehicleId, RequestValues.optionalUuid("version", version))
         .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No vehicle " + vehicleId));
   }
 
@@ -107,7 +122,7 @@ public class ReferenceController {
   @GetMapping("/calendar/{date}")
   public Map<String, Object> day(@PathVariable String date, HttpServletRequest request) {
     authorizer.require(request, READ, "wpt:ref:calendar:" + date);
-    LocalDate on = date(date);
+    LocalDate on = RequestValues.date("date", date);
     CalendarDayView view = reference.day(on).orElse(null);
     return Map.of(
         "date", on.toString(),
@@ -117,23 +132,5 @@ public class ReferenceController {
         "day", view == null ? Map.of() : view);
   }
 
-  private static UUID uuid(String value) {
-    if (value == null || value.isBlank()) {
-      return null;
-    }
-    try {
-      return UUID.fromString(value);
-    } catch (IllegalArgumentException e) {
-      throw new DomainException(ErrorCode.VALIDATION_FAILED, "version is not a uuid: " + value);
-    }
-  }
 
-  private static LocalDate date(String value) {
-    try {
-      return LocalDate.parse(value);
-    } catch (RuntimeException e) {
-      throw new DomainException(
-          ErrorCode.VALIDATION_FAILED, "Expected a date as yyyy-mm-dd, not " + value);
-    }
-  }
 }

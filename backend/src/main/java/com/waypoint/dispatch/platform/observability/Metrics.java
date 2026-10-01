@@ -1,8 +1,11 @@
 package com.waypoint.dispatch.platform.observability;
 
+import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
+import java.time.Duration;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import org.springframework.stereotype.Component;
 
 /**
@@ -27,11 +30,42 @@ public class Metrics {
     registry.counter(name, tags).increment();
   }
 
+  /**
+   * A latency. Publishes p95 and a histogram, because the SLOs in
+   * SYSTEM-ARCHITECTURE section 6.7 are p95 targets and an average hides the tail.
+   */
   public void record(String name, long durationMs, String... tags) {
-    Timer.builder(name).tags(tags).register(registry).record(durationMs, TimeUnit.MILLISECONDS);
+    timer(name, tags).record(durationMs, TimeUnit.MILLISECONDS);
   }
 
-  public void gauge(String name, Number value, String... tags) {
-    registry.gauge(name, io.micrometer.core.instrument.Tags.of(tags), value);
+  /** Times {@code work}, whether it returns or throws. */
+  public <T> T time(String name, Supplier<T> work, String... tags) {
+    long start = System.nanoTime();
+    try {
+      return work.get();
+    } finally {
+      timer(name, tags).record(System.nanoTime() - start, TimeUnit.NANOSECONDS);
+    }
+  }
+
+  /**
+   * A value read when scraped, such as a queue depth or days of calendar left.
+   *
+   * <p>Takes a supplier and holds it strongly. Micrometer's plain {@code gauge}
+   * keeps only a weak reference to the number it is given, so a boxed value is
+   * collected and the gauge reads NaN from then on.
+   */
+  public void gauge(String name, Supplier<Number> value, String... tags) {
+    Gauge.builder(name, value).tags(tags).strongReference(true).register(registry);
+  }
+
+  private Timer timer(String name, String... tags) {
+    return Timer.builder(name)
+        .tags(tags)
+        .publishPercentiles(0.95)
+        .publishPercentileHistogram()
+        .minimumExpectedValue(Duration.ofMillis(1))
+        .maximumExpectedValue(Duration.ofSeconds(30))
+        .register(registry);
   }
 }

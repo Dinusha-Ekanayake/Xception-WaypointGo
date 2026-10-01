@@ -1,14 +1,25 @@
 // RFC 9457 problem details. The error body is part of the API contract because
 // clients branch on it, so it is parsed into a type rather than read ad hoc.
 
+/** One failed constraint. `rule` names an entry in docs/architecture/RULES-AND-POLICIES.md. */
+export type Violation = {
+  rule: string;
+  field?: string;
+  message: string;
+};
+
 export type Problem = {
   type: string;
+  /** For people; may be reworded. Branch on `code`. */
   title: string;
   status: number;
   detail: string;
   instance: string;
-  /** Rule identifiers such as R-PLN-06, from docs/architecture/RULES-AND-POLICIES.md. */
-  violations: string[];
+  /** Stable machine-readable code, such as VERSION_CONFLICT. */
+  code: string;
+  /** Quote this when reporting a failure; it finds the request in the logs. */
+  correlationId: string;
+  violations: Violation[];
   /** Any other members of the problem body, such as per-line stock availability. */
   extensions: Record<string, unknown>;
 };
@@ -26,27 +37,49 @@ export class ApiError extends Error {
     return this.problem.status;
   }
 
+  get code(): string {
+    return this.problem.code;
+  }
+
   /** A stale version: the record moved under us and the write must be reviewed, never merged. */
   get isVersionConflict(): boolean {
-    return this.problem.title === "VERSION_CONFLICT";
+    return this.problem.code === "VERSION_CONFLICT";
   }
 
   /** Worth queueing and retrying. A rejection on rules is not. */
   get isRetryable(): boolean {
-    return this.problem.status >= 500 || this.problem.status === 408 || this.problem.status === 429;
+    const { status } = this.problem;
+    return status >= 500 || status === 408 || status === 429;
   }
 }
 
+function violationOf(value: unknown): Violation | null {
+  // Before structured violations the backend sent bare rule ids. Accept both.
+  if (typeof value === "string") return { rule: value, message: "" };
+  if (value && typeof value === "object" && typeof (value as Violation).rule === "string") {
+    const v = value as Violation;
+    return { rule: v.rule, ...(typeof v.field === "string" ? { field: v.field } : {}), message: typeof v.message === "string" ? v.message : "" };
+  }
+  return null;
+}
+
 export function parseProblem(status: number, body: unknown): Problem {
-  const record = (body ?? {}) as Partial<Problem> & Record<string, unknown>;
-  const { type: _t, title: _ti, status: _s, detail: _d, instance: _i, violations: _v, ...extensions } = record;
+  const record = (body && typeof body === "object" ? body : {}) as Partial<Record<keyof Problem, unknown>> & Record<string, unknown>;
+  const { type: _t, title: _ti, status: _s, detail: _d, instance: _i, code: _c, correlationId: _ci, violations: _v, ...extensions } = record;
+  const text = (value: unknown, fallback: string) => (typeof value === "string" ? value : fallback);
+  // A body with no code predates the field: its title was the code.
+  const code = text(record.code, text(record.title, "ERROR"));
   return {
-    type: record.type ?? "about:blank",
-    title: record.title ?? "ERROR",
-    status: record.status ?? status,
-    detail: record.detail ?? "",
-    instance: record.instance ?? "",
-    violations: Array.isArray(record.violations) ? record.violations : [],
+    type: text(record.type, "about:blank"),
+    title: text(record.title, "Error"),
+    status: typeof record.status === "number" ? record.status : status,
+    detail: text(record.detail, ""),
+    instance: text(record.instance, ""),
+    code,
+    correlationId: text(record.correlationId, ""),
+    violations: Array.isArray(record.violations)
+      ? record.violations.map(violationOf).filter((v): v is Violation => v !== null)
+      : [],
     extensions,
   };
 }

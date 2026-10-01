@@ -22,12 +22,12 @@ import com.waypoint.dispatch.shared.error.ErrorCode;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.UUID;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import com.waypoint.dispatch.support.TestDatabase;
 import org.junit.jupiter.api.TestMethodOrder;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -43,10 +43,7 @@ import org.springframework.test.context.DynamicPropertySource;
  */
 @SpringBootTest
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-@EnabledIfEnvironmentVariable(
-    named = "TEST_DATABASE_URL",
-    matches = ".+",
-    disabledReason = "Set TEST_DATABASE_URL to a dedicated database to run integration tests")
+@ExtendWith(TestDatabase.class)
 class FoundationIntegrationTest {
 
   private static final String ADMIN = "it-admin@waypoint.test";
@@ -65,18 +62,9 @@ class FoundationIntegrationTest {
 
   @DynamicPropertySource
   static void databaseUrl(DynamicPropertyRegistry registry) {
-    registry.add("app.database-url", () -> System.getenv("TEST_DATABASE_URL"));
+    registry.add("app.database-url", TestDatabase::url);
   }
 
-  @BeforeAll
-  static void guardAgainstTheApplicationDatabase() {
-    String url = System.getenv("TEST_DATABASE_URL");
-    String application = System.getenv("DATABASE_URL");
-    if (application != null && application.equals(url)) {
-      throw new IllegalStateException(
-          "TEST_DATABASE_URL must differ from DATABASE_URL; tests destroy data");
-    }
-  }
 
   @Test
   @Order(1)
@@ -213,7 +201,7 @@ class FoundationIntegrationTest {
                     """));
 
     assertEquals(ErrorCode.VALIDATION_FAILED, thrown.code());
-    assertTrue(thrown.violations().contains("order:Plase"), thrown.violations().toString());
+    assertTrue(thrown.rules().contains("order:Plase"), thrown.rules().toString());
   }
 
   @Test
@@ -278,15 +266,22 @@ class FoundationIntegrationTest {
     return Actor.user(id);
   }
 
-  /** Everything version-scoped cascades from the version row. The identity
-   * registries are deliberately left: an outlet id outlives the snapshot that
-   * described it. */
+  /**
+   * Retires every existing version so the next import publishes, without
+   * deleting any: a plan stamps the version it was built on and holds a foreign
+   * key to it (POL-03), so a stamped version must outlive the test that made it.
+   * The hash is made unique to the old row so identical content no longer
+   * matches it.
+   */
   private void clearReferenceVersions() {
     database.asModule(
         ModuleRole.REF,
         null,
         () -> {
-          database.update("DELETE FROM ref.reference_versions");
+          database.update(
+              "UPDATE ref.reference_versions SET is_current = false,"
+                  + " content_hash = content_hash || ':retired:' || reference_version_id"
+                  + " WHERE content_hash NOT LIKE '%:retired:%'");
         });
   }
 
