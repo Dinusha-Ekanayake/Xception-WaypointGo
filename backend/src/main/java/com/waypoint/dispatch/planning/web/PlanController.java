@@ -45,6 +45,14 @@ public class PlanController {
     return plans.publishedPlan(actor, depot, date);
   }
 
+  /** The open draft for a depot and day; 404 while none is open. */
+  @GetMapping("/draft")
+  public PlanView draft(
+      @RequestParam String depot, @RequestParam LocalDate date, HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:plan:depot:" + depot);
+    return plans.workingDraft(actor, depot, date);
+  }
+
   /** Any version, draft to superseded, with every allocation's constraint results. */
   @GetMapping("/{planId}")
   public PlanView plan(@PathVariable UUID planId, HttpServletRequest request) {

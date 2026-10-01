@@ -46,6 +46,31 @@ class PlanningCommandIntegrationTest extends PlanningIntegrationSupport {
   }
 
   @Test
+  void theOpenDraftIsFoundByDepotAndDayThroughEveryEdit() throws Exception {
+    String path = "/api/plans/draft?depot=" + depot + "&date=" + serviceDate;
+    UUID first = demand("ambient");
+    demand("ambient");
+    read(dispatcher, path, 404);
+
+    UUID planId = UUID.fromString(generate(dispatcher, 200).get("planId").asText());
+    assertEquals(planId.toString(), mapper.readTree(read(dispatcher, path, 200)).get("planId").asText());
+
+    JsonNode next =
+        mapper.readTree(send(dispatcher, defer(planId, 1L, first, "outlet asked to skip today"), 200)).get("result");
+    JsonNode current = mapper.readTree(read(dispatcher, path, 200));
+    assertEquals(next.get("planId").asText(), current.get("planId").asText(), "an edit moves the draft on");
+    assertEquals("DRAFT", current.get("status").asText());
+
+    send(dispatcher, publish(UUID.fromString(next.get("planId").asText()), 1L), 200);
+    read(dispatcher, path, 404);
+
+    UUID actor = userId(elsewhereEmail);
+    long before = denials(actor, "plan:Read");
+    read(elsewhere, path, 403);
+    assertEquals(before + 1, denials(actor, "plan:Read"), "another depot's draft is 403 plus audit, not 404");
+  }
+
+  @Test
   void aNonOperatingDayIsNotPlanned() throws Exception {
     serviceDate = serviceDate.plusDays(1);
     for (int i = 0; i < 30 && reference.isOperating(serviceDate); i++) {

@@ -150,6 +150,20 @@ public class PlanDataQuery implements PlanQuery {
                     "No published plan for " + depotCode + " on " + serviceDate));
   }
 
+  /**
+   * The open draft for a depot and day. Every edit replaces the draft with its
+   * next version under a new id, so a screen asks for it here rather than
+   * holding an id that the next edit, or another dispatcher, makes stale.
+   */
+  public PlanView workingDraft(Actor actor, String depotCode, LocalDate serviceDate) {
+    requireDepot(actor, depotCode);
+    return read(actor.userId(), () -> plans.latestDraft(depotCode, serviceDate).map(this::assemble))
+        .orElseThrow(
+            () ->
+                new DomainException(
+                    ErrorCode.NOT_FOUND, "No open draft for " + depotCode + " on " + serviceDate));
+  }
+
   /** Any run by id, in any status, so the dispatcher can read a superseded version too. */
   public PlanView plan(Actor actor, UUID planId) {
     return read(actor.userId(), () -> plans.findRun(planId).map(this::assemble))
