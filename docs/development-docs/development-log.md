@@ -21,6 +21,15 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-01 - feat: one address per role
+
+`feat/role-hostnames` · @kavindamihiran
+
+`dispatcher.`, `loader.`, `driver.`, `store.`, `admin.` and `auditor.waypointgo.live` serve production and show that one role: the shell reads the hostname ([hostRole.ts](../../frontend/src/app-shell/hostRole.ts)), drops the role switcher, and sends an account without the role to its own address. nginx answers the six names and the deploy adds each to the certificate once it resolves, without dropping a name already there. See [deployment.md](../deployment.md).
+Why: each role gets a link that opens straight into its own workspace.
+Verified: `npm test` (9 pass), `npm run typecheck`, `npm run build`; `nginx -t` and the six names answering in a throwaway container. Not checked in a browser on a role address: they exist only after a production deploy.
+Open: the six proxied A records in Cloudflare; nginx and the certificate change only with a production deploy from `main`. Preview has no role addresses.
+
 ## 2026-10-01 - docs(planning): walkthrough and register updates (issue #9, step 7)
 
 `feat/planning-module` · @Oxshadha
