@@ -21,6 +21,15 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-01 - feat: preview opens on a role picker
+
+`feat/preview-role-picker` · @kavindamihiran
+
+`preview.waypointgo.live` now shows a short description of Waypoint and four buttons (store manager, dispatcher, loader, driver), each opening that role's `-preview` address; it has no sign-in of its own ([PreviewLanding.tsx](../../frontend/src/app-shell/PreviewLanding.tsx)). This replaces the redirect after sign-in from the entry below.
+Why: the redirect left nobody able to stay on the preview address, and sign-in happened twice.
+Verified: `npm test` (12 pass), `npm run typecheck`, `npm run build`; the page seen in headless Chrome against the production build on a `preview.` hostname.
+Open: admin and auditor have no button; their preview addresses still work when opened directly.
+
 ## 2026-10-01 - feat: preview sign-in moves to the role address
 
 `feat/preview-redirect-to-role` · @kavindamihiran
