@@ -21,6 +21,15 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-01 - ci: www redirects to the bare name
+
+`ci/www-redirect` · @kavindamihiran
+
+nginx answers `www.SITE_ADDRESS` with a 301 to `SITE_ADDRESS`, and the deploy now requests the certificate again when the one on disk is missing any of the three names, instead of only when there is none. Since the entry below, `preview.waypointgo.live` has its record and is on the certificate, and `CLOUDFLARE_ONLY=1` is set, so the server's address no longer answers directly.
+Why: `www.waypointgo.live` has a proxied record and answered 520/525, because the server drops names it does not know.
+Verified: `nginx -t` and both redirects in a throwaway container on the server. The certificate request for `www` runs on the first production deploy and is not verified until then.
+Open: Cloudflare's address ranges in `00-cloudflare.conf` are a dated static list.
+
 ## 2026-10-01 - ops: production moves to waypointgo.live
 
 `docs/domain-waypointgo-live` · @kavindamihiran
@@ -28,7 +37,7 @@ Entries before 2026-09-26 are in `git log`.
 Production is `https://waypointgo.live`, proxied by Cloudflare, with a Let's Encrypt certificate on the server. The temporary wildcard-DNS hostnames no longer answer; their certificate, the unused Caddy volumes and every mention of them in the documents are removed. The preview's `SITE_ADDRESS` is `preview.waypointgo.live`. Details in [deployment.md](../deployment.md#judge-deployment-on-the-vps).
 Why: decision of @kavindamihiran to serve the app from a bought domain behind Cloudflare.
 Verified: `https://waypointgo.live` answers 200 through Cloudflare, the server presents the Let's Encrypt certificate for it, and the dispatcher signs in.
-Open: `preview.waypointgo.live` has no DNS record, so the preview is unreachable and its deploy check fails until it does; the certificate then needs extending to that name by hand, because the deploy only requests one when none exists. `www` has a record the server does not answer. `CLOUDFLARE_ONLY` is still off, so the server's address still answers directly.
+Open: closed by the entry above.
 
 ## 2026-10-01 - chore: test data for every order status
 
