@@ -21,6 +21,17 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-02 - docs: a status page, and the documents brought level with the code
+
+`docs/status-and-start-here` · @kavindamihiran
+
+New [STATUS.md](STATUS.md): every module and screen as built, partial, in flight or not started, what is left in each, and what to pick up next. AGENTS.md, both READMEs, development.md, MODULES, SYSTEM-ARCHITECTURE, FOUNDATION-PLAN, deployment, verification, the submission checklist and the design mapping corrected where the code had overtaken them (Receipt and Issues described as contract only, role screens as placeholders, `main` as the integration branch, an account script usage that no longer exists, prototype-era operational limits).
+Why: the only answer to "what is done" was 850 lines of log, and the document named for "what next" finished on 2026-09-28, so someone starting work could not tell where anything stood.
+Verified: `TEST_DATABASE_URL=... mvn clean verify`, 564 tests, none skipped; `npm test` (41), `npm run typecheck`, `npm run build`; browser suites dispatcher 7, driver 10, loader 4, shell 2. No code changed. Relative links in the changed files resolve.
+Open: `main` is 114 commits behind `dev`, so production shows none of the modules built since 2026-10-01. No seed takes a fresh install to a released trip. The role browser suites are not in CI. `docs/design-rationale.md` and `docs/ai-disclosure.md` are submission statements and were left for the team to review.
+
+---
+
 ## 2026-10-02 - feat: dispatcher orders, plan and live screens (issue #19, first slice)
 
 `feat/dispatcher-flow` · @kavindamihiran

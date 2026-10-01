@@ -6,13 +6,14 @@ A working Designathon/Hackathon solution for Waypoint Group's four roles: store 
 
 ## Repository and runtime
 
-`main` is the current integration branch; `dev` replaces the former `master` branch and may lag behind `main`. The repository is [Xception-WaypointGo](https://github.com/kavindamihiran/Xception-WaypointGo).
+`dev` is the integration branch: work branches from it and merges into it, and every push to it deploys the preview. `main` is what production runs and moves by a release pull request from `dev`, so it lags `dev` between releases. The repository is [Xception-WaypointGo](https://github.com/kavindamihiran/Xception-WaypointGo).
 
 - `frontend/`: Next.js UI, same-origin API proxy, offline storage and browser tests.
 - `backend/`: Spring Boot REST API, authentication, planning, account administration and PostgreSQL access.
 - `data/` and `migrations/`: tracked reference data CSVs and shared versioned SQL.
 - `docs/`: architecture, deployment, design rationale and submission evidence.
-- `docs/development-docs/`: how to work on the repository. Local setup, the architecture plan and the development log.
+- `docs/development-docs/`: how to work on the repository. Local setup, the status page and the development log.
+- `docs/issues/`: one folder per GitHub issue, with the plan written before the code and the walkthrough written after.
 
 Maven `target/` directories and compiled Java classes are ignored and are rebuilt locally.
 
@@ -27,7 +28,7 @@ docker compose up --build
 
 The one-shot `init` service runs `migrate`, `import-reference` and `account-create` against the fresh database. Each step is idempotent, so a restart changes nothing that is already there. Then open http://localhost:3000 and sign in as `ADMIN_EMAIL` with `ADMIN_PASSWORD` (defaults `admin@waypoint.local` / `local-testing-only`). Health is at http://localhost:8080/health/readiness and metrics at http://localhost:8080/prometheus.
 
-For day-to-day work run PostgreSQL in Docker and the application natively: see [development.md](docs/development-docs/development.md). Production deployment is in [deployment.md](docs/deployment.md).
+For day-to-day work run PostgreSQL in Docker and the application natively: `scripts/dev.sh setup` once, then `scripts/dev.sh`. The steps behind those two commands are in [development.md](docs/development-docs/development.md). Production deployment is in [deployment.md](docs/deployment.md).
 
 ## Backend commands
 
@@ -70,23 +71,29 @@ Typed and validated in `backend/.../platform/config/AppProperties`; the process 
 
 ```sh
 cd backend && mvn verify             # unit, architecture and integration tests
-cd frontend && npm test              # frontend boundary tests
+cd frontend && npm test              # frontend boundary and role logic tests
 cd frontend && npm run typecheck && npm run build
-cd frontend && npm run test:e2e      # browser smoke tests, after npm run build
+cd frontend && npm run test:e2e      # browser tests of the shell, after npm run build
 cd frontend && npm run verify        # all of the above except e2e
+
+# one browser suite per role, against a production build with a mocked API
+cd frontend && npx playwright test -c playwright.dispatcher.config.ts
+cd frontend && npx playwright test -c playwright.driver.config.ts
+cd frontend && npx playwright test -c playwright.loader.config.ts
 ```
 
-Integration tests use `TEST_DATABASE_URL` when it is set, a throwaway PostgreSQL 16 container when Docker is available, and are skipped with a stated reason otherwise. `TEST_DATABASE_URL` must name a dedicated database, never the application one. CI (`.github/workflows/checks.yml`) runs all of this on every pull request to `dev` and `main`, and before every deploy.
+Integration tests use `TEST_DATABASE_URL` when it is set, a throwaway PostgreSQL 16 container when Docker is available, and are skipped with a stated reason otherwise. `TEST_DATABASE_URL` must name a dedicated database, never the application one. CI (`.github/workflows/checks.yml`) runs the backend tests, the typecheck, `npm test` and the build on every pull request to `dev` and `main`, and before every deploy. The browser suites are not in CI and are run by hand.
 
 ## Documentation
 
-**Start here.** Three questions, three documents:
+**Start here.** Four questions, four documents:
 
 | Question | Document |
 | --- | --- |
 | **What are we building, and why this shape?** | [SYSTEM-ARCHITECTURE.md](SYSTEM-ARCHITECTURE.md) |
-| **What do we build next, in what order?** | [docs/architecture/FOUNDATION-PLAN.md](docs/architecture/FOUNDATION-PLAN.md) |
-| **What is already done, and what is in flight?** | [docs/development-docs/development-log.md](docs/development-docs/development-log.md) |
+| **What is built, what is left, and what do I pick up?** | [docs/development-docs/STATUS.md](docs/development-docs/STATUS.md) |
+| **Why did it change, and what did that leave open?** | [docs/development-docs/development-log.md](docs/development-docs/development-log.md) |
+| **What is the base that must not change?** | [docs/architecture/FOUNDATION-PLAN.md](docs/architecture/FOUNDATION-PLAN.md), complete |
 
 `SYSTEM-ARCHITECTURE.md` sits at the root on purpose: it is the entry point, the way `README.md` is. `docs/architecture/` holds the detail behind it.
 
@@ -101,7 +108,10 @@ Integration tests use `TEST_DATABASE_URL` when it is set, a throwaway PostgreSQL
 
 **Working on the repository, in `docs/development-docs/`:**
 
+- [STATUS.md](docs/development-docs/STATUS.md), every module and screen: built, partial or not started, what is left, and what to pick up next
 - [development.md](docs/development-docs/development.md), local setup: PostgreSQL in Docker, the application native
+- [docs/issues/](docs/issues/), per issue: `PLAN.md` before the code and `WALKTHROUGH.md` after it, the best way into a module you did not build
+- [AGENTS.md](AGENTS.md), the rules a change is reviewed against
 - [development-log.md](docs/development-docs/development-log.md), what changed and why, newest first
 
 **Submission material, in `docs/`:** [design rationale](docs/design-rationale.md), [design mapping](docs/design-mapping.md), [AI disclosure](docs/ai-disclosure.md), [deployment](docs/deployment.md), [verification](docs/verification.md) and the [submission checklist](docs/submission-checklist.md).

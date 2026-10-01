@@ -408,7 +408,7 @@ The seven from the first draft, plus two forced by the full dataset. Each is a r
 
 ## Part 4: Where this document ends
 
-The foundation is complete. Reference data and Identity both meet their definitions of done (1.11 and 2.9), so the trail continues in [../../SYSTEM-ARCHITECTURE.md](../../SYSTEM-ARCHITECTURE.md) section 10, which plans the whole system rather than just its base.
+The foundation is complete. Reference data and Identity both meet their definitions of done (1.11 and 2.9), so the trail continues in [../../SYSTEM-ARCHITECTURE.md](../../SYSTEM-ARCHITECTURE.md) section 10, which plans the whole system rather than just its base, and in [../development-docs/STATUS.md](../development-docs/STATUS.md), which says how far each module built on this base has got.
 
 Two levels, deliberately. This document is the base in detail; section 10 is every workstream at a coarser grain.
 
@@ -418,9 +418,11 @@ Two levels, deliberately. This document is the base in detail; section 10 is eve
 | WS1 Identity | Part 2 here, built | **done** |
 | WS2 Reference | Part 1 here, built | **done** |
 | Contracts for every remaining module | `<module>/contract/`, MODULES "Module connection summary" | **done** 2026-09-30 |
-| **WS3 Ordering** and every later module | SYSTEM-ARCHITECTURE 10.2 | **next, in parallel** |
+| WS3 Ordering and every later module | SYSTEM-ARCHITECTURE 10.2 | **under way**, state per module in [STATUS.md](../development-docs/STATUS.md) |
 
 ### What WS3 inherits
+
+Written on 2026-09-30, before Ordering was built, and kept as the record of what the foundation handed over. Ordering and seven more modules have since been built on it, and the relay it mentions as still to come landed with issue #6.
 
 Ordering is the first module built on the foundation rather than as part of it, so it is also the first real test of whether the base holds. It gets, without building any of it:
 

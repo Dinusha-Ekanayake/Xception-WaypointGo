@@ -16,6 +16,16 @@ This is the standard split because it puts each tool where it is strongest. Dock
 - Java 17 or newer, and Maven
 - Docker Desktop, for the database only
 
+## The short way
+
+```sh
+scripts/dev.sh setup    # once: database, migrate, import-reference, a demo account per role, npm ci
+scripts/dev.sh          # daily: database, backend on :8080, frontend on :3000, Ctrl+C stops both
+scripts/dev.sh sample   # the same, with store and loader sample fixtures in the frontend
+```
+
+It always targets the local Docker database, never the `DATABASE_URL` in `.env`, and signs you in as `<role>@waypoint.local` with `SEED_PASSWORD` (default `Waypoint2026!`). `./start.sh` starts the backend and frontend from root `.env` instead, for a database that is not the Docker one; it never migrates or seeds. The two sections below are the same steps by hand, which is what to read when one of them fails.
+
 ## First-time setup
 
 ```sh
@@ -63,7 +73,7 @@ cd frontend
 npm run dev
 ```
 
-Open http://localhost:3000 and sign in as the administrator from step 5. Create other accounts through the API (`iam:CreateUser`).
+Open http://localhost:3000 and sign in as the administrator from step 5. Create other accounts through the API (`iam:CreateUser`), or run the `demo-accounts` command for one account per role.
 
 Use `npm run build && npm start` instead of `npm run dev` when testing offline behaviour, because the service worker is only generated for a production build.
 
@@ -129,11 +139,18 @@ npm test           # frontend boundary tests
 npm run typecheck
 npm run build
 npx playwright install chromium   # once
-npm run test:e2e   # browser smoke tests on port 43219, after a build
+npm run test:e2e   # browser tests of the shell on port 43219, after a build
 npm run verify     # test, typecheck, build and mvn verify in sequence
+
+# one suite per role, after a build, against a mocked API. Not in CI: run the one you touched
+npx playwright test -c playwright.dispatcher.config.ts   # tests/e2e-dispatcher, port 43222
+npx playwright test -c playwright.driver.config.ts       # tests/e2e-driver, port 43221, phone width
+npx playwright test -c playwright.loader.config.ts       # tests/e2e-loader, port 43220, phone width
 ```
 
-Integration tests pick their database in this order: `TEST_DATABASE_URL` if exported (it must differ from `DATABASE_URL`), else a throwaway PostgreSQL 16 container if Docker is running, else they are skipped with that reason in the report. A green run with them skipped proves nothing about the database. CI always sets `TEST_DATABASE_URL`.
+One test at a time: `mvn test -Dtest=ModuleBoundaryTest` or `-Dtest='SomeTest#method'` from `backend/`; `node --test --experimental-strip-types tests/boundaries.test.ts` from `frontend/`; a spec file name or `-g "title"` after a Playwright config. `playwright.loader.live.config.ts` runs `live.spec.ts` against a running instance named by `LOADER_LIVE_BASE_URL`.
+
+Integration tests pick their database in this order: `TEST_DATABASE_URL` if exported (it must differ from `DATABASE_URL`), else a throwaway PostgreSQL 16 container if Docker is running, else they are skipped with that reason in the report. A green run with them skipped proves nothing about the database. CI always sets `TEST_DATABASE_URL`. Migrations are checksummed, so after editing a migration that has not merged, drop and recreate the test database. If an editor's Java extension compiles into `backend/target/classes`, run `mvn clean` before trusting a result: stale classes surface as "Unresolved compilation problems" at test time.
 
 ## Before you push, and twice before the deadline
 
