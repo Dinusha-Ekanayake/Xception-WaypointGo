@@ -22,23 +22,45 @@ For a fresh-install check, use a separate Compose project name with free host po
 
 ## Judge deployment on the VPS
 
-The competition instance runs the same `compose.yaml` a judge runs, with one overlay, [deploy/vps/compose.vps.yaml](../deploy/vps/compose.vps.yaml): the frontend stops publishing a host port and Caddy becomes the only public listener, obtaining and renewing its own certificate. PostgreSQL and the backend stay on `127.0.0.1`. Docker publishes ports ahead of `ufw`, so never add a published port to the overlay expecting the firewall to cover it.
+The server runs two environments from the same `compose.yaml` a judge runs, with one overlay, [deploy/vps/compose.vps.yaml](../deploy/vps/compose.vps.yaml):
 
-**Pipeline.** [.github/workflows/ci-deploy.yml](../.github/workflows/ci-deploy.yml) runs the backend tests against a PostgreSQL service and the frontend typecheck, boundary test and build on every pull request into `main`. A push to `main` runs the same checks and then deploys; a failed check means no deploy. The deploy job opens one SSH connection as `deploy`. That key is bound on the server to [deploy/vps/deploy.sh](../deploy/vps/deploy.sh) by a forced command, so the workflow cannot choose what runs or which commit ships: the script always resets the checkout to `origin/main`, builds, runs `init`, replaces the containers and checks HTTPS and backend readiness. There is no automatic rollback; revert the commit on `main` and the pipeline redeploys.
+| Environment | Branch | URL | Checkout | Compose project |
+| --- | --- | --- | --- | --- |
+| Production | `main` | `https://62-171-128-70.sslip.io` | `/opt/waypoint/app` | `app` |
+| Preview | `dev` | `https://preview.62-171-128-70.sslip.io` | `/opt/waypoint/preview` | `preview` |
 
-**Host.** Ubuntu 24.04. SSH accepts keys and the shared root password (`/etc/ssh/sshd_config.d/00-waypoint-hardening.conf`); the password stays on so the team can log in, and `fail2ban` (four failures, one hour ban, growing on repeats) and the `ufw` rate limit on 22 are what guard it. `ufw` allows 22, 80 and 443 only, and security updates install unattended. `root` is for administration; `deploy` owns `/opt/waypoint/app`, has no password and no sudo, but is in the `docker` group, which is root-equivalent on that host.
+Each has its own database volume, accounts and `.env`. The overlay removes every published host port, so the two stacks do not collide and nothing but Caddy is reachable from outside. Docker publishes ports ahead of `ufw`, so never add a published port to the overlay expecting the firewall to cover it. Caddy runs once, in the production stack, and reaches each frontend over the shared `waypoint-edge` network by an alias named after its environment. A change to [deploy/vps/caddy/Caddyfile](../deploy/vps/caddy/Caddyfile) therefore takes effect on a production deploy, not a preview one.
 
-**Secrets.** `/opt/waypoint/app/.env` on the server, mode 600, untracked: `SITE_ADDRESS`, `POSTGRES_PASSWORD`, `SEED_PASSWORD`, `COOKIE_SECURE=1`, `WAREHOUSE_API_KEY`. GitHub holds `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` and `VPS_KNOWN_HOSTS`. The server reads the repository with a read-only deploy key.
+**Pipeline.** [checks.yml](../.github/workflows/checks.yml) runs the backend tests against a PostgreSQL service and the frontend typecheck, boundary test and build on every pull request into `main` or `dev`. A push to `dev` runs the same checks and then deploys the preview ([preview-deploy.yml](../.github/workflows/preview-deploy.yml)); a push to `main` does the same for production ([ci-deploy.yml](../.github/workflows/ci-deploy.yml)). A failed check means no deploy. So the order is: merge into `dev`, look at the preview, then merge `dev` into `main`.
+
+Each deploy job opens one SSH connection as `deploy`. Each environment has its own key, bound on the server to that checkout's [deploy/vps/deploy.sh](../deploy/vps/deploy.sh) by a forced command, so a workflow cannot choose what runs or which commit ships and the preview key cannot deploy production. The script resets the checkout to the tip of its branch, builds, runs `init`, replaces the containers and checks the public URL. There is no automatic rollback; revert the commit and the pipeline redeploys.
+
+**Preview is not production.** It runs unreviewed `dev` code against its own data, with the same demo accounts. Migrations are forward-only and checksummed, so a migration edited after it reached `dev` stops the preview `init`; that is the preview doing its job. Fix it with a new migration, or if the preview data does not matter, reset the preview alone:
+
+```sh
+cd /opt/waypoint/preview
+docker compose -f compose.yaml -f deploy/vps/compose.vps.yaml down -v   # preview volume only
+sudo -u deploy /opt/waypoint/preview/deploy/vps/deploy.sh
+```
+
+Never run `down -v` in `/opt/waypoint/app`.
+
+**Host.** Ubuntu 24.04. SSH accepts keys and the shared root password (`/etc/ssh/sshd_config.d/00-waypoint-hardening.conf`); the password stays on so the team can log in, and `fail2ban` (four failures, one hour ban, growing on repeats) and the `ufw` rate limit on 22 are what guard it. `ufw` allows 22, 80 and 443 only, and security updates install unattended. `root` is for administration; `deploy` owns `/opt/waypoint`, has no password and no sudo, but is in the `docker` group, which is root-equivalent on that host.
+
+**Secrets.** Each checkout has an untracked `.env`, mode 600: `SITE_ADDRESS`, `POSTGRES_PASSWORD`, `SEED_PASSWORD`, `COOKIE_SECURE=1`, `WAREHOUSE_API_KEY`, and `DEPLOY_ENV=preview` in the preview one. GitHub holds `VPS_HOST`, `VPS_USER`, `VPS_KNOWN_HOSTS`, `VPS_SSH_KEY` (production) and `VPS_PREVIEW_SSH_KEY`. The server reads the repository with a read-only deploy key.
 
 ```sh
 # Deploy by hand, as root on the server
 sudo -u deploy /opt/waypoint/app/deploy/vps/deploy.sh
-# Logs and state
+sudo -u deploy /opt/waypoint/preview/deploy/vps/deploy.sh
+# Logs and state (same commands in /opt/waypoint/preview)
 cd /opt/waypoint/app && docker compose -f compose.yaml -f deploy/vps/compose.vps.yaml ps
 cd /opt/waypoint/app && docker compose -f compose.yaml -f deploy/vps/compose.vps.yaml logs -f backend
+# The database is no longer on a host port; reach it through the container
+cd /opt/waypoint/app && docker compose -f compose.yaml -f deploy/vps/compose.vps.yaml exec db psql -U waypoint waypoint
 ```
 
-`SITE_ADDRESS` is `62-171-128-70.sslip.io`, a wildcard DNS name for the server's address, because HTTPS needs a hostname and service workers and Secure cookies need HTTPS. To move to a real domain, point its A record at the server, change `SITE_ADDRESS` and deploy. `SEED_PASSWORD` only applies when an account is first created; changing it later does not rotate the six demo accounts.
+`SITE_ADDRESS` is `62-171-128-70.sslip.io`, a wildcard DNS name for the server's address, because HTTPS needs a hostname and service workers and Secure cookies need HTTPS. The preview is always `preview.` in front of it. To move to a real domain, point both A records at the server, change `SITE_ADDRESS` in both `.env` files and deploy. `SEED_PASSWORD` only applies when an account is first created; changing it later does not rotate the six demo accounts.
 
 ## Production host
 
