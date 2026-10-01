@@ -27,8 +27,8 @@ Entries before 2026-09-26 are in `git log`.
 
 Loading now builds scoped live manifests, retains safe checks across plan revisions, limits issue reports to Damaged, Doesn't fit and Missing, and releases only after doors sealed, orders secured and driver present are confirmed. Shared-device PIN switching records operator history and attributes queued commands to the person active when they were recorded. The loader screens use those contracts and the shared sync queue.
 Why: issue #10 needs a traceable dock workflow that remains correct through a plan change or an offline period.
-Verified: `mvn -q test` passed locally; disposable PostgreSQL 18 clusters ran `LoadingIntegrationTest` with 20 passed, zero failed or skipped after the append-only and auditor cases were added. A privileged update was separately rejected by the item-check trigger. `npm.cmd test` passed 7 tests; `npm.cmd run typecheck` and `npm.cmd run build` passed. A 393x852 Playwright test passed for the release checklist with mocked API responses. `git diff --check` passed. The disposable clusters were stopped and removed afterward.
-Open: verify the full live-backend and offline browser flow and tablet layout before closing issue #10.
+Verified: the full backend suite passed 231 tests with zero failures, errors or skips after focused red/green tests covered both fixture fixes. A separate disposable PostgreSQL 18 database imported reference data, provisioned a test PIN and built one manifest from synthetic demand. The live 393x852 browser flow passed sign-in, PIN failure and success, loading, offline check, sync, three-check release and lock. The 768x1024 locked tablet state had no horizontal overflow. The latest frontend run passed seven unit/boundary tests, typecheck, production build and two mocked browser tests. No external warehouse data was changed.
+Open: compare more tablet states with Figma and reconcile against `dev` before delivery. Interchange, dispatcher handover and driver-assignment gating remain deferred.
 
 ## 2026-10-01 - ci: deploy main to the VPS, repair the compose init step
 

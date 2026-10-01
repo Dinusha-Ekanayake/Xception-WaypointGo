@@ -94,13 +94,13 @@ Most of the cases below are instances of nine patterns. Learn the patterns and t
 
 | ID | Trigger | Required behaviour | Enforced in | Detection | Test |
 | --- | --- | --- | --- | --- | --- |
-| LOD-01 | Missing or damaged goods | Departure blocked. Dispatcher records a replacement; loader rechecks **every** order in the trip | Loading | Shortfall counter | End to end |
-| LOD-02 | Assigned truck unavailable at the dock | Interchange request. Substitute revalidated for capacity, temperature, access, depot, fuel and time **across the whole trip**. Written as history, never an `UPDATE` | Loading + Planning | Interchange counter | Integration |
-| LOD-03 | No compatible substitute exists | Trip deferred as a unit; orders carry forward with identity | Planning | Alert | Integration |
-| LOD-04 | Loader shift ends mid-session | Partial checks persist; another loader resumes; both recorded | Loading | Session handover counter | Integration |
-| LOD-05 | Loading complete, no driver assigned | Trip holds in `ready_for_departure`; dispatcher notified. Escalation timer applies | Loading + Notification | Gauge: trips waiting for driver | Integration |
+| LOD-01 | Damaged, doesn't fit, or missing goods | Record a flagged check and notify the dispatcher; the loader may continue. A flagged check counts as checked for release once the three-item checklist is confirmed. Replacement and replan are separate follow-up work | Loading | Shortfall counter | `LoadingIntegrationTest.aFlaggedItemIsNotLoadedLoadingCarriesOnAndReleaseFollowsTheChecklist` |
+| LOD-02 | Assigned truck unavailable at the dock | Planned interchange: revalidate the whole trip and publish a new plan version, never edit the vehicle in place. The interchange command is deferred from issue #10 | Loading + Planning | Interchange counter | Deferred |
+| LOD-03 | No compatible substitute exists | Planned policy: defer the trip as a unit, preserving order identity. The interchange workflow is deferred from issue #10 | Planning | Alert | Deferred |
+| LOD-04 | Loader shift ends mid-session | Hand back preserves partial checks and their authors; another loader may take the trip. A separate dispatcher handover workflow is deferred | Loading + Identity | Session handover counter | Loading integration |
+| LOD-05 | Loading complete, no driver assigned | Planned departure policy: hold and notify the dispatcher. Automated driver-assignment gating and escalation are outside issue #10 | Loading + Notification | Gauge: trips waiting for driver | Deferred |
 | LOD-06 | Mark-loaded submitted twice | Idempotent, no duplicate check rows | Application | Duplicate-suppressed counter | Integration |
-| LOD-07 | Loader works from a stale manifest after a replan | The manifest carries the plan version; a stale submission is rejected with the new manifest returned | Loading | Stale-manifest counter | Integration |
+| LOD-07 | Loader works from a stale manifest after a replan | The command's expected row version is rejected with 409; refresh the manifest and visibly recheck work reset by the new plan | Loading | Stale-manifest counter | Loading integration and Loader UI |
 | LOD-08 | Shared tablet used by two loaders in one session | Both attributed via device plus user identity | Identity + Audit | n/a | Integration |
 
 ## 6. Execution, the road and offline

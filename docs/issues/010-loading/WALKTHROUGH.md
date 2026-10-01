@@ -1,6 +1,6 @@
 # Issue #10: Loading implementation walkthrough
 
-Status: backend loader HTTP/database flow, frontend typecheck/build and the phone release interaction are verified. The live-backend browser and offline walkthrough remain. The entire issue is not complete.
+Status: the scoped Loader backend, shared-device flow and live browser path are implemented and verified on an isolated local stack. Interchange, dispatcher handover and automated driver-assignment gating remain deferred by the issue plan.
 
 ## Implemented backend flow
 
@@ -30,7 +30,7 @@ mvn -o -Dtest=LoadingIntegrationTest,LoadingSessionTest,LoadingPropertiesTest,Mo
 
 At the earlier manifest/read checkpoint, 48 tests passed against a separate PostgreSQL 18 instance. Subsequent code changes are not covered by that database result. Java 24 caused ArchUnit warnings while resolving JDK classes; use Java 21 for the next database run if available.
 
-Current checks (2026-10-01): focused `LoadingSessionTest,PinPolicyTest` passed; `mvn -q test` passed with the environment-gated database tests skipped on that run; `npm.cmd test` passed 7 tests; `git diff --check` passed. A separate disposable PostgreSQL 18 cluster then ran `LoadingIntegrationTest`: 18 tests, zero failures, zero errors, zero skips. The first database run exposed an unauthorized Reference Data table lookup in test setup; the second exposed same-timestamp PIN failures being undercounted. Both were corrected, and the third run passed. After adding append-only and auditor-denial coverage, a new disposable cluster ran 20 integration tests with zero failures, errors or skips. An update attempted as the test database owner was also refused by the append-only trigger. Both test clusters were stopped and removed. After a successful locked dependency install, `npm.cmd run typecheck` and `npm.cmd run build` passed. At 393x852, `npx.cmd playwright test --config=playwright.loader.config.ts` passed one browser test of the chilled-trip release checklist and command payload using mocked API responses. A full browser walkthrough against the live backend, including offline sync, is still unverified.
+Current checks (2026-10-01): a dedicated PostgreSQL 18 test database ran the full backend suite after the two fixture corrections: 231 tests, zero failures, errors or skips. The fixes each had a failing reproduction and passing focused tests. The guarded `loading-fixture` CLI then built one live manifest from synthetic confirmed demand after reference import and PIN provisioning in a separate disposable database. Against that backend and a production Next.js build, the 393x852 browser test passed device sign-in, wrong and correct PIN, trip loading, offline check, reconnect and sync, three-check release and lock. The 768x1024 locked tablet screen had no horizontal overflow. The latest frontend run passed seven unit/boundary tests, typecheck, production build and two mocked Loader browser tests. Browser screenshots were inspected locally; exact pixel equivalence to every Figma state is not claimed. No external warehouse data was mutated.
 
 | Guarantee | Evidence |
 | --- | --- |
@@ -47,9 +47,6 @@ Current checks (2026-10-01): focused `LoadingSessionTest,PinPolicyTest` passed; 
 
 ## Remaining work
 
-- Verify the development fixture and operator PIN flow with a live browser; the HTTP/database paths pass integration tests.
-- Verify the full Part C path against current Figma frames and the live backend, including offline sync and tablet layout.
-- Finish rule/assumption/departure documentation, full database suite, frontend checks, browser tests and manual walkthrough before issue closure.
-- Handover and interchange remain deferred by the plan. Offline PIN switching is intentionally excluded.
-
-Coverage percentage has not been measured. No UI, PIN, fixture or full-system completion is claimed by this checkpoint.
+- Finish the 393x852/768x1024 visual comparison against the Figma frames. The tablet check so far covers a locked state and overflow, not every sheet.
+- Review against the current `dev` branch before delivery; the local `dev` tracking ref is behind `origin/dev`. Do not push or open a PR without a separate delivery step.
+- Handover, interchange and driver-assignment gating remain deferred. Offline PIN switching is intentionally excluded. Coverage percentage has not been measured.

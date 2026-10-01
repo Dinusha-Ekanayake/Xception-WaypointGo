@@ -188,7 +188,7 @@ Four consumers read that one registry: the engine, the manual override path, the
 | --- | --- |
 | contract | `LoadingViews`, `LoadingQuery`, `LoadingCommands`, `LoadingEvents` |
 | domain | `LoadingSession`, `ItemLine`, `ReleaseChecklist` |
-| application | `StartLoadingHandler`, `RecordCheckHandler`, `FlagShortfallHandler`, `HandBackHandler`, `ReleaseTripHandler`, `ManifestBuilder`, `LoadingDataQuery` |
+| application | `StartLoadingHandler`, `RecordCheckHandler`, `FlagShortfallHandler`, `HandBackHandler`, `ReleaseTripHandler`, `ManifestBuilder`, `LoadingDataQuery`, guarded development-only `LoadingFixture` |
 | infrastructure | `JdbcLoadingRepository`, `JdbcManifestWriter`, `JdbcLoadingReads` |
 | web | `LoadingController` for reads; writes through the shared command endpoint |
 
@@ -196,12 +196,12 @@ Four consumers read that one registry: the engine, the manual override path, the
 
 **Commands:** `loading:Start`, `loading:Check`, `loading:Shortfall`, `loading:HandBack`, `loading:Release`. Interchange and dispatcher handover are deferred.
 **Queries:** `manifest(tripId)`, `readyTrips(depot, day)`, `openShortfalls(depot)`.
-**Publishes:** `loading.started`, `loading.shortfall`, `loading.interchange_requested`, `trip.released`.
+**Publishes:** `loading.started`, `loading.shortfall`, `trip.released`. `loading.interchange_requested` is a planned event; the interchange command is deferred.
 **Consumes:** `plan.published`, `plan.revised`, `shortfall.resolved` (from Issues).
 
 **Invariants.** A trip releases only when **every** allocated item has a recorded check on the current plan version, including any Damaged, Doesn't fit or Missing exception. The loader also confirms doors sealed, orders secured and driver present; there is no temperature-reading or seal-number gate. One loader holds a trip at a time, and hand back preserves earlier checks. Manifest order is the planned stop sequence reversed, so the first stop is unloaded first. There is no separate mall-first loading rule (decision D-L, R-LOD-08 withdrawn).
 
-**Vehicle interchange.** This is the subtle one. Swapping the truck is not an `UPDATE` to a trip's vehicle, and Loading never changes a trip itself. It is a request that:
+**Vehicle interchange (planned, not implemented in issue #10).** Swapping the truck must not be an `UPDATE` to a trip's vehicle. The intended workflow is a request that:
 
 1. previews the swap through Planning's `previewInterchange` contract query, which revalidates the **entire trip** against the substitute (capacity, temperature, access, home depot, fuel, time budget),
 2. emits `loading.interchange_requested`; Planning accepts it only if every constraint still passes, with `plan:Replan`,
@@ -210,7 +210,7 @@ Four consumers read that one registry: the engine, the manual override path, the
 
 If no compatible substitute exists, the trip is deferred as a unit and the orders carry forward with identity intact.
 
-**Failure modes.** Loader shift ends mid-session: partial checks persist, another loader resumes, both are recorded. Loading complete with no driver assigned: the trip holds in `ready_for_departure` and the dispatcher is notified rather than the trip stalling silently. Duplicate mark-loaded: idempotent, no duplicate check rows.
+**Failure modes.** Loader shift ends mid-session: hand back preserves partial checks and their authors, and another loader may take the trip. Driver-assignment gating and dispatcher handover remain deferred. Duplicate mark-loaded: idempotent, no duplicate check rows.
 
 ---
 

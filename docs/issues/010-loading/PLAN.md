@@ -2,7 +2,7 @@
 
 ## Current state
 
-The `feat/loading` branch contains the schema, domain, contracts and command handlers in `76ef1bd`. Existing uncommitted work adds manifest consumers, reads, a development fixture and partial operator PIN support. Preserve and complete that work. The loader frontend still needs live item-level contracts, command corrections and the device operator flow.
+The `feat/loading` branch now contains the scoped Loading manifest/command flow, Identity-owned shared-device PIN flow, Loader role frontend and guarded fixture. The backend and live phone browser path have been verified against disposable local databases; see [WALKTHROUGH.md](WALKTHROUGH.md). Full tablet/Figma visual comparison and branch reconciliation remain before delivery.
 
 ## Ownership and boundaries
 
