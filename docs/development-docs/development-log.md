@@ -21,6 +21,18 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-02 - feat: receipt and issues domains (issue #13, step 1)
+
+`feat/receipt-issues` · @Oxshadha
+
+Pure domains for both modules.
+- **Receipt:** the `Receipt` aggregate, plus `ReceiptStateMachine` (PENDING to CONFIRMED, PARTIAL, DISPUTED or AUTO_CLOSED; AUTO_CLOSED still accepts a late shortage), `AutoClosePolicy` and `ReceiptParameters`.
+- **Issues:** the `Issue` aggregate, plus `IssueLifecycle`, `ResolutionAction` (no RETURN) and `SeverityPolicy`. The system actor can never resolve a shortage investigation (R-RCP-07).
+
+Why: issue #13. The decisions are in [PLAN.md](../issues/013-receipt-issues/PLAN.md).
+Verified: `mvn test -Dtest=ReceiptTest,ReceiptStateMachineTest,IssueTest,ModuleBoundaryTest`, 33 tests, 0 failures.
+Open: steps 2 to 5 (schema, commands, consumers, jobs, docs).
+
 ## 2026-10-01 - fix: store screens read the paged orders list
 
 `fix/store-orders-page` · @kavindamihiran

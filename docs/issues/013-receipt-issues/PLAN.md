@@ -8,9 +8,9 @@ Updated after every finished step. Branch `feat/receipt-issues`, from `dev` at `
 
 | Step | Status | Commit | Notes |
 | --- | --- | --- | --- |
-| 0 Plan | **done** | this file | |
-| 1 Domains | todo — start here | | Both state machines; pure, clock injected |
-| 2 Schema, repositories, reads | todo | | Two migrations, read endpoints, additive contract changes |
+| 0 Plan | **done** | `84a09c7` | |
+| 1 Domains | **done** | `feat: receipt and issues domains` | `receipt/domain/*`, `issues/domain/*`; `ReceiptTest`, `ReceiptStateMachineTest`, `IssueTest` (24 tests) |
+| 2 Schema, repositories, reads | todo — start here | | Two migrations, read endpoints, additive contract changes |
 | 3 Receipt commands, consumer, auto-close, Ordering `OnReceiptDisputed` | todo | | |
 | 4 Issues commands, consumers, escalation, catalogue and raise rights | todo | | |
 | 5 Docs closeout | todo | | WALKTHROUGH, EDGE-CASES, RULES, ASSUMPTIONS, MODULES, development log |
