@@ -127,6 +127,22 @@ class PlanningCommandIntegrationTest extends PlanningIntegrationSupport {
             .findFirst()
             .orElseThrow();
 
+    // The preview names each place as the override will, and says which rule refuses it.
+    JsonNode places = mapper.readTree(read(dispatcher, "/api/plans/preview/placements?order=" + chilled, 200));
+    JsonNode onAmbient = null;
+    boolean refusedSeen = false;
+    for (JsonNode place : places) {
+      assertFalse(refusedSeen && place.get("feasible").asBoolean(), "feasible places come first");
+      refusedSeen |= !place.get("feasible").asBoolean();
+      if (place.get("vehicleId").asText().equals(ambientTruck) && place.get("tripNumber").asInt() == 1) {
+        onAmbient = place;
+      }
+    }
+    assertTrue(onAmbient != null, "every vehicle of the depot is offered: " + places);
+    assertFalse(onAmbient.get("feasible").asBoolean());
+    assertEquals("R-PLN-02", onAmbient.get("bindingRule").asText());
+    read(elsewhere, "/api/plans/preview/placements?order=" + chilled, 404);
+
     String refused = send(dispatcher, override(planId, 1L, chilled, ambientTruck, 1, "no reefer free"), 409);
 
     assertTrue(refused.contains("R-PLN-02"), "a chilled order needs a reefer: " + refused);
