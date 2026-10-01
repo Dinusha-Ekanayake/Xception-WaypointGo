@@ -21,6 +21,15 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-01 - ci: nginx replaces Caddy at the edge, ready for Cloudflare
+
+`ci/nginx-edge` · @kavindamihiran
+
+The VPS edge is now an nginx image built from `deploy/vps/nginx/`, with certbot for Let's Encrypt. It adds what Caddy lacked: per-address rate limits (sign-in, API, pages), no answer for the bare IP or unknown hostnames, a method allowlist, TLS 1.2+ only. It restores the visitor address from Cloudflare and can refuse traffic that bypasses Cloudflare (`CLOUDFLARE_ONLY`, off until DNS is proxied). The deploy tests the new nginx configuration before replacing the running proxy, and brings the proxy up before the database step. Details in [deployment.md](../deployment.md#judge-deployment-on-the-vps).
+Why: decision of @kavindamihiran to front the app with nginx behind Cloudflare on a bought domain.
+Verified on the server, on localhost-only ports beside the live site and against the real frontends: both hostnames route, HTTP redirects, bare IP gets no response, `/.env` 404, TRACE 405, 5 MB body 413, sign-in works and the sixth rapid bad attempt is 429 while session GETs are not limited, a spoofed `CF-Connecting-IP` is ignored, TLS 1.1 refused. Compose frees the removed service's ports before starting the new one. **Not verified: certificate issuance, the cutover itself, and the Cloudflare lock from outside.**
+Open: cutover on merge, then the domain and Cloudflare records. `nginx/` at the root and `compose.prod.yaml` are the prototype's proxy and are not used by the VPS. The `app_caddy-data` and `app_caddy-config` volumes are left on the server.
+
 ## 2026-10-01 - ci: preview environment for dev
 
 `ci/preview-deploy` · @kavindamihiran
