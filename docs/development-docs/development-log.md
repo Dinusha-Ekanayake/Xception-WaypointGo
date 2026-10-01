@@ -21,6 +21,15 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-02 - test: cap the connection pool per cached test context
+
+`feat/receipt-issues` · @Oxshadha
+
+`src/test/resources/config/application.properties` sets the Hikari pool to 5 for tests only; production stays at 8. Spring caches one context per distinct test configuration, and each keeps its whole pool open. After #5 and this branch there are thirteen, which at 8 each need 104 connections, more than PostgreSQL's default 100, so the last test classes failed with "too many clients".
+Why: merging `dev` after #5 turned 29 tests red on connection errors, not logic. CI's PostgreSQL has the same limit.
+Verified: on a fresh database, `TEST_DATABASE_URL=... mvn test`, 437 tests, 0 failures.
+Open: nothing.
+
 ## 2026-10-02 - fix(issues): redeliver only when nothing arrived; a redelivery keeps its priority (issue #13)
 
 `feat/receipt-issues` · @Oxshadha
