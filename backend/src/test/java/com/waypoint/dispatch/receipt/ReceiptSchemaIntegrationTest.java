@@ -94,7 +94,7 @@ class ReceiptSchemaIntegrationTest extends ReceiptIssuesSupport {
     JsonNode custody = read(dispatcher, "/api/receipts/" + r.orderId() + "/custody", 200);
 
     assertEquals(r.deliveryId().toString(), custody.get("delivery").get("deliveryId").asText());
-    assertEquals(2, custody.get("unavailable").size(), custody.toString());
+    assertEquals(1, custody.get("unavailable").size(), custody.toString());
     assertTrue(custody.get("loadingCheck").isNull());
     assertTrue(custody.get("proof").isNull());
   }
