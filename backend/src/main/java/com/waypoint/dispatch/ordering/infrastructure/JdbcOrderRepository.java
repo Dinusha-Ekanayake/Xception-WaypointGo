@@ -124,6 +124,18 @@ public class JdbcOrderRepository {
   }
 
   /**
+   * Every order due at a depot on a day, whatever became of it. One depot's day
+   * is a bounded set, so it is read whole, like the demand it contains.
+   */
+  public List<Stored> forDay(String depotCode, LocalDate serviceDate) {
+    return stored(
+        "SELECT " + COLUMNS + " FROM ordering.orders"
+            + " WHERE depot_code = ? AND delivery_date = ? ORDER BY order_ref",
+        depotCode,
+        Date.valueOf(serviceDate));
+  }
+
+  /**
    * Demand Planning may allocate: confirmed or deferred, due that day, and
    * actually reserved. A deferred order with no reservation is one the cutoff
    * carried forward while stock was unknown, and stock is never assumed (R-STK-05).

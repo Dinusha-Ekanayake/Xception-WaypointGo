@@ -21,6 +21,17 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-02 - feat: dispatcher orders, plan and live screens (issue #19, first slice)
+
+`feat/dispatcher-flow` · @kavindamihiran
+
+The dispatcher can run the day from the screen: Orders (what became of every order due, close orders), Plan (generate, see each deferral's rule and checks, place by hand from the server's feasible places, take an order off, move a trip, publish with a confirm, revise) and Live (vehicles by urgency with stop progress, what needs the dispatcher, the dock). Three additive reads: `GET /api/orders/day`, `GET /api/plans/draft`, `GET /api/plans/preview/placements`. Detail in [docs/issues/019-dispatcher-ui/WALKTHROUGH.md](../issues/019-dispatcher-ui/WALKTHROUGH.md).
+Why: Planning had every command and no screen, so on a running instance a plan could only be made by posting commands by hand, and nothing downstream of it could start.
+Verified: `TEST_DATABASE_URL=... mvn verify`, 564 tests on a fresh database; `npm test` (41), `npm run typecheck`, `npm run build`; `npx playwright test -c playwright.dispatcher.config.ts`, 7 browser tests against a mocked API; driver, loader and shell browser suites still pass. Not run against a live backend with seeded data.
+Open: the rest of #19 (overview tiles, skipped outlets, fuel, issues inbox, interchange approval, forecast). No map: outlets have no coordinates (A-11). Snapshots, compare and regenerate-with-locks from the design have no backend and are left out.
+
+---
+
 ## 2026-10-02 - feat: driver phone screens, a full day with no signal (issue #21)
 
 `feat/driver-ui` · @kavindamihiran

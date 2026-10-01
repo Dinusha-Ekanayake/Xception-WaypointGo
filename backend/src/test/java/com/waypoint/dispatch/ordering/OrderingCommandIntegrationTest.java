@@ -423,6 +423,27 @@ class OrderingCommandIntegrationTest {
     send(manager, envelope(UUID.randomUUID(), "order:CloseForDay", null, close), 403);
   }
 
+  @Test
+  void aDispatcherReadsEveryOrderDueAtTheDepotThatDay() throws Exception {
+    UUID first = placed();
+    UUID second = placed();
+    String path = "/api/orders/day?depot=" + depot + "&date=";
+
+    JsonNode day = mapper.readTree(read(dispatcher, path + serviceDate, 200));
+    java.util.Set<String> ids = new java.util.HashSet<>();
+    day.forEach(order -> ids.add(order.get("orderId").asText()));
+    assertTrue(ids.containsAll(List.of(first.toString(), second.toString())), day.toString());
+    day.forEach(order -> assertEquals(serviceDate.toString(), order.get("deliveryDate").asText()));
+
+    JsonNode otherDay = mapper.readTree(read(dispatcher, path + serviceDate.plusDays(400), 200));
+    otherDay.forEach(order -> assertFalse(ids.contains(order.get("orderId").asText())));
+
+    // A store manager holds order:Read but no depot: 403 plus audit, never an empty board.
+    long before = denials(managerId, "order:Read");
+    read(manager, path + serviceDate, 403);
+    assertEquals(before + 1, denials(managerId, "order:Read"));
+  }
+
   // ---- helpers -------------------------------------------------------------
 
   private UUID placed() throws Exception {

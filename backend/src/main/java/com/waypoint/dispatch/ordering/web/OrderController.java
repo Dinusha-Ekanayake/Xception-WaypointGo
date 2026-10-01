@@ -77,6 +77,14 @@ public class OrderController {
     return orders.timeline(actor, orderId);
   }
 
+  /** Every order due at a depot on a day, in any status, for the dispatcher's order board. */
+  @GetMapping("/day")
+  public List<OrderView> ordersForDay(
+      @RequestParam String depot, @RequestParam LocalDate date, HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:order:depot:" + depot);
+    return orders.ordersForDay(actor, depot, date);
+  }
+
   /** What Planning will see for a depot-day, for the dispatcher's demand screen. */
   @GetMapping("/demand")
   public List<DemandView> demand(
