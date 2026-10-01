@@ -2,6 +2,7 @@ package com.waypoint.dispatch.loading;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -43,6 +44,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessException;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
@@ -267,6 +269,34 @@ class LoadingIntegrationTest {
     JsonNode item = manifest(kasun).get("lines").get(1).get("items").get(0);
     assertEquals("LOADED", item.get("status").asText());
     assertEquals(isuruId.toString(), item.get("checkedBy").asText(), "the tick keeps Isuru's name");
+  }
+
+  @Test
+  void anAuditorCannotHandBackATrip() throws Exception {
+    String email = "aud-" + UUID.randomUUID() + "@loading.test";
+    accounts.createAccount(email, "Auditor", PASSWORD, "auditor");
+    accounts.grantDepot(email, depot);
+    Cookie auditor = session(email);
+    send(isuru, "loading:Start", 1L, "{\"tripId\":\"" + tripId + "\"}", 200);
+
+    send(auditor, "loading:HandBack", 2L, "{\"tripId\":\"" + tripId + "\"}", 403);
+    assertEquals(2, manifest(isuru).get("rowVersion").asLong());
+  }
+
+  @Test
+  void itemCheckAttemptsCannotBeUpdatedOrDeleted() throws Exception {
+    send(isuru, "loading:Start", 1L, "{\"tripId\":\"" + tripId + "\"}", 200);
+    send(isuru, "loading:Check", 2L, check(orderA, 1, "LOADED"), 200);
+    UUID checkId = database.asSystem(ModuleRole.LOADING, () ->
+        (UUID) database.queryOne(
+            "SELECT check_id FROM loading.item_checks WHERE trip_id = ? LIMIT 1", tripId).get("check_id"));
+
+    assertThrows(DataAccessException.class, () -> database.asSystem(ModuleRole.LOADING, () ->
+        database.update("UPDATE loading.item_checks SET status = status WHERE check_id = ?", checkId)));
+    assertThrows(DataAccessException.class, () -> database.asSystem(ModuleRole.LOADING, () ->
+        database.update("DELETE FROM loading.item_checks WHERE check_id = ?", checkId)));
+    assertEquals(1, database.asSystem(ModuleRole.LOADING, () -> database.query(
+        "SELECT check_id FROM loading.item_checks WHERE check_id = ?", checkId).size()));
   }
 
   @Test
