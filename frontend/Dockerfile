@@ -1,10 +1,13 @@
+# syntax=docker/dockerfile:1
 FROM node:24-bookworm-slim AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci
+# Both caches survive between builds on the same host: npm's downloads, and the
+# compiler's cache so a rebuild only recompiles what changed.
+RUN --mount=type=cache,target=/root/.npm npm ci
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN npm run build
+RUN --mount=type=cache,target=/app/.next/cache npm run build
 
 FROM node:24-bookworm-slim
 WORKDIR /app

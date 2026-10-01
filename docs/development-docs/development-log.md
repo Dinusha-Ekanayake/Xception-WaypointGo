@@ -31,6 +31,41 @@ Verified: domain, architecture and boundary tests pass; Ordering integration 15 
 Open: the warehouse change requests; the catalogue picker (#18); the relay and scheduler (#6).
 
 ---
+## 2026-10-01 - perf: deploys run init once and before anything is replaced
+
+`chore/faster-deploy` · @kavindamihiran
+
+A preview deploy of a frontend-only change took about seven minutes, 2m40s of it in `init`, which started the application eleven times (migrate, import, six accounts, three depot grants) at about 13 s each. Backend commands can now be combined in one run, and a new `demo-accounts` command covers the accounts and grants, so `scripts/compose-init.sh` is one start. `deploy/vps/deploy.sh` runs `init` on its own before `up`, then replaces only `db backend waypoint` with `--no-deps`: before, Compose removed the changed containers first and the site was down for the whole of `init`, whatever the comment said about a failed migration. The frontend image keeps npm's and the compiler's cache between builds, and the backend and frontend health checks poll every two seconds while starting.
+Why: the wait was mostly repeated JVM starts and a full health interval, not work; the checks before a deploy are unchanged.
+Verified: `mvn verify` compiles and passes locally except the two planning integration classes, which need a database this machine does not have; `docker compose config` parses both stacks; `bash -n deploy/vps/deploy.sh`. Not run on the server: the first preview deploy after merge is the test, and it fails before replacing anything if `--no-deps` behaves differently than expected.
+Open: `scripts/dev.sh setup` still runs one command per start. The checks before a deploy take about 1m50s, most of it the backend tests.
+
+## 2026-10-01 - fix: store screens read the paged orders list
+
+`fix/store-orders-page` · @kavindamihiran
+
+The store gateway treated `GET /api/orders?outlet=` as an array, but Ordering returns a keyset page, so the store workspace crashed with "filter is not a function" as soon as an account had an outlet. It now reads every page through `requestAll`, which takes the cursor parameter name because Ordering reads `cursor` where reference data reads `after`. The order timeline is fetched from `/timeline`, the path Ordering serves, not `/history`.
+Why: the store manager's workspace would not open on preview once the demo account was granted OUT001.
+Verified: `npm run typecheck`, `npm run build`; signed in as the store manager in headless Chrome on the fixed build against the preview API: Home, Orders and Deliveries render the seeded orders with no page error.
+Open: `/api/reference/outlets/{id}` and the calendar answer 403 for a store manager (no policy allows `reference:Read`), and the warehouse catalogue status and pending receipts endpoints do not exist yet; the screens show those as unavailable. The preview database was seeded by hand with `scripts/seed-scenarios.sql`.
+
+## 2026-10-01 - feat: preview opens on a role picker
+
+`feat/preview-role-picker` · @kavindamihiran
+
+`preview.waypointgo.live` now shows a short description of Waypoint and four buttons (store manager, dispatcher, loader, driver), each opening that role's `-preview` address; it has no sign-in of its own ([PreviewLanding.tsx](../../frontend/src/app-shell/PreviewLanding.tsx)). This replaces the redirect after sign-in from the entry below.
+Why: the redirect left nobody able to stay on the preview address, and sign-in happened twice.
+Verified: `npm test` (12 pass), `npm run typecheck`, `npm run build`; the page seen in headless Chrome against the production build on a `preview.` hostname.
+Open: admin and auditor have no button; their preview addresses still work when opened directly.
+
+## 2026-10-01 - feat: preview sign-in moves to the role address
+
+`feat/preview-redirect-to-role` · @kavindamihiran
+
+Signing in on `preview.waypointgo.live` sends the account to its role's `-preview` address (`previewHomeFor` in [hostRole.ts](../../frontend/src/app-shell/hostRole.ts)); production's shared address is unchanged. See [deployment.md](../deployment.md).
+Why: preview should be tried through the role addresses, not a shared workspace.
+Verified: `npm test` (12 pass), `npm run typecheck`, `npm run build`. Not checked in a browser.
+Open: the account signs in a second time on the role address (sessions are per address). An account with several roles lands on the address of the role it used last.
 
 ## 2026-10-01 - chore: one wildcard DNS record, simpler certificate request
 
