@@ -41,12 +41,15 @@ public class SessionRegistry {
 
   private final Database database;
   private final PolicyCache policyCache;
+  private final OperatorRegistry operators;
   private final Clock clock;
   private final SecureRandom random = new SecureRandom();
 
-  public SessionRegistry(Database database, PolicyCache policyCache, Clock clock) {
+  public SessionRegistry(
+      Database database, PolicyCache policyCache, OperatorRegistry operators, Clock clock) {
     this.database = database;
     this.policyCache = policyCache;
+    this.operators = operators;
     this.clock = clock;
   }
 
@@ -127,6 +130,7 @@ public class SessionRegistry {
   }
 
   public void revoke(String token) {
+    operators.end(token, "sign_out");
     database.asModule(
         ModuleRole.IAM, null, () -> database.update("DELETE FROM iam.sessions WHERE session_token = ?", token));
   }
@@ -138,6 +142,13 @@ public class SessionRegistry {
    */
   public int revokeAllFor(UUID userId) {
     policyCache.invalidate(userId);
+    List<String> tokens =
+        database
+            .query("SELECT session_token FROM iam.sessions WHERE user_id = ?", userId)
+            .stream()
+            .map(row -> (String) row.get("session_token"))
+            .toList();
+    tokens.forEach(token -> operators.end(token, "revoked"));
     return database.update("DELETE FROM iam.sessions WHERE user_id = ?", userId);
   }
 

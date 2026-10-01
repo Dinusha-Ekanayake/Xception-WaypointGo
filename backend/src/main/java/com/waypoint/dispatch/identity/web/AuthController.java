@@ -2,6 +2,7 @@ package com.waypoint.dispatch.identity.web;
 
 import com.waypoint.dispatch.identity.application.LoginHandler;
 import com.waypoint.dispatch.identity.application.SessionRegistry;
+import com.waypoint.dispatch.identity.application.OperatorRegistry;
 import com.waypoint.dispatch.identity.contract.SessionView;
 import com.waypoint.dispatch.platform.config.AppProperties;
 import com.waypoint.dispatch.shared.error.DomainException;
@@ -10,6 +11,9 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.util.Map;
+import java.util.HashMap;
+import java.util.List;
+import java.util.stream.Collectors;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -33,12 +37,14 @@ public class AuthController {
   private final LoginHandler login;
   private final SessionRegistry sessions;
   private final AppProperties properties;
+  private final OperatorRegistry operators;
 
   public AuthController(
-      LoginHandler login, SessionRegistry sessions, AppProperties properties) {
+      LoginHandler login, SessionRegistry sessions, AppProperties properties, OperatorRegistry operators) {
     this.login = login;
     this.sessions = sessions;
     this.properties = properties;
+    this.operators = operators;
   }
 
   public record LoginRequest(String email, String password, String deviceId) {}
@@ -61,7 +67,7 @@ public class AuthController {
             .resolve(token)
             .orElseThrow(
                 () -> new DomainException(ErrorCode.UNAUTHENTICATED, "Session could not be read"));
-    return ResponseEntity.ok(toBody(session));
+    return ResponseEntity.ok(toBody(session, operators.operatorOf(token)));
   }
 
   @GetMapping("/session")
@@ -70,7 +76,7 @@ public class AuthController {
         sessions
             .resolve(tokenFrom(request))
             .orElseThrow(() -> new DomainException(ErrorCode.UNAUTHENTICATED, "Not signed in"));
-    return ResponseEntity.ok(toBody(session));
+    return ResponseEntity.ok(toBody(session, operators.operatorOf(tokenFrom(request))));
   }
 
   @PostMapping("/session/end")
@@ -88,12 +94,19 @@ public class AuthController {
     return ResponseEntity.noContent().build();
   }
 
-  private static Map<String, Object> toBody(SessionView session) {
-    return Map.of(
-        "userId", session.userId().toString(),
-        "displayName", session.displayName(),
-        "roles", session.roles(),
-        "scope", session.scope());
+  private static Map<String, Object> toBody(
+      SessionView session, java.util.Optional<OperatorRegistry.Operator> currentOperator) {
+    Map<String, Object> body = new HashMap<>();
+    body.put("userId", session.userId().toString());
+    body.put("displayName", session.displayName());
+    body.put("roles", session.roles());
+    body.put("scope", session.scope());
+    body.put("operator", currentOperator.map(operator -> Map.of(
+        "userId", operator.userId().toString(),
+        "displayName", operator.displayName(),
+        "employeeCode", operator.employeeCode().orElse(""),
+        "since", operator.since().toString())).orElse(null));
+    return body;
   }
 
   static String tokenFrom(HttpServletRequest request) {

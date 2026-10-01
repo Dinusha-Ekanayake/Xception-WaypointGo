@@ -15,9 +15,10 @@
 --     on its own: there is no PIN-only sign in. Stored as Argon2id like a
 --     password, throttled per user across replicas.
 --
---     Every operator interval is kept, so a write queued offline and replayed
---     later can be checked against who was actually signed in when it was
---     recorded (R-IAM-18).
+--     Every operator interval is kept, so who operated the device at any time
+--     stays answerable after sign out (R-IAM-18). Switching needs a connection,
+--     and the device sends its queued writes before it switches, so a queued
+--     write always replays under the operator who made it.
 
 ALTER TABLE iam.users ADD COLUMN employee_code text;
 ALTER TABLE iam.users ADD COLUMN pin_hash text;
@@ -36,9 +37,11 @@ ALTER TABLE iam.sessions ADD CONSTRAINT ck_sessions_operator
     CHECK ((operator_user_id IS NULL) = (operator_since IS NULL));
 CREATE INDEX ix_sessions_operator ON iam.sessions (operator_user_id) WHERE operator_user_id IS NOT NULL;
 
+-- Keyed by a hash of the session token, not a foreign key: signing out deletes
+-- the session row, and who operated the device must outlive it.
 CREATE TABLE iam.session_operators (
     interval_id   bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    session_token text        NOT NULL REFERENCES iam.sessions (session_token) ON DELETE CASCADE,
+    session_key   text        NOT NULL,
     user_id       uuid        NOT NULL REFERENCES iam.users (user_id),
     started_at    timestamptz NOT NULL,
     ended_at      timestamptz,
@@ -51,14 +54,14 @@ CREATE TABLE iam.session_operators (
 COMMENT ON TABLE iam.session_operators IS
   'Who operated a shared device and when. A queued write is accepted for the operator whose interval covers its recorded time.';
 
-CREATE UNIQUE INDEX ux_session_operators_open ON iam.session_operators (session_token) WHERE ended_at IS NULL;
+CREATE UNIQUE INDEX ux_session_operators_open ON iam.session_operators (session_key) WHERE ended_at IS NULL;
 CREATE INDEX ix_session_operators_user ON iam.session_operators (user_id, started_at);
 
 CREATE TABLE iam.pin_attempts (
     user_id      uuid        NOT NULL REFERENCES iam.users (user_id),
     attempted_at timestamptz NOT NULL,
     succeeded    boolean     NOT NULL,
-    session_token_hash text
+    session_key  text
 );
 
 COMMENT ON TABLE iam.pin_attempts IS

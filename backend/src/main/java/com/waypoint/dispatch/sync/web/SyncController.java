@@ -48,12 +48,13 @@ public class SyncController {
 
   @PostMapping
   public ResponseEntity<?> submit(@RequestBody SubmitBatch body, HttpServletRequest request) {
-    Actor actor = actor(request);
+    Actor actor = deviceActor(request);
     if (body == null) {
       throw new DomainException(ErrorCode.VALIDATION_FAILED, "A batch is required");
     }
     try {
-      return ResponseEntity.ok(new SyncAck(submit.submit(actor, body)));
+      return ResponseEntity.ok(new SyncAck(submit.submit(
+          actor, actors.flatMap(resolver -> Optional.ofNullable(resolver.sessionCredential(request))).orElse(null), body)));
     } catch (SubmitBatchHandler.Busy e) {
       int wait = ThreadLocalRandom.current().nextInt(2, 11);
       ProblemDetails problem =
@@ -80,6 +81,12 @@ public class SyncController {
   private Actor actor(HttpServletRequest request) {
     return actors
         .flatMap(resolver -> resolver.resolve(request))
+        .orElseThrow(() -> new DomainException(ErrorCode.UNAUTHENTICATED, "Not signed in"));
+  }
+
+  private Actor deviceActor(HttpServletRequest request) {
+    return actors
+        .flatMap(resolver -> resolver.resolveDevice(request))
         .orElseThrow(() -> new DomainException(ErrorCode.UNAUTHENTICATED, "Not signed in"));
   }
 }

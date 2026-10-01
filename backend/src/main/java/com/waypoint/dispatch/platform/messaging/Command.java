@@ -20,4 +20,15 @@ import java.util.UUID;
  *     the server clock decides.
  */
 public record Command(
-    UUID commandId, String kind, Long expectedVersion, JsonNode payload, Instant clientRecordedAt) {}
+    UUID commandId,
+    String kind,
+    Long expectedVersion,
+    JsonNode payload,
+    Instant clientRecordedAt,
+    UUID actingUserId) {
+
+  /** Preserve the constructor used by existing non-loader command producers. */
+  public Command(UUID commandId, String kind, Long expectedVersion, JsonNode payload, Instant clientRecordedAt) {
+    this(commandId, kind, expectedVersion, payload, clientRecordedAt, null);
+  }
+}

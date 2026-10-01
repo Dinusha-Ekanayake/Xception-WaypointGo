@@ -1,13 +1,17 @@
 package com.waypoint.dispatch;
 
 import com.waypoint.dispatch.identity.application.AccountAdminUseCase;
+import com.waypoint.dispatch.identity.application.OperatorRegistry;
+import com.waypoint.dispatch.loading.application.LoadingFixture;
 import com.waypoint.dispatch.platform.config.AppProperties;
+import com.waypoint.dispatch.platform.config.LoadingProperties;
 import com.waypoint.dispatch.platform.db.Migrator;
 import com.waypoint.dispatch.referencedata.application.ImportReferenceDataHandler;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.core.env.Environment;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
@@ -24,6 +28,9 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
  *   <li>{@code import-reference} stages, validates and publishes a reference version
  *   <li>{@code account-create} creates an account from a trusted host. The first
  *       administrator cannot come from an endpoint that requires one
+ *   <li>{@code operator-pin} provisions a loader PIN from a trusted host
+ *   <li>{@code loading-fixture} builds a depot-day's loading manifests from its
+ *       confirmed orders, as a stand-in for Planning until #9 publishes plans
  * </ul>
  */
 @SpringBootApplication
@@ -32,17 +39,29 @@ public class WaypointApplication implements ApplicationRunner {
   private final Migrator migrator;
   private final ImportReferenceDataHandler referenceImport;
   private final AccountAdminUseCase accounts;
+  private final OperatorRegistry operators;
   private final AppProperties properties;
+  private final LoadingFixture loadingFixture;
+  private final LoadingProperties loadingProperties;
+  private final Environment environment;
 
   public WaypointApplication(
       Migrator migrator,
       ImportReferenceDataHandler referenceImport,
       AccountAdminUseCase accounts,
-      AppProperties properties) {
+      OperatorRegistry operators,
+      AppProperties properties,
+      LoadingFixture loadingFixture,
+      LoadingProperties loadingProperties,
+      Environment environment) {
     this.migrator = migrator;
     this.referenceImport = referenceImport;
     this.accounts = accounts;
+    this.operators = operators;
     this.properties = properties;
+    this.loadingFixture = loadingFixture;
+    this.loadingProperties = loadingProperties;
+    this.environment = environment;
   }
 
   public static void main(String[] args) {
@@ -93,18 +112,54 @@ public class WaypointApplication implements ApplicationRunner {
       System.out.println("Granted depot " + depot + " to " + env.get("ACCOUNT_EMAIL") + ".");
       System.exit(0);
     }
+    if (commands.contains("operator-pin")) {
+      var env = System.getenv();
+      String code = env.get("OPERATOR_EMPLOYEE_CODE");
+      UUID userId = operators.setPin(
+          required(env, "OPERATOR_EMAIL"),
+          required(env, "OPERATOR_PIN"),
+          code == null || code.isBlank() ? null : code.trim());
+      System.out.println("Provisioned a loader PIN for account " + userId + ".");
+      System.exit(0);
+    }
+    if (commands.contains("loading-fixture")) {
+      if (environment.acceptsProfiles("prod", "production")) {
+        throw new IllegalStateException("loading-fixture is disabled in production profiles");
+      }
+      if (!loadingProperties.fixtureEnabled()) {
+        throw new IllegalStateException(
+            "loading-fixture requires LOADING_FIXTURE_ENABLED=true in a development environment");
+      }
+      String depot = required(args, "depot", "LOADING_DEPOT");
+      java.time.LocalDate date = java.time.LocalDate.parse(required(args, "date", "LOADING_DATE"));
+      int trips = loadingFixture.build(depot, date);
+      System.out.println(
+          trips == 0
+              ? "No confirmed orders to load for " + depot + " on " + date + "."
+              : "Built " + trips + " loading manifest(s) for " + depot + " on " + date + ".");
+      System.exit(0);
+    }
     System.out.println(
         "Unknown command "
             + commands
-            + ". Use: migrate | import-reference | account-create | account-grant-depot, or no argument to serve.");
+            + ". Use: migrate | import-reference | account-create | account-grant-depot"
+            + " | operator-pin | loading-fixture, or no argument to serve.");
     System.exit(2);
   }
 
   private static String required(Map<String, String> env, String name) {
     String value = env.get(name);
     if (value == null || value.isBlank()) {
-      throw new IllegalArgumentException(name + " must be set for account-create");
+      throw new IllegalArgumentException(name + " must be set for this command");
     }
     return value;
+  }
+
+  private static String required(ApplicationArguments args, String option, String environment) {
+    List<String> values = args.getOptionValues(option);
+    if (values != null && !values.isEmpty() && !values.get(0).isBlank()) {
+      return values.get(0);
+    }
+    return required(System.getenv(), environment);
   }
 }

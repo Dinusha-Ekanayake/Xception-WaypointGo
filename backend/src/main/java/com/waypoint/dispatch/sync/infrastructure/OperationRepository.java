@@ -36,6 +36,15 @@ public class OperationRepository {
         .map(OperationRepository::view);
   }
 
+  /** An operation id may replay only the exact original command and device. */
+  public boolean matches(UUID operationId, UUID actorId, UUID deviceId, String commandJson) {
+    return database.queryOne(
+            "SELECT 1 AS found FROM sync.operations WHERE operation_id = ? AND actor_id = ? "
+                + "AND device_id = ? AND command = ?::jsonb",
+            operationId, actorId, deviceId, commandJson)
+        != null;
+  }
+
   public Optional<Long> rowVersion(UUID operationId) {
     return Optional.ofNullable(
             database.queryOne(
