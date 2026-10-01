@@ -290,16 +290,49 @@ public class JdbcPlanRepository {
    * replaced by its successor's (D-K, conflict B15).
    */
   public BigDecimal fuelUsed(String vehicleId, LocalDate anyDay) {
+    return fuelUsed(vehicleId, anyDay, Optional.empty());
+  }
+
+  /**
+   * @param excluding a published run about to be superseded, whose litres the
+   *     replacement takes over rather than adds to
+   */
+  public BigDecimal fuelUsed(String vehicleId, LocalDate anyDay, Optional<UUID> excluding) {
     Map<String, Object> row =
         database.queryOne(
             """
             SELECT coalesce(sum(f.litres), 0) AS litres
               FROM planning.fuel_usage f JOIN planning.runs r ON r.plan_id = f.plan_id
              WHERE f.vehicle_id = ? AND f.week_starting = ? AND r.status = 'published'
+               AND r.plan_id IS DISTINCT FROM ?::uuid
             """,
             vehicleId,
-            Date.valueOf(weekStarting(anyDay)));
+            Date.valueOf(weekStarting(anyDay)),
+            excluding.orElse(null));
     return (BigDecimal) row.get("litres");
+  }
+
+  /**
+   * The last day each outlet of a depot was served by a published plan before
+   * {@code date}, for the priority tie-break (decision 1, key 9). An outlet
+   * Planning has never served is absent.
+   */
+  public Map<String, LocalDate> lastServed(String depotCode, LocalDate date) {
+    Map<String, LocalDate> out = new HashMap<>();
+    for (Map<String, Object> row :
+        database.query(
+            """
+            SELECT a.outlet_id, max(r.service_date) AS last_served
+              FROM planning.allocations a JOIN planning.runs r ON r.plan_id = a.plan_id
+             WHERE r.depot_code = ? AND r.service_date < ? AND a.decision = 'served'
+               AND r.status = 'published'
+             GROUP BY a.outlet_id
+            """,
+            depotCode,
+            Date.valueOf(date))) {
+      out.put((String) row.get("outlet_id"), ((Date) row.get("last_served")).toLocalDate());
+    }
+    return out;
   }
 
   // ---- reads: configuration ------------------------------------------------------

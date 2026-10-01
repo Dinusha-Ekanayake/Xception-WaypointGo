@@ -12,12 +12,12 @@ Updated after every finished step. Branch `feat/planning-module` (stacked on `fe
 | 1 CI and validator | **done** | `4aefd17` | `.github/workflows/ci.yml`; `tools/check_allocation/check_allocation.py` vendored unmodified. Frontend job is `typecheck` only |
 | 2 Domain | **done** | `52ccaae` | `planning/domain/*`. 13 constraints. `PlanningRun` aggregate is **not** here; it belongs in step 5 |
 | 3 Engine and S1 fixture | **done** | `9e2f088` | See "Step 3 result" below. Official validator: `FEASIBILITY: PASSED` |
-| 4 Schema, repository, reads | **done** | `feat(planning): schema, repository and plan reads` | See "Step 4 result" below |
-| 5 Generate, Override, Defer, Publish | **todo — start here** | | See "Resume at step 5". Needs `PlanningRun` aggregate |
-| 6 Revise, Replan, previews, consumers | todo | | After 5 |
+| 4 Schema, repository, reads | **done** | `8286e96` | See "Step 4 result" below |
+| 5 Generate, Override, Defer, Publish | **done** | `feat(planning): generate, override, defer and publish` | See "Step 5 result" below |
+| 6 Revise, Replan, previews, consumers | **todo — start here** | | See "Resume at step 6" |
 | 7 Docs closeout | todo | | WALKTHROUGH, RULES, ASSUMPTIONS, EDGE-CASES, MODULES, development log |
 
-**To resume:** read this table, then **"Resume at step 5"** if that row is still todo. Then the matching row in "Work breakdown" and the decision it cites. Copy Ordering patterns: `backend/src/main/java/com/waypoint/dispatch/ordering/` (handlers, `JdbcOrderRepository`, `OrderController`, `OrderDataQuery`), migration `migrations/20261001T0200_ordering_orders.sql`, tests `OrderingSchemaIntegrationTest`, `OrderingCommandIntegrationTest`, `OrderingTestConfig`.
+**To resume:** read this table, then **"Resume at step 6"** if that row is still todo. Then the matching row in "Work breakdown" and the decision it cites. Copy Ordering patterns: `backend/src/main/java/com/waypoint/dispatch/ordering/` (handlers, `JdbcOrderRepository`, `OrderController`, `OrderDataQuery`), migration `migrations/20261001T0200_ordering_orders.sql`, tests `OrderingSchemaIntegrationTest`, `OrderingCommandIntegrationTest`, `OrderingTestConfig`.
 
 **Environment notes.**
 - Database tests need `TEST_DATABASE_URL` (dedicated, never equal to `DATABASE_URL`): `docker compose up -d db`, then `TEST_DATABASE_URL=... mvn test` from `backend/`.
@@ -47,30 +47,50 @@ Files:
 
 Verified: `TEST_DATABASE_URL=... mvn test`, 216 tests, 0 failures, 0 skipped.
 
-### Resume at step 5
+### Step 5 result (do not re-do)
 
-**Goal.** `plan:Generate`, `plan:Override`, `plan:Defer` and `plan:Publish` through the `CommandBus`, emitting `PlanEvents`, with the catalogue flags flipped in a migration (the same pattern as `20261001T0300_ordering_actions_implemented.sql`).
+Decision taken on overrides: **(a)**. Every override or deferral writes the next draft version (new `plan_id`, `plan_version + 1`) and cancels the one the dispatcher edited, in one transaction. A version is never edited, and PLN-06's "stale edit rejected with a diff" is a diff between the two runs.
+
+Files:
+- Domain:
+  - `PlanningRun` is the aggregate. `draft` builds it from an engine result. `override` refuses with every failing rule, unless the vehicle's whole day passes the registry. `defer` uses binding rule `R-PLN-19` and records the dispatcher's id. `verify` returns the whole-plan violations. Each change returns a successor with re-derived trip numbers and fresh checks.
+  - `PublicationGate` checks the stale flag and demand (PLN-07), the reference version (PLN-14), and the rule set and policy (POL-02). It reports every reason at once.
+  - `DemandFingerprint` is SHA-256 over sorted `(orderId, rowVersion)`.
+- Application:
+  - `PlanningProblems` builds the engine `Problem` from `OrderQuery.confirmedDemand` and `ReferenceQuery` at a named version. Fuel comes from published runs, excluding the run being superseded. Days since last served come from published allocations; an outlet never served counts as 0.
+  - `PlanRecords` maps the aggregate to rows and back (schedule, legs, litres, deferrals) and builds `PlannedTrip`s for events.
+  - `PlanningDrafts` opens a draft at its expected version, rebuilds it at its stamps, stores the successor, and builds the stale-edit diff.
+- Handlers: `GeneratePlanHandler`, `OverrideAllocationHandler`, `DeferOrderHandler`, `PublishPlanHandler`.
+  - Generate refuses a non-operating day (PLN-13), a day that already has a published plan (R-PLN-28), and a missing rule set or policy (POL-10). It cancels any open draft for the day.
+  - Publish supersedes the published plan only when the draft names it in `supersedes`. It emits `plan.published` with trips and stops, `order.deferred` per deferral and `order.unservable` per unservable order.
+- `PlanningEngineConfiguration`: one `ConstraintRegistry` bean, and `ValidatingEngine(PriorityInsertionEngine)` as the `AllocationEngine` bean.
+- Reference contract: added `ReferenceQuery.vehiclesOfDepot(depot, version)`, which is additive. The unservable screen needs the whole fleet, workshop vehicles included.
+- `migrations/20261001T0500_planning_actions_implemented.sql`: Generate, Override, Defer and Publish are now `implemented`.
+- Tests:
+  - `PlanningRunTest` (8) and `PublicationGateTest` (6) are domain tests.
+  - `PlanningCommandIntegrationTest` (6) goes through `POST /api/commands`. It covers generate and publish with `plan.published`; another depot getting 403 plus audit; the stale second edit getting 409 with the successor id and the diff; an override breaking R-PLN-02 getting 409 with nothing written; publication refused on changed demand (PLN-07); and a dispatcher deferral published with `R-PLN-19` and its reason.
+
+Verified: `TEST_DATABASE_URL=... mvn test`, 236 tests, 0 failures, 0 skipped.
+
+Not covered by an integration test: a reference-version or rule-set change between draft and publish. Changing either in the shared test database would affect every other test, so they are covered by `PublicationGateTest` instead.
+
+### Resume at step 6
+
+**Goal.** `plan:Revise`, `plan:Replan`, `previewAssignments` and `previewInterchange`, and the consumers in decision 7.
 
 **Do, in this order:**
 
-1. `planning/domain/PlanningRun`: the aggregate over the step 3 `AllocationResult`. It holds the stamped versions, the demand fingerprint, the status graph (draft → published → superseded; draft → cancelled) and produces the step 4 rows. Pure: the clock and ids are parameters.
-2. `GeneratePlanHandler` (`plan:Generate`):
-   - Read `OrderQuery.confirmedDemand` and `ReferenceQuery` at `currentVersionId()`.
-   - Read `effectiveRuleSet` and `effectivePolicy`; refuse when either is missing (POL-10).
-   - Map to `PlanOrder` and `FleetVehicle`, with `fuelUsedThisWeekL` from `fuelUsed`.
-   - Run `ValidatingEngine(PriorityInsertionEngine)` and write a draft at `latestPlanVersion + 1`.
-   - Write `deferrals` with the system actor and `skip_count = deferralCount + 1`.
-   - Refuse a non-operating day (PLN-13).
-   - The demand fingerprint is a hash over sorted `(orderId, rowVersion)`.
-3. `OverrideAllocationHandler` and `DeferOrderHandler`. **Open decision:** the role has no DELETE, so an override cannot remove a trip that it empties. Options: (a) every override writes a new draft run that supersedes nothing (plan_version + 1), copying the rest; or (b) zero-stop trips stay and readers filter them. (a) keeps "a version is immutable" uniform and makes the PLN-06 diff a run-to-run diff. Recommended: (a).
-4. `PublishPlanHandler`, the publication gate:
-   - Refuse when the demand fingerprint differs (PLN-07), the reference version is no longer current (PLN-14), or the rule set or policy in force differs (POL-02).
-   - Re-run the whole registry.
-   - Supersede the previous published run in the same transaction, then `publish`.
-   - Emit `plan.published` (and `order.deferred` and `order.unservable` as `PlanEvents` defines).
-5. Tests: `PlanningCommandIntegrationTest`, copied from `OrderingCommandIntegrationTest`. Cover every command through the bus, 403 plus audit for another depot, two overrides with the stale one rejected, and each publication refusal.
-
-**Do not in step 5:** Revise, Replan, previews, consumers (step 6).
+1. `RevisePlanHandler` (`plan:Revise`):
+   - Copy the published run into a new draft with `supersedes = published.planId`, rebuilt against the **current** versions.
+   - `PublishPlanHandler` already supersedes the published run when the draft names it.
+   - Emit `plan.revised` instead of `plan.published` when `supersedes` is present. This is still TODO in `PublishPlanHandler`, which today always emits `PlanPublished`.
+2. `ReplanTripHandler` (`plan:Replan`):
+   - Replan only the affected vehicle's trips (PLN-04).
+   - Untouched trips must keep their `trip_id`. `PlanRecords.of` mints new trip ids on every version today, so carry the ids over for unchanged trips.
+   - If no vehicle can take the trip, defer it as a unit (R-LOD-06, LOD-03).
+3. `PlanDataQuery.previewAssignments` and `previewInterchange`: read-only `PlanningRun.override` dry runs, returning the checks.
+4. Consumers (decision 7): mark drafts stale with `JdbcPlanRepository.markStale`; generate a draft on `orders.closed`; and run the interchange auto-publish rule.
+5. Then flip `plan:Revise` and `plan:Replan` in a migration.
 
 **Known gaps already parked:**
 - `PlanningRun` aggregate: step 5

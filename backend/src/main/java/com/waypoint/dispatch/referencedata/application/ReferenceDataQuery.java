@@ -92,6 +92,13 @@ public class ReferenceDataQuery implements ReferenceQuery {
     return s.outletsOf(new DepotCode(depotCode)).stream().map(o -> toOutletView(s, o)).toList();
   }
 
+  @Override
+  public List<VehicleView> vehiclesOfDepot(String depotCode, UUID versionId) {
+    return snapshot(versionId).vehiclesOf(new DepotCode(depotCode)).stream()
+        .map(ReferenceDataQuery::toVehicleView)
+        .toList();
+  }
+
   /** R-FLT-03: a vehicle in the workshop cannot be allocated. */
   @Override
   public List<VehicleView> availableVehicles(String depotCode, LocalDate date, UUID versionId) {

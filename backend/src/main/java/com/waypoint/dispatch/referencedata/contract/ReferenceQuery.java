@@ -28,6 +28,13 @@ public interface ReferenceQuery {
 
   List<OutletView> outletsOfDepot(String depotCode, UUID versionId);
 
+  /**
+   * Every vehicle homed at a depot, available or not. Planning needs the whole
+   * fleet to tell an order no vehicle could ever carry (unservable, R-PLN-22)
+   * from one that only today's fleet cannot (deferred).
+   */
+  List<VehicleView> vehiclesOfDepot(String depotCode, UUID versionId);
+
   /** The fleet a depot can actually use on a date: vehicles minus workshop and unavailable. */
   List<VehicleView> availableVehicles(String depotCode, LocalDate date, UUID versionId);
 

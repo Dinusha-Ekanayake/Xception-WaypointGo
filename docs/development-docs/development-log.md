@@ -21,6 +21,15 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-01 - feat(planning): generate, override, defer and publish (issue #9, step 5)
+
+`feat/planning-module` · @Oxshadha
+
+`plan:Generate`, `plan:Override`, `plan:Defer` and `plan:Publish` now run through the bus, backed by the `PlanningRun` aggregate, the `PublicationGate` and `DemandFingerprint`. Each override or deferral writes the next draft version and cancels the one edited, so a stale second edit is refused with the successor's id and a diff (PLN-06). Publication refuses when demand, the reference version, the rule set or the policy changed, and re-runs the whole registry. It then emits `plan.published`, `order.deferred` and `order.unservable`. `ReferenceQuery.vehiclesOfDepot` was added, so the unservable screen sees workshop vehicles. Migration `20261001T0500` marks the four actions implemented.
+Why: issue #9 step 5. Detail in [PLAN.md](../issues/009-planning/PLAN.md#step-5-result-do-not-re-do).
+Verified: `TEST_DATABASE_URL=... mvn test` on PostgreSQL 16, 236 tests, 0 failures, 0 skipped.
+Open: step 6. Revise and Replan, `plan.revised`, stable trip ids across versions, previews, and consumers.
+
 ## 2026-10-01 - feat(planning): schema, repository and plan reads (issue #9, step 4)
 
 `feat/planning-module` · @Oxshadha
