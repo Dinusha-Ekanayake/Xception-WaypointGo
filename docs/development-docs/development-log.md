@@ -21,6 +21,46 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-01 - docs(planning): walkthrough and register updates (issue #9, step 7)
+
+`feat/planning-module` · @Oxshadha
+
+Adds [the issue #9 walkthrough](../issues/009-planning/WALKTHROUGH.md). EDGE-CASES now names a test for every Planning row, adds PLN-18 and PLN-19, and supersedes POL-06 and POL-07 with what-if runs. RULES revises R-PLN-21 and closes C-2 and Q5. ASSUMPTIONS adds A-26 to A-28 and P-15 to P-19, and gives P-12 its value. MODULES describes Planning as built. Two tests were added so no row is left without one: `UnservableScreenTest` (PLN-09) and `aNonOperatingDayIsNotPlanned` (PLN-13).
+Why: issue #9 closeout.
+Verified: `TEST_DATABASE_URL=... mvn test`, 252 tests, 0 failures, 0 skipped; `check_allocation.py` on the peak-day CSV prints `FEASIBILITY: PASSED`.
+Open: the walkthrough's "Known gaps" table (relay #6, what-if runs, authoring and replay commands, the explanation for a second skip, #16, #19).
+
+## 2026-10-01 - feat(planning): revise, replan, previews and consumers (issue #9, step 6)
+
+`feat/planning-module` · @Oxshadha
+
+Adds `plan:Revise` and `plan:Replan`, `previewAssignments` and `previewInterchange` (also on `/api/plans/preview/*`), and the decision-7 consumers.
+- Migration `20261001T0600` keys trips by `(plan_id, trip_id)`, so a trip keeps its id across versions while it carries the same orders, even on a substitute vehicle (PLN-04, R-LOD-06). It also allows one open draft per depot-day and records `revision_reason`.
+- A revision carries the published plan's orders, drops cancelled ones and defers late arrivals under PLN-07. It is announced as `plan.revised`, and only new deferrals are announced again.
+- Interchange is auto-published only when exactly that trip moved; a lost vehicle drafts a revision for the dispatcher.
+
+Why: issue #9 step 6. Detail in [PLAN.md](../issues/009-planning/PLAN.md#step-6-result-do-not-re-do).
+Verified: `TEST_DATABASE_URL=... mvn test` on PostgreSQL 16, 250 tests, 0 failures, 0 skipped.
+Open: step 7 (walkthrough and registers). The relay that delivers events to consumers is #6.
+
+## 2026-10-01 - feat(planning): generate, override, defer and publish (issue #9, step 5)
+
+`feat/planning-module` · @Oxshadha
+
+`plan:Generate`, `plan:Override`, `plan:Defer` and `plan:Publish` now run through the bus, backed by the `PlanningRun` aggregate, the `PublicationGate` and `DemandFingerprint`. Each override or deferral writes the next draft version and cancels the one edited, so a stale second edit is refused with the successor's id and a diff (PLN-06). Publication refuses when demand, the reference version, the rule set or the policy changed, and re-runs the whole registry. It then emits `plan.published`, `order.deferred` and `order.unservable`. `ReferenceQuery.vehiclesOfDepot` was added, so the unservable screen sees workshop vehicles. Migration `20261001T0500` marks the four actions implemented.
+Why: issue #9 step 5. Detail in [PLAN.md](../issues/009-planning/PLAN.md#step-5-result-do-not-re-do).
+Verified: `TEST_DATABASE_URL=... mvn test` on PostgreSQL 16, 236 tests, 0 failures, 0 skipped.
+Open: step 6. Revise and Replan, `plan.revised`, stable trip ids across versions, previews, and consumers.
+
+## 2026-10-01 - feat(planning): schema, repository and plan reads (issue #9, step 4)
+
+`feat/planning-module` · @Oxshadha
+
+Migration `20261001T0400` adds the planning tables with forced RLS. It also adds the triggers that freeze a published run and its children, one published plan per depot-day, effective-dated rule sets and priority policies (seeded with the booklet values), and `plan:Read` implemented. Adds `JdbcPlanRepository`, `PlanDataQuery` behind `PlanQuery` (previews throw until step 6), and read-only `/api/plans`. `FoundationIntegrationTest` now retires reference versions instead of deleting them, because a run holds a foreign key to the version it stamped.
+Why: issue #9 step 4. Detail in [PLAN.md](../issues/009-planning/PLAN.md#step-4-result-do-not-re-do).
+Verified: `TEST_DATABASE_URL=... mvn test` on PostgreSQL 16, 216 tests, 0 failures, 0 skipped.
+Open: step 5 (Generate, Override, Defer and Publish), with an open decision on overrides recorded in the plan. EDGE-CASES test columns for POL-04 and POL-08 get updated at step 7.
+
 ## 2026-10-01 - fix: make the platform trustworthy (issue #4)
 
 `feat/platform-hardening` · @jv-ransika

@@ -72,31 +72,33 @@ Most of the cases below are instances of nine patterns. Learn the patterns and t
 
 | ID | Trigger | Required behaviour | Enforced in | Detection | Test |
 | --- | --- | --- | --- | --- | --- |
-| PLN-01 | Demand exceeds capacity | Defer by policy: prior skips, Fresh, chilled, earliest closing window. Every deferral records the **binding constraint** | Planning domain | Deferrals per run by reason | Property test |
-| PLN-02 | Order exceeds every vehicle's capacity | `unservable`, surfaced for a split decision. Never deferred forever | Constraint registry | Alert on any occurrence | Fixture `OVERLOAD-001` |
-| PLN-03 | Outlet skipped on consecutive runs | Skip count escalates priority; publication requires an explanation | Planning | Gauge: outlets skipped twice | Integration |
-| PLN-04 | Vehicle enters workshop after publication | Only affected trips replan; untouched trips keep identity and loading state | Planning | Replan counter | Integration |
-| PLN-05 | Weekly fuel quota exhausted | Allocation blocked, remaining litres shown. Reservations include return legs and other published plans that week | Constraint registry | Vehicles at quota gauge | Property test |
-| PLN-06 | Two dispatchers edit one draft | Revision check rejects the stale edit with a diff | Application | Conflict counter (`waypoint_version_conflict_total`) | Integration, concurrent |
-| PLN-07 | Order set changed since the draft was built | Publication blocked, regeneration required. Coverage must match the queue | Planning | Blocked-publication counter | Integration |
-| PLN-08 | Mall window conflicts with the Fresh window | Infeasible, named explicitly. Not silently dropped | Constraint registry | Counter by constraint | Unit |
-| PLN-09 | Chilled order to a van-only outlet above reefer-van capacity | `unservable`, named | Constraint registry | Alert | Fixture |
-| PLN-10 | Longest-distance-first conflicts with a delivery window | **Windows win.** Distance ordering is a tie-break, never a constraint override | Planning domain | n/a | Property test |
-| PLN-11 | Allocation engine exceeds its time budget | Returns the best feasible result so far, marked partial. Never an empty plan and never an unbounded wait | `AllocationEngine` | p95 duration, partial-result rate | Load test |
-| PLN-12 | Engine returns an infeasible plan | `ValidatingEngine` rejects it before it leaves the module | Planning infrastructure | Alert on any occurrence | Property test |
-| PLN-13 | Plan requested for a non-operating day | Refused | Reference | n/a | Unit |
-| PLN-15 | Trip volume or weight sits within `1e-6` of the cap | Treated as fitting, matching the supplied validator's tolerance exactly (R-PLN-06). Never compared with bare floating point | Constraint registry | n/a | Property test |
-| PLN-16 | An order requires `frozen` | Treated as reefer-requiring, identically to chilled (R-PLN-26). The supplied data carries only ambient and chilled | Constraint registry | Frozen-order counter | Unit |
-| PLN-17 | Allocation output regresses against the official rules | CI runs the supplied `check_allocation.py` over generated output; a failure blocks the build | CI | Build gate | CI job |
-| PLN-14 | Reference data changed between draft and publication | Publication uses the snapshot the draft was built against, or refuses and says why | Reference versioning | Counter | Integration |
+| PLN-01 | Demand exceeds capacity | Defer by policy: prior skips, Fresh, chilled, earliest closing window. Every deferral records the **binding constraint** | Planning domain | Deferrals per run by reason | `PeakDayAllocationTest` (every deferral names its rule), `PriorityPolicyTest` |
+| PLN-02 | Order exceeds every vehicle's capacity | `unservable`, surfaced for a split decision. Never deferred forever | Constraint registry | Alert on any occurrence | `PeakDayAllocationTest.theOrderLargerThanEveryVehicleIsUnservableNotDeferred` (S1-078, the `OVERLOAD-001` case) |
+| PLN-03 | Outlet skipped on consecutive runs | Skip count escalates priority; publication requires an explanation | Planning | Gauge: outlets skipped twice | `PriorityPolicyTest.priorSkipOutranksFreshAndFreshOutranksStyle`, `PeakDayAllocationTest.anOrderDeferredYesterdayIsServedBeforeAnEqualOneThatWasNot`. **Gap:** publication does not yet require an explanation for a second skip |
+| PLN-04 | Vehicle enters workshop after publication | Only affected trips replan; untouched trips keep identity and loading state | Planning | Replan counter | `PlanningRevisionIntegrationTest.aVehicleLostAfterPublicationDraftsARevisionWithoutIt`, `PlanningRunTest.aReplanTakesTheFirstCandidateThatFitsAndTouchesNothingElse` |
+| PLN-05 | Weekly fuel quota exhausted | Allocation blocked, remaining litres shown. Reservations include return legs and other published plans that week | Constraint registry | Vehicles at quota gauge | `ConstraintsTest.fuelIncludesTheReturnLegAndOtherPublishedPlans`, `PlanningSchemaIntegrationTest.fuelCountsPublishedPlansOnly` |
+| PLN-06 | Two dispatchers edit one draft | Revision check rejects the stale edit with a diff | Application | Conflict counter (`waypoint_version_conflict_total`) | `PlanningCommandIntegrationTest.theSecondOfTwoEditsOnOneDraftIsRefusedWithWhatChanged` (sequential; a parallel pair meets the same `row_version` guard) |
+| PLN-07 | Order set changed since the draft was built | Publication blocked, regeneration required. Coverage must match the queue | Planning | Blocked-publication counter | `PlanningCommandIntegrationTest.publicationIsRefusedWhenTheDemandChanged`, `PlanningRevisionIntegrationTest.aNewOrderMakesTheOpenDraftStaleAndItsPublicationIsRefused`, `PublicationGateTest` |
+| PLN-08 | Mall window conflicts with the Fresh window | Infeasible, named explicitly. Not silently dropped | Constraint registry | Counter by constraint | `ConstraintsTest.emptyMallIntersectionIsUnservableNotLate` |
+| PLN-09 | Chilled order to a van-only outlet above reefer-van capacity | `unservable`, named | Constraint registry | Alert | `UnservableScreenTest` |
+| PLN-10 | Longest-distance-first conflicts with a delivery window | **Windows win.** Distance ordering is a tie-break, never a constraint override | Planning domain | n/a | `PriorityPolicyTest.distanceBreaksTiesAfterWindowsAndOrderRefIsFinal` |
+| PLN-11 | Allocation engine exceeds its time budget | Returns the best feasible result so far, marked partial. Never an empty plan and never an unbounded wait | `AllocationEngine` | p95 duration, partial-result rate | `PeakDayAllocationTest.runningOutOfTimeDefersTheRestAndMarksThePlanPartial` (unit; a load test is still owed) |
+| PLN-12 | Engine returns an infeasible plan | `ValidatingEngine` rejects it before it leaves the module | Planning infrastructure | Alert on any occurrence | `PeakDayAllocationTest.anInfeasibleEngineResultIsRejectedBeforeItLeavesPlanning` |
+| PLN-13 | Plan requested for a non-operating day | Refused | Planning, from the Reference calendar | n/a | `PlanningCommandIntegrationTest.aNonOperatingDayIsNotPlanned` |
+| PLN-15 | Trip volume or weight sits within `1e-6` of the cap | Treated as fitting, matching the supplied validator's tolerance exactly (R-PLN-06). Never compared with bare floating point | Constraint registry | n/a | `ConstraintsTest.capacityUsesTheValidatorsEpsilonAtTheBoundary` |
+| PLN-16 | An order requires `frozen` | Treated as reefer-requiring, identically to chilled (R-PLN-26). The supplied data carries only ambient and chilled | Constraint registry | Frozen-order counter | `ConstraintsTest.chilledNeedsAReeferAndFrozenCountsAsChilled` |
+| PLN-17 | Allocation output regresses against the official rules | CI runs the supplied `check_allocation.py` over generated output; a failure blocks the build | CI | Build gate | CI job in `.github/workflows/ci.yml` over `PeakDayAllocationTest` output |
+| PLN-14 | Reference data changed between draft and publication | Publication uses the snapshot the draft was built against, or refuses and says why | Reference versioning | Counter | `PublicationGateTest.aNewReferenceVersionBlocks` (unit: changing the current version in the shared test database would disturb every other test) |
+| PLN-18 | An order arrives after its day's plan was published | The revision defers it under `PLN-07` until a dispatcher places it with an override. A revision never silently replans what was already communicated | Planning domain | `order.deferred` by rule | `PlanningRunTest.aRevisionDropsCancelledOrdersAndDefersOnesThatArrivedAfterPublication` |
+| PLN-19 | A revision would re-announce a deferral already made | A deferral carried from the superseded plan is copied, not recounted, and only new deferrals are announced, so Ordering never rolls an order twice | Planning application | n/a | `PlanningRevisionIntegrationTest.aRevisionIsPublishedAsPlanRevisedAndUnchangedTripsKeepTheirIds` |
 
 ## 5. Loading and the dock
 
 | ID | Trigger | Required behaviour | Enforced in | Detection | Test |
 | --- | --- | --- | --- | --- | --- |
 | LOD-01 | Missing or damaged goods | Departure blocked. Dispatcher records a replacement; loader rechecks **every** order in the trip | Loading | Shortfall counter | End to end |
-| LOD-02 | Assigned truck unavailable at the dock | Interchange request. Substitute revalidated for capacity, temperature, access, depot, fuel and time **across the whole trip**. Written as history, never an `UPDATE` | Loading + Planning | Interchange counter | Integration |
-| LOD-03 | No compatible substitute exists | Trip deferred as a unit; orders carry forward with identity | Planning | Alert | Integration |
+| LOD-02 | Assigned truck unavailable at the dock | Interchange request. Substitute revalidated for capacity, temperature, access, depot, fuel and time **across the whole trip**. Written as history, never an `UPDATE` | Loading + Planning | Interchange counter | Planning half: `PlanningRevisionIntegrationTest.anInterchangeThatMovesOnlyItsTripIsPublishedByPlanningItself`, `thePreviewsAnswerWhatTheCommandsWouldDo` |
+| LOD-03 | No compatible substitute exists | Trip deferred as a unit; orders carry forward with identity | Planning | Alert | `PlanningRunTest.aTripNoVehicleCanTakeDefersAsAUnitUnderTheRuleThatStoppedIt` |
 | LOD-04 | Loader shift ends mid-session | Partial checks persist; another loader resumes; both recorded | Loading | Session handover counter | Integration |
 | LOD-05 | Loading complete, no driver assigned | Trip holds in `ready_for_departure`; dispatcher notified. Escalation timer applies | Loading + Notification | Gauge: trips waiting for driver | Integration |
 | LOD-06 | Mark-loaded submitted twice | Idempotent, no duplicate check rows | Application | Duplicate-suppressed counter | Integration |
@@ -144,7 +146,7 @@ Most of the cases below are instances of nine patterns. Learn the patterns and t
 
 | ID | Trigger | Required behaviour | Enforced in | Detection | Test |
 | --- | --- | --- | --- | --- | --- |
-| FLT-01 | Driver reports a fault before loading | Vehicle marked unavailable; affected trips replanned before the dock is blocked | Reference + Planning | Fault counter | Integration |
+| FLT-01 | Driver reports a fault before loading | Vehicle marked unavailable; affected trips replanned before the dock is blocked | Reference + Planning | Fault counter | Planning half: `PlanningRevisionIntegrationTest.aVehicleLostAfterPublicationDraftsARevisionWithoutIt` |
 | FLT-02 | Vehicle returns from workshop mid-day | Available for the next planning run only, not retroactively | Reference | n/a | Unit |
 | FLT-03 | Two drivers assigned to one vehicle on one day | Impossible: temporal exclusion constraint at the database | Database constraint | Constraint violation alert | Migration test |
 | FLT-04 | Vehicle assigned to a trip outside its home depot | Rejected by the `HomeDepot` constraint | Constraint registry | Counter | Unit |
@@ -197,15 +199,15 @@ Most of the cases below are instances of nine patterns. Learn the patterns and t
 | ID | Trigger | Required behaviour | Enforced in | Detection | Test |
 | --- | --- | --- | --- | --- | --- |
 | POL-01 | A threshold changes (Fresh budget 270 to 300) | New effective-dated `rule_parameters` row supersedes the old one. No deploy, no mutation of the previous value | Rule parameters | Parameter change audit | Integration |
-| POL-02 | A rule changes between draft generation and publication | Publication uses the rule set version the draft was built against, or refuses and says which version changed | Planning | Counter | Integration |
-| POL-03 | A historical decision is replayed after the rules changed | Replays against the `policy_version_id` and `reference_version_id` stamped on the plan, never against current rules | Planning + audit | Replay mismatch alert | Integration |
-| POL-04 | Two policy versions claim the same effective instant | Impossible: exclusion constraint on `(policy_kind, effective range)` | Database constraint | Constraint violation alert | Migration test |
-| POL-05 | A policy is published with an effective date in the past | Rejected. Retroactive rules rewrite decisions already communicated | Application | Alert on any occurrence | Unit |
-| POL-06 | A new priority policy is in shadow mode | Evaluated and logged, changes nothing. Divergence from the active policy is reported per run | Planning | Shadow divergence rate | Integration |
-| POL-07 | Shadow policy diverges beyond a threshold | Promotion blocked until reviewed. Divergence is a decision for a human, not a deployment gate to override | Rollout process | Alert | Process |
-| POL-08 | A canary policy is active on one depot only | Plans record which version applied. Two depots may legitimately differ that day | Planning | Version distribution gauge | Integration |
+| POL-02 | A rule changes between draft generation and publication | Publication uses the rule set version the draft was built against, or refuses and says which version changed | Planning | Counter | `PublicationGateTest.aChangedRuleSetOrPolicyBlocksAndEveryReasonIsReported` |
+| POL-03 | A historical decision is replayed after the rules changed | Replays against the `policy_version_id` and `reference_version_id` stamped on the plan, never against current rules | Planning + audit | Replay mismatch alert | Stamps: `PlanningSchemaIntegrationTest.aPlanReadsBackWithStopsInOrderAndEveryCheck`. **Gap:** no replay command yet |
+| POL-04 | Two policy versions claim the same effective instant | Impossible: exclusion constraint on `(policy_kind, effective range)` | Database constraint | Constraint violation alert | `PlanningSchemaIntegrationTest.twoPolicyVersionsCannotClaimTheSameDate` |
+| POL-05 | A policy is published with an effective date in the past | Rejected. Retroactive rules rewrite decisions already communicated | Application | Alert on any occurrence | **Gap:** no policy authoring command exists yet; it must refuse a past `effective_from` |
+| POL-06 | A new priority policy is in shadow mode | **Superseded** (issue #9, decision 6): no hidden shadow policy. A what-if run under the candidate policy, never publishable, compared side by side on KPIs; promotion stays a human decision | Planning | Shadow divergence rate | Follow-up issue |
+| POL-07 | Shadow policy diverges beyond a threshold | **Superseded** (issue #9, decision 6): no hidden shadow policy. A what-if run under the candidate policy, never publishable, compared side by side on KPIs; promotion stays a human decision | Rollout process | Alert | Follow-up issue |
+| POL-08 | A canary policy is active on one depot only | Plans record which version applied. Two depots may legitimately differ that day | Planning | Version distribution gauge | `PlanningSchemaIntegrationTest.aDepotCanaryWinsOverTheGlobalPolicyOnItsDepotOnly` |
 | POL-09 | Authorization scope revoked while a policy decision is cached | No decision caching across a transaction. The PDP is consulted inside the transaction | Application | Race-loss counter (`waypoint_race_lost_total`) | Concurrent test |
-| POL-10 | A rule parameter is missing for the date being planned | Refuse to plan. Never fall back to a compiled-in default, which would silently reintroduce the old value | Rule parameters | Alert on any occurrence | Unit |
+| POL-10 | A rule parameter is missing for the date being planned | Refuse to plan. Never fall back to a compiled-in default, which would silently reintroduce the old value | Rule parameters | Alert on any occurrence | `ConstraintsTest.aMissingRuleParameterRefusesRatherThanDefaulting`, `PlanningSchemaIntegrationTest.theSeededRuleSetIsExactlyWhatTheDomainReads` |
 
 ---
 

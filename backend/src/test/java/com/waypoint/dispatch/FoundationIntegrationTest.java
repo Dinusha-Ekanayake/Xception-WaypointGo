@@ -266,15 +266,22 @@ class FoundationIntegrationTest {
     return Actor.user(id);
   }
 
-  /** Everything version-scoped cascades from the version row. The identity
-   * registries are deliberately left: an outlet id outlives the snapshot that
-   * described it. */
+  /**
+   * Retires every existing version so the next import publishes, without
+   * deleting any: a plan stamps the version it was built on and holds a foreign
+   * key to it (POL-03), so a stamped version must outlive the test that made it.
+   * The hash is made unique to the old row so identical content no longer
+   * matches it.
+   */
   private void clearReferenceVersions() {
     database.asModule(
         ModuleRole.REF,
         null,
         () -> {
-          database.update("DELETE FROM ref.reference_versions");
+          database.update(
+              "UPDATE ref.reference_versions SET is_current = false,"
+                  + " content_hash = content_hash || ':retired:' || reference_version_id"
+                  + " WHERE content_hash NOT LIKE '%:retired:%'");
         });
   }
 
