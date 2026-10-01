@@ -11,16 +11,17 @@ Updated after every finished step. Branch `feat/planning-module` (stacked on `fe
 | 0 Plan | **done** | `88d73d7` | This file |
 | 1 CI and validator | **done** | `4aefd17` | `.github/workflows/ci.yml`; `tools/check_allocation/check_allocation.py` vendored unmodified. Frontend job is `typecheck` only |
 | 2 Domain | **done** | `52ccaae` | `planning/domain/*`. 13 constraints. `PlanningRun` aggregate is **not** here; it belongs in step 5 |
-| 3 Engine and S1 fixture | **done** | this step's commit | See "Step 3 result" below. Official validator: `FEASIBILITY: PASSED` |
-| 4 Schema, repository, reads | **todo — start here** | | Next work. See "Resume at step 4" |
-| 5 Generate, Override, Defer, Publish | todo | | After 4. Needs `PlanningRun` aggregate |
+| 3 Engine and S1 fixture | **done** | `9e2f088` | See "Step 3 result" below. Official validator: `FEASIBILITY: PASSED` |
+| 4 Schema, repository, reads | **done** | `feat(planning): schema, repository and plan reads` | See "Step 4 result" below |
+| 5 Generate, Override, Defer, Publish | **todo — start here** | | See "Resume at step 5". Needs `PlanningRun` aggregate |
 | 6 Revise, Replan, previews, consumers | todo | | After 5 |
 | 7 Docs closeout | todo | | WALKTHROUGH, RULES, ASSUMPTIONS, EDGE-CASES, MODULES, development log |
 
-**To resume:** read this table, then **"Resume at step 4"** if that row is still todo. Then the matching row in "Work breakdown" and the decision it cites. Copy Ordering patterns: `backend/src/main/java/com/waypoint/dispatch/ordering/` (handlers, `JdbcOrderRepository`, `OrderController`, `OrderDataQuery`), migration `migrations/20261001T0200_ordering_orders.sql`, tests `OrderingSchemaIntegrationTest`, `OrderingCommandIntegrationTest`, `OrderingTestConfig`.
+**To resume:** read this table, then **"Resume at step 5"** if that row is still todo. Then the matching row in "Work breakdown" and the decision it cites. Copy Ordering patterns: `backend/src/main/java/com/waypoint/dispatch/ordering/` (handlers, `JdbcOrderRepository`, `OrderController`, `OrderDataQuery`), migration `migrations/20261001T0200_ordering_orders.sql`, tests `OrderingSchemaIntegrationTest`, `OrderingCommandIntegrationTest`, `OrderingTestConfig`.
 
 **Environment notes.**
 - Database tests need `TEST_DATABASE_URL` (dedicated, never equal to `DATABASE_URL`): `docker compose up -d db`, then `TEST_DATABASE_URL=... mvn test` from `backend/`.
+- If port 5432 is already taken by a native PostgreSQL, any PostgreSQL 16 with a privileged `waypoint` user works. Step 4 was verified against a local cluster on port 55432 (`postgresql://waypoint:local-testing-only@127.0.0.1:55432/waypoint_test`). Migrations are checksummed, so after editing an unmerged migration, drop and recreate `waypoint_test`.
 - Python with pandas can segfault inside the agent sandbox; run `check_allocation.py` unsandboxed (`required_permissions: ["all"]`).
 - Engine unit tests do **not** need a database. From `backend/`: `mvn -q -Dtest=PeakDayAllocationTest,ConstraintsTest,TripTimelineTest,PriorityPolicyTest test`.
 
@@ -34,34 +35,42 @@ Files:
 
 S1 on 2026-10-01, booklet `RuleSet` + default `PriorityPolicy`: **70 served, 14 deferred, 1 unservable**. All 10 `deferred_yesterday` orders served. Binding rules: `R-PLN-09`×5 (Fresh time), `R-PLN-07`×5 (trip count), `R-PLN-06`×4 (capacity; includes S1-078), `R-PLN-13`×1 (window). Overload S1-078 is `UNSERVABLE` / `R-PLN-06`. Same inputs → same CSV. Official `python tools/check_allocation/check_allocation.py backend/target/task2b/submission_task2b.csv` → **FEASIBILITY: PASSED**.
 
-### Resume at step 4
+### Step 4 result (do not re-do)
 
-**Goal.** Persist plans and serve reads. No commands yet (those are step 5). After this step a test can insert a draft/published run as `waypoint_planning` and query it through `PlanQuery`.
+Files:
+- `migrations/20261001T0400_planning_plans.sql`: `rule_sets`, `rule_parameters`, `policy_versions` (GiST exclusion on effective range, global or per depot), `runs`, `trips`, `allocations`, `deferrals`, `route_legs`, `fuel_usage`. FORCE RLS `app.actor_is_system() OR app.actor_has_depot(depot_code)` on every operational table; configuration is readable by all, global versions writable by the system only, a depot canary by someone scoped to that depot. Triggers: a published run may only become `superseded`; `superseded`/`cancelled` are terminal; children insert or update only under a `draft`; versions are immutable except closing an open `effective_to`. `UPDATE` revoked on `rule_parameters`, so an edit is a permission error, not a zero-row update. Partial unique index: one `published` per depot-day. Seeds equal `RuleSet.bookletParameters()` and `PriorityPolicy.DEFAULT_KEYS`. Catalogue: `plan:Read` implemented (the controller enforces it); command actions still `false`
+- `planning/infrastructure/JdbcPlanRepository.java`: row records (`RunRow`, `TripRow`, `AllocationRow`, `DeferralRow`, `LegRow`, `FuelRow`); inserts for each; `publish`, `supersede`, `cancel`, `markStale`, each `WHERE plan_id = ? AND row_version = ? AND status = ...`; `effectiveRuleSet(date)`, `ruleSet(id)`, `effectivePolicy(depot, date)` (the depot version wins), `policy(id)`, `fuelUsed(vehicle, day)` (published runs only), `latestPlanVersion`
+- `planning/application/PlanDataQuery.java` implements `PlanQuery` via `Database.readAs`. `deferralsFor` reads the published run, else the newest draft. **`previewAssignments` and `previewInterchange` throw `UnsupportedOperationException` until step 6**: an empty answer would read as "nowhere fits" to Loading
+- `planning/web/PlanController.java`: `GET /api/plans/published?depot&date`, `/api/plans/{id}`, `/api/plans/deferrals?depot&date`, `/api/plans/fuel?vehicle&date`, all `plan:Read`. A run outside scope is 404; a depot outside scope is 403 plus an audit row
+- `PlanningSchemaIntegrationTest` (12 tests): seed equals the domain; no rule set before 2026-01-01 (POL-10); a parameter cannot be edited; overlapping policy versions are refused (POL-04); a depot canary wins on its depot only (POL-08); a published run, its trips and its allocations cannot change, and superseded is terminal; one published plan per depot-day; a stale `row_version` is refused; a dispatcher for another depot sees nothing and cannot write; the view reads back with stops in order and every check; fuel counts published runs only
+- `FoundationIntegrationTest` now retires reference versions instead of deleting them, because `planning.runs` holds a foreign key to the stamped version (POL-03)
+
+Verified: `TEST_DATABASE_URL=... mvn test`, 216 tests, 0 failures, 0 skipped.
+
+### Resume at step 5
+
+**Goal.** `plan:Generate`, `plan:Override`, `plan:Defer` and `plan:Publish` through the `CommandBus`, emitting `PlanEvents`, with the catalogue flags flipped in a migration (the same pattern as `20261001T0300_ordering_actions_implemented.sql`).
 
 **Do, in this order:**
 
-1. `migrations/20261001T0400_planning_plans.sql` (sorts after ordering's `T0300`). Schema and role already exist (`20260930T1200`). Tables from decision 8:
-   - `planning.rule_sets` (`rule_set_id`, `effective_from`, `effective_to`, `note`)
-   - `planning.rule_parameters` (`rule_set_id`, `parameter_key`, `parameter_value`, `unit`) — keys **must** match `RuleSet` constants (`fresh.budget.min`, …), not the old `ops.` names
-   - `planning.policy_versions` (`policy_version_id`, `kind` = `deferral_priority`, `keys jsonb` ordered list, `depot_code` nullable for canary, `effective_from`/`to`, reject `effective_from` in the past at write time in the handler later)
-   - `planning.runs` — `plan_id`, `depot_code`, `service_date`, `plan_version`, `row_version`, `status` (`draft`/`published`/`superseded`/`cancelled`), stamped `reference_version_id`, `rule_set_id`, `priority_policy_version_id`, `supersedes`, `demand_fingerprint`, `stale`, `partial`, `engine`, `published_at`, `published_by`
-   - `planning.trips` — denormalize `depot_code`; trip number 1 or 2; brand, district, temperature, totals, planned minutes, departure, litres
-   - `planning.allocations` — one row per order per run; decision, trip, sequence, planned arrival, binding rule, reason, `checks jsonb`
-   - `planning.deferrals` — actor, reason, skip count (rule 8)
-   - `planning.route_legs` — planned times only
-   - `planning.fuel_usage` — litres for published non-superseded runs (decision 3)
-   - RLS: `FORCE`; `app.actor_has_depot(depot_code) OR app.actor_is_system()` on every table (denormalize `depot_code` onto children). `GRANT SELECT, INSERT, UPDATE` (never DELETE) to `waypoint_planning`
-   - Trigger: published run may only change `status` → `superseded` (plus `row_version`); deny insert/update on children unless parent is `draft`. Adapt `docs/architecture/schema/migrations/004_plan_provenance_and_immutability.sql` into the `planning` schema (that file is design-only, not applied)
-   - Partial unique index: one `PUBLISHED` per `(depot_code, service_date)`
-   - Seed booklet parameters and default priority keys (same as `RuleSet.bookletParameters()` and `PriorityPolicy.DEFAULT_KEYS`) with `effective_from` in the past so today's plans have a set. Need `btree_gist` if you add GiST exclusion on effective ranges
-2. `planning/infrastructure/JdbcPlanRepository.java` — all writes `UPDATE ... WHERE plan_id = ? AND row_version = ?`, fail on 0 rows. Called only inside a bus transaction as `waypoint_planning`.
-3. `planning/application/PlanDataQuery.java` implementing `PlanQuery`: `publishedPlan`, `draft`, `deferralsFor`, `fuelRemaining`. `previewAssignments` / `previewInterchange` can throw `UnsupportedOperationException` until step 6, **or** return empty — document which. Use `Database.readAs` so a contract read never switches the caller's role (Ordering's `OrderDataQuery` is the pattern).
-4. `planning/web/PlanController.java` — reads only. Mutations stay on `POST /api/commands`. Authorize `plan:Read`.
-5. Tests: `PlanningSchemaIntegrationTest` (copy `OrderingSchemaIntegrationTest`). Must prove: published run cannot be updated in place; second published for same depot-day fails the unique index; a dispatcher for the other depot sees nothing; missing `RuleSet` key refuses via `RuleSet.require` (POL-10) — can be a unit test if the seed is complete.
+1. `planning/domain/PlanningRun`: the aggregate over the step 3 `AllocationResult`. It holds the stamped versions, the demand fingerprint, the status graph (draft → published → superseded; draft → cancelled) and produces the step 4 rows. Pure: the clock and ids are parameters.
+2. `GeneratePlanHandler` (`plan:Generate`):
+   - Read `OrderQuery.confirmedDemand` and `ReferenceQuery` at `currentVersionId()`.
+   - Read `effectiveRuleSet` and `effectivePolicy`; refuse when either is missing (POL-10).
+   - Map to `PlanOrder` and `FleetVehicle`, with `fuelUsedThisWeekL` from `fuelUsed`.
+   - Run `ValidatingEngine(PriorityInsertionEngine)` and write a draft at `latestPlanVersion + 1`.
+   - Write `deferrals` with the system actor and `skip_count = deferralCount + 1`.
+   - Refuse a non-operating day (PLN-13).
+   - The demand fingerprint is a hash over sorted `(orderId, rowVersion)`.
+3. `OverrideAllocationHandler` and `DeferOrderHandler`. **Open decision:** the role has no DELETE, so an override cannot remove a trip that it empties. Options: (a) every override writes a new draft run that supersedes nothing (plan_version + 1), copying the rest; or (b) zero-stop trips stay and readers filter them. (a) keeps "a version is immutable" uniform and makes the PLN-06 diff a run-to-run diff. Recommended: (a).
+4. `PublishPlanHandler`, the publication gate:
+   - Refuse when the demand fingerprint differs (PLN-07), the reference version is no longer current (PLN-14), or the rule set or policy in force differs (POL-02).
+   - Re-run the whole registry.
+   - Supersede the previous published run in the same transaction, then `publish`.
+   - Emit `plan.published` (and `order.deferred` and `order.unservable` as `PlanEvents` defines).
+5. Tests: `PlanningCommandIntegrationTest`, copied from `OrderingCommandIntegrationTest`. Cover every command through the bus, 403 plus audit for another depot, two overrides with the stale one rejected, and each publication refusal.
 
-**Do not in step 4:** command handlers, `PlanningRun` mutations that publish events, catalogue `implemented=true`, consumers.
-
-**After step 4:** commit `feat(planning): schema, repository and plan reads`, mark this table done, then step 5 (`PlanningRun` + Generate/Override/Defer/Publish).
+**Do not in step 5:** Revise, Replan, previews, consumers (step 6).
 
 **Known gaps already parked:**
 - `PlanningRun` aggregate: step 5
