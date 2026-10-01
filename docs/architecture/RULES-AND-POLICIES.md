@@ -219,7 +219,7 @@ Binding for the delivered system even though Task 2B does not score them.
 | ID | Rule | Source | Status |
 | --- | --- | --- | --- |
 | R-LOD-01 | The loader sees the stop sequence so goods load in an order that supports unloading | Booklet | Binding |
-| R-LOD-02 | The loader flags **damaged, doesn't fit, or missing** items **before** the vehicle leaves | Booklet and confirmed product decision | Binding |
+| R-LOD-02 | The loader flags **short, damaged, doesn't fit, or missing** items **before** the vehicle leaves. Short is one item with some of its units missing (Figma 03, decision 2026-10-01) | Booklet and confirmed product decision | Binding |
 | R-LOD-03 | Loading lists must not go stale when the plan changes | Booklet | Binding |
 | R-LOD-04 | The loader sees only loading-ready vehicles, starts loading, marks finish, and reports destroyed items | Team draft | Team |
 | R-LOD-05 | **Truck interchange:** if the assigned truck becomes unavailable at the dock, another may take the trip | Team draft | Team |

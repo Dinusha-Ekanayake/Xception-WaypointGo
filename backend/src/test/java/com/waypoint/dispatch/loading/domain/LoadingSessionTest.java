@@ -19,13 +19,31 @@ import org.junit.jupiter.api.Test;
 class LoadingSessionTest {
 
   @Test
-  void loaderIssuesAreDamagedDoesNotFitAndMissingOnly() {
-    for (CheckStatus kind : List.of(CheckStatus.MISSING, CheckStatus.DAMAGED, CheckStatus.DOES_NOT_FIT)) {
+  void loaderIssuesAreShortDamagedDoesNotFitAndMissing() {
+    for (CheckStatus kind :
+        List.of(CheckStatus.SHORT, CheckStatus.MISSING, CheckStatus.DAMAGED, CheckStatus.DOES_NOT_FIT)) {
       assertTrue(taken().flag(ISURU, STOP2, Optional.of(1), kind, 1).changed().get(0).flagged());
     }
     assertThrows(
         DomainException.class,
-        () -> taken().flag(ISURU, STOP2, Optional.of(1), CheckStatus.SHORT, 1));
+        () -> taken().flag(ISURU, STOP2, Optional.of(1), CheckStatus.PENDING, 1));
+  }
+
+  @Test
+  void aShortItemKeepsTheUnitsThatArrived() {
+    ItemLine line = taken().flag(ISURU, STOP2, Optional.of(1), CheckStatus.SHORT, 1).changed().get(0);
+    assertEquals(CheckStatus.SHORT, line.status());
+    assertEquals(3, line.loadedUnits(), "4 picked, 1 short: 3 go on the vehicle");
+  }
+
+  @Test
+  void shortIsForOneItemWithSomeUnitsArrived() {
+    assertEquals(ErrorCode.VALIDATION_FAILED,
+        refused(() -> taken().flag(ISURU, STOP1, Optional.empty(), CheckStatus.SHORT, 1)).code(),
+        "a whole order cannot be short; report it missing");
+    assertEquals(ErrorCode.VALIDATION_FAILED,
+        refused(() -> taken().flag(ISURU, STOP2, Optional.of(1), CheckStatus.SHORT, 4)).code(),
+        "none arrived is missing, not short");
   }
 
   private static final UUID TRIP = UUID.randomUUID();

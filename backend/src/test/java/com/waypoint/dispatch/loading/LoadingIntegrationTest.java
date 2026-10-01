@@ -185,15 +185,19 @@ class LoadingIntegrationTest {
   }
 
   @Test
-  void removedLoadingIssueTypesAreRejectedWithoutChangingTheTrip() throws Exception {
+  void aShortItemIsRecordedAndUnknownIssueTypesAreRejected() throws Exception {
     send(isuru, "loading:Start", 1L, "{\"tripId\":\"" + tripId + "\"}", 200);
     send(isuru, "loading:Shortfall", 2L,
         "{\"tripId\":\"" + tripId + "\",\"orderId\":\"" + orderA
-            + "\",\"lineNo\":1,\"kind\":\"SHORT\",\"missingUnits\":1,\"reason\":\"Not offered\"}", 422);
+            + "\",\"lineNo\":1,\"kind\":\"WRONG_TEMP\",\"missingUnits\":1,\"reason\":\"Not offered\"}", 422);
+    assertEquals(2, manifest(isuru).get("rowVersion").asLong(), "a refused issue changes nothing");
+
     send(isuru, "loading:Shortfall", 2L,
         "{\"tripId\":\"" + tripId + "\",\"orderId\":\"" + orderA
-            + "\",\"lineNo\":1,\"kind\":\"WRONG_TEMP\",\"missingUnits\":1,\"reason\":\"Not offered\"}", 422);
-    assertEquals(2, manifest(isuru).get("rowVersion").asLong());
+            + "\",\"lineNo\":1,\"kind\":\"SHORT\",\"missingUnits\":1,\"reason\":\"One case not picked\"}", 200);
+    JsonNode item = line(manifest(isuru), orderA).get("items").get(0);
+    assertEquals("SHORT", item.get("status").asText());
+    assertEquals(1, item.get("loadedUnits").asInt(), "2 picked, 1 short: 1 goes on the vehicle");
   }
 
   @Test

@@ -11,8 +11,9 @@ import { BigButton, Sheet } from "../ui.tsx";
 // the vehicle leaves (R-LOD-02). The flagged item is not loaded, the dispatcher
 // and store are told, and loading carries on (R-LOD-07).
 
-type Kind = Extract<CheckStatus, "MISSING" | "DAMAGED" | "DOES_NOT_FIT">;
+type Kind = Extract<CheckStatus, "SHORT" | "MISSING" | "DAMAGED" | "DOES_NOT_FIT">;
 const ISSUE_HINT: Record<Kind, string> = {
+  SHORT: "Fewer units than picked",
   DAMAGED: "Crushed, leaking, torn",
   DOES_NOT_FIT: "Does not fit safely in the vehicle",
   MISSING: "Not at the dock",
@@ -45,12 +46,16 @@ export default function IssueSheet({
   // The whole order flags every item not already flagged, in full (the server's rule).
   const open = (line?.items ?? []).filter((i) => !isFlagged(i.status));
   const max = item ? item.units : open.reduce((n, i) => n + i.units, 0);
-  const missing = item === null || kind === "MISSING" ? max : Math.min(units, max);
-  const ready = line !== undefined && reason.trim().length > 0 && missing > 0;
+  // Short leaves at least one unit loaded; none arrived is Missing (the server's rule).
+  const shortMax = item ? item.units - 1 : 0;
+  const missing = item === null || kind === "MISSING" ? max : Math.min(units, kind === "SHORT" ? shortMax : max);
+  const shortAllowed = item !== null && shortMax >= 1;
+  const ready = line !== undefined && reason.trim().length > 0 && missing > 0 && (kind !== "SHORT" || shortAllowed);
 
   const chooseOrder = (id: string) => {
     setOrderId(id);
     setLineNo(0);
+    if (kind === "SHORT") setKind("DAMAGED");
     setUnits(1);
   };
 
@@ -99,6 +104,7 @@ export default function IssueSheet({
             value={lineNo}
             onChange={(e) => {
               setLineNo(Number(e.target.value));
+              if (Number(e.target.value) === 0 && kind === "SHORT") setKind("DAMAGED");
               setUnits(1);
             }}
             className="min-h-14 rounded-[16px] border border-[#dfe3e8] bg-[#f1f3f5] px-4 text-base font-medium"
@@ -121,13 +127,22 @@ export default function IssueSheet({
               key={kindValue}
               className={cx(
                 "flex min-h-14 cursor-pointer flex-col justify-center rounded-[16px] px-4 py-2.5 md:min-h-[94px]",
-                kindValue === "MISSING" && "md:col-span-2",
                 kind === kindValue ? "border-2 border-[#dfe3e8] bg-white shadow-[0_2px_6px_rgba(0,0,0,0.08)]" : "border border-[#dfe3e8] bg-[#f1f3f5]",
               )}
             >
-              <input type="radio" name="kind" value={kindValue} checked={kind === kindValue} onChange={() => setKind(kindValue)} className="sr-only" />
+              <input
+                type="radio"
+                name="kind"
+                value={kindValue}
+                checked={kind === kindValue}
+                disabled={kindValue === "SHORT" && !shortAllowed}
+                onChange={() => setKind(kindValue)}
+                className="sr-only"
+              />
               <span className="text-[17px] font-medium">{label}</span>
-              <span className="text-[13px] text-go-muted">{ISSUE_HINT[kindValue]}</span>
+              <span className="text-[13px] text-go-muted">
+                {kindValue === "SHORT" && !shortAllowed ? "Choose one item with more than one unit" : ISSUE_HINT[kindValue]}
+              </span>
             </label>
             );
           })}
@@ -136,7 +151,9 @@ export default function IssueSheet({
         {item !== null && kind !== "MISSING" && (
           <div className="flex items-center justify-between gap-3 rounded-[16px] bg-[#f1f3f5] py-3 pr-4 pl-4">
             <span className="flex flex-col">
-              <span className="text-[17px] font-medium">Units {kind === "DAMAGED" ? "damaged" : "that don't fit"}</span>
+              <span className="text-[17px] font-medium">
+                Units {kind === "SHORT" ? "short" : kind === "DAMAGED" ? "damaged" : "that don't fit"}
+              </span>
               <span className="text-[13px] text-go-muted">of {max} for this item</span>
             </span>
             <div className="flex items-center gap-2">
@@ -146,7 +163,7 @@ export default function IssueSheet({
               <output aria-live="polite" className="w-10 text-center text-[28px] font-semibold">
                 {missing}
               </output>
-              <button type="button" aria-label="More" onClick={() => setUnits((u) => Math.min(max, u + 1))} className="size-14 rounded-[16px] bg-[#e5e7eb] text-[28px]">
+              <button type="button" aria-label="More" onClick={() => setUnits((u) => Math.min(kind === "SHORT" ? shortMax : max, u + 1))} className="size-14 rounded-[16px] bg-[#e5e7eb] text-[28px]">
                 +
               </button>
             </div>

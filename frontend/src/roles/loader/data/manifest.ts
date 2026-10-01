@@ -23,8 +23,9 @@ export function byStop<L extends ManifestLineView>(lines: L[]): StopGroup<L>[] {
 export const isChecked = (status: CheckStatus) => status !== "PENDING";
 export const isFlagged = (status: CheckStatus) => status === "SHORT" || status === "MISSING" || status === "DAMAGED" || status === "DOES_NOT_FIT";
 
-/** Exactly the three issues loaders may report. SHORT is displayed only for historical records. */
+/** The issues a loader may report, in the order of Figma 03. */
 export const ISSUE_KIND_LABEL: Record<IssueKind, string> = {
+  SHORT: "Short",
   DAMAGED: "Damaged",
   DOES_NOT_FIT: "Doesn't fit",
   MISSING: "Missing",

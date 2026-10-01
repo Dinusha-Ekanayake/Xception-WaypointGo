@@ -201,7 +201,7 @@ Four consumers read that one registry: the engine, the manual override path, the
 **Publishes:** `loading.started`, `loading.shortfall`, `trip.released`. `loading.interchange_requested` is a planned event; the interchange command is deferred.
 **Consumes:** `plan.published`, `plan.revised`, `shortfall.resolved` (from Issues).
 
-**Invariants.** A trip releases only when **every** allocated item has a recorded check on the current plan version, including any Damaged, Doesn't fit or Missing exception. The loader also confirms doors sealed, orders secured and driver present; there is no temperature-reading or seal-number gate. One loader holds a trip at a time, and hand back preserves earlier checks. Manifest order is the planned stop sequence reversed, so the first stop is unloaded first. There is no separate mall-first loading rule (decision D-L, R-LOD-08 withdrawn).
+**Invariants.** A trip releases only when **every** allocated item has a recorded check on the current plan version, including any Short, Damaged, Doesn't fit or Missing exception. Short is one item with some units missing; the units that arrived stay loaded. The loader also confirms doors sealed, orders secured and driver present; there is no temperature-reading or seal-number gate. One loader holds a trip at a time, and hand back preserves earlier checks. Manifest order is the planned stop sequence reversed, so the first stop is unloaded first. There is no separate mall-first loading rule (decision D-L, R-LOD-08 withdrawn).
 
 **Vehicle interchange (planned, not implemented in issue #10).** Swapping the truck must not be an `UPDATE` to a trip's vehicle. The intended workflow is a request that:
 

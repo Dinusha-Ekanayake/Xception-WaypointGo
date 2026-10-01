@@ -4,7 +4,8 @@ import type { Decimal, IsoDate, IsoInstant, IsoTime, Temperature, Uuid } from ".
 
 export type SessionStatus = "NOT_STARTED" | "IN_PROGRESS" | "BLOCKED" | "READY" | "COMPLETED";
 export type CheckStatus = "PENDING" | "LOADED" | "SHORT" | "MISSING" | "DAMAGED" | "DOES_NOT_FIT";
-export type IssueKind = Extract<CheckStatus, "MISSING" | "DAMAGED" | "DOES_NOT_FIT">;
+/** The issue choices of Figma 03. SHORT is one item with some units missing. */
+export type IssueKind = Extract<CheckStatus, "SHORT" | "MISSING" | "DAMAGED" | "DOES_NOT_FIT">;
 
 /** The loader a trip is locked to, one at a time until release or hand back (R-LOD-11). */
 export type HolderView = {
@@ -100,8 +101,7 @@ export type ShortfallView = {
   tripId: Uuid;
   orderId: Uuid;
   lineNo: number | null;
-  /** SHORT only appears on rows written before the issue choices were narrowed. */
-  kind: IssueKind | "SHORT";
+  kind: IssueKind;
   missingUnits: number;
   reason: string;
   reportedBy: Uuid;

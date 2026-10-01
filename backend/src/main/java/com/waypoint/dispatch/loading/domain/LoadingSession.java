@@ -146,12 +146,24 @@ public record LoadingSession(
    */
   public Change flag(UUID actor, UUID orderId, Optional<Integer> lineNo, CheckStatus kind, int missingUnits) {
     requireHolder(actor);
-    if (kind != CheckStatus.MISSING && kind != CheckStatus.DAMAGED && kind != CheckStatus.DOES_NOT_FIT) {
+    if (!ItemLine.isFlag(kind)) {
       throw new DomainException(
-          ErrorCode.VALIDATION_FAILED, "An issue is MISSING, DAMAGED or DOES_NOT_FIT, not " + kind + ".");
+          ErrorCode.VALIDATION_FAILED, "An issue is SHORT, MISSING, DAMAGED or DOES_NOT_FIT, not " + kind + ".");
     }
     if (missingUnits <= 0) {
       throw new DomainException(ErrorCode.VALIDATION_FAILED, "Say how many units are affected.");
+    }
+    // Short (Figma 03, "Fewer packages than picked") is one item with some units
+    // missing. A whole order short, or an item with none arrived, is Missing.
+    if (kind == CheckStatus.SHORT) {
+      if (lineNo.isEmpty()) {
+        throw new DomainException(
+            ErrorCode.VALIDATION_FAILED, "Short is for one item. If the whole order is not here, report it missing.");
+      }
+      if (missingUnits >= targets(orderId, lineNo).get(0).units()) {
+        throw new DomainException(
+            ErrorCode.VALIDATION_FAILED, "None of this item arrived, so report it missing, not short.");
+      }
     }
     List<ItemLine> changed = new ArrayList<>();
     if (lineNo.isPresent()) {
