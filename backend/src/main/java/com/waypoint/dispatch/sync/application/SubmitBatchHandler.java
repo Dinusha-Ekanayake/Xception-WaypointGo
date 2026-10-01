@@ -2,6 +2,7 @@ package com.waypoint.dispatch.sync.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.waypoint.dispatch.platform.db.Database;
+import com.waypoint.dispatch.identity.contract.OperatorQuery;
 import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.platform.messaging.Command;
 import com.waypoint.dispatch.platform.messaging.CommandAuthorizer;
@@ -59,6 +60,7 @@ public class SubmitBatchHandler {
   private final Database database;
   private final Metrics metrics;
   private final ObjectMapper mapper;
+  private final Optional<OperatorQuery> operators;
 
   public SubmitBatchHandler(
       CommandBus bus,
@@ -66,13 +68,15 @@ public class SubmitBatchHandler {
       OperationRepository operations,
       Database database,
       Metrics metrics,
-      ObjectMapper mapper) {
+      ObjectMapper mapper,
+      Optional<OperatorQuery> operators) {
     this.bus = bus;
     this.authorizer = authorizer;
     this.operations = operations;
     this.database = database;
     this.metrics = metrics;
     this.mapper = mapper;
+    this.operators = operators;
   }
 
   /** Thrown when the instance is at capacity; the web layer turns it into 429 with Retry-After. */
@@ -97,18 +101,22 @@ public class SubmitBatchHandler {
       boolean replayed) {}
 
   public List<Outcome> submit(Actor actor, SubmitBatch batch) {
+    return submit(actor, null, batch);
+  }
+
+  public List<Outcome> submit(Actor actor, String sessionToken, SubmitBatch batch) {
     if (!capacity.tryAcquire()) {
       metrics.increment("waypoint.sync.busy");
       throw new Busy();
     }
     try {
-      return apply(actor, batch);
+      return apply(actor, sessionToken, batch);
     } finally {
       capacity.release();
     }
   }
 
-  private List<Outcome> apply(Actor actor, SubmitBatch batch) {
+  private List<Outcome> apply(Actor actor, String sessionToken, SubmitBatch batch) {
     if (batch.deviceId() == null) {
       throw new DomainException(ErrorCode.VALIDATION_FAILED, "deviceId is required");
     }
@@ -130,7 +138,7 @@ public class SubmitBatchHandler {
             .toList();
     List<Outcome> outcomes = new ArrayList<>();
     for (SubmittedOperation op : ordered) {
-      Outcome outcome = applyOne(actor, batch.deviceId(), op);
+      Outcome outcome = applyOne(actor, sessionToken, batch.deviceId(), op);
       outcomes.add(outcome);
       metrics.increment("waypoint.sync.operation", "status", outcome.status().name());
       if (outcome.status() == OperationStatus.RECEIVED) {
@@ -140,7 +148,7 @@ public class SubmitBatchHandler {
     return outcomes;
   }
 
-  private Outcome applyOne(Actor actor, UUID deviceId, SubmittedOperation op) {
+  private Outcome applyOne(Actor actor, String sessionToken, UUID deviceId, SubmittedOperation op) {
     Command command = op.command();
     if (command == null || command.commandId() == null || command.kind() == null) {
       throw new DomainException(
@@ -170,7 +178,17 @@ public class SubmitBatchHandler {
     }
 
     try {
-      CommandResult result = bus.dispatch(actor, command);
+      Actor commandActor = actor;
+      if (command.kind().startsWith("loading:")) {
+        if (command.actingUserId() == null || command.clientRecordedAt() == null || operators.isEmpty()) {
+          throw new DomainException(ErrorCode.FORBIDDEN,
+              "Queued loading work must identify the loader who recorded it on this device");
+        }
+        commandActor = operators.get().operatorAt(sessionToken, command.actingUserId(), command.clientRecordedAt())
+            .orElseThrow(() -> new DomainException(ErrorCode.FORBIDDEN,
+                "This loader was not operating the device when the work was recorded"));
+      }
+      CommandResult result = bus.dispatch(commandActor, command);
       settle(actor, id, OperationStatus.APPLIED, null, null);
       return new Outcome(id, op.sequence(), OperationStatus.APPLIED, null, null, result.replayed());
     } catch (DomainException e) {
@@ -203,7 +221,7 @@ public class SubmitBatchHandler {
         ModuleRole.SYNC,
         actor.userId(),
         () -> {
-          operations.insert(
+          boolean inserted = operations.insert(
               command.commandId(),
               actor.userId(),
               deviceId,
@@ -212,6 +230,9 @@ public class SubmitBatchHandler {
               json,
               command.expectedVersion(),
               command.clientRecordedAt());
+          if (!inserted && !operations.matches(command.commandId(), actor.userId(), deviceId, json)) {
+            return Optional.empty();
+          }
           return operations.find(command.commandId());
         });
   }

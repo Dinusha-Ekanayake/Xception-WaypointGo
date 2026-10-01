@@ -11,12 +11,15 @@ export type Command<TPayload = unknown> = {
   payload: TPayload;
   /** When the device recorded it. Server time decides; this is kept for forensics. */
   clientRecordedAt: string;
+  /** Loader identity at capture time; the server checks its device PIN interval on replay. */
+  actingUserId?: string;
 };
 
 export function newCommand<TPayload>(
   kind: string,
   payload: TPayload,
   expectedVersion: number | null = null,
+  actingUserId?: string,
 ): Command<TPayload> {
   return {
     commandId: globalThis.crypto?.randomUUID?.() ?? `cmd-${Date.now()}-${Math.random()}`,
@@ -24,6 +27,7 @@ export function newCommand<TPayload>(
     expectedVersion,
     payload,
     clientRecordedAt: new Date().toISOString(),
+    ...(actingUserId ? { actingUserId } : {}),
   };
 }
 

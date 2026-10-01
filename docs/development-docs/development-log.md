@@ -137,6 +137,50 @@ Why: issue #13. The decisions are in [PLAN.md](../issues/013-receipt-issues/PLAN
 Verified: `mvn test -Dtest=ReceiptTest,ReceiptStateMachineTest,IssueTest,ModuleBoundaryTest`, 33 tests, 0 failures.
 Open: steps 2 to 5 (schema, commands, consumers, jobs, docs).
 
+## 2026-10-01 - feat(loader): switch loaders by PIN while offline
+
+`feat/loading` · @Dinusha-Ekanayake
+
+A shared loader device keeps its crew list with a PBKDF2 verifier per member (`iam.users.pin_offline_verifier`, migration 1510), written when the PIN is set or entered online, never the PIN. Offline, the PIN is checked on the device with WebCrypto, with the same five-try pause, and the switch or lock is logged. On reconnect `POST /api/session/operator/offline` replays the switches into the operator history (marked `offline`, audited) before the sync queue sends anything, so queued work lands under the loader who recorded it. The list expires after 12 hours and sign-out wipes it. R-IAM-25 to 27, IAM-OFF-01.
+Why: switching was the last part of the dock flow that needed a connection (decision 2026-10-01).
+Verified: `OfflineOperatorTest` (6, including the RFC 7914 PBKDF2 vector and a vector shared with the browser test), boundary and loading domain tests; frontend typecheck, build, `npm test` (18), mocked loader browser tests at 393x852 (4 pass, including wrong PIN, offline unlock, and replay before sync). The new integration test compiles but was not run: no test database here.
+Open: run `LoadingIntegrationTest` against a database. A four-digit PIN is recoverable from its verifier; accepted and recorded in R-IAM-27.
+
+## 2026-10-01 - feat(loader): switch the loader between English, Sinhala and Tamil
+
+`feat/loading` · @Dinusha-Ekanayake
+
+A language picker in the loader's top bar switches every loader screen between English, Sinhala and Tamil. The strings are hardcoded in `frontend/src/roles/loader/data/strings.ts`, keyed by the English text, so switching works offline; a missing translation falls back to English. The choice is kept per device and sets `<html lang>`.
+Why: dock crews read Sinhala or Tamil first (decision 2026-10-01).
+Verified: typecheck, build, `npm test` (16 pass), mocked loader browser tests at 393x852 (3 pass, including `language.spec.ts`: switch, reload, switch again).
+Open: Sinhala and Tamil are drafts; a native speaker should review them. Server error messages stay in English.
+
+## 2026-10-01 - feat(loading): unlock a trip after 30 idle minutes
+
+`feat/loading` · @Dinusha-Ekanayake
+
+A hold now lapses 30 minutes after the holder's last accepted command (`loading.sessions.holder_active_at`, migration 1509), and another loader's take replaces them. The dock board shows a lapsed hold as free to take. Replaces forced takeover. R-LOD-11 and LOD-09 updated.
+Why: a loader who walks away must not block a trip until a dispatcher intervenes (decision 2026-10-01).
+Verified: `LoadingSessionTest` (26) and `ModuleBoundaryTest` pass; frontend typecheck and `loader-hold.test.ts` pass. The new integration test compiles but was not run: no test database here.
+Open: run `LoadingIntegrationTest` against a database.
+
+## 2026-10-01 - feat(loader): load item by item, as the Day 5 design does
+
+`feat/loading` · @Dinusha-Ekanayake
+
+The loader UI now reads the full Loading contract: `shared/domain/loading.ts` had fallen behind `LoadingViews.java` and lacked items, order references, windows, vehicle capacity, holder and dock. Items are ticked and undone one by one (`lineNo`), an issue names an item or the whole order, capacity bars compare against the vehicle's limits, and the dock board has the dock selector, All/Available/Mine/In use and a holder per trip. Added hold to release (04), undo toast (E5), out-of-sequence warning (E6), hand-back dialog (E7), issue saved offline (E8) and the released screen (E11); sheets close on Escape and keep focus inside. `typecheck` now runs with `--incremental false`: with TypeScript 7 a cached `tsconfig.tsbuildinfo` passed files it had not rechecked.
+Why: the booklet judges the loader on fidelity to the Day 5 design at phone size, and the item-by-item decision of 2026-10-01.
+Verified: `npm run typecheck`, `npm test` (13 pass), `npm run build`; mocked loader browser tests at 393x852 (2 pass: offline item check syncs once under the operator with its `lineNo`; release needs the three checks and a hold). Not verified against a live backend; the database suites were not rerun after merging `dev`.
+Open: run the backend suite and the live loader browser test against a database; Planning's two integration test classes do not skip without `TEST_DATABASE_URL` because the guard sits on their abstract base class.
+
+## 2026-10-01 - feat: add the loader backend and shared-device flow
+
+`feat/loading` · @Dinusha-Ekanayake
+
+Loading now builds scoped live manifests, retains safe checks across plan revisions, limits issue reports to Damaged, Doesn't fit and Missing, and releases only after doors sealed, orders secured and driver present are confirmed. Shared-device PIN switching records operator history and attributes queued commands to the person active when they were recorded. The loader screens use those contracts and the shared sync queue.
+Why: issue #10 needs a traceable dock workflow that remains correct through a plan change or an offline period.
+Verified: the full backend suite passed 231 tests with zero failures, errors or skips after focused red/green tests covered both fixture fixes. A separate disposable PostgreSQL 18 database imported reference data, provisioned a test PIN and built one manifest from synthetic demand. The live 393x852 browser flow passed sign-in, PIN failure and success, loading, offline check, sync, three-check release and lock. The 768x1024 locked tablet state had no horizontal overflow. The latest frontend run passed seven unit/boundary tests, typecheck, production build and two mocked browser tests. No external warehouse data was changed.
+
 ## 2026-10-01 - fix: identity and auth hardening (issue #5)
 
 `fix/identity-hardening` · @kavindamihiran

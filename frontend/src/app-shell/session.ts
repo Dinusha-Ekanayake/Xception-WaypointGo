@@ -1,5 +1,6 @@
 import { request } from "@shared/api/client";
 import { ApiError } from "@shared/api/problem";
+import { forgetCrew } from "./offlinePin.ts";
 
 // Who is signed in, according to the server. The client never decides this: it
 // asks, and renders what it is told. Mirrors identity's SessionView.
@@ -10,8 +11,17 @@ export type Session = {
   userId: string;
   displayName: string;
   roles: ShellRole[];
+  /** Loader working on this shared device, or null while the screen is locked. */
+  operator: Operator | null;
   /** Prefixed grants such as `depot:PELIYAGODA` or `outlet:OUT001`. */
   scope: string[];
+};
+
+export type Operator = {
+  userId: string;
+  displayName: string;
+  employeeCode: string;
+  since: string;
 };
 
 /** The three states the shell must tell apart, because each needs different words. */
@@ -58,6 +68,7 @@ export function signIn(email: string, password: string): Promise<Session> {
 
 export async function signOut(): Promise<void> {
   await request<null>("/api/session/end", { method: "POST" });
+  forgetCrew();
 }
 
 const ROLE_KEY = "waypoint.lastRole";
