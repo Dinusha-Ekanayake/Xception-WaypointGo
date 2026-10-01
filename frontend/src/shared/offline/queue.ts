@@ -56,6 +56,19 @@ export function backoffMs(attempt: number): number {
 export type DrainReport = { sent: number; heldForReview: number; remaining: number };
 
 const running = new Map<string, Promise<DrainReport>>();
+const beforeDrain = new Map<string, () => Promise<void>>();
+
+/**
+ * Work every pass must finish before it sends anything, such as the operator
+ * switches a shared loader device made offline. A failure stops the pass; the
+ * queue is kept and tried again. Returns the unregister function.
+ */
+export function setBeforeDrain(accountId: string, step: () => Promise<void>): () => void {
+  beforeDrain.set(accountId, step);
+  return () => {
+    if (beforeDrain.get(accountId) === step) beforeDrain.delete(accountId);
+  };
+}
 
 /**
  * Sends what it can, once. Callers schedule it on reconnect and on visibility.
@@ -93,6 +106,7 @@ function deviceId(): string {
 const BATCH = 100;
 
 async function drainOnce(accountId: string): Promise<DrainReport> {
+  await beforeDrain.get(accountId)?.();
   const entries = await all(accountId);
   const ready = entries.filter((e) => !e.needsReview).slice(0, BATCH);
   let sent = 0;

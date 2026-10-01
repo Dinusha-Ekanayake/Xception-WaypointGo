@@ -1,4 +1,5 @@
 import { Icon, ShellActions, cx, formatClock } from "@shared/ui";
+import { LanguagePicker, useT } from "./i18n.tsx";
 
 // The loader's top bar, Figma "02 Dock board" (tablet) and "01 Dock board"
 // (phone). Connection state is always on screen: the resilient tier keeps
@@ -25,6 +26,8 @@ export default function TopBar({
   waiting,
   sample,
   onBack,
+  onLock,
+  lockDisabled = false,
 }: {
   displayName: string;
   depot: string;
@@ -36,22 +39,25 @@ export default function TopBar({
   waiting: number;
   sample: boolean;
   onBack?: () => void;
+  onLock?: () => void;
+  lockDisabled?: boolean;
 }): React.JSX.Element {
+  const tr = useT();
   const sync = !online
     ? waiting > 0
-      ? `Offline · ${waiting} saved on this device`
-      : "Offline · showing last sync"
+      ? tr("Offline · {n} saved on this device", { n: waiting })
+      : tr("Offline · showing last sync")
     : waiting > 0
-      ? `Sending ${waiting}…`
+      ? tr("Sending {n}…", { n: waiting })
       : syncedAt
-        ? `Synced ${formatClock(syncedAt)}`
-        : "Connecting…";
+        ? tr("Synced {time}", { time: formatClock(syncedAt) })
+        : tr("Connecting…");
 
   const back = onBack && (
     <button
       type="button"
       onClick={onBack}
-      aria-label="Back to departures"
+      aria-label={tr("Back to departures")}
       className="flex size-12 shrink-0 items-center justify-center rounded-full bg-white drop-shadow-[0_5px_10px_rgba(0,0,0,0.09)]"
     >
       <Icon name="arrow-left" />
@@ -65,7 +71,7 @@ export default function TopBar({
     </span>
   );
   const sampleBadge = sample && (
-    <span className="shrink-0 rounded-full bg-go-warning-tint px-3 py-1.5 text-xs font-medium text-go-warning-text">Sample data</span>
+    <span className="shrink-0 rounded-full bg-go-warning-tint px-3 py-1.5 text-xs font-medium text-go-warning-text">{tr("Sample data")}</span>
   );
 
   return (
@@ -78,7 +84,7 @@ export default function TopBar({
             <span className="min-w-0 flex-1 truncate text-[13px]">{status}</span>
           ) : (
             <div className="flex min-w-0 flex-1 flex-col">
-              <span className="text-[18px] font-semibold text-black">Loader</span>
+              <span className="text-[18px] font-semibold text-black">{tr("Loader")}</span>
               <span className="text-[13px]">{status}</span>
             </div>
           )}
@@ -87,11 +93,15 @@ export default function TopBar({
         <div className="flex w-full items-center justify-between gap-2">
           <span className="flex h-10 min-w-0 items-center gap-1 rounded-full border border-go-muted pr-2 pl-4 text-[14px] text-go-muted">
             <span className="truncate">{displayName}</span>
-            <span className="ml-1 flex size-8 shrink-0 items-center justify-center" title="Signed in on this device">
+            <span className="ml-1 flex size-8 shrink-0 items-center justify-center" title={tr("Signed in on this device")}>
               <Icon name="lock" />
             </span>
           </span>
-          <ShellActions compact />
+          <div className="flex items-center gap-1">
+            {onLock && <button type="button" onClick={onLock} disabled={lockDisabled} aria-label={tr("Lock loader")} title={tr(lockDisabled ? "Sync saved work before locking" : "Lock loader")} className="flex size-12 items-center justify-center rounded-full bg-white disabled:opacity-50"><Icon name="lock" /></button>}
+            <LanguagePicker compact />
+            <ShellActions compact />
+          </div>
         </div>
       </div>
 
@@ -99,18 +109,20 @@ export default function TopBar({
       <div className="hidden flex-wrap items-center gap-x-3.5 gap-y-3 px-8 py-6 md:flex lg:px-10 lg:py-[34px]">
         {back ?? brand}
         <div className={cx("flex min-w-[140px] flex-col", back && "max-lg:order-last max-lg:basis-full")}>
-          <span className="text-[18px] font-semibold text-black">{title ?? "Waypoint · Loader"}</span>
-          <span className="text-[14px] text-black/85">{subtitle ?? `Depot ${depot}`}</span>
+          <span className="text-[18px] font-semibold text-black">{title ?? tr("Waypoint · Loader")}</span>
+          <span className="text-[14px] text-black/85">{subtitle ?? tr("Depot {depot}", { depot })}</span>
         </div>
         <span className={cx(pill, "gap-2 pr-3.5 pl-3 text-[14px]")}>{status}</span>
         <span className="flex-1" />
         {sampleBadge}
-        <span className={cx(pill, "gap-2 py-2 pr-2 pl-2 lg:pr-4")} title="Signed in on this device">
+        <span className={cx(pill, "gap-2 py-2 pr-2 pl-2 lg:pr-4")} title={tr("Signed in on this device")}>
           <span className="flex size-8 items-center justify-center rounded-[16px] bg-go-mint text-[12px] font-semibold text-black">
             {initials(displayName)}
           </span>
           <span className="text-[14px] text-go-muted max-lg:hidden">{displayName}</span>
         </span>
+        {onLock && <button type="button" onClick={onLock} disabled={lockDisabled} title={tr(lockDisabled ? "Sync saved work before locking" : "Lock loader")} className="flex min-h-12 items-center gap-2 rounded-full bg-white px-4 text-[14px] font-medium disabled:opacity-50"><Icon name="lock" /> {tr("Lock")}</button>}
+        <LanguagePicker />
         <ShellActions />
       </div>
     </header>

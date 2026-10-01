@@ -219,14 +219,16 @@ Binding for the delivered system even though Task 2B does not score them.
 | ID | Rule | Source | Status |
 | --- | --- | --- | --- |
 | R-LOD-01 | The loader sees the stop sequence so goods load in an order that supports unloading | Booklet | Binding |
-| R-LOD-02 | The loader flags missing or damaged items **before** the vehicle leaves | Booklet | Binding |
+| R-LOD-02 | The loader flags **short, damaged, doesn't fit, or missing** items **before** the vehicle leaves. Short is one item with some of its units missing (Figma 03, decision 2026-10-01) | Booklet and confirmed product decision | Binding |
 | R-LOD-03 | Loading lists must not go stale when the plan changes | Booklet | Binding |
 | R-LOD-04 | The loader sees only loading-ready vehicles, starts loading, marks finish, and reports destroyed items | Team draft | Team |
 | R-LOD-05 | **Truck interchange:** if the assigned truck becomes unavailable at the dock, another may take the trip | Team draft | Team |
 | R-LOD-06 | An interchange revalidates the **whole trip** against the substitute: capacity, temperature, access, depot, time budget, fuel. It is recorded as history, never an update of the vehicle column: Planning publishes a new plan version (`plan.revised`) | Policy | Policy |
-| R-LOD-07 | A trip is released only when every allocated order has a passing check | Policy | Policy |
+| R-LOD-07 | A trip is released only when every allocated item has a recorded check on the current plan version. A flagged item is a recorded exception and does not by itself block release | Confirmed product decision | Binding |
 | R-LOD-08 | ~~Mall deliveries are prioritised in the loading order~~ **Withdrawn 2026-09-30 (D-L):** loading follows the reversed stop sequence only | Team draft | Withdrawn |
 | R-LOD-09 | If no compatible substitute exists, the trip defers as a unit and its orders carry forward with identity | Policy | Policy |
+| R-LOD-10 | Release requires the loader to confirm doors sealed, orders secured and driver present. No reefer reading or seal number is required | Confirmed product decision | Binding |
+| R-LOD-11 | One loader holds a trip at a time; only that holder writes. Hand back retains the names and times on earlier checks. A hold with no accepted command from its holder for 30 minutes lapses and another loader may take the trip (decision 2026-10-01) | Confirmed product decision | Binding |
 
 ## 5. Execution
 
@@ -309,6 +311,9 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-IAM-22 | A device identity is granted by an administrator, never claimed by a client. A sign-in naming an unregistered or retired device is refused (422) after the credentials are checked | Policy | Policy |
 | R-IAM-23 | A command kind with no handler, and a kind whose action is not marked `implemented`, are refused as 403 with an audit row. Policy, account, scope, assignment and device administration are all commands, each guarded by the version of what it changes | Policy | Policy |
 | R-IAM-24 | The session token is stored only as its SHA-256. The cookie is `SameSite=Strict`, `HttpOnly`, kept for the session's absolute lifetime, and behind HTTPS is `Secure` and named with the `__Host-` prefix. A state-changing request that names an `Origin` must name the host it was sent to | Policy | Policy |
+| R-IAM-25 | On a shared loader device, loading writes are made by the operator who entered their PIN, named in the command's `actingUserId`. A device with no operator is locked and every loading write is refused | Confirmed product decision | Binding |
+| R-IAM-26 | An operator PIN is four digits. Five wrong tries pause PIN entry for that person for five minutes | Confirmed product decision | Binding |
+| R-IAM-27 | A loader may switch with their PIN while offline against the crew list the device downloaded: a PBKDF2 verifier per member, never the PIN, valid for 12 hours and wiped at sign-out, with the same five-try pause kept on the device. On reconnect the switches are replayed into the operator history before any queued work, only for crew of that device, in order, after the history the server has, and audited as offline. A four-digit PIN is recoverable from its verifier; that risk is accepted because the list reaches only a supervisor-signed-in loader device (decision 2026-10-01) | Confirmed product decision | Binding |
 
 ## 8. Conflicts found
 
