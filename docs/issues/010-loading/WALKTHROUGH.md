@@ -14,6 +14,8 @@ On a revision, checks carry only for unchanged orders on the same vehicle, tempe
 
 The release command now requires only three confirmations: doors sealed, orders secured, and driver present. The release sheet collects those confirmations and enables its green action once all three are checked. The former seal number and reefer temperature columns remain nullable historical fields; migration `20261001T1505_loading_release_checklist.sql` removes the seal-number database gate for new releases.
 
+Migration `20261001T1507_loading_checks_append_only.sql` revokes update access to item checks and adds a trigger that refuses updates and deletes even from a privileged writer. The HTTP/database suite also verifies an auditor with the trip's depot in scope cannot use HandBack.
+
 ## Dock configuration
 
 `LoadingProperties` retains `app.loading.docks-per-depot` (default 4) and adds `app.loading.docks[DEPOT_CODE]` overrides. Both default and overrides must be between 1 and 20. `ManifestBuilder` assigns docks in departure order. Dock selection in the UI will be a view filter, not a plan mutation.
@@ -28,7 +30,7 @@ mvn -o -Dtest=LoadingIntegrationTest,LoadingSessionTest,LoadingPropertiesTest,Mo
 
 At the earlier manifest/read checkpoint, 48 tests passed against a separate PostgreSQL 18 instance. Subsequent code changes are not covered by that database result. Java 24 caused ArchUnit warnings while resolving JDK classes; use Java 21 for the next database run if available.
 
-Current checks (2026-10-01): focused `LoadingSessionTest,PinPolicyTest` passed; `mvn -q test` passed with the environment-gated database tests skipped on that run; `npm.cmd test` passed 7 tests; `git diff --check` passed. A separate disposable PostgreSQL 18 cluster then ran `LoadingIntegrationTest`: 18 tests, zero failures, zero errors, zero skips. The first database run exposed an unauthorized Reference Data table lookup in test setup; the second exposed same-timestamp PIN failures being undercounted. Both were corrected, and the third run passed. After a successful locked dependency install, `npm.cmd run typecheck` and `npm.cmd run build` passed. At 393x852, `npx.cmd playwright test --config=playwright.loader.config.ts` passed one browser test of the chilled-trip release checklist and command payload using mocked API responses. A full browser walkthrough against the live backend, including offline sync, is still unverified.
+Current checks (2026-10-01): focused `LoadingSessionTest,PinPolicyTest` passed; `mvn -q test` passed with the environment-gated database tests skipped on that run; `npm.cmd test` passed 7 tests; `git diff --check` passed. A separate disposable PostgreSQL 18 cluster then ran `LoadingIntegrationTest`: 18 tests, zero failures, zero errors, zero skips. The first database run exposed an unauthorized Reference Data table lookup in test setup; the second exposed same-timestamp PIN failures being undercounted. Both were corrected, and the third run passed. After adding append-only and auditor-denial coverage, a new disposable cluster ran 20 integration tests with zero failures, errors or skips. An update attempted as the test database owner was also refused by the append-only trigger. Both test clusters were stopped and removed. After a successful locked dependency install, `npm.cmd run typecheck` and `npm.cmd run build` passed. At 393x852, `npx.cmd playwright test --config=playwright.loader.config.ts` passed one browser test of the chilled-trip release checklist and command payload using mocked API responses. A full browser walkthrough against the live backend, including offline sync, is still unverified.
 
 | Guarantee | Evidence |
 | --- | --- |
@@ -45,7 +47,6 @@ Current checks (2026-10-01): focused `LoadingSessionTest,PinPolicyTest` passed; 
 
 ## Remaining work
 
-- Add or verify any remaining append-only database enforcement and the explicit auditor HandBack denial.
 - Verify the development fixture and operator PIN flow with a live browser; the HTTP/database paths pass integration tests.
 - Verify the full Part C path against current Figma frames and the live backend, including offline sync and tablet layout.
 - Finish rule/assumption/departure documentation, full database suite, frontend checks, browser tests and manual walkthrough before issue closure.
