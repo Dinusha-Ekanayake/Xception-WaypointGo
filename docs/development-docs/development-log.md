@@ -27,7 +27,7 @@ Entries before 2026-09-26 are in `git log`.
 
 `trip.released` becomes the driver's run sheet, one delivery record per order. Six commands through the bus: start, arrive, record (delivered, partial, failed), capture proof, report vehicle status, report fault. Lateness against the window close, waiting kept apart, a mall outlet late is failed not delivered (EXE-20), ETA shift announced to the stops ahead, replanned stops skipped. Proof photos and signatures through a `ProofStore` port (files under `PROOF_DIR`, a volume in both compose files) read back by signed five-minute links. Detail in [docs/issues/012-execution/WALKTHROUGH.md](../issues/012-execution/WALKTHROUGH.md).
 Why: the driver role could sign in and do nothing; nothing recorded what happened on the road, so orders stopped at in transit.
-Verified: `TEST_DATABASE_URL=... mvn verify`, 502 tests on a fresh database; the integration test runs plan published, loaded, released and delivered through the real relay to Ordering. Not run on the server; the Docker image was not built here.
+Verified: `TEST_DATABASE_URL=... mvn verify`, 562 tests on a fresh database with Receipt and Issues merged; the integration test runs plan published, loaded, released and delivered through the real relay to Ordering, Receipt and Issues. Not run on the server; the Docker image was not built here.
 Open: built on the relay (PR #65), which must merge first. Server time decides, so a stop recorded offline and synced late reads as late and is marked uncertain (A-31). A rule violation is `409 CONSTRAINT_VIOLATED`, like Loading. `PROOF_URL_SECRET` unset means proof links die at a restart. The driver screens are #21. No retention job purges proofs yet (#6).
 
 ---
