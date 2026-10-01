@@ -20,6 +20,26 @@ The `init` service applies migrations and seeds the demo before the backend star
 
 For a fresh-install check, use a separate Compose project name with free host ports and a new volume; do not reset an existing deployment volume. A successful configuration check does not prove images build or services initialize.
 
+## Judge deployment on the VPS
+
+The competition instance runs the same `compose.yaml` a judge runs, with one overlay, [deploy/vps/compose.vps.yaml](../deploy/vps/compose.vps.yaml): the frontend stops publishing a host port and Caddy becomes the only public listener, obtaining and renewing its own certificate. PostgreSQL and the backend stay on `127.0.0.1`. Docker publishes ports ahead of `ufw`, so never add a published port to the overlay expecting the firewall to cover it.
+
+**Pipeline.** [.github/workflows/ci-deploy.yml](../.github/workflows/ci-deploy.yml) runs the backend tests against a PostgreSQL service and the frontend typecheck, boundary test and build on every pull request into `main`. A push to `main` runs the same checks and then deploys; a failed check means no deploy. The deploy job opens one SSH connection as `deploy`. That key is bound on the server to [deploy/vps/deploy.sh](../deploy/vps/deploy.sh) by a forced command, so the workflow cannot choose what runs or which commit ships: the script always resets the checkout to `origin/main`, builds, runs `init`, replaces the containers and checks HTTPS and backend readiness. There is no automatic rollback; revert the commit on `main` and the pipeline redeploys.
+
+**Host.** Ubuntu 24.04. SSH is key-only (`/etc/ssh/sshd_config.d/00-waypoint-hardening.conf`), `ufw` allows 22 (rate limited), 80 and 443, `fail2ban` watches sshd, and security updates install unattended. `root` is for administration; `deploy` owns `/opt/waypoint/app`, has no password and no sudo, but is in the `docker` group, which is root-equivalent on that host.
+
+**Secrets.** `/opt/waypoint/app/.env` on the server, mode 600, untracked: `SITE_ADDRESS`, `POSTGRES_PASSWORD`, `SEED_PASSWORD`, `COOKIE_SECURE=1`, `WAREHOUSE_API_KEY`. GitHub holds `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` and `VPS_KNOWN_HOSTS`. The server reads the repository with a read-only deploy key.
+
+```sh
+# Deploy by hand, as root on the server
+sudo -u deploy /opt/waypoint/app/deploy/vps/deploy.sh
+# Logs and state
+cd /opt/waypoint/app && docker compose -f compose.yaml -f deploy/vps/compose.vps.yaml ps
+cd /opt/waypoint/app && docker compose -f compose.yaml -f deploy/vps/compose.vps.yaml logs -f backend
+```
+
+`SITE_ADDRESS` is `62-171-128-70.sslip.io`, a wildcard DNS name for the server's address, because HTTPS needs a hostname and service workers and Secure cookies need HTTPS. To move to a real domain, point its A record at the server, change `SITE_ADDRESS` and deploy. `SEED_PASSWORD` only applies when an account is first created; changing it later does not rotate the six demo accounts.
+
 ## Production host
 
 Configure `DOMAIN` and `DATABASE_URL` in root `.env`; production Compose sets `COOKIE_SECURE=1` on Spring automatically. `compose.prod.yaml` forces real-time mode and never seeds demo accounts or orders. Create real staff accounts using the commands below. The image includes the tracked reference CSVs, migrations and demo proof fixtures; replace synthetic business reference data with validated production records before real operations.

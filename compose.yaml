@@ -22,7 +22,9 @@ services:
       DATABASE_URL: postgresql://waypoint:${POSTGRES_PASSWORD:-local-testing-only}@db:5432/waypoint
       DEMO_MODE: "1"
       SEED_PASSWORD: ${SEED_PASSWORD:-Waypoint2026!}
-    command: ["sh", "-c", "java -jar /app/backend.jar migrate && java -jar /app/backend.jar seed"]
+    command: ["sh", "/app/compose-init.sh"]
+    volumes:
+      - ./scripts/compose-init.sh:/app/compose-init.sh:ro
     depends_on:
       db:
         condition: service_healthy
@@ -72,7 +74,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/').then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"]
       interval: 15s
       timeout: 5s
       retries: 5

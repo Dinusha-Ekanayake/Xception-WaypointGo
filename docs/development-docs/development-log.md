@@ -21,6 +21,16 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-01 - ci: deploy main to the VPS, repair the compose init step
+
+`ci/vps-deploy` · @kavindamihiran
+
+A merge to `main` now runs backend tests against PostgreSQL and the frontend typecheck, boundary test and build, then deploys to the VPS (62.171.128.70) over one SSH connection bound to `deploy/vps/deploy.sh`. Caddy fronts the stack with TLS through `deploy/vps/compose.vps.yaml`. The host is hardened: key-only SSH, ufw, fail2ban, unattended upgrades. Details in [deployment.md](../deployment.md#judge-deployment-on-the-vps).
+`compose.yaml`'s `init` ran `migrate && seed`, and `seed` went with the prototype, so the backend could never start under Compose. It now runs `scripts/compose-init.sh`: migrate, import-reference, six demo accounts, depot grants, as `scripts/dev.sh setup` does. The frontend healthcheck pointed at `/api/health`, which no longer exists; it now checks `/`.
+Why: the Hackathon needs a public URL that stays live, and `docker compose up` is the judged path.
+Verified: `docker compose -f compose.yaml -f deploy/vps/compose.vps.yaml config`; only 80 and 443 are published publicly. Host checks: password login refused, key login works after a reboot. **Not verified: the stack has not yet been built or started on the server, and the workflow has not run a deploy.**
+Open: first deploy and a walk through the judge walkthrough on the live URL. `README.md`, `development.md` and `backend/README.md` still document the removed `seed` command and `/api/health`. `compose.prod.yaml` has the same stale healthcheck. No automatic rollback and no database backup schedule on the VPS.
+
 ## 2026-10-01 - fix: sign-in matches Figma "01 Sign in"
 
 `fix/sign-in-figma-match` · @kavindamihiran
