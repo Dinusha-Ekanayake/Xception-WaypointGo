@@ -246,7 +246,7 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-EXE-07 | The driver reports road faults and delays | Team draft | Team |
 | R-EXE-08 | The driver is notified which dock to load at, and when loading and unloading finish | Team draft | Team |
 | R-EXE-09 | A report option is available at every stage | Team draft | Team |
-| R-EXE-10 | **Server time is authoritative.** Device time is stored for forensics only | Policy | Policy |
+| R-EXE-10 | **Server time is authoritative.** Device time is stored for forensics only. A record whose two clocks differ by more than five minutes is marked `timing_uncertain` (A-31) | Policy | Policy |
 | R-EXE-11 | A device limitation, such as a denied camera, never blocks completing the work. The outcome records the reason and is flagged lower-evidence | Policy | Policy |
 | R-EXE-12 | **Returns are out of scope.** A failed delivery records the outcome and raises an issue; goods disposition is recorded but no return workflow exists | Team draft | Team |
 

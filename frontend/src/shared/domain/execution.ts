@@ -10,12 +10,22 @@ export type RunSheetStopView = {
   sequence: number;
   orderId: Uuid;
   outletId: string;
+  itemCount: number;
+  /** Takes goods only inside its window: a late arrival is recorded as failed. */
+  mallOutlet: boolean;
   plannedArrival: IsoTime;
   windowOpen: IsoTime;
   windowClose: IsoTime;
+  /** The planned arrival shifted by the trip's delay, once one is observed. */
+  expectedArrival: IsoInstant | null;
+  startedAt: IsoInstant | null;
   arrivedAt: IsoInstant | null;
   completedAt: IsoInstant | null;
+  waitMinutes: number | null;
+  lateMinutes: number | null;
   outcome: DeliveryOutcome;
+  /** False on a finished stop means proof is still owed. */
+  proofCaptured: boolean;
   rowVersion: number;
 };
 
@@ -30,6 +40,8 @@ export type DeliveryRecordView = {
   orderId: Uuid;
   tripId: Uuid;
   outletId: string;
+  vehicleId: string;
+  serviceDate: IsoDate;
   outcome: DeliveryOutcome;
   arrivedAt: IsoInstant | null;
   serviceStartedAt: IsoInstant | null;
@@ -38,8 +50,14 @@ export type DeliveryRecordView = {
   waitMinutes: number | null;
   /** Against the window close, not the plan. */
   lateMinutes: number | null;
+  lateReason: string | null;
+  /** Device and server disagreed about the time; usually recorded offline. */
+  timingUncertain: boolean;
   deliveredUnits: number | null;
   failureReason: string | null;
+  dispositionNote: string | null;
+  /** Completed with neither photo nor signature. */
+  lowEvidence: boolean;
   proofId: Uuid | null;
   /** The device's clock, for forensics only. */
   clientRecordedAt: IsoInstant | null;
@@ -47,6 +65,36 @@ export type DeliveryRecordView = {
   serverRecordedAt: IsoInstant;
   rowVersion: number;
 };
+
+/** The links are signed and stop working at linksExpireAt. */
+export type ProofView = {
+  proofId: Uuid;
+  deliveryId: Uuid;
+  recipientName: string | null;
+  fallbackReason: string | null;
+  lowEvidence: boolean;
+  capturedAt: IsoInstant;
+  photoUrl: string | null;
+  /** Named by the proof but not uploaded yet. */
+  photoPending: boolean;
+  signatureUrl: string | null;
+  signaturePending: boolean;
+  linksExpireAt: IsoInstant;
+};
+
+export const FailureReasons = [
+  "outlet_closed",
+  "refused",
+  "mall_window_closed",
+  "access_blocked",
+  "vehicle_breakdown",
+  "goods_damaged",
+  "other",
+] as const;
+export type FailureReason = (typeof FailureReasons)[number];
+
+export const VehicleStatuses = ["available", "on_trip", "at_workshop", "fault"] as const;
+export type ReportedVehicleStatus = (typeof VehicleStatuses)[number];
 
 export const ExecutionCommandKind = {
   startStop: "delivery:Start",
