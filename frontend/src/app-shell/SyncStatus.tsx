@@ -22,13 +22,13 @@ export default function SyncStatus({ sync, online }: { sync: SyncState; online: 
           type="button"
           onClick={sync.syncNow}
           title={sync.lastSyncedAt ? `Last synced ${formatClock(sync.lastSyncedAt)}` : undefined}
-          className={cx("min-h-10 rounded-full px-3.5 text-[13px] font-medium", online ? "bg-go-mint text-black" : "bg-go-warning-tint text-go-warning-text")}
+          className={cx("min-h-10 whitespace-nowrap rounded-full px-3.5 text-[13px] font-medium", online ? "bg-go-mint text-black" : "bg-go-warning-tint text-go-warning-text")}
         >
           {sync.syncing ? "Sending…" : online ? `${waiting} to send · sync now` : `${waiting} saved on this device`}
         </button>
       )}
       {sync.held.length > 0 && (
-        <button type="button" onClick={() => setOpen(true)} className="min-h-10 rounded-full bg-go-danger-tint px-3.5 text-[13px] font-medium text-go-danger-strong">
+        <button type="button" onClick={() => setOpen(true)} className="min-h-10 whitespace-nowrap rounded-full bg-go-danger-tint px-3.5 text-[13px] font-medium text-go-danger-strong">
           {sync.held.length} to review
         </button>
       )}

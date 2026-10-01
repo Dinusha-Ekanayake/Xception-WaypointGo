@@ -177,6 +177,19 @@ export async function retry(accountId: string, entry: StoredEntry): Promise<void
   await put(accountId, { ...entry, needsReview: false });
 }
 
+/**
+ * Every write still on this device, in the order it was recorded. A full-tier
+ * screen applies these to what the server last said, so it shows the work as
+ * the person left it.
+ */
+export async function pendingEntries(accountId: string): Promise<StoredEntry[]> {
+  try {
+    return await all(accountId);
+  } catch {
+    return [];
+  }
+}
+
 /** How many writes this account still has on the device, sent or not. */
 export async function pendingCount(accountId: string): Promise<number> {
   try {
