@@ -3,6 +3,8 @@ package com.waypoint.dispatch.referencedata.contract;
 import com.waypoint.dispatch.referencedata.contract.ReferenceViews.AllowanceView;
 import com.waypoint.dispatch.referencedata.contract.ReferenceViews.CalendarDayView;
 import com.waypoint.dispatch.referencedata.contract.ReferenceViews.OutletView;
+import com.waypoint.dispatch.referencedata.contract.ReferenceViews.RoadConditionView;
+import com.waypoint.dispatch.referencedata.contract.ReferenceViews.TrafficSpeedView;
 import com.waypoint.dispatch.referencedata.contract.ReferenceViews.TravelView;
 import com.waypoint.dispatch.referencedata.contract.ReferenceViews.VehicleView;
 import java.time.LocalDate;
@@ -49,4 +51,20 @@ public interface ReferenceQuery {
 
   /** R-ORD-08: where an order lands when its requested date does not operate. */
   LocalDate nextOperatingDay(LocalDate from);
+
+  /**
+   * Every day from {@code from} to {@code to} inclusive. Past the supplied
+   * calendar a day comes from the extension policy and is marked generated
+   * (R-CAL-03), so the range never has a hole.
+   */
+  List<CalendarDayView> calendarDays(LocalDate from, LocalDate to);
+
+  /** The speed index by district, hour and monsoon, for a reference version (D9). */
+  List<TrafficSpeedView> trafficSpeed(UUID versionId);
+
+  /**
+   * The disruption index by district for these dates. A date with no row has no
+   * known disruption: the supplied series ends, and nothing forecasts it.
+   */
+  List<RoadConditionView> roadConditions(LocalDate from, LocalDate to);
 }

@@ -70,4 +70,10 @@ public final class ReferenceViews {
       int isoYear,
       int isoWeek,
       boolean generated) {}
+
+  /** Travel speed as a percentage of free flow, by district, hour and monsoon (D9). */
+  public record TrafficSpeedView(String districtName, int hour, boolean monsoon, BigDecimal speedIndex) {}
+
+  /** The day's road disruption for a district; 100 is clear roads (D9). */
+  public record RoadConditionView(String districtName, LocalDate date, BigDecimal disruptionIndex) {}
 }

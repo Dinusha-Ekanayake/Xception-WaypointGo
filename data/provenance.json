@@ -47,5 +47,17 @@
     "sha256": "a2197c2ed9d08d6dfded800cafff8e70942df995a8d70844cad7afd1df87a24c",
     "transform": "Only order_date 2026-02-09, 12, 13, 14; all columns and IDs preserved",
     "rows": 560
+  },
+  {
+    "file": "General Data/traffic_speed.csv",
+    "source": "Tech-Triathlon 2026/data/General Data/traffic_speed.csv",
+    "sha256": "274a1bfbab5c9dc11c7399d343bc68bc5f989d4654a5225f0f18a7f8fe6ccc1e",
+    "transform": "unchanged; added for the predictor (issue #16)"
+  },
+  {
+    "file": "General Data/road_conditions.csv",
+    "source": "Tech-Triathlon 2026/data/General Data/road_conditions.csv",
+    "sha256": "e75709fc06531bd83b4b947671903f642d7c2cf3d8e2ee94a69f301e2f3c77d8",
+    "transform": "unchanged; added for the predictor (issue #16). Covers 2024-01-01 to 2026-06-28"
   }
 ]

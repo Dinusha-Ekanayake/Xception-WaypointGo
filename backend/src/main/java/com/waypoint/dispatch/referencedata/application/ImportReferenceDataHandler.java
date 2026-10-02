@@ -132,6 +132,7 @@ public class ImportReferenceDataHandler implements CommandHandler {
 
     UUID versionId = writer.insertVersion(staged.sourceLabel(), staged.contentHash(), importedBy);
     writer.writeRows(versionId, staged.snapshot());
+    writer.writeSeries(versionId, staged.trafficSpeed(), staged.roadConditions());
     writer.makeCurrent(versionId);
 
     ReferenceSnapshot published =
