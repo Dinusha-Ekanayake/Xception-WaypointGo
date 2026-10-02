@@ -351,7 +351,7 @@ A driver is pushed only trip-level events (R-NOT-08), and whoever caused an even
 
 **Owns:** `sync.operations`.
 
-**Commands:** `SubmitOperation`, `AcknowledgeOperation`, `DiscardOperation`. Batch submit and acknowledge are built. Discard, and a resolve that reapplies a held write, are not: they wait on decision D-O, who may review another person's conflict (issue #28).
+**Commands:** `SubmitOperation`, `AcknowledgeOperation`, `DiscardOperation`, `ResolveOperation`, all built. Decision D-O (2026-10-02): only an operation's owner reviews it, which `p_operations_own` already enforces (R-EXE-16). Discard drops a conflict or a refusal with a reason. Resolve settles a conflict as `RESOLVED` and names the redo the device queued ahead of it on the current version; the redo is its own operation, applied or held like any other (R-EXE-17). Each sync answer carries the operation's `rowVersion`, which a discard or resolve names (issue #28).
 **Queries:** `pendingFor(device)`, `conflictsFor(actor)`.
 
 **Protocol.**

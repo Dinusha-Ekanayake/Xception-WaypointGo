@@ -1,13 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { QUEUED_EVENT, discard, drain, heldForReview, pendingCount, retry } from "./queue.ts";
+import { DRAIN_MESSAGE, QUEUED_EVENT, discard, drain, heldForReview, pendingCount, pendingEntries, redo } from "./queue.ts";
+import { resolverFor } from "./resolvers.ts";
 import type { StoredEntry } from "./store.ts";
 
 // The sync engine's schedule. Queued writes are sent when the connection
 // returns, when the app comes back to the foreground, right after something is
-// queued, and on a slow interval as a safety net. drain() is shared per
-// account, so multiple role shells never send the same write twice.
+// queued, on a slow interval as a safety net, and when the service worker
+// passes on a Background Sync. drain() is shared per account, so multiple role
+// shells never send the same write twice.
 
 const INTERVAL_MS = 30_000;
 
@@ -19,8 +21,15 @@ export type SyncState = {
   lastSyncedAt: Date | null;
   syncing: boolean;
   syncNow: () => void;
-  discard: (commandId: string) => Promise<void>;
-  retry: (entry: StoredEntry) => Promise<void>;
+  /** Drop a held write, with the person's reason (sync:Discard). */
+  discard: (commandId: string, reason: string) => Promise<void>;
+  /** Whether the role that made this held write can redo it on the current version. */
+  canRedo: (entry: StoredEntry) => boolean;
+  /**
+   * Redo a held conflict on the current version (sync:Resolve). Rejects with the
+   * role's reason when it cannot, such as no connection to read the version.
+   */
+  redo: (entry: StoredEntry) => Promise<void>;
 };
 
 export function useSync(accountId: string | null): SyncState {
@@ -62,7 +71,13 @@ export function useSync(accountId: string | null): SyncState {
     window.addEventListener(QUEUED_EVENT, syncNow);
     document.addEventListener("visibilitychange", onVisible);
     const timer = setInterval(syncNow, INTERVAL_MS);
+    const onWorker = (event: MessageEvent) => {
+      if ((event.data as { type?: unknown } | null)?.type === DRAIN_MESSAGE) syncNow();
+    };
+    const worker = typeof navigator !== "undefined" && "serviceWorker" in navigator ? navigator.serviceWorker : null;
+    worker?.addEventListener("message", onWorker);
     return () => {
+      worker?.removeEventListener("message", onWorker);
       window.removeEventListener("online", syncNow);
       window.removeEventListener("focus", syncNow);
       window.removeEventListener(QUEUED_EVENT, syncNow);
@@ -77,15 +92,21 @@ export function useSync(accountId: string | null): SyncState {
     lastSyncedAt,
     syncing,
     syncNow,
-    discard: async (commandId) => {
+    discard: async (commandId, reason) => {
       if (!accountId) return;
-      await discard(accountId, commandId);
+      await discard(accountId, commandId, reason);
       await read();
     },
-    retry: async (entry) => {
+    canRedo: (entry) => entry.problemCode === "VERSION_CONFLICT" && resolverFor(entry.kind) !== null,
+    redo: async (entry) => {
       if (!accountId) return;
-      await retry(accountId, entry);
-      syncNow();
+      const resolver = resolverFor(entry.kind);
+      if (!resolver) throw new Error("This change can only be discarded.");
+      const waiting = (await pendingEntries(accountId)).filter((e) => !e.needsReview);
+      const basis = await resolver(entry, waiting);
+      if (!basis) throw new Error("Sign in on this device to redo this change.");
+      await redo(accountId, entry, basis);
+      await read();
     },
   };
 }

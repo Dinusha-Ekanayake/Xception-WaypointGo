@@ -44,6 +44,9 @@ const ICONS = {
 
 export type IconName = keyof typeof ICONS;
 
+/** Every icon, for the development gallery. */
+export const ICON_NAMES = Object.keys(ICONS) as IconName[];
+
 export function Icon({ name, label }: { name: IconName; label?: string }): React.JSX.Element {
   const spec: IconSpec = ICONS[name];
   const img = (

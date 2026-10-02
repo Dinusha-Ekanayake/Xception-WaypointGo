@@ -3,7 +3,8 @@ import type { IsoInstant, Uuid } from "./common.ts";
 
 // Mirrors com.waypoint.dispatch.sync.contract.
 
-export type OperationStatus = "RECEIVED" | "APPLIED" | "CONFLICT" | "REJECTED" | "DISCARDED";
+/** RESOLVED: redone on the current version by its owner; the redo is another operation. */
+export type OperationStatus = "RECEIVED" | "APPLIED" | "CONFLICT" | "REJECTED" | "DISCARDED" | "RESOLVED";
 
 export type OperationView = {
   /** The command id, so a replay is recognised. */
@@ -33,7 +34,8 @@ export type SubmittedOperation = { sequence: number; command: Command };
 export type SubmitBatch = { deviceId: Uuid; operations: SubmittedOperation[] };
 export type AcknowledgeOperation = { operationId: Uuid };
 export type DiscardOperation = { operationId: Uuid; reason: string };
-export type ResolveOperation = { operationId: Uuid; expectedVersion: number };
+/** Names the redo the device queued ahead of it, on the current version. */
+export type ResolveOperation = { operationId: Uuid; replacedBy: Uuid };
 
 /**
  * One line per operation the server reached, in sequence order. An operation
@@ -47,6 +49,8 @@ export type OperationOutcome = {
   problemCode: string | null;
   detail: string | null;
   replayed: boolean;
+  /** The operation's version after this answer, which a discard or resolve names. */
+  rowVersion: number | null;
 };
 
 /** The answer to POST /api/sync. */

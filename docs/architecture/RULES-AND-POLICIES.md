@@ -250,6 +250,8 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-EXE-10 | **Server time is authoritative.** Device time is stored for forensics only. A record whose two clocks differ by more than five minutes is marked `timing_uncertain` (A-31) | Policy | Policy |
 | R-EXE-11 | A device limitation, such as a denied camera, never blocks completing the work. The outcome records the reason and is flagged lower-evidence | Policy | Policy |
 | R-EXE-12 | **Returns are out of scope.** A failed delivery records the outcome and raises an issue; goods disposition is recorded but no return workflow exists | Team draft | Team |
+| R-EXE-16 | **Only the owner reviews a held offline write.** Discarding or redoing a conflict or refusal is done by the account that made it, on its own device; no role reads or settles another account's operations (decision D-O, 2026-10-02). Enforced by row-level security on `sync.operations` | Team decision | Team |
+| R-EXE-17 | **A held write is redone, never resent or merged.** A redo is the same command on the version the device now sees, under a new id, recorded before the `sync:Resolve` that names it; the held operation becomes `RESOLVED` with `replaced_by`. Discarding needs a reason. Only a conflict can be redone, because a refusal broke a rule and would be refused again | Policy | Policy |
 
 ## 6. Receipt
 

@@ -20,7 +20,7 @@ export function Card({
   return (
     <section
       aria-label={label}
-      className={cx("flex flex-col gap-3 rounded-go-panel bg-white p-5 shadow-go-card", className)}
+      className={cx("flex flex-col gap-3 rounded-go-panel bg-go-card p-5 shadow-go-card", className)}
     >
       {children}
     </section>
@@ -129,7 +129,7 @@ export function KpiCard({
   valueClassName?: string;
 }): React.JSX.Element {
   return (
-    <div className="flex min-w-0 flex-1 flex-col gap-0.5 rounded-go-card-l bg-white px-[18px] py-3.5 shadow-go-card">
+    <div className="flex min-w-0 flex-1 flex-col gap-0.5 rounded-go-card-l bg-go-card px-[18px] py-3.5 shadow-go-card">
       <p className="truncate text-xs text-go-secondary">{label}</p>
       <p className={cx("truncate text-2xl font-medium", valueClassName)}>{value}</p>
       {note && <p className="truncate text-xs text-go-secondary">{note}</p>}
@@ -151,7 +151,7 @@ export function PrimaryButton({ children, icon, type = "button", ...rest }: Butt
     <button
       type={type}
       {...rest}
-      className="inline-flex items-center justify-center gap-1.5 rounded-full bg-go-ink px-[18px] py-3 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40"
+      className="inline-flex items-center justify-center gap-1.5 rounded-full bg-go-ink px-[18px] py-3 text-sm font-medium text-go-card disabled:cursor-not-allowed disabled:opacity-40"
     >
       {icon && <Icon name={icon} />}
       {children}
@@ -164,7 +164,7 @@ export function SecondaryButton({ children, icon, type = "button", ...rest }: Bu
     <button
       type={type}
       {...rest}
-      className="inline-flex items-center justify-center gap-1.5 rounded-full border border-go-rule bg-white px-[18px] py-3 text-sm font-medium text-go-ink disabled:cursor-not-allowed disabled:opacity-40"
+      className="inline-flex items-center justify-center gap-1.5 rounded-full border border-go-rule bg-go-card px-[18px] py-3 text-sm font-medium text-go-ink disabled:cursor-not-allowed disabled:opacity-40"
     >
       {icon && <Icon name={icon} />}
       {children}
@@ -197,7 +197,7 @@ export function FilterTabs<T extends string>({
             onClick={() => onChange(option.value)}
             className={cx(
               "rounded-go-card-s px-3 py-1.5 text-xs font-medium whitespace-nowrap",
-              selected ? "bg-go-ink text-white" : "bg-go-surface text-go-ink",
+              selected ? "bg-go-ink text-go-card" : "bg-go-surface text-go-ink",
             )}
           >
             {option.label}
@@ -221,7 +221,7 @@ export function Segmented<T extends string>({
   label: string;
 }): React.JSX.Element {
   return (
-    <div role="radiogroup" aria-label={label} className="flex items-center gap-0.5 rounded-full bg-white p-[3px]">
+    <div role="radiogroup" aria-label={label} className="flex items-center gap-0.5 rounded-full bg-go-card p-[3px]">
       {options.map((option) => {
         const selected = option.value === value;
         return (
@@ -233,7 +233,7 @@ export function Segmented<T extends string>({
             onClick={() => onChange(option.value)}
             className={cx(
               "rounded-full px-[9px] py-[5px] text-[11px] font-medium whitespace-nowrap",
-              selected ? "bg-go-ink text-white" : "text-go-ink",
+              selected ? "bg-go-ink text-go-card" : "text-go-ink",
             )}
           >
             {option.label}
@@ -268,7 +268,7 @@ export function ConnectionStatus({
     );
   }
   return (
-    <div role="status" className="flex h-12 shrink-0 items-center gap-2 rounded-full bg-white pr-3.5 pl-3 drop-shadow-[0_5px_10px_rgba(0,0,0,0.09)]">
+    <div role="status" className="flex h-12 shrink-0 items-center gap-2 rounded-full bg-go-card pr-3.5 pl-3 drop-shadow-[0_5px_10px_rgba(0,0,0,0.09)]">
       <Icon name="dot-online" />
       <span className="text-sm text-go-muted">{time ? `Synced ${time}` : "Connecting…"}</span>
     </div>
