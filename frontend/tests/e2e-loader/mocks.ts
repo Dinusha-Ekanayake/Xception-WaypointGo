@@ -88,6 +88,8 @@ export function board(m: ManifestView): ReadyTripView[] {
       orderCount: m.lines.length,
       weightKg: "20",
       volumeM3: "0.2",
+      weightCapKg: m.weightCapKg,
+      volumeCapM3: m.volumeCapM3,
       holder: m.holder,
       releasedAt: m.releasedAt,
       rowVersion: m.rowVersion,

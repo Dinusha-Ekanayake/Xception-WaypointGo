@@ -21,6 +21,21 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-02 - feat(loader): tablet, desk and terminal layouts from Figma
+
+`feat/loader-wide-layouts` · @Dinusha-Ekanayake
+
+From 768px the loader follows Figma 07 (tablet), 09 (portrait tablet) and 10 (desk and terminal) instead of stretching the phone layout:
+- the departures board is a table (vehicle, route, departs, load against capacity, loader, status, action); search and filters sit beside the title in landscape;
+- sign-in keeps the crew list and a PIN keypad side by side; the fourth digit signs in, a keyboard types into it, and the offline PIN check works the same;
+- the workspace fills the screen instead of stopping at 1280px.
+`ReadyTripView` gains `weightCapKg` and `volumeCapM3` (additive) for the load column. The phone layout is unchanged.
+Why: the booklet names the shared dock tablet as the loader's device, and Figma has a frame set for each size.
+Verified: backend `mvn verify` (628, no skips); `npm test` (54), typecheck, build; loader browser suite 9 of 9, with the new `wide.spec.ts` at 1280x800, 1920x1080 (offline keyboard sign-in) and 768x1024; each size rendered and compared with its Figma frames.
+Open: Figma's tablet top bar has text "Lock" and "Switch user" buttons and the language switch on sign-in; ours keeps the icon buttons and Settings.
+
+---
+
 ## 2026-10-02 - fix(deploy): start the model service
 
 `fix/deploy-start-ml` · @tharushaudana
