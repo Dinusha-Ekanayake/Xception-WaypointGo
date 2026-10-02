@@ -12,9 +12,15 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * The connection pool. Connects as waypoint_app, which is NOINHERIT, owns no
- * tables and holds no BYPASSRLS, so a transaction that forgets SET LOCAL ROLE
- * fails with a permission error instead of running with full access.
+ * The connection pool. Every connection runs as waypoint_app, which is NOINHERIT,
+ * owns no tables and holds no BYPASSRLS, so a transaction that forgets SET LOCAL
+ * ROLE fails with a permission error instead of running with full access.
+ *
+ * <p>A deployment logs in as waypoint_app, with a password {@code migrate} sets
+ * from this URL, so the running process never holds the owner's credentials.
+ * Local development and CI log in as the owner; there the {@code SET ROLE} each
+ * connection opens with is what drops them to waypoint_app, so a forgotten role
+ * fails on a laptop and in CI exactly as it would in production.
  *
  * <p>Startup never blocks on the database: initializationFailTimeout is negative,
  * so the process comes up and reports liveness even when PostgreSQL is down.
@@ -23,10 +29,14 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Configuration
 public class DataConfig {
 
+  /** The only role the pool ever runs as before a transaction adopts a module role. */
+  public static final String RUNTIME_ROLE = "waypoint_app";
+
   @Bean(destroyMethod = "close")
   public DataSource dataSource(
       AppProperties properties,
-      @Value("${spring.datasource.hikari.maximum-pool-size:8}") int maxPool) {
+      @Value("${spring.datasource.hikari.maximum-pool-size:8}") int maxPool,
+      @Value("${spring.datasource.hikari.minimum-idle:-1}") int minIdle) {
     HikariDataSource ds = new HikariDataSource();
     // Validated as non-blank by AppProperties, so reaching here means it is set.
     // It may still point at a database that is down: that is an outage, reported
@@ -42,11 +52,22 @@ public class DataConfig {
       ds.setPassword(password);
     }
     ds.setMaximumPoolSize(maxPool);
+    if (minIdle >= 0 && minIdle < maxPool) {
+      // Unset, the pool stays full, which is what a serving instance wants. The
+      // test suite sets it to zero: it keeps one pool per cached application
+      // context, and a dozen full pools is more than PostgreSQL's connection limit.
+      ds.setMinimumIdle(minIdle);
+      ds.setIdleTimeout(10_000);
+    }
     ds.setInitializationFailTimeout(-1);
     // Fail fast when PostgreSQL is unreachable so readiness answers 503 instead of hanging.
     ds.setConnectionTimeout(3000);
     ds.setValidationTimeout(2000);
     ds.setPoolName("waypoint");
+    // A no-op when the login already is waypoint_app. Before the first migrate
+    // the role does not exist and no connection opens: readiness reports it, and
+    // migrate, which has a connection of its own, is what fixes it.
+    ds.setConnectionInitSql("SET ROLE " + RUNTIME_ROLE);
     return ds;
   }
 
@@ -71,7 +92,7 @@ public class DataConfig {
     return template;
   }
 
-  static String toJdbcUrl(String raw) {
+  public static String toJdbcUrl(String raw) {
     if (raw.startsWith("jdbc:")) {
       return raw;
     }
@@ -87,7 +108,7 @@ public class DataConfig {
     return sb.toString();
   }
 
-  static String username(String raw) {
+  public static String username(String raw) {
     String info = userInfo(raw);
     if (info == null) {
       return null;
@@ -96,7 +117,7 @@ public class DataConfig {
     return colon < 0 ? info : info.substring(0, colon);
   }
 
-  static String password(String raw) {
+  public static String password(String raw) {
     String info = userInfo(raw);
     if (info == null) {
       return null;

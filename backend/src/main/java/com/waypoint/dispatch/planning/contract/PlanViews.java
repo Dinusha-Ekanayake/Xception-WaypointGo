@@ -102,6 +102,28 @@ public final class PlanViews {
       BigDecimal serviceMinutes) {}
 
   /**
+   * One place an order could take in its open draft: the vehicle and trip an
+   * override would name, and what every rule says about it.
+   *
+   * @param joins true when the trip already exists; false when the order would open it
+   * @param bindingRule the first rule that refuses this place; empty when it is feasible
+   */
+  public record PlacementView(
+      String vehicleId,
+      int tripNumber,
+      boolean joins,
+      Optional<UUID> tripId,
+      boolean feasible,
+      Optional<String> bindingRule,
+      String reason,
+      List<ConstraintResultView> checks) {
+
+    public PlacementView {
+      checks = List.copyOf(checks);
+    }
+  }
+
+  /**
    * @param bindingRule the rule that decided a deferral or an unservable order;
    *     never a generic message (R-PLN-19)
    * @param checks every constraint evaluated, with its slack

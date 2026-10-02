@@ -43,12 +43,17 @@ public class ReferenceDataQuery implements ReferenceQuery {
   private final ReferenceCache cache;
   private final ReferenceVersionReader reader;
   private final Database database;
+  private final ReferenceBootstrap bootstrap;
 
   public ReferenceDataQuery(
-      ReferenceCache cache, ReferenceVersionReader reader, Database database) {
+      ReferenceCache cache,
+      ReferenceVersionReader reader,
+      Database database,
+      ReferenceBootstrap bootstrap) {
     this.cache = cache;
     this.reader = reader;
     this.database = database;
+    this.bootstrap = bootstrap;
   }
 
   @Override
@@ -58,6 +63,7 @@ public class ReferenceDataQuery implements ReferenceQuery {
 
   private ReferenceSnapshot snapshot(UUID versionId) {
     if (versionId == null) {
+      bootstrap.refreshIfStale();
       return cache
           .current()
           .orElseThrow(
@@ -69,7 +75,7 @@ public class ReferenceDataQuery implements ReferenceQuery {
     return cache
         .current()
         .filter(s -> s.versionId().equals(versionId))
-        .or(() -> database.asModule(ModuleRole.REF, null, () -> reader.load(versionId)))
+        .or(() -> database.readAs(ModuleRole.REF, null, () -> reader.load(versionId)))
         .orElseThrow(
             () ->
                 new DomainException(ErrorCode.NOT_FOUND, "Unknown reference version " + versionId));
@@ -92,6 +98,13 @@ public class ReferenceDataQuery implements ReferenceQuery {
     return s.outletsOf(new DepotCode(depotCode)).stream().map(o -> toOutletView(s, o)).toList();
   }
 
+  @Override
+  public List<VehicleView> vehiclesOfDepot(String depotCode, UUID versionId) {
+    return snapshot(versionId).vehiclesOf(new DepotCode(depotCode)).stream()
+        .map(ReferenceDataQuery::toVehicleView)
+        .toList();
+  }
+
   /** R-FLT-03: a vehicle in the workshop cannot be allocated. */
   @Override
   public List<VehicleView> availableVehicles(String depotCode, LocalDate date, UUID versionId) {
@@ -104,7 +117,7 @@ public class ReferenceDataQuery implements ReferenceQuery {
 
   private Set<String> unavailableOn(LocalDate date) {
     List<Map<String, Object>> rows =
-        database.asModule(
+        database.readAs(
             ModuleRole.REF,
             null,
             () ->

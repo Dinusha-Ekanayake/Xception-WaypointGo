@@ -1,17 +1,15 @@
 #!/usr/bin/env bash
+# Creates an account on the production stack from the host. The first
+# administrator cannot come from an endpoint that requires one; every later
+# account change is a command through the API (iam:CreateUser, iam:UpdateUser...).
 set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
-: "${1:?Usage: scripts/account.sh create|update|password|disable|enable EMAIL [ROLE SCOPE]}"
-: "${2:?Email required}"
-case "$1" in create|update|password|disable|enable) ;; *) echo 'Unknown account action' >&2; exit 1;; esac
-export ACCOUNT_ID="$2" ACCOUNT_ROLE="${3:-}" ACCOUNT_SCOPE="${4:-}"
-export ACCOUNT_OPERATOR="${ACCOUNT_OPERATOR:-${USER:-host-admin}}"
-if [[ "$1" == create || "$1" == password ]]; then
-  read -r -s -p 'New password (12 to 199 characters): ' ACCOUNT_PASSWORD
-  echo
-  export ACCOUNT_PASSWORD
-fi
+: "${1:?Usage: scripts/account.sh EMAIL "DISPLAY NAME" ROLE   (role: admin|dispatcher|loader|driver|store_manager|auditor)}"
+: "${2:?Display name required}"
+: "${3:?Role required}"
+export ACCOUNT_EMAIL="$1" ACCOUNT_NAME="$2" ACCOUNT_ROLE="$3"
+read -r -s -p 'Password (at least 12 characters): ' ACCOUNT_PASSWORD
+echo
+export ACCOUNT_PASSWORD
 trap 'unset ACCOUNT_PASSWORD' EXIT
-docker compose -f "$root/compose.prod.yaml" run --rm --no-deps \
-  -e ACCOUNT_ID -e ACCOUNT_ROLE -e ACCOUNT_SCOPE -e ACCOUNT_OPERATOR -e ACCOUNT_PASSWORD \
-  backend java -jar /app/backend.jar "account-$1"
+docker compose -f "$root/compose.prod.yaml" run --rm --no-deps   -e ACCOUNT_EMAIL -e ACCOUNT_NAME -e ACCOUNT_ROLE -e ACCOUNT_PASSWORD   backend java -jar /app/backend.jar account-create

@@ -7,9 +7,12 @@ import java.util.UUID;
 /** The only way another module reads offline operations. */
 public interface SyncQuery {
 
-  /** Operations from this device not yet applied, in sequence order. */
-  List<OperationView> pendingFor(UUID deviceId);
+  /**
+   * Operations from this device not yet applied, in sequence order. Read as the device's user,
+   * because row-level security shows each account only its own operations.
+   */
+  List<OperationView> pendingFor(UUID userId, UUID deviceId);
 
-  /** Conflicts and rejections the actor may review. */
+  /** The actor's own conflicts and rejections. Reviewing someone else's waits on decision D-O. */
   List<OperationView> conflictsFor(UUID userId);
 }

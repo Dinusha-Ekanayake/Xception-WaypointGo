@@ -29,9 +29,10 @@ export type EventPayloads = {
     brandCode: string;
     districtName: string;
     deliveryDate: IsoDate;
-    temperature: Temperature;
-    weightKg: Decimal;
-    volumeM3: Decimal;
+    // Null while STOCK_UNKNOWN: the warehouse has not answered, and totals are never guessed.
+    temperature: Temperature | null;
+    weightKg: Decimal | null;
+    volumeM3: Decimal | null;
     itemCount: number;
     status: OrderStatus;
   };
@@ -40,9 +41,9 @@ export type EventPayloads = {
     outletId: string;
     depotCode: string;
     deliveryDate: IsoDate;
-    temperature: Temperature;
-    weightKg: Decimal;
-    volumeM3: Decimal;
+    temperature: Temperature | null;
+    weightKg: Decimal | null;
+    volumeM3: Decimal | null;
     itemCount: number;
   };
   "order.cancelled": {
@@ -51,6 +52,14 @@ export type EventPayloads = {
     depotCode: string;
     warehouseOrderRef: string | null;
     reason: string;
+  };
+  "order.auto_deferred": {
+    orderId: Uuid;
+    outletId: string;
+    depotCode: string;
+    fromDate: IsoDate;
+    toDate: IsoDate;
+    reason: "stock_unresolved";
   };
   "orders.closed": { depotCode: string; serviceDate: IsoDate; orderIds: Uuid[] };
   "plan.published": {
@@ -178,7 +187,23 @@ export type EventPayloads = {
     action: string;
     at: IsoInstant;
   };
-  "shortfall.resolved": { issueId: Uuid; tripId: Uuid; orderId: Uuid; resolution: string };
+  "issue.escalated": {
+    issueId: Uuid;
+    issueType: IssueType;
+    severity: IssueSeverity;
+    depotCode: string;
+    outletId: string | null;
+    escalatedAt: IsoInstant;
+    waitedMinutes: number;
+  };
+  /** shortfallId names the one shortfall a replacement answers; null for one raised by hand. */
+  "shortfall.resolved": {
+    issueId: Uuid;
+    tripId: Uuid;
+    orderId: Uuid;
+    resolution: string;
+    shortfallId: Uuid | null;
+  };
   "redelivery.requested": {
     issueId: Uuid;
     originalOrderId: Uuid;
@@ -188,7 +213,7 @@ export type EventPayloads = {
   "warehouse.order_status_changed": {
     orderId: Uuid;
     warehouseOrderRef: string | null;
-    status: "pending" | "shipped" | "delivered" | "cancelled" | "insufficient";
+    status: "pending" | "shipped" | "delivered" | "cancelled" | "expired" | "insufficient";
     reservation: {
       warehouseOrderRef: string;
       weightKg: Decimal;

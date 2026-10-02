@@ -1,0 +1,90 @@
+/*
+ * GO design tokens, from the Figma style guide (page 17, "Foundations").
+ * Prefixed `go-` so they sit beside the prototype palette in app/globals.css
+ * without changing any screen that still uses it.
+ */
+@theme {
+  --font-go: 'Google Sans Flex Variable', ui-sans-serif, system-ui, sans-serif;
+
+  /* Brand and action */
+  --color-go-ink: #031b08;
+  --color-go-night: #0b1413;
+  --color-go-teal: #0e766d;
+  --color-go-signal: #00bf6a;
+  --color-go-success: #0b8a3a;
+  --color-go-mint: #b7f2ed;
+
+  /* Light surfaces */
+  --color-go-canvas: #e7f3f2;
+  --color-go-surface: #f1f6f5;
+  --color-go-subtle: #f7faf9;
+  --color-go-success-tint: #e6f8ef;
+  --color-go-divider: #e5e7eb;
+  --color-go-rule: #dfe7e6;
+
+  /* Text */
+  --color-go-secondary: #6b7280;
+  --color-go-muted: #6b6b6b;
+  --color-go-placeholder: #a9a9a9;
+
+  /* Status: a strong colour for text and icons, a tint for backgrounds */
+  --color-go-danger: #e5484d;
+  --color-go-danger-strong: #c62828;
+  --color-go-danger-tint: #fdecec;
+  --color-go-warning: #b7791f;
+  --color-go-warning-text: #8a5a0b;
+  --color-go-warning-tint: #fdf3e1;
+  --color-go-info: #3b82c4;
+  --color-go-info-tint: #e8f1fb;
+
+  /* Radius */
+  --radius-go-chip: 8px;
+  --radius-go-input: 12px;
+  --radius-go-tile: 14px;
+  --radius-go-card-s: 16px;
+  --radius-go-card: 18px;
+  --radius-go-card-l: 22px;
+  --radius-go-panel: 28px;
+
+  /* Surfaces and actions that change with the theme (Figma "12 Driver · Mobile") */
+  --color-go-card: #ffffff;
+  --color-go-action: #031a0c;
+  --color-go-on-action: #ffffff;
+  --color-go-soft: #b7f2ed;
+  --color-go-on-soft: #031b08;
+
+  --shadow-go-card: 0 6px 24px 0 rgba(0, 0, 0, 0.06);
+  --shadow-go-float: 0 5px 10px rgba(0, 0, 0, 0.09);
+}
+
+/*
+ * The dark theme of the driver's phone, for early starts. The same tokens with
+ * night values, scoped to a subtree, so a screen built on tokens needs no
+ * second set of classes. Contrast is kept at 4.5:1 or better for text.
+ */
+.go-dark {
+  color-scheme: dark;
+  --color-go-ink: #f4f7f6;
+  --color-go-canvas: #101312;
+  --color-go-card: #1f2423;
+  --color-go-surface: #2a302f;
+  --color-go-subtle: #181c1b;
+  --color-go-divider: #39403e;
+  --color-go-rule: #39403e;
+  --color-go-secondary: #aab3b1;
+  --color-go-muted: #aab3b1;
+  --color-go-placeholder: #7d8785;
+  --color-go-teal: #63d6ca;
+  --color-go-action: #00bf6a;
+  --color-go-on-action: #031b08;
+  --color-go-soft: #1e4b46;
+  --color-go-on-soft: #e9fffc;
+  --color-go-success: #4ade80;
+  --color-go-success-tint: #143524;
+  --color-go-danger-strong: #ff8a8e;
+  --color-go-danger-tint: #48191c;
+  --color-go-warning-text: #f2c26b;
+  --color-go-warning-tint: #40300f;
+  --color-go-info-tint: #172e45;
+  --shadow-go-card: 0 6px 24px 0 rgba(0, 0, 0, 0.4);
+}

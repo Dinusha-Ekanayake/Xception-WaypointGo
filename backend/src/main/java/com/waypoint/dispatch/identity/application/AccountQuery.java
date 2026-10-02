@@ -2,6 +2,8 @@ package com.waypoint.dispatch.identity.application;
 
 import com.waypoint.dispatch.platform.db.Database;
 import com.waypoint.dispatch.platform.db.ModuleRole;
+import com.waypoint.dispatch.shared.domain.Cursor;
+import com.waypoint.dispatch.shared.domain.Page;
 import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
 import java.time.LocalDate;
@@ -24,8 +26,6 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class AccountQuery {
-  private static final int MAX_PAGE = 200;
-
   private final Database database;
 
   public AccountQuery(Database database) {
@@ -48,12 +48,20 @@ public class AccountQuery {
       UUID driverUserId,
       String driverName,
       LocalDate from,
-      LocalDate until) {}
+      LocalDate until,
+      long rowVersion) {}
 
-  /** Keyset paginated on email, which is unique and stable. Never OFFSET. */
-  public List<AccountView> page(String afterEmail, int limit) {
-    int size = Math.min(limit <= 0 ? 50 : limit, MAX_PAGE);
-    return select("(?::text IS NULL OR u.email > ?::text)", size, afterEmail, afterEmail);
+  /**
+   * Keyset paginated on the user id, which is unique, stable and not personal
+   * data, so it can travel in a cursor. Never OFFSET, never the email.
+   */
+  public Page<AccountView> page(String after, Integer limit) {
+    int size = Page.limit(limit);
+    List<String> key = Cursor.decode(after, 1);
+    UUID afterId = key.isEmpty() ? null : uuidOf(key.get(0));
+    List<AccountView> rows =
+        select("(?::uuid IS NULL OR u.user_id > ?::uuid)", size + 1, afterId, afterId);
+    return Page.fromOverfetch(rows, size, account -> Cursor.encode(account.userId().toString()));
   }
 
   public AccountView byId(UUID userId) {
@@ -91,7 +99,7 @@ public class AccountQuery {
                     LEFT JOIN (SELECT user_id, array_agg(outlet_id ORDER BY outlet_id) AS outlets
                                  FROM iam.user_outlet_access GROUP BY user_id) o ON o.user_id = u.user_id
                     WHERE %s
-                    ORDER BY u.email
+                    ORDER BY u.user_id
                     LIMIT ?
                     """
                         .formatted(where),
@@ -101,9 +109,18 @@ public class AccountQuery {
                 .toList());
   }
 
-  /** Assignments touching a date, or all current and future ones when none is given. */
-  public List<AssignmentView> assignments(LocalDate on) {
-    return database.asModule(
+  /**
+   * Assignments touching a date, or all of them when none is given. Keyset
+   * paginated on (vehicle, start, id), so one vehicle's assignments stay together.
+   */
+  public Page<AssignmentView> assignments(LocalDate on, String after, Integer limit) {
+    int size = Page.limit(limit);
+    List<String> key = Cursor.decode(after, 3);
+    String afterVehicle = key.isEmpty() ? null : key.get(0);
+    java.sql.Date afterStart = key.isEmpty() ? null : dateOf(key.get(1));
+    UUID afterId = key.isEmpty() ? null : uuidOf(key.get(2));
+    java.sql.Date day = on == null ? null : java.sql.Date.valueOf(on);
+    List<AssignmentView> rows = database.asModule(
         ModuleRole.IAM,
         null,
         () ->
@@ -111,14 +128,24 @@ public class AccountQuery {
                 .query(
                     """
                     SELECT a.assignment_id, a.vehicle_id, a.driver_user_id, u.display_name,
-                           lower(a.validity) AS starts_on, upper(a.validity) AS ends_on
+                           lower(a.validity) AS starts_on, upper(a.validity) AS ends_on,
+                           a.row_version
                     FROM iam.vehicle_driver_assignments a
                     JOIN iam.users u ON u.user_id = a.driver_user_id
                     WHERE (?::date IS NULL OR a.validity @> ?::date)
-                    ORDER BY a.vehicle_id, lower(a.validity)
+                      AND (?::text IS NULL
+                           OR (a.vehicle_id, lower(a.validity), a.assignment_id)
+                              > (?::text, ?::date, ?::uuid))
+                    ORDER BY a.vehicle_id, lower(a.validity), a.assignment_id
+                    LIMIT ?
                     """,
-                    on == null ? null : java.sql.Date.valueOf(on),
-                    on == null ? null : java.sql.Date.valueOf(on))
+                    day,
+                    day,
+                    afterVehicle,
+                    afterVehicle,
+                    afterStart,
+                    afterId,
+                    size + 1)
                 .stream()
                 .map(
                     r ->
@@ -128,8 +155,29 @@ public class AccountQuery {
                             (UUID) r.get("driver_user_id"),
                             (String) r.get("display_name"),
                             date(r.get("starts_on")),
-                            date(r.get("ends_on"))))
+                            date(r.get("ends_on")),
+                            ((Number) r.get("row_version")).longValue()))
                 .toList());
+    return Page.fromOverfetch(
+        rows,
+        size,
+        a -> Cursor.encode(a.vehicleId(), a.from().toString(), a.assignmentId().toString()));
+  }
+
+  private static UUID uuidOf(String value) {
+    try {
+      return UUID.fromString(value);
+    } catch (IllegalArgumentException e) {
+      throw Cursor.invalid();
+    }
+  }
+
+  private static java.sql.Date dateOf(String value) {
+    try {
+      return java.sql.Date.valueOf(LocalDate.parse(value));
+    } catch (RuntimeException e) {
+      throw Cursor.invalid();
+    }
   }
 
   private static AccountView toAccount(Map<String, Object> r) {

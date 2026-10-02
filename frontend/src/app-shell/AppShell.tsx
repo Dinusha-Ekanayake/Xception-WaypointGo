@@ -1,28 +1,73 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { currentSession, type Session } from "./session.ts";
+import { useCallback, useEffect, useState } from "react";
+import { useOnline } from "@shared/api/useResource";
+import { useSync } from "@shared/offline";
+import { Notice, ShellProvider, cx, type ShellControls } from "@shared/ui";
+import { hostForRole, previewHomeFor, roleForHost } from "./hostRole.ts";
+import PreviewLanding from "./PreviewLanding.tsx";
 import RoleRouter from "./RoleRouter.tsx";
+import SignIn from "./SignIn.tsx";
+import SyncStatus from "./SyncStatus.tsx";
+import {
+  ROLE_LABEL,
+  currentSession,
+  rememberRole,
+  rememberedRole,
+  signOut,
+  type SessionState,
+  type ShellRole,
+} from "./session.ts";
 
 /**
- * Session gate and role routing. Screens arrive with the Figma design system;
- * this is the frame they hang in.
+ * Roles whose design puts sign-out, the role switcher and the sync badge in
+ * their own top bar. For these the shell draws no strip of its own and lends
+ * the controls through ShellProvider instead.
+ */
+const OWN_HEADER = new Set<ShellRole>(["loader", "store_manager", "dispatcher", "driver"]);
+
+/**
+ * Session gate and role routing. Signed out, server unreachable and offline are
+ * different states with different words (architecture rule 9): an outage must
+ * never look like "sign in".
  */
 export default function AppShell(): React.JSX.Element {
-  const [session, setSession] = useState<Session | null>(null);
-  const [checked, setChecked] = useState(false);
+  const online = useOnline();
+  const [state, setState] = useState<SessionState | null>(null);
+  const unverified = state?.kind === "signed-in" && state.unverified === true;
+  const [role, setRole] = useState<ShellRole | null>(null);
+  const [notice, setNotice] = useState<string | undefined>();
+  const [pending, setPending] = useState<number | null>(null);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
+  const sync = useSync(state?.kind === "signed-in" ? state.session.userId : null);
+
+  const check = useCallback(() => {
+    setState(null);
+    void currentSession().then(setState);
+  }, []);
+
+  useEffect(check, [check]);
+
+  // Working from the remembered session because the server could not be asked:
+  // ask again when the connection returns, so an expired session is found out
+  // before the queue is sent rather than by it.
+  useEffect(() => {
+    if (!unverified || !online) return;
+    void currentSession().then(setState);
+  }, [unverified, online]);
+
+  // A role address such as loader.waypointgo.live shows that role and no other.
+  // Read only once the session is known, so the first paint matches the server's.
+  const host = state ? window.location.hostname : "";
+  const pinned = roleForHost(host);
+
+  // The shared preview address has no workspace or sign-in: it offers the role
+  // addresses, whatever the session on this one says.
+  const landing = previewHomeFor(host, "dispatcher") !== null;
 
   useEffect(() => {
-    let active = true;
-    currentSession().then((result) => {
-      if (!active) return;
-      setSession(result);
-      setChecked(true);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
+    if (state?.kind === "signed-in") setRole(rememberedRole(state.session));
+  }, [state]);
 
   useEffect(() => {
     if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") {
@@ -33,22 +78,144 @@ export default function AppShell(): React.JSX.Element {
     }
   }, []);
 
-  if (!checked) return <main className="shell">Checking your session...</main>;
-  if (!session) return (
-    <main className="shell mx-auto flex min-h-screen max-w-2xl items-center px-6 py-12">
-      <section className="w-full rounded-2xl border border-[#d9e3de] bg-white p-8 shadow-sm">
-        <p className="text-sm font-semibold uppercase tracking-wide text-[#0a6b63]">Waypoint Dispatch</p>
-        <h1 className="mt-3 text-3xl font-semibold">Sign in to continue</h1>
-        <p className="mt-3 text-[#4c5851]">The live application needs a session. You can explore the permission UI with sample people and capabilities right now.</p>
-        <a className="mt-6 inline-flex min-h-11 items-center rounded-xl bg-[#0a6b63] px-5 font-semibold text-white hover:bg-[#084f4a]" href="/access-demo">Open permission UI demo</a>
-        <p className="mt-3 text-sm text-[#66736b]">Demo changes stay in this browser session and do not update the backend.</p>
-      </section>
-    </main>
-  );
+  if (!state) return <main className="flex min-h-dvh items-center justify-center bg-go-canvas font-go text-go-muted">Checking your session…</main>;
+
+  if (landing) return <PreviewLanding host={host} />;
+
+  if (state.kind === "unreachable") {
+    return (
+      <main className="flex min-h-dvh items-center justify-center bg-go-canvas px-4 font-go">
+        <div className="flex w-full max-w-[400px] flex-col gap-4">
+          <Notice tone="warning" live title={online ? "Waypoint is not answering" : "This device is offline"}>
+            {state.message} You are not signed out; nothing on this device was lost.
+          </Notice>
+          <button type="button" onClick={check} className="min-h-12 rounded-[22px] bg-[#031a0c] text-[15px] font-medium text-white">
+            Try again
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  if (state.kind === "signed-out") {
+    return (
+      <SignIn
+        role={pinned}
+        notice={notice}
+        onSignedIn={(session) => {
+          setNotice(undefined);
+          setState({ kind: "signed-in", session });
+        }}
+      />
+    );
+  }
+
+  const { session } = state;
+  // Signed in on another role's address: say so and point at their own,
+  // rather than show a surface the account does not hold.
+  const misplaced = pinned !== null && !session.roles.includes(pinned);
+  const roles = pinned ? (misplaced ? [] : [pinned]) : session.roles;
+  const active = pinned && !misplaced ? pinned : role ?? rememberedRole(session);
+
+  const leave = async (force: boolean) => {
+    // Writes still on this device belong to this account; signing out would
+    // strand them until the same person signs in again (SEC-01).
+    const waiting = sync.pending;
+    if (waiting > 0 && !force) {
+      setPending(waiting);
+      return;
+    }
+    try {
+      await signOut();
+      setPending(null);
+      setNotice("You are signed out.");
+      setState({ kind: "signed-out" });
+    } catch {
+      setSignOutError("Could not sign out: Waypoint did not answer. Try again when the connection is back.");
+    }
+  };
+
+  const controls: ShellControls = {
+    roles: roles.map((r) => ({ value: r, label: ROLE_LABEL[r] })),
+    active,
+    onRole: (r) => {
+      rememberRole(session, r as ShellRole);
+      setRole(r as ShellRole);
+    },
+    onSignOut: () => void leave(false),
+    sync: <SyncStatus sync={sync} online={online} />,
+  };
 
   return (
-    <main className="shell">
-      <RoleRouter role={session.roles[0]!} />
-    </main>
+    <ShellProvider value={controls}>
+      <main className="shell">
+        {(misplaced || !OWN_HEADER.has(active)) && (
+          <div className="mx-auto flex w-full max-w-[1440px] flex-wrap items-center justify-end gap-2 bg-go-canvas px-4 pt-2 font-go">
+            <SyncStatus sync={sync} online={online} />
+            {roles.length > 1 && (
+              <div role="tablist" aria-label="Role" className="flex gap-1 rounded-full bg-white p-1">
+                {roles.map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    role="tab"
+                    aria-selected={r === active}
+                    onClick={() => {
+                      rememberRole(session, r);
+                      setRole(r);
+                    }}
+                    className={cx("min-h-10 rounded-full px-3 text-[13px] font-medium", r === active ? "bg-[#031a0c] text-white" : "text-go-muted")}
+                  >
+                    {ROLE_LABEL[r]}
+                  </button>
+                ))}
+              </div>
+            )}
+            <button type="button" onClick={() => void leave(false)} className="min-h-10 rounded-full border border-[#dfe7e6] bg-white px-3.5 text-[13px] font-medium text-[#031b08]">
+              Sign out
+            </button>
+          </div>
+        )}
+        {(pending !== null || signOutError) && (
+          <div className="mx-auto w-full max-w-[720px] px-4 pt-2 font-go">
+            {signOutError ? (
+              <Notice tone="danger" live title={signOutError} action={<button type="button" className="min-h-12 px-2 text-[13px] font-medium text-go-teal" onClick={() => setSignOutError(null)}>Dismiss</button>} />
+            ) : (
+              <Notice
+                tone="warning"
+                live
+                title={`${pending} ${pending === 1 ? "change is" : "changes are"} still only on this device`}
+                action={
+                  <span className="flex shrink-0 gap-1">
+                    <button type="button" className="min-h-12 px-2 text-[13px] font-medium text-go-teal" onClick={() => setPending(null)}>
+                      Stay
+                    </button>
+                    <button type="button" className="min-h-12 px-2 text-[13px] font-medium text-go-danger-strong" onClick={() => void leave(true)}>
+                      Sign out anyway
+                    </button>
+                  </span>
+                }
+              >
+                {online ? "Send them first: tap sync now, or review any the server refused." : "Reconnect so they can be sent. If you sign out now, they wait here until you sign in again."}
+              </Notice>
+            )}
+          </div>
+        )}
+        {misplaced ? (
+          <section aria-label="Wrong address" className="mx-auto flex w-full max-w-[720px] flex-col gap-3 px-4 py-10 font-go">
+            <Notice tone="warning" title={`This address is for the ${ROLE_LABEL[pinned].toLowerCase()} role`}>
+              {session.displayName} does not hold it. Open your own address and sign in there.
+            </Notice>
+            {session.roles.map((r) => (
+              <a key={r} href={`https://${hostForRole(host, r)}/`} className="flex min-h-12 items-center rounded-[16px] bg-white px-4 text-[15px] font-medium text-go-teal">
+                {ROLE_LABEL[r]}: {hostForRole(host, r)}
+              </a>
+            ))}
+          </section>
+        ) : (
+          <RoleRouter key={active} session={session} role={active} />
+        )}
+      </main>
+    </ShellProvider>
   );
 }

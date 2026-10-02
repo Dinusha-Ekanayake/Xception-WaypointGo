@@ -32,7 +32,7 @@ Values that will change are not listed here. They live in the parameter register
 
 ## Rule identifiers and status
 
-`R-<AREA>-<n>`. Areas: `ORD` ordering, `STK` stock, `PLN` planning, `LOD` loading, `EXE` execution, `RCP` receipt, `FLT` fleet, `CAL` calendar, `NOT` notification.
+`R-<AREA>-<n>`. Areas: `ORD` ordering, `STK` stock, `PLN` planning, `LOD` loading, `EXE` execution, `RCP` receipt, `FLT` fleet, `CAL` calendar, `NOT` notification, `PLT` platform.
 
 | Status | Meaning |
 | --- | --- |
@@ -63,38 +63,51 @@ Values that will change are not listed here. They live in the parameter register
 
 ## 2. Stock and the external warehouse
 
-The warehouse is a separate system. Verified contract, by probing the deployed service:
+The warehouse is a separate system. Documentation: [triathon-warehouse-simple.vercel.app/docs](https://triathon-warehouse-simple.vercel.app/docs). **Revised 2026-10-01** from the published documentation; the read endpoints were re-probed live the same day, the write endpoints were not (placing an order locks shared stock).
 
 ```
 base    https://triathon-warehouse-simple.vercel.app/api/v1
-auth    x-api-key: <key>   or   Authorization: Bearer <key>      (both verified)
+auth    x-api-key: <key>   or   Authorization: Bearer <key>      (401 without)
 errors  {"error":{"code","message"}}
         400 bad JSON · 401 missing or revoked key · 404 not found
-        409 insufficient stock or invalid status change · 422 validation
+        409 insufficient stock, invalid status change, reservation expired · 422 validation
 
-GET   /products            ?brand=Fresh|Style|Tech &q= &page= &limit=   limit caps at 100
-                           280 products: Fresh 55, Style 47, Tech 178
+Warehouses  KDY Kandy, PLG Peliyagoda. A name is accepted wherever a code is (case-insensitive)
+
+GET   /usage               ?range=24h|7d|30d                 usage of the caller's keys
+GET   /warehouses          units available and reserved, order counts by status
+GET   /products            ?brand= &q= &warehouse= &sort=stock &low_stock=true &page= &limit<=100
 GET   /products/:id
-PATCH /products/:id        {"stock": n}  absolute,  or  {"adjust": +n|-n}  relative
-GET   /orders              ?status=pending|shipped|delivered|cancelled &page= &limit=
-GET   /orders/:id          includes items:[{product_id, quantity}]
-POST  /orders              {"items":[{product_id, quantity}]}  ->  201
-PUT   /orders/:id/status   {"status": "..."}
+PATCH /products/:id        {"warehouse", "stock": n} absolute, or {"warehouse", "adjust": +n|-n}
+POST  /products/:id/transfer  {"from", "to", "quantity"}     409 if the source is short
+GET   /orders              ?warehouse= &status=reserved|pending|shipped|delivered|cancelled|expired
+GET   /orders/:id          items:[{product_id, quantity, requested_quantity}]; reserved orders add shortfall
+POST  /orders              {"warehouse", "items":[{product_id, quantity}]}
+                           201 all lines taken, status pending
+                           202 some lines short: available units locked, status reserved, until
+                               confirm, cancel or expires_at; body lists shortfall per line and
+                               what the other warehouse has
+                           409 nothing available
+POST  /orders/:id/confirm  reserved -> pending with the locked quantities; 409 reservation_expired
+PUT   /orders/:id/status   reserved -> pending | cancelled, pending -> shipped | cancelled,
+                           shipped -> delivered. Cancelling returns units to the order's warehouse
 
-Product  product_id, brand, unit_weight_kg, unit_volume_m3,
-         basis, verified_real_sku, stock, updated_at
+Product  product_id, brand, unit_weight_kg, unit_volume_m3, basis, verified_real_sku,
+         stock:{KDY:{available,reserved}, PLG:{...}}, total_available, total_reserved, updated_at
+Order    order_id, status, warehouse, source, total_weight_kg, total_volume_m3, expires_at,
+         created_at, item_count (lines, not units)
 ```
 
-Verified against the live service: the published documentation matches behaviour exactly.
+**Verified live 2026-10-01 (issue #7):** `temp_requirement` (`chilled`, `ambient`, `mixed`) is on every product and order, `POST /orders` returns totals and temperature, `PUT /status` and `confirm` behave as documented (A-20). **Still absent:** an idempotency key on `POST /orders`, a client reference or `?ref=` filter on orders, a webhook, and `updated_since` on products (ignored). Those keep R-STK-11 content matching, polling and full catalogue resync in place.
 
 ### What this means for the design
 
 | ID | Rule | Status |
 | --- | --- | --- |
-| R-STK-08 | **Creating the order is the reservation.** There is no separate reserve call. `POST /orders` decrements stock **atomically and all-or-nothing**: if any line lacks stock the whole order fails with `409` | Verified |
-| R-STK-09 | **Cancelling restores stock.** `PUT /orders/:id/status` to `cancelled` is the compensating action | Verified |
-| R-STK-10 | The warehouse runs **its own order lifecycle**: `pending -> shipped | cancelled`, `shipped -> delivered`. It is one-way; an invalid transition is `409` | Verified |
-| R-STK-11 | **`POST /orders` is not idempotent.** No idempotency key exists, so a blind retry creates a second order and decrements stock twice. The adapter must reconcile by query before retrying, never replay | Policy, critical |
+| R-STK-08 | **Creating the order is the reservation**, in the depot's own warehouse. `201` takes every line (`pending`); `202` locks what is available as `reserved` with a 15-minute expiry and reports the shortfall and the other warehouse's stock; `409` means nothing was available. **Revised 2026-10-01 (issue #7):** a `202` is kept, not cancelled. The order is saved `partially_reserved`; the store accepts it (`order:AcceptShortfall`, the warehouse `confirm` call) or cancels it, and an expiry cancels it. Amendment stays strict: a partial answer is released and refused. Owner: #7 | Verified live 2026-10-01 |
+| R-STK-09 | **Cancelling restores stock.** `PUT /orders/:id/status` to `cancelled` is the compensating action, from `reserved` or `pending` | Verified for `pending` |
+| R-STK-10 | The warehouse runs **its own order lifecycle**: `reserved -> pending | cancelled | expired`, `pending -> shipped | cancelled`, `shipped -> delivered`. It is one-way; an invalid transition is `409`. A `reserved` order left alone expires and its units return | Documented; `reserved` and `expired` not yet probed |
+| R-STK-11 | **`POST /orders` is not idempotent.** No idempotency key and no client reference exist, so a blind retry creates a second order and decrements stock twice. The adapter records every attempt (lines, time) in `warehouse.placements` before sending, in a transaction of its own. After an unknown outcome it looks for the order **by content**: same warehouse, same products and requested quantities, created within the match window of an attempt, not already claimed. Exactly one match is adopted; none is placed again only after the window passes; several are raised, never guessed | Policy, critical |
 | R-STK-12 | Stock is writable: `PATCH /products/:id` sets or adjusts it. This is how a stock manager's approval or adjustment (R-STK-02) is applied | Verified |
 | R-STK-13 | Waypoint's order state machine and the warehouse's are **two state machines for one real order**. Keeping them aligned is a saga, and every transition can fail independently | Policy |
 
@@ -102,13 +115,14 @@ Verified against the live service: the published documentation matches behaviour
 
 | Waypoint state | Warehouse state | Transition trigger |
 | --- | --- | --- |
-| `confirmed`, stock reserved | `pending` | `POST /orders` succeeded |
-| `stock_held` | no warehouse order exists | `POST` returned `409` |
+| `confirmed`, stock reserved | `pending` | `POST /orders` returned `201` |
+| placement rejected, per-line availability shown (D-F) | none, or `cancelled` | `POST` returned `409`, or `202` and the adapter cancelled the `reserved` order at once |
+| `stock_unknown` | unknown | timeout, `5xx` or no key configured |
 | `in_transit` | `shipped` | trip released |
 | `delivered` | `delivered` | driver recorded the outcome |
 | `cancelled` | `cancelled` | compensating call, stock restored |
 
-Current warehouse data: all 97,321 orders are `delivered` and there are zero `pending`, `shipped` or `cancelled`. The lifecycle is therefore **untested in their seed data**; the first order we create will be the first `pending` one, which is a reason to exercise it early rather than at integration time.
+Waypoint never keeps a warehouse order in `reserved`: it has an expiry, and D-F holds nothing on a short line. Current warehouse data (2026-10-01): all 97,321 orders are `delivered` and there are zero `reserved`, `pending`, `shipped`, `cancelled` or `expired`. The lifecycle is therefore **untested in their seed data**; the first order we create will be the first `pending` one, which is a reason to exercise it early rather than at integration time.
 
 | ID | Rule | Source | Status |
 | --- | --- | --- | --- |
@@ -191,7 +205,7 @@ Binding for the delivered system even though Task 2B does not score them.
 
 | ID | Rule | Recommendation |
 | --- | --- | --- |
-| R-PLN-21 | **Deferral priority.** The booklet requires a recorded reason but prescribes no order | Prior skips first, then Fresh, then chilled, then earliest closing window, then largest unmet volume. Deterministic tie-break by order identifier |
+| R-PLN-21 | **Deferral priority.** The booklet requires a recorded reason but prescribes no order | **Revised 2026-10-01 (issue #9, decision 1).** A lexicographic, versioned decision table in `planning.policy_versions`, not a weighted score, so every deferral can be explained by rank. Highest first: prior skip (P-12), Fresh, chilled, strict access (mall dock or a window under P-17), brand cadence (P-18), earliest closing window, longest outbound distance (a tie-break only, R-PLN-25), largest volume, longest unserved, then order reference and id. A depot-scoped version wins over the global one (POL-08) |
 | R-PLN-22 | **Oversized order.** An order exceeding every vehicle's capacity | Mark `unservable`, surface for a manual split decision. Never defer silently forever. R-PLN-05 forbids automatic splitting |
 | R-PLN-23 | **Fuel week boundary** | Monday to Sunday, matching `iso_week` |
 | R-PLN-24 | **Does fuel include the return leg?** The booklet excludes the return from *time* but says route distance consumes fuel | Include the return distance. Fuel is physical; the time budget exclusion is a planning simplification, not a statement about diesel. **Confirmed 2026-09-30 (D-K, A-03, Q7 closed)** |
@@ -205,14 +219,16 @@ Binding for the delivered system even though Task 2B does not score them.
 | ID | Rule | Source | Status |
 | --- | --- | --- | --- |
 | R-LOD-01 | The loader sees the stop sequence so goods load in an order that supports unloading | Booklet | Binding |
-| R-LOD-02 | The loader flags missing or damaged items **before** the vehicle leaves | Booklet | Binding |
+| R-LOD-02 | The loader flags **short, damaged, doesn't fit, or missing** items **before** the vehicle leaves. Short is one item with some of its units missing (Figma 03, decision 2026-10-01) | Booklet and confirmed product decision | Binding |
 | R-LOD-03 | Loading lists must not go stale when the plan changes | Booklet | Binding |
 | R-LOD-04 | The loader sees only loading-ready vehicles, starts loading, marks finish, and reports destroyed items | Team draft | Team |
 | R-LOD-05 | **Truck interchange:** if the assigned truck becomes unavailable at the dock, another may take the trip | Team draft | Team |
 | R-LOD-06 | An interchange revalidates the **whole trip** against the substitute: capacity, temperature, access, depot, time budget, fuel. It is recorded as history, never an update of the vehicle column: Planning publishes a new plan version (`plan.revised`) | Policy | Policy |
-| R-LOD-07 | A trip is released only when every allocated order has a passing check | Policy | Policy |
+| R-LOD-07 | A trip is released only when every allocated item has a recorded check on the current plan version. A flagged item is a recorded exception and does not by itself block release | Confirmed product decision | Binding |
 | R-LOD-08 | ~~Mall deliveries are prioritised in the loading order~~ **Withdrawn 2026-09-30 (D-L):** loading follows the reversed stop sequence only | Team draft | Withdrawn |
 | R-LOD-09 | If no compatible substitute exists, the trip defers as a unit and its orders carry forward with identity | Policy | Policy |
+| R-LOD-10 | Release requires the loader to confirm doors sealed, orders secured and driver present. No reefer reading or seal number is required | Confirmed product decision | Binding |
+| R-LOD-11 | One loader holds a trip at a time; only that holder writes. Hand back retains the names and times on earlier checks. A hold with no accepted command from its holder for 30 minutes lapses and another loader may take the trip (decision 2026-10-01) | Confirmed product decision | Binding |
 
 ## 5. Execution
 
@@ -222,7 +238,7 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-EXE-02 | Work must be recordable **offline** and reconcile when connectivity returns | Booklet | Binding |
 | R-EXE-03 | Interactions are designed for use when safely stopped | Booklet | Binding |
 | R-EXE-04 | **Early arrival waits.** Service starts at `max(arrival_time, window_open_time)`, never at arrival. Waiting time is recorded separately from service time | Booklet | Binding |
-| R-EXE-05 | A late arrival is **still delivered**. Lateness is recorded with a reason | Booklet | Binding |
+| R-EXE-05 | A late arrival is **still delivered**. Lateness is recorded with a reason. **Except at a mall outlet:** after its effective window closes the mall does not accept goods (R-PLN-14, R-PLN-29), so the stop is a failed delivery with reason `mall_window_closed`, and the dispatcher decides on a redelivery (C-7, EXE-20) | Booklet | Binding |
 | R-EXE-13 | Merged into R-EXE-04, which it duplicated | Booklet | Merged |
 | R-EXE-14 | **Lateness means arrival after `window_close_time`**, not arrival after the planned time. A stop can be later than planned and not late, or on time and late | Booklet | Binding |
 | R-EXE-15 | Lateness has a cost even though the goods are delivered: receiving staff may have moved to other duties, and a Fresh outlet may miss morning sales. Lateness is surfaced to the dispatcher and the store, not buried in a log | Booklet | Binding |
@@ -230,7 +246,7 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-EXE-07 | The driver reports road faults and delays | Team draft | Team |
 | R-EXE-08 | The driver is notified which dock to load at, and when loading and unloading finish | Team draft | Team |
 | R-EXE-09 | A report option is available at every stage | Team draft | Team |
-| R-EXE-10 | **Server time is authoritative.** Device time is stored for forensics only | Policy | Policy |
+| R-EXE-10 | **Server time is authoritative.** Device time is stored for forensics only. A record whose two clocks differ by more than five minutes is marked `timing_uncertain` (A-31) | Policy | Policy |
 | R-EXE-11 | A device limitation, such as a denied camera, never blocks completing the work. The outcome records the reason and is flagged lower-evidence | Policy | Policy |
 | R-EXE-12 | **Returns are out of scope.** A failed delivery records the outcome and raises an issue; goods disposition is recorded but no return workflow exists | Team draft | Team |
 
@@ -246,6 +262,19 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-RCP-06 | The store sees the probability that an order can be supplied on its scheduled day | Team draft | Team, needs a model |
 | R-RCP-07 | **Loaded but not received.** When a passing loading check, a completed delivery and a short receipt disagree, the system raises a shortage investigation linked to all three records. It is **never auto-resolved in favour of either party**, and no record is amended to make them agree | Policy | Policy |
 | R-RCP-08 | Each link in the custody chain is attributed: who checked it at the dock, who delivered it, who received it. That chain is the evidence, and it is what replaces memory in a dispute | Booklet, policy | Policy |
+
+### 6a. Operational issues (issue #13)
+
+| ID | Rule | Source | Status |
+| --- | --- | --- | --- |
+| R-ISS-01 | **One lifecycle.** OPEN to ASSIGNED (reassign allowed) to RESOLVED to CLOSED; OPEN or ASSIGNED may be CANCELLED with a reason. Resolved, closed and cancelled are history: a recurring problem is a new issue | Policy, settles conflict B17 | Policy |
+| R-ISS-02 | Every resolution and cancellation records an action from a fixed vocabulary (replacement, redelivery, write-off, no fault found, other), a reason, a person and a time. There is no return action (R-EXE-12, A-10) | Rule 8 | Policy |
+| R-ISS-03 | An issue names a depot, a description and at least one subject: order, trip, delivery, receipt, shortfall or vehicle. A vehicle alone is valid, because fault and disruption reports carry no trip. A named outlet must belong to the depot | Policy | Policy |
+| R-ISS-04 | A replacement answers only a loading shortfall about that trip and order, and `shortfall.resolved` names the shortfall when the issue was raised from one. A redelivery answers only an issue where **nothing reached the outlet**: a failed delivery or a stock discrepancy. A redelivery is the whole order (A-24), so for a disputed, damaged or late delivery it would ship the goods twice; those are resolved as write-off, no fault found or other, and the store reorders what is missing | Policy | Policy |
+| R-ISS-05 | A redelivery is requested at most once per issue and never for a past date. Ordering creates one order linked to the original (B17, A-24) | Policy | Policy |
+| R-ISS-06 | **Escalation timer.** An issue still OPEN and unassigned past its severity's deadline (P-20 to P-23) is stamped escalated once, with a history row, a metric and `issue.escalated` for Notification to route to the depot's dispatchers | Policy | Policy |
+| R-ISS-07 | **Who may raise what is policy data.** `issue:Raise` is evaluated on `wpt:issue:type:<TYPE>`, and the role policies name each role's types; scope is the issue's depot, the outlet it names, or for a driver the depot of the vehicle they drive today (R-IAM-13, `driverVehicleOn`). Store: damaged goods, late delivery, other. Loader: loading shortfall, damaged goods, other. Driver: failed delivery, vehicle fault, road disruption, late delivery, damaged goods, other. Dispatcher: all | Policy, issue #13 decision 2 | Policy |
+| R-ISS-08 | An issue is assigned only to someone scoped to its depot, so it never lands with a person who cannot see it | Policy | Policy |
 
 ## 7. Fleet, calendar and notification
 
@@ -288,19 +317,44 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-IAM-15 | A password reset and a disable both revoke every session in the same transaction. A reset that leaves old sessions alive protects nobody, because the reason to reset is usually that someone else has the account | Policy | Policy |
 | R-IAM-16 | An account cannot disable itself. An administrator holding the only admin policy would otherwise lock everyone out permanently | Policy | Policy |
 | R-IAM-17 | A scope may only name a depot or outlet that exists. A scope naming nothing is a permanent silent denial, which is the same class of mistake as an uncatalogued action | Policy | Policy |
+| R-IAM-18 | The last active dispatcher of a depot cannot be disabled, moved to another role or taken off that depot. A depot with nobody who can publish its plan is found out the morning nothing is dispatched | Policy | Policy |
+| R-IAM-19 | A change that takes access away (role, scope revoked, device retired) revokes the affected sessions in the same transaction, as a disable and a password reset already do (R-IAM-15) | Policy | Policy |
+| R-IAM-20 | Sign-in is throttled on three counters inside one window (P-13): an identity from one address, one address across identities, one identity across addresses. A failure is recorded and audited in a committed transaction; a success marks the pair's failures cleared and deletes nothing | Policy | Policy |
+| R-IAM-21 | Every change that can alter a decision moves `iam.policy_generation` in the same transaction. A decision is served from cache only at the generation it was loaded at, and a command re-evaluates inside its own transaction against the generation its snapshot sees | Policy | Policy |
+| R-IAM-22 | A device identity is granted by an administrator, never claimed by a client. A sign-in naming an unregistered or retired device is refused (422) after the credentials are checked | Policy | Policy |
+| R-IAM-23 | A command kind with no handler, and a kind whose action is not marked `implemented`, are refused as 403 with an audit row. Policy, account, scope, assignment and device administration are all commands, each guarded by the version of what it changes | Policy | Policy |
+| R-IAM-24 | The session token is stored only as its SHA-256. The cookie is `SameSite=Strict`, `HttpOnly`, kept for the session's absolute lifetime, and behind HTTPS is `Secure` and named with the `__Host-` prefix. A state-changing request that names an `Origin` must name the host it was sent to | Policy | Policy |
+| R-IAM-25 | On a shared loader device, loading writes are made by the operator who entered their PIN, named in the command's `actingUserId`. A device with no operator is locked and every loading write is refused | Confirmed product decision | Binding |
+| R-IAM-26 | An operator PIN is four digits. Five wrong tries pause PIN entry for that person for five minutes | Confirmed product decision | Binding |
+| R-IAM-27 | A loader may switch with their PIN while offline against the crew list the device downloaded: a PBKDF2 verifier per member, never the PIN, valid for 12 hours and wiped at sign-out, with the same five-try pause kept on the device. On reconnect the switches are replayed into the operator history before any queued work, only for crew of that device, in order, after the history the server has, and audited as offline. A four-digit PIN is recoverable from its verifier; that risk is accepted because the list reaches only a supervisor-signed-in loader device (decision 2026-10-01) | Confirmed product decision | Binding |
+
+## 7b. Platform: events, jobs and audit (issue #6)
+
+| ID | Rule | Source | Status |
+| --- | --- | --- | --- |
+| R-PLT-01 | An event is delivered at least once and applied by each consumer once. A consumer records `(consumer, event)` in the same transaction as its own change, so a redelivery re-runs only the subscribers that had not finished | Policy | Policy |
+| R-PLT-02 | Events of one aggregate are delivered in the order written: an event waits while an earlier one of its aggregate is pending, failed or processing. A dead-lettered event does not block its successors, and a replayed one arrives after them | Policy | Policy |
+| R-PLT-03 | A failed delivery is retried with exponential backoff (2 s doubling to a 5 min cap, 20% jitter) and dead-lettered after 8 attempts (`RELAY_MAX_ATTEMPTS`), with its last error. Replay is an administrator command (`platform:ReplayEvent`) that resets the attempts. Dead events are never purged | Policy, issue #6 | Policy |
+| R-PLT-04 | A scheduled job runs on one instance at a time under an advisory-lock lease, records each run, and counts a refused lease as a duplicate run | Policy | Policy |
+| R-PLT-05 | Audit partitions are created ahead of need (current month plus three), and an alert fires when fewer than two future months exist. Partitions older than the retention period are detached, never dropped | Policy, P-26 | Policy |
+| R-PLT-06 | Every command's answer is a receipt, including a deterministic rejection (validation, constraint, conflict, version conflict, not found): a retry gets the same rejection and the handler does not run again. A denial, a rate limit, a timeout and an unavailable dependency are never stored, because a retry exists to get past them | Policy | Policy |
+| R-PLT-07 | An audit row records the command, the target, a redacted outcome and, where the handler supplies it, a redacted state before. Snapshots are redacted by field name before they are written, bounded in size, and never carry a payload with personal data | Policy | Policy |
+
+---
 
 ## 8. Conflicts found
 
-Six places where the sources disagree. C-1, C-3, C-5 and C-6 are settled; C-2 and C-4 remain open.
+Seven places where the sources disagree. C-1, C-2, C-3, C-5, C-6 and C-7 are settled; C-4 remains open.
 
 | # | Conflict | Detail | Recommendation |
 | --- | --- | --- | --- |
 | **C-1** | **Reefers carrying ambient goods** | Team draft: "Refrigerated vehicles exclusively transport chilled items." Booklet: "Refrigerated vehicles may also carry ambient goods." **Settled by the data**: of 9,734 reefer routes in training, 4 carried only ambient orders, and no ambient vehicle ever carried chilled | **Resolved: follow the booklet.** Reefers may carry ambient. Recorded as A-01. In practice it is rare, 0.04% of reefer routes, so the planner treats reefers as chilled-first and uses them for ambient only when it improves the plan. **Refined 2026-09-30 (D-J):** one temperature class per trip, R-PLN-31 |
-| **C-2** | **"Each order mapped to the nearest available department"** | Team draft implies a depot choice. The data makes depot a **function of district**: all 120 outlets have `outlet.depot` equal to their district's depot, with zero exceptions, and R-PLN-04 forbids serving another depot's outlets | The rule is inert as written. Either drop it, or confirm it means something else |
+| **C-2** | **"Each order mapped to the nearest available department"** | Team draft implies a depot choice. The data makes depot a **function of district**: all 120 outlets have `outlet.depot` equal to their district's depot, with zero exceptions, and R-PLN-04 forbids serving another depot's outlets | **Closed 2026-10-01 as inert** (issue #9): depot is a function of district, so there is no depot to choose; `HomeDepot` (R-PLN-04) covers it |
 | **C-3** | **GPS coordinates** | Team draft: "the operational dataset includes newly added GPS coordinates for all delivery outlets." The shipped `outlets.csv` has nine columns and none is latitude or longitude | Treat coordinates as absent. Distance ordering must use `district_travel`, not point geometry |
 | **C-4** | **"Reefers are assumed to run at full capacity"** | Team draft. Meaning unclear: it could mean reefers are always loaded to capacity, that their capacity is not derated when chilled, or that refrigeration does not reduce usable volume | Undecided. See question Q2 |
 | **C-5** | **Longest distance first** | Team draft requires longest distances dispatched earliest. Delivery windows and the Fresh 03:30 to 08:00 window may require the opposite | Windows win; distance is a tie-break. Recorded as R-PLN-25 |
 | **C-6** | **No ordering on holidays** | Team draft. The booklet does not restrict *placing* an order, only *delivering* on a non-operating day. Blocking placement stops a store preparing Monday's order on a Sunday | **Resolved 2026-09-30 (D-I):** allow placement, roll the delivery date to the next operating day, and show the store the date it will arrive. R-ORD-09 withdrawn |
+| **C-7** | **A late arrival at a mall** | R-EXE-05 (booklet): a late arrival is still delivered. R-PLN-14 (booklet): a mall accepts deliveries only inside its fixed access window. After the window closes the goods physically cannot be unloaded | **Resolved 2026-10-02 (issue #13):** R-EXE-05 holds for ordinary outlets. At a mall outlet, arrival after the effective window is a failed delivery (`mall_window_closed`), raised as an issue; the dispatcher decides on a redelivery, which carries a skip so the next plan serves it first (EXE-20, ORD-15) |
 
 ---
 
@@ -318,7 +372,8 @@ One rule, one enforcement point, so a change has one home.
 | R-PLN-21 to 28 | Priority policy and publication gate, versioned | Domain unit tests |
 | R-LOD-* | Loading domain and departure gate | Integration tests |
 | R-EXE-* | Execution domain and offline queue | Browser tests |
-| R-RCP-* | Receipt domain and scheduler | Integration tests |
+| R-RCP-* | Receipt domain, `ReceiptAutoCloseJob`, `ReceiptAnswerHandler` | Domain unit tests, integration tests with the job run at chosen instants |
+| R-ISS-* | Issues domain, `IssueCommandHandler`, role policies (R-ISS-07), `IssueEscalationJob` | Domain unit tests, integration tests through the command bus |
 | R-FLT-*, R-CAL-* | Reference data module | Domain unit tests |
 | R-NOT-* | Notification outbox | Integration tests |
 
@@ -334,7 +389,7 @@ Rules with status **Validated** get a second gate: our allocation output is run 
 | **Q2** | C-4: what does "reefers run at full capacity" mean? | Whether reefer usable volume is derated |
 | ~~Q3~~ | ~~How is availability queried?~~ **Answered:** `stock` per product, enforced by `POST /orders` with `409 insufficient_stock` | closed |
 | ~~Q4~~ | ~~An API key, so response schemas can be specified~~ **Answered:** contract recorded in section 2 | closed |
-| **Q5** | C-2: what does "nearest available department" mean, given depot is fixed by district? | Whether any depot-choice logic exists at all |
+| ~~Q5~~ | ~~C-2: what does "nearest available department" mean, given depot is fixed by district?~~ **Answered:** no depot choice exists (C-2 closed) | closed |
 | ~~Q6~~ | ~~C-6: block order placement on holidays, or roll the delivery date?~~ **Answered:** roll the date (D-I) | closed |
 | ~~Q7~~ | ~~R-PLN-24: does the weekly fuel quota include the return leg?~~ **Answered:** yes (D-K) | closed |
 | ~~Q8~~ | ~~Do Waypoint orders carry product lines at capture?~~ **Answered:** yes, descriptive lines checked by the warehouse at placement (D-E) | closed |

@@ -1,6 +1,7 @@
 package com.waypoint.dispatch.platform.web;
 
 import com.waypoint.dispatch.shared.domain.Actor;
+import com.waypoint.dispatch.platform.messaging.Command;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Optional;
 
@@ -19,4 +20,19 @@ public interface ActorResolver {
 
   /** Empty when the request carries no valid session. */
   Optional<Actor> resolve(HttpServletRequest request);
+
+  /** Resolve an online mutation, allowing identity to enforce device-specific write gates. */
+  default Optional<Actor> resolveCommand(HttpServletRequest request, Command command) {
+    return resolve(request);
+  }
+
+  /** Resolve the signed-in device account for sync bookkeeping. */
+  default Optional<Actor> resolveDevice(HttpServletRequest request) {
+    return resolve(request);
+  }
+
+  /** Opaque server session credential for validating queued operator intervals. */
+  default String sessionCredential(HttpServletRequest request) {
+    return null;
+  }
 }

@@ -4,6 +4,7 @@ import "@fontsource/instrument-sans/600.css";
 import "@fontsource/instrument-sans/700.css";
 import "@fontsource/ibm-plex-mono/400.css";
 import "@fontsource/ibm-plex-mono/500.css";
+import "@fontsource-variable/google-sans-flex/wght.css";
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
