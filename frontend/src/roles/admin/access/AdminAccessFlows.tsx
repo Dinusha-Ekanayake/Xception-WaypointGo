@@ -3,10 +3,11 @@
 import { useRef, useState } from "react";
 import { Modal, card, field, primary, secondary } from "./components";
 import { labelFor, type Member, type Persona } from "./model";
+import { DEMO_DEPOTS } from "./fixtures";
 
 export type NewMember = { name: string; email: string; persona: Exclude<Persona, "super_admin">; place: string; vehicleType: "" | "van" | "truck" };
 
-const DEPOTS = ["PELIYAGODA", "KANDY", "GALLE"];
+const DEPOTS: readonly string[] = DEMO_DEPOTS;
 const OUTLETS = ["OUT-SAMPLE-01", "OUT-SAMPLE-02", "OUT-SAMPLE-03", "OUT-SAMPLE-04"];
 const PERSONA_OPTIONS: Exclude<Persona, "super_admin">[] = ["dispatcher", "loader", "driver", "store_manager", "admin"];
 const placeLabel = (persona: NewMember["persona"]) => persona === "loader" ? "Depot" : persona === "store_manager" ? "Outlet" : "Depot";
