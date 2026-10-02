@@ -18,6 +18,8 @@ import com.waypoint.dispatch.identity.contract.IdentityQuery;
 import com.waypoint.dispatch.identity.web.AuthController;
 import com.waypoint.dispatch.platform.audit.AuditLog;
 import com.waypoint.dispatch.platform.config.AppProperties;
+import com.waypoint.dispatch.platform.config.DataConfig;
+import com.waypoint.dispatch.platform.config.DirectoryLocator;
 import com.waypoint.dispatch.platform.db.Database;
 import com.waypoint.dispatch.platform.db.Migrator;
 import com.waypoint.dispatch.platform.db.ModuleRole;
@@ -35,6 +37,7 @@ import com.waypoint.dispatch.shared.util.Clock;
 import com.waypoint.dispatch.support.TestDatabase;
 import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.servlet.http.Cookie;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -44,6 +47,7 @@ import java.sql.Statement;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -54,6 +58,7 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -805,6 +810,240 @@ class IdentityHardeningIntegrationTest {
       SQLException notGranted =
           assertThrows(SQLException.class, () -> statement.execute("SET ROLE " + owner.getUserInfo().split(":")[0]));
       assertEquals("42501", notGranted.getSQLState());
+      connection.rollback();
+      SQLException notTheOwner =
+          assertThrows(SQLException.class, () -> statement.execute("SET ROLE " + Migrator.OWNER_ROLE));
+      assertEquals("42501", notTheOwner.getSQLState());
+    }
+  }
+
+  /**
+   * SEC-28: nothing the migrations made belongs to a superuser. The owner used to
+   * be whoever ran migrate, which in the Docker deployments is the image's
+   * bootstrap account.
+   */
+  @Test
+  @Order(62)
+  void theSchemaBelongsToAnOwnerThatIsNotASuperuser() throws Exception {
+    try (Connection owner = ownerConnection();
+        Statement statement = owner.createStatement()) {
+      try (ResultSet role =
+          statement.executeQuery(
+              "SELECT rolsuper, rolbypassrls, rolcreatedb, rolreplication, rolinherit"
+                  + " FROM pg_roles WHERE rolname = 'waypoint_migrator'")) {
+        assertTrue(role.next(), "the owner role exists");
+        assertFalse(role.getBoolean("rolsuper"), "not a superuser");
+        assertFalse(role.getBoolean("rolbypassrls"), "row-level security applies to it");
+        assertFalse(role.getBoolean("rolcreatedb"));
+        assertFalse(role.getBoolean("rolreplication"));
+        assertFalse(role.getBoolean("rolinherit"), "it holds no module's privileges");
+      }
+
+      String application =
+          " n.nspname NOT IN ('public', 'information_schema') AND n.nspname NOT LIKE 'pg\\_%'";
+      List<String> strays = new ArrayList<>();
+      try (ResultSet rows =
+          statement.executeQuery(
+              "SELECT c.oid::regclass::text AS name FROM pg_class c"
+                  + " JOIN pg_namespace n ON n.oid = c.relnamespace"
+                  + " WHERE pg_get_userbyid(c.relowner) <> 'waypoint_migrator' AND"
+                  + application
+                  + " UNION ALL SELECT p.oid::regprocedure::text FROM pg_proc p"
+                  + " JOIN pg_namespace n ON n.oid = p.pronamespace"
+                  + " WHERE pg_get_userbyid(p.proowner) <> 'waypoint_migrator' AND"
+                  + application
+                  + " UNION ALL SELECT 'schema ' || n.nspname FROM pg_namespace n"
+                  + " WHERE pg_get_userbyid(n.nspowner) <> 'waypoint_migrator' AND"
+                  + application
+                  + " UNION ALL SELECT 'public.schema_migrations' FROM pg_class c"
+                  + " WHERE c.oid = 'public.schema_migrations'::regclass"
+                  + " AND pg_get_userbyid(c.relowner) <> 'waypoint_migrator'")) {
+        while (rows.next()) {
+          strays.add(rows.getString("name"));
+        }
+      }
+      assertEquals(List.of(), strays, "every schema, table, index, sequence and function moved");
+
+      // The definer functions run as their owner, so none runs as a superuser now.
+      try (ResultSet definers =
+          statement.executeQuery(
+              "SELECT count(*) FROM pg_proc p JOIN pg_roles r ON r.oid = p.proowner"
+                  + " WHERE p.prosecdef AND r.rolsuper AND p.pronamespace IN"
+                  + " (SELECT oid FROM pg_namespace WHERE nspname IN ('app', 'integration'))")) {
+        definers.next();
+        assertEquals(0, definers.getLong(1));
+      }
+    }
+  }
+
+  /**
+   * The deployed path after the handover: migrate logs in as the cluster's own
+   * account and applies the file as waypoint_migrator. The table it creates must
+   * belong to the owner and carry its module's grants, which come from default
+   * privileges that had to be declared again for the new owner; it can add a
+   * module role; and it can backfill a table that forces row-level security by
+   * lifting the force around the statement.
+   */
+  @Test
+  @Order(63)
+  void aLaterMigrationRunsAsTheOwnerAndItsTableGetsTheModulesGrants(@TempDir Path dir)
+      throws Exception {
+    String probe = "99990101T0000_test_owner_probe.sql";
+    migrationsWith(
+        dir,
+        probe,
+        """
+        CREATE TABLE ordering.hrd_owner_probe (id integer PRIMARY KEY);
+        CREATE ROLE waypoint_hrd_probe NOLOGIN NOINHERIT;
+        GRANT waypoint_hrd_probe TO waypoint_app;
+        ALTER TABLE iam.user_depot_access NO FORCE ROW LEVEL SECURITY;
+        UPDATE iam.user_depot_access SET depot_code = depot_code
+         WHERE user_id = '00000000-0000-0000-0000-000000000000';
+        ALTER TABLE iam.user_depot_access FORCE ROW LEVEL SECURITY;
+        """);
+    try (Connection owner = ownerConnection();
+        Statement statement = owner.createStatement()) {
+      try {
+        assertEquals(
+            1,
+            new Migrator(deployed(TestDatabase.url(), "", dir.toString())).migrate(),
+            "only the probe is new");
+
+        assertEquals(
+            "waypoint_migrator",
+            scalar(
+                statement,
+                "SELECT pg_get_userbyid(relowner) FROM pg_class"
+                    + " WHERE oid = 'ordering.hrd_owner_probe'::regclass"),
+            "created as the owner, whoever logged in");
+        for (String privilege : List.of("SELECT", "INSERT", "UPDATE")) {
+          assertEquals(
+              "t",
+              scalar(
+                  statement,
+                  "SELECT has_table_privilege('waypoint_ordering', 'ordering.hrd_owner_probe', '"
+                      + privilege
+                      + "')"),
+              "the module role may " + privilege + " a table a later migration adds");
+        }
+        assertEquals(
+            "f",
+            scalar(
+                statement,
+                "SELECT has_table_privilege('waypoint_ordering', 'ordering.hrd_owner_probe', 'DELETE')"),
+            "and still never DELETE");
+        assertEquals(
+            "f",
+            scalar(
+                statement,
+                "SELECT has_table_privilege('waypoint_planning', 'ordering.hrd_owner_probe', 'SELECT')"),
+            "SEC-16: another module's role still cannot read it");
+        assertEquals(
+            "t",
+            scalar(statement, "SELECT pg_has_role('waypoint_app', 'waypoint_hrd_probe', 'MEMBER')"),
+            "a migration can add a module role and let the pool adopt it");
+        assertEquals(
+            "t",
+            scalar(
+                statement,
+                "SELECT relforcerowsecurity FROM pg_class"
+                    + " WHERE oid = 'iam.user_depot_access'::regclass"),
+            "the force is back on");
+      } finally {
+        statement.execute("DROP TABLE IF EXISTS ordering.hrd_owner_probe");
+        statement.execute("DROP ROLE IF EXISTS waypoint_hrd_probe");
+        statement.execute("DELETE FROM public.schema_migrations WHERE filename = '" + probe + "'");
+      }
+    }
+  }
+
+  /**
+   * SEC-30: the owner is subject to forced row-level security and no policy names
+   * it, so a backfill would update no rows and report success. The run fails
+   * instead, and being one transaction it leaves nothing behind.
+   */
+  @Test
+  @Order(64)
+  void aBackfillThatRowLevelSecurityWouldHideFailsAndChangesNothing(@TempDir Path dir)
+      throws Exception {
+    String probe = "99990101T0001_test_blind_backfill.sql";
+    migrationsWith(
+        dir,
+        probe,
+        """
+        CREATE TABLE ordering.hrd_blind_probe (id integer PRIMARY KEY);
+        UPDATE iam.user_depot_access SET depot_code = depot_code;
+        """);
+    RuntimeException refused =
+        assertThrows(
+            RuntimeException.class,
+            () -> new Migrator(deployed(TestDatabase.url(), "", dir.toString())).migrate());
+    assertEquals("42501", sqlStateOf(refused), "refused, not silently filtered to no rows");
+
+    try (Connection owner = ownerConnection();
+        Statement statement = owner.createStatement()) {
+      assertNull(
+          scalar(statement, "SELECT to_regclass('ordering.hrd_blind_probe')"),
+          "the statement before the refused one rolled back with it");
+      assertEquals(
+          "0",
+          scalar(
+              statement,
+              "SELECT count(*) FROM public.schema_migrations WHERE filename = '" + probe + "'"));
+    }
+  }
+
+  /**
+   * A deployment need not give migrate a superuser's credentials at all: with a
+   * password of its own the owner role logs in directly, finds the schema current
+   * and still provisions the runtime login. What it cannot do is what only a
+   * superuser can.
+   */
+  @Test
+  @Order(65)
+  void migrateCanLogInAsTheOwnerItselfWhichCannotDoWhatASuperuserCan() throws Exception {
+    java.net.URI base = java.net.URI.create(TestDatabase.url());
+    String location = "@" + base.getHost() + ":" + base.getPort() + base.getPath();
+    String ownerPassword = "hrd-" + UUID.randomUUID();
+    String runtimePassword = "hrd-" + UUID.randomUUID();
+    String jdbcUrl = DataConfig.toJdbcUrl(TestDatabase.url());
+
+    try (Connection superuser = ownerConnection();
+        Statement asSuperuser = superuser.createStatement()) {
+      asSuperuser.execute(
+          "ALTER ROLE waypoint_migrator LOGIN PASSWORD '" + ownerPassword + "'");
+      try {
+        Migrator migrator =
+            new Migrator(
+                deployed(
+                    "postgresql://waypoint_app:" + runtimePassword + location,
+                    "postgresql://waypoint_migrator:" + ownerPassword + location,
+                    properties.migrationsDir()));
+        assertEquals(0, migrator.migrate(), "the schema is already current");
+
+        try (Connection runtime =
+            DriverManager.getConnection(jdbcUrl, "waypoint_app", runtimePassword)) {
+          assertTrue(runtime.isValid(2), "the owner role set the runtime login's password");
+        }
+
+        try (Connection owner =
+                DriverManager.getConnection(jdbcUrl, "waypoint_migrator", ownerPassword);
+            Statement statement = owner.createStatement()) {
+          for (String superuserOnly :
+              List.of(
+                  "ALTER ROLE waypoint_app BYPASSRLS",
+                  "ALTER ROLE waypoint_migrator SUPERUSER",
+                  "CREATE ROLE waypoint_hrd_super SUPERUSER",
+                  "COPY (SELECT 1) TO PROGRAM 'true'",
+                  "SET ROLE waypoint_iam")) {
+            SQLException denied =
+                assertThrows(SQLException.class, () -> statement.execute(superuserOnly));
+            assertEquals("42501", denied.getSQLState(), superuserOnly);
+          }
+        }
+      } finally {
+        asSuperuser.execute("ALTER ROLE waypoint_migrator NOLOGIN PASSWORD NULL");
+      }
     }
   }
 
@@ -864,6 +1103,100 @@ class IdentityHardeningIntegrationTest {
         "a disabled account has no session to read a notification with");
     assertThrows(
         IllegalArgumentException.class, () -> identity.recipientsFor("dispatcher", "planet", "x"));
+  }
+
+  // ---- reference reads -------------------------------------------------------
+
+  /**
+   * R-IAM-28, SEC-29: {@code reference:Read} says a role may read outlets and
+   * fleet; scope says whose. Reference data is one snapshot shared by every
+   * actor, so before this a dispatcher of one depot could read the other's.
+   */
+  @Test
+  @Order(80)
+  void aReferenceReadStopsAtTheActorsOwnScope() throws Exception {
+    clock.reset();
+    String dispatcher = "hrd-ref-dispatch-" + RUN + "@waypoint.test";
+    String store = "hrd-ref-store-" + RUN + "@waypoint.test";
+    String driver = "hrd-ref-driver-" + RUN + "@waypoint.test";
+    UUID dispatcherId = accounts.createAccount(dispatcher, "Kandy Dispatcher", PASSWORD, "dispatcher");
+    UUID storeId = accounts.createAccount(store, "Outlet One Manager", PASSWORD, "store_manager");
+    UUID driverId = accounts.createAccount(driver, "Kandy Driver", PASSWORD, "driver");
+    grantScope(dispatcherId, "\"depotCode\":\"Kandy\"");
+    grantScope(storeId, "\"outletId\":\"OUT001\"");
+    LocalDate today = clock.now().atZone(Clock.OPERATING_ZONE).toLocalDate();
+
+    // A dispatcher reads their own depot: lists, one outlet, one vehicle.
+    read(dispatcher, "/api/reference/outlets?depot=Kandy", 200);
+    read(dispatcher, "/api/reference/vehicles?depot=Kandy&date=" + today, 200);
+    read(dispatcher, "/api/reference/outlets/OUT076", 200);
+    read(dispatcher, "/api/reference/vehicles/VEH060", 200);
+
+    // And not the other one. Each refusal names the rule, is audited and counted.
+    long auditedBefore = denials(dispatcherId, "reference:Read");
+    double countedBefore = total("waypoint.scope.denied");
+    String refused = read(dispatcher, "/api/reference/outlets?depot=Peliyagoda", 403);
+    assertTrue(refused.contains("R-IAM-28"), refused);
+    read(dispatcher, "/api/reference/vehicles?depot=Peliyagoda&date=" + today, 403);
+    read(dispatcher, "/api/reference/outlets/OUT001", 403);
+    read(dispatcher, "/api/reference/vehicles/VEH001", 403);
+    assertEquals(
+        auditedBefore + 4,
+        denials(dispatcherId, "reference:Read"),
+        "a refused read leaves an audit row, never an empty list");
+    assertEquals(countedBefore + 4, total("waypoint.scope.denied"));
+
+    // What is the same for every depot is not scoped, and unknown is still unknown.
+    read(dispatcher, "/api/reference/version", 200);
+    read(dispatcher, "/api/reference/calendar/" + today, 200);
+    read(dispatcher, "/api/reference/outlets/OUT999", 404);
+
+    // A store manager reads their own outlet and the calendar, which the store
+    // screens need, and no other outlet. Fleet and depot lists are not in the
+    // store policy at all, so policy refuses those before scope is asked.
+    assertEquals(
+        "OUT001",
+        mapper.readTree(read(store, "/api/reference/outlets/OUT001", 200)).get("outletId").asText());
+    read(store, "/api/reference/calendar/" + today, 200);
+    assertTrue(read(store, "/api/reference/outlets/OUT002", 403).contains("R-IAM-28"));
+    assertFalse(read(store, "/api/reference/vehicles/VEH001", 403).contains("R-IAM-28"));
+    assertFalse(read(store, "/api/reference/outlets?depot=Peliyagoda", 403).contains("R-IAM-28"));
+    read(store, "/api/reference/version", 403);
+
+    // A driver holds no depot. Their scope is a vehicle on a date (R-IAM-13):
+    // nothing before the assignment, then their own vehicle and the outlets of
+    // the depot it works from, but not the depot's lists or its other vehicles.
+    read(driver, "/api/reference/vehicles/VEH060", 403);
+    read(driver, "/api/reference/outlets/OUT076", 403);
+    asIdentity(
+        () ->
+            database.update(
+                "DELETE FROM iam.vehicle_driver_assignments"
+                    + " WHERE vehicle_id = 'VEH060' AND validity && daterange(?, ?, '[)')",
+                java.sql.Date.valueOf(today),
+                java.sql.Date.valueOf(today.plusDays(1))));
+    ack(
+        ADMIN,
+        UUID.randomUUID().toString(),
+        "iam:AssignDriver",
+        accountVersion(driverId),
+        "{\"vehicleId\":\"VEH060\",\"driverUserId\":\"%s\",\"from\":\"%s\",\"until\":\"%s\"}"
+            .formatted(driverId, today, today.plusDays(1)),
+        200);
+    read(driver, "/api/reference/vehicles/VEH060", 200);
+    read(driver, "/api/reference/outlets/OUT076", 200);
+    read(driver, "/api/reference/vehicles/VEH059", 403);
+    read(driver, "/api/reference/outlets/OUT001", 403);
+    read(driver, "/api/reference/outlets?depot=Kandy", 403);
+
+    // The assignment ends with the day. Tomorrow the same driver reads nothing.
+    clock.advance(Duration.ofDays(1));
+    try {
+      read(driver, "/api/reference/vehicles/VEH060", 403);
+      read(driver, "/api/reference/outlets/OUT076", 403);
+    } finally {
+      clock.reset();
+    }
   }
 
   // ---- helpers ----------------------------------------------------------------
@@ -951,6 +1284,57 @@ class IdentityHardeningIntegrationTest {
     String response = result.getResponse().getContentAsString();
     assertEquals(expectedStatus, result.getResponse().getStatus(), response);
     return response;
+  }
+
+  private void grantScope(UUID userId, String target) throws Exception {
+    ack(
+        ADMIN,
+        UUID.randomUUID().toString(),
+        "iam:GrantScope",
+        accountVersion(userId),
+        "{\"userId\":\"%s\",%s}".formatted(userId, target),
+        200);
+  }
+
+  /** The account the test database was created with, which is what migrate logs in as. */
+  private static Connection ownerConnection() throws SQLException {
+    String url = TestDatabase.url();
+    return DriverManager.getConnection(
+        DataConfig.toJdbcUrl(url), DataConfig.username(url), DataConfig.password(url));
+  }
+
+  private static String scalar(Statement statement, String sql) throws SQLException {
+    try (ResultSet rows = statement.executeQuery(sql)) {
+      rows.next();
+      return rows.getString(1);
+    }
+  }
+
+  /** The application's settings with other database logins or another migrations directory. */
+  private AppProperties deployed(String runtimeUrl, String ownerUrl, String migrationsDir) {
+    return new AppProperties(
+        runtimeUrl,
+        properties.dataDir(),
+        migrationsDir,
+        ownerUrl,
+        properties.cookieSecure(),
+        properties.allowedOrigins(),
+        properties.problemTypeBase(),
+        properties.session(),
+        properties.loginThrottle(),
+        properties.http(),
+        properties.observability());
+  }
+
+  /** Every real migration, unchanged, plus one more that sorts after them all. */
+  private void migrationsWith(Path dir, String name, String sql) throws Exception {
+    Path real = DirectoryLocator.resolve(properties.migrationsDir(), "migrations");
+    try (var files = Files.list(real)) {
+      for (Path file : files.filter(f -> f.getFileName().toString().endsWith(".sql")).toList()) {
+        Files.copy(file, dir.resolve(file.getFileName()));
+      }
+    }
+    Files.writeString(dir.resolve(name), sql);
   }
 
   private Cookie sessionOf(String email) {

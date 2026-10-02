@@ -1,4 +1,4 @@
-# Issue #5: Identity and auth hardening — plan
+# Issue #5: Identity and auth hardening, plan
 
 Written before code, per AGENTS.md "Issue Documents". What was actually built goes in `WALKTHROUGH.md`.
 
@@ -72,7 +72,7 @@ Deployments log in as `waypoint_app` with its own password, set by `migrate` fro
 
 Every pooled connection also runs `SET ROLE waypoint_app` when it is opened. Logged in as `waypoint_app` that changes nothing. Logged in as the owner (local development, CI) it makes a forgotten `SET LOCAL ROLE` fail there too, so the test suite catches it instead of production.
 
-**Not done: a non-superuser `waypoint_migrator` that owns the tables.** In the Docker deployments the owner is the image's bootstrap user, which is a superuser and cannot be reassigned with `REASSIGN OWNED`. Moving ownership means altering every object one by one, re-issuing every `ALTER DEFAULT PRIVILEGES` for the new owner, and granting it admin on thirteen existing roles, on live volumes, with other branches adding migrations this week. A mistake there stops every future deploy. It stays open on issue #5; what ships is the half that removes the owner's credentials from the running process.
+**Left out of the first pull request: a non-superuser `waypoint_migrator` that owns the tables.** In the Docker deployments the owner is the image's bootstrap user, which is a superuser and cannot be reassigned with `REASSIGN OWNED`. Moving ownership means altering every object one by one, re-issuing every `ALTER DEFAULT PRIVILEGES` for the new owner, and granting it admin on the existing roles, on live volumes. The first pull request shipped the half that removes the owner's credentials from the running process; the handover is decision 8 below.
 
 ### 7. Expand, then contract, for the session key
 
@@ -86,7 +86,69 @@ One branch, `fix/identity-hardening`, one pull request into `dev`, then `dev` in
 
 | Item | Owner |
 | --- | --- |
-| `waypoint_migrator` as a non-superuser owner | stays on #5, decision 6 |
-| Filtering reference reads by depot scope | #5 follow-up: reference is served from one in-memory snapshot shared by every actor, and the consumers that need a scoped list (planning, ordering) already filter in SQL in their own schema |
+| `waypoint_migrator` as a non-superuser owner | done in the second pass, decision 8 |
+| Filtering reference reads by depot scope | done in the second pass, decision 9 |
 | Admin console screens for devices, roles and policy | #22 |
 | Driver row-level security using `app.actor_drives` | #12 |
+
+## Second pass: the owner and reference scope (2026-10-02)
+
+The first pull request (#62) left two lines of the issue open. This closes both, and one gap found on the way.
+
+### Current state
+
+Checked against `dev` at `6eec879`.
+
+| Area | Already true | Still wrong |
+| --- | --- | --- |
+| Owner | The pool is `waypoint_app`; `migrate` has its own connection | Every schema, table and function belongs to the account `migrate` logs in as, the image's bootstrap superuser. Three `SECURITY DEFINER` functions therefore run as a superuser, and a migration can do anything to the cluster |
+| Reference reads | `reference:Read` is checked on every endpoint, with a resource naming the depot, outlet or vehicle | Nothing checks scope. The data holds two depots, and a dispatcher of one reads the other's outlets and fleet |
+| Store policy | The store screens read their outlet and the calendar | `WaypointStoreManager` has no `reference:Read`, so against a real backend both reads are refused |
+
+### Which layer owns each dependency
+
+| Concern | Layer | Class |
+| --- | --- | --- |
+| Moving ownership, default privileges, role admin | migration | `20261002T1900_platform_migrator_owner.sql` |
+| Applying files as the owner | `platform/db` | `Migrator` |
+| The scope half of a reference read | `referencedata/application` | `ReferenceScope`, asking `identity/contract/IdentityQuery` |
+| Calling it | `referencedata/web` | `ReferenceController` |
+| The store's permission | migration | `20261002T1910_iam_store_reads_reference.sql` |
+
+### 8. The handover is a migration, and migrate acts as the owner from then on
+
+One migration creates `waypoint_migrator` (no superuser, no `BYPASSRLS`, `CREATEROLE`) and moves every schema, table, partition, sequence, function and type the migrations made to it, by name, read from the catalog. It declares the same default privileges for the new owner, or the next table a migration adds would be readable by nobody, and gives it `ADMIN` (not `INHERIT`, not `SET`) on `waypoint_app` and the module roles. A last check raises if anything in those schemas has another owner. It is one transaction with the rest of the run: it moves everything or nothing. A 15 second `lock_timeout` stops a deploy from queueing requests behind a lock it cannot get.
+
+The list is read from the catalog and not written out because branches are adding migrations: one with an earlier name that merges later is covered on a new database without editing this file, and on an existing database it runs after the handover, as the owner.
+
+`Migrator` asks before each file whether `public.schema_migrations` belongs to `waypoint_migrator`, and if so applies the file under `SET LOCAL ROLE waypoint_migrator`. The marker is per database (roles are cluster-wide, so "the role exists" would be wrong for a second database on the same cluster) and it works on a new database, where the handover is one of the files in the run: the files before it need a superuser (`ALTER ROLE ... NOSUPERUSER` is refused to anyone else), the files after it do not get one.
+
+Not chosen: making the Docker bootstrap account something other than a superuser. PostgreSQL's image always creates `POSTGRES_USER` as one, and existing volumes would not re-run an init script. The login `migrate` uses therefore stays what the deployment has. What changes is what a migration runs as. A deployment that wants `init` to hold no superuser credential gives `waypoint_migrator` a password and names it in `MIGRATION_DATABASE_URL`; that path is tested.
+
+Row-level security now applies to migrations, which it never did under a superuser. The owner is subject to `FORCE ROW LEVEL SECURITY` and no policy names it, so a backfill would update nothing and report success. `Migrator` sets `row_security = off` beside the role, which makes PostgreSQL refuse such a statement instead of filtering it. A migration that must backfill a forced table lifts the force around the statement.
+
+### 9. Reference scope is checked in the application, through Identity's contract
+
+Reference data is one in-memory snapshot for every actor. There is no row for row-level security to hide, so the scope half is an explicit check, in `referencedata/application` (rule 3), before anything is returned.
+
+It asks `IdentityQuery.scopeOf` and `driverVehicleOn`. The alternative was to call `app.actor_has_depot` as `waypoint_ref`, which needs the reference role to read the iam scope tables. Migration 004 revokes exactly that on purpose ("the arrow points one way"), and Identity is already the one module every application layer may call synchronously.
+
+| Read | Allowed when the actor |
+| --- | --- |
+| `/outlets?depot=`, `/vehicles?depot=&date=` | is scoped to the depot |
+| `/outlets/{id}` | is scoped to the outlet, or to its depot, or drives today a vehicle of its depot |
+| `/vehicles/{id}` | is scoped to its depot, or drives it today |
+| `/version`, `/calendar/{date}` | holds `reference:Read`: the same for every depot |
+
+"Today" is the operating day by the server's clock, as for a delivery (EXE-13) and an issue (R-ISS-07). A driver is not given the depot's lists: their scope is a vehicle, and the run sheet needs single outlets. A refusal is 403 with an audit row and `waypoint_scope_denied_total`. An unknown outlet stays 404; outlet ids are dataset identifiers, not secrets.
+
+`ReferenceQuery`, the contract other modules call inside their own commands, stays unscoped: those callers have already decided what the actor may reach.
+
+### 10. The store manager gets `reference:Read`, on outlets and calendar days only
+
+Without it the store header and the "this date rolls forward" notice (D-I) never appear against a real backend. It was unsafe while reads were unscoped, since the action on `*` would open every outlet and the fleet to every store. With decision 9 an outlet read stops at the manager's own outlet, and the policy statement names `wpt:ref:outlet:*` and `wpt:ref:calendar:*` only. A new default policy version, by migration, as the earlier role policy changes were.
+
+### Pull request
+
+One branch, `fix/identity-owner-and-reference-scope`, one pull request into `dev`, closing #5.
+

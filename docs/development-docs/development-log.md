@@ -21,6 +21,17 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-02 - fix: a non-superuser owner for the schema, and reference reads that stop at scope (issue #5)
+
+`fix/identity-owner-and-reference-scope` · @kavindamihiran
+
+Every schema, table and function now belongs to `waypoint_migrator`, which is not a superuser, and `migrate` applies each file as that role once a database is handed over. `/api/reference` outlets and vehicles are checked against the actor's depot, outlet or today's vehicle (`ReferenceScope`, R-IAM-28). The store manager policy gains `reference:Read` on outlets and calendar days, which the store screens already called. Details in the [plan](../issues/005-identity-hardening/PLAN.md#second-pass-the-owner-and-reference-scope-2026-10-02) and [walkthrough](../issues/005-identity-hardening/WALKTHROUGH.md).
+Why: the last two open lines of #5. A migration could do anything a superuser can, and a dispatcher of one depot could read the other's outlets and fleet.
+Verified: `mvn verify` against a new PostgreSQL 16 database and against one upgraded from `dev`; grants, policies and default privileges compared before and after the handover and found identical. Counts are in the pull request.
+Open: migrations may no longer name `SUPERUSER` or `BYPASSRLS`, and a backfill of a table that forces row-level security must lift the force (AGENTS.md, Data and Migration Rules). An account with no depot grant, an administrator included, gets 403 on depot reference reads.
+
+---
+
 ## 2026-10-02 - fix(deploy): preview log store, Grafana address and root URL
 
 `fix/grafana-root-url` · @jv_ransika

@@ -32,16 +32,25 @@ import org.springframework.transaction.support.TransactionTemplate;
  * once cannot both apply the same file. It is an explicit command and never runs
  * on boot or on a request.
  *
- * <p>It has a connection of its own, as the owner: {@code MIGRATION_DATABASE_URL}
- * when set, otherwise {@code DATABASE_URL}. The pool cannot be used, because the
- * pool runs as waypoint_app, which owns nothing and may create nothing. When the
- * two URLs name different logins, migrate also gives waypoint_app the password
- * the pool will log in with, so the running process needs no other credential.
+ * <p>It has a connection of its own: {@code MIGRATION_DATABASE_URL} when set,
+ * otherwise {@code DATABASE_URL}. The pool cannot be used, because the pool runs
+ * as waypoint_app, which owns nothing and may create nothing. When the two URLs
+ * name different logins, migrate also gives waypoint_app the password the pool
+ * will log in with, so the running process needs no other credential.
+ *
+ * <p>The schema is owned by {@code waypoint_migrator}, which is not a superuser.
+ * Once a database has been handed over to it (the migration that does so also
+ * gives it the ledger, which is how this class can tell), every file is applied
+ * as that role whoever logged in, so a migration can do no more on a laptop,
+ * where the login is the cluster's superuser, than it can in a deployment.
  */
 @Component
 public class Migrator {
   private static final Logger log = LoggerFactory.getLogger(Migrator.class);
   private static final long LOCK_KEY = 8_314_552_071L;
+
+  /** Owns the schema once the handover migration has run. Not a superuser. */
+  public static final String OWNER_ROLE = "waypoint_migrator";
 
   private final String migrationsDir;
   private final String ownerUrl;
@@ -98,13 +107,56 @@ public class Migrator {
         continue;
       }
       log.info("Applying migration {}", name);
+      // Asked before every file, not once: on a new database the handover is
+      // itself one of the files in this run.
+      boolean asOwner = handedOver(jdbc);
+      if (asOwner) {
+        actAsOwner(jdbc);
+      }
       jdbc.execute(sql);
+      if (asOwner) {
+        // Not in a finally: after a failure the transaction is aborted, the reset
+        // would fail too and hide the real error, and the rollback undoes both
+        // settings anyway.
+        jdbc.execute("RESET row_security");
+        jdbc.execute("RESET ROLE");
+      }
       jdbc.update(
           "INSERT INTO public.schema_migrations(filename, checksum) VALUES (?, ?)", name, checksum);
       applied++;
     }
     provisionRuntimeLogin(jdbc);
     return applied;
+  }
+
+  /** True once this database's ledger, and with it the schema, belongs to the owner role. */
+  private static boolean handedOver(JdbcTemplate jdbc) {
+    return Boolean.TRUE.equals(
+        jdbc.queryForObject(
+            "SELECT pg_get_userbyid(c.relowner) = ? FROM pg_class c"
+                + " WHERE c.oid = 'public.schema_migrations'::regclass",
+            Boolean.class,
+            OWNER_ROLE));
+  }
+
+  /**
+   * The owner is subject to row-level security where a table forces it, and no
+   * policy names the owner, so a backfill of such a table would update no rows
+   * and report success. With {@code row_security} off PostgreSQL refuses that
+   * statement instead of filtering it, and the run fails where it would have
+   * done nothing.
+   */
+  private static void actAsOwner(JdbcTemplate jdbc) {
+    try {
+      jdbc.execute("SET LOCAL ROLE " + OWNER_ROLE);
+    } catch (RuntimeException e) {
+      throw new IllegalStateException(
+          "This database is owned by "
+              + OWNER_ROLE
+              + ". Run migrate as that role, a member of it, or the cluster's superuser.",
+          e);
+    }
+    jdbc.execute("SET LOCAL row_security = off");
   }
 
   /**
