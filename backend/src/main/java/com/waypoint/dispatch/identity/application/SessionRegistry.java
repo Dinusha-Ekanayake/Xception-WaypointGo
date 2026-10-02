@@ -175,6 +175,14 @@ public class SessionRegistry {
     return List.copyOf(scope);
   }
 
+  /** Remote credentials are accepted only for their issued resource; local credentials have no audience. */
+  public boolean matchesMcpResource(String token, String resource) {
+    return database.readAs(ModuleRole.IAM, null, () -> {
+      var row = database.queryOne("SELECT oauth_resource FROM iam.sessions WHERE token_hash = ? AND mcp_read_only", tokens.hash(token));
+      return row != null && java.util.Objects.equals(row.get("oauth_resource"), resource);
+    });
+  }
+
   /** Sign-out: one session, in a transaction of its own. */
   public void revoke(String token) {
     database.asModule(ModuleRole.IAM, null, () -> revokeInTransaction(token));
@@ -182,12 +190,27 @@ public class SessionRegistry {
 
   /** One session, inside the caller's transaction. */
   public void revokeInTransaction(String token) {
+    revokeByKeyInTransaction(tokens.hash(token), "replaced");
+  }
+
+  /**
+   * One session named by the hash that is stored, for a caller that never held
+   * the token itself: a replayed authorization code revokes what its first use
+   * created (SEC-35). Inside the caller's transaction.
+   *
+   * @param reason why, as a metric tag
+   */
+  public void revokeByKeyInTransaction(String sessionKey, String reason) {
     // A shared loader device's operator history ends with its session.
     operators.endForSessionsInTransaction(
-        "SELECT token_hash FROM iam.sessions WHERE token_hash = ?", tokens.hash(token), "sign_out");
-    int revoked =
-        database.update("DELETE FROM iam.sessions WHERE token_hash = ?", tokens.hash(token));
-    count(revoked, "replaced");
+        "SELECT token_hash FROM iam.sessions WHERE token_hash = ?", sessionKey, "sign_out");
+    int revoked = database.update("DELETE FROM iam.sessions WHERE token_hash = ?", sessionKey);
+    count(revoked, reason);
+  }
+
+  /** The stored form of a token, for a caller that must remember which session it issued. */
+  public String keyOf(String token) {
+    return tokens.hash(token);
   }
 
   /**

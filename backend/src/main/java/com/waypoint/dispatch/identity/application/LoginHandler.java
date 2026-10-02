@@ -82,27 +82,52 @@ public class LoginHandler {
     return login(email, password, null, sourceIp, null, true);
   }
 
+  /**
+   * Proves who someone is for a remote MCP authorization, with the same throttle,
+   * timing and audit as a sign-in, and issues nothing. The session is created
+   * later, when the client exchanges its one-time code (R-IAM-31).
+   */
+  public UUID verifyMcp(String email, String password, String sourceIp) {
+    return run(email, password, null, sourceIp, null, Issue.NOTHING).userId();
+  }
+
   private String login(
       String email, String password, UUID deviceId, String sourceIp, String previousToken,
       boolean mcpReadOnly) {
+    Issue issue = mcpReadOnly ? Issue.MCP_SESSION : Issue.BROWSER_SESSION;
+    return run(email, password, deviceId, sourceIp, previousToken, issue).token();
+  }
+
+  /** What a successful sign-in hands back. */
+  private enum Issue {
+    BROWSER_SESSION,
+    MCP_SESSION,
+    NOTHING
+  }
+
+  private record Proven(UUID userId, String token) {}
+
+  private Proven run(
+      String email, String password, UUID deviceId, String sourceIp, String previousToken,
+      Issue issue) {
     String normalised = email == null ? "" : email.trim().toLowerCase(Locale.ROOT);
 
-    String token =
+    Proven proven =
         database.asModule(
-            ModuleRole.IAM, null, () -> attempt(normalised, password, deviceId, sourceIp, previousToken, mcpReadOnly));
-    if (token == null) {
+            ModuleRole.IAM, null, () -> attempt(normalised, password, deviceId, sourceIp, previousToken, issue));
+    if (proven == null) {
       metrics.increment("waypoint.login.failed");
       // One message for every failure mode. Anything more specific is a hint.
       throw new DomainException(ErrorCode.UNAUTHENTICATED, "Email or password is incorrect");
     }
     metrics.increment("waypoint.login.succeeded");
-    return token;
+    return proven;
   }
 
-  /** The token, or null for a refused sign-in whose record must still commit. */
-  private String attempt(
+  /** Who signed in, or null for a refused sign-in whose record must still commit. */
+  private Proven attempt(
       String email, String password, UUID deviceId, String sourceIp, String previousToken,
-      boolean mcpReadOnly) {
+      Issue issue) {
     Instant now = clock.now();
     throttle.assertNotLockedOut(email, sourceIp, now);
 
@@ -132,13 +157,23 @@ public class LoginHandler {
     if (previousToken != null && !previousToken.isBlank()) {
       sessions.revokeInTransaction(previousToken);
     }
-    String token = mcpReadOnly ? sessions.issue(userId, null, true) : sessions.issue(userId, deviceId);
+    String token =
+        switch (issue) {
+          case BROWSER_SESSION -> sessions.issue(userId, deviceId);
+          case MCP_SESSION -> sessions.issue(userId, null, true);
+          case NOTHING -> null;
+        };
     audit.record(
-        AuditEntry.allowed(userId, deviceId, "iam:Login", "wpt:iam:user:" + userId, "signed in"));
-    return token;
+        AuditEntry.allowed(
+            userId,
+            deviceId,
+            "iam:Login",
+            "wpt:iam:user:" + userId,
+            issue == Issue.NOTHING ? "credentials verified for a remote MCP authorization" : "signed in"));
+    return new Proven(userId, token);
   }
 
-  private String reject(String email, String sourceIp, UUID userId, Instant now) {
+  private Proven reject(String email, String sourceIp, UUID userId, Instant now) {
     throttle.record(email, false, sourceIp, now);
     audit.record(
         AuditEntry.denied(

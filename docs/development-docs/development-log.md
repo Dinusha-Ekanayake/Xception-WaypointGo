@@ -30,6 +30,70 @@ Why: issue #16; the Datathon models were trained but nothing in Waypoint used th
 Verified: `ml-server` pytest (11, including exact equality with the vendored inference and the Task 2A submission); 17 domain tests, `ModuleBoundaryTest`, `EventCatalogueTest`, application start; frontend typecheck. The backend integration tests need CI's database.
 Open: the screens (#18, #19, #22); `git-lfs` on the VPS; no retraining pipeline; road conditions past 2026-06-28.
 
+## 2026-10-02 - feat: complete remote read-only MCP authorization
+
+`feat/complete-remote-mcp` · @kavindamihiran
+
+Continue the unfinished #87 OAuth work on a new branch: resource-bound personal authorization, stateless HTTP transport, consent page, public discovery and container wiring. The same scoped twelve-tool catalogue serves external assistants.
+Why: remote clients need an HTTPS MCP endpoint and OAuth; see [plan](../issues/087-readonly-mcp/PLAN.md) and [walkthrough](../issues/087-readonly-mcp/WALKTHROUGH.md), R-IAM-31 and SEC-34/35.
+Verified: PostgreSQL 16 `mvn verify`, 691 tests with no skips; 45 targeted tests after final retention/concurrency fixes. MCP 13 tests; frontend 54 tests, typecheck/build and 7 browser checks; official SDK OAuth smoke through the real three-process stack; allocation validator and Compose parsing passed. Mobile consent screenshot reviewed.
+Open: Docker image build and hosted-client validation require deployment infrastructure. GitHub was unreachable during local verification. No production enablement; #87 retains its broader discovery/composition work.
+
+## 2026-10-02 - fix: simplify admin preview sidebar
+
+`dev` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Remove the extra Waypoint label and Demo workspace card from the admin sidebar.
+Why: they cluttered the navigation and repeated the preview context already shown elsewhere.
+Verified: frontend typecheck and production build passed.
+Open: nothing.
+
+---
+
+## 2026-10-02 - fix: keep admin demo depots to Peliyagoda and Kandy
+
+`dev` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Remove Galle from admin member assignments, vehicle samples, forecasts and depot selectors; share one demo depot list.
+Why: Galle is a delivery district served by Peliyagoda, not a depot.
+Verified: frontend typecheck and production build passed.
+Open: nothing.
+
+---
+
+## 2026-10-02 - fix: use clear admin navigation icons
+
+`dev` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Add people, permission list, history and audit icons to the admin sidebar while retaining the GO icon style.
+Why: the former catalogue asset was white on a light background and several navigation symbols did not describe their destinations clearly.
+Verified: frontend typecheck and production build passed.
+Open: nothing.
+
+---
+
+## 2026-10-02 - fix: align admin people list columns
+
+`dev` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Give the member identity, persona and place, exception badge, and action stable desktop columns.
+Why: variable badge presence shifted values and actions between rows.
+Verified: frontend typecheck and production build passed.
+Open: nothing.
+
+---
+
+## 2026-10-02 - fix: place admin preview sign out under the sidebar profile
+
+`dev` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Move the demo sign out action below the sidebar account summary and keep it available on smaller screens.
+Why: the account control belongs beside the profile shown in the sidebar.
+Verified: frontend typecheck and production build passed.
+Open: nothing.
+
+---
+
 ## 2026-10-02 - feat(notification): route events to people, with an inbox and web push
 
 `14-notification` · @tharushaudana

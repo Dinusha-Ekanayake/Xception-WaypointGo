@@ -5,3 +5,6 @@ export type McpContextView = {
   scope: string[];
   readActions: string[];
 };
+
+/** A registered remote MCP client's consent-screen identity. Names are self-declared. */
+export interface McpAuthorizationView { clientName: string; redirectHost: string }
