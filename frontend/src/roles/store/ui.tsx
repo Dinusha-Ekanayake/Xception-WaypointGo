@@ -128,6 +128,23 @@ export function Modal({ label, onClose, children }: { label: string; onClose?: (
   );
 }
 
+/** A panel from the right over a blurred page, as in "05b make-up delivery"; a bottom sheet on a phone. */
+export function Drawer({ label, onClose, children }: { label: string; onClose: () => void; children: ReactNode }): React.JSX.Element {
+  return (
+    <div className="fixed inset-0 z-40 flex items-end justify-center lg:items-stretch lg:justify-end" role="presentation">
+      <button type="button" aria-label="Close" tabIndex={-1} onClick={onClose} className="absolute inset-0 bg-black/20 backdrop-blur-[6px]" />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={label}
+        className="relative flex max-h-[92dvh] w-full flex-col gap-5 overflow-y-auto rounded-t-[32px] bg-white px-6 pt-6 pb-8 lg:max-h-none lg:w-[440px] lg:rounded-t-none lg:rounded-l-[32px] lg:pt-7"
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 /** The round mint badge that heads a Figma dialog. */
 export function Badge({ children }: { children: ReactNode }): React.JSX.Element {
   return <span className="mx-auto flex size-[60px] items-center justify-center rounded-full bg-go-mint/60">{children}</span>;

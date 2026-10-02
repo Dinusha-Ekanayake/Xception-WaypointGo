@@ -9,7 +9,7 @@ import { depotToday } from "./data/format.ts";
 import { createGateway } from "./data/gateway.ts";
 import { isOpenIssue, issuesForOrders, recentOrderIds } from "./data/issues.ts";
 import { useCommands } from "./data/useCommands.ts";
-import Deliveries from "./screens/Deliveries.tsx";
+import Deliveries from "./screens/deliveries/Deliveries.tsx";
 import Home from "./screens/Home.tsx";
 import Issues from "./screens/issues/Issues.tsx";
 import OrderSheet from "./screens/OrderSheet.tsx";
@@ -207,7 +207,23 @@ export default function Store({
       />
     );
   } else {
-    body = <Deliveries orders={all} outlet={outlet.data} toReceive={toReceive} onOpen={setOpenOrder} onReceive={receive} onTrack={() => setView({ kind: "track" })} />;
+    body = (
+      <Deliveries
+        gateway={gateway}
+        orders={all}
+        deliveries={stops}
+        issues={allIssues}
+        outlet={outlet.data}
+        toReceive={toReceive}
+        onOpen={setOpenOrder}
+        onOrders={() => setTab("orders")}
+        onReceive={receive}
+        onTrack={(vehicleId) => {
+          setVehicle(vehicleId);
+          setView({ kind: "track" });
+        }}
+      />
+    );
   }
 
   return (

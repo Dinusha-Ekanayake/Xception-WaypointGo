@@ -99,6 +99,9 @@ export type IssueCard = {
 
 const packages = (n: number) => `${n} ${n === 1 ? "package" : "packages"}`;
 
+/** Units the loader kept back, from a shortfall issue's words ("SHORT at loading: 1 units. ..."). */
+export const loaderShortUnits = (issue: IssueView): number => Number(issue.description.match(/(\d+) units?/)?.[1]) || 0;
+
 /** One issue as a card. `order` names it; without one the issue's own words stand. */
 export function issueCard(issue: IssueView, order: OrderView | null, clock: (instant: string) => string): IssueCard {
   const of = order ? `${order.orderRef} (${order.temperature === "chilled" ? "Chilled" : "Ambient"})` : "an order";
@@ -107,7 +110,7 @@ export function issueCard(issue: IssueView, order: OrderView | null, clock: (ins
   const at = clock(issue.raisedAt);
 
   if (issue.type === "LOADING_SHORTFALL") {
-    const units = Number(issue.description.match(/(\d+) units?/)?.[1]) || 0;
+    const units = loaderShortUnits(issue);
     return {
       label: "Short delivery",
       tone: closed ? "muted" : "ok",

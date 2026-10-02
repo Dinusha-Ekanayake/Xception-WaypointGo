@@ -135,6 +135,71 @@ export const SHORTFALL: IssueView = {
   rowVersion: 1,
 };
 
+// ---- the week around today, for "05a Deliveries" and "05b make-up delivery" ----
+
+const shift = (days: number) => new Date(Date.parse(`${today}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
+export const PAST_DAY = shift(-2);
+
+/** Delivered two days ago, one yoghurt short on the store's count. */
+export const ORIGINAL: OrderView = {
+  ...ORDER,
+  orderId: "order-0",
+  orderRef: "ORD0092318",
+  requestedDate: PAST_DAY,
+  deliveryDate: PAST_DAY,
+  itemCount: 2,
+  status: "RECEIVED",
+  placedAt: `${shift(-4)}T06:40:00Z`,
+  lines: [{ productId: "Yoghurt 80 g", quantity: 2 }],
+};
+
+export const PAST_DELIVERY: DeliveryRecordView = {
+  ...DELIVERY,
+  deliveryId: "dlv-0",
+  orderId: ORIGINAL.orderId,
+  tripId: "trip-0",
+  vehicleId: "VEH040",
+  serviceDate: PAST_DAY,
+  outcome: "DELIVERED",
+  arrivedAt: `${PAST_DAY}T00:18:00Z`,
+  serviceStartedAt: `${PAST_DAY}T00:18:00Z`,
+  completedAt: `${PAST_DAY}T00:25:00Z`,
+  deliveredUnits: 2,
+  proofId: "proof-0",
+  serverRecordedAt: `${PAST_DAY}T00:25:00Z`,
+  releasedAt: `${shift(-3)}T23:30:00Z`,
+  lines: [{ productId: "Yoghurt 80 g", orderedUnits: 2, deliveredUnits: 2 }],
+};
+
+export const PAST_RECEIPT: ReceiptView = {
+  ...RECEIPT,
+  receiptId: "rcp-0",
+  orderId: ORIGINAL.orderId,
+  deliveryId: PAST_DELIVERY.deliveryId,
+  status: "PARTIAL",
+  lines: [{ productId: "Yoghurt 80 g", expectedQuantity: 2, receivedQuantity: 1 }],
+  confirmedAt: `${PAST_DAY}T00:30:00Z`,
+  confirmedBy: "store-user",
+};
+
+/** The short count, which the dispatcher resolved by sending the order again. */
+export const REDELIVERED: IssueView = {
+  ...SHORTFALL,
+  issueId: "iss-0",
+  type: "RECEIPT_DISPUTE",
+  status: "RESOLVED",
+  subjects: [{ type: "order", id: ORIGINAL.orderId }],
+  description: "shortage investigation: partial receipt",
+  resolutionAction: "REDELIVERY",
+  raisedAt: `${PAST_DAY}T00:30:00Z`,
+  resolvedAt: `${PAST_DAY}T13:40:00Z`,
+};
+
+/** The make-up delivery: planned for today, not on a vehicle yet. */
+export const MAKE_UP: OrderView = { ...ORIGINAL, orderId: "order-2", orderRef: "ORD0092418", requestedDate: today, deliveryDate: today, status: "ALLOCATED", redeliveryOf: ORIGINAL.orderId };
+
+export const NEXT: OrderView = { ...ORDER, orderId: "order-3", orderRef: "ORD0092420", temperature: "ambient", requestedDate: shift(1), deliveryDate: shift(1), status: "CONFIRMED" };
+
 /** Commands the page sent, in order, for a test to assert on. */
 export type Sent = { kind: string; payload: unknown; expectedVersion: number | null }[];
 
@@ -144,7 +209,7 @@ export type Handover = { status: "AWAITING" | "CONFIRMED" | "LOCKED" | "EXPIRED"
 /** Routes every call the store makes; a delivered order is waiting to be received. */
 export async function mockStore(
   page: Page,
-  options: { answered?: Handover | null; loadingShort?: boolean } = {},
+  options: { answered?: Handover | null; loadingShort?: boolean; week?: boolean } = {},
 ): Promise<{ sent: Sent; handover: { current: Handover | null }; uploads: string[] }> {
   const sent: Sent = [];
   /** Photo uploads, as the paths they were PUT to. */
@@ -161,7 +226,14 @@ export async function mockStore(
     const json = (body: unknown, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
     if (pathname === "/api/session") return json(SESSION);
     if (pathname === "/api/reference/outlets/OUT085") return json(OUTLET);
-    if (pathname === "/api/orders") return json({ items: [order], nextCursor: null });
+    if (pathname === "/api/orders") return json({ items: options.week ? [order, ORIGINAL, MAKE_UP, NEXT] : [order], nextCursor: null });
+    if (options.week && pathname === `/api/orders/${MAKE_UP.orderId}/timeline`) {
+      return json([
+        { from: null, to: "CONFIRMED", reason: "redelivery of ORD0092318", actorId: null, at: REDELIVERED.resolvedAt },
+        { from: "CONFIRMED", to: "ALLOCATED", reason: "planned", actorId: null, at: `${PAST_DAY}T14:00:00Z` },
+      ]);
+    }
+    if (options.week && pathname === `/api/receipts/${ORIGINAL.orderId}`) return json(PAST_RECEIPT);
     if (pathname === `/api/orders/${ORDER.orderId}/timeline`) {
       return json([
         { from: null, to: "CONFIRMED", reason: "placed", actorId: null, at: ORDER.placedAt },
@@ -202,8 +274,11 @@ export async function mockStore(
       if (!h) return json({ type: "about:blank", title: "NOT_FOUND", status: 404, detail: "No handover PIN", code: "NOT_FOUND", violations: [] }, 404);
       return json({ orderId: ORDER.orderId, status: h.status, expiresAt: expires(), attemptsLeft: h.status === "LOCKED" ? 0 : 5, confirmedAt: h.confirmedAt, rowVersion: h.rowVersion });
     }
-    if (pathname === "/api/execution/deliveries") return json([DELIVERY]);
-    if (pathname === "/api/issues/by-subject") return json([SHORTFALL]);
+    if (pathname === "/api/execution/deliveries") {
+      const date = url.searchParams.get("date");
+      return json(date === today ? [DELIVERY] : options.week && date === PAST_DAY ? [PAST_DELIVERY] : []);
+    }
+    if (pathname === "/api/issues/by-subject") return json(url.searchParams.get("id") === ORIGINAL.orderId ? [REDELIVERED] : [SHORTFALL]);
     if (pathname === "/api/warehouse/catalogue/status") return json({ syncedAt: new Date().toISOString(), ageSeconds: 5, stale: false, productCount: 3, circuitState: "closed" });
     if (pathname === "/api/warehouse/catalogue") return json({ items: PRODUCTS, nextCursor: null });
     if (pathname.startsWith("/api/reference/calendar/")) return json({ date: pathname.split("/").pop(), operating: true, nextOperatingDay: pathname.split("/").pop(), known: true, day: {} });
