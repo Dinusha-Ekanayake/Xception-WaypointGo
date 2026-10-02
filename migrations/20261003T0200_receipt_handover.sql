@@ -99,8 +99,9 @@ ON CONFLICT (action) DO UPDATE SET implemented = true;
 -- A policy version is immutable, so each grant is a new version, built from the
 -- current default rather than restated so a grant another branch added survives.
 -- The store manager already holds receipt:* and so reissues; the driver gains
--- the entry; the auditor's deny list grows with both.
-CREATE FUNCTION pg_temp.add_actions(doc jsonb, target_sid text, wanted text[]) RETURNS jsonb
+-- the entry; the auditor's deny list grows with both. Every pending migration runs
+-- in one transaction, so the temporary names here must not repeat another file's.
+CREATE OR REPLACE FUNCTION pg_temp.add_actions(doc jsonb, target_sid text, wanted text[]) RETURNS jsonb
 LANGUAGE sql IMMUTABLE AS $$
     SELECT jsonb_set(
                doc, '{Statement}',
@@ -117,7 +118,7 @@ LANGUAGE sql IMMUTABLE AS $$
                   FROM jsonb_array_elements(doc -> 'Statement') WITH ORDINALITY AS t(s, ord)))
 $$;
 
-CREATE TEMP TABLE policy_docs ON COMMIT DROP AS
+CREATE TEMP TABLE handover_policy_docs ON COMMIT DROP AS
 SELECT p.policy_id,
        pg_temp.add_actions(pv.document, g.sid, g.actions) AS document,
        pv.document AS previous
@@ -128,11 +129,11 @@ JOIN (VALUES
         ('WaypointAuditor', 'NeverWrite', ARRAY['receipt:VerifyHandover', 'receipt:ReissueHandoverPin'])
      ) AS g(name, sid, actions) ON g.name = p.name;
 
-DELETE FROM policy_docs WHERE document = previous;
+DELETE FROM handover_policy_docs WHERE document = previous;
 
 UPDATE iam.policy_versions pv
 SET is_default = false
-FROM policy_docs d
+FROM handover_policy_docs d
 WHERE pv.policy_id = d.policy_id AND pv.is_default;
 
 INSERT INTO iam.policy_versions (policy_id, version_number, document, is_default)
@@ -140,4 +141,4 @@ SELECT d.policy_id,
        (SELECT max(version_number) + 1 FROM iam.policy_versions x WHERE x.policy_id = d.policy_id),
        d.document,
        true
-FROM policy_docs d;
+FROM handover_policy_docs d;
