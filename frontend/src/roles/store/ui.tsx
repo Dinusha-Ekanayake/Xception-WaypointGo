@@ -1,6 +1,7 @@
-import type { ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Icon, ShellActions, cx, type IconName } from "@shared/ui";
 import type { OutletView } from "@shared/domain/types";
+import AccountMenu from "./AccountMenu.tsx";
 import type { StatusTone } from "./data/format.ts";
 
 // Store pieces from Figma "15 Store Manager · Mobile". Touch targets are at
@@ -240,8 +241,8 @@ function initials(name: string): string {
 
 /**
  * "Shell / Sidebar" from "14 Store Manager · Desktop": brand, the destinations
- * with their counts, and at the foot the outlet and the person signed in. From
- * lg only; phones keep the floating tab bar.
+ * with their counts, and at the foot the outlet and the person signed in, who
+ * opens the account menu. From lg only; phones keep the floating tab bar.
  */
 export function SideNav({
   tab,
@@ -256,6 +257,8 @@ export function SideNav({
   outlet: OutletView | null;
   displayName: string;
 }): React.JSX.Element {
+  const [account, setAccount] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-[260px] flex-col gap-6 bg-white px-5 pt-8 pb-6 lg:flex">
       <div className="flex items-center gap-2.5 px-2">
@@ -301,13 +304,34 @@ export function SideNav({
         </div>
       )}
       <div className="flex items-center gap-3">
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-go-mint text-[14px] font-semibold text-black">{initials(displayName)}</span>
-        <span className="flex min-w-0 flex-1 flex-col">
-          <span className="truncate text-[15px] font-medium text-black">{displayName}</span>
-          <span className="text-[13px] text-go-muted">Store manager</span>
-        </span>
+        <button
+          ref={trigger}
+          type="button"
+          aria-haspopup="dialog"
+          aria-expanded={account}
+          aria-label={`Account: ${displayName}`}
+          onClick={() => setAccount((open) => !open)}
+          className="flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-[16px] text-left"
+        >
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-go-mint text-[14px] font-semibold text-black">{initials(displayName)}</span>
+          <span className="flex min-w-0 flex-1 flex-col">
+            <span className="truncate text-[15px] font-medium text-black">{displayName}</span>
+            <span className="text-[13px] text-go-muted">Store manager</span>
+          </span>
+        </button>
         <ShellActions compact />
       </div>
+      {account && (
+        <AccountMenu
+          displayName={displayName}
+          initials={initials(displayName)}
+          outlet={outlet}
+          onClose={() => {
+            setAccount(false);
+            trigger.current?.focus();
+          }}
+        />
+      )}
     </aside>
   );
 }

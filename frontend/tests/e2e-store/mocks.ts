@@ -237,6 +237,7 @@ export async function mockStore(
     const url = new URL(route.request().url());
     const { pathname } = url;
     const json = (body: unknown, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
+    if (pathname === "/api/session/end") return route.fulfill({ status: 204 });
     if (pathname === "/api/session") return json(SESSION);
     if (pathname === "/api/reference/outlets/OUT085") return json(OUTLET);
     if (pathname === "/api/orders") {
