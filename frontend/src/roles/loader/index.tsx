@@ -5,19 +5,15 @@ import { useOnline, useResource } from "@shared/api/useResource";
 import { useSync } from "@shared/offline";
 import { Notice } from "@shared/ui";
 import { crew, lockOperator, replayBeforeSync } from "@app-shell/operators";
-import { keptCrew, logOfflineSwitch } from "@app-shell/offlinePin";
-import type { CrewMember } from "@app-shell/operators";
+import { logOfflineSwitch } from "@app-shell/offlinePin";
 import type { Operator } from "@app-shell/session";
 import TopBar from "./TopBar.tsx";
 import { LangProvider, useT } from "./i18n.tsx";
-import { ThemeProvider, useTheme } from "./theme.tsx";
 import { createGateway } from "./data/gateway.ts";
 import { depotToday, hhmm } from "./data/manifest.ts";
 import DockBoard from "./screens/DockBoard.tsx";
-import Locked from "./screens/Locked.tsx";
 import LoadSheet from "./screens/LoadSheet.tsx";
 import OperatorGate from "./screens/OperatorGate.tsx";
-import Settings from "./screens/Settings.tsx";
 
 // The loader workspace from Figma "08 Loader · Phone", "07 Loader · Tablet"
 // and "09 Loader · Tablet portrait". Resilient offline tier (src/shared/offline/tiers.ts):
@@ -25,11 +21,9 @@ import Settings from "./screens/Settings.tsx";
 
 export default function Loader(props: Parameters<typeof LoaderWorkspace>[0]): React.JSX.Element {
   return (
-    <ThemeProvider>
-      <LangProvider>
-        <LoaderWorkspace {...props} />
-      </LangProvider>
-    </ThemeProvider>
+    <LangProvider>
+      <LoaderWorkspace {...props} />
+    </LangProvider>
   );
 }
 
@@ -57,17 +51,6 @@ function LoaderWorkspace({
   const sync = useSync(userId);
   const [operator, setOperator] = useState<Operator | null>(initialOperator);
   const [lockError, setLockError] = useState<string | null>(null);
-  const [settings, setSettings] = useState(false);
-  // The PIN and Settings screens stand alone in Figma, with only a way back.
-  const [pinStep, setPinStep] = useState(false);
-  // Who locked the device (Figma 08), kept across a reload so the locked screen survives one.
-  const [locked, setLockedState] = useState<Operator | null>(() => readLocked(userId));
-  const [unlocking, setUnlocking] = useState(false);
-  const setLocked = useCallback((who: Operator | null) => {
-    setLockedState(who);
-    writeLocked(userId, who);
-  }, [userId]);
-  const { theme } = useTheme();
 
   const trips = useResource(depot ? (signal) => gateway.readyTrips(depot, date, signal) : null, `${depot}:${date}`, 30_000);
   const outletList = useResource(depot ? (signal) => gateway.outlets(depot, signal) : null, depot);
@@ -87,64 +70,27 @@ function LoaderWorkspace({
     if (online) crew(userId).catch(() => undefined);
   }, [online, userId]);
 
-  /** Ends the operator on the server, or in the offline log, so nobody is the actor. */
-  const endOperator = useCallback(async () => {
-    if (!online) {
-      if (!logOfflineSwitch(userId, { userId: null, at: new Date().toISOString() })) {
-        throw new Error("This device can't save the lock. Connect and try again.");
-      }
-    } else {
-      await lockOperator(userId);
-    }
-  }, [online, userId]);
-
   const lock = useCallback(async () => {
-    const who = operator;
     try {
-      await endOperator();
+      if (!online) {
+        if (!logOfflineSwitch(userId, { userId: null, at: new Date().toISOString() })) {
+          throw new Error("This device can't save the lock. Connect and try again.");
+        }
+      } else {
+        await lockOperator(userId);
+      }
       setOperator(null);
-      setLocked(who);
       setOpenId(null);
       setLockError(null);
     } catch (failure) {
       setLockError(failure instanceof Error ? failure.message : "Could not lock this device.");
     }
-  }, [endOperator, operator, setLocked]);
-
-  /** Switch user (Figma ⇄): nobody is working, and the crew list is shown. */
-  const switchUser = useCallback(async () => {
-    try {
-      if (operator) await endOperator();
-      setOperator(null);
-      setLocked(null);
-      setUnlocking(false);
-      setOpenId(null);
-      setLockError(null);
-    } catch (failure) {
-      setLockError(failure instanceof Error ? failure.message : "Could not switch user.");
-    }
-  }, [endOperator, operator, setLocked]);
-
-  const signedIn = useCallback((who: Operator) => {
-    writeRecent(userId, who.userId);
-    setOperator(who);
-    setLocked(null);
-    setUnlocking(false);
-  }, [setLocked, userId]);
-
-  const lockedTrip = locked
-    ? trips.data?.find((t) => t.holder?.userId === locked.userId && t.status !== "COMPLETED") ?? null
-    : null;
-  const unlockMember: CrewMember | null = locked
-    ? keptCrew(userId)?.members.find((m) => m.userId === locked.userId)
-      ?? { userId: locked.userId, displayName: locked.displayName, employeeCode: locked.employeeCode, offlineVerifier: null }
-    : null;
+  }, [online, userId]);
 
   return (
-    <div className={`loader-workspace ${theme === "dark" ? "go-dark " : ""}min-h-dvh bg-go-canvas`} data-theme={theme}>
     <div className="mx-auto flex min-h-dvh w-full max-w-[720px] flex-col bg-go-canvas font-go text-go-ink md:max-w-[1280px]">
-      {!settings && !pinStep && <TopBar
-        displayName={operator?.displayName ?? null}
+      <TopBar
+        displayName={operator?.displayName ?? displayName}
         depot={depot}
         title={open ? `${open.vehicleId} · ${tr("Trip {n}", { n: open.tripNumber })}` : undefined}
         subtitle={open ? tr("Departs {time}", { time: hhmm(open.plannedDeparture) }) : undefined}
@@ -154,9 +100,7 @@ function LoaderWorkspace({
         sample={gateway.sample}
         onBack={open ? back : undefined}
         onLock={operator ? () => void lock() : undefined}
-        onSwitch={operator ? () => void switchUser() : undefined}
-        onSettings={() => setSettings(true)}
-      />}
+      />
       {lockError && (
         <div className="px-5 pb-3">
           <Notice
@@ -171,29 +115,8 @@ function LoaderWorkspace({
           />
         </div>
       )}
-      {settings ? (
-        <Settings hasLoader={operator !== null} deviceName={displayName} onClose={() => setSettings(false)} />
-      ) : !operator && locked && unlocking ? (
-        <OperatorGate
-          key="unlock"
-          account={userId}
-          online={online}
-          onOperator={signedIn}
-          unlock={unlockMember}
-          onCancelUnlock={() => setUnlocking(false)}
-          onPinStep={setPinStep}
-        />
-      ) : !operator && locked ? (
-        <Locked
-          gateway={gateway}
-          operator={locked}
-          depot={depot}
-          trip={lockedTrip}
-          onUnlock={() => setUnlocking(true)}
-          onSwitch={() => void switchUser()}
-        />
-      ) : !operator ? (
-        <OperatorGate key="crew" account={userId} online={online} onOperator={signedIn} recentId={readRecent(userId)} onPinStep={setPinStep} />
+      {!operator ? (
+        <OperatorGate account={userId} online={online} onOperator={setOperator} />
       ) : !depot ? (
         <p className="px-5 text-[15px] text-go-muted">Your account has no depot in scope. Ask an administrator to grant one.</p>
       ) : open ? (
@@ -213,49 +136,5 @@ function LoaderWorkspace({
         <DockBoard depot={depot} meId={operator.userId} trips={trips} online={online} onOpen={setOpenId} />
       )}
     </div>
-    </div>
   );
-}
-
-// Who locked this device, and who last worked on it, kept per device so a
-// reload shows the locked screen again and the crew list marks the last loader.
-const LOCKED_KEY = (account: string) => `waypoint.loader.locked.${account}`;
-const RECENT_KEY = (account: string) => `waypoint.loader.recent.${account}`;
-
-function readLocked(account: string): Operator | null {
-  try {
-    const raw = window.localStorage.getItem(LOCKED_KEY(account));
-    return raw ? (JSON.parse(raw) as Operator) : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeLocked(account: string, who: Operator | null): void {
-  try {
-    if (who) {
-      window.localStorage.setItem(LOCKED_KEY(account), JSON.stringify(who));
-      window.localStorage.setItem(RECENT_KEY(account), who.userId);
-    } else {
-      window.localStorage.removeItem(LOCKED_KEY(account));
-    }
-  } catch {
-    // Blocked storage: the locked screen lasts until reload.
-  }
-}
-
-function writeRecent(account: string, operatorId: string): void {
-  try {
-    window.localStorage.setItem(RECENT_KEY(account), operatorId);
-  } catch {
-    // Blocked storage: nobody is marked as recent.
-  }
-}
-
-function readRecent(account: string): string | null {
-  try {
-    return window.localStorage.getItem(RECENT_KEY(account));
-  } catch {
-    return null;
-  }
 }

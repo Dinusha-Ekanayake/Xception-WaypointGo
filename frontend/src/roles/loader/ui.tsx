@@ -9,21 +9,15 @@ import { useT } from "./i18n.tsx";
 // Loader pieces from Figma "08 Loader · Phone". Touch targets are at least 48px
 // and the main actions 56px: the dock is worked in gloves.
 
-/** Two letters for an avatar: first and last name, as in the Figma crew list. */
-export function initials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : "")).toUpperCase();
-}
-
 export function TempBadge({ temperature }: { temperature: Temperature }): React.JSX.Element {
   const tr = useT();
   return temperature === "chilled" ? (
-    <span className="inline-flex shrink-0 items-center gap-[5px] rounded-full border border-go-ink px-2.5 py-1 text-[13px] font-medium tracking-[0.52px] text-go-ink">
+    <span className="inline-flex shrink-0 items-center gap-[5px] rounded-full border border-black px-2.5 py-1 text-[13px] font-medium tracking-[0.52px] text-black">
       <Icon name="chilled" />
       {tr("CHILLED")}
     </span>
   ) : (
-    <span className="inline-flex shrink-0 items-center gap-[5px] rounded-[6px] bg-go-warning-tint py-1 pr-2.5 pl-2 text-[13px] font-medium tracking-[0.52px] text-go-warning-text">
+    <span className="inline-flex shrink-0 items-center gap-[5px] rounded-[6px] bg-[#f7eddf] py-1 pr-2.5 pl-2 text-[13px] font-medium tracking-[0.52px] text-[#8a5a1c]">
       <Icon name="box" />
       {tr("AMBIENT")}
     </span>
@@ -32,7 +26,7 @@ export function TempBadge({ temperature }: { temperature: Temperature }): React.
 
 const STATUS: Record<SessionStatus, { icon: IconName; text: string }> = {
   NOT_STARTED: { icon: "clock", text: "text-go-muted" },
-  IN_PROGRESS: { icon: "loading", text: "text-go-warning-text" },
+  IN_PROGRESS: { icon: "loading", text: "text-[#b45309]" },
   BLOCKED: { icon: "triangle", text: "text-go-danger-strong" },
   READY: { icon: "check", text: "text-go-success" },
   COMPLETED: { icon: "check", text: "text-go-success" },
@@ -49,14 +43,13 @@ export function StatusChip({ status }: { status: SessionStatus }): React.JSX.Ele
   );
 }
 
-type Tone = "mint" | "danger" | "ink" | "plain" | "muted" | "grey";
+type Tone = "mint" | "danger" | "ink" | "plain" | "muted";
 const TONE: Record<Tone, string> = {
-  mint: "bg-go-soft text-go-on-soft",
+  mint: "bg-go-mint text-go-ink",
   danger: "bg-[#ea2525] text-white",
-  ink: "bg-go-action text-go-on-action",
-  plain: "border-[1.5px] border-go-rule bg-go-card text-go-ink",
-  muted: "bg-go-divider text-go-muted",
-  grey: "bg-go-surface text-go-ink",
+  ink: "bg-[#0b2a1a] text-white",
+  plain: "border-[1.5px] border-[#dfe3e8] bg-white text-go-ink",
+  muted: "bg-[#e5e7eb] text-go-muted",
 };
 
 export function BigButton({
@@ -105,7 +98,7 @@ export function Bar({ label, value, share }: { label: string; value: string; sha
         <span className="flex-1 text-go-muted">{tr(label)}</span>
         <span className="text-go-ink">{value}</span>
       </div>
-      <div className="h-2.5 w-full overflow-hidden rounded-[5px] bg-go-divider">
+      <div className="h-2.5 w-full overflow-hidden rounded-[5px] bg-[#e5e7eb]">
         <div className="h-full rounded-[5px] bg-go-success" style={{ width: `${Math.min(100, Math.max(0, share * 100))}%` }} />
       </div>
     </div>
@@ -114,13 +107,12 @@ export function Bar({ label, value, share }: { label: string; value: string; sha
 
 /** The 168px completion ring. */
 export function Ring({ percent }: { percent: number }): React.JSX.Element {
-  const tr = useT();
   const r = 76;
   const c = 2 * Math.PI * r;
   return (
-    <div className="relative size-[168px]" role="img" aria-label={tr("{n}% of orders checked", { n: percent })}>
+    <div className="relative size-[168px]" role="img" aria-label={`${percent}% of orders checked`}>
       <svg viewBox="0 0 168 168" className="size-full -rotate-90">
-        <circle cx="84" cy="84" r={r} fill="none" stroke="var(--color-go-surface)" strokeWidth="12" />
+        <circle cx="84" cy="84" r={r} fill="none" stroke="#e7f3f2" strokeWidth="12" />
         <circle
           cx="84"
           cy="84"
@@ -134,8 +126,8 @@ export function Ring({ percent }: { percent: number }): React.JSX.Element {
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-[36px] font-semibold text-go-ink">{percent}%</span>
-        <span className="text-[15px] text-go-muted">{tr("Completed")}</span>
+        <span className="text-[36px] font-semibold text-black">{percent}%</span>
+        <span className="text-[15px] text-go-muted">Completed</span>
       </div>
     </div>
   );
@@ -146,19 +138,7 @@ export function Ring({ percent }: { percent: number }): React.JSX.Element {
  * issue states; a dialog near the top on tablets. Escape closes it, focus moves
  * into it on open, stays inside while it is open, and returns where it was.
  */
-export function Sheet({
-  label,
-  onClose,
-  children,
-  placement = "bottom",
-}: {
-  label: string;
-  onClose: () => void;
-  children: ReactNode;
-  /** "center" for the short confirmations Figma draws as a card over the page. */
-  placement?: "bottom" | "center";
-}): React.JSX.Element {
-  const tr = useT();
+export function Sheet({ label, onClose, children }: { label: string; onClose: () => void; children: ReactNode }): React.JSX.Element {
   const panel = useRef<HTMLDivElement>(null);
   const close = useRef(onClose);
   close.current = onClose;
@@ -197,26 +177,15 @@ export function Sheet({
   }, []);
 
   return (
-    <div
-      className={cx(
-        "fixed inset-0 z-40 flex justify-center",
-        placement === "center" ? "items-center px-4" : "items-end md:items-start md:p-6 md:pt-10",
-      )}
-      role="presentation"
-    >
-      <button type="button" tabIndex={-1} aria-label={tr("Close")} onClick={onClose} className="absolute inset-0 bg-black/25 backdrop-blur-[6px]" />
+    <div className="fixed inset-0 z-40 flex items-end justify-center md:items-start md:p-6 md:pt-10" role="presentation">
+      <button type="button" tabIndex={-1} aria-label="Close" onClick={onClose} className="absolute inset-0 bg-black/25 backdrop-blur-[6px]" />
       <div
         ref={panel}
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label={label}
-        className={cx(
-          "relative flex w-full flex-col gap-4 overflow-y-auto bg-go-card text-go-ink outline-none",
-          placement === "center"
-            ? "max-h-[90dvh] max-w-[400px] rounded-[32px] px-6 py-6"
-            : "max-h-[92dvh] max-w-[560px] rounded-t-[32px] px-5 pt-6 pb-8 md:max-h-[calc(100dvh-64px)] md:rounded-[32px] md:px-7 md:pb-7",
-        )}
+        className="relative flex max-h-[92dvh] w-full max-w-[560px] flex-col gap-4 overflow-y-auto rounded-t-[32px] bg-white px-5 pt-6 pb-8 outline-none md:max-h-[calc(100dvh-64px)] md:rounded-[32px] md:px-7 md:pb-7"
       >
         {children}
       </div>
@@ -271,7 +240,8 @@ export function HoldButton({
       onPointerCancel={stop}
       onKeyDown={(e) => (e.key === " " || e.key === "Enter") && (e.preventDefault(), start())}
       onKeyUp={stop}
-      className="relative flex min-h-16 w-full items-center justify-center overflow-hidden rounded-full bg-go-action px-[18px] text-[17px] font-medium text-go-on-action select-none disabled:cursor-not-allowed disabled:opacity-50"
+      aria-label="Hold to release vehicle"
+      className="relative flex min-h-16 w-full items-center justify-center overflow-hidden rounded-full bg-[#0b2a1a] px-[18px] text-[17px] font-medium text-white select-none disabled:cursor-not-allowed disabled:opacity-50"
     >
       <span aria-hidden className="absolute inset-y-0 left-0 bg-go-signal" style={{ width: `${progress * 100}%` }} />
       <span className="relative">{children}</span>
