@@ -35,6 +35,7 @@ Verified: backend `mvn verify` (628, no skips); `npm test` (54), typecheck, buil
 Open: Figma's tablet top bar has text "Lock" and "Switch user" buttons and the language switch on sign-in; ours keeps the icon buttons and Settings.
 
 ---
+
 ## 2026-10-02 - feat: complete remote read-only MCP authorization
 
 `feat/complete-remote-mcp` · @kavindamihiran
