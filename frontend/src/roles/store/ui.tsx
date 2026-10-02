@@ -112,6 +112,41 @@ export function Sheet({ label, onClose, children }: { label: string; onClose: ()
   );
 }
 
+/**
+ * A centred dialog over a blurred page: "04 Order sent", "06b Enter PIN" and
+ * "07 Delivery confirmed". Phones still get the bottom {@link Sheet}; this is
+ * for the desktop layout, and falls back to a full-width card on a phone.
+ */
+export function Modal({ label, onClose, children }: { label: string; onClose?: () => void; children: ReactNode }): React.JSX.Element {
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center p-4" role="presentation">
+      <button type="button" aria-label="Close" tabIndex={-1} onClick={onClose} className="absolute inset-0 bg-black/20 backdrop-blur-[6px]" />
+      <div role="dialog" aria-modal="true" aria-label={label} className="relative flex max-h-[92dvh] w-full max-w-[520px] flex-col gap-4 overflow-y-auto rounded-[32px] bg-white px-7 pt-8 pb-7">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** The round mint badge that heads a Figma dialog. */
+export function Badge({ children }: { children: ReactNode }): React.JSX.Element {
+  return <span className="mx-auto flex size-[60px] items-center justify-center rounded-full bg-go-mint/60">{children}</span>;
+}
+
+/** Label left, value right, on a pale card: the rows of "04 Order sent" and "07 Delivery confirmed". */
+export function Facts({ rows }: { rows: { label: string; value: ReactNode; strong?: boolean }[] }): React.JSX.Element {
+  return (
+    <dl className="flex flex-col gap-2.5 rounded-[16px] bg-go-canvas px-4 py-4 text-[14px]">
+      {rows.map((r) => (
+        <div key={r.label} className="flex justify-between gap-3">
+          <dt className="text-go-muted">{r.label}</dt>
+          <dd className={cx("text-right", r.strong === false ? "text-black" : "font-semibold text-black")}>{r.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 export function BackButton({ onClick, label = "Back" }: { onClick: () => void; label?: string }): React.JSX.Element {
   return (
     <button type="button" onClick={onClick} className="flex min-h-12 items-center gap-2 self-start pr-3 text-[17px] text-black">
@@ -121,11 +156,12 @@ export function BackButton({ onClick, label = "Back" }: { onClick: () => void; l
   );
 }
 
-export type Tab = "home" | "orders" | "deliveries";
+export type Tab = "home" | "orders" | "deliveries" | "issues";
 const TABS: { id: Tab; icon: IconName; label: string }[] = [
   { id: "home", icon: "home", label: "Home" },
   { id: "orders", icon: "cart", label: "Orders" },
   { id: "deliveries", icon: "truck", label: "Deliveries" },
+  { id: "issues", icon: "alert", label: "Issues" },
 ];
 
 /** "SM / Tab bar": floating, dark, the active tab on a white pill. */
@@ -205,7 +241,11 @@ export function SideNav({
             >
               <Icon name={t.icon} />
               <span className="flex-1">{t.label}</span>
-              {badge > 0 && <span className="flex size-7 items-center justify-center rounded-full bg-go-mint text-[12px] font-semibold text-black">{badge}</span>}
+              {badge > 0 && (
+                <span className={cx("flex size-7 items-center justify-center rounded-full text-[12px] font-semibold", t.id === "issues" ? "bg-go-danger-tint text-go-danger-strong" : "bg-go-mint text-black")}>
+                  {badge}
+                </span>
+              )}
             </button>
           );
         })}
@@ -213,12 +253,12 @@ export function SideNav({
       <span className="flex-1" />
       {outlet && (
         <div className="flex flex-col gap-0.5 rounded-[16px] bg-[#e7f3f2] px-4 py-3">
-          <span className="text-[13px] font-medium text-go-teal">Your outlet</span>
+          <span className="text-[13px] font-medium text-go-teal">{outlet.brandCode}</span>
           <span className="text-[16px] font-medium text-black">
             {outlet.districtName} · {outlet.outletId}
           </span>
           <span className="text-[13px] text-go-muted">
-            {outlet.dockType} dock · {outlet.windowOpen.slice(0, 5)}–{outlet.windowClose.slice(0, 5)}
+            {outlet.dockType} dock · {outlet.windowOpen.slice(0, 5)}-{outlet.windowClose.slice(0, 5)}
           </span>
         </div>
       )}

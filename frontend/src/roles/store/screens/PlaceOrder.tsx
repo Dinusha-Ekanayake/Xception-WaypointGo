@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ApiError } from "@shared/api/problem";
 import { useResource } from "@shared/api/useResource";
 import { OrderCommandKind, type LineAvailability, type OrderView, type PlacedOrder, type OutletView, type Temperature } from "@shared/domain/types";
 import { Icon, Notice, cx } from "@shared/ui";
 import type { StoreGateway } from "../data/gateway.ts";
-import { addDays, cutoffLabel, dayLabel, depotToday, hhmm, longDay, untilCutoff } from "../data/format.ts";
+import { addDays, clock, cutoffLabel, dayLabel, depotToday, hhmm, longDay, untilCutoff } from "../data/format.ts";
+import { clearDraft, loadDraft, saveDraft } from "../data/draft.ts";
 import { conflictMessage, type useCommands } from "../data/useCommands.ts";
 import { BackButton, Button, Muted, Stepper } from "../ui.tsx";
 import OrderSent, { type Sent } from "./OrderSent.tsx";
@@ -28,6 +29,7 @@ export default function PlaceOrder({
   warehouseDown,
   commands,
   onDone,
+  onEdit,
   onBack,
 }: {
   gateway: StoreGateway;
@@ -37,6 +39,8 @@ export default function PlaceOrder({
   warehouseDown: boolean;
   commands: Commands;
   onDone: () => void;
+  /** Open a just-placed order for a change. */
+  onEdit: (orderId: string) => void;
   onBack: () => void;
 }): React.JSX.Element {
   const today = depotToday();
@@ -49,6 +53,7 @@ export default function PlaceOrder({
   const [short, setShort] = useState<LineAvailability[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState<Sent | null>(null);
+  const [draftNote, setDraftNote] = useState<string | null>(null);
 
   const brand = outlet?.brandCode ?? "";
   const catalogue = useResource(brand ? (s) => gateway.catalogue(brand, s) : null, brand);
@@ -64,6 +69,20 @@ export default function PlaceOrder({
     for (const o of [...orders].sort((a, b) => a.placedAt.localeCompare(b.placedAt))) for (const l of o.lines) m.set(l.productId, l.quantity);
     return m;
   }, [orders]);
+
+  // A saved draft comes back when a new order is opened, never into a change to a placed one.
+  const outletKey = outlet?.outletId ?? "";
+  useEffect(() => {
+    if (amend || !outletKey) return;
+    const draft = loadDraft(outletKey);
+    if (!draft) return;
+    setQty(draft.quantities);
+    setDraftNote(`Draft from ${clock(draft.savedAt)} restored`);
+  }, [amend, outletKey]);
+
+  const saveAsDraft = () => {
+    setDraftNote(saveDraft(outletKey, qty) ? "Draft saved on this device" : "This device cannot keep a draft");
+  };
 
   const products = catalogue.data ?? [];
   const tempOf = (id: string) => products.find((p) => p.productId === id)?.temperature ?? "ambient";
@@ -117,6 +136,8 @@ export default function PlaceOrder({
       else placed.push(outcome.ack.result as PlacedOrder);
       setQty((q) => Object.fromEntries(Object.entries(q).filter(([id]) => tempOf(id) !== t)));
     }
+    clearDraft(outletKey);
+    setDraftNote(null);
     setSent({ orders: placed, queued, requestedDate: date });
   };
 
@@ -133,6 +154,11 @@ export default function PlaceOrder({
         <Muted>
           {longDay(today)} · orders close 4:00 PM · {cutoffLabel(left)}
         </Muted>
+        {draftNote && (
+          <p role="status" className="text-[13px] text-go-teal">
+            {draftNote}
+          </p>
+        )}
       </div>
 
       {/* Desktop: the list on the left and the summary card on the right, as in "03 Place order". */}
@@ -193,12 +219,18 @@ export default function PlaceOrder({
 
       <label className="flex min-h-12 items-center gap-2 rounded-[18px] px-4 text-[15px] text-go-muted">
         <Icon name="search" />
-        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Find an item" className="min-w-0 flex-1 bg-transparent text-black outline-none placeholder:text-go-muted" />
+        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Add an item - search by name or SKU" className="min-w-0 flex-1 bg-transparent text-black outline-none placeholder:text-go-muted" />
       </label>
 
       {error && <Notice tone="danger" live title={error} />}
       {catalogue.error && <Notice tone="danger" title="Could not load the catalogue">{catalogue.error.message}</Notice>}
 
+      {/* Desktop column heads, as in "03 Place order". */}
+      <div aria-hidden className="hidden grid-cols-[minmax(0,1fr)_72px_168px] gap-2 px-4 text-[13px] text-go-muted lg:grid">
+        <span>Item</span>
+        <span>Usual</span>
+        <span className="text-center">Order</span>
+      </div>
       <ul className="flex flex-col gap-2.5">
         {shown.map((p) => {
           const n = qty[p.productId] ?? 0;
@@ -209,8 +241,11 @@ export default function PlaceOrder({
               <div className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate text-[16px] font-medium text-black">{p.productId}</span>
                 <span className="text-[13px] text-go-muted">
-                  {!p.verifiedRealSku && <span title="Reconstructed from order totals, not a confirmed product">inferred · </span>}
-                  {u !== undefined ? `usual ${u}` : "not ordered before"}
+                  {!p.verifiedRealSku && <span title="Reconstructed from order totals, not a confirmed product">inferred</span>}
+                  <span className="lg:hidden">
+                    {!p.verifiedRealSku && " · "}
+                    {u !== undefined ? `usual ${u}` : "not ordered before"}
+                  </span>
                 </span>
                 {s && (
                   <span className="text-[13px] font-medium text-go-danger-strong">
@@ -221,6 +256,7 @@ export default function PlaceOrder({
                   </span>
                 )}
               </div>
+              <span className="hidden w-[72px] shrink-0 text-[15px] text-go-muted lg:block">{u ?? "-"}</span>
               <Stepper value={n} label={p.productId} highlight={u !== undefined && n !== u && n > 0} onChange={(v) => setLine(p.productId, v)} />
             </li>
           );
@@ -232,18 +268,43 @@ export default function PlaceOrder({
       <div className="fixed inset-x-0 bottom-0 z-30 flex justify-center lg:sticky lg:top-8 lg:z-auto">
         <div className="flex w-full max-w-[720px] flex-col gap-3 rounded-t-[32px] bg-white px-6 pt-5 pb-7 shadow-[0_-5px_20px_rgba(0,0,0,0.06)] lg:rounded-[26px] lg:shadow-[0_5px_20px_rgba(0,0,0,0.09)]">
           <h2 className="hidden text-[20px] font-medium text-black lg:block">Order summary</h2>
-          <Muted>
-            Delivery {dayLabel(rolled ?? date)}
-            {outlet ? ` · ${hhmm(outlet.windowOpen)}-${hhmm(outlet.windowClose)}` : ""}
-          </Muted>
-          <p className="text-[28px] leading-tight font-semibold text-black">
-            {cases === 1 ? "1 case" : `${cases} cases`}
-            {!amend && ` · ${classes.filter((t) => count(t).length > 0).length || 0} orders`}
+          <div className="flex flex-col rounded-[16px] bg-go-mint/70 px-4 py-3">
+            <span className="text-[12px] text-go-muted">Delivery</span>
+            <span className="text-[16px] font-medium text-black">
+              {dayLabel(rolled ?? date)}
+              {outlet ? ` · ${hhmm(outlet.windowOpen)}-${hhmm(outlet.windowClose)}` : ""}
+            </span>
+          </div>
+          {/* Desktop: one line per class with its own count, as in "03 Place order". */}
+          <ul className="hidden flex-col gap-2 text-[14px] lg:flex">
+            {classes.map((t) => {
+              const lines = count(t);
+              return (
+                <li key={t} className="flex justify-between gap-3">
+                  <span className="text-black">{t === "chilled" ? "Chilled order" : "Ambient order"}</span>
+                  <span className="text-go-muted">
+                    {lines.length} {lines.length === 1 ? "item" : "items"} · {lines.reduce((s, [, n]) => s + n, 0)} cases
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+          <p className="flex items-baseline justify-between gap-3 border-t border-[#dfe7e6] pt-3 text-[28px] leading-tight font-semibold text-black lg:text-[18px]">
+            <span className="hidden text-[15px] font-medium lg:inline">Total</span>
+            <span>
+              {cases === 1 ? "1 case" : `${cases} cases`}
+              <span className="lg:hidden">{!amend && ` · ${classes.filter((t) => count(t).length > 0).length || 0} orders`}</span>
+            </span>
           </p>
-          <div className="flex gap-2.5">
+          <div className="flex gap-2.5 lg:flex-col-reverse">
             <Button tone="plain" large onClick={onBack}>
               Cancel
             </Button>
+            {!amend && (
+              <Button tone="plain" large disabled={cases === 0} onClick={saveAsDraft}>
+                Save draft
+              </Button>
+            )}
             <Button large disabled={cases === 0 || commands.busy || !outlet} onClick={() => void submit()}>
               {commands.busy ? "Sending…" : amend ? "Save change" : "Submit order"}
             </Button>
@@ -253,7 +314,14 @@ export default function PlaceOrder({
       </div>
 
       {sent && (
-        <OrderSent sent={sent} onDone={onDone} onFixRest={error ? () => setSent(null) : undefined} onAccept={acceptShortfall} />
+        <OrderSent
+          sent={sent}
+          outlet={outlet}
+          onDone={onDone}
+          onEdit={(o) => onEdit(o.orderId)}
+          onFixRest={error ? () => setSent(null) : undefined}
+          onAccept={acceptShortfall}
+        />
       )}
     </div>
   );

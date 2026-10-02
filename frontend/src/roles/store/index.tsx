@@ -5,14 +5,18 @@ import { useOnline, useResource } from "@shared/api/useResource";
 import type { OrderView } from "@shared/domain/types";
 import { Notice } from "@shared/ui";
 import TopBar from "./TopBar.tsx";
+import { depotToday } from "./data/format.ts";
 import { createGateway } from "./data/gateway.ts";
+import { isOpenIssue, issuesForOrders, recentOrderIds } from "./data/issues.ts";
 import { useCommands } from "./data/useCommands.ts";
 import Deliveries from "./screens/Deliveries.tsx";
 import Home from "./screens/Home.tsx";
+import Issues from "./screens/Issues.tsx";
 import OrderSheet from "./screens/OrderSheet.tsx";
 import Orders from "./screens/Orders.tsx";
 import PlaceOrder from "./screens/PlaceOrder.tsx";
 import Receive from "./screens/Receive.tsx";
+import Track from "./screens/Track.tsx";
 import { SideNav, TabBar, type Tab } from "./ui.tsx";
 
 // The store manager workspace from Figma "15 Store Manager · Mobile" and
@@ -20,7 +24,7 @@ import { SideNav, TabBar, type Tab } from "./ui.tsx";
 // (src/shared/offline/tiers.ts): orders and receipts are kept on the device
 // while offline and sent when the connection returns.
 
-type View = { kind: "tabs" } | { kind: "place"; amend: OrderView | null } | { kind: "receive"; orderId: string };
+type View = { kind: "tabs" } | { kind: "place"; amend: OrderView | null } | { kind: "receive"; orderId: string } | { kind: "track" };
 
 export default function Store({
   userId,
@@ -40,19 +44,28 @@ export default function Store({
   const [openOrder, setOpenOrder] = useState<string | null>(null);
   const [waiting, setWaiting] = useState(0);
   const [flushError, setFlushError] = useState<string | null>(null);
+  const [vehicle, setVehicle] = useState<string | null>(null);
 
   const forOutlet = <T,>(fn: (id: string, s: AbortSignal) => Promise<T>) => (outletId ? (s: AbortSignal) => fn(outletId, s) : null);
   const outlet = useResource(forOutlet(gateway.outlet), outletId);
   const orders = useResource(forOutlet(gateway.orders), outletId, 20_000);
   const pending = useResource(forOutlet(gateway.pendingReceipts), outletId, 20_000);
   const warehouse = useResource((s) => gateway.catalogueStatus(s), "catalogue", 60_000);
+  const today = depotToday();
+  const deliveries = useResource(outletId ? (s) => gateway.deliveries(outletId, today, s) : null, `${outletId}|${today}`, 20_000);
+  const orderIds = recentOrderIds(orders.data ?? [], today);
+  const issues = useResource(orderIds.length ? (s) => issuesForOrders(gateway, orderIds, s) : null, orderIds.join(","), 60_000);
 
   const { refresh: refreshOrders } = orders;
   const { refresh: refreshPending } = pending;
+  const { refresh: refreshDeliveries } = deliveries;
+  const { refresh: refreshIssues } = issues;
   const refresh = useCallback(() => {
     refreshOrders();
     refreshPending();
-  }, [refreshOrders, refreshPending]);
+    refreshDeliveries();
+    refreshIssues();
+  }, [refreshOrders, refreshPending, refreshDeliveries, refreshIssues]);
   const queued = useCallback(() => setWaiting((n) => n + 1), []);
   const commands = useCommands(gateway, online, queued, refresh);
 
@@ -80,7 +93,13 @@ export default function Store({
   const toReceive = pending.data ?? [];
   const warehouseDown = warehouse.data?.circuitState === "open" || warehouse.data?.stale === true;
   const backToTabs = () => setView({ kind: "tabs" });
-  const badges = { deliveries: toReceive.length, orders: all.filter((o) => o.status === "DEFERRED" || o.status === "STOCK_UNKNOWN").length };
+  const allIssues = issues.data ?? [];
+  const stops = deliveries.data ?? [];
+  const badges = {
+    deliveries: toReceive.length,
+    orders: all.filter((o) => o.status === "DEFERRED" || o.status === "STOCK_UNKNOWN").length,
+    issues: allIssues.filter(isOpenIssue).length,
+  };
   const open = all.find((o) => o.orderId === openOrder) ?? null;
   const receive = (orderId: string) => setView({ kind: "receive", orderId });
   const place = () => setView({ kind: "place", amend: null });
@@ -101,11 +120,50 @@ export default function Store({
           backToTabs();
           setTab("orders");
         }}
+        onEdit={(orderId) => {
+          backToTabs();
+          setTab("orders");
+          setOpenOrder(orderId);
+        }}
         onBack={backToTabs}
       />
     );
   } else if (view.kind === "receive") {
-    body = <Receive gateway={gateway} orderId={view.orderId} order={all.find((o) => o.orderId === view.orderId) ?? null} commands={commands} onBack={backToTabs} />;
+    body = (
+      <Receive
+        gateway={gateway}
+        orderId={view.orderId}
+        order={all.find((o) => o.orderId === view.orderId) ?? null}
+        delivery={stops.find((d) => d.orderId === view.orderId) ?? null}
+        outlet={outlet.data}
+        commands={commands}
+        onBack={() => {
+          backToTabs();
+          setTab("deliveries");
+        }}
+        onViewIssues={() => {
+          refresh();
+          backToTabs();
+          setTab("issues");
+        }}
+      />
+    );
+  } else if (view.kind === "track") {
+    body = (
+      <Track
+        gateway={gateway}
+        deliveries={stops}
+        orders={all}
+        issues={allIssues}
+        outlet={outlet.data}
+        toReceive={toReceive}
+        vehicleId={vehicle}
+        onVehicle={setVehicle}
+        onReceive={receive}
+        onOpen={setOpenOrder}
+        onBack={backToTabs}
+      />
+    );
   } else if (tab === "home") {
     body = (
       <Home
@@ -115,16 +173,20 @@ export default function Store({
         displayName={displayName}
         outlet={outlet.data}
         toReceive={toReceive}
+        deliveries={stops}
+        issues={allIssues}
         onOpen={setOpenOrder}
         onPlace={place}
         onReceive={receive}
-        onTrack={() => setTab("deliveries")}
+        onTrack={() => setView({ kind: "track" })}
       />
     );
   } else if (tab === "orders") {
     body = <Orders orders={all} loading={orders.loading} error={orders.error} onOpen={setOpenOrder} onPlace={place} />;
+  } else if (tab === "issues") {
+    body = <Issues issues={allIssues} orders={all} outlet={outlet.data} loading={issues.loading} error={issues.error} focus={null} onOpenOrder={setOpenOrder} />;
   } else {
-    body = <Deliveries orders={all} outlet={outlet.data} toReceive={toReceive} onOpen={setOpenOrder} onReceive={receive} />;
+    body = <Deliveries orders={all} outlet={outlet.data} toReceive={toReceive} onOpen={setOpenOrder} onReceive={receive} onTrack={() => setView({ kind: "track" })} />;
   }
 
   return (
@@ -176,7 +238,7 @@ export default function Store({
       )}
       {view.kind === "tabs" && <TabBar tab={tab} onTab={setTab} badges={badges} />}
       <SideNav
-        tab={view.kind === "place" ? "orders" : view.kind === "receive" ? "deliveries" : tab}
+        tab={view.kind === "place" ? "orders" : view.kind === "receive" || view.kind === "track" ? "deliveries" : tab}
         onTab={(t) => {
           setView({ kind: "tabs" });
           setTab(t);

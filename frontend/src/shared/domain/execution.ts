@@ -78,6 +78,25 @@ export type DeliveryRecordView = {
   serverRecordedAt: IsoInstant;
   rowVersion: number;
   lines: DeliveryLineView[];
+  /** This stop's place on the trip. */
+  stopSequence: number;
+  /** How many stops the trip has; null on a record released before it was kept. */
+  tripStopCount: number | null;
+  /** The plan's time at this stop. */
+  plannedArrival: IsoTime;
+  /** The planned arrival shifted by the trip's delay, once one is observed (R-EXE-15). */
+  expectedArrival: IsoInstant | null;
+  /** When the trip left the dock. */
+  releasedAt: IsoInstant;
+  startedAt: IsoInstant | null;
+  /** Filled in on the outlet and single-delivery reads; null when nobody is assigned or Identity could not answer. */
+  driver: DriverView | null;
+};
+
+/** A name and the badge shown on screen, never an email or a phone number. */
+export type DriverView = {
+  displayName: string;
+  employeeCode: string | null;
 };
 
 /** The links are signed and stop working at linksExpireAt. */

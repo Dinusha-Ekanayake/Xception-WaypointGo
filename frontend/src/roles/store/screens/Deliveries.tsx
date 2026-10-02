@@ -19,12 +19,14 @@ export default function Deliveries({
   toReceive,
   onOpen,
   onReceive,
+  onTrack,
 }: {
   orders: OrderView[];
   outlet: OutletView | null;
   toReceive: PendingReceiptView[];
   onOpen: (orderId: string) => void;
   onReceive: (orderId: string) => void;
+  onTrack: () => void;
 }): React.JSX.Element {
   const [range, setRange] = useState<Range>("today");
   const today = depotToday();
@@ -70,7 +72,7 @@ export default function Deliveries({
           <article className={cx("hidden items-center gap-4 rounded-[20px] bg-white py-3 pr-4 pl-3 lg:flex", receivable && "outline-2 outline-[#0f766e]")}>
             <span className={cx("flex w-[84px] shrink-0 flex-col items-center rounded-[14px] py-2", receivable ? "bg-go-mint" : "bg-[#fbf1e1]")}>
               <span className="text-[11px] text-go-muted">{receivable ? "Arrived" : "Window"}</span>
-              <span className="text-[18px] font-semibold text-black">{outlet ? hhmm(outlet.windowOpen) : "—"}</span>
+              <span className="text-[18px] font-semibold text-black">{outlet ? hhmm(outlet.windowOpen) : "-"}</span>
             </span>
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
               <span className="flex items-center gap-2">
@@ -82,6 +84,13 @@ export default function Deliveries({
               </span>
             </span>
             <Chip tone={s.tone}>{s.label}</Chip>
+            {onTheWay(o.status) && (
+              <span className="w-[112px] shrink-0">
+                <Button tone="plain" onClick={onTrack}>
+                  Track
+                </Button>
+              </span>
+            )}
             <span className="w-[112px] shrink-0">
               <Button tone="plain" onClick={() => onOpen(o.orderId)}>
                 Details
@@ -98,7 +107,7 @@ export default function Deliveries({
               <div className={cx("flex flex-col items-center rounded-[20px] px-4 py-4", receivable ? "bg-go-mint" : "bg-[#fbf1e1]")}>
                 <span className="text-[13px] text-go-muted">{receivable ? "Arrived" : "Your window"}</span>
                 <span className="text-[36px] leading-tight font-semibold text-black">
-                  {receivable ? "Count it now" : outlet ? `${hhmm(outlet.windowOpen)}–${hhmm(outlet.windowClose)}` : "—"}
+                  {receivable ? "Count it now" : outlet ? `${hhmm(outlet.windowOpen)}-${hhmm(outlet.windowClose)}` : "-"}
                 </span>
               </div>
             )}
@@ -113,6 +122,11 @@ export default function Deliveries({
               <Chip tone={s.tone}>{s.label}</Chip>
             </span>
             {range !== "upcoming" && <Progress status={o.status} />}
+            {onTheWay(o.status) && (
+              <Button tone="plain" onClick={onTrack}>
+                Track delivery
+              </Button>
+            )}
             <Button tone="plain" onClick={() => onOpen(o.orderId)}>
               Details
             </Button>

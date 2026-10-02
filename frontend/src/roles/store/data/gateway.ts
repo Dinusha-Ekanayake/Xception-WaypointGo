@@ -5,6 +5,9 @@ import type {
   CalendarAnswer,
   CatalogueStatusView,
   DeliveryDateAnswer,
+  DeliveryRecordView,
+  HandoverView,
+  IssueView,
   OrderView,
   OutletView,
   PendingReceiptView,
@@ -34,6 +37,12 @@ export type StoreGateway = {
   deliveryDate: (outletId: string, requestedDate: string, signal: AbortSignal) => Promise<DeliveryDateAnswer>;
   pendingReceipts: (outletId: string, signal: AbortSignal) => Promise<PendingReceiptView[]>;
   receipt: (orderId: string, signal: AbortSignal) => Promise<ReceiptView>;
+  /** Where the handover PIN stands, never the PIN (R-RCP-09). 404 when none was issued. */
+  handover: (orderId: string, signal: AbortSignal) => Promise<HandoverView>;
+  /** What is coming to, or has reached, the outlet on a day (Execution, `delivery:Read`). */
+  deliveries: (outletId: string, date: string, signal: AbortSignal) => Promise<DeliveryRecordView[]>;
+  /** Issues raised about one order: a loading shortfall, damage, a receipt dispute. */
+  issuesFor: (orderId: string, signal: AbortSignal) => Promise<IssueView[]>;
   send: (command: Command) => Promise<CommandAck>;
   /** Keep a write on this device until the connection returns (resilient tier). */
   queue: (command: Command) => Promise<{ durable: boolean; reason?: string }>;
@@ -43,6 +52,8 @@ export type StoreGateway = {
   setWarehouseDown?: (down: boolean) => void;
   /** Sample only: move an on-the-way order to delivered, so it can be received. */
   deliver?: (orderId: string) => void;
+  /** Sample only: the driver types the PIN on their phone. */
+  confirmHandover?: (orderId: string) => void;
 };
 
 function liveGateway(accountId: string): StoreGateway {
@@ -64,6 +75,9 @@ function liveGateway(accountId: string): StoreGateway {
       request(`/api/orders/delivery-date?outlet=${q(outletId)}&requestedDate=${q(requestedDate)}`, { signal }),
     pendingReceipts: (outletId, signal) => request(`/api/receipts/pending?outlet=${q(outletId)}`, { signal }),
     receipt: (orderId, signal) => request(`/api/receipts/${q(orderId)}`, { signal }),
+    handover: (orderId, signal) => request(`/api/receipts/${q(orderId)}/handover`, { signal }),
+    deliveries: (outletId, date, signal) => request(`/api/execution/deliveries?outlet=${q(outletId)}&date=${q(date)}`, { signal }),
+    issuesFor: (orderId, signal) => request(`/api/issues/by-subject?type=order&id=${q(orderId)}`, { signal }),
     send: (command) => send(command),
     queue: (command) => enqueue(accountId, "store_manager", command),
     flush: () => drain(accountId),

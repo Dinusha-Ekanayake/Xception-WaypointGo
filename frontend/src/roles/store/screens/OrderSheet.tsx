@@ -80,6 +80,12 @@ export default function OrderSheet({
       </section>
 
       {order.status === "DELIVERED" && <Button onClick={onReceive}>Receive this delivery</Button>}
+      {/* An answered receipt: what was counted and where the handover PIN stands (R-RCP-09). */}
+      {order.status === "RECEIVED" && (
+        <Button tone="plain" onClick={onReceive}>
+          Receipt and handover PIN
+        </Button>
+      )}
       {editable(order.status) && !cancelling && (
         <div className="flex gap-2.5">
           <Button tone="plain" onClick={() => setCancelling(true)}>
