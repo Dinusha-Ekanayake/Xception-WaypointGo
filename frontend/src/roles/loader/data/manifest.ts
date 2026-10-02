@@ -129,8 +129,37 @@ export function holdLapsed(holder: HolderView, now: Date = new Date()): boolean 
   return now.getTime() - Date.parse(holder.lastActiveAt) >= IDLE_RELEASE_MINUTES * 60_000;
 }
 
+/** "14 min" or "1 h 20 min". */
+export function durationText(minutes: number): string {
+  return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
+}
+
+/** "14 min" or "1 h 20 min" until a depot-time departure; empty when past or not today. */
+export function timeToDeparture(time: string, now: Date = new Date()): string {
+  const minutes = minutesUntil(time, now);
+  if (minutes <= 0 || minutes >= 12 * 60) return "";
+  return durationText(minutes);
+}
+
 export function untilDeparture(time: string, now: Date = new Date()): string {
   const minutes = minutesUntil(time, now);
   if (minutes <= 0 || minutes >= 12 * 60) return "";
   return minutes < 60 ? `${minutes} min to departure` : `${Math.floor(minutes / 60)} h ${minutes % 60} min to departure`;
+}
+
+/**
+ * Figma 05 "on pace": the share of orders checked against the share of the time
+ * from taking the trip to departure that has passed. Behind by more than a
+ * tenth of the load is "behind pace". Null when there is no time left to judge.
+ */
+export function paceOf(checked: number, total: number, since: string, departure: string, now: Date = new Date()): "on" | "behind" | null {
+  const start = Date.parse(since);
+  // Departure is depot time (Asia/Colombo), so it is measured from now in that zone.
+  const minutesLeft = minutesUntil(departure, now);
+  if (!total || minutesLeft <= 0 || minutesLeft >= 12 * 60 || Number.isNaN(start)) return null;
+  const leave = now.getTime() + minutesLeft * 60_000;
+  const span = leave - start;
+  if (!(span > 0)) return null;
+  const elapsed = Math.max(0, Math.min(1, (now.getTime() - start) / span));
+  return checked / total + 0.1 < elapsed ? "behind" : "on";
 }
