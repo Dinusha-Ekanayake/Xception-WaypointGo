@@ -1,0 +1,62 @@
+# Read-only MCP implementation plan
+
+Goal: let the six beneficial roles inspect existing operational facts through an optional MCP client, with the same live policies and row scope as the application.
+
+Spec: [issue #87](https://github.com/kavindamihiran/Xception-WaypointGo/issues/87).
+
+## Current state and ownership
+
+The backend has authorized reads for orders, plans, manifests, delivery records, receipts, issues, audit history and policies. AuditController and AuditApiIntegrationTest already exist; the status page's missing audit API line is stale. Identity owns passwords, throttling, opaque sessions and policy evaluation. Existing browser sessions may write, so copying one into an adapter is insufficient.
+
+The adapter lives in root `mcp/`, separate from frontend routing and the backend modules. It owns MCP schemas, a fixed GET catalogue, response field selection and stdio transport. Identity application code owns connection authorization, credential issuance/revocation and the read-only request gate. The existing business application queries retain SQL scope filtering. Platform owns a typed `app.mcp.enabled` setting, disabled by default. No business module or table is added.
+
+## Chosen decisions
+
+- Transport: local stdio, using official TypeScript SDK 1.31.0 and its supported stable protocol negotiation. Target: desktop/process-spawning MCP clients and the official SDK client smoke test. Remote HTTP/OAuth and mobile connector hosting are separate work.
+- Credentials: an interactive local `connect` command submits credentials directly to Identity's new `/api/mcp/session` authentication endpoint. Identity issues a separate `mcp.` opaque session stored only as a hash, marked read-only in SQL. No browser cookie is copied. A private file outside the repository holds the token. The assistant never receives a password or token.
+- Identity: each call re-resolves the session and checks `mcp:Connect`. Policy or account revocation affects the next call. Existing session revocation paths apply to both browser and MCP sessions. Standard browser session resolution rejects MCP sessions. Bearer browser tokens are refused.
+- Read-only enforcement: only exact approved GET paths and own-session revocation are admitted by the backend gate, even if an MCP token is supplied as a browser cookie. Commands, uploads, account/device administration, redirects and arbitrary endpoints are excluded.
+- Loader: use a personal credential with no shared device identity. The adapter cannot claim an operator or inherit the browser's PIN-switched supervisor session. Shared-device MCP connections are unsupported.
+- Tool discovery: refresh safe context and permitted read actions on each list/call, with conservative discovery for resource-restricted policies. Backend policy and SQL scope still decide every actual target. No role-name privilege bypass.
+- Data: explicit output schemas discard unknown fields. Audit snapshots, proof URLs/images, credentials, contact details and PIN material never enter a result. Text fields remain untrusted data. Cap response bytes and fail visibly rather than truncate. List tools use existing keyset pagination; the first slice excludes unbounded cross-record list APIs.
+
+## Tool and action matrix
+
+| Tool | Backend read | Action/resource |
+| --- | --- | --- |
+| `my_context` | `/api/mcp/context` | `mcp:Connect`, own identity |
+| `list_orders` | `/api/orders?outlet=...` | `order:Read`, `wpt:order:outlet:<id>` |
+| `get_order` | `/api/orders/<id>` | `order:Read`, order |
+| `get_plan` | `/api/plans/draft` or `/published` | `plan:Read`, depot |
+| `get_manifest` | `/api/loading/trips/<id>/manifest` | `loading:Read`, trip |
+| `get_delivery` | `/api/execution/deliveries/<id>` | `delivery:Read`, delivery |
+| `get_receipt` | `/api/receipts/<orderId>` | `receipt:Read`, order |
+| `list_issues` | `/api/issues?depot=...` | `issue:Read`, depot |
+| `get_issue` | `/api/issues/<id>` | `issue:Read`, issue |
+| `list_audit` | `/api/audit` | `audit:Read`, platform audit |
+| `get_command_decision` | `/api/audit/decisions/<id>` | `audit:Read`, platform audit |
+| `list_policies` | `/api/policies` | `iam:ReadPolicy`, policy |
+
+Single-record tools retain IDs and versions. Plans/manifests can exceed the byte limit and then return an explicit size error, with no partial data. Drivers use delivery IDs from their run sheet, loaders use trip IDs from the loading application. Run-sheet/ready-trip discovery, pending-receipt queues and custody composition require bounded owning-module reads before exposure; they remain open on #87.
+
+## Review focus
+
+1. A token placed in a cookie or sent to a command/upload must remain read-only.
+2. Revocation/policy deny on an already-running connection must affect the next call.
+3. A resource ID or depot/outlet from another person's scope must be refused in SQL.
+4. Unknown response fields, redirects, oversized data and backend exception messages must not expose secrets.
+5. Loader personal identity must stay distinct from a PIN-switched browser; temporal driver scope must still apply.
+
+## PR breakdown and verification
+
+### 1. Connection boundary and role read tools (this branch)
+
+- [x] Add failing PostgreSQL HTTP tests for issuing a dedicated session, browser/bearer separation, denied commands/uploads, revocation, scope and audit behavior. Add a pure route-policy test and run the boundary baseline before cross-module work.
+- [x] Add an additive IAM migration for session purpose and an opt-in connection policy for the six existing roles. Default the feature off. Implement Identity application handlers, the servlet credential adapter and the context endpoint. Preserve normal sign-in and its throttling.
+- [x] Add adapter tests with an official SDK client and an HTTP fixture for discovery, role reads, errors, input schemas, field redaction, pagination, redirects and size limits; verify failure before adapter implementation.
+- [x] Implement strict TypeScript catalogue, bounded backend client, stdio entry point and interactive credential-file setup/revocation. Add CI checks for the independent package and forward Authorization through the existing Next proxy.
+- [x] Run adapter build/test, backend verify on isolated PostgreSQL, frontend tests/typecheck/build and relevant shell smoke tests. Review skips and diff; record actual verification in WALKTHROUGH.md and development log. Open a PR into dev; do not close #87 while its acceptance gaps remain.
+
+### 2. Remaining reads and user validation
+
+Bound the owning modules' run-sheet, loading-work and pending-receipt reads; add tools and cross-user client demonstrations. Validate an installed desktop client and decide whether users actually need remote/mobile access. These are follow-up PRs on #87, without write tools.

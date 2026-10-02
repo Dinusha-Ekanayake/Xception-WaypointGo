@@ -119,10 +119,9 @@ public class AmendOrderHandler implements CommandHandler {
     events.publish(actor, OrderMessages.amended(next));
     metrics.increment("waypoint.order.amended", "status", JdbcOrderRepository.code(next.status()));
 
-    return Map.of(
-        "orderId", orderId.toString(),
-        "status", next.status().name(),
-        "rowVersion", version);
+    Map<String, Object> body = OrderMessages.answer(next, version);
+    body.put("rolledBecause", List.of());
+    return body;
   }
 
   private Optional<Reservation> reserve(Order order, List<OrderLine> lines) {

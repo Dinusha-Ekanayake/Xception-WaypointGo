@@ -61,7 +61,8 @@ public class ApiExceptionHandler {
     }
     HttpHeaders headers = new HttpHeaders();
     e.retryAfterSeconds().ifPresent(seconds -> headers.set(HttpHeaders.RETRY_AFTER, seconds.toString()));
-    return respond(statusFor(e.code()), e.code().name(), e.getMessage(), req, e.violations(), headers);
+    return respond(
+        statusFor(e.code()), e.code().name(), e.getMessage(), req, e.violations(), headers, e.extensions());
   }
 
   @ExceptionHandler(HttpMessageNotReadableException.class)
@@ -170,6 +171,17 @@ public class ApiExceptionHandler {
       HttpServletRequest req,
       List<Violation> violations,
       HttpHeaders headers) {
+    return respond(status, code, detail, req, violations, headers, Map.of());
+  }
+
+  private ResponseEntity<Map<String, Object>> respond(
+      int status,
+      String code,
+      String detail,
+      HttpServletRequest req,
+      List<Violation> violations,
+      HttpHeaders headers,
+      Map<String, Object> extensions) {
     metrics.increment("waypoint.problem", "code", code);
     ProblemDetails problem =
         new ProblemDetails(
@@ -180,7 +192,8 @@ public class ApiExceptionHandler {
             req.getRequestURI(),
             code,
             MDC.get(CorrelationIdFilter.MDC_KEY),
-            violations);
+            violations,
+            extensions);
     return ResponseEntity.status(status).headers(headers).contentType(PROBLEM).body(problem.toBody());
   }
 

@@ -74,14 +74,19 @@ public class SessionRegistry {
 
   /** Runs in the caller's transaction, so a session never outlives a sign-in that rolled back. */
   public String issue(UUID userId, UUID deviceId) {
-    String token = tokens.newToken();
+    return issue(userId, deviceId, false);
+  }
+
+  /** A purpose is fixed when authentication issues the credential, never upgraded later. */
+  public String issue(UUID userId, UUID deviceId, boolean mcpReadOnly) {
+    String token = (mcpReadOnly ? "mcp." : "") + tokens.newToken();
     Instant now = clock.now();
     database.update(
         """
         INSERT INTO iam.sessions
             (token_hash, user_id, device_id, issued_at, last_seen_at,
-             absolute_expiry, idle_expiry)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+             absolute_expiry, idle_expiry, mcp_read_only)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         tokens.hash(token),
         userId,
@@ -89,12 +94,21 @@ public class SessionRegistry {
         Timestamp.from(now),
         Timestamp.from(now),
         Timestamp.from(now.plus(absoluteLifetime)),
-        Timestamp.from(now.plus(idleLifetime)));
+        Timestamp.from(now.plus(idleLifetime)),
+        mcpReadOnly);
     return token;
   }
 
   /** Resolves a token, sliding the idle expiry. Returns empty for expired or unknown tokens. */
   public Optional<SessionView> resolve(String token) {
+    return resolve(token, false);
+  }
+
+  public Optional<SessionView> resolveMcp(String token) {
+    return token != null && token.startsWith("mcp.") ? resolve(token, true) : Optional.empty();
+  }
+
+  private Optional<SessionView> resolve(String token, boolean mcpReadOnly) {
     if (token == null || token.isBlank()) {
       return Optional.empty();
     }
@@ -111,10 +125,12 @@ public class SessionRegistry {
                   FROM iam.sessions s
                   JOIN iam.users u ON u.user_id = s.user_id
                   WHERE s.token_hash = ?
+                    AND s.mcp_read_only = ?
                     AND s.absolute_expiry > ?
                     AND s.idle_expiry > ?
                   """,
                   hash,
+                  mcpReadOnly,
                   Timestamp.from(now),
                   Timestamp.from(now));
           if (row == null || !Boolean.TRUE.equals(row.get("is_active"))) {

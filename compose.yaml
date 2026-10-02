@@ -54,6 +54,7 @@ services:
       # Off by default here because this file is also the local Docker stack on
       # plain HTTP. The VPS overlay and compose.prod.yaml force it on.
       COOKIE_SECURE: ${COOKIE_SECURE:-0}
+      MCP_ENABLED: ${MCP_ENABLED:-false}
       WAREHOUSE_BASE_URL: ${WAREHOUSE_BASE_URL:-https://triathon-warehouse-simple.vercel.app/api/v1}
       WAREHOUSE_API_KEY: ${WAREHOUSE_API_KEY:-}
       WAREHOUSE_TIMEOUT_MS: ${WAREHOUSE_TIMEOUT_MS:-2000}

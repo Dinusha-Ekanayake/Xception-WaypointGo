@@ -157,6 +157,11 @@ class OrderingCommandIntegrationTest {
     assertEquals("CONFIRMED", result.get("status").asText());
     assertEquals(serviceDate.toString(), result.get("deliveryDate").asText());
     assertFalse(result.get("dateRolled").asBoolean());
+    // The "order sent" screen reads these from the answer, so they are the warehouse's.
+    assertEquals(12, result.get("itemCount").asInt());
+    assertTrue(result.hasNonNull("weightKg") && result.hasNonNull("volumeM3"), result.toString());
+    assertTrue(result.hasNonNull("temperature"), result.toString());
+    assertEquals(1, result.get("lines").size());
 
     JsonNode second = mapper.readTree(send(manager, body, 200));
     assertTrue(second.get("replayed").asBoolean(), "ORD-04: a double tap returns the original");
@@ -184,6 +189,9 @@ class OrderingCommandIntegrationTest {
 
     assertEquals("STOCK_UNKNOWN", result.get("status").asText());
     assertEquals("circuit open", result.get("degraded").asText(), "degrade visibly (rule 9)");
+    assertTrue(result.get("weightKg").isNull(), "no totals are guessed while stock is unchecked");
+    assertTrue(result.get("itemCount").isNull(), result.toString());
+    assertEquals(1, result.get("lines").size(), "the lines asked for are still shown");
   }
 
   @Test
@@ -219,12 +227,17 @@ class OrderingCommandIntegrationTest {
 
     assertTrue(problem.contains("P-1 requested 12, available 4"), problem);
     assertTrue(problem.contains("STK-01"), problem);
+    JsonNode availability = mapper.readTree(problem).get("availability");
+    assertEquals("P-1", availability.get(0).get("productId").asText(), problem);
+    assertEquals(4, availability.get(0).get("available").asInt());
     // A refusal for a rule it broke is the command's answer (R-PLT-06): the retry of
     // this command id gets the same refusal. Nothing was placed.
     assertEquals(1L, count(ModuleRole.INTEGRATION,
         "SELECT count(*) AS n FROM integration.command_receipts"
             + " WHERE command_id = ? AND result_status >= 400", commandId));
-    send(manager, place(commandId, serviceDate), 422);
+    String replayed = send(manager, place(commandId, serviceDate), 422);
+    assertEquals(
+        availability, mapper.readTree(replayed).get("availability"), "the retry is told the same quantities");
   }
 
   @Test

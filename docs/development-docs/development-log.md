@@ -30,6 +30,66 @@ Why: issue #14; the store, driver and dispatcher screens had nothing behind thei
 Verified: domain and crypto tests (27, including the RFC 8291 vector), `ModuleBoundaryTest`, `EventCatalogueTest`, frontend typecheck and `npm test`. The 26 database integration tests are written but not yet run: no test database with a superuser login was reachable (a fresh Neon project cannot run migration 004).
 Open: each role UI places its own inbox, badge and push opt-in (#18, #19, #21); no admin API for a new routing version; dock and next planned date are missing from their events.
 
+## 2026-10-02 - fix: sync the store manager screens with the backend contracts
+
+`fix/store-manager-sync` · @jv-ransika
+
+The store read a catalogue path that does not exist (live "No such endpoint"); it now pages `/api/warehouse/catalogue`. `order:Place` and `order:Amend` answer with order-level totals (null while stock is unchecked), an STK-01 refusal carries per-line `availability` (kept in the stored rejection, so a retry gets it too), the order-sent screen offers Accept on a partial reservation (STK-13), the delivery-day preview uses `GET /api/orders/delivery-date`, and a `DISCARDED` sync result leaves the device queue instead of blocking it.
+Why: the store screens were built against assumed contracts before ordering, warehouse and sync landed; a full read of both sides found these mismatches.
+Verified: frontend `npm run typecheck`, `npm test` (51 passed), `npm run build`; backend `mvn verify` on local PostgreSQL 16: 628 run, 627 passed, no skips; the one failure is `OutboxRelayIntegrationTest.twoRelaysNeverClaimTheSameEvent` (49 of 60 delivered), outside this change.
+Open: no store browser suite (`tests/e2e-store/`); the store flow was not run by hand against the live backend.
+## 2026-10-02 - feat(loader): match the loader to Figma, with dark mode and settings
+
+`feat/loader-figma`, restored by `fix/restore-loader-figma` after the revert in #91 · @Dinusha-Ekanayake
+
+Compared every frame of Figma "08 Loader · Phone" with the build and closed the gaps:
+- dark mode on the go-dark tokens; a Settings screen (Appearance Light/Dark, Language සිං / த / EN), with the device's sign-out kept there;
+- Device locked and Unlock with PIN; crew search with "No matching employees"; four-box PIN with Incorrect PIN and the paused countdown;
+- the dock pill and list, "No trips at this dock", "was just taken" (409 R-LOD-11);
+- the loaded and saved-offline sheets, centred out-of-sequence and hand-back cards ("Next up"), and Report an issue with icons and two-line pickers;
+- release with loaders, minutes, the flagged-stop note and capacity bars; "on pace" from the hold time and departure;
+- every loader string through the SI/TA dictionary.
+
+Kept from the backend where Figma differs: the required reason on an issue (`loading:Shortfall` requires it), and "item" over "package" (decision 2026-10-01).
+Why: the booklet judges fidelity to the Day 5 design on phone-size screens.
+Verified: typecheck, `npm test` (48), build; loader browser suite 4 of 4 and dispatcher 11 of 11; screenshots of each screen in light and dark compared with the Figma frames at 393x852.
+Open: Figma's notifications bell (loader notifications are #14) and the optional issue photo (Loading has no upload endpoint). Sinhala and Tamil need a native speaker.
+
+---
+
+## 2026-10-02 - ci: run the tests once per change, in one workflow
+
+`ci/one-checks-workflow` · @kavindamihiran
+
+The official Task 2B validator step moved from `ci.yml` into the backend job of `checks.yml`, and `ci.yml` is deleted.
+Why: both workflows ran the full backend suite on every pull request and again on every push to `dev` and `main`, so one merge ran it four times and a flaky test had twice the chances to fail a run. The validator now also gates both deploys, which `ci.yml` never did.
+Verified: the `Checks` run on this branch's pull request, including the validator step.
+Open: two integration tests fail intermittently on leaked test data (`PlanningCommandIntegrationTest.aGeneratedDraftIsPublishedOnceWithItsEvents`, `ExecutionIntegrationTest.setUp`), no issue yet. `Checks` is not yet a required status on `main` or `dev`.
+
+---
+
+## 2026-10-02 - fix: let operational commands start with the MCP filter present
+
+`fix/mcp-filter-non-web-start` · @kavindamihiran
+
+`McpCredentialFilter` looks up the MVC exception resolver when it refuses a request instead of requiring it at construction.
+Why: `migrate` and `import-reference` start without a web server, where that resolver does not exist, so the init step of the preview deploy for #93 failed before migrating and preview stayed on the previous build. Case [PLT-15](../architecture/EDGE-CASES.md).
+Verified: `WaypointApplicationCommandStartTest` failed with the deploy's own error before the change and passes after; backend `mvn verify` on local PostgreSQL 16 (627 passed, no skips); the built jar ran `migrate import-reference demo-accounts` on an empty database (46 migrations), then served with `MCP_ENABLED=true` while the stdio adapter connected as dispatcher and auditor, read in scope, was refused out of scope (403) and on a command (403), and disconnected. `mcp/` `npm test`: 10 passed.
+Open: `MCP_ENABLED=true` is set per environment in the server's `.env` ([deployment.md](../deployment.md)); production gets the feature with the next release from `dev`.
+
+---
+
+## 2026-10-02 - feat: connect personal read-only MCP clients (issue #87)
+
+`feat/readonly-mcp` · @kavindamihiran
+
+Identity issues dedicated, revocable MCP sessions; the local stdio adapter exposes 12 curated tools through existing policy and SQL scope. The feature defaults off. All six roles can connect without gaining new business permissions; loaders keep their own identity. Details and setup are in the [walkthrough](../issues/087-readonly-mcp/WALKTHROUGH.md).
+Why: authorized users need assistant access to recorded facts, with no command or upload path and no copied browser cookie.
+Verified: rebased onto `dev` at `ae6529f`, isolated PostgreSQL backend verify (626 passed, no skips); MCP build and 10 SDK tests; frontend 47 tests, typecheck, build and three shell browser tests. Final branch checks are recorded in the walkthrough.
+Open: #87 remains open for bounded work discovery, custody composition and installed desktop-client validation. No remote MCP transport is built.
+
+---
+
 ## 2026-10-02 - fix: show the admin sample console on production
 
 `fix/admin-console-on-production` · @kavindamihiran

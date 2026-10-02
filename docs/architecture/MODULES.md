@@ -60,11 +60,13 @@ Each module has the same five internal layers. The spec lists what belongs in ea
 
 | Layer | Contents |
 | --- | --- |
-| contract | `CurrentActor`, `Role`, `Scope`, `AuthorizationDecision`, `IdentityQuery` |
-| domain | `Account`, `Session`, `Role`, `ScopeGrant`, `VehicleAssignment` (temporal), `PasswordPolicy`, and `domain/policy/`: `PolicyDocument`, `Statement`, `Effect`, `Pattern`, `Condition`, `ConditionOperator`, `AccessRequest`, `Decision`, `PolicyEvaluator` |
-| application | `LoginHandler`, `SessionRegistry`, `LoginThrottle`, `AccountAdminUseCase`, `PolicyDecisionPoint` |
+| contract | `CurrentActor`, `Role`, `Scope`, `AuthorizationDecision`, `IdentityQuery`, `McpContextView` |
+| domain | `McpReadPolicy`, `Account`, `Session`, `Role`, `ScopeGrant`, `VehicleAssignment` (temporal), `PasswordPolicy`, and `domain/policy/`: `PolicyDocument`, `Statement`, `Effect`, `Pattern`, `Condition`, `ConditionOperator`, `AccessRequest`, `Decision`, `PolicyEvaluator` |
+| application | `LoginHandler`, `SessionRegistry`, `LoginThrottle`, `AccountAdminUseCase`, `PolicyDecisionPoint`, `McpSessionHandler`, `McpAccessHandler`, `McpContextQuery` |
 | infrastructure | `JdbcPolicyRepository`, `PolicyDocumentParser`, `PolicyCache`, `Argon2PasswordHasher` |
-| web | `AuthController` |
+| web | `AuthController`, `McpSessionController`, `McpCredentialFilter` |
+
+**Read-only MCP (#87).** Root `mcp/` is a separate local stdio adapter over the existing authorized REST reads. Identity owns dedicated opaque session purpose, the `mcp:Connect` policy action, connection context and revocation. `MCP_ENABLED` defaults off. The connection grant adds no business action or scope; every concrete read still uses its owning module's policy and SQL filtering. It never adopts a shared loader browser's PIN-switched identity. Authentication uses the existing throttle, and reads record their authorization in audit. See [R-IAM-30](RULES-AND-POLICIES.md) and the [walkthrough](../issues/087-readonly-mcp/WALKTHROUGH.md) for the curated surface and remaining work.
 
 **Owns:** `iam.users`, `iam.roles`, `iam.user_roles`, `iam.user_depot_access`, `iam.user_outlet_access`, `iam.vehicle_driver_assignments`, `iam.devices`, `iam.sessions`, `iam.login_attempts`, `iam.policies`, `iam.policy_versions`, `iam.policy_attachments`, `iam.action_catalogue`.
 

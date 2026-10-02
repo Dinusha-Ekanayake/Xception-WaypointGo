@@ -1,6 +1,7 @@
 package com.waypoint.dispatch.identity.web;
 
 import com.waypoint.dispatch.identity.application.PolicyDecisionPoint;
+import com.waypoint.dispatch.identity.application.McpAccessHandler;
 import com.waypoint.dispatch.platform.web.RequestAuthorizer;
 import com.waypoint.dispatch.shared.domain.Actor;
 import com.waypoint.dispatch.shared.error.DomainException;
@@ -20,10 +21,12 @@ import org.springframework.stereotype.Component;
 public class SessionRequestAuthorizer implements RequestAuthorizer {
   private final SessionActorResolver actors;
   private final PolicyDecisionPoint decisions;
+  private final McpAccessHandler mcp;
 
-  public SessionRequestAuthorizer(SessionActorResolver actors, PolicyDecisionPoint decisions) {
+  public SessionRequestAuthorizer(SessionActorResolver actors, PolicyDecisionPoint decisions, McpAccessHandler mcp) {
     this.actors = actors;
     this.decisions = decisions;
+    this.mcp = mcp;
   }
 
   @Override
@@ -39,6 +42,10 @@ public class SessionRequestAuthorizer implements RequestAuthorizer {
     Optional<String> denial = decisions.denyReason(actor, action, resource, null);
     if (denial.isPresent()) {
       throw new DomainException(ErrorCode.FORBIDDEN, denial.get());
+    }
+    if (request.getAttribute(McpCredentialFilter.CREDENTIAL) != null) {
+      mcp.requireGrant(actor);
+      mcp.recordRead(actor, action, resource);
     }
     return actor;
   }

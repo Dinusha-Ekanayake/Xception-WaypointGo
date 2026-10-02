@@ -2,14 +2,15 @@
 
 import { useEffect, useState } from "react";
 import type { ItemView, OutletView, ReadyTripView, ReleaseTrip } from "@shared/domain/types";
-import { Icon, Notice } from "@shared/ui";
+import { ApiError } from "@shared/api/problem";
+import { Notice } from "@shared/ui";
 import type { LoadingGateway } from "../data/gateway.ts";
-import { clockTime, hhmm, kg, loadedTotals, m3, progress, untilDeparture } from "../data/manifest.ts";
+import { loadedTotals, orderLabel, paceOf, progress } from "../data/manifest.ts";
 import { useTrip, type Line, type Outcome } from "../data/useTrip.ts";
-import { Bar, BigButton, Ring, TempBadge } from "../ui.tsx";
 import IssueSheet from "./IssueSheet.tsx";
-import { HandBack, OutOfSequence, Released, Toast, type ToastMessage } from "./LoadFeedback.tsx";
+import { HandBack, OutOfSequence, Released, Toast, TripTaken, type ToastMessage } from "./LoadFeedback.tsx";
 import ManifestList from "./ManifestList.tsx";
+import TruckCard from "./TruckCard.tsx";
 import ReleaseSheet from "./ReleaseSheet.tsx";
 import { useT } from "../i18n.tsx";
 
@@ -71,6 +72,14 @@ export default function LoadSheet({
   const volumeCap = Number(m.volumeCapM3);
   const editable = status === "IN_PROGRESS" || status === "BLOCKED" || status === "READY";
   const left = p.total - p.checked;
+  const pace = editable && m.holder ? paceOf(p.checked, p.total, m.holder.since, m.plannedDeparture) : null;
+  // 04: the trip went to another loader first (R-LOD-11).
+  const taken =
+    t.error instanceof ApiError && t.error.status === 409 && t.error.problem.violations.some((v) => v.rule === "R-LOD-11")
+    && m.holder !== null && m.holder.userId !== actingUserId;
+  const nextUp = t.lines
+    .flatMap((l) => l.items.filter((i) => i.status === "PENDING").map((i) => tr("{order} · item {n}", { order: orderLabel(l), n: i.lineNo })))
+    [0] ?? null;
 
   const release = async (checklist: Omit<ReleaseTrip, "tripId">) => {
     const outcome: Outcome = await t.release(checklist);
@@ -93,9 +102,24 @@ export default function LoadSheet({
     const to = item.status === "LOADED" ? "PENDING" : "LOADED";
     const outcome = await t.check(line, item, to);
     if (outcome.ok && to === "LOADED") {
+      const orderLeft = line.items.filter((i) => i.lineNo !== item.lineNo && i.status === "PENDING").length;
+      const stopLeft = t.lines
+        .filter((l) => l.stopSequence === line.stopSequence)
+        .flatMap((l) => l.items.filter((i) => i.status === "PENDING" && !(l.orderId === line.orderId && i.lineNo === item.lineNo)))
+        .length;
+      const stop = `Stop ${String(line.stopSequence).padStart(2, "0")}`;
       setToast({
-        title: `${item.productId} loaded`,
-        detail: outcome.queued ? tr("Saved on this device; sends when you're back online.") : undefined,
+        kind: "loaded",
+        at: new Date(),
+        title: tr("{order} · item {n} loaded", { order: orderLabel(line), n: item.lineNo }),
+        detail:
+          orderLeft > 0
+            ? tr(orderLeft === 1 ? "{n} item left in this order" : "{n} items left in this order", { n: orderLeft })
+            : [
+                tr("Order completed"),
+                stopLeft > 0 && tr(stopLeft === 1 ? "{n} item left for {stop}." : "{n} items left for {stop}.", { n: stopLeft, stop }),
+              ].filter(Boolean).join(" · "),
+        note: outcome.queued ? tr("Saved on this device; sends when you're back online.") : undefined,
         undo: () => void t.check(line, { ...item, status: "LOADED" }, "PENDING"),
       });
     }
@@ -106,7 +130,12 @@ export default function LoadSheet({
     return (
       <Released
         vehicleId={m.vehicleId}
-        summary={`${m.brandCode} · ${new Set(t.lines.map((l) => l.stopSequence)).size} stops · ${t.lines.length} orders${reported ? ` · ${reported} with items reported` : ""}`}
+        summary={[
+          m.brandCode,
+          tr("{n} stops", { n: new Set(t.lines.map((l) => l.stopSequence)).size }),
+          tr("{n} orders", { n: t.lines.length }),
+          reported > 0 && tr("{n} with items reported", { n: reported }),
+        ].filter(Boolean).join(" · ")}
         onBack={onBack}
       />
     );
@@ -128,7 +157,8 @@ export default function LoadSheet({
           {t.lines.filter((l) => l.recheck).length} orders moved and must be checked again. They are marked below; earlier checks on them no longer count.
         </Notice>
       )}
-      {t.error && (
+      {taken && <TripTaken vehicleId={m.vehicleId} onBack={onBack} />}
+      {t.error && !taken && (
         <Notice
           tone="danger"
           live
@@ -143,96 +173,34 @@ export default function LoadSheet({
 
       {/* Landscape tablet: truck summary pinned left, load list beside it. */}
       <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[440px_minmax(0,1fr)] lg:items-start">
-      <section aria-label="Truck" className="flex flex-col gap-4 rounded-[31px] bg-white px-[22px] py-5 shadow-[0_5px_20px_rgba(0,0,0,0.09)] lg:sticky lg:top-[132px]">
-        <div className="flex items-center gap-2.5">
-          <span className="rounded-full bg-black px-3.5 py-1.5 text-[15px] font-medium text-white">
-            {tr(status === "COMPLETED" ? "Released" : status === "NOT_STARTED" ? "Not started" : status === "READY" ? "Ready to release" : "Loading")}
-          </span>
-          <TempBadge temperature={m.temperature} />
-          <span className="flex-1" />
-          <span className="text-right text-[13px] text-go-muted md:hidden">
-            {m.vehicleId} · Trip {m.tripNumber}
-            <br />
-            Departs {hhmm(m.plannedDeparture)}
-          </span>
-        </div>
-        <div className="flex justify-center py-2">
-          <Ring percent={p.percent} />
-        </div>
-        <Bar label="Volume" value={`${m3(totals.volume)} / ${m3(volumeCap)}`} share={volumeCap ? totals.volume / volumeCap : 0} />
-        <Bar label="Weight" value={`${kg(totals.weight)} / ${kg(weightCap)}`} share={weightCap ? totals.weight / weightCap : 0} />
-        {editable && (
-          <div className="flex items-center gap-2 rounded-[16px] bg-[#e7f3f2] py-2 pr-2 pl-4">
-            <Icon name="lock" />
-            <span className="flex-1 text-[14px] font-medium text-go-success">
-              Locked to you{m.holder ? ` since ${clockTime(m.holder.since)}` : ""}
-            </span>
-            <button
-              type="button"
-              onClick={() => setHandingBack(true)}
-              className="min-h-12 rounded-full bg-white px-4 text-[14px] font-medium text-black"
-            >
-              {tr("Hand back")}
-            </button>
-          </div>
-        )}
-        <div className="flex flex-col gap-1">
-          <p className="text-[28px] font-semibold">
-            {p.checked} of {p.total} orders loaded
-          </p>
-          <p className="text-[15px] font-medium text-go-success">
-            {[left > 0 ? tr("{n} left", { n: left }) : tr("All loaded"), untilDeparture(m.plannedDeparture)].filter(Boolean).join(" · ")}
-          </p>
-          {p.flagged > 0 && <p className="text-[15px] font-medium text-go-danger-strong">{tr("{n} reported to the dispatcher", { n: p.flagged })}</p>}
-        </div>
-
-        {status === "NOT_STARTED" && (
-          <BigButton size="l" onClick={() => void t.start()} disabled={t.busy}>
-            {tr("Start loading")}
-          </BigButton>
-        )}
-        {editable && (
-          <div className="flex flex-wrap gap-3">
-            <BigButton tone="danger" size="l" fit onClick={() => setIssueFor(null)}>
-              {tr("Report issue")}
-            </BigButton>
-            <BigButton
-              tone={left === 0 && t.planChangedFrom === null ? "mint" : "muted"}
-              size="l"
-              fit
-              onClick={() => {
-                setBlockedBy(
-                  waiting > 0
-                    ? tr("Some checks are still saved only on this phone. Release once they are sent.")
-                    : t.planChangedFrom !== null
-                      ? tr("The plan changed. Confirm the change and recheck the marked orders first.")
-                      : null,
-                );
-                setReleasing(true);
-              }}
-            >
-              {left === 0 ? tr("Release vehicle") : tr("Release · {n} left", { n: left })}
-            </BigButton>
-          </div>
-        )}
-        {status === "COMPLETED" && (
-          <Notice tone="info" title={tr("Vehicle released")}>
-            {tr("The driver can depart. Reports made here stay with the trip.")}
-          </Notice>
-        )}
-        {gateway.revisePlan && editable && (
-          <button
-            type="button"
-            onClick={() => {
-              gateway.revisePlan!(trip.tripId);
-              t.manifest.refresh();
-            }}
-            className="min-h-12 text-[13px] text-go-warning-text underline"
-          >
-            Sample data: publish a plan change
-          </button>
-        )}
-      </section>
+      <TruckCard
+        m={m}
+        status={status}
+        percent={p.percent}
+        checked={p.checked}
+        total={p.total}
+        flagged={p.flagged}
+        left={left}
+        pace={pace}
+        totals={totals}
+        weightCap={weightCap}
+        volumeCap={volumeCap}
+        editable={editable}
+        busy={t.busy}
+        planChanged={t.planChangedFrom !== null}
+        waiting={waiting}
+        sample={gateway.revisePlan ? () => {
+          gateway.revisePlan!(trip.tripId);
+          t.manifest.refresh();
+        } : undefined}
+        onStart={() => void t.start()}
+        onHandBack={() => setHandingBack(true)}
+        onReport={() => setIssueFor(null)}
+        onRelease={(blocked) => {
+          setBlockedBy(blocked);
+          setReleasing(true);
+        }}
+      />
 
       <ManifestList
         lines={t.lines}
@@ -254,7 +222,13 @@ export default function LoadSheet({
           onSend={async (payload) => {
             const outcome = await t.flag(payload);
             if (outcome.ok && outcome.queued) {
-              setToast({ title: tr("Issue saved on this device"), detail: tr("Sends to the dispatcher when you're back online. Keep loading.") });
+              setToast({
+                kind: "saved",
+                at: new Date(),
+                title: tr("Issue saved on this device"),
+                detail: tr("Sends when you're back online. Keep loading."),
+                note: tr("Sends to the dispatcher and the store"),
+              });
             }
             return outcome.ok;
           }}
@@ -265,6 +239,7 @@ export default function LoadSheet({
         <OutOfSequence
           firstStop={sequence.firstStop}
           thisStop={sequence.line.stopSequence}
+          loadsLast={sequence.line.stopSequence === Math.min(...t.lines.map((l) => l.stopSequence))}
           onAnyway={() => {
             const { line, item } = sequence;
             setSequence(null);
@@ -278,6 +253,7 @@ export default function LoadSheet({
         <HandBack
           vehicleId={m.vehicleId}
           checked={p.checked}
+          nextUp={nextUp}
           busy={t.busy}
           onConfirm={async () => {
             if ((await t.handBack()).ok) setHandingBack(false);
@@ -290,6 +266,7 @@ export default function LoadSheet({
           lines={t.lines}
           outlets={outlets}
           blockedBy={blockedBy}
+          capacity={{ weight: totals.weight, weightCap, volume: totals.volume, volumeCap }}
           busy={t.busy}
           onRelease={(checklist) => void release(checklist)}
           onReport={() => {

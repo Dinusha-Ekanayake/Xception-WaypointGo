@@ -25,9 +25,10 @@ State words: **built** (merged to `dev` with tests), **partial** (merged, with n
 | Module | Issue | State | What is left | Detail |
 | --- | --- | --- | --- | --- |
 | Platform: config, `Database`, command bus, problem details, telemetry, CI, deploy | #4 closed | built | nothing open on #4 | [log](development-log.md) |
-| Event backbone: outbox, relay, dead letters, scheduler, audit | #6 open | partial | Relay, consumer inbox and `platform:ReplayEvent` are built. Left: scheduler run records, the audit partition job (the last partition ends 2027-07-01, after which every command fails), retention jobs, the calendar exhaustion alert, audit `before`/`after` and `command_id`, the `audit:Read` API, decision replay | [walkthrough](../issues/006-event-backbone/WALKTHROUGH.md) |
+| Event backbone: outbox, relay, dead letters, scheduler, audit | #6 open | partial | Relay, replay, scheduler run records, partition/retention/calendar jobs and `audit:Read`/recorded decision APIs are built. Left: detached-partition archive target, handler opt-in for most `before` snapshots, historical attachment evidence and older correlation call sites | [walkthrough](../issues/006-event-backbone/WALKTHROUGH.md) |
 | Reference data | none | built | A calendar override made on one replica is not seen by another until restart | [FOUNDATION-PLAN](../architecture/FOUNDATION-PLAN.md) Part 1 |
 | Identity and access | #5 closed | built, hardened | Nothing open on #5: the schema's owner is `waypoint_migrator`, not a superuser, and reference reads stop at the actor's scope. `init` still logs in with the image's bootstrap account to act as that owner. The longer upgrade path is #64 and is not scheduled | [walkthrough](../issues/005-identity-hardening/WALKTHROUGH.md) |
+| Read-only MCP | #87 open | in flight | Dedicated personal sessions and 12 curated stdio tools on `feat/readonly-mcp`; default off. Left: bounded work discovery, custody composition and installed-client validation | [walkthrough](../issues/087-readonly-mcp/WALKTHROUGH.md) |
 | Warehouse integration | #7 closed | built | Polling and matching stand in for a webhook and an idempotency key; the change requests to the warehouse team are open. The chaos drills are manual | [walkthrough](../issues/007-warehouse/WALKTHROUGH.md) |
 | Ordering | #8 closed | built | Partial redelivery (A-24). A cancellation made in the warehouse outside Waypoint is counted, not raised as an issue | [walkthrough](../issues/008-ordering/WALKTHROUGH.md) |
 | Planning | #9 closed | built | What-if runs, rule-set authoring, a replay command, the explanation for an outlet skipped twice (PLN-03), an optimiser. Every plan is `plannedWithoutPredictor = true` until #16 | [walkthrough](../issues/009-planning/WALKTHROUGH.md) |
@@ -44,12 +45,12 @@ State words: **built** (merged to `dev` with tests), **partial** (merged, with n
 | --- | --- | --- | --- | --- |
 | Shell, sign-in, role routing, design system | #17 closed | built | Dark theme tokens for the shared system and a component gallery (#28) | [log](development-log.md), 2026-10-01 |
 | Offline queue, kept reads, queued uploads | #15 closed, #28 open | built | Background Sync, and "resolve" for a held write, which needs `sync:Resolve` | `frontend/src/shared/offline/tiers.ts` |
-| Store manager | #18 closed | built | Notifications now have a backend (#14) for the screen to read; driver and ETA details, call options and draft orders have none yet | [log](development-log.md), 2026-10-01 |
-| Loader | #20 closed | built | Sinhala and Tamil are drafts awaiting a native speaker. Interchange waits on #10 | [walkthrough](../issues/010-loading/WALKTHROUGH.md) |
+| Store manager | #18 closed | built, contracts checked against the backend 2026-10-02 | Notifications have a backend (#14) for the screen to place; driver and ETA details, call options and draft orders have none yet. No browser suite of its own | [log](development-log.md), 2026-10-02 |
+| Loader | #20 closed | built, matched to Figma "08 Loader · Phone" light and dark | Sinhala and Tamil are drafts awaiting a native speaker. The notifications bell is not wired yet though its backend exists (#14); issue photo (no Loading upload endpoint). Interchange waits on #10 | [walkthrough](../issues/010-loading/WALKTHROUGH.md) |
 | Driver | #21 open | built | English only. Vehicle pick-up by QR, the inbox, fuel, call and map have no backend and are left out | [walkthrough](../issues/021-driver-ui/WALKTHROUGH.md) |
 | Dispatcher | #19 open | partial | Orders, Plan, Live, Overview, Vehicles with weekly fuel, the Issues inbox and skipped outlets are built. Left: assigning an issue to someone else (no staff read), interchange approval (#10), the sync conflict queue, Forecast (#16) | [walkthrough](../issues/019-dispatcher-ui/WALKTHROUGH.md) |
 | Admin console | #22 open | in flight | The admin role shows the interactive sample console after admin sign-in, on preview and production. It runs on mock data and says so on screen; live backend wiring remains open | issue #22 |
-| Auditor console | #23 open | mock UI built on `23-auditor-console` | Overview, searchable activity, security events and event details at `/access-demo`; live reads remain blocked on `audit:Read` API (#6) | [UI plan](../issues/022-admin-console/AUDIT-CONSOLE-UI-PLAN.md) |
+| Auditor console | #23 open | mock UI built on `23-auditor-console` | Overview, searchable activity, security events and event details at `/access-demo`; live API wiring remains open; `audit:Read` now exists (#6) | [UI plan](../issues/022-admin-console/AUDIT-CONSOLE-UI-PLAN.md) |
 
 ### Across everything
 
@@ -68,7 +69,7 @@ In dependency order. An item nobody is assigned to on GitHub is free; say so on 
 2. **A fresh-install seed** that leaves one depot-day with a published plan, a released trip and a delivered stop. It unblocks a live browser run for every role and the judge walkthrough. `loading-fixture` and `scripts/seed-scenarios.sql` are partial precedents; the second bypasses the command bus and must not be the model.
 3. **Dispatcher, the rest of #19.** The Issues inbox is built; what is left waits on #10 (interchange), a staff read for assigning to others, and #16 (Forecast).
 4. **Notifications in each role UI (#18, #19, #21).** The backend is built (#14): inbox, unread count, live stream, push config and the four commands. Each role places its own inbox and badge, and the push opt-in with its service worker handlers in `scripts/build-sw.mjs`.
-5. **Event backbone, the rest of #6.** The `audit:Read` API unblocks the auditor console (#23); the partition job is a hard date.
+5. **Event backbone, the rest of #6.** Wire the auditor console (#23) to the existing read API; choose the detached-partition archive target and fill the historical audit gaps listed in its walkthrough.
 6. **Loading interchange (#10)**, then its approval screen in #19. Planning's `previewInterchange` already exists.
 7. **Admin console (#22).** The account, scope and policy commands it needs are built; today they are sent from a terminal.
 8. **Intelligence (#16).** Planning works without it and says so on every plan.

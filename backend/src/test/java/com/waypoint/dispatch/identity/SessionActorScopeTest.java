@@ -30,7 +30,8 @@ class SessionActorScopeTest {
   private final PolicyDecisionPoint decisions = mock(PolicyDecisionPoint.class);
   private final SessionCookie cookie = mock(SessionCookie.class);
   private final SessionActorResolver resolver = new SessionActorResolver(sessions, operators, cookie);
-  private final SessionRequestAuthorizer authorizer = new SessionRequestAuthorizer(resolver, decisions);
+  private final SessionRequestAuthorizer authorizer = new SessionRequestAuthorizer(resolver, decisions,
+      mock(com.waypoint.dispatch.identity.application.McpAccessHandler.class));
 
   @Test
   void pinOperatorIsUsedOnlyForLoadingReads() {

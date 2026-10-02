@@ -4,6 +4,7 @@ import { drain, enqueue } from "@shared/offline";
 import type {
   CalendarAnswer,
   CatalogueStatusView,
+  DeliveryDateAnswer,
   OrderView,
   OutletView,
   PendingReceiptView,
@@ -29,6 +30,8 @@ export type StoreGateway = {
   catalogue: (brandCode: string, signal: AbortSignal) => Promise<ProductView[]>;
   catalogueStatus: (signal: AbortSignal) => Promise<CatalogueStatusView>;
   calendar: (date: string, signal: AbortSignal) => Promise<CalendarAnswer>;
+  /** The server's rule for where a requested day lands: cutoff, closures, calendar. */
+  deliveryDate: (outletId: string, requestedDate: string, signal: AbortSignal) => Promise<DeliveryDateAnswer>;
   pendingReceipts: (outletId: string, signal: AbortSignal) => Promise<PendingReceiptView[]>;
   receipt: (orderId: string, signal: AbortSignal) => Promise<ReceiptView>;
   send: (command: Command) => Promise<CommandAck>;
@@ -46,17 +49,21 @@ function liveGateway(accountId: string): StoreGateway {
   const q = encodeURIComponent;
   return {
     sample: false,
-    // Paths follow MODULES.md; they are confirmed when each module lands.
+    // Paths match the controllers in ordering, receipt, warehouse and referencedata.
     outlet: (id, signal) => request(`/api/reference/outlets/${q(id)}`, { signal }),
     // One outlet's orders are a page at a time on the server; the screens group
     // them by day, so they read the whole list.
     orders: (outletId, signal) => requestAll(`/api/orders?outlet=${q(outletId)}`, { signal }, "cursor"),
-    history: (orderId, signal) => request(`/api/orders/${orderId}/timeline`, { signal }),
-    catalogue: (brand, signal) => request(`/api/warehouse/products?brand=${q(brand)}`, { signal }),
+    history: (orderId, signal) => request(`/api/orders/${q(orderId)}/timeline`, { signal }),
+    // The catalogue is a page at a time on the server (cursor param `after`); the
+    // picker filters locally, so it reads the whole brand.
+    catalogue: (brand, signal) => requestAll(`/api/warehouse/catalogue?brand=${q(brand)}`, { signal }),
     catalogueStatus: (signal) => request(`/api/warehouse/catalogue/status`, { signal }),
-    calendar: (date, signal) => request(`/api/reference/calendar/${date}`, { signal }),
+    calendar: (date, signal) => request(`/api/reference/calendar/${q(date)}`, { signal }),
+    deliveryDate: (outletId, requestedDate, signal) =>
+      request(`/api/orders/delivery-date?outlet=${q(outletId)}&requestedDate=${q(requestedDate)}`, { signal }),
     pendingReceipts: (outletId, signal) => request(`/api/receipts/pending?outlet=${q(outletId)}`, { signal }),
-    receipt: (orderId, signal) => request(`/api/receipts/${orderId}`, { signal }),
+    receipt: (orderId, signal) => request(`/api/receipts/${q(orderId)}`, { signal }),
     send: (command) => send(command),
     queue: (command) => enqueue(accountId, "store_manager", command),
     flush: () => drain(accountId),
