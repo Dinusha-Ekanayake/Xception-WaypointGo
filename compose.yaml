@@ -57,11 +57,16 @@ services:
       WAREHOUSE_TIMEOUT_MS: ${WAREHOUSE_TIMEOUT_MS:-2000}
       WAREHOUSE_CATALOGUE_STALE_AFTER: ${WAREHOUSE_CATALOGUE_STALE_AFTER:-2h}
       WAREHOUSE_WEBHOOK_SECRET: ${WAREHOUSE_WEBHOOK_SECRET:-}
+      # Signs proof-of-delivery links. Unset, links stop working at a restart.
+      PROOF_STORE: ${PROOF_STORE:-database}
+      PROOF_URL_SECRET: ${PROOF_URL_SECRET:-}
       LOG_FORMAT: ecs
     volumes:
       - ./data:/app/data:ro
       - ./migrations:/app/migrations:ro
       - ./frontend/public:/app/frontend/public:ro
+      # Proof photos and signatures. Evidence: keep it with the database volume.
+      - waypoint-proofs:/var/lib/waypoint/proofs
     depends_on:
       init:
         condition: service_completed_successfully
@@ -140,6 +145,7 @@ services:
     restart: unless-stopped
 volumes:
   waypoint-postgres:
+  waypoint-proofs:
   loki-data:
   alloy-data:
   grafana-data:

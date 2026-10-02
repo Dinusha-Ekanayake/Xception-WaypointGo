@@ -1,6 +1,7 @@
 package com.waypoint.dispatch.platform.messaging;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import com.waypoint.dispatch.platform.audit.AuditEntry;
+import com.waypoint.dispatch.platform.audit.AuditLog;
 import com.waypoint.dispatch.platform.db.Database;
 import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.platform.observability.Metrics;
@@ -16,38 +17,38 @@ import org.springframework.stereotype.Component;
 /**
  * Puts a dead-lettered event back in the queue (PLT-03).
  *
- * <p>The attempt counter restarts, so the event gets a full set of tries. Every
- * subscriber that already applied it is skipped by the consumer inbox, so a
- * replay re-runs only the work that failed. A replayed event arrives after the
- * events that followed it, because a dead event never blocked them; the
- * administrator replaying it accepts that.
+ * <p>An event is dead because every subscriber attempt failed; replaying it is
+ * what an administrator does after fixing the cause. Its attempts start again,
+ * and the last error is kept so the history is not lost. Subscribers that had
+ * already applied it are skipped by the inbox, so only the ones that failed run.
  *
- * <p>A decision is recorded with an actor, a reason and a time (rule 8): the
- * reason is mandatory and lands in the attempt history as well as the audit log.
- *
- * <p>There is no {@code expected_version} because an outbox row has no business
- * version; the guard is the state itself. Only a {@code dead} row moves, so two
- * administrators replaying the same event cannot both succeed.
+ * <p>Events of the same aggregate written after it were delivered while it was
+ * dead, so a replayed event arrives out of order. Subscribers are written to
+ * tolerate that; the alternative, a dead event blocking its aggregate for ever,
+ * is the failure the dead letter exists to prevent.
  */
 @Component
 public class ReplayEventHandler implements CommandHandler {
   public static final String ACTION = "platform:ReplayEvent";
-  public static final String KIND = "platform.replay-event";
-  private static final int REASON_LIMIT = 500;
 
   private final Database database;
+  private final AuditLog audit;
   private final Clock clock;
   private final Metrics metrics;
+  private final RelaySignal relay;
 
-  public ReplayEventHandler(Database database, Clock clock, Metrics metrics) {
+  public ReplayEventHandler(
+      Database database, AuditLog audit, Clock clock, Metrics metrics, RelaySignal relay) {
     this.database = database;
+    this.audit = audit;
     this.clock = clock;
     this.metrics = metrics;
+    this.relay = relay;
   }
 
   @Override
   public String kind() {
-    return KIND;
+    return ACTION;
   }
 
   @Override
@@ -62,68 +63,43 @@ public class ReplayEventHandler implements CommandHandler {
 
   @Override
   public String resource(Command command) {
-    String eventId = text(command.payload(), "eventId");
-    return eventId == null ? null : "wpt:platform:event:" + eventId;
+    UUID eventId = CommandPayload.of(command).optionalUuid("eventId");
+    return eventId == null ? null : resourceOf(eventId);
   }
 
   @Override
   public Object handle(Actor actor, Command command) {
-    UUID eventId = eventId(command.payload());
-    String reason = text(command.payload(), "reason");
-    if (reason == null) {
-      throw new DomainException(ErrorCode.VALIDATION_FAILED, "reason is required to replay an event");
-    }
-    if (reason.length() > REASON_LIMIT) {
-      throw new DomainException(
-          ErrorCode.VALIDATION_FAILED, "reason is longer than " + REASON_LIMIT + " characters");
-    }
+    UUID eventId = CommandPayload.of(command).uuid("eventId");
 
-    Map<String, Object> dead =
-        database.queryOne(
-            "SELECT attempts FROM integration.outbox_events WHERE event_id = ? AND status = 'dead'"
-                + " FOR UPDATE",
+    // The status in the WHERE is the version guard: a second replay, or one
+    // racing the relay, changes no row and is told why.
+    int replayed =
+        database.update(
+            "UPDATE integration.outbox_events"
+                + " SET status = 'pending', attempts = 0, next_attempt_at = ?, dead_lettered_at = NULL"
+                + " WHERE event_id = ? AND status = 'dead'",
+            Timestamp.from(clock.now()),
             eventId);
-    if (dead == null) {
+    if (replayed == 0) {
+      Map<String, Object> row =
+          database.queryOne(
+              "SELECT status FROM integration.outbox_events WHERE event_id = ?", eventId);
+      if (row == null) {
+        throw new DomainException(ErrorCode.NOT_FOUND, "No such event");
+      }
       throw new DomainException(
-          ErrorCode.CONFLICT, "Event " + eventId + " is not dead-lettered, so it cannot be replayed");
+          ErrorCode.CONFLICT, "Only a dead-lettered event can be replayed; this one is " + row.get("status"));
     }
 
-    Timestamp now = Timestamp.from(clock.now());
-    database.update(
-        "UPDATE integration.outbox_events SET status = 'pending', attempts = 0, next_attempt_at = ?,"
-            + " last_error = NULL, dead_lettered_at = NULL, locked_until = NULL"
-            + " WHERE event_id = ?",
-        now,
-        eventId);
-    database.update(
-        "INSERT INTO integration.outbox_attempts"
-            + " (event_id, attempt, attempted_at, outcome, actor_id, note) VALUES (?, ?, ?, 'replayed', ?, ?)",
-        eventId,
-        ((Number) dead.get("attempts")).intValue(),
-        now,
-        actor.userId(),
-        reason);
+    audit.record(
+        AuditEntry.allowed(
+            actor.userId(), actor.deviceId(), ACTION, resourceOf(eventId), "dead letter replayed"));
     metrics.increment("waypoint.outbox.replayed");
+    database.afterCommit(relay::signal);
     return Map.of("eventId", eventId.toString(), "status", "pending");
   }
 
-  private static UUID eventId(JsonNode payload) {
-    String value = text(payload, "eventId");
-    if (value == null) {
-      throw new DomainException(ErrorCode.VALIDATION_FAILED, "eventId is required");
-    }
-    try {
-      return UUID.fromString(value);
-    } catch (IllegalArgumentException e) {
-      throw new DomainException(ErrorCode.VALIDATION_FAILED, "eventId is not a uuid");
-    }
-  }
-
-  private static String text(JsonNode payload, String field) {
-    if (payload == null || !payload.hasNonNull(field)) {
-      return null;
-    }
-    String value = payload.get(field).asText().trim();
-    return value.isEmpty() ? null : value;
+  static String resourceOf(UUID eventId) {
+    return "wpt:platform:event:" + eventId;
   }
 }

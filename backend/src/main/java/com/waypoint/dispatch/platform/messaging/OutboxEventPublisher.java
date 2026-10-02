@@ -21,8 +21,8 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 /**
  * Writes an event to {@code integration.outbox_events} in the caller's transaction.
  *
- * <p>This is the write half of the backbone only. Delivery is the relay's job
- * (#6): it claims pending rows, builds the {@code EventEnvelope} from the columns
+ * <p>This is the write half of the backbone only. Delivery is {@link OutboxRelay}'s
+ * job: it claims pending rows, builds the {@code EventEnvelope} from the columns
  * written here and hands it to every subscriber of the type. Nothing here calls a
  * consumer, so an event can never escape a transaction that later rolls back.
  */
@@ -35,13 +35,16 @@ public class OutboxEventPublisher implements EventPublisher {
   private final ObjectMapper mapper;
   private final Clock clock;
   private final Metrics metrics;
+  private final RelaySignal relay;
   private final SecureRandom random = new SecureRandom();
 
-  public OutboxEventPublisher(Database database, ObjectMapper mapper, Clock clock, Metrics metrics) {
+  public OutboxEventPublisher(
+      Database database, ObjectMapper mapper, Clock clock, Metrics metrics, RelaySignal relay) {
     this.database = database;
     this.mapper = mapper;
     this.clock = clock;
     this.metrics = metrics;
+    this.relay = relay;
   }
 
   @Override
@@ -72,6 +75,8 @@ public class OutboxEventPublisher implements EventPublisher {
         producerOf(event),
         MDC.get("correlationId"),
         actorId);
+    // Only once the event is really there: a relay woken before the commit finds nothing.
+    database.afterCommit(relay::signal);
     metrics.increment("waypoint.event.published", "type", event.type());
   }
 

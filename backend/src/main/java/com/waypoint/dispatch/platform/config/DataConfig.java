@@ -35,7 +35,8 @@ public class DataConfig {
   @Bean(destroyMethod = "close")
   public DataSource dataSource(
       AppProperties properties,
-      @Value("${spring.datasource.hikari.maximum-pool-size:8}") int maxPool) {
+      @Value("${spring.datasource.hikari.maximum-pool-size:8}") int maxPool,
+      @Value("${spring.datasource.hikari.minimum-idle:-1}") int minIdle) {
     HikariDataSource ds = new HikariDataSource();
     // Validated as non-blank by AppProperties, so reaching here means it is set.
     // It may still point at a database that is down: that is an outage, reported
@@ -51,6 +52,13 @@ public class DataConfig {
       ds.setPassword(password);
     }
     ds.setMaximumPoolSize(maxPool);
+    if (minIdle >= 0 && minIdle < maxPool) {
+      // Unset, the pool stays full, which is what a serving instance wants. The
+      // test suite sets it to zero: it keeps one pool per cached application
+      // context, and a dozen full pools is more than PostgreSQL's connection limit.
+      ds.setMinimumIdle(minIdle);
+      ds.setIdleTimeout(10_000);
+    }
     ds.setInitializationFailTimeout(-1);
     // Fail fast when PostgreSQL is unreachable so readiness answers 503 instead of hanging.
     ds.setConnectionTimeout(3000);

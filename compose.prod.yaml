@@ -73,7 +73,13 @@ services:
       WAREHOUSE_TIMEOUT_MS: ${WAREHOUSE_TIMEOUT_MS:-2000}
       WAREHOUSE_CATALOGUE_STALE_AFTER: ${WAREHOUSE_CATALOGUE_STALE_AFTER:-2h}
       WAREHOUSE_WEBHOOK_SECRET: ${WAREHOUSE_WEBHOOK_SECRET:-}
+      # Signs proof-of-delivery links. Unset, links stop working at a restart.
+      PROOF_STORE: ${PROOF_STORE:-database}
+      PROOF_URL_SECRET: ${PROOF_URL_SECRET:-}
       LOG_FORMAT: ecs
+    volumes:
+      # Proof photos and signatures. Evidence: back it up with the database.
+      - waypoint-proofs:/var/lib/waypoint/proofs
     depends_on:
       init:
         condition: service_completed_successfully
@@ -149,6 +155,7 @@ services:
     restart: unless-stopped
 
 volumes:
+  waypoint-proofs:
   certbot-www:
   certs:
   loki-data:

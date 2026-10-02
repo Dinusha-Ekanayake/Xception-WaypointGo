@@ -1,8 +1,37 @@
 # Verification status
 
-Latest review: 2026-10-01, on `feat/module-contracts` with the issue #4 platform changes uncommitted. `dev` is the integration branch for CI.
+Latest review: 2026-10-02, on `dev` at `7442e5d` (pull request #70 merged), with only documentation changed on top. `dev` is the integration branch for CI.
 
 ## Latest observed checks
+
+- `TEST_DATABASE_URL=... mvn clean verify`: 564 tests, 0 failures, 0 errors, **0 skipped**, so the integration tests ran. The database was a dedicated local PostgreSQL 16, separate from any application database.
+- `npm test`: 41 tests pass. `npm run typecheck`: clean. `npm run build`: the production build completes and the service worker caches 67 assets.
+- Browser suites, each against that production build with a mocked API: dispatcher 7 passed, driver 10 passed, loader 4 passed, shell 2 passed.
+
+Not observed in this review, and not to be read as verified:
+
+- `docker compose up --build` from a fresh clone and a new volume. Docker was not available on the verifying machine.
+- Any role flow in a browser against the real backend. The role suites mock the API; the same flows are covered on the server side by integration tests, module by module.
+- The loader's live suite (`playwright.loader.live.config.ts`), which needs a running instance.
+- The preview and production deployments. Production runs `main`, which is 114 commits behind `dev`.
+
+## Completing verification
+
+1. `cd backend && mvn verify` with Docker running, or with `TEST_DATABASE_URL` set to a dedicated database. Read the report for skipped tests: a green run with the integration tests skipped proves nothing about the database.
+2. `cd frontend && npm run verify`, then `npm run build`, `npm run test:e2e` and the role suite for anything you touched, after `npx playwright install chromium`.
+3. `docker compose -p waypoint-verify up --build` with free ports (`DB_PORT`, `BACKEND_PORT`, `PORT`) and a new volume; sign in as the administrator and walk one order through the four roles; `docker compose -p waypoint-verify down -v`.
+4. Open a pull request to `dev` and confirm CI is green.
+5. Before real operations: restart persistence, offline reload on representative phones, a backup restore into an empty separate database, certificate renewal and monitoring.
+
+Everything below this line is history. Each section records what was observed at the time and was not reproduced by the review above.
+
+---
+
+# Previously recorded platform review, 2026-10-01
+
+On `feat/module-contracts` with the issue #4 platform changes uncommitted.
+
+## Observed checks
 
 - `mvn test` (JDK 17 container): all unit and architecture tests pass, including the new problem-contract, correlation-id, configuration-redaction, metrics, paging and login-audit tests. The 29 database integration tests were skipped: no test database was configured for this run.
 - Backend jar booted with no database: liveness 200, readiness `{"status":"DOWN"}` without details, problem bodies carry `code` and `correlationId`, a non-UUID `X-Correlation-Id` is replaced, `/prometheus` lists the new detection signals, no OTLP export errors.
@@ -11,7 +40,7 @@ Latest review: 2026-10-01, on `feat/module-contracts` with the issue #4 platform
 
 Not yet observed: integration tests against PostgreSQL (with the new Testcontainers fallback), `docker compose up` from a fresh clone, the nginx configuration under `nginx -t`, the backend image build, browser tests and CI. Docker Hub was unreachable from the verifying machine.
 
-## Completing verification
+## Steps recorded then
 
 1. `cd backend && mvn verify` with Docker running, or with `TEST_DATABASE_URL` set to a dedicated database. Confirm the integration tests ran rather than skipped.
 2. `cd frontend && npm run verify`, then `npm run build && npm run test:e2e` after `npx playwright install chromium`.

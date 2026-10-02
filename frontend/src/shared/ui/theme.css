@@ -46,6 +46,45 @@
   --radius-go-card-l: 22px;
   --radius-go-panel: 28px;
 
+  /* Surfaces and actions that change with the theme (Figma "12 Driver · Mobile") */
+  --color-go-card: #ffffff;
+  --color-go-action: #031a0c;
+  --color-go-on-action: #ffffff;
+  --color-go-soft: #b7f2ed;
+  --color-go-on-soft: #031b08;
+
   --shadow-go-card: 0 6px 24px 0 rgba(0, 0, 0, 0.06);
   --shadow-go-float: 0 5px 10px rgba(0, 0, 0, 0.09);
+}
+
+/*
+ * The dark theme of the driver's phone, for early starts. The same tokens with
+ * night values, scoped to a subtree, so a screen built on tokens needs no
+ * second set of classes. Contrast is kept at 4.5:1 or better for text.
+ */
+.go-dark {
+  color-scheme: dark;
+  --color-go-ink: #f4f7f6;
+  --color-go-canvas: #101312;
+  --color-go-card: #1f2423;
+  --color-go-surface: #2a302f;
+  --color-go-subtle: #181c1b;
+  --color-go-divider: #39403e;
+  --color-go-rule: #39403e;
+  --color-go-secondary: #aab3b1;
+  --color-go-muted: #aab3b1;
+  --color-go-placeholder: #7d8785;
+  --color-go-teal: #63d6ca;
+  --color-go-action: #00bf6a;
+  --color-go-on-action: #031b08;
+  --color-go-soft: #1e4b46;
+  --color-go-on-soft: #e9fffc;
+  --color-go-success: #4ade80;
+  --color-go-success-tint: #143524;
+  --color-go-danger-strong: #ff8a8e;
+  --color-go-danger-tint: #48191c;
+  --color-go-warning-text: #f2c26b;
+  --color-go-warning-tint: #40300f;
+  --color-go-info-tint: #172e45;
+  --shadow-go-card: 0 6px 24px 0 rgba(0, 0, 0, 0.4);
 }

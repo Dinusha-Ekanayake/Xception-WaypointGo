@@ -111,6 +111,14 @@ public class OrderDataQuery implements OrderQuery {
         () -> orders.demand(depotCode, serviceDate).stream().map(OrderDataQuery::toDemand).toList());
   }
 
+  /** What became of every order due at a depot on a day, for the dispatcher's order board. */
+  public List<OrderView> ordersForDay(Actor actor, String depotCode, LocalDate serviceDate) {
+    requireScope(actor, "wpt:order:depot:" + depotCode, "SELECT app.actor_has_depot(?) AS ok", depotCode);
+    return read(
+        actor.userId(),
+        () -> orders.forDay(depotCode, serviceDate).stream().map(OrderDataQuery::toView).toList());
+  }
+
   /** Any other Ordering read, as the authenticated actor. */
   public <T> T asActor(Actor actor, java.util.function.Supplier<T> work) {
     return read(actor.userId(), work);

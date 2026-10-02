@@ -26,6 +26,18 @@ COMMENT ON TABLE integration.job_runs IS
 -- an UPDATE, and old rows are purged by retention.
 GRANT SELECT, INSERT, UPDATE, DELETE ON integration.job_runs TO waypoint_integration;
 
+-- ---- what retention may delete ------------------------------------------
+--     Operational records are never deleted, and the integration role holds no
+--     DELETE by default. These three tables are infrastructure bookkeeping with a
+--     retention window, not operational records, so each is named here rather than
+--     granted by schema. audit_log is not on this list: it ages out by detaching a
+--     partition.
+
+GRANT DELETE ON integration.outbox_events,
+                integration.consumed_events,
+                integration.command_receipts
+    TO waypoint_integration;
+
 -- ---- audit partitions ---------------------------------------------------
 --     Every command writes its audit row in its own transaction, so a missing
 --     partition fails the command rather than losing the row: on the first day

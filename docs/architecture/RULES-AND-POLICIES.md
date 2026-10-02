@@ -246,7 +246,7 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-EXE-07 | The driver reports road faults and delays | Team draft | Team |
 | R-EXE-08 | The driver is notified which dock to load at, and when loading and unloading finish | Team draft | Team |
 | R-EXE-09 | A report option is available at every stage | Team draft | Team |
-| R-EXE-10 | **Server time is authoritative.** Device time is stored for forensics only | Policy | Policy |
+| R-EXE-10 | **Server time is authoritative.** Device time is stored for forensics only. A record whose two clocks differ by more than five minutes is marked `timing_uncertain` (A-31) | Policy | Policy |
 | R-EXE-11 | A device limitation, such as a denied camera, never blocks completing the work. The outcome records the reason and is flagged lower-evidence | Policy | Policy |
 | R-EXE-12 | **Returns are out of scope.** A failed delivery records the outcome and raises an issue; goods disposition is recorded but no return workflow exists | Team draft | Team |
 
@@ -334,9 +334,9 @@ Binding for the delivered system even though Task 2B does not score them.
 | --- | --- | --- | --- |
 | R-PLT-01 | An event is delivered at least once and applied by each consumer once. A consumer records `(consumer, event)` in the same transaction as its own change, so a redelivery re-runs only the subscribers that had not finished | Policy | Policy |
 | R-PLT-02 | Events of one aggregate are delivered in the order written: an event waits while an earlier one of its aggregate is pending, failed or processing. A dead-lettered event does not block its successors, and a replayed one arrives after them | Policy | Policy |
-| R-PLT-03 | A failed delivery is retried with exponential backoff and full jitter (2 s doubling to a 5 min cap) and dead-lettered after 8 attempts, with its attempt history. Replay is an administrator command that needs a reason, and restarts the attempts. Dead events are never purged | Policy, P-24 | Policy |
+| R-PLT-03 | A failed delivery is retried with exponential backoff (2 s doubling to a 5 min cap, 20% jitter) and dead-lettered after 8 attempts (`RELAY_MAX_ATTEMPTS`), with its last error. Replay is an administrator command (`platform:ReplayEvent`) that resets the attempts. Dead events are never purged | Policy, issue #6 | Policy |
 | R-PLT-04 | A scheduled job runs on one instance at a time under an advisory-lock lease, records each run, and counts a refused lease as a duplicate run | Policy | Policy |
-| R-PLT-05 | Audit partitions are created ahead of need (current month plus three), and an alert fires when fewer than two future months exist. Partitions older than the retention period are detached, never dropped | Policy, P-14 | Policy |
+| R-PLT-05 | Audit partitions are created ahead of need (current month plus three), and an alert fires when fewer than two future months exist. Partitions older than the retention period are detached, never dropped | Policy, P-26 | Policy |
 | R-PLT-06 | Every command's answer is a receipt, including a deterministic rejection (validation, constraint, conflict, version conflict, not found): a retry gets the same rejection and the handler does not run again. A denial, a rate limit, a timeout and an unavailable dependency are never stored, because a retry exists to get past them | Policy | Policy |
 | R-PLT-07 | An audit row records the command, the target, a redacted outcome and, where the handler supplies it, a redacted state before. Snapshots are redacted by field name before they are written, bounded in size, and never carry a payload with personal data | Policy | Policy |
 

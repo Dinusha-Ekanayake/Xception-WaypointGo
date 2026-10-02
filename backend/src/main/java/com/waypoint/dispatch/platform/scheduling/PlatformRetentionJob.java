@@ -17,8 +17,8 @@ import org.springframework.stereotype.Component;
  * <ul>
  *   <li>command receipts past the replay window: a receipt older than any client
  *       could still replay answers nobody
- *   <li>published outbox events and their attempt history. A {@code dead} event is
- *       never purged: it is waiting for an administrator
+ *   <li>published outbox events. A {@code dead} event is never purged: it is
+ *       waiting for an administrator
  *   <li>consumer inbox rows, kept longer than the outbox rows they guard
  *   <li>records of scheduled job runs
  * </ul>
@@ -71,20 +71,14 @@ public class PlatformRetentionJob implements ScheduledJob {
             + BATCH
             + ")",
         receipts);
-    // History first: it is keyed by event id, and would be orphaned the other way round.
-    purge(
-        "outbox_attempts",
-        "DELETE FROM integration.outbox_attempts WHERE event_id IN"
-            + " (SELECT event_id FROM integration.outbox_events"
-            + "   WHERE status = 'published' AND published_at < ? LIMIT "
-            + BATCH
-            + ")",
-        outbox);
+    // By when the event happened, because the relay does not record when it
+    // delivered one. A published event is only kept as long as a consumer could
+    // still be redelivered it, which is long before this window ends.
     purge(
         "outbox_events",
         "DELETE FROM integration.outbox_events WHERE event_id IN"
             + " (SELECT event_id FROM integration.outbox_events"
-            + "   WHERE status = 'published' AND published_at < ? LIMIT "
+            + "   WHERE status = 'published' AND occurred_at < ? LIMIT "
             + BATCH
             + ")",
         outbox);

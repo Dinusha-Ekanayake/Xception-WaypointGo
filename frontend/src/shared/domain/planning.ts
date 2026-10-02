@@ -48,6 +48,20 @@ export type AllocationView = {
   checks: ConstraintResultView[];
 };
 
+/** One place an order could take in its open draft, as a `plan:Override` names it. */
+export type PlacementView = {
+  vehicleId: string;
+  tripNumber: 1 | 2;
+  /** True when the trip already exists; false when the order would open it. */
+  joins: boolean;
+  tripId: Uuid | null;
+  feasible: boolean;
+  /** The first rule that refuses this place; null when it is feasible. */
+  bindingRule: string | null;
+  reason: string;
+  checks: ConstraintResultView[];
+};
+
 export type PlanView = {
   planId: Uuid;
   depotCode: string;

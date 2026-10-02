@@ -278,12 +278,11 @@ class SchedulerIntegrationTest {
   private void outbox(UUID eventId, String status, Instant at) {
     database.update(
         "INSERT INTO integration.outbox_events (event_id, aggregate_type, aggregate_id, event_type,"
-            + " payload, occurred_at, status, published_at, dead_lettered_at)"
-            + " VALUES (?, 'test', 'x', 'test.retention', '{}'::jsonb, ?, ?, ?, ?)",
+            + " payload, occurred_at, status, dead_lettered_at)"
+            + " VALUES (?, 'test', 'x', 'test.retention', '{}'::jsonb, ?, ?, ?)",
         eventId,
         Timestamp.from(at),
         status,
-        "published".equals(status) ? Timestamp.from(at) : null,
         "dead".equals(status) ? Timestamp.from(at) : null);
   }
 

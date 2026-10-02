@@ -21,7 +21,7 @@ export { VehicleCommandKind } from "./referencedata.ts";
 export { OrderCommandKind } from "./ordering.ts";
 export { PlanCommandKind } from "./planning.ts";
 export { LoadingCommandKind } from "./loading.ts";
-export { ExecutionCommandKind } from "./execution.ts";
+export { ExecutionCommandKind, FailureReasons, VehicleStatuses } from "./execution.ts";
 export { ReceiptCommandKind } from "./receipt.ts";
 export { IssueCommandKind } from "./issues.ts";
 export { NotificationCommandKind } from "./notification.ts";

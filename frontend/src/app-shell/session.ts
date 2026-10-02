@@ -1,5 +1,6 @@
 import { request } from "@shared/api/client";
 import { ApiError } from "@shared/api/problem";
+import { prefetchesWorkingSet, type Role } from "@shared/offline";
 import { forgetCrew } from "./offlinePin.ts";
 
 // Who is signed in, according to the server. The client never decides this: it
@@ -26,7 +27,7 @@ export type Operator = {
 
 /** The three states the shell must tell apart, because each needs different words. */
 export type SessionState =
-  | { kind: "signed-in"; session: Session }
+  | { kind: "signed-in"; session: Session; unverified?: boolean }
   | { kind: "signed-out" }
   | { kind: "unreachable"; message: string };
 
@@ -52,22 +53,78 @@ function classify(error: unknown): SessionState {
   };
 }
 
+const SESSION_KEY = "waypoint.session";
+
+/**
+ * Who the server last confirmed on this device: name, roles and scope, and no
+ * credential. It lets a role that works with no signal carry on when the server
+ * cannot be asked, and nothing else: it is never sent anywhere, the server
+ * still decides every write, and a 401 or a sign-out forgets it.
+ */
+function remember(session: Session): void {
+  try {
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  } catch {
+    // Storage blocked: the device simply cannot carry on offline.
+  }
+}
+
+function forget(): void {
+  try {
+    localStorage.removeItem(SESSION_KEY);
+  } catch {
+    // Nothing to forget.
+  }
+}
+
+function remembered(): Session | null {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const session = JSON.parse(raw) as Session;
+    return typeof session.userId === "string" && Array.isArray(session.roles) ? session : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Roles whose working set is on the device, so they can work while the server is unreachable. */
+function worksOffline(session: Session): boolean {
+  return session.roles.some((role) => role !== "admin" && role !== "auditor" && prefetchesWorkingSet(role as Role));
+}
+
 export async function currentSession(): Promise<SessionState> {
   try {
-    return { kind: "signed-in", session: await request<Session>("/api/session") };
+    const session = await request<Session>("/api/session");
+    remember(session);
+    return { kind: "signed-in", session };
   } catch (error) {
-    return classify(error);
+    const state = classify(error);
+    if (state.kind === "signed-out") {
+      forget();
+      return state;
+    }
+    // The server could not be asked. That is not "signed out": someone the
+    // server confirmed earlier, in a role built to work with no signal, carries
+    // on with what is on the device (EXE-01). Everything they record waits here
+    // and is authorized by the server when it is sent.
+    const last = remembered();
+    if (last && worksOffline(last)) return { kind: "signed-in", session: last, unverified: true };
+    return state;
   }
 }
 
 // No device id yet: the backend only accepts ids already in iam.devices, and
 // nothing registers devices until the device-registration flow exists.
-export function signIn(email: string, password: string): Promise<Session> {
-  return request<Session>("/api/session", { method: "POST", body: { email, password } });
+export async function signIn(email: string, password: string): Promise<Session> {
+  const session = await request<Session>("/api/session", { method: "POST", body: { email, password } });
+  remember(session);
+  return session;
 }
 
 export async function signOut(): Promise<void> {
   await request<null>("/api/session/end", { method: "POST" });
+  forget();
   forgetCrew();
 }
 

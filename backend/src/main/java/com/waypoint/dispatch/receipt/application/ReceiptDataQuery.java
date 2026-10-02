@@ -83,7 +83,7 @@ public class ReceiptDataQuery implements ReceiptQuery {
 
   @Override
   public Optional<CustodyChainView> custodyChain(UUID orderId) {
-    return read(ambient(), () -> receipts.findByOrder(orderId)).map(this::custody);
+    return read(ambient(), () -> receipts.findByOrder(orderId).map(this::custody));
   }
 
   // ---- web: as the authenticated actor -------------------------------------
@@ -99,7 +99,7 @@ public class ReceiptDataQuery implements ReceiptQuery {
   }
 
   public CustodyChainView custodyChain(Actor actor, UUID orderId) {
-    return read(actor.userId(), () -> receipts.findByOrder(orderId)).map(this::custody)
+    return read(actor.userId(), () -> receipts.findByOrder(orderId).map(this::custody))
         .orElseThrow(() -> notFound(orderId));
   }
 
@@ -146,7 +146,14 @@ public class ReceiptDataQuery implements ReceiptQuery {
     }
   }
 
-  /** The three records side by side; each read in its own module, none amended (R-RCP-07). */
+  /**
+   * The three records side by side; each read in its own module, none amended (R-RCP-07).
+   *
+   * <p>Called inside the read, never after it: the neighbours' contract queries
+   * answer for the actor of the unit of work on this thread, and outside one
+   * there is no actor, so they would see nothing and the chain would read as
+   * missing evidence for everyone.
+   */
   private CustodyChainView custody(Stored stored) {
     Receipt r = stored.receipt();
     List<String> unavailable = new ArrayList<>();
@@ -162,6 +169,9 @@ public class ReceiptDataQuery implements ReceiptQuery {
         check =
             loadingQuery.manifest(r.tripId())
                 .flatMap(m -> m.lines().stream().filter(l -> l.orderId().equals(r.orderId())).findFirst());
+        if (check.isEmpty()) {
+          unavailable.add("loading check: no matching order in the trip manifest");
+        }
       } catch (DomainException e) {
         unavailable.add("loading check: " + e.getMessage());
       }
@@ -174,6 +184,9 @@ public class ReceiptDataQuery implements ReceiptQuery {
     } else {
       try {
         proof = executionQuery.deliveryRecord(r.deliveryId());
+        if (proof.isEmpty()) {
+          unavailable.add("proof of delivery: no delivery record for this delivery");
+        }
       } catch (DomainException e) {
         unavailable.add("proof of delivery: " + e.getMessage());
       }

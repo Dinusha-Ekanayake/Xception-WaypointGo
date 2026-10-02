@@ -24,6 +24,8 @@ const FORWARD_REQUEST = [
 // Response headers a client acts on. Everything else stays on this side.
 const FORWARD_RESPONSE = [
   "content-type",
+  "content-disposition",
+  "x-content-type-options",
   "location",
   "retry-after",
   "www-authenticate",
