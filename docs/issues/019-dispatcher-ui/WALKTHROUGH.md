@@ -54,8 +54,23 @@ All nine are in [PLAN.md](PLAN.md). Added while building:
 
 ## Known gaps
 
-- Still open on #19: Overview's live tiles, skipped outlets with counts, weekly fuel per vehicle, the Issues inbox, interchange approval, the sync conflict queue, Forecast.
+- Still open on #19: assigning an issue to someone other than yourself (no read lists a depot's staff), interchange approval (waits on #10), the sync conflict queue, Forecast (waits on #16).
 - No backend for these parts of the design, so they are left out: snapshots and compare, regenerate with locked orders, late-risk percentages, contact store manager, global search, the map.
 - A stale draft is shown as the server's message, not as a side by side diff.
 - The browser tests run against a mocked API and are not in CI, like the loader's and the driver's. The flows against the real backend need the fresh-install seed.
 - Order ETA on the order board waits on a per-order ETA read; Live shows window and plan times.
+
+## Second slice: Issues, Overview, skipped outlets, fuel (2026-10-02)
+
+Frontend only; every read and command already existed (#9, #13). Under `frontend/src/roles/dispatcher/`:
+
+- `data/issues.ts`, pure: labels and tones, `actionsFor` (what the command would accept: redelivery only for FAILED_DELIVERY and STOCK_DISCREPANCY per A-24, a replacement only for a loading shortfall naming a trip and an order, close only once resolved), urgency order and counts. `data/live.ts` gains `punctuality`.
+- `data/useDay.ts`: `useIssues` (`GET /api/issues?depot=`, every page), `useIssue` (the issue and `/history`, by id), `useDeferrals` (`/api/plans/deferrals`), `useFuel` (`/api/plans/fuel`).
+- `screens/Issues.tsx`, `IssueDetail.tsx`, `IssueActions.tsx`: the inbox, one issue with its history, and the commands `issue:Assign` (take it), `issue:Resolve` (write off, no fault found, other), `issue:RecordReplacement`, `issue:ScheduleRedelivery`, `issue:Close`, `issue:Cancel`, each with the issue's `rowVersion` and a reason. The issue list holds only open and assigned issues, so a resolved issue stays selected and is read by id until it is closed.
+- `screens/Overview.tsx`: Orders and Summary tiles from the day's orders, run sheets, dock and issues. `screens/SkippedOutlets.tsx`: today's deferrals, most skipped first (R-PLN-20). `screens/FuelWeek.tsx` in the vehicle drawer: planned litres against the weekly quota, published plans only (D-K).
+
+Flows: every command is followed by reading the issue and the list again, whatever the answer, so a `409` shows the server's version. Offline, every action is disabled and the panel says so.
+
+Verify: `npm test` (4 new tests in `dispatcher-data.test.ts`), `npm run typecheck && npm run build`, `npx playwright test -c playwright.dispatcher.config.ts` (4 new in `issues.spec.ts`: take and resolve then close, redelivery offered only when nothing arrived with a stale refusal, overview tiles and skipped outlets, offline read only).
+
+Gaps: assigning to another person needs a read of the depot's staff, which identity does not serve to dispatchers; the server already checks the assignee works the depot (R-ISS-08). People are shown by the tail of their id until such a read exists. The fuel drawer has no browser test.

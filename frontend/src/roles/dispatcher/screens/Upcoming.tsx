@@ -8,18 +8,13 @@ import type { ViewId } from "../navigation.ts";
 // behind their backend with no mocks, so each one says what it will do and
 // what it is waiting for, instead of showing invented numbers.
 
-type Upcoming = Exclude<ViewId, "overview" | "orders" | "plan" | "live" | "vehicles">;
+type Upcoming = Exclude<ViewId, "overview" | "orders" | "plan" | "live" | "vehicles" | "issues">;
 
 const SCREENS: Record<Upcoming, { title: string; does: string[]; waitingOn: string }> = {
   forecast: {
     title: "Forecast",
     does: ["Demand forecast per brand and week, and refrigerated vehicles needed against available"],
     waitingOn: "the forecast (#16)",
-  },
-  issues: {
-    title: "Issues",
-    does: ["Assign and resolve issues, record replacements and schedule redelivery"],
-    waitingOn: "the Issues module (#13)",
   },
 };
 

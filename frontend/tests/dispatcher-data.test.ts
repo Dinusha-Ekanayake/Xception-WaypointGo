@@ -6,7 +6,9 @@ import type { VehicleView } from "../src/shared/domain/referencedata.ts";
 import type { RunSheetStopView, RunSheetView } from "../src/shared/domain/execution.ts";
 import { after, board, openDecisions, percent, summarise, working } from "../src/roles/dispatcher/data/plan.ts";
 import { flow, matches } from "../src/roles/dispatcher/data/orders.ts";
-import { attention, byUrgency, isLate, vehicleDay } from "../src/roles/dispatcher/data/live.ts";
+import { attention, byUrgency, isLate, punctuality, vehicleDay } from "../src/roles/dispatcher/data/live.ts";
+import type { IssueView } from "../src/shared/domain/issues.ts";
+import { actionsFor, age, byUrgency as issuesByUrgency, issueCounts, nextDay } from "../src/roles/dispatcher/data/issues.ts";
 
 // What the dispatcher's screens derive from the server's views. The server
 // decides every rule; these only count and order what it said.
@@ -147,4 +149,48 @@ test("vehicles are listed most urgent first, and what needs the dispatcher is fa
   const now = at("10:30");
   assert.deepEqual(byUrgency(sheets.map((s) => vehicleDay(s, now))).map((d) => d.vehicleId), ["VEH003", "VEH002", "VEH001"]);
   assert.deepEqual(attention(sheets, now).map((a) => `${a.vehicleId}:${a.kind}`), ["VEH003:failed", "VEH002:late", "VEH003:proof-owed"]);
+});
+
+test("on time counts delivered stops inside their window; a stop not reached counts in neither", () => {
+  const p = punctuality([sheet("VEH001", [stop(1, { outcome: "DELIVERED", lateMinutes: 0 }), stop(2, { outcome: "PARTIAL", lateMinutes: 15 }), stop(3), stop(4, { outcome: "FAILED" })])]);
+  assert.deepEqual(p, { served: 2, onTime: 1 });
+});
+
+const ME = "me";
+
+function issue(id: string, extra: Partial<IssueView> = {}): IssueView {
+  return {
+    issueId: id, type: "OTHER", severity: "MEDIUM", status: "OPEN", depotCode: "KDY", outletId: null, subjects: [{ type: "order", id: "o-1" }],
+    description: "reported", assignee: null, resolutionAction: null, resolutionNote: null, raisedBy: "loader", raisedAt: "2027-03-01T03:00:00Z",
+    resolvedAt: null, rowVersion: 1, ...extra,
+  };
+}
+
+test("an issue offers only what its command would accept: redelivery when nothing arrived, replacement for a shortfall", () => {
+  assert.deepEqual(actionsFor(issue("a", { type: "FAILED_DELIVERY" }), ME), ["take", "redelivery", "resolve", "cancel"]);
+  assert.deepEqual(actionsFor(issue("b", { type: "RECEIPT_DISPUTE", assignee: ME, status: "ASSIGNED" }), ME), ["resolve", "cancel"], "A-24: goods arrived");
+  const shortfall = issue("c", { type: "LOADING_SHORTFALL", subjects: [{ type: "trip", id: "t-1" }, { type: "order", id: "o-1" }] });
+  assert.deepEqual(actionsFor(shortfall, ME), ["take", "replacement", "resolve", "cancel"]);
+  assert.deepEqual(actionsFor(issue("d", { type: "LOADING_SHORTFALL" }), ME), ["take", "resolve", "cancel"], "no trip named, nothing to recheck");
+  assert.deepEqual(actionsFor(issue("e", { status: "RESOLVED" }), ME), ["close"]);
+  assert.deepEqual(actionsFor(issue("f", { status: "CLOSED" }), ME), []);
+});
+
+test("issues are most severe first, then oldest, and counted by who has them", () => {
+  const list = [
+    issue("low", { severity: "LOW", raisedAt: "2027-03-01T01:00:00Z" }),
+    issue("new-critical", { severity: "CRITICAL", raisedAt: "2027-03-01T05:00:00Z", assignee: ME, status: "ASSIGNED" }),
+    issue("old-critical", { severity: "CRITICAL", raisedAt: "2027-03-01T02:00:00Z" }),
+  ];
+  assert.deepEqual(issuesByUrgency(list).map((i) => i.issueId), ["old-critical", "new-critical", "low"]);
+  assert.deepEqual(issueCounts(list, ME), { open: 3, urgent: 2, unassigned: 2, mine: 1 });
+});
+
+test("an issue's age reads in minutes, hours, then days, and a redelivery defaults to the next day", () => {
+  const raised = "2027-03-01T03:00:00Z";
+  assert.equal(age(raised, new Date("2027-03-01T03:08:00Z")), "8 min");
+  assert.equal(age(raised, new Date("2027-03-01T06:30:00Z")), "3 h");
+  assert.equal(age(raised, new Date("2027-03-03T04:00:00Z")), "2 d");
+  assert.equal(nextDay("2027-02-28"), "2027-03-01");
+  assert.equal(nextDay("2027-12-31"), "2028-01-01");
 });

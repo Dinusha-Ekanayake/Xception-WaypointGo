@@ -47,7 +47,7 @@ State words: **built** (merged to `dev` with tests), **partial** (merged, with n
 | Store manager | #18 closed | built | Notifications, driver and ETA details, call options and draft orders: nothing backs them yet (#14) | [log](development-log.md), 2026-10-01 |
 | Loader | #20 closed | built | Sinhala and Tamil are drafts awaiting a native speaker. Interchange waits on #10 | [walkthrough](../issues/010-loading/WALKTHROUGH.md) |
 | Driver | #21 open | built | English only. Vehicle pick-up by QR, the inbox, fuel, call and map have no backend and are left out | [walkthrough](../issues/021-driver-ui/WALKTHROUGH.md) |
-| Dispatcher | #19 open | partial | Orders, Plan, Live, Overview shell and Vehicles are built. Left: Overview's live tiles, skipped outlets with counts, weekly fuel per vehicle, the Issues inbox, interchange approval, the sync conflict queue, Forecast | [walkthrough](../issues/019-dispatcher-ui/WALKTHROUGH.md) |
+| Dispatcher | #19 open | partial | Orders, Plan, Live, Overview, Vehicles with weekly fuel, the Issues inbox and skipped outlets are built. Left: assigning an issue to someone else (no staff read), interchange approval (#10), the sync conflict queue, Forecast (#16) | [walkthrough](../issues/019-dispatcher-ui/WALKTHROUGH.md) |
 | Admin console | #22 open | in flight | `admin-preview.waypointgo.live` shows the interactive sample console after admin sign-in. Live backend wiring remains open; production still shows the placeholder | issue #22 |
 | Auditor console | #23 open | mock UI built on `23-auditor-console` | Overview, searchable activity, security events and event details at `/access-demo`; live reads remain blocked on `audit:Read` API (#6) | [UI plan](../issues/022-admin-console/AUDIT-CONSOLE-UI-PLAN.md) |
 
@@ -66,7 +66,7 @@ In dependency order. An item nobody is assigned to on GitHub is free; say so on 
 
 1. **Release `dev` to `main`**, then walk the role flows on production. Nothing a judge opens on the production address reflects the last three days of work.
 2. **A fresh-install seed** that leaves one depot-day with a published plan, a released trip and a delivered stop. It unblocks a live browser run for every role and the judge walkthrough. `loading-fixture` and `scripts/seed-scenarios.sql` are partial precedents; the second bypasses the command bus and must not be the model.
-3. **Dispatcher, the rest of #19.** The Issues inbox first: its backend (#13) is done and dispatchers cannot yet see or resolve an issue on screen.
+3. **Dispatcher, the rest of #19.** The Issues inbox is built; what is left waits on #10 (interchange), a staff read for assigning to others, and #16 (Forecast).
 4. **Notification (#14).** The largest unbuilt module, and what the store manager, driver and dispatcher gaps above all wait on.
 5. **Event backbone, the rest of #6.** The `audit:Read` API unblocks the auditor console (#23); the partition job is a hard date.
 6. **Loading interchange (#10)**, then its approval screen in #19. Planning's `previewInterchange` already exists.
