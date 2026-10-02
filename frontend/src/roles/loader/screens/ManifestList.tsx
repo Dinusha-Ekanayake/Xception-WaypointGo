@@ -37,32 +37,32 @@ export default function ManifestList({
         <h2 className="text-[26px] font-semibold">{tr("Load list")}</h2>
         <p className="text-[14px] text-go-muted">{tr("Last stop loads first. Tick each item.")}</p>
         <p className="text-[13px] text-go-muted">
-          {total} {total === 1 ? "stop" : "stops"} · {lines.length} {lines.length === 1 ? "order" : "orders"} · {items} items
+          {[tr(total === 1 ? "{n} stop" : "{n} stops", { n: total }), tr(lines.length === 1 ? "{n} order" : "{n} orders", { n: lines.length }), tr(items === 1 ? "{n} item" : "{n} items", { n: items })].join(" · ")}
         </p>
       </div>
-      <div className="overflow-hidden rounded-[25px] bg-white px-4 pt-1 pb-4">
+      <div className="overflow-hidden rounded-[25px] bg-go-card px-4 pt-1 pb-4">
         {stops.map((stop, index) => {
           const stopItems = stop.lines.flatMap((l) => l.items);
           const done = stopItems.filter((i) => i.status === "LOADED").length;
           const expanded = open[stop.stopSequence] ?? stop.stopSequence === firstOpen;
           const flagged = stopItems.filter((i) => isFlagged(i.status)).length;
           return (
-            <div key={stop.stopSequence} className="border-b border-[#d3e3e1] last:border-b-0">
+            <div key={stop.stopSequence} className="border-b border-go-rule last:border-b-0">
               <button
                 type="button"
                 aria-expanded={expanded}
                 onClick={() => setOpen((o) => ({ ...o, [stop.stopSequence]: !expanded }))}
                 className="flex min-h-14 w-full items-center gap-3.5 py-3.5 text-left"
               >
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-[16px] border-[1.5px] border-black bg-white text-[14px] font-medium">
-                  {stop.lines.every((l) => isChecked(l.status)) ? <Icon name="check" label="All checked" /> : index + 1}
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-[16px] border-[1.5px] border-go-ink bg-go-card text-[14px] font-medium">
+                  {stop.lines.every((l) => isChecked(l.status)) ? <Icon name="check" label={tr("All checked")} /> : index + 1}
                 </span>
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <span className="text-base font-medium">
                     Stop {String(stop.stopSequence).padStart(2, "0")} · {placeName(stop.outletId, outlets)}
                   </span>
                   <span className="text-[13px] text-go-muted">
-                    {stop.lines.length} {stop.lines.length === 1 ? "order" : "orders"} · {done} of {stopItems.length} items loaded
+                    {tr(stop.lines.length === 1 ? "{n} order" : "{n} orders", { n: stop.lines.length })} · {tr("{a} of {b} items loaded", { a: done, b: stopItems.length })}
                     {flagged > 0 && <span className="text-go-danger-strong"> · {tr("{n} reported", { n: flagged })}</span>}
                   </span>
                 </span>
@@ -100,14 +100,14 @@ function OrderBlock({
   const loaded = line.items.filter((i) => i.status === "LOADED").length;
   const units = line.items.reduce((n, i) => n + i.units, 0);
   return (
-    <div className={cx("rounded-[16px] bg-[#f1f3f5] p-1", line.recheck && "ring-2 ring-go-warning")}>
+    <div className={cx("rounded-[16px] bg-go-surface p-1", line.recheck && "ring-2 ring-go-warning")}>
       <div className="flex items-center gap-2 px-2 py-2">
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span className="text-base font-medium text-black">
+          <span className="text-base font-medium text-go-ink">
             {orderLabel(line)} · {tr(line.temperature === "chilled" ? "Chilled" : "Ambient")}
           </span>
           <span className="text-[13px] text-go-muted">
-            {line.items.length} items · {units} units · {kg(Number(line.weightKg))} ·{" "}
+            {tr(line.items.length === 1 ? "{n} item" : "{n} items", { n: line.items.length })} · {tr(units === 1 ? "{n} unit" : "{n} units", { n: units })} · {kg(Number(line.weightKg))} ·{" "}
             <span className={cx("font-medium", line.recheck ? "text-go-warning-text" : "text-go-teal")}>
               {line.recheck ? tr("Plan changed: check again") : tr("{a} of {b} loaded", { a: loaded, b: line.items.length })}
             </span>
@@ -149,31 +149,31 @@ function ItemRow({
   const tr = useT();
   const loaded = item.status === "LOADED";
   const flagged = isFlagged(item.status);
-  const label = `item ${item.lineNo} of ${orderLabel(line)}`;
+  const label = tr("item {n} of {order}", { n: item.lineNo, order: orderLabel(line) });
   return (
-    <li className={cx("flex items-center gap-3 rounded-[12px] bg-white py-2 pr-2 pl-3", flagged && "bg-go-danger-tint")}>
+    <li className={cx("flex items-center gap-3 rounded-[12px] bg-go-card py-2 pr-2 pl-3", flagged && "bg-go-danger-tint")}>
       <button
         type="button"
         // A flagged item is reported, not ticked: re-ticking it goes through Report.
         onClick={() => (flagged ? onReport(line, item) : onToggle(line, item))}
         disabled={!editable}
         aria-pressed={loaded}
-        aria-label={flagged ? `Edit report for ${label}` : loaded ? `Undo loaded, ${label}` : `Mark ${label} loaded`}
+        aria-label={tr(flagged ? "Edit report for {label}" : loaded ? "Undo loaded, {label}" : "Mark {label} loaded", { label })}
         className={cx(
           "flex size-12 shrink-0 items-center justify-center rounded-[10px] border-2 disabled:cursor-not-allowed",
-          loaded ? "border-go-signal bg-go-signal" : "border-go-teal bg-white",
-          flagged && "border-go-danger bg-white",
+          loaded ? "border-go-signal bg-go-signal" : "border-go-teal bg-go-card",
+          flagged && "border-go-danger bg-go-card",
         )}
       >
         {loaded && <Icon name="check-white" />}
         {flagged && <Icon name="triangle" />}
       </button>
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="truncate text-[15px] font-medium text-black">
+        <span className="truncate text-[15px] font-medium text-go-ink">
           {item.productId} <span className="text-[12px] font-normal text-go-muted">{tr("(inferred)")}</span>
         </span>
         <span className="text-[13px] text-go-muted">
-          {item.units} {item.units === 1 ? "unit" : "units"} ·{" "}
+          {tr(item.units === 1 ? "{n} unit" : "{n} units", { n: item.units })} ·{" "}
           <span className={cx("font-medium", flagged ? "text-go-danger-strong" : loaded ? "text-go-success" : "text-go-teal")}>
             {flagged
               ? `${tr(CHECK_LABEL[item.status])} · ${tr("{a} of {b} not loaded", { a: item.units - item.loadedUnits, b: item.units })}`

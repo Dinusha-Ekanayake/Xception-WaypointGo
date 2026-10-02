@@ -39,16 +39,18 @@ test("offline, a loader switches with their PIN and the switch reaches the serve
 
   await context.setOffline(true);
   await page.getByRole("button", { name: "Lock loader" }).first().click();
-  await expect(page.getByText("Offline: PIN checked on this device")).toBeVisible();
+  // Figma 08: the device is locked with the loader's name; someone else switches user.
+  await expect(page.getByRole("heading", { name: "Device locked" })).toBeVisible();
+  await page.getByRole("button", { name: "Switch user" }).click();
+  await expect(page.getByText("You're offline. You can still sign in.")).toBeVisible();
   await page.getByRole("button", { name: /Kasun/ }).click();
 
   await page.getByLabel("4-digit PIN").fill("1111");
-  await page.getByRole("button", { name: "Unlock loader" }).click();
-  await expect(page.getByText("That PIN didn't match. Try again.")).toBeVisible();
-  await expect(page.getByText("4 tries left.")).toBeVisible();
+  await page.getByRole("button", { name: "Confirm" }).click();
+  await expect(page.getByText("Incorrect PIN. 4 tries left.")).toBeVisible();
 
   await page.getByLabel("4-digit PIN").fill("2468");
-  await page.getByRole("button", { name: "Unlock loader" }).click();
+  await page.getByRole("button", { name: "Confirm" }).click();
   await expect(page.getByRole("heading", { name: "Tonight's departures" })).toBeVisible();
   expect(replayed).toBeNull();
 

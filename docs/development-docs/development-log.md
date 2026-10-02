@@ -21,6 +21,23 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-02 - feat(loader): match the loader to Figma, with dark mode and settings
+
+`feat/loader-figma` · @Dinusha-Ekanayake
+
+Compared every frame of Figma "08 Loader · Phone" with the build and closed the gaps:
+- dark mode on the go-dark tokens; a Settings screen (Appearance Light/Dark, Language සිං / த / EN), with the device's sign-out kept there;
+- Device locked and Unlock with PIN; crew search with "No matching employees"; four-box PIN with Incorrect PIN and the paused countdown;
+- the dock pill and list, "No trips at this dock", "was just taken" (409 R-LOD-11);
+- the loaded and saved-offline sheets, centred out-of-sequence and hand-back cards ("Next up"), and Report an issue with icons and two-line pickers;
+- release with loaders, minutes, the flagged-stop note and capacity bars; "on pace" from the hold time and departure;
+- every loader string through the SI/TA dictionary.
+
+Kept from the backend where Figma differs: the required reason on an issue (`loading:Shortfall` requires it), and "item" over "package" (decision 2026-10-01).
+Why: the booklet judges fidelity to the Day 5 design on phone-size screens.
+Verified: typecheck, `npm test` (48), build; loader browser suite 4 of 4 and dispatcher 11 of 11; screenshots of each screen in light and dark compared with the Figma frames at 393x852.
+Open: Figma's notifications bell (loader notifications are #14) and the optional issue photo (Loading has no upload endpoint). Sinhala and Tamil need a native speaker.
+
 ## 2026-10-02 - feat(dispatcher): issues inbox, overview tiles, skipped outlets, weekly fuel (issue #19)
 
 `feat/dispatcher-rest` · @Oxshadha
