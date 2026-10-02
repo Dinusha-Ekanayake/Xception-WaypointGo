@@ -150,7 +150,7 @@ export default function AppShell(): React.JSX.Element {
   return (
     <ShellProvider value={controls}>
       <main className={cx("shell", adminPreview && "relative")}>
-        {(misplaced || !OWN_HEADER.has(active)) && (
+        {(misplaced || !OWN_HEADER.has(active) && !adminPreview) && (
           <div className={cx("mx-auto flex w-full max-w-[1440px] flex-wrap items-center justify-end gap-2 bg-go-canvas px-4 pt-2 font-go", adminPreview && "lg:absolute lg:inset-x-0 lg:top-0 lg:z-10 lg:max-w-none lg:bg-transparent lg:pr-8")}>
             <SyncStatus sync={sync} online={online} />
             {roles.length > 1 && (
