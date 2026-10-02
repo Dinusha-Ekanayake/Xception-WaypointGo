@@ -36,6 +36,20 @@ services:
         aliases:
           - ${DEPLOY_ENV:-production}-waypoint
 
+  # Preview only (the observability profile is enabled by deploy.sh there). nginx
+  # reaches it as preview-grafana at grafana-preview.SITE_ADDRESS; the localhost
+  # port is dropped like every other.
+  grafana:
+    ports: !reset []
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SERVER_ROOT_URL: https://grafana-preview.${SITE_ADDRESS:-localhost}
+    networks:
+      default:
+      edge:
+        aliases:
+          - preview-grafana
+
   nginx:
     build: ./deploy/vps/nginx
     profiles: ["edge"]
