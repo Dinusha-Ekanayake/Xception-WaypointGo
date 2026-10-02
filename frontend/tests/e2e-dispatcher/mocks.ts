@@ -2,7 +2,8 @@ import type { Page, Route } from "@playwright/test";
 import type { RunSheetStopView, RunSheetView } from "../../src/shared/domain/execution.ts";
 import type { ReadyTripView } from "../../src/shared/domain/loading.ts";
 import type { OrderStatus, OrderView } from "../../src/shared/domain/ordering.ts";
-import type { AllocationView, PlacementView, PlanView, TripView } from "../../src/shared/domain/planning.ts";
+import type { IssueHistoryView, IssueView } from "../../src/shared/domain/issues.ts";
+import type { AllocationView, DeferralView, PlacementView, PlanView, TripView } from "../../src/shared/domain/planning.ts";
 
 // A small stand-in for Ordering, Planning, Loading and Execution, in the shapes
 // their contracts serve. Like Planning, every edit of a draft replaces it with
@@ -67,6 +68,9 @@ export type Desk = {
   published: PlanView | null;
   sheets: RunSheetView[];
   dock: ReadyTripView[];
+  issues: IssueView[];
+  history: Record<string, IssueHistoryView[]>;
+  deferrals: DeferralView[];
   commands: Sent[];
   /** Answer the next command of this kind with this problem instead of applying it. */
   refuse: { kind: string; status: number; code: string; detail: string; rules?: string[] } | null;
@@ -82,7 +86,7 @@ const body = (plan: PlanView) => ({
 export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk> {
   const desk: Desk = {
     orders: [order(1, "CONFIRMED"), order(2, "CONFIRMED"), order(3, "CONFIRMED")],
-    draft: null, published: null, sheets: [], dock: [], commands: [], refuse: null, ...start,
+    draft: null, published: null, sheets: [], dock: [], issues: [], history: {}, deferrals: [], commands: [], refuse: null, ...start,
   };
   const json = (value: unknown) => ({ status: 200, contentType: "application/json", body: JSON.stringify(value) });
   const problem = (status: number, code: string, detail: string, rules: string[] = []) => ({
@@ -92,6 +96,7 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
 
   const apply = (command: Sent) => {
     const { payload } = command;
+    if (command.kind.startsWith("issue:")) return applyIssue(desk, command);
     if (command.kind === "order:CloseForDay") return { alreadyClosed: false };
     if (command.kind === "plan:Generate") {
       desk.draft = draftPlan((desk.draft?.planVersion ?? 0) + 1);
@@ -127,6 +132,17 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
     if (pathname === "/api/plans/preview/placements") return route.fulfill(json(PLACES));
     if (pathname === "/api/execution/run-sheets") return route.fulfill(json(desk.sheets));
     if (pathname === "/api/loading/trips") return route.fulfill(json(desk.dock));
+    if (pathname === "/api/issues") return route.fulfill(json({ items: desk.issues.filter((i) => i.status === "OPEN" || i.status === "ASSIGNED"), nextCursor: null }));
+    const one = /^\/api\/issues\/([^/]+)(\/history)?$/.exec(pathname);
+    if (one) {
+      const found = desk.issues.find((i) => i.issueId === one[1]);
+      if (!found) return route.fulfill(problem(404, "NOT_FOUND", "No issue"));
+      return route.fulfill(json(one[2] ? (desk.history[found.issueId] ?? []) : found));
+    }
+    if (pathname === "/api/plans/deferrals") return route.fulfill(json(desk.deferrals));
+    if (pathname === "/api/plans/fuel") {
+      return route.fulfill(json({ vehicleId: url.searchParams.get("vehicle"), weekStarting: "2027-03-01", quotaLitres: "200", usedLitres: "150", remainingLitres: "50" }));
+    }
     if (pathname === "/api/sync") return route.fulfill(json({ results: [] }));
     if (pathname === "/api/commands" && request.method() === "POST") {
       const command = request.postDataJSON() as Sent;
@@ -156,4 +172,37 @@ export function dockTrip(vehicleId: string, status: ReadyTripView["status"]): Re
     tripId: `dock-${vehicleId}`, vehicleId, tripNumber: 1, tripsForVehicle: 1, plannedDeparture: "03:30:00", status, brandCode: "Fresh", districtName: "Kandy",
     temperature: "chilled", dockCode: "D1", stopCount: 3, orderCount: 3, weightKg: "900", volumeM3: "9", holder: null, releasedAt: null, rowVersion: 1,
   };
+}
+
+export function issue(n: number, extra: Partial<IssueView> = {}): IssueView {
+  return {
+    issueId: `issue-${n}`, type: "OTHER", severity: "MEDIUM", status: "OPEN", depotCode: DEPOT, outletId: `OUT0${50 + n}`,
+    subjects: [{ type: "order", id: `order-${n}` }], description: `Reported problem ${n}`, assignee: null, resolutionAction: null,
+    resolutionNote: null, raisedBy: "loader-user", raisedAt: new Date(Date.now() - 25 * 60_000).toISOString(), resolvedAt: null, rowVersion: 1, ...extra,
+  };
+}
+
+/** Issues' lifecycle as the server keeps it: each command bumps rowVersion and writes a history row. */
+function applyIssue(desk: Desk, command: Sent): Record<string, unknown> {
+  const { payload } = command;
+  const index = desk.issues.findIndex((i) => i.issueId === payload.issueId);
+  const before = desk.issues[index]!;
+  const now = new Date().toISOString();
+  const next: IssueView =
+    command.kind === "issue:Assign"
+      ? { ...before, status: "ASSIGNED", assignee: String(payload.assigneeUserId) }
+      : command.kind === "issue:Resolve"
+        ? { ...before, status: "RESOLVED", resolutionAction: String(payload.action).toUpperCase(), resolutionNote: String(payload.note), resolvedAt: now }
+        : command.kind === "issue:ScheduleRedelivery"
+          ? { ...before, status: "RESOLVED", resolutionAction: "REDELIVERY", resolutionNote: String(payload.note), resolvedAt: now }
+          : command.kind === "issue:RecordReplacement"
+            ? { ...before, status: "RESOLVED", resolutionAction: "REPLACEMENT", resolutionNote: String(payload.note), resolvedAt: now }
+            : command.kind === "issue:Close"
+              ? { ...before, status: "CLOSED" }
+              : { ...before, status: "CANCELLED", resolutionNote: String(payload.reason) };
+  next.rowVersion = before.rowVersion + 1;
+  desk.issues[index] = next;
+  const action = command.kind.replace("issue:", "").toLowerCase();
+  (desk.history[next.issueId] ??= []).push({ from: before.status, to: next.status, action, reason: String(payload.note ?? payload.reason ?? ""), actorId: SESSION.userId, at: now });
+  return { issueId: next.issueId, status: next.status, rowVersion: next.rowVersion };
 }

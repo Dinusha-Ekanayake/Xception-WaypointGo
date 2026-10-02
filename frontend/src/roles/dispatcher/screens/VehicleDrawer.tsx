@@ -7,6 +7,7 @@ import { Icon, Notice, Pending, Pill, PrimaryButton, SecondaryButton } from "@sh
 import { capacityLabel, litres, typeLabel } from "../data/fleet.ts";
 import { formatDay } from "../data/scope.ts";
 import type { SubmitState } from "../data/useSetDayStatus.ts";
+import FuelWeek from "./FuelWeek.tsx";
 
 // Figma "06b Vehicle details": the drawer over the fleet table. Its one write
 // is Send to workshop, which is vehicle:SetDayStatus for the day being viewed.
@@ -75,7 +76,7 @@ export default function VehicleDrawer({
             </h3>
             <span className="text-[11px] text-go-secondary">includes the return leg (D-K)</span>
           </div>
-          <Pending what="Fuel used by week" waitingOn="Execution (#12)" />
+          <FuelWeek vehicleId={vehicle.vehicleId} date={serviceDate} />
         </section>
 
         <div className="flex gap-2">

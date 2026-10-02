@@ -102,3 +102,15 @@ export function totals(days: VehicleDay[], dock: ReadyTripView[]): LiveTotals {
     stops: days.reduce((sum, day) => sum + day.stops.length, 0),
   };
 }
+
+export type Punctuality = { served: number; onTime: number };
+
+/**
+ * Stops delivered in whole or part, and how many of those inside their window,
+ * as the server recorded them (R-EXE-14). A stop not reached yet counts in
+ * neither: on time is a fact about an arrival, not a forecast.
+ */
+export function punctuality(sheets: RunSheetView[]): Punctuality {
+  const served = sheets.flatMap((sheet) => sheet.stops).filter((stop) => stop.outcome === "DELIVERED" || stop.outcome === "PARTIAL");
+  return { served: served.length, onTime: served.filter((stop) => (stop.lateMinutes ?? 0) === 0).length };
+}
