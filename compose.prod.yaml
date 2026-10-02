@@ -12,6 +12,22 @@
 # Deployment and certificate issuance: see docs/deployment.md.
 
 services:
+  mcp:
+    build: ./mcp
+    expose: ["8081"]
+    environment:
+      MCP_ENABLED: ${MCP_ENABLED:-false}
+      MCP_PUBLIC_URL: ${MCP_PUBLIC_URL:-}
+      MCP_BACKEND_URL: http://backend:8080
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8081/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
   nginx:
     labels:
       com.waypoint.logs: "true"
@@ -69,6 +85,7 @@ services:
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL to the pooled connection string}
       COOKIE_SECURE: "1"
       MCP_ENABLED: ${MCP_ENABLED:-false}
+      MCP_PUBLIC_URL: ${MCP_PUBLIC_URL:-}
       WAREHOUSE_BASE_URL: ${WAREHOUSE_BASE_URL:-https://triathon-warehouse-simple.vercel.app/api/v1}
       WAREHOUSE_API_KEY: ${WAREHOUSE_API_KEY:-}
       WAREHOUSE_TIMEOUT_MS: ${WAREHOUSE_TIMEOUT_MS:-2000}
@@ -103,6 +120,7 @@ services:
       - "3000"
     environment:
       BACKEND_URL: http://backend:8080
+      MCP_INTERNAL_URL: http://mcp:8081
     depends_on:
       backend:
         condition: service_healthy
