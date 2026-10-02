@@ -36,6 +36,87 @@ Open: Figma's tablet top bar has text "Lock" and "Switch user" buttons and the l
 
 ---
 
+## 2026-10-02 - fix: simplify admin preview sidebar
+
+`dev` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Remove the extra Waypoint label and Demo workspace card from the admin sidebar.
+Why: they cluttered the navigation and repeated the preview context already shown elsewhere.
+Verified: frontend typecheck and production build passed.
+Open: nothing.
+
+---
+
+## 2026-10-02 - fix: keep admin demo depots to Peliyagoda and Kandy
+
+`dev` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Remove Galle from admin member assignments, vehicle samples, forecasts and depot selectors; share one demo depot list.
+Why: Galle is a delivery district served by Peliyagoda, not a depot.
+Verified: frontend typecheck and production build passed.
+Open: nothing.
+
+---
+
+## 2026-10-02 - fix: use clear admin navigation icons
+
+`dev` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Add people, permission list, history and audit icons to the admin sidebar while retaining the GO icon style.
+Why: the former catalogue asset was white on a light background and several navigation symbols did not describe their destinations clearly.
+Verified: frontend typecheck and production build passed.
+Open: nothing.
+
+---
+
+## 2026-10-02 - fix: align admin people list columns
+
+`dev` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Give the member identity, persona and place, exception badge, and action stable desktop columns.
+Why: variable badge presence shifted values and actions between rows.
+Verified: frontend typecheck and production build passed.
+Open: nothing.
+
+---
+
+## 2026-10-02 - fix: place admin preview sign out under the sidebar profile
+
+`dev` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Move the demo sign out action below the sidebar account summary and keep it available on smaller screens.
+Why: the account control belongs beside the profile shown in the sidebar.
+Verified: frontend typecheck and production build passed.
+Open: nothing.
+
+---
+
+## 2026-10-02 - feat(notification): route events to people, with an inbox and web push
+
+`14-notification` · @tharushaudana
+
+Notification module, backend only: 18 event consumers, a versioned routing table (`notification.routing_rules`), inbox and unread count, a live count over server-sent events, `MarkRead`, `MarkAllRead`, `Subscribe`, `Unsubscribe`, and a push job with retry and dead letter. Web push encryption and VAPID are written on the JDK. Identity gains a dated `recipientsFor`, so tomorrow's plan reaches tomorrow's driver.
+Why: issue #14; the store, driver and dispatcher screens had nothing behind their notification placeholders. Decisions are in [the plan](../issues/014-notification/PLAN.md); rules R-NOT-06 to 09, cases NOT-01 to 09, A-34, A-35, P-27.
+Verified: domain and crypto tests (27, including the RFC 8291 vector), `ModuleBoundaryTest`, `EventCatalogueTest`, frontend typecheck and `npm test`. The 26 database integration tests pass in CI (`mvn verify`, 681 tests, none skipped).
+Open: each role UI places its own inbox, badge and push opt-in (#18, #19, #21); no admin API for a new routing version; dock and next planned date are missing from their events.
+## 2026-10-02 - fix(test): stop the execution tests colliding on a random day
+
+`fix/execution-test-day-collision` · @kavindamihiran
+
+`ExecutionIntegrationTest` picks a random service day per test and assigns the same two vehicles around it. The assignments stay in the database, so two tests landing on neighbouring days broke the no-overlap constraint in `setUp`. It now picks again until both vehicles are free.
+Why: the preview deploy of #100 failed on it (`aTripRunningBehindTellsTheStopsAhead`, exclusion constraint on `iam.vehicle_driver_assignments`), about one run in fifteen by the arithmetic.
+Verified: `mvn -Dtest=ExecutionIntegrationTest test` on local PostgreSQL 16: 23 run, 0 failed, 0 skipped.
+Open: nothing.
+
+## 2026-10-02 - docs: add a connect guide for the read-only MCP server
+
+`docs/mcp-connect-guide` · @kavindamihiran
+
+New `mcp/README.md`: build, sign in, a configuration block for Claude Code, Claude Desktop, Codex, opencode and Cursor, the 12 tools with the action each needs, and the common failures. The walkthrough links to it instead of repeating it.
+Why: #93 shipped the adapter with no user-facing way to connect a client, and the requirement is that users connect their own assistant (no chatbot in Waypoint).
+Verified: `mcp/` `npm test` on a clean export of `dev` (10 passed); the server registered in Claude Code, Codex, Claude Desktop and opencode with the documented entries. Not verified: a read from an installed client, which needs an interactive sign-in.
+Open: ChatGPT and other remote-only clients cannot connect to a stdio server; the remote transport with OAuth needs its own PLAN under [#87](../issues/087-readonly-mcp/WALKTHROUGH.md). Production still lacks `mcp/` and `MCP_ENABLED`.
+
 ## 2026-10-02 - fix: sync the store manager screens with the backend contracts
 
 `fix/store-manager-sync` · @jv-ransika

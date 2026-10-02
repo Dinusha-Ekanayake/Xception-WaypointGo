@@ -32,6 +32,13 @@ public interface IdentityQuery {
    */
   List<UUID> recipientsFor(String roleCode, String scopeType, String scopeId);
 
+  /**
+   * As {@link #recipientsFor(String, String, String)}, with a vehicle's driver
+   * taken on {@code on} rather than today: a plan published today for tomorrow
+   * belongs to tomorrow's driver. Depot and outlet scope are not dated.
+   */
+  List<UUID> recipientsFor(String roleCode, String scopeType, String scopeId, LocalDate on);
+
   record ScopeView(
       UUID userId, List<String> roles, List<String> depotCodes, List<String> outletIds) {
 

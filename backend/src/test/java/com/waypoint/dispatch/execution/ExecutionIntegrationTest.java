@@ -132,13 +132,17 @@ class ExecutionIntegrationTest {
                 + " WHERE status IN ('pending','failed','processing')"));
 
     depot = reference.outlet(OUTLET, null).orElseThrow().depotCode();
-    day = reference.nextOperatingDay(
-        LocalDate.of(2040, 1, 1).plusDays(ThreadLocalRandom.current().nextInt(0, 15_000)));
+    // Every test assigns the same two vehicles around its own day, and the
+    // assignments stay in the database. A random day that lands beside an
+    // earlier test's would break the no-overlap constraint, so pick again.
+    do {
+      day = reference.nextOperatingDay(
+          LocalDate.of(2040, 1, 1).plusDays(ThreadLocalRandom.current().nextInt(0, 15_000)));
+      var vehicles = reference.availableVehicles(depot, day, null);
+      vehicleId = vehicles.get(0).vehicleId();
+      otherVehicleId = vehicles.get(1).vehicleId();
+    } while (alreadyAssigned(vehicleId, otherVehicleId, day.minusDays(1), day.plusDays(1)));
     clock.set(day.minusDays(1).atTime(LocalTime.of(10, 0)).atZone(Clock.OPERATING_ZONE).toInstant());
-
-    var vehicles = reference.availableVehicles(depot, day, null);
-    vehicleId = vehicles.get(0).vehicleId();
-    otherVehicleId = vehicles.get(1).vehicleId();
 
     String run = UUID.randomUUID().toString().substring(0, 8);
     manager = "xm-" + run + "@execution.test";
@@ -774,6 +778,16 @@ class ExecutionIntegrationTest {
   }
 
   // ---- helpers ----
+
+  /** Whether either vehicle already has a driver somewhere in {@code [from, until)}. */
+  private boolean alreadyAssigned(String vehicle, String otherVehicle, LocalDate from, LocalDate until) {
+    return database.asSystemSeparately(
+        ModuleRole.IAM,
+        () -> database.queryOne(
+            "SELECT 1 FROM iam.vehicle_driver_assignments WHERE vehicle_id IN (?, ?)"
+                + " AND validity && daterange(?::date, ?::date) LIMIT 1",
+            vehicle, otherVehicle, Date.valueOf(from), Date.valueOf(until)) != null);
+  }
 
   private void assign(UUID driverUserId, String vehicle, LocalDate from, LocalDate until) {
     database.update(
