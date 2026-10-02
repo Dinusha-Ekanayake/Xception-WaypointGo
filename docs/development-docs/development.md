@@ -128,6 +128,21 @@ export WAREHOUSE_TIMEOUT_MS=3000
 
 Never put it in `frontend/.env.local` or a `NEXT_PUBLIC_*` variable: the browser never calls the warehouse.
 
+### The model service
+
+The trained models run in their own Python service, `ml-server/` (issue #16). The backend works without it: plans and forecasts then use the deterministic estimates and say so. To run with the models:
+
+```bash
+git lfs pull                                    # the model files are in Git LFS
+cd ml-server
+python -m venv .venv && . .venv/bin/activate    # Python 3.11, as trained
+pip install -r requirements-dev.txt && pytest
+uvicorn app.main:app --port 8000
+export ML_BASE_URL=http://localhost:8000        # in the backend shell
+```
+
+A model answers only once it is registered and activated, and only when the service reports that exact version. As an administrator, send `ml:RegisterModel` with `name`, `version` and `kind` (copy `name` and `version` from `ml-server/manifest.json`, `kind` is `delivery_risk` or `demand_forecast`), then `ml:ActivateModel` with `expectedVersion: 1`.
+
 ### Web push for notifications
 
 The notification inbox works with no setup. Web push needs a VAPID key pair, one per deployment; both blank turns push off, and `GET /api/notifications/push-config` says so. Generate a pair and export it in the backend shell (root `.env` for Compose):

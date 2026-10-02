@@ -94,7 +94,7 @@ One rule governs that catalogue and it outranks convenience. The catalogue is a 
 | --- | --- |
 | Planning | Allocation for a depot-day exceeds 30 seconds at p95, or the optimizer needs a different runtime or a GPU |
 | Notification | Sustained outbound volume makes channel latency affect request latency, or a channel needs independent scaling |
-| Intelligence | Model serving needs a Python runtime, independent release cadence, or GPU scheduling |
+| Intelligence | Model serving needs a Python runtime, independent release cadence, or GPU scheduling. **Fired 2026-10-02 (issue #16):** the trained models need Python, so model serving runs as the `ml-server` service behind `ModelServingAdapter`; the rest of the module stays in the monolith |
 | Sync ingest | Reconnect storms after a regional outage saturate the request tier |
 
 Each of those modules is already designed as if remote: it is reached through a port, it owns its data, and it communicates by events. Extraction is a deployment change plus an adapter, not a rewrite.
@@ -481,7 +481,7 @@ WS3 Ordering ─────────────► WS4 Planning ──► W
 | WS10 Intelligence | Estimator ports, deterministic implementations, model registry | WS4 contract | week 5 |
 | WS11 Hardening | Load testing, chaos drills, SLO instrumentation, runbooks | all | week 6 |
 
-The "Starts" column is the plan as first written. WS0 to WS7 are built, WS8 has its relay and the Notification module (backend; each role UI places its own inbox), WS9 has four of the six role applications, and WS10 has only its contract. The current state of each, and what is left in it, is kept in [STATUS.md](docs/development-docs/STATUS.md) rather than here.
+The "Starts" column is the plan as first written. WS0 to WS7 are built, WS8 has its relay and the Notification module (backend; each role UI places its own inbox), WS9 has four of the six role applications, and WS10 has its estimator port, deterministic default, model registry and a Python model service (issue #16). The current state of each, and what is left in it, is kept in [STATUS.md](docs/development-docs/STATUS.md) rather than here.
 
 ### 10.3 How parallel work stays unblocked
 

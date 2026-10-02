@@ -137,7 +137,8 @@ What a rollout beyond the competition would have to change, as things stand on 2
 - **The audit log is partitioned by month and the last partition ends 2027-07-01.** The job that creates partitions ahead is not built (issue #6); after that date every command fails.
 - **No retention jobs.** Expired sessions, old login attempts, command receipts and delivered outbox rows are not purged (issue #6).
 - **Nobody is told.** The Notification module is not built (issue #14), so a deferral, a shortfall or a dispute reaches a person only when they open the screen that shows it.
-- **Travel and service times are the planning allowances,** not observed durations. Every plan is marked as planned without a predictor (issue #16).
+- **Travel and service times are the planning allowances,** not observed durations, by design (R-ML-05): the model scores each published plan for late risk but never changes it. Road conditions in the supplied data end on 2026-06-28, so later dates are scored by the fallback model (log-loss 0.24 or 0.17 instead of 0.15) until a road-condition feed exists (issue #16).
+- **The model service needs `git-lfs` on the server.** Its trained models are in Git LFS; `deploy.sh` runs `git lfs pull` and stops before replacing anything if `git-lfs` is missing. Install it once with `apt-get install git-lfs` on the VPS before the first deploy that carries `ml-server`. With the service down or unconfigured, plans and forecasts fall back to the deterministic estimates and say so (ML-01).
 - **No automatic rollback, and the only database backups are the ones a deploy takes.** They sit on the server itself, so they undo a bad migration and do not survive a lost disk. Nothing takes one between deploys and nothing copies them off the host. The restore steps under Backup and recovery have not been exercised on the VPS.
 
 Run a measured fleet pilot before general rollout.

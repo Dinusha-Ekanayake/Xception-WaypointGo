@@ -9,13 +9,13 @@ Branch `16-intelligence`, from `dev` at `6588cdd`. Backend only; the dispatcher 
 | Step | Status | Notes |
 | --- | --- | --- |
 | 0 Plan | done | this file |
-| 1 Python model service `ml-server/` | | vendored Datathon code, models in Git LFS, FastAPI, pytest |
-| 2 Reference: traffic speed and road conditions | | CSVs, importer, `ReferenceQuery` |
-| 3 Schema and catalogue | | `ml.*` tables, `ml:*` actions implemented |
-| 4 Domain | | deterministic estimator, model gate, supply policy, route requests |
-| 5 Application, adapter, web | | scoring and forecast jobs, registry commands, reads, Planning's flag |
-| 6 Deployment and CI | | compose service, VPS LFS, CI job |
-| 7 Docs closeout | | walkthrough, registers, STATUS, log |
+| 1 Python model service `ml-server/` | done | vendored Datathon code, models in Git LFS, FastAPI, pytest |
+| 2 Reference: traffic speed and road conditions | done | CSVs, importer, `ReferenceQuery` |
+| 3 Schema and catalogue | done | `ml.*` tables, `ml:*` actions implemented |
+| 4 Domain | done | deterministic estimator, model gate, supply policy, route requests |
+| 5 Application, adapter, web | done | scoring and forecast jobs, registry commands, reads, Planning's flag |
+| 6 Deployment and CI | done | compose service, VPS LFS, CI job |
+| 7 Docs closeout | done | [WALKTHROUGH.md](WALKTHROUGH.md), registers, STATUS, log |
 
 ## Where `dev` stood
 

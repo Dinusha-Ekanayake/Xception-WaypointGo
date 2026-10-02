@@ -382,21 +382,33 @@ A driver is pushed only trip-level events (R-NOT-08), and whoever caused an even
 
 ## 12. Intelligence (`ml`)
 
-**Not built.** Only `intelligence/contract` exists; the work is issue #16. Planning marks every plan `plannedWithoutPredictor` until it lands.
+**Built** (issue #16), backend only; the screens are the role UIs' (Forecast and late risk #19, supply probability #18, model registry #22). What was built is in [the walkthrough](../issues/016-intelligence/WALKTHROUGH.md).
 
 **Purpose.** Predictions that support planning, kept strictly out of the transactional core.
 
 | Layer | Contents |
 | --- | --- |
-| contract | `ServiceTimeEstimate`, `LatenessEstimate`, `DemandForecast` |
-| domain | `TravelAndServiceEstimator` (port), `DeterministicEstimator` (default implementation) |
-| infrastructure | `ModelServingAdapter`, `JdbcPredictionRepository` |
+| contract | `TravelAndServiceEstimator` (port), `PredictionQuery`, `ModelViews` (registry, kinds `delivery_risk` and `demand_forecast`), `PredictionViews` |
+| domain | `DeterministicEstimator`, `ModelGate`, `SupplyPolicy`, `PlannedRoutes`, `CircuitBreaker` |
+| application | `PlanScoringJob`, `ForecastJob`, `ModelHandlers`, `IntelligenceConsumers`, `IntelligenceDataQuery`, `ReferencePayload` |
+| infrastructure | `ModelServingAdapter` (HTTP to the model service, behind a circuit breaker), `JdbcIntelligenceRepository` |
+| web | `/api/ml/models`, `/plans/{id}/predictions`, `/forecast`, `/orders/{id}/supply-probability`, `/training/deliveries` |
 
-**Owns:** `ml.model_versions`, `ml.delivery_predictions`, `ml.demand_forecasts`.
+**The model service** (`ml-server/`, ADR-001's Python trigger) serves the trained Datathon models: `delivery_risk` (service minutes and P(late) per stop, scored over whole planned routes, with a no-road-conditions fallback) and `demand_forecast` (weekly total and chilled m³). It only predicts, and refuses to start if a model file differs from its manifest.
 
-**Invariants.** Every stored prediction records the model version that produced it, so results are reproducible and a bad model is traceable and replaceable. Predictions **never** participate in a transaction with operational state. The system plans without the predictor when it is unavailable and says so on screen.
+**Owns:** `ml.model_versions`, `ml.plan_scorings`, `ml.delivery_predictions`, `ml.demand_forecasts`.
 
-**Connections.** Planning consumes estimates through the port and degrades to the deterministic implementation when model serving is unavailable. Nothing else depends on this module.
+**Invariants.**
+- A model is never called inside an operational transaction (R-ML-01).
+- Every stored prediction names its model or `deterministic` and is written once (R-ML-02).
+- One model per kind is active (R-ML-03).
+- A model answers only when it is the active one and the service reports exactly it; otherwise the deterministic answer, marked degraded with the reason, and the plan says it was scored without the predictor (R-ML-04).
+- Predictions never change allocation (R-ML-05).
+
+**Connections.**
+- Consumes `plan.published` and `plan.revised`.
+- Reads Planning (`PlanQuery.plan`), Ordering (`order`, `dailyVolumes`), Execution (`actuals`) and Reference (outlets, vehicles, travel, calendar, traffic speed, road conditions) through their contracts.
+- Planning reads `PredictionQuery.planScoring` for `plannedWithoutPredictor`, lazily, so it still works without this module.
 
 ---
 
@@ -471,7 +483,7 @@ Modules connect three ways: a contract query (synchronous, read only), an event 
 | `StockPort.placeOrder`, `amendOrder`, with circuit breaker | Ordering | Warehouse |
 | `OrderQuery.confirmedDemand` | Planning | Ordering |
 | `PlanQuery.previewInterchange` | Loading | Planning |
-| `TravelAndServiceEstimator`, degradable | Planning | Intelligence |
+| `PredictionQuery` (plan scoring, degradable) | Planning | Intelligence |
 | `CatalogueQuery` | store UI, admin | Warehouse |
 | audit row, written in the same transaction | all | platform |
 
@@ -482,7 +494,7 @@ Modules connect three ways: a contract query (synchronous, read only), an event 
 | `order.placed`, `order.amended`, `order.cancelled` | Ordering | Planning, Warehouse (cancel), Notification |
 | `order.auto_deferred` | Ordering | Notification |
 | `orders.closed` | Ordering | Planning |
-| `plan.published`, `plan.revised` | Planning | Ordering, Loading, Execution, Notification |
+| `plan.published`, `plan.revised` | Planning | Ordering, Loading, Execution, Notification, Intelligence |
 | `order.deferred`, `order.unservable` | Planning | Ordering, Notification |
 | `loading.started` | Loading | Ordering, Notification |
 | `loading.shortfall` | Loading | Issues, Notification |
