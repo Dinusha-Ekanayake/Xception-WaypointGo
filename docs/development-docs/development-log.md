@@ -29,6 +29,14 @@ Notification module, backend only: 18 event consumers, a versioned routing table
 Why: issue #14; the store, driver and dispatcher screens had nothing behind their notification placeholders. Decisions are in [the plan](../issues/014-notification/PLAN.md); rules R-NOT-06 to 09, cases NOT-01 to 09, A-34, A-35, P-27.
 Verified: domain and crypto tests (27, including the RFC 8291 vector), `ModuleBoundaryTest`, `EventCatalogueTest`, frontend typecheck and `npm test`. The 26 database integration tests pass in CI (`mvn verify`, 681 tests, none skipped).
 Open: each role UI places its own inbox, badge and push opt-in (#18, #19, #21); no admin API for a new routing version; dock and next planned date are missing from their events.
+## 2026-10-02 - fix(test): stop the execution tests colliding on a random day
+
+`fix/execution-test-day-collision` · @kavindamihiran
+
+`ExecutionIntegrationTest` picks a random service day per test and assigns the same two vehicles around it. The assignments stay in the database, so two tests landing on neighbouring days broke the no-overlap constraint in `setUp`. It now picks again until both vehicles are free.
+Why: the preview deploy of #100 failed on it (`aTripRunningBehindTellsTheStopsAhead`, exclusion constraint on `iam.vehicle_driver_assignments`), about one run in fifteen by the arithmetic.
+Verified: `mvn -Dtest=ExecutionIntegrationTest test` on local PostgreSQL 16: 23 run, 0 failed, 0 skipped.
+Open: nothing.
 
 ## 2026-10-02 - docs: add a connect guide for the read-only MCP server
 
