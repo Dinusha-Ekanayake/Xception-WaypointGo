@@ -26,8 +26,7 @@ export function DemoSignIn({ members, onSignIn }: { members: Member[]; onSignIn:
   }
 
   return <main className={`access-demo access-login relative flex min-h-dvh flex-col overflow-hidden ${dark ? "access-login-dark" : ""}`}>
-    <div className="access-login-art" aria-hidden="true" />
-    <header className="relative z-10 flex items-center justify-between px-7 py-8 sm:px-14 sm:py-10"><span className="go-mark">GO</span><button type="button" className="grid size-10 place-items-center rounded-full bg-white text-xl text-[#17352b] shadow-sm" aria-label={dark ? "Use light theme" : "Use dark theme"} onClick={() => setDark((value) => !value)}>{dark ? "☾" : "☼"}</button></header>
+    <header className="relative z-10 flex items-center justify-between px-5 py-2.5"><div className="flex items-center gap-2"><span className="go-mark">GO</span><span className="go-preview-badge">Preview</span></div><button type="button" className="grid size-10 place-items-center rounded-full bg-white text-xl text-[#17352b] shadow-sm" aria-label={dark ? "Use light theme" : "Use dark theme"} onClick={() => setDark((value) => !value)}>{dark ? "☾" : "☼"}</button></header>
     <div className="relative z-10 mx-auto flex w-full max-w-[390px] flex-1 flex-col justify-center px-5 pb-20 pt-4 sm:px-0 sm:pb-28">
       <h1 className="text-[38px] font-medium leading-tight tracking-[-.055em]">Welcome back</h1>
       <p className="mt-1 text-sm">Sign in to open your workspace.</p>

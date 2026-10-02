@@ -21,6 +21,17 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-02 - fix: match admin preview branding
+
+`dev` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Set the admin font token to the bundled Google Sans Flex Variable family and pair the black GO mark with a white Preview pill in the login and workspace headers. Use a plain mint login background and remove the remote font import.
+Why: match the supplied references and use the actual font family registered by the bundled font files.
+Verified: browser font inspection confirmed the custom Google Sans Flex face on the admin heading; frontend typecheck and production build passed.
+Open: nothing.
+
+---
+
 ## 2026-10-02 - fix: reconcile audit console with dev
 
 `23-auditor-console` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
