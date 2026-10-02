@@ -32,8 +32,12 @@ public final class SyncCommands {
 
   public record AcknowledgeOperation(UUID operationId) {}
 
+  /** Drop a held operation. The reason is kept with it (rule 8). */
   public record DiscardOperation(UUID operationId, String reason) {}
 
-  /** Reapply against the current version the reviewer has seen. */
-  public record ResolveOperation(UUID operationId, long expectedVersion) {}
+  /**
+   * Settle a held operation as redone. The device queued {@code replacedBy}, the same command on
+   * the current version under a new id, before this one; that redo is applied or held on its own.
+   */
+  public record ResolveOperation(UUID operationId, UUID replacedBy) {}
 }

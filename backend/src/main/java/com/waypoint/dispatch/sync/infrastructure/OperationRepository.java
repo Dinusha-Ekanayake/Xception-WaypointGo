@@ -112,6 +112,34 @@ public class OperationRepository {
         expectedVersion);
   }
 
+  /** Held to dropped, with the owner's reason. Zero rows means a stale version: a conflict. */
+  public void discard(UUID operationId, long expectedVersion, String reason) {
+    database.updateExpectingOneRow(
+        """
+        UPDATE sync.operations
+           SET status = 'DISCARDED', settled_reason = ?, settled_at = now(),
+               row_version = row_version + 1
+         WHERE operation_id = ? AND row_version = ? AND status IN ('CONFLICT', 'REJECTED')
+        """,
+        reason,
+        operationId,
+        expectedVersion);
+  }
+
+  /** Held to redone, naming the operation that carries the redo. */
+  public void resolve(UUID operationId, long expectedVersion, UUID replacedBy) {
+    database.updateExpectingOneRow(
+        """
+        UPDATE sync.operations
+           SET status = 'RESOLVED', replaced_by = ?, settled_at = now(),
+               row_version = row_version + 1
+         WHERE operation_id = ? AND row_version = ? AND status = 'CONFLICT'
+        """,
+        replacedBy,
+        operationId,
+        expectedVersion);
+  }
+
   /** Keyset on (received_at, operation_id), never OFFSET. */
   public List<OperationView> after(Instant receivedAt, UUID operationId, int limit) {
     return database
