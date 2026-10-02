@@ -4,6 +4,17 @@ import type { IsoDate, IsoInstant, IsoTime, Uuid } from "./common.ts";
 
 export type DeliveryOutcome = "PENDING" | "ARRIVED" | "DELIVERED" | "PARTIAL" | "FAILED" | "SKIPPED";
 
+/**
+ * One product of the order and what arrived of it. The product id is the
+ * warehouse's inferred candidate: never show it as a verified SKU.
+ */
+export type DeliveryLineView = {
+  productId: string;
+  orderedUnits: number;
+  /** Null until the delivery is recorded product by product. */
+  deliveredUnits: number | null;
+};
+
 export type RunSheetStopView = {
   deliveryId: Uuid;
   tripId: Uuid;
@@ -27,6 +38,8 @@ export type RunSheetStopView = {
   /** False on a finished stop means proof is still owed. */
   proofCaptured: boolean;
   rowVersion: number;
+  /** The order's products, to record a delivery product by product. */
+  lines: DeliveryLineView[];
 };
 
 export type RunSheetView = {
@@ -64,6 +77,7 @@ export type DeliveryRecordView = {
   /** The server's clock, which decides. */
   serverRecordedAt: IsoInstant;
   rowVersion: number;
+  lines: DeliveryLineView[];
 };
 
 /** The links are signed and stop working at linksExpireAt. */
@@ -114,7 +128,14 @@ export type RecordDelivery = {
   reason: string | null;
   /** What happened to undelivered goods; there is no returns workflow. */
   dispositionNote: string | null;
+  /**
+   * What arrived of each product, to record the delivery product by product.
+   * Name every product of the order. When the products add up to the order's
+   * unit count, deliveredUnits follows from them and may be left null.
+   */
+  lines?: DeliveredLine[];
 };
+export type DeliveredLine = { productId: string; units: number };
 /** With no photo or signature, record why and carry on. */
 export type CaptureProof = {
   deliveryId: Uuid;

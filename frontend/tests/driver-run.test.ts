@@ -42,6 +42,7 @@ function stop(id: string, sequence: number, extra: Partial<RunSheetStopView> = {
     outcome: "PENDING",
     proofCaptured: false,
     rowVersion: 1,
+    lines: [],
     ...extra,
   };
 }

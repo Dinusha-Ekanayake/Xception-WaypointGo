@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.waypoint.dispatch.execution.ExecutionTestConfig.MovableClock;
+import com.waypoint.dispatch.execution.application.ProofRetentionJob;
 import com.waypoint.dispatch.identity.application.AccountAdminUseCase;
 import com.waypoint.dispatch.identity.application.LoginHandler;
 import com.waypoint.dispatch.identity.web.AuthController;
@@ -90,6 +91,7 @@ class ExecutionIntegrationTest {
   @Autowired MovableClock clock;
   @Autowired EventPublisher publisher;
   @Autowired OutboxRelay relay;
+  @Autowired ProofRetentionJob retention;
 
   String depot;
   LocalDate day;
@@ -268,6 +270,24 @@ class ExecutionIntegrationTest {
   }
 
   @Test
+  void aDriverWithDepotScopeStillSeesOnlyTheirOwnVehicle() throws Exception {
+    // demo-accounts grants drivers a depot. Depot-wide reads are for the depot's
+    // staff: a driver's scope stays one vehicle on one date (EXE-13).
+    accounts.grantDepot(otherDriver, depot);
+
+    JsonNode live = json(read(otherDriver, "/api/execution/run-sheets?date=" + day + "&depot=" + depot, 200));
+    for (JsonNode sheet : live) {
+      assertEquals(otherVehicleId, sheet.get("vehicleId").asText(), "another driver's vehicle is not visible");
+    }
+    read(otherDriver, "/api/execution/deliveries/" + stopA, 404);
+    read(otherDriver, "/api/execution/deliveries?outlet=" + OUTLET + "&date=" + day, 403);
+
+    // The depot's dispatcher is unaffected.
+    assertEquals(3, json(read(dispatcher, "/api/execution/run-sheets?date=" + day + "&depot=" + depot, 200))
+        .get(0).get("stops").size());
+  }
+
+  @Test
   void rowLevelSecurityHidesAStopFromAnActorWithNoScope() {
     UUID nobody = UUID.randomUUID();
     assertTrue(
@@ -372,6 +392,33 @@ class ExecutionIntegrationTest {
     // The failed delivery is an issue for the dispatcher, raised from the event (EXE-07).
     JsonNode issues = json(read(dispatcher, "/api/issues/by-subject?type=order&id=" + orderB, 200));
     assertEquals(1, issues.size(), issues.toString());
+  }
+
+  @Test
+  void aPartialDeliveryIsRecordedProductByProductAndTheTotalFollows() throws Exception {
+    // Decision 2026-10-01: a dispute can say which product was short.
+    JsonNode lines = runSheet(driver).get("stops").get(0).get("lines");
+    assertEquals(1, lines.size(), lines.toString());
+    assertEquals("P-1", lines.get(0).get("productId").asText());
+    assertEquals(40, lines.get(0).get("orderedUnits").asInt());
+    assertTrue(lines.get(0).get("deliveredUnits").isNull());
+
+    at("05:30");
+    send(driver, "delivery:RecordArrival", 1L, stop(stopA), 200);
+    send(driver, "delivery:Record", 2L, withLines(stopA, "DELIVERED", "[{\"productId\":\"P-1\",\"units\":38}]"), 409);
+    send(driver, "delivery:Record", 2L, withLines(stopA, "PARTIAL", "[{\"productId\":\"P-9\",\"units\":38}]"), 422);
+    send(driver, "delivery:Record", 2L, withLines(stopA, "PARTIAL", "[{\"productId\":\"P-1\",\"units\":41}]"), 409);
+    send(driver, "delivery:Record", 2L, withLines(stopA, "PARTIAL", "[{\"productId\":\"P-1\",\"units\":38}]"), 200);
+
+    JsonNode view = json(read(driver, "/api/execution/deliveries/" + stopA, 200));
+    assertEquals(38, view.get("deliveredUnits").asInt(), "the total follows from the products");
+    assertEquals(38, view.get("lines").get(0).get("deliveredUnits").asInt());
+    assertEquals(38, payload("delivery.completed", stopA).get("deliveredUnits").asInt());
+
+    // A failed stop delivers nothing, so it names no products.
+    send(driver, "delivery:Record", 1L,
+        "{\"deliveryId\":\"" + stopB + "\",\"outcome\":\"FAILED\",\"reason\":\"refused\","
+            + "\"dispositionNote\":\"On the vehicle\",\"lines\":[{\"productId\":\"P-3\",\"units\":0}]}", 422);
   }
 
   @Test
@@ -543,6 +590,47 @@ class ExecutionIntegrationTest {
 
     assertTrue(runSheet(driver).get("stops").get(0).get("proofCaptured").asBoolean());
     assertEquals("DELIVERED", json(read(driver, "/api/execution/deliveries/" + stopA, 200)).get("outcome").asText());
+
+    // Kept in the database by default (decision 2026-10-01), not on one host's disk.
+    Map<String, Object> content = proofContent(photo);
+    assertArrayEquals(PNG, (byte[]) content.get("content"));
+  }
+
+  @Test
+  void proofPastItsRetentionIsClearedButStaysOnRecord() throws Exception {
+    // P-14: the bytes go; the row, its size and its hash stay.
+    at("05:30");
+    send(driver, "delivery:RecordArrival", 1L, stop(stopA), 200);
+    send(driver, "delivery:Record", 2L, record(stopA, "DELIVERED", null, null, null), 200);
+    UUID photo = UUID.randomUUID();
+    upload(driver, stopA, photo, "photo", PNG, 200);
+    send(driver, "delivery:CaptureProof", 3L, proof(stopA, photo, null, "N. Perera", null), 200);
+    String link = json(read(dispatcher, "/api/execution/deliveries/" + stopA + "/proof", 200)).get("photoUrl").asText();
+
+    database.asSystem(
+        ModuleRole.EXECUTION,
+        () -> {
+          database.update(
+              "UPDATE execution.attachments SET retain_until = ? WHERE attachment_id = ?",
+              java.sql.Date.valueOf(day.minusDays(1)), photo);
+        });
+    retention.run(clock.now());
+    retention.run(clock.now());
+
+    Map<String, Object> content = proofContent(photo);
+    assertEquals(null, content.get("content"));
+    assertTrue(content.get("purged_at") != null);
+    Map<String, Object> attachment = database.asSystem(
+        ModuleRole.EXECUTION,
+        () -> database.queryOne(
+            "SELECT sha256, size_bytes, purged_at FROM execution.attachments WHERE attachment_id = ?", photo));
+    assertEquals(PNG.length, ((Number) attachment.get("size_bytes")).intValue(), "still on record");
+    assertTrue(attachment.get("purged_at") != null);
+
+    assertEquals(404, http.perform(get(link)).andReturn().getResponse().getStatus());
+    JsonNode view = json(read(dispatcher, "/api/execution/deliveries/" + stopA + "/proof", 200));
+    assertTrue(view.get("photoUrl").isNull(), "no link to an artifact that is no longer held");
+    assertFalse(view.get("photoPending").asBoolean(), "and not pending: it arrived, and its time is over");
   }
 
   @Test
@@ -775,6 +863,12 @@ class ExecutionIntegrationTest {
         + ",\"reason\":" + quoted(reason) + ",\"dispositionNote\":" + quoted(note) + "}";
   }
 
+  /** A delivery recorded product by product, with the reason and disposition a partial one needs. */
+  private static String withLines(UUID deliveryId, String outcome, String lines) {
+    return "{\"deliveryId\":\"" + deliveryId + "\",\"outcome\":\"" + outcome + "\",\"lines\":" + lines
+        + ",\"reason\":\"Two cartons crushed\",\"dispositionNote\":\"On the vehicle\"}";
+  }
+
   private static String proof(UUID deliveryId, UUID photo, UUID signature, String recipient, String fallback) {
     return "{\"deliveryId\":\"" + deliveryId + "\",\"photoAttachmentId\":" + quoted(photo)
         + ",\"signatureAttachmentId\":" + quoted(signature) + ",\"recipientName\":" + quoted(recipient)
@@ -872,6 +966,15 @@ class ExecutionIntegrationTest {
                 aggregateId, type));
     assertTrue(row != null, "no " + type + " for " + aggregateId);
     return json((String) row.get("payload"));
+  }
+
+  private Map<String, Object> proofContent(UUID attachmentId) {
+    return database.asSystem(
+        ModuleRole.EXECUTION,
+        () -> database.queryOne(
+            "SELECT c.content, c.purged_at FROM execution.proof_content c"
+                + " JOIN execution.attachments a ON a.storage_key = c.storage_key WHERE a.attachment_id = ?",
+            attachmentId));
   }
 
   private Map<String, Object> row(UUID deliveryId) {

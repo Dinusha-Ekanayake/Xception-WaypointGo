@@ -59,7 +59,21 @@ public final class ExecutionViews {
       Optional<Integer> lateMinutes,
       DeliveryOutcome outcome,
       boolean proofCaptured,
-      long rowVersion) {}
+      long rowVersion,
+      List<DeliveryLineView> lines) {
+
+    public RunSheetStopView {
+      lines = List.copyOf(lines);
+    }
+  }
+
+  /**
+   * One product of the order and what arrived of it. The product id is the
+   * warehouse's inferred candidate, never a verified SKU.
+   *
+   * @param deliveredUnits empty until the delivery is recorded product by product
+   */
+  public record DeliveryLineView(String productId, int orderedUnits, Optional<Integer> deliveredUnits) {}
 
   /**
    * @param waitMinutes time spent waiting for an early window to open, kept
@@ -94,7 +108,13 @@ public final class ExecutionViews {
       Optional<UUID> proofId,
       Optional<Instant> clientRecordedAt,
       Instant serverRecordedAt,
-      long rowVersion) {}
+      long rowVersion,
+      List<DeliveryLineView> lines) {
+
+    public DeliveryRecordView {
+      lines = List.copyOf(lines);
+    }
+  }
 
   /**
    * The evidence for one delivery. The links are signed and short-lived: they
