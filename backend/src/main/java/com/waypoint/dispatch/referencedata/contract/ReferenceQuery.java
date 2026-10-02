@@ -67,4 +67,10 @@ public interface ReferenceQuery {
    * known disruption: the supplied series ends, and nothing forecasts it.
    */
   List<RoadConditionView> roadConditions(LocalDate from, LocalDate to);
+
+  /** The depots of the current version, sorted. */
+  List<String> depotCodes();
+
+  /** The brands of the current version, sorted. */
+  List<String> brandCodes();
 }

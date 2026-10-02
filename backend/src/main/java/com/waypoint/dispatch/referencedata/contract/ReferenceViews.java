@@ -54,7 +54,9 @@ public final class ReferenceViews {
       BigDecimal depotToDistrictFreeflowMin,
       BigDecimal interStopFreeflowMin,
       BigDecimal depotToDistrictKm,
-      BigDecimal interStopKm) {}
+      BigDecimal interStopKm,
+      String roadClass,
+      BigDecimal freeFlowKmh) {}
 
   /** A planning allowance, not an observed duration (assumption A-16). */
   public record AllowanceView(String brandCode, String dockType, BigDecimal minutes) {}

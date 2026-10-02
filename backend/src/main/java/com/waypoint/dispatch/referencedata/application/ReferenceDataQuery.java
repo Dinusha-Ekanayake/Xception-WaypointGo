@@ -146,7 +146,9 @@ public class ReferenceDataQuery implements ReferenceQuery {
                     p.depotToDistrictFreeflowMin(),
                     p.interStopFreeflowMin(),
                     p.depotToDistrictKm(),
-                    p.interStopKm()));
+                    p.interStopKm(),
+                    p.roadClass(),
+                    p.freeFlowKmh()));
   }
 
   @Override
@@ -186,6 +188,16 @@ public class ReferenceDataQuery implements ReferenceQuery {
     }
     throw new DomainException(
         ErrorCode.VALIDATION_FAILED, "No operating day found within 14 days of " + from);
+  }
+
+  @Override
+  public List<String> depotCodes() {
+    return snapshot(null).allDepots().stream().map(d -> d.code().value()).sorted().toList();
+  }
+
+  @Override
+  public List<String> brandCodes() {
+    return snapshot(null).brands().stream().sorted().toList();
   }
 
   @Override
