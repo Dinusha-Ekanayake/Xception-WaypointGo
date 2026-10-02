@@ -31,7 +31,7 @@ class NotificationCommandIntegrationTest extends NotificationSupport {
             "notification.on-order-deferred",
             new OrderDeferred(UUID.randomUUID(), UUID.randomUUID(), outlet.outletId(), LocalDate.of(2026, 10, 3),
                 "R-PLN-07", reason, 1));
-    return (UUID) notificationsOf(eventId).get(0).get("notification_id");
+    return notificationIdFor(eventId, manager);
   }
 
   private Instant readAt(UUID notificationId) {

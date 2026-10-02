@@ -90,6 +90,22 @@ public abstract class NotificationSupport extends ReceiptIssuesSupport {
     return notificationsOf(eventId).stream().map(r -> (UUID) r.get("recipient_user_id")).toList();
   }
 
+  /**
+   * What this event told one person. The test database is shared, and every test
+   * class adds people to the same outlet and depot, so an event reaches all of
+   * them: a test speaks only for the people it created.
+   */
+  protected Map<String, Object> notificationFor(UUID eventId, Person who) {
+    return notificationsOf(eventId).stream()
+        .filter(r -> who.id().equals(r.get("recipient_user_id")))
+        .findFirst()
+        .orElseThrow(() -> new AssertionError(who.email() + " was not notified of " + eventId));
+  }
+
+  protected UUID notificationIdFor(UUID eventId, Person who) {
+    return (UUID) notificationFor(eventId, who).get("notification_id");
+  }
+
   protected List<Map<String, Object>> deliveriesOf(UUID notificationId) {
     return database.asSystem(
         ModuleRole.NOTIFICATION,

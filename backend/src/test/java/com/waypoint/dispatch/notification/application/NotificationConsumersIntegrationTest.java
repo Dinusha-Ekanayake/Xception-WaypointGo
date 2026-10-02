@@ -50,11 +50,12 @@ class NotificationConsumersIntegrationTest extends NotificationSupport {
   void aDeferralReachesTheStoreOnceInTheInboxWithItsReason() {
     UUID eventId = deliver("notification.on-order-deferred", deferred(outlet));
 
-    List<Map<String, Object>> written = notificationsOf(eventId);
-    assertEquals(List.of(manager.id()), recipientsOf(eventId));
-    assertEquals("Order deferred", written.get(0).get("title"));
-    assertEquals("Your order planned for 2026-10-03 was deferred: vehicle capacity", written.get(0).get("body"));
-    List<Map<String, Object>> deliveries = deliveriesOf((UUID) written.get(0).get("notification_id"));
+    Map<String, Object> mine = notificationFor(eventId, manager);
+    assertFalse(recipientsOf(eventId).contains(stranger.id()), "another outlet's manager");
+    assertFalse(recipientsOf(eventId).contains(dispatcher.id()), "no depot rule for a deferral");
+    assertEquals("Order deferred", mine.get("title"));
+    assertEquals("Your order planned for 2026-10-03 was deferred: vehicle capacity", mine.get("body"));
+    List<Map<String, Object>> deliveries = deliveriesOf((UUID) mine.get("notification_id"));
     assertEquals(1, deliveries.size(), "no device subscribed, so the inbox is the only channel");
     assertEquals("in_app", deliveries.get(0).get("channel"));
     assertEquals("delivered", deliveries.get(0).get("status"));
@@ -64,6 +65,8 @@ class NotificationConsumersIntegrationTest extends NotificationSupport {
   void aReplayedEventWritesNothingNew() {
     OrderDeferred event = deferred(outlet);
     UUID eventId = deliver("notification.on-order-deferred", event);
+    int written = notificationsOf(eventId).size();
+    notificationFor(eventId, manager);
     redeliver("notification.on-order-deferred", eventId, event, Optional.empty());
 
     // Past the consumer inbox too: applying the same event twice is still harmless.
@@ -81,14 +84,14 @@ class NotificationConsumersIntegrationTest extends NotificationSupport {
                 new EventEnvelope<>(eventId, event.type(), 1, Instant.now(), "test", Optional.empty(),
                     Optional.empty(), event)));
 
-    assertEquals(1, notificationsOf(eventId).size());
+    assertEquals(written, notificationsOf(eventId).size());
   }
 
   @Test
   void whoeverCausedTheEventIsNotTold() {
     UUID eventId = deliver("notification.on-order-deferred", deferred(outlet), manager.id());
 
-    assertTrue(notificationsOf(eventId).isEmpty());
+    assertFalse(recipientsOf(eventId).contains(manager.id()));
   }
 
   @Test
@@ -138,7 +141,8 @@ class NotificationConsumersIntegrationTest extends NotificationSupport {
         deliver("notification.on-warehouse-order-status-changed",
             new WarehouseOrderStatusChanged(order.orderId(), Optional.empty(), "shipped", Optional.empty()));
 
-    assertEquals(List.of(manager.id()), recipientsOf(shortId));
+    assertTrue(recipientsOf(shortId).contains(manager.id()));
+    assertFalse(recipientsOf(shortId).contains(stranger.id()));
     assertTrue(recipientsOf(shippedId).isEmpty());
   }
 
@@ -190,12 +194,12 @@ class NotificationConsumersIntegrationTest extends NotificationSupport {
     UUID subscription = subscribe(manager, endpoint());
 
     UUID eventId = deliver("notification.on-order-deferred", deferred(outlet));
-    UUID notificationId = (UUID) notificationsOf(eventId).get(0).get("notification_id");
+    UUID notificationId = notificationIdFor(eventId, manager);
     Map<String, Object> queued = push(notificationId);
     assertEquals("pending", queued.get("status"), "nothing leaves the process inside the consumer (R-NOT-05)");
     assertEquals(subscription, queued.get("subscription_id"));
 
-    pushJob.runAt(Instant.now().plusSeconds(1));
+    attempt(notificationId, Instant.now().plusSeconds(1));
 
     assertEquals("sent", push(notificationId).get("status"));
   }
@@ -205,12 +209,12 @@ class NotificationConsumersIntegrationTest extends NotificationSupport {
     subscribe(manager, endpoint());
     push.answer = PushResult.RETRYABLE;
     UUID notificationId =
-        (UUID) notificationsOf(deliver("notification.on-order-deferred", deferred(outlet))).get(0).get("notification_id");
+        notificationIdFor(deliver("notification.on-order-deferred", deferred(outlet)), manager);
 
     Instant at = Instant.now();
     for (int run = 1; run <= 6; run++) {
       at = at.plus(Duration.ofDays(1));
-      pushJob.runAt(at);
+      attempt(notificationId, at);
       Map<String, Object> d = push(notificationId);
       assertEquals(run, ((Number) d.get("attempts")).intValue());
       assertEquals(run < 6 ? "failed" : "dead", d.get("status"), "after run " + run);
@@ -226,15 +230,15 @@ class NotificationConsumersIntegrationTest extends NotificationSupport {
     UUID subscription = subscribe(manager, endpoint());
     push.answer = PushResult.GONE;
     UUID first =
-        (UUID) notificationsOf(deliver("notification.on-order-deferred", deferred(outlet))).get(0).get("notification_id");
+        notificationIdFor(deliver("notification.on-order-deferred", deferred(outlet)), manager);
 
-    pushJob.runAt(Instant.now().plusSeconds(1));
+    attempt(first, Instant.now().plusSeconds(1));
 
     assertEquals("dead", push(first).get("status"));
     assertEquals(1, ((Number) push(first).get("attempts")).intValue(), "NOT-01: not retried");
     assertEquals("expired", subscriptionStatus(subscription));
     UUID second =
-        (UUID) notificationsOf(deliver("notification.on-order-deferred", deferred(outlet))).get(0).get("notification_id");
+        notificationIdFor(deliver("notification.on-order-deferred", deferred(outlet)), manager);
     assertTrue(
         deliveriesOf(second).stream().noneMatch(d -> d.get("channel").equals("push")),
         "an expired subscription gets nothing new");
@@ -247,11 +251,22 @@ class NotificationConsumersIntegrationTest extends NotificationSupport {
 
     UUID eventId = deliver("notification.on-order-deferred", deferred(outlet));
 
-    UUID notificationId = (UUID) notificationsOf(eventId).get(0).get("notification_id");
+    UUID notificationId = notificationIdFor(eventId, manager);
     assertEquals(List.of("in_app"), deliveriesOf(notificationId).stream().map(d -> d.get("channel")).toList());
     assertEquals(
         "push is not configured on this server",
         read(manager, "/api/notifications/push-config", 200).get("reason").asText());
+  }
+
+  /**
+   * Runs the push job until it has tried this push once more. The shared test
+   * database holds other people's due pushes too, and one run takes a batch.
+   */
+  private void attempt(UUID notificationId, Instant at) {
+    int before = ((Number) push(notificationId).get("attempts")).intValue();
+    for (int run = 0; run < 20 && ((Number) push(notificationId).get("attempts")).intValue() == before; run++) {
+      pushJob.runAt(at);
+    }
   }
 
   private Map<String, Object> push(UUID notificationId) {
