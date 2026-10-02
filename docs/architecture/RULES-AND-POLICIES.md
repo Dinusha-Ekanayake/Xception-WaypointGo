@@ -213,6 +213,7 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-PLN-26 | **Frozen goods.** The schema allows `frozen`; the supplied data contains only `ambient` and `chilled` | Treat `frozen` as reefer-requiring, identically to `chilled` |
 | R-PLN-27 | **Balanced routes without unnecessary looping** (team) | Interpreted as: minimise stop count variance across trips in a district, and never revisit a district within one trip. Not a hard constraint |
 | R-PLN-28 | **Published plan immutability** | A published plan is never edited. A change creates a new version that supersedes it |
+| R-PLN-32 | **Improving a plan never trades priority** (issue #92). The engine's second pass plans the reefers again as a whole | A changed plan is kept only when it is better **by rank**: the highest ranked order that only one of the two plans serves decides (R-PLN-21). So no order is deferred to serve a lower ranked one, and the pass can never make a plan worse. It stops on a fixed node budget that is part of the engine version, so the same inputs give the same plan on any machine; the clock is a safety stop and the plan says when it fired. Deferrals are explained against the final plan (R-PLN-19) |
 
 ## 4. Loading
 
@@ -390,6 +391,7 @@ One rule, one enforcement point, so a change has one home.
 | R-PLN-01 to 12 | Planning constraint registry | Property tests plus `check_allocation.py` on the real submission |
 | R-PLN-13 to 20 | Planning constraint registry | Property tests |
 | R-PLN-21 to 28 | Priority policy and publication gate, versioned | Domain unit tests |
+| R-PLN-32 | Improvement pass keeps rank | `ScarceFleetReplanTest`, `PeakDayAllocationTest.theSecondPassServesMoreAndEveryOrderItDropsIsOutrankedByOneItAdds` |
 | R-LOD-* | Loading domain and departure gate | Integration tests |
 | R-EXE-* | Execution domain and offline queue | Browser tests |
 | R-RCP-* | Receipt domain, `ReceiptAutoCloseJob`, `ReceiptAnswerHandler` | Domain unit tests, integration tests with the job run at chosen instants |

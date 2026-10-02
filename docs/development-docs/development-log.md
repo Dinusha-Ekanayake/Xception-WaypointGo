@@ -62,6 +62,14 @@ Home shows the vehicle, the arrival time and the loading shortfall (read from `G
 Why: the store screens matched Figma's look but not its content. Everything that has a backend today is now on screen; the rest (driver name and ETA, notifications, calls, voice message, handover PIN, live map) is built in later phases and says "not available yet" until then.
 Verified: `npm run typecheck`, `npm test` (51 passed), `npm run build`; new `playwright.store.config.ts` with `tests/e2e-store/` (6 passed).
 Open: Phases 2 to 5 of the plan (Execution ETA and driver, Notification #14, handover PIN, calls and voice message); the live map is skipped for now. Issues are read per order, so a manager with many recent orders makes many small reads: a store-scoped issue list would be cheaper.
+## 2026-10-03 - feat(planning): re-plan the reefers after the first pass (issue #92)
+
+`feat/engine-improvement` · @Oxshadha
+
+A second engine pass, `ScarceFleetReplan`, clears the reefer days, lists every feasible day of one or two chilled trips through the registry and chooses one per reefer by rank, then places the rest by the first pass's insertion (now shared in `CheapestInsertion`). It is kept only when better by rank (R-PLN-32), is deterministic on a fixed node budget, and its summary is stored on the run and shown on the Plan screen. S1: 70 to 73 served, chilled 78.7 to 109.2 m³, no chilled order closing before 08:00 left. Details in the [walkthrough](../issues/092-engine-improvement/WALKTHROUGH.md).
+Why: the greedy spent the reefers' 270 Fresh minutes on small far loads; one-order moves could not fix it.
+Verified: `mvn verify` against a dedicated database, 731 of 732 pass; the one failure is `IdentityHardeningIntegrationTest` running `SET ROLE` with a local owner name containing dots, unrelated. `check_allocation.py` passes; `npm test` 55, typecheck, build, dispatcher Playwright 11.
+Open: serving more chilled by count would need a policy change to R-PLN-21. Vans need no pass of their own (R-PLN-03 already routes van-only outlets, nothing to gain on S1); a day with more than 62 chilled candidates is searched on the top 62 and says so on screen.
 
 ---
 
