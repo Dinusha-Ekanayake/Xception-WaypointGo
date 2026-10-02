@@ -4,6 +4,7 @@
 // is the source of truth.
 
 export type * from "./common.ts";
+export type * from "./identity.ts";
 export type * from "./referencedata.ts";
 export type * from "./ordering.ts";
 export type * from "./planning.ts";

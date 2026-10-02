@@ -38,12 +38,19 @@ public class SessionActorResolver implements ActorResolver {
 
   @Override
   public Optional<Actor> resolve(HttpServletRequest request) {
+    String mcp = (String) request.getAttribute(McpCredentialFilter.CREDENTIAL);
+    if (mcp != null) {
+      return sessions.resolveMcp(mcp).map(sessions::actorOf);
+    }
     String token = cookie.read(request);
     return sessions.resolve(token).map(sessions::actorOf);
   }
 
   /** Only loading reads may use the PIN-switched operator as their actor. */
   public Optional<Actor> resolveLoading(HttpServletRequest request) {
+    if (request.getAttribute(McpCredentialFilter.CREDENTIAL) != null) {
+      return resolve(request);
+    }
     String token = cookie.read(request);
     return sessions.resolve(token).map(session ->
         operators.operatorOf(token)

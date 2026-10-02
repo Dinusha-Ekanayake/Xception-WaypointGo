@@ -68,6 +68,7 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL to the pooled connection string}
       COOKIE_SECURE: "1"
+      MCP_ENABLED: ${MCP_ENABLED:-false}
       WAREHOUSE_BASE_URL: ${WAREHOUSE_BASE_URL:-https://triathon-warehouse-simple.vercel.app/api/v1}
       WAREHOUSE_API_KEY: ${WAREHOUSE_API_KEY:-}
       WAREHOUSE_TIMEOUT_MS: ${WAREHOUSE_TIMEOUT_MS:-2000}

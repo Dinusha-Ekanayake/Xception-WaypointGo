@@ -21,6 +21,17 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-02 - feat: connect personal read-only MCP clients (issue #87)
+
+`feat/readonly-mcp` · @kavindamihiran
+
+Identity issues dedicated, revocable MCP sessions; the local stdio adapter exposes 12 curated tools through existing policy and SQL scope. The feature defaults off. All six roles can connect without gaining new business permissions; loaders keep their own identity. Details and setup are in the [walkthrough](../issues/087-readonly-mcp/WALKTHROUGH.md).
+Why: authorized users need assistant access to recorded facts, with no command or upload path and no copied browser cookie.
+Verified: rebased onto `dev` at `ae6529f`, isolated PostgreSQL backend verify (626 passed, no skips); MCP build and 10 SDK tests; frontend 47 tests, typecheck, build and three shell browser tests. Final branch checks are recorded in the walkthrough.
+Open: #87 remains open for bounded work discovery, custody composition and installed desktop-client validation. No remote MCP transport is built.
+
+---
+
 ## 2026-10-02 - fix: show the admin sample console on production
 
 `fix/admin-console-on-production` · @kavindamihiran

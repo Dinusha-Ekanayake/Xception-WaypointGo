@@ -74,11 +74,22 @@ public class LoginHandler {
    */
   public String login(
       String email, String password, UUID deviceId, String sourceIp, String previousToken) {
+    return login(email, password, deviceId, sourceIp, previousToken, false);
+  }
+
+  /** Personal credentials only: no device or PIN-switched supervisor identity. */
+  public String loginMcp(String email, String password, String sourceIp) {
+    return login(email, password, null, sourceIp, null, true);
+  }
+
+  private String login(
+      String email, String password, UUID deviceId, String sourceIp, String previousToken,
+      boolean mcpReadOnly) {
     String normalised = email == null ? "" : email.trim().toLowerCase(Locale.ROOT);
 
     String token =
         database.asModule(
-            ModuleRole.IAM, null, () -> attempt(normalised, password, deviceId, sourceIp, previousToken));
+            ModuleRole.IAM, null, () -> attempt(normalised, password, deviceId, sourceIp, previousToken, mcpReadOnly));
     if (token == null) {
       metrics.increment("waypoint.login.failed");
       // One message for every failure mode. Anything more specific is a hint.
@@ -90,7 +101,8 @@ public class LoginHandler {
 
   /** The token, or null for a refused sign-in whose record must still commit. */
   private String attempt(
-      String email, String password, UUID deviceId, String sourceIp, String previousToken) {
+      String email, String password, UUID deviceId, String sourceIp, String previousToken,
+      boolean mcpReadOnly) {
     Instant now = clock.now();
     throttle.assertNotLockedOut(email, sourceIp, now);
 
@@ -120,7 +132,7 @@ public class LoginHandler {
     if (previousToken != null && !previousToken.isBlank()) {
       sessions.revokeInTransaction(previousToken);
     }
-    String token = sessions.issue(userId, deviceId);
+    String token = mcpReadOnly ? sessions.issue(userId, null, true) : sessions.issue(userId, deviceId);
     audit.record(
         AuditEntry.allowed(userId, deviceId, "iam:Login", "wpt:iam:user:" + userId, "signed in"));
     return token;
