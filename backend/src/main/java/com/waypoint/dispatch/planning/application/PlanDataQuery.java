@@ -6,6 +6,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import com.waypoint.dispatch.planning.contract.PlanQuery;
 import com.waypoint.dispatch.planning.contract.PlanViews.AllocationDecision;
 import com.waypoint.dispatch.planning.contract.PlanViews.AllocationView;
+import com.waypoint.dispatch.planning.contract.PlanViews.ImprovementView;
 import com.waypoint.dispatch.planning.contract.PlanViews.ConstraintResultView;
 import com.waypoint.dispatch.planning.contract.PlanViews.DeferralView;
 import com.waypoint.dispatch.planning.contract.PlanViews.FuelView;
@@ -361,7 +362,11 @@ public class PlanDataQuery implements PlanQuery {
         withoutPredictor(run.planId()),
         trips,
         allocations.stream().map(PlanDataQuery::toView).toList(),
-        run.rowVersion());
+        run.rowVersion(),
+        run.engine(),
+        run.improvement()
+            .map(i -> new ImprovementView(i.greedyServed(), i.greedyDeferred(), i.served(), i.deferred(), i.improved(),
+                i.chilledVolumeGainedM3(), i.stoppedBy().name(), i.chilledCandidates(), i.chilledSearched())));
   }
 
   /**

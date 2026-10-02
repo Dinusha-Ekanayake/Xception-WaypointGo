@@ -8,6 +8,7 @@ import com.waypoint.dispatch.planning.contract.PlanViews.PlanStatus;
 import com.waypoint.dispatch.planning.domain.ConstraintResult;
 import com.waypoint.dispatch.planning.domain.PriorityPolicy;
 import com.waypoint.dispatch.planning.domain.RuleSet;
+import com.waypoint.dispatch.planning.domain.ScarceFleetReplan;
 import com.waypoint.dispatch.platform.db.Database;
 import java.math.BigDecimal;
 import java.sql.Date;
@@ -44,7 +45,8 @@ public class JdbcPlanRepository {
       """
       plan_id, depot_code, service_date, plan_version, row_version, status, reference_version_id,
       rule_set_id, priority_policy_version_id, supersedes, revision_reason, demand_fingerprint, stale,
-      partial, engine, planned_without_predictor, generated_at, generated_by, published_at, published_by
+      partial, engine, improvement::text AS improvement, planned_without_predictor, generated_at, generated_by,
+      published_at, published_by
       """;
 
   private static final TypeReference<List<Map<String, Object>>> CHECKS = new TypeReference<>() {};
@@ -81,6 +83,7 @@ public class JdbcPlanRepository {
       boolean stale,
       boolean partial,
       String engine,
+      Optional<ScarceFleetReplan.Summary> improvement,
       boolean plannedWithoutPredictor,
       Instant generatedAt,
       UUID generatedBy,
@@ -449,9 +452,9 @@ public class JdbcPlanRepository {
         INSERT INTO planning.runs
             (plan_id, depot_code, service_date, plan_version, row_version, status,
              reference_version_id, rule_set_id, priority_policy_version_id, supersedes, revision_reason,
-             demand_fingerprint, stale, partial, engine, planned_without_predictor,
+             demand_fingerprint, stale, partial, engine, improvement, planned_without_predictor,
              generated_at, generated_by, command_id, published_at, published_by, updated_at)
-        VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?, ?)
         """,
         run.planId(),
         run.depotCode(),
@@ -467,6 +470,7 @@ public class JdbcPlanRepository {
         run.stale(),
         run.partial(),
         run.engine(),
+        run.improvement().map(this::write).orElse(null),
         run.plannedWithoutPredictor(),
         Timestamp.from(run.generatedAt()),
         run.generatedBy(),
@@ -709,16 +713,32 @@ public class JdbcPlanRepository {
     }
   }
 
+  private String write(ScarceFleetReplan.Summary summary) {
+    try {
+      return json.writeValueAsString(summary);
+    } catch (JsonProcessingException e) {
+      throw new IllegalStateException("cannot write the improvement summary", e);
+    }
+  }
+
+  private ScarceFleetReplan.Summary improvement(String text) {
+    try {
+      return json.readValue(text, ScarceFleetReplan.Summary.class);
+    } catch (JsonProcessingException e) {
+      throw new IllegalStateException("cannot read the improvement summary", e);
+    }
+  }
+
   private Optional<RunRow> oneRun(String sql, Object... params) {
     List<RunRow> rows = runs(sql, params);
     return rows.isEmpty() ? Optional.empty() : Optional.of(rows.get(0));
   }
 
   private List<RunRow> runs(String sql, Object... params) {
-    return database.query(sql, params).stream().map(JdbcPlanRepository::run).toList();
+    return database.query(sql, params).stream().map(this::run).toList();
   }
 
-  private static RunRow run(Map<String, Object> row) {
+  private RunRow run(Map<String, Object> row) {
     return new RunRow(
         (UUID) row.get("plan_id"),
         (String) row.get("depot_code"),
@@ -734,6 +754,7 @@ public class JdbcPlanRepository {
         (Boolean) row.get("stale"),
         (Boolean) row.get("partial"),
         (String) row.get("engine"),
+        Optional.ofNullable((String) row.get("improvement")).map(this::improvement),
         (Boolean) row.get("planned_without_predictor"),
         ((Timestamp) row.get("generated_at")).toInstant(),
         (UUID) row.get("generated_by"),

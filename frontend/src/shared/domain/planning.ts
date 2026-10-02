@@ -77,6 +77,25 @@ export type PlanView = {
   trips: TripView[];
   allocations: AllocationView[];
   rowVersion: number;
+  /** The engine that produced the run, for example "priority-insertion-v1+scarce-replan-v1". */
+  engine: string;
+  /** What the engine's second pass achieved over its first; null when no second pass ran. */
+  improvement: ImprovementView | null;
+};
+
+/** Issue #92: the reefers planned again as a whole, kept only when better by rank (R-PLN-32). */
+export type ImprovementView = {
+  firstPassServed: number;
+  firstPassDeferred: number;
+  served: number;
+  deferred: number;
+  improved: boolean;
+  chilledVolumeGainedM3: Decimal;
+  /** NONE, or NODES or CLOCK when the search stopped early and kept the best it had. */
+  stoppedBy: "NONE" | "NODES" | "CLOCK";
+  /** Chilled orders the reefers could have taken, and how many the search ranked; the rest were placed one at a time. */
+  chilledCandidates: number;
+  chilledSearched: number;
 };
 
 export type DeferralView = {

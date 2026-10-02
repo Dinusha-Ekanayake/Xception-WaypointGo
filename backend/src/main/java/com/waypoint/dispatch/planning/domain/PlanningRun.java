@@ -32,6 +32,8 @@ import java.util.UUID;
  *     supersedes; empty for a first plan
  * @param deferredBy who deferred each deferred order: the engine's actor or the
  *     dispatcher (rule 8)
+ * @param improvement what the engine's second pass achieved over its first,
+ *     kept through every version of the draft (issue #92)
  */
 public record PlanningRun(
     UUID planId,
@@ -46,6 +48,7 @@ public record PlanningRun(
     boolean stale,
     boolean partial,
     String engine,
+    Optional<ScarceFleetReplan.Summary> improvement,
     List<VehicleDay> days,
     List<OrderDecision> decisions,
     Map<UUID, UUID> deferredBy,
@@ -83,11 +86,12 @@ public record PlanningRun(
         .forEach(d -> by.put(d.orderId(), engineActor));
     return new PlanningRun(
         planId, depotCode, serviceDate, planVersion, PlanStatus.DRAFT, stamps, supersedes, Optional.empty(),
-        demandFingerprint, false, result.partial(), result.engine(), result.days(), result.decisions(), by, 1);
+        demandFingerprint, false, result.partial(), result.engine(), result.improvement(), result.days(),
+        result.decisions(), by, 1);
   }
 
   public AllocationResult result() {
-    return new AllocationResult(days, decisions, partial, engine);
+    return new AllocationResult(days, decisions, partial, engine, improvement);
   }
 
   public Optional<OrderDecision> decisionFor(UUID orderId) {
@@ -470,6 +474,6 @@ public record PlanningRun(
     }
     return new PlanningRun(
         nextPlanId, depotCode, serviceDate, nextVersion, PlanStatus.DRAFT, nextStamps, nextSupersedes,
-        nextReason, nextFingerprint, false, partial, engine, nextDays, refreshed, nextDeferredBy, 1);
+        nextReason, nextFingerprint, false, partial, engine, improvement, nextDays, refreshed, nextDeferredBy, 1);
   }
 }

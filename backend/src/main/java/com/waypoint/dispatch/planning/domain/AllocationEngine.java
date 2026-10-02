@@ -63,13 +63,24 @@ public interface AllocationEngine {
     }
   }
 
-  /** @param partial the engine ran out of time; the rest were deferred, never dropped (PLN-11) */
+  /**
+   * @param partial the engine ran out of time; the rest were deferred, never dropped (PLN-11)
+   * @param improvement what a second pass over the first plan achieved, when one ran (issue #92)
+   */
   record AllocationResult(
-      List<VehicleDay> days, List<OrderDecision> decisions, boolean partial, String engine) {
+      List<VehicleDay> days,
+      List<OrderDecision> decisions,
+      boolean partial,
+      String engine,
+      Optional<ScarceFleetReplan.Summary> improvement) {
 
     public AllocationResult {
       days = days.stream().filter(d -> !d.trips().isEmpty()).toList();
       decisions = List.copyOf(decisions);
+    }
+
+    public AllocationResult(List<VehicleDay> days, List<OrderDecision> decisions, boolean partial, String engine) {
+      this(days, decisions, partial, engine, Optional.empty());
     }
 
     public Optional<OrderDecision> decisionFor(UUID orderId) {

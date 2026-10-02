@@ -49,6 +49,8 @@ export function draftPlan(version = 1): PlanView {
     planId: `plan-v${version}`, depotCode: DEPOT, serviceDate: "2027-03-01", planVersion: version, status: "DRAFT", referenceVersionId: "ref",
     ruleSetVersionId: "rules", priorityPolicyVersionId: "policy", supersedes: null, publishedAt: null, plannedWithoutPredictor: true,
     trips: [t], allocations: [served("order-1", t.tripId), served("order-2", t.tripId), deferred("order-3")], rowVersion: 1,
+    engine: "priority-insertion-v1+scarce-replan-v1",
+    improvement: { firstPassServed: 1, firstPassDeferred: 2, served: 2, deferred: 1, improved: true, chilledVolumeGainedM3: "7.9", stoppedBy: "NONE", chilledCandidates: 2, chilledSearched: 2 },
   };
 }
 
