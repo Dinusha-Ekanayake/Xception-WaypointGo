@@ -22,7 +22,7 @@ All paths are under `backend/src/main/java/com/waypoint/dispatch/` unless they s
 | infrastructure | `planning/infrastructure/` | `PriorityInsertionEngine`, `ValidatingEngine`, `PlanningEngineConfiguration`, `JdbcPlanRepository`, `PeakDayScenario` |
 | web | `planning/web/PlanController.java` | Reads only, under `/api/plans` |
 | schema | `migrations/20261001T0400_planning_plans.sql`, `T0500_planning_actions_implemented.sql`, `T0600_planning_trip_identity.sql` | Tables, row-level security, immutability triggers, seeds, catalogue flags |
-| CI | `.github/workflows/ci.yml`, `tools/check_allocation/` | The official validator, vendored unmodified, judges the engine on the peak day |
+| CI | `.github/workflows/checks.yml` (was `ci.yml` until the two were merged), `tools/check_allocation/` | The official validator, vendored unmodified, judges the engine on the peak day |
 
 Outside the module, `ReferenceQuery.vehiclesOfDepot` was added; the change is additive. Without it, an order only a vehicle in the workshop could carry would look unservable rather than deferred. `FoundationIntegrationTest` now retires reference versions instead of deleting them, because a plan holds a foreign key to the version it stamped.
 

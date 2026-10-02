@@ -21,6 +21,17 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-02 - ci: run the tests once per change, in one workflow
+
+`ci/one-checks-workflow` · @kavindamihiran
+
+The official Task 2B validator step moved from `ci.yml` into the backend job of `checks.yml`, and `ci.yml` is deleted.
+Why: both workflows ran the full backend suite on every pull request and again on every push to `dev` and `main`, so one merge ran it four times and a flaky test had twice the chances to fail a run. The validator now also gates both deploys, which `ci.yml` never did.
+Verified: the `Checks` run on this branch's pull request, including the validator step.
+Open: two integration tests fail intermittently on leaked test data (`PlanningCommandIntegrationTest.aGeneratedDraftIsPublishedOnceWithItsEvents`, `ExecutionIntegrationTest.setUp`), no issue yet. `Checks` is not yet a required status on `main` or `dev`.
+
+---
+
 ## 2026-10-02 - fix: let operational commands start with the MCP filter present
 
 `fix/mcp-filter-non-web-start` · @kavindamihiran
