@@ -31,13 +31,13 @@ State words: **built** (merged to `dev` with tests), **partial** (merged, with n
 | Read-only MCP | #87 open | in flight | Dedicated personal sessions and 12 curated stdio tools, merged to `dev` (#93, #94); default off, on in preview. Local stdio clients connect by the guide. Remote Streamable HTTP and personal OAuth consent implemented on `feat/complete-remote-mcp`, awaiting integration. Left: bounded work discovery, custody composition, hosted-client validation and the production release | [connect guide](../../mcp/README.md), [walkthrough](../issues/087-readonly-mcp/WALKTHROUGH.md) |
 | Warehouse integration | #7 closed | built | Polling and matching stand in for a webhook and an idempotency key; the change requests to the warehouse team are open. The chaos drills are manual | [walkthrough](../issues/007-warehouse/WALKTHROUGH.md) |
 | Ordering | #8 closed | built | Partial redelivery (A-24). A cancellation made in the warehouse outside Waypoint is counted, not raised as an issue | [walkthrough](../issues/008-ordering/WALKTHROUGH.md) |
-| Planning | #9 closed | built | What-if runs, rule-set authoring, a replay command, the explanation for an outlet skipped twice (PLN-03), an optimiser. Every plan is `plannedWithoutPredictor = true` until #16 | [walkthrough](../issues/009-planning/WALKTHROUGH.md) |
+| Planning | #9 closed | built | What-if runs, rule-set authoring, a replay command, the explanation for an outlet skipped twice (PLN-03), an optimiser. Learned times stay out of allocation by design (R-ML-05); `plannedWithoutPredictor` now says whether Intelligence scored the published plan with a model (#16) | [walkthrough](../issues/009-planning/WALKTHROUGH.md) |
 | Loading | #10 open | partial | Start, check, shortfall, hand back and release are built. Left: vehicle interchange, dispatcher handover, driver-assignment gating | [walkthrough](../issues/010-loading/WALKTHROUGH.md) |
 | Execution | #12 open | built | A read for the last reported vehicle status. Virus scan. ETA through the #16 estimator once #16 has a travel-time method | [walkthrough](../issues/012-execution/WALKTHROUGH.md) |
 | Receipt and Issues | #13 closed | built | Partial redelivery, shared with Ordering and Warehouse | [walkthrough](../issues/013-receipt-issues/WALKTHROUGH.md) |
 | Sync | #15 closed, #28 open | partial | Batch ingest and acknowledge are built. Left: `sync:Discard` and `sync:Resolve` (they wait on decision D-O: who reviews another person's conflict), Background Sync, queue age telemetry | [log](development-log.md), 2026-10-01 |
 | Notification | #14 open | built (backend) | Each role UI must place its inbox, live badge (`/api/notifications/stream`), push opt-in and service worker `push` handlers (decided on the issue: no shared component). No admin API to publish a routing version. Dock in `trip.released` (R-EXE-08) and next planned date in `order.deferred` wait on Loading and Planning | [walkthrough](../issues/014-notification/WALKTHROUGH.md) |
-| Intelligence | #16 open | not started | Contract only. The deterministic estimator, the serving adapter and the `ml` tables | [MODULES](../architecture/MODULES.md) section 12 |
+| Intelligence | #16 open | built (backend) | The screens: Forecast and late risk (#19), supply probability (#18), model registry (#22). No retraining pipeline (the training export is its input). The VPS needs `git-lfs` once. Road conditions end 2026-06-28, so later dates use the fallback model. Execution ETA still has no travel-time method | [walkthrough](../issues/016-intelligence/WALKTHROUGH.md) |
 
 ### Screens
 
@@ -48,7 +48,7 @@ State words: **built** (merged to `dev` with tests), **partial** (merged, with n
 | Store manager | #18 closed | built, contracts checked against the backend 2026-10-02 | Notifications have a backend (#14) for the screen to place; driver and ETA details, call options and draft orders have none yet. No browser suite of its own | [log](development-log.md), 2026-10-02 |
 | Loader | #20 closed | built, matched to Figma "08 Loader · Phone" light and dark | Sinhala and Tamil are drafts awaiting a native speaker. The notifications bell is not wired yet though its backend exists (#14); issue photo (no Loading upload endpoint). Interchange waits on #10 | [walkthrough](../issues/010-loading/WALKTHROUGH.md) |
 | Driver | #21 open | built | English only. Vehicle pick-up by QR, the inbox, fuel, call and map have no backend and are left out | [walkthrough](../issues/021-driver-ui/WALKTHROUGH.md) |
-| Dispatcher | #19 open | partial | Orders, Plan, Live, Overview, Vehicles with weekly fuel, the Issues inbox and skipped outlets are built. Left: assigning an issue to someone else (no staff read), interchange approval (#10), the sync conflict queue, Forecast (#16) | [walkthrough](../issues/019-dispatcher-ui/WALKTHROUGH.md) |
+| Dispatcher | #19 open | partial | Orders, Plan, Live, Overview, Vehicles with weekly fuel, the Issues inbox and skipped outlets are built. Left: assigning an issue to someone else (no staff read), interchange approval (#10), the sync conflict queue, Forecast and late risk (backend built, #16) | [walkthrough](../issues/019-dispatcher-ui/WALKTHROUGH.md) |
 | Admin console | #22 open | in flight | The admin role shows the interactive sample console after admin sign-in, on preview and production. It runs on mock data and says so on screen; live backend wiring remains open | issue #22 |
 | Auditor console | #23 open | mock UI built on `23-auditor-console` | Overview, searchable activity, security events and event details at `/access-demo`; live API wiring remains open; `audit:Read` now exists (#6) | [UI plan](../issues/022-admin-console/AUDIT-CONSOLE-UI-PLAN.md) |
 
@@ -67,12 +67,12 @@ In dependency order. An item nobody is assigned to on GitHub is free; say so on 
 
 1. **Walk the role flows on production.** Release #83 (2026-10-02) put everything on `dev` at `waypointgo.live` and the six role addresses; nobody has yet walked each role there end to end.
 2. **A fresh-install seed** that leaves one depot-day with a published plan, a released trip and a delivered stop. It unblocks a live browser run for every role and the judge walkthrough. `loading-fixture` and `scripts/seed-scenarios.sql` are partial precedents; the second bypasses the command bus and must not be the model.
-3. **Dispatcher, the rest of #19.** The Issues inbox is built; what is left waits on #10 (interchange), a staff read for assigning to others, and #16 (Forecast).
+3. **Dispatcher, the rest of #19.** The Issues inbox is built; what is left waits on #10 (interchange), a staff read for assigning to others, and the Forecast and late-risk screens, whose backend is now built (#16).
 4. **Notifications in each role UI (#18, #19, #21).** The backend is built (#14): inbox, unread count, live stream, push config and the four commands. Each role places its own inbox and badge, and the push opt-in with its service worker handlers in `scripts/build-sw.mjs`.
 5. **Event backbone, the rest of #6.** Wire the auditor console (#23) to the existing read API; choose the detached-partition archive target and fill the historical audit gaps listed in its walkthrough.
 6. **Loading interchange (#10)**, then its approval screen in #19. Planning's `previewInterchange` already exists.
 7. **Admin console (#22).** The account, scope and policy commands it needs are built; today they are sent from a terminal.
-8. **Intelligence (#16).** Planning works without it and says so on every plan.
+8. **Intelligence screens (#16 backend done).** Show plan late risk and the forecast on the dispatcher, supply probability at the store, and the model registry on the admin console. Install `git-lfs` on the VPS before the first deploy that carries the model service.
 
 ## How a piece of work goes
 

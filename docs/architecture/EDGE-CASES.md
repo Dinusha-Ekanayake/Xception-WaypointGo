@@ -189,6 +189,19 @@ Most of the cases below are instances of nine patterns. Learn the patterns and t
 | NOT-08 | A notification arrives between the person looking and pressing "mark all read" | It stays unread: `MarkAllRead` covers only what was created up to `upTo` (R-NOT-06) | `MarkAllRead` handler | n/a | `NotificationCommandIntegrationTest.markingAllReadLeavesWhatArrivedLaterUnread` |
 | NOT-09 | The live badge's connection drops, or the change happened on another instance | Every listener is re-sent its count every 25 seconds, so a missed signal converges; a client that hears nothing past that shows live updates as paused and polls `/unread-count` (client half: role UIs) | `InboxSignals` | `waypoint.notification.live_listeners` | `NotificationCommandIntegrationTest.theStreamSendsTheUnreadCountOnConnectAndOnChange` |
 
+## 7c. Intelligence
+
+| ID | Trigger | Required behaviour | Enforced in | Detection | Test |
+| --- | --- | --- | --- | --- | --- |
+| ML-01 | The model service is down, times out or answers 5xx | Every stop gets the deterministic estimate, marked degraded with the reason; the plan says it was scored without the predictor; the scoring is tried again while a model is active (P-28). After repeated failures the circuit opens and calls stop for a while | `PlanScoringJob`, `ModelServingAdapter` circuit breaker | `waypoint.ml.fallback{reason}`, `waypoint.ml.circuit_open` | `IntelligenceIntegrationTest.withTheModelServiceDownThePlanIsScoredDeterministicallyAndSaysSo`, `aDegradedPlanIsRescoredOnceTheModelIsBack` |
+| ML-02 | The service serves another model than the one activated | Degraded with the reason naming both; the model's answer is not used (R-ML-04) | `ModelGate` | `waypoint.ml.fallback{reason=version_mismatch}` | `IntelligenceDomainTest.everyOtherCaseIsDegradedWithItsReason`, `IntelligenceIntegrationTest.aServerWithAnotherVersionIsDegradedWithTheReason` |
+| ML-03 | A service date has no road conditions (the supplied series ends 2026-06-28) | The route is scored by the shipped model trained without them, and the scoring records `roadConditions = fallback`. Its cost: log-loss 0.239 / 0.166 instead of 0.152 / 0.129 | Model service | Scoring row `road_conditions` | `ml-server` `test_a_date_without_road_conditions_uses_the_fallback_model` |
+| ML-04 | An outlet or vehicle the model never saw in training | Scored as an unknown category: it still gets a prediction, less sharp. An outlet absent from the reference sent is refused, never silently dropped | Model service | Scoring reason when refused | `ml-server` `test_an_outlet_the_reference_does_not_know_is_refused` |
+| ML-05 | A forecast week lies past the supplied calendar | Days come from the extension policy (R-CAL-03) with no festival; a festival the model knows gets a zero ramp instead of failing | Model service, `ReferenceQuery.calendarDays` | n/a | `ml-server` `test_the_forecast_runs_past_the_supplied_calendar` |
+| ML-06 | A plan is revised while it is being scored | Each published version is scored on its own; the old one keeps its predictions, the new one is queued by `plan.revised` | `IntelligenceConsumers` | `waypoint.ml.scoring_pending` | `IntelligenceIntegrationTest.aRedeliveredPublicationQueuesOneScoring` (once per plan) |
+| ML-07 | A stop's order has no size (weight, volume or temperature missing) | The model scores whole routes, so that route gets the deterministic estimate and the scoring says how many stops it covers | `PlannedRoutes`, `PlanScoringJob` | Scoring reason | `IntelligenceDomainTest.aRouteWithAStopMissingItsOrderIsNotScoredByTheModel` |
+| ML-08 | A model file is altered or missing | The model service refuses to start; the backend degrades (ML-01) | `ml-server` manifest check | Service health | `ml-server` `test_an_altered_model_file_refuses_to_load` |
+
 ## 8. Fleet and vehicles
 
 | ID | Trigger | Required behaviour | Enforced in | Detection | Test |

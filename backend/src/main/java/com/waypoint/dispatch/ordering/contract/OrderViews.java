@@ -88,4 +88,8 @@ public final class OrderViews {
       LocalDate originalRequestedDate,
       int deferralCount,
       long rowVersion) {}
+
+  /** One day of placed demand for a depot and brand (issue #16). */
+  public record DailyVolumeView(
+      LocalDate date, int orders, java.math.BigDecimal totalM3, java.math.BigDecimal chilledM3) {}
 }

@@ -4,6 +4,7 @@ import com.waypoint.dispatch.execution.contract.ExecutionQuery;
 import com.waypoint.dispatch.execution.contract.ExecutionViews.DeliveryRecordView;
 import com.waypoint.dispatch.execution.contract.ExecutionViews.ProofView;
 import com.waypoint.dispatch.execution.contract.ExecutionViews.RunSheetView;
+import com.waypoint.dispatch.execution.contract.ExecutionViews.StopActualView;
 import com.waypoint.dispatch.execution.infrastructure.JdbcDeliveryRepository;
 import com.waypoint.dispatch.execution.infrastructure.JdbcExecutionReads;
 import com.waypoint.dispatch.platform.audit.AuditEntry;
@@ -156,6 +157,69 @@ public class ExecutionDataQuery implements ExecutionQuery {
 
   private static DomainException notFound(UUID deliveryId) {
     return new DomainException(ErrorCode.NOT_FOUND, "No delivery " + deliveryId + " within your scope");
+  }
+
+  @Override
+  public com.waypoint.dispatch.shared.domain.Page<StopActualView> actuals(
+      String depotCode, LocalDate from, LocalDate to, Optional<String> cursor, int limit) {
+    int size = com.waypoint.dispatch.shared.domain.Page.limit(limit);
+    List<String> key = com.waypoint.dispatch.shared.domain.Cursor.decode(cursor.orElse(null), 2);
+    LocalDate afterDate = null;
+    UUID afterId = null;
+    if (!key.isEmpty()) {
+      try {
+        afterDate = LocalDate.parse(key.get(0));
+        afterId = UUID.fromString(key.get(1));
+      } catch (RuntimeException e) {
+        throw com.waypoint.dispatch.shared.domain.Cursor.invalid();
+      }
+    }
+    LocalDate fromDate = afterDate;
+    UUID fromId = afterId;
+    List<StopActualView> rows =
+        read(ambient(), () -> reads.actuals(depotCode, from, to, fromDate, fromId, size + 1)).stream()
+            .map(ExecutionDataQuery::actual)
+            .toList();
+    return com.waypoint.dispatch.shared.domain.Page.fromOverfetch(
+        rows,
+        size,
+        a -> com.waypoint.dispatch.shared.domain.Cursor.encode(a.serviceDate().toString(), a.deliveryId().toString()));
+  }
+
+  /** Service is from its start to completion; the wait before the window is never part of it (EXE-18). */
+  private static StopActualView actual(Map<String, Object> row) {
+    Optional<Instant> started = timestamp(row.get("service_started_at"));
+    Optional<Instant> completed = timestamp(row.get("completed_at"));
+    Optional<java.math.BigDecimal> service =
+        started.isPresent() && completed.isPresent()
+            ? Optional.of(
+                java.math.BigDecimal.valueOf(java.time.Duration.between(started.get(), completed.get()).toSeconds())
+                    .divide(java.math.BigDecimal.valueOf(60), 2, java.math.RoundingMode.HALF_UP))
+            : Optional.empty();
+    return new StopActualView(
+        (UUID) row.get("delivery_id"),
+        (UUID) row.get("order_id"),
+        (String) row.get("outlet_id"),
+        (String) row.get("depot_code"),
+        (String) row.get("vehicle_id"),
+        ((java.sql.Date) row.get("service_date")).toLocalDate(),
+        ((Number) row.get("stop_sequence")).intValue(),
+        ((java.sql.Time) row.get("planned_arrival")).toLocalTime(),
+        ((java.sql.Time) row.get("window_open")).toLocalTime(),
+        ((java.sql.Time) row.get("window_close")).toLocalTime(),
+        timestamp(row.get("arrived_at")),
+        started,
+        completed,
+        Optional.ofNullable((Number) row.get("wait_minutes")).map(Number::intValue),
+        service,
+        Optional.ofNullable((Number) row.get("late_minutes")).map(Number::intValue),
+        com.waypoint.dispatch.execution.contract.ExecutionViews.DeliveryOutcome.valueOf(
+            ((String) row.get("outcome")).toUpperCase(java.util.Locale.ROOT)),
+        (Boolean) row.get("timing_uncertain"));
+  }
+
+  private static Optional<Instant> timestamp(Object value) {
+    return Optional.ofNullable((Timestamp) value).map(Timestamp::toInstant);
   }
 
   private UUID ambient() {

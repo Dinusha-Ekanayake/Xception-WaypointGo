@@ -135,4 +135,31 @@ public final class ExecutionViews {
       Optional<String> signatureUrl,
       boolean signaturePending,
       Instant linksExpireAt) {}
+
+  /**
+   * What happened at one stop, as a model learns from it (issue #16). Waiting
+   * for the window is its own figure, never part of service, so an early
+   * arrival does not teach a long service time (EXE-18).
+   *
+   * @param serviceMinutes from service start to completion, when both were recorded
+   */
+  public record StopActualView(
+      UUID deliveryId,
+      UUID orderId,
+      String outletId,
+      String depotCode,
+      String vehicleId,
+      LocalDate serviceDate,
+      int stopSequence,
+      LocalTime plannedArrival,
+      LocalTime windowOpen,
+      LocalTime windowClose,
+      Optional<Instant> arrivedAt,
+      Optional<Instant> serviceStartedAt,
+      Optional<Instant> completedAt,
+      Optional<Integer> waitMinutes,
+      Optional<java.math.BigDecimal> serviceMinutes,
+      Optional<Integer> lateMinutes,
+      DeliveryOutcome outcome,
+      boolean timingUncertain) {}
 }

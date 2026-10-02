@@ -18,4 +18,12 @@ public interface ExecutionQuery {
 
   /** The latest delivery record for an order, if any stop was attempted. */
   Optional<DeliveryRecordView> deliveryForOrder(UUID orderId);
+
+  /**
+   * A depot's stops that reached an outcome between two service dates
+   * inclusive, oldest first, on a keyset cursor (issue #16: the training export
+   * and service-time history). Row-level security narrows it to the actor.
+   */
+  com.waypoint.dispatch.shared.domain.Page<ExecutionViews.StopActualView> actuals(
+      String depotCode, LocalDate from, LocalDate to, Optional<String> cursor, int limit);
 }

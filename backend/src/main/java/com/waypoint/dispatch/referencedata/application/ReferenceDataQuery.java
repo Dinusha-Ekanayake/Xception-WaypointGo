@@ -6,6 +6,8 @@ import com.waypoint.dispatch.referencedata.contract.ReferenceQuery;
 import com.waypoint.dispatch.referencedata.contract.ReferenceViews.AllowanceView;
 import com.waypoint.dispatch.referencedata.contract.ReferenceViews.CalendarDayView;
 import com.waypoint.dispatch.referencedata.contract.ReferenceViews.OutletView;
+import com.waypoint.dispatch.referencedata.contract.ReferenceViews.RoadConditionView;
+import com.waypoint.dispatch.referencedata.contract.ReferenceViews.TrafficSpeedView;
 import com.waypoint.dispatch.referencedata.contract.ReferenceViews.TravelView;
 import com.waypoint.dispatch.referencedata.contract.ReferenceViews.VehicleView;
 import com.waypoint.dispatch.referencedata.domain.CalendarDay;
@@ -144,7 +146,9 @@ public class ReferenceDataQuery implements ReferenceQuery {
                     p.depotToDistrictFreeflowMin(),
                     p.interStopFreeflowMin(),
                     p.depotToDistrictKm(),
-                    p.interStopKm()));
+                    p.interStopKm(),
+                    p.roadClass(),
+                    p.freeFlowKmh()));
   }
 
   @Override
@@ -184,6 +188,70 @@ public class ReferenceDataQuery implements ReferenceQuery {
     }
     throw new DomainException(
         ErrorCode.VALIDATION_FAILED, "No operating day found within 14 days of " + from);
+  }
+
+  @Override
+  public List<String> depotCodes() {
+    return snapshot(null).allDepots().stream().map(d -> d.code().value()).sorted().toList();
+  }
+
+  @Override
+  public List<String> brandCodes() {
+    return snapshot(null).brands().stream().sorted().toList();
+  }
+
+  @Override
+  public List<CalendarDayView> calendarDays(LocalDate from, LocalDate to) {
+    ReferenceSnapshot s = snapshot(null);
+    return from.datesUntil(to.plusDays(1))
+        .map(d -> s.day(d).orElseGet(() -> OperatingCalendarPolicy.generate(d)))
+        .map(ReferenceDataQuery::toCalendarView)
+        .toList();
+  }
+
+  @Override
+  public List<TrafficSpeedView> trafficSpeed(UUID versionId) {
+    UUID version = versionId != null ? versionId : snapshot(null).versionId();
+    return database.readAs(
+        ModuleRole.REF,
+        null,
+        () ->
+            database
+                .query(
+                    "SELECT district_name, hour, monsoon, speed_index FROM ref.traffic_speed"
+                        + " WHERE reference_version_id = ? ORDER BY district_name, hour, monsoon",
+                    version)
+                .stream()
+                .map(
+                    r ->
+                        new TrafficSpeedView(
+                            (String) r.get("district_name"),
+                            ((Number) r.get("hour")).intValue(),
+                            (Boolean) r.get("monsoon"),
+                            (java.math.BigDecimal) r.get("speed_index")))
+                .toList());
+  }
+
+  @Override
+  public List<RoadConditionView> roadConditions(LocalDate from, LocalDate to) {
+    return database.readAs(
+        ModuleRole.REF,
+        null,
+        () ->
+            database
+                .query(
+                    "SELECT district_name, condition_date, disruption_index FROM ref.road_conditions"
+                        + " WHERE condition_date BETWEEN ? AND ? ORDER BY condition_date, district_name",
+                    java.sql.Date.valueOf(from),
+                    java.sql.Date.valueOf(to))
+                .stream()
+                .map(
+                    r ->
+                        new RoadConditionView(
+                            (String) r.get("district_name"),
+                            ((java.sql.Date) r.get("condition_date")).toLocalDate(),
+                            (java.math.BigDecimal) r.get("disruption_index")))
+                .toList());
   }
 
   // ---- mapping to contract views ----

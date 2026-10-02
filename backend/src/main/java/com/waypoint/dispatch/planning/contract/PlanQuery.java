@@ -18,6 +18,9 @@ public interface PlanQuery {
 
   Optional<PlanView> draft(UUID planId);
 
+  /** A plan in any status, by id (issue #16: scoring a published plan). */
+  Optional<PlanView> plan(UUID planId);
+
   /** Where an order could go in the current draft, each option with its constraint results. */
   List<AllocationView> previewAssignments(UUID orderId);
 

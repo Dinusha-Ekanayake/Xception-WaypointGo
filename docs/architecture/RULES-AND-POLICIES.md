@@ -259,7 +259,7 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-RCP-03 | The store receives clear notice when an order is deferred | Booklet | Binding |
 | R-RCP-04 | Driver proof and store acceptance are separate records; neither overwrites the other | Policy | Policy |
 | R-RCP-05 | An unconfirmed receipt auto-closes after a configured window as `unconfirmed`, never silently `delivered` | Policy | Policy |
-| R-RCP-06 | The store sees the probability that an order can be supplied on its scheduled day | Team draft | Team, needs a model |
+| R-RCP-06 | The store sees the probability that an order can be supplied on its scheduled day. Answered by Intelligence with its basis (planned, deferred, deferral rate), deterministic for now: `GET /api/ml/orders/{id}/supply-probability` (issue #16) | Team draft | Team |
 | R-RCP-07 | **Loaded but not received.** When a passing loading check, a completed delivery and a short receipt disagree, the system raises a shortage investigation linked to all three records. It is **never auto-resolved in favour of either party**, and no record is amended to make them agree | Policy | Policy |
 | R-RCP-08 | Each link in the custody chain is attributed: who checked it at the dock, who delivered it, who received it. That chain is the evidence, and it is what replaces memory in a dispute | Booklet, policy | Policy |
 
@@ -364,6 +364,17 @@ Seven places where the sources disagree. C-1, C-2, C-3, C-5, C-6 and C-7 are set
 | **C-6** | **No ordering on holidays** | Team draft. The booklet does not restrict *placing* an order, only *delivering* on a non-operating day. Blocking placement stops a store preparing Monday's order on a Sunday | **Resolved 2026-09-30 (D-I):** allow placement, roll the delivery date to the next operating day, and show the store the date it will arrive. R-ORD-09 withdrawn |
 | **C-7** | **A late arrival at a mall** | R-EXE-05 (booklet): a late arrival is still delivered. R-PLN-14 (booklet): a mall accepts deliveries only inside its fixed access window. After the window closes the goods physically cannot be unloaded | **Resolved 2026-10-02 (issue #13):** R-EXE-05 holds for ordinary outlets. At a mall outlet, arrival after the effective window is a failed delivery (`mall_window_closed`), raised as an issue; the dispatcher decides on a redelivery, which carries a skip so the next plan serves it first (EXE-20, ORD-15) |
 
+## 7c. Intelligence: predictions and models (issue #16)
+
+| ID | Rule | Source | Status |
+| --- | --- | --- | --- |
+| R-ML-01 | A model is never called inside an operational transaction. A published plan only queues a scoring; the job calls the model service with no transaction open and stores the answer in a transaction of its own | ADR-001, Policy | Policy |
+| R-ML-02 | Every stored prediction and forecast names the model that produced it (`name@version`) or `deterministic`, and is written once, so a result can be reproduced and a bad model traced | Policy, issue #16 | Policy |
+| R-ML-03 | One model per kind is active. Activating a model returns the kind's previous one to registered; a retired model is never activated again; retiring needs a reason | Policy, issue #16 | Policy |
+| R-ML-04 | A model answers only when serving is configured, a model of that kind is active, and the service reports exactly that model. Anything else is the deterministic answer, marked degraded with the reason, and the plan says it was scored without the predictor | Rule 9, Policy | Policy |
+| R-ML-05 | Predictions are advice. Allocation keeps the booklet's service allowances and travel times, which the validator checks (R-PLN-08); learned times never change a plan | Booklet, Policy | Policy |
+| R-ML-06 | The training export keeps waiting for the window apart from service time, so an early arrival never teaches a long service (EXE-18) | R-EXE-04, Policy | Policy |
+
 ---
 
 ## 9. Where each rule is enforced
@@ -383,6 +394,7 @@ One rule, one enforcement point, so a change has one home.
 | R-RCP-* | Receipt domain, `ReceiptAutoCloseJob`, `ReceiptAnswerHandler` | Domain unit tests, integration tests with the job run at chosen instants |
 | R-ISS-* | Issues domain, `IssueCommandHandler`, role policies (R-ISS-07), `IssueEscalationJob` | Domain unit tests, integration tests through the command bus |
 | R-FLT-*, R-CAL-* | Reference data module | Domain unit tests |
+| R-ML-*, R-RCP-06 | `ModelGate`, `PlanScoringJob`, `ForecastJob`, `ModelHandlers`, `SupplyPolicy`, `ml.*` constraints | Domain unit tests (`IntelligenceDomainTest`), integration tests against a stub model service (`IntelligenceIntegrationTest`), the model service's own tests (`ml-server/tests`) |
 | R-NOT-* | `NotificationPolicy`, `Notifier`, `PushDeliveryJob`, `NotificationHandlers`, the routing table | Domain unit tests (`NotificationPolicyTest`, `DeliveryTest`), integration tests with events delivered and the push job run at chosen instants |
 
 Rules with status **Validated** get a second gate: our allocation output is run through the supplied `check_allocation.py` in CI, so a regression against the scoring rules fails the build rather than the submission.

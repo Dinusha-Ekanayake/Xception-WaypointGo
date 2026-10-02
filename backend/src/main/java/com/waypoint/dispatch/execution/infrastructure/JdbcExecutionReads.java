@@ -49,6 +49,29 @@ public class JdbcExecutionReads {
         depotCode, Date.valueOf(serviceDate));
   }
 
+  /**
+   * Stops with an outcome, oldest first, on the keyset {@code (service_date,
+   * delivery_id)}. Pending stops are not actuals yet.
+   */
+  public List<Map<String, Object>> actuals(
+      String depotCode, LocalDate from, LocalDate to, LocalDate afterDate, UUID afterId, int limit) {
+    String sql =
+        "SELECT d.delivery_id, d.order_id, d.outlet_id, d.depot_code, d.vehicle_id, d.service_date,"
+            + " d.stop_sequence, d.planned_arrival, d.window_open, d.window_close, d.arrived_at,"
+            + " d.service_started_at, d.completed_at, d.wait_minutes, d.late_minutes, d.outcome,"
+            + " d.timing_uncertain"
+            + " FROM execution.delivery_records d"
+            + " WHERE d.depot_code = ? AND d.service_date BETWEEN ? AND ? AND d.outcome <> 'pending'";
+    if (afterDate == null) {
+      return database.query(
+          sql + " ORDER BY d.service_date, d.delivery_id LIMIT ?",
+          depotCode, Date.valueOf(from), Date.valueOf(to), limit);
+    }
+    return database.query(
+        sql + " AND (d.service_date, d.delivery_id) > (?, ?) ORDER BY d.service_date, d.delivery_id LIMIT ?",
+        depotCode, Date.valueOf(from), Date.valueOf(to), Date.valueOf(afterDate), afterId, limit);
+  }
+
   public List<Map<String, Object>> stopsOfOutlet(String outletId, LocalDate serviceDate) {
     return database.query(
         RECORD + " WHERE d.outlet_id = ? AND d.service_date = ? ORDER BY d.released_at, d.stop_sequence",
