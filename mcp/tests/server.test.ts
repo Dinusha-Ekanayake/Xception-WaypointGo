@@ -147,3 +147,123 @@ for (const [name, options] of [['redirect', { redirect: true }], ['oversized', {
     } finally { await f.close(); }
   });
 }
+
+const TRIP_ID = '33333333-3333-4333-8333-333333333333';
+const DELIVERY_ID = '44444444-4444-4444-8444-444444444444';
+const ORDER_ID = '55555555-5555-4555-8555-555555555555';
+const RECEIPT_ID = '66666666-6666-4666-8666-666666666666';
+
+async function discoveryFixture(actions: string[]) {
+  const requests: string[] = [];
+  const http = createServer((req, res) => {
+    requests.push(req.url ?? '');
+    res.setHeader('content-type', 'application/json');
+    const url = req.url ?? '';
+    if (url === '/api/mcp/context') {
+      res.end(JSON.stringify({ userId: '11111111-1111-4111-8111-111111111111', roles: ['dispatcher'],
+        scope: ['depot:PEL'], readActions: actions }));
+      return;
+    }
+    if (url.startsWith('/api/loading/trips?')) {
+      res.end(JSON.stringify([{ tripId: TRIP_ID, vehicleId: 'VEH001', tripNumber: 1, tripsForVehicle: 1,
+        plannedDeparture: '04:00', status: 'READY', brandCode: 'Fresh', districtName: 'Colombo',
+        temperature: 'ambient', dockCode: 'Dock 1', stopCount: 1, orderCount: 1,
+        weightKg: 100, volumeM3: 2, rowVersion: 1,
+        holder: { userId: '99999999-9999-4999-8999-999999999999' }, password: 'never-return' }]));
+      return;
+    }
+    if (url.startsWith('/api/execution/run-sheets?')) {
+      res.end(JSON.stringify([{ vehicleId: 'VEH001', serviceDate: '2026-10-02',
+        stops: [{ deliveryId: DELIVERY_ID, tripId: TRIP_ID, sequence: 1, orderId: ORDER_ID,
+          outletId: 'OUT001', itemCount: 1, plannedArrival: '05:00', windowOpen: '04:00',
+          windowClose: '08:00', outcome: 'DELIVERED', proofCaptured: true,
+          lines: [{ productId: 'P1', orderedUnits: 1 }], secret: 'never-return' }] }]));
+      return;
+    }
+    if (url.startsWith('/api/receipts/pending?')) {
+      res.end(JSON.stringify([{ orderId: ORDER_ID, deliveryId: DELIVERY_ID,
+        outletId: 'OUT001', deliveredAt: '2026-10-02T03:00:00Z' }]));
+      return;
+    }
+    if (url === `/api/receipts/${ORDER_ID}/custody`) {
+      res.end(JSON.stringify({ orderId: ORDER_ID,
+        receipt: { receiptId: RECEIPT_ID, orderId: ORDER_ID, deliveryId: DELIVERY_ID,
+          outletId: 'OUT001', status: 'CONFIRMED', confirmedAt: '2026-10-02T04:00:00Z',
+          rowVersion: 1, depotCode: 'PEL', deliveredAt: '2026-10-02T03:00:00Z',
+          autoClosesAt: '2026-10-09T03:00:00Z', late: false,
+          lines: [{ productId: 'P1', expectedQuantity: 1, receivedQuantity: 1 }],
+          note: 'never-return', confirmedBy: '99999999-9999-4999-8999-999999999999' },
+        delivery: { deliveryId: DELIVERY_ID, tripId: TRIP_ID, completedAt: '2026-10-02T03:05:00Z',
+          deliveredUnits: 1, recordedBy: '99999999-9999-4999-8999-999999999999' },
+        loadingCheck: { orderId: ORDER_ID, outletId: 'OUT001', status: 'LOADED',
+          loadedUnits: 1, attempt: 1 },
+        proof: { deliveryId: DELIVERY_ID, orderId: ORDER_ID, tripId: TRIP_ID,
+          outletId: 'OUT001', vehicleId: 'VEH001', serviceDate: '2026-10-02',
+          outcome: 'DELIVERED', timingUncertain: false, lowEvidence: false,
+          serverRecordedAt: '2026-10-02T03:06:00Z', rowVersion: 1 },
+        unavailable: [] }));
+      return;
+    }
+    res.writeHead(404); res.end(JSON.stringify({ code: 'NOT_FOUND' }));
+  });
+  await new Promise<void>(resolve => http.listen(0, '127.0.0.1', resolve));
+  const address = http.address();
+  assert.ok(address && typeof address !== 'string');
+  const server = createMcpServer(new BackendClient(`http://127.0.0.1:${address.port}`, 'mcp.test'));
+  const client = new Client({ name: 'waypoint-discovery-test', version: '1.0.0' });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  await server.connect(serverTransport);
+  await client.connect(clientTransport);
+  return { client, requests, close: async () => {
+    await client.close();
+    await server.close();
+    http.closeAllConnections();
+    await new Promise<void>(resolve => http.close(() => resolve()));
+  } };
+}
+
+test('discovery exposes work queues and custody only with their read actions', async () => {
+  const full = await discoveryFixture(['loading:Read', 'delivery:Read', 'receipt:Read']);
+  try {
+    const { tools } = await full.client.listTools();
+    for (const name of ['list_ready_trips', 'list_run_sheets', 'list_pending_receipts', 'get_custody']) {
+      assert.ok(tools.some(t => t.name === name), name);
+    }
+  } finally { await full.close(); }
+  const none = await discoveryFixture(['order:Read']);
+  try {
+    const { tools } = await none.client.listTools();
+    for (const name of ['list_ready_trips', 'list_run_sheets', 'list_pending_receipts', 'get_custody']) {
+      assert.ok(!tools.some(t => t.name === name), name);
+    }
+  } finally { await none.close(); }
+});
+
+test('work discovery returns bounded IDs and discards sensitive neighbours', async () => {
+  const f = await discoveryFixture(['loading:Read', 'delivery:Read', 'receipt:Read']);
+  try {
+    const trips = await f.client.callTool({ name: 'list_ready_trips', arguments: { depot: 'PEL', date: '2026-10-02' } });
+    assert.equal(trips.isError, undefined);
+    assert.ok(JSON.stringify(trips).includes(TRIP_ID));
+    assert.ok(!JSON.stringify(trips).includes('never-return'));
+    assert.ok(!JSON.stringify(trips).includes('99999999'));
+    assert.ok(f.requests.some(p => p.includes('/api/loading/trips?') && p.includes('depot=PEL')));
+    const sheets = await f.client.callTool({ name: 'list_run_sheets', arguments: { date: '2026-10-02' } });
+    assert.equal(sheets.isError, undefined);
+    assert.ok(JSON.stringify(sheets).includes(DELIVERY_ID));
+    assert.ok(!JSON.stringify(sheets).includes('never-return'));
+    const pending = await f.client.callTool({ name: 'list_pending_receipts', arguments: { outlet: 'OUT001' } });
+    assert.equal(pending.isError, undefined);
+    assert.ok(JSON.stringify(pending).includes(ORDER_ID));
+    const custody = await f.client.callTool({ name: 'get_custody', arguments: { orderId: ORDER_ID } });
+    assert.equal(custody.isError, undefined);
+    const text = JSON.stringify(custody);
+    assert.ok(text.includes(RECEIPT_ID));
+    assert.ok(text.includes(DELIVERY_ID));
+    assert.ok(text.includes('inferred_unverified_sku'));
+    assert.ok(!text.includes('never-return'));
+    assert.ok(!text.includes('99999999'));
+    const bad = await f.client.callTool({ name: 'list_ready_trips', arguments: { depot: 'PEL', date: 'not-a-date' } });
+    assert.equal(bad.isError, true);
+  } finally { await f.close(); }
+});

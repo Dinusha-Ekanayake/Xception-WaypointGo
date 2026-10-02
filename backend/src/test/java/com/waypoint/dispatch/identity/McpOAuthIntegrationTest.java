@@ -127,4 +127,22 @@ class McpOAuthIntegrationTest {
         .param("client_id", client).param("token", token)).andExpect(status().isOk());
     assertTrue(sessions.resolveMcp(token).isEmpty());
   }
+  @Test void genericClientWithoutResourceAndWithExtraScopesIsBoundToThisEndpoint() throws Exception {
+    String client = register();
+    var request = approval(client);
+    request.remove("resource");
+    request.put("scope", "openid waypoint.read profile");
+    var response = http.perform(post("/api/oauth/authorize").header("Host", "waypoint.test").contentType(MediaType.APPLICATION_JSON)
+        .content(mapper.writeValueAsString(request))).andExpect(status().isOk()).andReturn().getResponse();
+    String redirect = mapper.readTree(response.getContentAsString()).get("redirectTo").asText();
+    String code = Arrays.stream(URI.create(redirect).getRawQuery().split("&")).filter(v -> v.startsWith("code="))
+        .map(v -> URLDecoder.decode(v.substring(5), StandardCharsets.UTF_8)).findFirst().orElseThrow();
+    var tokenResponse = http.perform(post("/api/oauth/token").contentType(MediaType.APPLICATION_FORM_URLENCODED).param("grant_type", "authorization_code")
+        .param("client_id", client).param("code", code).param("redirect_uri", REDIRECT).param("code_verifier", VERIFIER))
+        .andExpect(status().isOk()).andReturn().getResponse();
+    String token = mapper.readTree(tokenResponse.getContentAsString()).get("access_token").asText();
+    assertEquals("waypoint.read", mapper.readTree(tokenResponse.getContentAsString()).get("scope").asText());
+    http.perform(get("/api/mcp/context").header("Authorization", "Bearer " + token).header("X-Waypoint-Mcp-Resource", RESOURCE)).andExpect(status().isOk());
+    http.perform(get("/api/mcp/context").header("Authorization", "Bearer " + token).header("X-Waypoint-Mcp-Resource", "https://other.test/mcp")).andExpect(status().isUnauthorized());
+  }
 }

@@ -221,7 +221,7 @@ public class McpOAuthHandler {
                 request.redirectUri(),
                 request.codeChallenge(),
                 Timestamp.from(now),
-                Timestamp.from(now.plus(CODE_LIFETIME)), request.resource()));
+                Timestamp.from(now.plus(CODE_LIFETIME)), effectiveResource(request.resource())));
     audit.recordStandalone(
         AuditEntry.allowed(
             userId,
@@ -243,9 +243,10 @@ public class McpOAuthHandler {
   /** Trades a one-time code for the read-only session. Every refusal reads the same to the caller. */
   public Grant exchange(String code, String clientId, String redirectUri, String codeVerifier, String resource) {
     requireRemote();
-    if (isBlank(code) || isBlank(clientId) || isBlank(redirectUri) || isBlank(codeVerifier) || isBlank(resource)) {
+    String effectiveResource = effectiveResource(resource);
+    if (isBlank(code) || isBlank(clientId) || isBlank(redirectUri) || isBlank(codeVerifier)) {
       throw new OAuthProtocolException(
-          400, "invalid_request", "code, client_id, redirect_uri and code_verifier and resource are required");
+          400, "invalid_request", "code, client_id, redirect_uri and code_verifier are required");
     }
     UUID client = uuidOrNull(clientId);
     Instant now = clock.now();
@@ -295,12 +296,12 @@ public class McpOAuthHandler {
               if (refusal.isPresent()) {
                 return new Exchange(null, userId, refusal.get().name().toLowerCase(Locale.ROOT));
               }
-              if (!resource.equals(row.get("resource_uri")) || !resource.equals(properties.publicUrl())) {
+              if (!effectiveResource.equals(row.get("resource_uri")) || !effectiveResource.equals(properties.publicUrl())) {
                 return new Exchange(null, userId, "wrong_resource");
               }
               String token = sessions.issue(userId, null, true);
               database.update("UPDATE iam.sessions SET oauth_resource = ?, oauth_client_id = ? WHERE token_hash = ?",
-                  resource, client, sessions.keyOf(token));
+                  effectiveResource, client, sessions.keyOf(token));
               database.update(
                   "UPDATE iam.oauth_authorization_codes SET session_key = ? WHERE code_hash = ?",
                   sessions.keyOf(token),
@@ -370,13 +371,36 @@ public class McpOAuthHandler {
     if (request.state() != null && request.state().length() > MAX_STATE) {
       throw invalid("state", "is too long");
     }
-    if (!properties.publicUrl().equals(request.resource())) {
+    if (!properties.publicUrl().equals(effectiveResource(request.resource()))) {
       throw invalid("resource", "is not this MCP endpoint");
     }
-    if (!isBlank(request.scope()) && !SCOPE.equals(request.scope())) {
+    if (!scopeAllowed(request.scope())) {
       throw invalid("scope", "only waypoint.read is available");
     }
     return client;
+  }
+
+  /**
+   * The single resource of this server. Clients that omit the RFC 8707
+   * parameter are bound to it, so a generic assistant that sends no resource
+   * still receives a token that is valid only here. Anything else must match
+   * exactly; there is nowhere else to be valid.
+   */
+  private String effectiveResource(String resource) {
+    return isBlank(resource) ? properties.publicUrl() : resource;
+  }
+
+  /** Blank, exactly the read scope, or a list that contains it. The grant is still only the read scope. */
+  private static boolean scopeAllowed(String scope) {
+    if (isBlank(scope)) {
+      return true;
+    }
+    for (String token : scope.trim().split("\\s+")) {
+      if (SCOPE.equals(token)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private void requireRemote() {

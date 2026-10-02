@@ -67,6 +67,32 @@ export const commandDecisionOutput = z.object({ commandId: id, auditRows: array(
   policyGenerationAtDecision: version.nullish(), currentPolicyGeneration: version.nullish(),
   policyUnchangedSince: z.boolean().nullish() });
 export const policyOutput = z.object({ policyId: id, name: text, defaultVersion: version, rowVersion: version });
+export const readyTripOutput = z.object({
+  tripId: id, vehicleId: text, tripNumber: version, tripsForVehicle: version,
+  plannedDeparture: time, status: text, brandCode: text, districtName: text,
+  temperature: text, dockCode: text, stopCount: version, orderCount: version,
+  weightKg: number, volumeM3: number, rowVersion: version,
+});
+export const runSheetStopOutput = z.object({
+  deliveryId: id, tripId: id, sequence: version, orderId: id, outletId: text,
+  itemCount: version, plannedArrival: time, windowOpen: time, windowClose: time,
+  outcome: text, proofCaptured: z.boolean(),
+});
+export const runSheetOutput = z.object({
+  vehicleId: text, serviceDate: date, stops: array(runSheetStopOutput),
+});
+export const pendingReceiptOutput = z.object({
+  orderId: id, deliveryId: id, outletId: text, deliveredAt: instant,
+});
+export const custodyOutput = z.object({
+  orderId: id, receipt: receiptOutput,
+  delivery: z.object({ deliveryId: id, tripId: optionalId, completedAt: instant,
+    deliveredUnits: version.nullish() }),
+  loadingCheck: z.object({ orderId: id, outletId: text, status: text,
+    loadedUnits: version, attempt: version }).nullish(),
+  proof: deliveryOutput.nullish(),
+  unavailable: array(text),
+});
 export const pageOutput = <T extends z.ZodType>(item: T) => z.object({
   items: z.array(item).max(50), nextCursor: z.string().max(2048).nullish(),
 });
