@@ -71,7 +71,7 @@ Each module has the same five internal layers. The spec lists what belongs in ea
 **Owns:** `iam.users`, `iam.roles`, `iam.user_roles`, `iam.user_depot_access`, `iam.user_outlet_access`, `iam.vehicle_driver_assignments`, `iam.devices`, `iam.sessions`, `iam.login_attempts`, `iam.policies`, `iam.policy_versions`, `iam.policy_attachments`, `iam.action_catalogue`.
 
 **Commands:** `Login`, `Logout`, `CreateAccount`, `UpdateAccount`, `ResetPassword`, `DisableAccount`, `GrantScope`, `RevokeScope`, `RegisterDevice`, `AssignDriverToVehicle`, `CreatePolicy`, `CreatePolicyVersion`, `SetDefaultPolicyVersion`, `AttachPolicy`, `DetachPolicy`.
-**Queries:** `permits(actor, command, target)`, `scopeOf(actor)`, `actorForSession(token)`, `driverVehicleOn(date)`.
+**Queries:** `permits(actor, command, target)`, `scopeOf(actor)`, `actorForSession(token)`, `driverVehicleOn(date)`, `driverOn(vehicleId, date)` (who drives a vehicle, so a store manager sees the driver's name).
 **Publishes:** `access.granted`, `access.revoked`, `account.disabled`, `authorization.denied`.
 **Consumes:** nothing.
 
@@ -201,7 +201,7 @@ Four consumers read that one registry: the engine, the manual override path, the
 **Owns:** `loading.trips`, `loading.stops`, `loading.items`, `loading.sessions`, append-only `loading.item_checks` and `loading.shortfalls`, built from `plan.published` and `plan.revised`.
 
 **Commands:** `loading:Start`, `loading:Check`, `loading:Shortfall`, `loading:HandBack`, `loading:Release`. Interchange and dispatcher handover are deferred.
-**Queries:** `manifest(tripId)`, `readyTrips(depot, day)`, `openShortfalls(depot)`.
+**Queries:** `manifest(tripId)`, `orderLine(tripId, orderId)` (one order's line and item checks, readable by the depot and by the order's own outlet, which sees nothing else of the trip), `readyTrips(depot, day)`, `openShortfalls(depot)`.
 **Publishes:** `loading.started`, `loading.shortfall`, `trip.released`. `loading.interchange_requested` is a planned event; the interchange command is deferred.
 **Consumes:** `plan.published`, `plan.revised`, `shortfall.resolved` (from Issues).
 
@@ -259,14 +259,14 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 | --- | --- |
 | contract | `ReceiptStatus`, `ReceiptEvents` |
 | domain | `Receipt`, `ReceiptLine`, `ReceiptStateMachine`, `AutoClosePolicy`, `ReceiptParameters` |
-| application | `ReceiptAnswerHandler` with `ConfirmReceiptHandler`, `ConfirmPartialReceiptHandler`, `DisputeReceiptHandler`; `ReceiptConsumers.OnDeliveryCompleted`; `ReceiptAutoCloseJob`; `ReceiptDataQuery` |
-| infrastructure | `JdbcReceiptRepository` |
+| application | `ReceiptAnswerHandler` with `ConfirmReceiptHandler`, `ConfirmPartialReceiptHandler`, `DisputeReceiptHandler`; `ReceiptConsumers.OnDeliveryCompleted`; `ReceiptAutoCloseJob`; `ReceiptDataQuery`; `HandoverIssuer`, `VerifyHandoverHandler`, `ReissueHandoverPinHandler` |
+| infrastructure | `JdbcReceiptRepository`, `JdbcHandoverRepository` |
 
-**Owns:** `receipt.confirmations`, `receipt.confirmation_lines`, `receipt.confirmation_history`, `receipt.parameters`.
+**Owns:** `receipt.confirmations`, `receipt.confirmation_lines`, `receipt.confirmation_history`, `receipt.parameters`, `receipt.handovers`, `receipt.handover_history`.
 
-**Commands:** `ConfirmReceipt`, `ConfirmPartialReceipt`, `DisputeReceipt`.
-**Queries:** `receiptFor(orderId)`, `pendingConfirmations(outletId)`, `custodyChain(orderId)`, the loading check, the proof and the receipt side by side (R-RCP-08). Web: `/api/receipts/pending?outlet=`, `/{orderId}`, `/{orderId}/custody`.
-**Publishes:** `receipt.confirmed` (with `partial`), `receipt.disputed`, `receipt.auto_closed`. A shortage reported after auto-close is announced as `receipt.disputed`, because the order is already UNCONFIRMED.
+**Commands:** `ConfirmReceipt`, `ConfirmPartialReceipt`, `DisputeReceipt`, `VerifyHandover` (the driver's), `ReissueHandoverPin` (the store's).
+**Queries:** `receiptFor(orderId)`, `pendingConfirmations(outletId)`, `custodyChain(orderId)`, the loading check, the proof and the receipt side by side (R-RCP-08). Web: `/api/receipts/pending?outlet=`, `/{orderId}`, `/{orderId}/custody`, `/{orderId}/handover` (where the PIN stands, never the PIN).
+**Publishes:** `receipt.confirmed` (with `partial`), `receipt.disputed`, `receipt.auto_closed`, `receipt.handover_confirmed` (the driver typed the store's PIN, R-RCP-09). A shortage reported after auto-close is announced as `receipt.disputed`, because the order is already UNCONFIRMED.
 **Consumes:** `delivery.completed`, which opens the receipt. Not `delivery.failed`: nothing arrived, so there is nothing to accept, and Issues raises the failure.
 
 **Invariants.** Confirmation refers to a real delivery record. Driver proof and store acceptance are separate events and neither overwrites the other, which is the entire point: disputes become evidence-based rather than memory-based.
@@ -281,16 +281,18 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 
 | Layer | Contents |
 | --- | --- |
-| contract | `IssueViews` (`IssueView`, `IssueHistoryView`, `SubjectRef`), `IssueQuery`, `IssueCommands`, `IssueEvents` |
+| contract | `IssueViews` (`IssueView`, `IssueHistoryView`, `SubjectRef`, `AttachmentView`), `IssueQuery`, `IssueCommands`, `IssueEvents` |
 | domain | `Issue`, `IssueLifecycle`, `ResolutionAction`, `SeverityPolicy` |
-| application | `RaiseIssueHandler`, `IssueCommandHandler` with six decisions in `IssueHandlers`, `IssueScope`, `IssuesConsumers`, `IssueEscalationJob`, `IssueDataQuery` |
-| infrastructure | `JdbcIssueRepository` |
-| web | `IssueController`, reads only |
+| application | `RaiseIssueHandler`, `IssueCommandHandler` with six decisions in `IssueHandlers`, `IssueScope`, `IssuesConsumers`, `IssueEscalationJob`, `IssueDataQuery`, `IssueAttachments`, `IssueAttachmentRetentionJob` |
+| infrastructure | `JdbcIssueRepository`, `JdbcIssueAttachments` |
+| web | `IssueController`: reads, and the one binary write, a photo upload |
 
-**Owns:** `issues.issues`, `issues.issue_subjects`, `issues.issue_history`, `issues.parameters`.
+**Owns:** `issues.issues`, `issues.issue_subjects`, `issues.issue_history`, `issues.parameters`, `issues.attachments`, `issues.attachment_content`, `issues.issue_attachments`.
+
+**Photos.** A store manager uploads a photo of a delivery problem for its order (`PUT /api/issues/attachments/{id}?order=&receipt=`, action `issue:AttachPhoto`): id minted on the phone, content addressed by SHA-256, type read from the bytes, 3 MB cap, kept in the database and cleared past P-14. `RaiseIssue` names photos in `attachmentIds`; a photo taken while counting names the receipt and joins its shortage investigation. A link is made whichever arrives first, so an offline phone can send the photo and the report in either order. Read through `/{issueId}/attachments/{attachmentId}/content` by anyone who can see the issue.
 
 **Commands:** `RaiseIssue`, `AssignIssue`, `ResolveIssue`, `RecordReplacement`, `ScheduleRedelivery`, `CloseIssue`, `CancelIssue`. Raise rights by type are policy data (R-ISS-07).
-**Queries:** `openIssues(depot)` (most severe first, keyset), `issuesFor(subject)`. Web: `/api/issues?depot=`, `/by-subject?type=&id=`, `/{id}`, `/{id}/history`.
+**Queries:** `openIssues(depot)` (most severe first, keyset), `issuesFor(subject)`. Web: `/api/issues?depot=`, `/by-subject?type=&id=`, `/{id}`, `/{id}/history`, `/{id}/attachments/{attachmentId}/content`.
 **Publishes:** `issue.raised`, `issue.resolved`, `issue.escalated`, `shortfall.resolved` (naming the shortfall when the issue came from one), `redelivery.requested`.
 **Consumes:** `loading.shortfall`, `delivery.failed`, `vehicle.fault_reported`, `road.disruption_reported`, `receipt.disputed`, `receipt.confirmed` (partial only), `warehouse.discrepancy_found`. One issue per source event.
 
@@ -478,7 +480,7 @@ Modules connect three ways: a contract query (synchronous, read only), an event 
 
 | Synchronous connection | From | To |
 | --- | --- | --- |
-| `IdentityQuery` (`permits`, `scopeOf`, `driverVehicleOn`, `recipientsFor`) | every module | Identity |
+| `IdentityQuery` (`permits`, `scopeOf`, `driverVehicleOn`, `driverOn`, `recipientsFor`) | every module | Identity |
 | `ReferenceQuery`, cached | every module | Reference |
 | `StockPort.placeOrder`, `amendOrder`, with circuit breaker | Ordering | Warehouse |
 | `OrderQuery.confirmedDemand` | Planning | Ordering |
@@ -503,6 +505,7 @@ Modules connect three ways: a contract query (synchronous, read only), an event 
 | `delivery.started`, `delivery.completed`, `delivery.failed`, `eta.changed` | Execution | Ordering, Receipt, Warehouse (delivered), Issues, Notification |
 | `vehicle.fault_reported`, `road.disruption_reported` | Execution | Issues, Notification |
 | `receipt.confirmed`, `receipt.disputed`, `receipt.auto_closed` | Receipt | Ordering, Issues, Notification |
+| `receipt.handover_confirmed` | Receipt | Notification |
 | `issue.raised`, `issue.resolved`, `issue.escalated` | Issues | Notification |
 | `shortfall.resolved` | Issues | Loading |
 | `redelivery.requested` | Issues | Ordering |

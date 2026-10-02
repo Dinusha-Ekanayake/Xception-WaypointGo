@@ -274,6 +274,46 @@ class ExecutionIntegrationTest {
   }
 
   @Test
+  void aStoreManagerSeesWhereTheStopIsOnTheTripAndWhoDrives() throws Exception {
+    JsonNode coming = json(read(manager, "/api/execution/deliveries?outlet=" + OUTLET + "&date=" + day, 200));
+    JsonNode first = coming.get(0);
+    assertEquals(stopA.toString(), first.get("deliveryId").asText());
+    assertEquals(1, first.get("stopSequence").asInt());
+    assertEquals(
+        3, first.get("tripStopCount").asInt(), "the trip's size is kept at release: the store sees only its own stops");
+    assertEquals("05:20:00", first.get("plannedArrival").asText());
+    assertTrue(first.get("expectedArrival") == null || first.get("expectedArrival").isNull(), "no delay observed yet");
+    assertTrue(first.has("releasedAt"));
+    // Name and badge only: never an email or a phone number.
+    JsonNode who = first.get("driver");
+    assertEquals("Driver", who.get("displayName").asText());
+    assertFalse(who.toString().contains("@"));
+    assertFalse(first.toString().contains(driver), "the driver's email is not part of the store's view");
+
+    // The same on a single delivery, and the other driver's stop names that driver.
+    assertEquals("Driver", json(read(manager, "/api/execution/deliveries/" + stopA, 200)).get("driver").get("displayName").asText());
+  }
+
+  @Test
+  void aVehicleWithNoDriverForTheDayStillShowsItsDeliveryWithoutAName() throws Exception {
+    // The assignment moves off the day: the stop is real, the driver is not known.
+    database.asModule(
+        ModuleRole.IAM,
+        null,
+        () ->
+            database.update(
+                "UPDATE iam.vehicle_driver_assignments SET validity = daterange(?, ?) WHERE driver_user_id = ?",
+                java.sql.Date.valueOf(day.plusDays(10)),
+                java.sql.Date.valueOf(day.plusDays(11)),
+                driverId));
+
+    JsonNode coming = json(read(manager, "/api/execution/deliveries?outlet=" + OUTLET + "&date=" + day, 200));
+    assertEquals(2, coming.size(), "a missing name never takes the delivery away from the store");
+    assertTrue(coming.get(0).get("driver") == null || coming.get(0).get("driver").isNull());
+    assertEquals(vehicleId, coming.get(0).get("vehicleId").asText());
+  }
+
+  @Test
   void aDriverWithDepotScopeStillSeesOnlyTheirOwnVehicle() throws Exception {
     // demo-accounts grants drivers a depot. Depot-wide reads are for the depot's
     // staff: a driver's scope stays one vehicle on one date (EXE-13).

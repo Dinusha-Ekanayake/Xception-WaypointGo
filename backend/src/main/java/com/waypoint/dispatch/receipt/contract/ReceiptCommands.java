@@ -11,6 +11,8 @@ public final class ReceiptCommands {
   public static final String CONFIRM = "receipt:Confirm";
   public static final String CONFIRM_PARTIAL = "receipt:ConfirmPartial";
   public static final String DISPUTE = "receipt:Dispute";
+  public static final String VERIFY_HANDOVER = "receipt:VerifyHandover";
+  public static final String REISSUE_HANDOVER_PIN = "receipt:ReissueHandoverPin";
 
   public record ReceivedLine(String productId, int receivedQuantity) {}
 
@@ -29,4 +31,13 @@ public final class ReceiptCommands {
       lines = List.copyOf(lines);
     }
   }
+
+  /**
+   * The driver types the store's PIN (R-RCP-09). A wrong or late entry is an
+   * answer, not an error, so it is counted and recorded.
+   */
+  public record VerifyHandover(UUID orderId, String pin) {}
+
+  /** The store asks for a new PIN; the expected version is the handover's. */
+  public record ReissueHandoverPin(UUID orderId) {}
 }

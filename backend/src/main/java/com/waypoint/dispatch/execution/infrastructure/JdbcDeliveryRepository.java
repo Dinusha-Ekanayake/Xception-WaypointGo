@@ -64,21 +64,25 @@ public class JdbcDeliveryRepository {
         == 1;
   }
 
-  /** @return false when the trip already had a record for this order */
-  public boolean insertRecord(DeliveryRecord r, Instant at) {
+  /**
+   * @param tripStops how many distinct stops the trip has, copied onto every record of it so a
+   *     store manager, who sees only its own stop, can still read "stop 3 of 7"
+   * @return false when the trip already had a record for this order
+   */
+  public boolean insertRecord(DeliveryRecord r, int tripStops, Instant at) {
     return database.update(
         """
         INSERT INTO execution.delivery_records
             (delivery_id, trip_id, order_id, outlet_id, depot_code, vehicle_id, service_date, stop_sequence,
              item_count, planned_arrival, window_open, window_close, mall_outlet, released_at,
-             server_recorded_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             server_recorded_at, trip_stop_count)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT (trip_id, order_id) DO NOTHING
         """,
         r.deliveryId(), r.tripId(), r.orderId(), r.outletId(), r.depotCode(), r.vehicleId(),
         Date.valueOf(r.serviceDate()), r.sequence(), r.itemCount(), Time.valueOf(r.plannedArrival()),
         Time.valueOf(r.window().open()), Time.valueOf(r.window().close()), r.mallOutlet(),
-        Timestamp.from(at), Timestamp.from(at))
+        Timestamp.from(at), Timestamp.from(at), tripStops)
         == 1;
   }
 

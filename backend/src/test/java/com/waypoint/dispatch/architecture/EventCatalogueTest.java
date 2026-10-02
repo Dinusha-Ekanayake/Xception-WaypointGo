@@ -46,6 +46,7 @@ class EventCatalogueTest {
           "road.disruption_reported",
           "receipt.confirmed",
           "receipt.disputed",
+          "receipt.handover_confirmed",
           "receipt.auto_closed",
           "issue.raised",
           "issue.resolved",

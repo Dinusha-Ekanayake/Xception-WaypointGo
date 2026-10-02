@@ -174,6 +174,7 @@ npm run verify     # test, typecheck, build and mvn verify in sequence
 npx playwright test -c playwright.dispatcher.config.ts   # tests/e2e-dispatcher, port 43222
 npx playwright test -c playwright.driver.config.ts       # tests/e2e-driver, port 43221, phone width
 npx playwright test -c playwright.loader.config.ts       # tests/e2e-loader, port 43220, phone width
+npx playwright test -c playwright.store.config.ts        # tests/e2e-store, port 43223, desktop width
 ```
 
 One test at a time: `mvn test -Dtest=ModuleBoundaryTest` or `-Dtest='SomeTest#method'` from `backend/`; `node --test --experimental-strip-types tests/boundaries.test.ts` from `frontend/`; a spec file name or `-g "title"` after a Playwright config. `playwright.loader.live.config.ts` runs `live.spec.ts` against a running instance named by `LOADER_LIVE_BASE_URL`.

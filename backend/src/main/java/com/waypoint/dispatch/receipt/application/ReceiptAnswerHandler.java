@@ -19,6 +19,7 @@ import com.waypoint.dispatch.shared.event.DomainEvent;
 import com.waypoint.dispatch.shared.util.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -45,14 +46,21 @@ abstract class ReceiptAnswerHandler implements CommandHandler {
   protected final EventPublisher events;
   protected final Metrics metrics;
   protected final Clock clock;
+  private final HandoverIssuer handover;
 
   ReceiptAnswerHandler(
-      Database database, JdbcReceiptRepository receipts, EventPublisher events, Metrics metrics, Clock clock) {
+      Database database,
+      JdbcReceiptRepository receipts,
+      EventPublisher events,
+      Metrics metrics,
+      Clock clock,
+      HandoverIssuer handover) {
     this.database = database;
     this.receipts = receipts;
     this.events = events;
     this.metrics = metrics;
     this.clock = clock;
+    this.handover = handover;
   }
 
   /** The store's decision on the receipt as it stands. */
@@ -109,12 +117,21 @@ abstract class ReceiptAnswerHandler implements CommandHandler {
     events.publish(actor, announce(current, next, now));
     metrics.increment("waypoint.receipt.answered", "status", next.status().name(), "late", Boolean.toString(next.late()));
 
-    return Map.of(
-        "receiptId", next.receiptId().toString(),
-        "orderId", orderId.toString(),
-        "status", next.status().name(),
-        "late", next.late(),
-        "rowVersion", version);
+    // The handover PIN (R-RCP-09): returned once, here, and never stored. Absent when none could be issued.
+    Map<String, Object> result = new LinkedHashMap<>();
+    result.put("receiptId", next.receiptId().toString());
+    result.put("orderId", orderId.toString());
+    result.put("status", next.status().name());
+    result.put("late", next.late());
+    result.put("rowVersion", version);
+    handover
+        .issue(next, actor.userId(), now)
+        .ifPresent(
+            issued -> {
+              result.put("handoverPin", issued.pin());
+              result.put("handoverExpiresAt", issued.expiresAt().toString());
+            });
+    return result;
   }
 
   /**

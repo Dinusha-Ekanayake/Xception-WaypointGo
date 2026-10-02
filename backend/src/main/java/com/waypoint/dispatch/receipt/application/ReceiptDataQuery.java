@@ -11,16 +11,22 @@ import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.receipt.contract.ReceiptQuery;
 import com.waypoint.dispatch.receipt.contract.ReceiptViews.CustodyChainView;
 import com.waypoint.dispatch.receipt.contract.ReceiptViews.DeliveryFacts;
+import com.waypoint.dispatch.receipt.contract.ReceiptViews.HandoverStatus;
+import com.waypoint.dispatch.receipt.contract.ReceiptViews.HandoverView;
 import com.waypoint.dispatch.receipt.contract.ReceiptViews.PendingReceiptView;
 import com.waypoint.dispatch.receipt.contract.ReceiptViews.ReceiptLineView;
 import com.waypoint.dispatch.receipt.contract.ReceiptViews.ReceiptView;
+import com.waypoint.dispatch.receipt.domain.Handover;
 import com.waypoint.dispatch.receipt.domain.Receipt;
+import com.waypoint.dispatch.receipt.infrastructure.JdbcHandoverRepository;
 import com.waypoint.dispatch.receipt.infrastructure.JdbcReceiptRepository;
 import com.waypoint.dispatch.receipt.infrastructure.JdbcReceiptRepository.Stored;
 import com.waypoint.dispatch.referencedata.contract.ReferenceQuery;
 import com.waypoint.dispatch.shared.domain.Actor;
 import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
+import com.waypoint.dispatch.shared.util.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -49,6 +55,8 @@ public class ReceiptDataQuery implements ReceiptQuery {
 
   private final Database database;
   private final JdbcReceiptRepository receipts;
+  private final JdbcHandoverRepository handovers;
+  private final Clock clock;
   private final ReferenceQuery reference;
   private final AuditLog audit;
   private final ObjectProvider<LoadingQuery> loading;
@@ -57,12 +65,16 @@ public class ReceiptDataQuery implements ReceiptQuery {
   public ReceiptDataQuery(
       Database database,
       JdbcReceiptRepository receipts,
+      JdbcHandoverRepository handovers,
+      Clock clock,
       ReferenceQuery reference,
       AuditLog audit,
       ObjectProvider<LoadingQuery> loading,
       ObjectProvider<ExecutionQuery> execution) {
     this.database = database;
     this.receipts = receipts;
+    this.handovers = handovers;
+    this.clock = clock;
     this.reference = reference;
     this.audit = audit;
     this.loading = loading;
@@ -91,6 +103,27 @@ public class ReceiptDataQuery implements ReceiptQuery {
   public ReceiptView receipt(Actor actor, UUID orderId) {
     return read(actor.userId(), () -> receipts.findByOrder(orderId).map(ReceiptDataQuery::toView))
         .orElseThrow(() -> notFound(orderId));
+  }
+
+  /**
+   * Where the handover PIN stands (R-RCP-09). Never the PIN: that was returned once, to whoever
+   * answered the receipt. Row-level security narrows it to the outlet, the depot or the vehicle's
+   * driver; one outside scope is a {@code 404}, the same as none issued.
+   */
+  public HandoverView handover(Actor actor, UUID orderId) {
+    return read(actor.userId(), () -> handovers.findByOrder(orderId).map(this::handoverView))
+        .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No handover PIN for order " + orderId));
+  }
+
+  private HandoverView handoverView(Handover h) {
+    Instant now = clock.now();
+    return new HandoverView(
+        h.orderId(),
+        HandoverStatus.valueOf(h.status(now).name()),
+        h.expiresAt(),
+        Math.max(0, Handover.MAX_ATTEMPTS - h.attempts()),
+        h.confirmedAt(),
+        h.rowVersion());
   }
 
   public List<PendingReceiptView> pendingConfirmations(Actor actor, String outletId) {
@@ -166,9 +199,8 @@ public class ReceiptDataQuery implements ReceiptQuery {
       unavailable.add("loading check: the delivery named no trip");
     } else {
       try {
-        check =
-            loadingQuery.manifest(r.tripId())
-                .flatMap(m -> m.lines().stream().filter(l -> l.orderId().equals(r.orderId())).findFirst());
+        // The order's own line: the store may read it, and nothing else of the trip.
+        check = loadingQuery.orderLine(r.tripId(), r.orderId());
         if (check.isEmpty()) {
           unavailable.add("loading check: no matching order in the trip manifest");
         }

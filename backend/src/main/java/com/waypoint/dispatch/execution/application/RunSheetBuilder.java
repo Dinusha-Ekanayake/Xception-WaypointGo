@@ -69,6 +69,7 @@ public class RunSheetBuilder {
     if (!isNew) {
       return 0;
     }
+    int tripStops = (int) released.stops().stream().map(ReleasedStop::sequence).distinct().count();
     for (ReleasedStop stop : released.stops()) {
       OrderView order =
           orders.order(stop.orderId())
@@ -89,6 +90,7 @@ public class RunSheetBuilder {
               deliveryId, released.tripId(), stop.orderId(), stop.outletId(),
               released.depotCode(), released.vehicleId(), released.serviceDate(), stop.sequence(),
               order.itemCount(), planned, window, MALL_DOCK.equals(outlet.parkingConstraint())),
+          tripStops,
           now);
       if (!inserted) {
         continue;
