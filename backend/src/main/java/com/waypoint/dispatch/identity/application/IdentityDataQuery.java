@@ -72,6 +72,22 @@ public class IdentityDataQuery implements IdentityQuery {
                 .findFirst());
   }
 
+  /** The exclusion constraint allows at most one driver per vehicle and date. */
+  @Override
+  public Optional<UUID> driverOn(String vehicleId, LocalDate date) {
+    return read(
+        () ->
+            database
+                .query(
+                    "SELECT driver_user_id FROM iam.vehicle_driver_assignments"
+                        + " WHERE vehicle_id = ? AND validity @> ?::date",
+                    vehicleId,
+                    Date.valueOf(date))
+                .stream()
+                .map(row -> (UUID) row.get("driver_user_id"))
+                .findFirst());
+  }
+
   /**
    * Active accounts only: a disabled account has no session to read a
    * notification with. A vehicle's recipients are whoever is assigned to it

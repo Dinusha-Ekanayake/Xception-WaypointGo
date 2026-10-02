@@ -25,8 +25,13 @@ final class ReceiptHandlers {
   @Component
   static class ConfirmReceiptHandler extends ReceiptAnswerHandler {
     ConfirmReceiptHandler(
-        Database database, JdbcReceiptRepository receipts, EventPublisher events, Metrics metrics, Clock clock) {
-      super(database, receipts, events, metrics, clock);
+        Database database,
+        JdbcReceiptRepository receipts,
+        EventPublisher events,
+        Metrics metrics,
+        Clock clock,
+        HandoverIssuer handover) {
+      super(database, receipts, events, metrics, clock, handover);
     }
 
     @Override
@@ -59,8 +64,13 @@ final class ReceiptHandlers {
   @Component
   static class ConfirmPartialReceiptHandler extends ReceiptAnswerHandler {
     ConfirmPartialReceiptHandler(
-        Database database, JdbcReceiptRepository receipts, EventPublisher events, Metrics metrics, Clock clock) {
-      super(database, receipts, events, metrics, clock);
+        Database database,
+        JdbcReceiptRepository receipts,
+        EventPublisher events,
+        Metrics metrics,
+        Clock clock,
+        HandoverIssuer handover) {
+      super(database, receipts, events, metrics, clock, handover);
     }
 
     @Override
@@ -94,8 +104,13 @@ final class ReceiptHandlers {
   @Component
   static class DisputeReceiptHandler extends ReceiptAnswerHandler {
     DisputeReceiptHandler(
-        Database database, JdbcReceiptRepository receipts, EventPublisher events, Metrics metrics, Clock clock) {
-      super(database, receipts, events, metrics, clock);
+        Database database,
+        JdbcReceiptRepository receipts,
+        EventPublisher events,
+        Metrics metrics,
+        Clock clock,
+        HandoverIssuer handover) {
+      super(database, receipts, events, metrics, clock, handover);
     }
 
     @Override

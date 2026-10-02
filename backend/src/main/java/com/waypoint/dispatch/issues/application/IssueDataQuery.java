@@ -167,6 +167,7 @@ public class IssueDataQuery implements IssueQuery {
         i.raisedBy(),
         i.raisedAt(),
         i.resolution().map(Issue.Resolution::at),
-        i.rowVersion());
+        i.rowVersion(),
+        stored.attachments());
   }
 }

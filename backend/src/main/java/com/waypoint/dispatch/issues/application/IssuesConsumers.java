@@ -10,8 +10,13 @@ import com.waypoint.dispatch.issues.contract.IssueViews.IssueType;
 import com.waypoint.dispatch.issues.contract.IssueViews.SubjectRef;
 import com.waypoint.dispatch.issues.domain.Issue;
 import com.waypoint.dispatch.issues.domain.SeverityPolicy;
+import com.waypoint.dispatch.issues.infrastructure.JdbcIssueAttachments;
 import com.waypoint.dispatch.issues.infrastructure.JdbcIssueRepository;
 import com.waypoint.dispatch.loading.contract.LoadingEvents.LoadingShortfall;
+import com.waypoint.dispatch.loading.contract.LoadingQuery;
+import com.waypoint.dispatch.loading.contract.LoadingViews.CheckStatus;
+import com.waypoint.dispatch.loading.contract.LoadingViews.ItemView;
+import com.waypoint.dispatch.loading.contract.LoadingViews.ManifestLineView;
 import com.waypoint.dispatch.ordering.contract.OrderQuery;
 import com.waypoint.dispatch.ordering.contract.OrderViews.OrderView;
 import com.waypoint.dispatch.platform.db.ModuleRole;
@@ -21,6 +26,7 @@ import com.waypoint.dispatch.platform.observability.Metrics;
 import com.waypoint.dispatch.receipt.contract.ReceiptEvents.ReceiptConfirmed;
 import com.waypoint.dispatch.receipt.contract.ReceiptEvents.ReceiptDisputed;
 import com.waypoint.dispatch.receipt.contract.ReceiptQuery;
+import com.waypoint.dispatch.receipt.contract.ReceiptViews.ReceiptLineView;
 import com.waypoint.dispatch.receipt.contract.ReceiptViews.ReceiptView;
 import com.waypoint.dispatch.shared.domain.Actor;
 import com.waypoint.dispatch.shared.event.DomainEvent;
@@ -31,11 +37,16 @@ import com.waypoint.dispatch.warehouse.contract.WarehouseEvents.WarehouseDiscrep
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
 /**
@@ -63,7 +74,11 @@ final class IssuesConsumers {
     }
   }
 
-  /** What an event-raised issue is about, before the policy gives it a severity. */
+  /**
+   * What an event-raised issue is about, before the policy gives it a severity.
+   *
+   * @param photosOf the receipt whose photos belong to this issue, for a shortage investigation
+   */
   record Raised(
       IssueType type,
       String depotCode,
@@ -71,19 +86,34 @@ final class IssuesConsumers {
       List<SubjectRef> subjects,
       String description,
       boolean investigation,
-      String sourceKey) {}
+      String sourceKey,
+      Optional<UUID> photosOf) {
+
+    Raised(
+        IssueType type,
+        String depotCode,
+        Optional<String> outletId,
+        List<SubjectRef> subjects,
+        String description,
+        boolean investigation,
+        String sourceKey) {
+      this(type, depotCode, outletId, subjects, description, investigation, sourceKey, Optional.empty());
+    }
+  }
 
   /** Raises an issue from an event as the system actor, once per source key. */
   @Component
   static class Raiser {
     private final JdbcIssueRepository issues;
+    private final JdbcIssueAttachments attachments;
     private final EventPublisher events;
     private final Metrics metrics;
     private final Clock clock;
     private final SecureRandom random = new SecureRandom();
 
-    Raiser(JdbcIssueRepository issues, EventPublisher events, Metrics metrics, Clock clock) {
+    Raiser(JdbcIssueRepository issues, JdbcIssueAttachments attachments, EventPublisher events, Metrics metrics, Clock clock) {
       this.issues = issues;
+      this.attachments = attachments;
       this.events = events;
       this.metrics = metrics;
       this.clock = clock;
@@ -109,6 +139,8 @@ final class IssuesConsumers {
       issues.record(
           issue.issueId(), Optional.empty(), IssueStatus.OPEN, "raised", "raised from " + envelope.type(),
           Actor.SYSTEM_ID, Optional.of(envelope.eventId()), now);
+      // Photos the store took while counting this receipt; one that arrives later links itself.
+      r.photosOf().ifPresent(receipt -> attachments.link(issue.issueId(), attachments.ofReceipt(receipt), now));
       events.publish(
           Actor.SYSTEM,
           new IssueRaised(issue.issueId(), r.type(), severity, r.depotCode(), r.outletId(), issue.subjects()));
@@ -248,17 +280,94 @@ final class IssuesConsumers {
   /**
    * Links what the store reported to the delivery and the trip whose loading
    * check it contradicts. One investigation per receipt; never auto-resolved.
+   *
+   * <p>A short receipt is investigated when it contradicts a passing loading
+   * check (R-RCP-07). When every short unit is one the loader already flagged at
+   * the dock, and the store added nothing of its own, the shortage is already an
+   * issue (LOADING_SHORTFALL) and a second one would report the same goods twice.
    */
   @Component
   static class Investigations {
-    private final ReceiptQuery receipts;
+    /** The checks that mean "not loaded": the goods never left the dock. */
+    private static final Set<CheckStatus> FLAGGED =
+        EnumSet.of(CheckStatus.SHORT, CheckStatus.MISSING, CheckStatus.DAMAGED, CheckStatus.DOES_NOT_FIT);
 
-    Investigations(ReceiptQuery receipts) {
+    private final ReceiptQuery receipts;
+    private final ObjectProvider<LoadingQuery> loading;
+    private final JdbcIssueAttachments attachments;
+    private final Metrics metrics;
+
+    Investigations(
+        ReceiptQuery receipts, ObjectProvider<LoadingQuery> loading, JdbcIssueAttachments attachments, Metrics metrics) {
       this.receipts = receipts;
+      this.attachments = attachments;
+      this.loading = loading;
+      this.metrics = metrics;
+    }
+
+    /** A partial receipt (RCP-01): investigated unless the loader's own flags explain all of it. */
+    Optional<Raised> ofPartial(UUID receiptId, UUID orderId, String outletId) {
+      Optional<ReceiptView> receipt = receipts.receiptFor(orderId);
+      if (receipt.isPresent()
+          && receipt.get().note().isEmpty()
+          && attachments.ofReceipt(receiptId).isEmpty()
+          && explainedByLoading(receipt.get())) {
+        metrics.increment("waypoint.issues.investigation", "outcome", "explained_by_loading");
+        return Optional.empty();
+      }
+      return raise(receiptId, orderId, outletId, Optional.empty(), "partial receipt", receipt);
     }
 
     Optional<Raised> of(UUID receiptId, UUID orderId, String outletId, Optional<String> depotHint, String what) {
-      Optional<ReceiptView> receipt = receipts.receiptFor(orderId);
+      return raise(receiptId, orderId, outletId, depotHint, what, receipts.receiptFor(orderId));
+    }
+
+    /**
+     * True only when the loading check can be read and every short unit on the receipt is matched by
+     * a unit the loader flagged for the same product. Anything unknown is investigated.
+     */
+    private boolean explainedByLoading(ReceiptView receipt) {
+      LoadingQuery query = loading.getIfAvailable();
+      if (query == null || receipt.tripId().isEmpty()) {
+        return false;
+      }
+      Optional<ManifestLineView> line;
+      try {
+        line = query.orderLine(receipt.tripId().get(), receipt.orderId());
+      } catch (RuntimeException e) {
+        log.warn("loading check for order {} could not be read: {}", receipt.orderId(), e.toString());
+        return false;
+      }
+      if (line.isEmpty()) {
+        return false;
+      }
+      Map<String, Integer> flagged = new HashMap<>();
+      for (ItemView item : line.get().items()) {
+        if (FLAGGED.contains(item.status())) {
+          flagged.merge(item.productId(), Math.max(0, item.units() - item.loadedUnits()), Integer::sum);
+        }
+      }
+      boolean anyShort = false;
+      for (ReceiptLineView l : receipt.lines()) {
+        int shortBy = l.expectedQuantity() - l.receivedQuantity().orElse(l.expectedQuantity());
+        if (shortBy <= 0) {
+          continue;
+        }
+        anyShort = true;
+        if (shortBy > flagged.getOrDefault(l.productId(), 0)) {
+          return false;
+        }
+      }
+      return anyShort;
+    }
+
+    private Optional<Raised> raise(
+        UUID receiptId,
+        UUID orderId,
+        String outletId,
+        Optional<String> depotHint,
+        String what,
+        Optional<ReceiptView> receipt) {
       Optional<String> depot = depotHint.or(() -> receipt.map(ReceiptView::depotCode));
       if (depot.isEmpty()) {
         log.warn("receipt {} names order {}, which Receipt does not hold", receiptId, orderId);
@@ -267,10 +376,14 @@ final class IssuesConsumers {
       List<SubjectRef> subjects = new ArrayList<>(List.of(subject("order", orderId), subject("receipt", receiptId)));
       receipt.ifPresent(r -> subjects.add(subject("delivery", r.deliveryId())));
       receipt.flatMap(ReceiptView::tripId).ifPresent(t -> subjects.add(subject("trip", t)));
+      // The store's own words, so the dispatcher reads what it saw (a dispute's reason is already "what").
+      String note =
+          receipt.flatMap(ReceiptView::note).filter(n -> !n.equals(what)).map(n -> ". Store's note: " + n).orElse("");
+      metrics.increment("waypoint.issues.investigation", "outcome", "raised");
       return Optional.of(
           new Raised(
               IssueType.RECEIPT_DISPUTE, depot.get(), Optional.of(outletId), subjects,
-              "shortage investigation: " + what, true, "receipt:" + receiptId));
+              "shortage investigation: " + what + note, true, "receipt:" + receiptId, Optional.of(receiptId)));
     }
   }
 
@@ -327,8 +440,7 @@ final class IssuesConsumers {
       if (!e.partial()) {
         return;
       }
-      investigations.of(e.receiptId(), e.orderId(), e.outletId(), Optional.empty(), "partial receipt")
-          .ifPresent(r -> raiser.raise(r, envelope));
+      investigations.ofPartial(e.receiptId(), e.orderId(), e.outletId()).ifPresent(r -> raiser.raise(r, envelope));
     }
   }
 

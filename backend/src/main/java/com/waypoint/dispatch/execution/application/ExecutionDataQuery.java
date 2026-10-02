@@ -2,21 +2,27 @@ package com.waypoint.dispatch.execution.application;
 
 import com.waypoint.dispatch.execution.contract.ExecutionQuery;
 import com.waypoint.dispatch.execution.contract.ExecutionViews.DeliveryRecordView;
+import com.waypoint.dispatch.execution.contract.ExecutionViews.DriverView;
 import com.waypoint.dispatch.execution.contract.ExecutionViews.ProofView;
 import com.waypoint.dispatch.execution.contract.ExecutionViews.RunSheetView;
 import com.waypoint.dispatch.execution.contract.ExecutionViews.StopActualView;
 import com.waypoint.dispatch.execution.infrastructure.JdbcDeliveryRepository;
 import com.waypoint.dispatch.execution.infrastructure.JdbcExecutionReads;
+import com.waypoint.dispatch.identity.contract.IdentityQuery;
+import com.waypoint.dispatch.identity.contract.PersonQuery;
+import com.waypoint.dispatch.identity.contract.PersonQuery.PersonView;
 import com.waypoint.dispatch.platform.audit.AuditEntry;
 import com.waypoint.dispatch.platform.audit.AuditLog;
 import com.waypoint.dispatch.platform.db.Database;
 import com.waypoint.dispatch.platform.db.ModuleRole;
+import com.waypoint.dispatch.platform.observability.Metrics;
 import com.waypoint.dispatch.shared.domain.Actor;
 import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -42,18 +48,27 @@ public class ExecutionDataQuery implements ExecutionQuery {
   private final JdbcDeliveryRepository deliveries;
   private final ProofLinks links;
   private final AuditLog audit;
+  private final IdentityQuery identity;
+  private final PersonQuery people;
+  private final Metrics metrics;
 
   public ExecutionDataQuery(
       Database database,
       JdbcExecutionReads reads,
       JdbcDeliveryRepository deliveries,
       ProofLinks links,
-      AuditLog audit) {
+      AuditLog audit,
+      IdentityQuery identity,
+      PersonQuery people,
+      Metrics metrics) {
     this.database = database;
     this.reads = reads;
     this.deliveries = deliveries;
     this.links = links;
     this.audit = audit;
+    this.identity = identity;
+    this.people = people;
+    this.metrics = metrics;
   }
 
   // ---- contract: as the ambient actor ----------------------------------------
@@ -94,19 +109,25 @@ public class ExecutionDataQuery implements ExecutionQuery {
   /** What is coming to, or has reached, one outlet on a day. */
   public List<DeliveryRecordView> deliveriesForOutlet(Actor actor, String outletId, LocalDate serviceDate) {
     require(actor, "wpt:execution:outlet:" + outletId, () -> reads.outletInScope(outletId));
-    return read(
-        actor.userId(),
-        () -> reads.stopsOfOutlet(outletId, serviceDate).stream().map(ExecutionViewMapper::view).toList());
+    List<DeliveryRecordView> stops =
+        read(
+            actor.userId(),
+            () -> reads.stopsOfOutlet(outletId, serviceDate).stream().map(ExecutionViewMapper::view).toList());
+    return named(stops);
   }
 
   public DeliveryRecordView delivery(Actor actor, UUID deliveryId) {
-    return read(actor.userId(), () -> Optional.ofNullable(reads.record(deliveryId)).map(ExecutionViewMapper::view))
-        .orElseThrow(() -> notFound(deliveryId));
+    DeliveryRecordView view =
+        read(actor.userId(), () -> Optional.ofNullable(reads.record(deliveryId)).map(ExecutionViewMapper::view))
+            .orElseThrow(() -> notFound(deliveryId));
+    return named(List.of(view)).get(0);
   }
 
   public DeliveryRecordView deliveryForOrder(Actor actor, UUID orderId) {
-    return read(actor.userId(), () -> Optional.ofNullable(reads.latestForOrder(orderId)).map(ExecutionViewMapper::view))
-        .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No delivery for that order within your scope"));
+    DeliveryRecordView view =
+        read(actor.userId(), () -> Optional.ofNullable(reads.latestForOrder(orderId)).map(ExecutionViewMapper::view))
+            .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No delivery for that order within your scope"));
+    return named(List.of(view)).get(0);
   }
 
   /** The delivery's proof, with links that open its artifacts for a few minutes. */
@@ -153,6 +174,39 @@ public class ExecutionDataQuery implements ExecutionQuery {
 
   private Optional<RunSheetView> sheetOf(String vehicleId, LocalDate serviceDate) {
     return ExecutionViewMapper.sheets(reads.stopsOfVehicle(vehicleId, serviceDate)).stream().findFirst();
+  }
+
+  /**
+   * Names the driver of each record's vehicle, once per vehicle and date. The names come from
+   * Identity after Execution's own read has ended, so each runs under its own module role. When
+   * Identity cannot answer the record is returned without a driver and the screen says the name
+   * is not available (rule 9): a missing name must not take the delivery away from the store.
+   */
+  private List<DeliveryRecordView> named(List<DeliveryRecordView> views) {
+    Map<String, Optional<DriverView>> seen = new HashMap<>();
+    return views.stream()
+        .map(
+            v ->
+                v.withDriver(
+                    seen.computeIfAbsent(v.vehicleId() + "|" + v.serviceDate(), k -> driverOf(v.vehicleId(), v.serviceDate()))))
+        .toList();
+  }
+
+  private Optional<DriverView> driverOf(String vehicleId, LocalDate date) {
+    try {
+      Optional<DriverView> driver =
+          identity
+              .driverOn(vehicleId, date)
+              .flatMap(people::person)
+              .map((PersonView p) -> new DriverView(p.displayName(), p.employeeCode()));
+      if (driver.isEmpty()) {
+        metrics.increment("waypoint.execution.driver_name_unavailable", "reason", "no_assignment");
+      }
+      return driver;
+    } catch (RuntimeException e) {
+      metrics.increment("waypoint.execution.driver_name_unavailable", "reason", "identity_error");
+      return Optional.empty();
+    }
   }
 
   private static DomainException notFound(UUID deliveryId) {

@@ -85,6 +85,14 @@ public final class ExecutionViews {
    * @param lowEvidence completed with neither photo nor signature (R-EXE-11)
    * @param clientRecordedAt the device's clock, for forensics only
    * @param serverRecordedAt the server's clock, which decides
+   * @param stopSequence this stop's place on the trip
+   * @param tripStopCount how many stops the trip has; empty on a record released before it was kept
+   * @param plannedArrival the plan's time at this stop
+   * @param expectedArrival the planned arrival shifted by the trip's delay, once one has been
+   *     observed (R-EXE-15); empty until then, and the planned time is what the store prepares for
+   * @param releasedAt when the trip left the dock
+   * @param driver who drives the vehicle, filled in on the outlet and single-delivery reads only;
+   *     empty when no driver is assigned for the date or Identity could not answer
    */
   public record DeliveryRecordView(
       UUID deliveryId,
@@ -109,12 +117,35 @@ public final class ExecutionViews {
       Optional<Instant> clientRecordedAt,
       Instant serverRecordedAt,
       long rowVersion,
-      List<DeliveryLineView> lines) {
+      List<DeliveryLineView> lines,
+      int stopSequence,
+      Optional<Integer> tripStopCount,
+      LocalTime plannedArrival,
+      Optional<Instant> expectedArrival,
+      Instant releasedAt,
+      Optional<Instant> startedAt,
+      Optional<DriverView> driver) {
 
     public DeliveryRecordView {
       lines = List.copyOf(lines);
     }
+
+    /** The same record with the driver named; the driver is read from Identity, not from this record. */
+    public DeliveryRecordView withDriver(Optional<DriverView> driver) {
+      return new DeliveryRecordView(
+          deliveryId, orderId, tripId, outletId, vehicleId, serviceDate, outcome, arrivedAt,
+          serviceStartedAt, completedAt, waitMinutes, lateMinutes, lateReason, timingUncertain,
+          deliveredUnits, failureReason, dispositionNote, lowEvidence, proofId, clientRecordedAt,
+          serverRecordedAt, rowVersion, lines, stopSequence, tripStopCount, plannedArrival,
+          expectedArrival, releasedAt, startedAt, driver);
+    }
   }
+
+  /**
+   * Who is driving the vehicle, as a store manager may see it: a name and the
+   * badge shown on screen, never an email or a phone number.
+   */
+  public record DriverView(String displayName, Optional<String> employeeCode) {}
 
   /**
    * The evidence for one delivery. The links are signed and short-lived: they

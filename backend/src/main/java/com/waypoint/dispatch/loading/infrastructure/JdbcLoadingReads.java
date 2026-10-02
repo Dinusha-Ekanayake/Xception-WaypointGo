@@ -110,6 +110,43 @@ public class JdbcLoadingReads {
         planVersion);
   }
 
+  /**
+   * One order's stop on a trip, from the newest plan version that still carries it, or null. Reads
+   * the stop alone, never the trip header, so a store manager, who may see its own outlet's stops and
+   * nothing of the trip, can read it too.
+   */
+  public Map<String, Object> orderStop(UUID tripId, UUID orderId) {
+    return database.queryOne(
+        """
+        SELECT plan_version, order_id, stop_sequence, order_ref, outlet_id, temperature, item_count, weight_kg,
+               volume_m3, planned_arrival
+        FROM loading.stops
+        WHERE trip_id = ? AND order_id = ?
+        ORDER BY plan_version DESC
+        LIMIT 1
+        """,
+        tripId,
+        orderId);
+  }
+
+  /** One order's item lines in one plan version, each with its latest check. */
+  public List<Map<String, Object>> orderItems(UUID tripId, int planVersion, UUID orderId) {
+    return database.query(
+        """
+        SELECT i.order_id, i.line_no, i.product_id, i.units,
+               c.status, c.attempt, c.units AS loaded_units, c.recorded_at, c.actor_user_id
+        FROM loading.items i
+        """
+            + LATEST_CHECK
+            + """
+        WHERE i.trip_id = ? AND i.plan_version = ? AND i.order_id = ?
+        ORDER BY i.line_no
+        """,
+        tripId,
+        planVersion,
+        orderId);
+  }
+
   public List<Map<String, Object>> shortfalls(String depotCode, boolean openOnly) {
     return database.query(
         """

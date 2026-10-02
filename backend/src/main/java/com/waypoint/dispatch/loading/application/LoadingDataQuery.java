@@ -1,6 +1,7 @@
 package com.waypoint.dispatch.loading.application;
 
 import com.waypoint.dispatch.loading.contract.LoadingQuery;
+import com.waypoint.dispatch.loading.contract.LoadingViews.ManifestLineView;
 import com.waypoint.dispatch.loading.contract.LoadingViews.ManifestView;
 import com.waypoint.dispatch.loading.contract.LoadingViews.ReadyTripView;
 import com.waypoint.dispatch.loading.contract.LoadingViews.ShortfallView;
@@ -15,6 +16,7 @@ import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -50,6 +52,11 @@ public class LoadingDataQuery implements LoadingQuery {
   @Override
   public Optional<ManifestView> manifest(UUID tripId) {
     return read(ambient(), () -> manifestOf(tripId));
+  }
+
+  @Override
+  public Optional<ManifestLineView> orderLine(UUID tripId, UUID orderId) {
+    return read(ambient(), () -> lineOf(tripId, orderId));
   }
 
   @Override
@@ -89,6 +96,15 @@ public class LoadingDataQuery implements LoadingQuery {
     int version = ((Number) trip.get("plan_version")).intValue();
     return Optional.of(
         LoadingViewMapper.manifest(trip, reads.stops(tripId, version), reads.items(tripId, version), reference));
+  }
+
+  private Optional<ManifestLineView> lineOf(UUID tripId, UUID orderId) {
+    Map<String, Object> stop = reads.orderStop(tripId, orderId);
+    if (stop == null) {
+      return Optional.empty();
+    }
+    int version = ((Number) stop.get("plan_version")).intValue();
+    return Optional.of(LoadingViewMapper.line(0, stop, reads.orderItems(tripId, version, orderId), reference));
   }
 
   private List<ReadyTripView> boardOf(String depotCode, LocalDate serviceDate) {

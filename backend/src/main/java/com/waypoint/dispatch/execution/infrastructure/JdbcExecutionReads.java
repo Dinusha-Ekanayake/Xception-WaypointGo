@@ -21,7 +21,7 @@ public class JdbcExecutionReads {
              d.outcome, d.expected_arrival, d.started_at, d.arrived_at, d.service_started_at, d.completed_at,
              d.wait_minutes, d.late_minutes, d.late_reason, d.timing_uncertain, d.delivered_units,
              d.failure_reason, d.disposition_note, d.low_evidence, d.proof_id, d.client_recorded_at,
-             d.server_recorded_at, d.row_version,
+             d.server_recorded_at, d.row_version, d.released_at, d.trip_stop_count,
              (SELECT coalesce(json_agg(json_build_object(
                          'productId', l.product_id, 'orderedUnits', l.ordered_units,
                          'deliveredUnits', l.delivered_units) ORDER BY l.product_id), '[]')::text

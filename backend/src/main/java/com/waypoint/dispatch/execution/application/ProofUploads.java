@@ -1,7 +1,6 @@
 package com.waypoint.dispatch.execution.application;
 
 import com.waypoint.dispatch.execution.contract.ExecutionCommands;
-import com.waypoint.dispatch.execution.domain.ImageKind;
 import com.waypoint.dispatch.execution.domain.ProofStore;
 import com.waypoint.dispatch.execution.infrastructure.JdbcDeliveryRepository;
 import com.waypoint.dispatch.execution.infrastructure.JdbcDeliveryRepository.StoredAttachment;
@@ -16,6 +15,7 @@ import com.waypoint.dispatch.shared.domain.Actor;
 import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
 import com.waypoint.dispatch.shared.util.Clock;
+import com.waypoint.dispatch.shared.util.ImageKind;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;

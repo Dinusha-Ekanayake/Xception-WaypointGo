@@ -92,4 +92,27 @@ public final class ReceiptViews {
       Instant completedAt,
       Optional<Integer> deliveredUnits,
       Optional<UUID> recordedBy) {}
+
+  /** Past its time reads as {@code EXPIRED} though the row still says awaiting. */
+  public enum HandoverStatus {
+    AWAITING,
+    CONFIRMED,
+    LOCKED,
+    EXPIRED
+  }
+
+  /**
+   * Where the handover PIN stands, for the store's screen. The PIN itself is
+   * never here: it is returned once, by the command that issued it (R-RCP-09).
+   *
+   * @param attemptsLeft wrong entries the driver may still make
+   * @param rowVersion the version a reissue is made against
+   */
+  public record HandoverView(
+      UUID orderId,
+      HandoverStatus status,
+      Instant expiresAt,
+      int attemptsLeft,
+      Optional<Instant> confirmedAt,
+      long rowVersion) {}
 }

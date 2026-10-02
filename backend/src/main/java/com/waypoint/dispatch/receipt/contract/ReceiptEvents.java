@@ -69,4 +69,26 @@ public final class ReceiptEvents {
       return receiptId.toString();
     }
   }
+
+  /** The driver typed the store's PIN: evidence that the handover happened at the store (R-RCP-09). */
+  public record HandoverConfirmed(
+      UUID receiptId, UUID orderId, String outletId, String depotCode, UUID confirmedBy, Instant confirmedAt)
+      implements DomainEvent {
+    public static final String TYPE = "receipt.handover_confirmed";
+
+    @Override
+    public String type() {
+      return TYPE;
+    }
+
+    @Override
+    public String aggregateType() {
+      return "receipt";
+    }
+
+    @Override
+    public String aggregateId() {
+      return receiptId.toString();
+    }
+  }
 }

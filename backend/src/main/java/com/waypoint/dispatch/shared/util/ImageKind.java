@@ -1,10 +1,11 @@
-package com.waypoint.dispatch.execution.domain;
+package com.waypoint.dispatch.shared.util;
 
 import java.util.Optional;
 
 /**
- * The image types accepted as proof, recognised from the bytes themselves. The
- * Content-Type header is the client's claim; the first bytes are the file.
+ * The image types accepted as evidence (proof of delivery, photos of a delivery
+ * problem), recognised from the bytes themselves. The Content-Type header is the
+ * client's claim; the first bytes are the file.
  */
 public enum ImageKind {
   JPEG("image/jpeg"),
