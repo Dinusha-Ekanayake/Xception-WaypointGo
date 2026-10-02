@@ -5,6 +5,7 @@ import type { ApiError } from "@shared/api/problem";
 import type { DeliveryRecordView, IssueView, OrderStatus, OrderView, OutletView, PendingReceiptView } from "@shared/domain/types";
 import { Icon, Notice, Pending, cx } from "@shared/ui";
 import { cases, addDays, clock, cutoffLabel, dayLabel, depotToday, editable, greeting, hhmm, onTheWay, temperatureLabel, untilCutoff } from "../data/format.ts";
+import { deferralRead } from "../data/deferral.ts";
 import { isOpenIssue, issueCard } from "../data/issues.ts";
 import NextStop from "./NextStop.tsx";
 import { Button, Card, Chip, Muted } from "../ui.tsx";
@@ -48,6 +49,7 @@ export default function Home({
   deliveries,
   issues,
   onOpen,
+  onDeferred,
   onPlace,
   onReceive,
   onTrack,
@@ -62,6 +64,8 @@ export default function Home({
   deliveries: DeliveryRecordView[];
   issues: IssueView[];
   onOpen: (orderId: string) => void;
+  /** Open "09 Order deferred" for a deferred order. */
+  onDeferred: (orderId: string) => void;
   onPlace: () => void;
   onReceive: (orderId: string) => void;
   onTrack: () => void;
@@ -80,7 +84,10 @@ export default function Home({
   const forNext = orders.filter((o) => o.deliveryDate === next && o.status !== "CANCELLED");
   const stop = coming ? (deliveries.find((d) => d.orderId === coming.orderId) ?? null) : null;
   const shortage = coming ? issues.find((i) => i.type === "LOADING_SHORTFALL" && isOpenIssue(i) && i.subjects.some((s) => s.id === coming.orderId)) : undefined;
-  const attention = orders.filter((o) => o.status === "DEFERRED" || o.status === "UNSERVABLE" || o.status === "STOCK_UNKNOWN");
+  // A deferral the manager has read ("Got it") stops asking for attention.
+  const attention = orders.filter(
+    (o) => (o.status === "DEFERRED" && !(outlet && deferralRead(outlet.outletId, o))) || o.status === "UNSERVABLE" || o.status === "STOCK_UNKNOWN",
+  );
 
   return (
     <div className="flex flex-col gap-5">
@@ -122,7 +129,11 @@ export default function Home({
                     : `${o.orderRef}: stock not checked yet`
               }
               action={
-                <button type="button" onClick={() => onOpen(o.orderId)} className="min-h-12 shrink-0 px-2 text-[13px] font-medium text-go-teal">
+                <button
+                  type="button"
+                  onClick={() => (o.status === "DEFERRED" ? onDeferred(o.orderId) : onOpen(o.orderId))}
+                  className="min-h-12 shrink-0 px-2 text-[13px] font-medium text-go-teal"
+                >
                   Why
                 </button>
               }

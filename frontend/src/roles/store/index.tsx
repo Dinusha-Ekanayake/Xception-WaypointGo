@@ -9,6 +9,8 @@ import { depotToday } from "./data/format.ts";
 import { createGateway } from "./data/gateway.ts";
 import { isOpenIssue, issuesForOrders, recentOrderIds } from "./data/issues.ts";
 import { useCommands } from "./data/useCommands.ts";
+import { deferralRead, markDeferralRead } from "./data/deferral.ts";
+import DeferredOrder from "./screens/DeferredOrder.tsx";
 import Deliveries from "./screens/deliveries/Deliveries.tsx";
 import Home from "./screens/Home.tsx";
 import Issues from "./screens/issues/Issues.tsx";
@@ -24,7 +26,12 @@ import { SideNav, TabBar, type Tab } from "./ui.tsx";
 // (src/shared/offline/tiers.ts): orders and receipts are kept on the device
 // while offline and sent when the connection returns.
 
-type View = { kind: "tabs" } | { kind: "place"; amend: OrderView | null } | { kind: "receive"; orderId: string } | { kind: "track" };
+type View =
+  | { kind: "tabs" }
+  | { kind: "place"; amend: OrderView | null }
+  | { kind: "receive"; orderId: string }
+  | { kind: "track" }
+  | { kind: "deferred"; orderId: string };
 
 export default function Store({
   userId,
@@ -97,7 +104,7 @@ export default function Store({
   const stops = deliveries.data ?? [];
   const badges = {
     deliveries: toReceive.length,
-    orders: all.filter((o) => o.status === "DEFERRED" || o.status === "STOCK_UNKNOWN").length,
+    orders: all.filter((o) => (o.status === "DEFERRED" && !deferralRead(outletId, o)) || o.status === "STOCK_UNKNOWN").length,
     issues: allIssues.filter(isOpenIssue).length,
   };
   const open = all.find((o) => o.orderId === openOrder) ?? null;
@@ -157,6 +164,20 @@ export default function Store({
         }}
       />
     );
+  } else if (view.kind === "deferred" && all.some((o) => o.orderId === view.orderId)) {
+    const order = all.find((o) => o.orderId === view.orderId)!;
+    body = (
+      <DeferredOrder
+        gateway={gateway}
+        order={order}
+        outlet={outlet.data}
+        onGotIt={() => {
+          markDeferralRead(outletId, order);
+          backToTabs();
+        }}
+        onBack={backToTabs}
+      />
+    );
   } else if (view.kind === "track") {
     body = (
       <Track
@@ -185,6 +206,7 @@ export default function Store({
         deliveries={stops}
         issues={allIssues}
         onOpen={setOpenOrder}
+        onDeferred={(orderId) => setView({ kind: "deferred", orderId })}
         onPlace={place}
         onReceive={receive}
         onTrack={() => setView({ kind: "track" })}
@@ -275,7 +297,7 @@ export default function Store({
       )}
       {view.kind === "tabs" && <TabBar tab={tab} onTab={setTab} badges={badges} />}
       <SideNav
-        tab={view.kind === "place" ? "orders" : view.kind === "receive" || view.kind === "track" ? "deliveries" : tab}
+        tab={view.kind === "place" || view.kind === "deferred" ? "orders" : view.kind === "receive" || view.kind === "track" ? "deliveries" : tab}
         onTab={(t) => {
           setView({ kind: "tabs" });
           setTab(t);
@@ -296,6 +318,10 @@ export default function Store({
           onReceive={() => {
             setOpenOrder(null);
             receive(open.orderId);
+          }}
+          onDeferred={() => {
+            setOpenOrder(null);
+            setView({ kind: "deferred", orderId: open.orderId });
           }}
           onClose={() => setOpenOrder(null)}
         />

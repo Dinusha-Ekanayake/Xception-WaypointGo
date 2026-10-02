@@ -200,6 +200,19 @@ export const MAKE_UP: OrderView = { ...ORIGINAL, orderId: "order-2", orderRef: "
 
 export const NEXT: OrderView = { ...ORDER, orderId: "order-3", orderRef: "ORD0092420", temperature: "ambient", requestedDate: shift(1), deliveryDate: shift(1), status: "CONFIRMED" };
 
+/** Moved off today's run by last night's plan (Figma "09 Order deferred"). */
+export const DEFERRED: OrderView = {
+  ...ORDER,
+  orderId: "order-4",
+  orderRef: "ORD0092413",
+  requestedDate: today,
+  deliveryDate: shift(1),
+  itemCount: 6,
+  status: "DEFERRED",
+  deferralCount: 1,
+  placedAt: `${shift(-2)}T06:40:00Z`,
+};
+
 /** Commands the page sent, in order, for a test to assert on. */
 export type Sent = { kind: string; payload: unknown; expectedVersion: number | null }[];
 
@@ -209,7 +222,7 @@ export type Handover = { status: "AWAITING" | "CONFIRMED" | "LOCKED" | "EXPIRED"
 /** Routes every call the store makes; a delivered order is waiting to be received. */
 export async function mockStore(
   page: Page,
-  options: { answered?: Handover | null; loadingShort?: boolean; week?: boolean } = {},
+  options: { answered?: Handover | null; loadingShort?: boolean; week?: boolean; deferred?: boolean } = {},
 ): Promise<{ sent: Sent; handover: { current: Handover | null }; uploads: string[] }> {
   const sent: Sent = [];
   /** Photo uploads, as the paths they were PUT to. */
@@ -226,7 +239,15 @@ export async function mockStore(
     const json = (body: unknown, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
     if (pathname === "/api/session") return json(SESSION);
     if (pathname === "/api/reference/outlets/OUT085") return json(OUTLET);
-    if (pathname === "/api/orders") return json({ items: options.week ? [order, ORIGINAL, MAKE_UP, NEXT] : [order], nextCursor: null });
+    if (pathname === "/api/orders") {
+      return json({ items: [order, ...(options.week ? [ORIGINAL, MAKE_UP, NEXT] : []), ...(options.deferred ? [DEFERRED] : [])], nextCursor: null });
+    }
+    if (options.deferred && pathname === `/api/orders/${DEFERRED.orderId}/timeline`) {
+      return json([
+        { from: null, to: "CONFIRMED", reason: "placed", actorId: "store-user", at: DEFERRED.placedAt },
+        { from: "CONFIRMED", to: "DEFERRED", reason: "deferred by plan 0192f1 (R-PLN-02): no cold space", actorId: "dispatcher-1", at: `${shift(-1)}T11:10:00Z` },
+      ]);
+    }
     if (options.week && pathname === `/api/orders/${MAKE_UP.orderId}/timeline`) {
       return json([
         { from: null, to: "CONFIRMED", reason: "redelivery of ORD0092318", actorId: null, at: REDELIVERED.resolvedAt },
