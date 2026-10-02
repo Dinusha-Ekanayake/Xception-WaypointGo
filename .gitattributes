@@ -1,0 +1,5 @@
+# Trained model files (issue #16) live in Git LFS. Every file under
+# ml-server/models is byte-exact: the service checks each SHA-256 against
+# ml-server/manifest.json at start, so no line-ending conversion may touch it.
+ml-server/models/*.joblib filter=lfs diff=lfs merge=lfs -text
+ml-server/models/* -text

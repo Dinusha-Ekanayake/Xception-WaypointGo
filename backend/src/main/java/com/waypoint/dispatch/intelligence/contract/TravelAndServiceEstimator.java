@@ -33,7 +33,11 @@ public interface TravelAndServiceEstimator {
 
   record LatenessEstimate(BigDecimal probability, String modelVersion, boolean degraded) {}
 
-  /** Chilled volume is zero for Style and Tech. */
+  /**
+   * Chilled volume is zero for Style and Tech.
+   *
+   * @param degraded true when the deterministic forecast answered because no model could be used
+   */
   record DemandForecast(
       String depotCode,
       String brandCode,
@@ -41,5 +45,6 @@ public interface TravelAndServiceEstimator {
       int isoWeek,
       BigDecimal totalVolumeM3,
       BigDecimal chilledVolumeM3,
-      String modelVersion) {}
+      String modelVersion,
+      boolean degraded) {}
 }

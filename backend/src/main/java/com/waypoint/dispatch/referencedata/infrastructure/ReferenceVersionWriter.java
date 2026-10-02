@@ -206,6 +206,40 @@ public class ReferenceVersionWriter {
   }
 
   /** Moves the current pointer. The partial index guarantees only one current version. */
+  /**
+   * The predictor's inputs (issue #16, D9). Traffic speed belongs to this
+   * version; road conditions are a date-keyed series like the calendar, so a
+   * date already recorded keeps its first value.
+   */
+  public void writeSeries(
+      UUID versionId,
+      java.util.List<CsvReferenceImporter.TrafficSpeedRow> traffic,
+      java.util.List<CsvReferenceImporter.RoadConditionRow> roads) {
+    for (CsvReferenceImporter.TrafficSpeedRow t : traffic) {
+      database.update(
+          """
+          INSERT INTO ref.traffic_speed (reference_version_id, district_name, hour, monsoon, speed_index)
+          VALUES (?, ?, ?, ?, ?)
+          """,
+          versionId,
+          t.district(),
+          t.hour(),
+          t.monsoon(),
+          t.speedIndex());
+    }
+    for (CsvReferenceImporter.RoadConditionRow r : roads) {
+      database.update(
+          """
+          INSERT INTO ref.road_conditions (district_name, condition_date, disruption_index)
+          VALUES (?, ?, ?)
+          ON CONFLICT (district_name, condition_date) DO NOTHING
+          """,
+          r.district(),
+          java.sql.Date.valueOf(r.date()),
+          r.disruptionIndex());
+    }
+  }
+
   public void makeCurrent(UUID versionId) {
     database.update("UPDATE ref.reference_versions SET is_current = false WHERE is_current");
     database.update(

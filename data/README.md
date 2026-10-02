@@ -2,7 +2,7 @@
 
 Copied from the supplied synthetic Tech-Triathlon 2026 records and tracked here so a fresh clone and the Docker image need no separate download.
 
-- `General Data/`: all 120 outlets, all 60 vehicles, the operating calendar, district travel profiles and service allowances, unchanged.
+- `General Data/`: all 120 outlets, all 60 vehicles, the operating calendar, district travel profiles and service allowances, unchanged. Also the traffic speed index (district, hour, monsoon) and the road conditions (district, date, 2024-01-01 to 2026-06-28), which the predictor reads (issue #16).
 - `Training Data/` and `Test Data/`: supplied order and availability records, kept for reference and fixtures.
 - `provenance.json`: original locations, transformations and SHA-256 hashes.
 
