@@ -35,7 +35,7 @@ ROLE_HOSTS=(dispatcher loader driver store admin auditor)
 ensure_certificate() {
   local site="$1" name role missing=0
   local live="/etc/letsencrypt/live/$site/fullchain.pem"
-  local names=("$site" "www.$site" "preview.$site")
+  local names=("$site" "www.$site" "preview.$site" "grafana-preview.$site")
   for role in "${ROLE_HOSTS[@]}"; do names+=("$role.$site" "$role-preview.$site"); done
 
   for name in "${names[@]}"; do
@@ -102,6 +102,19 @@ main() {
   # nginx runs once, with production, and fronts both environments.
   [[ "$environment" == production ]] && compose+=(--profile edge)
 
+  # The log store (Loki, Alloy, Grafana) runs in preview only. Grafana listens
+  # on 127.0.0.1 of the server, so it is reached through an SSH tunnel. Without
+  # GRAFANA_ADMIN_PASSWORD it is skipped, never started with the default one.
+  services=(db backend waypoint)
+  if [[ "$environment" == preview ]]; then
+    if [[ -n "$(env_value GRAFANA_ADMIN_PASSWORD)" ]]; then
+      compose+=(--profile observability)
+      services+=(loki alloy grafana)
+    else
+      echo "deploy: GRAFANA_ADMIN_PASSWORD is not set in .env; the log store is not started." >&2
+    fi
+  fi
+
   local site
   site="$(env_value SITE_ADDRESS)"
   [[ -n "$site" ]] || die "SITE_ADDRESS is not set in .env"
@@ -133,7 +146,7 @@ main() {
   # Only now are the changed containers replaced. init has just run, so it is
   # left out, and --wait holds until the backend reports ready and the frontend
   # answers.
-  "${compose[@]}" up -d --no-deps --remove-orphans --wait --wait-timeout 600 db backend waypoint
+  "${compose[@]}" up -d --no-deps --remove-orphans --wait --wait-timeout 600 "${services[@]}"
 
   echo "==> checking https://$site"
   local attempt
