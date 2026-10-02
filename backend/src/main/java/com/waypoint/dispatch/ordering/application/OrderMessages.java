@@ -118,6 +118,33 @@ final class OrderMessages {
     return body;
   }
 
+  /**
+   * The order as a store's "order sent" screen shows it, answered by place and amend alike.
+   * Totals and temperature are the warehouse's order-level figures, never summed from lines,
+   * and null while stock is unchecked so the screen can say so rather than show zero.
+   */
+  static java.util.Map<String, Object> answer(Order o, long rowVersion) {
+    java.util.Map<String, Object> body = new java.util.LinkedHashMap<>();
+    Optional<Reservation> r = o.reservation();
+    body.put("orderId", o.orderId().toString());
+    body.put("orderRef", o.orderRef());
+    body.put("status", o.status().name());
+    body.put("requestedDate", o.requestedDate().toString());
+    body.put("deliveryDate", o.deliveryDate().toString());
+    body.put("dateRolled", !o.requestedDate().equals(o.deliveryDate()));
+    body.put("rowVersion", rowVersion);
+    body.put("temperature", r.map(Reservation::temperature).orElse(null));
+    body.put("itemCount", r.map(Reservation::itemCount).orElse(null));
+    body.put("weightKg", r.map(Reservation::weightKg).orElse(null));
+    body.put("volumeM3", r.map(Reservation::volumeM3).orElse(null));
+    body.put(
+        "lines",
+        o.lines().stream()
+            .map(l -> java.util.Map.<String, Object>of("productId", l.productId(), "quantity", l.quantity()))
+            .toList());
+    return body;
+  }
+
   /** STK-01: nothing was reserved; say exactly which lines are short and by how much. */
   static DomainException insufficient(Insufficient result) {
     String detail =
@@ -126,9 +153,16 @@ final class OrderMessages {
             .map(l -> l.productId() + " requested " + l.requested() + ", available " + l.available())
             .collect(Collectors.joining("; "));
     return new DomainException(
-        ErrorCode.VALIDATION_FAILED,
-        "Insufficient stock, nothing was reserved: " + detail,
-        List.of("STK-01"));
+            ErrorCode.VALIDATION_FAILED,
+            "Insufficient stock, nothing was reserved: " + detail,
+            List.of("STK-01"))
+        .with(
+            "availability",
+            result.lines().stream()
+                .filter(l -> l.available() < l.requested())
+                .map(l -> java.util.Map.of(
+                    "productId", l.productId(), "requested", l.requested(), "available", l.available()))
+                .toList());
   }
 
   static OrderPlaced placed(Order o) {

@@ -68,6 +68,11 @@ final class RejectionReceipt {
       }
       node.put("message", v.message());
     }
+    if (!rejection.extensions().isEmpty()) {
+      // What the client needs to recover, such as per-line availability, so a retry of
+      // the same command id is told exactly what the first attempt was told.
+      body.set("extensions", mapper.valueToTree(rejection.extensions()));
+    }
     return body.toString();
   }
 
@@ -83,8 +88,15 @@ final class RejectionReceipt {
                 v.hasNonNull("field") ? v.get("field").asText() : null,
                 v.path("message").asText()));
       }
-      return new Stored(
-          ErrorCode.valueOf(body.path("code").asText()), body.path("message").asText(), violations);
+      DomainException stored =
+          new Stored(
+              ErrorCode.valueOf(body.path("code").asText()), body.path("message").asText(), violations);
+      if (body.path("extensions").isObject()) {
+        body.get("extensions")
+            .fields()
+            .forEachRemaining(e -> stored.with(e.getKey(), mapper.convertValue(e.getValue(), Object.class)));
+      }
+      return stored;
     } catch (Exception e) {
       throw new IllegalStateException("Stored rejection is not readable", e);
     }

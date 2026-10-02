@@ -2,6 +2,7 @@ import { request } from "@shared/api/client";
 import type { Command } from "@shared/api/commands";
 import { ApiError } from "@shared/api/problem";
 import type { SubmitBatch, SyncAck } from "@shared/domain/sync";
+import { outcomeAction } from "./outcome.ts";
 import { all, put, remove, type StoredEntry } from "./store.ts";
 import { queuesWrites, type Role } from "./tiers.ts";
 
@@ -138,17 +139,16 @@ async function drainOnce(accountId: string): Promise<DrainReport> {
   for (const result of ack.results) {
     const entry = byId.get(result.operationId);
     if (!entry) continue;
-    if (result.status === "APPLIED") {
-      // Only the server's confirmation lets a write leave the device.
+    const action = outcomeAction(result.status);
+    if (action === "sent") {
       await remove(accountId, entry.commandId);
       sent++;
-    } else if (result.status === "CONFLICT" || result.status === "REJECTED") {
-      // A conflict is never auto-merged, and a refusal cannot be fixed by
-      // resending. Discarding silently would lose the person's work.
+    } else if (action === "dropped") {
+      await remove(accountId, entry.commandId);
+    } else if (action === "review") {
       await put(accountId, { ...entry, needsReview: true, lastError: result.detail ?? result.problemCode ?? result.status });
       heldForReview++;
     } else {
-      // Recorded but not decided. The server stopped here to keep the order.
       await put(accountId, { ...entry, attempts: entry.attempts + 1, lastError: result.detail ?? "Not applied yet" });
       break;
     }

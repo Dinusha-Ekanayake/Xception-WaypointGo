@@ -45,7 +45,7 @@ State words: **built** (merged to `dev` with tests), **partial** (merged, with n
 | --- | --- | --- | --- | --- |
 | Shell, sign-in, role routing, design system | #17 closed | built | Dark theme tokens for the shared system and a component gallery (#28) | [log](development-log.md), 2026-10-01 |
 | Offline queue, kept reads, queued uploads | #15 closed, #28 open | built | Background Sync, and "resolve" for a held write, which needs `sync:Resolve` | `frontend/src/shared/offline/tiers.ts` |
-| Store manager | #18 closed | built | Notifications, driver and ETA details, call options and draft orders: nothing backs them yet (#14) | [log](development-log.md), 2026-10-01 |
+| Store manager | #18 closed | built, contracts checked against the backend 2026-10-02 | Notifications, driver and ETA details, call options and draft orders: nothing backs them yet (#14). No browser suite of its own | [log](development-log.md), 2026-10-02 |
 | Loader | #20 closed | built | Sinhala and Tamil are drafts awaiting a native speaker. Interchange waits on #10 | [walkthrough](../issues/010-loading/WALKTHROUGH.md) |
 | Driver | #21 open | built | English only. Vehicle pick-up by QR, the inbox, fuel, call and map have no backend and are left out | [walkthrough](../issues/021-driver-ui/WALKTHROUGH.md) |
 | Dispatcher | #19 open | partial | Orders, Plan, Live, Overview, Vehicles with weekly fuel, the Issues inbox and skipped outlets are built. Left: assigning an issue to someone else (no staff read), interchange approval (#10), the sync conflict queue, Forecast (#16) | [walkthrough](../issues/019-dispatcher-ui/WALKTHROUGH.md) |
