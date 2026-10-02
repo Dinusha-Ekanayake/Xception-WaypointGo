@@ -36,6 +36,15 @@ Open: Figma's tablet top bar has text "Lock" and "Switch user" buttons and the l
 
 ---
 
+## 2026-10-02 - fix(deploy): start the model service
+
+`fix/deploy-start-ml` · @tharushaudana
+
+`deploy.sh` now starts `ml` with the other services.
+Why: the preview deploy built the model service image (#103) but `up` names its services, and `ml` was missing, so it never ran and every plan fell back to the deterministic estimate.
+Verified: not until the next preview deploy; the script is checked only by deploying.
+Open: nothing.
+
 ## 2026-10-02 - fix(reference): import road conditions in one statement
 
 `fix/reference-import-bulk-series` · @tharushaudana
