@@ -205,41 +205,47 @@ public class ReferenceVersionWriter {
     }
   }
 
-  /** Moves the current pointer. The partial index guarantees only one current version. */
   /**
    * The predictor's inputs (issue #16, D9). Traffic speed belongs to this
    * version; road conditions are a date-keyed series like the calendar, so a
    * date already recorded keeps its first value.
+   *
+   * <p>Each series is one statement over arrays, not a statement per row: the
+   * road conditions are about eleven thousand rows, and a round trip each did
+   * not fit the import's transaction deadline on a deployed database.
    */
   public void writeSeries(
       UUID versionId,
       java.util.List<CsvReferenceImporter.TrafficSpeedRow> traffic,
       java.util.List<CsvReferenceImporter.RoadConditionRow> roads) {
-    for (CsvReferenceImporter.TrafficSpeedRow t : traffic) {
+    if (!traffic.isEmpty()) {
       database.update(
           """
           INSERT INTO ref.traffic_speed (reference_version_id, district_name, hour, monsoon, speed_index)
-          VALUES (?, ?, ?, ?, ?)
+          SELECT ?, t.district, t.hour, t.monsoon, t.speed
+            FROM unnest(?::text[], ?::smallint[], ?::boolean[], ?::numeric[]) AS t(district, hour, monsoon, speed)
           """,
           versionId,
-          t.district(),
-          t.hour(),
-          t.monsoon(),
-          t.speedIndex());
+          traffic.stream().map(CsvReferenceImporter.TrafficSpeedRow::district).toArray(String[]::new),
+          traffic.stream().map(t -> Integer.toString(t.hour())).toArray(String[]::new),
+          traffic.stream().map(t -> Boolean.toString(t.monsoon())).toArray(String[]::new),
+          traffic.stream().map(t -> t.speedIndex().toPlainString()).toArray(String[]::new));
     }
-    for (CsvReferenceImporter.RoadConditionRow r : roads) {
+    if (!roads.isEmpty()) {
       database.update(
           """
           INSERT INTO ref.road_conditions (district_name, condition_date, disruption_index)
-          VALUES (?, ?, ?)
+          SELECT r.district, r.day, r.disruption
+            FROM unnest(?::text[], ?::date[], ?::numeric[]) AS r(district, day, disruption)
           ON CONFLICT (district_name, condition_date) DO NOTHING
           """,
-          r.district(),
-          java.sql.Date.valueOf(r.date()),
-          r.disruptionIndex());
+          roads.stream().map(CsvReferenceImporter.RoadConditionRow::district).toArray(String[]::new),
+          roads.stream().map(r -> r.date().toString()).toArray(String[]::new),
+          roads.stream().map(r -> r.disruptionIndex().toPlainString()).toArray(String[]::new));
     }
   }
 
+  /** Moves the current pointer. The partial index guarantees only one current version. */
   public void makeCurrent(UUID versionId) {
     database.update("UPDATE ref.reference_versions SET is_current = false WHERE is_current");
     database.update(

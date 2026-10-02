@@ -21,6 +21,15 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-02 - fix(reference): import road conditions in one statement
+
+`fix/reference-import-bulk-series` · @tharushaudana
+
+`ReferenceVersionWriter.writeSeries` inserts traffic speed and road conditions as one statement each over arrays, not one per row.
+Why: the preview deploy of #103 failed in `init`: about 11,000 road-condition rows, one round trip each, ran past the import's 15 s transaction deadline on the VPS database. The import rolled back whole and nothing was replaced.
+Verified: compile; CI imports the reference data in every integration test.
+Open: nothing.
+
 ## 2026-10-02 - feat(intelligence): serve the Datathon models and score published plans
 
 `16-intelligence` · @tharushaudana
