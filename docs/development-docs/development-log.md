@@ -37,6 +37,16 @@ Kept from the backend where Figma differs: the required reason on an issue (`loa
 Why: the booklet judges fidelity to the Day 5 design on phone-size screens.
 Verified: typecheck, `npm test` (48), build; loader browser suite 4 of 4 and dispatcher 11 of 11; screenshots of each screen in light and dark compared with the Figma frames at 393x852.
 Open: Figma's notifications bell (loader notifications are #14) and the optional issue photo (Loading has no upload endpoint). Sinhala and Tamil need a native speaker.
+## 2026-10-02 - fix: show admin mock on preview role address
+
+`dev` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Route the signed-in admin role on `admin-preview.waypointgo.live` to the existing interactive sample console instead of the placeholder. Keep the normal session and role gate.
+Why: nginx already serves the hostname, but the frontend role router still showed "not built yet".
+Verified: frontend typecheck and production build passed.
+Open: the admin console uses sample data; live backend wiring remains in issue #22.
+
+---
 
 ## 2026-10-02 - feat(dispatcher): issues inbox, overview tiles, skipped outlets, weekly fuel (issue #19)
 
@@ -46,6 +56,8 @@ The dispatcher can now see, take, resolve, redeliver, record a replacement for, 
 Why: the Issues backend was done, but no dispatcher could act on an issue on screen.
 Verified: `npm test` 45 pass, typecheck and build green, dispatcher Playwright suite 11 pass (mocked API).
 Open: assigning to someone else needs a staff read; interchange approval waits on #10, Forecast on #16, the sync conflict queue is not started.
+
+---
 
 ## 2026-10-02 - fix: match admin preview branding
 
