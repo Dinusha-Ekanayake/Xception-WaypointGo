@@ -21,6 +21,15 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-02 - feat(observability): Waypoint logs dashboard in Grafana
+
+`feat/grafana-logs-dashboard` · @jv_ransika
+
+Grafana now provisions a "Waypoint logs" dashboard (lines per container, errors and warnings, a log panel with container and text filters) and opens on it. Loki already held the logs; the home page was empty because only the data source was provisioned.
+Why: after login there was nothing to look at, so the log store looked broken.
+Verified: dashboard JSON parses; both compose files resolve. Not yet checked on the preview.
+Open: Grafana still uses the default `admin` login; production containers are now shipped to the same Loki.
+
 ## 2026-10-02 - feat(shell): production's shared address hands each role to its own address
 
 `feat/production-role-landing` · @kavindamihiran
