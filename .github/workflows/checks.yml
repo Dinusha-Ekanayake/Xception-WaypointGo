@@ -11,6 +11,24 @@ permissions:
   contents: read
 
 jobs:
+  mcp:
+    name: Read-only MCP checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: mcp
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: mcp/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+
   backend:
     name: Backend tests
     runs-on: ubuntu-latest
