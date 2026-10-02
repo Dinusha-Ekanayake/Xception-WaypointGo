@@ -48,7 +48,7 @@ State words: **built** (merged to `dev` with tests), **partial** (merged, with n
 | Loader | #20 closed | built | Sinhala and Tamil are drafts awaiting a native speaker. Interchange waits on #10 | [walkthrough](../issues/010-loading/WALKTHROUGH.md) |
 | Driver | #21 open | built | English only. Vehicle pick-up by QR, the inbox, fuel, call and map have no backend and are left out | [walkthrough](../issues/021-driver-ui/WALKTHROUGH.md) |
 | Dispatcher | #19 open | partial | Orders, Plan, Live, Overview, Vehicles with weekly fuel, the Issues inbox and skipped outlets are built. Left: assigning an issue to someone else (no staff read), interchange approval (#10), the sync conflict queue, Forecast (#16) | [walkthrough](../issues/019-dispatcher-ui/WALKTHROUGH.md) |
-| Admin console | #22 open | in flight | Nothing on `dev`: `RoleRouter` shows "not built yet". Work exists on `22-admin-console` and `frontend/admin_test_UI`, unmerged | issue #22 |
+| Admin console | #22 open | in flight | `admin-preview.waypointgo.live` shows the interactive sample console after admin sign-in. Live backend wiring remains open; production still shows the placeholder | issue #22 |
 | Auditor console | #23 open | mock UI built on `23-auditor-console` | Overview, searchable activity, security events and event details at `/access-demo`; live reads remain blocked on `audit:Read` API (#6) | [UI plan](../issues/022-admin-console/AUDIT-CONSOLE-UI-PLAN.md) |
 
 ### Across everything

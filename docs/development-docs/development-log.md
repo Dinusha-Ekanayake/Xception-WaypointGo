@@ -29,6 +29,16 @@ The preview deploy starts Loki, Alloy and Grafana when `GRAFANA_ADMIN_PASSWORD` 
 Why: PR #51 added the log store but the VPS deploy never started it, and the public address needs an nginx vhost that production nginx (built from `main`) does not have yet.
 Verified: containers healthy on the VPS, Grafana health 200 from inside the server; public address not yet verified (needs the production nginx change).
 Open: production nginx on `main` needs the vhost and a certificate with the new name; Grafana still uses the default `admin` login.
+## 2026-10-02 - fix: show admin mock on preview role address
+
+`dev` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Route the signed-in admin role on `admin-preview.waypointgo.live` to the existing interactive sample console instead of the placeholder. Keep the normal session and role gate.
+Why: nginx already serves the hostname, but the frontend role router still showed "not built yet".
+Verified: frontend typecheck and production build passed.
+Open: the admin console uses sample data; live backend wiring remains in issue #22.
+
+---
 
 ## 2026-10-02 - feat(dispatcher): issues inbox, overview tiles, skipped outlets, weekly fuel (issue #19)
 
@@ -38,6 +48,8 @@ The dispatcher can now see, take, resolve, redeliver, record a replacement for, 
 Why: the Issues backend was done, but no dispatcher could act on an issue on screen.
 Verified: `npm test` 45 pass, typecheck and build green, dispatcher Playwright suite 11 pass (mocked API).
 Open: assigning to someone else needs a staff read; interchange approval waits on #10, Forecast on #16, the sync conflict queue is not started.
+
+---
 
 ## 2026-10-02 - fix: match admin preview branding
 
