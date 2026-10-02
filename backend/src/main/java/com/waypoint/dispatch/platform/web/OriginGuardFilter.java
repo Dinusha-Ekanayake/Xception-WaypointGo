@@ -91,21 +91,8 @@ public class OriginGuardFilter extends OncePerRequestFilter {
     return origin.equals(hostOf(request)) || allowed.contains(origin);
   }
 
-  /** The host the browser addressed, with a default port dropped. */
   private static String hostOf(HttpServletRequest request) {
-    String host = request.getHeader("X-Forwarded-Host");
-    if (host == null || host.isBlank()) {
-      host = request.getHeader("Host");
-    }
-    if (host == null || host.isBlank()) {
-      return null;
-    }
-    // A chain of proxies appends; the first value is the one the browser used.
-    host = host.split(",")[0].trim().toLowerCase(Locale.ROOT);
-    if (host.endsWith(":80") || host.endsWith(":443")) {
-      host = host.substring(0, host.lastIndexOf(':'));
-    }
-    return host;
+    return RequestOrigin.host(request);
   }
 
   /** {@code host[:port]} of a URL, lower case, default port dropped. Null when unreadable. */

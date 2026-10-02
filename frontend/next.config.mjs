@@ -31,6 +31,7 @@ const config = {
           { key: "Content-Security-Policy", value: CONTENT_SECURITY_POLICY },
         ],
       },
+      { source: "/oauth/:path*", headers: [{ key: "Cache-Control", value: "no-store" }, { key: "Referrer-Policy", value: "no-referrer" }] },
       {
         source: "/sw.js",
         headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }],

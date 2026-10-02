@@ -50,6 +50,9 @@ public class McpCredentialFilter extends OncePerRequestFilter {
       }
       String token = header == null ? browser : header.substring(7);
       access.require(token, request.getMethod(), request.getRequestURI());
+      if (!"/api/mcp/session/end".equals(request.getRequestURI())) {
+        access.requireResource(token, request.getHeader("X-Waypoint-Mcp-Resource"));
+      }
       request.setAttribute(CREDENTIAL, token);
       chain.doFilter(request, response);
     } catch (RuntimeException error) {
