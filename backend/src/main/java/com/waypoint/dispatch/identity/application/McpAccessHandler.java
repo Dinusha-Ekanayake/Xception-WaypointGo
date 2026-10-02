@@ -34,6 +34,13 @@ public class McpAccessHandler {
     }
   }
 
+  public void requireResource(String token, String resource) {
+    if (!sessions.matchesMcpResource(token, resource)
+        || (resource != null && (!properties.remoteEnabled() || !resource.equals(properties.publicUrl())))) {
+      throw new DomainException(ErrorCode.UNAUTHENTICATED, "Credential is not valid for this MCP resource");
+    }
+  }
+
   public SessionView require(String token, String method, String path) {
     SessionView session = sessions.resolveMcp(token).orElseThrow(
         () -> new DomainException(ErrorCode.UNAUTHENTICATED, "MCP credential is expired or revoked"));

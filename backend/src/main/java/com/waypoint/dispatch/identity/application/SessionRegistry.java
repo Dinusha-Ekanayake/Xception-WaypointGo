@@ -175,6 +175,14 @@ public class SessionRegistry {
     return List.copyOf(scope);
   }
 
+  /** Remote credentials are accepted only for their issued resource; local credentials have no audience. */
+  public boolean matchesMcpResource(String token, String resource) {
+    return database.readAs(ModuleRole.IAM, null, () -> {
+      var row = database.queryOne("SELECT oauth_resource FROM iam.sessions WHERE token_hash = ? AND mcp_read_only", tokens.hash(token));
+      return row != null && java.util.Objects.equals(row.get("oauth_resource"), resource);
+    });
+  }
+
   /** Sign-out: one session, in a transaction of its own. */
   public void revoke(String token) {
     database.asModule(ModuleRole.IAM, null, () -> revokeInTransaction(token));

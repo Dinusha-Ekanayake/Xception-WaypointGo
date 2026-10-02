@@ -1,8 +1,24 @@
 package com.waypoint.dispatch.platform.config;
 
+import java.net.URI;
+import java.util.Set;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
-/** Optional personal MCP connections; disabled until a deployment enables them. */
+/** Local access can be enabled independently; remote access needs a canonical resource URL. */
 @ConfigurationProperties(prefix = "app.mcp")
-public record McpProperties(@DefaultValue("false") boolean enabled) {}
+public record McpProperties(@DefaultValue("false") boolean enabled, @DefaultValue("") String publicUrl) {
+  public McpProperties {
+    publicUrl = publicUrl == null ? "" : publicUrl.trim();
+    if (!publicUrl.isEmpty()) {
+      URI uri = URI.create(publicUrl);
+      boolean local = uri.getHost() != null && Set.of("localhost", "127.0.0.1", "[::1]").contains(uri.getHost());
+      if (uri.getHost() == null || uri.getRawUserInfo() != null || uri.getRawQuery() != null || uri.getRawFragment() != null
+          || !"/mcp".equals(uri.getRawPath()) || !("https".equals(uri.getScheme()) || (local && "http".equals(uri.getScheme())))) {
+        throw new IllegalArgumentException("MCP_PUBLIC_URL must be an HTTPS URL ending in /mcp, or loopback HTTP for development");
+      }
+    }
+  }
+  public boolean remoteEnabled() { return enabled && !publicUrl.isEmpty(); }
+  public String publicOrigin() { return publicUrl.substring(0, publicUrl.length() - "/mcp".length()); }
+}

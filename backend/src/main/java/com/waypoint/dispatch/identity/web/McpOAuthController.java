@@ -55,7 +55,7 @@ public class McpOAuthController {
   @GetMapping("/protected-resource")
   public ResponseEntity<Map<String, Object>> protectedResource(HttpServletRequest request) {
     requireDiscoverable();
-    String origin = McpAuthorizationController.originOf(request);
+    String origin = properties.publicOrigin();
     Map<String, Object> body = new LinkedHashMap<>();
     body.put("resource", origin + McpAuthorizationController.MCP_PATH);
     body.put("authorization_servers", List.of(origin));
@@ -69,13 +69,15 @@ public class McpOAuthController {
   @GetMapping("/authorization-server")
   public ResponseEntity<Map<String, Object>> authorizationServer(HttpServletRequest request) {
     requireDiscoverable();
-    String origin = McpAuthorizationController.originOf(request);
+    String origin = properties.publicOrigin();
     Map<String, Object> body = new LinkedHashMap<>();
     body.put("issuer", origin);
     // A page, served by the frontend. Everything else is this controller.
     body.put("authorization_endpoint", origin + "/oauth/authorize");
     body.put("token_endpoint", origin + "/api/oauth/token");
     body.put("registration_endpoint", origin + "/api/oauth/register");
+    body.put("revocation_endpoint", origin + "/api/oauth/revoke");
+    body.put("revocation_endpoint_auth_methods_supported", List.of("none"));
     body.put("response_types_supported", List.of("code"));
     body.put("grant_types_supported", List.of("authorization_code"));
     body.put("code_challenge_methods_supported", List.of("S256"));
@@ -119,12 +121,13 @@ public class McpOAuthController {
       @RequestParam(name = "code", required = false) String code,
       @RequestParam(name = "client_id", required = false) String clientId,
       @RequestParam(name = "redirect_uri", required = false) String redirectUri,
-      @RequestParam(name = "code_verifier", required = false) String codeVerifier) {
+      @RequestParam(name = "code_verifier", required = false) String codeVerifier,
+      @RequestParam(name = "resource", required = false) String resource) {
     if (!"authorization_code".equals(grantType)) {
       throw new OAuthProtocolException(
           400, "unsupported_grant_type", "Only the authorization_code grant is supported");
     }
-    McpOAuthHandler.Grant grant = oauth.exchange(code, clientId, redirectUri, codeVerifier);
+    McpOAuthHandler.Grant grant = oauth.exchange(code, clientId, redirectUri, codeVerifier, resource);
     Map<String, Object> body = new LinkedHashMap<>();
     body.put("access_token", grant.accessToken());
     body.put("token_type", "Bearer");
@@ -133,9 +136,17 @@ public class McpOAuthController {
     return json(200, body);
   }
 
+  @PostMapping(path = "/revoke", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
+  public ResponseEntity<Map<String, String>> revoke(
+      @RequestParam(name = "token", required = false) String token,
+      @RequestParam(name = "client_id", required = false) String clientId) {
+    oauth.revoke(token, clientId);
+    return json(200, Map.of());
+  }
+
   /** Switched off, the documents do not exist, so a client finds nothing to authorize against. */
   private void requireDiscoverable() {
-    if (!properties.enabled()) {
+    if (!properties.remoteEnabled()) {
       throw new DomainException(ErrorCode.NOT_FOUND, "No such endpoint");
     }
   }

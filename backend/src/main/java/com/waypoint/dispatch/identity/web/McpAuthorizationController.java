@@ -2,9 +2,6 @@ package com.waypoint.dispatch.identity.web;
 
 import com.waypoint.dispatch.identity.application.McpOAuthHandler;
 import com.waypoint.dispatch.identity.contract.McpAuthorizationView;
-import com.waypoint.dispatch.platform.web.RequestOrigin;
-import com.waypoint.dispatch.shared.error.DomainException;
-import com.waypoint.dispatch.shared.error.ErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Map;
 import org.springframework.http.ResponseEntity;
@@ -42,6 +39,7 @@ public class McpAuthorizationController {
       String codeChallengeMethod,
       String state,
       String resource,
+      String scope,
       String email,
       String password) {}
 
@@ -55,12 +53,12 @@ public class McpAuthorizationController {
       @RequestParam(name = "code_challenge_method", required = false) String codeChallengeMethod,
       @RequestParam(name = "state", required = false) String state,
       @RequestParam(name = "resource", required = false) String resource,
+      @RequestParam(name = "scope", required = false) String scope,
       HttpServletRequest request) {
     McpAuthorizationView view =
         oauth.describe(
             new McpOAuthHandler.Request(
-                clientId, redirectUri, responseType, codeChallenge, codeChallengeMethod, state, resource,
-                originOf(request) + MCP_PATH));
+                clientId, redirectUri, responseType, codeChallenge, codeChallengeMethod, state, resource, scope));
     return ResponseEntity.ok().header("Cache-Control", "no-store").body(view);
   }
 
@@ -77,19 +75,11 @@ public class McpAuthorizationController {
                 body.codeChallenge(),
                 body.codeChallengeMethod(),
                 body.state(),
-                body.resource(),
-                originOf(request) + MCP_PATH),
+                body.resource(), body.scope()),
             body.email(),
             body.password(),
             request.getRemoteAddr());
     return ResponseEntity.ok().header("Cache-Control", "no-store").body(Map.of("redirectTo", redirectTo));
   }
 
-  static String originOf(HttpServletRequest request) {
-    String origin = RequestOrigin.of(request);
-    if (origin == null) {
-      throw new DomainException(ErrorCode.BAD_REQUEST, "The request names no host");
-    }
-    return origin;
-  }
 }

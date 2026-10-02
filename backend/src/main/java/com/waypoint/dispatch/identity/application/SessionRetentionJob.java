@@ -88,15 +88,19 @@ public class SessionRetentionJob implements ScheduledJob {
             ModuleRole.IAM,
             () ->
                 database.update(
-                    "DELETE FROM iam.oauth_authorization_codes WHERE expires_at < ?", sessionCutoff));
+                    "DELETE FROM iam.oauth_authorization_codes WHERE code_hash IN"
+                        + " (SELECT code_hash FROM iam.oauth_authorization_codes WHERE expires_at < ? LIMIT " + BATCH + ")", sessionCutoff));
     int clients =
         database.asSystem(
             ModuleRole.IAM,
             () ->
                 database.update(
-                    "DELETE FROM iam.oauth_clients c WHERE c.last_used_at IS NULL AND c.registered_at < ?"
+                    "DELETE FROM iam.oauth_clients WHERE client_id IN"
+                        + " (SELECT c.client_id FROM iam.oauth_clients c WHERE c.last_used_at IS NULL AND c.registered_at < ?"
                         + " AND NOT EXISTS (SELECT 1 FROM iam.oauth_authorization_codes a"
-                        + " WHERE a.client_id = c.client_id)",
+                        + " WHERE a.client_id = c.client_id)"
+                        + " AND NOT EXISTS (SELECT 1 FROM iam.sessions s WHERE s.oauth_client_id = c.client_id)"
+                        + " LIMIT " + BATCH + ")",
                     sessionCutoff));
     if (codes > 0) {
       metrics.count("waypoint.retention.purged", codes, "table", "iam.oauth_authorization_codes");

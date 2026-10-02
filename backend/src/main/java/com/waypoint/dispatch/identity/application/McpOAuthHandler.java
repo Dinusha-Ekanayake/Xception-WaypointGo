@@ -11,6 +11,7 @@ import com.waypoint.dispatch.identity.infrastructure.SessionTokens;
 import com.waypoint.dispatch.platform.audit.AuditEntry;
 import com.waypoint.dispatch.platform.audit.AuditLog;
 import com.waypoint.dispatch.platform.db.Database;
+import com.waypoint.dispatch.platform.config.McpProperties;
 import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.platform.observability.Metrics;
 import com.waypoint.dispatch.shared.domain.Actor;
@@ -18,6 +19,8 @@ import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
 import com.waypoint.dispatch.shared.error.Violation;
 import com.waypoint.dispatch.shared.util.Clock;
+import com.waypoint.dispatch.shared.util.UuidV7;
+import java.security.SecureRandom;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
@@ -74,6 +77,7 @@ public class McpOAuthHandler {
   private final ObjectMapper mapper;
   private final Metrics metrics;
   private final Clock clock;
+  private final McpProperties properties;
 
   public McpOAuthHandler(
       Database database,
@@ -84,7 +88,7 @@ public class McpOAuthHandler {
       AuditLog audit,
       ObjectMapper mapper,
       Metrics metrics,
-      Clock clock) {
+      Clock clock, McpProperties properties) {
     this.database = database;
     this.access = access;
     this.login = login;
@@ -94,6 +98,7 @@ public class McpOAuthHandler {
     this.mapper = mapper;
     this.metrics = metrics;
     this.clock = clock;
+    this.properties = properties;
   }
 
   /** A registered client: who it says it is and where it may send people back to. */
@@ -102,8 +107,7 @@ public class McpOAuthHandler {
   /**
    * What a client put in the authorization URL.
    *
-   * @param resource the MCP endpoint the token is for (RFC 8707), or null
-   * @param expectedResource the MCP endpoint of the address this request came to
+   * @param resource the configured MCP endpoint the token is for (RFC 8707)
    */
   public record Request(
       String clientId,
@@ -113,7 +117,7 @@ public class McpOAuthHandler {
       String codeChallengeMethod,
       String state,
       String resource,
-      String expectedResource) {}
+      String scope) {}
 
   /** A session for the client, and how long it can last at most. */
   public record Grant(String accessToken, Duration lifetime) {}
@@ -121,7 +125,7 @@ public class McpOAuthHandler {
   // ---- registration (RFC 7591) ------------------------------------------------
 
   public Client register(String requestedName, List<String> redirectUris, String sourceIp) {
-    access.requireEnabled();
+    requireRemote();
     if (redirectUris == null || redirectUris.isEmpty() || redirectUris.size() > MAX_REDIRECT_URIS) {
       throw new OAuthProtocolException(
           400, "invalid_redirect_uri", "Between 1 and " + MAX_REDIRECT_URIS + " redirect URIs are required");
@@ -135,7 +139,7 @@ public class McpOAuthHandler {
       }
     }
     Client client =
-        new Client(UUID.randomUUID(), displayName(requestedName), redirectUris.stream().distinct().toList(), clock.now());
+        new Client(UuidV7.generate(clock.now(), new SecureRandom()), displayName(requestedName), redirectUris.stream().distinct().toList(), clock.now());
 
     boolean stored =
         database.asModule(
@@ -183,7 +187,7 @@ public class McpOAuthHandler {
    * is just an address an attacker chose.
    */
   public McpAuthorizationView describe(Request request) {
-    access.requireEnabled();
+    requireRemote();
     Client client = validated(request);
     return new McpAuthorizationView(client.name(), RedirectUriPolicy.displayHost(request.redirectUri()));
   }
@@ -193,7 +197,7 @@ public class McpOAuthHandler {
    * redirect URI carrying a one-time code.
    */
   public String authorize(Request request, String email, String password, String sourceIp) {
-    access.requireEnabled();
+    requireRemote();
     Client client = validated(request);
 
     // Throws on a wrong password or a lockout, after recording the attempt.
@@ -209,15 +213,15 @@ public class McpOAuthHandler {
         () ->
             database.update(
                 "INSERT INTO iam.oauth_authorization_codes"
-                    + " (code_hash, client_id, user_id, redirect_uri, code_challenge, issued_at, expires_at)"
-                    + " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    + " (code_hash, client_id, user_id, redirect_uri, code_challenge, issued_at, expires_at, resource_uri)"
+                    + " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 tokens.hash(code),
                 client.clientId(),
                 userId,
                 request.redirectUri(),
                 request.codeChallenge(),
                 Timestamp.from(now),
-                Timestamp.from(now.plus(CODE_LIFETIME))));
+                Timestamp.from(now.plus(CODE_LIFETIME)), request.resource()));
     audit.recordStandalone(
         AuditEntry.allowed(
             userId,
@@ -237,11 +241,11 @@ public class McpOAuthHandler {
   // ---- token: the client collects --------------------------------------------
 
   /** Trades a one-time code for the read-only session. Every refusal reads the same to the caller. */
-  public Grant exchange(String code, String clientId, String redirectUri, String codeVerifier) {
-    access.requireEnabled();
-    if (isBlank(code) || isBlank(clientId) || isBlank(redirectUri) || isBlank(codeVerifier)) {
+  public Grant exchange(String code, String clientId, String redirectUri, String codeVerifier, String resource) {
+    requireRemote();
+    if (isBlank(code) || isBlank(clientId) || isBlank(redirectUri) || isBlank(codeVerifier) || isBlank(resource)) {
       throw new OAuthProtocolException(
-          400, "invalid_request", "code, client_id, redirect_uri and code_verifier are required");
+          400, "invalid_request", "code, client_id, redirect_uri and code_verifier and resource are required");
     }
     UUID client = uuidOrNull(clientId);
     Instant now = clock.now();
@@ -257,7 +261,7 @@ public class McpOAuthHandler {
               Map<String, Object> row =
                   database.queryOne(
                       "SELECT client_id, user_id, redirect_uri, code_challenge, expires_at, consumed_at,"
-                          + " session_key FROM iam.oauth_authorization_codes WHERE code_hash = ? FOR UPDATE",
+                          + " session_key, resource_uri FROM iam.oauth_authorization_codes WHERE code_hash = ? FOR UPDATE",
                       codeHash);
               if (row == null || client == null) {
                 return new Exchange(null, null, "unknown");
@@ -291,7 +295,12 @@ public class McpOAuthHandler {
               if (refusal.isPresent()) {
                 return new Exchange(null, userId, refusal.get().name().toLowerCase(Locale.ROOT));
               }
+              if (!resource.equals(row.get("resource_uri")) || !resource.equals(properties.publicUrl())) {
+                return new Exchange(null, userId, "wrong_resource");
+              }
               String token = sessions.issue(userId, null, true);
+              database.update("UPDATE iam.sessions SET oauth_resource = ?, oauth_client_id = ? WHERE token_hash = ?",
+                  resource, client, sessions.keyOf(token));
               database.update(
                   "UPDATE iam.oauth_authorization_codes SET session_key = ? WHERE code_hash = ?",
                   sessions.keyOf(token),
@@ -361,10 +370,32 @@ public class McpOAuthHandler {
     if (request.state() != null && request.state().length() > MAX_STATE) {
       throw invalid("state", "is too long");
     }
-    if (!isBlank(request.resource()) && !request.resource().equals(request.expectedResource())) {
+    if (!properties.publicUrl().equals(request.resource())) {
       throw invalid("resource", "is not this MCP endpoint");
     }
+    if (!isBlank(request.scope()) && !SCOPE.equals(request.scope())) {
+      throw invalid("scope", "only waypoint.read is available");
+    }
     return client;
+  }
+
+  private void requireRemote() {
+    if (!properties.remoteEnabled()) throw new DomainException(ErrorCode.FORBIDDEN, "Remote MCP is not enabled");
+  }
+
+  /** RFC 7009: reveal nothing about unknown tokens; a public client revokes only its own tokens. */
+  public void revoke(String token, String clientId) {
+    UUID client = uuidOrNull(clientId == null ? "" : clientId);
+    if (client == null || isBlank(token)) return;
+    UUID actor = database.asModule(ModuleRole.IAM, null, () -> {
+      var row = database.queryOne("SELECT user_id FROM iam.sessions WHERE token_hash = ? AND oauth_client_id = ?",
+          tokens.hash(token), client);
+      if (row == null) return null;
+      sessions.revokeByKeyInTransaction(tokens.hash(token), "oauth_revoke");
+      return (UUID) row.get("user_id");
+    });
+    if (actor != null) audit.recordStandalone(AuditEntry.allowed(actor, null, McpAccessHandler.CONNECT,
+        McpAccessHandler.RESOURCE, "remote connection revoked for client " + client));
   }
 
   private Optional<Client> find(String clientId) {
