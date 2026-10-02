@@ -67,6 +67,9 @@ services:
       PUSH_VAPID_PUBLIC_KEY: ${PUSH_VAPID_PUBLIC_KEY:-}
       PUSH_VAPID_PRIVATE_KEY: ${PUSH_VAPID_PRIVATE_KEY:-}
       PUSH_SUBJECT: ${PUSH_SUBJECT:-mailto:operations@waypoint.invalid}
+      # The model service (issue #16). Not a dependency: with it down the
+      # backend uses its deterministic estimates and says so on every plan.
+      ML_BASE_URL: ${ML_BASE_URL:-http://ml:8000}
       LOG_FORMAT: ecs
     volumes:
       - ./data:/app/data:ro
@@ -87,6 +90,21 @@ services:
       # full interval to learn the service is already up.
       start_period: 60s
       start_interval: 2s
+  # Serves the trained models to the backend (issue #16, ADR-001). Reached only
+  # from inside the compose network; it publishes no port. Its model files come
+  # from Git LFS, so a checkout needs `git lfs pull` before building.
+  ml:
+    labels:
+      com.waypoint.logs: "true"
+    build:
+      context: ./ml-server
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
   waypoint:
     labels:
       com.waypoint.logs: "true"

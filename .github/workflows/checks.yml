@@ -29,6 +29,28 @@ jobs:
       - run: npm run build
       - run: npm test
 
+  ml-server:
+    name: Model service tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: ml-server
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # The trained models are in Git LFS; without them the service refuses to start.
+          lfs: true
+      - uses: actions/setup-python@v6
+        with:
+          # The version the models were trained on.
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: ml-server/requirements*.txt
+      - run: pip install -r requirements-dev.txt
+      # Compares the API with the vendored Datathon inference on real routes.
+      - run: pytest
+
   backend:
     name: Backend tests
     runs-on: ubuntu-latest

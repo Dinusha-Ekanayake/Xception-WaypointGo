@@ -138,6 +138,13 @@ main() {
     exec "$APP_DIR/deploy/vps/deploy.sh" --fetched
   fi
 
+  # The trained model files are in Git LFS (issue #16). Without git-lfs the
+  # checkout holds pointer files and the model service refuses to start, so stop
+  # here, before anything running is replaced.
+  command -v git-lfs >/dev/null 2>&1 \
+    || die "git-lfs is not installed; run 'apt-get install git-lfs' once (docs/deployment.md)"
+  git lfs pull --include="ml-server/models/*" || die "git lfs pull failed"
+
   compose=(docker compose -f compose.yaml -f deploy/vps/compose.vps.yaml)
   # nginx runs once, with production, and fronts both environments.
   [[ "$environment" == production ]] && compose+=(--profile edge)
