@@ -21,6 +21,17 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-02 - fix: show admin mock on preview role address
+
+`dev` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Route the signed-in admin role on `admin-preview.waypointgo.live` to the existing interactive sample console instead of the placeholder. Keep the normal session and role gate.
+Why: nginx already serves the hostname, but the frontend role router still showed "not built yet".
+Verified: frontend typecheck and production build passed.
+Open: the admin console uses sample data; live backend wiring remains in issue #22.
+
+---
+
 ## 2026-10-02 - fix: match admin preview branding
 
 `dev` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
