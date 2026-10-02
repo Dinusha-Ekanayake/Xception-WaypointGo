@@ -179,7 +179,7 @@ To try it by hand:
 | No replay command (POL-03); every run is stamped, so replay is possible | Follow-up issue |
 | Publication does not yet require an explanation for an outlet skipped twice (PLN-03) | Planning follow-up, with the dispatcher screens |
 | Learned travel and service times: plans are built with `plannedWithoutPredictor = true` | Intelligence, issue #16 |
-| An optimiser behind `AllocationEngine` | Follow-up, with #16 |
+| An optimiser behind `AllocationEngine` | First pass built in #92: the scarce-fleet re-plan ([walkthrough](../092-engine-improvement/WALKTHROUGH.md)) |
 | An order Ordering already rolled to tomorrow, overridden back into today's revision, is not guarded against | Planning with Ordering |
 | A vehicle removed from reference data after publication makes a revision fail loudly instead of planning around it | Planning follow-up |
 | `FuelView` reports usage from plans; actual usage above quota (FLT-05) is Execution's to record | Execution |
