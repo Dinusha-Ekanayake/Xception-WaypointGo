@@ -85,7 +85,8 @@ services:
   waypoint:
     labels:
       com.waypoint.logs: "true"
-    build: ./frontend
+    build:
+      context: ./frontend
     ports:
       - "${PORT:-3000}:3000"
     environment:

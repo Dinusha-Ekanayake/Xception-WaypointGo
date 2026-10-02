@@ -7,6 +7,10 @@ COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
+# Set to 1 where each role has an address of its own beside the shared one (the
+# VPS overlay does). It is compiled into the page, so it is a build argument.
+ARG NEXT_PUBLIC_ROLE_ADDRESSES=
+ENV NEXT_PUBLIC_ROLE_ADDRESSES=$NEXT_PUBLIC_ROLE_ADDRESSES
 RUN --mount=type=cache,target=/app/.next/cache npm run build
 
 FROM node:24-bookworm-slim

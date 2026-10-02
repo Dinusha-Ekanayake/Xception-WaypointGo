@@ -4,8 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useOnline } from "@shared/api/useResource";
 import { useSync } from "@shared/offline";
 import { Notice, ShellProvider, cx, type ShellControls } from "@shared/ui";
-import { hostForRole, previewHomeFor, roleForHost } from "./hostRole.ts";
-import PreviewLanding from "./PreviewLanding.tsx";
+import { ROLE_ADDRESSES, hostForRole, roleForHost, sharedHomeFor } from "./hostRole.ts";
+import RoleLanding from "./RoleLanding.tsx";
 import RoleRouter from "./RoleRouter.tsx";
 import SignIn from "./SignIn.tsx";
 import SyncStatus from "./SyncStatus.tsx";
@@ -61,9 +61,9 @@ export default function AppShell(): React.JSX.Element {
   const host = state ? window.location.hostname : "";
   const pinned = roleForHost(host);
 
-  // The shared preview address has no workspace or sign-in: it offers the role
-  // addresses, whatever the session on this one says.
-  const landing = previewHomeFor(host, "dispatcher") !== null;
+  // The address every role shares has no workspace or sign-in where the role
+  // addresses are served: it offers them, whatever the session on this one says.
+  const landing = sharedHomeFor(host, "dispatcher", ROLE_ADDRESSES) !== null;
 
   useEffect(() => {
     if (state?.kind === "signed-in") setRole(rememberedRole(state.session));
@@ -80,7 +80,7 @@ export default function AppShell(): React.JSX.Element {
 
   if (!state) return <main className="flex min-h-dvh items-center justify-center bg-go-canvas font-go text-go-muted">Checking your session…</main>;
 
-  if (landing) return <PreviewLanding host={host} />;
+  if (landing) return <RoleLanding host={host} />;
 
   if (state.kind === "unreachable") {
     return (
