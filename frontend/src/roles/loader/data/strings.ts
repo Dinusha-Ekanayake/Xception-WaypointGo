@@ -342,6 +342,21 @@ const STRINGS: Record<string, [string, string]> = {
   "8th": ["8 වන", "8வது"],
   "9th": ["9 වන", "9வது"],
   "10th": ["10 වන", "10வது"],
+  // Tablet, desk and terminal (Figma 07, 09, 10): the departures table and the sign-in keypad.
+  "Vehicle": ["වාහනය", "வாகனம்"],
+  "Route": ["මාර්ගය", "வழி"],
+  "Load (m³)": ["බර (m³)", "சுமை (m³)"],
+  "Action": ["ක්‍රියාව", "செயல்"],
+  "Enter PIN": ["PIN ඇතුළත් කරන්න", "PIN ஐ உள்ளிடவும்"],
+  "Select your name to continue.": ["ඉදිරියට යාමට ඔබේ නම තෝරන්න.", "தொடர உங்கள் பெயரைத் தேர்ந்தெடுக்கவும்."],
+  "Too many tries. Wait {time}, or ask your supervisor.": [
+    "උත්සාහයන් වැඩියි. {time} රැඳී සිටින්න, නැතහොත් අධීක්ෂකගෙන් අසන්න.",
+    "அதிக முயற்சிகள். {time} காத்திருக்கவும், அல்லது மேற்பார்வையாளரிடம் கேளுங்கள்.",
+  ],
+  "Forgot PIN? Ask your supervisor.": ["PIN අමතකද? අධීක්ෂකගෙන් අසන්න.", "PIN மறந்துவிட்டதா? மேற்பார்வையாளரிடம் கேளுங்கள்."],
+  "Clear": ["මකන්න", "அழி"],
+  "Delete last digit": ["අවසන් ඉලක්කම මකන්න", "கடைசி இலக்கத்தை நீக்கு"],
+  "{n} of 4 digits entered": ["ඉලක්කම් 4 න් {n} ක් ඇතුළත් කළා", "4 இலக்கங்களில் {n} உள்ளிடப்பட்டது"],
 };
 
 export type Vars = Record<string, string | number>;

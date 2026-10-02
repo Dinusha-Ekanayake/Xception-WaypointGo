@@ -142,7 +142,7 @@ function LoaderWorkspace({
 
   return (
     <div className={`loader-workspace ${theme === "dark" ? "go-dark " : ""}min-h-dvh bg-go-canvas`} data-theme={theme}>
-    <div className="mx-auto flex min-h-dvh w-full max-w-[720px] flex-col bg-go-canvas font-go text-go-ink md:max-w-[1280px]">
+    <div className="mx-auto flex min-h-dvh w-full max-w-[720px] flex-col bg-go-canvas font-go text-go-ink md:max-w-none">
       {!settings && !pinStep && <TopBar
         displayName={operator?.displayName ?? null}
         depot={depot}

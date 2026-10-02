@@ -93,6 +93,9 @@ export type ReadyTripView = {
   orderCount: number;
   weightKg: Decimal;
   volumeM3: Decimal;
+  /** The vehicle's capacity, for the board's "21.4 / 26.4" load column. Added 2026-10-02; older servers omit it. */
+  weightCapKg?: Decimal;
+  volumeCapM3?: Decimal;
   holder: HolderView | null;
   releasedAt: IsoInstant | null;
   rowVersion: number;
