@@ -18,7 +18,8 @@ import org.springframework.stereotype.Component;
  * <p>A reservation makes a {@code STOCK_UNKNOWN} order {@code CONFIRMED}; one
  * the cutoff already deferred stays deferred and becomes demand for its new
  * date. {@code insufficient} cancels it, since nothing was reserved and D-F
- * never holds an order waiting for stock. Other warehouse statuses are the
+ * never holds a retried order waiting for stock. {@code expired} cancels a
+ * partially reserved order the store never accepted. Other warehouse statuses are the
  * warehouse's own lifecycle and do not move a Waypoint order; a cancellation
  * made outside Waypoint (STK-11) is counted for the reconciler to raise.
  */
@@ -85,6 +86,17 @@ public class OnWarehouseOrderStatusChanged extends OrderingConsumer<WarehouseOrd
       }
       transitions.write(current, current.moveTo(OrderStatus.CANCELLED), "insufficient_stock", envelope);
       events.publish(Actor.SYSTEM, OrderMessages.cancelled(current, "insufficient_stock"));
+      return;
+    }
+
+    if ("expired".equals(e.status())) {
+      if (current.status() != OrderStatus.PARTIALLY_RESERVED) {
+        metrics.increment("waypoint.order.event_stale", "event", envelope.type());
+        return;
+      }
+      // The store never accepted the shortfall and the lock ran out.
+      transitions.write(current, current.moveTo(OrderStatus.CANCELLED), "reservation_expired", envelope);
+      events.publish(Actor.SYSTEM, OrderMessages.cancelled(current, "reservation_expired"));
       return;
     }
 

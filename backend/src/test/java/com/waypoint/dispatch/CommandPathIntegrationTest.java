@@ -20,12 +20,12 @@ import jakarta.servlet.http.Cookie;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import com.waypoint.dispatch.support.TestDatabase;
 import org.junit.jupiter.api.TestMethodOrder;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -51,10 +51,7 @@ import org.springframework.test.web.servlet.MvcResult;
 @SpringBootTest
 @AutoConfigureMockMvc
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-@EnabledIfEnvironmentVariable(
-    named = "TEST_DATABASE_URL",
-    matches = ".+",
-    disabledReason = "Set TEST_DATABASE_URL to a dedicated database to run integration tests")
+@ExtendWith(TestDatabase.class)
 class CommandPathIntegrationTest {
 
   private static final String DISPATCHER = "cmd-dispatcher@waypoint.test";
@@ -78,18 +75,9 @@ class CommandPathIntegrationTest {
 
   @DynamicPropertySource
   static void databaseUrl(DynamicPropertyRegistry registry) {
-    registry.add("app.database-url", () -> System.getenv("TEST_DATABASE_URL"));
+    registry.add("app.database-url", TestDatabase::url);
   }
 
-  @BeforeAll
-  static void guardAgainstTheApplicationDatabase() {
-    String url = System.getenv("TEST_DATABASE_URL");
-    String application = System.getenv("DATABASE_URL");
-    if (application != null && application.equals(url)) {
-      throw new IllegalStateException(
-          "TEST_DATABASE_URL must differ from DATABASE_URL; tests destroy data");
-    }
-  }
 
   @Test
   @Order(1)
@@ -196,8 +184,10 @@ class CommandPathIntegrationTest {
 
   @Test
   @Order(7)
-  void anUnknownKindAndAMalformedEnvelopeReadAsTheClientsMistake() throws Exception {
-    send(DISPATCHER, envelope(UUID.randomUUID().toString(), "vehicle:Teleport", "{}"), 404);
+  void anUnknownKindIsForbiddenAndAMalformedEnvelopeIsTheClientsMistake() throws Exception {
+    // Deny by default: an unlisted command is 403 plus an audit row, never a 404
+    // that maps which kinds exist.
+    send(DISPATCHER, envelope(UUID.randomUUID().toString(), "vehicle:Teleport", "{}"), 403);
     send(DISPATCHER, envelope("not-a-uuid", "vehicle:SetDayStatus", "{}"), 422);
     send(DISPATCHER, envelope(UUID.randomUUID().toString(), "vehicle:SetDayStatus", "{}"), 422);
   }

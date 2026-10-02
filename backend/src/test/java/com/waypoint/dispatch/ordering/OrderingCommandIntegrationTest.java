@@ -134,15 +134,11 @@ class OrderingCommandIntegrationTest {
                 "INSERT INTO iam.user_outlet_access (user_id, outlet_id) VALUES (?, ?)",
                 managerId,
                 OUTLET));
-    manager = session(managerEmail);
-    stranger = session(strangerEmail);
-    dispatcher = session(dispatcherEmail);
-
     // A day no earlier run has closed, with "now" the morning before it.
     serviceDate =
         reference.nextOperatingDay(
             LocalDate.of(2040, 1, 1).plusDays(ThreadLocalRandom.current().nextInt(0, 15_000)));
-    clock.set(at(serviceDate.minusDays(1), LocalTime.of(10, 0)));
+    moveTo(at(serviceDate.minusDays(1), LocalTime.of(10, 0)));
   }
 
   @AfterEach
@@ -223,8 +219,12 @@ class OrderingCommandIntegrationTest {
 
     assertTrue(problem.contains("P-1 requested 12, available 4"), problem);
     assertTrue(problem.contains("STK-01"), problem);
-    assertEquals(0L, count(ModuleRole.INTEGRATION,
-        "SELECT count(*) AS n FROM integration.command_receipts WHERE command_id = ?", commandId));
+    // A refusal for a rule it broke is the command's answer (R-PLT-06): the retry of
+    // this command id gets the same refusal. Nothing was placed.
+    assertEquals(1L, count(ModuleRole.INTEGRATION,
+        "SELECT count(*) AS n FROM integration.command_receipts"
+            + " WHERE command_id = ? AND result_status >= 400", commandId));
+    send(manager, place(commandId, serviceDate), 422);
   }
 
   @Test
@@ -239,7 +239,7 @@ class OrderingCommandIntegrationTest {
 
   @Test
   void aPlacementAfterTheCutoffRollsToTheNextRun() throws Exception {
-    clock.set(at(serviceDate.minusDays(1), LocalTime.of(16, 0)));
+    moveTo(at(serviceDate.minusDays(1), LocalTime.of(16, 0)));
 
     JsonNode result = mapper.readTree(send(manager, place(UUID.randomUUID(), serviceDate), 200)).get("result");
 
@@ -315,6 +315,97 @@ class OrderingCommandIntegrationTest {
     assertTrue(again.contains("ORD-10"), again);
   }
 
+  private static final String PARTIAL_REF = "WH-PART";
+
+  private void partialAnswer() {
+    stock.answer(
+        lines ->
+            new com.waypoint.dispatch.warehouse.contract.StockPort.PartiallyReserved(
+                new com.waypoint.dispatch.warehouse.contract.StockPort.Reserved(
+                    PARTIAL_REF, new java.math.BigDecimal("7.500"),
+                    new java.math.BigDecimal("0.0300"), "ambient", 3),
+                java.time.Instant.parse("2040-01-01T00:00:00Z"),
+                List.of(new LineAvailability("P-1", 12, 3)),
+                List.of(new com.waypoint.dispatch.warehouse.contract.StockPort.Alternative(
+                    "P-1", "PLG", 1000))));
+  }
+
+  @Test
+  void aPartialReservationIsKeptAndTheStoreIsToldWhatIsShort() throws Exception {
+    partialAnswer();
+
+    JsonNode result = mapper.readTree(send(manager, place(UUID.randomUUID(), serviceDate), 200)).get("result");
+
+    assertEquals("PARTIALLY_RESERVED", result.get("status").asText(), "STK-13: kept, not rejected");
+    JsonNode shortfall = result.get("shortfall");
+    assertEquals(PARTIAL_REF, shortfall.get("warehouseOrderRef").asText());
+    assertEquals(3, shortfall.get("lines").get(0).get("reserved").asInt());
+    assertEquals("PLG", shortfall.get("otherWarehouse").get(0).get("warehouse").asText());
+    UUID orderId = UUID.fromString(result.get("orderId").asText());
+    JsonNode view = mapper.readTree(read(manager, "/api/orders/" + orderId, 200));
+    assertEquals(3, view.get("itemCount").asInt(), "totals are the locked quantities'");
+    assertEquals(12, view.get("lines").get(0).get("quantity").asInt(), "what the store asked for");
+  }
+
+  @Test
+  void acceptingTheShortfallConfirmsTheLockedQuantities() throws Exception {
+    partialAnswer();
+    JsonNode placed = mapper.readTree(send(manager, place(UUID.randomUUID(), serviceDate), 200)).get("result");
+    UUID orderId = UUID.fromString(placed.get("orderId").asText());
+    stock.confirmWith(
+        () ->
+            new com.waypoint.dispatch.warehouse.contract.StockPort.Confirmed(
+                new com.waypoint.dispatch.warehouse.contract.StockPort.Reserved(
+                    PARTIAL_REF, new java.math.BigDecimal("7.500"),
+                    new java.math.BigDecimal("0.0300"), "ambient", 3),
+                List.of(new com.waypoint.dispatch.warehouse.contract.StockPort.StockLine("P-1", 3))));
+
+    JsonNode accepted =
+        mapper.readTree(
+            send(manager, envelope(UUID.randomUUID(), "order:AcceptShortfall", 1L,
+                "{\"orderId\":\"" + orderId + "\"}"), 200)).get("result");
+
+    assertEquals("CONFIRMED", accepted.get("status").asText());
+    JsonNode view = mapper.readTree(read(manager, "/api/orders/" + orderId, 200));
+    assertEquals(3, view.get("lines").get(0).get("quantity").asInt(), "lines become the locked quantities");
+    assertEquals(2, view.get("rowVersion").asInt());
+  }
+
+  @Test
+  void acceptingAfterTheLockRanOutCancelsTheOrder() throws Exception {
+    partialAnswer();
+    JsonNode placed = mapper.readTree(send(manager, place(UUID.randomUUID(), serviceDate), 200)).get("result");
+    UUID orderId = UUID.fromString(placed.get("orderId").asText());
+    stock.confirmWith(
+        () -> new com.waypoint.dispatch.warehouse.contract.StockPort.Expired("the reservation is expired"));
+
+    JsonNode result =
+        mapper.readTree(
+            send(manager, envelope(UUID.randomUUID(), "order:AcceptShortfall", 1L,
+                "{\"orderId\":\"" + orderId + "\"}"), 200)).get("result");
+
+    assertEquals("CANCELLED", result.get("status").asText(), "STK-13");
+    assertEquals("reservation_expired", result.get("reason").asText());
+    assertTrue(
+        outbox(orderId).stream().anyMatch(e -> "order.cancelled".equals(e.get("event_type"))),
+        "the warehouse learns of it through the event");
+  }
+
+  @Test
+  void aWarehouseThatCannotConfirmLeavesTheOrderUnchanged() throws Exception {
+    partialAnswer();
+    JsonNode placed = mapper.readTree(send(manager, place(UUID.randomUUID(), serviceDate), 200)).get("result");
+    UUID orderId = UUID.fromString(placed.get("orderId").asText());
+    stock.confirmWith(() -> new Unavailable("circuit open"));
+
+    send(manager, envelope(UUID.randomUUID(), "order:AcceptShortfall", 1L,
+        "{\"orderId\":\"" + orderId + "\"}"), 503);
+
+    JsonNode view = mapper.readTree(read(manager, "/api/orders/" + orderId, 200));
+    assertEquals("PARTIALLY_RESERVED", view.get("status").asText());
+    assertEquals(1, view.get("rowVersion").asInt());
+  }
+
   @Test
   void aDayClosesOnlyAfterTheCutoffAndThenPlacementRollsPastIt() throws Exception {
     String close = "{\"depotCode\":\"" + depot + "\",\"serviceDate\":\"" + serviceDate + "\"}";
@@ -322,18 +413,39 @@ class OrderingCommandIntegrationTest {
     String early = send(dispatcher, envelope(UUID.randomUUID(), "order:CloseForDay", null, close), 409);
     assertTrue(early.contains("R-ORD-01"), early);
 
-    clock.set(at(serviceDate.minusDays(1), LocalTime.of(16, 5)));
+    moveTo(at(serviceDate.minusDays(1), LocalTime.of(16, 5)));
     JsonNode closed = mapper.readTree(send(dispatcher, envelope(UUID.randomUUID(), "order:CloseForDay", null, close), 200));
     assertFalse(closed.get("result").get("alreadyClosed").asBoolean());
     JsonNode twice = mapper.readTree(send(dispatcher, envelope(UUID.randomUUID(), "order:CloseForDay", null, close), 200));
     assertTrue(twice.get("result").get("alreadyClosed").asBoolean());
 
     // Back to the morning: the cutoff has not passed, but the day is closed.
-    clock.set(at(serviceDate.minusDays(1), LocalTime.of(10, 0)));
+    moveTo(at(serviceDate.minusDays(1), LocalTime.of(10, 0)));
     JsonNode rolled = mapper.readTree(send(manager, place(UUID.randomUUID(), serviceDate), 200)).get("result");
     assertTrue(rolled.get("rolledBecause").toString().contains("closed"), rolled.toString());
 
     send(manager, envelope(UUID.randomUUID(), "order:CloseForDay", null, close), 403);
+  }
+
+  @Test
+  void aDispatcherReadsEveryOrderDueAtTheDepotThatDay() throws Exception {
+    UUID first = placed();
+    UUID second = placed();
+    String path = "/api/orders/day?depot=" + depot + "&date=";
+
+    JsonNode day = mapper.readTree(read(dispatcher, path + serviceDate, 200));
+    java.util.Set<String> ids = new java.util.HashSet<>();
+    day.forEach(order -> ids.add(order.get("orderId").asText()));
+    assertTrue(ids.containsAll(List.of(first.toString(), second.toString())), day.toString());
+    day.forEach(order -> assertEquals(serviceDate.toString(), order.get("deliveryDate").asText()));
+
+    JsonNode otherDay = mapper.readTree(read(dispatcher, path + serviceDate.plusDays(400), 200));
+    otherDay.forEach(order -> assertFalse(ids.contains(order.get("orderId").asText())));
+
+    // A store manager holds order:Read but no depot: 403 plus audit, never an empty board.
+    long before = denials(managerId, "order:Read");
+    read(manager, path + serviceDate, 403);
+    assertEquals(before + 1, denials(managerId, "order:Read"));
   }
 
   // ---- helpers -------------------------------------------------------------
@@ -345,6 +457,17 @@ class OrderingCommandIntegrationTest {
 
   private static Instant at(LocalDate date, LocalTime time) {
     return date.atTime(time).atZone(Clock.OPERATING_ZONE).toInstant();
+  }
+
+  /**
+   * Sessions end by the same clock the cutoff reads, so a jump past their idle
+   * lifetime signs everyone out. Each person signs in again at the new time.
+   */
+  private void moveTo(Instant instant) {
+    clock.set(instant);
+    manager = session(managerEmail);
+    stranger = session(strangerEmail);
+    dispatcher = session(dispatcherEmail);
   }
 
   private Cookie session(String email) {

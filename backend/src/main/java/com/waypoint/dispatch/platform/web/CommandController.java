@@ -46,7 +46,8 @@ public class CommandController {
       String kind,
       Long expectedVersion,
       JsonNode payload,
-      String clientRecordedAt) {}
+      String clientRecordedAt,
+      String actingUserId) {}
 
   /**
    * What the caller gets back.
@@ -58,13 +59,14 @@ public class CommandController {
 
   @PostMapping
   public CommandAck submit(@RequestBody CommandRequest body, HttpServletRequest request) {
+    Command command = toCommand(body);
     Actor actor =
         actors
-            .flatMap(resolver -> resolver.resolve(request))
+            .flatMap(resolver -> resolver.resolveCommand(request, command))
             .orElseThrow(() -> new DomainException(ErrorCode.UNAUTHENTICATED, "Not signed in"));
 
-    Command command = toCommand(body);
-    CommandResult result = bus.dispatch(actor, command);
+    CommandResult result =
+        bus.dispatch(actor, command, (String) request.getAttribute(CorrelationIdFilter.ATTRIBUTE));
     return new CommandAck(
         command.commandId().toString(), command.kind(), result.replayed(), result.value());
   }
@@ -87,7 +89,19 @@ public class CommandController {
         body.kind(),
         body.expectedVersion(),
         body.payload(),
-        instant(body.clientRecordedAt()));
+        instant(body.clientRecordedAt()),
+        optionalUuid(body.actingUserId(), "actingUserId"));
+  }
+
+  private static UUID optionalUuid(String value, String field) {
+    if (value == null || value.isBlank()) {
+      return null;
+    }
+    try {
+      return UUID.fromString(value);
+    } catch (IllegalArgumentException e) {
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, field + " is not a uuid");
+    }
   }
 
   private static UUID uuid(String value) {

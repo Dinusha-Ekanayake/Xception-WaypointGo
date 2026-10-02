@@ -1,35 +1,56 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { useOnline, useResource } from "@shared/api/useResource";
+import { useSync } from "@shared/offline";
 import { Notice } from "@shared/ui";
+import { crew, lockOperator, replayBeforeSync } from "@app-shell/operators";
+import { logOfflineSwitch } from "@app-shell/offlinePin";
+import type { Operator } from "@app-shell/session";
 import TopBar from "./TopBar.tsx";
+import { LangProvider, useT } from "./i18n.tsx";
 import { createGateway } from "./data/gateway.ts";
 import { depotToday, hhmm } from "./data/manifest.ts";
 import DockBoard from "./screens/DockBoard.tsx";
 import LoadSheet from "./screens/LoadSheet.tsx";
+import OperatorGate from "./screens/OperatorGate.tsx";
 
 // The loader workspace from Figma "08 Loader · Phone", "07 Loader · Tablet"
 // and "09 Loader · Tablet portrait". Resilient offline tier (src/shared/offline/tiers.ts):
 // checks are kept on the device while offline and sent when it returns.
 
-export default function Loader({
+export default function Loader(props: Parameters<typeof LoaderWorkspace>[0]): React.JSX.Element {
+  return (
+    <LangProvider>
+      <LoaderWorkspace {...props} />
+    </LangProvider>
+  );
+}
+
+function LoaderWorkspace({
   userId,
   displayName,
   scope,
+  operator: initialOperator,
 }: {
   userId: string;
   displayName: string;
   /** Depot codes from the session. The server enforces them. */
   scope: string[];
+  operator: Operator | null;
 }): React.JSX.Element {
+  const tr = useT();
   const gateway = useMemo(() => createGateway(userId), [userId]);
   const online = useOnline();
   const depot = scope[0] ?? "";
   const date = depotToday();
   const [openId, setOpenId] = useState<string | null>(null);
   const [tripSync, setTripSync] = useState<Date | null>(null);
-  const [waiting, setWaiting] = useState(0);
+  // Before the first sync pass: queued work goes after the switches it was recorded under.
+  useLayoutEffect(() => replayBeforeSync(userId), [userId]);
+  const sync = useSync(userId);
+  const [operator, setOperator] = useState<Operator | null>(initialOperator);
+  const [lockError, setLockError] = useState<string | null>(null);
 
   const trips = useResource(depot ? (signal) => gateway.readyTrips(depot, date, signal) : null, `${depot}:${date}`, 30_000);
   const outletList = useResource(depot ? (signal) => gateway.outlets(depot, signal) : null, depot);
@@ -41,58 +62,62 @@ export default function Loader({
     setOpenId(null);
     refresh();
   }, [refresh]);
-  const queued = useCallback(() => setWaiting((n) => n + 1), []);
-  const [flushError, setFlushError] = useState<string | null>(null);
-
-  // Send kept checks as soon as the connection returns, whichever screen is open.
+  useEffect(() => setOperator(initialOperator), [initialOperator]);
+  // Keep the crew list fresh while online, so the next loader can switch with
+  // their PIN even if the connection is gone by then. A failure leaves the last
+  // list, and the PIN screen says when there is none.
   useEffect(() => {
-    if (!online || waiting === 0) return;
-    let cancelled = false;
-    gateway
-      .flush()
-      .then((report) => {
-        if (cancelled) return;
-        if (report.heldForReview > 0) {
-          setFlushError(
-            `${report.heldForReview} saved ${report.heldForReview === 1 ? "check" : "checks"} could not be applied because the load sheet changed. Check those orders again.`,
-          );
+    if (online) crew(userId).catch(() => undefined);
+  }, [online, userId]);
+
+  const lock = useCallback(async () => {
+    try {
+      if (!online) {
+        if (!logOfflineSwitch(userId, { userId: null, at: new Date().toISOString() })) {
+          throw new Error("This device can't save the lock. Connect and try again.");
         }
-        setWaiting(report.remaining - report.heldForReview);
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [online, waiting, gateway]);
+      } else {
+        await lockOperator(userId);
+      }
+      setOperator(null);
+      setOpenId(null);
+      setLockError(null);
+    } catch (failure) {
+      setLockError(failure instanceof Error ? failure.message : "Could not lock this device.");
+    }
+  }, [online, userId]);
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-[720px] flex-col bg-go-canvas font-go text-go-ink md:max-w-[1280px]">
       <TopBar
-        displayName={displayName}
+        displayName={operator?.displayName ?? displayName}
         depot={depot}
-        title={open ? `${open.vehicleId} · Trip ${open.tripNumber}` : undefined}
-        subtitle={open ? `Departs ${hhmm(open.plannedDeparture)}` : undefined}
+        title={open ? `${open.vehicleId} · ${tr("Trip {n}", { n: open.tripNumber })}` : undefined}
+        subtitle={open ? tr("Departs {time}", { time: hhmm(open.plannedDeparture) }) : undefined}
         online={online}
         syncedAt={open ? tripSync : trips.loadedAt}
-        waiting={waiting}
+        waiting={sync.pending}
         sample={gateway.sample}
         onBack={open ? back : undefined}
+        onLock={operator ? () => void lock() : undefined}
       />
-      {flushError && (
+      {lockError && (
         <div className="px-5 pb-3">
           <Notice
             tone="danger"
             live
-            title={flushError}
+            title={lockError}
             action={
-              <button type="button" onClick={() => setFlushError(null)} className="min-h-12 shrink-0 px-2 text-[13px] font-medium text-go-teal">
-                Dismiss
+              <button type="button" onClick={() => setLockError(null)} className="min-h-12 shrink-0 px-2 text-[13px] font-medium text-go-teal">
+                {tr("Dismiss")}
               </button>
             }
           />
         </div>
       )}
-      {!depot ? (
+      {!operator ? (
+        <OperatorGate account={userId} online={online} onOperator={setOperator} />
+      ) : !depot ? (
         <p className="px-5 text-[15px] text-go-muted">Your account has no depot in scope. Ask an administrator to grant one.</p>
       ) : open ? (
         <LoadSheet
@@ -101,12 +126,14 @@ export default function Loader({
           trip={open}
           outlets={outlets}
           online={online}
-          waiting={waiting}
-          onQueued={queued}
+          waiting={sync.pending}
+          onQueued={sync.syncNow}
           onSynced={setTripSync}
+          onBack={back}
+          actingUserId={operator.userId}
         />
       ) : (
-        <DockBoard depot={depot} trips={trips} online={online} onOpen={setOpenId} />
+        <DockBoard depot={depot} meId={operator.userId} trips={trips} online={online} onOpen={setOpenId} />
       )}
     </div>
   );

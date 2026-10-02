@@ -69,7 +69,7 @@ check_prereqs() {
 
 port_busy() {
   (command -v ss >/dev/null && ss -tln 2>/dev/null | grep -q ":$1 ") || \
-  (command -v curl >/dev/null && curl -fsS --max-time 2 "http://127.0.0.1:$1/api/health" >/dev/null 2>&1)
+  (command -v curl >/dev/null && curl -fsS --max-time 2 "http://127.0.0.1:$1/health/liveness" >/dev/null 2>&1)
 }
 
 wait_for_health() {
@@ -149,12 +149,11 @@ start_all() {
   : > "$BACKEND_LOG"
   export DATA_DIR="${DATA_DIR:-$root/data}"
   export MIGRATIONS_DIR="${MIGRATIONS_DIR:-$root/migrations}"
-  export PUBLIC_DIR="${PUBLIC_DIR:-$root/frontend/public}"
   java -jar "$jar" >>"$BACKEND_LOG" 2>&1 &
   backend_pid=$!
   echo "$backend_pid" > "$BACKEND_PIDFILE"
 
-  if ! wait_for_health "http://127.0.0.1:$BACKEND_PORT/api/health" "Backend" 60; then
+  if ! wait_for_health "http://127.0.0.1:$BACKEND_PORT/health/readiness" "Backend" 60; then
     echo "Backend failed to become healthy. Last log lines:" >&2
     tail -n 30 "$BACKEND_LOG" >&2 || true
     cleanup
@@ -167,7 +166,7 @@ start_all() {
   frontend_pid=$!
   echo "$frontend_pid" > "$FRONTEND_PIDFILE"
 
-  if ! wait_for_health "http://127.0.0.1:$FRONTEND_PORT/api/health" "Frontend" 60; then
+  if ! wait_for_health "http://127.0.0.1:$FRONTEND_PORT/healthz" "Frontend" 60; then
     echo "Frontend failed to become healthy. Last log lines:" >&2
     tail -n 30 "$FRONTEND_LOG" >&2 || true
     cleanup
@@ -177,7 +176,7 @@ start_all() {
   echo ""
   echo "All running:"
   echo "  App:     http://localhost:$FRONTEND_PORT"
-  echo "  Backend: http://127.0.0.1:$BACKEND_PORT/api/health"
+  echo "  Backend: http://127.0.0.1:$BACKEND_PORT/health/readiness"
   echo "Press Ctrl+C to stop all."
   echo ""
 

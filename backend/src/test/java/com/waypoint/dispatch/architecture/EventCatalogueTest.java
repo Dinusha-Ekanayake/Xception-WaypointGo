@@ -49,6 +49,7 @@ class EventCatalogueTest {
           "receipt.auto_closed",
           "issue.raised",
           "issue.resolved",
+          "issue.escalated",
           "shortfall.resolved",
           "redelivery.requested",
           "warehouse.order_status_changed",

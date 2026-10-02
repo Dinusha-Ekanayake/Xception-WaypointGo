@@ -1,73 +1,66 @@
 # Waypoint Dispatch backend
 
-Spring Boot 3 and PostgreSQL own the REST API, authentication, planning rules, command handling and staff administration. The Next.js catch-all route in `frontend/app/api/[...path]/route.ts` proxies browser requests here. The older Node implementation remains under `frontend/lib/` for scripts and regression tests; it is not the active web API.
+Spring Boot 3.4, Java 17, PostgreSQL 16. Package `com.waypoint.dispatch`, organised by business capability: `shared/` is the framework-free kernel, `platform/` holds config, the `Database` seam, web plumbing and telemetry, and each module has `contract/`, `domain/`, `application/`, `infrastructure/` and `web/`. Built: `identity`, `referencedata`, `ordering`, `planning`, `loading`, `execution`, `receipt`, `issues`, `warehouse`, `sync`. Contract only: `notification`, `intelligence`. Module contracts are in [MODULES.md](../docs/architecture/MODULES.md); what each still lacks is in [STATUS.md](../docs/development-docs/STATUS.md).
 
 ## Local startup
 
-Use Java 17+, Maven and an existing PostgreSQL 16+ database. Export `DATABASE_URL` in the backend terminal. Spring does not automatically read root `.env` or `frontend/.env.local`.
-
-For a fresh competition demo, also export `DEMO_MODE=1` and a private `SEED_PASSWORD` of at least 12 characters, then run from the repository root:
-
 ```sh
-cd backend
-mvn spring-boot:run -Dspring-boot.run.arguments="migrate"
-mvn spring-boot:run -Dspring-boot.run.arguments="seed"
-mvn spring-boot:run
+docker compose up -d db                 # from the repo root
+export DATABASE_URL='postgresql://waypoint:local-testing-only@127.0.0.1:5432/waypoint'
+mvn spring-boot:run -Dspring-boot.run.arguments=migrate
+mvn spring-boot:run -Dspring-boot.run.arguments=import-reference
+ACCOUNT_EMAIL=admin@waypoint.local ACCOUNT_NAME=Admin ACCOUNT_PASSWORD=local-testing-only ACCOUNT_ROLE=admin \
+  mvn spring-boot:run -Dspring-boot.run.arguments=account-create
+mvn spring-boot:run                     # serve on :8080
 ```
 
-The service listens on port 8080. Builds and normal startup never migrate or seed. Production mode rejects demo seeding; provision staff with the commands in [deployment.md](../docs/deployment.md#staff-accounts).
+Configuration and every environment variable: [README](../README.md#configuration) and `src/main/resources/application.properties`.
 
-| Variable | Meaning |
+## HTTP surface
+
+| Path | Purpose |
 | --- | --- |
-| `DATABASE_URL` | Required connection for runtime, Java migrations, seeding and account commands |
-| `DATA_DIR` | Reference CSV directory, default `../data` |
-| `MIGRATIONS_DIR` | Shared SQL directory, default `../migrations` |
-| `PUBLIC_DIR` | Seed proof fixtures, default `../frontend/public` |
-| `DEMO_MODE` / `DEMO_NOW` | Demo clock, default `0` / `2026-02-13T15:30:00+05:30` |
-| `CALENDAR_FILE` | Optional production calendar override CSV, relative to `DATA_DIR` or absolute |
-| `SEED_PASSWORD` | Required for demo seeding, at least 12 characters; does not rotate existing passwords |
-| `COOKIE_SECURE` | Set `1` behind HTTPS |
+| `POST /api/session`, `GET /api/session`, `POST /api/session/end` | Sign in (opaque cookie), who am I, sign out |
+| `POST /api/commands` | Every write: command id, kind, `expectedVersion`, payload. Idempotent per command id |
+| `GET /api/accounts`, `/api/accounts/{id}`, `/api/accounts/driver-assignments` | Account reads, keyset paginated |
+| `GET /api/policies`, `POST/PUT/DELETE /api/policies/...` | Policy administration |
+| `GET /api/reference/version`, `/outlets`, `/vehicles`, `/calendar/{date}` | Reference data reads |
+| `GET /api/devices`, `GET /api/session/crew`, `POST/DELETE /api/session/operator`, `POST /api/session/operator/offline` | Registered devices, and the loader's PIN switch on a shared dock device |
+| `GET /api/orders`, `/{id}`, `/{id}/timeline`, `/day`, `/demand`, `/delivery-date` | Ordering reads |
+| `GET /api/plans/published`, `/draft`, `/{id}`, `/deferrals`, `/fuel`, `/preview/assignments`, `/preview/placements`, `/preview/interchange` | Planning reads and previews |
+| `GET /api/loading/trips`, `/trips/{id}/manifest`, `/shortfalls` | Loading reads |
+| `GET /api/execution/run-sheets`, `/vehicles`, `/deliveries`, `/deliveries/{id}`, `/deliveries/{id}/proof`, `/attachments/{id}/content` | Execution reads and proof |
+| `GET /api/receipts/pending`, `/{orderId}`, `/{orderId}/custody` | Receipt reads and the custody chain |
+| `GET /api/issues`, `/by-subject`, `/{id}`, `/{id}/history` | Issue reads |
+| `GET /api/warehouse/catalogue`, `/catalogue/status`, `/catalogue/{productId}` | The cached product catalogue and its age |
+| `POST /api/sync`, `GET /api/sync` | Batch ingest of commands queued offline, and their outcomes |
+| `GET /api/platform/events/dead` | Dead-lettered events, replayed with `platform:ReplayEvent` |
+| `GET /health/liveness`, `/health/readiness`, `/prometheus` | Probes and metrics |
 
-Relative path defaults assume commands run from `backend/`. When launching the packaged JAR elsewhere, set the path variables explicitly. Java does not automatically select `DATABASE_URL_UNPOOLED`; set `DATABASE_URL` to the intended connection for each operation. The direct-URL variable is used by backup scripts and the legacy Node migration command.
+Every state change in every module is a command through `POST /api/commands`; the controllers above only read. The exact parameters are in each `<module>/web/*Controller.java`.
 
-## REST contract
+Lists return `{items, nextCursor}`; pass `nextCursor` back as `after`, with an optional `limit` (default 50, max 200). `nextCursor` is `null` on the last page. Every error is `application/problem+json` with `type`, `title`, `status`, `detail`, `instance`, `code`, `correlationId` and `violations: [{rule, field?, message}]`; clients branch on `code`, never `title`. See SYSTEM-ARCHITECTURE section 7.
 
-| Method and path | Access and behavior |
-| --- | --- |
-| `GET /api/health` | Database connectivity check; does not validate the full workflow |
-| `GET /api/state` | Session required; role-scoped snapshot, currently without pagination |
-| `GET /api/assignments?day=...&order_id=...` | Dispatcher assignment preview |
-| `GET /api/proof?order_id=...&image_id=...` | Session and order access required; one image as a data URL |
-| `POST /api/login` | JSON `{ "email": "...", "password": "..." }`; sets an HttpOnly session cookie |
-| `POST /api/logout` | Session required; send JSON `{}` |
-| `POST /api/command` | Session required; JSON `{ "id": "...", "kind": "...", ... }` |
-
-POST endpoints require a JSON object and enforce a 3.5 MB body limit. Cookies use SameSite Strict, a one-day lifetime and configurable Secure. Login attempts are limited per account in PostgreSQL. Commands validate roles, assignments and expected versions or draft revisions. Replaying the same user/command ID with the same fingerprint returns the accepted result; changed payloads under that ID are rejected.
-
-The service uses serializable transactions with bounded retries, PBKDF2 password hashes and hashed session tokens. Shared SQL and legacy regression tests support migration continuity, but do not establish complete behavioral parity between Java and Node.
-
-## Verification and navigation
+## Tests
 
 ```sh
-# From backend/: Java unit tests only
-mvn test
-# From frontend/: includes Maven package/tests and Spring HTTP integration tests
-npm run test:spring
+mvn verify
 ```
 
-The second command requires an already-created dedicated `TEST_DATABASE_URL` database. Browser tests also launch this backend against disposable schemas. See [verification.md](../docs/verification.md) for observed results and blockers.
+Unit and architecture tests always run. Integration tests use `TEST_DATABASE_URL` if set, otherwise a throwaway PostgreSQL container if Docker is available, otherwise they are skipped with a reason. `architecture/ModuleBoundaryTest` enforces module boundaries: run it before adding any cross-module import.
 
-- `planning/domain/Planning.java`: route feasibility and allocation.
-- `referencedata/infrastructure/CsvReferenceLoader.java`: reference CSVs and production calendar policy.
-- `referencedata/domain/ReferenceData.java`: the outlet, vehicle and calendar model.
-- `platform/db/Database.java`: the only PostgreSQL seam, with serializable transactions and bounded retries.
-- `platform/db/Migrator.java`: atomic migrations with checksum and advisory-lock protection.
-- `platform/config/DataConfig.java`: pool, transaction manager and DATABASE_URL parsing.
-- `service/DispatchService.java`: commands, persistence, state and demo scenarios. Being decomposed into modules; see [code-structure.md](../docs/code-structure.md).
-- `identity/application/AccountAdminUseCase.java`: trusted-host account lifecycle.
-- `api/ApiController.java`: REST routes, request guards and cookies.
-- `shared/error/DomainException.java`, `shared/util/Crypto.java`: shared kernel.
+## Where things are
 
-Module boundaries are asserted by `architecture/ModuleBoundaryTest.java` under `src/test/`. Add a cross-module import only if that test still passes.
+Paths relative to `src/main/java/com/waypoint/dispatch/`:
 
-These Java paths are relative to `src/main/java/com/waypoint/dispatch/`. Maven output under `target/` is generated and ignored.
+- `platform/db/Database.java`: the only PostgreSQL seam. `SET LOCAL ROLE` and actor per transaction, serializable, bounded counted retries.
+- `platform/db/Migrator.java`: atomic, checksummed migrations under an advisory lock.
+- `platform/messaging/CommandBus.java`: authorize, idempotency receipt, handler, audit, in one transaction, timed.
+- `platform/web/ApiExceptionHandler.java`: the problem-details contract.
+- `platform/observability/Metrics.java`: every detection signal goes through here.
+- `identity/`: sessions, sign-in, accounts, policy-as-data authorization.
+- `referencedata/`: reference import, validation, versioned snapshots and the operating calendar.
+- `platform/messaging/OutboxRelay.java`: delivers published events to every `EventSubscriber`, at least once, each in its own transaction.
+- `platform/scheduling/ScheduledJobRunner.java`: runs each module's `ScheduledJob` on its cron under an advisory-lock lease.
+- `<module>/application/*Handler.java`: one class per command. `<module>/application/*Consumers.java`: the events a module reacts to.
+- `docs/issues/<NNN>-<module>/WALKTHROUGH.md`: each module explained flow by flow, with how to run and verify it.

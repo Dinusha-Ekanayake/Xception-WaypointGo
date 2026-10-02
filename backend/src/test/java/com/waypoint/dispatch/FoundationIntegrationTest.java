@@ -8,7 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.waypoint.dispatch.identity.application.AccountAdminUseCase;
 import com.waypoint.dispatch.identity.application.LoginHandler;
-import com.waypoint.dispatch.identity.application.PolicyAdminUseCase;
+import com.waypoint.dispatch.platform.messaging.Command;
+import com.waypoint.dispatch.platform.messaging.CommandBus;
 import com.waypoint.dispatch.identity.application.PolicyDecisionPoint;
 import com.waypoint.dispatch.identity.application.SessionRegistry;
 import com.waypoint.dispatch.platform.db.Database;
@@ -22,12 +23,12 @@ import com.waypoint.dispatch.shared.error.ErrorCode;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.UUID;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import com.waypoint.dispatch.support.TestDatabase;
 import org.junit.jupiter.api.TestMethodOrder;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -43,10 +44,7 @@ import org.springframework.test.context.DynamicPropertySource;
  */
 @SpringBootTest
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-@EnabledIfEnvironmentVariable(
-    named = "TEST_DATABASE_URL",
-    matches = ".+",
-    disabledReason = "Set TEST_DATABASE_URL to a dedicated database to run integration tests")
+@ExtendWith(TestDatabase.class)
 class FoundationIntegrationTest {
 
   private static final String ADMIN = "it-admin@waypoint.test";
@@ -59,24 +57,16 @@ class FoundationIntegrationTest {
   @Autowired LoginHandler login;
   @Autowired SessionRegistry sessions;
   @Autowired PolicyDecisionPoint decisions;
-  @Autowired PolicyAdminUseCase policies;
+  @Autowired CommandBus bus;
+  @Autowired com.fasterxml.jackson.databind.ObjectMapper mapper;
   @Autowired ImportReferenceDataHandler referenceImport;
   @Autowired ReferenceQuery reference;
 
   @DynamicPropertySource
   static void databaseUrl(DynamicPropertyRegistry registry) {
-    registry.add("app.database-url", () -> System.getenv("TEST_DATABASE_URL"));
+    registry.add("app.database-url", TestDatabase::url);
   }
 
-  @BeforeAll
-  static void guardAgainstTheApplicationDatabase() {
-    String url = System.getenv("TEST_DATABASE_URL");
-    String application = System.getenv("DATABASE_URL");
-    if (application != null && application.equals(url)) {
-      throw new IllegalStateException(
-          "TEST_DATABASE_URL must differ from DATABASE_URL; tests destroy data");
-    }
-  }
 
   @Test
   @Order(1)
@@ -176,21 +166,34 @@ class FoundationIntegrationTest {
         decisions.decide(driver, "plan:Publish", "*", Map.of()).allowed(),
         "a driver must not publish plans to begin with");
 
-    policies.createPolicy(
+    policyCommand(
         admin,
-        "ItDriverMayPublish",
-        "Integration test grant",
+        "iam:CreatePolicy",
+        null,
         """
-        {"Version":"test","Statement":[
-          {"Sid":"LetDriverPublish","Effect":"Allow","Action":["plan:Publish"],"Resource":["*"]}]}
+        {"name":"ItDriverMayPublish","description":"Integration test grant","document":
+          {"Version":"test","Statement":[
+            {"Sid":"LetDriverPublish","Effect":"Allow","Action":["plan:Publish"],"Resource":["*"]}]}}
         """);
-    policies.attach(admin, "ItDriverMayPublish", "role", "driver");
+    policyCommand(
+        admin,
+        "iam:AttachPolicy",
+        policyVersion("ItDriverMayPublish"),
+        """
+        {"name":"ItDriverMayPublish","principalType":"role","principalId":"driver"}
+        """);
 
     assertTrue(
         decisions.decide(driver, "plan:Publish", "*", Map.of()).allowed(),
         "the change must take effect on the next decision, with no restart");
 
-    policies.detach(admin, "ItDriverMayPublish", "role", "driver");
+    policyCommand(
+        admin,
+        "iam:DetachPolicy",
+        policyVersion("ItDriverMayPublish"),
+        """
+        {"name":"ItDriverMayPublish","principalType":"role","principalId":"driver"}
+        """);
     assertFalse(
         decisions.decide(driver, "plan:Publish", "*", Map.of()).allowed(),
         "detaching must take effect just as immediately");
@@ -203,17 +206,18 @@ class FoundationIntegrationTest {
         assertThrows(
             DomainException.class,
             () ->
-                policies.createPolicy(
+                policyCommand(
                     actorFor(ADMIN),
-                    "ItTypoPolicy",
-                    "Contains a typo",
+                    "iam:CreatePolicy",
+                    null,
                     """
-                    {"Version":"test","Statement":[
-                      {"Sid":"Typo","Effect":"Allow","Action":["order:Plase"],"Resource":["*"]}]}
+                    {"name":"ItTypoPolicy","description":"Contains a typo","document":
+                      {"Version":"test","Statement":[
+                        {"Sid":"Typo","Effect":"Allow","Action":["order:Plase"],"Resource":["*"]}]}}
                     """));
 
     assertEquals(ErrorCode.VALIDATION_FAILED, thrown.code());
-    assertTrue(thrown.violations().contains("order:Plase"), thrown.violations().toString());
+    assertTrue(thrown.rules().contains("order:Plase"), thrown.rules().toString());
   }
 
   @Test
@@ -266,6 +270,30 @@ class FoundationIntegrationTest {
 
   // ---- helpers ----
 
+  /** Policy is changed the way an administrator changes it: a command on the bus. */
+  private void policyCommand(Actor actor, String kind, Long expectedVersion, String payload) {
+    try {
+      bus.dispatch(
+          actor,
+          new Command(UUID.randomUUID(), kind, expectedVersion, mapper.readTree(payload), null));
+    } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+      throw new IllegalStateException(e);
+    }
+  }
+
+  private long policyVersion(String name) {
+    return ((Number)
+            database
+                .asModule(
+                    ModuleRole.IAM,
+                    null,
+                    () ->
+                        database.queryOne(
+                            "SELECT row_version FROM iam.policies WHERE name = ?", name))
+                .get("row_version"))
+        .longValue();
+  }
+
   private Actor actorFor(String email) {
     UUID id =
         (UUID)
@@ -278,15 +306,22 @@ class FoundationIntegrationTest {
     return Actor.user(id);
   }
 
-  /** Everything version-scoped cascades from the version row. The identity
-   * registries are deliberately left: an outlet id outlives the snapshot that
-   * described it. */
+  /**
+   * Retires every existing version so the next import publishes, without
+   * deleting any: a plan stamps the version it was built on and holds a foreign
+   * key to it (POL-03), so a stamped version must outlive the test that made it.
+   * The hash is made unique to the old row so identical content no longer
+   * matches it.
+   */
   private void clearReferenceVersions() {
     database.asModule(
         ModuleRole.REF,
         null,
         () -> {
-          database.update("DELETE FROM ref.reference_versions");
+          database.update(
+              "UPDATE ref.reference_versions SET is_current = false,"
+                  + " content_hash = content_hash || ':retired:' || reference_version_id"
+                  + " WHERE content_hash NOT LIKE '%:retired:%'");
         });
   }
 

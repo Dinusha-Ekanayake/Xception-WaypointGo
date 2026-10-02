@@ -22,14 +22,21 @@ die() { echo "deploy: $*" >&2; exit 1; }
 # Last value of KEY in .env, or nothing. Values are never shell-evaluated.
 env_value() { sed -n "s/^$1=//p" "$APP_DIR/.env" | tail -1; }
 
-# Requests one certificate for SITE, preview.SITE and grafana-preview.SITE, the
-# first time and whenever the one on disk is missing a name. Until it succeeds
-# nginx serves what it has (a self-signed placeholder at first), which is enough
-# to answer the HTTP-01 challenge on port 80.
+# One address per role for production, and the same with -preview for preview:
+# loader.SITE and loader-preview.SITE. The same names are in
+# nginx/templates/10-edge.conf.template and frontend/src/app-shell/hostRole.ts.
+ROLE_HOSTS=(dispatcher loader driver store admin auditor)
+
+# Requests one certificate for SITE, www.SITE, preview.SITE and the role
+# addresses of both environments, the first time and whenever the one on disk is
+# missing a name. Until it succeeds nginx keeps serving what it has (a
+# self-signed placeholder at first), which is enough to answer the HTTP-01
+# challenge on port 80.
 ensure_certificate() {
-  local site="$1" name missing=0
+  local site="$1" name role missing=0
   local live="/etc/letsencrypt/live/$site/fullchain.pem"
-  local names=("$site" "preview.$site" "grafana-preview.$site")
+  local names=("$site" "www.$site" "preview.$site" "grafana-preview.$site")
+  for role in "${ROLE_HOSTS[@]}"; do names+=("$role.$site" "$role-preview.$site"); done
 
   for name in "${names[@]}"; do
     "${compose[@]}" exec -T nginx sh -c \
@@ -49,6 +56,21 @@ ensure_certificate() {
     echo "deploy: no certificate issued; check that every name under $site resolves to this server." >&2
     echo "deploy: nginx keeps serving its current certificate until the next deploy." >&2
   fi
+}
+
+# The backend logs in to PostgreSQL as waypoint_app, with a password of its own
+# that only this checkout's .env holds. The first deploy that needs it creates
+# it; `migrate` then sets it on the role, and re-sets it if it is ever changed
+# here. It is hex so it needs no quoting in a connection URL.
+ensure_app_db_password() {
+  [[ -n "$(env_value APP_DB_PASSWORD)" ]] && return 0
+  local secret
+  secret="$(openssl rand -hex 24)" || die "could not generate APP_DB_PASSWORD"
+  # A final newline may be missing; never join the new key onto the last line.
+  [[ -z "$(tail -c1 "$APP_DIR/.env")" ]] || echo >> "$APP_DIR/.env"
+  echo "APP_DB_PASSWORD=$secret" >> "$APP_DIR/.env" \
+    || die "could not write APP_DB_PASSWORD to $APP_DIR/.env; nothing was replaced"
+  echo "==> generated APP_DB_PASSWORD in .env"
 }
 
 # The body is a function so bash has parsed all of it before `git reset` can
@@ -80,11 +102,26 @@ main() {
   # nginx runs once, with production, and fronts both environments.
   [[ "$environment" == production ]] && compose+=(--profile edge)
 
+  # The log store (Loki, Alloy, Grafana) runs in preview only. Grafana listens
+  # on 127.0.0.1 of the server, so it is reached through an SSH tunnel. Without
+  # GRAFANA_ADMIN_PASSWORD it is skipped, never started with the default one.
+  services=(db backend waypoint)
+  if [[ "$environment" == preview ]]; then
+    if [[ -n "$(env_value GRAFANA_ADMIN_PASSWORD)" ]]; then
+      compose+=(--profile observability)
+      services+=(loki alloy grafana)
+    else
+      echo "deploy: GRAFANA_ADMIN_PASSWORD is not set in .env; the log store is not started." >&2
+    fi
+  fi
+
   local site
   site="$(env_value SITE_ADDRESS)"
   [[ -n "$site" ]] || die "SITE_ADDRESS is not set in .env"
 
   echo "==> deploying $environment: $(git log -1 --format='%h %s')"
+
+  ensure_app_db_password
 
   docker network inspect waypoint-edge >/dev/null 2>&1 || docker network create waypoint-edge >/dev/null
 
@@ -102,10 +139,14 @@ main() {
     ensure_certificate "$site"
   fi
 
-  # `init` migrates and imports before the backend is replaced, and --wait holds
-  # until the backend reports ready and the frontend answers. A failed migration
-  # stops here with the previous containers still running.
-  "${compose[@]}" up -d --remove-orphans --wait --wait-timeout 600
+  # `init` migrates and imports in a container of its own while the running
+  # stack keeps serving. A failed migration stops here with nothing replaced.
+  "${compose[@]}" run --rm -T init
+
+  # Only now are the changed containers replaced. init has just run, so it is
+  # left out, and --wait holds until the backend reports ready and the frontend
+  # answers.
+  "${compose[@]}" up -d --no-deps --remove-orphans --wait --wait-timeout 600 "${services[@]}"
 
   echo "==> checking https://$site"
   local attempt

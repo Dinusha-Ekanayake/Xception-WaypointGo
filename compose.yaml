@@ -1,12 +1,14 @@
 services:
   db:
+    labels:
+      com.waypoint.logs: "true"
     image: postgres:16-bookworm
     environment:
       POSTGRES_USER: waypoint
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-testing-only}
       POSTGRES_DB: waypoint
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
     volumes:
       - waypoint-postgres:/var/lib/postgresql/data
     healthcheck:
@@ -15,12 +17,20 @@ services:
       timeout: 5s
       retries: 10
   init:
+    labels:
+      com.waypoint.logs: "true"
     build:
       context: .
       dockerfile: backend/Dockerfile
+    # Schema, reference data and the demo accounts, explicitly and once per start.
+    # Each step is idempotent: re-running changes nothing that is already there.
+    # Only this service holds the database's own account. `migrate` logs in with
+    # it on a connection of its own, applies every file as waypoint_migrator (the
+    # owner of the schema, not a superuser) and gives waypoint_app the password in
+    # DATABASE_URL.
     environment:
-      DATABASE_URL: postgresql://waypoint:${POSTGRES_PASSWORD:-local-testing-only}@db:5432/waypoint
-      DEMO_MODE: "1"
+      DATABASE_URL: postgresql://waypoint_app:${APP_DB_PASSWORD:-local-testing-only-app}@db:5432/waypoint
+      MIGRATION_DATABASE_URL: postgresql://waypoint:${POSTGRES_PASSWORD:-local-testing-only}@db:5432/waypoint
       SEED_PASSWORD: ${SEED_PASSWORD:-Waypoint2026!}
     command: ["sh", "/app/compose-init.sh"]
     volumes:
@@ -30,26 +40,35 @@ services:
         condition: service_healthy
     restart: "no"
   backend:
+    labels:
+      com.waypoint.logs: "true"
     build:
       context: .
       dockerfile: backend/Dockerfile
     ports:
       - "127.0.0.1:${BACKEND_PORT:-8080}:8080"
+    # Logs in as waypoint_app, which owns nothing and can touch a table only by
+    # adopting a module role inside a transaction. The owner's password is not here.
     environment:
-      DATABASE_URL: postgresql://waypoint:${POSTGRES_PASSWORD:-local-testing-only}@db:5432/waypoint
-      DATA_DIR: /app/data
-      MIGRATIONS_DIR: /app/migrations
-      PUBLIC_DIR: /app/public
-      DEMO_MODE: ${DEMO_MODE:-1}
-      DEMO_NOW: ${DEMO_NOW:-2026-02-13T15:30:00+05:30}
-      SEED_PASSWORD: ${SEED_PASSWORD:-Waypoint2026!}
+      DATABASE_URL: postgresql://waypoint_app:${APP_DB_PASSWORD:-local-testing-only-app}@db:5432/waypoint
+      # Off by default here because this file is also the local Docker stack on
+      # plain HTTP. The VPS overlay and compose.prod.yaml force it on.
       COOKIE_SECURE: ${COOKIE_SECURE:-0}
       WAREHOUSE_BASE_URL: ${WAREHOUSE_BASE_URL:-https://triathon-warehouse-simple.vercel.app/api/v1}
       WAREHOUSE_API_KEY: ${WAREHOUSE_API_KEY:-}
+      WAREHOUSE_TIMEOUT_MS: ${WAREHOUSE_TIMEOUT_MS:-2000}
+      WAREHOUSE_CATALOGUE_STALE_AFTER: ${WAREHOUSE_CATALOGUE_STALE_AFTER:-2h}
+      WAREHOUSE_WEBHOOK_SECRET: ${WAREHOUSE_WEBHOOK_SECRET:-}
+      # Signs proof-of-delivery links. Unset, links stop working at a restart.
+      PROOF_STORE: ${PROOF_STORE:-database}
+      PROOF_URL_SECRET: ${PROOF_URL_SECRET:-}
+      LOG_FORMAT: ecs
     volumes:
       - ./data:/app/data:ro
       - ./migrations:/app/migrations:ro
       - ./frontend/public:/app/frontend/public:ro
+      # Proof photos and signatures. Evidence: keep it with the database volume.
+      - waypoint-proofs:/var/lib/waypoint/proofs
     depends_on:
       init:
         condition: service_completed_successfully
@@ -59,24 +78,76 @@ services:
       interval: 15s
       timeout: 5s
       retries: 5
+      # Checked every two seconds while starting, so a deploy does not wait a
+      # full interval to learn the service is already up.
+      start_period: 60s
+      start_interval: 2s
   waypoint:
+    labels:
+      com.waypoint.logs: "true"
     build: ./frontend
     ports:
       - "${PORT:-3000}:3000"
     environment:
       BACKEND_URL: http://backend:8080
-      DEMO_MODE: ${DEMO_MODE:-1}
-      DEMO_NOW: ${DEMO_NOW:-2026-02-13T15:30:00+05:30}
-      SEED_PASSWORD: ${SEED_PASSWORD:-Waypoint2026!}
-      COOKIE_SECURE: ${COOKIE_SECURE:-0}
     depends_on:
       backend:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/').then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 15s
       timeout: 5s
       retries: 5
+      # Checked every two seconds while starting, so a deploy does not wait a
+      # full interval to learn the service is already up.
+      start_period: 60s
+      start_interval: 2s
+  # ── Log store, opt-in: docker compose --profile observability up -d ──
+  # Alloy collects every container labelled com.waypoint.logs=true, plus the
+  # natively run backend's var/log/*.log, and ships them to Loki. Grafana is the
+  # search page, on 127.0.0.1 only. See docs/development-docs/development.md.
+  loki:
+    image: grafana/loki:3.4.2
+    profiles: ["observability"]
+    command: ["-config.file=/etc/loki/config.yaml"]
+    volumes:
+      - ./observability/loki/config.yaml:/etc/loki/config.yaml:ro
+      - loki-data:/loki
+    restart: unless-stopped
+  alloy:
+    image: grafana/alloy:v1.7.1
+    profiles: ["observability"]
+    command: ["run", "--server.http.listen-addr=0.0.0.0:12345", "--storage.path=/var/lib/alloy/data", "/etc/alloy/config.alloy"]
+    ports:
+      - "127.0.0.1:12345:12345"
+    volumes:
+      - ./observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./var/log:/var/log/waypoint:ro
+      - alloy-data:/var/lib/alloy/data
+    depends_on:
+      - loki
+    restart: unless-stopped
+  grafana:
+    image: grafana/grafana:11.5.2
+    profiles: ["observability"]
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:-3001}:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-local-testing-only}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - loki
+    restart: unless-stopped
 volumes:
   waypoint-postgres:
+  waypoint-proofs:
+  loki-data:
+  alloy-data:
+  grafana-data:

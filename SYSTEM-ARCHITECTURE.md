@@ -12,7 +12,7 @@ It consolidates the Tech-Triathlon challenge booklet, the team's requirements dr
 | [docs/architecture/MODULES.md](docs/architecture/MODULES.md) | Every module in detail: its layers, owned data, inbound contract, outbound dependencies, events, invariants and failure modes |
 | [docs/architecture/DATA-MODEL-REVIEW.md](docs/architecture/DATA-MODEL-REVIEW.md) | Validation of the team's schema, 20 findings, and the corrected target schema |
 | [docs/architecture/EDGE-CASES.md](docs/architecture/EDGE-CASES.md) | The edge case register: trigger, required behaviour, enforcement point, detection and test for each |
-| [docs/code-structure.md](docs/code-structure.md) | The folder layout that implements this, and its enforced boundary rules |
+| [docs/development-docs/STATUS.md](docs/development-docs/STATUS.md) | How much of this architecture is built: every module and screen, what is left, and what to pick up next |
 
 Scope note: the warehouse and stock system is built separately by the team. This architecture treats it as an **external system behind an anti-corruption layer**, not as a module to build here.
 
@@ -370,15 +370,16 @@ These are the conventions every endpoint follows. They are cheap to adopt early 
 | Concern | Standard |
 | --- | --- |
 | Mutations | `POST /api/commands`, one envelope, `command_id` + `expected_version` + typed payload |
-| Idempotency | `Idempotency-Key` header, receipt stored with a payload fingerprint. Same key and payload returns the original response; same key and different payload is `409`. A convention popularised by Stripe, not an RFC |
-| Errors | RFC 9457 `application/problem+json` with `type`, `title`, `status`, `detail`, `instance`, plus a `violations` extension carrying the failed constraints. **The error body is part of the contract**, because clients branch on it |
-| Optimistic concurrency | `ETag` on reads, `If-Match` on writes, mapped to the aggregate version |
-| Pagination | Cursor based on a keyset, never `OFFSET`. Offset pagination degrades exactly when the table grows |
+| Idempotency | **Built:** the command envelope's `commandId` is the key, with a receipt stored with a payload fingerprint. Same id and payload returns the original response; same id and different payload is `409`. **Planned:** the same contract on an `Idempotency-Key` header for non-command endpoints |
+| Errors | RFC 9457 `application/problem+json` with `type`, `title`, `status`, `detail`, `instance`, plus extensions `code` (stable, what clients branch on; `title` is for people), `correlationId` (the request's id in logs and audit) and `violations: [{rule, field?, message}]`. `type` is `PROBLEM_TYPE_BASE` + the code. **The error body is part of the contract**, because clients branch on it. A client's mistake is a 4xx, never a 500, and a detail never echoes framework or driver text |
+| Optimistic concurrency | **Built:** `rowVersion` on reads, `expectedVersion` in the command envelope, `409 VERSION_CONFLICT` when stale. **Planned:** `ETag` on reads and `If-Match` on writes, mapped to the same version |
+| Pagination | Cursor based on a keyset, never `OFFSET`. Offset pagination degrades exactly when the table grows. Lists return `{items, nextCursor}`; the cursor is opaque, carries no personal data, is passed back as `after`, and is `null` on the last page. `limit` defaults to 50, capped at 200 |
 | Delta sync | `GET /api/sync?since=<cursor>` returning only entitled events since the cursor |
 | Push | Server-sent events for cursor advancement, with polling fallback for hostile networks |
 | Versioning | Media type versioning, `Accept: application/vnd.waypoint.v1+json`, with `/v1` URI fallback. Additive changes never break; removals require a new version and a deprecation window |
 | Contract testing | Consumer-driven contract tests between the client and API, and between modules across their published contracts. Breaking a contract fails CI, not production |
-| Health | `/health/live` and `/health/ready` separated, so a slow dependency does not get the process killed |
+| Error codes | `BAD_REQUEST` 400, `UNAUTHENTICATED` 401, `FORBIDDEN` 403, `NOT_FOUND` 404, `REQUEST_TIMEOUT` 408, `CONFLICT` / `VERSION_CONFLICT` / `CONSTRAINT_VIOLATED` 409, `PAYLOAD_TOO_LARGE` 413, `VALIDATION_FAILED` 422, `RATE_LIMITED` 429 with `Retry-After`, `INTERNAL_ERROR` 500, `DEPENDENCY_UNAVAILABLE` 503 |
+| Health | `/health/liveness` and `/health/readiness` separated, so a slow dependency does not get the process killed |
 
 ---
 
@@ -480,12 +481,14 @@ WS3 Ordering ─────────────► WS4 Planning ──► W
 | WS10 Intelligence | Estimator ports, deterministic implementations, model registry | WS4 contract | week 5 |
 | WS11 Hardening | Load testing, chaos drills, SLO instrumentation, runbooks | all | week 6 |
 
+The "Starts" column is the plan as first written. WS0 to WS7 are built, WS8 has its relay and no Notification module, WS9 has four of the six role applications, and WS10 has only its contract. The current state of each, and what is left in it, is kept in [STATUS.md](docs/development-docs/STATUS.md) rather than here.
+
 ### 10.3 How parallel work stays unblocked
 
 The arrows are **contract dependencies, not code dependencies**:
 
 1. **Contracts land first.** Every module's `contract` package, its event payloads and its problem types are merged before implementations begin. Downstream streams build against the interface and a stub.
-2. **Migrations are named by timestamp**, `YYYYMMDDTHHMM_<module>_<what>.sql`, and each module writes its own. Timestamps sort after `001`–`009` and never collide between parallel branches, and because modules share no foreign keys, one module's migration never waits for another's. (Revised 2026-09-30; previously a single stream owned every migration.)
+2. **Migrations are named by timestamp**, `YYYYMMDDTHHMM_<module>_<what>.sql`, and each module writes its own. Timestamps sort after `001`-`009` and never collide between parallel branches, and because modules share no foreign keys, one module's migration never waits for another's. (Revised 2026-09-30; previously a single stream owned every migration.)
 3. **Integrate by event or contract query.** Never by reading another module's tables. The boundary test fails the build if someone tries.
 4. **Short-lived branches**, rebased daily. Long-lived branches across a schema change lose weekends.
 5. **Definition of done:** domain tests without a database, one integration test through the command bus, an authorization test for a denied scope, a contract test, boundary tests passing, telemetry emitted, and a development log entry.
@@ -500,8 +503,8 @@ The arrows are **contract dependencies, not code dependencies**:
 | 2 | Policy engine in-process or externalized | In-process PDP behind an interface. Externalize only if policy authoring moves outside engineering |
 | 3 | Event bus: outbox polling or a broker | Outbox with in-process dispatch now; the relay is broker-ready when a second consumer appears |
 | 4 | Products and order line items | **Decided 2026-09-30 (D-E).** Orders carry descriptive lines `(product_id, quantity)`; the warehouse returns weight, volume and temperature at placement, and those order-level totals stay authoritative. Capacity never moves to line level |
-| 5 | Migrate the current nine-table JSONB schema to the target model | Yes, with expand-contract, now that the timeline allows it. See the migration sequence in DATA-MODEL-REVIEW.md |
-| 6 | Duplicate rule implementation in `frontend/lib/` | Delete it and port its tests to the domain layer |
+| 5 | Migrate the current nine-table JSONB schema to the target model | **Closed 2026-09-27.** Not migrated: the backend was rewritten on the baseline in FOUNDATION-PLAN and the prototype, with its schema, was removed at tag `prototype-v0` |
+| 6 | Duplicate rule implementation in `frontend/lib/` | **Closed.** `frontend/lib/` went with the prototype; rules live once, in each module's `domain/` |
 | 7 | Outlet coordinates | **Deferred.** Additive later: a nullable column plus a check constraint. Nothing in the allocation model depends on it |
 | 8 | Driver-side temporal exclusion (one driver, one vehicle at a time) | **Deferred**, and it is a policy question, not a correctness fix. Adding the constraint later requires clean data first, because it is validated against existing rows |
 

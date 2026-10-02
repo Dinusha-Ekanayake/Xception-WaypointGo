@@ -1,12 +1,16 @@
 package com.waypoint.dispatch.referencedata.web;
 
 import com.waypoint.dispatch.platform.web.RequestAuthorizer;
+import com.waypoint.dispatch.platform.web.RequestValues;
+import com.waypoint.dispatch.referencedata.application.ReferenceScope;
 import com.waypoint.dispatch.referencedata.contract.ReferenceQuery;
 import com.waypoint.dispatch.referencedata.contract.ReferenceViews.CalendarDayView;
 import com.waypoint.dispatch.referencedata.contract.ReferenceViews.OutletView;
 import com.waypoint.dispatch.referencedata.contract.ReferenceViews.VehicleView;
 import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
+import com.waypoint.dispatch.shared.domain.Actor;
+import com.waypoint.dispatch.shared.domain.Page;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.LocalDate;
 import java.util.List;
@@ -32,6 +36,9 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>Authorization goes through the {@code RequestAuthorizer} port rather than the
  * identity module directly: a module's web layer may not import another module.
+ * That is the policy half. A depot's outlets and fleet are then checked against
+ * the actor's own scope by {@link ReferenceScope} (R-IAM-28); the version and the
+ * calendar are the same for everyone.
  */
 @RestController
 @RequestMapping("/api/reference")
@@ -40,10 +47,13 @@ public class ReferenceController {
 
   private final ReferenceQuery reference;
   private final RequestAuthorizer authorizer;
+  private final ReferenceScope scope;
 
-  public ReferenceController(ReferenceQuery reference, RequestAuthorizer authorizer) {
+  public ReferenceController(
+      ReferenceQuery reference, RequestAuthorizer authorizer, ReferenceScope scope) {
     this.reference = reference;
     this.authorizer = authorizer;
+    this.scope = scope;
   }
 
   /** What every other answer on this controller was computed from. */
@@ -54,12 +64,19 @@ public class ReferenceController {
   }
 
   @GetMapping("/outlets")
-  public List<OutletView> outletsOfDepot(
+  public Page<OutletView> outletsOfDepot(
       @RequestParam String depot,
       @RequestParam(required = false) String version,
+      @RequestParam(required = false) String after,
+      @RequestParam(required = false) Integer limit,
       HttpServletRequest request) {
-    authorizer.require(request, READ, "wpt:ref:depot:" + depot);
-    return reference.outletsOfDepot(depot, uuid(version));
+    String resource = "wpt:ref:depot:" + depot;
+    scope.requireDepot(authorizer.require(request, READ, resource), READ, resource, depot);
+    return Page.slice(
+        reference.outletsOfDepot(depot, RequestValues.optionalUuid("version", version)),
+        after,
+        limit,
+        OutletView::outletId);
   }
 
   @GetMapping("/outlets/{outletId}")
@@ -67,10 +84,14 @@ public class ReferenceController {
       @PathVariable String outletId,
       @RequestParam(required = false) String version,
       HttpServletRequest request) {
-    authorizer.require(request, READ, "wpt:ref:outlet:" + outletId);
-    return reference
-        .outlet(outletId, uuid(version))
-        .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No outlet " + outletId));
+    String resource = "wpt:ref:outlet:" + outletId;
+    Actor actor = authorizer.require(request, READ, resource);
+    OutletView outlet =
+        reference
+            .outlet(outletId, RequestValues.optionalUuid("version", version))
+            .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No outlet " + outletId));
+    scope.requireOutlet(actor, READ, resource, outlet);
+    return outlet;
   }
 
   /**
@@ -79,13 +100,21 @@ public class ReferenceController {
    * how a broken truck gets planned.
    */
   @GetMapping("/vehicles")
-  public List<VehicleView> availableVehicles(
+  public Page<VehicleView> availableVehicles(
       @RequestParam String depot,
       @RequestParam String date,
       @RequestParam(required = false) String version,
+      @RequestParam(required = false) String after,
+      @RequestParam(required = false) Integer limit,
       HttpServletRequest request) {
-    authorizer.require(request, READ, "wpt:ref:depot:" + depot);
-    return reference.availableVehicles(depot, date(date), uuid(version));
+    String resource = "wpt:ref:depot:" + depot;
+    scope.requireDepot(authorizer.require(request, READ, resource), READ, resource, depot);
+    return Page.slice(
+        reference.availableVehicles(
+            depot, RequestValues.date("date", date), RequestValues.optionalUuid("version", version)),
+        after,
+        limit,
+        VehicleView::vehicleId);
   }
 
   @GetMapping("/vehicles/{vehicleId}")
@@ -93,10 +122,14 @@ public class ReferenceController {
       @PathVariable String vehicleId,
       @RequestParam(required = false) String version,
       HttpServletRequest request) {
-    authorizer.require(request, READ, "wpt:ref:vehicle:" + vehicleId);
-    return reference
-        .vehicle(vehicleId, uuid(version))
-        .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No vehicle " + vehicleId));
+    String resource = "wpt:ref:vehicle:" + vehicleId;
+    Actor actor = authorizer.require(request, READ, resource);
+    VehicleView vehicle =
+        reference
+            .vehicle(vehicleId, RequestValues.optionalUuid("version", version))
+            .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No vehicle " + vehicleId));
+    scope.requireVehicle(actor, READ, resource, vehicle);
+    return vehicle;
   }
 
   /**
@@ -107,7 +140,7 @@ public class ReferenceController {
   @GetMapping("/calendar/{date}")
   public Map<String, Object> day(@PathVariable String date, HttpServletRequest request) {
     authorizer.require(request, READ, "wpt:ref:calendar:" + date);
-    LocalDate on = date(date);
+    LocalDate on = RequestValues.date("date", date);
     CalendarDayView view = reference.day(on).orElse(null);
     return Map.of(
         "date", on.toString(),
@@ -117,23 +150,5 @@ public class ReferenceController {
         "day", view == null ? Map.of() : view);
   }
 
-  private static UUID uuid(String value) {
-    if (value == null || value.isBlank()) {
-      return null;
-    }
-    try {
-      return UUID.fromString(value);
-    } catch (IllegalArgumentException e) {
-      throw new DomainException(ErrorCode.VALIDATION_FAILED, "version is not a uuid: " + value);
-    }
-  }
 
-  private static LocalDate date(String value) {
-    try {
-      return LocalDate.parse(value);
-    } catch (RuntimeException e) {
-      throw new DomainException(
-          ErrorCode.VALIDATION_FAILED, "Expected a date as yyyy-mm-dd, not " + value);
-    }
-  }
 }

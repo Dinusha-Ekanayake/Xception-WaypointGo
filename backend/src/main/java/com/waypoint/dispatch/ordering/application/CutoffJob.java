@@ -19,6 +19,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.springframework.stereotype.Component;
 
 /**
@@ -38,6 +39,8 @@ public class CutoffJob implements ScheduledJob {
   private final ReferenceQuery reference;
   private final EventPublisher events;
   private final Metrics metrics;
+  /** Held here so the gauge reads a live value, not a boxed number that goes NaN after GC. */
+  private final AtomicInteger deferredLastRun = new AtomicInteger();
 
   public CutoffJob(
       Database database,
@@ -50,6 +53,7 @@ public class CutoffJob implements ScheduledJob {
     this.reference = reference;
     this.events = events;
     this.metrics = metrics;
+    metrics.gauge("waypoint.order.auto_deferred_last_run", deferredLastRun::get);
   }
 
   @Override
@@ -89,7 +93,7 @@ public class CutoffJob implements ScheduledJob {
         metrics.increment("waypoint.order.auto_defer_failed");
       }
     }
-    metrics.gauge("waypoint.order.auto_deferred_last_run", deferred);
+    deferredLastRun.set(deferred);
     return deferred;
   }
 

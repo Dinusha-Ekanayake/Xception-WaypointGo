@@ -72,4 +72,17 @@ public final class IssueViews {
       subjects = List.copyOf(subjects);
     }
   }
+
+  /**
+   * One change to an issue, with who made it, what they did and why (rule 8).
+   *
+   * @param action what was done: raised, assigned, resolved, escalated, closed, cancelled
+   */
+  public record IssueHistoryView(
+      Optional<IssueStatus> from,
+      IssueStatus to,
+      String action,
+      String reason,
+      Optional<UUID> actorId,
+      Instant at) {}
 }

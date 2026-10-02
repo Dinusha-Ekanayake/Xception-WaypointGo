@@ -21,12 +21,13 @@ import jakarta.servlet.http.Cookie;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.UUID;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import com.waypoint.dispatch.support.TestDatabase;
 import org.junit.jupiter.api.TestMethodOrder;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -49,10 +50,7 @@ import org.springframework.test.web.servlet.MvcResult;
 @SpringBootTest
 @AutoConfigureMockMvc
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-@EnabledIfEnvironmentVariable(
-    named = "TEST_DATABASE_URL",
-    matches = ".+",
-    disabledReason = "Set TEST_DATABASE_URL to a dedicated database to run integration tests")
+@ExtendWith(TestDatabase.class)
 class AdministrationIntegrationTest {
 
   private static final String ADMIN = "adm-admin@waypoint.test";
@@ -73,21 +71,13 @@ class AdministrationIntegrationTest {
   @Autowired SessionRegistry sessions;
   @Autowired ImportReferenceDataHandler referenceImport;
   @Autowired ReferenceQuery reference;
+  @Autowired MeterRegistry meters;
 
   @DynamicPropertySource
   static void databaseUrl(DynamicPropertyRegistry registry) {
-    registry.add("app.database-url", () -> System.getenv("TEST_DATABASE_URL"));
+    registry.add("app.database-url", TestDatabase::url);
   }
 
-  @BeforeAll
-  static void guardAgainstTheApplicationDatabase() {
-    String url = System.getenv("TEST_DATABASE_URL");
-    String application = System.getenv("DATABASE_URL");
-    if (application != null && application.equals(url)) {
-      throw new IllegalStateException(
-          "TEST_DATABASE_URL must differ from DATABASE_URL; tests destroy data");
-    }
-  }
 
   @Test
   @Order(1)
@@ -151,6 +141,7 @@ class AdministrationIntegrationTest {
     assertEquals(version + 1, versionOf(userId), "a change bumps the row version");
 
     // The same version again is a second writer working from a stale read.
+    double conflictsBefore = total("waypoint.version.conflict");
     command(
         ADMIN,
         "iam:UpdateUser",
@@ -160,6 +151,59 @@ class AdministrationIntegrationTest {
         """
             .formatted(userId),
         409);
+    assertEquals(
+        conflictsBefore + 1,
+        total("waypoint.version.conflict"),
+        "ORD-05/PLN-06/EXE-14: a refused stale write is counted");
+  }
+
+  /**
+   * PLT-01: two serializable transactions that read the same row and then both
+   * write it cannot both commit. The loser is retried, re-running its read, and the
+   * retry is counted rather than silent.
+   */
+  @Test
+  @Order(20)
+  void aSerializationFailureIsRetriedAndCounted() throws Exception {
+    double retriesBefore = total("waypoint.db.retry");
+    java.util.concurrent.CountDownLatch bothRead = new java.util.concurrent.CountDownLatch(2);
+    Runnable writer =
+        () ->
+            database.asModule(
+                ModuleRole.IAM,
+                null,
+                () -> {
+                  database.queryOne(
+                      "SELECT row_version FROM iam.users WHERE email = ?", ADMIN);
+                  bothRead.countDown();
+                  try {
+                    // Only the first attempt waits; a retry finds the latch open.
+                    bothRead.await(5, java.util.concurrent.TimeUnit.SECONDS);
+                  } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                  }
+                  database.update(
+                      "UPDATE iam.users SET updated_at = now() WHERE email = ?", ADMIN);
+                });
+    java.util.concurrent.ExecutorService pool =
+        java.util.concurrent.Executors.newFixedThreadPool(2);
+    try {
+      var first = pool.submit(writer);
+      var second = pool.submit(writer);
+      first.get(30, java.util.concurrent.TimeUnit.SECONDS);
+      second.get(30, java.util.concurrent.TimeUnit.SECONDS);
+    } finally {
+      pool.shutdownNow();
+    }
+    assertTrue(
+        total("waypoint.db.retry") > retriesBefore,
+        "both writers completed, so the conflict was retried, and the retry was counted");
+  }
+
+  private double total(String counter) {
+    return meters.find(counter).counters().stream()
+        .mapToDouble(io.micrometer.core.instrument.Counter::count)
+        .sum();
   }
 
   @Test
@@ -199,7 +243,7 @@ class AdministrationIntegrationTest {
         command(
             ADMIN,
             "iam:GrantScope",
-            null,
+            versionOf(userId),
             """
             {"userId":"%s","outletId":"OUT001"}
             """.formatted(userId),
@@ -213,7 +257,7 @@ class AdministrationIntegrationTest {
     command(
         ADMIN,
         "iam:GrantScope",
-        null,
+        versionOf(userId),
         """
         {"userId":"%s","outletId":"OUT999"}
         """.formatted(userId),
@@ -223,7 +267,7 @@ class AdministrationIntegrationTest {
     command(
         ADMIN,
         "iam:GrantScope",
-        null,
+        versionOf(userId),
         """
         {"userId":"%s","outletId":"OUT001","depotCode":"Peliyagoda"}
         """.formatted(userId),
@@ -233,7 +277,7 @@ class AdministrationIntegrationTest {
         command(
             ADMIN,
             "iam:RevokeScope",
-            null,
+            versionOf(userId),
             """
             {"userId":"%s","outletId":"OUT001"}
             """.formatted(userId),
@@ -255,7 +299,7 @@ class AdministrationIntegrationTest {
             command(
                 ADMIN,
                 "iam:AssignDriver",
-                null,
+                versionOf(driverId),
                 """
                 {"vehicleId":"VEH002","driverUserId":"%s","from":"2027-05-03","until":"2027-05-10"}
                 """
@@ -269,20 +313,21 @@ class AdministrationIntegrationTest {
         command(
             ADMIN,
             "iam:AssignDriver",
-            null,
+            versionOf(otherDriverId),
             """
             {"vehicleId":"VEH002","driverUserId":"%s","from":"2027-05-05","until":"2027-05-12"}
             """
                 .formatted(otherDriverId),
             409);
     assertTrue(problem.contains("R-IAM-13"), problem);
+    assertTrue(total("waypoint.race.lost") >= 1, "the overlap the constraint caught is counted");
 
     // Abutting the day the first one ends is not an overlap: the range is half open.
     ack(
         command(
             ADMIN,
             "iam:AssignDriver",
-            null,
+            versionOf(otherDriverId),
             """
             {"vehicleId":"VEH002","driverUserId":"%s","from":"2027-05-10","until":"2027-05-17"}
             """
@@ -295,13 +340,16 @@ class AdministrationIntegrationTest {
         command(
             ADMIN,
             "iam:EndDriverAssignment",
-            null,
+            // A new assignment is at version 1; the read surface carries it as rowVersion.
+            1L,
             """
             {"assignmentId":"%s","on":"2027-05-06"}
             """.formatted(assignmentId),
             200));
     JsonNode assignments = mapper.readTree(read(ADMIN, "/api/accounts/driver-assignments?on=2027-05-07", 200));
-    assertEquals(0, assignments.size(), "the released days are no longer held by anyone");
+    assertEquals(
+        0, assignments.get("items").size(), "the released days are no longer held by anyone");
+    assertTrue(assignments.get("nextCursor").isNull(), "a short page is the last page");
   }
 
   @Test
@@ -310,7 +358,7 @@ class AdministrationIntegrationTest {
     command(
         ADMIN,
         "iam:AssignDriver",
-        null,
+        versionOf(userIdOf(MANAGER).toString()),
         """
         {"vehicleId":"VEH003","driverUserId":"%s","from":"2027-06-01","until":"2027-06-08"}
         """
@@ -385,16 +433,19 @@ class AdministrationIntegrationTest {
   @Test
   @Order(10)
   void readEndpointsAreAPermissionAndADriverDoesNotHaveThisOne() throws Exception {
-    // A driver may read reference data, which is what a route needs.
+    // A driver may read reference data, which is what a route needs. The calendar
+    // is the same for every depot; an outlet is also a question of scope, and this
+    // driver has none today (R-IAM-28, covered in IdentityHardeningIntegrationTest).
     assertTrue(
-        mapper.readTree(read(DRIVER, "/api/reference/outlets/OUT001", 200)).has("brandCode"));
+        mapper.readTree(read(DRIVER, "/api/reference/calendar/" + CLOSED_SUNDAY, 200)).has("operating"));
+    read(DRIVER, "/api/reference/outlets/OUT001", 403);
 
     // A driver may not read the account list, and the refusal is a 403 with a
     // reason, never an empty list.
     String problem = read(DRIVER, "/api/accounts", 403);
     assertTrue(problem.contains("FORBIDDEN"), problem);
 
-    // A store manager has no reference:Read in the seeded policy.
+    // A store manager's reference:Read covers outlets and the calendar only.
     read(MANAGER, "/api/reference/version", 403);
 
     // And an unsigned caller gets 401 rather than a hint about what exists.

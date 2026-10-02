@@ -1,5 +1,6 @@
 package com.waypoint.dispatch.platform.db;
 
+import com.waypoint.dispatch.platform.observability.Metrics;
 import com.waypoint.dispatch.shared.domain.Actor;
 import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
@@ -8,9 +9,13 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -30,31 +35,60 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class Database {
   private static final int MAX_ATTEMPTS = 5;
 
+  private static final Logger log = LoggerFactory.getLogger(Database.class);
+
   /** The actor of the unit of work running on this thread, for contract reads made inside it. */
   private static final ThreadLocal<UUID> AMBIENT_ACTOR = new ThreadLocal<>();
 
   private final JdbcTemplate jdbc;
   private final TransactionTemplate serializable;
   private final TransactionTemplate separateRead;
+  private final TransactionTemplate separateWrite;
+  private final Metrics metrics;
 
-  public Database(JdbcTemplate jdbc, TransactionTemplate serializableTransactions) {
+  public Database(
+      JdbcTemplate jdbc, TransactionTemplate serializableTransactions, Metrics metrics) {
     this.jdbc = jdbc;
     this.serializable = serializableTransactions;
     this.separateRead = new TransactionTemplate(serializableTransactions.getTransactionManager());
     separateRead.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     separateRead.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
     separateRead.setReadOnly(true);
+    this.separateWrite = new TransactionTemplate(serializableTransactions.getTransactionManager());
+    separateWrite.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+    separateWrite.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
+    this.metrics = metrics;
   }
 
   /** Runs one command as a module, on behalf of an actor, in one serializable transaction. */
   public <T> T asModule(ModuleRole role, UUID actorId, Supplier<T> work) {
+    String module = role.roleName();
+    if (actorId == null) {
+      // SEC-06, SEC-13. Legitimate for sign-in and startup, which have no actor yet,
+      // but row-level security sees nobody here, so a request path showing up in
+      // this count is a scope bug.
+      metrics.increment("waypoint.db.no_actor", "module", module);
+    }
     for (int attempt = 0; ; attempt++) {
       try {
         return serializable.execute(status -> runAs(role, actorId, work));
       } catch (RuntimeException e) {
-        if (attempt < MAX_ATTEMPTS - 1 && isRetryable(e)) {
+        String state = sqlState(e);
+        if ("42501".equals(state)) {
+          // SEC-16: a grant refused the statement. Either a module reached into a
+          // schema it does not own, or a migration forgot a grant.
+          metrics.increment("waypoint.db.permission_denied", "module", module);
+        }
+        boolean retryable = "40001".equals(state) || "40P01".equals(state);
+        if (retryable && attempt < MAX_ATTEMPTS - 1) {
+          // PLT-01: the retry re-runs the whole unit of work, validation included.
+          metrics.increment("waypoint.db.retry", "module", module);
           sleep(20L * (attempt + 1));
           continue;
+        }
+        if (retryable) {
+          metrics.increment("waypoint.db.retry.exhausted", "module", module);
+          log.warn("Gave up after {} attempts as {} (SQLSTATE {})", MAX_ATTEMPTS, module, state);
         }
         throw e;
       }
@@ -74,6 +108,42 @@ public class Database {
    */
   public <T> T readAs(ModuleRole role, UUID actorId, Supplier<T> work) {
     return separateRead.execute(status -> runAs(role, actorId, work));
+  }
+
+  /**
+   * Runs {@code work} once the transaction this thread is inside has committed,
+   * and not at all if it rolls back. With no transaction open it runs now.
+   *
+   * <p>For effects that live outside the database, such as clearing an in-memory
+   * cache: done before the commit, another request can refill the cache from the
+   * state that is about to be replaced.
+   */
+  public void afterCommit(Runnable work) {
+    if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+      work.run();
+      return;
+    }
+    TransactionSynchronizationManager.registerSynchronization(
+        new TransactionSynchronization() {
+          @Override
+          public void afterCommit() {
+            work.run();
+          }
+        });
+  }
+
+  /**
+   * System work that must commit on its own, even when called from inside
+   * another module's transaction.
+   *
+   * <p>For an adapter recording that it is about to call an external system: if
+   * the caller's transaction later rolls back, the record of the call must
+   * survive, because the call itself cannot be rolled back (R-STK-11). Suspends
+   * the caller's transaction and borrows another connection, like
+   * {@link #readAs}. Use sparingly; each nested call holds a second connection.
+   */
+  public <T> T asSystemSeparately(ModuleRole role, Supplier<T> work) {
+    return separateWrite.execute(status -> runAs(role, Actor.SYSTEM_ID, work));
   }
 
   /** The actor of the unit of work this thread is inside, if any. */
@@ -157,18 +227,13 @@ public class Database {
     return jdbc.update(sql, params);
   }
 
-  private static boolean isRetryable(RuntimeException e) {
-    Throwable t = e;
-    while (t != null) {
-      if (t instanceof java.sql.SQLException sql) {
-        String state = sql.getSQLState();
-        if ("40001".equals(state) || "40P01".equals(state)) {
-          return true;
-        }
+  private static String sqlState(Throwable e) {
+    for (Throwable t = e; t != null; t = t.getCause()) {
+      if (t instanceof java.sql.SQLException sql && sql.getSQLState() != null) {
+        return sql.getSQLState();
       }
-      t = t.getCause();
     }
-    return false;
+    return null;
   }
 
   private static void sleep(long ms) {

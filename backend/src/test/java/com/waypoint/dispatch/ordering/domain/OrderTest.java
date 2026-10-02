@@ -63,7 +63,7 @@ class OrderTest {
   void anOrderHasExactlyOneTemperatureClass() {
     DomainException mixed =
         assertThrows(DomainException.class, () -> reservation("mixed"));
-    assertEquals(List.of("R-ORD-06"), mixed.violations());
+    assertEquals(List.of("R-ORD-06"), mixed.rules());
 
     Optional<String> violation =
         TemperatureMix.violation(
@@ -116,13 +116,13 @@ class OrderTest {
     DomainException conflict =
         assertThrows(DomainException.class, () -> allocated.amend(LINES, Optional.empty()));
     assertEquals(ErrorCode.CONFLICT, conflict.code());
-    assertEquals(List.of("ORD-05"), conflict.violations());
+    assertEquals(List.of("ORD-05"), conflict.rules());
 
     Order loading = allocated.moveTo(OrderStatus.LOADING);
     DomainException refused =
         assertThrows(DomainException.class, () -> loading.amend(LINES, Optional.empty()));
     assertEquals(ErrorCode.CONSTRAINT_VIOLATED, refused.code());
-    assertEquals(List.of("ORD-06"), refused.violations());
+    assertEquals(List.of("ORD-06"), refused.rules());
   }
 
   @Test
@@ -140,7 +140,7 @@ class OrderTest {
         order(Optional.of(reservation("ambient"))).allocateTo(UUID.randomUUID()).moveTo(OrderStatus.LOADING);
 
     DomainException refused = assertThrows(DomainException.class, loading::cancel);
-    assertEquals(List.of("ORD-10"), refused.violations());
+    assertEquals(List.of("ORD-10"), refused.rules());
     assertEquals(OrderStatus.CANCELLED, order(Optional.empty()).cancel().status());
   }
 
@@ -164,6 +164,9 @@ class OrderTest {
     assertEquals(Optional.of(original.orderId()), redelivery.redeliveryOf());
     assertEquals(original.reservation(), redelivery.reservation());
     assertEquals(OrderStatus.CONFIRMED, redelivery.status());
+    assertEquals(
+        original.deferralCount() + 1, redelivery.deferralCount(),
+        "the failed delivery skipped the outlet, so the next plan serves it first (R-PLN-20)");
   }
 
   @Test

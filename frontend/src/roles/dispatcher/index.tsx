@@ -8,6 +8,10 @@ import { depotToday, depotsFor, scopeLabel, type DepotFilter } from "./data/scop
 import { useFleet } from "./data/fleet.ts";
 import Overview from "./screens/Overview.tsx";
 import Vehicles from "./screens/Vehicles.tsx";
+import Live from "./screens/Live.tsx";
+import Orders from "./screens/Orders.tsx";
+import Plan from "./screens/Plan.tsx";
+import Issues from "./screens/Issues.tsx";
 import UpcomingScreen from "./screens/Upcoming.tsx";
 
 // The dispatcher workspace from the Figma "Dispatcher · Desktop" page. It is
@@ -15,9 +19,11 @@ import UpcomingScreen from "./screens/Upcoming.tsx";
 // (src/shared/offline/tiers.ts).
 
 export default function Dispatcher({
+  userId,
   displayName,
   scope,
 }: {
+  userId: string;
   displayName: string;
   /** Depot codes from the session. The server enforces them; this only chooses among them. */
   scope: string[];
@@ -56,9 +62,17 @@ export default function Dispatcher({
         {scope.length === 0 ? (
           <p className="text-sm text-go-secondary">Your account has no depot in scope. Ask an administrator to grant one.</p>
         ) : view === "overview" ? (
-          <Overview displayName={displayName} scopeLabel={label} fleet={fleet} online={online} onNavigate={navigate} />
+          <Overview displayName={displayName} userId={userId} depots={depots} scopeLabel={label} fleet={fleet} online={online} onNavigate={navigate} />
         ) : view === "vehicles" ? (
           <Vehicles scopeLabel={label} date={date} onDate={setDate} fleet={fleet} online={online} />
+        ) : view === "orders" ? (
+          <Orders depots={depots} scopeLabel={label} date={date} onDate={setDate} online={online} />
+        ) : view === "plan" ? (
+          <Plan depots={depots} date={date} onDate={setDate} online={online} />
+        ) : view === "live" ? (
+          <Live depots={depots} scopeLabel={label} date={date} onDate={setDate} online={online} />
+        ) : view === "issues" ? (
+          <Issues depots={depots} scopeLabel={label} userId={userId} online={online} />
         ) : (
           <UpcomingScreen view={view} scopeLabel={label} online={online} lastSyncedAt={fleet.loadedAt} />
         )}

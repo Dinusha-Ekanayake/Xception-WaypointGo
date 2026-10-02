@@ -43,12 +43,17 @@ public class ReferenceDataQuery implements ReferenceQuery {
   private final ReferenceCache cache;
   private final ReferenceVersionReader reader;
   private final Database database;
+  private final ReferenceBootstrap bootstrap;
 
   public ReferenceDataQuery(
-      ReferenceCache cache, ReferenceVersionReader reader, Database database) {
+      ReferenceCache cache,
+      ReferenceVersionReader reader,
+      Database database,
+      ReferenceBootstrap bootstrap) {
     this.cache = cache;
     this.reader = reader;
     this.database = database;
+    this.bootstrap = bootstrap;
   }
 
   @Override
@@ -58,6 +63,7 @@ public class ReferenceDataQuery implements ReferenceQuery {
 
   private ReferenceSnapshot snapshot(UUID versionId) {
     if (versionId == null) {
+      bootstrap.refreshIfStale();
       return cache
           .current()
           .orElseThrow(
@@ -90,6 +96,13 @@ public class ReferenceDataQuery implements ReferenceQuery {
   public List<OutletView> outletsOfDepot(String depotCode, UUID versionId) {
     ReferenceSnapshot s = snapshot(versionId);
     return s.outletsOf(new DepotCode(depotCode)).stream().map(o -> toOutletView(s, o)).toList();
+  }
+
+  @Override
+  public List<VehicleView> vehiclesOfDepot(String depotCode, UUID versionId) {
+    return snapshot(versionId).vehiclesOf(new DepotCode(depotCode)).stream()
+        .map(ReferenceDataQuery::toVehicleView)
+        .toList();
   }
 
   /** R-FLT-03: a vehicle in the workshop cannot be allocated. */

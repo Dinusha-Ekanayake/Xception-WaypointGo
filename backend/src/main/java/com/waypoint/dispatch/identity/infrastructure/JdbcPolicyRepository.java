@@ -5,6 +5,7 @@ import com.waypoint.dispatch.platform.db.Database;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
 
@@ -46,6 +47,44 @@ public class JdbcPolicyRepository {
       statements.addAll(parser.parse(String.valueOf(row.get("document"))).statements());
     }
     return statements;
+  }
+
+  /**
+   * The policy generation as this connection sees it. Inside a command's
+   * transaction that is the command's own snapshot, under whatever role the
+   * command runs as, which is what its re-check has to compare against.
+   */
+  public long generationHere() {
+    return generationFrom("SELECT app.policy_generation() AS generation");
+  }
+
+  /** The policy generation, read as the identity module beside the statements it tags. */
+  public long generation() {
+    return generationFrom("SELECT generation FROM iam.policy_generation");
+  }
+
+  /**
+   * Moves the generation in the caller's transaction, so the change and the
+   * number that announces it commit together. Two changes at once contend on the
+   * one row, and the loser is retried.
+   *
+   * @return the new generation
+   */
+  public long advanceGeneration() {
+    return generationFrom(
+        "UPDATE iam.policy_generation SET generation = generation + 1, changed_at = now()"
+            + " RETURNING generation");
+  }
+
+  private long generationFrom(String sql) {
+    return ((Number) database.queryOne(sql).get("generation")).longValue();
+  }
+
+  /** Actions a handler or an endpoint actually enforces. The bus routes no others. */
+  public Set<String> implementedActions() {
+    return database.query("SELECT action FROM iam.action_catalogue WHERE implemented").stream()
+        .map(r -> (String) r.get("action"))
+        .collect(java.util.stream.Collectors.toUnmodifiableSet());
   }
 
   /** Roles held by the actor, used for context and for reporting. */

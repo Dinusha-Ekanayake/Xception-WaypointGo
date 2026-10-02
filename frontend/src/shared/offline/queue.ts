@@ -56,6 +56,19 @@ export function backoffMs(attempt: number): number {
 export type DrainReport = { sent: number; heldForReview: number; remaining: number };
 
 const running = new Map<string, Promise<DrainReport>>();
+const beforeDrain = new Map<string, () => Promise<void>>();
+
+/**
+ * Work every pass must finish before it sends anything, such as the operator
+ * switches a shared loader device made offline. A failure stops the pass; the
+ * queue is kept and tried again. Returns the unregister function.
+ */
+export function setBeforeDrain(accountId: string, step: () => Promise<void>): () => void {
+  beforeDrain.set(accountId, step);
+  return () => {
+    if (beforeDrain.get(accountId) === step) beforeDrain.delete(accountId);
+  };
+}
 
 /**
  * Sends what it can, once. Callers schedule it on reconnect and on visibility.
@@ -93,6 +106,7 @@ function deviceId(): string {
 const BATCH = 100;
 
 async function drainOnce(accountId: string): Promise<DrainReport> {
+  await beforeDrain.get(accountId)?.();
   const entries = await all(accountId);
   const ready = entries.filter((e) => !e.needsReview).slice(0, BATCH);
   let sent = 0;
@@ -161,6 +175,19 @@ export function discard(accountId: string, commandId: string): Promise<void> {
 /** Put a held write back in line, for when the cause was fixed elsewhere. */
 export async function retry(accountId: string, entry: StoredEntry): Promise<void> {
   await put(accountId, { ...entry, needsReview: false });
+}
+
+/**
+ * Every write still on this device, in the order it was recorded. A full-tier
+ * screen applies these to what the server last said, so it shows the work as
+ * the person left it.
+ */
+export async function pendingEntries(accountId: string): Promise<StoredEntry[]> {
+  try {
+    return await all(accountId);
+  } catch {
+    return [];
+  }
 }
 
 /** How many writes this account still has on the device, sent or not. */

@@ -84,7 +84,10 @@ server {
 
 server {
   listen 80;
-  server_name ${SITE_ADDRESS} preview.${SITE_ADDRESS} grafana-preview.${SITE_ADDRESS};
+  server_name ${SITE_ADDRESS} www.${SITE_ADDRESS} preview.${SITE_ADDRESS}
+    dispatcher.${SITE_ADDRESS} loader.${SITE_ADDRESS} driver.${SITE_ADDRESS} store.${SITE_ADDRESS} admin.${SITE_ADDRESS} auditor.${SITE_ADDRESS}
+    dispatcher-preview.${SITE_ADDRESS} loader-preview.${SITE_ADDRESS} driver-preview.${SITE_ADDRESS} store-preview.${SITE_ADDRESS} admin-preview.${SITE_ADDRESS} auditor-preview.${SITE_ADDRESS}
+    grafana-preview.${SITE_ADDRESS};
 
   if ($deny_direct) {
     return 444;
@@ -102,21 +105,43 @@ server {
   }
 }
 
-# Production: the tip of main.
+# Production: the tip of main. Each role also has an address of its own, which
+# serves the same application; the frontend reads the name and shows that role
+# (frontend/src/app-shell/hostRole.ts). The six names are repeated in
+# entrypoint.d/25-tls-certificate.sh and in deploy.sh for the certificate.
 server {
   listen 443 ssl;
   http2 on;
-  server_name ${SITE_ADDRESS};
+  server_name ${SITE_ADDRESS}
+    dispatcher.${SITE_ADDRESS} loader.${SITE_ADDRESS} driver.${SITE_ADDRESS} store.${SITE_ADDRESS} admin.${SITE_ADDRESS} auditor.${SITE_ADDRESS};
 
   set $frontend http://production-waypoint:3000;
   include /etc/nginx/snippets/site.conf;
 }
 
-# Preview: the tip of dev. Answers 502 until the preview stack is running.
+# www is not a second site: it sends the visitor to the bare name.
 server {
   listen 443 ssl;
   http2 on;
-  server_name preview.${SITE_ADDRESS};
+  server_name www.${SITE_ADDRESS};
+
+  if ($deny_direct) {
+    return 444;
+  }
+
+  add_header Strict-Transport-Security "max-age=31536000" always;
+
+  return 301 https://${SITE_ADDRESS}$request_uri;
+}
+
+# Preview: the tip of dev. Answers 502 until the preview stack is running. Its
+# role addresses carry -preview in the first label rather than a second level,
+# because Cloudflare's universal certificate covers one level only.
+server {
+  listen 443 ssl;
+  http2 on;
+  server_name preview.${SITE_ADDRESS}
+    dispatcher-preview.${SITE_ADDRESS} loader-preview.${SITE_ADDRESS} driver-preview.${SITE_ADDRESS} store-preview.${SITE_ADDRESS} admin-preview.${SITE_ADDRESS} auditor-preview.${SITE_ADDRESS};
 
   add_header X-Robots-Tag "noindex, nofollow" always;
 
@@ -124,8 +149,8 @@ server {
   include /etc/nginx/snippets/site.conf;
 }
 
-# Preview log search (Grafana). Answers 502 while the preview stack is not
-# running the observability profile. Grafana has its own sign-in.
+# Preview log search (Grafana). Exists only while the preview stack runs the
+# observability profile; answers 502 otherwise. Grafana has its own sign-in.
 server {
   listen 443 ssl;
   http2 on;

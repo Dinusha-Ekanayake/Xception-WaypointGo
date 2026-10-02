@@ -1,7 +1,6 @@
 package com.waypoint.dispatch.sync.web;
 
 import com.waypoint.dispatch.platform.web.ActorResolver;
-import com.waypoint.dispatch.platform.web.ProblemDetails;
 import com.waypoint.dispatch.shared.domain.Actor;
 import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
@@ -13,8 +12,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ThreadLocalRandom;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -48,26 +45,19 @@ public class SyncController {
 
   @PostMapping
   public ResponseEntity<?> submit(@RequestBody SubmitBatch body, HttpServletRequest request) {
-    Actor actor = actor(request);
+    Actor actor = deviceActor(request);
     if (body == null) {
       throw new DomainException(ErrorCode.VALIDATION_FAILED, "A batch is required");
     }
     try {
-      return ResponseEntity.ok(new SyncAck(submit.submit(actor, body)));
+      return ResponseEntity.ok(new SyncAck(submit.submit(
+          actor, actors.flatMap(resolver -> Optional.ofNullable(resolver.sessionCredential(request))).orElse(null), body)));
     } catch (SubmitBatchHandler.Busy e) {
-      int wait = ThreadLocalRandom.current().nextInt(2, 11);
-      ProblemDetails problem =
-          new ProblemDetails(
-              "https://waypoint.example/problems/too_many_requests",
-              "TOO_MANY_REQUESTS",
-              429,
-              "Sync is busy. Your changes are safe on the device; they will be sent shortly.",
-              request.getRequestURI(),
-              List.of());
-      return ResponseEntity.status(429)
-          .header(HttpHeaders.RETRY_AFTER, String.valueOf(wait))
-          .contentType(MediaType.valueOf("application/problem+json"))
-          .body(problem.toBody());
+      // ApiExceptionHandler answers 429 RATE_LIMITED with this Retry-After, in the
+      // same problem body as every other failure.
+      throw DomainException.rateLimited(
+          "Sync is busy. Your changes are safe on the device; they will be sent shortly.",
+          ThreadLocalRandom.current().nextInt(2, 11));
     }
   }
 
@@ -80,6 +70,12 @@ public class SyncController {
   private Actor actor(HttpServletRequest request) {
     return actors
         .flatMap(resolver -> resolver.resolve(request))
+        .orElseThrow(() -> new DomainException(ErrorCode.UNAUTHENTICATED, "Not signed in"));
+  }
+
+  private Actor deviceActor(HttpServletRequest request) {
+    return actors
+        .flatMap(resolver -> resolver.resolveDevice(request))
         .orElseThrow(() -> new DomainException(ErrorCode.UNAUTHENTICATED, "Not signed in"));
   }
 }

@@ -10,21 +10,21 @@
     "dev": "next dev --hostname 0.0.0.0",
     "build": "next build --webpack && node scripts/build-sw.mjs",
     "start": "next start --hostname 0.0.0.0",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit --incremental false",
     "test": "node --test --experimental-strip-types tests/*.test.ts",
     "backend:build": "mvn -q -f ../backend/pom.xml package",
-    "verify": "npm test && npm run typecheck && npm run build"
+    "verify": "npm test && npm run typecheck && npm run build && npm run backend:test",
+    "test:e2e": "playwright test",
+    "backend:test": "mvn -q -B -f ../backend/pom.xml verify"
   },
   "dependencies": {
     "@fontsource-variable/google-sans-flex": "^5.3.1",
     "@fontsource/ibm-plex-mono": "^5.2.0",
     "@fontsource/instrument-sans": "^5.2.0",
     "@next/env": "^16.3.6",
-    "@vercel/functions": "^3.9.9",
     "next": "^16.0.0",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "zod": "^4.6.5"
+    "react-dom": "^19.1.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

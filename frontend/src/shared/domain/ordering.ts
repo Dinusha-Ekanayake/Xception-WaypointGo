@@ -4,6 +4,7 @@ import type { Decimal, IsoDate, IsoInstant, Temperature, Uuid } from "./common.t
 
 export type OrderStatus =
   | "STOCK_UNKNOWN"
+  | "PARTIALLY_RESERVED"
   | "CONFIRMED"
   | "ALLOCATED"
   | "DEFERRED"
@@ -61,6 +62,7 @@ export const OrderCommandKind = {
   amend: "order:Amend",
   cancel: "order:Cancel",
   closeForDay: "order:CloseForDay",
+  acceptShortfall: "order:AcceptShortfall",
 } as const;
 
 export type OrderLine = { productId: string; quantity: number };
@@ -68,4 +70,14 @@ export type OrderLine = { productId: string; quantity: number };
 export type PlaceOrder = { outletId: string; requestedDate: IsoDate; lines: OrderLine[] };
 export type AmendOrder = { orderId: Uuid; lines: OrderLine[] };
 export type CancelOrder = { orderId: Uuid; reason: string };
+/** Accept what a partial reservation locked; refusing it is CancelOrder. */
+export type AcceptShortfall = { orderId: Uuid };
+
+/** In the PlaceOrder response when the warehouse could fill only part of the order. */
+export type Shortfall = {
+  warehouseOrderRef: string;
+  expiresAt: IsoInstant;
+  lines: { productId: string; requested: number; reserved: number }[];
+  otherWarehouse: { productId: string; warehouse: string; available: number }[];
+};
 export type CloseOrdersForDay = { depotCode: string; serviceDate: IsoDate };
