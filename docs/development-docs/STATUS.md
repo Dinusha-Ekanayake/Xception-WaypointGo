@@ -49,7 +49,7 @@ State words: **built** (merged to `dev` with tests), **partial** (merged, with n
 | Driver | #21 open | built | English only. Vehicle pick-up by QR, the inbox, fuel, call and map have no backend and are left out | [walkthrough](../issues/021-driver-ui/WALKTHROUGH.md) |
 | Dispatcher | #19 open | partial | Orders, Plan, Live, Overview shell and Vehicles are built. Left: Overview's live tiles, skipped outlets with counts, weekly fuel per vehicle, the Issues inbox, interchange approval, the sync conflict queue, Forecast | [walkthrough](../issues/019-dispatcher-ui/WALKTHROUGH.md) |
 | Admin console | #22 open | in flight | Nothing on `dev`: `RoleRouter` shows "not built yet". Work exists on `22-admin-console` and `frontend/admin_test_UI`, unmerged | issue #22 |
-| Auditor console | #23 open | not started | Blocked on the `audit:Read` API (#6) | issue #23 |
+| Auditor console | #23 open | mock UI built on `23-auditor-console` | Overview, searchable activity, security events and event details at `/access-demo`; live reads remain blocked on `audit:Read` API (#6) | [UI plan](../issues/022-admin-console/AUDIT-CONSOLE-UI-PLAN.md) |
 
 ### Across everything
 

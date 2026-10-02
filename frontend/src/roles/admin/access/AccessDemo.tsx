@@ -6,7 +6,8 @@ import { Badge, Modal, card, field, primary, secondary } from "./components";
 import { freshState } from "./fixtures";
 import { BASELINE, CAPABILITIES, PERSONAS, activeException, effective, labelFor, personaAllows, personaChoice, todayInColombo, type Capability, type Decision, type DemoState, type Member, type Persona } from "./model";
 import { ForecastsScreen, VehiclesScreen } from "./operations";
-import { CatalogueScreen, HistoryScreen, PeopleScreen, PersonasScreen } from "./screens";
+import { CatalogueScreen, PeopleScreen, PersonasScreen } from "./screens";
+import { AuditConsole } from "./audit/AuditConsole";
 import "./access-demo.css";
 
 type Tab = "people" | "personas" | "catalogue" | "history" | "audit" | "forecasts" | "vehicles";
@@ -106,8 +107,8 @@ export default function AccessDemo() {
       {route.tab === "people" && <PeopleScreen state={state} selected={route.member} setSelected={(id) => navigate("people", id)} filterPersona={filterPersona} setFilterPersona={setFilterPersona} actions={{ onDetails: showDetails, onEdit: openEditor }} viewer={viewer} onAddMember={() => setNewMemberPersona("dispatcher")} />}
       {route.tab === "personas" && <PersonasScreen state={state} selected={route.persona} setSelected={(id) => navigate("personas", id)} actions={{ onDetails: showDetails, onEdit: openEditor }} viewer={viewer} onMembers={(persona) => { setFilterPersona(persona); navigate("people"); }} onAddMember={(persona) => { if (persona !== "admin" || viewer === "super_admin") setNewMemberPersona(persona); }} />}
       {route.tab === "catalogue" && <CatalogueScreen state={state} actions={{ onDetails: showDetails, onEdit: openEditor }} />}
-      {route.tab === "history" && <HistoryScreen state={state} />}
-      {route.tab === "audit" && <section className={`${card} p-6`}><h2 className="text-xl font-semibold">Audit console</h2><p className="mt-2 text-sm text-[#58685f]">The audit workspace is being built separately.</p></section>}
+      {route.tab === "history" && <AuditConsole key="permission-history" changes={state.history} viewer={viewer} focused />}
+      {route.tab === "audit" && <AuditConsole key="audit-console" changes={state.history} viewer={viewer} />}
       {route.tab === "forecasts" && <ForecastsScreen />}
       {route.tab === "vehicles" && <VehiclesScreen />}
     </div></div>

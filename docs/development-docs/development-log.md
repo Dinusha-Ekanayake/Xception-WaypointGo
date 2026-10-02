@@ -21,6 +21,28 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-02 - feat: build the mock audit console
+
+`23-auditor-console` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Add Overview, Activity and Access & security views, 26 sample operational events, URL filters, event drawer, related activity and visible feed states. Permission Change history now reads the same event adapter. See [audit plan](../issues/022-admin-console/AUDIT-CONSOLE-UI-PLAN.md).
+Why: provide a consistent investigation flow while keeping authorization decisions distinct from execution outcomes.
+Verified: non-incremental TypeScript check and production build passed; `/access-demo` returned HTTP 200. Browser interaction remains unverified under the current browser-tool limitation.
+Open: live audit reads, server scope, exports and investigation cases remain future work. Mock Admin visibility excludes governance fixtures; no backend authorization was added.
+
+---
+
+## 2026-10-02 - docs: plan the GO audit console
+
+`23-auditor-console` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Define the mock audit views, event detail flow, visibility rules and live data gaps in [AUDIT-CONSOLE-UI-PLAN.md](../issues/022-admin-console/AUDIT-CONSOLE-UI-PLAN.md).
+Why: extend the established GO theme with a contextual audit workflow and keep authorization decisions distinct from execution outcomes.
+Verified: checked current mock, audit write contract and schema; no application code changed.
+Open: fresh Figma access was unavailable; design references use supplied screenshots and the earlier recorded inspection.
+
+---
+
 ## 2026-10-02 - docs: a status page, and the documents brought level with the code
 
 `docs/status-and-start-here` · @kavindamihiran
