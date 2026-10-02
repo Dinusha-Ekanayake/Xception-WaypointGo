@@ -13,7 +13,7 @@ Branch `14-notification`, from `dev` at `adc8369`. Backend only: the inbox compo
 | 2 Domain | done | routing policy, templates, delivery state machine, web push crypto |
 | 3 Consumers, inbox, commands, reads, SSE | done | |
 | 4 Push delivery job and gateway | done | |
-| 5 Tests | written | domain and crypto run green; database integration tests need a reachable test database |
+| 5 Tests | done | 53 notification tests; all pass in CI with `mvn verify` (681 tests, none skipped) |
 | 6 Docs closeout | done | [WALKTHROUGH.md](WALKTHROUGH.md), registers, STATUS, log |
 
 ## Where `dev` stood
