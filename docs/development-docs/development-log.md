@@ -21,6 +21,17 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-02 - feat(shell): production's shared address hands each role to its own address
+
+`feat/production-role-landing` · @kavindamihiran
+
+`waypointgo.live` now shows the same role landing as `preview.waypointgo.live`: four buttons, each opening `store.`, `dispatcher.`, `loader.` or `driver.waypointgo.live`. `PreviewLanding` became `RoleLanding`, and `previewHomeFor` became `sharedHomeFor`. A bare name is a landing only in a build made with `NEXT_PUBLIC_ROLE_ADDRESSES=1`, which `deploy/vps/compose.vps.yaml` passes as a build argument; anywhere else every role stays on one address. CI now parses the VPS overlay too.
+Why: after release #83 the role addresses answered on production, but signing in on the bare name still kept every role on one URL, unlike preview.
+Verified: `npm test`, typecheck, and a build with the flag on opened in a headless browser as `waypointgo.live` (landing, production links, no preview badge), `preview.waypointgo.live` (landing, preview links, badge), `loader.waypointgo.live` and `localhost` (no landing). The overlay's build argument is not verified locally, there is no Docker here: the new CI step and the preview deploy are its first run.
+Open: the landing offers the four field roles; administrators and auditors type their address. A session or offline queue left on the bare production name is stranded in that browser.
+
+---
+
 ## 2026-10-02 - fix(deploy): dump the database before every migration, and keep proof links across a restart
 
 `fix/deploy-backup-before-migrate` · @kavindamihiran
