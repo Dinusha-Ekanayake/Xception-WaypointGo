@@ -26,8 +26,8 @@ State words: **built** (merged to `dev` with tests), **partial** (merged, with n
 | --- | --- | --- | --- | --- |
 | Platform: config, `Database`, command bus, problem details, telemetry, CI, deploy | #4 closed | built | nothing open on #4 | [log](development-log.md) |
 | Event backbone: outbox, relay, dead letters, scheduler, audit | #6 open | partial | Relay, consumer inbox and `platform:ReplayEvent` are built. Left: scheduler run records, the audit partition job (the last partition ends 2027-07-01, after which every command fails), retention jobs, the calendar exhaustion alert, audit `before`/`after` and `command_id`, the `audit:Read` API, decision replay | [walkthrough](../issues/006-event-backbone/WALKTHROUGH.md) |
-| Reference data | none | built | A calendar override made on one replica is not seen by another until restart. Reads are not filtered by the actor's depot | [FOUNDATION-PLAN](../architecture/FOUNDATION-PLAN.md) Part 1 |
-| Identity and access | #5 open | built, hardened | A non-superuser `waypoint_migrator` owner. Depot-scoped reference reads. The longer upgrade path is #64 and is not scheduled | [walkthrough](../issues/005-identity-hardening/WALKTHROUGH.md) |
+| Reference data | none | built | A calendar override made on one replica is not seen by another until restart | [FOUNDATION-PLAN](../architecture/FOUNDATION-PLAN.md) Part 1 |
+| Identity and access | #5 closed | built, hardened | Nothing open on #5: the schema's owner is `waypoint_migrator`, not a superuser, and reference reads stop at the actor's scope. `init` still logs in with the image's bootstrap account to act as that owner. The longer upgrade path is #64 and is not scheduled | [walkthrough](../issues/005-identity-hardening/WALKTHROUGH.md) |
 | Warehouse integration | #7 closed | built | Polling and matching stand in for a webhook and an idempotency key; the change requests to the warehouse team are open. The chaos drills are manual | [walkthrough](../issues/007-warehouse/WALKTHROUGH.md) |
 | Ordering | #8 closed | built | Partial redelivery (A-24). A cancellation made in the warehouse outside Waypoint is counted, not raised as an issue | [walkthrough](../issues/008-ordering/WALKTHROUGH.md) |
 | Planning | #9 closed | built | What-if runs, rule-set authoring, a replay command, the explanation for an outlet skipped twice (PLN-03), an optimiser. Every plan is `plannedWithoutPredictor = true` until #16 | [walkthrough](../issues/009-planning/WALKTHROUGH.md) |
@@ -48,14 +48,14 @@ State words: **built** (merged to `dev` with tests), **partial** (merged, with n
 | Loader | #20 closed | built, matched to Figma "08 Loader · Phone" light and dark | Sinhala and Tamil are drafts awaiting a native speaker. Notifications bell (#14), issue photo (no Loading upload endpoint). Interchange waits on #10 | [walkthrough](../issues/010-loading/WALKTHROUGH.md) |
 | Driver | #21 open | built | English only. Vehicle pick-up by QR, the inbox, fuel, call and map have no backend and are left out | [walkthrough](../issues/021-driver-ui/WALKTHROUGH.md) |
 | Dispatcher | #19 open | partial | Orders, Plan, Live, Overview, Vehicles with weekly fuel, the Issues inbox and skipped outlets are built. Left: assigning an issue to someone else (no staff read), interchange approval (#10), the sync conflict queue, Forecast (#16) | [walkthrough](../issues/019-dispatcher-ui/WALKTHROUGH.md) |
-| Admin console | #22 open | in flight | `admin-preview.waypointgo.live` shows the interactive sample console after admin sign-in. Live backend wiring remains open; production still shows the placeholder | issue #22 |
+| Admin console | #22 open | in flight | The admin role shows the interactive sample console after admin sign-in, on preview and production. It runs on mock data and says so on screen; live backend wiring remains open | issue #22 |
 | Auditor console | #23 open | mock UI built on `23-auditor-console` | Overview, searchable activity, security events and event details at `/access-demo`; live reads remain blocked on `audit:Read` API (#6) | [UI plan](../issues/022-admin-console/AUDIT-CONSOLE-UI-PLAN.md) |
 
 ### Across everything
 
 | Gap | Why it matters | Owner |
 | --- | --- | --- |
-| `main` is 114 commits behind `dev` (last release was pull request #45, 2026-10-01) | Production at `waypointgo.live` runs none of Planning, Loading, Execution, Receipt, Issues or the role screens. Only the preview does | whoever cuts the release pull request |
+| The only database backups are the dumps a deploy takes before it migrates | They are on the server's own disk: enough to undo a bad migration, not to survive a lost disk. Nothing takes one between deploys, and the restore steps in [deployment.md](../deployment.md#backup-and-recovery) have not been exercised on the server | no issue yet |
 | No seed that walks a fresh install from an order to a receipt | Every role's browser suite runs against a mocked API. The same flows against the real backend have been run module by module in integration tests, not as one journey in a browser | no issue yet |
 | The role browser suites are not in CI | A screen can break without a failed check. Run the affected suite by hand: see [development.md](development.md#tests) | no issue yet |
 | The full `docker compose up --build` judge path has not been re-walked since the modules landed | It is the path the brief requires and the one nobody runs daily | before the submission |
@@ -64,7 +64,7 @@ State words: **built** (merged to `dev` with tests), **partial** (merged, with n
 
 In dependency order. An item nobody is assigned to on GitHub is free; say so on the issue before you start.
 
-1. **Release `dev` to `main`**, then walk the role flows on production. Nothing a judge opens on the production address reflects the last three days of work.
+1. **Walk the role flows on production.** Release #83 (2026-10-02) put everything on `dev` at `waypointgo.live` and the six role addresses; nobody has yet walked each role there end to end.
 2. **A fresh-install seed** that leaves one depot-day with a published plan, a released trip and a delivered stop. It unblocks a live browser run for every role and the judge walkthrough. `loading-fixture` and `scripts/seed-scenarios.sql` are partial precedents; the second bypasses the command bus and must not be the model.
 3. **Dispatcher, the rest of #19.** The Issues inbox is built; what is left waits on #10 (interchange), a staff read for assigning to others, and #16 (Forecast).
 4. **Notification (#14).** The largest unbuilt module, and what the store manager, driver and dispatcher gaps above all wait on.

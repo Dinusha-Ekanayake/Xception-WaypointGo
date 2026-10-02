@@ -31,7 +31,7 @@ Each module has the same five internal layers. The spec lists what belongs in ea
 | --- | --- |
 | contract | `ReferenceQuery`, and the views it returns: `OutletView`, `VehicleView`, `TravelView`, `AllowanceView`, `CalendarDayView` |
 | domain | `Outlet`, `Vehicle`, `District`, `Depot`, `CalendarDay`, `DeliveryWindow`, `TravelProfile`, `ServiceAllowance`, `OperatingCalendarPolicy`, `ReferenceSnapshot`, `ReferenceValidator` |
-| application | `ImportReferenceDataHandler`, `ReferenceDataQuery`, `SetVehicleDayStatusHandler`, `ReferenceBootstrap` |
+| application | `ImportReferenceDataHandler`, `ReferenceDataQuery`, `SetVehicleDayStatusHandler`, `ReferenceBootstrap`, `ReferenceScope` |
 | infrastructure | `CsvReferenceImporter`, `ReferenceVersionWriter`, `ReferenceVersionReader`, `ReferenceCache` |
 | web | admin read endpoints |
 
@@ -50,7 +50,7 @@ Each module has the same five internal layers. The spec lists what belongs in ea
 
 **Failure modes.** Calendar exhausted beyond the supplied range: extension policy applies (Monday to Saturday), with supplied dates and `CALENDAR_FILE` overrides taking precedence. Reference import with a changed outlet set: rejected unless explicitly versioned, because silently moving an outlet between depots invalidates published plans.
 
-**Connections.** Everything reads it; it reads nothing. Cached in memory with a version stamp; cache invalidation is triggered by `reference.version_published`.
+**Connections.** Everything reads it; it reads no other module's data. Its web reads ask Identity, through `IdentityQuery`, whether the depot, outlet or vehicle is in the actor's scope (R-IAM-28); `ReferenceQuery` itself is unscoped, because its callers are modules inside their own command. Cached in memory with a version stamp; cache invalidation is triggered by `reference.version_published`.
 
 ---
 

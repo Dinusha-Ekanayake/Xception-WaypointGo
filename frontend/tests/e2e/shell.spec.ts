@@ -22,3 +22,19 @@ test("the health route answers without the backend", async ({ request }) => {
   expect(response.ok()).toBe(true);
   expect(await response.json()).toEqual({ status: "UP" });
 });
+
+// The admin role gets the sample console on every address, not only on
+// admin-preview: production served the "not built yet" placeholder instead.
+test("a signed-in admin reaches the sample console on any address", async ({ page }) => {
+  await page.route("**/api/**", (route) => {
+    const { pathname } = new URL(route.request().url());
+    const body = pathname === "/api/session"
+      ? { userId: "0198a000-0000-7000-8000-000000000001", displayName: "Admin One", roles: ["admin"], operator: null, scope: [] }
+      : { items: [], nextCursor: null };
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
+  });
+
+  await page.goto("/");
+  await expect(page.locator("main.access-demo")).toBeVisible();
+  await expect(page.getByText("The admin console is not built yet.")).toHaveCount(0);
+});

@@ -37,6 +37,82 @@ Kept from the backend where Figma differs: the required reason on an issue (`loa
 Why: the booklet judges fidelity to the Day 5 design on phone-size screens.
 Verified: typecheck, `npm test` (48), build; loader browser suite 4 of 4 and dispatcher 11 of 11; screenshots of each screen in light and dark compared with the Figma frames at 393x852.
 Open: Figma's notifications bell (loader notifications are #14) and the optional issue photo (Loading has no upload endpoint). Sinhala and Tamil need a native speaker.
+
+---
+
+## 2026-10-02 - fix: show the admin sample console on production
+
+`fix/admin-console-on-production` · @kavindamihiran
+
+`RoleRouter` now gives the admin role the sample console on every address. It only did so when the hostname began with `admin-preview.`, so `admin.waypointgo.live` showed "not built yet".
+Why: production and preview run the same build, and the hostname check was the only difference between them.
+Verified: `shell.spec.ts` gains a case that failed before the change and passes after; `npm test`, typecheck and build pass.
+Open: the console runs on mock data and says so on screen; live backend wiring remains in issue #22.
+
+## 2026-10-02 - feat(shell): production's shared address hands each role to its own address
+
+`feat/production-role-landing` · @kavindamihiran
+
+`waypointgo.live` now shows the same role landing as `preview.waypointgo.live`: four buttons, each opening `store.`, `dispatcher.`, `loader.` or `driver.waypointgo.live`. `PreviewLanding` became `RoleLanding`, and `previewHomeFor` became `sharedHomeFor`. A bare name is a landing only in a build made with `NEXT_PUBLIC_ROLE_ADDRESSES=1`, which `deploy/vps/compose.vps.yaml` passes as a build argument; anywhere else every role stays on one address. CI now parses the VPS overlay too.
+Why: after release #83 the role addresses answered on production, but signing in on the bare name still kept every role on one URL, unlike preview.
+Verified: `npm test`, typecheck, and a build with the flag on opened in a headless browser as `waypointgo.live` (landing, production links, no preview badge), `preview.waypointgo.live` (landing, preview links, badge), `loader.waypointgo.live` and `localhost` (no landing). The overlay's build argument is not verified locally, there is no Docker here: the new CI step and the preview deploy are its first run.
+Open: the landing offers the four field roles; administrators and auditors type their address. A session or offline queue left on the bare production name is stranded in that browser.
+
+---
+
+## 2026-10-02 - fix(deploy): dump the database before every migration, and keep proof links across a restart
+
+`fix/deploy-backup-before-migrate` · @kavindamihiran
+
+`deploy/vps/deploy.sh` now dumps the database to `/opt/waypoint/backups/<environment>/` before `init` runs, reads the dump back, keeps the newest 14, and stops with nothing replaced if it cannot take one. It also writes `PROOF_URL_SECRET` to `.env` the first time it is missing, the way it already did `APP_DB_PASSWORD`. Restore steps are in [deployment.md](../deployment.md#backup-and-recovery).
+Why: release #83 took production from 15 migrations to 45 in one deploy, with forward-only migrations and no way back; the one dump that existed was taken by hand minutes before. Proof links were signed with a key that died at every restart.
+Verified: the release was rehearsed first on a database built by `main` (15 migrations, six accounts) and upgraded by `dev`: 30 migrations applied, ownership moved to `waypoint_migrator`, the backend ready as `waypoint_app`, and every demo account signed in through its own role address with its old password. The new script functions were run against a stand-in `docker`: no database yet, a good dump, a failed dump, an unreadable dump, pruning, both environments. Not run against a real server: the preview deploy of this change is the first real one.
+Open: the dumps are on the server's own disk, nothing takes one between deploys, and the restore steps have not been exercised there. `ExecutionIntegrationTest` picks a random day for its vehicle assignments and two tests can collide on the exclusion constraint; it failed one `ci` run on `dev` and passed the re-run.
+
+---
+
+## 2026-10-02 - fix: a non-superuser owner for the schema, and reference reads that stop at scope (issue #5)
+
+`fix/identity-owner-and-reference-scope` · @kavindamihiran
+
+Every schema, table and function now belongs to `waypoint_migrator`, which is not a superuser, and `migrate` applies each file as that role once a database is handed over. `/api/reference` outlets and vehicles are checked against the actor's depot, outlet or today's vehicle (`ReferenceScope`, R-IAM-28). The store manager policy gains `reference:Read` on outlets and calendar days, which the store screens already called. Details in the [plan](../issues/005-identity-hardening/PLAN.md#second-pass-the-owner-and-reference-scope-2026-10-02) and [walkthrough](../issues/005-identity-hardening/WALKTHROUGH.md).
+Why: the last two open lines of #5. A migration could do anything a superuser can, and a dispatcher of one depot could read the other's outlets and fleet.
+Verified: `mvn verify` against a new PostgreSQL 16 database and against one upgraded from `dev`; grants, policies and default privileges compared before and after the handover and found identical. Counts are in the pull request.
+Open: migrations may no longer name `SUPERUSER` or `BYPASSRLS`, and a backfill of a table that forces row-level security must lift the force (AGENTS.md, Data and Migration Rules). An account with no depot grant, an administrator included, gets 403 on depot reference reads.
+
+---
+
+## 2026-10-02 - fix: align admin preview sidebar with page top
+
+`dev` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Overlay the shell session controls on the admin preview at desktop widths so its sidebar begins at the top of the page.
+Why: the separate shell control row left a visible gap above the sidebar.
+Verified: frontend typecheck and production build passed.
+Open: nothing.
+
+---
+
+## 2026-10-02 - chore: refresh legacy CI actions
+
+`dev` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Move the legacy CI workflow to current checkout, Java, Node and Python actions and pin Ubuntu 24.04.
+Why: the failed run reports deprecation warnings for the older actions and a pending `ubuntu-latest` migration.
+Verified: `git diff --check` passed. Backend tests could not run locally because required Maven artifacts were unavailable and the Maven repository TLS certificate was rejected.
+Open: the backend job's exit-code annotation does not identify its failing test; the private job log is needed to isolate it.
+
+---
+
+## 2026-10-02 - fix(deploy): preview log store, Grafana address and root URL
+
+`fix/grafana-root-url` · @jv_ransika
+
+The preview deploy starts Loki, Alloy and Grafana when `GRAFANA_ADMIN_PASSWORD` is in the preview `.env`; Grafana joins the edge network as `preview-grafana` and nginx serves it at `grafana-preview.<site>`. Grafana takes its URL from the request host, because `SITE_ADDRESS` in the preview `.env` is the preview name, not the site.
+Why: PR #51 added the log store but the VPS deploy never started it, and the public address needs an nginx vhost that production nginx (built from `main`) does not have yet.
+Verified: containers healthy on the VPS, Grafana health 200 from inside the server; public address not yet verified (needs the production nginx change).
+Open: production nginx on `main` needs the vhost and a certificate with the new name; Grafana still uses the default `admin` login.
+
 ## 2026-10-02 - fix: show admin mock on preview role address
 
 `dev` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)

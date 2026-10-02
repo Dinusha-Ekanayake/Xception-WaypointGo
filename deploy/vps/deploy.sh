@@ -58,19 +58,59 @@ ensure_certificate() {
   fi
 }
 
-# The backend logs in to PostgreSQL as waypoint_app, with a password of its own
-# that only this checkout's .env holds. The first deploy that needs it creates
-# it; `migrate` then sets it on the role, and re-sets it if it is ever changed
-# here. It is hex so it needs no quoting in a connection URL.
-ensure_app_db_password() {
-  [[ -n "$(env_value APP_DB_PASSWORD)" ]] && return 0
-  local secret
-  secret="$(openssl rand -hex 24)" || die "could not generate APP_DB_PASSWORD"
+# Secrets this checkout needs and can make for itself. The first deploy that
+# finds one missing writes it to .env, which is untracked and survives the
+# reset; it is never changed afterwards. Hex, so it needs no quoting in a
+# connection URL.
+#
+# APP_DB_PASSWORD is what the backend logs in to PostgreSQL with, as
+# waypoint_app; `migrate` sets it on the role, and re-sets it if it is ever
+# changed here. PROOF_URL_SECRET signs proof-of-delivery links; without one the
+# backend makes a key per process and every link dies at a restart.
+ensure_secret() {
+  local key="$1" secret
+  [[ -n "$(env_value "$key")" ]] && return 0
+  secret="$(openssl rand -hex 24)" || die "could not generate $key"
   # A final newline may be missing; never join the new key onto the last line.
   [[ -z "$(tail -c1 "$APP_DIR/.env")" ]] || echo >> "$APP_DIR/.env"
-  echo "APP_DB_PASSWORD=$secret" >> "$APP_DIR/.env" \
-    || die "could not write APP_DB_PASSWORD to $APP_DIR/.env; nothing was replaced"
-  echo "==> generated APP_DB_PASSWORD in .env"
+  echo "$key=$secret" >> "$APP_DIR/.env" \
+    || die "could not write $key to $APP_DIR/.env; nothing was replaced"
+  echo "==> generated $key in .env"
+}
+
+# How many dumps backup_database keeps for each environment.
+BACKUPS_KEPT=14
+
+# Dumps the database as it stands, before `init` can change it, so a migration
+# that goes wrong can be undone by hand (docs/deployment.md, Backup and
+# recovery). Migrations are forward-only: this is the only way back. The dump is
+# read back before it counts, and a deploy that cannot take one stops with
+# nothing replaced. Dumps sit beside the checkouts, readable by `deploy` only,
+# and they are on this server: they survive a bad migration, not a lost disk.
+backup_database() {
+  local environment="$1" running dir file old
+  running="$("${compose[@]}" ps --status running --services)" \
+    || die "could not list the running services; nothing was replaced"
+  if ! grep -qx db <<< "$running"; then
+    echo "==> no database is running yet; nothing to back up"
+    return 0
+  fi
+
+  dir="$(dirname "$APP_DIR")/backups/$environment"
+  file="$dir/$(date -u +%Y%m%dT%H%M%SZ)-before-$(git rev-parse --short HEAD).dump"
+  (umask 077 && mkdir -p "$dir") || die "could not create $dir; nothing was replaced"
+
+  echo "==> backing up the database to $file"
+  if ! (umask 077 && "${compose[@]}" exec -T db pg_dump -U waypoint -d waypoint --format=custom > "$file.part") \
+      || ! "${compose[@]}" exec -T db pg_restore --list < "$file.part" > /dev/null; then
+    rm -f "$file.part"
+    die "the database backup failed; nothing was replaced"
+  fi
+  mv "$file.part" "$file"
+
+  # Names begin with a UTC timestamp, so name order is age order.
+  find "$dir" -maxdepth 1 -type f -name '*.dump' | sort -r | tail -n +"$((BACKUPS_KEPT + 1))" \
+    | while IFS= read -r old; do rm -f "$old"; done
 }
 
 # The body is a function so bash has parsed all of it before `git reset` can
@@ -121,7 +161,8 @@ main() {
 
   echo "==> deploying $environment: $(git log -1 --format='%h %s')"
 
-  ensure_app_db_password
+  ensure_secret APP_DB_PASSWORD
+  ensure_secret PROOF_URL_SECRET
 
   docker network inspect waypoint-edge >/dev/null 2>&1 || docker network create waypoint-edge >/dev/null
 
@@ -138,6 +179,8 @@ main() {
     "${compose[@]}" up -d --no-deps --remove-orphans --wait nginx certbot
     ensure_certificate "$site"
   fi
+
+  backup_database "$environment"
 
   # `init` migrates and imports in a container of its own while the running
   # stack keeps serving. A failed migration stops here with nothing replaced.

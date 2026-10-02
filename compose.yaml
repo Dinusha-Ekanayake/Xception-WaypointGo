@@ -24,8 +24,10 @@ services:
       dockerfile: backend/Dockerfile
     # Schema, reference data and the demo accounts, explicitly and once per start.
     # Each step is idempotent: re-running changes nothing that is already there.
-    # Only this service holds the owner's credentials. `migrate` uses them on a
-    # connection of its own and gives waypoint_app the password in DATABASE_URL.
+    # Only this service holds the database's own account. `migrate` logs in with
+    # it on a connection of its own, applies every file as waypoint_migrator (the
+    # owner of the schema, not a superuser) and gives waypoint_app the password in
+    # DATABASE_URL.
     environment:
       DATABASE_URL: postgresql://waypoint_app:${APP_DB_PASSWORD:-local-testing-only-app}@db:5432/waypoint
       MIGRATION_DATABASE_URL: postgresql://waypoint:${POSTGRES_PASSWORD:-local-testing-only}@db:5432/waypoint
@@ -83,7 +85,8 @@ services:
   waypoint:
     labels:
       com.waypoint.logs: "true"
-    build: ./frontend
+    build:
+      context: ./frontend
     ports:
       - "${PORT:-3000}:3000"
     environment:

@@ -70,6 +70,12 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - run: docker compose config -q
+      # The VPS overlay, with nginx: what both deployed environments run.
+      - run: docker compose -f compose.yaml -f deploy/vps/compose.vps.yaml --profile edge config > vps.yaml
+        env:
+          SITE_ADDRESS: ci.example.test
+      # The role landing depends on this build argument reaching the frontend.
+      - run: grep -q 'NEXT_PUBLIC_ROLE_ADDRESSES' vps.yaml
       - run: docker compose -f compose.prod.yaml config -q
         env:
           DOMAIN: ci.example.test

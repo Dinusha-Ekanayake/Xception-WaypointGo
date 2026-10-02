@@ -4,8 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useOnline } from "@shared/api/useResource";
 import { useSync } from "@shared/offline";
 import { Notice, ShellProvider, cx, type ShellControls } from "@shared/ui";
-import { hostForRole, previewHomeFor, roleForHost } from "./hostRole.ts";
-import PreviewLanding from "./PreviewLanding.tsx";
+import { ROLE_ADDRESSES, hostForRole, roleForHost, sharedHomeFor } from "./hostRole.ts";
+import RoleLanding from "./RoleLanding.tsx";
 import RoleRouter from "./RoleRouter.tsx";
 import SignIn from "./SignIn.tsx";
 import SyncStatus from "./SyncStatus.tsx";
@@ -61,9 +61,9 @@ export default function AppShell(): React.JSX.Element {
   const host = state ? window.location.hostname : "";
   const pinned = roleForHost(host);
 
-  // The shared preview address has no workspace or sign-in: it offers the role
-  // addresses, whatever the session on this one says.
-  const landing = previewHomeFor(host, "dispatcher") !== null;
+  // The address every role shares has no workspace or sign-in where the role
+  // addresses are served: it offers them, whatever the session on this one says.
+  const landing = sharedHomeFor(host, "dispatcher", ROLE_ADDRESSES) !== null;
 
   useEffect(() => {
     if (state?.kind === "signed-in") setRole(rememberedRole(state.session));
@@ -80,7 +80,7 @@ export default function AppShell(): React.JSX.Element {
 
   if (!state) return <main className="flex min-h-dvh items-center justify-center bg-go-canvas font-go text-go-muted">Checking your session…</main>;
 
-  if (landing) return <PreviewLanding host={host} />;
+  if (landing) return <RoleLanding host={host} />;
 
   if (state.kind === "unreachable") {
     return (
@@ -116,6 +116,7 @@ export default function AppShell(): React.JSX.Element {
   const misplaced = pinned !== null && !session.roles.includes(pinned);
   const roles = pinned ? (misplaced ? [] : [pinned]) : session.roles;
   const active = pinned && !misplaced ? pinned : role ?? rememberedRole(session);
+  const adminPreview = !misplaced && active === "admin" && host.startsWith("admin-preview.");
 
   const leave = async (force: boolean) => {
     // Writes still on this device belong to this account; signing out would
@@ -148,9 +149,9 @@ export default function AppShell(): React.JSX.Element {
 
   return (
     <ShellProvider value={controls}>
-      <main className="shell">
+      <main className={cx("shell", adminPreview && "relative")}>
         {(misplaced || !OWN_HEADER.has(active)) && (
-          <div className="mx-auto flex w-full max-w-[1440px] flex-wrap items-center justify-end gap-2 bg-go-canvas px-4 pt-2 font-go">
+          <div className={cx("mx-auto flex w-full max-w-[1440px] flex-wrap items-center justify-end gap-2 bg-go-canvas px-4 pt-2 font-go", adminPreview && "lg:absolute lg:inset-x-0 lg:top-0 lg:z-10 lg:max-w-none lg:bg-transparent lg:pr-8")}>
             <SyncStatus sync={sync} online={online} />
             {roles.length > 1 && (
               <div role="tablist" aria-label="Role" className="flex gap-1 rounded-full bg-white p-1">

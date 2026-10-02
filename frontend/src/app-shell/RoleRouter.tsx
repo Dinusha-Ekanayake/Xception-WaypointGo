@@ -24,16 +24,10 @@ export default function RoleRouter({ session, role }: { session: Session; role: 
     case "store_manager":
       return <Store userId={session.userId} displayName={session.displayName} scope={scopeOf(session, "outlet")} />;
     case "admin":
-      // The admin preview currently has an interactive sample console. Keep it
-      // behind the normal session and role gate until live admin APIs exist.
-      if (typeof window !== "undefined" && window.location.hostname.startsWith("admin-preview.")) {
-        return <AccessDemo />;
-      }
-      return (
-        <section aria-label="admin" className="mx-auto max-w-[720px] px-5 py-10 text-[15px] text-go-muted">
-          The admin console is not built yet.
-        </section>
-      );
+      // The admin role has an interactive sample console, which says on screen
+      // that its data is mock. Keep it behind the normal session and role gate
+      // until live admin APIs exist (#22).
+      return <AccessDemo />;
     case "auditor":
       // Built in #22 and #23.
       return (
