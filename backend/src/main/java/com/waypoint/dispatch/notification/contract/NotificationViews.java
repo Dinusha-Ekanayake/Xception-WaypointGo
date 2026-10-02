@@ -25,4 +25,15 @@ public final class NotificationViews {
       Optional<String> subjectId,
       Instant createdAt,
       Optional<Instant> readAt) {}
+
+  public record UnreadCountView(long count) {}
+
+  /**
+   * Whether this server can push, and the key a browser subscribes with. Off is
+   * a state to show, not hide: the UI says push is unavailable and why (rule 9).
+   *
+   * @param publicKey the VAPID public key, base64url, when push is on
+   * @param reason why push is off, when it is
+   */
+  public record PushConfigView(boolean enabled, Optional<String> publicKey, Optional<String> reason) {}
 }

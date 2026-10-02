@@ -77,6 +77,10 @@ services:
       # Signs proof-of-delivery links. Unset, links stop working at a restart.
       PROOF_STORE: ${PROOF_STORE:-database}
       PROOF_URL_SECRET: ${PROOF_URL_SECRET:-}
+      # Web push for notifications. Both VAPID keys blank turns push off, visibly.
+      PUSH_VAPID_PUBLIC_KEY: ${PUSH_VAPID_PUBLIC_KEY:-}
+      PUSH_VAPID_PRIVATE_KEY: ${PUSH_VAPID_PRIVATE_KEY:-}
+      PUSH_SUBJECT: ${PUSH_SUBJECT:-mailto:operations@waypoint.invalid}
       LOG_FORMAT: ecs
     volumes:
       # Proof photos and signatures. Evidence: back it up with the database.

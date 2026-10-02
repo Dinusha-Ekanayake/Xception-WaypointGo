@@ -302,39 +302,46 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 
 ## 9. Notification (`notification`)
 
-**Not built.** Only `notification/contract` exists; the work is issue #14.
+**Built** (issue #14), backend only. Each role UI places its own inbox, push opt-in and service worker handlers; there is no shared notification component (decided on the issue). What was built is in [the walkthrough](../issues/014-notification/WALKTHROUGH.md).
 
 **Purpose.** Turn domain events into messages people actually receive, with delivery tracked per channel.
 
 | Layer | Contents |
 | --- | --- |
-| domain | `Notification`, `Recipient`, `Channel`, `DeliveryAttempt`, `NotificationPolicy` |
-| application | `NotifierWorker`, `DeadLetterHandler`. The outbox relay is platform, not Notification |
-| infrastructure | `JdbcNotificationRepository`, channel adapters (in-app inbox, web push; decision D-N) |
+| domain | `NotificationPolicy` (the routing table applied to one event), `RoutingRule`, `RoutingTable`, `RoutedEvent`, `Template`, `Delivery` (channels, statuses, retry policy) |
+| application | `NotificationConsumers` (one subscriber per routed event), `Notifier`, `PushDeliveryJob`, `NotificationHandlers`, `NotificationDataQuery`, `InboxSignals`, the port `PushGateway`. The outbox relay is platform, not Notification |
+| infrastructure | `JdbcNotificationRepository`, `WebPushGateway` and `WebPushCrypto` (RFC 8030, 8291, 8292 on the JDK) |
+| web | `NotificationController`: `/api/notifications`, `/unread-count`, `/stream` (server-sent events), `/push-config` |
 
-**Owns:** `notification.notifications`, `notification.deliveries`, `notification.push_subscriptions`. It consumes events like any other module; `integration.outbox_events` and the relay belong to the platform.
+**Owns:** `notification.notifications`, `notification.deliveries`, `notification.push_subscriptions`, and the read-only `notification.routing_versions` and `notification.routing_rules`. It consumes events like any other module; `integration.outbox_events` and the relay belong to the platform. Recipients come from `IdentityQuery.recipientsFor`; it never reads `iam` tables.
 
-**The matrix.** Every row is an outbox event with a durable delivery record:
+**Channels (D-N).** The in-app inbox, which is delivered when the row is written, and web push, sent by `PushDeliveryJob` after commit with retry and a dead letter (P-27). With no VAPID keys push is off, visibly (NOT-05).
 
-| Event | To | Why it matters |
-| --- | --- | --- |
-| `warehouse.order_status_changed` | Store manager | A `stock_unknown` order was confirmed, or found short |
-| `order.unservable` | Dispatcher, store manager | No vehicle can take it; needs a decision |
-| `order.deferred` | Store manager | With the binding reason and the next planned date |
-| `order.auto_deferred` | Store manager | The warehouse never confirmed stock before the cutoff (STK-03) |
-| `plan.published` | Loader, driver | Work is available |
-| `loading.shortfall` | Dispatcher | Departure is blocked now |
-| `trip.released` | Driver | Vehicle ready, dock assigned |
-| `delivery.completed` | Store manager | Proof is available to review |
-| `delivery.failed` | Dispatcher, store manager | Requires a decision |
-| `issue.raised` | Dispatcher | Fault, delay, damage, access problem |
-| `issue.escalated` | Dispatcher | An issue waited unassigned past its severity's deadline (R-ISS-06) |
-| `vehicle.fault_reported` | Dispatcher | A driver reported the vehicle; the dispatcher decides its status |
-| `receipt.disputed` | Dispatcher | The store disagrees with what arrived |
-| `vehicle.status_changed` | Dispatcher | Fleet availability changed |
-| `eta.changed` | Store manager | Staffing decision at the outlet |
+**The matrix** is data: version 1 of `notification.routing_rules` (R-NOT-09). Every row produces a durable notification and delivery records.
 
-**Invariants.** A notification is never sent inside the request transaction. The state change and the outbox row commit together; the relay publishes after commit, at least once, and consumers are idempotent by `event_id`. A poison event goes to dead-letter with its attempt history; it never blocks the queue and never vanishes.
+| Event | To | Push | Why it matters |
+| --- | --- | --- | --- |
+| `warehouse.order_status_changed` (`insufficient`, `expired`) | Store manager | yes | A retried placement found stock short, or a partial reservation expired (R-NOT-01) |
+| `order.unservable` | Store manager, dispatcher | yes | No vehicle can take it; needs a decision |
+| `order.deferred` | Store manager | yes | With the binding reason (R-RCP-03, R-NOT-04) |
+| `order.auto_deferred` | Store manager | yes | The warehouse never confirmed stock before the cutoff (STK-03) |
+| `plan.published`, `plan.revised` | Loader; driver of each trip's vehicle on the service date | yes | Work is available, or changed |
+| `trip.released` | Driver; dispatcher when the vehicle has no driver (LOD-05) | yes | Vehicle ready |
+| `loading.shortfall` | Dispatcher | yes | Departure is blocked now (R-NOT-02) |
+| `delivery.started`, `delivery.completed` | Store manager | no | Arriving; proof is available to review |
+| `delivery.failed` | Dispatcher, store manager | yes | Requires a decision |
+| `eta.changed` | Store manager, dispatcher | yes | Staffing at the outlet, lateness at the depot (R-RCP-02, R-EXE-15) |
+| `issue.raised` | Dispatcher; store manager when an outlet is named | yes | Fault, delay, damage, access problem (R-NOT-03) |
+| `issue.escalated` | Dispatcher | yes | Waited unassigned past its severity's deadline (R-ISS-06) |
+| `vehicle.fault_reported`, `road.disruption_reported` | Dispatcher | yes | The dispatcher decides the vehicle's status |
+| `receipt.disputed` | Dispatcher | yes | The store disagrees with what arrived |
+| `vehicle.status_changed` | Dispatcher | no | Fleet availability changed. Reference does not publish it yet |
+
+A driver is pushed only trip-level events (R-NOT-08), and whoever caused an event is not told about it (R-NOT-07).
+
+**Commands:** `notification:MarkRead` (ids), `notification:MarkAllRead` (`upTo`), `notification:Subscribe`, `notification:Unsubscribe`. Read state is set-once, so marking takes no `expectedVersion` (R-NOT-06).
+
+**Invariants.** A notification is never sent inside the request transaction (R-NOT-05): the consumer writes the intent, and the push job sends with no transaction open. The state change and the outbox row commit together; the relay publishes after commit, at least once, and each person's notification is unique per event and target, so a redelivery writes nothing (NOT-03). A push that keeps failing is dead with its last error; it never blocks the queue and never vanishes (NOT-04). Notifications are never deleted (A-34).
 
 ---
 

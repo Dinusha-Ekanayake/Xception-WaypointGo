@@ -36,7 +36,7 @@ State words: **built** (merged to `dev` with tests), **partial** (merged, with n
 | Execution | #12 open | built | A read for the last reported vehicle status. Virus scan. ETA through the #16 estimator once #16 has a travel-time method | [walkthrough](../issues/012-execution/WALKTHROUGH.md) |
 | Receipt and Issues | #13 closed | built | Partial redelivery, shared with Ordering and Warehouse | [walkthrough](../issues/013-receipt-issues/WALKTHROUGH.md) |
 | Sync | #15 closed, #28 open | partial | Batch ingest and acknowledge are built. Left: `sync:Discard` and `sync:Resolve` (they wait on decision D-O: who reviews another person's conflict), Background Sync, queue age telemetry | [log](development-log.md), 2026-10-01 |
-| Notification | #14 open | not started | Contract only. Nothing consumes `eta.changed`, `delivery.started`, `road.disruption_reported` or routes `issue.raised`, `issue.escalated`, `receipt.disputed` to a person. Decided on the issue: no shared inbox component, each role places its own | [MODULES](../architecture/MODULES.md) section 9 |
+| Notification | #14 open | built (backend) | Each role UI must place its inbox, live badge (`/api/notifications/stream`), push opt-in and service worker `push` handlers (decided on the issue: no shared component). No admin API to publish a routing version. Dock in `trip.released` (R-EXE-08) and next planned date in `order.deferred` wait on Loading and Planning | [walkthrough](../issues/014-notification/WALKTHROUGH.md) |
 | Intelligence | #16 open | not started | Contract only. The deterministic estimator, the serving adapter and the `ml` tables | [MODULES](../architecture/MODULES.md) section 12 |
 
 ### Screens
@@ -45,10 +45,8 @@ State words: **built** (merged to `dev` with tests), **partial** (merged, with n
 | --- | --- | --- | --- | --- |
 | Shell, sign-in, role routing, design system | #17 closed | built | Dark theme tokens for the shared system and a component gallery (#28) | [log](development-log.md), 2026-10-01 |
 | Offline queue, kept reads, queued uploads | #15 closed, #28 open | built | Background Sync, and "resolve" for a held write, which needs `sync:Resolve` | `frontend/src/shared/offline/tiers.ts` |
-| Store manager | #18 closed | built, contracts checked against the backend 2026-10-02 | Notifications, driver and ETA details, call options and draft orders: nothing backs them yet (#14). No browser suite of its own | [log](development-log.md), 2026-10-02 |
-| Loader | #20 closed | built | Sinhala and Tamil are drafts awaiting a native speaker. Interchange waits on #10 | [walkthrough](../issues/010-loading/WALKTHROUGH.md) |
-| Store manager | #18 closed | built | Notifications, driver and ETA details, call options and draft orders: nothing backs them yet (#14) | [log](development-log.md), 2026-10-01 |
-| Loader | #20 closed | built, matched to Figma "08 Loader · Phone" light and dark | Sinhala and Tamil are drafts awaiting a native speaker. Notifications bell (#14), issue photo (no Loading upload endpoint). Interchange waits on #10 | [walkthrough](../issues/010-loading/WALKTHROUGH.md) |
+| Store manager | #18 closed | built, contracts checked against the backend 2026-10-02 | Notifications have a backend (#14) for the screen to place; driver and ETA details, call options and draft orders have none yet. No browser suite of its own | [log](development-log.md), 2026-10-02 |
+| Loader | #20 closed | built, matched to Figma "08 Loader · Phone" light and dark | Sinhala and Tamil are drafts awaiting a native speaker. The notifications bell is not wired yet though its backend exists (#14); issue photo (no Loading upload endpoint). Interchange waits on #10 | [walkthrough](../issues/010-loading/WALKTHROUGH.md) |
 | Driver | #21 open | built | English only. Vehicle pick-up by QR, the inbox, fuel, call and map have no backend and are left out | [walkthrough](../issues/021-driver-ui/WALKTHROUGH.md) |
 | Dispatcher | #19 open | partial | Orders, Plan, Live, Overview, Vehicles with weekly fuel, the Issues inbox and skipped outlets are built. Left: assigning an issue to someone else (no staff read), interchange approval (#10), the sync conflict queue, Forecast (#16) | [walkthrough](../issues/019-dispatcher-ui/WALKTHROUGH.md) |
 | Admin console | #22 open | in flight | The admin role shows the interactive sample console after admin sign-in, on preview and production. It runs on mock data and says so on screen; live backend wiring remains open | issue #22 |
@@ -70,7 +68,7 @@ In dependency order. An item nobody is assigned to on GitHub is free; say so on 
 1. **Walk the role flows on production.** Release #83 (2026-10-02) put everything on `dev` at `waypointgo.live` and the six role addresses; nobody has yet walked each role there end to end.
 2. **A fresh-install seed** that leaves one depot-day with a published plan, a released trip and a delivered stop. It unblocks a live browser run for every role and the judge walkthrough. `loading-fixture` and `scripts/seed-scenarios.sql` are partial precedents; the second bypasses the command bus and must not be the model.
 3. **Dispatcher, the rest of #19.** The Issues inbox is built; what is left waits on #10 (interchange), a staff read for assigning to others, and #16 (Forecast).
-4. **Notification (#14).** The largest unbuilt module, and what the store manager, driver and dispatcher gaps above all wait on.
+4. **Notifications in each role UI (#18, #19, #21).** The backend is built (#14): inbox, unread count, live stream, push config and the four commands. Each role places its own inbox and badge, and the push opt-in with its service worker handlers in `scripts/build-sw.mjs`.
 5. **Event backbone, the rest of #6.** Wire the auditor console (#23) to the existing read API; choose the detached-partition archive target and fill the historical audit gaps listed in its walkthrough.
 6. **Loading interchange (#10)**, then its approval screen in #19. Planning's `previewInterchange` already exists.
 7. **Admin console (#22).** The account, scope and policy commands it needs are built; today they are sent from a terminal.
