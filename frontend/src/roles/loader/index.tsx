@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { useOnline, useResource } from "@shared/api/useResource";
-import { useSync } from "@shared/offline";
+import { registerResolver, useSync } from "@shared/offline";
 import { Notice } from "@shared/ui";
 import { crew, lockOperator, replayBeforeSync } from "@app-shell/operators";
 import { keptCrew, logOfflineSwitch } from "@app-shell/offlinePin";
@@ -13,6 +13,7 @@ import { LangProvider, useT } from "./i18n.tsx";
 import { ThemeProvider, useTheme } from "./theme.tsx";
 import { createGateway } from "./data/gateway.ts";
 import { depotToday, hhmm } from "./data/manifest.ts";
+import { redoVersion, tripOf } from "./data/redo.ts";
 import DockBoard from "./screens/DockBoard.tsx";
 import Locked from "./screens/Locked.tsx";
 import LoadSheet from "./screens/LoadSheet.tsx";
@@ -56,6 +57,19 @@ function LoaderWorkspace({
   useLayoutEffect(() => replayBeforeSync(userId), [userId]);
   const sync = useSync(userId);
   const [operator, setOperator] = useState<Operator | null>(initialOperator);
+  // A held check is redone on the trip's current version, under whoever is loading now.
+  const operatorId = operator?.userId ?? null;
+  useEffect(
+    () =>
+      registerResolver("loading:", async (entry, waiting) => {
+        const tripId = tripOf(entry);
+        if (!tripId) return null;
+        if (!operatorId) return null;
+        const manifest = await gateway.manifest(tripId, new AbortController().signal);
+        return { expectedVersion: redoVersion(tripId, manifest.rowVersion, waiting), actingUserId: operatorId };
+      }),
+    [gateway, operatorId],
+  );
   const [lockError, setLockError] = useState<string | null>(null);
   const [settings, setSettings] = useState(false);
   // The PIN and Settings screens stand alone in Figma, with only a way back.

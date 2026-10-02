@@ -84,6 +84,17 @@ Home shows the vehicle, the arrival time and the loading shortfall (read from `G
 Why: the store screens matched Figma's look but not its content. Everything that has a backend today is now on screen; the rest (driver name and ETA, notifications, calls, voice message, handover PIN, live map) is built in later phases and says "not available yet" until then.
 Verified: `npm run typecheck`, `npm test` (51 passed), `npm run build`; new `playwright.store.config.ts` with `tests/e2e-store/` (6 passed).
 Open: Phases 2 to 5 of the plan (Execution ETA and driver, Notification #14, handover PIN, calls and voice message); the live map is skipped for now. Issues are read per order, so a manager with many recent orders makes many small reads: a store-scoped issue list would be cheaper.
+## 2026-10-03 - feat(sync): review held offline writes, Background Sync, dark components and a gallery (issue #28)
+
+`feat/sync-followups` · @Dinusha-Ekanayake
+
+Decision D-O: only an operation's owner reviews it (R-EXE-16). `sync:Discard` drops a conflict or refusal with a reason; `sync:Resolve` settles a conflict as `RESOLVED` and names the redo the device queued ahead of it on the current version (R-EXE-17). The review panel's "Send again" could never work (a replayed id gets its first answer), so it became "Redo on the current version", offered where a role registers a resolver (the loader does), and "Discard…" with a reason. Batches go in recorded order. The service worker answers Background Sync by asking an open page to drain (A-39). `waypoint.sync.time_to_drain` (EXE-02). Shared components moved onto the `go-card` token and GO icons invert under any `.go-dark`, so dark mode works outside the loader; `/gallery` shows them light and dark in development.
+Why: the last open items of #28; the audit in the [plan](../issues/028-offline-sync-followups/PLAN.md) found the rest already built.
+Verified: see the PR; `SyncIntegrationTest` and `OperationOutcomeTest` cover the new rules, `held.spec.ts` the loader's redo, discard and Background Sync, `sync-review.test.ts` the device side.
+Open: the driver (#21) can register its own resolver to offer redo. Writes held before this change have no server version, so they are dropped on the device only.
+
+---
+
 ## 2026-10-03 - feat(planning): re-plan the reefers after the first pass (issue #92)
 
 `feat/engine-improvement` · @Oxshadha

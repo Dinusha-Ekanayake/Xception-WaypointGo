@@ -51,4 +51,17 @@ public final class OperationOutcome {
   public static boolean canAcknowledge(OperationStatus status) {
     return isSettled(status);
   }
+
+  /** Only a write the server held for a person can be dropped by one: a conflict or a refusal. */
+  public static boolean canDiscard(OperationStatus status) {
+    return status == OperationStatus.CONFLICT || status == OperationStatus.REJECTED;
+  }
+
+  /**
+   * Only a conflict can be redone on the current version. A refusal broke a rule, and the same
+   * command on a newer version would break it again.
+   */
+  public static boolean canResolve(OperationStatus status) {
+    return status == OperationStatus.CONFLICT;
+  }
 }

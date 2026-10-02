@@ -11,11 +11,12 @@
 }
 
 /*
- * The loader's dark theme (Figma "08 Loader · Phone", dark row). Colours come
- * from the go-dark tokens; the GO icons are black SVG images, so they are
- * inverted here, with the hue turned back so red and green stay red and green.
+ * The dark theme (the go-dark tokens in src/shared/ui/theme.css), for every
+ * screen that turns it on: the loader and the driver. The GO icons are black
+ * SVG images, so they are inverted here, with the hue turned back so red and
+ * green stay red and green.
  */
-.loader-workspace.go-dark img[src^='/icons/go/'] {
+.go-dark img[src^='/icons/go/'] {
   filter: invert(1) hue-rotate(180deg);
 }
 

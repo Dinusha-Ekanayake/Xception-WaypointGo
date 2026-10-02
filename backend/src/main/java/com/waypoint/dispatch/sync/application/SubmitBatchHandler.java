@@ -24,6 +24,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.Semaphore;
@@ -91,6 +92,8 @@ public class SubmitBatchHandler {
    * reached and stays on the device.
    *
    * @param status {@code RECEIVED} means recorded but not decided; send it again later
+   * @param rowVersion the operation's version after this answer, which a device names when it
+   *     discards or resolves a held write; null when the id belongs to someone else
    */
   public record Outcome(
       UUID operationId,
@@ -98,7 +101,8 @@ public class SubmitBatchHandler {
       OperationStatus status,
       String problemCode,
       String detail,
-      boolean replayed) {}
+      boolean replayed,
+      Long rowVersion) {}
 
   public List<Outcome> submit(Actor actor, SubmitBatch batch) {
     return submit(actor, null, batch);
@@ -137,15 +141,45 @@ public class SubmitBatchHandler {
             .sorted(Comparator.comparingLong(SubmittedOperation::sequence))
             .toList();
     List<Outcome> outcomes = new ArrayList<>();
+    boolean stopped = false;
     for (SubmittedOperation op : ordered) {
       Outcome outcome = applyOne(actor, sessionToken, batch.deviceId(), op);
       outcomes.add(outcome);
       metrics.increment("waypoint.sync.operation", "status", outcome.status().name());
       if (outcome.status() == OperationStatus.RECEIVED) {
+        stopped = true;
         break;
       }
     }
+    if (!stopped) {
+      recordTimeToDrain(actor, batch.deviceId(), ordered);
+    }
     return outcomes;
+  }
+
+  /**
+   * Time to drain (EXE-02): from the oldest write in this batch being recorded on the device to the
+   * moment the server holds nothing undecided from that device. A batch that stopped on an outage
+   * has not drained, and neither has a device with operations still in flight.
+   */
+  private void recordTimeToDrain(Actor actor, UUID deviceId, List<SubmittedOperation> ordered) {
+    Optional<Instant> oldest =
+        ordered.stream()
+            .map(SubmittedOperation::command)
+            .map(c -> c == null ? null : c.clientRecordedAt())
+            .filter(Objects::nonNull)
+            .min(Comparator.naturalOrder());
+    if (oldest.isEmpty()) {
+      return;
+    }
+    boolean drained =
+        database.asModule(
+            ModuleRole.SYNC, actor.userId(), () -> operations.pendingFor(deviceId).isEmpty());
+    if (drained) {
+      metrics.record(
+          "waypoint.sync.time_to_drain",
+          Math.max(0, Duration.between(oldest.get(), Instant.now()).toMillis()));
+    }
   }
 
   private Outcome applyOne(Actor actor, String sessionToken, UUID deviceId, SubmittedOperation op) {
@@ -160,13 +194,13 @@ public class SubmitBatchHandler {
     if (known.isEmpty()) {
       return new Outcome(
           id, op.sequence(), OperationStatus.REJECTED, ErrorCode.CONFLICT.name(),
-          "This operation id is already in use", false);
+          "This operation id is already in use", false, null);
     }
     if (OperationOutcome.isSettled(known.get().status())) {
       // A replayed batch: answer what the device was told the first time.
       return new Outcome(
           id, op.sequence(), known.get().status(), known.get().problemCode().orElse(null), null,
-          true);
+          true, version(actor, id));
     }
 
     if (command.clientRecordedAt() != null) {
@@ -189,23 +223,25 @@ public class SubmitBatchHandler {
                 "This loader was not operating the device when the work was recorded"));
       }
       CommandResult result = bus.dispatch(commandActor, command);
-      settle(actor, id, OperationStatus.APPLIED, null, null);
-      return new Outcome(id, op.sequence(), OperationStatus.APPLIED, null, null, result.replayed());
+      long version = settle(actor, id, OperationStatus.APPLIED, null, null);
+      return new Outcome(
+          id, op.sequence(), OperationStatus.APPLIED, null, null, result.replayed(), version);
     } catch (DomainException e) {
       Optional<OperationStatus> settled = OperationOutcome.forFailure(e.code());
       if (settled.isEmpty()) {
         return new Outcome(
-            id, op.sequence(), OperationStatus.RECEIVED, e.code().name(), e.getMessage(), false);
+            id, op.sequence(), OperationStatus.RECEIVED, e.code().name(), e.getMessage(), false,
+            version(actor, id));
       }
-      settle(actor, id, settled.get(), e.code().name(), e.getMessage());
+      long version = settle(actor, id, settled.get(), e.code().name(), e.getMessage());
       return new Outcome(
-          id, op.sequence(), settled.get(), e.code().name(), e.getMessage(), false);
+          id, op.sequence(), settled.get(), e.code().name(), e.getMessage(), false, version);
     } catch (RuntimeException e) {
       // Not the operation's fault as far as anyone can tell. Keep it in flight.
       log.error("Sync could not apply operation {} ({})", id, command.kind(), e);
       return new Outcome(
           id, op.sequence(), OperationStatus.RECEIVED, "INTERNAL_ERROR",
-          "The server could not apply this yet", false);
+          "The server could not apply this yet", false, version(actor, id));
     }
   }
 
@@ -237,8 +273,19 @@ public class SubmitBatchHandler {
         });
   }
 
-  private void settle(Actor actor, UUID id, OperationStatus status, String code, String detail) {
-    database.asModule(
-        ModuleRole.SYNC, actor.userId(), () -> operations.settle(id, status, code, detail));
+  /** Settles the operation and answers its version afterwards, in one transaction. */
+  private long settle(Actor actor, UUID id, OperationStatus status, String code, String detail) {
+    return database.asModule(
+        ModuleRole.SYNC,
+        actor.userId(),
+        () -> {
+          operations.settle(id, status, code, detail);
+          return operations.rowVersion(id).orElse(0L);
+        });
+  }
+
+  private Long version(Actor actor, UUID id) {
+    return database.asModule(
+        ModuleRole.SYNC, actor.userId(), () -> operations.rowVersion(id).orElse(null));
   }
 }

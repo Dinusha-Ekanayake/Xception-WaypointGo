@@ -1,4 +1,4 @@
-export { Icon, type IconName } from "./Icon.tsx";
+export { Icon, ICON_NAMES, type IconName } from "./Icon.tsx";
 export { Notice, Pending } from "./Notice.tsx";
 export {
   Card,
