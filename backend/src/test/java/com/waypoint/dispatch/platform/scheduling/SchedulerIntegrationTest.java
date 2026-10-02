@@ -102,24 +102,15 @@ class SchedulerIntegrationTest {
 
   @Test
   void aNewPartitionIsAppendOnlyForTheIntegrationRole() {
-    partitionJob.run(Instant.parse("2033-01-10T09:00:00Z"));
+    String partition = "audit_log_" + freshMonth().replace('-', '_').substring(0, 7);
+    database.asSystem(
+        ModuleRole.INTEGRATION,
+        () ->
+            database.queryOne(
+                "SELECT integration.ensure_audit_partition(?::date)", freshMonthDate()));
 
-    boolean mayUpdate =
-        (Boolean)
-            database
-                .unscopedQuery(
-                    "SELECT has_table_privilege('waypoint_integration',"
-                        + " 'integration.audit_log_2033_02', 'UPDATE') AS ok")
-                .get(0)
-                .get("ok");
-    boolean mayDelete =
-        (Boolean)
-            database
-                .unscopedQuery(
-                    "SELECT has_table_privilege('waypoint_integration',"
-                        + " 'integration.audit_log_2033_02', 'DELETE') AS ok")
-                .get(0)
-                .get("ok");
+    boolean mayUpdate = privilege(partition, "UPDATE");
+    boolean mayDelete = privilege(partition, "DELETE");
 
     assertFalse(mayUpdate, "audit is append only on a partition created later too");
     assertFalse(mayDelete);
@@ -127,18 +118,20 @@ class SchedulerIntegrationTest {
 
   @Test
   void detachingKeepsTheDataAndTheNameIsValidated() {
-    // A month that exists for this test alone. Dropped first so a rerun starts clean.
-    database.unscopedQuery("DROP TABLE IF EXISTS integration.audit_log_2031_01");
+    String first = freshMonth();
+    String partition = "audit_log_" + first.substring(0, 7).replace('-', '_');
     database.asSystem(
         ModuleRole.INTEGRATION,
-        () -> database.queryOne("SELECT integration.ensure_audit_partition('2031-01-01'::date)"));
+        () ->
+            database.queryOne(
+                "SELECT integration.ensure_audit_partition(?::date)", freshMonthDate()));
     database.asSystem(
         ModuleRole.INTEGRATION,
         () ->
             database.update(
                 "INSERT INTO integration.audit_log (occurred_at, action, decision)"
                     + " VALUES (?, 'test:Old', 'ALLOW')",
-                Timestamp.from(Instant.parse("2031-01-05T00:00:00Z"))));
+                Timestamp.from(Instant.parse(first.substring(0, 7) + "-05T00:00:00Z"))));
 
     boolean detached =
         (Boolean)
@@ -147,16 +140,18 @@ class SchedulerIntegrationTest {
                     ModuleRole.INTEGRATION,
                     () ->
                         database.queryOne(
-                            "SELECT integration.detach_audit_partition('audit_log_2031_01') AS done"))
+                            "SELECT integration.detach_audit_partition(?) AS done", partition))
                 .get("done");
 
     assertTrue(detached);
-    assertFalse(partitionJob.partitions().contains("audit_log_2031_01"), "detached from the log");
+    assertFalse(partitionJob.partitions().contains(partition), "detached from the log");
     long kept =
         ((Number)
                 database
-                    .unscopedQuery("SELECT count(*) AS n FROM integration.audit_log_2031_01")
-                    .get(0)
+                    .asSystem(
+                        ModuleRole.INTEGRATION,
+                        () ->
+                            database.queryOne("SELECT count(*) AS n FROM integration." + partition))
                     .get("n"))
             .longValue();
     assertEquals(1, kept, "detaching is not deleting");
@@ -205,10 +200,13 @@ class SchedulerIntegrationTest {
     CountDownLatch inside = new CountDownLatch(1);
     CountDownLatch release = new CountDownLatch(1);
     int[] runs = {0};
+    // One name for the whole test: the lease is keyed by it, so a name that changed
+    // on every call would give each runner a different lock.
+    String jobName = "test.duplicate-" + UUID.randomUUID();
     ScheduledJob slow =
         new ScheduledJob() {
           public String name() {
-            return "test.duplicate-" + UUID.randomUUID();
+            return jobName;
           }
 
           public String cron() {
@@ -264,6 +262,48 @@ class SchedulerIntegrationTest {
   }
 
   // ---- helpers ----
+
+  /**
+   * The first month from 2036 on that has no table of that name yet. A partition a
+   * previous run detached still exists as a plain table, and the application role
+   * may not drop it, so each run takes a month nobody has used.
+   */
+  private String freshMonth() {
+    java.time.LocalDate month = java.time.LocalDate.of(2036, 1, 1);
+    while (exists("audit_log_" + month.toString().substring(0, 7).replace('-', '_'))) {
+      month = month.plusMonths(1);
+    }
+    return month.toString();
+  }
+
+  private java.sql.Date freshMonthDate() {
+    return java.sql.Date.valueOf(freshMonth());
+  }
+
+  private boolean exists(String table) {
+    return database
+            .asSystem(
+                ModuleRole.INTEGRATION,
+                () ->
+                    database.queryOne(
+                        "SELECT to_regclass('integration.' || ?) IS NOT NULL AS found", table))
+            .get("found")
+        == Boolean.TRUE;
+  }
+
+  private boolean privilege(String table, String privilege) {
+    return (Boolean)
+        database
+            .asSystem(
+                ModuleRole.INTEGRATION,
+                () ->
+                    database.queryOne(
+                        "SELECT has_table_privilege('waypoint_integration', 'integration.'"
+                            + " || ?, ?) AS ok",
+                        table,
+                        privilege))
+            .get("ok");
+  }
 
   private void receipt(UUID commandId, Instant at) {
     database.update(

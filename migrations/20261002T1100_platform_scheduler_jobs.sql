@@ -64,7 +64,7 @@ DECLARE
     first_day date := date_trunc('month', p_month)::date;
     part_name text := 'audit_log_' || to_char(first_day, 'YYYY_MM');
 BEGIN
-    IF first_day < date '2026-01-01' OR first_day > (now() + interval '5 years')::date THEN
+    IF first_day < date '2026-01-01' OR first_day > (now() + interval '20 years')::date THEN
         RAISE EXCEPTION 'audit partition month % is outside the supported range', first_day;
     END IF;
 

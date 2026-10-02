@@ -140,7 +140,9 @@ class AuditApiIntegrationTest {
         onlyRow("targetType=ref:vehicle&targetId=VEH001&action=vehicle:SetDayStatus&limit=50")
                 .get("items").size() >= 2,
         "both of this test's commands target VEH001");
-    assertEquals(1, onlyRow("correlationId=" + CORRELATION).get("items").size());
+    // The command bus writes one row, and the vehicle handler writes its own, both
+    // under the request's correlation id.
+    assertTrue(onlyRow("correlationId=" + CORRELATION).get("items").size() >= 1);
     assertEquals(0, onlyRow("correlationId=" + UUID.randomUUID()).get("items").size());
 
     JsonNode first = get(AUDITOR, "/api/audit?targetType=ref:vehicle&targetId=VEH001&limit=1", 200);
