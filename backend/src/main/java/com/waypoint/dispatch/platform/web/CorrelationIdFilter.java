@@ -33,6 +33,13 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
   public static final String HEADER = "X-Correlation-Id";
   public static final String MDC_KEY = "correlationId";
 
+  /**
+   * The same id as a request attribute, for code that takes the id as a parameter
+   * instead of reading the logging context: the command endpoint passes it to the
+   * bus, which writes it on the audit rows.
+   */
+  public static final String ATTRIBUTE = CorrelationIdFilter.class.getName() + ".id";
+
   private static final Pattern UUID_SHAPE =
       Pattern.compile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
 
@@ -42,6 +49,7 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
       throws ServletException, IOException {
     String correlationId = accept(request.getHeader(HEADER));
     MDC.put(MDC_KEY, correlationId);
+    request.setAttribute(ATTRIBUTE, correlationId);
     ServerHttpObservationFilter.findObservationContext(request)
         .ifPresent(context -> context.addHighCardinalityKeyValue(
             io.micrometer.common.KeyValue.of("correlation.id", correlationId)));

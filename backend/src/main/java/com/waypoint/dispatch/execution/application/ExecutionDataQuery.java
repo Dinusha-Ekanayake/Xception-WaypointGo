@@ -125,6 +125,9 @@ public class ExecutionDataQuery implements ExecutionQuery {
           UUID signature = (UUID) row.get("signature_attachment_id");
           boolean photoStored = photo != null && deliveries.attachment(photo).isPresent();
           boolean signatureStored = signature != null && deliveries.attachment(signature).isPresent();
+          // Past retention (P-14) an artifact is on record but no longer held: no link, and not pending.
+          boolean photoHeld = photoStored && deliveries.isHeld(photo);
+          boolean signatureHeld = signatureStored && deliveries.isHeld(signature);
           return new ProofView(
               (UUID) row.get("proof_id"),
               deliveryId,
@@ -132,9 +135,9 @@ public class ExecutionDataQuery implements ExecutionQuery {
               Optional.ofNullable((String) row.get("fallback_reason")),
               Boolean.TRUE.equals(row.get("low_evidence")),
               ((Timestamp) row.get("captured_at")).toInstant(),
-              photoStored ? Optional.of(links.urlFor(photo, expires)) : Optional.empty(),
+              photoHeld ? Optional.of(links.urlFor(photo, expires)) : Optional.empty(),
               photo != null && !photoStored,
-              signatureStored ? Optional.of(links.urlFor(signature, expires)) : Optional.empty(),
+              signatureHeld ? Optional.of(links.urlFor(signature, expires)) : Optional.empty(),
               signature != null && !signatureStored,
               expires);
         });

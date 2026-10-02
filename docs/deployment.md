@@ -133,7 +133,7 @@ Alloy reads every container labelled `com.waypoint.logs=true` through the read-o
 
 What a rollout beyond the competition would have to change, as things stand on 2026-10-02. The full list per module is in [STATUS.md](development-docs/STATUS.md).
 
-- **Proof files live on one host's disk.** Photos and signatures are written under `PROOF_DIR` by `LocalProofStore` and read back through signed five-minute links. A second backend instance would not see them (A-33), nothing purges them past `retain_until`, and with `PROOF_URL_SECRET` unset the links die at a restart.
+- **Proofs live in the database.** Photos and signatures are stored in `execution.proof_content` by `DatabaseProofStore` (`PROOF_STORE=database`, the default) and read back through signed five-minute links, so they are in the database backup and every replica sees them (A-33). They count toward the database's storage: watch `waypoint.execution.proof_bytes_held`. A nightly job clears them past `retain_until` (P-14). Files written to `PROOF_DIR` before the switch are still read from there, so keep that volume until they age out. With `PROOF_URL_SECRET` unset the links die at a restart.
 - **The audit log is partitioned by month and the last partition ends 2027-07-01.** The job that creates partitions ahead is not built (issue #6); after that date every command fails.
 - **No retention jobs.** Expired sessions, old login attempts, command receipts and delivered outbox rows are not purged (issue #6).
 - **Nobody is told.** The Notification module is not built (issue #14), so a deferral, a shortfall or a dispute reaches a person only when they open the screen that shows it.

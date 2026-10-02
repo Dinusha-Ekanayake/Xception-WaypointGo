@@ -1,6 +1,7 @@
 package com.waypoint.dispatch.execution.infrastructure;
 
 import com.waypoint.dispatch.execution.contract.ExecutionViews.DeliveryOutcome;
+import com.waypoint.dispatch.execution.domain.DeliveryLines;
 import com.waypoint.dispatch.execution.domain.DeliveryRecord;
 import com.waypoint.dispatch.execution.domain.ProofOfDelivery;
 import com.waypoint.dispatch.execution.domain.ServiceWindow;
@@ -63,8 +64,9 @@ public class JdbcDeliveryRepository {
         == 1;
   }
 
-  public void insertRecord(DeliveryRecord r, Instant at) {
-    database.update(
+  /** @return false when the trip already had a record for this order */
+  public boolean insertRecord(DeliveryRecord r, Instant at) {
+    return database.update(
         """
         INSERT INTO execution.delivery_records
             (delivery_id, trip_id, order_id, outlet_id, depot_code, vehicle_id, service_date, stop_sequence,
@@ -76,10 +78,83 @@ public class JdbcDeliveryRepository {
         r.deliveryId(), r.tripId(), r.orderId(), r.outletId(), r.depotCode(), r.vehicleId(),
         Date.valueOf(r.serviceDate()), r.sequence(), r.itemCount(), Time.valueOf(r.plannedArrival()),
         Time.valueOf(r.window().open()), Time.valueOf(r.window().close()), r.mallOutlet(),
-        Timestamp.from(at), Timestamp.from(at));
+        Timestamp.from(at), Timestamp.from(at))
+        == 1;
+  }
+
+  // ---- proof retention (P-14) ----------------------------------------------
+
+  public record ExpiredAttachment(UUID attachmentId, String storageKey) {}
+
+  /** Artifacts past their retention whose bytes are still held, oldest first. */
+  public List<ExpiredAttachment> expiredAttachments(LocalDate today, int limit) {
+    return database
+        .query(
+            "SELECT attachment_id, storage_key FROM execution.attachments"
+                + " WHERE retain_until < ? AND purged_at IS NULL ORDER BY retain_until LIMIT ?",
+            Date.valueOf(today), limit)
+        .stream()
+        .map(row -> new ExpiredAttachment((UUID) row.get("attachment_id"), (String) row.get("storage_key")))
+        .toList();
+  }
+
+  public void markPurged(UUID attachmentId, Instant at) {
+    database.update(
+        "UPDATE execution.attachments SET purged_at = ? WHERE attachment_id = ? AND purged_at IS NULL",
+        Timestamp.from(at), attachmentId);
+  }
+
+  /** The artifact's bytes are still held: stored, and not cleared past retention. */
+  public boolean isHeld(UUID attachmentId) {
+    return !database
+        .query(
+            "SELECT 1 FROM execution.attachments WHERE attachment_id = ? AND purged_at IS NULL", attachmentId)
+        .isEmpty();
+  }
+
+  /** Bytes of evidence still held. */
+  public long heldAttachmentBytes() {
+    Map<String, Object> row =
+        database.queryOne(
+            "SELECT coalesce(sum(size_bytes), 0) AS bytes FROM execution.attachments WHERE purged_at IS NULL");
+    return ((Number) row.get("bytes")).longValue();
+  }
+
+  /** The order's products, copied at release beside its unit count. */
+  public void insertLines(UUID deliveryId, List<DeliveryLines.Ordered> lines) {
+    for (DeliveryLines.Ordered line : lines) {
+      database.update(
+          """
+          INSERT INTO execution.delivery_lines (delivery_id, product_id, ordered_units)
+          VALUES (?, ?, ?)
+          ON CONFLICT (delivery_id, product_id) DO NOTHING
+          """,
+          deliveryId, line.productId(), line.units());
+    }
   }
 
   // ---- loading for a command -------------------------------------------------
+
+  public List<DeliveryLines.Ordered> orderedLines(UUID deliveryId) {
+    return database
+        .query(
+            "SELECT product_id, ordered_units FROM execution.delivery_lines"
+                + " WHERE delivery_id = ? ORDER BY product_id",
+            deliveryId)
+        .stream()
+        .map(row -> new DeliveryLines.Ordered(
+            (String) row.get("product_id"), ((Number) row.get("ordered_units")).intValue()))
+        .toList();
+  }
+
+  /** What arrived of each product. In the command's transaction, after {@link #save}. */
+  public void recordDeliveredLines(UUID deliveryId, List<DeliveryLines.Delivered> lines) {
+    for (DeliveryLines.Delivered line : lines) {
+      database.updateExpectingOneRow(
+          "UPDATE execution.delivery_lines SET delivered_units = ? WHERE delivery_id = ? AND product_id = ?",
+          line.units(), deliveryId, line.productId());
+    }
+  }
 
   public Optional<DeliveryRecord> find(UUID deliveryId) {
     Map<String, Object> row =

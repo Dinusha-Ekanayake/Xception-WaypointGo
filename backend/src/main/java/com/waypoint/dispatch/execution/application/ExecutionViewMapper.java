@@ -1,5 +1,8 @@
 package com.waypoint.dispatch.execution.application;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.waypoint.dispatch.execution.contract.ExecutionViews.DeliveryLineView;
 import com.waypoint.dispatch.execution.contract.ExecutionViews.DeliveryRecordView;
 import com.waypoint.dispatch.execution.contract.ExecutionViews.RunSheetStopView;
 import com.waypoint.dispatch.execution.contract.ExecutionViews.RunSheetView;
@@ -15,6 +18,8 @@ import java.util.Optional;
 
 /** Rows to contract views. No decisions here. */
 final class ExecutionViewMapper {
+  private static final ObjectMapper JSON = new ObjectMapper();
+
   private ExecutionViewMapper() {}
 
   static RunSheetStopView stop(Map<String, Object> row) {
@@ -23,7 +28,7 @@ final class ExecutionViewMapper {
         r.deliveryId(), r.tripId(), r.sequence(), r.orderId(), r.outletId(), r.itemCount(), r.mallOutlet(),
         r.plannedArrival(), r.window().open(), r.window().close(), instant(row.get("expected_arrival")),
         r.startedAt(), r.arrivedAt(), r.completedAt(), r.waitMinutes(), r.lateMinutes(), r.outcome(),
-        r.proofId().isPresent(), r.rowVersion());
+        r.proofId().isPresent(), r.rowVersion(), lines(row));
   }
 
   /** One sheet per vehicle, in the order the rows came: trips as they left, stops as planned. */
@@ -50,7 +55,28 @@ final class ExecutionViewMapper {
         r.arrivedAt(), r.serviceStartedAt(), r.completedAt(), r.waitMinutes(), r.lateMinutes(),
         r.lateReason(), r.timingUncertain(), r.deliveredUnits(), r.failureReason(), r.dispositionNote(),
         r.lowEvidence(), r.proofId(), instant(row.get("client_recorded_at")),
-        ((Timestamp) row.get("server_recorded_at")).toInstant(), r.rowVersion());
+        ((Timestamp) row.get("server_recorded_at")).toInstant(), r.rowVersion(), lines(row));
+  }
+
+  /** The products of a record, read as one JSON array with the record so a run sheet stays one query. */
+  static List<DeliveryLineView> lines(Map<String, Object> row) {
+    Object raw = row.get("lines");
+    if (raw == null) {
+      return List.of();
+    }
+    try {
+      List<DeliveryLineView> lines = new ArrayList<>();
+      for (JsonNode line : JSON.readTree(raw.toString())) {
+        JsonNode delivered = line.get("deliveredUnits");
+        lines.add(new DeliveryLineView(
+            line.get("productId").asText(),
+            line.get("orderedUnits").asInt(),
+            delivered == null || delivered.isNull() ? Optional.empty() : Optional.of(delivered.asInt())));
+      }
+      return lines;
+    } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+      throw new IllegalStateException("Delivery lines are not the JSON the read builds", e);
+    }
   }
 
   private static Optional<Instant> instant(Object value) {

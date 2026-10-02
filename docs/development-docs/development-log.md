@@ -21,6 +21,16 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-02 - fix: reconcile audit console with dev
+
+`23-auditor-console` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Retain AuditConsole for both audit and focused permission history routes when merging dev. Preserve the current session flow and both branches' documentation.
+Why: the admin placeholder must not replace the completed mock audit workspace.
+Verified: frontend typecheck and production build passed.
+Open: audit UI still uses mock data.
+
+---
 ## 2026-10-02 - feat: build the mock audit console
 
 `23-auditor-console` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
@@ -42,6 +52,144 @@ Verified: checked current mock, audit write contract and schema; no application 
 Open: fresh Figma access was unavailable; design references use supplied screenshots and the earlier recorded inspection.
 
 ---
+
+## 2026-10-02 - fix: resolve admin session merge conflict
+
+`22-admin-console` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Merge current dev and retain its session state, sign-in, role routing and pending offline write protection. Keep the standalone `/access-demo` route and both branches' documentation.
+Why: the older checked/session rendering conflicts with the newer state-based shell.
+Verified: frontend typecheck and production build passed.
+Open: the admin UI remains a mock demo; live integration is unchanged.
+
+---
+## 2026-10-02 - feat: add mock forecasts and vehicles tabs
+
+`22-admin-console` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Add main Forecasts and Vehicles tabs beside Audit console. Show clearly labeled sample demand, fleet summaries, filters and vehicle details without calling the backend.
+Why: admins need these workspaces visible in the demo navigation before the backend forecast capability is available.
+Verified: non-incremental TypeScript check and production build passed; `/access-demo` returned HTTP 200 on port 43000.
+Open: forecast values and vehicle records are mock data; live actions need backend integration.
+
+---
+
+## 2026-10-02 - refine: GO login and expandable access navigation
+
+`22-admin-console` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Replace the mock identity picker with a GO-style staff ID and password screen based on the supplied reference. Make People & access a main sidebar item that reveals its four subpages; keep Audit console beside it.
+Why: the demo login and navigation should match the requested admin workspace hierarchy.
+Verified: non-incremental TypeScript check and production build passed; `/access-demo` returned HTTP 200 on port 43000.
+Open: credentials are demo-only and no server session is created.
+
+---
+
+## 2026-10-02 - refine: role-specific member setup and navigation
+
+`22-admin-console` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Make the mock Add member form conditional by persona, remove its reason field, and keep Admin creation inside that form for Super admin. Hide the Super admin persona and directory entry; group access subpages and add a separate mock Audit console navigation item.
+Why: member setup and navigation should match each role's actual choices and the requested admin hierarchy.
+Verified: non-incremental TypeScript check and production build passed; the updated demo returned HTTP 200 on port 43000.
+Open: assignments and audit events remain frontend-only sample data.
+
+---
+
+## 2026-10-02 - feat: add persona-based mock members
+
+`22-admin-console` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Replace the People page's Add admin control with Add member for both administrative previews. Collect persona and matching depot, warehouse/depot or outlet assignment; reserve Admin creation for Super admin. Persona pages can start with their role selected.
+Why: operators need one member-creation flow for all operational personas while preserving privileged account boundaries.
+Verified: non-incremental TypeScript check and production build passed; the updated demo server started on port 43000.
+Open: this remains frontend-only sample data and does not create real accounts.
+
+---
+
+## 2026-10-02 - fix: keep access demo dialogs open
+
+`22-admin-console` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Remove the native dialog close event handler that cleared modal state during React development effect cleanup. Add exception, permission details/edit, and Add admin share this dialog.
+Why: these controls appeared inert because their dialog closed immediately after opening.
+Verified: non-incremental TypeScript check passed.
+Open: browser interaction could not be verified under the current browser security policy.
+
+---
+
+## 2026-10-02 - fix: complete access demo controls
+
+`22-admin-console` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Fix scoped member exception evaluation, protected edit controls, unchanged saves, history details, catalogue availability labels, Add admin entry points and reset navigation in the frontend-only permission demo.
+Why: Admin and Super admin preview controls produced misleading results or incomplete flows.
+Verified: non-incremental TypeScript check and production build passed; `/access-demo` returned HTTP 200 on port 43000. Browser interaction was unavailable under the current browser security policy.
+Open: live authorization and account creation remain separate backend work.
+
+---
+
+## 2026-10-01 - feat: align access demo with GO visual language
+
+`22-admin-console` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Refine the isolated permission demo with the Figma style guide and dispatcher desktop shell: Google Sans Flex preference, pale mint canvas, GO navigation, white surfaces and clearer persona cards. Add a demo link to the signed-out root page.
+Why: the mock route was hard to discover from `/` and its styling did not read as part of the GO product.
+Verified: non-incremental TypeScript check passed; the development server returned HTTP 200 for `/access-demo` after launching with the required local filesystem access.
+Open: production build and visual browser inspection remain unverified in this run.
+
+---
+
+## 2026-10-01 - feat: align access demo with GO visual language
+
+`22-admin-console` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Refine the isolated permission demo with the Figma style guide and dispatcher desktop shell: Google Sans Flex preference, pale mint canvas, GO navigation, white surfaces and clearer persona cards. Add a demo link to the signed-out root page.
+Why: the mock route was hard to discover from `/` and its styling did not read as part of the GO product.
+Verified: non-incremental TypeScript check passed. Browser verification and build remain open because the sandbox denied Next.js writes to `.next`; the elevated build request was rejected.
+Open: rerun the production build and inspect the refreshed route when filesystem access permits.
+
+---
+
+## 2026-10-01 - docs: plan capability management screens
+
+`22-admin-console` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Define persona modules, member exceptions, review and history in [the capability UI plan](../issues/022-admin-console/CAPABILITY-UI-PLAN.md), with isolated mock data and reusable components.
+Why: the full action catalogue obscures relevant persona access; scoped and expiring mock exceptions must not imply backend support.
+Verified: compared existing IAM plans and repository structure; documentation only, no application tests run.
+Open: build the mock UI next; current checkout lacks the earlier admin source directory.
+
+---
+
+## 2026-10-01 - feat: build access capability mock
+
+`22-admin-console` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Add the isolated `/access-demo` route with persona modules, member access, all 76 inventory actions, review, simulated saves and mock history. See [capability UI plan](../issues/022-admin-console/CAPABILITY-UI-PLAN.md).
+Why: operators need relevant business capabilities and clear member exceptions instead of an unfiltered technical list.
+Verified: non-incremental TypeScript check, production build and browser walkthrough of persona edit/review/save.
+Open: live permissions, scope/expiry, impact and history require backend contracts; mock saves have no server effect.
+## 2026-10-02 - feat(platform): scheduler jobs and audit completion (issue #6, second slice)
+
+`feat/event-backbone` · @jv_ransika
+
+- Scheduler: `ScheduledJobRunner` records each run and counts duplicates. New jobs: audit partitions ahead and detach after 24 months, platform retention, session retention, calendar exhaustion warning (R-PLT-04, 05). Partition DDL is a `SECURITY DEFINER` function, not a grant.
+- Audit: command id, target, redacted before/after and policy generation on every row; rejected commands are stored as receipts and replayed (R-PLT-06, 07); `GET /api/audit` and `/api/audit/decisions/{commandId}`.
+- Migrations `20261002T1100`, `T1200`. The relay itself landed first in #65. Plan and walkthrough in `docs/issues/006-event-backbone/`.
+
+Why: nothing delivered events, and every command fails after 2027-07-01 when the last audit partition ends.
+Verified: relay slice, `OutboxRelayIntegrationTest` (12), `OutboxIntegrationTest`, `ModuleBoundaryTest`, `EventCatalogueTest`, run against a dedicated database. Scheduler and audit slices: targeted tests written, full `mvn verify` left to CI on the PR.
+Open: older audit call sites still read the correlation id from the logging context; `before` state is captured only by the vehicle status handler so far; archive target for detached partitions needs P-14; audit and dead-letter screens are #23 and #22.
+
+## 2026-10-02 - feat(execution): deliveries product by product, proof in the database, scope fix
+
+`feat/execution` · @Dinusha-Ekanayake
+
+On the merged module: a delivery can be recorded product by product (`execution.delivery_lines`, `DeliveryLines`; the total stays what Ordering reads), proof bytes are kept in the database by default (`DatabaseProofStore`, `PROOF_STORE`), and a nightly job clears them past retention and keeps the row and hash. Found while doing it: a driver holding a depot grant, as `demo-accounts` gives, could read every vehicle's stops in the depot; depot-wide reads now need a dispatcher, admin or auditor role (`20261002T0900`). Details in the [walkthrough](../issues/012-execution/WALKTHROUGH.md#follow-up-2026-10-02).
+Why: owner's decisions on #12 (per-line partials, Neon storage, retention); EXE-13 says a driver's scope is one vehicle on one date.
+Verified: see the pull request; the scope test was run without its migration and failed, then passed with it.
+Open: ETA through #16 needs a travel-time method agreed with #16. Offline timing stays as A-31.
 
 ## 2026-10-02 - docs: a status page, and the documents brought level with the code
 
@@ -604,113 +752,6 @@ Ordering end to end: pure domain, `ordering` schema with forced row-level securi
 Why: issue #8. The walkthrough is [docs/issues/008-ordering/WALKTHROUGH.md](../issues/008-ordering/WALKTHROUGH.md); decisions are in EDGE-CASES (ORD-03 revised, ORD-13, ORD-14) and ASSUMPTIONS (A-22 to A-24).
 Verified: `TEST_DATABASE_URL=... mvn test` on PostgreSQL 16, 170 tests, 0 failures, 0 skipped. Frontend `npm run typecheck` and `npm test` pass.
 Open: no relay or scheduler runs the consumers and the job yet (#6); no real `StockPort` or `CatalogueQuery` (#7); partial redelivery (A-24).
-## 2026-10-02 - feat: add mock forecasts and vehicles tabs
-
-`22-admin-console` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
-
-Add main Forecasts and Vehicles tabs beside Audit console. Show clearly labeled sample demand, fleet summaries, filters and vehicle details without calling the backend.
-Why: admins need these workspaces visible in the demo navigation before the backend forecast capability is available.
-Verified: non-incremental TypeScript check and production build passed; `/access-demo` returned HTTP 200 on port 43000.
-Open: forecast values and vehicle records are mock data; live actions need backend integration.
-
----
-
-## 2026-10-02 - refine: GO login and expandable access navigation
-
-`22-admin-console` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
-
-Replace the mock identity picker with a GO-style staff ID and password screen based on the supplied reference. Make People & access a main sidebar item that reveals its four subpages; keep Audit console beside it.
-Why: the demo login and navigation should match the requested admin workspace hierarchy.
-Verified: non-incremental TypeScript check and production build passed; `/access-demo` returned HTTP 200 on port 43000.
-Open: credentials are demo-only and no server session is created.
-
----
-
-## 2026-10-02 - refine: role-specific member setup and navigation
-
-`22-admin-console` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
-
-Make the mock Add member form conditional by persona, remove its reason field, and keep Admin creation inside that form for Super admin. Hide the Super admin persona and directory entry; group access subpages and add a separate mock Audit console navigation item.
-Why: member setup and navigation should match each role's actual choices and the requested admin hierarchy.
-Verified: non-incremental TypeScript check and production build passed; the updated demo returned HTTP 200 on port 43000.
-Open: assignments and audit events remain frontend-only sample data.
-
----
-
-## 2026-10-02 - feat: add persona-based mock members
-
-`22-admin-console` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
-
-Replace the People page's Add admin control with Add member for both administrative previews. Collect persona and matching depot, warehouse/depot or outlet assignment; reserve Admin creation for Super admin. Persona pages can start with their role selected.
-Why: operators need one member-creation flow for all operational personas while preserving privileged account boundaries.
-Verified: non-incremental TypeScript check and production build passed; the updated demo server started on port 43000.
-Open: this remains frontend-only sample data and does not create real accounts.
-
----
-
-## 2026-10-02 - fix: keep access demo dialogs open
-
-`22-admin-console` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
-
-Remove the native dialog close event handler that cleared modal state during React development effect cleanup. Add exception, permission details/edit, and Add admin share this dialog.
-Why: these controls appeared inert because their dialog closed immediately after opening.
-Verified: non-incremental TypeScript check passed.
-Open: browser interaction could not be verified under the current browser security policy.
-
----
-
-## 2026-10-02 - fix: complete access demo controls
-
-`22-admin-console` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
-
-Fix scoped member exception evaluation, protected edit controls, unchanged saves, history details, catalogue availability labels, Add admin entry points and reset navigation in the frontend-only permission demo.
-Why: Admin and Super admin preview controls produced misleading results or incomplete flows.
-Verified: non-incremental TypeScript check and production build passed; `/access-demo` returned HTTP 200 on port 43000. Browser interaction was unavailable under the current browser security policy.
-Open: live authorization and account creation remain separate backend work.
-
----
-
-## 2026-10-01 - feat: align access demo with GO visual language
-
-`22-admin-console` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
-
-Refine the isolated permission demo with the Figma style guide and dispatcher desktop shell: Google Sans Flex preference, pale mint canvas, GO navigation, white surfaces and clearer persona cards. Add a demo link to the signed-out root page.
-Why: the mock route was hard to discover from `/` and its styling did not read as part of the GO product.
-Verified: non-incremental TypeScript check passed; the development server returned HTTP 200 for `/access-demo` after launching with the required local filesystem access.
-Open: production build and visual browser inspection remain unverified in this run.
-
----
-
-## 2026-10-01 - feat: align access demo with GO visual language
-
-`22-admin-console` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
-
-Refine the isolated permission demo with the Figma style guide and dispatcher desktop shell: Google Sans Flex preference, pale mint canvas, GO navigation, white surfaces and clearer persona cards. Add a demo link to the signed-out root page.
-Why: the mock route was hard to discover from `/` and its styling did not read as part of the GO product.
-Verified: non-incremental TypeScript check passed. Browser verification and build remain open because the sandbox denied Next.js writes to `.next`; the elevated build request was rejected.
-Open: rerun the production build and inspect the refreshed route when filesystem access permits.
-
----
-
-## 2026-10-01 - docs: plan capability management screens
-
-`22-admin-console` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
-
-Define persona modules, member exceptions, review and history in [the capability UI plan](../issues/022-admin-console/CAPABILITY-UI-PLAN.md), with isolated mock data and reusable components.
-Why: the full action catalogue obscures relevant persona access; scoped and expiring mock exceptions must not imply backend support.
-Verified: compared existing IAM plans and repository structure; documentation only, no application tests run.
-Open: build the mock UI next; current checkout lacks the earlier admin source directory.
-
----
-
-## 2026-10-01 - feat: build access capability mock
-
-`22-admin-console` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
-
-Add the isolated `/access-demo` route with persona modules, member access, all 76 inventory actions, review, simulated saves and mock history. See [capability UI plan](../issues/022-admin-console/CAPABILITY-UI-PLAN.md).
-Why: operators need relevant business capabilities and clear member exceptions instead of an unfiltered technical list.
-Verified: non-incremental TypeScript check, production build and browser walkthrough of persona edit/review/save.
-Open: live permissions, scope/expiry, impact and history require backend contracts; mock saves have no server effect.
 
 ---
 

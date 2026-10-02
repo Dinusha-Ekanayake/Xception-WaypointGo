@@ -12,13 +12,15 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.Optional;
 import java.util.regex.Pattern;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
  * Proof artifacts as files under {@code PROOF_DIR}.
  *
- * <p>The first adapter behind {@link ProofStore}. An S3-compatible one replaces
- * it without the module noticing. A write goes to a temporary file, is forced
+ * <p>Chosen with {@code PROOF_STORE=local}. The default keeps artifacts in the
+ * database ({@link DatabaseProofStore}); an S3-compatible adapter could replace
+ * either without the module noticing. A write goes to a temporary file, is forced
  * to disk, and is then renamed into place, so a reader never sees half an image
  * and {@link #put} returning means the artifact survives a crash.
  *
@@ -26,6 +28,7 @@ import org.springframework.stereotype.Component;
  * here all the same: nothing outside the directory can be named.
  */
 @Component
+@ConditionalOnProperty(name = "app.execution.proof-store", havingValue = "local")
 public class LocalProofStore implements ProofStore {
   private static final Pattern KEY = Pattern.compile("[0-9a-f/-]{1,120}");
 
@@ -56,6 +59,15 @@ public class LocalProofStore implements ProofStore {
       }
     } catch (IOException e) {
       throw new UncheckedIOException("Could not store proof artifact", e);
+    }
+  }
+
+  @Override
+  public void purge(String key) {
+    try {
+      Files.deleteIfExists(resolve(key));
+    } catch (IOException e) {
+      throw new UncheckedIOException("Could not purge proof artifact", e);
     }
   }
 

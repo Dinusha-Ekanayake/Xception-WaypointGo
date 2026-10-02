@@ -51,3 +51,36 @@ One pull request into `dev`:
 4. `ReplayEventHandler`, `EventAdminController`.
 5. Integration tests: rolled-back event never delivered, exactly once per consumer under redelivery, two relays do not double-deliver, poison event dead-letters and replays, per-aggregate order, a real cross-module flow.
 6. EDGE-CASES rows, walkthrough, development log.
+
+---
+
+# Second slice: scheduler jobs and audit completion
+
+Written before code. The relay above landed first (PR #65); this slice is the rest of the issue's "Not in this slice" list, minus relay work.
+
+## Where `dev` stood
+
+- The relay delivers events, but the audit table has partitions only to 2027-07-01 (every command fails after that day), no retention job exists, `ScheduledJobRunner` records nothing, audit rows lack target and before/after, rejected commands leave no receipt, and `audit:Read` has no endpoint.
+
+## Ownership and boundaries
+
+- Platform owns the jobs, the audit table and the receipt. A module that needs retention registers its own `ScheduledJob`: Identity deletes expired sessions, Reference warns about its calendar.
+- DDL is never granted to the application role. Creating and detaching an audit partition are `SECURITY DEFINER` functions executable only by `waypoint_integration`.
+- Platform may not import Identity, so the audit read asks "which policy versions governed this actor then" through a `PolicyHistory` port that Identity implements.
+
+## Decisions
+
+| # | Decision | Recorded in |
+| --- | --- | --- |
+| 1 | `before` and `after` are full snapshots with personal fields redacted, bounded to 32,768 characters | R-PLT-07 |
+| 2 | Audit partitions kept 24 months, then detached, never dropped; `0` keeps everything | P-26 |
+| 3 | Retention windows are configuration: receipts 30 days, published outbox 14, consumer inbox 30 (never shorter than the outbox), job runs 90 | P-25 |
+| 4 | Only deterministic rejections become receipts; a denial is never stored | R-PLT-06 |
+| 5 | The audit row carries the policy generation; the decision replay says whether the policy versions it returns are exact (generation unchanged) or reconstructed | R-PLT-07, POL-03 |
+| 6 | The bus takes the correlation id as a parameter; older call sites still read the logging context | WALKTHROUGH known gaps |
+
+## Work breakdown
+
+1. Migration `20261002T1100`: `job_runs`, partition functions, retention `DELETE` grants. Runner records runs and counts duplicates. `AuditPartitionJob`, `PlatformRetentionJob`, `SessionRetentionJob`, `CalendarExhaustionJob`.
+2. Migration `20261002T1200`: nullable audit columns and indexes. `AuditEntry`, `AuditLog`, `AuditRedactor`, `AuditContext`, `CommandBus` (receipts for rejections), `AuditQuery`, `AuditController`, `PolicyHistory`.
+3. Tests: partition planner (unit), scheduler and retention (integration), audit API and rejection replay (integration over HTTP), redactor and bus (unit).

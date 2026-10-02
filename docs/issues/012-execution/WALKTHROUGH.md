@@ -52,6 +52,18 @@ Recorded in [PLAN.md](PLAN.md). Three that shape what a client must do:
 - The driver screens (#21).
 - Receipt and Issues (#13) landed on `dev` while this was built and consume `delivery.completed`, `delivery.failed` and `vehicle.fault_reported`. This branch's tests cover Execution's half and Ordering's; the two together are covered only by running both suites on the merged tree.
 - Nobody consumes `eta.changed`, `delivery.started` or `road.disruption_reported` yet (Notification, #14).
-- No virus scan: `scan_status` stays `not_scanned`. No retention job purges artifacts past `retain_until` (#6).
-- `LocalProofStore` is one host's disk (A-33).
+- No virus scan: `scan_status` stays `not_scanned`.
+- ETA is deterministic (`EtaPolicy`). The owner chose to route it through the #16 estimator, but `TravelAndServiceEstimator` has no travel-time method and no implementation yet; the method is to be agreed with #16 before Execution calls it.
 - Not run on the server; the Docker image with the new volume was not built here.
+
+## Follow-up, 2026-10-02
+
+Three owner decisions on top of the module as merged, and one scope fix found while making them.
+
+- **Scope fix (EXE-13).** The read policies let anyone with a depot grant read every vehicle in the depot, and `demo-accounts` gives drivers a depot grant, so a driver could read another driver's run sheet and recipients. Depot-wide reads now need a role that oversees the depot (`app.actor_oversees_depot`: depot grant and dispatcher, admin or auditor), migration `20261002T0900_execution_depot_staff_scope.sql`. `app.actor_holds_role` is `SECURITY DEFINER` and reads only `iam.user_roles`, which has no row-level security, so it answers the same when migrations run as a non-superuser owner, as on Neon. Test: `aDriverWithDepotScopeStillSeesOnlyTheirOwnVehicle`, confirmed to fail without the migration.
+- **Delivery product by product.** `20261002T0910_execution_delivery_lines.sql` copies the order's lines at release; `RecordDelivery.lines` names what arrived of each; `DeliveryLines` checks them (every product once, `0 ≤ delivered ≤ ordered`, a partial has a short product and something delivered, a full delivery has every unit) and derives the total when the lines add up to the unit count. Run sheet and record views carry `lines`. PLAN decision 7, revised.
+- **Proof in the database.** `DatabaseProofStore` (default, `PROOF_STORE=database`) keeps the bytes in `execution.proof_content`, migration `20261002T0920_execution_proof_content.sql`; files already under `PROOF_DIR` are still read. PLAN decision 6 and A-33, revised.
+- **Retention.** `ProofRetentionJob` (`execution.proof-retention`, 02:30) clears bytes past `retain_until` and marks `purged_at`; the attachment row and its hash stay, and the proof view stops offering a link. Gauge `waypoint.execution.proof_bytes_held`. P-14.
+
+Kept as merged, deliberately: a stop recorded offline is timed when the server receives it and marked `timing_uncertain` (A-31, R-EXE-10). Trusting a bounded device clock instead was considered and not done, because R-EXE-10 is binding policy.
+

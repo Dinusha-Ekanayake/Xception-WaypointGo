@@ -1,5 +1,6 @@
 package com.waypoint.dispatch.execution.application;
 
+import com.waypoint.dispatch.execution.domain.DeliveryLines;
 import com.waypoint.dispatch.execution.domain.DeliveryRecord;
 import com.waypoint.dispatch.execution.domain.ServiceWindow;
 import com.waypoint.dispatch.execution.infrastructure.JdbcDeliveryRepository;
@@ -16,6 +17,7 @@ import com.waypoint.dispatch.shared.util.UuidV7;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.LocalTime;
+import java.util.UUID;
 import org.springframework.stereotype.Component;
 
 /**
@@ -81,12 +83,20 @@ public class RunSheetBuilder {
               outlet.effectiveWindowOpen().orElse(outlet.windowOpen()),
               outlet.effectiveWindowClose().orElse(outlet.windowClose()));
       LocalTime planned = stop.plannedArrival() == null ? window.open() : stop.plannedArrival();
-      deliveries.insertRecord(
+      UUID deliveryId = UuidV7.generate(now, random);
+      boolean inserted = deliveries.insertRecord(
           DeliveryRecord.released(
-              UuidV7.generate(now, random), released.tripId(), stop.orderId(), stop.outletId(),
+              deliveryId, released.tripId(), stop.orderId(), stop.outletId(),
               released.depotCode(), released.vehicleId(), released.serviceDate(), stop.sequence(),
               order.itemCount(), planned, window, MALL_DOCK.equals(outlet.parkingConstraint())),
           now);
+      if (!inserted) {
+        continue;
+      }
+      // The products the stop is held to, so a delivery can be recorded product by product.
+      deliveries.insertLines(
+          deliveryId,
+          order.lines().stream().map(l -> new DeliveryLines.Ordered(l.productId(), l.quantity())).toList());
     }
     metrics.increment("waypoint.execution.run_sheets_built", "depot", released.depotCode());
     return released.stops().size();

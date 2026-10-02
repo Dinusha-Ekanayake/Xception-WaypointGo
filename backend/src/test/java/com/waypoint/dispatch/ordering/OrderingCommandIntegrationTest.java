@@ -219,8 +219,12 @@ class OrderingCommandIntegrationTest {
 
     assertTrue(problem.contains("P-1 requested 12, available 4"), problem);
     assertTrue(problem.contains("STK-01"), problem);
-    assertEquals(0L, count(ModuleRole.INTEGRATION,
-        "SELECT count(*) AS n FROM integration.command_receipts WHERE command_id = ?", commandId));
+    // A refusal for a rule it broke is the command's answer (R-PLT-06): the retry of
+    // this command id gets the same refusal. Nothing was placed.
+    assertEquals(1L, count(ModuleRole.INTEGRATION,
+        "SELECT count(*) AS n FROM integration.command_receipts"
+            + " WHERE command_id = ? AND result_status >= 400", commandId));
+    send(manager, place(commandId, serviceDate), 422);
   }
 
   @Test
