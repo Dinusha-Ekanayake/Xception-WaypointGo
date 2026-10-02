@@ -4,7 +4,8 @@ import java.util.Optional;
 
 /**
  * Where proof artifacts live. A port: the module names what it needs, and an
- * adapter (local files now, object storage later) supplies it.
+ * adapter supplies it: the database by default, local files, or object storage
+ * later.
  *
  * <p>{@link #put} returns only once the artifact is durable. If it throws, the
  * capture has not happened and the driver is told (EXE-10); nothing is recorded
@@ -16,4 +17,10 @@ public interface ProofStore {
   void put(String key, byte[] content, String contentType);
 
   Optional<byte[]> get(String key);
+
+  /**
+   * Clears an artifact past its retention (P-14). Clearing one already cleared,
+   * or never stored, does nothing.
+   */
+  void purge(String key);
 }

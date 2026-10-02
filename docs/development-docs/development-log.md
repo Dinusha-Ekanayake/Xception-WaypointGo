@@ -21,6 +21,15 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-02 - feat(execution): deliveries product by product, proof in the database, scope fix
+
+`feat/execution` · @Dinusha-Ekanayake
+
+On the merged module: a delivery can be recorded product by product (`execution.delivery_lines`, `DeliveryLines`; the total stays what Ordering reads), proof bytes are kept in the database by default (`DatabaseProofStore`, `PROOF_STORE`), and a nightly job clears them past retention and keeps the row and hash. Found while doing it: a driver holding a depot grant, as `demo-accounts` gives, could read every vehicle's stops in the depot; depot-wide reads now need a dispatcher, admin or auditor role (`20261002T0900`). Details in the [walkthrough](../issues/012-execution/WALKTHROUGH.md#follow-up-2026-10-02).
+Why: owner's decisions on #12 (per-line partials, Neon storage, retention); EXE-13 says a driver's scope is one vehicle on one date.
+Verified: see the pull request; the scope test was run without its migration and failed, then passed with it.
+Open: ETA through #16 needs a travel-time method agreed with #16. Offline timing stays as A-31.
+
 ## 2026-10-02 - docs: a status page, and the documents brought level with the code
 
 `docs/status-and-start-here` · @kavindamihiran

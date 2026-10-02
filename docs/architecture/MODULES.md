@@ -225,9 +225,9 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 | Layer | Contents |
 | --- | --- |
 | contract | `ExecutionViews`, `ExecutionQuery`, `ExecutionCommands`, `ExecutionEvents` |
-| domain | `DeliveryRecord`, `ProofOfDelivery`, `ProofLink`, `ServiceWindow`, `LatenessPolicy`, `EtaPolicy`, `FailureReason`, `ProofStore` (port) |
+| domain | `DeliveryRecord`, `DeliveryLines`, `ProofOfDelivery`, `ProofLink`, `ServiceWindow`, `LatenessPolicy`, `EtaPolicy`, `FailureReason`, `ProofStore` (port) |
 | application | `StartStopHandler`, `RecordArrivalHandler`, `RecordDeliveryHandler`, `CaptureProofHandler`, `ReportVehicleStatusHandler`, `ReportFaultHandler`, `ExecutionConsumers`, `RunSheetBuilder`, `ExecutionDataQuery` |
-| infrastructure | `LocalProofStore`, `JdbcDeliveryRepository`, `JdbcExecutionReads` |
+| infrastructure | `DatabaseProofStore` (default), `LocalProofStore`, `JdbcDeliveryRepository`, `JdbcExecutionReads` |
 | web | `ExecutionController`; state changes go through the shared command endpoint |
 
 **Owns:** `execution.delivery_records` (with actual times), `execution.proofs`, `execution.attachments`, and its run sheets built from `trip.released`.
