@@ -35,7 +35,7 @@ public class DomainException extends RuntimeException {
     return new DomainException(ErrorCode.RATE_LIMITED, message, List.of(), retryAfterSeconds);
   }
 
-  private DomainException(
+  protected DomainException(
       ErrorCode code, String message, List<Violation> violations, Long retryAfterSeconds) {
     super(message);
     this.code = code;

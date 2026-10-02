@@ -76,7 +76,7 @@ Values that are correct today and will change. **None of them is a literal in co
 | **P-11** | Stock hold timeout | to decide | Our policy | When an unresolved stock hold auto-defers |
 | **P-12** | Repeated-deferral escalation threshold | 1 skip (`escalation.skips`) | Our policy, issue #9 | When a skipped outlet is forced up the priority order |
 | **P-13** | Login lockout threshold and window | 8 failures for one identity from one address, 40 for one address, 40 for one identity from anywhere, each within 15 min (`LOGIN_MAX_FAILURES`, `LOGIN_ADDRESS_MAX_FAILURES`, `LOGIN_IDENTITY_MAX_FAILURES`, `LOGIN_THROTTLE_WINDOW`). No separate lock duration: a counter clears as its failures leave the window | Our policy, issue #5 | Brute-force resistance against usability |
-| **P-14** | Proof artifact retention | to decide | Our policy, legal | How long evidence survives |
+| **P-14** | Audit and proof artifact retention | Audit: 24 months attached, then the monthly partition is detached, not dropped (`AUDIT_RETENTION_MONTHS`, 0 keeps everything). Proof artifacts: to decide | Our policy, issue #6; legal for artifacts | How long evidence survives. The archive target for detached partitions is a manual step until this is decided |
 | **P-15** | Earliest departure of a daytime trip with no Fresh trip before it | 08:00 (`daytime.departure.minute.of.day`) | Our policy, issue #9 | When Style and Tech trips can start, and so how much of the 480 minutes is usable |
 | **P-17** | Strict window threshold for priority | 120 min (`strict.window.min`) | Our policy, issue #9 | Which outlets are placed early as hard to fit |
 | **P-18** | Brand cadence, days until the brand's next run | Fresh 1, Style 7, Tech 1 (`cadence.days.<brand>`) | Our policy, issue #9 | How costly a deferral is: a weekly order deferred waits a week |
@@ -85,6 +85,8 @@ Values that are correct today and will change. **None of them is a literal in co
 | **P-21** | Escalation deadline, HIGH | 60 min | Our policy, issue #13 | As above |
 | **P-22** | Escalation deadline, MEDIUM | 240 min | Our policy, issue #13 | As above |
 | **P-23** | Escalation deadline, LOW | 1440 min | Our policy, issue #13 | As above |
+| **P-24** | Outbox relay retries | 8 attempts, backoff 2 s doubling to a 5 min cap with full jitter (`app.outbox.*`) | Our policy, issue #6 | How long a failing consumer is retried before the event is dead-lettered for an administrator (R-PLT-03) |
+| **P-25** | Platform bookkeeping retention | Receipts 30 days, published outbox 14 days, consumer inbox 30 days, job runs 90 days, sign-in attempts 30 days, expired sessions 7 days (`app.retention.*`) | Our policy, issue #6 | How long a client may replay a command and how long infrastructure rows are kept. The inbox is never kept shorter than the outbox |
 
 ### How a parameter changes
 

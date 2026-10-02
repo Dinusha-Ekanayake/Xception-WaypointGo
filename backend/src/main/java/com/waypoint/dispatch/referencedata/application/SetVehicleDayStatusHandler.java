@@ -1,6 +1,7 @@
 package com.waypoint.dispatch.referencedata.application;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.waypoint.dispatch.platform.audit.AuditContext;
 import com.waypoint.dispatch.platform.audit.AuditEntry;
 import com.waypoint.dispatch.platform.audit.AuditLog;
 import com.waypoint.dispatch.platform.db.Database;
@@ -93,6 +94,21 @@ public class SetVehicleDayStatusHandler implements CommandHandler {
       throw new DomainException(
           ErrorCode.VALIDATION_FAILED, date + " is not an operating day", List.of("R-FLT-04"));
     }
+
+    // The row this replaces, for the audit trail's before state. Absent when the
+    // vehicle had no status for the day, which means it was available.
+    Map<String, Object> prior =
+        database.queryOne(
+            "SELECT status, reason FROM ref.vehicle_day_status"
+                + " WHERE vehicle_id = ? AND service_date = ?",
+            vehicleId,
+            java.sql.Date.valueOf(date));
+    Map<String, Object> before = new java.util.LinkedHashMap<>();
+    before.put("status", prior == null ? "available" : prior.get("status"));
+    if (prior != null && prior.get("reason") != null) {
+      before.put("reason", prior.get("reason"));
+    }
+    AuditContext.before(before);
 
     // No transaction is opened here. The bus already did, as waypoint_ref, with
     // this actor set for row-level security.
