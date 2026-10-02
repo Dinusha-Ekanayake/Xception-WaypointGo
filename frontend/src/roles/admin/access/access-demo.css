@@ -1,8 +1,7 @@
-@import url("https://fonts.googleapis.com/css2?family=Google+Sans+Flex:wght@400;500;600;700&display=swap");
-
 .access-demo {
+  --font-sans: "Google Sans Flex Variable", ui-sans-serif, system-ui, sans-serif;
   background: #e7f3f2;
-  font-family: "Google Sans Flex", "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-sans);
 }
 
 .access-demo .go-mark {
