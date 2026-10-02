@@ -7,10 +7,12 @@ import java.util.regex.Pattern;
 public final class McpReadPolicy {
   private static final Set<String> LISTS = Set.of(
       "/api/mcp/context", "/api/orders", "/api/plans/draft", "/api/plans/published",
-      "/api/issues", "/api/audit", "/api/policies");
+      "/api/issues", "/api/audit", "/api/policies",
+      "/api/loading/trips", "/api/execution/run-sheets", "/api/receipts/pending");
   private static final String ID = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
   private static final Pattern DETAIL = Pattern.compile(
       "(?:/api/(?:orders|issues|receipts)/" + ID
+          + "|/api/receipts/" + ID + "/custody"
           + "|/api/execution/deliveries/" + ID
           + "|/api/loading/trips/" + ID + "/manifest"
           + "|/api/audit/decisions/" + ID + ")");

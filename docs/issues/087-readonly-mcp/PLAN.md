@@ -29,15 +29,21 @@ The adapter lives in root `mcp/`, separate from frontend routing and the backend
 | `get_order` | `/api/orders/<id>` | `order:Read`, order |
 | `get_plan` | `/api/plans/draft` or `/published` | `plan:Read`, depot |
 | `get_manifest` | `/api/loading/trips/<id>/manifest` | `loading:Read`, trip |
+| `list_ready_trips` | `/api/loading/trips?depot=&date=` | `loading:Read`, depot |
 | `get_delivery` | `/api/execution/deliveries/<id>` | `delivery:Read`, delivery |
+| `list_run_sheets` | `/api/execution/run-sheets?date=&depot?` | `delivery:Read`, vehicle or depot |
 | `get_receipt` | `/api/receipts/<orderId>` | `receipt:Read`, order |
+| `list_pending_receipts` | `/api/receipts/pending?outlet=` | `receipt:Read`, outlet |
+| `get_custody` | `/api/receipts/<orderId>/custody` | `receipt:Read`, order |
 | `list_issues` | `/api/issues?depot=...` | `issue:Read`, depot |
 | `get_issue` | `/api/issues/<id>` | `issue:Read`, issue |
 | `list_audit` | `/api/audit` | `audit:Read`, platform audit |
 | `get_command_decision` | `/api/audit/decisions/<id>` | `audit:Read`, platform audit |
 | `list_policies` | `/api/policies` | `iam:ReadPolicy`, policy |
 
-Single-record tools retain IDs and versions. Plans/manifests can exceed the byte limit and then return an explicit size error, with no partial data. Drivers use delivery IDs from their run sheet, loaders use trip IDs from the loading application. Run-sheet/ready-trip discovery, pending-receipt queues and custody composition require bounded owning-module reads before exposure; they remain open on #87.
+The 16 tools reuse the existing owning-module reads and their SQL scope. Lists outside scope answer 403 with audit; details outside scope answer 404. No new backend reads were added for this.
+
+Single-record tools retain IDs and versions. Plans/manifests can exceed the byte limit and then return an explicit size error, with no partial data. Run-sheet, ready-trip and pending-receipt lists are bounded by depot/date/outlet. Custody composes the existing receipt, delivery-facts, loading-check and proof reads; neighbours from undeployed modules are named in `unavailable`, and personal fields (notes, confirmed-by, recorded-by, holders, proof links) are discarded before model context.
 
 ## Review focus
 
@@ -110,7 +116,7 @@ One PR into `dev` (this branch), in this order: this plan; the IAM migration and
 
 #### Continuation on `feat/complete-remote-mcp`
 
-The three commits from the unfinished `feat/remote-mcp` worktree and its uncommitted domain tests are preserved on this new branch. The original checkout is unchanged. Remote access continues to use the existing 12 read tools, with no chatbot UI.
+The three commits from the unfinished `feat/remote-mcp` worktree and its uncommitted domain tests are preserved on this new branch. The original checkout is unchanged. Remote access continues to use the existing 16 read tools, with no chatbot UI.
 
 Before enabling HTTP, complete the missing audience binding: configure one canonical `MCP_PUBLIC_URL` ending in `/mcp`, bind authorization codes and opaque sessions to that resource and client, require matching resource at exchange and each remote read, and reject local stdio credentials at the remote listener. The HTTP adapter and backend together implement the same Waypoint protected resource, not a third-party API token proxy. Keep the public URL independent of untrusted Host/forwarded headers. An empty URL leaves remote OAuth unavailable while local stdio still works.
 

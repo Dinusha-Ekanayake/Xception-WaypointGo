@@ -15,7 +15,7 @@ For local stdio, the client starts a process on your machine. For remote access,
 | Codex CLI | yes | command below |
 | opencode | yes | config file below |
 | Cursor | yes | config file below |
-| Remote clients with Streamable HTTP, OAuth code + S256 PKCE and public-client registration | protocol implemented | HTTPS URL below; hosted ChatGPT/Claude connection still requires deployment validation |
+| Remote Claude, ChatGPT, or any Streamable HTTP + OAuth assistant | yes, once its checkout is deployed with the two MCP lines | shared-host HTTPS URL below |
 
 ## Before you start
 
@@ -109,8 +109,12 @@ A client is shown only the tools your account may use, and every call is authori
 | `get_order` | One order with its weight, volume and temperature | `order:Read` |
 | `get_plan` | The draft or published plan for a depot and day, with recorded constraint reasons | `plan:Read` |
 | `get_manifest` | A trip manifest in loading order | `loading:Read` |
+| `list_ready_trips` | Ready trips for a depot and day, with trip IDs | `loading:Read` |
 | `get_delivery` | A recorded delivery outcome | `delivery:Read` |
+| `list_run_sheets` | Run sheets for a day, yours or one depot, with delivery IDs | `delivery:Read` |
 | `get_receipt` | Receipt status and item quantities for an order | `receipt:Read` |
+| `list_pending_receipts` | Orders waiting for a store answer at one outlet | `receipt:Read` |
+| `get_custody` | Loading check, delivery record and receipt side by side | `receipt:Read` |
 | `list_issues` | One page of open operational issues for a depot | `issue:Read` |
 | `get_issue` | One issue: type, severity, subjects, resolution | `issue:Read` |
 | `list_audit` | Audit activity in a bounded time range | `audit:Read` |
@@ -132,12 +136,18 @@ The definitions are in [`src/catalogue.ts`](src/catalogue.ts). Product identifie
 
 ## Remote connection
 
-The deployment operator applies the migrations explicitly, sets `MCP_ENABLED=true` and `MCP_PUBLIC_URL=https://YOUR-WAYPOINT-HOST/mcp`, then deploys the backend, `mcp` adapter and frontend together. Both Compose stacks wire the internal services; for native development run `MCP_BACKEND_URL=http://127.0.0.1:8080 MCP_PUBLIC_URL=http://localhost:3000/mcp MCP_ENABLED=true npm run start:http` after building this package. Export the same public URL and feature flag for the backend. The frontend defaults to the adapter on port 8081.
+The deployment operator applies the migrations explicitly, sets `MCP_ENABLED=true` and the checkout's canonical URL, then deploys the backend, `mcp` adapter and frontend together. Preview: `MCP_PUBLIC_URL=https://preview.waypointgo.live/mcp`. Production: `MCP_PUBLIC_URL=https://waypointgo.live/mcp`. Use the shared host, never a role address. Both Compose stacks wire the internal services; for native development run `MCP_BACKEND_URL=http://127.0.0.1:8080 MCP_PUBLIC_URL=http://localhost:3000/mcp MCP_ENABLED=true npm run start:http` after building this package. Export the same public URL and feature flag for the backend. The frontend defaults to the adapter on port 8081.
 
-In an assistant that supports the advertised OAuth flow, add a remote MCP connection with URL `https://YOUR-WAYPOINT-HOST/mcp`, OAuth authentication and automatic client registration (no client secret). Follow the redirect to Waypoint, check the client's callback hostname, and approve with your personal Waypoint account. The assistant gets an opaque, read-only credential; it never gets your password. Your account still needs `mcp:Connect`, the business read permission and the relevant scope. A shared loader PIN cannot authorize this connection.
+Any assistant that speaks stateless Streamable HTTP over JSON with OAuth code + S256 PKCE and public-client registration can connect. A missing resource or an extra scope around `waypoint.read` is accepted and bound to this endpoint; the grant is still read-only.
 
-This version supports stateless JSON Streamable HTTP, DCR public clients, authorization code + PKCE S256, and the single `waypoint.read` scope. There are no refresh tokens: reconnect after expiry. Revocation is `POST /api/oauth/revoke` with form fields `token` and `client_id`; account/session revocation also takes effect on subsequent reads. The same 12 tools and output limits apply to both transports. Local stdio credentials cannot be reused at the remote endpoint.
+**Claude (Claude.ai):** Settings, Connectors, Add custom connector. URL `https://preview.waypointgo.live/mcp` for testing, `https://waypointgo.live/mcp` once enabled. Choose OAuth with automatic registration, follow the redirect to Waypoint, check the callback hostname shown, and approve with your personal Waypoint account.
+
+**ChatGPT:** Settings, Apps or Connectors, Add a remote MCP server. Same URL. Choose OAuth, let it register, approve with your personal Waypoint account. Ask it to show your current access; that calls `my_context`.
+
+**opencode and other local-first clients:** remote works the same way when the client supports OAuth; otherwise use the local stdio entry above, which needs no OAuth.
+
+The assistant gets an opaque, read-only credential; it never gets your password. Your account still needs `mcp:Connect`, the business read permission and the relevant scope. A shared loader PIN cannot authorize this connection. Ask first for `my_context`: if it answers `FORBIDDEN`, the account lacks scope; if `UNAUTHENTICATED`, reconnect.
+
+This version supports stateless JSON Streamable HTTP, DCR public clients, authorization code + PKCE S256, and the single `waypoint.read` scope. There are no refresh tokens: the credential follows the normal session lifetimes (12 hours, 2 hours idle) and reconnect means signing in again. Revocation is `POST /api/oauth/revoke` with form fields `token` and `client_id`; account/session revocation also takes effect on subsequent reads. The same 16 tools and output limits apply to both transports. Local stdio credentials cannot be reused at the remote endpoint.
 
 Discovery is published at `/.well-known/oauth-protected-resource/mcp` (also the root resource document) and `/.well-known/oauth-authorization-server`. The public URL is configuration, never derived from request headers. A blank `MCP_PUBLIC_URL` disables remote authorization; `MCP_ENABLED=false` disables MCP access. No production environment is enabled by this change.
-
-Automated checks cover the official SDK transport and local OAuth flow. Hosted ChatGPT and Claude account/UI compatibility is not yet verified; see their current [authentication documentation](https://developers.openai.com/plugins/build/auth) and [custom connector guide](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp).

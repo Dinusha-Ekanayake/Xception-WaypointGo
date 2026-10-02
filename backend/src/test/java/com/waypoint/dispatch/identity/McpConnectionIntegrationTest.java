@@ -221,6 +221,36 @@ class McpConnectionIntegrationTest {
         .andExpect(status().isNotFound());
   }
 
+  @Test
+  void discoveryReadsRespectScopeAndHideInaccessibleCustody() throws Exception {
+    var depots = database.readAs(ModuleRole.REF, null,
+        () -> database.query("SELECT DISTINCT depot_code FROM ref.vehicles ORDER BY depot_code"));
+    String ownDepot = (String) depots.get(0).get("depot_code");
+    String otherDepot = (String) depots.get(1).get("depot_code");
+    String loaderEmail = "mcp-discovery-" + UUID.randomUUID() + "@waypoint.test";
+    accounts.createAccount(loaderEmail, "Discovery loader", PASSWORD, "loader");
+    accounts.grantDepot(loaderEmail, ownDepot);
+    String loader = connect(loaderEmail);
+    http.perform(get("/api/loading/trips").param("depot", ownDepot).param("date", "2200-01-01")
+        .header("Authorization", "Bearer " + loader)).andExpect(status().isOk());
+    http.perform(get("/api/loading/trips").param("depot", otherDepot).param("date", "2200-01-01")
+        .header("Authorization", "Bearer " + loader)).andExpect(status().isForbidden());
+    String driverEmail = "mcp-runsheet-" + UUID.randomUUID() + "@waypoint.test";
+    accounts.createAccount(driverEmail, "Discovery driver", PASSWORD, "driver");
+    String driver = connect(driverEmail);
+    http.perform(get("/api/execution/run-sheets").param("date", "2200-01-01")
+        .header("Authorization", "Bearer " + driver)).andExpect(status().isOk());
+    http.perform(get("/api/execution/run-sheets").param("date", "2200-01-01").param("depot", otherDepot)
+        .header("Authorization", "Bearer " + driver)).andExpect(status().isForbidden());
+    String store = connect(email);
+    http.perform(get("/api/receipts/pending").param("outlet", "OUT001")
+        .header("Authorization", "Bearer " + store)).andExpect(status().isOk());
+    http.perform(get("/api/receipts/pending").param("outlet", "OUT002")
+        .header("Authorization", "Bearer " + store)).andExpect(status().isForbidden());
+    http.perform(get("/api/receipts/" + UUID.randomUUID() + "/custody")
+        .header("Authorization", "Bearer " + store)).andExpect(status().isNotFound());
+  }
+
   // Test-only records exercise the existing owning-module reads and their real RLS policies.
   private UUID loadingTrip(String depot) {
     UUID trip = UUID.randomUUID();
