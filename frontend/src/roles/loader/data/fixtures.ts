@@ -169,6 +169,8 @@ function board(t: Trip): ReadyTripView {
     orderCount: m.lines.length,
     weightKg: sum("weightKg"),
     volumeM3: sum("volumeM3"),
+    weightCapKg: m.weightCapKg,
+    volumeCapM3: m.volumeCapM3,
     holder: m.holder,
     releasedAt: m.releasedAt,
     rowVersion: m.rowVersion,

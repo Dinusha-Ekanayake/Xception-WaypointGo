@@ -173,6 +173,8 @@ class LoadingIntegrationTest {
     assertTrue(card.get("dockCode").asText().startsWith("Dock "));
 
     JsonNode manifest = manifest(isuru);
+    assertEquals(manifest.get("volumeCapM3").decimalValue(), card.get("volumeCapM3").decimalValue(), "the board's load column reads the vehicle's capacity");
+    assertEquals(manifest.get("weightCapKg").decimalValue(), card.get("weightCapKg").decimalValue());
     assertEquals(1, manifest.get("rowVersion").asLong());
     assertEquals(orderB.toString(), manifest.get("lines").get(0).get("orderId").asText(), "D-L: last stop first");
     assertEquals(2, manifest.get("lines").get(1).get("items").size(), "one item per order line");

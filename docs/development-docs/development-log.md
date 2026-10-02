@@ -30,6 +30,32 @@ Why: the greedy spent the reefers' 270 Fresh minutes on small far loads; one-ord
 Verified: `mvn verify` against a dedicated database, 731 of 732 pass; the one failure is `IdentityHardeningIntegrationTest` running `SET ROLE` with a local owner name containing dots, unrelated. `check_allocation.py` passes; `npm test` 55, typecheck, build, dispatcher Playwright 11.
 Open: serving more chilled by count would need a policy change to R-PLN-21. Vans need no pass of their own (R-PLN-03 already routes van-only outlets, nothing to gain on S1); a day with more than 62 chilled candidates is searched on the top 62 and says so on screen.
 
+---
+
+## 2026-10-02 - feat(loader): tablet, desk and terminal layouts from Figma
+
+`feat/loader-wide-layouts` · @Dinusha-Ekanayake
+
+From 768px the loader follows Figma 07 (tablet), 09 (portrait tablet) and 10 (desk and terminal) instead of stretching the phone layout:
+- the departures board is a table (vehicle, route, departs, load against capacity, loader, status, action); search and filters sit beside the title in landscape;
+- sign-in keeps the crew list and a PIN keypad side by side; the fourth digit signs in, a keyboard types into it, and the offline PIN check works the same;
+- the workspace fills the screen instead of stopping at 1280px.
+`ReadyTripView` gains `weightCapKg` and `volumeCapM3` (additive) for the load column. The phone layout is unchanged.
+Why: the booklet names the shared dock tablet as the loader's device, and Figma has a frame set for each size.
+Verified: backend `mvn verify` (628, no skips); `npm test` (54), typecheck, build; loader browser suite 9 of 9, with the new `wide.spec.ts` at 1280x800, 1920x1080 (offline keyboard sign-in) and 768x1024; each size rendered and compared with its Figma frames.
+Open: Figma's tablet top bar has text "Lock" and "Switch user" buttons and the language switch on sign-in; ours keeps the icon buttons and Settings.
+
+---
+
+## 2026-10-02 - fix(deploy): start the model service
+
+`fix/deploy-start-ml` · @tharushaudana
+
+`deploy.sh` now starts `ml` with the other services.
+Why: the preview deploy built the model service image (#103) but `up` names its services, and `ml` was missing, so it never ran and every plan fell back to the deterministic estimate.
+Verified: not until the next preview deploy; the script is checked only by deploying.
+Open: nothing.
+
 ## 2026-10-02 - fix(reference): import road conditions in one statement
 
 `fix/reference-import-bulk-series` · @tharushaudana

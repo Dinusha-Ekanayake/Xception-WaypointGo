@@ -152,6 +152,8 @@ public final class LoadingViews {
       int orderCount,
       BigDecimal weightKg,
       BigDecimal volumeM3,
+      BigDecimal weightCapKg,
+      BigDecimal volumeCapM3,
       Optional<HolderView> holder,
       Optional<Instant> releasedAt,
       long rowVersion) {}

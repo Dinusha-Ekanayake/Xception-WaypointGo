@@ -36,7 +36,7 @@ public class JdbcLoadingReads {
     return database.query(
         """
         SELECT t.trip_id, t.vehicle_id, t.trip_number, t.trips_for_vehicle, t.planned_departure,
-               t.brand_code, t.district_name, t.temperature, t.dock_code,
+               t.brand_code, t.district_name, t.temperature, t.dock_code, t.weight_cap_kg, t.volume_cap_m3,
                s.status AS phase, s.holder_user_id, s.holder_name, s.holder_code, s.held_since, s.holder_active_at,
                s.released_at, s.row_version,
                agg.order_count, agg.stop_count, agg.weight_kg, agg.volume_m3,

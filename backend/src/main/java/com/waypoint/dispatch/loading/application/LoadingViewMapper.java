@@ -44,6 +44,8 @@ final class LoadingViewMapper {
         integer(r, "order_count"),
         (BigDecimal) r.get("weight_kg"),
         (BigDecimal) r.get("volume_m3"),
+        (BigDecimal) r.get("weight_cap_kg"),
+        (BigDecimal) r.get("volume_cap_m3"),
         holder(r),
         instant(r.get("released_at")),
         ((Number) r.get("row_version")).longValue());
