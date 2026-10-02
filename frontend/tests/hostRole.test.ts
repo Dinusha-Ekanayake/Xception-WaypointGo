@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { hostForRole, previewHomeFor, roleForHost } from "../src/app-shell/hostRole.ts";
+import { hostForRole, isPreviewHome, roleForHost, sharedHomeFor } from "../src/app-shell/hostRole.ts";
 
 test("a role address names its role", () => {
   assert.equal(roleForHost("dispatcher.waypointgo.live"), "dispatcher");
@@ -30,12 +30,28 @@ test("a role's address is a sibling of the one being visited", () => {
 });
 
 test("the shared preview address knows each role's own preview address", () => {
-  assert.equal(previewHomeFor("preview.waypointgo.live", "loader"), "loader-preview.waypointgo.live");
-  assert.equal(previewHomeFor("Preview.WaypointGo.live", "store_manager"), "store-preview.waypointgo.live");
+  for (const served of [true, false]) {
+    assert.equal(sharedHomeFor("preview.waypointgo.live", "loader", served), "loader-preview.waypointgo.live");
+    assert.equal(sharedHomeFor("Preview.WaypointGo.live", "store_manager", served), "store-preview.waypointgo.live");
+  }
+  assert.equal(isPreviewHome("preview.waypointgo.live"), true);
+  assert.equal(isPreviewHome("waypointgo.live"), false);
 });
 
-test("no other address is the shared preview", () => {
-  for (const host of ["waypointgo.live", "www.waypointgo.live", "loader-preview.waypointgo.live", "loader.waypointgo.live", "preview.live", "localhost", ""]) {
-    assert.equal(previewHomeFor(host, "loader"), null, host);
+test("production's shared address knows each role's own address where they are served", () => {
+  assert.equal(sharedHomeFor("waypointgo.live", "loader", true), "loader.waypointgo.live");
+  assert.equal(sharedHomeFor("WaypointGo.live", "store_manager", true), "store.waypointgo.live");
+  assert.equal(sharedHomeFor("dispatch.example.com", "driver", true), "driver.dispatch.example.com");
+});
+
+test("a shared address keeps every role where the role addresses are not served", () => {
+  for (const host of ["waypointgo.live", "dispatch.example.com", "localhost", "127.0.0.1", ""]) {
+    assert.equal(sharedHomeFor(host, "loader", false), null, host);
+  }
+});
+
+test("a role address, www, a bare machine name and a number are never a shared home", () => {
+  for (const host of ["loader.waypointgo.live", "loader-preview.waypointgo.live", "www.waypointgo.live", "localhost", "127.0.0.1", "[::1]", "preview.live", ""]) {
+    assert.equal(sharedHomeFor(host, "loader", true), null, host);
   }
 });
