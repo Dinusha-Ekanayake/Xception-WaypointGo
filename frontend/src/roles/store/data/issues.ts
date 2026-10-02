@@ -50,3 +50,89 @@ export async function issuesForOrders(gateway: StoreGateway, orderIds: string[],
   for (const r of results) if (r.status === "fulfilled") for (const i of r.value) byId.set(i.issueId, i);
   return [...byId.values()].sort((a, b) => b.raisedAt.localeCompare(a.raisedAt));
 }
+
+// ---- how an issue reads on the store's screen (Figma "08 Issues") ------------
+
+/** What the store can report after unpacking, and the type each is raised as. The store's policy
+ * lets it raise damaged goods, late delivery and other (R-ISS-07); a dispute goes through the
+ * receipt, so missing and wrong items are "other" with the words saying which. */
+export const REPORT_KINDS = [
+  { label: "Missing items", kind: "Missing", type: "OTHER" },
+  { label: "Damaged items", kind: "Damaged", type: "DAMAGED_GOODS" },
+  { label: "Wrong items", kind: "Wrong item", type: "OTHER" },
+  { label: "Other", kind: "Other", type: "OTHER" },
+] as const;
+
+export type ReportKind = (typeof REPORT_KINDS)[number];
+
+const WORDS: [string, string][] = [
+  ["Damaged", "damaged"],
+  ["Missing", "missing"],
+  ["Wrong item", "wrong"],
+  ["Other", "other"],
+];
+
+/** Units per problem from a store's note ("Damaged: Red lentils 1 kg x1, Biscuits x2. Missing: Soya meat x1.").
+ * A part ends at a full stop before a space or the end, so "Milk 1.5 L x2" stays one item. */
+export function problemsIn(text: string): { word: string; units: number }[] {
+  const out: { word: string; units: number }[] = [];
+  for (const [kind, word] of WORDS) {
+    const m = text.match(new RegExp(`${kind}: (.*?)\\.(?: |$)`));
+    if (!m) continue;
+    const units = m[1]!.split(", ").reduce((s, item) => s + (Number(item.match(/ x(\d+)$/)?.[1]) || 1), 0);
+    out.push({ word, units });
+  }
+  return out;
+}
+
+export type IssueCard = {
+  /** "Damaged on arrival", "Short delivery". */
+  label: string;
+  tone: "danger" | "ok" | "muted";
+  /** "3 packages of ORD0092335 (Ambient)". */
+  title: string;
+  /** "2 damaged · 1 missing · photos attached", "Reported by the loader at 03:10". */
+  detail: string;
+  /** "Sent 05:54", "Reported 03:10". */
+  stamp: string;
+};
+
+const packages = (n: number) => `${n} ${n === 1 ? "package" : "packages"}`;
+
+/** One issue as a card. `order` names it; without one the issue's own words stand. */
+export function issueCard(issue: IssueView, order: OrderView | null, clock: (instant: string) => string): IssueCard {
+  const of = order ? `${order.orderRef} (${order.temperature === "chilled" ? "Chilled" : "Ambient"})` : "an order";
+  const photos = (issue.attachments?.length ?? 0) > 0 ? " · photos attached" : "";
+  const closed = !isOpenIssue(issue);
+  const at = clock(issue.raisedAt);
+
+  if (issue.type === "LOADING_SHORTFALL") {
+    const units = Number(issue.description.match(/(\d+) units?/)?.[1]) || 0;
+    return {
+      label: "Short delivery",
+      tone: closed ? "muted" : "ok",
+      title: units ? `${packages(units)} of ${of}` : `Short at loading: ${of}`,
+      detail: `Reported by the loader at ${at}`,
+      stamp: `Reported ${at}`,
+    };
+  }
+  const problems = problemsIn(issue.description);
+  const total = problems.reduce((s, p) => s + p.units, 0);
+  const label =
+    issue.type === "DAMAGED_GOODS" || problems.some((p) => p.word === "damaged")
+      ? "Damaged on arrival"
+      : problems.some((p) => p.word === "missing")
+        ? "Missing on arrival"
+        : problems.some((p) => p.word === "wrong")
+          ? "Wrong item"
+          : issue.type === "RECEIPT_DISPUTE"
+            ? "Count differs"
+            : ISSUE_TYPE[issue.type];
+  return {
+    label,
+    tone: closed ? "muted" : "danger",
+    title: total ? `${packages(total)} of ${of}` : `${ISSUE_TYPE[issue.type]}: ${of}`,
+    detail: (problems.length ? problems.map((p) => `${p.units} ${p.word}`).join(" · ") : issue.description) + photos,
+    stamp: closed ? `${ISSUE_STATUS[issue.status].label} ${clock(issue.resolvedAt ?? issue.raisedAt)}` : `Sent ${at}`,
+  };
+}

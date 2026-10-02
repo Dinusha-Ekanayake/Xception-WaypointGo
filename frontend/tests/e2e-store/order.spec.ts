@@ -42,6 +42,7 @@ test("the Issues tab lists what was reported about the outlet's orders", async (
   await page.goto("/");
   await page.getByRole("button", { name: /^Issues/ }).click();
   await expect(page.getByRole("heading", { name: "Issues" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Short at loading" })).toBeVisible();
-  await expect(page.getByText("1 package short at loading")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "1 package of ORD0092336 (Chilled)" })).toBeVisible();
+  await expect(page.getByText("Short delivery")).toBeVisible();
+  await expect(page.getByText(/Reported by the loader at/)).toBeVisible();
 });

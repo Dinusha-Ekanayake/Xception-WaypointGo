@@ -5,7 +5,7 @@ import type { ApiError } from "@shared/api/problem";
 import type { DeliveryRecordView, IssueView, OrderStatus, OrderView, OutletView, PendingReceiptView } from "@shared/domain/types";
 import { Icon, Notice, Pending, cx } from "@shared/ui";
 import { cases, addDays, clock, cutoffLabel, dayLabel, depotToday, editable, greeting, hhmm, onTheWay, temperatureLabel, untilCutoff } from "../data/format.ts";
-import { isOpenIssue } from "../data/issues.ts";
+import { isOpenIssue, issueCard } from "../data/issues.ts";
 import NextStop from "./NextStop.tsx";
 import { Button, Card, Chip, Muted } from "../ui.tsx";
 
@@ -147,8 +147,8 @@ export default function Home({
                     <span className="text-[13px] text-go-muted">
                       {coming.orderRef} · {temperatureLabel(coming.temperature)}
                     </span>
-                    <span className="text-[17px] font-medium text-black">Short at loading</span>
-                    <span className="text-[13px] text-go-warning-text">{shortage.description}</span>
+                    <span className="text-[17px] font-medium text-black">Short at loading · {issueCard(shortage, coming, clock).title}</span>
+                    <span className="text-[13px] text-go-warning-text">{issueCard(shortage, coming, clock).detail}</span>
                   </button>
                 )}
                 <div className="flex gap-2.5">

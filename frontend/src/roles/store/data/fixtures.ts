@@ -193,7 +193,7 @@ export function sampleGateway(): StoreGateway {
     depotCode: OUTLET.depotCode,
     outletId: OUTLET.outletId,
     subjects: [{ type: "order", id: todayChilled.orderId }],
-    description: "1 package short at loading. It comes with the next delivery.",
+    description: "SHORT at loading: 1 units. It comes with the next delivery.",
     assignee: null,
     resolutionAction: null,
     resolutionNote: null,

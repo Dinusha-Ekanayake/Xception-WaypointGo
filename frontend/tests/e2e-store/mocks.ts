@@ -125,7 +125,7 @@ export const SHORTFALL: IssueView = {
   depotCode: "KDY",
   outletId: "OUT085",
   subjects: [{ type: "order", id: ORDER.orderId }],
-  description: "1 package short at loading. It comes with the next delivery.",
+  description: "SHORT at loading: 1 units. It comes with the next delivery.",
   assignee: null,
   resolutionAction: null,
   resolutionNote: null,

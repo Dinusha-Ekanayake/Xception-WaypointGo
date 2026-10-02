@@ -11,7 +11,7 @@ import { isOpenIssue, issuesForOrders, recentOrderIds } from "./data/issues.ts";
 import { useCommands } from "./data/useCommands.ts";
 import Deliveries from "./screens/Deliveries.tsx";
 import Home from "./screens/Home.tsx";
-import Issues from "./screens/Issues.tsx";
+import Issues from "./screens/issues/Issues.tsx";
 import OrderSheet from "./screens/OrderSheet.tsx";
 import Orders from "./screens/Orders.tsx";
 import PlaceOrder from "./screens/PlaceOrder.tsx";
@@ -193,7 +193,19 @@ export default function Store({
   } else if (tab === "orders") {
     body = <Orders orders={all} loading={orders.loading} error={orders.error} onOpen={setOpenOrder} onPlace={place} />;
   } else if (tab === "issues") {
-    body = <Issues issues={allIssues} orders={all} outlet={outlet.data} loading={issues.loading} error={issues.error} focus={null} onOpenOrder={setOpenOrder} />;
+    body = (
+      <Issues
+        gateway={gateway}
+        issues={allIssues}
+        orders={all}
+        outlet={outlet.data}
+        loading={issues.loading}
+        error={issues.error}
+        commands={commands}
+        onOpenOrder={setOpenOrder}
+        onSent={refresh}
+      />
+    );
   } else {
     body = <Deliveries orders={all} outlet={outlet.data} toReceive={toReceive} onOpen={setOpenOrder} onReceive={receive} onTrack={() => setView({ kind: "track" })} />;
   }
