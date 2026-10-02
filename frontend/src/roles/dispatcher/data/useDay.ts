@@ -1,9 +1,9 @@
 "use client";
 
-import { request } from "@shared/api/client";
+import { request, requestAll } from "@shared/api/client";
 import { ApiError } from "@shared/api/problem";
 import { useResource, type Resource } from "@shared/api/useResource";
-import type { OrderView, PlanView, ReadyTripView, RunSheetView } from "@shared/domain/types";
+import type { DeferralView, FuelView, IssueHistoryView, IssueView, OrderView, PlanView, ReadyTripView, RunSheetView } from "@shared/domain/types";
 
 // The dispatcher's reads for a depot and a day. Each polls while the tab is
 // visible and online, so the screen follows the loaders, the drivers and any
@@ -74,4 +74,52 @@ export function useLive(depots: string[], date: string): Resource<LiveDay> {
           return { sheets: sheets.flat(), dock: dock.flat() };
         };
   return useResource(load, `live|${depots.join(",")}|${date}`, POLL_MS);
+}
+
+/** Every open and assigned issue at these depots, most severe first per depot. */
+export function useIssues(depots: string[]): Resource<IssueView[]> {
+  const load =
+    depots.length === 0
+      ? null
+      : async (signal: AbortSignal) =>
+          (await Promise.all(depots.map((depot) => requestAll<IssueView>(`/api/issues?depot=${q(depot)}`, { signal })))).flat();
+  return useResource(load, `issues|${depots.join(",")}`, POLL_MS);
+}
+
+export type IssueRecord = { issue: IssueView; history: IssueHistoryView[] };
+
+/** One issue and every decision on it, read by id so a resolved issue stays on screen. */
+export function useIssue(issueId: string | null): Resource<IssueRecord> {
+  const load =
+    issueId === null
+      ? null
+      : async (signal: AbortSignal) => {
+          const path = `/api/issues/${q(issueId)}`;
+          const [issue, history] = await Promise.all([
+            request<IssueView>(path, { signal }),
+            request<IssueHistoryView[]>(`${path}/history`, { signal }),
+          ]);
+          return { issue, history };
+        };
+  return useResource(load, `issue|${issueId ?? ""}`, POLL_MS);
+}
+
+/** Outlets the day's published plans left out, each with how often it has been skipped (R-PLN-20). */
+export function useDeferrals(depots: string[], date: string): Resource<DeferralView[]> {
+  const load =
+    depots.length === 0
+      ? null
+      : async (signal: AbortSignal) =>
+          (await Promise.all(depots.map((depot) => request<DeferralView[]>(`/api/plans/deferrals?depot=${q(depot)}&date=${q(date)}`, { signal }))))
+            .flat()
+            .sort((a, b) => b.skipCount - a.skipCount || a.outletId.localeCompare(b.outletId));
+  return useResource(load, `deferrals|${depots.join(",")}|${date}`, POLL_MS);
+}
+
+/** A vehicle's planned fuel for the week holding the date, from published plans only (D-K). */
+export function useFuel(vehicleId: string, date: string): Resource<FuelView> {
+  return useResource(
+    (signal) => request<FuelView>(`/api/plans/fuel?vehicle=${q(vehicleId)}&date=${q(date)}`, { signal }),
+    `fuel|${vehicleId}|${date}`,
+  );
 }

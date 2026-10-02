@@ -15,7 +15,7 @@ export default function RoleRouter({ session, role }: { session: Session; role: 
   const depots = scopeOf(session, "depot");
   switch (role) {
     case "dispatcher":
-      return <Dispatcher displayName={session.displayName} scope={depots} />;
+      return <Dispatcher userId={session.userId} displayName={session.displayName} scope={depots} />;
     case "loader":
       return <Loader userId={session.userId} displayName={session.displayName} scope={depots} operator={session.operator} />;
     case "driver":

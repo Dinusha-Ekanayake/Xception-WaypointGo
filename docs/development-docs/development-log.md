@@ -21,6 +21,15 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-02 - feat(dispatcher): issues inbox, overview tiles, skipped outlets, weekly fuel (issue #19)
+
+`feat/dispatcher-rest` · @Oxshadha
+
+The dispatcher can now see, take, resolve, redeliver, record a replacement for, close and cancel issues (#13's commands, `rowVersion` on each). Overview reads today's orders, road, on-time rate and open issues; it lists skipped outlets with counts, and the vehicle drawer shows planned fuel against the weekly quota. Frontend only. Details in the [walkthrough](../issues/019-dispatcher-ui/WALKTHROUGH.md#second-slice-issues-overview-skipped-outlets-fuel-2026-10-02).
+Why: the Issues backend was done, but no dispatcher could act on an issue on screen.
+Verified: `npm test` 45 pass, typecheck and build green, dispatcher Playwright suite 11 pass (mocked API).
+Open: assigning to someone else needs a staff read; interchange approval waits on #10, Forecast on #16, the sync conflict queue is not started.
+
 ## 2026-10-02 - fix: match admin preview branding
 
 `dev` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
@@ -181,6 +190,7 @@ Add the isolated `/access-demo` route with persona modules, member access, all 7
 Why: operators need relevant business capabilities and clear member exceptions instead of an unfiltered technical list.
 Verified: non-incremental TypeScript check, production build and browser walkthrough of persona edit/review/save.
 Open: live permissions, scope/expiry, impact and history require backend contracts; mock saves have no server effect.
+
 ## 2026-10-02 - feat(platform): scheduler jobs and audit completion (issue #6, second slice)
 
 `feat/event-backbone` · @jv_ransika
