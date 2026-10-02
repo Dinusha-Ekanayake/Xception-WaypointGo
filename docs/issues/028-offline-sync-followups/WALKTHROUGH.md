@@ -6,7 +6,7 @@ Issue [#28](https://github.com/kavindamihiran/Xception-WaypointGo/issues/28), br
 
 | Layer | Files and responsibility |
 | --- | --- |
-| Migration | `migrations/20261003T0300_sync_discard_resolve.sql`: `RESOLVED` added to the status check; `replaced_by`, `settled_reason`, `settled_at`; `sync:Discard` and `sync:Resolve` implemented; a new version of the loader, driver and store manager policies with statement `ReviewOwnHeldWrites` |
+| Migration | `migrations/20261003T1300_sync_discard_resolve.sql`: `RESOLVED` added to the status check; `replaced_by`, `settled_reason`, `settled_at`; `sync:Discard` and `sync:Resolve` implemented; a new version of the loader, driver and store manager policies with statement `ReviewOwnHeldWrites` |
 | Domain | `sync/domain/OperationOutcome.java`: `canDiscard` (a conflict or a refusal), `canResolve` (a conflict only) |
 | Application | `sync/application/DiscardOperationHandler.java`, `ResolveOperationHandler.java`. `SubmitBatchHandler` returns each operation's `rowVersion` and records `waypoint.sync.time_to_drain` |
 | Contract | `SyncViews.OperationStatus.RESOLVED`; `ResolveOperation(operationId, replacedBy)`, mirrored in `frontend/src/shared/domain/sync.ts` |
