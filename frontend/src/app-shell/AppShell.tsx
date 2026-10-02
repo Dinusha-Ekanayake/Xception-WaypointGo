@@ -116,6 +116,7 @@ export default function AppShell(): React.JSX.Element {
   const misplaced = pinned !== null && !session.roles.includes(pinned);
   const roles = pinned ? (misplaced ? [] : [pinned]) : session.roles;
   const active = pinned && !misplaced ? pinned : role ?? rememberedRole(session);
+  const adminPreview = !misplaced && active === "admin" && host.startsWith("admin-preview.");
 
   const leave = async (force: boolean) => {
     // Writes still on this device belong to this account; signing out would
@@ -148,9 +149,9 @@ export default function AppShell(): React.JSX.Element {
 
   return (
     <ShellProvider value={controls}>
-      <main className="shell">
+      <main className={cx("shell", adminPreview && "relative")}>
         {(misplaced || !OWN_HEADER.has(active)) && (
-          <div className="mx-auto flex w-full max-w-[1440px] flex-wrap items-center justify-end gap-2 bg-go-canvas px-4 pt-2 font-go">
+          <div className={cx("mx-auto flex w-full max-w-[1440px] flex-wrap items-center justify-end gap-2 bg-go-canvas px-4 pt-2 font-go", adminPreview && "lg:absolute lg:inset-x-0 lg:top-0 lg:z-10 lg:max-w-none lg:bg-transparent lg:pr-8")}>
             <SyncStatus sync={sync} online={online} />
             {roles.length > 1 && (
               <div role="tablist" aria-label="Role" className="flex gap-1 rounded-full bg-white p-1">

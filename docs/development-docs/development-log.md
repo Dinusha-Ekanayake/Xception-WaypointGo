@@ -32,6 +32,28 @@ Open: migrations may no longer name `SUPERUSER` or `BYPASSRLS`, and a backfill o
 
 ---
 
+## 2026-10-02 - fix: align admin preview sidebar with page top
+
+`dev` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Overlay the shell session controls on the admin preview at desktop widths so its sidebar begins at the top of the page.
+Why: the separate shell control row left a visible gap above the sidebar.
+Verified: frontend typecheck and production build passed.
+Open: nothing.
+
+---
+
+## 2026-10-02 - chore: refresh legacy CI actions
+
+`dev` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Move the legacy CI workflow to current checkout, Java, Node and Python actions and pin Ubuntu 24.04.
+Why: the failed run reports deprecation warnings for the older actions and a pending `ubuntu-latest` migration.
+Verified: `git diff --check` passed. Backend tests could not run locally because required Maven artifacts were unavailable and the Maven repository TLS certificate was rejected.
+Open: the backend job's exit-code annotation does not identify its failing test; the private job log is needed to isolate it.
+
+---
+
 ## 2026-10-02 - fix(deploy): preview log store, Grafana address and root URL
 
 `fix/grafana-root-url` · @jv_ransika
@@ -40,6 +62,7 @@ The preview deploy starts Loki, Alloy and Grafana when `GRAFANA_ADMIN_PASSWORD` 
 Why: PR #51 added the log store but the VPS deploy never started it, and the public address needs an nginx vhost that production nginx (built from `main`) does not have yet.
 Verified: containers healthy on the VPS, Grafana health 200 from inside the server; public address not yet verified (needs the production nginx change).
 Open: production nginx on `main` needs the vhost and a certificate with the new name; Grafana still uses the default `admin` login.
+
 ## 2026-10-02 - fix: show admin mock on preview role address
 
 `dev` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
