@@ -15,10 +15,10 @@ test("a real shared-device loader signs in, saves offline, syncs and releases", 
   await page.getByRole("button", { name: /Isuru Test/ }).click();
   const pin = page.getByLabel("4-digit PIN");
   await pin.fill("1111");
-  await page.getByRole("button", { name: "Confirm" }).click();
-  await expect(page.getByText(/^Incorrect PIN\./)).toBeVisible();
+  await page.getByRole("button", { name: "Unlock loader" }).click();
+  await expect(page.getByText("That PIN didn't match.")).toBeVisible();
   await pin.fill(process.env.LOADER_LIVE_PIN!);
-  await page.getByRole("button", { name: "Confirm" }).click();
+  await page.getByRole("button", { name: "Unlock loader" }).click();
 
   await expect(page.getByRole("heading", { name: "Tonight's departures" })).toBeVisible();
   const tripAction = page.getByRole("button", { name: /^(Take trip|Continue)$/ });
@@ -65,7 +65,7 @@ test("a real shared-device loader signs in, saves offline, syncs and releases", 
   await expect(page.getByRole("heading", { name: "Tonight's departures" })).toBeVisible({ timeout: 6000 });
 
   await page.getByRole("button", { name: "Lock loader" }).click();
-  await expect(page.getByRole("heading", { name: "Device locked" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Who's loading?" })).toBeVisible();
   await page.setViewportSize({ width: 768, height: 1024 });
   await page.screenshot({ path: testInfo.outputPath("loader-tablet-locked.png") });
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(768);

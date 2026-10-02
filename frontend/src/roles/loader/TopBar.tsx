@@ -1,21 +1,20 @@
-import type { ReactNode } from "react";
-import { Icon, cx, formatClock, useShell } from "@shared/ui";
-import { useT } from "./i18n.tsx";
-import { GearIcon, LockIcon, MoonIcon, SunIcon, SwapIcon } from "./icons.tsx";
-import { useTheme } from "./theme.tsx";
-import { initials } from "./ui.tsx";
+import { Icon, ShellActions, cx, formatClock } from "@shared/ui";
+import { LanguagePicker, useT } from "./i18n.tsx";
 
-// The loader's top bar, Figma "08 Loader · Phone" (01 Dock board, 02 Load
-// sheet) and the tablet pages. Connection state is always on screen: the
-// resilient tier keeps working offline, and the loader must know their ticks
-// are waiting.
+// The loader's top bar, Figma "02 Dock board" (tablet) and "01 Dock board"
+// (phone). Connection state is always on screen: the resilient tier keeps
+// working offline, and the loader must know their ticks are waiting.
 //
-// Phone: the brand or back, then theme and settings; under it, when a loader is
-// working, their name with the lock, and Switch user. Tablet: one row.
-// Figma's name pill also has a notifications bell; loader notifications are not
-// built (Notification, #14), so it is left out rather than shown doing nothing.
+// Phone: two rows, the name pill under the brand. Tablet (md and up): one row
+// with the sync pill and the name as an avatar pill; labels on the actions
+// from lg, icon buttons below that, as in the portrait designs.
 
-const round = "flex size-12 shrink-0 items-center justify-center rounded-full bg-go-card text-go-ink shadow-go-float";
+const pill = "flex min-h-12 shrink-0 items-center rounded-full bg-white shadow-[0_5px_20px_rgba(0,0,0,0.09)]";
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : "")).toUpperCase();
+}
 
 export default function TopBar({
   displayName,
@@ -28,11 +27,9 @@ export default function TopBar({
   sample,
   onBack,
   onLock,
-  onSwitch,
-  onSettings,
+  lockDisabled = false,
 }: {
-  /** The loader working on the device, or null while nobody is. */
-  displayName: string | null;
+  displayName: string;
   depot: string;
   /** The open trip, replacing the brand on tablets. */
   title?: string;
@@ -43,12 +40,9 @@ export default function TopBar({
   sample: boolean;
   onBack?: () => void;
   onLock?: () => void;
-  onSwitch?: () => void;
-  onSettings: () => void;
+  lockDisabled?: boolean;
 }): React.JSX.Element {
   const tr = useT();
-  const { theme, setTheme } = useTheme();
-  const shell = useShell();
   const sync = !online
     ? waiting > 0
       ? tr("Offline · {n} saved on this device", { n: waiting })
@@ -60,45 +54,24 @@ export default function TopBar({
         : tr("Connecting…");
 
   const back = onBack && (
-    <button type="button" onClick={onBack} aria-label={tr("Back to departures")} className={round}>
+    <button
+      type="button"
+      onClick={onBack}
+      aria-label={tr("Back to departures")}
+      className="flex size-12 shrink-0 items-center justify-center rounded-full bg-white drop-shadow-[0_5px_10px_rgba(0,0,0,0.09)]"
+    >
       <Icon name="arrow-left" />
     </button>
   );
-  const brand = <span className="w-[68px] shrink-0 text-[40px] leading-none font-extrabold text-go-ink">GO</span>;
+  const brand = <span className="w-[68px] shrink-0 text-[40px] leading-none font-extrabold text-black">GO</span>;
   const status = (
-    <span role="status" className={cx("truncate", online ? "text-go-ink/85" : "font-medium text-go-warning-text")}>
+    <span role="status" className={cx("truncate", online ? "text-black/85" : "font-medium text-go-warning-text")}>
       {!online && <span aria-hidden className="mr-1.5 inline-block size-2 rounded-full bg-go-warning" />}
       {sync}
     </span>
   );
   const sampleBadge = sample && (
     <span className="shrink-0 rounded-full bg-go-warning-tint px-3 py-1.5 text-xs font-medium text-go-warning-text">{tr("Sample data")}</span>
-  );
-  const dark = theme === "dark";
-  const actions: ReactNode = (
-    <>
-      <button
-        type="button"
-        onClick={() => setTheme(dark ? "light" : "dark")}
-        aria-label={tr(dark ? "Use the light theme" : "Use the dark theme")}
-        className={round}
-      >
-        {dark ? <MoonIcon /> : <SunIcon />}
-      </button>
-      <button type="button" onClick={onSettings} aria-label={tr("Settings")} className={round}>
-        <GearIcon />
-      </button>
-    </>
-  );
-  const lock = onLock && (
-    <button type="button" onClick={onLock} aria-label={tr("Lock loader")} className="flex size-10 shrink-0 items-center justify-center rounded-full text-go-muted">
-      <LockIcon />
-    </button>
-  );
-  const swap = onSwitch && (
-    <button type="button" onClick={onSwitch} aria-label={tr("Switch user")} className={round}>
-      <SwapIcon />
-    </button>
   );
 
   return (
@@ -111,49 +84,46 @@ export default function TopBar({
             <span className="min-w-0 flex-1 truncate text-[13px]">{status}</span>
           ) : (
             <div className="flex min-w-0 flex-1 flex-col">
-              <span className="text-[18px] font-semibold text-go-ink">{tr("Loader")}</span>
+              <span className="text-[18px] font-semibold text-black">{tr("Loader")}</span>
               <span className="text-[13px]">{status}</span>
             </div>
           )}
           {sampleBadge}
-          {actions}
         </div>
-        {displayName && (
-          <div className="flex w-full items-center justify-between gap-2">
-            <span className="flex h-12 min-w-0 items-center gap-1 rounded-full border border-go-muted pr-1 pl-5 text-[15px] text-go-muted">
-              <span className="truncate">{displayName}</span>
-              {lock}
+        <div className="flex w-full items-center justify-between gap-2">
+          <span className="flex h-10 min-w-0 items-center gap-1 rounded-full border border-go-muted pr-2 pl-4 text-[14px] text-go-muted">
+            <span className="truncate">{displayName}</span>
+            <span className="ml-1 flex size-8 shrink-0 items-center justify-center" title={tr("Signed in on this device")}>
+              <Icon name="lock" />
             </span>
-            <div className="flex items-center gap-2">
-              {shell?.sync}
-              {swap}
-            </div>
+          </span>
+          <div className="flex items-center gap-1">
+            {onLock && <button type="button" onClick={onLock} disabled={lockDisabled} aria-label={tr("Lock loader")} title={tr(lockDisabled ? "Sync saved work before locking" : "Lock loader")} className="flex size-12 items-center justify-center rounded-full bg-white disabled:opacity-50"><Icon name="lock" /></button>}
+            <LanguagePicker compact />
+            <ShellActions compact />
           </div>
-        )}
+        </div>
       </div>
 
       {/* Tablet and up. */}
       <div className="hidden flex-wrap items-center gap-x-3.5 gap-y-3 px-8 py-6 md:flex lg:px-10 lg:py-[34px]">
         {back ?? brand}
         <div className={cx("flex min-w-[140px] flex-col", back && "max-lg:order-last max-lg:basis-full")}>
-          <span className="text-[18px] font-semibold text-go-ink">{title ?? tr("Waypoint · Loader")}</span>
-          <span className="text-[14px] text-go-ink/85">{subtitle ?? tr("Depot {depot}", { depot })}</span>
+          <span className="text-[18px] font-semibold text-black">{title ?? tr("Waypoint · Loader")}</span>
+          <span className="text-[14px] text-black/85">{subtitle ?? tr("Depot {depot}", { depot })}</span>
         </div>
-        <span className="flex min-h-12 shrink-0 items-center gap-2 rounded-full bg-go-card pr-3.5 pl-3 text-[14px] shadow-go-float">{status}</span>
+        <span className={cx(pill, "gap-2 pr-3.5 pl-3 text-[14px]")}>{status}</span>
         <span className="flex-1" />
         {sampleBadge}
-        {displayName && (
-          <span className="flex min-h-12 shrink-0 items-center gap-2 rounded-full bg-go-card py-1 pr-1 pl-1 shadow-go-float lg:pl-1">
-            <span className="flex size-10 items-center justify-center rounded-full bg-go-soft text-[13px] font-semibold text-go-on-soft">
-              {initials(displayName)}
-            </span>
-            <span className="text-[14px] text-go-muted max-lg:hidden">{displayName}</span>
-            {lock}
+        <span className={cx(pill, "gap-2 py-2 pr-2 pl-2 lg:pr-4")} title={tr("Signed in on this device")}>
+          <span className="flex size-8 items-center justify-center rounded-[16px] bg-go-mint text-[12px] font-semibold text-black">
+            {initials(displayName)}
           </span>
-        )}
-        {shell?.sync}
-        {swap}
-        {actions}
+          <span className="text-[14px] text-go-muted max-lg:hidden">{displayName}</span>
+        </span>
+        {onLock && <button type="button" onClick={onLock} disabled={lockDisabled} title={tr(lockDisabled ? "Sync saved work before locking" : "Lock loader")} className="flex min-h-12 items-center gap-2 rounded-full bg-white px-4 text-[14px] font-medium disabled:opacity-50"><Icon name="lock" /> {tr("Lock")}</button>}
+        <LanguagePicker />
+        <ShellActions />
       </div>
     </header>
   );
