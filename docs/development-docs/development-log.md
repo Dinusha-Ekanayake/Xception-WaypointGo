@@ -21,6 +21,17 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-02 - fix(deploy): dump the database before every migration, and keep proof links across a restart
+
+`fix/deploy-backup-before-migrate` · @kavindamihiran
+
+`deploy/vps/deploy.sh` now dumps the database to `/opt/waypoint/backups/<environment>/` before `init` runs, reads the dump back, keeps the newest 14, and stops with nothing replaced if it cannot take one. It also writes `PROOF_URL_SECRET` to `.env` the first time it is missing, the way it already did `APP_DB_PASSWORD`. Restore steps are in [deployment.md](../deployment.md#backup-and-recovery).
+Why: release #83 took production from 15 migrations to 45 in one deploy, with forward-only migrations and no way back; the one dump that existed was taken by hand minutes before. Proof links were signed with a key that died at every restart.
+Verified: the release was rehearsed first on a database built by `main` (15 migrations, six accounts) and upgraded by `dev`: 30 migrations applied, ownership moved to `waypoint_migrator`, the backend ready as `waypoint_app`, and every demo account signed in through its own role address with its old password. The new script functions were run against a stand-in `docker`: no database yet, a good dump, a failed dump, an unreadable dump, pruning, both environments. Not run against a real server: the preview deploy of this change is the first real one.
+Open: the dumps are on the server's own disk, nothing takes one between deploys, and the restore steps have not been exercised there. `ExecutionIntegrationTest` picks a random day for its vehicle assignments and two tests can collide on the exclusion constraint; it failed one `ci` run on `dev` and passed the re-run.
+
+---
+
 ## 2026-10-02 - fix: a non-superuser owner for the schema, and reference reads that stop at scope (issue #5)
 
 `fix/identity-owner-and-reference-scope` · @kavindamihiran

@@ -55,7 +55,7 @@ State words: **built** (merged to `dev` with tests), **partial** (merged, with n
 
 | Gap | Why it matters | Owner |
 | --- | --- | --- |
-| `main` is 114 commits behind `dev` (last release was pull request #45, 2026-10-01) | Production at `waypointgo.live` runs none of Planning, Loading, Execution, Receipt, Issues or the role screens. Only the preview does | whoever cuts the release pull request |
+| The only database backups are the dumps a deploy takes before it migrates | They are on the server's own disk: enough to undo a bad migration, not to survive a lost disk. Nothing takes one between deploys, and the restore steps in [deployment.md](../deployment.md#backup-and-recovery) have not been exercised on the server | no issue yet |
 | No seed that walks a fresh install from an order to a receipt | Every role's browser suite runs against a mocked API. The same flows against the real backend have been run module by module in integration tests, not as one journey in a browser | no issue yet |
 | The role browser suites are not in CI | A screen can break without a failed check. Run the affected suite by hand: see [development.md](development.md#tests) | no issue yet |
 | The full `docker compose up --build` judge path has not been re-walked since the modules landed | It is the path the brief requires and the one nobody runs daily | before the submission |
@@ -64,7 +64,7 @@ State words: **built** (merged to `dev` with tests), **partial** (merged, with n
 
 In dependency order. An item nobody is assigned to on GitHub is free; say so on the issue before you start.
 
-1. **Release `dev` to `main`**, then walk the role flows on production. Nothing a judge opens on the production address reflects the last three days of work.
+1. **Walk the role flows on production.** Release #83 (2026-10-02) put everything on `dev` at `waypointgo.live` and the six role addresses; nobody has yet walked each role there end to end.
 2. **A fresh-install seed** that leaves one depot-day with a published plan, a released trip and a delivered stop. It unblocks a live browser run for every role and the judge walkthrough. `loading-fixture` and `scripts/seed-scenarios.sql` are partial precedents; the second bypasses the command bus and must not be the model.
 3. **Dispatcher, the rest of #19.** The Issues inbox is built; what is left waits on #10 (interchange), a staff read for assigning to others, and #16 (Forecast).
 4. **Notification (#14).** The largest unbuilt module, and what the store manager, driver and dispatcher gaps above all wait on.
