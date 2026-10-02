@@ -93,7 +93,7 @@ Requirement (2026-10-02): users connect whichever assistant they already use. Th
 7. **Redirect URIs: HTTPS, or HTTP on a loopback address.** Compared exactly, except that a loopback port may differ (RFC 8252). No custom schemes: the page navigates to the redirect, so a scheme allowlist is the difference between a redirect and script execution. A request with an unknown client or redirect is shown as an error on our page and is never redirected.
 8. **Authorization codes are single use, short lived and stored as a hash**, bound to the client, the redirect URI, the PKCE challenge and the resource. A second use is refused and revokes the session the first use created.
 9. **OAuth protocol endpoints answer in the OAuth error shape** (`{"error": ...}`), not RFC 9457, because the clients are third-party OAuth libraries that branch on that field. The two endpoints our own page calls stay `application/problem+json`. Recorded as an exception in R-IAM-31.
-10. **The public origin is the one the request was addressed to** (the same host rule as `OriginGuardFilter`), so each role address and preview work without a per-environment setting.
+10. **The public origin is configured through `MCP_PUBLIC_URL`**, identical in the backend and adapter. Request and forwarded headers never choose the OAuth issuer or resource.
 
 #### Review focus
 
@@ -106,4 +106,14 @@ Requirement (2026-10-02): users connect whichever assistant they already use. Th
 
 #### PR breakdown
 
-One PR into `dev` (this branch), in this order: this plan; the IAM migration and pure domain rules with unit tests; application handlers and controllers with PostgreSQL integration tests, including one denied-scope case; the HTTP adapter with SDK client tests; the frontend routes and the authorize page; Compose, the deploy script and CI (the adapter image is built in the checks, because a broken image stops a deploy); then rules, edge cases, walkthrough, status and log. Not in this PR: enabling it in production, and a browser suite for the authorize page.
+One PR into `dev` (this branch), in this order: this plan; the IAM migration and pure domain rules with unit tests; application handlers and controllers with PostgreSQL integration tests, including one denied-scope case; the HTTP adapter with SDK client tests; the frontend routes and the authorize page; Compose, the deploy script and CI (the adapter image is built in the checks, because a broken image stops a deploy); then rules, edge cases, walkthrough, status and log. Not in this PR: enabling it in production or hosted-client account validation.
+
+#### Continuation on `feat/complete-remote-mcp`
+
+The three commits from the unfinished `feat/remote-mcp` worktree and its uncommitted domain tests are preserved on this new branch. The original checkout is unchanged. Remote access continues to use the existing 12 read tools, with no chatbot UI.
+
+Before enabling HTTP, complete the missing audience binding: configure one canonical `MCP_PUBLIC_URL` ending in `/mcp`, bind authorization codes and opaque sessions to that resource and client, require matching resource at exchange and each remote read, and reject local stdio credentials at the remote listener. The HTTP adapter and backend together implement the same Waypoint protected resource, not a third-party API token proxy. Keep the public URL independent of untrusted Host/forwarded headers. An empty URL leaves remote OAuth unavailable while local stdio still works.
+
+Finish in checkpoints: OAuth tests and binding/revocation; stateless Streamable HTTP with SDK tests; authorization/consent page and public proxy routes with browser tests; container/deployment/CI wiring and guide. Test the browser authorization flow as part of this PR, superseding the earlier exclusion. Use public-client DCR and PKCE S256; do not advertise client metadata-document support. No refresh token in this version. Test using an official SDK OAuth client through the public routes, and report hosted-client validation separately.
+
+Compatibility references checked during continuation: [MCP authorization](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization), [OpenAI authentication](https://developers.openai.com/plugins/build/auth), [Claude custom connectors](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp). Claude's automatic registration option fits this DCR implementation; arbitrary MCP clients are supported only when they implement the advertised transport and OAuth flow.

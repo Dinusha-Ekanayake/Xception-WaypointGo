@@ -21,11 +21,11 @@ export class BackendError extends Error {
   toJSON() { return { code: this.code, status: this.status, correlationId: this.correlationId, violations: this.violations }; }
 }
 
-export function backendOrigin(value: string): string {
+export function backendOrigin(value: string, allowInternalHttp = false): string {
   const url = new URL(value);
   const loopback = ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname);
   if (url.username || url.password || url.search || url.hash || url.pathname !== '/'
-    || (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback))) {
+    || (url.protocol !== 'https:' && !(url.protocol === 'http:' && (loopback || allowInternalHttp)))) {
     throw new Error('Backend URL must be an HTTPS origin, or loopback HTTP for local development');
   }
   return url.origin;
@@ -62,8 +62,10 @@ export async function readJson(response: Response): Promise<unknown> {
 export class BackendClient {
   private readonly origin: string;
   private readonly token: string;
-  constructor(origin: string, token: string) {
-    this.origin = backendOrigin(origin);
+  private readonly options: { resource?: string; allowInternalHttp?: boolean };
+  constructor(origin: string, token: string, options: { resource?: string; allowInternalHttp?: boolean } = {}) {
+    this.options = options;
+    this.origin = backendOrigin(origin, options.allowInternalHttp);
     this.token = token;
     if (!/^mcp\.[A-Za-z0-9_-]+$/.test(token)) throw new Error('A dedicated MCP credential is required');
   }
@@ -76,7 +78,7 @@ export class BackendClient {
     let response: Response;
     try {
       response = await fetch(url, { method: 'GET', redirect: 'error', cache: 'no-store',
-        headers: { Authorization: `Bearer ${this.token}`, Accept: 'application/json', 'X-Correlation-Id': randomUUID() },
+        headers: { Authorization: `Bearer ${this.token}`, Accept: 'application/json', ...(this.options.resource ? { 'X-Waypoint-Mcp-Resource': this.options.resource } : {}), 'X-Correlation-Id': randomUUID() },
         signal: AbortSignal.timeout(10_000) });
     } catch {
       throw new BackendError('DEPENDENCY_UNAVAILABLE', 503);

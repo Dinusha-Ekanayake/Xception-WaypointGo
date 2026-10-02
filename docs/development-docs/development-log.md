@@ -21,6 +21,15 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-02 - feat: complete remote read-only MCP authorization
+
+`feat/complete-remote-mcp` · @kavindamihiran
+
+Continue the unfinished #87 OAuth work on a new branch: resource-bound personal authorization, stateless HTTP transport, consent page, public discovery and container wiring. The same scoped twelve-tool catalogue serves external assistants.
+Why: remote clients need an HTTPS MCP endpoint and OAuth; see [plan](../issues/087-readonly-mcp/PLAN.md) and [walkthrough](../issues/087-readonly-mcp/WALKTHROUGH.md), R-IAM-31 and SEC-34/35.
+Verified: PostgreSQL 16 `mvn verify`, 691 tests with no skips; 45 targeted tests after final retention/concurrency fixes. MCP 13 tests; frontend 54 tests, typecheck/build and 7 browser checks; official SDK OAuth smoke through the real three-process stack; allocation validator and Compose parsing passed. Mobile consent screenshot reviewed.
+Open: Docker image build and hosted-client validation require deployment infrastructure. GitHub was unreachable during local verification. No production enablement; #87 retains its broader discovery/composition work.
+
 ## 2026-10-02 - feat(notification): route events to people, with an inbox and web push
 
 `14-notification` · @tharushaudana

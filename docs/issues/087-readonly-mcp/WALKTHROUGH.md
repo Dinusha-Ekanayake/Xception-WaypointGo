@@ -1,10 +1,10 @@
-# Read-only MCP: first connection and tools
+# Read-only MCP: local and remote connections
 
-Issue [#87](https://github.com/kavindamihiran/Xception-WaypointGo/issues/87), branch `feat/readonly-mcp`, PR into `dev`. This is the first slice. The issue remains open for bounded work discovery, custody composition and an installed desktop-client demonstration. The [plan](PLAN.md) records the scope and tool/action matrix.
+Issue [#87](https://github.com/kavindamihiran/Xception-WaypointGo/issues/87), local slice `feat/readonly-mcp` and remote continuation `feat/complete-remote-mcp`, targeting `dev`. The issue remains open for bounded work discovery, custody composition and an installed desktop-client demonstration. The [plan](PLAN.md) records the scope and tool/action matrix.
 
 ## What is built
 
-`mcp/` is an independent Node package. It uses the official MCP TypeScript SDK over local stdio. The pinned SDK negotiates its supported protocol, including `2025-11-25`; it does not claim support for the newer date mentioned in the issue. There is no remote MCP HTTP listener or OAuth implementation in this slice.
+`mcp/` is an independent Node package. It uses the official MCP TypeScript SDK over local stdio and stateless Streamable HTTP. The pinned SDK negotiates its supported protocol, including `2025-11-25`; it does not claim support for the newer date mentioned in the issue. Remote OAuth, HTTP transport and personal consent are described in the continuation section below.
 
 The 12 tools are `my_context`, `list_orders`, `get_order`, `get_plan`, `get_manifest`, `get_delivery`, `get_receipt`, `list_issues`, `get_issue`, `list_audit`, `get_command_decision` and `list_policies`. Discovery asks Identity for current permitted actions instead of selecting by role name. Resource-restricted policies can conservatively hide a tool from discovery; the target read is always separately authorized. All six current roles can connect when enabled and their connection policy allows it; that grant adds no business read permissions or row scope.
 
@@ -86,3 +86,22 @@ Tests run with disposable native PostgreSQL 16 on port 55487, separate from ever
 - `frontend/`: Node tests, typecheck, production build and three shell browser smoke tests pass. No role UI was changed.
 
 Open on #87: bounded run-sheet/loading-work/pending-receipt discovery, custody composition, resource-restricted discovery usability and demonstration in an installed desktop client. GUI clients, hosted proxy/TLS and Windows ACLs were not exercised. A remote/mobile transport would require a separately designed OAuth path; this slice makes no remote-client compatibility claim. Oversized plans/manifests intentionally fail until owning-module paging or another bounded view is available.
+
+## Remote OAuth and HTTP continuation
+
+`feat/complete-remote-mcp` preserves the earlier unfinished OAuth work and completes the external connection. It uses the existing twelve-tool catalogue; Waypoint does not call a model.
+
+- Identity domain: `identity/domain/oauth/` checks redirects, S256 challenges and one-time exchange rules without infrastructure.
+- Identity application: `McpOAuthHandler` registers public clients, verifies personal credentials with the existing throttle, checks `mcp:Connect`, issues hashed two-minute codes and exchanges them in a serialized transaction. Replay revokes the session. `SessionRegistry` binds OAuth sessions to resource and client, and `SessionRetentionJob` prunes expired bookkeeping in bounded batches. The two `20261002T2330/2340` IAM migrations are applied explicitly.
+- Identity web: `McpOAuthController` publishes discovery, registration, token exchange and revocation with OAuth error responses. `McpAuthorizationController` provides the consent-page API with the normal problem contract. Existing business read handlers and SQL scopes remain authoritative.
+- Adapter: `mcp/src/http.ts` creates a new official SDK transport and server per POST, authenticates each request against Identity, validates Origin, bounds input to 64 KiB and sends the canonical resource header on backend reads. It accepts no cookie session and stores no transport sessions. Responses retain the existing output filtering and 256 KiB backend response cap.
+- Frontend: `app/.well-known/` and `app/mcp/` delegate to `src/app-shell/mcpProxy.ts`. `app/oauth/authorize/` renders `OAuthAuthorize.tsx`: client name and callback host, explicit personal sign-in, approve/cancel and visible failures. Passwords are sent only to Waypoint and cleared after a submission. OAuth pages bypass the offline shell fallback.
+- Deployment: `mcp/Dockerfile`, both Compose files and `deploy/vps/deploy.sh` include the adapter. `MCP_ENABLED` and `MCP_PUBLIC_URL` must agree between backend and adapter. The frontend only needs the internal adapter address. CI checks the adapter package and builds its image. No deployment or feature enablement is performed by this branch.
+
+Flow: assistant discovers the protected resource and authorization server, registers its public callback, generates PKCE, opens Waypoint consent, receives a code at its registered callback, and exchanges code + verifier + resource. Every later MCP request carries the resulting opaque credential, which is constrained by purpose, current account/policy and SQL scope. The fixed issuer/resource never comes from Host headers. `POST /api/oauth/revoke` invalidates the client's token idempotently. There are no refresh tokens; reconnect on expiry.
+
+Rules are recorded in R-IAM-31 and edge cases SEC-34/35. See the [connect guide](../../../mcp/README.md#remote-connection) for configuration and the consent [mobile screenshot](consent-mobile.png).
+
+Local verification: isolated PostgreSQL 16, `mvn verify`; `npm test` in `mcp` and `frontend`; frontend typecheck/build and shell Playwright suite. `mcp/scripts/oauth-smoke.mjs` additionally drives official SDK discovery, DCR, PKCE approval/exchange, a scoped read and revocation through the running public frontend routes. Use a disposable environment and dedicated test account, supply `MCP_SMOKE_URL`, `MCP_SMOKE_EMAIL` and `MCP_SMOKE_PASSWORD`, and run `node scripts/oauth-smoke.mjs` from `mcp/`. Do not use operational credentials in a test fixture.
+
+Known gaps: actual hosted ChatGPT/Claude account flows and Docker deployment still need environment validation. Public clients must support the advertised DCR/PKCE flow; client metadata documents, confidential clients and refresh grants are not implemented. Issue #87 remains open for broader bounded discovery and custody composition as already documented; this continuation supplies the remote transport and authorization slice.

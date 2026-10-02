@@ -1,12 +1,12 @@
 # Waypoint read-only MCP server
 
-Connects the AI assistant you already use to Waypoint, so it can answer questions from the records you are allowed to read. It is read-only, it runs on your own machine, and Waypoint itself contains no chatbot and calls no model.
+Connects the AI assistant you already use to Waypoint, so it can answer questions from the records you are allowed to read. It supports local stdio and remote Streamable HTTP. Waypoint contains no chatbot and calls no model.
 
 How it is built, its rules and its tests are in the [walkthrough](../docs/issues/087-readonly-mcp/WALKTHROUGH.md). This page is only how to connect.
 
 ## Which clients work
 
-The server speaks MCP over local stdio: the client starts it as a process on your machine.
+For local stdio, the client starts a process on your machine. For remote access, use the HTTPS endpoint described below.
 
 | Client | Works | How |
 | --- | --- | --- |
@@ -15,7 +15,7 @@ The server speaks MCP over local stdio: the client starts it as a process on you
 | Codex CLI | yes | command below |
 | opencode | yes | config file below |
 | Cursor | yes | config file below |
-| ChatGPT and other remote-only clients | **no** | They accept only a remote HTTPS MCP server with OAuth, which is not built. Tracked in [#87](https://github.com/kavindamihiran/Xception-WaypointGo/issues/87) |
+| Remote clients with Streamable HTTP, OAuth code + S256 PKCE and public-client registration | protocol implemented | HTTPS URL below; hosted ChatGPT/Claude connection still requires deployment validation |
 
 ## Before you start
 
@@ -129,3 +129,15 @@ The definitions are in [`src/catalogue.ts`](src/catalogue.ts). Product identifie
 | A tool answers `UNAUTHENTICATED` (401) | The credential was revoked or expired, or the account was disabled |
 | A tool answers `RESPONSE_TOO_LARGE` | The record is over the 256 KB limit. Large plans and manifests fail on purpose until a paged read exists |
 | A tool answers `DEPENDENCY_UNAVAILABLE` | Waypoint could not be reached |
+
+## Remote connection
+
+The deployment operator applies the migrations explicitly, sets `MCP_ENABLED=true` and `MCP_PUBLIC_URL=https://YOUR-WAYPOINT-HOST/mcp`, then deploys the backend, `mcp` adapter and frontend together. Both Compose stacks wire the internal services; for native development run `MCP_BACKEND_URL=http://127.0.0.1:8080 MCP_PUBLIC_URL=http://localhost:3000/mcp MCP_ENABLED=true npm run start:http` after building this package. Export the same public URL and feature flag for the backend. The frontend defaults to the adapter on port 8081.
+
+In an assistant that supports the advertised OAuth flow, add a remote MCP connection with URL `https://YOUR-WAYPOINT-HOST/mcp`, OAuth authentication and automatic client registration (no client secret). Follow the redirect to Waypoint, check the client's callback hostname, and approve with your personal Waypoint account. The assistant gets an opaque, read-only credential; it never gets your password. Your account still needs `mcp:Connect`, the business read permission and the relevant scope. A shared loader PIN cannot authorize this connection.
+
+This version supports stateless JSON Streamable HTTP, DCR public clients, authorization code + PKCE S256, and the single `waypoint.read` scope. There are no refresh tokens: reconnect after expiry. Revocation is `POST /api/oauth/revoke` with form fields `token` and `client_id`; account/session revocation also takes effect on subsequent reads. The same 12 tools and output limits apply to both transports. Local stdio credentials cannot be reused at the remote endpoint.
+
+Discovery is published at `/.well-known/oauth-protected-resource/mcp` (also the root resource document) and `/.well-known/oauth-authorization-server`. The public URL is configuration, never derived from request headers. A blank `MCP_PUBLIC_URL` disables remote authorization; `MCP_ENABLED=false` disables MCP access. No production environment is enabled by this change.
+
+Automated checks cover the official SDK transport and local OAuth flow. Hosted ChatGPT and Claude account/UI compatibility is not yet verified; see their current [authentication documentation](https://developers.openai.com/plugins/build/auth) and [custom connector guide](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp).
