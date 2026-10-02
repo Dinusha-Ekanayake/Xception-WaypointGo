@@ -6,6 +6,8 @@ import type { ReadyTripView } from "@shared/domain/types";
 import { Icon, Notice, cx } from "@shared/ui";
 import { IDLE_RELEASE_MINUTES, hhmm, holdLapsed } from "../data/manifest.ts";
 import { BigButton, StatusChip, TempBadge } from "../ui.tsx";
+import { TruckIcon } from "../icons.tsx";
+import DockPicker, { DOCK_KEY } from "./DockPicker.tsx";
 import { useT } from "../i18n.tsx";
 
 // Figma "01 Dock board", "06 Change dock", "E3 offline" and "E4 no trips here":
@@ -39,7 +41,22 @@ export default function DockBoard({
 }): React.JSX.Element {
   const tr = useT();
   const [filter, setFilter] = useState<Filter>("all");
-  const [dock, setDock] = useState<string>("");
+  const [dock, setDockState] = useState<string>(() => {
+    try {
+      return window.localStorage.getItem(DOCK_KEY) ?? "";
+    } catch {
+      return "";
+    }
+  });
+  const setDock = (next: string) => {
+    setDockState(next);
+    try {
+      window.localStorage.setItem(DOCK_KEY, next);
+    } catch {
+      // Blocked storage: the dock lasts until reload.
+    }
+  };
+  const [picking, setPicking] = useState(false);
   const [query, setQuery] = useState("");
   const all = [...(trips.data ?? [])].sort((a, b) => a.plannedDeparture.localeCompare(b.plannedDeparture));
   const docks = [...new Set(all.map((t) => t.dockCode))].sort();
@@ -54,23 +71,25 @@ export default function DockBoard({
       (q === "" || [t.vehicleId, t.districtName, t.holder?.name ?? "", t.holder?.employeeCode ?? ""].some((v) => v.toLowerCase().includes(q))),
   );
 
+  const emptyDock = dock !== "" && atDock.length === 0;
+  const busyDocks = docks.filter((d) => d !== dock && all.some((t) => t.dockCode === d && t.status !== "COMPLETED")).slice(0, 2);
+
   return (
     <div className="flex flex-col gap-4 px-5 pb-6 md:px-8 lg:px-[42px]">
       <div className="flex flex-col gap-3.5 pt-2">
-        <h1 className="text-[30px] font-semibold text-black">{tr("Tonight's departures")}</h1>
-        <label className="flex min-h-12 w-fit items-center gap-2 rounded-full bg-white pr-2 pl-3.5 shadow-[0_5px_20px_rgba(0,0,0,0.09)]">
-          <Icon name="dock" />
-          <span className="sr-only">{tr("Dock")}</span>
-          <select value={dock} onChange={(e) => setDock(e.target.value)} className="min-h-12 bg-transparent text-base font-medium outline-none">
-            <option value="">{tr("All docks · {depot}", { depot })}</option>
-            {docks.map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex h-12 w-full items-center gap-2.5 rounded-[16px] border border-[#dfe3e8] bg-white pr-3 pl-4 md:w-[420px]">
+        <h1 className="text-[30px] font-semibold text-go-ink">{tr("Tonight's departures")}</h1>
+        <DockPicker
+          docks={docks}
+          dock={dock}
+          allLabel={tr("All docks · {depot}", { depot })}
+          open={picking}
+          onOpen={setPicking}
+          onPick={(d) => {
+            setDock(d);
+            setPicking(false);
+          }}
+        />
+        <label className="flex h-12 w-full items-center gap-2.5 rounded-[16px] border border-go-rule bg-go-card pr-3 pl-4 md:w-[420px]">
           <Icon name="search" />
           <input
             value={query}
@@ -89,14 +108,13 @@ export default function DockBoard({
               onClick={() => setFilter(f.value)}
               className={cx(
                 "min-h-12 shrink-0 rounded-full px-[18px] text-[15px] font-medium whitespace-nowrap max-md:px-2.5 max-md:text-[14px]",
-                filter === f.value ? "bg-go-mint text-black" : "bg-[#f1f3f5] text-black",
+                filter === f.value ? "bg-go-soft text-go-on-soft" : "bg-go-surface text-go-ink",
               )}
             >
               {tr(f.label)} ({atDock.filter((t) => f.match(t, who)).length})
             </button>
           ))}
         </div>
-        <p className="text-[13px] text-go-muted">{tr("One loader per trip, until release or hand back.")}</p>
       </div>
 
       {!online && (
@@ -119,16 +137,21 @@ export default function DockBoard({
       )}
       {!trips.data && !trips.error && <p className="py-8 text-center text-[15px] text-go-muted">{tr("Loading trips…")}</p>}
       {trips.data && shown.length === 0 && (
-        <div className="flex flex-col items-center gap-3 rounded-[24px] bg-white p-6 text-center">
-          <p className="text-[17px] font-medium">
-            {all.length === 0 ? tr("No trips tonight yet") : dock !== "" && atDock.length === 0 ? tr("No trips at {dock} right now", { dock }) : tr("No trips match")}
+        <div className="flex flex-col items-center gap-3 rounded-[32px] bg-go-card px-6 py-12 text-center text-go-ink shadow-go-card">
+          <span className="flex size-14 items-center justify-center rounded-full bg-go-surface text-go-muted"><TruckIcon /></span>
+          <p className="text-[19px] font-medium">
+            {all.length === 0 ? tr("No trips tonight yet") : emptyDock ? tr("No trips at {dock} right now", { dock }) : tr("No trips match")}
           </p>
           <p className="text-[15px] text-go-muted">
-            {tr(all.length === 0 ? "They appear here once the plan is published." : "Try another dock or filter.")}
+            {all.length === 0
+              ? tr("They appear here once the plan is published.")
+              : emptyDock && busyDocks.length > 0
+                ? tr("Nothing here tonight. Try {docks}.", { docks: busyDocks.join(tr(" or ")) })
+                : tr("Try another dock or filter.")}
           </p>
-          {dock !== "" && (
-            <BigButton tone="plain" onClick={() => setDock("")}>
-              {tr("Show all docks")}
+          {emptyDock && (
+            <BigButton tone="ink" fit onClick={() => setPicking(true)}>
+              {tr("Change dock")}
             </BigButton>
           )}
         </div>
@@ -137,7 +160,7 @@ export default function DockBoard({
       <ul className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {shown.map((trip) => (
           <li key={trip.tripId}>
-            <TripCard trip={trip} who={who(trip)} online={online} onOpen={() => onOpen(trip.tripId)} />
+            <TripCard trip={trip} who={who(trip)} online={online} showDock={dock === ""} onOpen={() => onOpen(trip.tripId)} />
           </li>
         ))}
       </ul>
@@ -149,17 +172,20 @@ function TripCard({
   trip,
   who,
   online,
+  showDock,
   onOpen,
 }: {
   trip: ReadyTripView;
   who: "free" | "mine" | "other";
   online: boolean;
+  /** All docks are on the board, so each card says which dock it loads at. */
+  showDock: boolean;
   onOpen: () => void;
 }): React.JSX.Element {
   const tr = useT();
   const released = trip.status === "COMPLETED";
   return (
-    <article className="flex flex-col gap-3 rounded-[24px] bg-white p-4 drop-shadow-[0_5px_10px_rgba(0,0,0,0.09)]">
+    <article className="flex flex-col gap-3 rounded-[24px] bg-go-card p-4 drop-shadow-[0_5px_10px_rgba(0,0,0,0.09)]">
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-col gap-0.5">
           <span className="flex items-center gap-2">
@@ -167,7 +193,8 @@ function TripCard({
             <TempBadge temperature={trip.temperature} />
           </span>
           <span className="text-[13px] text-go-muted">
-            {tr("Trip {n} of {m}", { n: trip.tripNumber, m: trip.tripsForVehicle })} · {trip.dockCode}
+            {tr("Trip {n} of {m}", { n: trip.tripNumber, m: trip.tripsForVehicle })}
+            {showDock && ` · ${trip.dockCode}`}
           </span>
         </div>
         <div className="flex flex-col items-end">
@@ -180,7 +207,7 @@ function TripCard({
           <span className="text-[18px] font-medium">{trip.districtName}</span>
           <span className="text-[13px] text-go-muted">
             {trip.brandCode} · {tr(trip.stopCount === 1 ? "{n} stop" : "{n} stops", { n: trip.stopCount })}
-            {trip.holder && ` · ${who === "mine" ? tr("You") : trip.holder.name}${trip.holder.employeeCode ? ` · ${trip.holder.employeeCode}` : ""}`}
+            {trip.holder && who === "other" && ` · ${trip.holder.name}`}
             {trip.holder && who === "free" && ` · ${tr("idle {n} min, free to take", { n: IDLE_RELEASE_MINUTES })}`}
           </span>
         </div>
