@@ -38,6 +38,8 @@ There are no business commands, new events or scheduled jobs. Authentication boo
 
 ## Run locally
 
+Connecting a client (Claude Code, Claude Desktop, Codex, opencode, Cursor), the tool list and the common failures are in the connect guide, [mcp/README.md](../../../mcp/README.md). This section covers the backend side.
+
 Initialize the local backend using [development.md](../../development-docs/development.md). Run migrations explicitly, then import reference data. Use a real personal account with its normal role and depot/outlet/vehicle assignment. Do not use a shared loader PIN as a credential.
 
 Start the backend with `MCP_ENABLED=true` exported alongside its normal settings. For Compose, opt in with `MCP_ENABLED=true` in the root environment after applying the migration through the explicit deployment step. The Next proxy can be the configured origin when its `BACKEND_URL` targets that backend. No requests, adapter startup or builds migrate or seed.
