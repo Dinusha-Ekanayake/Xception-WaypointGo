@@ -242,6 +242,7 @@ Most of the cases below are instances of nine patterns. Learn the patterns and t
 | PLT-12 | Two relay instances poll the same outbox | Each event is claimed by one: `FOR UPDATE SKIP LOCKED`, then `processing` under a lease | Outbox relay | `waypoint_outbox_consumed_total{outcome="duplicate"}` | Integration (`OutboxRelayIntegrationTest` `twoRelaysNeverClaimTheSameEvent`) |
 | PLT-13 | An event fails while a later event of the same aggregate is waiting | The later event waits: only the oldest undelivered event of an aggregate is claimable, in write order (`seq`). Other aggregates are unaffected. A dead letter stops holding its aggregate back, so a replay arrives out of order | Outbox relay | Relay lag gauge | Integration (`OutboxRelayIntegrationTest` `oneAggregatesEvents...`) |
 | PLT-14 | An event is published in a transaction that rolls back | Never written, so never delivered | `OutboxEventPublisher` | n/a | Integration (`OutboxRelayIntegrationTest` `anEventFromARolledBack...`) |
+| PLT-15 | A bean needs Spring MVC while an operational command (`migrate`, `import-reference`) starts the application without a web server | Every bean is creatable without a web server; a web-only collaborator is looked up when a request needs it, never at construction. Otherwise the deploy's init step stops before any migration and nothing is replaced | Platform, each `web/` package | Failed deploy at the init step | Unit (`WaypointApplicationCommandStartTest`) |
 
 ---
 

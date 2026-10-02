@@ -8,6 +8,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -22,10 +23,12 @@ public class McpCredentialFilter extends OncePerRequestFilter {
   public static final String CREDENTIAL = McpCredentialFilter.class.getName() + ".credential";
   private final SessionCookie cookie;
   private final McpAccessHandler access;
-  private final HandlerExceptionResolver errors;
+  // Looked up per refusal: the operational commands (migrate, import-reference)
+  // start without Spring MVC, where this bean is created but no resolver exists.
+  private final ObjectProvider<HandlerExceptionResolver> errors;
 
   public McpCredentialFilter(SessionCookie cookie, McpAccessHandler access,
-      @Qualifier("handlerExceptionResolver") HandlerExceptionResolver errors) {
+      @Qualifier("handlerExceptionResolver") ObjectProvider<HandlerExceptionResolver> errors) {
     this.cookie = cookie;
     this.access = access;
     this.errors = errors;
@@ -50,7 +53,7 @@ public class McpCredentialFilter extends OncePerRequestFilter {
       request.setAttribute(CREDENTIAL, token);
       chain.doFilter(request, response);
     } catch (RuntimeException error) {
-      if (errors.resolveException(request, response, null, error) == null) {
+      if (errors.getObject().resolveException(request, response, null, error) == null) {
         throw error;
       }
     }
