@@ -15,7 +15,7 @@ import Issues from "./screens/Issues.tsx";
 import OrderSheet from "./screens/OrderSheet.tsx";
 import Orders from "./screens/Orders.tsx";
 import PlaceOrder from "./screens/PlaceOrder.tsx";
-import Receive from "./screens/Receive.tsx";
+import Receive from "./screens/receive/Receive.tsx";
 import Track from "./screens/Track.tsx";
 import { SideNav, TabBar, type Tab } from "./ui.tsx";
 
@@ -129,13 +129,22 @@ export default function Store({
       />
     );
   } else if (view.kind === "receive") {
+    // This vehicle's orders still waiting to be counted, so the store can move between them (06-4).
+    const stop = stops.find((d) => d.orderId === view.orderId);
+    const waiting = new Set(toReceive.map((p) => p.orderId));
+    const siblings = stop
+      ? all.filter((o) => o.orderId === view.orderId || (waiting.has(o.orderId) && stops.some((d) => d.orderId === o.orderId && d.vehicleId === stop.vehicleId)))
+      : all.filter((o) => o.orderId === view.orderId);
     body = (
       <Receive
+        key={view.orderId}
         gateway={gateway}
         orderId={view.orderId}
         order={all.find((o) => o.orderId === view.orderId) ?? null}
-        delivery={stops.find((d) => d.orderId === view.orderId) ?? null}
+        delivery={stop ?? null}
         outlet={outlet.data}
+        siblings={siblings}
+        onSwitch={receive}
         commands={commands}
         onBack={() => {
           backToTabs();

@@ -7,6 +7,7 @@ import {
   type AmendOrder,
   type CalendarAnswer,
   type CancelOrder,
+  type CustodyChainView,
   type AcceptShortfall,
   type ConfirmPartialReceipt,
   type DeliveryRecordView,
@@ -92,6 +93,7 @@ export function sampleGateway(): StoreGateway {
   const receipts = new Map<string, ReceiptView>();
   const kept: Command[] = [];
   const issues: IssueView[] = [];
+  const photos: { id: string; orderId: string; receiptId: string | null }[] = [];
   // The handover PIN (R-RCP-09): kept here in the clear only because this is sample data.
   const handovers = new Map<string, HandoverView & { pin: string; wrong: number }>();
   const newPin = () => String(Math.floor(Math.random() * 10_000)).padStart(4, "0");
@@ -199,6 +201,7 @@ export function sampleGateway(): StoreGateway {
     raisedAt: new Date().toISOString(),
     resolvedAt: null,
     rowVersion: 1,
+    attachments: [],
   });
 
   /** One stop for the order on the vehicle that carries today's run. */
@@ -353,6 +356,7 @@ export function sampleGateway(): StoreGateway {
           raisedAt: new Date().toISOString(),
           resolvedAt: null,
           rowVersion: 1,
+          attachments: (raise.attachmentIds ?? []).map((attachmentId) => ({ attachmentId, contentType: "image/jpeg" })),
         };
         issues.push(issue);
         return clone(issue);
@@ -385,6 +389,57 @@ export function sampleGateway(): StoreGateway {
         .filter((r) => r.status === "PENDING")
         .map((r) => ({ orderId: r.orderId, deliveryId: r.deliveryId, outletId: r.outletId, deliveredAt: history.get(r.orderId)!.at(-1)!.at })),
     handover: async (orderId) => clone(handoverView(orderId)),
+    custody: async (orderId) => {
+      const r = receipts.get(orderId);
+      if (!r) throw problem(404, "NOT_FOUND", "No delivery to receive for this order.");
+      const o = find(orderId);
+      // The chilled order of today was one case of cheese short at the dock, as in Figma "06-5".
+      const shortAtDock = o === todayChilled;
+      const view: CustodyChainView = {
+        orderId,
+        receipt: clone(r),
+        delivery: { deliveryId: r.deliveryId, tripId: "trip-1", completedAt: r.deliveredAt, deliveredUnits: o.itemCount, recordedBy: null },
+        loadingCheck: {
+          loadSequence: 0,
+          stopSequence: 3,
+          orderId,
+          orderRef: o.orderRef,
+          outletId: o.outletId,
+          districtName: o.districtName,
+          windowOpen: OUTLET.windowOpen,
+          windowClose: OUTLET.windowClose,
+          plannedArrival: "05:44:00",
+          temperature: o.temperature,
+          itemCount: o.itemCount,
+          weightKg: o.weightKg,
+          volumeM3: o.volumeM3,
+          status: shortAtDock ? "SHORT" : "LOADED",
+          loadedUnits: o.itemCount - (shortAtDock ? 1 : 0),
+          attempt: 1,
+          items: o.lines.map((l, i) => {
+            const short = shortAtDock && l.productId.startsWith("Cheese");
+            return {
+              lineNo: i + 1,
+              productId: l.productId,
+              units: l.quantity,
+              status: short ? "SHORT" : "LOADED",
+              loadedUnits: l.quantity - (short ? 1 : 0),
+              attempt: 1,
+              checkedAt: new Date().toISOString(),
+              checkedBy: "usr-loader",
+            };
+          }),
+        },
+        proof: null,
+        unavailable: [],
+      };
+      return view;
+    },
+    keepPhoto: async ({ id, orderId, receiptId }) => (photos.push({ id, orderId, receiptId }), { durable: true }),
+    sendPhotos: async () => {
+      const sent = photos.splice(0).length;
+      return { sent, remaining: 0, heldForReview: 0 };
+    },
     receipt: async (orderId) => {
       const r = receipts.get(orderId);
       if (!r) throw problem(404, "NOT_FOUND", "No delivery to receive for this order.");

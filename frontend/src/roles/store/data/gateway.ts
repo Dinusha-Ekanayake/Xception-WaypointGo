@@ -1,9 +1,10 @@
 import { request, requestAll } from "@shared/api/client";
 import { send, type Command, type CommandAck } from "@shared/api/commands";
-import { drain, enqueue } from "@shared/offline";
+import { drain, drainUploads, enqueue, saveUpload } from "@shared/offline";
 import type {
   CalendarAnswer,
   CatalogueStatusView,
+  CustodyChainView,
   DeliveryDateAnswer,
   DeliveryRecordView,
   HandoverView,
@@ -37,6 +38,12 @@ export type StoreGateway = {
   deliveryDate: (outletId: string, requestedDate: string, signal: AbortSignal) => Promise<DeliveryDateAnswer>;
   pendingReceipts: (outletId: string, signal: AbortSignal) => Promise<PendingReceiptView[]>;
   receipt: (orderId: string, signal: AbortSignal) => Promise<ReceiptView>;
+  /** The receipt beside the loading check of the same order, which shows what the loader kept back. */
+  custody: (orderId: string, signal: AbortSignal) => Promise<CustodyChainView>;
+  /** Keep a photo of a problem on this device, for the order and the receipt being counted. */
+  keepPhoto: (photo: { id: string; orderId: string; receiptId: string | null; blob: Blob }) => Promise<{ durable: boolean; reason?: string }>;
+  /** Send the photos kept on this device; any left wait for the next pass. */
+  sendPhotos: () => Promise<{ sent: number; remaining: number; heldForReview: number }>;
   /** Where the handover PIN stands, never the PIN (R-RCP-09). 404 when none was issued. */
   handover: (orderId: string, signal: AbortSignal) => Promise<HandoverView>;
   /** What is coming to, or has reached, the outlet on a day (Execution, `delivery:Read`). */
@@ -76,11 +83,26 @@ function liveGateway(accountId: string): StoreGateway {
     pendingReceipts: (outletId, signal) => request(`/api/receipts/pending?outlet=${q(outletId)}`, { signal }),
     receipt: (orderId, signal) => request(`/api/receipts/${q(orderId)}`, { signal }),
     handover: (orderId, signal) => request(`/api/receipts/${q(orderId)}/handover`, { signal }),
+    custody: (orderId, signal) => request(`/api/receipts/${q(orderId)}/custody`, { signal }),
+    keepPhoto: ({ id, orderId, receiptId, blob }) =>
+      saveUpload(accountId, {
+        id,
+        path: `/api/issues/attachments/${q(id)}?order=${q(orderId)}${receiptId ? `&receipt=${q(receiptId)}` : ""}`,
+        subject: orderId,
+        contentType: blob.type || "image/jpeg",
+        blob,
+      }),
+    sendPhotos: () => drainUploads(accountId),
     deliveries: (outletId, date, signal) => request(`/api/execution/deliveries?outlet=${q(outletId)}&date=${q(date)}`, { signal }),
     issuesFor: (orderId, signal) => request(`/api/issues/by-subject?type=order&id=${q(orderId)}`, { signal }),
     send: (command) => send(command),
     queue: (command) => enqueue(accountId, "store_manager", command),
-    flush: () => drain(accountId),
+    // Kept writes first, then kept photos: the server links a photo to its issue in either order.
+    flush: async () => {
+      const report = await drain(accountId);
+      await drainUploads(accountId).catch(() => undefined);
+      return report;
+    },
   };
 }
 

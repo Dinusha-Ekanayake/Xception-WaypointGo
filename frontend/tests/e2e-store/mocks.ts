@@ -144,9 +144,11 @@ export type Handover = { status: "AWAITING" | "CONFIRMED" | "LOCKED" | "EXPIRED"
 /** Routes every call the store makes; a delivered order is waiting to be received. */
 export async function mockStore(
   page: Page,
-  options: { answered?: Handover | null } = {},
-): Promise<{ sent: Sent; handover: { current: Handover | null } }> {
+  options: { answered?: Handover | null; loadingShort?: boolean } = {},
+): Promise<{ sent: Sent; handover: { current: Handover | null }; uploads: string[] }> {
   const sent: Sent = [];
+  /** Photo uploads, as the paths they were PUT to. */
+  const uploads: string[] = [];
   const handover: { current: Handover | null } = { current: options.answered ?? null };
   // A receipt the store answered earlier: the order is received and nothing waits to be counted.
   const answered = options.answered !== undefined;
@@ -170,6 +172,31 @@ export async function mockStore(
       return json(answered ? [] : [{ orderId: ORDER.orderId, deliveryId: DELIVERY.deliveryId, outletId: "OUT085", deliveredAt: DELIVERY.arrivedAt }]);
     }
     if (pathname === `/api/receipts/${ORDER.orderId}`) return json(receipt);
+    if (pathname === `/api/receipts/${ORDER.orderId}/custody`) {
+      // The loading check of the order: with loadingShort, one butter was kept back at the dock.
+      const item = (lineNo: number, productId: string, units: number, short: boolean) => ({
+        lineNo, productId, units, status: short ? "SHORT" : "LOADED", loadedUnits: short ? units - 1 : units, attempt: 1, checkedAt: null, checkedBy: null,
+      });
+      return json({
+        orderId: ORDER.orderId,
+        receipt,
+        delivery: { deliveryId: DELIVERY.deliveryId, tripId: "trip-1", completedAt: DELIVERY.arrivedAt, deliveredUnits: 5, recordedBy: null },
+        loadingCheck: options.loadingShort
+          ? {
+              loadSequence: 0, stopSequence: 3, orderId: ORDER.orderId, orderRef: ORDER.orderRef, outletId: "OUT085", districtName: "Kadugannawa",
+              windowOpen: "05:00:00", windowClose: "07:30:00", plannedArrival: "05:44:00", temperature: "chilled", itemCount: 5, weightKg: "12.0",
+              volumeM3: "0.05", status: "SHORT", loadedUnits: 4, attempt: 1,
+              items: [item(1, "Fresh milk 1 L", 3, false), item(2, "Butter 200 g", 2, true)],
+            }
+          : null,
+        proof: null,
+        unavailable: options.loadingShort ? [] : ["loading check: no matching order in the trip manifest"],
+      });
+    }
+    if (route.request().method() === "PUT" && pathname.startsWith("/api/issues/attachments/")) {
+      uploads.push(pathname + url.search);
+      return json({ attachmentId: pathname.split("/").pop(), sha256: "x", sizeBytes: 100, contentType: "image/jpeg", stored: true });
+    }
     if (pathname === `/api/receipts/${ORDER.orderId}/handover`) {
       const h = handover.current;
       if (!h) return json({ type: "about:blank", title: "NOT_FOUND", status: 404, detail: "No handover PIN", code: "NOT_FOUND", violations: [] }, 404);
@@ -221,5 +248,11 @@ export async function mockStore(
     }
     return route.fulfill({ status: 404, body: "not mocked" });
   });
-  return { sent, handover };
+  return { sent, handover, uploads };
 }
+
+/** A real 2x2 PNG, for a photo taken in a test. */
+export const PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGP8z8DAwMDAxMDAwMDAAAANHQEDasKb6QAAAABJRU5ErkJggg==",
+  "base64",
+);
