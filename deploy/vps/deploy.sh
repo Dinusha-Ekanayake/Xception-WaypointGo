@@ -22,23 +22,26 @@ die() { echo "deploy: $*" >&2; exit 1; }
 # Last value of KEY in .env, or nothing. Values are never shell-evaluated.
 env_value() { sed -n "s/^$1=//p" "$APP_DIR/.env" | tail -1; }
 
-# Requests the certificate for SITE and preview.SITE the first time, or after
-# SITE_ADDRESS changes. Until it succeeds nginx serves a self-signed placeholder,
-# which is enough to answer the HTTP-01 challenge on port 80.
+# Requests one certificate for SITE, preview.SITE and grafana-preview.SITE, the
+# first time and whenever the one on disk is missing a name. Until it succeeds
+# nginx serves what it has (a self-signed placeholder at first), which is enough
+# to answer the HTTP-01 challenge on port 80.
 ensure_certificate() {
-  local site="$1"
-  if "${compose[@]}" exec -T nginx test -f "/etc/letsencrypt/live/$site/fullchain.pem"; then
-    return 0
-  fi
-  echo "==> requesting a certificate for $site and preview.$site"
-  if "${compose[@]}" run --rm --no-deps -T --entrypoint certbot certbot certonly \
-      --webroot -w /var/www/certbot --cert-name "$site" -d "$site" -d "preview.$site" \
-      --key-type ecdsa --non-interactive --agree-tos --register-unsafely-without-email; then
-    "${compose[@]}" exec -T nginx sh -c \
-      '/docker-entrypoint.d/25-tls-certificate.sh && nginx -t && nginx -s reload'
+  local site="$1" name missing=0
+  local live="/etc/letsencrypt/live/$site/fullchain.pem"
+  local names=("$site" "preview.$site" "grafana-preview.$site")
+
+  for name in "${names[@]}"; do
+    "${compose[@]}" exec -T nginx sh -c       'test -f "$1" && openssl x509 -in "$1" -noout -checkhost "$2" | grep -q "does match"'       sh "$live" "$name" || missing=1
+  done
+  [[ "$missing" == 1 ]] || return 0
+
+  echo "==> requesting a certificate for ${names[*]}"
+  if "${compose[@]}" run --rm --no-deps -T --entrypoint certbot certbot certonly       --webroot -w /var/www/certbot --cert-name "$site" "${names[@]/#/--domain=}"       --key-type ecdsa --non-interactive --agree-tos --register-unsafely-without-email       --renew-with-new-domains; then
+    "${compose[@]}" exec -T nginx sh -c       '/docker-entrypoint.d/25-tls-certificate.sh && nginx -t && nginx -s reload'
   else
-    echo "deploy: no certificate issued; check that $site and preview.$site resolve to this server." >&2
-    echo "deploy: nginx keeps serving its self-signed placeholder until the next deploy." >&2
+    echo "deploy: no certificate issued; check that every name under $site resolves to this server." >&2
+    echo "deploy: nginx keeps serving its current certificate until the next deploy." >&2
   fi
 }
 

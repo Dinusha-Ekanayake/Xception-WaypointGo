@@ -23,6 +23,11 @@ map "${CLOUDFLARE_ONLY}:$trusted_peer" $deny_direct {
 
 # Sign-in attempts are POSTs; resolving a session is a GET on the same path and
 # happens on every page load, so only POSTs count against the sign-in limit.
+map $http_upgrade $connection_upgrade {
+  default upgrade;
+  ""      "";
+}
+
 map $request_method $signin_key {
   default "";
   POST $binary_remote_addr;
@@ -79,7 +84,7 @@ server {
 
 server {
   listen 80;
-  server_name ${SITE_ADDRESS} preview.${SITE_ADDRESS};
+  server_name ${SITE_ADDRESS} preview.${SITE_ADDRESS} grafana-preview.${SITE_ADDRESS};
 
   if ($deny_direct) {
     return 444;
@@ -117,4 +122,27 @@ server {
 
   set $frontend http://preview-waypoint:3000;
   include /etc/nginx/snippets/site.conf;
+}
+
+# Preview log search (Grafana). Answers 502 while the preview stack is not
+# running the observability profile. Grafana has its own sign-in.
+server {
+  listen 443 ssl;
+  http2 on;
+  server_name grafana-preview.${SITE_ADDRESS};
+
+  if ($deny_direct) {
+    return 444;
+  }
+
+  add_header Strict-Transport-Security "max-age=31536000" always;
+  add_header X-Robots-Tag "noindex, nofollow" always;
+
+  set $grafana http://preview-grafana:3000;
+  location / {
+    include /etc/nginx/snippets/proxy.conf;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;
+    proxy_pass $grafana;
+  }
 }
