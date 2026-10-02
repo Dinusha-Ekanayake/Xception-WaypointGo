@@ -54,7 +54,7 @@ public final class ScarceFleetReplan {
   public static final long MAX_NODES = 2_000_000L;
 
   /** The most chilled orders the search ranks at once (one bit each); the rest go to insertion. */
-  static final int MAX_POOL = 62;
+  public static final int MAX_POOL = 62;
 
   public enum Stop {
     NONE,
@@ -65,6 +65,10 @@ public final class ScarceFleetReplan {
   /**
    * @param improved whether the pass replaced the greedy plan
    * @param chilledVolumeGainedM3 chilled volume served beyond the greedy plan
+   * @param chilledCandidates chilled orders the reefers could have taken
+   * @param chilledSearched how many of them the search ranked; fewer than the
+   *     candidates means the lowest ranked were left to insertion, and the
+   *     screen says so (rule 9)
    */
   public record Summary(
       int greedyServed,
@@ -74,22 +78,33 @@ public final class ScarceFleetReplan {
       boolean improved,
       java.math.BigDecimal chilledVolumeGainedM3,
       long nodes,
-      Stop stoppedBy) {}
+      Stop stoppedBy,
+      int chilledCandidates,
+      int chilledSearched) {}
 
   public record Result(AllocationResult allocation, Summary summary) {}
 
   private final ConstraintRegistry registry;
   private final CheapestInsertion insertion;
   private final long maxNodes;
+  private final int maxPool;
 
   public ScarceFleetReplan(ConstraintRegistry registry) {
-    this(registry, MAX_NODES);
+    this(registry, MAX_NODES, MAX_POOL);
   }
 
   ScarceFleetReplan(ConstraintRegistry registry, long maxNodes) {
+    this(registry, maxNodes, MAX_POOL);
+  }
+
+  ScarceFleetReplan(ConstraintRegistry registry, long maxNodes, int maxPool) {
+    if (maxPool < 1 || maxPool > MAX_POOL) {
+      throw new IllegalArgumentException("the search ranks between 1 and " + MAX_POOL + " orders, one bit each");
+    }
     this.registry = registry;
     this.insertion = new CheapestInsertion(registry);
     this.maxNodes = maxNodes;
+    this.maxPool = maxPool;
   }
 
   /**
@@ -116,7 +131,7 @@ public final class ScarceFleetReplan {
             problem.orders().stream().filter(o -> !unservable.contains(o.orderId())).toList(), ctx);
     Summary unchanged =
         summary(greedyServed.size(), ranked.size() - greedyServed.size(), greedyServed.size(),
-            ranked.size() - greedyServed.size(), false, java.math.BigDecimal.ZERO, 0, Stop.NONE);
+            ranked.size() - greedyServed.size(), false, java.math.BigDecimal.ZERO, 0, Stop.NONE, 0, 0);
 
     // Every available vehicle, idle unless the greedy plan used it.
     Map<String, VehicleDay> days = new TreeMap<>();
@@ -134,14 +149,16 @@ public final class ScarceFleetReplan {
       days.put(v.vehicleId(), VehicleDay.idle(v));
     }
     ranked.stream().filter(o -> !greedyServed.contains(o.orderId())).forEach(o -> pool.add(o.orderId()));
-    List<PlanOrder> chilled =
+    List<PlanOrder> candidates =
         ranked.stream()
             .filter(o -> pool.contains(o.orderId()) && o.temperatureClass() == TemperatureClass.CHILLED)
-            .limit(MAX_POOL)
             .toList();
+    // Highest ranked first, so the orders left to insertion are the ones the rank comparison weighs least.
+    List<PlanOrder> chilled = candidates.subList(0, Math.min(candidates.size(), maxPool));
     if (chilled.isEmpty()) {
       return new Result(greedy, unchanged);
     }
+    unchanged = withPool(unchanged, candidates.size(), chilled.size());
     Map<UUID, Integer> bit = new HashMap<>();
     for (int i = 0; i < chilled.size(); i++) {
       // The highest ranked order is the most significant bit, so a larger mask is a better plan by rank.
@@ -223,7 +240,7 @@ public final class ScarceFleetReplan {
         volume(ranked, servedNow, TemperatureClass.CHILLED).subtract(volume(ranked, greedyServed, TemperatureClass.CHILLED));
     Summary summary =
         summary(greedyServed.size(), ranked.size() - greedyServed.size(), servedNow.size(), deferredNow.size(), true,
-            gained, search.nodes, search.stoppedBy);
+            gained, search.nodes, search.stoppedBy, candidates.size(), chilled.size());
     return new Result(
         new AllocationResult(List.copyOf(days.values()), decisions, false, engine, java.util.Optional.of(summary)),
         summary);
@@ -452,13 +469,20 @@ public final class ScarceFleetReplan {
 
   private static Summary summary(
       int greedyServed, int greedyDeferred, int served, int deferred, boolean improved,
-      java.math.BigDecimal gained, long nodes, Stop stop) {
-    return new Summary(greedyServed, greedyDeferred, served, deferred, improved, gained, nodes, stop);
+      java.math.BigDecimal gained, long nodes, Stop stop, int candidates, int searched) {
+    return new Summary(greedyServed, greedyDeferred, served, deferred, improved, gained, nodes, stop, candidates, searched);
+  }
+
+  private static Summary withPool(Summary s, int candidates, int searched) {
+    return new Summary(
+        s.greedyServed(), s.greedyDeferred(), s.served(), s.deferred(), s.improved(), s.chilledVolumeGainedM3(),
+        s.nodes(), s.stoppedBy(), candidates, searched);
   }
 
   private static Summary summary(Summary unchanged, Search search) {
     return new Summary(
         unchanged.greedyServed(), unchanged.greedyDeferred(), unchanged.served(), unchanged.deferred(), false,
-        java.math.BigDecimal.ZERO, search.nodes, search.stoppedBy);
+        java.math.BigDecimal.ZERO, search.nodes, search.stoppedBy, unchanged.chilledCandidates(),
+        unchanged.chilledSearched());
   }
 }

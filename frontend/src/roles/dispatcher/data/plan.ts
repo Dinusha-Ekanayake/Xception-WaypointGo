@@ -132,7 +132,11 @@ export function working(published: PlanView | null, draft: PlanView | null): Wor
  */
 export function improvementNote(improvement: ImprovementView | null): { title: string; detail: string } | null {
   if (!improvement) return null;
-  const early = improvement.stoppedBy !== "NONE" ? " The search stopped before it finished, so this is the best it found." : "";
+  const early =
+    (improvement.stoppedBy !== "NONE" ? " The search stopped before it finished, so this is the best it found." : "") +
+    (improvement.chilledSearched < improvement.chilledCandidates
+      ? ` It ranked the top ${improvement.chilledSearched} of ${improvement.chilledCandidates} chilled orders; the rest were placed one at a time.`
+      : "");
   if (!improvement.improved) {
     return early ? { title: "The first plan stands", detail: `The second pass found nothing better by priority.${early}` } : null;
   }

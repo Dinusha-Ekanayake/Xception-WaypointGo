@@ -93,6 +93,9 @@ export type ImprovementView = {
   chilledVolumeGainedM3: Decimal;
   /** NONE, or NODES or CLOCK when the search stopped early and kept the best it had. */
   stoppedBy: "NONE" | "NODES" | "CLOCK";
+  /** Chilled orders the reefers could have taken, and how many the search ranked; the rest were placed one at a time. */
+  chilledCandidates: number;
+  chilledSearched: number;
 };
 
 export type DeferralView = {

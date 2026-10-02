@@ -161,6 +161,23 @@ class ScarceFleetReplanTest {
   }
 
   @Test
+  void aPoolLargerThanTheSearchRanksIsSaidNotHidden() {
+    PlanOrder far = order().chilled().district("Puttalam").volume("2").build();
+    PlanOrder c1 = order().chilled().district("Kurunegala").window("05:00", "07:30").volume("8").build();
+    PlanOrder c2 = order().chilled().district("Kurunegala").window("05:00", "07:30").volume("8").build();
+    List<PlanOrder> orders = List.of(far, c1, c2);
+    Problem p = problem(orders);
+    AllocationResult first = firstPlan(orders, List.of(List.of(far)));
+
+    ScarceFleetReplan.Result r =
+        new ScarceFleetReplan(REGISTRY, ScarceFleetReplan.MAX_NODES, 1).improve(p, first, () -> 0L, Long.MAX_VALUE, "x");
+
+    assertEquals(3, r.summary().chilledCandidates());
+    assertEquals(1, r.summary().chilledSearched(), "the highest ranked one; the rest went to insertion (rule 9)");
+    assertFeasible(p, r.allocation());
+  }
+
+  @Test
   void plansAreComparedByTheHighestRankedOrderOnlyOneServes() {
     PlanOrder high = order().deferrals(1).build();
     PlanOrder low1 = order().build();

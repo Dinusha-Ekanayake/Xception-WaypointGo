@@ -366,7 +366,7 @@ public class PlanDataQuery implements PlanQuery {
         run.engine(),
         run.improvement()
             .map(i -> new ImprovementView(i.greedyServed(), i.greedyDeferred(), i.served(), i.deferred(), i.improved(),
-                i.chilledVolumeGainedM3(), i.stoppedBy().name())));
+                i.chilledVolumeGainedM3(), i.stoppedBy().name(), i.chilledCandidates(), i.chilledSearched())));
   }
 
   /**

@@ -51,14 +51,14 @@ npx playwright test -c playwright.dispatcher.config.ts
 ```
 
 Tests added:
-- `ScarceFleetReplanTest`, 6 tests: repair, rank kept, no change, determinism, zero budget, rank comparison.
+- `ScarceFleetReplanTest`, 7 tests: repair, rank kept, no change, determinism, zero budget, pool limit said, rank comparison.
 - `PeakDayAllocationTest`: the S1 gain with the rank guarantee checked order by order, and a partial first pass is not improved.
 - In `PlanningCommandIntegrationTest`, the draft serves the engine and the summary.
 - One test in `dispatcher-data.test.ts`, and one assertion in `e2e-dispatcher/plan.spec.ts`.
 
 ## Known gaps
 
-- Only reefers are re-planned. Vans, which van-only orders compete for, are reached only through the reefer van.
-- The pass ranks at most 62 chilled orders at once (one bit each). A larger chilled pool keeps the rest for insertion. S1 has 26.
+- **Vans are not a gap.** Van-only access comes from the outlet's `parking_constraint` and is enforced by R-PLN-03 in every pass, the override and the publication gate, and the first pass already keeps vans for the outlets that need them. The reefer van (VEH036 on S1) is re-planned with the reefers. Re-planning the ambient vans as a group would gain nothing on S1: every ambient van-only order is served, and the one van-only order deferred (S1-003) is chilled, closes at 08:00 and is outranked. Build it only if data shows ambient van-only orders deferred while vans could be rearranged.
+- **The search ranks at most 62 chilled orders at once** (one bit each). The supplied data never comes close: at most 38 chilled orders on any depot-day in training, 26 on S1. If a day ever has more, the highest ranked 62 are searched and the rest are placed one at a time, and the summary (`chilledCandidates`, `chilledSearched`) and the Plan screen say so (rule 9). Test: `ScarceFleetReplanTest.aPoolLargerThanTheSearchRanksIsSaidNotHidden`.
 - A count-maximising plan would serve 19 chilled on S1 but defer earlier-closing orders. That is a policy question (R-PLN-21), not an engine one.
 - Fuel history is empty on S1, so the fuel quota never binds in the measurement.

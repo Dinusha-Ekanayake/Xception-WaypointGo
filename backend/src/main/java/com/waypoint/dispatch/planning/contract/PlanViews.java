@@ -150,6 +150,8 @@ public final class PlanViews {
    * @param improved false when the first plan was already the best the pass found
    * @param stoppedBy {@code NONE}, or {@code NODES} or {@code CLOCK} when the
    *     search stopped before finishing and kept the best it had (rule 9)
+   * @param chilledSearched of {@code chilledCandidates}, how many the search
+   *     ranked; the rest were placed by insertion (rule 9)
    */
   public record ImprovementView(
       int firstPassServed,
@@ -158,7 +160,9 @@ public final class PlanViews {
       int deferred,
       boolean improved,
       BigDecimal chilledVolumeGainedM3,
-      String stoppedBy) {}
+      String stoppedBy,
+      int chilledCandidates,
+      int chilledSearched) {}
 
   /**
    * @param ruleId an identifier from RULES-AND-POLICIES, for example R-PLN-06
