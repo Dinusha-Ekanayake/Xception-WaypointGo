@@ -9,7 +9,7 @@ Branch `14-notification`, from `dev` at `adc8369`. Backend only: the inbox compo
 | Step | Status | Notes |
 | --- | --- | --- |
 | 0 Plan | done | this file |
-| 1 Schema and catalogue | done | `20261002T2000_notification_tables.sql`, `20261002T2001_iam_notification_actions_implemented.sql` |
+| 1 Schema and catalogue | done | `20261002T2310_notification_tables.sql`, `20261002T2311_iam_notification_actions_implemented.sql` |
 | 2 Domain | done | routing policy, templates, delivery state machine, web push crypto |
 | 3 Consumers, inbox, commands, reads, SSE | done | |
 | 4 Push delivery job and gateway | done | |

@@ -47,8 +47,8 @@ All under `backend/src/main/java/com/waypoint/dispatch/notification/`.
 - `platform/config/PushProperties` (`app.push.*`), `application.properties`, `.env.example`, `compose.yaml`, `compose.prod.yaml`: `PUSH_VAPID_PUBLIC_KEY`, `PUSH_VAPID_PRIVATE_KEY`, `PUSH_SUBJECT`, `PUSH_MAX_ATTEMPTS`.
 
 **Migrations**
-- `20261002T2000_notification_tables.sql`: the five tables, routing version 1, grants with no `DELETE` and read-only routing, and row-level security that limits a person to their own rows.
-- `20261002T2001_iam_notification_actions_implemented.sql`: adds `notification:MarkAllRead` and flips the five notification actions to implemented. The role policies already grant `notification:*`.
+- `20261002T2310_notification_tables.sql`: the five tables, routing version 1, grants with no `DELETE` and read-only routing, and row-level security that limits a person to their own rows.
+- `20261002T2311_iam_notification_actions_implemented.sql`: adds `notification:MarkAllRead` and flips the five notification actions to implemented. The role policies already grant `notification:*`.
 
 ## Flows, end to end
 
