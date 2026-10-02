@@ -43,7 +43,6 @@ services:
     ports: !reset []
     environment:
       GF_SECURITY_ADMIN_USER: admin
-      GF_SERVER_ROOT_URL: https://grafana-preview.${SITE_ADDRESS:-localhost}
     networks:
       default:
       edge:
