@@ -293,6 +293,10 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-NOT-03 | Driver to dispatcher: report messages | Team draft | Team |
 | R-NOT-04 | Dispatcher to store manager: automatic message when deferred, with a note | Team draft | Team |
 | R-NOT-05 | A notification is never sent inside the request transaction. Intent commits with the state change; delivery is a separate tracked attempt | Policy | Policy |
+| R-NOT-06 | Read state is set-once: a notification goes from unread to read and never back, and keeps the time it was first read. Marking read therefore takes no `expectedVersion`; `MarkAllRead` covers only what existed when the person looked (`upTo`) | Policy, issue #14 | Policy |
+| R-NOT-07 | The person who caused an event is not notified of it | Policy, issue #14 | Policy |
+| R-NOT-08 | A driver is pushed only trip-level events (plan published, plan revised, trip released), all of which happen before departure. Anything else routed to a driver reaches the inbox only | Policy, issue #14 | Policy |
+| R-NOT-09 | Who hears about which event is data: a versioned routing table in `notification.routing_rules`, one version current, changed by a new version and never edited in place. The module may read it, not write it | Policy, issue #14 | Policy |
 
 ---
 
@@ -377,7 +381,7 @@ One rule, one enforcement point, so a change has one home.
 | R-RCP-* | Receipt domain, `ReceiptAutoCloseJob`, `ReceiptAnswerHandler` | Domain unit tests, integration tests with the job run at chosen instants |
 | R-ISS-* | Issues domain, `IssueCommandHandler`, role policies (R-ISS-07), `IssueEscalationJob` | Domain unit tests, integration tests through the command bus |
 | R-FLT-*, R-CAL-* | Reference data module | Domain unit tests |
-| R-NOT-* | Notification outbox | Integration tests |
+| R-NOT-* | `NotificationPolicy`, `Notifier`, `PushDeliveryJob`, `NotificationHandlers`, the routing table | Domain unit tests (`NotificationPolicyTest`, `DeliveryTest`), integration tests with events delivered and the push job run at chosen instants |
 
 Rules with status **Validated** get a second gate: our allocation output is run through the supplied `check_allocation.py` in CI, so a regression against the scoring rules fails the build rather than the submission.
 

@@ -481,7 +481,7 @@ WS3 Ordering ─────────────► WS4 Planning ──► W
 | WS10 Intelligence | Estimator ports, deterministic implementations, model registry | WS4 contract | week 5 |
 | WS11 Hardening | Load testing, chaos drills, SLO instrumentation, runbooks | all | week 6 |
 
-The "Starts" column is the plan as first written. WS0 to WS7 are built, WS8 has its relay and no Notification module, WS9 has four of the six role applications, and WS10 has only its contract. The current state of each, and what is left in it, is kept in [STATUS.md](docs/development-docs/STATUS.md) rather than here.
+The "Starts" column is the plan as first written. WS0 to WS7 are built, WS8 has its relay and the Notification module (backend; each role UI places its own inbox), WS9 has four of the six role applications, and WS10 has only its contract. The current state of each, and what is left in it, is kept in [STATUS.md](docs/development-docs/STATUS.md) rather than here.
 
 ### 10.3 How parallel work stays unblocked
 

@@ -21,6 +21,15 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-02 - feat(notification): route events to people, with an inbox and web push
+
+`14-notification` · @tharushaudana
+
+Notification module, backend only: 18 event consumers, a versioned routing table (`notification.routing_rules`), inbox and unread count, a live count over server-sent events, `MarkRead`, `MarkAllRead`, `Subscribe`, `Unsubscribe`, and a push job with retry and dead letter. Web push encryption and VAPID are written on the JDK. Identity gains a dated `recipientsFor`, so tomorrow's plan reaches tomorrow's driver.
+Why: issue #14; the store, driver and dispatcher screens had nothing behind their notification placeholders. Decisions are in [the plan](../issues/014-notification/PLAN.md); rules R-NOT-06 to 09, cases NOT-01 to 09, A-34, A-35, P-27.
+Verified: domain and crypto tests (27, including the RFC 8291 vector), `ModuleBoundaryTest`, `EventCatalogueTest`, frontend typecheck and `npm test`. The 26 database integration tests are written but not yet run: no test database with a superuser login was reachable (a fresh Neon project cannot run migration 004).
+Open: each role UI places its own inbox, badge and push opt-in (#18, #19, #21); no admin API for a new routing version; dock and next planned date are missing from their events.
+
 ## 2026-10-02 - fix: show the admin sample console on production
 
 `fix/admin-console-on-production` · @kavindamihiran

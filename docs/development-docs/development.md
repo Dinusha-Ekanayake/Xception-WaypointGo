@@ -126,7 +126,20 @@ export WAREHOUSE_BASE_URL=https://triathon-warehouse-simple.vercel.app/api/v1
 export WAREHOUSE_TIMEOUT_MS=3000
 ```
 
-Never put it in `frontend/.env.local` or a `NEXT_PUBLIC_*` variable: the browser never calls the warehouse. With the key blank the backend still starts, and every order saves as `STOCK_UNKNOWN` with the reason on screen. The warehouse is shared by the whole team, so do not place or cancel orders against it by hand except to test the lifecycle on purpose; a placed order locks real stock.
+Never put it in `frontend/.env.local` or a `NEXT_PUBLIC_*` variable: the browser never calls the warehouse.
+
+### Web push for notifications
+
+The notification inbox works with no setup. Web push needs a VAPID key pair, one per deployment; both blank turns push off, and `GET /api/notifications/push-config` says so. Generate a pair and export it in the backend shell (root `.env` for Compose):
+
+```bash
+npx web-push generate-vapid-keys        # prints a public and a private key, base64url
+export PUSH_VAPID_PUBLIC_KEY=B...
+export PUSH_VAPID_PRIVATE_KEY=...       # a backend secret, like the warehouse key
+export PUSH_SUBJECT=mailto:you@example.com
+```
+
+One key without the other, or a private key that does not belong to the public one, refuses to start. Changing the pair invalidates every browser subscription (A-35). The browser only ever sees the public key, from `push-config`. With the key blank the backend still starts, and every order saves as `STOCK_UNKNOWN` with the reason on screen. The warehouse is shared by the whole team, so do not place or cancel orders against it by hand except to test the lifecycle on purpose; a placed order locks real stock.
 
 ## Tests
 
