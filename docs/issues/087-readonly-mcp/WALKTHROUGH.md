@@ -20,7 +20,7 @@ The 12 tools are `my_context`, `list_orders`, `get_order`, `get_plan`, `get_mani
 | Local setup | `mcp/src/connect.ts`, `credentials.ts`, `stdio.ts`: interactive sign-in, private credential file, disconnect and protocol-only stdout |
 | Proxy and CI | `frontend/app/api/[...path]/route.ts` forwards Authorization. `.github/workflows/checks.yml` independently builds/tests `mcp/` |
 
-`backend/.../` above means `backend/src/main/java/com/waypoint/dispatch/`. Business reads still execute in their owning module and use its SQL scope/RLS policies. The adapter never reads the database or imports another module's implementation.
+`backend/.../` above means `backend/src/main/java/com/waypoint/dispatch/`. Business reads still execute in their owning module and use its SQL scope/RLS policies. The adapter never reads the database or imports another module's implementation. The status page now recognizes the already-built audit and recorded decision APIs instead of treating them as prerequisites.
 
 ## Connection and read flows
 
@@ -77,7 +77,7 @@ Re-run connect after expiry/revocation. Disabling `MCP_ENABLED` blocks further b
 
 ## Verification and remaining work
 
-Tests run with disposable native PostgreSQL 16 on port 55487, separate from every application database. The complete backend suite initially passed 623 tests, no skips. After review, focused tests passed 9 cases, no skips, including the new six-role, PIN-switch and temporal-assignment cases. The final branch is reverified after synchronization with `dev`.
+Tests run with disposable native PostgreSQL 16 on port 55487, separate from every application database. After rebasing onto `dev` at `ae6529f`, the complete backend suite passed 626 tests, with zero failures, errors or skips. The new connection suite includes six-role, PIN-switch and temporal-assignment cases. Adapter and frontend checks below also passed on that rebased tree. Docker Compose, hosted TLS and an installed GUI client remain unverified.
 
 - `mcp/`: `npm test` builds and passes 10 tests. An official SDK client connects through both in-memory and a real stdio child transport; tests cover discovery, cross-user isolation, cursor preservation, provenance, sensitive-field removal, revoked access, malformed input, redirects and response limits.
 - `backend/`: `McpConnectionIntegrationTest` exercises real HTTP policy/scope decisions on PostgreSQL, forbidden commands/uploads in bearer and cookie forms, ordinary bearer rejection, own revocation, policy deny, disabled account, all six roles, loader personal identity and driver assignment dates. `McpReadPolicyTest` holds the exact route boundary. Full verify also runs architecture boundaries and existing session behavior.
