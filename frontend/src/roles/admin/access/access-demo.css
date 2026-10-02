@@ -23,6 +23,46 @@
   line-height: 1;
 }
 
+.access-login {
+  background: #e7f3f2;
+  color: #07130e;
+}
+
+.access-login-art {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: .58;
+  background:
+    linear-gradient(148deg, transparent 29%, #cfe5e3 29.12%, transparent 29.3%),
+    linear-gradient(28deg, transparent 62%, #cfe5e3 62.12%, transparent 62.3%),
+    repeating-linear-gradient(151deg, transparent 0 104px, #d3e8e6 105px 106px, transparent 107px 142px),
+    repeating-linear-gradient(25deg, transparent 0 138px, #d6eae8 139px 140px, transparent 141px 218px);
+  clip-path: polygon(9% 8%, 100% 0, 100% 78%, 7% 77%);
+  mask-image: linear-gradient(to bottom, #000 8%, #000 50%, transparent 84%);
+}
+
+.access-login-input {
+  min-height: 50px;
+  border: 1px solid transparent;
+  background: #e8f3f2;
+}
+
+.access-login-input:focus-visible {
+  border-color: #0a6b63;
+  outline: 2px solid #a8e8d9;
+}
+
+.access-login-dark {
+  background: #112d29;
+  color: #f5fffa;
+}
+
+.access-login-dark .access-login-art { opacity: .16; }
+.access-login-dark .go-mark { color: #f5fffa; }
+.access-login-dark form { color: #10251e; }
+.access-login-dark > div:last-child > p { color: #c8dad3; }
+
 .access-demo button,
 .access-demo a,
 .access-demo input,

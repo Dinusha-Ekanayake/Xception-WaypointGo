@@ -21,6 +21,72 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-02 - feat: add mock forecasts and vehicles tabs
+
+`22-admin-console` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Add main Forecasts and Vehicles tabs beside Audit console. Show clearly labeled sample demand, fleet summaries, filters and vehicle details without calling the backend.
+Why: admins need these workspaces visible in the demo navigation before the backend forecast capability is available.
+Verified: non-incremental TypeScript check and production build passed; `/access-demo` returned HTTP 200 on port 43000.
+Open: forecast values and vehicle records are mock data; live actions need backend integration.
+
+---
+
+## 2026-10-02 - refine: GO login and expandable access navigation
+
+`22-admin-console` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Replace the mock identity picker with a GO-style staff ID and password screen based on the supplied reference. Make People & access a main sidebar item that reveals its four subpages; keep Audit console beside it.
+Why: the demo login and navigation should match the requested admin workspace hierarchy.
+Verified: non-incremental TypeScript check and production build passed; `/access-demo` returned HTTP 200 on port 43000.
+Open: credentials are demo-only and no server session is created.
+
+---
+
+## 2026-10-02 - refine: role-specific member setup and navigation
+
+`22-admin-console` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Make the mock Add member form conditional by persona, remove its reason field, and keep Admin creation inside that form for Super admin. Hide the Super admin persona and directory entry; group access subpages and add a separate mock Audit console navigation item.
+Why: member setup and navigation should match each role's actual choices and the requested admin hierarchy.
+Verified: non-incremental TypeScript check and production build passed; the updated demo returned HTTP 200 on port 43000.
+Open: assignments and audit events remain frontend-only sample data.
+
+---
+
+## 2026-10-02 - feat: add persona-based mock members
+
+`22-admin-console` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Replace the People page's Add admin control with Add member for both administrative previews. Collect persona and matching depot, warehouse/depot or outlet assignment; reserve Admin creation for Super admin. Persona pages can start with their role selected.
+Why: operators need one member-creation flow for all operational personas while preserving privileged account boundaries.
+Verified: non-incremental TypeScript check and production build passed; the updated demo server started on port 43000.
+Open: this remains frontend-only sample data and does not create real accounts.
+
+---
+
+## 2026-10-02 - fix: keep access demo dialogs open
+
+`22-admin-console` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Remove the native dialog close event handler that cleared modal state during React development effect cleanup. Add exception, permission details/edit, and Add admin share this dialog.
+Why: these controls appeared inert because their dialog closed immediately after opening.
+Verified: non-incremental TypeScript check passed.
+Open: browser interaction could not be verified under the current browser security policy.
+
+---
+
+## 2026-10-02 - fix: complete access demo controls
+
+`22-admin-console` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Fix scoped member exception evaluation, protected edit controls, unchanged saves, history details, catalogue availability labels, Add admin entry points and reset navigation in the frontend-only permission demo.
+Why: Admin and Super admin preview controls produced misleading results or incomplete flows.
+Verified: non-incremental TypeScript check and production build passed; `/access-demo` returned HTTP 200 on port 43000. Browser interaction was unavailable under the current browser security policy.
+Open: live authorization and account creation remain separate backend work.
+
+---
+
 ## 2026-10-01 - feat: align access demo with GO visual language
 
 `22-admin-console` · Kalindu Ranathunga (local Git identity; GitHub handle unverified)

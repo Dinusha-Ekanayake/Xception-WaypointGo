@@ -13,12 +13,12 @@ export function Badge({ children, tone = "neutral" }: { children: ReactNode; ton
   return <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${colors[tone]}`}>{children}</span>;
 }
 
-export function CapabilityRow({ capability, status, source, onDetails, onEdit }: { capability: Capability; status: "Active" | "Optional" | "Restricted" | "Coming later" | "No grant"; source?: string; onDetails: () => void; onEdit?: () => void }) {
+export function CapabilityRow({ capability, status, source, onDetails, onEdit, detailsLabel = "Why?" }: { capability: Capability; status: "Active" | "Available" | "Optional" | "Restricted" | "Coming later" | "No grant"; source?: string; onDetails: () => void; onEdit?: () => void; detailsLabel?: string }) {
   return <div className="flex flex-wrap items-center gap-3 border-b border-[#edf1ed] px-4 py-4 last:border-0 sm:px-5">
     <span aria-hidden="true" className={`grid size-9 shrink-0 place-items-center rounded-xl text-lg ${status === "Active" ? "bg-[#d8f5ee] text-[#006b57]" : "bg-[#f1f5f1] text-[#66756b]"}`}>{status === "Active" ? "✓" : status === "Coming later" ? "◷" : "○"}</span>
     <div className="min-w-44 flex-1"><p className="font-semibold text-[#14231e]">{capability.label}</p><p className="text-sm text-[#58685f]">{source ?? capability.description}</p></div>
-    <Badge tone={status === "Active" ? "green" : status === "Coming later" ? "amber" : status === "Restricted" ? "red" : "neutral"}>{status}</Badge>
-    <button className="min-h-11 px-2 text-sm font-semibold text-[#006b57] hover:underline" onClick={onDetails}>Why?</button>
+    <Badge tone={status === "Active" ? "green" : status === "Available" ? "blue" : status === "Coming later" ? "amber" : status === "Restricted" ? "red" : "neutral"}>{status}</Badge>
+    <button className="min-h-11 px-2 text-sm font-semibold text-[#006b57] hover:underline" onClick={onDetails}>{detailsLabel}</button>
     {onEdit && <button className={secondary} onClick={onEdit}>Edit</button>}
   </div>;
 }
@@ -26,7 +26,7 @@ export function CapabilityRow({ capability, status, source, onDetails, onEdit }:
 export function Modal({ title, children, onClose, wide = false }: { title: string; children: ReactNode; onClose: () => void; wide?: boolean }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => { const node = ref.current; node?.showModal(); return () => node?.close(); }, []);
-  return <dialog ref={ref} onCancel={(event) => { event.preventDefault(); onClose(); }} onClose={onClose}
+  return <dialog ref={ref} onCancel={(event) => { event.preventDefault(); onClose(); }}
     aria-label={title} className={`fixed inset-0 m-auto max-h-[94dvh] w-[calc(100%-1.5rem)] overflow-y-auto rounded-3xl border border-[#d9e3de] bg-white p-0 text-[#14231e] shadow-2xl backdrop:bg-[#10261bb3] ${wide ? "max-w-2xl" : "max-w-xl"}`}>
     <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[#e4ebe5] bg-white px-5 py-4 sm:px-7"><h2 className="text-xl font-semibold">{title}</h2><button aria-label="Close dialog" className="grid size-11 place-items-center rounded-full hover:bg-[#f1f5f1]" onClick={onClose}>✕</button></div>
     <div className="p-5 sm:p-7">{children}</div>

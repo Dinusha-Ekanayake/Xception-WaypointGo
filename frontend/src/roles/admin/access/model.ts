@@ -11,7 +11,7 @@ export type Capability = {
   relevant: Persona[];
   optionalFor?: Persona[];
 };
-export type Member = { id: string; name: string; email: string; personas: Persona[]; places: string[]; active: boolean };
+export type Member = { id: string; name: string; email: string; personas: Persona[]; places: string[]; active: boolean; vehicleType?: "van" | "truck" };
 export type Exception = { memberId: string; action: string; decision: "allow" | "deny"; reason: string; place: string | null; expires: string | null };
 export type Change = { id: number; at: string; actor: string; target: string; action: string; before: string; after: string; reason: string; place: string | null; expires: string | null };
 export type DemoState = { members: Member[]; personaSettings: Record<string, Decision>; exceptions: Exception[]; history: Change[] };
@@ -130,17 +130,21 @@ export function activeException(state: DemoState, memberId: string, action: stri
   return value && (!value.expires || value.expires >= todayInColombo()) ? value : undefined;
 }
 export function todayInColombo(): string { return new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Colombo" }); }
-export function effective(state: DemoState, member: Member, capability: Capability): { allowed: boolean; source: string } {
-  if (!capability.implemented) return { allowed: false, source: "Coming later" };
+export function effective(state: DemoState, member: Member, capability: Capability): { allowed: boolean; places: string[]; source: string } {
+  if (!capability.implemented) return { allowed: false, places: [], source: "Coming later" };
   const deniedBy = member.personas.find((persona) => personaChoice(state, persona, capability.action) === "deny");
-  if (deniedBy) return { allowed: false, source: `Blocked by ${labelFor(deniedBy)}` };
+  if (deniedBy) return { allowed: false, places: [], source: `Blocked by ${labelFor(deniedBy)}` };
+  if (!member.places.length) return { allowed: false, places: [], source: "No assigned place" };
   const exception = activeException(state, member.id, capability.action);
-  if (exception?.decision === "deny") return { allowed: false, source: "Blocked for this member" };
-  const hasGrant = exception?.decision === "allow" || member.personas.some((persona) => personaAllows(state, persona, capability.action));
-  if (!hasGrant) return { allowed: false, source: "No grant" };
-  if (!member.places.length) return { allowed: false, source: "No assigned place" };
-  if (exception?.place && !member.places.includes(exception.place)) return { allowed: false, source: "Outside exception's place" };
-  return { allowed: true, source: exception?.decision === "allow" ? "Allowed for this member" : `From ${member.personas.filter((persona) => personaAllows(state, persona, capability.action)).map(labelFor).join(" + ")}` };
+  const grantingPersonas = member.personas.filter((persona) => personaAllows(state, persona, capability.action));
+  const places = member.places.filter((place) => {
+    if (exception?.decision === "deny" && (!exception.place || exception.place === place)) return false;
+    return grantingPersonas.length > 0 || exception?.decision === "allow" && (!exception.place || exception.place === place);
+  });
+  if (!places.length) return { allowed: false, places, source: exception?.decision === "deny" ? "Blocked for this member" : "No grant" };
+  const scoped = places.length < member.places.length ? ` in ${places.join(", ")}` : "";
+  const source = grantingPersonas.length > 0 ? `From ${grantingPersonas.map(labelFor).join(" + ")}${scoped}` : `Allowed for this member${scoped || (exception?.place ? ` in ${exception.place}` : "")}`;
+  return { allowed: true, places, source };
 }
 export function labelFor(persona: Persona): string { return PERSONAS.find((item) => item.id === persona)!.label; }
 export function personaCounts(state: DemoState, persona: Persona) {
