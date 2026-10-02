@@ -54,6 +54,9 @@ export default function Track({
   const timelineOf = focus ?? first?.orderId ?? null;
   const history = useResource(timelineOf ? (s) => gateway.history(timelineOf, s) : null, timelineOf ?? "");
 
+  // A chilled order rides only on a refrigerated vehicle (R-PLN-02); nothing else is known of the vehicle.
+  const refrigerated = stops.some((d) => orderOf(d)?.temperature === "chilled");
+
   const shortOf = (orderId: string) => issues.find((i) => i.type === "LOADING_SHORTFALL" && isOpenIssue(i) && i.subjects.some((s) => s.id === orderId));
 
   return (
@@ -93,7 +96,7 @@ export default function Track({
             <Card label="Where it is">
               <div className="flex items-center gap-2">
                 <Chip tone={arrived ? "ink" : "mint"}>{arrived ? "Arrived" : "On the way"}</Chip>
-                {first && <Chip outline>{temperatureLabel(first.temperature)}</Chip>}
+                {refrigerated && <Chip outline>Refrigerated vehicle</Chip>}
               </div>
               {first && <NextStop stop={stops[0] ?? null} order={first} outlet={outlet} />}
               {first && <Progress status={first.status} />}
@@ -154,7 +157,8 @@ export default function Track({
                         <span className="text-[15px] font-medium text-black">
                           {o?.orderRef ?? "Order"} · {o ? temperatureLabel(o.temperature) : ""}
                         </span>
-                        <span className="text-[13px] text-go-muted">{o ? cases(o.itemCount) : `${d.lines.length} lines`}</span>
+                        {/* The order's own volume, which the warehouse returned: never summed from lines. */}
+                        <span className="text-[13px] text-go-muted">{o ? `${cases(o.itemCount)} · ${o.volumeM3} m³` : `${d.lines.length} lines`}</span>
                         <span className={cx("text-[13px] font-medium", short ? "text-go-warning-text" : "text-go-success")}>
                           {short ? ISSUE_TYPE[short.type] : o && onTheWay(o.status) ? "Loaded in full" : (o && ORDER_STATUS[o.status].label) ?? ""}
                         </span>
