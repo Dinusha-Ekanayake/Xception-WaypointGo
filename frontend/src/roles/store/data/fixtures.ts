@@ -6,6 +6,7 @@ import {
   type AmendOrder,
   type CalendarAnswer,
   type CancelOrder,
+  type AcceptShortfall,
   type ConfirmPartialReceipt,
   type DisputeReceipt,
   type LineAvailability,
@@ -166,7 +167,7 @@ export function sampleGateway(): StoreGateway {
     const short: LineAvailability[] = lines
       .filter((l) => l.quantity > (STOCK.get(l.productId) ?? 0))
       .map((l) => ({ productId: l.productId, requested: l.quantity, available: STOCK.get(l.productId) ?? 0 }));
-    if (short.length > 0) throw problem(409, "INSUFFICIENT_STOCK", "The warehouse cannot supply every line. Nothing was saved.", { availability: short });
+    if (short.length > 0) throw problem(422, "VALIDATION_FAILED", "Insufficient stock, nothing was reserved.", { availability: short }, ["STK-01"]);
   };
   const calendar = (date: string): CalendarAnswer => {
     const operating = date !== poya;
@@ -194,7 +195,12 @@ export function sampleGateway(): StoreGateway {
           history.set(o.orderId, [{ from: null, to: "STOCK_UNKNOWN", reason: "warehouse unreachable", actorId: null, at: o.placedAt }]);
           o.status = "STOCK_UNKNOWN";
         }
-        return clone(o);
+        // The same answer as PlaceOrderHandler: no totals are guessed while stock is unchecked.
+        return {
+          ...clone(o),
+          rolledBecause: o.dateRolled ? ["non_operating"] : [],
+          ...(warehouseDown ? { temperature: null, itemCount: null, weightKg: null, volumeM3: null, degraded: "warehouse unreachable" } : {}),
+        };
       }
       case OrderCommandKind.amend: {
         const { orderId, lines } = p as AmendOrder;
@@ -207,6 +213,14 @@ export function sampleGateway(): StoreGateway {
         o.rowVersion++;
         push(o, o.status, "amended by the store");
         return clone(o);
+      }
+      case OrderCommandKind.acceptShortfall: {
+        const { orderId } = p as AcceptShortfall;
+        const o = find(orderId);
+        guard(o.rowVersion, command.expectedVersion);
+        o.rowVersion++;
+        push(o, "CONFIRMED", "store accepted the reserved quantities");
+        return { orderId, status: o.status, rowVersion: o.rowVersion };
       }
       case OrderCommandKind.cancel: {
         const { orderId, reason } = p as CancelOrder;
@@ -251,6 +265,10 @@ export function sampleGateway(): StoreGateway {
       circuitState: warehouseDown ? "open" : "closed",
     }),
     calendar: async (date) => calendar(date),
+    deliveryDate: async (_outletId, requested) => {
+      const day = calendar(requested);
+      return { requested, delivery: day.nextOperatingDay, reasons: day.operating ? [] : ["non_operating"] };
+    },
     pendingReceipts: async () =>
       [...receipts.values()]
         .filter((r) => r.status === "PENDING")

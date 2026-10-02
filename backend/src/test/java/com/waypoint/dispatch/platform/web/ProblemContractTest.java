@@ -75,6 +75,13 @@ class ProblemContractTest {
       throw DomainException.rateLimited("Too many attempts", 900);
     }
 
+    @GetMapping("/probe/extension")
+    void extension() {
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, "Insufficient stock", List.of("STK-01"))
+          .with("availability", List.of(Map.of("productId", "P-1", "requested", 12, "available", 4)))
+          .with("code", "NOT_A_CODE");
+    }
+
     @GetMapping("/probe/uuid/{id}")
     void uuid(@PathVariable String id) {
       RequestValues.uuid("id", id);
@@ -143,6 +150,17 @@ class ProblemContractTest {
         .andExpect(jsonPath("$.violations[0].rule").value("R-ORD-08"))
         .andExpect(jsonPath("$.violations[0].field").doesNotExist())
         .andExpect(jsonPath("$.correlationId").isNotEmpty());
+  }
+
+  @Test
+  void anExtensionIsAddedBesideTheStandardMembersAndNeverReplacesOne() throws Exception {
+    mvc.perform(get("/probe/extension"))
+        .andExpect(status().isUnprocessableEntity())
+        .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+        .andExpect(jsonPath("$.violations[0].rule").value("STK-01"))
+        .andExpect(jsonPath("$.availability[0].productId").value("P-1"))
+        .andExpect(jsonPath("$.availability[0].requested").value(12))
+        .andExpect(jsonPath("$.availability[0].available").value(4));
   }
 
   @Test

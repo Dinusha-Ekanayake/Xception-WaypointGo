@@ -1,18 +1,32 @@
-import type { OrderView } from "@shared/domain/types";
-import { Icon } from "@shared/ui";
-import { cases, dayLabel, temperatureLabel } from "../data/format.ts";
+import { useState } from "react";
+import type { PlacedOrder } from "@shared/domain/types";
+import { Icon, Notice } from "@shared/ui";
+import { cases, clock, dayLabel, temperatureLabel } from "../data/format.ts";
 import { Button, Sheet } from "../ui.tsx";
 
 // Figma "04 Order sent". Totals are the warehouse's, returned with the order,
 // never summed from product lines here. An order kept on the phone is said to
 // be exactly that, not sent.
 
-export type Sent = { orders: OrderView[]; queued: boolean; requestedDate: string };
+export type Sent = { orders: PlacedOrder[]; queued: boolean; requestedDate: string };
 
-export default function OrderSent({ sent, onDone, onFixRest }: { sent: Sent; onDone: () => void; onFixRest?: () => void }): React.JSX.Element {
+export default function OrderSent({
+  sent,
+  onDone,
+  onFixRest,
+  onAccept,
+}: {
+  sent: Sent;
+  onDone: () => void;
+  onFixRest?: () => void;
+  /** Take what a partial reservation locked; answers an error message or null. */
+  onAccept?: (order: PlacedOrder) => Promise<string | null>;
+}): React.JSX.Element {
   const { orders, queued } = sent;
   const unknown = orders.some((o) => o.status === "STOCK_UNKNOWN");
-  const title = orders.length === 0 && queued ? "Saved on this phone" : unknown ? "Order kept, stock not checked" : "Order sent";
+  const partial = orders.some((o) => o.shortfall);
+  const title =
+    orders.length === 0 && queued ? "Saved on this phone" : partial ? "Only part could be reserved" : unknown ? "Order kept, stock not checked" : "Order sent";
   const rolled = orders.find((o) => o.dateRolled);
 
   return (
@@ -37,10 +51,13 @@ export default function OrderSent({ sent, onDone, onFixRest }: { sent: Sent; onD
           {orders.map((o) => (
             <div key={o.orderId} className="flex flex-col">
               <dt className="text-go-muted">
-                {o.orderRef} · {temperatureLabel(o.temperature)}
+                {o.orderRef}
+                {o.temperature ? ` · ${temperatureLabel(o.temperature)}` : ""}
               </dt>
               <dd className="font-semibold text-black">
-                {cases(o.itemCount)} · {o.weightKg} kg · {o.volumeM3} m³
+                {o.itemCount === null || o.weightKg === null || o.volumeM3 === null
+                  ? "Totals follow once stock is checked"
+                  : `${cases(o.itemCount)} · ${o.weightKg} kg · ${o.volumeM3} m³`}
               </dd>
             </div>
           ))}
@@ -55,6 +72,7 @@ export default function OrderSent({ sent, onDone, onFixRest }: { sent: Sent; onD
           </div>
         </dl>
       )}
+      {onAccept && orders.filter((o) => o.shortfall).map((o) => <ShortfallNotice key={o.orderId} order={o} onAccept={onAccept} />)}
       {queued && orders.length > 0 && <p className="text-[14px] text-go-warning-text">Part of this order is saved on this phone and sent when the connection returns.</p>}
       <div className="flex gap-2.5">
         {onFixRest && (
@@ -67,5 +85,42 @@ export default function OrderSent({ sent, onDone, onFixRest }: { sent: Sent; onD
         </Button>
       </div>
     </Sheet>
+  );
+}
+
+// STK-13: the warehouse locked what it had until `expiresAt`. The store takes it
+// as it is or cancels the order from Orders; nothing is split or guessed here.
+function ShortfallNotice({ order, onAccept }: { order: PlacedOrder; onAccept: (order: PlacedOrder) => Promise<string | null> }): React.JSX.Element {
+  const [state, setState] = useState<{ busy: boolean; done: boolean; error: string | null }>({ busy: false, done: false, error: null });
+  const short = order.shortfall!;
+  const accept = async () => {
+    setState({ busy: true, done: false, error: null });
+    const error = await onAccept(order);
+    setState({ busy: false, done: error === null, error });
+  };
+  if (state.done) return <Notice tone="info" live title={`${order.orderRef}: the reserved quantities are confirmed.`} />;
+  return (
+    <Notice
+      tone="warning"
+      live
+      title={`${order.orderRef}: held until ${clock(short.expiresAt)}`}
+      action={
+        <Button large onClick={() => void accept()}>
+          {state.busy ? "Accepting…" : "Accept reserved"}
+        </Button>
+      }
+    >
+      <ul className="flex flex-col gap-0.5">
+        {short.lines
+          .filter((l) => l.reserved < l.requested)
+          .map((l) => (
+            <li key={l.productId}>
+              {l.productId}: {l.reserved} of {l.requested}
+            </li>
+          ))}
+      </ul>
+      {state.error && <p className="mt-1 font-medium text-go-danger-strong">{state.error}</p>}
+      <p className="mt-1">Accept before then, or cancel the order from Orders.</p>
+    </Notice>
   );
 }

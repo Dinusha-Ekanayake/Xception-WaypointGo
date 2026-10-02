@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { ApiError } from "@shared/api/problem";
 import { useResource } from "@shared/api/useResource";
-import { OrderCommandKind, type LineAvailability, type OrderView, type OutletView, type Temperature } from "@shared/domain/types";
+import { OrderCommandKind, type LineAvailability, type OrderView, type PlacedOrder, type OutletView, type Temperature } from "@shared/domain/types";
 import { Icon, Notice, cx } from "@shared/ui";
 import type { StoreGateway } from "../data/gateway.ts";
 import { addDays, cutoffLabel, dayLabel, depotToday, hhmm, longDay, untilCutoff } from "../data/format.ts";
@@ -53,6 +53,10 @@ export default function PlaceOrder({
   const brand = outlet?.brandCode ?? "";
   const catalogue = useResource(brand ? (s) => gateway.catalogue(brand, s) : null, brand);
   const day = useResource((s) => gateway.calendar(date, s), date);
+  // The server's rule decides the day (cutoff, closures, calendar); the calendar
+  // alone is the fallback when that read fails, and only names the festival.
+  const outletId = outlet?.outletId ?? "";
+  const when = useResource(!amend && outletId ? (s) => gateway.deliveryDate(outletId, date, s) : null, `${outletId}|${date}`);
 
   // The last quantity this outlet ordered of each product, as a guide.
   const usual = useMemo(() => {
@@ -67,12 +71,29 @@ export default function PlaceOrder({
   const shown = products.filter((p) => (p.temperature ?? "ambient") === temp && p.productId.toLowerCase().includes(search.trim().toLowerCase()));
   const classes: Temperature[] = amend ? [amend.temperature] : ["ambient", "chilled"];
   const cases = classes.reduce((s, t) => s + count(t).reduce((a, [, n]) => a + n, 0), 0);
-  const rolled = day.data && !day.data.operating ? day.data.nextOperatingDay : null;
+  const rolled = amend
+    ? amend.dateRolled
+      ? amend.deliveryDate
+      : null
+    : when.data
+      ? when.data.delivery !== date
+        ? when.data.delivery
+        : null
+      : day.data && !day.data.operating
+        ? day.data.nextOperatingDay
+        : null;
+  const reasons = when.data?.reasons ?? (rolled ? ["non_operating"] : []);
+  const festival = day.data?.day && "festival" in day.data.day ? day.data.day.festival : null;
+
+  const acceptShortfall = async (o: PlacedOrder): Promise<string | null> => {
+    const outcome = await commands.run(OrderCommandKind.acceptShortfall, { orderId: o.orderId }, o.rowVersion);
+    return outcome.ok ? null : conflictMessage(outcome.error);
+  };
 
   const submit = async () => {
     setError(null);
     setShort([]);
-    const placed: OrderView[] = [];
+    const placed: PlacedOrder[] = [];
     let queued = false;
     for (const t of classes) {
       const lines = count(t).map(([productId, quantity]) => ({ productId, quantity }));
@@ -93,7 +114,7 @@ export default function PlaceOrder({
         return;
       }
       if (outcome.queued) queued = true;
-      else placed.push(outcome.ack.result as OrderView);
+      else placed.push(outcome.ack.result as PlacedOrder);
       setQty((q) => Object.fromEntries(Object.entries(q).filter(([id]) => tempOf(id) !== t)));
     }
     setSent({ orders: placed, queued, requestedDate: date });
@@ -138,9 +159,12 @@ export default function PlaceOrder({
           </div>
         </fieldset>
       )}
-      {rolled && (
-        <Notice tone="warning" live title={`${dayLabel(date)} is not a delivery day. This order will arrive ${dayLabel(rolled)}.`}>
-          Depots are closed that day{day.data?.day && "festival" in day.data.day && day.data.day.festival ? ` (${day.data.day.festival})` : ""}. You can still order now; the date moves to the next operating day.
+      {rolled && !amend && (
+        <Notice tone="warning" live title={`This order will arrive ${dayLabel(rolled)}, not ${dayLabel(date)}.`}>
+          {reasons.includes("cutoff") && "Orders for that day closed at 4:00 PM. "}
+          {reasons.includes("closed") && "The depot has closed ordering for that day. "}
+          {reasons.includes("non_operating") && `Depots are closed that day${festival ? ` (${festival})` : ""}. `}
+          You can still order now; it goes on the next run.
         </Notice>
       )}
       {warehouseDown && (
@@ -210,7 +234,7 @@ export default function PlaceOrder({
           <h2 className="hidden text-[20px] font-medium text-black lg:block">Order summary</h2>
           <Muted>
             Delivery {dayLabel(rolled ?? date)}
-            {outlet ? ` · ${hhmm(outlet.windowOpen)}–${hhmm(outlet.windowClose)}` : ""}
+            {outlet ? ` · ${hhmm(outlet.windowOpen)}-${hhmm(outlet.windowClose)}` : ""}
           </Muted>
           <p className="text-[28px] leading-tight font-semibold text-black">
             {cases === 1 ? "1 case" : `${cases} cases`}
@@ -229,7 +253,7 @@ export default function PlaceOrder({
       </div>
 
       {sent && (
-        <OrderSent sent={sent} onDone={onDone} onFixRest={error ? () => setSent(null) : undefined} />
+        <OrderSent sent={sent} onDone={onDone} onFixRest={error ? () => setSent(null) : undefined} onAccept={acceptShortfall} />
       )}
     </div>
   );
