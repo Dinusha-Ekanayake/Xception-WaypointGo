@@ -21,6 +21,15 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-02 - fix(test): stop the execution tests colliding on a random day
+
+`fix/execution-test-day-collision` · @kavindamihiran
+
+`ExecutionIntegrationTest` picks a random service day per test and assigns the same two vehicles around it. The assignments stay in the database, so two tests landing on neighbouring days broke the no-overlap constraint in `setUp`. It now picks again until both vehicles are free.
+Why: the preview deploy of #100 failed on it (`aTripRunningBehindTellsTheStopsAhead`, exclusion constraint on `iam.vehicle_driver_assignments`), about one run in fifteen by the arithmetic.
+Verified: `mvn -Dtest=ExecutionIntegrationTest test` on local PostgreSQL 16: 23 run, 0 failed, 0 skipped.
+Open: nothing.
+
 ## 2026-10-02 - docs: add a connect guide for the read-only MCP server
 
 `docs/mcp-connect-guide` · @kavindamihiran
