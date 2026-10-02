@@ -32,13 +32,19 @@ ensure_certificate() {
   local names=("$site" "preview.$site" "grafana-preview.$site")
 
   for name in "${names[@]}"; do
-    "${compose[@]}" exec -T nginx sh -c       'test -f "$1" && openssl x509 -in "$1" -noout -checkhost "$2" | grep -q "does match"'       sh "$live" "$name" || missing=1
+    "${compose[@]}" exec -T nginx sh -c \
+      'test -f "$1" && openssl x509 -in "$1" -noout -checkhost "$2" | grep -q "does match"' \
+      sh "$live" "$name" || missing=1
   done
   [[ "$missing" == 1 ]] || return 0
 
   echo "==> requesting a certificate for ${names[*]}"
-  if "${compose[@]}" run --rm --no-deps -T --entrypoint certbot certbot certonly       --webroot -w /var/www/certbot --cert-name "$site" "${names[@]/#/--domain=}"       --key-type ecdsa --non-interactive --agree-tos --register-unsafely-without-email       --renew-with-new-domains; then
-    "${compose[@]}" exec -T nginx sh -c       '/docker-entrypoint.d/25-tls-certificate.sh && nginx -t && nginx -s reload'
+  if "${compose[@]}" run --rm --no-deps -T --entrypoint certbot certbot certonly \
+      --webroot -w /var/www/certbot --cert-name "$site" "${names[@]/#/--domain=}" \
+      --key-type ecdsa --non-interactive --agree-tos --register-unsafely-without-email \
+      --renew-with-new-domains; then
+    "${compose[@]}" exec -T nginx sh -c \
+      '/docker-entrypoint.d/25-tls-certificate.sh && nginx -t && nginx -s reload'
   else
     echo "deploy: no certificate issued; check that every name under $site resolves to this server." >&2
     echo "deploy: nginx keeps serving its current certificate until the next deploy." >&2
