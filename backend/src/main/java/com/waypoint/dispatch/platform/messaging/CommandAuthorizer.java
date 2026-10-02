@@ -34,4 +34,13 @@ public interface CommandAuthorizer {
       Actor actor, String action, String resource, Command command) {
     return denyReason(actor, action, resource, command);
   }
+
+  /**
+   * The policy generation this authorizer is deciding under, stamped on the audit
+   * row so a decision can later be tied to the rules in force when it was taken
+   * (POL-03). Empty when the authorizer has no notion of one.
+   */
+  default java.util.OptionalLong policyGeneration() {
+    return java.util.OptionalLong.empty();
+  }
 }

@@ -363,6 +363,10 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 
 **Owns:** `integration.audit_log`.
 
+**Recorded per decision (issue #6).** The command id, the target (`wpt:<module>:<type>:<id>` split into type and id), a redacted outcome, a redacted state before where the handler supplies it (`AuditContext.before`), the correlation id of the request, and the policy generation the decision was taken under. Reads go through `GET /api/audit` (filters: actor, target, action, decision, correlation id, command id, time range; keyset paginated; `audit:Read`, held by auditors and administrators) and `GET /api/audit/decisions/{commandId}`, which returns the audit rows, the receipt and the policy versions that governed the decision, saying whether they are exact (generation unchanged since) or reconstructed.
+
+**Event backbone and scheduler (issue #6).** `OutboxRelay` delivers `integration.outbox_events` at least once, per aggregate in order, to every `EventSubscriber` of the type, each in a transaction under its own module role with the consumer inbox making the delivery idempotent. Dead letters are read at `GET /api/platform/dead-letters` and replayed with `platform.replay-event` (`platform:ReplayEvent`, administrators). `ScheduledJobRunner` leases and records every `ScheduledJob`; platform jobs are `AuditPartitionJob` and `PlatformRetentionJob`, and Identity and Reference register `SessionRetentionJob` and `CalendarExhaustionJob` through the same port. See R-PLT-01 to 07.
+
 **Invariants.** Written in the same transaction as the change it describes, so an audit gap is impossible. Append-only, no updates or deletes. **Denied authorization attempts are audited too**, because failed attempts are the interesting ones. Partitioned monthly, retained for years.
 
 ---

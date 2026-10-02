@@ -59,3 +59,52 @@ Still open on #6:
 - No frontend mirror of `DeadLetterView`; the admin console (#22) adds it with the screen.
 - The correlation id still travels through the logging context rather than as a parameter.
 - Not run on the server. The backlog decision above has only been exercised against test data.
+
+---
+
+# Second slice: scheduler jobs and audit completion
+
+Rules R-PLT-04 to 07, cases PLT-04, 07, 09, 10 and POL-03, parameters P-25 and P-26.
+
+## What was built
+
+### Scheduler (`platform/scheduling/` and two modules)
+
+- `ScheduledJobRunner` writes `integration.job_runs` and counts `waypoint.job.duplicate`; a run that cannot be recorded still runs.
+- `AuditPartitionJob` with the pure `PartitionPlanner`: creates the current month and three ahead, raises `waypoint.audit.partitions_short` under two future months, detaches partitions older than 24 months.
+- `PlatformRetentionJob`: receipts, published outbox events (by `occurred_at`, because the relay does not stamp delivery), consumer inbox, job runs. A dead event is never purged.
+- `identity/application/SessionRetentionJob` (expired sessions, old sign-in attempts) and `referencedata/application/CalendarExhaustionJob` (daily warning under 30 days).
+- Migration `20261002T1100_platform_scheduler_jobs.sql`: `job_runs`, `ensure_audit_partition` and `detach_audit_partition` as `SECURITY DEFINER` functions, `DELETE` on three bookkeeping tables.
+
+### Audit (`platform/audit/`, `platform/messaging/`, `platform/web/`)
+
+- `AuditEntry` and `AuditLog` carry command id, target, before and after, policy generation. `AuditRedactor` (pure) replaces personal fields by name at any depth; `AuditContext` lets a handler record `before`.
+- `CommandBus` stamps those fields, takes the correlation id as a parameter, and stores deterministic rejections as receipts (`RejectionReceipt`), replaying them on retry.
+- `AuditQuery` and `AuditController`: `GET /api/audit` (filters: actor, target, action, decision, correlation id, command id, time range; keyset) and `GET /api/audit/decisions/{commandId}`. Both need `audit:Read`.
+- `PolicyHistory` port, implemented by `identity/application/PolicyHistoryReader`.
+- Migration `20261002T1200_platform_audit_completion.sql`: nullable columns and indexes only.
+
+## Flows
+
+- **Command.** The bus authorizes, checks the receipt (a stored rejection is rethrown, a stored success replayed), runs the handler, and commits the state change, receipt and an audit row with target, redacted outcome and policy generation together.
+- **Job.** The runner takes the advisory lease, records the run, calls `ScheduledJob.run(now)`, records the outcome.
+
+## Verify locally
+
+```sh
+cd backend
+TEST_DATABASE_URL=postgresql://waypoint:local-testing-only@127.0.0.1:5432/waypoint_test mvn verify
+```
+
+New tests: `SchedulerIntegrationTest`, `AuditApiIntegrationTest`, `PartitionPlannerTest`, `AuditRedactorTest`, and new cases in `CommandBusTest`. Metrics: `waypoint_job_duplicate_total`, `waypoint_audit_partitions_ahead`, `waypoint_audit_partitions_short_total`, `waypoint_retention_purged_total`.
+
+## Known gaps
+
+| Gap | Owner |
+| --- | --- |
+| About 23 older `AuditEntry` call sites take the correlation id from the logging context; only bus-written rows get it as a parameter | Follow-up, per module |
+| `before` is captured only by `vehicle:SetDayStatus`; other handlers opt in with `AuditContext.before` | Each module issue |
+| A decision's policy versions are exact only while the policy generation is unchanged; attachments leave no history | Follow-up if auditors need it |
+| Archiving detached audit partitions | Manual until an archive target is chosen |
+| Audit and dead-letter screens | #23, #22 |
+| Each retention run deletes at most 5,000 rows per table | Raise `BATCH` if a backlog is seen |

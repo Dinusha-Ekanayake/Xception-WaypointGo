@@ -32,7 +32,7 @@ Values that will change are not listed here. They live in the parameter register
 
 ## Rule identifiers and status
 
-`R-<AREA>-<n>`. Areas: `ORD` ordering, `STK` stock, `PLN` planning, `LOD` loading, `EXE` execution, `RCP` receipt, `FLT` fleet, `CAL` calendar, `NOT` notification.
+`R-<AREA>-<n>`. Areas: `ORD` ordering, `STK` stock, `PLN` planning, `LOD` loading, `EXE` execution, `RCP` receipt, `FLT` fleet, `CAL` calendar, `NOT` notification, `PLT` platform.
 
 | Status | Meaning |
 | --- | --- |
@@ -327,6 +327,20 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-IAM-25 | On a shared loader device, loading writes are made by the operator who entered their PIN, named in the command's `actingUserId`. A device with no operator is locked and every loading write is refused | Confirmed product decision | Binding |
 | R-IAM-26 | An operator PIN is four digits. Five wrong tries pause PIN entry for that person for five minutes | Confirmed product decision | Binding |
 | R-IAM-27 | A loader may switch with their PIN while offline against the crew list the device downloaded: a PBKDF2 verifier per member, never the PIN, valid for 12 hours and wiped at sign-out, with the same five-try pause kept on the device. On reconnect the switches are replayed into the operator history before any queued work, only for crew of that device, in order, after the history the server has, and audited as offline. A four-digit PIN is recoverable from its verifier; that risk is accepted because the list reaches only a supervisor-signed-in loader device (decision 2026-10-01) | Confirmed product decision | Binding |
+
+## 7b. Platform: events, jobs and audit (issue #6)
+
+| ID | Rule | Source | Status |
+| --- | --- | --- | --- |
+| R-PLT-01 | An event is delivered at least once and applied by each consumer once. A consumer records `(consumer, event)` in the same transaction as its own change, so a redelivery re-runs only the subscribers that had not finished | Policy | Policy |
+| R-PLT-02 | Events of one aggregate are delivered in the order written: an event waits while an earlier one of its aggregate is pending, failed or processing. A dead-lettered event does not block its successors, and a replayed one arrives after them | Policy | Policy |
+| R-PLT-03 | A failed delivery is retried with exponential backoff (2 s doubling to a 5 min cap, 20% jitter) and dead-lettered after 8 attempts (`RELAY_MAX_ATTEMPTS`), with its last error. Replay is an administrator command (`platform:ReplayEvent`) that resets the attempts. Dead events are never purged | Policy, issue #6 | Policy |
+| R-PLT-04 | A scheduled job runs on one instance at a time under an advisory-lock lease, records each run, and counts a refused lease as a duplicate run | Policy | Policy |
+| R-PLT-05 | Audit partitions are created ahead of need (current month plus three), and an alert fires when fewer than two future months exist. Partitions older than the retention period are detached, never dropped | Policy, P-26 | Policy |
+| R-PLT-06 | Every command's answer is a receipt, including a deterministic rejection (validation, constraint, conflict, version conflict, not found): a retry gets the same rejection and the handler does not run again. A denial, a rate limit, a timeout and an unavailable dependency are never stored, because a retry exists to get past them | Policy | Policy |
+| R-PLT-07 | An audit row records the command, the target, a redacted outcome and, where the handler supplies it, a redacted state before. Snapshots are redacted by field name before they are written, bounded in size, and never carry a payload with personal data | Policy | Policy |
+
+---
 
 ## 8. Conflicts found
 

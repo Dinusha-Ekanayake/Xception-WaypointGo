@@ -65,7 +65,8 @@ public class CommandController {
             .flatMap(resolver -> resolver.resolveCommand(request, command))
             .orElseThrow(() -> new DomainException(ErrorCode.UNAUTHENTICATED, "Not signed in"));
 
-    CommandResult result = bus.dispatch(actor, command);
+    CommandResult result =
+        bus.dispatch(actor, command, (String) request.getAttribute(CorrelationIdFilter.ATTRIBUTE));
     return new CommandAck(
         command.commandId().toString(), command.kind(), result.replayed(), result.value());
   }

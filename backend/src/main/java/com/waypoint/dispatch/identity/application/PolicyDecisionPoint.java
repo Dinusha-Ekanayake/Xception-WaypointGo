@@ -131,6 +131,15 @@ public class PolicyDecisionPoint implements CommandAuthorizer {
     return Optional.of(decision.reason());
   }
 
+  /**
+   * Read on the connection the caller is using, so inside a command it is the
+   * generation that command's own snapshot sees, the same one its re-check used.
+   */
+  @Override
+  public java.util.OptionalLong policyGeneration() {
+    return java.util.OptionalLong.of(policies.generationHere());
+  }
+
   private String deny(Actor actor, String action, String resource, String reason) {
     metrics.increment("waypoint.authorization.denied", "action", action);
     // Debug only: the audit row below is the record. An INFO line per denial would

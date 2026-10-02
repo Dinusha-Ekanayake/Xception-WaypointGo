@@ -21,6 +21,18 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-02 - feat(platform): scheduler jobs and audit completion (issue #6, second slice)
+
+`feat/event-backbone` · @jv_ransika
+
+- Scheduler: `ScheduledJobRunner` records each run and counts duplicates. New jobs: audit partitions ahead and detach after 24 months, platform retention, session retention, calendar exhaustion warning (R-PLT-04, 05). Partition DDL is a `SECURITY DEFINER` function, not a grant.
+- Audit: command id, target, redacted before/after and policy generation on every row; rejected commands are stored as receipts and replayed (R-PLT-06, 07); `GET /api/audit` and `/api/audit/decisions/{commandId}`.
+- Migrations `20261002T1100`, `T1200`. The relay itself landed first in #65. Plan and walkthrough in `docs/issues/006-event-backbone/`.
+
+Why: nothing delivered events, and every command fails after 2027-07-01 when the last audit partition ends.
+Verified: relay slice, `OutboxRelayIntegrationTest` (12), `OutboxIntegrationTest`, `ModuleBoundaryTest`, `EventCatalogueTest`, run against a dedicated database. Scheduler and audit slices: targeted tests written, full `mvn verify` left to CI on the PR.
+Open: older audit call sites still read the correlation id from the logging context; `before` state is captured only by the vehicle status handler so far; archive target for detached partitions needs P-14; audit and dead-letter screens are #23 and #22.
+
 ## 2026-10-02 - feat(execution): deliveries product by product, proof in the database, scope fix
 
 `feat/execution` · @Dinusha-Ekanayake

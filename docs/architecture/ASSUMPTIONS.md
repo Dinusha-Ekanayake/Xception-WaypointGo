@@ -88,6 +88,8 @@ Values that are correct today and will change. **None of them is a literal in co
 | **P-21** | Escalation deadline, HIGH | 60 min | Our policy, issue #13 | As above |
 | **P-22** | Escalation deadline, MEDIUM | 240 min | Our policy, issue #13 | As above |
 | **P-23** | Escalation deadline, LOW | 1440 min | Our policy, issue #13 | As above |
+| **P-25** | Platform bookkeeping retention | Receipts 30 days, published outbox 14 days, consumer inbox 30 days, job runs 90 days, sign-in attempts 30 days, expired sessions 7 days (`app.retention.*`) | Our policy, issue #6 | How long a client may replay a command and how long infrastructure rows are kept. The inbox is never kept shorter than the outbox. A dead-lettered event is never purged |
+| **P-26** | Audit retention | 24 months attached, then the monthly partition is detached, not dropped (`AUDIT_RETENTION_MONTHS`, 0 keeps everything) | Our policy, issue #6 | How long the audit log stays in the live table. The archive target for detached partitions is a manual step |
 
 ### How a parameter changes
 
