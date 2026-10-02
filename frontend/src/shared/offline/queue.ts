@@ -3,6 +3,8 @@ import type { Command } from "@shared/api/commands";
 import { ApiError } from "@shared/api/problem";
 import type { SubmitBatch, SyncAck } from "@shared/domain/sync";
 import { outcomeAction } from "./outcome.ts";
+import { discardCommand, inRecordedOrder, redoCommands } from "./review.ts";
+import type { RedoBasis } from "./resolvers.ts";
 import { all, put, remove, type StoredEntry } from "./store.ts";
 import { queuesWrites, type Role } from "./tiers.ts";
 
@@ -38,13 +40,41 @@ export async function enqueue(
       enqueuedAt: command.clientRecordedAt,
       attempts: 0,
     });
-    // Tell the sync engine there is something to send.
-    globalThis.dispatchEvent?.(new Event(QUEUED_EVENT));
+    queued();
     return { durable: true };
   } catch (error) {
     // Private windows, cleared site data and blocked storage all land here. The
     // user must be told, because the promise of a durable save was not kept.
     return { durable: false, reason: String(error) };
+  }
+}
+
+/** Tell the sync engine there is something to send, now and, where the browser can, once the connection is back. */
+function queued(): void {
+  globalThis.dispatchEvent?.(new Event(QUEUED_EVENT));
+  requestBackgroundSync();
+}
+
+/** The tag the service worker answers by asking an open page to drain (scripts/build-sw.mjs). */
+export const DRAIN_TAG = "waypoint-drain";
+/** The message the service worker posts to a page. */
+export const DRAIN_MESSAGE = "waypoint:drain";
+
+/**
+ * Background Sync, where the browser has it (Chromium). The browser fires the
+ * tag once a connection is back, even with the page in the background. It is a
+ * hint only: the online event, focus and the interval drain the queue anyway,
+ * and a browser without it loses nothing.
+ */
+function requestBackgroundSync(): void {
+  try {
+    if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
+    if (typeof ServiceWorkerRegistration === "undefined" || !("sync" in ServiceWorkerRegistration.prototype)) return;
+    void navigator.serviceWorker.ready
+      .then((registration) => (registration as ServiceWorkerRegistration & { sync: { register(tag: string): Promise<void> } }).sync.register(DRAIN_TAG))
+      .catch(() => undefined);
+  } catch {
+    // No service worker, or a browser that refuses: the other triggers still drain.
   }
 }
 
@@ -109,7 +139,9 @@ const BATCH = 100;
 async function drainOnce(accountId: string): Promise<DrainReport> {
   await beforeDrain.get(accountId)?.();
   const entries = await all(accountId);
-  const ready = entries.filter((e) => !e.needsReview).slice(0, BATCH);
+  // In the order they were recorded, so a batch never sends a later write
+  // without an earlier one (storage returns them by id).
+  const ready = inRecordedOrder(entries.filter((e) => !e.needsReview)).slice(0, BATCH);
   let sent = 0;
   let heldForReview = entries.length - entries.filter((e) => !e.needsReview).length;
   if (ready.length === 0) return { sent, heldForReview, remaining: entries.length };
@@ -146,7 +178,13 @@ async function drainOnce(accountId: string): Promise<DrainReport> {
     } else if (action === "dropped") {
       await remove(accountId, entry.commandId);
     } else if (action === "review") {
-      await put(accountId, { ...entry, needsReview: true, lastError: result.detail ?? result.problemCode ?? result.status });
+      await put(accountId, {
+        ...entry,
+        needsReview: true,
+        lastError: result.detail ?? result.problemCode ?? result.status,
+        ...(result.problemCode ? { problemCode: result.problemCode } : {}),
+        ...(typeof result.rowVersion === "number" ? { serverVersion: result.rowVersion } : {}),
+      });
       heldForReview++;
     } else {
       await put(accountId, { ...entry, attempts: entry.attempts + 1, lastError: result.detail ?? "Not applied yet" });
@@ -167,14 +205,42 @@ export async function heldForReview(accountId: string): Promise<StoredEntry[]> {
   }
 }
 
-/** Drop a held write. Only a person does this, never the engine. */
-export function discard(accountId: string, commandId: string): Promise<void> {
-  return remove(accountId, commandId);
+/**
+ * Drop a held write, with the person's reason. Only a person does this, never
+ * the engine. The server records the drop as well when it knows the write's
+ * version (sync:Discard); the drop is queued, so it works offline too.
+ */
+export async function discard(accountId: string, commandId: string, reason: string): Promise<void> {
+  const entry = (await all(accountId)).find((e) => e.commandId === commandId);
+  if (!entry) return;
+  const command = discardCommand(entry, reason, new Date());
+  if (command) await keepCommand(accountId, command);
+  await remove(accountId, commandId);
+  if (command) queued();
 }
 
-/** Put a held write back in line, for when the cause was fixed elsewhere. */
-export async function retry(accountId: string, entry: StoredEntry): Promise<void> {
-  await put(accountId, { ...entry, needsReview: false });
+/**
+ * Redo a held conflict on the version the device now sees: the same write under
+ * a new id, then a sync:Resolve naming it, so the server keeps the trail. A
+ * resend of the held write itself could never work: the server answers a
+ * replayed id with the answer it gave the first time.
+ */
+export async function redo(accountId: string, entry: StoredEntry, basis: RedoBasis): Promise<void> {
+  const { redo: again, resolve } = redoCommands(entry, basis.expectedVersion, basis.actingUserId, new Date());
+  await keepCommand(accountId, again);
+  if (resolve) await keepCommand(accountId, resolve);
+  await remove(accountId, entry.commandId);
+  queued();
+}
+
+async function keepCommand(accountId: string, command: Command): Promise<void> {
+  await put(accountId, {
+    commandId: command.commandId,
+    kind: command.kind,
+    payload: command,
+    enqueuedAt: command.clientRecordedAt,
+    attempts: 0,
+  });
 }
 
 /**

@@ -17,6 +17,10 @@ export type StoredEntry<T = unknown> = {
   lastError?: string;
   /** Held for human review after a conflict. Never retried automatically. */
   needsReview?: boolean;
+  /** Why the server held it, such as VERSION_CONFLICT. */
+  problemCode?: string;
+  /** The held operation's version on the server, which discarding or redoing it names. */
+  serverVersion?: number;
 };
 
 function databaseName(accountId: string): string {
