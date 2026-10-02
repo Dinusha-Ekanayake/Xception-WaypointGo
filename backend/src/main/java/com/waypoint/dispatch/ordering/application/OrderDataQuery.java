@@ -124,6 +124,38 @@ public class OrderDataQuery implements OrderQuery {
     return read(actor.userId(), work);
   }
 
+  @Override
+  public List<com.waypoint.dispatch.ordering.contract.OrderViews.DailyVolumeView> dailyVolumes(
+      String depotCode, String brandCode, LocalDate from, LocalDate to) {
+    return read(
+        ambient(),
+        () ->
+            database
+                .query(
+                    """
+                    SELECT (o.placed_at AT TIME ZONE 'Asia/Colombo')::date AS day, count(*) AS n,
+                           coalesce(sum(o.volume_m3), 0) AS total,
+                           coalesce(sum(o.volume_m3) FILTER (WHERE o.temperature = 'chilled'), 0) AS chilled
+                      FROM ordering.orders o
+                     WHERE o.depot_code = ? AND o.brand_code = ? AND o.status <> 'cancelled'
+                       AND (o.placed_at AT TIME ZONE 'Asia/Colombo')::date BETWEEN ? AND ?
+                     GROUP BY 1 ORDER BY 1
+                    """,
+                    depotCode,
+                    brandCode,
+                    java.sql.Date.valueOf(from),
+                    java.sql.Date.valueOf(to))
+                .stream()
+                .map(
+                    r ->
+                        new com.waypoint.dispatch.ordering.contract.OrderViews.DailyVolumeView(
+                            ((java.sql.Date) r.get("day")).toLocalDate(),
+                            ((Number) r.get("n")).intValue(),
+                            (java.math.BigDecimal) r.get("total"),
+                            (java.math.BigDecimal) r.get("chilled")))
+                .toList());
+  }
+
   // ---- internals -----------------------------------------------------------
 
   private UUID ambient() {
