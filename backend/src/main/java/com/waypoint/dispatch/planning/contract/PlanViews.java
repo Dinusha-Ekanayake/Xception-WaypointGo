@@ -58,7 +58,9 @@ public final class PlanViews {
       boolean plannedWithoutPredictor,
       List<TripView> trips,
       List<AllocationView> allocations,
-      long rowVersion) {
+      long rowVersion,
+      String engine,
+      Optional<ImprovementView> improvement) {
 
     public PlanView {
       trips = List.copyOf(trips);
@@ -140,6 +142,23 @@ public final class PlanViews {
       checks = List.copyOf(checks);
     }
   }
+
+  /**
+   * What the engine's second pass achieved over its first (issue #92): the
+   * reefers planned again as a whole, kept only when better by rank (R-PLN-32).
+   *
+   * @param improved false when the first plan was already the best the pass found
+   * @param stoppedBy {@code NONE}, or {@code NODES} or {@code CLOCK} when the
+   *     search stopped before finishing and kept the best it had (rule 9)
+   */
+  public record ImprovementView(
+      int firstPassServed,
+      int firstPassDeferred,
+      int served,
+      int deferred,
+      boolean improved,
+      BigDecimal chilledVolumeGainedM3,
+      String stoppedBy) {}
 
   /**
    * @param ruleId an identifier from RULES-AND-POLICIES, for example R-PLN-06

@@ -1,4 +1,4 @@
-import type { AllocationView, OrderView, PlanView, TripView, VehicleView } from "@shared/domain/types";
+import type { AllocationView, ImprovementView, OrderView, PlanView, TripView, VehicleView } from "@shared/domain/types";
 
 // What a plan adds up to on the dispatcher's screen. Pure: the plan, the day's
 // orders and the fleet go in, rows and counts come out.
@@ -124,4 +124,25 @@ export function working(published: PlanView | null, draft: PlanView | null): Wor
   if (draft) return { stage: "draft", plan: draft, revises: draft.supersedes !== null ? published : null };
   if (published) return { stage: "published", plan: published };
   return { stage: "none" };
+}
+
+/**
+ * What the engine's second pass did, in the dispatcher's words (issue #92), or
+ * null when there is nothing to say. A search cut short is always said (rule 9).
+ */
+export function improvementNote(improvement: ImprovementView | null): { title: string; detail: string } | null {
+  if (!improvement) return null;
+  const early = improvement.stoppedBy !== "NONE" ? " The search stopped before it finished, so this is the best it found." : "";
+  if (!improvement.improved) {
+    return early ? { title: "The first plan stands", detail: `The second pass found nothing better by priority.${early}` } : null;
+  }
+  const more = improvement.served - improvement.firstPassServed;
+  const volume = Number(improvement.chilledVolumeGainedM3);
+  return {
+    title: `Reefers planned again: ${more} more ${more === 1 ? "order" : "orders"} served`,
+    detail:
+      `Deferred went from ${improvement.firstPassDeferred} to ${improvement.deferred}` +
+      (volume > 0 ? `, with ${volume.toFixed(1)} m³ more chilled delivered` : "") +
+      `. An order is never dropped for a lower priority one.${early}`,
+  };
 }

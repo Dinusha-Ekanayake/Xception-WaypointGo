@@ -21,6 +21,15 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-03 - feat(planning): re-plan the reefers after the first pass (issue #92)
+
+`feat/engine-improvement` · @Oxshadha
+
+A second engine pass, `ScarceFleetReplan`, clears the reefer days, lists every feasible day of one or two chilled trips through the registry and chooses one per reefer by rank, then places the rest by the first pass's insertion (now shared in `CheapestInsertion`). It is kept only when better by rank (R-PLN-32), is deterministic on a fixed node budget, and its summary is stored on the run and shown on the Plan screen. S1: 70 to 73 served, chilled 78.7 to 109.2 m³, no chilled order closing before 08:00 left. Details in the [walkthrough](../issues/092-engine-improvement/WALKTHROUGH.md).
+Why: the greedy spent the reefers' 270 Fresh minutes on small far loads; one-order moves could not fix it.
+Verified: `mvn verify` against a dedicated database, 731 of 732 pass; the one failure is `IdentityHardeningIntegrationTest` running `SET ROLE` with a local owner name containing dots, unrelated. `check_allocation.py` passes; `npm test` 55, typecheck, build, dispatcher Playwright 11.
+Open: vans are not re-planned on their own; serving more by count would need a policy change to R-PLN-21.
+
 ## 2026-10-02 - fix(reference): import road conditions in one statement
 
 `fix/reference-import-bulk-series` · @tharushaudana

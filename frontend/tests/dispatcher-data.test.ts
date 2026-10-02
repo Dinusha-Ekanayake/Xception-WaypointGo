@@ -4,7 +4,7 @@ import type { OrderStatus, OrderView } from "../src/shared/domain/ordering.ts";
 import type { AllocationView, PlanView, TripView } from "../src/shared/domain/planning.ts";
 import type { VehicleView } from "../src/shared/domain/referencedata.ts";
 import type { RunSheetStopView, RunSheetView } from "../src/shared/domain/execution.ts";
-import { after, board, openDecisions, percent, summarise, working } from "../src/roles/dispatcher/data/plan.ts";
+import { after, board, improvementNote, openDecisions, percent, summarise, working } from "../src/roles/dispatcher/data/plan.ts";
 import { flow, matches } from "../src/roles/dispatcher/data/orders.ts";
 import { attention, byUrgency, isLate, punctuality, vehicleDay } from "../src/roles/dispatcher/data/live.ts";
 import type { IssueView } from "../src/shared/domain/issues.ts";
@@ -36,7 +36,7 @@ function allocation(orderId: string, decision: AllocationView["decision"]): Allo
 function plan(trips: TripView[], allocations: AllocationView[], status: PlanView["status"] = "DRAFT"): PlanView {
   return {
     planId: `plan-${status}`, depotCode: "KDY", serviceDate: "2027-03-01", planVersion: 1, status, referenceVersionId: "r", ruleSetVersionId: "s",
-    priorityPolicyVersionId: "p", supersedes: null, publishedAt: null, plannedWithoutPredictor: true, trips, allocations, rowVersion: 1,
+    priorityPolicyVersionId: "p", supersedes: null, publishedAt: null, plannedWithoutPredictor: true, trips, allocations, rowVersion: 1, engine: "priority-insertion-v1", improvement: null,
   };
 }
 
@@ -193,4 +193,13 @@ test("an issue's age reads in minutes, hours, then days, and a redelivery defaul
   assert.equal(age(raised, new Date("2027-03-03T04:00:00Z")), "2 d");
   assert.equal(nextDay("2027-02-28"), "2027-03-01");
   assert.equal(nextDay("2027-12-31"), "2028-01-01");
+});
+
+test("the second pass is said only when it changed the plan or stopped early", () => {
+  const base = { firstPassServed: 70, firstPassDeferred: 14, served: 73, deferred: 11, improved: true, chilledVolumeGainedM3: "30.448", stoppedBy: "NONE" as const };
+  assert.equal(improvementNote(null), null);
+  assert.deepEqual(improvementNote(base)?.title, "Reefers planned again: 3 more orders served");
+  assert.match(improvementNote(base)!.detail, /from 14 to 11, with 30\.4 m³ more chilled/);
+  assert.equal(improvementNote({ ...base, improved: false, served: 70, deferred: 14 }), null);
+  assert.match(improvementNote({ ...base, improved: false, stoppedBy: "CLOCK" })!.detail, /stopped before it finished/);
 });

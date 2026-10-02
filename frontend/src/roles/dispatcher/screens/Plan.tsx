@@ -5,7 +5,7 @@ import { PlanCommandKind, type OrderView, type PlanView } from "@shared/domain/t
 import { Notice, PrimaryButton, SecondaryButton, Segmented, formatClock } from "@shared/ui";
 import PageHeader from "../PageHeader.tsx";
 import { useFleet } from "../data/fleet.ts";
-import { openDecisions, summarise, working } from "../data/plan.ts";
+import { improvementNote, openDecisions, summarise, working } from "../data/plan.ts";
 import { formatDay } from "../data/scope.ts";
 import { useCommand } from "../data/useCommand.ts";
 import { useOrders, usePlans } from "../data/useDay.ts";
@@ -106,6 +106,7 @@ export default function Plan({
   const stage =
     state.stage === "none" ? "No plan yet" : state.stage === "draft" ? `Draft version ${state.plan.planVersion}${state.revises ? " · revises the published plan" : ""}` : `Published · version ${state.plan.planVersion}`;
   const error = plans.error ?? orders.error ?? fleet.error;
+  const improvement = improvementNote(plan?.improvement ?? null);
 
   return (
     <>
@@ -125,6 +126,11 @@ export default function Plan({
       {error && <Refusal error={error} what="the plan" action={<Retry onClick={() => (plans.refresh(), orders.refresh(), fleet.refresh())} />} />}
       {failure && <Refusal error={failure.error} what={failure.what} />}
       {notice && <Notice tone="info" title={notice} live />}
+      {improvement && (
+        <Notice tone="info" title={improvement.title}>
+          {improvement.detail}
+        </Notice>
+      )}
       {plan?.plannedWithoutPredictor && (
         <Notice tone="neutral" title="Planned on the booklet's travel and service times">
           The time predictor is not running, so no learned times were used.

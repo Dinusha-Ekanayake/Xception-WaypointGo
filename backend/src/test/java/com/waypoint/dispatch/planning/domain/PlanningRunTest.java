@@ -136,7 +136,7 @@ class PlanningRunTest {
     PlanningRun published =
         new PlanningRun(
             d.planId(), d.depotCode(), d.serviceDate(), d.planVersion(), PlanStatus.PUBLISHED, d.stamps(),
-            d.supersedes(), d.revisionReason(), d.demandFingerprint(), false, false, d.engine(), d.days(), d.decisions(),
+            d.supersedes(), d.revisionReason(), d.demandFingerprint(), false, false, d.engine(), d.improvement(), d.days(), d.decisions(),
             d.deferredBy(), 2);
     DomainException refused =
         assertThrows(
@@ -162,7 +162,7 @@ class PlanningRunTest {
   PlanningRun published(PlanningRun d) {
     return new PlanningRun(
         d.planId(), d.depotCode(), d.serviceDate(), d.planVersion(), PlanStatus.PUBLISHED, d.stamps(),
-        d.supersedes(), d.revisionReason(), d.demandFingerprint(), false, false, d.engine(), d.days(), d.decisions(),
+        d.supersedes(), d.revisionReason(), d.demandFingerprint(), false, false, d.engine(), d.improvement(), d.days(), d.decisions(),
         d.deferredBy(), 2);
   }
 
