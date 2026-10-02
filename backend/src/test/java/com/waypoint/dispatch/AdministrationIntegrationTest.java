@@ -433,16 +433,19 @@ class AdministrationIntegrationTest {
   @Test
   @Order(10)
   void readEndpointsAreAPermissionAndADriverDoesNotHaveThisOne() throws Exception {
-    // A driver may read reference data, which is what a route needs.
+    // A driver may read reference data, which is what a route needs. The calendar
+    // is the same for every depot; an outlet is also a question of scope, and this
+    // driver has none today (R-IAM-28, covered in IdentityHardeningIntegrationTest).
     assertTrue(
-        mapper.readTree(read(DRIVER, "/api/reference/outlets/OUT001", 200)).has("brandCode"));
+        mapper.readTree(read(DRIVER, "/api/reference/calendar/" + CLOSED_SUNDAY, 200)).has("operating"));
+    read(DRIVER, "/api/reference/outlets/OUT001", 403);
 
     // A driver may not read the account list, and the refusal is a 403 with a
     // reason, never an empty list.
     String problem = read(DRIVER, "/api/accounts", 403);
     assertTrue(problem.contains("FORBIDDEN"), problem);
 
-    // A store manager has no reference:Read in the seeded policy.
+    // A store manager's reference:Read covers outlets and the calendar only.
     read(MANAGER, "/api/reference/version", 403);
 
     // And an unsigned caller gets 401 rather than a hint about what exists.
