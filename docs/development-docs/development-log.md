@@ -21,6 +21,15 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-02 - fix(deploy): preview log store, Grafana address and root URL
+
+`fix/grafana-root-url` · @jv_ransika
+
+The preview deploy starts Loki, Alloy and Grafana when `GRAFANA_ADMIN_PASSWORD` is in the preview `.env`; Grafana joins the edge network as `preview-grafana` and nginx serves it at `grafana-preview.<site>`. Grafana takes its URL from the request host, because `SITE_ADDRESS` in the preview `.env` is the preview name, not the site.
+Why: PR #51 added the log store but the VPS deploy never started it, and the public address needs an nginx vhost that production nginx (built from `main`) does not have yet.
+Verified: containers healthy on the VPS, Grafana health 200 from inside the server; public address not yet verified (needs the production nginx change).
+Open: production nginx on `main` needs the vhost and a certificate with the new name; Grafana still uses the default `admin` login.
+
 ## 2026-10-02 - feat(dispatcher): issues inbox, overview tiles, skipped outlets, weekly fuel (issue #19)
 
 `feat/dispatcher-rest` · @Oxshadha
