@@ -152,7 +152,8 @@ main() {
   # The log store (Loki, Alloy, Grafana) runs in preview only. Grafana listens
   # on 127.0.0.1 of the server, so it is reached through an SSH tunnel. Without
   # GRAFANA_ADMIN_PASSWORD it is skipped, never started with the default one.
-  services=(db backend mcp waypoint)
+  # ml serves the trained models (issue #16); the backend does not wait for it.
+  services=(db backend mcp ml waypoint)
   if [[ "$environment" == preview ]]; then
     if [[ -n "$(env_value GRAFANA_ADMIN_PASSWORD)" ]]; then
       compose+=(--profile observability)
