@@ -268,6 +268,24 @@ class ExecutionIntegrationTest {
   }
 
   @Test
+  void aDriverWithDepotScopeStillSeesOnlyTheirOwnVehicle() throws Exception {
+    // demo-accounts grants drivers a depot. Depot-wide reads are for the depot's
+    // staff: a driver's scope stays one vehicle on one date (EXE-13).
+    accounts.grantDepot(otherDriver, depot);
+
+    JsonNode live = json(read(otherDriver, "/api/execution/run-sheets?date=" + day + "&depot=" + depot, 200));
+    for (JsonNode sheet : live) {
+      assertEquals(otherVehicleId, sheet.get("vehicleId").asText(), "another driver's vehicle is not visible");
+    }
+    read(otherDriver, "/api/execution/deliveries/" + stopA, 404);
+    read(otherDriver, "/api/execution/deliveries?outlet=" + OUTLET + "&date=" + day, 403);
+
+    // The depot's dispatcher is unaffected.
+    assertEquals(3, json(read(dispatcher, "/api/execution/run-sheets?date=" + day + "&depot=" + depot, 200))
+        .get(0).get("stops").size());
+  }
+
+  @Test
   void rowLevelSecurityHidesAStopFromAnActorWithNoScope() {
     UUID nobody = UUID.randomUUID();
     assertTrue(
