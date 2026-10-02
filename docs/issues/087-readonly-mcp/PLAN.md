@@ -60,3 +60,50 @@ Single-record tools retain IDs and versions. Plans/manifests can exceed the byte
 ### 2. Remaining reads and user validation
 
 Bound the owning modules' run-sheet, loading-work and pending-receipt reads; add tools and cross-user client demonstrations. Validate an installed desktop client and decide whether users actually need remote/mobile access. These are follow-up PRs on #87, without write tools.
+
+### 3. Remote transport for clients that cannot start a local process
+
+Requirement (2026-10-02): users connect whichever assistant they already use. There is still no chatbot in Waypoint. ChatGPT and the hosted Claude connectors accept only a remote HTTPS MCP server that they authorize with OAuth, so the stdio adapter alone leaves them out, and it also asks every other user to clone and build the repository.
+
+#### Current state
+
+- `mcp/` owns the tool catalogue and speaks stdio only. `BackendClient` refuses any origin that is not HTTPS or loopback.
+- Identity issues the `mcp.` read-only session from `POST /api/mcp/session`, which takes a password in a request body. A hosted client must never see that password.
+- On the VPS every path reaches the Next.js container (`deploy/vps/nginx/snippets/site.conf`, `location /`), and `/api/*` is proxied on to Spring. So new public paths need no edge change to be reachable; the edge changes only with a production deploy.
+
+#### Which layer owns what
+
+| Concern | Owner |
+| --- | --- |
+| OAuth authorization server: client registration, authorization codes, token issue and revocation | Identity (`identity/domain/oauth`, `application`, `web`), tables in `iam` |
+| The credential itself | unchanged: the opaque `mcp.` session in `iam.sessions`, read-only by purpose (R-IAM-30) |
+| MCP protocol over HTTP, the one tool catalogue | `mcp/` (`src/http.ts`), a container of its own with no database access |
+| Sign-in and consent page | frontend `app/oauth/authorize` with the view in `src/app-shell/` |
+| Public routing of `/mcp` and the two `/.well-known/` documents | frontend route handlers proxying to the adapter and the backend |
+| Feature switch | the existing `MCP_ENABLED`; off answers 404 for discovery and 403 elsewhere |
+
+#### Decisions
+
+1. **Transport: Streamable HTTP, stateless, JSON responses.** One `POST /mcp` per message, no server-sent stream and no MCP session id, so the adapter keeps nothing between requests and any replica can answer. `GET` and `DELETE` answer 405. Alternative rejected: implementing MCP in the backend, which would be a second tool catalogue (rule 5).
+2. **The adapter is a resource server, the backend is the authorization server.** The adapter forwards the bearer to the same REST reads as today and turns a backend 401 into `401` with `WWW-Authenticate: Bearer resource_metadata=...`, which is what starts the client's OAuth flow. It validates nothing itself and stores nothing. Alternative rejected: the SDK's in-memory OAuth provider in the adapter, which loses every registration at a deploy and puts credentials outside Identity.
+3. **OAuth 2.1 authorization code with PKCE (S256 only), public clients only.** No client secret exists, so there is none to leak. Dynamic client registration (RFC 7591) is open, because that is how ChatGPT and Claude obtain a client id; it is bounded per address per hour and a registration grants nothing by itself.
+4. **The access token is the existing `mcp.` session.** Opaque, server-side, revocable on the next request, never a JWT. It is created at the token exchange, not at sign-in, and the grant `mcp:Connect` is checked at both.
+5. **No refresh token.** A refresh token would be a second, longer-lived credential held by a third party. The session lifetimes apply unchanged (12 h absolute, 2 h idle by default); when one ends the client sends the user through sign-in again. Revisit only if users report it.
+6. **Sign-in is always explicit.** The authorize page asks for email and password every time and never adopts the browser's existing session, for the same reason the local adapter does not: a shared loader device's cookie is the supervisor's (R-IAM-30). The page names the client and the host it will return to before the password is typed.
+7. **Redirect URIs: HTTPS, or HTTP on a loopback address.** Compared exactly, except that a loopback port may differ (RFC 8252). No custom schemes: the page navigates to the redirect, so a scheme allowlist is the difference between a redirect and script execution. A request with an unknown client or redirect is shown as an error on our page and is never redirected.
+8. **Authorization codes are single use, short lived and stored as a hash**, bound to the client, the redirect URI, the PKCE challenge and the resource. A second use is refused and revokes the session the first use created.
+9. **OAuth protocol endpoints answer in the OAuth error shape** (`{"error": ...}`), not RFC 9457, because the clients are third-party OAuth libraries that branch on that field. The two endpoints our own page calls stay `application/problem+json`. Recorded as an exception in R-IAM-31.
+10. **The public origin is the one the request was addressed to** (the same host rule as `OriginGuardFilter`), so each role address and preview work without a per-environment setting.
+
+#### Review focus
+
+1. A code cannot be exchanged twice, by another client, with another redirect URI or without the PKCE verifier.
+2. A wrong password, a locked-out address or a denied `mcp:Connect` never produces a code or a redirect.
+3. An unregistered client or an unregistered redirect URI is never redirected to.
+4. The token issued is read-only by purpose: it is the same `mcp.` session, so SEC-30 and SEC-31 already cover what it can reach and how it is revoked.
+5. With `MCP_ENABLED=false` nothing is discoverable and nothing can be issued.
+6. The adapter never returns a token, a password or a backend exception message, and one user's request cannot see another's context.
+
+#### PR breakdown
+
+One PR into `dev` (this branch), in this order: this plan; the IAM migration and pure domain rules with unit tests; application handlers and controllers with PostgreSQL integration tests, including one denied-scope case; the HTTP adapter with SDK client tests; the frontend routes and the authorize page; Compose, the deploy script and CI (the adapter image is built in the checks, because a broken image stops a deploy); then rules, edge cases, walkthrough, status and log. Not in this PR: enabling it in production, and a browser suite for the authorize page.
