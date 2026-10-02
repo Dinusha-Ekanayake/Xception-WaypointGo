@@ -14,7 +14,7 @@ import Home from "./screens/Home.tsx";
 import Issues from "./screens/issues/Issues.tsx";
 import OrderSheet from "./screens/OrderSheet.tsx";
 import Orders from "./screens/Orders.tsx";
-import PlaceOrder from "./screens/PlaceOrder.tsx";
+import PlaceOrder from "./screens/order/PlaceOrder.tsx";
 import Receive from "./screens/receive/Receive.tsx";
 import Track from "./screens/Track.tsx";
 import { SideNav, TabBar, type Tab } from "./ui.tsx";

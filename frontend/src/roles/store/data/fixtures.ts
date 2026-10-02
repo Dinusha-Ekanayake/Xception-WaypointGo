@@ -62,6 +62,10 @@ const CATALOGUE: [string, Temperature, number, number][] = [
   ["Fresh milk 1 L", "chilled", 1.04, 30],
   ["Butter 200 g", "chilled", 0.21, 6],
   ["Cheese slices 200 g", "chilled", 0.2, 20],
+  // Never ordered by this outlet, so "03c Add item" has something to find.
+  ["Chickpeas 1 kg", "ambient", 1.02, 40],
+  ["Chicken stock cubes 20 g", "ambient", 0.03, 30],
+  ["Chilli powder 250 g", "ambient", 0.26, 20],
 ];
 
 const PRODUCTS: ProductView[] = CATALOGUE.map(([id, temperature, kg]) => ({

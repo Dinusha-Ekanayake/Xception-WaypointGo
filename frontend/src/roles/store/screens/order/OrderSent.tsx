@@ -1,8 +1,8 @@
 import { useState } from "react";
 import type { OutletView, PlacedOrder } from "@shared/domain/types";
 import { Icon, Notice } from "@shared/ui";
-import { cases, changeDeadline, clock, dayLabel, depotToday, hhmm, temperatureLabel } from "../data/format.ts";
-import { Badge, Button, Facts, Modal } from "../ui.tsx";
+import { cases, changeDeadline, clock, dayLabel, depotToday, hhmm, temperatureLabel } from "../../data/format.ts";
+import { Badge, Button, Facts, Modal } from "../../ui.tsx";
 
 // Figma "04 Order sent". Totals are the warehouse's, returned with the order,
 // never summed from product lines here. An order kept on the phone is said to

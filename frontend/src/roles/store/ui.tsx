@@ -147,6 +147,27 @@ export function Facts({ rows }: { rows: { label: string; value: ReactNode; stron
   );
 }
 
+/**
+ * A dark note that says what just happened, as in "03d Item added" and "03e
+ * Draft saved". The live region stays mounted so a screen reader hears each
+ * new message; the note itself shows only while there is one.
+ */
+export function Toast({ note }: { note: { title: string; detail?: string; tone?: "ok" | "danger" } | null }): React.JSX.Element {
+  return (
+    <div role="status" className="pointer-events-none fixed inset-x-0 bottom-[260px] z-40 flex justify-center px-4 lg:bottom-8 lg:pl-[260px]">
+      {note && (
+        <div className="flex max-w-[420px] items-center gap-3 rounded-[20px] bg-[#031a0c] px-5 py-3 text-white shadow-[0_8px_20px_rgba(0,0,0,0.18)]">
+          <span aria-hidden className={cx("size-2 shrink-0 rounded-full", note.tone === "danger" ? "bg-go-danger" : "bg-[#22c55e]")} />
+          <span className="flex min-w-0 flex-col">
+            <span className="text-[15px] font-medium">{note.title}</span>
+            {note.detail && <span className="text-[13px] text-white/75">{note.detail}</span>}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function BackButton({ onClick, label = "Back" }: { onClick: () => void; label?: string }): React.JSX.Element {
   return (
     <button type="button" onClick={onClick} className="flex min-h-12 items-center gap-2 self-start pr-3 text-[17px] text-black">
