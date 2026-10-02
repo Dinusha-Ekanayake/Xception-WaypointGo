@@ -30,6 +30,15 @@ Why: issue #14; the store, driver and dispatcher screens had nothing behind thei
 Verified: domain and crypto tests (27, including the RFC 8291 vector), `ModuleBoundaryTest`, `EventCatalogueTest`, frontend typecheck and `npm test`. The 26 database integration tests pass in CI (`mvn verify`, 681 tests, none skipped).
 Open: each role UI places its own inbox, badge and push opt-in (#18, #19, #21); no admin API for a new routing version; dock and next planned date are missing from their events.
 
+## 2026-10-02 - docs: add a connect guide for the read-only MCP server
+
+`docs/mcp-connect-guide` · @kavindamihiran
+
+New `mcp/README.md`: build, sign in, a configuration block for Claude Code, Claude Desktop, Codex, opencode and Cursor, the 12 tools with the action each needs, and the common failures. The walkthrough links to it instead of repeating it.
+Why: #93 shipped the adapter with no user-facing way to connect a client, and the requirement is that users connect their own assistant (no chatbot in Waypoint).
+Verified: `mcp/` `npm test` on a clean export of `dev` (10 passed); the server registered in Claude Code, Codex, Claude Desktop and opencode with the documented entries. Not verified: a read from an installed client, which needs an interactive sign-in.
+Open: ChatGPT and other remote-only clients cannot connect to a stdio server; the remote transport with OAuth needs its own PLAN under [#87](../issues/087-readonly-mcp/WALKTHROUGH.md). Production still lacks `mcp/` and `MCP_ENABLED`.
+
 ## 2026-10-02 - fix: sync the store manager screens with the backend contracts
 
 `fix/store-manager-sync` · @jv-ransika
