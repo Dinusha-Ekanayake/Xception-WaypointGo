@@ -81,6 +81,29 @@ public class SessionRetentionJob implements ScheduledJob {
                         + BATCH
                         + ")",
                     attemptCutoff));
+    // Remote MCP bookkeeping (R-IAM-31): codes long past use, then registrations
+    // nobody ever signed in through. A client someone did use is kept.
+    int codes =
+        database.asSystem(
+            ModuleRole.IAM,
+            () ->
+                database.update(
+                    "DELETE FROM iam.oauth_authorization_codes WHERE expires_at < ?", sessionCutoff));
+    int clients =
+        database.asSystem(
+            ModuleRole.IAM,
+            () ->
+                database.update(
+                    "DELETE FROM iam.oauth_clients c WHERE c.last_used_at IS NULL AND c.registered_at < ?"
+                        + " AND NOT EXISTS (SELECT 1 FROM iam.oauth_authorization_codes a"
+                        + " WHERE a.client_id = c.client_id)",
+                    sessionCutoff));
+    if (codes > 0) {
+      metrics.count("waypoint.retention.purged", codes, "table", "iam.oauth_authorization_codes");
+    }
+    if (clients > 0) {
+      metrics.count("waypoint.retention.purged", clients, "table", "iam.oauth_clients");
+    }
     if (sessions > 0) {
       metrics.count("waypoint.retention.purged", sessions, "table", "iam.sessions");
     }
