@@ -21,6 +21,15 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-02 - fix: show the admin sample console on production
+
+`fix/admin-console-on-production` · @kavindamihiran
+
+`RoleRouter` now gives the admin role the sample console on every address. It only did so when the hostname began with `admin-preview.`, so `admin.waypointgo.live` showed "not built yet".
+Why: production and preview run the same build, and the hostname check was the only difference between them.
+Verified: `shell.spec.ts` gains a case that failed before the change and passes after; `npm test`, typecheck and build pass.
+Open: the console runs on mock data and says so on screen; live backend wiring remains in issue #22.
+
 ## 2026-10-02 - feat(shell): production's shared address hands each role to its own address
 
 `feat/production-role-landing` · @kavindamihiran
