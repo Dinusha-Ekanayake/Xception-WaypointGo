@@ -153,6 +153,8 @@ public final class PredictionViews {
    *
    * @param modelLabel {@code name@version}, {@code deterministic}, or empty with no run
    * @param degraded the deterministic forecast answered because no model could be used
+   * @param generatedAt when the newest run was generated, empty with no run
+   * @param nextRunAt when the forecast job will next run, as things stand (P-29)
    */
   public record ForecastOverviewView(
       String depotCode,
@@ -160,7 +162,8 @@ public final class PredictionViews {
       Optional<String> modelLabel,
       boolean degraded,
       Optional<Instant> generatedAt,
-      List<ForecastWeekView> weeks) {
+      List<ForecastWeekView> weeks,
+      Instant nextRunAt) {
 
     public ForecastOverviewView {
       weeks = List.copyOf(weeks);

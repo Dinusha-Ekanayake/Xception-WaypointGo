@@ -46,3 +46,34 @@ test("before the first run the screen says there is no forecast yet", async ({ p
   await expect(page.getByText("No forecast yet")).toBeVisible();
   await expect(page.getByRole("region", { name: "Weekly demand" })).toHaveCount(0);
 });
+
+test("the last and next run read in depot time, with a countdown to the next", async ({ page }) => {
+  await page.clock.install({ time: new Date("2027-02-28T18:06:19Z") });
+  await serve(page);
+  await page.goto("/#/forecast");
+
+  const runs = page.getByRole("region", { name: "Forecast runs" });
+  await expect(runs).toContainText("Mon 22 Feb · 9:30 AM");
+  await expect(runs).toContainText("datathon-task2a@2026.1");
+  await expect(runs).toContainText("Mon 1 Mar · 12:00 AM");
+  await expect(runs.getByRole("timer")).toHaveText("in 23:41");
+});
+
+test("when the run is due the screen says so and shows the new forecast once it lands", async ({ page }) => {
+  await page.clock.install({ time: new Date("2027-02-28T18:29:50Z") });
+  const desk = await serve(page, { forecast: forecast({ status: "NONE", modelLabel: null, generatedAt: null, weeks: [] }) });
+  await page.goto("/#/forecast");
+
+  const runs = page.getByRole("region", { name: "Forecast runs" });
+  await expect(runs).toContainText("Not run yet");
+  await expect(page.getByText("No forecast yet")).toBeVisible();
+
+  await page.clock.fastForward(15_000);
+  await expect(runs).toContainText("Running now");
+
+  desk.forecast = forecast({ generatedAt: "2027-02-28T18:30:04Z", nextRunAt: "2027-03-07T18:30:00Z" });
+  await page.clock.fastForward(20_000);
+  await expect(runs).toContainText("Mon 1 Mar · 12:00 AM");
+  await expect(runs).toContainText("Mon 8 Mar · 12:00 AM");
+  await expect(page.getByText("No forecast yet")).toHaveCount(0);
+});

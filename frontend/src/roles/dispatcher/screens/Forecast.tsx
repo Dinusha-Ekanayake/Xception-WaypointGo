@@ -5,6 +5,7 @@ import { FilterTabs, KpiCard, Notice } from "@shared/ui";
 import PageHeader from "../PageHeader.tsx";
 import Refusal from "./Refusal.tsx";
 import ForecastChart, { seriesColour } from "./ForecastChart.tsx";
+import ForecastRuns from "./ForecastRuns.tsx";
 import { DayNeeds, ForecastActions } from "./ForecastSide.tsx";
 import {
   WEEKS,
@@ -19,7 +20,6 @@ import {
   weekLabel,
   type BrandFilter,
 } from "../data/forecast.ts";
-import { formatDay } from "../data/scope.ts";
 import { useForecast } from "../data/useForecast.ts";
 
 // Figma "Forecast": the next ten weeks of demand for the depots in view, against
@@ -47,22 +47,30 @@ export default function Forecast({
     { value: "all", label: "All brands" },
     ...(forecast?.brandCodes ?? []).map((code) => ({ value: code, label: code })),
   ];
-  const updated = forecast?.generatedAt ? formatDay(forecast.generatedAt.slice(0, 10)) : null;
 
   return (
     <>
       <PageHeader
         title="Forecast"
-        subtitle={`Next ${WEEKS} weeks · ${scopeLabel}${updated ? ` · updated ${updated}` : ""}`}
+        subtitle={`Next ${WEEKS} weeks · ${scopeLabel}`}
         online={online}
         lastSyncedAt={resource.loadedAt}
         tools={<FilterTabs label="Brand" options={brandOptions} value={brand} onChange={setBrand} />}
       />
 
       {resource.error && !forecast && <Refusal error={resource.error} what="the forecast" />}
+      {forecast && (
+        <ForecastRuns
+          generatedAt={forecast.generatedAt}
+          nextRunAt={forecast.nextRunAt}
+          modelLabel={forecast.modelLabel}
+          degraded={forecast.degraded}
+          onDue={resource.refresh}
+        />
+      )}
       {forecast && !ready && (
         <Notice tone="info" title="No forecast yet">
-          The forecast job runs within the hour and then every Monday morning.
+          The first forecast is made at the next run shown above, and the screen updates by itself when it is ready.
         </Notice>
       )}
       {ready && forecast.degraded && (
