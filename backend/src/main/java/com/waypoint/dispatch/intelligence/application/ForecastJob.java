@@ -83,9 +83,10 @@ public class ForecastJob implements ScheduledJob {
     return "ml.demand-forecast";
   }
 
+  /** Hourly, but it runs only when {@link #due} says so: in practice once a week, Monday's first hour. */
   @Override
   public String cron() {
-    return "0 0 4 * * MON";
+    return "0 0 * * * *";
   }
 
   @Override
@@ -95,7 +96,32 @@ public class ForecastJob implements ScheduledJob {
 
   @Override
   public void run(Instant now) {
-    runAt(now);
+    if (due(now)) {
+      runAt(now);
+    }
+  }
+
+  /**
+   * Whether a run is owed (P-29): none yet this week (from Monday 00:00, depot
+   * time), so a fresh deployment has a forecast within the hour rather than on
+   * the next Monday; or the newest run is the fallback while a demand model is
+   * now active, so an activated model takes over within six hours. A fallback is
+   * retried at most every six hours, so a model service that stays down does
+   * not write a run every hour.
+   */
+  boolean due(Instant now) {
+    LocalDate monday = now.atZone(Clock.OPERATING_ZONE).toLocalDate()
+        .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+    Instant weekStart = monday.atStartOfDay(Clock.OPERATING_ZONE).toInstant();
+    return database.asSystem(ModuleRole.ML, () -> {
+      Optional<JdbcIntelligenceRepository.RunMark> last = repository.latestForecastRun();
+      if (last.isEmpty() || last.get().at().isBefore(weekStart)) {
+        return true;
+      }
+      return last.get().degraded()
+          && last.get().at().isBefore(now.minus(java.time.Duration.ofHours(6)))
+          && repository.activeModel(ModelViews.DEMAND_FORECAST).isPresent();
+    });
   }
 
   record Key(String depot, String brand, int isoYear, int isoWeek) {}
