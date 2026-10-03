@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-04 - ci: the shell and every role's browser suite run in CI (issue #120)
+
+`chore/120-browser-suites-ci` · @Dinusha-Ekanayake
+
+A "Browser suites" job in `checks.yml` builds once and runs the shell, dispatcher (1440 px), driver (393 px), loader (393 px) and store (1440 px) suites as separate steps, each running even after another failed; one retry in CI, failures annotated on the pull request, each suite's report and traces kept 7 days. It also gates the preview and production deploys. The shell's CSP test answers its own API, as it failed on `dev` with no backend.
+Why: a screen could break with every check green.
+Verified: see the PR. A throwaway broken loader test turned the job red with only "Loader (393 px)" failed, the line annotated and the report attached; reverted, then green. About 4.5 minutes a run. [walkthrough](../../issues/120-browser-suites-ci/WALKTHROUGH.md)
+Open: making it a required check is a repository setting.
+
+---
+
 ## 2026-10-04 - feat(dispatcher): late risk per trip and stop, the forecast error, counts in brackets, phone widths (issue #119)
 
 `feat/119-forecast-late-risk` · @Dinusha-Ekanayake
