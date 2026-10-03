@@ -227,6 +227,22 @@ class NotificationConsumersIntegrationTest extends NotificationSupport {
         "each outlet hears its own stop");
   }
 
+  @Test
+  void theInboxCarriesTheFactsAMessageWasFilledFromSoAClientCanTranslateIt() throws Exception {
+    LocalDate date = someFarDate();
+    String vehicle = assignOn(driver, date);
+    deliver(
+        "notification.on-trip-released",
+        new TripReleased(UUID.randomUUID(), UUID.randomUUID(), 1, vehicle, depot, date,
+            List.of(new ReleasedStop(4, UUID.randomUUID(), outlet.outletId(), LocalTime.of(9, 20)))));
+
+    com.fasterxml.jackson.databind.JsonNode newest = read(manager, "/api/notifications?limit=1", 200).get("items").get(0);
+    assertEquals(vehicle + " is on the way", newest.get("title").asText());
+    assertEquals("4", newest.get("facts").get("stopNumber").asText());
+    assertEquals("09:20", newest.get("facts").get("plannedArrival").asText());
+    assertEquals(vehicle, newest.get("facts").get("vehicleId").asText());
+  }
+
   // ---- push ---------------------------------------------------------------------------
 
   @Test
