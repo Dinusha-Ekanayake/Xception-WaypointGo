@@ -157,7 +157,7 @@ main() {
   if [[ "$environment" == preview ]]; then
     if [[ -n "$(env_value GRAFANA_ADMIN_PASSWORD)" ]]; then
       compose+=(--profile observability)
-      services+=(loki alloy grafana)
+      services+=(loki alloy grafana prometheus node-exporter)
     else
       echo "deploy: GRAFANA_ADMIN_PASSWORD is not set in .env; the log store is not started." >&2
     fi
