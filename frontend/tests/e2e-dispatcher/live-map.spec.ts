@@ -32,7 +32,7 @@ test("the map shows each seen vehicle, filters, selects and greys an offline one
   // No MAP_TILE_URL in the test server: degrade visibly.
   await expect(page.getByText(/Base map unavailable/)).toBeVisible();
 
-  await page.getByRole("button", { name: "Offline 1" }).click();
+  await page.getByRole("button", { name: "Offline (1)" }).click();
   await expect(page.getByRole("button", { name: /^VEH043, [a-z]/ })).toHaveCount(0);
 
   await page.getByRole("button", { name: /^VEH044, [a-z]/ }).click();

@@ -45,10 +45,10 @@ export default function FleetTable({
           value={tab}
           onChange={setTab}
           options={[
-            { value: "all", label: `All ${count("all")}` },
-            { value: "refrigerated", label: `Refrigerated ${count("refrigerated")}` },
-            { value: "ambient", label: `Ambient ${count("ambient")}` },
-            { value: "vans", label: `Vans ${count("vans")}` },
+            { value: "all", label: `All (${count("all")})` },
+            { value: "refrigerated", label: `Refrigerated (${count("refrigerated")})` },
+            { value: "ambient", label: `Ambient (${count("ambient")})` },
+            { value: "vans", label: `Vans (${count("vans")})` },
           ]}
         />
         <div className="flex-1" />
