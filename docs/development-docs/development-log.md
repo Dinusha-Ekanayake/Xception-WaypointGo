@@ -21,6 +21,17 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-03 - feat: a Connect AI button for every role
+
+`feat/mcp-connect-button` · @kavindamihiran
+
+Each role shows "Connect AI": the dispatcher's page header, the store top bar, the driver's home bar, the loader's Settings and the shell strip for admin and auditor. It opens one shared sheet with the MCP address, a copy button and the Claude and ChatGPT steps. The address is the `resource` in the server's own protected-resource metadata, so it is always the shared host, and the button is hidden where MCP is off or unreachable.
+Why: users had to find the remote MCP address in the README (#87).
+Verified: `npm run typecheck`, `npm test` (85), `npm run build`, dispatcher (13, with the new `mcp.spec.ts`), driver (10), loader (12) and store (22) browser suites; placement checked on screenshots at desktop and phone widths.
+Open: the sheet's text is English only, including in the loader's Sinhala and Tamil modes.
+
+---
+
 ## 2026-10-03 - feat: the store's ordering picker, deliveries, deferred page and account menu
 
 `feat/store-manager-figma` · @jv-ransika

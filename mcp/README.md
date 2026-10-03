@@ -140,6 +140,8 @@ The deployment operator applies the migrations explicitly, sets `MCP_ENABLED=tru
 
 Any assistant that speaks stateless Streamable HTTP over JSON with OAuth code + S256 PKCE and public-client registration can connect. A missing resource or an extra scope around `waypoint.read` is accepted and bound to this endpoint; the grant is still read-only.
 
+Signed in to Waypoint, the **Connect AI** button in any role (header, top bar or Settings) shows this address with a copy button and these steps. It is hidden where MCP is off.
+
 **Claude (Claude.ai):** Settings, Connectors, Add custom connector. URL `https://preview.waypointgo.live/mcp` for testing, `https://waypointgo.live/mcp` once enabled. Choose OAuth with automatic registration, follow the redirect to Waypoint, check the callback hostname shown, and approve with your personal Waypoint account.
 
 **ChatGPT:** Settings, Apps or Connectors, Add a remote MCP server. Same URL. Choose OAuth, let it register, approve with your personal Waypoint account. Ask it to show your current access; that calls `my_context`.

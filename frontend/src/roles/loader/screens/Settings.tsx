@@ -1,6 +1,6 @@
 "use client";
 
-import { cx, useShell } from "@shared/ui";
+import { McpButton, cx, useShell } from "@shared/ui";
 import { LANGS } from "../data/strings.ts";
 import { useLang, useT } from "../i18n.tsx";
 import { ChevronLeftIcon, MoonIcon, SunIcon } from "../icons.tsx";
@@ -112,6 +112,7 @@ export default function Settings({
               ))}
             </div>
           )}
+          <McpButton url={shell.mcpUrl} className="flex min-h-14 w-full items-center justify-center gap-2 rounded-[18px] bg-go-surface text-[16px] font-medium text-go-ink" />
           <BigButton tone="plain" onClick={shell.onSignOut}>
             {tr("Sign out this device")}
           </BigButton>

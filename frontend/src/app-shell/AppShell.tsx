@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useOnline } from "@shared/api/useResource";
 import { useSync } from "@shared/offline";
-import { Notice, ShellProvider, cx, type ShellControls } from "@shared/ui";
+import { McpButton, Notice, ShellProvider, cx, type ShellControls } from "@shared/ui";
 import { ROLE_ADDRESSES, hostForRole, roleForHost, sharedHomeFor } from "./hostRole.ts";
 import RoleLanding from "./RoleLanding.tsx";
 import RoleRouter from "./RoleRouter.tsx";
@@ -68,6 +68,19 @@ export default function AppShell(): React.JSX.Element {
   useEffect(() => {
     if (state?.kind === "signed-in") setRole(rememberedRole(state.session));
   }, [state]);
+
+  // The read-only MCP address for "Connect AI assistant", taken from the
+  // server's own metadata: it is the configured shared host, never a role
+  // address, and the button stays hidden where MCP is off (404) or unreachable.
+  const [mcpUrl, setMcpUrl] = useState<string | null>(null);
+  const signedIn = state?.kind === "signed-in";
+  useEffect(() => {
+    if (!signedIn) return;
+    fetch("/.well-known/oauth-protected-resource/mcp", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((m: { resource?: unknown } | null) => setMcpUrl(typeof m?.resource === "string" ? m.resource : null))
+      .catch(() => setMcpUrl(null));
+  }, [signedIn]);
 
   useEffect(() => {
     if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") {
@@ -145,6 +158,7 @@ export default function AppShell(): React.JSX.Element {
     },
     onSignOut: () => void leave(false),
     sync: <SyncStatus sync={sync} online={online} />,
+    mcpUrl,
   };
 
   return (
@@ -153,6 +167,7 @@ export default function AppShell(): React.JSX.Element {
         {(misplaced || !OWN_HEADER.has(active) && !adminPreview) && (
           <div className={cx("mx-auto flex w-full max-w-[1440px] flex-wrap items-center justify-end gap-2 bg-go-canvas px-4 pt-2 font-go", adminPreview && "lg:absolute lg:inset-x-0 lg:top-0 lg:z-10 lg:max-w-none lg:bg-transparent lg:pr-8")}>
             <SyncStatus sync={sync} online={online} />
+            {!misplaced && <McpButton url={mcpUrl} className="flex min-h-10 items-center gap-2 rounded-full border border-[#dfe7e6] bg-white px-3.5 text-[13px] font-medium text-[#031b08]" />}
             {roles.length > 1 && (
               <div role="tablist" aria-label="Role" className="flex gap-1 rounded-full bg-white p-1">
                 {roles.map((r) => (
