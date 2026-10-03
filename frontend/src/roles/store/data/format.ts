@@ -111,3 +111,15 @@ export function minutesLabel(target: Date, now = new Date()): string {
   if (m < 1) return "now";
   return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`;
 }
+
+const DOCKS: Record<string, { label: string; where: string }> = {
+  rear_dock: { label: "Rear dock", where: "at your rear dock" },
+  street: { label: "Street", where: "outside your store" },
+  mall_bay: { label: "Mall bay", where: "at the mall bay" },
+};
+
+/** "Rear dock", from the outlet's dock code ("rear_dock"). */
+export const dockLabel = (code: string) => DOCKS[code]?.label ?? code.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+
+/** "at your rear dock", for a sentence about where a vehicle stands. */
+export const dockWhere = (code: string | null | undefined) => (code ? (DOCKS[code]?.where ?? `at your ${code.replace(/_/g, " ")}`) : "at your store");

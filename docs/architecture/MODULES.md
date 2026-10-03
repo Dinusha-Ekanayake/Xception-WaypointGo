@@ -30,18 +30,20 @@ Each module has the same five internal layers. The spec lists what belongs in ea
 | Layer | Contents |
 | --- | --- |
 | contract | `ReferenceQuery`, and the views it returns: `OutletView`, `VehicleView`, `TravelView`, `AllowanceView`, `CalendarDayView` |
-| domain | `Outlet`, `Vehicle`, `District`, `Depot`, `CalendarDay`, `DeliveryWindow`, `TravelProfile`, `ServiceAllowance`, `OperatingCalendarPolicy`, `ReferenceSnapshot`, `ReferenceValidator` |
-| application | `ImportReferenceDataHandler`, `ReferenceDataQuery`, `SetVehicleDayStatusHandler`, `ReferenceBootstrap`, `ReferenceScope` |
+| domain | `Outlet`, `OutletDetails`, `Vehicle`, `District`, `Depot`, `CalendarDay`, `DeliveryWindow`, `TravelProfile`, `ServiceAllowance`, `OperatingCalendarPolicy`, `ReferenceSnapshot`, `ReferenceValidator` |
+| application | `ImportReferenceDataHandler`, `ReferenceDataQuery`, `SetVehicleDayStatusHandler`, `UpdateOutletDetailsHandler`, `OutletDetailsQuery`, `ReferenceBootstrap`, `ReferenceScope` |
 | infrastructure | `CsvReferenceImporter`, `ReferenceVersionWriter`, `ReferenceVersionReader`, `ReferenceCache` |
 | web | admin read endpoints |
 
-**Owns:** `ref.brands`, `ref.depots`, `ref.districts`, `ref.outlets`, `ref.vehicles`, `ref.vehicle_day_status`, `ref.calendar_days`, `ref.district_travel`, `ref.service_allowances`, `ref.traffic_speed`, `ref.road_conditions`.
+**Owns:** `ref.brands`, `ref.depots`, `ref.districts`, `ref.outlets`, `ref.vehicles`, `ref.vehicle_day_status`, `ref.calendar_days`, `ref.district_travel`, `ref.service_allowances`, `ref.traffic_speed`, `ref.road_conditions`, `ref.calendar_overrides`, `ref.outlet_details`.
+
+**A store's own details (R-REF-01).** A store manager changes their outlet's delivery window, dock type and contacts with `reference:UpdateOutletDetails` (`expectedVersion` is the details' `rowVersion`, 0 before the first save) and reads them at `GET /api/reference/outlets/{outletId}/details`. The window and dock are laid over the current version when a snapshot loads, as calendar overrides are, so the next plan, the run sheet and the loading manifest read them and an import cannot discard them; they are not versioned. A mall bay cannot be chosen or left, and a mall outlet's window must still overlap the mall's (R-PLN-29). Scope is the outlet or its depot, checked through `IdentityQuery` (R-IAM-28).
 
 `district_travel` is keyed by **district alone**: depot is a function of district in the supplied data, and the official validator indexes it that way.
 
 **Caches, does not own:** `ref.products`. The catalogue belongs to the external warehouse and arrives by scheduled bulk sync with a catalogue version. It is a projection: never edited here, and always able to report that it is stale.
 
-**Commands:** `SetVehicleDayStatus`, `ImportReferenceData`, `OverrideCalendarDay`.
+**Commands:** `SetVehicleDayStatus`, `ImportReferenceData`, `OverrideCalendarDay`, `UpdateOutletDetails`.
 **Queries:** `snapshotFor(day)`, `outlet(id)`, `vehicle(id)`, `availableVehicles(depot, date)`, `vehiclesOfDepot(depot)` (the whole fleet, so Planning can tell unservable from deferred), `isOperating(date)`, `nextOperatingDay(date)`, `travelProfile(district)`.
 **Publishes:** `vehicle.status_changed`, `reference.version_published`.
 **Consumes:** nothing.
@@ -62,9 +64,11 @@ Each module has the same five internal layers. The spec lists what belongs in ea
 | --- | --- |
 | contract | `CurrentActor`, `Role`, `Scope`, `AuthorizationDecision`, `IdentityQuery`, `McpContextView` |
 | domain | `McpReadPolicy`, `Account`, `Session`, `Role`, `ScopeGrant`, `VehicleAssignment` (temporal), `PasswordPolicy`, and `domain/policy/`: `PolicyDocument`, `Statement`, `Effect`, `Pattern`, `Condition`, `ConditionOperator`, `AccessRequest`, `Decision`, `PolicyEvaluator` |
-| application | `LoginHandler`, `SessionRegistry`, `LoginThrottle`, `AccountAdminUseCase`, `PolicyDecisionPoint`, `McpSessionHandler`, `McpAccessHandler`, `McpContextQuery` |
+| application | `LoginHandler`, `SessionRegistry`, `LoginThrottle`, `AccountAdminUseCase`, `AccountQuery`, `PolicyDecisionPoint`, `McpSessionHandler`, `McpAccessHandler`, `McpContextQuery` |
 | infrastructure | `JdbcPolicyRepository`, `PolicyDocumentParser`, `PolicyCache`, `Argon2PasswordHasher` |
-| web | `AuthController`, `McpSessionController`, `McpCredentialFilter` |
+| web | `AuthController`, `ProfileController`, `McpSessionController`, `McpCredentialFilter` |
+
+**One's own profile (R-IAM-32).** `iam:UpdateOwnProfile`, granted on `wpt:iam:user:self`, changes the actor's own display name and phone (`iam.users.phone`, normalised by `ProfileFields` and the shared `PhoneNumber`); `GET /api/profile` reads them with the account's `rowVersion`. The email and the password stay with the administrator.
 
 **Read-only MCP (#87).** Root `mcp/` is a separate stdio and stateless Streamable HTTP adapter over the existing authorized REST reads. Identity also owns public OAuth client registration, consent, one-time PKCE codes, resource binding and revocation (R-IAM-31). The frontend hosts the consent page and protocol proxy routes; the adapter has no database access. Remote access requires a canonical `MCP_PUBLIC_URL`, identical in backend and adapter. Identity owns dedicated opaque session purpose, the `mcp:Connect` policy action, connection context and revocation. `MCP_ENABLED` defaults off. The connection grant adds no business action or scope; every concrete read still uses its owning module's policy and SQL filtering. It never adopts a shared loader browser's PIN-switched identity. Authentication uses the existing throttle, and reads record their authorization in audit. See [R-IAM-30](RULES-AND-POLICIES.md) and the [walkthrough](../issues/087-readonly-mcp/WALKTHROUGH.md) for the curated surface and remaining work.
 

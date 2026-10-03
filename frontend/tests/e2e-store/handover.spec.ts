@@ -37,6 +37,8 @@ test("a receipt answered earlier shows where its PIN stands and can get a new on
   const { sent } = await mockStore(page, { answered: { status: "LOCKED", pin: "4827", rowVersion: 3, confirmedAt: null } });
   await page.goto("/");
   await page.getByRole("button", { name: /^Orders/ }).click();
+  // A received order is under its own filter: the list opens on what is still open.
+  await page.getByRole("button", { name: /^Received/ }).click();
   await page.getByRole("button", { name: /ORD0092336/ }).first().click();
   await page.getByRole("button", { name: "Receipt and handover PIN" }).click();
 

@@ -17,8 +17,8 @@ export const OUTLET = {
   brandCode: "FRESH",
   districtName: "Kadugannawa",
   depotCode: "KDY",
-  dockType: "rear",
-  parkingConstraint: "none",
+  dockType: "rear_dock",
+  parkingConstraint: "normal",
   windowOpen: "05:00:00",
   windowClose: "07:30:00",
   effectiveWindowOpen: null,
@@ -238,6 +238,12 @@ export async function mockStore(
     const { pathname } = url;
     const json = (body: unknown, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
     if (pathname === "/api/session/end") return route.fulfill({ status: 204 });
+    if (pathname === "/api/profile") {
+      return json({ userId: SESSION.userId, email: "nuwan@outlet085.test", displayName: SESSION.displayName, phone: null, rowVersion: 4 });
+    }
+    if (pathname === "/api/reference/outlets/OUT085/details") {
+      return json({ outletId: "OUT085", windowOpen: null, windowClose: null, dockType: null, contactName: null, contactPhone: null, receivingNotes: null, rowVersion: 0, updatedAt: null });
+    }
     if (pathname === "/api/session") return json(SESSION);
     if (pathname === "/api/reference/outlets/OUT085") return json(OUTLET);
     if (pathname === "/api/orders") {

@@ -9,7 +9,9 @@ test("home shows the next delivery, its shortfall and the Issues count", async (
   await expect(page.getByText("VEH043").first()).toBeVisible();
   await expect(page.getByText("Rashmika Dilshan")).toBeVisible();
   await expect(page.getByText(/stop 3 of 7/)).toBeVisible();
-  await expect(page.getByText("Short at loading").first()).toBeVisible();
+  // "Shortage notice" of "02 Home": a grey card in the next delivery, not a yellow warning.
+  await expect(page.getByText("1 package short - 4 of 5 coming")).toBeVisible();
+  await expect(page.getByText("Reported at loading · comes next delivery")).toBeVisible();
   await expect(page.getByRole("button", { name: /Issues/ })).toContainText("1");
 });
 

@@ -2,6 +2,7 @@ package com.waypoint.dispatch.referencedata.web;
 
 import com.waypoint.dispatch.platform.web.RequestAuthorizer;
 import com.waypoint.dispatch.platform.web.RequestValues;
+import com.waypoint.dispatch.referencedata.application.OutletDetailsQuery;
 import com.waypoint.dispatch.referencedata.application.ReferenceScope;
 import com.waypoint.dispatch.referencedata.contract.ReferenceQuery;
 import com.waypoint.dispatch.referencedata.contract.ReferenceViews.CalendarDayView;
@@ -48,12 +49,17 @@ public class ReferenceController {
   private final ReferenceQuery reference;
   private final RequestAuthorizer authorizer;
   private final ReferenceScope scope;
+  private final OutletDetailsQuery details;
 
   public ReferenceController(
-      ReferenceQuery reference, RequestAuthorizer authorizer, ReferenceScope scope) {
+      ReferenceQuery reference,
+      RequestAuthorizer authorizer,
+      ReferenceScope scope,
+      OutletDetailsQuery details) {
     this.reference = reference;
     this.authorizer = authorizer;
     this.scope = scope;
+    this.details = details;
   }
 
   /** What every other answer on this controller was computed from. */
@@ -92,6 +98,24 @@ public class ReferenceController {
             .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No outlet " + outletId));
     scope.requireOutlet(actor, READ, resource, outlet);
     return outlet;
+  }
+
+  /**
+   * R-REF-01: what the store says about itself, with the version a change names.
+   * Readable by whoever may read the outlet, so a driver can find the store's
+   * number; changed only with {@code reference:UpdateOutletDetails}.
+   */
+  @GetMapping("/outlets/{outletId}/details")
+  public OutletDetailsQuery.OutletDetailsView outletDetails(
+      @PathVariable String outletId, HttpServletRequest request) {
+    String resource = "wpt:ref:outlet:" + outletId;
+    Actor actor = authorizer.require(request, READ, resource);
+    OutletView outlet =
+        reference
+            .outlet(outletId, null)
+            .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No outlet " + outletId));
+    scope.requireOutlet(actor, READ, resource, outlet);
+    return details.of(outletId);
   }
 
   /**

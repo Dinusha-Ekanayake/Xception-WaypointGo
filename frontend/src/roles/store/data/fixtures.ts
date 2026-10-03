@@ -1,8 +1,10 @@
 import type { Command, CommandAck } from "@shared/api/commands";
 import { ApiError, parseProblem } from "@shared/api/problem";
 import {
+  IdentityCommandKind,
   IssueCommandKind,
   OrderCommandKind,
+  OutletCommandKind,
   ReceiptCommandKind,
   type AmendOrder,
   type CalendarAnswer,
@@ -19,12 +21,15 @@ import {
   type OrderLine,
   type OrderStatus,
   type OrderView,
+  type OutletDetailsView,
   type OutletView,
   type PlaceOrder,
   type ProductView,
   type ReceiptView,
   type StatusChangeView,
   type Temperature,
+  type UpdateOutletDetails,
+  type UpdateOwnProfile,
 } from "@shared/domain/types";
 import { addDays, depotToday } from "./format.ts";
 import type { StoreGateway } from "./gateway.ts";
@@ -40,8 +45,8 @@ const OUTLET: OutletView = {
   brandCode: "FRESH",
   districtName: "Kadugannawa",
   depotCode: "KDY",
-  dockType: "rear",
-  parkingConstraint: "none",
+  dockType: "rear_dock",
+  parkingConstraint: "normal",
   windowOpen: "05:00:00",
   windowClose: "07:30:00",
   effectiveWindowOpen: null,
@@ -96,6 +101,20 @@ export function sampleGateway(): StoreGateway {
   const history = new Map<string, StatusChangeView[]>();
   const receipts = new Map<string, ReceiptView>();
   const kept: Command[] = [];
+  // The outlet as the published reference has it, and what the store has said about itself (R-REF-01).
+  const outletNow: OutletView = clone(OUTLET);
+  let details: OutletDetailsView = {
+    outletId: OUTLET.outletId, windowOpen: null, windowClose: null, dockType: null,
+    contactName: null, contactPhone: null, receivingNotes: null, rowVersion: 0, updatedAt: null,
+  };
+  // The manager's own account (R-IAM-32).
+  const profile = { userId: "sample-manager", email: "manager@sample.test", displayName: "Nuwan Perera", phone: null as string | null, rowVersion: 1 };
+  const phoneOf = (raw: string | null, rule: string) => {
+    if (!raw?.trim()) return null;
+    const digits = raw.trim().replace(/[\s().-]/g, "");
+    if (!/^\+?[0-9]{7,15}$/.test(digits)) throw problem(422, "VALIDATION_FAILED", "A phone number is 7 to 15 digits, with an optional leading +", {}, [rule]);
+    return digits;
+  };
   const issues: IssueView[] = [];
   const photos: { id: string; orderId: string; receiptId: string | null }[] = [];
   // The handover PIN (R-RCP-09): kept here in the clear only because this is sample data.
@@ -347,6 +366,39 @@ export function sampleGateway(): StoreGateway {
         if (h.status === "CONFIRMED") throw problem(409, "CONFLICT", "The handover for this order is already confirmed.");
         return { orderId, ...issuePin(orderId), rowVersion: handovers.get(orderId)!.rowVersion };
       }
+      case IdentityCommandKind.updateOwnProfile: {
+        const { displayName, phone } = p as UpdateOwnProfile;
+        guard(profile.rowVersion, command.expectedVersion);
+        const name = (displayName ?? "").trim().replace(/\s+/g, " ");
+        if (!name) throw problem(422, "VALIDATION_FAILED", "A name is required", {}, ["R-IAM-32"]);
+        profile.phone = phoneOf(phone, "R-IAM-32");
+        profile.displayName = name;
+        profile.rowVersion++;
+        return { userId: profile.userId, rowVersion: profile.rowVersion };
+      }
+      case OutletCommandKind.updateDetails: {
+        const u = p as UpdateOutletDetails;
+        guard(details.rowVersion, command.expectedVersion);
+        if (!u.windowOpen !== !u.windowClose) throw problem(422, "VALIDATION_FAILED", "Give both ends of the delivery window, or neither", {}, ["R-REF-01"]);
+        if (u.windowOpen && u.windowClose && u.windowOpen >= u.windowClose) throw problem(422, "VALIDATION_FAILED", `Window opens at ${u.windowOpen} and closes at ${u.windowClose}`, {}, ["R-REF-01"]);
+        if (u.dockType && !["rear_dock", "street"].includes(u.dockType)) throw problem(422, "VALIDATION_FAILED", "A mall bay belongs to the building", {}, ["R-REF-01"]);
+        const at = (t: string | null) => (t ? `${t.slice(0, 5)}:00` : null);
+        details = {
+          outletId: u.outletId,
+          windowOpen: at(u.windowOpen) === OUTLET.windowOpen && at(u.windowClose) === OUTLET.windowClose ? null : at(u.windowOpen),
+          windowClose: at(u.windowOpen) === OUTLET.windowOpen && at(u.windowClose) === OUTLET.windowClose ? null : at(u.windowClose),
+          dockType: u.dockType && u.dockType !== OUTLET.dockType ? u.dockType : null,
+          contactName: u.contactName?.trim() || null,
+          contactPhone: phoneOf(u.contactPhone, "R-REF-01"),
+          receivingNotes: u.receivingNotes?.trim() || null,
+          rowVersion: details.rowVersion + 1,
+          updatedAt: new Date().toISOString(),
+        };
+        outletNow.windowOpen = details.windowOpen ?? OUTLET.windowOpen;
+        outletNow.windowClose = details.windowClose ?? OUTLET.windowClose;
+        outletNow.dockType = details.dockType ?? OUTLET.dockType;
+        return { outletId: u.outletId, rowVersion: details.rowVersion };
+      }
       case IssueCommandKind.raise: {
         const raise = p as RaiseIssue;
         const issue: IssueView = {
@@ -372,7 +424,9 @@ export function sampleGateway(): StoreGateway {
 
   return {
     sample: true,
-    outlet: async () => clone(OUTLET),
+    outlet: async () => clone(outletNow),
+    profile: async () => clone(profile),
+    outletDetails: async () => clone(details),
     orders: async () => (await wait(), clone(orders)),
     history: async (id) => clone(history.get(id) ?? []),
     catalogue: async () => clone(PRODUCTS),

@@ -19,7 +19,9 @@ import Orders from "./screens/Orders.tsx";
 import PlaceOrder from "./screens/order/PlaceOrder.tsx";
 import Receive from "./screens/receive/Receive.tsx";
 import Track from "./screens/Track.tsx";
-import { SideNav, TabBar, type Tab } from "./ui.tsx";
+import ProfileDialog from "./screens/account/ProfileDialog.tsx";
+import StoreDetailsDialog from "./screens/account/StoreDetailsDialog.tsx";
+import { SideNav, TabBar, Toast, type Tab } from "./ui.tsx";
 
 // The store manager workspace from Figma "15 Store Manager · Mobile" and
 // "14 Store Manager · Desktop": a tab bar on phones, a sidebar from lg. Resilient offline tier
@@ -52,6 +54,16 @@ export default function Store({
   const [waiting, setWaiting] = useState(0);
   const [flushError, setFlushError] = useState<string | null>(null);
   const [vehicle, setVehicle] = useState<string | null>(null);
+  // The account menu's two editors, and the name as just saved (the session's is read at sign-in).
+  const [editing, setEditing] = useState<"profile" | "store" | null>(null);
+  const [savedName, setSavedName] = useState<string | null>(null);
+  const [note, setNote] = useState<{ title: string; detail?: string } | null>(null);
+  useEffect(() => {
+    if (!note) return;
+    const timer = setTimeout(() => setNote(null), 6000);
+    return () => clearTimeout(timer);
+  }, [note]);
+  const name = savedName ?? displayName;
 
   const forOutlet = <T,>(fn: (id: string, s: AbortSignal) => Promise<T>) => (outletId ? (s: AbortSignal) => fn(outletId, s) : null);
   const outlet = useResource(forOutlet(gateway.outlet), outletId);
@@ -200,13 +212,12 @@ export default function Store({
         orders={all}
         loading={orders.loading}
         error={orders.error}
-        displayName={displayName}
+        displayName={name}
         outlet={outlet.data}
         toReceive={toReceive}
         deliveries={stops}
         issues={allIssues}
         onOpen={setOpenOrder}
-        onDeferred={(orderId) => setView({ kind: "deferred", orderId })}
         onPlace={place}
         onReceive={receive}
         onTrack={() => setView({ kind: "track" })}
@@ -250,7 +261,16 @@ export default function Store({
 
   return (
     <div className="relative mx-auto flex min-h-dvh w-full max-w-[720px] flex-col gap-5 bg-go-canvas px-4 pt-5 pb-36 font-go text-go-ink sm:px-[25px] lg:max-w-none lg:pt-8 lg:pr-10 lg:pb-10 lg:pl-[300px]">
-      <TopBar online={online} syncedAt={orders.loadedAt} waiting={waiting} sample={gateway.sample} />
+      <TopBar
+        online={online}
+        syncedAt={orders.loadedAt}
+        waiting={waiting}
+        sample={gateway.sample}
+        displayName={name}
+        outlet={outlet.data}
+        onEditProfile={() => setEditing("profile")}
+        onEditStore={() => setEditing("store")}
+      />
       {warehouseDown && (
         <Notice tone="warning" live title="The warehouse is not answering">
           You can still place orders. They are kept as &ldquo;stock not checked&rdquo; and confirmed once the warehouse is back, never before.
@@ -304,8 +324,40 @@ export default function Store({
         }}
         badges={badges}
         outlet={outlet.data}
-        displayName={displayName}
+        displayName={name}
+        onEditProfile={() => setEditing("profile")}
+        onEditStore={() => setEditing("store")}
       />
+      {editing === "profile" && (
+        <ProfileDialog
+          gateway={gateway}
+          commands={commands}
+          onSaved={(saved, queued) => {
+            setEditing(null);
+            setSavedName(saved);
+            setNote(queued ? { title: "Profile saved on this phone", detail: "It is sent when the connection returns" } : { title: "Profile saved" });
+          }}
+          onClose={() => setEditing(null)}
+        />
+      )}
+      {editing === "store" && outlet.data && (
+        <StoreDetailsDialog
+          gateway={gateway}
+          outlet={outlet.data}
+          commands={commands}
+          onSaved={(queued) => {
+            setEditing(null);
+            outlet.refresh();
+            setNote(
+              queued
+                ? { title: "Store details saved on this phone", detail: "They are sent when the connection returns" }
+                : { title: "Store details saved", detail: "A new window or dock is used from the next plan" },
+            );
+          }}
+          onClose={() => setEditing(null)}
+        />
+      )}
+      <Toast note={note} />
       {open && (
         <OrderSheet
           gateway={gateway}

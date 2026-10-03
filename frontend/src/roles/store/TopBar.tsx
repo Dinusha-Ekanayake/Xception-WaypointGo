@@ -1,4 +1,8 @@
+import { useState } from "react";
+import type { OutletView } from "@shared/domain/types";
 import { McpButton, ShellActions, cx, formatClock, useShell } from "@shared/ui";
+import AccountMenu from "./AccountMenu.tsx";
+import { initials } from "./ui.tsx";
 
 // The store's top bar from "02 Home" (mobile and desktop). Connection state is always on screen: the
 // resilient tier keeps working offline, and the manager must know an order is
@@ -9,13 +13,23 @@ export default function TopBar({
   syncedAt,
   waiting,
   sample,
+  displayName,
+  outlet,
+  onEditProfile,
+  onEditStore,
 }: {
   online: boolean;
   syncedAt: Date | null;
   waiting: number;
   sample: boolean;
+  displayName: string;
+  outlet: OutletView | null;
+  onEditProfile: () => void;
+  onEditStore: () => void;
 }): React.JSX.Element {
   const shell = useShell();
+  // Phones have no sidebar, so the account menu opens from here as a bottom sheet.
+  const [account, setAccount] = useState(false);
   const sync = !online
     ? waiting > 0
       ? `Offline · ${waiting} saved on this phone`
@@ -47,6 +61,27 @@ export default function TopBar({
       <span className="lg:hidden">
         <ShellActions compact />
       </span>
+      <button
+        type="button"
+        aria-haspopup="dialog"
+        aria-expanded={account}
+        aria-label={`Account: ${displayName}`}
+        onClick={() => setAccount(true)}
+        className="flex size-12 shrink-0 items-center justify-center rounded-full bg-go-mint text-[14px] font-semibold text-black lg:hidden"
+      >
+        {initials(displayName)}
+      </button>
+      {account && (
+        <AccountMenu
+          placement="sheet"
+          displayName={displayName}
+          initials={initials(displayName)}
+          outlet={outlet}
+          onEditProfile={onEditProfile}
+          onEditStore={onEditStore}
+          onClose={() => setAccount(false)}
+        />
+      )}
     </header>
   );
 }
