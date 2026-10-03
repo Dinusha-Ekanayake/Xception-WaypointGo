@@ -19,7 +19,7 @@ export default function RoleRouter({ session, role }: { session: Session; role: 
     case "loader":
       return <Loader userId={session.userId} displayName={session.displayName} scope={depots} />;
     case "driver":
-      return <Driver />;
+      return <Driver userId={session.userId} displayName={session.displayName} scope={scopeOf(session, "vehicle")} />;
     case "store_manager":
       return <Store userId={session.userId} displayName={session.displayName} scope={scopeOf(session, "outlet")} />;
     case "admin":

@@ -149,6 +149,7 @@ artifacts/
 !docs/design-rationale.md
 !docs/development-docs/development.md
 !docs/development-docs/development-log.md
+!docs/development-docs/log/*.md
 !docs/submission-checklist.md
 !docs/verification.md
 !docs/issues/**/*.md

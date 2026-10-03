@@ -18,7 +18,7 @@ export type Session = {
 export type SessionState =
   | { kind: "signed-in"; session: Session }
   | { kind: "signed-out" }
-  | { kind: "unreachable"; message: string };
+  | { kind: "unreachable"; message: string; status?: number };
 
 /**
  * The values of one kind of grant, without the prefix. An unprefixed value is
@@ -36,8 +36,10 @@ export function scopeOf(session: Session, kind: "depot" | "outlet" | "vehicle"):
 function classify(error: unknown): SessionState {
   if (error instanceof ApiError && error.status === 401) return { kind: "signed-out" };
   const offline = typeof navigator !== "undefined" && !navigator.onLine;
+  const status = error instanceof ApiError ? error.status : undefined;
   return {
     kind: "unreachable",
+    status,
     message: offline ? "This device is offline." : error instanceof ApiError ? `The server answered ${error.status}.` : "The server did not answer.",
   };
 }

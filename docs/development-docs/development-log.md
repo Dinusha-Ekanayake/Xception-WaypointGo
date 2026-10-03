@@ -1,15 +1,32 @@
-# Development log
+﻿# Development log
 
-Why things changed and what state they left behind. Git history says what changed; this says why, and what is still open. Several people and agents work here in parallel without seeing each other's sessions, so read the top entries before starting.
+Why things changed and what state they left behind. Git history says what changed; this says why, and what is still open. Several people and agents work here in parallel without seeing each other's sessions, so read the recent entries before starting.
+
+## One file per person
+
+The log is split by GitHub user, one file each in [`log/`](log/), so that two pull requests never add to the same file and never conflict:
+
+| GitHub user | File |
+| --- | --- |
+| @Dinusha-Ekanayake | [log/Dinusha-Ekanayake.md](log/Dinusha-Ekanayake.md) |
+| @jv-ransika | [log/jv-ransika.md](log/jv-ransika.md) |
+| @kavindamihiran | [log/kavindamihiran.md](log/kavindamihiran.md) |
+| @Oxshadha | [log/Oxshadha.md](log/Oxshadha.md) |
+| @ranathungaWK | [log/ranathungaWK.md](log/ranathungaWK.md) |
+| @tharushaudana | [log/tharushaudana.md](log/tharushaudana.md) |
+
+- **Write only in the file of the GitHub user who owns the work**, `log/<github-user>.md`, with the login spelled exactly as on GitHub (`gh api user -q .login` prints it; `git config user.name` is not always the login). Never add to someone else's file.
+- Someone new creates their own file with the same heading as the others; adding their row above is welcome but not required, since `log/` is the list.
+- To read what others did recently, read the top entry of every file, or `git log -p -5 -- docs/development-docs/log/`.
 
 ## How to write an entry
 
-Short imperative subject, then a few terse lines. Newest first. Credit the GitHub user who owns the work; never record agent, tool or model names. Skip typo and formatting fixes.
+Short imperative subject, then a few terse lines. Newest first, at the top of your file under its heading. Credit the GitHub user who owns the work; never record agent, tool or model names. Skip typo and formatting fixes.
 
 ```markdown
 ## YYYY-MM-DD - type: short imperative subject
 
-`<branch>` · @<github-user>
+`<branch>` ┬╖ @<github-user>
 
 What changed, one or two lines.
 Why: one line.
@@ -21,9 +38,918 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-03 - feat: the Forecast screen shows the last and next run, with a countdown
+
+`feat/forecast-schedule` ┬╖ @tharushaudana
+
+The overview gains `nextRunAt`, from `intelligence/domain/ForecastSchedule`, which now also holds the rule `ForecastJob.due` obeys (P-29); the dispatcher's Forecast tab shows both runs in depot time and reads again when one is due.
+Why: after a deploy the screen said only "No forecast yet"; the hour is Colombo's, so the first run came at :30 UTC, which was not obvious.
+Verified: `IntelligenceDomainTest` (22); frontend `npm run typecheck`, `npm test` (109), `npm run build`, dispatcher browser suite (23). The `nextRunAt` assertion in `IntelligenceIntegrationTest` runs in CI.
+Open: nothing.
+
+---
+
+## 2026-10-03 - feat: the dispatcher's Forecast tab on the model service
+
+`feat/dispatcher-forecast` ┬╖ @tharushaudana
+
+`GET /api/ml/forecast/overview` gives one depot's next weeks with every brand, the calendar and the fleet's weekly capacity (A-40); `ForecastJob` checks hourly and runs once a week, or again once a model replaces a fallback run (P-29). The dispatcher's Forecast tab shows the ten weeks against capacity with a brand filter, the busiest days' needs (A-41) and suggested actions; Vehicles shows reefers against next week's need. Detail in the [#19 walkthrough](../issues/019-dispatcher-ui/WALKTHROUGH.md).
+Why: the Forecast tab was a placeholder waiting on #16; a fresh deploy had no forecast until the next Monday.
+Verified: `IntelligenceDomainTest` (19), `ModuleBoundaryTest`; frontend `npm run typecheck`, `npm test` (101), `npm run build`, dispatcher browser suite (17 passed). `IntelligenceIntegrationTest` runs in CI.
+Open: register and activate `datathon-task2a@2026.1` and `datathon-task1-blend@2026.1` on preview, then production; late risk on the plan.
+
+---
+
+## 2026-10-03 - docs: architecture diagrams and a generated data model (issue #121)
+
+`docs/121-architecture-data-model` ┬╖ @Oxshadha
+
+`docs/architecture.md` draws what is built: actors and external systems, the containers `docker compose up` runs, the twelve modules and their events, the layers of a module, and one command end to end. `docs/data-model.md` lists every table, key and foreign key by schema and is generated from a database migrated with `migrations/` by `scripts/data-model.py`, so it cannot drift from the schema. Both are linked from the README. `docs/ai-disclosure.md` now lists the tools with their evidence and says the trained Datathon models are served, not trained.
+Why: the booklet asks for an architecture diagram and a data model in `docs/`; the diagrams in SYSTEM-ARCHITECTURE.md show the target (object storage, CDN), not what runs.
+Verified: all 61 migrations on `dev` applied to a fresh PostgreSQL 16; 95 tables, 106 foreign keys; all 19 Mermaid blocks parsed by Mermaid 11.
+Open: every team member adds any other AI tool they used to the disclosure before submission.
+
+---
+
+## 2026-10-03 - feat: notifications inbox and last sync in each role UI (issue #118)
+
+`feat/118-notifications-inbox` ┬╖ @Dinusha-Ekanayake
+
+The dispatcher, loader and store manager screens now show their notifications, each against its Figma frames: the dispatcher's panel and Overview card, the loader's bell with an unread dot and an inbox, the store manager's drawer, phone sheet and Home card. One shared data hook (`useInbox`) carries the live count from `/api/notifications/stream`, with a "live updates paused" state and polling after 40 s of silence, plus the list, read state and an offline copy; each role draws its own UI (#14). "Synced HH:MM" is a button in every role: it sends what waits and reads again (the dispatcher, online only, reloads the screen). Routing version 2 tells the depot's other loaders of a release (R-NOT-10) and each outlet its stop and expected arrival (R-NOT-11). The stream now stays open through the Next proxy and nginx.
+Why: the booklet's handoffs (p6, p9) were invisible; the issue's priorities were the store's deferral notice and expected arrival, and the loader's release.
+Verified: see the PR. `NotificationConsumersIntegrationTest`, `notifications-inbox.test.ts`, and a `notifications.spec.ts` in the loader, dispatcher and store suites; each screen compared with its Figma frame.
+Open: push opt-in and service worker push handlers; the driver's feed (#21); the dispatcher's Reply (no messaging between roles).
+
+---
+
+## 2026-10-03 - feat: a store manager edits their own profile and their store's window, dock and contacts
+
+`fix/store-figma-visual` ┬╖ @jv-ransika
+
+Identity: `iam:UpdateOwnProfile` on `wpt:iam:user:self` changes the actor's own name and phone (`iam.users.phone`, migration `T1400`), read at `GET /api/profile` (R-IAM-32). Reference: `reference:UpdateOutletDetails` keeps a store's window, dock type and contacts in `ref.outlet_details` (migration `T1401`), laid over the current version when a snapshot loads, so the next plan reads it; a mall bay stays a mall bay and its window must overlap the mall's (R-REF-01, R-PLN-29); scope through Identity's contract (R-IAM-28). Phone numbers are normalised once, in `shared/domain/PhoneNumber`. The store's account menu opens both editors (a bottom sheet on a phone). Home drops its stacked warning cards and shows the loader's shortage as Figma's grey card; Orders opens on what is still open, with Received, Cancelled and All filters; Delivery confirmed is Figma's check list; dock codes read as words ("Rear dock", not "rear_dock dock").
+Why: request of 2026-10-03; decisions: store window and dock change directly, profile is name and phone.
+Verified: `ProfileFieldsTest` (4), `OutletDetailsTest` (6), `StoreSelfServiceIntegrationTest` (10), `AdministrationIntegrationTest`, `CommandPathIntegrationTest`, `IdentityHardeningIntegrationTest`, `ModuleBoundaryTest`, `EventCatalogueTest` on PostgreSQL 16; frontend `npm run typecheck`, `npm test` (85), `npm run build`, store browser suite (25 passed).
+Open: the store's details are not versioned, like calendar overrides, so a past plan re-read shows today's window; a change made on one instance reaches another's snapshot only at its next publish, as calendar overrides do (REF-02).
+
+---
+
+## 2026-10-03 - fix(offline): Background Sync with no page open, older held writes, and Windows service worker builds
+
+`fix/sync-open-items` ┬╖ @Dinusha-Ekanayake
+
+The two gaps #109 left, and a build bug it surfaced:
+- With no page open, the service worker drains each account's queue itself (`scripts/sw-drain.mjs`), under the device id the page now keeps in the snapshot store and by the page's rules. A loader queue still waits for a page, which replays its offline operator switches first (A-39).
+- A write held before answers carried a version looks it up (`GET /api/sync/{operationId}`, owner only) before a discard or redo, so the server settles it too.
+- `build-sw.mjs` wrote Windows paths (`/.next\static\...`) into the precache list, so on a Windows build every precache request 404'd and the worker never installed. That was the `e2e-driver/day.spec.ts` failure seen only on Windows.
+Why: the open items recorded when #28 closed.
+Verified: see the PR. `SyncIntegrationTest` reads one operation (owner only); `sw-drain.test.ts` and `background-sync.spec.ts` (the real worker draining IndexedDB); `held.spec.ts` discards an older held write after looking its version up; driver suite 10 of 10 on Windows.
+Open: a loader queue still waits for an open page.
+
+---
+
+## 2026-10-03 - feat: a Connect AI button for every role
+
+`feat/mcp-connect-button` ┬╖ @kavindamihiran
+
+Each role shows "Connect AI": the dispatcher's page header, the store top bar, the driver's home bar, the loader's Settings and the shell strip for admin and auditor. It opens one shared sheet with the MCP address, a copy button and the Claude and ChatGPT steps. The address is the `resource` in the server's own protected-resource metadata, so it is always the shared host, and the button is hidden where MCP is off or unreachable.
+Why: users had to find the remote MCP address in the README (#87).
+Verified: `npm run typecheck`, `npm test` (85), `npm run build`, dispatcher (13, with the new `mcp.spec.ts`), driver (10), loader (12) and store (22) browser suites; placement checked on screenshots at desktop and phone widths.
+Open: the sheet's text is English only, including in the loader's Sinhala and Tamil modes.
+
+---
+
+## 2026-10-03 - feat: the store's ordering picker, deliveries, deferred page and account menu
+
+`feat/store-manager-figma` ┬╖ @jv-ransika
+
+Place order lists the outlet's usual items, and a search adds the rest of the class's catalogue ("+ Add", the new row tinted, a note for each add and for a saved draft); a count is teal only above the usual, and the usual items still list while the catalogue cannot be read (03c-03e). Deliveries is a row per vehicle's visit (expected time, stop on the trip, the loader's shortage, refrigerated only when it carries chilled, R-PLN-02), orders not on a vehicle yet, upcoming days, and a past week read only when its tab opens with the store's count per run (05a); a make-up delivery opens a drawer with its lines and its steps from the original issue to the count (05b). A deferred order has its own page: the day it was due, the day it comes, the plan's reason from the timeline and R-PLN-21's "goes first", with "Got it" kept per device (09). The sidebar's person opens the account menu with Sign out through the shell (account overlay). Track shows each order's own m┬│.
+Why: Figma store manager sections 2, 3, 5 and 6; decisions of 2026-10-02 (no call buttons, no Staff ID or sign-in time, no guessed weight or volume before the warehouse answers).
+Verified: `npm run typecheck`, `npm test` (79), `npm run build`, store browser suite (22 passed); screens compared with the Figma frames.
+Open: the store cannot read a vehicle for an order before its trip leaves the depot, so such orders show against the outlet's window; brand and depot show as codes, as the outlet read carries no names.
+
+---
+
+## 2026-10-03 - feat: one report per delivery problem, and the store's Issues tab
+
+`feat/store-manager-figma` ┬╖ @jv-ransika
+
+Receive no longer raises its own issue: the per-item problems become the receipt's note, photos go through the offline upload queue tagged with the order and receipt, and the investigation Issues opens is the one issue (R-RCP-07). The loader's shortage shows on its item, lowers the count and is listed but not reported again (06-5); a vehicle's other orders waiting to be counted are a choice on the screen (06-4). The Issues tab shows the loader's and the store's reports as cards and reports a problem found after unpacking with its order, item, quantity and photos; missing and wrong items are raised as other, which the store's policy allows, with the words saying which (08, 08b, 08c).
+Why: Figma store manager sections 4 and 5; one bad delivery had become two or three issues.
+Verified: `npm run typecheck`, `npm test`, `npm run build`, store browser suite; CI green on the draft pull request for the backend part.
+Open: nothing.
+
+---
+
+## 2026-10-02 - feat: photos of a delivery problem, and no second issue for a shortage the loader flagged
+
+`feat/store-manager-figma` ┬╖ @jv-ransika
+
+Issues takes photos from the store (`issue:AttachPhoto`, `PUT /api/issues/attachments/{id}`), modelled on proof uploads: SHA-256 addressed, type sniffed (`ImageKind` moved to `shared/util`), 3 MB cap, kept in the database, cleared past P-14 by `IssueAttachmentRetentionJob`. `RaiseIssue` names photos; a receipt's photos join its investigation; links are made in either order (ISS-11 to ISS-14). Loading gives a store read-only access to its own order's loading line (`LoadingQuery.orderLine`, migration `T0300`), which the custody read now uses, and Issues no longer opens a shortage investigation when the loader's own flags explain every short unit and the store added nothing (R-RCP-07, RCP-16, RCP-17).
+Why: Figma store manager "06-5", "06d" and "08b3". The old rule opened an investigation for every partial receipt, so the loader's shortage was reported twice.
+Verified: `HandoverTest`, `ShortageInvestigationIntegrationTest` (4), `IssueAttachmentsIntegrationTest` (6), `IssuesConsumersIntegrationTest`, `LoadingIntegrationTest` (22), receipt tests, `ModuleBoundaryTest`, `EventCatalogueTest` locally; the full `mvn verify` runs in CI on the draft pull request.
+Open: the store screens that use these (Receive rework, Issues report dialog) are the next step.
+
+---
+
+## 2026-10-02 - feat: the handover PIN, from the store's count to the driver's phone
+
+`feat/store-manager-figma` ┬╖ @jv-ransika
+
+When the store answers a receipt it gets a one-time four-digit PIN, returned once in the answer; only a salted hash is kept (`receipt.handovers`, migration `T0200`). `receipt:VerifyHandover` is the driver's (vehicle on its date), five wrong entries lock it, it expires after 15 minutes, the store reissues with `receipt:ReissueHandoverPin`, and `receipt.handover_confirmed` is published. The PIN is evidence, never a gate (R-RCP-09, RCP-10 to RCP-15). The store screens show it (06b), poll until confirmed (07) and offer a new PIN on an answered receipt.
+Why: Figma store manager "06b" and "07"; decision 2026-10-02 to keep one PIN per order.
+Verified: `HandoverTest` (10), `ReceiptHandoverIntegrationTest` (12) on PostgreSQL 16; store browser suite (9 passed). Parallel entries can answer 500 from the platform's unretried serialization failure (SQLSTATE 40001); no guess is counted.
+Open: no driver screen enters the PIN yet (the driver role is not in this work).
+
+---
+
+## 2026-10-02 - feat: show the store its driver, stop position and expected arrival
+
+`feat/store-manager-figma` ┬╖ @jv-ransika
+
+`DeliveryRecordView` (Execution) gains `stopSequence`, `tripStopCount`, `plannedArrival`, `expectedArrival`, `releasedAt`, `startedAt` and `driver` (name and badge, no email or phone), all additive. The driver comes from the new `IdentityQuery.driverOn(vehicleId, date)` and `PersonQuery`, read after Execution's own read so each runs under its own role; when no driver is assigned or Identity fails the delivery is still returned, without a name, and `waypoint_execution_driver_name_unavailable_total{reason}` counts it (EXE-28). Migration `20261003T0150` adds `delivery_records.trip_stop_count` (a store sees only its own stops, so the trip's size cannot be counted at read time), set at release and backfilled for existing records. Home and Track show the driver, "stop 3 of 7" and the ETA (the plan's time, moved by the observed delay).
+Why: Figma "02 Home" and "05 Delivery tracking" show the driver and a predicted arrival; the data existed but was not on the store's read.
+Verified: `mvn test` for `ExecutionIntegrationTest` (25 passed, two new), `ModuleBoundaryTest`, `EventCatalogueTest` against a recreated `waypoint_test` database; frontend `npm run typecheck`, `npm run build`, store suite (6 passed).
+Open: the ETA is the plan's time until a delay is observed; the estimator is #16.
+
+---
+
+## 2026-10-02 - feat: match the store manager screens to Figma "1 ┬╖ Main flow"
+
+`feat/store-manager-figma` ┬╖ @jv-ransika
+
+Home shows the vehicle, the arrival time and the loading shortfall (read from `GET /api/execution/deliveries` and `GET /api/issues/by-subject`); Place order has the Item / Usual / Order table, the summary card and Save draft (kept on the device, restored on open, cleared on submit); Order sent is a centred dialog with the window, the change deadline and Edit order; new Track screen (vehicle switcher, status, timeline, orders on the vehicle) and Issues tab; Receive reports Missing, Damaged, Wrong item or Other per line, confirms as partial and raises `DAMAGED_GOODS` or `OTHER` issues, then shows the confirmed dialog. En dashes in the store files became hyphens.
+Why: the store screens matched Figma's look but not its content. Everything that has a backend today is now on screen; the rest (driver name and ETA, notifications, calls, voice message, handover PIN, live map) is built in later phases and says "not available yet" until then.
+Verified: `npm run typecheck`, `npm test` (51 passed), `npm run build`; new `playwright.store.config.ts` with `tests/e2e-store/` (6 passed).
+Open: Phases 2 to 5 of the plan (Execution ETA and driver, Notification #14, handover PIN, calls and voice message); the live map is skipped for now. Issues are read per order, so a manager with many recent orders makes many small reads: a store-scoped issue list would be cheaper.
+## 2026-10-03 - feat(sync): review held offline writes, Background Sync, dark components and a gallery (issue #28)
+
+`feat/sync-followups` ┬╖ @Dinusha-Ekanayake
+
+Decision D-O: only an operation's owner reviews it (R-EXE-16). `sync:Discard` drops a conflict or refusal with a reason; `sync:Resolve` settles a conflict as `RESOLVED` and names the redo the device queued ahead of it on the current version (R-EXE-17). The review panel's "Send again" could never work (a replayed id gets its first answer), so it became "Redo on the current version", offered where a role registers a resolver (the loader does), and "DiscardΓÇª" with a reason. Batches go in recorded order. The service worker answers Background Sync by asking an open page to drain (A-39). `waypoint.sync.time_to_drain` (EXE-02). Shared components moved onto the `go-card` token and GO icons invert under any `.go-dark`, so dark mode works outside the loader; `/gallery` shows them light and dark in development.
+Why: the last open items of #28; the audit in the [plan](../issues/028-offline-sync-followups/PLAN.md) found the rest already built.
+Verified: see the PR; `SyncIntegrationTest` and `OperationOutcomeTest` cover the new rules, `held.spec.ts` the loader's redo, discard and Background Sync, `sync-review.test.ts` the device side.
+Open: the driver (#21) can register its own resolver to offer redo. Writes held before this change have no server version, so they are dropped on the device only.
+
+---
+
+## 2026-10-03 - feat(planning): re-plan the reefers after the first pass (issue #92)
+
+`feat/engine-improvement` ┬╖ @Oxshadha
+
+A second engine pass, `ScarceFleetReplan`, clears the reefer days, lists every feasible day of one or two chilled trips through the registry and chooses one per reefer by rank, then places the rest by the first pass's insertion (now shared in `CheapestInsertion`). It is kept only when better by rank (R-PLN-32), is deterministic on a fixed node budget, and its summary is stored on the run and shown on the Plan screen. S1: 70 to 73 served, chilled 78.7 to 109.2 m┬│, no chilled order closing before 08:00 left. Details in the [walkthrough](../issues/092-engine-improvement/WALKTHROUGH.md).
+Why: the greedy spent the reefers' 270 Fresh minutes on small far loads; one-order moves could not fix it.
+Verified: `mvn verify` against a dedicated database, 731 of 732 pass; the one failure is `IdentityHardeningIntegrationTest` running `SET ROLE` with a local owner name containing dots, unrelated. `check_allocation.py` passes; `npm test` 55, typecheck, build, dispatcher Playwright 11.
+Open: serving more chilled by count would need a policy change to R-PLN-21. Vans need no pass of their own (R-PLN-03 already routes van-only outlets, nothing to gain on S1); a day with more than 62 chilled candidates is searched on the top 62 and says so on screen.
+
+---
+
+## 2026-10-02 - feat(loader): tablet, desk and terminal layouts from Figma
+
+`feat/loader-wide-layouts` ┬╖ @Dinusha-Ekanayake
+
+From 768px the loader follows Figma 07 (tablet), 09 (portrait tablet) and 10 (desk and terminal) instead of stretching the phone layout:
+- the departures board is a table (vehicle, route, departs, load against capacity, loader, status, action); search and filters sit beside the title in landscape;
+- sign-in keeps the crew list and a PIN keypad side by side; the fourth digit signs in, a keyboard types into it, and the offline PIN check works the same;
+- the workspace fills the screen instead of stopping at 1280px.
+`ReadyTripView` gains `weightCapKg` and `volumeCapM3` (additive) for the load column. The phone layout is unchanged.
+Why: the booklet names the shared dock tablet as the loader's device, and Figma has a frame set for each size.
+Verified: backend `mvn verify` (628, no skips); `npm test` (54), typecheck, build; loader browser suite 9 of 9, with the new `wide.spec.ts` at 1280x800, 1920x1080 (offline keyboard sign-in) and 768x1024; each size rendered and compared with its Figma frames.
+Open: Figma's tablet top bar has text "Lock" and "Switch user" buttons and the language switch on sign-in; ours keeps the icon buttons and Settings.
+
+---
+
+## 2026-10-02 - fix(deploy): start the model service
+
+`fix/deploy-start-ml` ┬╖ @tharushaudana
+
+`deploy.sh` now starts `ml` with the other services.
+Why: the preview deploy built the model service image (#103) but `up` names its services, and `ml` was missing, so it never ran and every plan fell back to the deterministic estimate.
+Verified: not until the next preview deploy; the script is checked only by deploying.
+Open: nothing.
+
+## 2026-10-02 - fix(reference): import road conditions in one statement
+
+`fix/reference-import-bulk-series` ┬╖ @tharushaudana
+
+`ReferenceVersionWriter.writeSeries` inserts traffic speed and road conditions as one statement each over arrays, not one per row.
+Why: the preview deploy of #103 failed in `init`: about 11,000 road-condition rows, one round trip each, ran past the import's 15 s transaction deadline on the VPS database. The import rolled back whole and nothing was replaced.
+Verified: compile; CI imports the reference data in every integration test.
+Open: nothing.
+
+## 2026-10-02 - feat(intelligence): serve the Datathon models and score published plans
+
+`16-intelligence` ┬╖ @tharushaudana
+
+Intelligence module and a Python model service (`ml-server/`, models in Git LFS). Published plans are scored per stop (service minutes, P(late)) and stored with their model; a weekly job forecasts ten weeks of demand. Model registry commands, supply probability (R-RCP-06), a training export, and a deterministic fallback everywhere. Traffic speed and road conditions are now reference data.
+Why: issue #16; the Datathon models were trained but nothing in Waypoint used them, and every plan said "without predictor". Decisions in [the plan](../issues/016-intelligence/PLAN.md); rules R-ML-01 to 06, cases ML-01 to 08, A-36 to A-38, P-28, P-29.
+Verified: `ml-server` pytest (11, including exact equality with the vendored inference and the Task 2A submission); 17 domain tests, `ModuleBoundaryTest`, `EventCatalogueTest`, application start; frontend typecheck. The backend integration tests need CI's database.
+Open: the screens (#18, #19, #22); `git-lfs` on the VPS; no retraining pipeline; road conditions past 2026-06-28.
+
+## 2026-10-02 - feat: complete remote read-only MCP authorization
+
+`feat/complete-remote-mcp` ┬╖ @kavindamihiran
+
+Continue the unfinished #87 OAuth work on a new branch: resource-bound personal authorization, stateless HTTP transport, consent page, public discovery and container wiring. The same scoped twelve-tool catalogue serves external assistants.
+Why: remote clients need an HTTPS MCP endpoint and OAuth; see [plan](../issues/087-readonly-mcp/PLAN.md) and [walkthrough](../issues/087-readonly-mcp/WALKTHROUGH.md), R-IAM-31 and SEC-34/35.
+Verified: PostgreSQL 16 `mvn verify`, 691 tests with no skips; 45 targeted tests after final retention/concurrency fixes. MCP 13 tests; frontend 54 tests, typecheck/build and 7 browser checks; official SDK OAuth smoke through the real three-process stack; allocation validator and Compose parsing passed. Mobile consent screenshot reviewed.
+Open: Docker image build and hosted-client validation require deployment infrastructure. GitHub was unreachable during local verification. No production enablement; #87 retains its broader discovery/composition work.
+
+## 2026-10-02 - fix: simplify admin preview sidebar
+
+`dev` ┬╖ Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Remove the extra Waypoint label and Demo workspace card from the admin sidebar.
+Why: they cluttered the navigation and repeated the preview context already shown elsewhere.
+Verified: frontend typecheck and production build passed.
+Open: nothing.
+
+---
+
+## 2026-10-02 - fix: keep admin demo depots to Peliyagoda and Kandy
+
+`dev` ┬╖ Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Remove Galle from admin member assignments, vehicle samples, forecasts and depot selectors; share one demo depot list.
+Why: Galle is a delivery district served by Peliyagoda, not a depot.
+Verified: frontend typecheck and production build passed.
+Open: nothing.
+
+---
+
+## 2026-10-02 - fix: use clear admin navigation icons
+
+`dev` ┬╖ Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Add people, permission list, history and audit icons to the admin sidebar while retaining the GO icon style.
+Why: the former catalogue asset was white on a light background and several navigation symbols did not describe their destinations clearly.
+Verified: frontend typecheck and production build passed.
+Open: nothing.
+
+---
+
+## 2026-10-02 - fix: align admin people list columns
+
+`dev` ┬╖ Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Give the member identity, persona and place, exception badge, and action stable desktop columns.
+Why: variable badge presence shifted values and actions between rows.
+Verified: frontend typecheck and production build passed.
+Open: nothing.
+
+---
+
+## 2026-10-02 - fix: place admin preview sign out under the sidebar profile
+
+`dev` ┬╖ Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Move the demo sign out action below the sidebar account summary and keep it available on smaller screens.
+Why: the account control belongs beside the profile shown in the sidebar.
+Verified: frontend typecheck and production build passed.
+Open: nothing.
+
+---
+
+## 2026-10-02 - feat(notification): route events to people, with an inbox and web push
+
+`14-notification` ┬╖ @tharushaudana
+
+Notification module, backend only: 18 event consumers, a versioned routing table (`notification.routing_rules`), inbox and unread count, a live count over server-sent events, `MarkRead`, `MarkAllRead`, `Subscribe`, `Unsubscribe`, and a push job with retry and dead letter. Web push encryption and VAPID are written on the JDK. Identity gains a dated `recipientsFor`, so tomorrow's plan reaches tomorrow's driver.
+Why: issue #14; the store, driver and dispatcher screens had nothing behind their notification placeholders. Decisions are in [the plan](../issues/014-notification/PLAN.md); rules R-NOT-06 to 09, cases NOT-01 to 09, A-34, A-35, P-27.
+Verified: domain and crypto tests (27, including the RFC 8291 vector), `ModuleBoundaryTest`, `EventCatalogueTest`, frontend typecheck and `npm test`. The 26 database integration tests pass in CI (`mvn verify`, 681 tests, none skipped).
+Open: each role UI places its own inbox, badge and push opt-in (#18, #19, #21); no admin API for a new routing version; dock and next planned date are missing from their events.
+## 2026-10-02 - fix(test): stop the execution tests colliding on a random day
+
+`fix/execution-test-day-collision` ┬╖ @kavindamihiran
+
+`ExecutionIntegrationTest` picks a random service day per test and assigns the same two vehicles around it. The assignments stay in the database, so two tests landing on neighbouring days broke the no-overlap constraint in `setUp`. It now picks again until both vehicles are free.
+Why: the preview deploy of #100 failed on it (`aTripRunningBehindTellsTheStopsAhead`, exclusion constraint on `iam.vehicle_driver_assignments`), about one run in fifteen by the arithmetic.
+Verified: `mvn -Dtest=ExecutionIntegrationTest test` on local PostgreSQL 16: 23 run, 0 failed, 0 skipped.
+Open: nothing.
+
+## 2026-10-02 - docs: add a connect guide for the read-only MCP server
+
+`docs/mcp-connect-guide` ┬╖ @kavindamihiran
+
+New `mcp/README.md`: build, sign in, a configuration block for Claude Code, Claude Desktop, Codex, opencode and Cursor, the 12 tools with the action each needs, and the common failures. The walkthrough links to it instead of repeating it.
+Why: #93 shipped the adapter with no user-facing way to connect a client, and the requirement is that users connect their own assistant (no chatbot in Waypoint).
+Verified: `mcp/` `npm test` on a clean export of `dev` (10 passed); the server registered in Claude Code, Codex, Claude Desktop and opencode with the documented entries. Not verified: a read from an installed client, which needs an interactive sign-in.
+Open: ChatGPT and other remote-only clients cannot connect to a stdio server; the remote transport with OAuth needs its own PLAN under [#87](../issues/087-readonly-mcp/WALKTHROUGH.md). Production still lacks `mcp/` and `MCP_ENABLED`.
+
+## 2026-10-02 - fix: sync the store manager screens with the backend contracts
+
+`fix/store-manager-sync` ┬╖ @jv-ransika
+
+The store read a catalogue path that does not exist (live "No such endpoint"); it now pages `/api/warehouse/catalogue`. `order:Place` and `order:Amend` answer with order-level totals (null while stock is unchecked), an STK-01 refusal carries per-line `availability` (kept in the stored rejection, so a retry gets it too), the order-sent screen offers Accept on a partial reservation (STK-13), the delivery-day preview uses `GET /api/orders/delivery-date`, and a `DISCARDED` sync result leaves the device queue instead of blocking it.
+Why: the store screens were built against assumed contracts before ordering, warehouse and sync landed; a full read of both sides found these mismatches.
+Verified: frontend `npm run typecheck`, `npm test` (51 passed), `npm run build`; backend `mvn verify` on local PostgreSQL 16: 628 run, 627 passed, no skips; the one failure is `OutboxRelayIntegrationTest.twoRelaysNeverClaimTheSameEvent` (49 of 60 delivered), outside this change.
+Open: no store browser suite (`tests/e2e-store/`); the store flow was not run by hand against the live backend.
+## 2026-10-02 - feat(loader): match the loader to Figma, with dark mode and settings
+
+`feat/loader-figma`, restored by `fix/restore-loader-figma` after the revert in #91 ┬╖ @Dinusha-Ekanayake
+
+Compared every frame of Figma "08 Loader ┬╖ Phone" with the build and closed the gaps:
+- dark mode on the go-dark tokens; a Settings screen (Appearance Light/Dark, Language α╖âα╖Æα╢é / α«ñ / EN), with the device's sign-out kept there;
+- Device locked and Unlock with PIN; crew search with "No matching employees"; four-box PIN with Incorrect PIN and the paused countdown;
+- the dock pill and list, "No trips at this dock", "was just taken" (409 R-LOD-11);
+- the loaded and saved-offline sheets, centred out-of-sequence and hand-back cards ("Next up"), and Report an issue with icons and two-line pickers;
+- release with loaders, minutes, the flagged-stop note and capacity bars; "on pace" from the hold time and departure;
+- every loader string through the SI/TA dictionary.
+
+Kept from the backend where Figma differs: the required reason on an issue (`loading:Shortfall` requires it), and "item" over "package" (decision 2026-10-01).
+Why: the booklet judges fidelity to the Day 5 design on phone-size screens.
+Verified: typecheck, `npm test` (48), build; loader browser suite 4 of 4 and dispatcher 11 of 11; screenshots of each screen in light and dark compared with the Figma frames at 393x852.
+Open: Figma's notifications bell (loader notifications are #14) and the optional issue photo (Loading has no upload endpoint). Sinhala and Tamil need a native speaker.
+
+---
+
+## 2026-10-02 - ci: run the tests once per change, in one workflow
+
+`ci/one-checks-workflow` ┬╖ @kavindamihiran
+
+The official Task 2B validator step moved from `ci.yml` into the backend job of `checks.yml`, and `ci.yml` is deleted.
+Why: both workflows ran the full backend suite on every pull request and again on every push to `dev` and `main`, so one merge ran it four times and a flaky test had twice the chances to fail a run. The validator now also gates both deploys, which `ci.yml` never did.
+Verified: the `Checks` run on this branch's pull request, including the validator step.
+Open: two integration tests fail intermittently on leaked test data (`PlanningCommandIntegrationTest.aGeneratedDraftIsPublishedOnceWithItsEvents`, `ExecutionIntegrationTest.setUp`), no issue yet. `Checks` is not yet a required status on `main` or `dev`.
+
+---
+
+## 2026-10-02 - fix: let operational commands start with the MCP filter present
+
+`fix/mcp-filter-non-web-start` ┬╖ @kavindamihiran
+
+`McpCredentialFilter` looks up the MVC exception resolver when it refuses a request instead of requiring it at construction.
+Why: `migrate` and `import-reference` start without a web server, where that resolver does not exist, so the init step of the preview deploy for #93 failed before migrating and preview stayed on the previous build. Case [PLT-15](../architecture/EDGE-CASES.md).
+Verified: `WaypointApplicationCommandStartTest` failed with the deploy's own error before the change and passes after; backend `mvn verify` on local PostgreSQL 16 (627 passed, no skips); the built jar ran `migrate import-reference demo-accounts` on an empty database (46 migrations), then served with `MCP_ENABLED=true` while the stdio adapter connected as dispatcher and auditor, read in scope, was refused out of scope (403) and on a command (403), and disconnected. `mcp/` `npm test`: 10 passed.
+Open: `MCP_ENABLED=true` is set per environment in the server's `.env` ([deployment.md](../deployment.md)); production gets the feature with the next release from `dev`.
+
+---
+
+## 2026-10-02 - feat: connect personal read-only MCP clients (issue #87)
+
+`feat/readonly-mcp` ┬╖ @kavindamihiran
+
+Identity issues dedicated, revocable MCP sessions; the local stdio adapter exposes 12 curated tools through existing policy and SQL scope. The feature defaults off. All six roles can connect without gaining new business permissions; loaders keep their own identity. Details and setup are in the [walkthrough](../issues/087-readonly-mcp/WALKTHROUGH.md).
+Why: authorized users need assistant access to recorded facts, with no command or upload path and no copied browser cookie.
+Verified: rebased onto `dev` at `ae6529f`, isolated PostgreSQL backend verify (626 passed, no skips); MCP build and 10 SDK tests; frontend 47 tests, typecheck, build and three shell browser tests. Final branch checks are recorded in the walkthrough.
+Open: #87 remains open for bounded work discovery, custody composition and installed desktop-client validation. No remote MCP transport is built.
+
+---
+
+## 2026-10-02 - fix: show the admin sample console on production
+
+`fix/admin-console-on-production` ┬╖ @kavindamihiran
+
+`RoleRouter` now gives the admin role the sample console on every address. It only did so when the hostname began with `admin-preview.`, so `admin.waypointgo.live` showed "not built yet".
+Why: production and preview run the same build, and the hostname check was the only difference between them.
+Verified: `shell.spec.ts` gains a case that failed before the change and passes after; `npm test`, typecheck and build pass.
+Open: the console runs on mock data and says so on screen; live backend wiring remains in issue #22.
+
+## 2026-10-02 - feat(shell): production's shared address hands each role to its own address
+
+`feat/production-role-landing` ┬╖ @kavindamihiran
+
+`waypointgo.live` now shows the same role landing as `preview.waypointgo.live`: four buttons, each opening `store.`, `dispatcher.`, `loader.` or `driver.waypointgo.live`. `PreviewLanding` became `RoleLanding`, and `previewHomeFor` became `sharedHomeFor`. A bare name is a landing only in a build made with `NEXT_PUBLIC_ROLE_ADDRESSES=1`, which `deploy/vps/compose.vps.yaml` passes as a build argument; anywhere else every role stays on one address. CI now parses the VPS overlay too.
+Why: after release #83 the role addresses answered on production, but signing in on the bare name still kept every role on one URL, unlike preview.
+Verified: `npm test`, typecheck, and a build with the flag on opened in a headless browser as `waypointgo.live` (landing, production links, no preview badge), `preview.waypointgo.live` (landing, preview links, badge), `loader.waypointgo.live` and `localhost` (no landing). The overlay's build argument is not verified locally, there is no Docker here: the new CI step and the preview deploy are its first run.
+Open: the landing offers the four field roles; administrators and auditors type their address. A session or offline queue left on the bare production name is stranded in that browser.
+
+---
+
+## 2026-10-02 - fix(deploy): dump the database before every migration, and keep proof links across a restart
+
+`fix/deploy-backup-before-migrate` ┬╖ @kavindamihiran
+
+`deploy/vps/deploy.sh` now dumps the database to `/opt/waypoint/backups/<environment>/` before `init` runs, reads the dump back, keeps the newest 14, and stops with nothing replaced if it cannot take one. It also writes `PROOF_URL_SECRET` to `.env` the first time it is missing, the way it already did `APP_DB_PASSWORD`. Restore steps are in [deployment.md](../deployment.md#backup-and-recovery).
+Why: release #83 took production from 15 migrations to 45 in one deploy, with forward-only migrations and no way back; the one dump that existed was taken by hand minutes before. Proof links were signed with a key that died at every restart.
+Verified: the release was rehearsed first on a database built by `main` (15 migrations, six accounts) and upgraded by `dev`: 30 migrations applied, ownership moved to `waypoint_migrator`, the backend ready as `waypoint_app`, and every demo account signed in through its own role address with its old password. The new script functions were run against a stand-in `docker`: no database yet, a good dump, a failed dump, an unreadable dump, pruning, both environments. Not run against a real server: the preview deploy of this change is the first real one.
+Open: the dumps are on the server's own disk, nothing takes one between deploys, and the restore steps have not been exercised there. `ExecutionIntegrationTest` picks a random day for its vehicle assignments and two tests can collide on the exclusion constraint; it failed one `ci` run on `dev` and passed the re-run.
+
+---
+
+## 2026-10-02 - fix: a non-superuser owner for the schema, and reference reads that stop at scope (issue #5)
+
+`fix/identity-owner-and-reference-scope` ┬╖ @kavindamihiran
+
+Every schema, table and function now belongs to `waypoint_migrator`, which is not a superuser, and `migrate` applies each file as that role once a database is handed over. `/api/reference` outlets and vehicles are checked against the actor's depot, outlet or today's vehicle (`ReferenceScope`, R-IAM-28). The store manager policy gains `reference:Read` on outlets and calendar days, which the store screens already called. Details in the [plan](../issues/005-identity-hardening/PLAN.md#second-pass-the-owner-and-reference-scope-2026-10-02) and [walkthrough](../issues/005-identity-hardening/WALKTHROUGH.md).
+Why: the last two open lines of #5. A migration could do anything a superuser can, and a dispatcher of one depot could read the other's outlets and fleet.
+Verified: `mvn verify` against a new PostgreSQL 16 database and against one upgraded from `dev`; grants, policies and default privileges compared before and after the handover and found identical. Counts are in the pull request.
+Open: migrations may no longer name `SUPERUSER` or `BYPASSRLS`, and a backfill of a table that forces row-level security must lift the force (AGENTS.md, Data and Migration Rules). An account with no depot grant, an administrator included, gets 403 on depot reference reads.
+
+---
+
+## 2026-10-02 - fix: align admin preview sidebar with page top
+
+`dev` ┬╖ Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Overlay the shell session controls on the admin preview at desktop widths so its sidebar begins at the top of the page.
+Why: the separate shell control row left a visible gap above the sidebar.
+Verified: frontend typecheck and production build passed.
+Open: nothing.
+
+---
+
+## 2026-10-02 - chore: refresh legacy CI actions
+
+`dev` ┬╖ Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Move the legacy CI workflow to current checkout, Java, Node and Python actions and pin Ubuntu 24.04.
+Why: the failed run reports deprecation warnings for the older actions and a pending `ubuntu-latest` migration.
+Verified: `git diff --check` passed. Backend tests could not run locally because required Maven artifacts were unavailable and the Maven repository TLS certificate was rejected.
+Open: the backend job's exit-code annotation does not identify its failing test; the private job log is needed to isolate it.
+
+---
+
+## 2026-10-02 - fix(deploy): preview log store, Grafana address and root URL
+
+`fix/grafana-root-url` ┬╖ @jv_ransika
+
+The preview deploy starts Loki, Alloy and Grafana when `GRAFANA_ADMIN_PASSWORD` is in the preview `.env`; Grafana joins the edge network as `preview-grafana` and nginx serves it at `grafana-preview.<site>`. Grafana takes its URL from the request host, because `SITE_ADDRESS` in the preview `.env` is the preview name, not the site.
+Why: PR #51 added the log store but the VPS deploy never started it, and the public address needs an nginx vhost that production nginx (built from `main`) does not have yet.
+Verified: containers healthy on the VPS, Grafana health 200 from inside the server; public address not yet verified (needs the production nginx change).
+Open: production nginx on `main` needs the vhost and a certificate with the new name; Grafana still uses the default `admin` login.
+
+## 2026-10-02 - fix: show admin mock on preview role address
+
+`dev` ┬╖ Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Route the signed-in admin role on `admin-preview.waypointgo.live` to the existing interactive sample console instead of the placeholder. Keep the normal session and role gate.
+Why: nginx already serves the hostname, but the frontend role router still showed "not built yet".
+Verified: frontend typecheck and production build passed.
+Open: the admin console uses sample data; live backend wiring remains in issue #22.
+
+---
+
+## 2026-10-02 - feat(dispatcher): issues inbox, overview tiles, skipped outlets, weekly fuel (issue #19)
+
+`feat/dispatcher-rest` ┬╖ @Oxshadha
+
+The dispatcher can now see, take, resolve, redeliver, record a replacement for, close and cancel issues (#13's commands, `rowVersion` on each). Overview reads today's orders, road, on-time rate and open issues; it lists skipped outlets with counts, and the vehicle drawer shows planned fuel against the weekly quota. Frontend only. Details in the [walkthrough](../issues/019-dispatcher-ui/WALKTHROUGH.md#second-slice-issues-overview-skipped-outlets-fuel-2026-10-02).
+Why: the Issues backend was done, but no dispatcher could act on an issue on screen.
+Verified: `npm test` 45 pass, typecheck and build green, dispatcher Playwright suite 11 pass (mocked API).
+Open: assigning to someone else needs a staff read; interchange approval waits on #10, Forecast on #16, the sync conflict queue is not started.
+
+---
+
+## 2026-10-02 - fix: match admin preview branding
+
+`dev` ┬╖ Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Set the admin font token to the bundled Google Sans Flex Variable family and pair the black GO mark with a white Preview pill in the login and workspace headers. Use a plain mint login background and remove the remote font import.
+Why: match the supplied references and use the actual font family registered by the bundled font files.
+Verified: browser font inspection confirmed the custom Google Sans Flex face on the admin heading; frontend typecheck and production build passed.
+Open: nothing.
+
+---
+
+## 2026-10-02 - fix: reconcile audit console with dev
+
+`23-auditor-console` ┬╖ Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Retain AuditConsole for both audit and focused permission history routes when merging dev. Preserve the current session flow and both branches' documentation.
+Why: the admin placeholder must not replace the completed mock audit workspace.
+Verified: frontend typecheck and production build passed.
+Open: audit UI still uses mock data.
+
+---
+## 2026-10-02 - feat: build the mock audit console
+
+`23-auditor-console` ┬╖ Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Add Overview, Activity and Access & security views, 26 sample operational events, URL filters, event drawer, related activity and visible feed states. Permission Change history now reads the same event adapter. See [audit plan](../issues/022-admin-console/AUDIT-CONSOLE-UI-PLAN.md).
+Why: provide a consistent investigation flow while keeping authorization decisions distinct from execution outcomes.
+Verified: non-incremental TypeScript check and production build passed; `/access-demo` returned HTTP 200. Browser interaction remains unverified under the current browser-tool limitation.
+Open: live audit reads, server scope, exports and investigation cases remain future work. Mock Admin visibility excludes governance fixtures; no backend authorization was added.
+
+---
+
+## 2026-10-02 - docs: plan the GO audit console
+
+`23-auditor-console` ┬╖ Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Define the mock audit views, event detail flow, visibility rules and live data gaps in [AUDIT-CONSOLE-UI-PLAN.md](../issues/022-admin-console/AUDIT-CONSOLE-UI-PLAN.md).
+Why: extend the established GO theme with a contextual audit workflow and keep authorization decisions distinct from execution outcomes.
+Verified: checked current mock, audit write contract and schema; no application code changed.
+Open: fresh Figma access was unavailable; design references use supplied screenshots and the earlier recorded inspection.
+
+---
+
+## 2026-10-02 - fix: resolve admin session merge conflict
+
+`22-admin-console` ┬╖ Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Merge current dev and retain its session state, sign-in, role routing and pending offline write protection. Keep the standalone `/access-demo` route and both branches' documentation.
+Why: the older checked/session rendering conflicts with the newer state-based shell.
+Verified: frontend typecheck and production build passed.
+Open: the admin UI remains a mock demo; live integration is unchanged.
+
+---
+## 2026-10-02 - feat: add mock forecasts and vehicles tabs
+
+`22-admin-console` ┬╖ Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Add main Forecasts and Vehicles tabs beside Audit console. Show clearly labeled sample demand, fleet summaries, filters and vehicle details without calling the backend.
+Why: admins need these workspaces visible in the demo navigation before the backend forecast capability is available.
+Verified: non-incremental TypeScript check and production build passed; `/access-demo` returned HTTP 200 on port 43000.
+Open: forecast values and vehicle records are mock data; live actions need backend integration.
+
+---
+
+## 2026-10-02 - refine: GO login and expandable access navigation
+
+`22-admin-console` ┬╖ Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Replace the mock identity picker with a GO-style staff ID and password screen based on the supplied reference. Make People & access a main sidebar item that reveals its four subpages; keep Audit console beside it.
+Why: the demo login and navigation should match the requested admin workspace hierarchy.
+Verified: non-incremental TypeScript check and production build passed; `/access-demo` returned HTTP 200 on port 43000.
+Open: credentials are demo-only and no server session is created.
+
+---
+
+## 2026-10-02 - refine: role-specific member setup and navigation
+
+`22-admin-console` ┬╖ Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Make the mock Add member form conditional by persona, remove its reason field, and keep Admin creation inside that form for Super admin. Hide the Super admin persona and directory entry; group access subpages and add a separate mock Audit console navigation item.
+Why: member setup and navigation should match each role's actual choices and the requested admin hierarchy.
+Verified: non-incremental TypeScript check and production build passed; the updated demo returned HTTP 200 on port 43000.
+Open: assignments and audit events remain frontend-only sample data.
+
+---
+
+## 2026-10-02 - feat: add persona-based mock members
+
+`22-admin-console` ┬╖ Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Replace the People page's Add admin control with Add member for both administrative previews. Collect persona and matching depot, warehouse/depot or outlet assignment; reserve Admin creation for Super admin. Persona pages can start with their role selected.
+Why: operators need one member-creation flow for all operational personas while preserving privileged account boundaries.
+Verified: non-incremental TypeScript check and production build passed; the updated demo server started on port 43000.
+Open: this remains frontend-only sample data and does not create real accounts.
+
+---
+
+## 2026-10-02 - fix: keep access demo dialogs open
+
+`22-admin-console` ┬╖ Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Remove the native dialog close event handler that cleared modal state during React development effect cleanup. Add exception, permission details/edit, and Add admin share this dialog.
+Why: these controls appeared inert because their dialog closed immediately after opening.
+Verified: non-incremental TypeScript check passed.
+Open: browser interaction could not be verified under the current browser security policy.
+
+---
+
+## 2026-10-02 - fix: complete access demo controls
+
+`22-admin-console` ┬╖ Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Fix scoped member exception evaluation, protected edit controls, unchanged saves, history details, catalogue availability labels, Add admin entry points and reset navigation in the frontend-only permission demo.
+Why: Admin and Super admin preview controls produced misleading results or incomplete flows.
+Verified: non-incremental TypeScript check and production build passed; `/access-demo` returned HTTP 200 on port 43000. Browser interaction was unavailable under the current browser security policy.
+Open: live authorization and account creation remain separate backend work.
+
+---
+
+## 2026-10-01 - feat: align access demo with GO visual language
+
+`22-admin-console` ┬╖ Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Refine the isolated permission demo with the Figma style guide and dispatcher desktop shell: Google Sans Flex preference, pale mint canvas, GO navigation, white surfaces and clearer persona cards. Add a demo link to the signed-out root page.
+Why: the mock route was hard to discover from `/` and its styling did not read as part of the GO product.
+Verified: non-incremental TypeScript check passed; the development server returned HTTP 200 for `/access-demo` after launching with the required local filesystem access.
+Open: production build and visual browser inspection remain unverified in this run.
+
+---
+
+## 2026-10-01 - feat: align access demo with GO visual language
+
+`22-admin-console` ┬╖ Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Refine the isolated permission demo with the Figma style guide and dispatcher desktop shell: Google Sans Flex preference, pale mint canvas, GO navigation, white surfaces and clearer persona cards. Add a demo link to the signed-out root page.
+Why: the mock route was hard to discover from `/` and its styling did not read as part of the GO product.
+Verified: non-incremental TypeScript check passed. Browser verification and build remain open because the sandbox denied Next.js writes to `.next`; the elevated build request was rejected.
+Open: rerun the production build and inspect the refreshed route when filesystem access permits.
+
+---
+
+## 2026-10-01 - docs: plan capability management screens
+
+`22-admin-console` ┬╖ Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Define persona modules, member exceptions, review and history in [the capability UI plan](../issues/022-admin-console/CAPABILITY-UI-PLAN.md), with isolated mock data and reusable components.
+Why: the full action catalogue obscures relevant persona access; scoped and expiring mock exceptions must not imply backend support.
+Verified: compared existing IAM plans and repository structure; documentation only, no application tests run.
+Open: build the mock UI next; current checkout lacks the earlier admin source directory.
+
+---
+
+## 2026-10-01 - feat: build access capability mock
+
+`22-admin-console` ┬╖ Kalindu Ranathunga (local Git identity; GitHub handle unverified)
+
+Add the isolated `/access-demo` route with persona modules, member access, all 76 inventory actions, review, simulated saves and mock history. See [capability UI plan](../issues/022-admin-console/CAPABILITY-UI-PLAN.md).
+Why: operators need relevant business capabilities and clear member exceptions instead of an unfiltered technical list.
+Verified: non-incremental TypeScript check, production build and browser walkthrough of persona edit/review/save.
+Open: live permissions, scope/expiry, impact and history require backend contracts; mock saves have no server effect.
+
+## 2026-10-02 - feat(platform): scheduler jobs and audit completion (issue #6, second slice)
+
+`feat/event-backbone` ┬╖ @jv_ransika
+
+- Scheduler: `ScheduledJobRunner` records each run and counts duplicates. New jobs: audit partitions ahead and detach after 24 months, platform retention, session retention, calendar exhaustion warning (R-PLT-04, 05). Partition DDL is a `SECURITY DEFINER` function, not a grant.
+- Audit: command id, target, redacted before/after and policy generation on every row; rejected commands are stored as receipts and replayed (R-PLT-06, 07); `GET /api/audit` and `/api/audit/decisions/{commandId}`.
+- Migrations `20261002T1100`, `T1200`. The relay itself landed first in #65. Plan and walkthrough in `docs/issues/006-event-backbone/`.
+
+Why: nothing delivered events, and every command fails after 2027-07-01 when the last audit partition ends.
+Verified: relay slice, `OutboxRelayIntegrationTest` (12), `OutboxIntegrationTest`, `ModuleBoundaryTest`, `EventCatalogueTest`, run against a dedicated database. Scheduler and audit slices: targeted tests written, full `mvn verify` left to CI on the PR.
+Open: older audit call sites still read the correlation id from the logging context; `before` state is captured only by the vehicle status handler so far; archive target for detached partitions needs P-14; audit and dead-letter screens are #23 and #22.
+
+## 2026-10-02 - feat(execution): deliveries product by product, proof in the database, scope fix
+
+`feat/execution` ┬╖ @Dinusha-Ekanayake
+
+On the merged module: a delivery can be recorded product by product (`execution.delivery_lines`, `DeliveryLines`; the total stays what Ordering reads), proof bytes are kept in the database by default (`DatabaseProofStore`, `PROOF_STORE`), and a nightly job clears them past retention and keeps the row and hash. Found while doing it: a driver holding a depot grant, as `demo-accounts` gives, could read every vehicle's stops in the depot; depot-wide reads now need a dispatcher, admin or auditor role (`20261002T0900`). Details in the [walkthrough](../issues/012-execution/WALKTHROUGH.md#follow-up-2026-10-02).
+Why: owner's decisions on #12 (per-line partials, Neon storage, retention); EXE-13 says a driver's scope is one vehicle on one date.
+Verified: see the pull request; the scope test was run without its migration and failed, then passed with it.
+Open: ETA through #16 needs a travel-time method agreed with #16. Offline timing stays as A-31.
+
+## 2026-10-02 - docs: a status page, and the documents brought level with the code
+
+`docs/status-and-start-here` ┬╖ @kavindamihiran
+
+New [STATUS.md](STATUS.md): every module and screen as built, partial, in flight or not started, what is left in each, and what to pick up next. AGENTS.md, both READMEs, development.md, MODULES, SYSTEM-ARCHITECTURE, FOUNDATION-PLAN, deployment, verification, the submission checklist and the design mapping corrected where the code had overtaken them (Receipt and Issues described as contract only, role screens as placeholders, `main` as the integration branch, an account script usage that no longer exists, prototype-era operational limits).
+Why: the only answer to "what is done" was 850 lines of log, and the document named for "what next" finished on 2026-09-28, so someone starting work could not tell where anything stood.
+Verified: `TEST_DATABASE_URL=... mvn clean verify`, 564 tests, none skipped; `npm test` (41), `npm run typecheck`, `npm run build`; browser suites dispatcher 7, driver 10, loader 4, shell 2. No code changed. Relative links in the changed files resolve.
+Open: `main` is 114 commits behind `dev`, so production shows none of the modules built since 2026-10-01. No seed takes a fresh install to a released trip. The role browser suites are not in CI. `docs/design-rationale.md` and `docs/ai-disclosure.md` are submission statements and were left for the team to review.
+
+---
+
+## 2026-10-02 - feat: dispatcher orders, plan and live screens (issue #19, first slice)
+
+`feat/dispatcher-flow` ┬╖ @kavindamihiran
+
+The dispatcher can run the day from the screen: Orders (what became of every order due, close orders), Plan (generate, see each deferral's rule and checks, place by hand from the server's feasible places, take an order off, move a trip, publish with a confirm, revise) and Live (vehicles by urgency with stop progress, what needs the dispatcher, the dock). Three additive reads: `GET /api/orders/day`, `GET /api/plans/draft`, `GET /api/plans/preview/placements`. Detail in [docs/issues/019-dispatcher-ui/WALKTHROUGH.md](../issues/019-dispatcher-ui/WALKTHROUGH.md).
+Why: Planning had every command and no screen, so on a running instance a plan could only be made by posting commands by hand, and nothing downstream of it could start.
+Verified: `TEST_DATABASE_URL=... mvn verify`, 564 tests on a fresh database; `npm test` (41), `npm run typecheck`, `npm run build`; `npx playwright test -c playwright.dispatcher.config.ts`, 7 browser tests against a mocked API; driver, loader and shell browser suites still pass. Not run against a live backend with seeded data.
+Open: the rest of #19 (overview tiles, skipped outlets, fuel, issues inbox, interchange approval, forecast). No map: outlets have no coordinates (A-11). Snapshots, compare and regenerate-with-locks from the design have no backend and are left out.
+
+---
+
+## 2026-10-02 - feat: driver phone screens, a full day with no signal (issue #21)
+
+`feat/driver-ui` ┬╖ @kavindamihiran
+
+The driver role is built: Home, Route, Delivery report with proof (recipient, signature pad, shrunk photo, or a reason for neither), not delivered, Report a problem, Run complete, light and dark. `shared/offline` gains kept reads and queued uploads beside the command queue; the shell lets a full-offline role carry on from the last session the server confirmed when it cannot be asked. Detail in [docs/issues/021-driver-ui/WALKTHROUGH.md](../issues/021-driver-ui/WALKTHROUGH.md).
+Why: Execution (#12) had no screen, so nothing after the dock could be done by a person.
+Verified: `npm test` (30), `npm run typecheck`, `npm run build`; `npx playwright test -c playwright.driver.config.ts`, 10 browser tests at phone width against a mocked API, including a stop worked and reloaded with no signal then sent once in order; loader and shell browser suites still pass. Not run against a live backend: that needs a released trip, which the fresh-install seed will provide.
+Open: English only. Design features with no backend are left out and listed in the walkthrough. Browser tests are not in CI.
+
+---
+
+## 2026-10-02 - feat: execution module, the driver's stops (issue #12)
+
+`feat/execution` ┬╖ @kavindamihiran
+
+`trip.released` becomes the driver's run sheet, one delivery record per order. Six commands through the bus: start, arrive, record (delivered, partial, failed), capture proof, report vehicle status, report fault. Lateness against the window close, waiting kept apart, a mall outlet late is failed not delivered (EXE-20), ETA shift announced to the stops ahead, replanned stops skipped. Proof photos and signatures through a `ProofStore` port (files under `PROOF_DIR`, a volume in both compose files) read back by signed five-minute links. Detail in [docs/issues/012-execution/WALKTHROUGH.md](../issues/012-execution/WALKTHROUGH.md).
+Why: the driver role could sign in and do nothing; nothing recorded what happened on the road, so orders stopped at in transit.
+Verified: `TEST_DATABASE_URL=... mvn verify`, 562 tests on a fresh database with Receipt and Issues merged; the integration test runs plan published, loaded, released and delivered through the real relay to Ordering, Receipt and Issues. Not run on the server; the Docker image was not built here.
+Open: built on the relay (PR #65), which must merge first. Server time decides, so a stop recorded offline and synced late reads as late and is marked uncertain (A-31). A rule violation is `409 CONSTRAINT_VIOLATED`, like Loading. `PROOF_URL_SECRET` unset means proof links die at a restart. The driver screens are #21. No retention job purges proofs yet (#6).
+
+---
+
+## 2026-10-02 - fix(issues): drivers raise by the vehicle they drive today; assignees must work the depot (issue #13)
+
+`feat/receipt-issues` ┬╖ @Oxshadha
+
+`IssueScope` now admits a driver for the depot of the vehicle they drive today, through Identity's `driverVehicleOn` (#5, R-IAM-13), so drivers need no depot grant and A-29 is withdrawn. `issue:Assign` requires the assignee to be scoped to the issue's depot through `scopeOf` (R-ISS-08). Both read only Identity's and Reference data's contracts.
+Why: #5 shipped the vehicle-and-date scope this was waiting for.
+Verified: on a fresh database, `TEST_DATABASE_URL=... mvn test`, 439 tests, 0 failures; frontend `npm run typecheck` and `npm test` (12) pass.
+Open: nothing for #13 beyond the walkthrough's gaps owned by other modules.
+
+## 2026-10-02 - test: cap the connection pool per cached test context
+
+`feat/receipt-issues` ┬╖ @Oxshadha
+
+`src/test/resources/config/application.properties` sets the Hikari pool to 5 for tests only; production stays at 8. Spring caches one context per distinct test configuration, and each keeps its whole pool open. After #5 and this branch there are thirteen, which at 8 each need 104 connections, more than PostgreSQL's default 100, so the last test classes failed with "too many clients".
+Why: merging `dev` after #5 turned 29 tests red on connection errors, not logic. CI's PostgreSQL has the same limit.
+Verified: on a fresh database, `TEST_DATABASE_URL=... mvn test`, 437 tests, 0 failures.
+Open: nothing.
+
+## 2026-10-02 - fix(issues): redeliver only when nothing arrived; a redelivery keeps its priority (issue #13)
+
+`feat/receipt-issues` ┬╖ @Oxshadha
+
+- `issue:ScheduleRedelivery` now answers only a failed delivery or a stock discrepancy. A disputed, damaged or late delivery is refused (ISS-08): a redelivery is the whole order and would ship the goods twice. A-24 is now decided.
+- `Order.redeliveryOf` carries the original's skips plus one, so Planning serves the outlet first next time (ORD-15).
+- Settled conflict C-7: a late arrival at a mall is a failed delivery, `mall_window_closed` (EXE-20). R-EXE-05 still holds elsewhere. #12 implements the detection.
+
+Why: review of A-24 and of late deliveries to malls.
+Verified: on a fresh database, `TEST_DATABASE_URL=... mvn test`, 391 tests, 0 failures.
+Open: comment on #12 for EXE-20; partial redelivery as a follow-up for Ordering and Warehouse.
+
+## 2026-10-02 - fix(issues): raise rights build on each role's current policy (issue #13)
+
+`feat/receipt-issues` ┬╖ @Oxshadha
+
+Migration `20261002T0400` no longer restates the Loader, Driver and StoreManager policies. It builds each new version from the role's current default: it takes `issue:Raise` out of the statement that grants it and appends one typed raise statement, as `20261001T1501` does. Restating version 2 had silently dropped the store manager's `order:AcceptShortfall`, which #7 granted in between. The Receipt and Issues tests now switch off `ScheduledJobRunner` (from #7), so the real auto-close cannot fire mid-test; the jobs now run in the app on their crons.
+Why: merging `dev` after #7 turned three Ordering tests red (403 on `order:AcceptShortfall`).
+Verified: on a fresh database, `TEST_DATABASE_URL=... mvn test`, 390 tests, 0 failures; the store manager's default policy keeps `order:AcceptShortfall` and gains `RaiseStoreIssues`. Frontend `npm run typecheck` and `npm test` (12) pass.
+Open: nothing new; see the walkthrough's gaps.
+
+## 2026-10-02 - fix(issues): name the shortfall, announce escalation, correct the gaps (issue #13)
+
+`feat/receipt-issues` ┬╖ @Oxshadha
+
+- `shortfall.resolved` gains an optional `shortfallId`, so Loading can resolve the one shortfall a replacement answers (ISS-07).
+- New event `issue.escalated`, published once by `IssueEscalationJob` and routed to dispatchers in MODULES ┬º9.
+- A-29 is rewritten as temporary: the team's driver scope is vehicle and date (`driverVehicleOn`, #5).
+- The walkthrough's gaps table is checked against each module issue's full description.
+
+Why: review of the open gaps against the module issues.
+Verified: `TEST_DATABASE_URL=... mvn test`, 349 tests, 0 failures; frontend `npm run typecheck` and `npm test` (12) pass.
+Open: comments for #5, #10 and #19 (see the walkthrough), and the A-24 decision.
+
+## 2026-10-02 - docs: receipt and issues walkthrough and registers (issue #13, step 5)
+
+`feat/receipt-issues` ┬╖ @Oxshadha
+
+- **Walkthrough:** adds [the issue #13 walkthrough](../issues/013-receipt-issues/WALKTHROUGH.md).
+- **RULES:** R-ISS-01 to R-ISS-07 (lifecycle, resolution vocabulary, subjects, replacement and redelivery fit, redelivery once, escalation, raise rights as policy).
+- **EDGE-CASES:** a test named for every RCP row and for the Issues halves of EXE-07, EXE-08, LOD-01 and STK-11; new RCP-09 and ISS-01 to ISS-06.
+- **ASSUMPTIONS:** P-10 = 24 h, P-20 to P-23, A-29 and A-30.
+- **MODULES:** ┬º7 and ┬º8 match the code.
+
+Why: issue #13 closeout.
+Verified: `TEST_DATABASE_URL=... mvn test`, 349 tests, 0 failures; frontend `npm run typecheck` and `npm test` pass.
+Open: the walkthrough's "Known gaps" table (relay #6, Loading and Execution query beans for the custody view, partial redelivery, Notification).
+
+## 2026-10-02 - feat(issues): commands, consumers, escalation and raise rights (issue #13, step 4)
+
+`feat/receipt-issues` ┬╖ @Oxshadha
+
+- **Commands:** all seven `issue:*` commands through the bus. Scope is the issue's depot or outlet, read as the system, so out of scope is 403 plus audit.
+- **Raise rights are policy data:** the resource is `wpt:issue:type:<TYPE>`, and migration `20261002T0400` publishes version 3 of the Loader, Driver and StoreManager policies, scoping `issue:Raise` by type.
+- **Redelivery:** `issue:ScheduleRedelivery` emits exactly one `redelivery.requested`.
+- **Replacement:** `issue:RecordReplacement` emits `shortfall.resolved`.
+- **Consumers:** seven events each raise one issue (deduplicated by source key) at the policy's default severity. A partial or disputed receipt opens one investigation linked to the order, receipt, delivery and trip (R-RCP-07).
+- **Escalation:** `IssueEscalationJob` stamps an unassigned issue once at its severity's deadline and refreshes the backlog gauges.
+
+Why: issue #13. See [PLAN.md](../issues/013-receipt-issues/PLAN.md).
+Verified: `TEST_DATABASE_URL=... mvn test`, 349 tests, 0 failures; frontend `npm run typecheck` and `npm test` pass.
+Open: step 5 (walkthrough and registers).
+
+## 2026-10-02 - feat(receipt): confirm, dispute, delivery consumer and auto-close (issue #13, step 3)
+
+`feat/receipt-issues` ┬╖ @Oxshadha
+
+- **Commands:** `receipt:Confirm`, `receipt:ConfirmPartial` and `receipt:Dispute` share one flow, `ReceiptAnswerHandler`. A missing delivery is 404 (RCP-04). Another outlet is 403 plus audit (RCP-05); scope is read as the system in its own transaction, so the bus can answer forbidden rather than absent.
+- **Delivery consumer:** `delivery.completed` opens a PENDING receipt with the order's lines and the driver named, once per delivery.
+- **Auto-close:** `ReceiptAutoCloseJob` closes silence after 24 h as the system (RCP-02). A shortage after auto-close is accepted as late and announced as `receipt.disputed` (RCP-08).
+- **Ordering:** gains `OnReceiptDisputed`. A dispute marks the order RECEIVED; a late one leaves it UNCONFIRMED and is counted.
+- **Migration** `20261002T0300` flips the receipt actions.
+
+Why: issue #13. See [PLAN.md](../issues/013-receipt-issues/PLAN.md).
+Verified: `TEST_DATABASE_URL=... mvn test`, 338 tests, 0 failures.
+Open: steps 4 and 5.
+
+## 2026-10-02 - feat: receipt and issues schema and reads (issue #13, step 2)
+
+`feat/receipt-issues` ┬╖ @Oxshadha
+
+Migrations `20261002T0100` (receipt) and `T0200` (issues): FORCE RLS by outlet, depot and system (issues also by who raised it), no DELETE, and effective-dated parameters that the runtime role cannot edit. Database CHECKs back the rules: an answered receipt has a person behind it, and the system never resolves an investigation. Adds the repositories and the reads `/api/receipts/pending`, `/{orderId}`, `/{orderId}/custody`, `/api/issues?depot=` (keyset, most severe first), `/by-subject`, `/{id}` and `/{id}/history`. Contract changes are additive: `ReceiptView` fields, `CustodyChainView` and `IssueHistoryView`, mirrored in the frontend.
+Why: issue #13. See [PLAN.md](../issues/013-receipt-issues/PLAN.md).
+Verified: `TEST_DATABASE_URL=... mvn test`, 327 tests, 0 failures; `npm run typecheck` passes.
+Open: steps 3 to 5.
+
+## 2026-10-02 - feat: receipt and issues domains (issue #13, step 1)
+
+`feat/receipt-issues` ┬╖ @Oxshadha
+
+Pure domains for both modules.
+- **Receipt:** the `Receipt` aggregate, plus `ReceiptStateMachine` (PENDING to CONFIRMED, PARTIAL, DISPUTED or AUTO_CLOSED; AUTO_CLOSED still accepts a late shortage), `AutoClosePolicy` and `ReceiptParameters`.
+- **Issues:** the `Issue` aggregate, plus `IssueLifecycle`, `ResolutionAction` (no RETURN) and `SeverityPolicy`. The system actor can never resolve a shortage investigation (R-RCP-07).
+
+Why: issue #13. The decisions are in [PLAN.md](../issues/013-receipt-issues/PLAN.md).
+Verified: `mvn test -Dtest=ReceiptTest,ReceiptStateMachineTest,IssueTest,ModuleBoundaryTest`, 33 tests, 0 failures.
+Open: steps 2 to 5 (schema, commands, consumers, jobs, docs).
+
+---
+
+## 2026-10-01 - feat: outbox relay delivers events between modules (issue #6, delivery slice)
+
+`feat/outbox-relay` ┬╖ @kavindamihiran
+
+`OutboxRelay` claims committed events (`FOR UPDATE SKIP LOCKED`, a lease), hands each to every `EventSubscriber` of its type in a transaction of its own, and settles it: published, retried with backoff, or dead-lettered after 8 attempts. One aggregate's events arrive in write order (new `outbox_events.seq`). `platform:ReplayEvent` and `GET /api/platform/events/dead` for dead letters. Detail in [docs/issues/006-event-backbone/WALKTHROUGH.md](../issues/006-event-backbone/WALKTHROUGH.md).
+Why: events were written and never delivered, so no module's work reached the next one: a placed order never reached Planning or Warehouse, a published plan never reached Ordering or Loading.
+Verified: `TEST_DATABASE_URL=... mvn verify`, 456 tests on a fresh database with Loading merged; by hand, the wired relay drained the 43 events the other integration tests left behind to the real subscribers with none failing. Not run on the server.
+Open: the first start delivers every event still pending from before the relay existed, including Warehouse status calls. Tests run with the worker off (`app.relay.enabled=false`) and deliver explicitly. Scheduler jobs and audit completion remain on #6.
+
+---
+
+## 2026-10-01 - feat(loader): switch loaders by PIN while offline
+
+`feat/loading` ┬╖ @Dinusha-Ekanayake
+
+A shared loader device keeps its crew list with a PBKDF2 verifier per member (`iam.users.pin_offline_verifier`, migration 1510), written when the PIN is set or entered online, never the PIN. Offline, the PIN is checked on the device with WebCrypto, with the same five-try pause, and the switch or lock is logged. On reconnect `POST /api/session/operator/offline` replays the switches into the operator history (marked `offline`, audited) before the sync queue sends anything, so queued work lands under the loader who recorded it. The list expires after 12 hours and sign-out wipes it. R-IAM-25 to 27, IAM-OFF-01.
+Why: switching was the last part of the dock flow that needed a connection (decision 2026-10-01).
+Verified: `OfflineOperatorTest` (6, including the RFC 7914 PBKDF2 vector and a vector shared with the browser test), boundary and loading domain tests; frontend typecheck, build, `npm test` (18), mocked loader browser tests at 393x852 (4 pass, including wrong PIN, offline unlock, and replay before sync). The new integration test compiles but was not run: no test database here.
+Open: run `LoadingIntegrationTest` against a database. A four-digit PIN is recoverable from its verifier; accepted and recorded in R-IAM-27.
+
+## 2026-10-01 - feat(loader): switch the loader between English, Sinhala and Tamil
+
+`feat/loading` ┬╖ @Dinusha-Ekanayake
+
+A language picker in the loader's top bar switches every loader screen between English, Sinhala and Tamil. The strings are hardcoded in `frontend/src/roles/loader/data/strings.ts`, keyed by the English text, so switching works offline; a missing translation falls back to English. The choice is kept per device and sets `<html lang>`.
+Why: dock crews read Sinhala or Tamil first (decision 2026-10-01).
+Verified: typecheck, build, `npm test` (16 pass), mocked loader browser tests at 393x852 (3 pass, including `language.spec.ts`: switch, reload, switch again).
+Open: Sinhala and Tamil are drafts; a native speaker should review them. Server error messages stay in English.
+
+## 2026-10-01 - feat(loading): unlock a trip after 30 idle minutes
+
+`feat/loading` ┬╖ @Dinusha-Ekanayake
+
+A hold now lapses 30 minutes after the holder's last accepted command (`loading.sessions.holder_active_at`, migration 1509), and another loader's take replaces them. The dock board shows a lapsed hold as free to take. Replaces forced takeover. R-LOD-11 and LOD-09 updated.
+Why: a loader who walks away must not block a trip until a dispatcher intervenes (decision 2026-10-01).
+Verified: `LoadingSessionTest` (26) and `ModuleBoundaryTest` pass; frontend typecheck and `loader-hold.test.ts` pass. The new integration test compiles but was not run: no test database here.
+Open: run `LoadingIntegrationTest` against a database.
+
+## 2026-10-01 - feat(loader): load item by item, as the Day 5 design does
+
+`feat/loading` ┬╖ @Dinusha-Ekanayake
+
+The loader UI now reads the full Loading contract: `shared/domain/loading.ts` had fallen behind `LoadingViews.java` and lacked items, order references, windows, vehicle capacity, holder and dock. Items are ticked and undone one by one (`lineNo`), an issue names an item or the whole order, capacity bars compare against the vehicle's limits, and the dock board has the dock selector, All/Available/Mine/In use and a holder per trip. Added hold to release (04), undo toast (E5), out-of-sequence warning (E6), hand-back dialog (E7), issue saved offline (E8) and the released screen (E11); sheets close on Escape and keep focus inside. `typecheck` now runs with `--incremental false`: with TypeScript 7 a cached `tsconfig.tsbuildinfo` passed files it had not rechecked.
+Why: the booklet judges the loader on fidelity to the Day 5 design at phone size, and the item-by-item decision of 2026-10-01.
+Verified: `npm run typecheck`, `npm test` (13 pass), `npm run build`; mocked loader browser tests at 393x852 (2 pass: offline item check syncs once under the operator with its `lineNo`; release needs the three checks and a hold). Not verified against a live backend; the database suites were not rerun after merging `dev`.
+Open: run the backend suite and the live loader browser test against a database; Planning's two integration test classes do not skip without `TEST_DATABASE_URL` because the guard sits on their abstract base class.
+
+## 2026-10-01 - feat: add the loader backend and shared-device flow
+
+`feat/loading` ┬╖ @Dinusha-Ekanayake
+
+Loading now builds scoped live manifests, retains safe checks across plan revisions, limits issue reports to Damaged, Doesn't fit and Missing, and releases only after doors sealed, orders secured and driver present are confirmed. Shared-device PIN switching records operator history and attributes queued commands to the person active when they were recorded. The loader screens use those contracts and the shared sync queue.
+Why: issue #10 needs a traceable dock workflow that remains correct through a plan change or an offline period.
+Verified: the full backend suite passed 231 tests with zero failures, errors or skips after focused red/green tests covered both fixture fixes. A separate disposable PostgreSQL 18 database imported reference data, provisioned a test PIN and built one manifest from synthetic demand. The live 393x852 browser flow passed sign-in, PIN failure and success, loading, offline check, sync, three-check release and lock. The 768x1024 locked tablet state had no horizontal overflow. The latest frontend run passed seven unit/boundary tests, typecheck, production build and two mocked browser tests. No external warehouse data was changed.
+
+## 2026-10-01 - fix: identity and auth hardening (issue #5)
+
+`fix/identity-hardening` ┬╖ @kavindamihiran
+
+Lockout fires and keeps its history (three counters, P-13); sessions stored by hash and expired on the injected clock; `__Host-` cookie and an Origin guard; a policy generation every decision and every command's transaction re-reads; policy, role, scope, assignment and device administration as versioned commands; the pool runs as `waypoint_app` with `migrate` on the owner's own connection. Detail in [docs/issues/005-identity-hardening/WALKTHROUGH.md](../issues/005-identity-hardening/WALKTHROUGH.md).
+Why: an audit found the lockout could never trigger, nothing checked Origin, authorization was decided only before the transaction, and every deployment's pool was the table owner.
+Verified: `TEST_DATABASE_URL=... mvn verify`, 338 tests, twice on the same database; the deploy path rehearsed locally from a `dev`-built database (old session survived the hash migration, forwarded address recorded, ninth wrong password 429, cross-site POST 403). Not yet run on the server.
+Open: callers of `iam:GrantScope`, `iam:RevokeScope`, `iam:AssignDriver` and `iam:EndDriverAssignment` must send `expectedVersion`; an unknown kind is 403; sessions end by the injected clock, so a test that moves the clock signs in again. Behind HTTPS everyone signs in once after the deploy. A non-superuser `waypoint_migrator` owner and depot-scoped reference reads are not done.
+
+---
+
+## 2026-10-01 - feat: warehouse integration module (issue #7)
+
+`feat/warehouse` ┬╖ @jv-ransika
+
+The warehouse adapter behind `StockPort`: HTTP client with a circuit breaker, placement records, retry that finds a lost placement by content, status calls from events, polling and reconcile, catalogue sync, an HMAC webhook inbox. A `202` is now kept as `partially_reserved` and the store accepts it (`order:AcceptShortfall`). See [issue 007](../issues/007-warehouse/WALKTHROUGH.md).
+Why: the warehouse has no idempotency key or client reference, so safety comes from recording every attempt and matching by content; partial reservations are kept (D-F revised).
+Verified: domain, architecture and boundary tests pass; Ordering integration 15 of 15; warehouse integration against a stub 15 of 16 (all run in Docker Maven with Postgres 16); lifecycle probed live (A-20). CI on the PR ran the full suite: everything passed except `anOrderWithNoWaypointOrderIsReleasedAndRaised`, a test-helper horizon bug since fixed.
+Open: the warehouse change requests; the catalogue picker (#18); the relay and scheduler (#6).
+
+---
+
+## 2026-10-01 - perf: deploys run init once and before anything is replaced
+
+`chore/faster-deploy` ┬╖ @kavindamihiran
+
+A preview deploy of a frontend-only change took about seven minutes, 2m40s of it in `init`, which started the application eleven times (migrate, import, six accounts, three depot grants) at about 13 s each. Backend commands can now be combined in one run, and a new `demo-accounts` command covers the accounts and grants, so `scripts/compose-init.sh` is one start. `deploy/vps/deploy.sh` runs `init` on its own before `up`, then replaces only `db backend waypoint` with `--no-deps`: before, Compose removed the changed containers first and the site was down for the whole of `init`, whatever the comment said about a failed migration. The frontend image keeps npm's and the compiler's cache between builds, and the backend and frontend health checks poll every two seconds while starting.
+Why: the wait was mostly repeated JVM starts and a full health interval, not work; the checks before a deploy are unchanged.
+Verified: `mvn verify` compiles and passes locally except the two planning integration classes, which need a database this machine does not have; `docker compose config` parses both stacks; `bash -n deploy/vps/deploy.sh`. Not run on the server: the first preview deploy after merge is the test, and it fails before replacing anything if `--no-deps` behaves differently than expected.
+Open: `scripts/dev.sh setup` still runs one command per start. The checks before a deploy take about 1m50s, most of it the backend tests.
+
+## 2026-10-01 - fix: store screens read the paged orders list
+
+`fix/store-orders-page` ┬╖ @kavindamihiran
+
+The store gateway treated `GET /api/orders?outlet=` as an array, but Ordering returns a keyset page, so the store workspace crashed with "filter is not a function" as soon as an account had an outlet. It now reads every page through `requestAll`, which takes the cursor parameter name because Ordering reads `cursor` where reference data reads `after`. The order timeline is fetched from `/timeline`, the path Ordering serves, not `/history`.
+Why: the store manager's workspace would not open on preview once the demo account was granted OUT001.
+Verified: `npm run typecheck`, `npm run build`; signed in as the store manager in headless Chrome on the fixed build against the preview API: Home, Orders and Deliveries render the seeded orders with no page error.
+Open: `/api/reference/outlets/{id}` and the calendar answer 403 for a store manager (no policy allows `reference:Read`), and the warehouse catalogue status and pending receipts endpoints do not exist yet; the screens show those as unavailable. The preview database was seeded by hand with `scripts/seed-scenarios.sql`.
+
+## 2026-10-01 - feat: preview opens on a role picker
+
+`feat/preview-role-picker` ┬╖ @kavindamihiran
+
+`preview.waypointgo.live` now shows a short description of Waypoint and four buttons (store manager, dispatcher, loader, driver), each opening that role's `-preview` address; it has no sign-in of its own ([PreviewLanding.tsx](../../frontend/src/app-shell/PreviewLanding.tsx)). This replaces the redirect after sign-in from the entry below.
+Why: the redirect left nobody able to stay on the preview address, and sign-in happened twice.
+Verified: `npm test` (12 pass), `npm run typecheck`, `npm run build`; the page seen in headless Chrome against the production build on a `preview.` hostname.
+Open: admin and auditor have no button; their preview addresses still work when opened directly.
+
+## 2026-10-01 - feat: preview sign-in moves to the role address
+
+`feat/preview-redirect-to-role` ┬╖ @kavindamihiran
+
+Signing in on `preview.waypointgo.live` sends the account to its role's `-preview` address (`previewHomeFor` in [hostRole.ts](../../frontend/src/app-shell/hostRole.ts)); production's shared address is unchanged. See [deployment.md](../deployment.md).
+Why: preview should be tried through the role addresses, not a shared workspace.
+Verified: `npm test` (12 pass), `npm run typecheck`, `npm run build`. Not checked in a browser.
+Open: the account signs in a second time on the role address (sessions are per address). An account with several roles lands on the address of the role it used last.
+
 ## 2026-10-01 - chore: one wildcard DNS record, simpler certificate request
 
-`chore/simplify-certificate-names` · @kavindamihiran
+`chore/simplify-certificate-names` ┬╖ @kavindamihiran
 
 Cloudflare now has two proxied A records, the bare name and `*`, in place of one per address. With every name resolving, the deploy no longer checks each name's DNS before the certificate request: it asks for the full list whenever the certificate on disk is missing one. See [deployment.md](../deployment.md).
 Why: fifteen hand-made DNS records and a resolve check per name were more than the job needs.
@@ -32,7 +958,7 @@ Open: the role addresses, the preview ones and `www` answer only after a product
 
 ## 2026-10-01 - feat: preview role addresses
 
-`feat/preview-role-hostnames` · @kavindamihiran
+`feat/preview-role-hostnames` ┬╖ @kavindamihiran
 
 Preview gets `dispatcher-preview.` to `auditor-preview.waypointgo.live`, served by the preview stack and pinned to the role the same way; the certificate request includes them. See [deployment.md](../deployment.md).
 Why: the role addresses could only be tried on production.
@@ -41,7 +967,7 @@ Open: six proxied A records for the `-preview` names. nginx is deployed with pro
 
 ## 2026-10-01 - feat: one address per role
 
-`feat/role-hostnames` · @kavindamihiran
+`feat/role-hostnames` ┬╖ @kavindamihiran
 
 `dispatcher.`, `loader.`, `driver.`, `store.`, `admin.` and `auditor.waypointgo.live` serve production and show that one role: the shell reads the hostname ([hostRole.ts](../../frontend/src/app-shell/hostRole.ts)), drops the role switcher, and sends an account without the role to its own address. nginx answers the six names and the deploy adds each to the certificate once it resolves, without dropping a name already there. See [deployment.md](../deployment.md).
 Why: each role gets a link that opens straight into its own workspace.
@@ -50,7 +976,7 @@ Open: the six proxied A records in Cloudflare; nginx and the certificate change 
 
 ## 2026-10-01 - docs(planning): walkthrough and register updates (issue #9, step 7)
 
-`feat/planning-module` · @Oxshadha
+`feat/planning-module` ┬╖ @Oxshadha
 
 Adds [the issue #9 walkthrough](../issues/009-planning/WALKTHROUGH.md). EDGE-CASES now names a test for every Planning row, adds PLN-18 and PLN-19, and supersedes POL-06 and POL-07 with what-if runs. RULES revises R-PLN-21 and closes C-2 and Q5. ASSUMPTIONS adds A-26 to A-28 and P-15 to P-19, and gives P-12 its value. MODULES describes Planning as built. Two tests were added so no row is left without one: `UnservableScreenTest` (PLN-09) and `aNonOperatingDayIsNotPlanned` (PLN-13).
 Why: issue #9 closeout.
@@ -59,7 +985,7 @@ Open: the walkthrough's "Known gaps" table (relay #6, what-if runs, authoring an
 
 ## 2026-10-01 - feat(planning): revise, replan, previews and consumers (issue #9, step 6)
 
-`feat/planning-module` · @Oxshadha
+`feat/planning-module` ┬╖ @Oxshadha
 
 Adds `plan:Revise` and `plan:Replan`, `previewAssignments` and `previewInterchange` (also on `/api/plans/preview/*`), and the decision-7 consumers.
 - Migration `20261001T0600` keys trips by `(plan_id, trip_id)`, so a trip keeps its id across versions while it carries the same orders, even on a substitute vehicle (PLN-04, R-LOD-06). It also allows one open draft per depot-day and records `revision_reason`.
@@ -72,7 +998,7 @@ Open: step 7 (walkthrough and registers). The relay that delivers events to cons
 
 ## 2026-10-01 - feat(planning): generate, override, defer and publish (issue #9, step 5)
 
-`feat/planning-module` · @Oxshadha
+`feat/planning-module` ┬╖ @Oxshadha
 
 `plan:Generate`, `plan:Override`, `plan:Defer` and `plan:Publish` now run through the bus, backed by the `PlanningRun` aggregate, the `PublicationGate` and `DemandFingerprint`. Each override or deferral writes the next draft version and cancels the one edited, so a stale second edit is refused with the successor's id and a diff (PLN-06). Publication refuses when demand, the reference version, the rule set or the policy changed, and re-runs the whole registry. It then emits `plan.published`, `order.deferred` and `order.unservable`. `ReferenceQuery.vehiclesOfDepot` was added, so the unservable screen sees workshop vehicles. Migration `20261001T0500` marks the four actions implemented.
 Why: issue #9 step 5. Detail in [PLAN.md](../issues/009-planning/PLAN.md#step-5-result-do-not-re-do).
@@ -81,7 +1007,7 @@ Open: step 6. Revise and Replan, `plan.revised`, stable trip ids across versions
 
 ## 2026-10-01 - feat(planning): schema, repository and plan reads (issue #9, step 4)
 
-`feat/planning-module` · @Oxshadha
+`feat/planning-module` ┬╖ @Oxshadha
 
 Migration `20261001T0400` adds the planning tables with forced RLS. It also adds the triggers that freeze a published run and its children, one published plan per depot-day, effective-dated rule sets and priority policies (seeded with the booklet values), and `plan:Read` implemented. Adds `JdbcPlanRepository`, `PlanDataQuery` behind `PlanQuery` (previews throw until step 6), and read-only `/api/plans`. `FoundationIntegrationTest` now retires reference versions instead of deleting them, because a run holds a foreign key to the version it stamped.
 Why: issue #9 step 4. Detail in [PLAN.md](../issues/009-planning/PLAN.md#step-4-result-do-not-re-do).
@@ -90,7 +1016,7 @@ Open: step 5 (Generate, Override, Defer and Publish), with an open decision on o
 
 ## 2026-10-01 - fix: make the platform trustworthy (issue #4)
 
-`feat/platform-hardening` · @jv-ransika
+`feat/platform-hardening` ┬╖ @jv-ransika
 
 Error contract: every problem body carries `code`, `correlationId` and `violations: [{rule, field?, message}]`; client mistakes are 400/409/413/422/429, never 500; every 500 logs one line with its stack. Correlation id accepted only UUID-shaped and tied to the trace. Emails removed from audit rows, problem details and the accounts cursor. `Metrics.gauge` fixed, command timers with p95, and the detection signals for PLT-01, PLT-07, SEC-03/06/09/10/12/13/16, ORD-05/PLN-06/EXE-14 (names in EDGE-CASES). Tracing export off unless configured; JDBC spans. Shared keyset `Cursor`/`Page` on accounts, policies, assignments and reference lists. Body limit in backend, Next proxy and nginx; CSP in Next and nginx. `AppProperties` types sessions, throttle, body size, tracing and the problem type base. `account-create` is idempotent and `account-grant-depot` logs no email; health checks use real endpoints; nginx limits `POST /api/session`. CI `checks.yml` now runs `mvn verify` and parses both compose files. Integration tests fall back to Testcontainers. Prototype docs deleted; README, development, deployment, verification rewritten.
 Why: a 500 left no trace, personal data reached logs and audit, `docker compose up` could not start, and nine modules were about to build on all of it.
@@ -102,7 +1028,7 @@ Open: integration tests against PostgreSQL, the backend image build, `nginx -t`,
 
 ## 2026-10-01 - feat: add an opt-in log store (Loki, Alloy, Grafana)
 
-`feat/platform-hardening` · @jv-ransika
+`feat/platform-hardening` ┬╖ @jv-ransika
 
 Compose profile `observability` in `compose.yaml` and `compose.prod.yaml` runs Loki (14-day retention), Alloy and Grafana on 127.0.0.1. Alloy collects containers labelled `com.waypoint.logs=true` and, for a natively run backend, `var/log/*.log` written when `LOG_FILE` is set. Backend services now set `LOG_FORMAT=ecs`. Config in `observability/`, usage in development.md "Searching logs" and deployment.md "Logs". No module code changed.
 Why: logs only reached a console, so nothing could be searched and a correlation id could not be followed across requests or services.
@@ -113,7 +1039,7 @@ Open: the backend Docker image does not build (`mvn dependency:go-offline` fails
 
 ## 2026-10-01 - ci: www redirects to the bare name
 
-`ci/www-redirect` · @kavindamihiran
+`ci/www-redirect` ┬╖ @kavindamihiran
 
 nginx answers `www.SITE_ADDRESS` with a 301 to `SITE_ADDRESS`, and the deploy now requests the certificate again when the one on disk is missing any of the three names, instead of only when there is none. Since the entry below, `preview.waypointgo.live` has its record and is on the certificate, and `CLOUDFLARE_ONLY=1` is set, so the server's address no longer answers directly.
 Why: `www.waypointgo.live` has a proxied record and answered 520/525, because the server drops names it does not know.
@@ -122,7 +1048,7 @@ Open: Cloudflare's address ranges in `00-cloudflare.conf` are a dated static lis
 
 ## 2026-10-01 - ops: production moves to waypointgo.live
 
-`docs/domain-waypointgo-live` · @kavindamihiran
+`docs/domain-waypointgo-live` ┬╖ @kavindamihiran
 
 Production is `https://waypointgo.live`, proxied by Cloudflare, with a Let's Encrypt certificate on the server. The temporary wildcard-DNS hostnames no longer answer; their certificate, the unused Caddy volumes and every mention of them in the documents are removed. The preview's `SITE_ADDRESS` is `preview.waypointgo.live`. Details in [deployment.md](../deployment.md#judge-deployment-on-the-vps).
 Why: decision of @kavindamihiran to serve the app from a bought domain behind Cloudflare.
@@ -131,7 +1057,7 @@ Open: closed by the entry above.
 
 ## 2026-10-01 - chore: test data for every order status
 
-`chore/seed-scenarios` · @kavindamihiran
+`chore/seed-scenarios` ┬╖ @kavindamihiran
 
 `scripts/seed-scenarios.sql` writes 329 orders with timelines and lines directly into the database: one of each of the 13 statuses at OUT001, plus a day's demand at both depots (tomorrow's chilled demand at Peliyagoda exceeds the refrigerated fleet, with two reefer trucks in the workshop), deferrals, a redelivery, an amended order and a date rolled past a Sunday. It also grants the store manager OUT001, the dispatcher both depots and the driver VEH035. Dates are relative to the day it runs; `-v reset=1` removes the seeded orders first. The header of the file has the commands.
 Why: Planning, Loading, Execution and Receipt do not exist yet, so nothing else can put an order past `confirmed`.
@@ -140,7 +1066,7 @@ Open: it bypasses the command bus, so there are no audit rows, receipts or event
 
 ## 2026-10-01 - ci: nginx replaces Caddy at the edge, ready for Cloudflare
 
-`ci/nginx-edge` · @kavindamihiran
+`ci/nginx-edge` ┬╖ @kavindamihiran
 
 The VPS edge is now an nginx image built from `deploy/vps/nginx/`, with certbot for Let's Encrypt. It adds what Caddy lacked: per-address rate limits (sign-in, API, pages), no answer for the bare IP or unknown hostnames, a method allowlist, TLS 1.2+ only. It restores the visitor address from Cloudflare and can refuse traffic that bypasses Cloudflare (`CLOUDFLARE_ONLY`, off until DNS is proxied). The deploy tests the new nginx configuration before replacing the running proxy, and brings the proxy up before the database step. Details in [deployment.md](../deployment.md#judge-deployment-on-the-vps).
 Why: decision of @kavindamihiran to front the app with nginx behind Cloudflare on a bought domain.
@@ -149,7 +1075,7 @@ Open: cutover on merge, then the domain and Cloudflare records. `nginx/` at the 
 
 ## 2026-10-01 - ci: preview environment for dev
 
-`ci/preview-deploy` · @kavindamihiran
+`ci/preview-deploy` ┬╖ @kavindamihiran
 
 A push to `dev` now runs the checks and deploys to a preview on the same VPS, with its own database and accounts. The checks moved to a reusable `checks.yml` and also run on pull requests into `dev`. `deploy.sh` serves both environments, chosen by the checkout it sits in; each has its own CI key. No stack publishes a host port any more, including production's PostgreSQL and backend; Caddy reaches both frontends over a shared network. Details in [deployment.md](../deployment.md#judge-deployment-on-the-vps).
 Why: problems should show on a real deployment before `dev` is merged into `main`.
@@ -158,7 +1084,7 @@ Open: first production deploy with the new proxy layout, then the first preview 
 
 ## 2026-10-01 - ci: deploy main to the VPS, repair the compose init step
 
-`ci/vps-deploy` · @kavindamihiran
+`ci/vps-deploy` ┬╖ @kavindamihiran
 
 A merge to `main` now runs backend tests against PostgreSQL and the frontend typecheck, boundary test and build, then deploys to the VPS (62.171.128.70) over one SSH connection bound to `deploy/vps/deploy.sh`. Caddy fronts the stack with TLS through `deploy/vps/compose.vps.yaml`. The host is hardened: ufw, fail2ban, unattended upgrades; SSH password login stays on for the team by decision of @kavindamihiran. Details in [deployment.md](../deployment.md#judge-deployment-on-the-vps).
 `compose.yaml`'s `init` ran `migrate && seed`, and `seed` went with the prototype, so the backend could never start under Compose. It now runs `scripts/compose-init.sh`: migrate, import-reference, six demo accounts, depot grants, as `scripts/dev.sh setup` does. The frontend healthcheck pointed at `/api/health`, which no longer exists; it now checks `/`.
@@ -168,7 +1094,7 @@ Open: nobody has walked the judge walkthrough on the live URL. The store manager
 
 ## 2026-10-01 - fix: sign-in matches Figma "01 Sign in"
 
-`fix/sign-in-figma-match` · @kavindamihiran
+`fix/sign-in-figma-match` ┬╖ @kavindamihiran
 
 Sign-in follows the dispatcher and store "01 Sign in" frames: GO in the corner, "Welcome back" above the card, filled fields with placeholders (each still has an aria-label), a password-reset line, and the note about working offline. The error, lockout and outage handling is unchanged.
 Why: the sign-in card did not match any design frame.
@@ -177,7 +1103,7 @@ Open: the background map artwork, the theme toggle, staff ID sign-in (the backen
 
 ## 2026-10-01 - fix: dispatcher shell controls in the sidebar, compact nav below lg
 
-`fix/dispatcher-figma-match` · @kavindamihiran
+`fix/dispatcher-figma-match` ┬╖ @kavindamihiran
 
 Dispatcher rechecked against Figma page 05. "Switch user" and the role switcher move into the sidebar's user block; the shell strip that pushed the page down and cut off the sidebar foot is gone. Below `lg` the sidebar becomes a top bar: brand, depot scope, and a scrollable nav. Page headers wrap. With this, every built role draws its own header and the shell strip is only a fallback.
 Why: the strip was not in the design, and the dispatcher had no layout below 1024px.
@@ -186,7 +1112,7 @@ Open: Orders, Plan, Live, Forecast and Issues content wait on their modules. Fig
 
 ## 2026-10-01 - fix: store manager desktop layout matches Figma
 
-`fix/store-figma-match` · @kavindamihiran
+`fix/store-figma-match` ┬╖ @kavindamihiran
 
 Store manager rechecked against Figma pages 14 (Desktop) and 15 (Mobile). From `lg` there is a sidebar with Home, Orders and Deliveries plus their counts, the outlet card, and the signed-in person with "Switch user". It replaces the floating tab bar. Home becomes two columns with a Notifications panel (pending #14). Deliveries become one row each. Place order puts the list on the left and a sticky "Order summary" card on the right, replacing the bottom bar. The sync pill sits top right. On phones the shell controls move into the store header, and dialogs centre from `md`.
 Why: on desktop the store showed the phone column centred on the page.
@@ -195,7 +1121,7 @@ Open: Issues, notifications, driver and ETA details, call options and draft orde
 
 ## 2026-10-01 - fix: loader matches Figma on phone, portrait and landscape tablet
 
-`fix/loader-figma-match` · @kavindamihiran
+`fix/loader-figma-match` ┬╖ @kavindamihiran
 
 Loader rechecked against Figma pages 07, 08 and 09. The dock board is a trip table from `md` (768px) and cards on phones. The top bar follows the designs: brand or trip title, a sync pill, an avatar pill, and "Switch user". The load sheet gets a "Locked to you" strip with Hand back, side-by-side actions, "orders loaded" with time to departure, and outlined stop markers. The issue dialog is top-anchored at 560px with tile reasons and a stepper panel. Sign-out, the role switcher and the sync badge move from a strip above the page into the role header through `ShellProvider` in `shared/ui`. The shell still draws its strip for roles not yet converted.
 Why: the loader drifted from the design; the tablet dock board was a card grid where Figma has a table.
@@ -204,7 +1130,7 @@ Open: route, stops, load, loader and temperature columns need those fields on `R
 
 ## 2026-10-01 - feat: backend sync module and batch ingest
 
-`feat/sync-module` · @kavindamihiran
+`feat/sync-module` ┬╖ @kavindamihiran
 
 New `sync.operations` table with row-level security limiting each account to its own rows. `POST /api/sync` applies a device's queued writes in sequence order. Each write goes through `CommandBus` in its own transaction. Conflicts and refusals are recorded and the batch continues; an outage stops it. A replayed batch is answered from the record. At capacity it answers 429 with a jittered `Retry-After`. Also `GET /api/sync?since=` (keyset) and `sync:Acknowledge`. The frontend queue now drains through `/api/sync` with a per-browser device id. `SyncQuery.pendingFor` now takes the user id, because RLS needs an actor.
 Why: #28. The device-side queue from #15 had no server record of what it sent.
@@ -213,7 +1139,7 @@ Open: `sync:Discard` and `sync:Resolve` wait on D-O (who reviews another person'
 
 ## 2026-10-01 - fix: loader layout on landscape tablets, and one-command local dev
 
-`fix/loader-tablet-and-local-dev` · @kavindamihiran
+`fix/loader-tablet-and-local-dev` ┬╖ @kavindamihiran
 
 Loader widens to 1280px at `lg`: the dock board shows trips in two or three columns, the load sheet pins the truck summary beside the load list, and the release and issue sheets become centred dialogs. Phones are unchanged. `scripts/dev.sh` runs the local stack (`setup`, default, `sample`) against the Docker database only. New `account-grant-depot` CLI command. Sign-in no longer sends a device id, which the backend rejected with a 500 through the `iam.devices` foreign key. Unhandled API exceptions are now logged.
 Why: the loader showed a phone-width strip on dock tablets, and the app could not be run locally end to end.
@@ -222,7 +1148,7 @@ Open: no outlet-grant command, so the store role needs `sample` mode locally; de
 
 ## 2026-10-01 - feat: frontend sync engine schedule and review list
 
-`feat/app-shell` · @kavindamihiran
+`feat/app-shell` ┬╖ @kavindamihiran
 
 `useSync` in `src/shared/offline` drains the queue on reconnect, on focus and visibility, right after a write is queued (`waypoint:queued` event) and every 30 s. `drain()` is now single-flight per account, so it never double-sends beside a role's own flush. The shell shows "n to send" or "n saved on this device" and "n to review". The review list shows each refused write with the server's reason, and offers "send again" or "discard" (a person decides; the engine never drops one). Sign-out reads the same pending count. The loader and store no longer count held writes as still sending.
 Why: frontend half of #15.
@@ -231,7 +1157,7 @@ Open: Background Sync, driver working-set prefetch, queue-age telemetry, and the
 
 ## 2026-10-01 - feat: sign-in, sign-out and role switcher in the app shell
 
-`feat/app-shell` · @kavindamihiran
+`feat/app-shell` ┬╖ @kavindamihiran
 
 Sign-in screen on `POST /api/session`, with separate messages for wrong credentials, lockout (countdown from `Retry-After` when sent) and outage. The shell tells apart signed out, server unreachable and offline; an outage no longer reads as "sign in". Sign-out uses `POST /api/session/end` and warns while writes are still queued on the device (SEC-01). Multi-role users switch roles and the last role is remembered per user. Scope is read as prefixed grants (`depot:`, `outlet:`) and each role gets its own values. Admin and auditor routes are placeholders. Queued writes survive a 401 instead of being held for review.
 Why: #17, and the sign-out and 401 parts of #15.
@@ -243,9 +1169,9 @@ Open:
 
 ## 2026-10-01 - feat: store manager screens from the Figma design
 
-`feat/store-ui` · @kavindamihiran
+`feat/store-ui` ┬╖ @kavindamihiran
 
-The following screens, from Figma "15 Store Manager · Mobile":
+The following screens, from Figma "15 Store Manager ┬╖ Mobile":
 - Home: next delivery, notices, and the order against the 16:00 cutoff.
 - Place order and amend.
 - Order sent.
@@ -273,9 +1199,9 @@ Open:
 
 ## 2026-09-30 - feat: loader phone screens from the Figma design
 
-`feat/loader-ui` · @kavindamihiran
+`feat/loader-ui` ┬╖ @kavindamihiran
 
-Dock board, load sheet (stops in reverse order, per-order check), report an issue, confirm and release, from Figma "08 Loader · Phone". Writes are `loading:*` commands carrying the manifest `rowVersion`. Resilient tier: checks made offline go to the device queue and are sent on reconnect; release always needs a connection. A new plan version shows "plan changed" and marks the reset orders for recheck (R-LOD-03). Release is refused while an order is unchecked (R-LOD-07).
+Dock board, load sheet (stops in reverse order, per-order check), report an issue, confirm and release, from Figma "08 Loader ┬╖ Phone". Writes are `loading:*` commands carrying the manifest `rowVersion`. Resilient tier: checks made offline go to the device queue and are sent on reconnect; release always needs a connection. A new plan version shows "plan changed" and marks the reset orders for recheck (R-LOD-03). Release is refused while an order is unchecked (R-LOD-07).
 Why: #20, built frontend first while Loading (#10) is not served.
 Sample data: departs from D-D by decision. `NEXT_PUBLIC_LOADER_FIXTURES=1` swaps in an in-memory gateway (`roles/loader/data/fixtures.ts`) enforcing the same rules; never active in a production build, and the screen shows "Sample data".
 Verified: `npm run typecheck`, `npm test`, `npm run build` green; full flow driven at 393px in `next dev` with sample data, including an offline check and a plan change. Not verified against a live backend.
@@ -283,7 +1209,7 @@ Open: `/api/loading/trips` and `/api/loading/trips/{id}/manifest` are assumed pa
 
 ## 2026-09-30 - feat: dispatcher shell, overview and vehicles from the Figma design
 
-`feat/dispatcher-ui` · @kavindamihiran
+`feat/dispatcher-ui` ┬╖ @kavindamihiran
 
 GO design tokens and Google Sans Flex in `src/shared/ui/theme.css`, shared components (card, pill, tiles, buttons, sync pill, notice) and the Figma icons in `public/icons/go/`. Dispatcher sidebar, depot scope and hash navigation. Overview and Vehicles read `/api/reference/vehicles`; the vehicle drawer sends `vehicle:SetDayStatus` with a required reason and reuses the command id on retry. Orders, Plan, Live, Forecast and Issues say which module they wait on (D-D, no mocks). Offline turns the screens read only and says so. Mirrored the reference data contract in `src/shared/domain/referencedata.ts`.
 Why: first slice of #19 that the backend can serve today.
@@ -292,16 +1218,16 @@ Open: the rest of #19 waits on #8, #9, #12, #13, #14 and #16. Reference data has
 
 ## 2026-10-01 - docs: record the revised warehouse API and wire its key
 
-`feat/ordering-module` · @Oxshadha
+`feat/ordering-module` ┬╖ @Oxshadha
 
-The warehouse API now has two warehouses (KDY, PLG), requires `warehouse` on `POST /orders`, and answers a short order with a `202` partial reservation that expires. RULES §2 (contract, R-STK-08 to R-STK-10, lifecycle mapping), MODULES, A-07 and A-20 corrected; A-25 added. `WAREHOUSE_*` passed through both Compose files, documented in `.env.example` and [development.md](development.md#the-external-warehouse-api).
+The warehouse API now has two warehouses (KDY, PLG), requires `warehouse` on `POST /orders`, and answers a short order with a `202` partial reservation that expires. RULES ┬º2 (contract, R-STK-08 to R-STK-10, lifecycle mapping), MODULES, A-07 and A-20 corrected; A-25 added. `WAREHOUSE_*` passed through both Compose files, documented in `.env.example` and [development.md](development.md#the-external-warehouse-api).
 Why: the recorded contract said all-or-nothing and no TTL; both are now false.
 Verified: read endpoints probed live with a key (200, 401 without); no order was placed.
 Open: `StockPort` needs a depot parameter, and the #7 adapter must cancel a `202` and answer `Insufficient` (R-STK-08). Both owned by #7.
 
 ## 2026-10-01 - feat: build the Ordering module (issue #8)
 
-`feat/ordering-module` · @Oxshadha
+`feat/ordering-module` ┬╖ @Oxshadha
 
 Ordering end to end: pure domain, `ordering` schema with forced row-level security (`20261001T0200`), `JdbcOrderRepository`, `OrderDataQuery` behind `OrderQuery`, read-only `/api/orders`, the `order:Place/Amend/Cancel/CloseForDay` handlers, twelve event consumers and the 16:00 `ordering.cutoff` job. Platform pieces it needed: outbox writer, consumer inbox, system actor with `app.actor_is_system()` (`20261001T0100`), `Database.readAs` so a contract read never switches its caller's role, the bus auditing scope denials raised inside the transaction, and `UnconfiguredStockPort` for a blank warehouse key. New event `order.auto_deferred`; Ordering now consumes `loading.started`.
 Why: issue #8. The walkthrough is [docs/issues/008-ordering/WALKTHROUGH.md](../issues/008-ordering/WALKTHROUGH.md); decisions are in EDGE-CASES (ORD-03 revised, ORD-13, ORD-14) and ASSUMPTIONS (A-22 to A-24).
@@ -312,7 +1238,7 @@ Open: no relay or scheduler runs the consumers and the job yet (#6); no real `St
 
 ## 2026-09-30 - feat: contracts, schemas and roles for every remaining module
 
-`feat/module-contracts` · @jv-ransika
+`feat/module-contracts` ┬╖ @jv-ransika
 
 Wrote the `contract` package for ordering, planning, loading, execution, receipt, issues, notification, sync, warehouse and intelligence: views, query interfaces, command payloads and 31 event records. Added `DomainEvent`, `EventEnvelope`, `Page` and `UuidV7` to the kernel, and the `EventPublisher`, `EventSubscriber` and `ScheduledJob` ports to platform. Migration `20260930T1200` creates one schema and one `waypoint_<module>` role per module. `20260930T1201` catalogues every new action and moves the six role policies to version 2. Added TypeScript mirrors in `frontend/src/shared/domain/`.
 Why: five people build nine modules in parallel. That only works if every connection between modules exists as merged code first. The team also settled the cross-module decisions on this date: schema per module, timestamped migrations, synchronous stock placement, deferral keeping the reservation, holiday roll-forward, one temperature per trip, and fuel including the return leg.
@@ -327,7 +1253,7 @@ Open: no handlers, no tables and no relay yet. Each module writes its own. The s
 
 ## 2026-09-28 - feat: administer accounts, scope and the calendar over HTTP
 
-`dev` · @Oxshadha
+`dev` ┬╖ @Oxshadha
 
 Eight identity command handlers in `IdentityCommandHandlers`: create, update, disable, reset password, grant and revoke scope, assign a driver and end an assignment. `AccountQuery` plus `AccountAdminController` and `ReferenceController` for the reads, both authorized through a new `RequestAuthorizer` port that identity implements, so a module's web layer never imports another module. `PolicyAdminController` now shares that guard instead of its own copy. `calendar:Override` is a command; its override lives in `ref.calendar_overrides` and is applied when a snapshot is loaded. Migration `009`.
 Why: every account change was a host command, so nothing outside a terminal could make one, and the four read surfaces the frontend needs did not exist.
@@ -342,7 +1268,7 @@ Open: devices are still unbuilt, deliberately. Ordering is next.
 
 ## 2026-09-27 - feat: serve POST /api/commands and route the first commands through the bus
 
-`dev` · @Oxshadha
+`dev` ┬╖ @Oxshadha
 
 Added `platform/web/CommandController` and an `ActorResolver` port that identity implements, so platform serves the endpoint without importing a business module. `CommandHandler` now declares its own `ModuleRole`, which keeps the web layer from knowing which module owns a kind. Converted `SetVehicleDayStatusHandler` and `ImportReferenceDataHandler` to handlers; the import keeps a separate CLI entry point because `import-reference` runs with no session and no receipt. Migration `008` corrects `iam.action_catalogue.implemented` to match what is actually enforced.
 Why: the command bus, the idempotency guard and the fail-closed authorizer were wired and unit tested, and nothing served `/api/commands` although the frontend write path and the offline queue both post there. Ordering should not be the first thing to run a command.
@@ -357,7 +1283,7 @@ Open: nothing in this unit. Account administration and reference reads followed 
 
 ## 2026-09-27 - docs: make the documentation set answerable
 
-`dev` · @Oxshadha
+`dev` ┬╖ @Oxshadha
 
 Removed `plan.md`, which had been committed empty. Untracked `TEARDOWN-PLAN.md`, keeping the file on disk: the teardown happened, so it is a record rather than a plan. Replaced the README's flat list with a three-question map, and marked the four documents that predate the rewrite.
 Why: "where is the plan we follow" had no clear answer, and four tracked documents still described the prototype deleted at `prototype-v0`.
@@ -370,7 +1296,7 @@ Open: `docs/architecture.md`, `docs/data-model.md`, `docs/code-structure.md` and
 
 ## 2026-09-27 - feat: policy administration, and the integration tests that were missing
 
-`dev` · @Oxshadha
+`dev` ┬╖ @Oxshadha
 
 Added `PolicyAdminUseCase` and `PolicyAdminController` for authoring, versioning, attaching and detaching policy at runtime, and `FoundationIntegrationTest`: ten tests against a real PostgreSQL covering migrations, reference import, sign-in, Argon2 storage, policy decisions, runtime policy change, catalogue validation, row-level security and session revocation on disable.
 Why: every earlier database claim in this log was verified by hand with curl and psql, never by a test. That is not the same thing, and the gap was mine.
@@ -383,7 +1309,7 @@ Open: nothing in the foundation. Ordering is next.
 
 ## 2026-09-27 - feat: row level security, and the docs it changes
 
-`dev` · @Oxshadha
+`dev` ┬╖ @Oxshadha
 
 Migration `007_row_level_security.sql` adds `app.current_actor()`, `app.actor_has_depot` and `app.actor_has_outlet`, creates the `waypoint_ops` role, and enables RLS with `FORCE` on the two scope tables. Shipped the eleven doc edits this stage owes: policy as data in SYSTEM-ARCHITECTURE 6.2 and 6.8, FOUNDATION-PLAN 2.4, 2.6 and 2.9, MODULES section 2, a new `R-IAM-*` rule group, five new `SEC-*` edge cases, assumption A-21 and an Authorization section in AGENTS.md.
 Why: the composition rule needs both halves. Policies decide actions, RLS decides rows, and without the second half a forgotten WHERE clause is a leak.
@@ -394,7 +1320,7 @@ Open: policy administration endpoints. A caveat worth knowing: a PostgreSQL supe
 
 ## 2026-09-27 - feat: identity module, authentication and the decision point
 
-`dev` · @Oxshadha
+`dev` ┬╖ @Oxshadha
 
 Policy parsing and repository, a policy cache, and `PolicyDecisionPoint` implementing `CommandAuthorizer`, which is what unblocks the command bus. Authentication: Argon2id hashing, server-side sessions with absolute and idle expiry, a database-backed login throttle, `/api/session` for sign in, resolve and sign out, and an `account-create` command for the first administrator.
 Why: nothing can run until an authorizer exists, because the command bus fails closed by design.
@@ -409,7 +1335,7 @@ Two corrections. `SessionService` violated the rule against `*Service` names and
 
 ## 2026-09-27 - feat: policy schema and evaluator
 
-`dev` · @Oxshadha
+`dev` ┬╖ @Oxshadha
 
 Migration `006_iam_policies.sql` adds `action_catalogue`, `policies`, immutable `policy_versions` with one enforced default, and `policy_attachments`, seeded with six role policies as data. Added the pure evaluator: patterns with wildcards, six condition operators, and the ordering contract of default Deny, explicit Deny wins, then Allow.
 Why: authorization becomes data an administrator edits at runtime rather than code that needs a release. Evaluation stays in process, so the ruling against an external policy service still holds.
@@ -422,7 +1348,7 @@ Two things the tests caught. A request with no specific resource was matching no
 
 ## 2026-09-27 - feat: reference read API
 
-`dev` · @Oxshadha
+`dev` ┬╖ @Oxshadha
 
 Added the `ReferenceQuery` contract with its own view types, `ReferenceDataQuery` reading from cache for the current version and from the database for a historical one, `SetVehicleDayStatusHandler`, and `ReferenceBootstrap` which loads the current version once the application is ready.
 Why: other modules must read reference data through a contract, never through its domain, or the boundary test will stop Planning before it starts.
@@ -435,7 +1361,7 @@ Note: loading the cache is deliberately tied to application-ready rather than st
 
 ## 2026-09-27 - feat: reference data module
 
-`dev` · @Oxshadha
+`dev` ┬╖ @Oxshadha
 
 Pure domain (windows, vehicles, outlets, calendar policy, snapshot) plus the nine-rule validator, a CSV importer that hashes its source, a version writer and reader implementing snapshot-per-version, an in-memory cache with pointer swap, and the `import-reference` command.
 Why: reference data is the shared vocabulary every other module reads, and it has no upstream dependency, so it is built first.
@@ -448,7 +1374,7 @@ Two corrections while building. The `auditIsReachedThroughItsOwnComponent` bound
 
 ## 2026-09-27 - feat: platform baseline
 
-`dev` · @Oxshadha
+`dev` ┬╖ @Oxshadha
 
 Typed validated configuration with a redacted startup report, structured logging, Micrometer metrics behind our own `Metrics` API, OpenTelemetry tracing, the command bus with idempotency receipts and audit, security headers, and migration `005_platform.sql` creating the `integration` schema (command receipts, partitioned audit log, outbox with worker state). Convention B8 and Part 0.3 added to FOUNDATION-PLAN.
 Why: these are cross-cutting, so retrofitting any of them means touching every write path already written.
@@ -461,7 +1387,7 @@ Note: the boundary test caught `platform` depending on `identity.contract.Curren
 
 ## 2026-09-27 - feat: frontend skeleton
 
-`dev` · @Oxshadha
+`dev` ┬╖ @Oxshadha
 
 Rebuilt `frontend/src/`: session gate and role router in `app-shell/`, API client with RFC 9457 parsing and correlation ids, command envelope carrying command id and expected version, and the tiered offline write queue over IndexedDB. Role folders hold placeholders. No screens.
 Why: the shell is what the Figma design hangs in, and the write queue is the piece that is expensive to retrofit. Screens are what the design changes, so building them now would guarantee rework.
@@ -472,7 +1398,7 @@ Open: offline tiers are declared but only the driver tier is exercised once scre
 
 ## 2026-09-27 - feat: foundation schema for reference and identity
 
-`dev` · @Oxshadha
+`dev` ┬╖ @Oxshadha
 
 Four migrations creating `ref` (14 tables) and `iam` (9 tables) with decisions D1 to D9 applied, plus a checksummed forward-only `Migrator` and the `migrate` command. `ops`, `ml` and `integration` land with their own modules.
 Why: the prototype's nine-table schema was deleted; this is the baseline everything else is built on, so it is created clean rather than as corrections stacked on the old design.
@@ -483,7 +1409,7 @@ Open: reference import and the IAM module behaviour are next. Frontend skeleton 
 
 ## 2026-09-27 - docs: rule, assumption and parameter registers
 
-`dev` · @Oxshadha
+`dev` ┬╖ @Oxshadha
 
 Added `RULES-AND-POLICIES.md` (104 rules with source and status, 6 source conflicts), `ASSUMPTIONS.md` (17 assumptions plus a 14-entry parameter register) and resolved decisions D1 to D9 in `FOUNDATION-PLAN.md`. Propagated to MODULES, SYSTEM-ARCHITECTURE, DATA-MODEL-REVIEW, EDGE-CASES (now 117 cases) and the schema README.
 Why: the booklet, the supplied validator, the datasets and the team draft disagreed in six places, and nothing recorded which rules were ours versus mandated, or which values can change.
@@ -494,7 +1420,7 @@ Open: assumptions A-02, A-03, A-08 and A-09 are unconfirmed and each changes ser
 
 ## 2026-09-27 - docs: plan the reference data and IAM foundation
 
-`dev` · @Oxshadha
+`dev` ┬╖ @Oxshadha
 
 Added `docs/architecture/FOUNDATION-PLAN.md`: a seven-point stability contract, five baseline defects found in the target schema, and full specs for the Reference data and Identity modules (ownership, versioning model, import validation, contracts, edge cases, definition of done) plus the build sequence.
 Why: these two modules are what every other module depends on, and the parts of the current target schema that would force change later needed fixing before anything is built on them.
@@ -505,7 +1431,7 @@ Open: seven decisions in section 3.4. The largest is the reference versioning mo
 
 ## 2026-09-26 - schema: move into version control and add module roles
 
-`dev` · @Oxshadha
+`dev` ┬╖ @Oxshadha
 
 Moved the schema out of Downloads into `docs/architecture/schema/`, split into 19 numbered forward-only migrations with `001_baseline.sql` holding the team's original untouched. Added a database role per module (018) and an inbound warehouse event inbox (019). Deleted the `.sql.bak`. Propagated the role model to SYSTEM-ARCHITECTURE, DATA-MODEL-REVIEW, AGENTS.md and seven new SEC edge cases, and added the warehouse integration contract to MODULES.md.
 Why: a file defining the whole data model had no history and lived on one laptop, and schema separation is not enforced by anything until grants enforce it.
@@ -514,7 +1440,7 @@ Open: reservation TTL, whether stock is per depot or per outlet, and whether ava
 
 ## 2026-09-26 - schema: align industry schema with the architecture
 
-`dev` · @Oxshadha
+`dev` ┬╖ @Oxshadha
 
 Added Part 2 to `waypoint_industry_schema.sql`: reference and policy versioning, `row_version` and immutability trigger on published plans, command receipts, order status transition table, trip vehicle assignment history, vehicle temporal exclusion, warehouse stock fields, catalogue provenance on `ref.products`, attachment scan and retention, return fuel plus a weekly rollup view, outbox worker state, notification delivery split, 16 missing foreign key indexes, RLS with FORCE and a fail-closed actor function.
 Why: the schema was verified directly for the first time, which confirmed six findings and disproved two.
@@ -523,7 +1449,7 @@ Open: the schema file still lives in Downloads, outside version control. Partiti
 
 ## 2026-09-26 - docs: add policy and rule change design
 
-`dev` · @Oxshadha
+`dev` ┬╖ @Oxshadha
 
 Added SYSTEM-ARCHITECTURE.md section 6.8 (four-tier rule placement, effective dating, version stamping, shadow and canary rollout), versioned `PriorityPolicy` and `RuleSetVersion` in MODULES.md, finding 7 plus `ops.policy_versions` and `ops.rule_parameters` in DATA-MODEL-REVIEW.md, and a POL group of 10 edge cases.
 Why: plans stamped the reference-data version and predictions stamped the model version, but nothing stamped the rules, so a deferral could not be reproduced once a threshold changed.
@@ -532,7 +1458,7 @@ Open: whether deferral priority is authored by dispatchers or engineers decides 
 
 ## 2026-09-26 - docs: propagate catalogue rules across architecture docs
 
-`dev` · @Oxshadha
+`dev` ┬╖ @Oxshadha
 
 Carried the external product catalogue rules into SYSTEM-ARCHITECTURE.md (external systems, anti-corruption boundary), MODULES.md (`ref.products` is a cached projection; capacity constraints read order-level weight and volume) and EDGE-CASES.md (six CAT cases plus STK-07). Recorded outlet coordinates and the driver-side temporal exclusion as deferred decisions.
 Why: the rules only existed in the data model review, so the other documents still implied product lines could feed capacity maths.
@@ -541,7 +1467,7 @@ Open: nothing new.
 
 ## 2026-09-26 - docs: correct schema findings and add catalogue rules
 
-`dev` · @Oxshadha
+`dev` ┬╖ @Oxshadha
 
 Reworded critical findings 1, 2, 3, 5 and 6 in DATA-MODEL-REVIEW.md after a second review against `waypoint_industry_schema.sql`: version columns and status CHECK constraints already exist, so the findings are about incomplete enforcement rather than absence. Added the RLS table-owner trap, `btree_gist`, `SKIP LOCKED`, and a section on the external product catalogue.
 Why: the first wording overstated four findings and would have sent implementation after problems that are already half solved.
@@ -550,7 +1476,7 @@ Open: `waypoint_industry_schema.sql` is not in this repository, so the correctio
 
 ## 2026-09-26 - docs: rework architecture for enterprise scope
 
-`dev` · @Oxshadha
+`dev` ┬╖ @Oxshadha
 
 Rewrote `SYSTEM-ARCHITECTURE.md` without deadline compromises and added `docs/architecture/`: MODULES.md (12 module specs with internal layers and connections), DATA-MODEL-REVIEW.md (team schema validated, 20 findings, corrected model, expand-contract migration) and EDGE-CASES.md (82 cases with enforcement, detection and test). Rewrote AGENTS.md around 10 architecture rules.
 Why: timeline extended by months, so the design targets enterprise practice rather than a competition subset. Warehouse and stock is a separate system, modelled here as an external port behind an anti-corruption layer.
@@ -559,7 +1485,7 @@ Open: six decisions in SYSTEM-ARCHITECTURE.md section 11, five in DATA-MODEL-REV
 
 ## 2026-09-26 - docs: add system architecture
 
-`refactor/module-structure` · @Oxshadha
+`refactor/module-structure` ┬╖ @Oxshadha
 
 Added `SYSTEM-ARCHITECTURE.md` at the root: six actors, thirteen modules, seven layers, aggregate to table mapping, authentication and authorization design, 45 edge cases and the workstream dependency order.
 Why: consolidates the challenge booklet, the team requirements draft and the 40-table schema guide into one design, and separates what ships by October 4 from what the design supports later.
@@ -568,7 +1494,7 @@ Open: five decisions listed in section 12, including whether to migrate to the 4
 
 ## 2026-09-26 - docs: add local development guide and development log
 
-`refactor/module-structure` · @Oxshadha
+`refactor/module-structure` ┬╖ @Oxshadha
 
 Added `development.md` (hybrid loop: PostgreSQL in Docker, app native) and this log, both under `docs/development-docs/`. Markdown is now ignored by default in `.gitignore` with an allow-list.
 Why: agent sessions scatter scratch `.md`, and parallel work needs shared context.
@@ -577,7 +1503,7 @@ Open: nothing.
 
 ## 2026-09-26 - refactor: organize backend by module and frontend by role
 
-`refactor/module-structure` · @Oxshadha
+`refactor/module-structure` ┬╖ @Oxshadha
 
 Backend split into `shared/`, `platform/`, `referencedata/`, `identity/`, `planning/`; `platform/db/Database` extracted as the single PostgreSQL seam. Frontend moved to `src/app-shell/`, `src/roles/*`, `src/shared/*` behind path aliases. Added 7 ArchUnit rules and 5 frontend import rules.
 Why: `DispatchService` had absorbed eight responsibilities at 1780 lines because packages were organized by layer.
@@ -586,7 +1512,7 @@ Open: `DispatchService` still 1742 lines; `ApiController` still one controller. 
 
 ## 2026-09-26 - docs: add architecture plan and code structure spec
 
-`refactor/module-structure` · @Oxshadha
+`refactor/module-structure` ┬╖ @Oxshadha
 
 Added [enterprise-architecture-plan.md](enterprise-architecture-plan.md) and [code-structure.md](../code-structure.md).
 Why: needed one agreed target before refactoring, and the Hackathon requires an architecture document.

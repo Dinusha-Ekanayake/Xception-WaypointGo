@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useOnline } from "@shared/api/useResource";
 import { useSync } from "@shared/offline";
-import { Notice, ShellProvider, cx, type ShellControls } from "@shared/ui";
+import { Notice, ShellProvider, StructuredError, cx, type ShellControls } from "@shared/ui";
 import { hostForRole, roleForHost } from "./hostRole.ts";
 import RoleRouter from "./RoleRouter.tsx";
 import SignIn from "./SignIn.tsx";
@@ -23,7 +23,7 @@ import {
  * their own top bar. For these the shell draws no strip of its own and lends
  * the controls through ShellProvider instead.
  */
-const OWN_HEADER = new Set<ShellRole>(["loader", "store_manager", "dispatcher"]);
+const OWN_HEADER = new Set<ShellRole>(["loader", "store_manager", "dispatcher", "driver"]);
 
 /**
  * Session gate and role routing. Signed out, server unreachable and offline are
@@ -32,8 +32,34 @@ const OWN_HEADER = new Set<ShellRole>(["loader", "store_manager", "dispatcher"])
  */
 export default function AppShell(): React.JSX.Element {
   const online = useOnline();
-  const [state, setState] = useState<SessionState | null>(null);
-  const [role, setRole] = useState<ShellRole | null>(null);
+  const [state, setState] = useState<SessionState | null>(() => {
+    if (typeof window !== "undefined" && process.env.NODE_ENV !== "production") {
+      const urlRole = new URLSearchParams(window.location.search).get("role") as ShellRole | null;
+      if (urlRole && ["driver", "loader", "store_manager", "dispatcher"].includes(urlRole)) {
+        return {
+          kind: "signed-in",
+          session: {
+            userId: "dev-driver-id",
+            displayName: "Rashmika Dilshan",
+            roles: ["driver", "loader", "store_manager", "dispatcher"],
+            scope: ["depot:PELIYAGODA", "outlet:OUT001", "vehicle:DRV-00021"],
+          },
+        };
+      }
+    }
+    return null;
+  });
+
+  const [role, setRole] = useState<ShellRole | null>(() => {
+    if (typeof window !== "undefined" && process.env.NODE_ENV !== "production") {
+      const urlRole = new URLSearchParams(window.location.search).get("role") as ShellRole | null;
+      if (urlRole && ["driver", "loader", "store_manager", "dispatcher"].includes(urlRole)) {
+        return urlRole;
+      }
+    }
+    return null;
+  });
+
   const [notice, setNotice] = useState<string | undefined>();
   const [pending, setPending] = useState<number | null>(null);
   const [signOutError, setSignOutError] = useState<string | null>(null);
@@ -44,7 +70,12 @@ export default function AppShell(): React.JSX.Element {
     void currentSession().then(setState);
   }, []);
 
-  useEffect(check, [check]);
+  useEffect(() => {
+    // Only check server session if not already in dev role mode
+    if (!state) {
+      check();
+    }
+  }, [check, state]);
 
   // A role address such as loader.waypointgo.live shows that role and no other.
   // Read only once the session is known, so the first paint matches the server's.
@@ -64,20 +95,55 @@ export default function AppShell(): React.JSX.Element {
     }
   }, []);
 
+
   if (!state) return <main className="flex min-h-dvh items-center justify-center bg-go-canvas font-go text-go-muted">Checking your session…</main>;
 
   if (state.kind === "unreachable") {
+    const code = state.status ?? (online ? 503 : "OFFLINE");
+    const message =
+      sync.pending > 0
+        ? `Having trouble connecting right now.\nDon't worry—${sync.pending} ${
+            sync.pending === 1 ? "change is" : "changes are"
+          } saved safely on this phone.`
+        : undefined;
+
     return (
-      <main className="flex min-h-dvh items-center justify-center bg-go-canvas px-4 font-go">
-        <div className="flex w-full max-w-[400px] flex-col gap-4">
-          <Notice tone="warning" live title={online ? "Waypoint is not answering" : "This device is offline"}>
-            {state.message} You are not signed out; nothing on this device was lost.
-          </Notice>
-          <button type="button" onClick={check} className="min-h-12 rounded-[22px] bg-[#031a0c] text-[15px] font-medium text-white">
-            Try again
-          </button>
-        </div>
-      </main>
+      <StructuredError
+        code={code}
+        message={message}
+        actionLabel="Try again"
+        onAction={check}
+        secondaryAction={
+          process.env.NODE_ENV !== "production" ? (
+            <div className="mt-4 flex flex-col items-center gap-2">
+              <span className="text-[12px] text-go-muted font-medium">Dev Mode (Backend Offline)</span>
+              <div className="flex flex-wrap justify-center gap-1.5">
+                {(["driver", "loader", "store_manager", "dispatcher"] as const).map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => {
+                      setState({
+                        kind: "signed-in",
+                        session: {
+                          userId: "dev-driver-id",
+                          displayName: "Dev Driver",
+                          roles: ["driver", "loader", "store_manager", "dispatcher"],
+                          scope: ["depot:PELIYAGODA", "outlet:OUT001", "vehicle:DRV-00021"],
+                        },
+                      });
+                      setRole(r);
+                    }}
+                    className="rounded-full bg-white border border-[#dfe7e6] px-3.5 py-1.5 text-xs font-semibold text-[#031b08] shadow-xs hover:bg-slate-50 active:scale-95 transition-all"
+                  >
+                    Open {r.replace("_", " ")}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : undefined
+        }
+      />
     );
   }
 
