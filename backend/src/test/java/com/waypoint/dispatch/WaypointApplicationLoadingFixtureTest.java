@@ -29,7 +29,9 @@ class WaypointApplicationLoadingFixtureTest {
         mock(Migrator.class), mock(ImportReferenceDataHandler.class),
         mock(AccountAdminUseCase.class), mock(OperatorRegistry.class),
         mock(AppProperties.class), fixture, mock(LoadingProperties.class),
-        mock(Environment.class), references);
+        mock(Environment.class), references,
+        mock(com.waypoint.dispatch.ordering.application.DeliveryDaySeed.class),
+        mock(com.waypoint.dispatch.referencedata.application.FleetDaySeed.class));
 
     assertEquals(1, application.buildLoadingFixture("Peliyagoda", day));
     InOrder order = inOrder(references, fixture);

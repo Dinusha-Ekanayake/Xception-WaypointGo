@@ -92,6 +92,16 @@ public class AccountAdminUseCase {
         });
   }
 
+  public void grantOutlet(String email, String outletId) {
+    database.asModule(
+        ModuleRole.IAM,
+        null,
+        () -> {
+          UUID userId = userIdOf(email.trim().toLowerCase(Locale.ROOT));
+          applyGrantOutlet(null, userId, outletId, versionOf(userId));
+        });
+  }
+
   // ---- command bodies: a transaction is already open ----
 
   UUID applyCreate(

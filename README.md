@@ -26,7 +26,7 @@ cp .env.example .env        # set POSTGRES_PASSWORD and ADMIN_PASSWORD (12+ char
 docker compose up --build
 ```
 
-The one-shot `init` service runs `migrate`, `import-reference` and `account-create` against the fresh database. Each step is idempotent, so a restart changes nothing that is already there. Then open http://localhost:3000 and sign in as `ADMIN_EMAIL` with `ADMIN_PASSWORD` (defaults `admin@waypoint.local` / `local-testing-only`). Health is at http://localhost:8080/health/readiness and metrics at http://localhost:8080/prometheus.
+The one-shot `init` service runs `migrate`, `import-reference`, `demo-accounts` and `seed-delivery-day` against the fresh database. Each step is idempotent, so a restart changes nothing that is already there. Then open http://localhost:3000 and sign in as `ADMIN_EMAIL` with `ADMIN_PASSWORD` (defaults `admin@waypoint.local` / `local-testing-only`). Health is at http://localhost:8080/health/readiness and metrics at http://localhost:8080/prometheus.
 
 For day-to-day work run PostgreSQL in Docker and the application natively: `scripts/dev.sh setup` once, then `scripts/dev.sh`. The steps behind those two commands are in [development.md](docs/development-docs/development.md). Production deployment is in [deployment.md](docs/deployment.md).
 
@@ -43,6 +43,7 @@ The backend jar serves by default. Operational commands run explicitly, never as
 | `operator-pin` | Sets a loader's four-digit PIN and badge for shared dock devices | `OPERATOR_EMAIL`, `OPERATOR_PIN`, optional `OPERATOR_EMPLOYEE_CODE` |
 | `loading-fixture` | Development only: builds a depot-day's loading manifests from confirmed orders without a published plan | `LOADING_FIXTURE_ENABLED=true`, `--depot` and `--date` (or `LOADING_DEPOT`, `LOADING_DATE`) |
 | `demo-accounts` | Creates `<role>@waypoint.local` for each role and grants the depot roles a depot; existing accounts are left unchanged | `SEED_PASSWORD`, optional `DEMO_DEPOT` |
+| `seed-delivery-day` | Places the Task 2B peak day (85 Peliyagoda orders, more than the fleet can carry) as confirmed orders on the first open operating day, marks its 10 workshop vehicles out, and grants `store_manager@waypoint.local` the outlet `DEMO_OUTLET`. Runs once per database; `docker compose up` runs it | optional `DEMO_OUTLET` (default `OUT001`) |
 
 Commands can be combined in one run, which starts the application once: `migrate import-reference demo-accounts`. They always run in that order.
 

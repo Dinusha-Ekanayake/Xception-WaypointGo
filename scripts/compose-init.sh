@@ -12,5 +12,5 @@ set -eu
 
 # One start of the application for all three steps. Any failure exits non-zero,
 # and the stack does not start on it.
-java -jar /app/backend.jar migrate import-reference demo-accounts
+java -jar /app/backend.jar migrate import-reference demo-accounts seed-delivery-day
 echo "==> init done"
