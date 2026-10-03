@@ -5,7 +5,7 @@ import { useResource } from "@shared/api/useResource";
 import { OrderCommandKind, type OrderView } from "@shared/domain/types";
 import { Notice } from "@shared/ui";
 import type { StoreGateway } from "../data/gateway.ts";
-import { ORDER_STATUS, cases, clock, dayLabel, depotToday, editable, temperatureLabel } from "../data/format.ts";
+import { ORDER_STATUS, units, clock, dayLabel, depotToday, editable, temperatureLabel } from "../data/format.ts";
 import { conflictMessage, type useCommands } from "../data/useCommands.ts";
 import { Button, Chip, Sheet } from "../ui.tsx";
 
@@ -52,7 +52,7 @@ export default function OrderSheet({
         <Chip tone={s.tone}>{s.label}</Chip>
       </div>
       <p className="text-[15px] text-go-muted">
-        {temperatureLabel(order.temperature)} · {cases(order.itemCount)} · {order.weightKg} kg · {order.volumeM3} m³ · delivery {dayLabel(order.deliveryDate)}
+        {temperatureLabel(order.temperature)} · {units(order.itemCount)} · {order.weightKg} kg · {order.volumeM3} m³ · delivery {dayLabel(order.deliveryDate)}
         {order.dateRolled && ` (moved from ${dayLabel(order.requestedDate)}, not a delivery day)`}
       </p>
       {error && <Notice tone="danger" live title={error} />}

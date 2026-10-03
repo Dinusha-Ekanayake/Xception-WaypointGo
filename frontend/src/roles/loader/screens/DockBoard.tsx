@@ -99,8 +99,8 @@ export default function DockBoard({
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={tr("Search vehicle, route or loader")}
-            aria-label={tr("Search vehicle, route or loader")}
+            placeholder={tr("Search vehicle, trip or loader")}
+            aria-label={tr("Search vehicle, trip or loader")}
             className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-go-muted"
           />
         </label>

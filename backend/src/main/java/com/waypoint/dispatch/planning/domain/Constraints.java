@@ -127,7 +127,7 @@ public final class Constraints {
         for (PlanOrder o : t.orders()) {
           if (o.temperatureClass() == TemperatureClass.CHILLED) {
             return ConstraintResult.fail(
-                ruleId(), name(), o.orderRef() + " is " + o.temperature() + " and " + c.day().vehicleId() + " is not a reefer", null);
+                ruleId(), name(), o.orderRef() + " is " + o.temperature() + " and " + c.day().vehicleId() + " is not refrigerated", null);
           }
         }
       }

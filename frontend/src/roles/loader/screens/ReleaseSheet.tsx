@@ -103,7 +103,7 @@ export default function ReleaseSheet({
     .filter((stop) => stop.lines.some((l) => isFlagged(l.status)))
     .map((stop) => {
       const kinds = [...new Set(stop.lines.flatMap((l) => l.items).filter((i) => isFlagged(i.status)).map((i) => tr(ISSUE_KIND_LABEL[i.status as keyof typeof ISSUE_KIND_LABEL]).toLowerCase()))];
-      return tr("{place}: {kinds}. Dispatcher and store notified.", { place: placeName(stop.outletId, outlets), kinds: kinds.join(", ") });
+      return tr("{place}: {kinds}. Dispatcher and store manager notified.", { place: placeName(stop.outletId, outlets), kinds: kinds.join(", ") });
     });
   return (
     <Sheet label={tr("Confirm and release")} onClose={onClose}>

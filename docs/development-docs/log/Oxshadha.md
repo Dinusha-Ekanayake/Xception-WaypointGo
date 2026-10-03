@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-03 - fix(frontend): every screen uses the glossary's words (issue #128)
+
+`feat/128-apply-glossary` · @Oxshadha
+
+The guardrail's baseline is empty: no retired word, raw code or 12-hour clock is left in screen text. Store manager: units, never cases or packages; product line where it means one product; Expected, never ETA; 16:00, never 4:00 PM; Regular delivery, never Regular run. Dispatcher and loader: "store" that meant the person reads store manager; "Refrigerated vehicles planned again". Loader: "Search vehicle, trip or loader" and "two units crushed", with Sinhala and Tamil changed to match (drafts for a native speaker). Driver: "No one at the outlet". Admin: plans, never route plans; "On a trip". Backend: a deferral reads "is not refrigerated"; notification text already followed the glossary, so no routing version. The guardrail is sharper: it reads JSX text on its own line and between tags, and ignores code, class lists and interpolated names.
+Why: issue #126's glossary, applied; the store screens alone called one quantity three names.
+Verified: `npm test` 118, typecheck, build; Playwright dispatcher 23, store 29, loader 16 of 18 and driver 8 of 10 (the same four failures as untouched `dev`); `ConstraintsTest`, `PeakDayAllocationTest`, `ScarceFleetReplanTest`, `PlanningRunTest`.
+Open: the two proposed terms on #126; the landing page's role card keeps "store" for the store manager's own store.
+
+---
+
 ## 2026-10-03 - feat(frontend): one wording layer and a guardrail against drift (issue #127)
 
 `feat/127-wording-layer` · @Oxshadha

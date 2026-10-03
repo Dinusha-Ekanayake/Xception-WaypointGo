@@ -5,18 +5,18 @@ import type { Tone } from "@shared/ui";
 
 export const STATUS: Record<OrderStatus, { label: string; tone: Tone }> = {
   STOCK_UNKNOWN: { label: "Stock not confirmed", tone: "warning" },
-  PARTIALLY_RESERVED: { label: "Short stock · store deciding", tone: "warning" },
+  PARTIALLY_RESERVED: { label: "Short stock · store manager deciding", tone: "warning" },
   CONFIRMED: { label: "Confirmed · not planned", tone: "neutral" },
   ALLOCATED: { label: "Planned", tone: "info" },
   DEFERRED: { label: "Deferred", tone: "warning" },
   UNSERVABLE: { label: "Cannot be served", tone: "danger" },
   LOADING: { label: "Loading", tone: "info" },
   IN_TRANSIT: { label: "On the road", tone: "mint" },
-  DELIVERED: { label: "Delivered · awaiting store", tone: "neutral" },
+  DELIVERED: { label: "Delivered · awaiting the store manager", tone: "neutral" },
   PARTIALLY_DELIVERED: { label: "Partly delivered", tone: "warning" },
   FAILED: { label: "Not delivered", tone: "danger" },
-  RECEIVED: { label: "Confirmed by store", tone: "success" },
-  UNCONFIRMED: { label: "Store did not confirm", tone: "warning" },
+  RECEIVED: { label: "Confirmed by the store manager", tone: "success" },
+  UNCONFIRMED: { label: "Store manager did not confirm", tone: "warning" },
   CANCELLED: { label: "Cancelled", tone: "muted" },
 };
 

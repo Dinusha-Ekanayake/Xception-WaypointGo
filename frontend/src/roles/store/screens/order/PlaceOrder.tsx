@@ -6,7 +6,7 @@ import { useResource } from "@shared/api/useResource";
 import { OrderCommandKind, type LineAvailability, type OrderView, type PlacedOrder, type OutletView, type Temperature } from "@shared/domain/types";
 import { Notice, cx } from "@shared/ui";
 import type { StoreGateway } from "../../data/gateway.ts";
-import { addDays, clock, cutoffLabel, dayLabel, depotToday, hhmm, longDay, untilCutoff } from "../../data/format.ts";
+import { addDays, clock, cutoffLabel, dayLabel, depotToday, hhmm, longDay, untilCutoff, units } from "../../data/format.ts";
 import { clearDraft, loadDraft, saveDraft } from "../../data/draft.ts";
 import { classOf, rowsOf, usualOf } from "../../data/lines.ts";
 import { conflictMessage, type useCommands } from "../../data/useCommands.ts";
@@ -91,7 +91,7 @@ export default function PlaceOrder({
   const saveAsDraft = () => {
     setNote(
       saveDraft(outletKey, qty)
-        ? { title: `Draft saved · ${clock(new Date().toISOString())}`, detail: left > 0 ? "Submit before 4:00 PM to send it" : "Nothing is sent until you submit" }
+        ? { title: `Draft saved · ${clock(new Date().toISOString())}`, detail: left > 0 ? "Submit before 16:00 to send it" : "Nothing is sent until you submit" }
         : { title: "This device cannot keep a draft", detail: "Submit the order to keep it", tone: "danger" },
     );
   };
@@ -99,7 +99,7 @@ export default function PlaceOrder({
   const products = catalogue.data ?? [];
   const tempOf = (id: string) => classOf(id, products, usual);
   const count = (t: Temperature) => Object.entries(qty).filter(([id, n]) => n > 0 && tempOf(id) === t);
-  const lines = (t: Temperature) => ({ items: count(t).length, cases: count(t).reduce((s, [, n]) => s + n, 0) });
+  const lines = (t: Temperature) => ({ items: count(t).length, units: count(t).reduce((s, [, n]) => s + n, 0) });
   const classes: Temperature[] = amend ? [amend.temperature] : ["ambient", "chilled"];
   const rows = rowsOf(temp, products, usual, qty, added);
   const rolled = amend
@@ -164,7 +164,7 @@ export default function PlaceOrder({
     setAdded((a) => (a.includes(id) ? a : [...a, id]));
     setLine(id, n);
     setFresh(id);
-    setNote({ title: `${id} added · ${n === 1 ? "1 case" : `${n} cases`}`, detail: "Use − and + to change the amount" });
+    setNote({ title: `${id} added · ${units(n)}`, detail: "Use − and + to change the amount" });
   };
 
   return (
@@ -173,7 +173,7 @@ export default function PlaceOrder({
       <div className="flex flex-col gap-1">
         <h1 className="text-[32px] leading-tight font-medium text-black">{amend ? `Change ${amend.orderRef}` : "Place order"}</h1>
         <Muted>
-          {longDay(today)} · orders close 4:00 PM · {cutoffLabel(left)}
+          {longDay(today)} · orders close 16:00 · {cutoffLabel(left)}
         </Muted>
         {restored && (
           <p role="status" className="text-[13px] text-go-teal">
@@ -208,7 +208,7 @@ export default function PlaceOrder({
           )}
           {rolled && !amend && (
             <Notice tone="warning" live title={`This order will arrive ${dayLabel(rolled)}, not ${dayLabel(date)}.`}>
-              {reasons.includes("cutoff") && "Orders for that day closed at 4:00 PM. "}
+              {reasons.includes("cutoff") && "Orders for that day closed at 16:00. "}
               {reasons.includes("closed") && "The depot has closed ordering for that day. "}
               {reasons.includes("non_operating") && `Depots are closed that day${festival ? ` (${festival})` : ""}. `}
               You can still order now; it goes on the next run.
