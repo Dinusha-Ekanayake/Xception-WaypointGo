@@ -42,13 +42,13 @@ Suggested mock routes: `#audit/overview`, `#audit/activity`, `#audit/security`. 
 
 Reuse the current shell and GO branding. Use Google Sans Flex with the existing fallback, mint canvas, white panels, muted borders, green primary controls and mint active navigation. Current code values such as canvas `#e7f3f2`, primary `#006b57`, border `#deebe6` and rounded 22px cards are implementation references, not newly verified Figma tokens.
 
-Use a 32–36px page heading, 18–20px section titles, 14–16px row text and 12px supporting labels as provisional sizes. Maintain readable contrast and 44px control targets. Reuse existing typography and spacing classes before introducing new ones.
+Use a 32-36px page heading, 18-20px section titles, 14-16px row text and 12px supporting labels as provisional sizes. Maintain readable contrast and 44px control targets. Reuse existing typography and spacing classes before introducing new ones.
 
 The page header has Audit console, a short explanation, Sample data, a selected date range and an explicitly labeled timezone. Default to Asia/Colombo; retain UTC timestamps in the data. A future live connection status belongs beside the date controls and must show stale/unavailable states accurately.
 
 Keep the visual hierarchy quiet: at most four summary cards, one main list and one detail drawer. Pair status color with words and icons. Red represents denied access or a recorded error; it does not automatically mean an incident or malicious activity.
 
-Desktop: readable table and a 480–560px detail drawer. Tablet: hide secondary columns in the list and show them in details. Phone: event cards and a full-screen detail panel; filters open in a labeled sheet. Keyboard focus moves into the drawer, Escape closes it, and focus returns to its originating row.
+Desktop: readable table and a 480-560px detail drawer. Tablet: hide secondary columns in the list and show them in details. Phone: event cards and a full-screen detail panel; filters open in a labeled sheet. Keyboard focus moves into the drawer, Escape closes it, and focus returns to its originating row.
 
 ## 4. Overview
 
@@ -101,7 +101,7 @@ Offer Copy event ID and View related activity with visible success/error feedbac
 
 These are intended coverage categories, not a claim that every backend action or event producer exists. Preserve the current Coming later status of planning, forecast and other unimplemented capabilities. Each mock row visibly belongs to sample data.
 
-Create roughly 25–30 coherent fixtures spanning the four operational personas and administrative activity. Include an actor who is later disabled, unavailable before/after values, a scoped denial, a permission change with zero effective impact, a delayed offline receipt, and a failed integration operation. Do not fabricate personal data from real accounts.
+Create roughly 25-30 coherent fixtures spanning the four operational personas and administrative activity. Include an actor who is later disabled, unavailable before/after values, a scoped denial, a permission change with zero effective impact, a delayed offline receipt, and a failed integration operation. Do not fabricate personal data from real accounts.
 
 ## 8. Admin access and privacy
 

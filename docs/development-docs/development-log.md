@@ -21,6 +21,17 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-03 - docs: one row per thing on the status page
+
+`fix/status-and-dash-rules` · @manodyasasmini
+
+Receipt and Issues, Sync, the shell, the offline queue and the store manager each had two rows on the status page, left by a merge, and the two copies disagreed: #28 open against #28 closed, and a store browser suite that both did and did not exist. Kept the row that matches `dev`, moved the header to `9ba8177`, and reworded the fresh-install seed in "what to pick up next" now that #114's confirmed orders are merged and only the published plan, released trip and delivered stop are left. Replaced the last ten em and en dashes in four issue plans (`.agent/rules/no-em-dash.md`).
+Why: the page's own rule is that a row disagreeing with the code is a bug in the page, and a contradictory row sends two people at the same work.
+Verified: `npm run typecheck`, `npm test` (85 passed); the store suite's 22 tests counted in `frontend/tests/e2e-store/`; `git grep` for U+2014 and U+2013 now finds none outside `data/` and `package-lock.json`.
+Open: the role browser suites are still not in CI (#120), and #114 is still open on GitHub though its code merged in #123.
+
+---
+
 ## 2026-10-03 - feat: a Connect AI button for every role
 
 `feat/mcp-connect-button` · @kavindamihiran

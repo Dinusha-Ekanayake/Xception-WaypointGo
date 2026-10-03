@@ -1,4 +1,4 @@
-# Issue #13: Receipt and operational Issues modules (`receipt`, `issues` schemas) — plan
+# Issue #13: Receipt and operational Issues modules (`receipt`, `issues` schemas): plan
 
 Written before code, per AGENTS.md "Issue Documents". What was actually built goes in `WALKTHROUGH.md`.
 

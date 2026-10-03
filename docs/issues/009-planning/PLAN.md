@@ -1,4 +1,4 @@
-# Issue #9: Planning module (`planning` schema) — plan
+# Issue #9: Planning module (`planning` schema): plan
 
 Written before code, per AGENTS.md "Issue Documents". What was actually built goes in `WALKTHROUGH.md`.
 
@@ -28,10 +28,10 @@ Updated after every finished step. Branch `feat/planning-module` (stacked on `fe
 ### Step 3 result (do not re-do)
 
 Files:
-- `planning/infrastructure/PriorityInsertionEngine.java` — screen unservable, insert in `PriorityPolicy` order, cheapest feasible place, timeout → `R-PLN-ENGINE-TIMEOUT` + `partial`
-- `planning/infrastructure/ValidatingEngine.java` — re-runs `PlanVerification`; throws `DomainException` + alert consumer (PLN-12)
-- `planning/infrastructure/PeakDayScenario.java` — loads `data/` CSVs; writes Task 2B CSV (`unservable` exported as `deferred` for the official script)
-- `src/test/.../planning/infrastructure/PeakDayAllocationTest.java` — writes `backend/target/task2b/submission_task2b.csv` (gitignored)
+- `planning/infrastructure/PriorityInsertionEngine.java`: screen unservable, insert in `PriorityPolicy` order, cheapest feasible place, timeout → `R-PLN-ENGINE-TIMEOUT` + `partial`
+- `planning/infrastructure/ValidatingEngine.java`: re-runs `PlanVerification`; throws `DomainException` + alert consumer (PLN-12)
+- `planning/infrastructure/PeakDayScenario.java`: loads `data/` CSVs; writes Task 2B CSV (`unservable` exported as `deferred` for the official script)
+- `src/test/.../planning/infrastructure/PeakDayAllocationTest.java`: writes `backend/target/task2b/submission_task2b.csv` (gitignored)
 
 S1 on 2026-10-01, booklet `RuleSet` + default `PriorityPolicy`: **70 served, 14 deferred, 1 unservable**. All 10 `deferred_yesterday` orders served. Binding rules: `R-PLN-09`×5 (Fresh time), `R-PLN-07`×5 (trip count), `R-PLN-06`×4 (capacity; includes S1-078), `R-PLN-13`×1 (window). Overload S1-078 is `UNSERVABLE` / `R-PLN-06`. Same inputs → same CSV. Official `python tools/check_allocation/check_allocation.py backend/target/task2b/submission_task2b.csv` → **FEASIBILITY: PASSED**.
 
