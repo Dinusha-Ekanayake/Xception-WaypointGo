@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useShell, cx } from "@shared/ui";
+import { useInbox } from "@shared/notifications/useInbox";
 import HomeNoVehicle from "./screens/HomeNoVehicle.tsx";
 import DriverLoginScreen from "./screens/DriverLoginScreen.tsx";
 import GetVehicleCameraAccess from "./screens/GetVehicleCameraAccess.tsx";
@@ -33,6 +34,8 @@ export default function Driver({
   scope = [],
 }: DriverProps): React.JSX.Element {
   const shell = useShell();
+  // The driver's notifications (issue #118): the Home feed and the driving-mode badge.
+  const inbox = useInbox(userId ?? null, Boolean(userId));
   const [isNight, setIsNight] = useState(false);
   const [lang, setLang] = useState<SupportedLang>("en");
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
@@ -212,6 +215,7 @@ export default function Driver({
             isNight={isNight}
             onToggleTheme={() => setIsNight((prev) => !prev)}
             hideHeader={isPersistentHeader}
+            inbox={userId ? inbox : undefined}
           />
         </div>
 
@@ -463,6 +467,7 @@ export default function Driver({
               isNight={isNight}
               stopIndex={currentStopIndex}
               onToggleTheme={() => setIsNight((prev) => !prev)}
+              unread={userId ? inbox.unread : undefined}
             />
           </div>
         )}

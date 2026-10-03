@@ -16,7 +16,12 @@ export default function DrivingModeScreen({
   isNight = false,
   stopIndex = 2, // Defaults to Kadugannawa as in Figma, or current stop
   onToggleTheme,
-}: DrivingModeScreenProps): React.JSX.Element {
+  unread,
+}: DrivingModeScreenProps & {
+  /** Unread notifications for the bell's badge (issue #118); without it, Figma's sample count. */
+  unread?: number | null;
+}): React.JSX.Element {
+  const badge = unread === undefined ? 3 : unread ?? 0;
   const safeIndex = Math.min(Math.max(0, stopIndex), ROUTE_STOPS.length - 1);
   const activeStop: RouteStop = ROUTE_STOPS[safeIndex] ?? ROUTE_STOPS[2];
 
@@ -119,15 +124,16 @@ export default function DrivingModeScreen({
               </svg>
             </div>
 
-            {/* Notification Badge Count (Figma: 22px circle, bg #E5484D, count 3) */}
-            <div
+            {/* Notification Badge Count (Figma: 22px circle, bg #E5484D), the real unread count */}
+            {badge > 0 && <div
               className={cx(
                 "absolute -top-1 -right-1 min-w-[20px] h-[20px] px-1 rounded-full bg-[#E5484D] flex items-center justify-center text-[12px] font-semibold text-white pointer-events-none",
                 isNight ? "border-[2px] border-black" : "border-[2px] border-white"
               )}
+              aria-label={`${badge} unread notifications`}
             >
-              3
-            </div>
+              {badge > 9 ? "9+" : badge}
+            </div>}
           </div>
 
           {onToggleTheme && (
