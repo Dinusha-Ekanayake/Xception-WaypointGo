@@ -46,11 +46,6 @@ function routeFromHash(): Route {
 // the AI assistants console (#177) in the same nav. Sign in and sign out belong
 // to the shell, as for every other role.
 const NAV: Array<{ tab: Tab; label: string; icon: IconName; also?: Tab[] }> = [
-  { tab: "people", label: "People", icon: "home" },
-  { tab: "personas", label: "Personas", icon: "switch-user" },
-  { tab: "actions", label: "Actions", icon: "check" },
-  { tab: "catalogue", label: "Permission catalogue", icon: "lock" },
-  { tab: "history", label: "Change history", icon: "clock" },
   { tab: "depots", label: "Depots", icon: "dock" },
   { tab: "outlets", label: "Retail outlets", icon: "cart" },
   { tab: "orders", label: "Orders", icon: "box" },
@@ -61,6 +56,14 @@ const NAV: Array<{ tab: Tab; label: string; icon: IconName; also?: Tab[] }> = [
   { tab: "audit", label: "Audit console", icon: "grid" },
   { tab: "assistants", label: "AI assistants", icon: "hand" },
 ];
+
+const PEOPLE_NAV: Array<{ tab: Tab; label: string; icon: IconName }> = [
+  { tab: "personas", label: "Personas", icon: "switch-user" },
+  { tab: "actions", label: "Actions", icon: "check" },
+  { tab: "catalogue", label: "Permission catalogue", icon: "permission-list" },
+  { tab: "history", label: "Change history", icon: "history" },
+];
+const PEOPLE_TABS: Tab[] = ["people", "personas", "actions", "catalogue", "history"];
 
 const PEOPLE: [string, string] = ["People & access", "See who can do what, where they can do it, and why."];
 const TRIPS: [string, string] = ["Trips & execution", "Planning run summary, vehicle allocations, planned stops, and live road execution tracking."];
@@ -82,6 +85,7 @@ const initials = (name: string) => name.trim().split(/\s+/).filter(Boolean).map(
 export default function AccessDemo({ displayName = "Administrator" }: { displayName?: string }) {
   const [state, setState] = useState<DemoState>(freshState);
   const [route, setRoute] = useState<Route>({ tab: "people", member: null, persona: null });
+  const [peopleOpen, setPeopleOpen] = useState(false);
   const [rolesList, setRolesList] = useState<RoleView[]>([]);
   const [actionsList, setActionsList] = useState<ActionView[]>([]);
   const [liveConnected, setLiveConnected] = useState<boolean>(false);
@@ -93,7 +97,7 @@ export default function AccessDemo({ displayName = "Administrator" }: { displayN
   const [toast, setToast] = useState("");
   const [pendingCreation, setPendingCreation] = useState<{ email: string; userId: string } | null>(null);
   const viewer = "admin" as "admin" | "super_admin";
-  useEffect(() => { const sync = () => setRoute(routeFromHash()); sync(); window.addEventListener("hashchange", sync); return () => window.removeEventListener("hashchange", sync); }, []);
+  useEffect(() => { const sync = () => { const next = routeFromHash(); setRoute(next); setPeopleOpen(PEOPLE_TABS.includes(next.tab)); }; sync(); window.addEventListener("hashchange", sync); return () => window.removeEventListener("hashchange", sync); }, []);
 
   // Fetch live accounts, roles, and actions from backend
   useEffect(() => {
@@ -131,7 +135,7 @@ export default function AccessDemo({ displayName = "Administrator" }: { displayN
     };
   }, []);
 
-  const navigate = (tab: Tab, id?: string | null) => { window.location.hash = `${tab}${id ? `/${id}` : ""}`; setRoute({ tab, member: tab === "people" ? id ?? null : null, persona: tab === "personas" ? id as Persona ?? null : null }); };
+  const navigate = (tab: Tab, id?: string | null) => { window.location.hash = `${tab}${id ? `/${id}` : ""}`; setRoute({ tab, member: tab === "people" ? id ?? null : null, persona: tab === "personas" ? id as Persona ?? null : null }); setPeopleOpen(PEOPLE_TABS.includes(tab)); };
   const showDetails = (capability: Capability, member?: Member, persona?: Persona) => setDetails({ capability, member, persona });
 
   function openEditor() {
@@ -216,13 +220,31 @@ export default function AccessDemo({ displayName = "Administrator" }: { displayN
     </a>;
   };
 
+  const peopleNav = (compact: boolean) => <>
+    <button type="button" aria-expanded={peopleOpen} onClick={() => { setPeopleOpen(true); navigate("people"); }}
+      className={compact
+        ? cx("flex min-h-11 shrink-0 items-center gap-2 rounded-full px-3.5 text-[15px] text-go-ink", PEOPLE_TABS.includes(route.tab) ? "bg-go-mint font-medium" : "bg-go-subtle")
+        : cx("flex w-full items-center gap-3 rounded-go-card-l px-3.5 py-2.5 text-[15px] text-go-ink", PEOPLE_TABS.includes(route.tab) ? "bg-go-mint font-medium" : "hover:bg-go-subtle")}>
+      <Icon name="users" /><span className="min-w-0 flex-1 text-left">People</span>
+    </button>
+    {peopleOpen && <div className={compact ? "flex gap-1.5" : "ml-5 flex flex-col gap-1 border-l border-go-rule pl-3"}>
+      {PEOPLE_NAV.map((item) => <a key={item.tab} href={`#${item.tab}`} aria-current={route.tab === item.tab ? "page" : undefined}
+        onClick={(event) => { event.preventDefault(); navigate(item.tab); }}
+        className={compact
+          ? cx("flex min-h-11 shrink-0 items-center gap-2 rounded-full px-3.5 text-sm text-go-ink", route.tab === item.tab ? "bg-go-mint font-medium" : "bg-go-subtle")
+          : cx("flex w-full items-center gap-3 rounded-go-card-l px-3 py-2 text-sm text-go-ink", route.tab === item.tab ? "bg-go-mint font-medium" : "hover:bg-go-subtle")}>
+        <Icon name={item.icon} /><span className="min-w-0 flex-1">{item.label}</span>
+      </a>)}
+    </div>}
+  </>;
+
   return <main aria-label="Admin workspace" className="access-demo flex min-h-dvh w-full flex-col bg-go-canvas font-go text-go-ink lg:h-dvh lg:flex-row">
     <aside className="hidden h-full w-[260px] shrink-0 flex-col gap-1 overflow-y-auto bg-white px-5 pt-7 pb-6 lg:flex">
       <div className="flex items-center gap-2.5 px-2 pb-5">
         <span className="text-[34px] font-extrabold text-go-ink">GO</span>
         <span className="rounded-full bg-go-mint px-2.5 py-1 text-[13px] font-medium text-go-ink">Admin</span>
       </div>
-      <nav aria-label="Admin" className="flex flex-col gap-1">{NAV.map((item) => navItem(item, false))}</nav>
+      <nav aria-label="Admin" className="flex flex-col gap-1">{peopleNav(false)}{NAV.map((item) => navItem(item, false))}</nav>
       <div className="flex-1" />
       <div className="flex items-center gap-2.5 pt-3.5">
         <span className="flex size-10 shrink-0 items-center justify-center rounded-[20px] bg-go-mint text-sm font-medium text-go-ink">{initials(displayName)}</span>
@@ -237,7 +259,7 @@ export default function AccessDemo({ displayName = "Administrator" }: { displayN
         <span className="flex-1" />
         <ShellActions compact />
       </div>
-      <nav aria-label="Admin" className="-mx-4 flex gap-1.5 overflow-x-auto px-4">{NAV.map((item) => navItem(item, true))}</nav>
+      <nav aria-label="Admin" className="-mx-4 flex gap-1.5 overflow-x-auto px-4">{peopleNav(true)}{NAV.map((item) => navItem(item, true))}</nav>
     </div>
     <div className="flex min-w-0 flex-1 flex-col px-4 py-5 md:px-9 md:py-7 lg:overflow-y-auto"><div className="mx-auto w-full max-w-[1180px]">
       <header className="mb-6 flex flex-col gap-0.5"><h1 className="text-[26px] font-medium text-go-ink md:text-[30px]">{TITLES[route.tab][0]}</h1><p className="text-sm text-go-secondary">{TITLES[route.tab][1]}</p></header>

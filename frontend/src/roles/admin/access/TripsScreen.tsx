@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Badge, VehicleTypeIcon, card, field, primary, secondary } from "./components";
+import { Badge, card, field, secondary } from "./components";
 import type { DemoState } from "./model";
 import { todayInColombo } from "./model";
 import {
@@ -488,129 +488,38 @@ export function TripsScreen({
         </div>
       </div>
 
-      {/* Trips Cards / List */}
+      {/* Compact trip list. The inspection dialog holds the full trip details. */}
       {filteredTrips.length > 0 ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredTrips.map((trip) => {
-            const weightPct = trip.weightCapKg ? Math.round((trip.weightKg / trip.weightCapKg) * 100) : 0;
-            const volumePct = trip.volumeCapM3 ? Math.round((trip.volumeM3 / trip.volumeCapM3) * 100) : 0;
-
-            return (
-              <article
-                key={trip.tripId}
-                className={`${card} flex flex-col justify-between p-5 transition-all hover:border-go-mint hover:shadow-md`}
+        <div className="space-y-2">
+          {filteredTrips.map((trip) => (
+            <article key={trip.tripId} className={`${card} flex flex-wrap items-center gap-x-6 gap-y-3 px-4 py-3 sm:px-5`}>
+              <div className="min-w-0 flex-1 basis-full sm:basis-56">
+                <p className="font-semibold text-go-ink">Trip {trip.tripNumber} <span className="ml-1 text-xs font-normal text-go-secondary">ID {trip.tripId.slice(-8)}</span></p>
+                <p className="mt-0.5 truncate text-sm text-go-secondary">{trip.depot} Depot · {trip.district} District</p>
+              </div>
+              <div className="min-w-24 text-sm">
+                <p className="text-xs text-go-secondary">Vehicle</p>
+                <p className="font-semibold text-go-ink">{trip.vehicleId}</p>
+              </div>
+              <div className="min-w-24 text-sm">
+                <p className="text-xs text-go-secondary">Departure</p>
+                <p className="font-semibold text-go-ink">{trip.plannedDeparture}</p>
+              </div>
+              <div className="min-w-20 text-sm">
+                <p className="text-xs text-go-secondary">Stops</p>
+                <p className="font-semibold text-go-ink">{trip.completedStopsCount || 0} / {trip.stops.length} done</p>
+              </div>
+              <div className="flex min-w-28 items-center">{getStatusBadge(trip.status)}</div>
+              <button
+                type="button"
+                onClick={() => setSelectedTrip(trip)}
+                className="min-h-11 rounded-xl border border-go-mint bg-go-subtle px-4 text-sm font-semibold text-go-teal hover:bg-go-mint"
+                aria-label={`More info for trip ${trip.tripNumber}, ${trip.tripId}`}
               >
-                <div>
-                  {/* Top: Trip ID & Status */}
-                  <div className="flex items-start justify-between gap-2 border-b border-go-subtle pb-3">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-base font-bold text-go-ink">{trip.tripId}</span>
-                        <span className="rounded-md bg-go-subtle px-2 py-0.5 text-xs font-semibold text-go-ink">
-                          Trip {trip.tripNumber}
-                        </span>
-                      </div>
-                      <p className="mt-0.5 text-xs text-go-secondary">
-                        {trip.depot} Depot · {trip.district} District
-                      </p>
-                    </div>
-                    {getStatusBadge(trip.status)}
-                  </div>
-
-                  {/* Vehicle & Driver Info */}
-                  <div className="mt-3 flex items-center justify-between gap-3 text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className="grid size-8 place-items-center rounded-lg bg-go-subtle text-go-teal">
-                        <VehicleTypeIcon type={trip.vehicleType} className="size-4" />
-                      </span>
-                      <div>
-                        <span className="font-bold text-go-ink">{trip.vehicleId}</span>
-                        <p className="text-go-secondary">{trip.vehicleType}</p>
-                      </div>
-                    </div>
-
-                    <div className="text-right">
-                      <span className="font-semibold text-go-ink">{trip.driverName}</span>
-                      <p className="text-go-secondary">{trip.driverPhone || "Phone unavailable"}</p>
-                    </div>
-                  </div>
-
-                  {/* Brand & Temperature */}
-                  <div className="mt-3 flex items-center gap-2">
-                    {getBrandBadge(trip.brand)}
-                    <span
-                      className={`rounded-md px-2 py-0.5 text-xs font-semibold ${
-                        trip.temperature.startsWith("Chilled") ? "bg-[#e0f2fe] text-[#0284c7]" : "bg-go-subtle text-go-secondary"
-                      }`}
-                    >
-                      {trip.temperature}
-                    </span>
-                  </div>
-
-                  {/* Schedule Timings */}
-                  <div className="mt-3.5 grid grid-cols-2 gap-2 rounded-xl border border-go-subtle bg-go-subtle p-2.5 text-xs">
-                    <div>
-                      <span className="text-go-secondary">Departure</span>
-                      <p className="font-bold text-go-ink">{trip.plannedDeparture}</p>
-                    </div>
-                    <div>
-                      <span className="text-go-secondary">Est. Return</span>
-                      <p className="font-bold text-go-ink">{trip.estimatedReturn}</p>
-                    </div>
-                  </div>
-
-                  {/* Load Utilization Gauges */}
-                  <div className="mt-3.5 space-y-2 text-xs">
-                    <div>
-                      <div className="flex justify-between text-[11px]">
-                        <span className="text-go-secondary">Weight Load ({weightPct}%)</span>
-                        <span className="font-bold text-go-ink">
-                          {trip.weightKg.toLocaleString()} / {trip.weightCapKg == null ? "Unavailable" : trip.weightCapKg.toLocaleString()} kg
-                        </span>
-                      </div>
-                      <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-go-subtle">
-                        <div
-                          className={`h-full rounded-full ${weightPct > 95 ? "bg-[#b45309]" : "bg-go-teal"}`}
-                          style={{ width: `${Math.min(weightPct, 100)}%` }}
-                        ></div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex justify-between text-[11px]">
-                        <span className="text-go-secondary">Volume Load ({volumePct}%)</span>
-                        <span className="font-bold text-go-ink">
-                          {trip.volumeM3.toFixed(1)} / {trip.volumeCapM3 == null ? "Unavailable" : trip.volumeCapM3.toFixed(1)} m³
-                        </span>
-                      </div>
-                      <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-go-subtle">
-                        <div
-                          className="h-full rounded-full bg-[#0284c7]"
-                          style={{ width: `${Math.min(volumePct, 100)}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Footer: Stops count & Inspect Button */}
-                <div className="mt-4 flex items-center justify-between border-t border-go-subtle pt-3 text-xs">
-                  <span className="font-semibold text-go-secondary">
-                    {trip.stops.length} Stops ({trip.completedStopsCount || 0} done)
-                  </span>
-
-                  <button
-                    type="button"
-                    onClick={() => setSelectedTrip(trip)}
-                    className="flex items-center gap-1 rounded-xl border border-go-mint bg-go-subtle px-3 py-1.5 font-bold text-go-teal transition-colors hover:bg-go-mint"
-                  >
-                    <span>Inspect Trip</span>
-                    <span aria-hidden="true">›</span>
-                  </button>
-                </div>
-              </article>
-            );
-          })}
+                More info <span aria-hidden="true">›</span>
+              </button>
+            </article>
+          ))}
         </div>
       ) : (
         <div className={`${card} flex flex-col items-center justify-center p-10 text-center`}>
@@ -687,10 +596,13 @@ export function TripsScreen({
                 </div>
                 <div>
                   <span className="text-go-secondary">Load Specifications</span>
-                  <p className="font-bold text-go-teal text-sm mt-0.5">
-                    {selectedTrip.weightKg} kg · {selectedTrip.volumeM3} m³
+                  <p className="mt-0.5 font-bold text-go-teal text-sm">
+                    {selectedTrip.weightKg.toLocaleString()} / {selectedTrip.weightCapKg == null ? "Unavailable" : selectedTrip.weightCapKg.toLocaleString()} kg
                   </p>
-                  <p className="text-go-secondary text-[11px]">{selectedTrip.temperature}</p>
+                  <p className="text-go-secondary text-[11px]">
+                    {selectedTrip.volumeM3.toFixed(1)} / {selectedTrip.volumeCapM3 == null ? "Unavailable" : selectedTrip.volumeCapM3.toFixed(1)} m³
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-1">{getBrandBadge(selectedTrip.brand)}<span className="text-go-secondary">{selectedTrip.temperature}</span></div>
                 </div>
               </div>
 

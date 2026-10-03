@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-04 - simplify admin navigation and trip rows
+
+`dev` · @ranathungaWK
+
+Group Personas, Actions, Permission catalogue and Change history beneath People, and show trips as compact rows with the existing detail dialog behind More info.
+Why: the admin sidebar and trip cards took too much space for routine scanning.
+Verified: frontend typecheck, 193 Node tests and production build passed for the trip-row change; the sidebar grouping was added afterwards and has not yet been verified.
+
+---
+
 ## 2026-10-04 - fix: render admin depots while loading
 
 `dev` · @ranathungaWK
