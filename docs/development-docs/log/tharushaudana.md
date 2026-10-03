@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-03 - feat: the Forecast chart scales to demand, and says how many refrigerated vehicles a day needs
+
+`feat/forecast-dispatcher-scale` · @tharushaudana
+
+`focusScale` draws fleet capacity on the chart only when it is within 1.6 times the busiest week; otherwise the bars follow demand with round ticks and the fleet is stated on the top edge with the peak week's share. The chilled strip does the same and adds the refrigerated vehicles an average day needs under each bar. With the Figma's numbers the chart is unchanged.
+Why: on preview the fleet (about 12,150 m³ a week at Peliyagoda) is ten times a week's demand, so every bar was a sliver and the chilled shares (5-16%) were unreadable.
+Verified: `npm run typecheck`, `npm test` (129), `npm run build`, dispatcher browser suite (25). Screenshots with preview-like and Figma-like numbers.
+Open: nothing.
+
+---
+
 ## 2026-10-03 - feat: notifications coloured by tone, issues in red, and an unread count on every bell
 
 `feat/notification-tones-badge` · @tharushaudana

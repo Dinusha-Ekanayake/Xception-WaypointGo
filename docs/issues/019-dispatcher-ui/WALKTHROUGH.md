@@ -90,6 +90,8 @@ Frontend, under `frontend/src/roles/dispatcher/`:
 - `screens/Forecast.tsx` (container), `ForecastChart.tsx` (plain SVG stacked bars, dashed capacity, festival, short week and payday tags, the chilled against refrigerated strip, a hidden table for screen readers), `ForecastSide.tsx` (what the busiest days need, suggested actions).
 - `screens/ReeferNeed.tsx` replaces the Vehicles rail's pending refrigerated card: reefers available today against next week's average day. `Upcoming.tsx` is gone.
 
+Scale: the reference fleet carries far more than a week of demand (about 12,150 m³ a week at Peliyagoda against 800-1,700 of demand), so `focusScale` (in `data/forecast.ts`) draws capacity on the scale only within 1.6 times the busiest week, as in the design; above that the bars follow demand with round ticks and a dashed line on the top edge states the fleet and how much of it the peak week uses. The chilled strip follows the same rule and shows, under each bar, the refrigerated vehicles an average day needs out of those the depot has (`refrigeratedNeeded`).
+
 States: no run yet is a notice, a fallback run is a warning that names it, an error is the Refusal screen.
 
 Runs: `screens/ForecastRuns.tsx` shows the last run (with its model, or "Recent averages" for the fallback) and the next, in depot time, with a countdown. The next run is `nextRunAt` on the overview, from `domain/ForecastSchedule.nextRun`, which walks the job's hourly wake-ups through the same `due` rule the job obeys, so the screen and the job cannot disagree. When it comes the strip says "Running now" and the screen reads again every 20 seconds until the run lands.
