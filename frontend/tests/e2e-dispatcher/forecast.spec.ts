@@ -77,3 +77,19 @@ test("when the run is due the screen says so and shows the new forecast once it 
   await expect(runs).toContainText("Mon 8 Mar · 00:00");
   await expect(page.getByText("No forecast yet")).toHaveCount(0);
 });
+
+test("with the fleet far above demand the bars follow demand and the fleet is stated, with the vehicles a day needs", async ({ page }) => {
+  const f = forecast();
+  f.weeks = f.weeks.map((w) => ({
+    ...w,
+    capacity: { vehicles: 38, refrigeratedVehicles: 9, fleetM3: String(2025 * w.operatingDays), refrigeratedM3: String(415 * w.operatingDays) },
+  }));
+  await serve(page, { forecast: f });
+  await page.goto("/#/forecast");
+
+  const chart = page.getByRole("region", { name: "Weekly demand" });
+  await expect(chart).toContainText("fleet ≈ 12,150 m³/wk, above the scale · peak week uses 5%");
+  await expect(chart).toContainText("Share of refrigerated capacity, peak 16%");
+  await expect(chart).toContainText("Capacity 2,490 m³/wk · 9 vehicles");
+  await expect(chart).toContainText("2 of 9");
+});
