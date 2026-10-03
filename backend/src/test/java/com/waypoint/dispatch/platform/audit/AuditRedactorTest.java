@@ -17,6 +17,21 @@ class AuditRedactorTest {
   }
 
   @Test
+  void locationTrailsAndNestedCoordinatesNeverReachAuditSnapshots() throws Exception {
+    JsonNode original = json("""
+        {"vehicleId":"VEH001","points":[{"latitude":7.123456,"longitude":80.654321,
+        "recordedAt":"2026-10-03T06:00:00Z"}],"result":{"latitude":7.123456,"longitude":80.654321}}
+        """);
+    JsonNode redacted = AuditRedactor.redact(original);
+    assertEquals("VEH001", redacted.get("vehicleId").asText());
+    assertEquals(AuditRedactor.REDACTED, redacted.get("points").asText());
+    assertEquals(AuditRedactor.REDACTED, redacted.at("/result/latitude").asText());
+    assertEquals(AuditRedactor.REDACTED, redacted.at("/result/longitude").asText());
+    assertFalse(redacted.toString().contains("7.123456"));
+    assertTrue(original.get("points").isArray());
+  }
+
+  @Test
   void personalAndSecretFieldsAreReplacedAtAnyDepth() throws Exception {
     JsonNode redacted =
         AuditRedactor.redact(

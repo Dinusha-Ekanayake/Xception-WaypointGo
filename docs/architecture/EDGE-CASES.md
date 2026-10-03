@@ -333,3 +333,13 @@ Two rules keep this honest:
 
 1. **A case without a test is a case that is not handled.** The register and the suite are reviewed together.
 2. **Every detection column must exist as a real metric or alert.** An edge case handled in code but invisible in production is one you will learn about from a user.
+
+
+### Live location foundation (#161, command and UI integration pending)
+
+| Case | Situation | Behavior | Owner | Detection | Test |
+| --- | --- | --- | --- | --- | --- |
+| EXE-LOC-01 | Out-of-bounds, malformed sensor data, future clock or unordered/oversized batch | R-EXE-18 rejects with no personal values in the error | PositionPolicy | Planned position-rejected metric, not wired yet | `PositionPolicyTest` |
+| EXE-LOC-02 | Late offline trail, repeated observation or stationary heartbeat | Accept old points, deduplicate exact repeated observations, keep later stationary heartbeats | PositionPolicy | Planned batch lag metric, not wired yet | `PositionPolicyTest.acceptsOldOfflinePointsAndTheInclusiveSriLankaBounds`, `exactDuplicateFixIsDroppedButStationaryHeartbeatsAndQualityChangesSurvive` |
+| EXE-LOC-03 | Recent poor fix after an old good fix | Poor accuracy cannot refresh last-seen; only active trips become offline | PositionPolicy | Planned offline metric, not wired yet | `PositionPolicyTest.lowAccuracyNeverAdvancesLastSeenAndOfflineNeedsAnActiveTrip` |
+| SEC-LOC-01 | A command audit snapshot contains GPS points | Redact whole points arrays and nested latitude/longitude fields | AuditRedactor | n/a | `AuditRedactorTest.locationTrailsAndNestedCoordinatesNeverReachAuditSnapshots` |

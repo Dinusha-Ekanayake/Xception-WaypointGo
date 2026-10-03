@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-03 - feat: define GPS acceptance and audit privacy
+
+`feat/161-live-map` · @kavindamihiran
+
+Add pure position batch, quality and freshness rules (R-EXE-18/19), with stationary heartbeats kept and exact repeated observations deduplicated. Redact point arrays and nested coordinates from audit snapshots.
+Why: #161 needs testable acceptance and privacy before the position command; [plan](../../issues/161-live-map/PLAN.md).
+Verified: `mvn verify` on isolated PostgreSQL 16 (833 tests, no failures or skips), including policy, redactor and boundary tests.
+Open: no GPS command or read is wired yet. Retention must cover Sync payload copies, and delayed batches need service-date assignment checks.
+
+---
+
 ## 2026-10-03 - feat: add the live map reference geography
 
 `feat/161-live-map` · @kavindamihiran

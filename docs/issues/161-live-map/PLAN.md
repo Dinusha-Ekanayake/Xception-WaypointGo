@@ -69,3 +69,17 @@ Public coordinate provenance must describe the actual point (district centroid v
 Never substitute a city centre and call it a computed district centroid. Historical reference versions
 remain valid with absent coordinates. A store detail override must preserve the imported location.
 GPS capture must not retain fixes across sign-out, and low-quality fixes never advance last-seen time.
+
+
+## Positions domain checkpoint
+
+`PositionFix` and `PositionPolicy` implement R-EXE-18/19 with supplied receipt time; they are not yet
+wired into a command or read endpoint. Duplicate means the same observation, including recorded
+instant and sensor fields, not the same coordinate at a later instant: dropping stationary heartbeats
+would falsely mark a stopped vehicle offline. Audit redaction removes `points` and nested coordinate
+fields before a future location command can reach the audit log.
+
+Before wiring capture, resolve all server-side copies: Sync may persist original command payloads,
+so retention must cover those copies too, not only `execution.vehicle_positions`. Delayed batches
+must validate the assigned driver on the trip service date; `DrivenVehicle.require` checks today and
+cannot be reused unchanged. These are explicit pending implementation tasks, not completed controls.

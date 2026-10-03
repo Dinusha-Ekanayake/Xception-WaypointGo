@@ -53,6 +53,15 @@ full suite passed without changing that fixture. The official allocation validat
 Frontend: 109 Node tests, typecheck and production build passed. No role screen changed, so role
 browser suites and screenshots belong to the later UI checkpoints. This work is local, not deployed.
 
+## Position policy checkpoint
+
+`execution/domain/PositionFix.java` and `PositionPolicy.java` add tested pure rules for batches,
+Sri Lanka bounds, five-minute clock skew, ordered offline trails, quality, exact-fix deduplication and
+ten-minute offline status. Stationary heartbeats survive. These are domain building blocks only:
+no GPS command, endpoint or capture is enabled. `platform/audit/AuditRedactor.java` now removes
+whole points arrays and nested coordinates. The tests are `PositionPolicyTest` and `AuditRedactorTest`. Final `mvn verify` passed 833 tests
+with no failures, errors or skips on the isolated PostgreSQL instance.
+
 ## Remaining on #161
 
 Positions command, RLS and retention; durable driver capture; tile proxy and shared Leaflet map;
