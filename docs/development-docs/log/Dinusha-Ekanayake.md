@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-03 - feat: push alerts, the driver's notification feed, and loader notifications in Sinhala and Tamil (issue #118)
+
+`feat/notifications-push-driver-i18n` · @Dinusha-Ekanayake
+
+The three gaps #153 left. Push: a switch in each role's settings subscribes this device (VAPID key from `push-config`, `notification:Subscribe`), says why when it cannot, and the service worker shows each push and opens the app on a tap. Driver: Isuru's Figma feed and driving-mode badge now carry the driver's real notifications and count; his sample feed stays without an account. Loader: each notification keeps the facts its message was filled from, and the loader fills the same templates in Sinhala and Tamil.
+Why: phones should alert with the app closed; the driver and the loader's languages were the last roles without their notifications.
+Verified: see the PR. `NotificationConsumersIntegrationTest` (facts in the inbox), `loader-messages.test.ts`, `push-keys.test.ts`, the loader suite with the Settings alerts row; driver Home compared with Figma 83:1996.
+Open: push needs VAPID keys on the server. The driver browser suite fails 13 of its tests on `dev` itself since the driver rework; they test the old screens.
+
+---
+
 ## 2026-10-03 - feat: notifications inbox and last sync in each role UI (issue #118)
 
 `feat/118-notifications-inbox` · @Dinusha-Ekanayake
