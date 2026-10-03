@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { request } from "@shared/api/client";
 import type { OutletView, TrailPointView } from "@shared/domain/types";
 import { clock } from "@shared/wording";
+import { cx } from "@shared/ui";
 import { LiveMap, num, type LatLon, type MapLine, type MapMarker } from "@shared/ui/map";
 import type { Stop } from "../data/run.ts";
 import type { PositionRecorder } from "../data/position.ts";
@@ -29,11 +30,14 @@ export default function RouteMap({
   outlet,
   recorder,
   syncedAt,
+  className = "h-[calc(100dvh-64px)] w-full",
 }: {
   next: Stop;
   outlet: OutletView | undefined;
   recorder: PositionRecorder;
   syncedAt: Date | null;
+  /** Its size: below the header on the Map screen; the whole pane beside the run on a landscape tablet. */
+  className?: string;
 }): React.JSX.Element {
   const dest = exactPoint(outlet);
   const [server, setServer] = useState<LatLon[]>([]);
@@ -57,7 +61,7 @@ export default function RouteMap({
   const fit = [here, dest].filter((p): p is NonNullable<typeof p> => p !== null).map((p) => ({ lat: p.lat, lon: p.lon }));
 
   return (
-    <div className="relative h-[calc(100dvh-64px)] w-full">
+    <div className={cx("relative", className)}>
       <LiveMap markers={markers} lines={lines} fit={fit} className="h-full w-full" background="var(--color-go-subtle)" overlay={
         <>
           {syncedAt && <span className="rounded-full bg-white px-3 py-1 text-[13px] text-go-ink shadow">Synced {clock(syncedAt)}</span>}

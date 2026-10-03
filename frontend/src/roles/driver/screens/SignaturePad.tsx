@@ -19,19 +19,39 @@ export default function SignaturePad({ onChange }: { onChange: (signature: Blob 
   useEffect(() => {
     const el = canvas.current;
     if (!el) return;
-    // Match the backing store to the display size once, so strokes are crisp.
-    const ratio = Math.min(window.devicePixelRatio || 1, 2);
-    el.width = Math.round(el.clientWidth * ratio);
-    el.height = Math.round(el.clientHeight * ratio);
-    const context = el.getContext("2d");
-    if (!context) return;
-    context.scale(ratio, ratio);
-    context.fillStyle = "#ffffff";
-    context.fillRect(0, 0, el.clientWidth, el.clientHeight);
-    context.strokeStyle = "#031b08";
-    context.lineWidth = 2.5;
-    context.lineCap = "round";
-    context.lineJoin = "round";
+    // Match the backing store to the display size, so strokes are crisp and
+    // land under the finger. Again when the box changes size, as when the
+    // phone or tablet is turned (issue #201): what was signed is carried over
+    // at its own scale, never stretched, since the image is evidence.
+    const fit = () => {
+      const ratio = Math.min(window.devicePixelRatio || 1, 2);
+      const width = Math.round(el.clientWidth * ratio);
+      const height = Math.round(el.clientHeight * ratio);
+      if (width === 0 || height === 0 || (el.width === width && el.height === height)) return;
+      let before: HTMLCanvasElement | null = null;
+      if (el.width > 0 && el.height > 0) {
+        before = document.createElement("canvas");
+        before.width = el.width;
+        before.height = el.height;
+        before.getContext("2d")?.drawImage(el, 0, 0);
+      }
+      el.width = width;
+      el.height = height;
+      const context = el.getContext("2d");
+      if (!context) return;
+      context.scale(ratio, ratio);
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, el.clientWidth, el.clientHeight);
+      if (before) context.drawImage(before, 0, 0, before.width / ratio, before.height / ratio);
+      context.strokeStyle = "#031b08";
+      context.lineWidth = 2.5;
+      context.lineCap = "round";
+      context.lineJoin = "round";
+    };
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(el);
+    return () => observer.disconnect();
   }, []);
 
   const point = (event: React.PointerEvent<HTMLCanvasElement>) => {

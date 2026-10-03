@@ -23,4 +23,5 @@ export { ShellActions, ShellProvider, useShell, type ShellControls, type ShellRo
 export { Sheet } from "./Sheet.tsx";
 export { APP_LANGS, SettingsPanel, initialsOf, useDeviceLang, type AppLang } from "./SettingsPanel.tsx";
 export { Switch } from "./Switch.tsx";
+export { useMedia } from "./useMedia.ts";
 export { StructuredError, getErrorDefaults, type StructuredErrorProps } from "./StructuredError.tsx";

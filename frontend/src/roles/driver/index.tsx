@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { NotificationView } from "@shared/domain/notification";
 import { ago } from "@shared/notifications/inbox";
 import { useInbox } from "@shared/notifications/useInbox";
-import { cx, useDeviceLang, useShell } from "@shared/ui";
+import { cx, useDeviceLang, useMedia, useShell } from "@shared/ui";
 import { nextStop, type Stop } from "./data/run.ts";
 import { activeIndex, syncLabel, toRouteStops, tripStatus, type RouteStop } from "./data/stopView.ts";
 import DeliveryPinConfirmModal from "./screens/DeliveryPinConfirmModal.tsx";
@@ -89,19 +89,32 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
 
   const header = screen === "home" || screen === "route" || screen === "map";
   const next = nextStop(stops);
+  // A tablet held sideways (an in-cab mount) shows the trip map beside the
+  // run, so the map is always in view; the Map screen itself stays one column.
+  const sideMap = useMedia("(min-width: 1024px) and (orientation: landscape)") && next !== null && screen !== "map";
 
   return (
     <main
       aria-label="Driver workspace"
       data-theme={d.dark ? "dark" : "light"}
+      // The run fills the device: a phone either way up, and on a tablet a
+      // column as wide as the screens are drawn for (issue #201). The phone
+      // mock-up it sat in before was cut off on a phone held sideways and on a
+      // landscape tablet.
       className={cx(
-        "h-dvh max-h-dvh sm:h-auto sm:min-h-dvh w-full sm:py-6 flex items-center justify-center font-go overflow-hidden transition-colors",
-        d.dark ? "go-dark bg-[#161616] sm:bg-[#0a0a0a]" : "bg-[#E7F3F2] sm:bg-[#d6e7e5]"
+        "flex h-dvh max-h-dvh w-full justify-center overflow-hidden font-go transition-colors",
+        d.dark ? "go-dark bg-[#161616] md:bg-[#0a0a0a]" : "bg-[#E7F3F2] md:bg-[#d6e7e5]"
       )}
     >
+      {sideMap && next && (
+        <aside aria-label="Trip map" className="relative min-w-0 flex-1 overflow-hidden">
+          <RouteMap next={next} outlet={run.outlets[next.outletId]} recorder={d.location} syncedAt={run.syncedAt} className="h-full w-full" />
+        </aside>
+      )}
       <div
         className={cx(
-          "w-full h-full sm:max-w-[393px] h-dvh sm:h-[852px] sm:max-h-[852px] sm:rounded-[44px] sm:shadow-2xl overflow-hidden relative transition-colors",
+          "relative h-dvh w-full overflow-hidden transition-colors md:max-w-[600px] md:shadow-2xl",
+          sideMap && "lg:max-w-[480px]",
           d.dark ? "bg-[#161616]" : "bg-[#E7F3F2]"
         )}
       >
@@ -126,7 +139,7 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
             Loading today's run…
           </p>
         ) : (
-          <div key={screen} className="absolute inset-0 animate-fade-in">
+          <div key={screen} className="absolute inset-0 animate-fade-in short:overflow-y-auto">
             {screen === "home" && (
               <HomeNoVehicle
                 driverName={displayName}
@@ -249,7 +262,8 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
             )
           )}
           {d.location.needsConsent && screen === "route" && (
-            <div className="pointer-events-auto flex flex-col gap-2">
+            // One solid card: on its own the outline buttons were drawn over the stop name.
+            <div className="pointer-events-auto flex flex-col gap-2 rounded-[22px] bg-go-card p-2 shadow-go-card">
               <Banner tone="warn" title="Share your location while the run is open?">
                 So the dispatcher and the store can see where the truck is. Only while your run is open.
               </Banner>

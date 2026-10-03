@@ -66,7 +66,7 @@ export default function DeliveryReportWaiting({
 
       <div
         className={cx(
-          "relative mx-auto flex h-full max-h-full w-full flex-col font-go select-none transition-colors overflow-hidden",
+          "relative mx-auto flex h-full max-h-full w-full flex-col font-go select-none transition-colors overflow-hidden short:h-auto short:min-h-full short:max-h-none short:overflow-visible",
           isNight ? "bg-[#161616] text-white" : "bg-[#E7F3F2] text-black"
         )}
       >
@@ -271,7 +271,7 @@ export default function DeliveryReportWaiting({
         {/* VIEW 2: DELIVERY REPORT (CONFIRMATION READY)                       */}
         {/* =================================================================== */}
         {viewState === "report" && (
-          <div className="relative flex flex-col h-full w-full animate-fade-in overflow-hidden">
+          <div className="relative flex flex-col h-full w-full animate-fade-in overflow-hidden short:h-auto short:min-h-full short:max-h-none short:overflow-visible">
             {/* Top Navigation Bar */}
             <div className="pt-[20px] px-[25px] sm:px-[33px] flex items-center justify-between shrink-0 z-20">
               <button
@@ -362,7 +362,7 @@ export default function DeliveryReportWaiting({
             </div>
 
             {/* Scrollable container for Delivery Report content without visible scrollbar */}
-            <div className="flex-1 overflow-y-auto overscroll-contain px-[25px] pt-[20px] pb-4 scroll-smooth no-scrollbar hide-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="flex-1 overflow-y-auto overscroll-contain px-[25px] pt-[20px] pb-4 short:flex-none short:overflow-visible scroll-smooth no-scrollbar hide-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {/* Destination Header */}
               <div className="px-[14px]">
                 <span

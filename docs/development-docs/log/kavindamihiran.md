@@ -3,6 +3,12 @@
 @kavindamihiran's entries, newest first. Only @kavindamihiran adds to this file; how to write an entry is in the [log's index](../development-log.md).
 
 ---
+## 2026-10-04 - feat: driver fits phones and tablets either way up
+
+`feat/role-pwa-driver-layout` · @kavindamihiran · #201, PR 3 of 5
+
+The driver's 393x852 phone mock-up from `sm:` is gone: the run fills a phone, a tablet gets a 600 px column, and a landscape tablet (in-cab) shows the trip map beside the run (`useMedia` in `@shared/ui`, which the loader's `useWide` now uses). On a phone held sideways (`short:`) each screen scrolls as one page so every action is reachable. The signature pad re-fits on rotation without stretching what was signed. The location prompt is one solid card (its buttons were drawn over the stop name). `tilesFor` and `keepTiles` keep the run's map tiles (overview zooms 9-13, streets around each stop at 14-15, at most 600) while online.
+Verified: typecheck, `npm test` (192), build; `tests/devices.ts` adds seven device projects and `e2e-driver/devices.spec.ts` delivers a stop on each with nothing wider than the screen; driver, loader and store suites green.
 ## 2026-10-04 - feat: loader and store open offline on kept reads
 
 `feat/role-pwa-offline-reads` · @kavindamihiran · #201, PR 2 of 5
