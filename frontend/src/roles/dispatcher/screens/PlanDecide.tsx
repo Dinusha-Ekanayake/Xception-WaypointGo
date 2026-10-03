@@ -133,7 +133,7 @@ function DecisionPanel({
       <Checks checks={allocation.checks} />
 
       {allocation.decision === "UNSERVABLE" && (
-        <p className="text-[13px] text-go-ink">No vehicle of this depot can carry this order, so it cannot be placed by hand. The store is told it cannot be served.</p>
+        <p className="text-[13px] text-go-ink">No vehicle of this depot can carry this order, so it cannot be placed by hand. The store manager is told it cannot be served.</p>
       )}
 
       {placeable && (

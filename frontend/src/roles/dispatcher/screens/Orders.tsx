@@ -75,7 +75,7 @@ export default function Orders({
     ["Planned", f.planned],
     ["Left the dock", f.leftDock],
     ["Delivered", f.delivered],
-    ["Confirmed by store", f.confirmedByStore],
+    ["Confirmed by the store manager", f.confirmedByStore],
   ];
 
   return (
@@ -115,7 +115,7 @@ export default function Orders({
         <div className="flex flex-wrap gap-2">
           <Tile tone="bg-go-success-tint" value={f.onTheRoad} label="On the road" onClick={() => setStatus("road")} />
           <Tile tone="bg-go-danger-tint" value={f.attention} label="Need attention" onClick={() => setStatus("attention")} />
-          <Tile tone="bg-go-surface" value={f.awaitingStore} label="Awaiting store" onClick={() => setStatus("done")} />
+          <Tile tone="bg-go-surface" value={f.awaitingStore} label="Awaiting the store manager" onClick={() => setStatus("done")} />
         </div>
       </section>
 

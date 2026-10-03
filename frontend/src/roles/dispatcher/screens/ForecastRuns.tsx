@@ -50,7 +50,7 @@ export default function ForecastRuns({
             <time dateTime={generatedAt} className="text-[13px] font-semibold text-go-ink">
               {depotStamp(new Date(generatedAt))}
             </time>
-            <Pill tone={degraded ? "warning" : "success"}>{degraded ? "Recent averages" : (modelLabel ?? "Model")}</Pill>
+            {degraded && <Pill tone="warning">Recent averages</Pill>}
           </>
         ) : (
           <span className="text-[13px] font-semibold text-go-secondary">Not run yet</span>

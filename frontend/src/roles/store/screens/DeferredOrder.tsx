@@ -5,7 +5,7 @@ import type { OrderView, OutletView } from "@shared/domain/types";
 import { Icon, Notice } from "@shared/ui";
 import type { StoreGateway } from "../data/gateway.ts";
 import { deferralOf } from "../data/deferral.ts";
-import { cases, clock, dayLabel, depotToday, hhmm, temperatureLabel } from "../data/format.ts";
+import { units, clock, dayLabel, depotToday, hhmm, temperatureLabel } from "../data/format.ts";
 import { BackButton, Button, Muted } from "../ui.tsx";
 
 // Figma "09 Order deferred": the day it was due, the day it now comes, the
@@ -53,7 +53,7 @@ export default function DeferredOrder({
               Deferred to next run
             </span>
             <h2 className="text-[22px] leading-tight font-medium text-black lg:text-[26px]">
-              {order.orderRef} · {temperatureLabel(order.temperature)} · {cases(order.itemCount)}
+              {order.orderRef} · {temperatureLabel(order.temperature)} · {units(order.itemCount)}
             </h2>
           </div>
         </div>

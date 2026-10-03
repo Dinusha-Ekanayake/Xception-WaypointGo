@@ -5,7 +5,7 @@ import { useResource } from "@shared/api/useResource";
 import type { DeliveryRecordView, IssueView, OrderView, OutletView, PendingReceiptView } from "@shared/domain/types";
 import { Notice, cx } from "@shared/ui";
 import type { StoreGateway } from "../../data/gateway.ts";
-import { ORDER_STATUS, cases, clock, dayLabel, depotToday, hhmm, temperatureLabel } from "../../data/format.ts";
+import { ORDER_STATUS, units, clock, dayLabel, depotToday, hhmm, temperatureLabel } from "../../data/format.ts";
 import { isOpenIssue } from "../../data/issues.ts";
 import { countStatus, issueBehind, pastWeek, runStatus, runsOf, upcomingDays, type Run, type Status } from "../../data/runs.ts";
 import { Muted } from "../../ui.tsx";
@@ -79,11 +79,11 @@ export default function Deliveries({
     return (
       <Row
         key={`${run.serviceDate}|${run.tripId}`}
-        time={run.arrivedAt ? { label: "Arrived", value: clock(run.arrivedAt), tone: "mint" } : { label: "ETA", value: clock(run.eta), tone: "warm" }}
+        time={run.arrivedAt ? { label: "Arrived", value: clock(run.arrivedAt), tone: "mint" } : { label: "Expected", value: clock(run.eta), tone: "warm" }}
         title={run.vehicleId}
         tag={run.refrigerated ? "Refrigerated vehicle" : undefined}
-        line={`${run.makeUp ? "Make-up delivery" : "Regular run"} · ${orderCount(run.records.length)} · ${cases(run.cases)}`}
-        sub={run.short > 0 ? `${stop} · ${cases(run.short)} short at loading` : stop}
+        line={`${run.makeUp ? "Make-up delivery" : "Regular delivery"} · ${orderCount(run.records.length)} · ${units(run.units)}`}
+        sub={run.short > 0 ? `${stop} · ${units(run.short)} short at loading` : stop}
         status={runStatus(run, pending, outlet?.windowClose ?? null)}
         highlight={receivable !== undefined}
         actions={[
@@ -111,7 +111,7 @@ export default function Deliveries({
         time={{ label: o.deliveryDate === today ? "Window" : shortDay(o.deliveryDate), value: windowOpen, tone: waiting ? "mint" : "plain" }}
         title={o.orderRef}
         tag={temperatureLabel(o.temperature)}
-        line={`${o.redeliveryOf ? "Make-up delivery" : "Regular order"} · ${cases(o.itemCount)}`}
+        line={`${o.redeliveryOf ? "Make-up delivery" : "Regular order"} · ${units(o.itemCount)}`}
         sub={waiting ? "Delivered, waiting for your count" : o.status === "ALLOCATED" ? "Planned · the vehicle shows once it leaves the depot" : undefined}
         status={status}
         highlight={waiting}
@@ -135,8 +135,8 @@ export default function Deliveries({
         time={{ label: shortDay(run.serviceDate), value: clock(run.arrivedAt ?? run.completedAt ?? run.eta) }}
         title={run.vehicleId}
         tag={run.refrigerated ? "Refrigerated vehicle" : undefined}
-        line={`${run.records.some((r) => r.outcome === "FAILED") ? "Not delivered" : "Delivered"} · ${orderCount(run.records.length)} · ${cases(run.cases)}${done}`}
-        sub={!count.known ? "The count could not be read" : count.short > 0 ? `${cases(count.short)} short on your count` : "All received in full"}
+        line={`${run.records.some((r) => r.outcome === "FAILED") ? "Not delivered" : "Delivered"} · ${orderCount(run.records.length)} · ${units(run.units)}${done}`}
+        sub={!count.known ? "The count could not be read" : count.short > 0 ? `${units(count.short)} short on your count` : "All received in full"}
         status={count}
         actions={[{ label: "View", onClick: () => onOpen(run.records[0]!.orderId) }]}
       />
@@ -185,7 +185,7 @@ export default function Deliveries({
 
       {range === "upcoming" && (
         <section aria-label="Upcoming" className="flex flex-col gap-3">
-          {heading("Upcoming", "planned after 4:00 PM")}
+          {heading("Upcoming", "planned after 16:00")}
           {days.map((d) => (
             <Row
               key={d.date}

@@ -648,7 +648,7 @@ export default function DeliveryReportWaiting({
             showToast(`Reported to dispatch: "${reason}"`);
           }}
           isNight={isNight}
-          stopContext={`Stop ${currentStop.stopNumber} · ${currentStop.name} · ETA ${currentStop.eta}`}
+          stopContext={`Stop ${currentStop.stopNumber} · ${currentStop.name} · Expected ${currentStop.eta}`}
         />
 
         {/* Floating Toast Notification */}

@@ -8,7 +8,7 @@ test("no one at the store: the stop is recorded as not delivered, with what happ
   await page.getByRole("button", { name: "Report problem" }).click();
 
   const sheet = page.getByRole("dialog", { name: "Report a problem" });
-  await sheet.getByRole("radio", { name: /No one at the store/ }).click();
+  await sheet.getByRole("radio", { name: /No one at the outlet/ }).click();
   await sheet.getByRole("button", { name: "Record this stop" }).click();
 
   await expect(page.getByLabel("Why could it not be delivered?")).toHaveValue("outlet_closed");

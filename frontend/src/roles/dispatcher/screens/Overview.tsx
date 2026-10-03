@@ -75,7 +75,7 @@ export default function Overview({
               <div className="flex gap-2 max-sm:flex-wrap">
                 <StatTile label="Due today" value={show(day?.due)} />
                 <StatTile label="Planned" value={show(day?.planned)} />
-                <StatTile label="Delivered" value={show(day?.delivered)} note={day ? `${day.confirmedByStore} confirmed by store` : undefined} />
+                <StatTile label="Delivered" value={show(day?.delivered)} note={day ? `${day.confirmedByStore} confirmed by the store manager` : undefined} />
                 <StatTile label="Need attention" value={show(day?.attention)} valueClassName={day?.attention ? "text-go-warning-text" : "text-go-ink"} />
               </div>
             )}

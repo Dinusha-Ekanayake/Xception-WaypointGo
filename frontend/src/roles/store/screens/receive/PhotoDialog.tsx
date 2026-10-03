@@ -5,8 +5,8 @@ import { Button, Modal } from "../../ui.tsx";
 
 export default function PhotoDialog({ url, onRetake, onClose }: { url: string; onRetake: () => void; onClose: () => void }): React.JSX.Element {
   return (
-    <Modal label="Package photo" onClose={onClose}>
-      <h2 className="text-[22px] font-medium text-black">Package photo</h2>
+    <Modal label="Product photo" onClose={onClose}>
+      <h2 className="text-[22px] font-medium text-black">Product photo</h2>
       {/* A local object URL of a photo just taken; nothing for next/image to optimise. */}
       <img src={url} alt="The photo of the problem" className="max-h-[50dvh] w-full rounded-[16px] object-contain bg-go-canvas" />
       <div className="flex gap-2.5">

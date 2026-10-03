@@ -578,7 +578,7 @@ export default function RouteNextStop({
                 )}
               >
                 <span className={cx("text-[12px] font-light leading-[15px]", isNight ? "text-white" : "text-black")}>
-                  ETA
+                  Expected
                 </span>
                 <span className={cx("text-[36px] font-semibold leading-[45px] tracking-tight", isNight ? "text-white" : "text-black")}>
                   {activeStop.eta}
@@ -801,7 +801,7 @@ export default function RouteNextStop({
           showToast(`Reported to dispatch: "${reason}"`);
         }}
         isNight={isNight}
-        stopContext={`Stop ${activeStop.stopNumber} · ${activeStop.name} · ETA ${activeStop.eta}`}
+        stopContext={`Stop ${activeStop.stopNumber} · ${activeStop.name} · Expected ${activeStop.eta}`}
       />
 
       {/* ---- Call Options Bottom Sheet -------------------------------- */}

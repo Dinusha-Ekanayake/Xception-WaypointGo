@@ -930,7 +930,7 @@ export default function HomeNoVehicle({
                         isNight ? "text-[#00BF6A]" : "text-[#0E766D]"
                       )}
                     >
-                      Route updated
+                      Run sheet updated
                     </span>
                   </div>
                   <span className="text-[12px] font-light text-[#A9A9A9]">03:02</span>
@@ -944,7 +944,7 @@ export default function HomeNoVehicle({
                 <VoiceMessagePlayer
                   id="msg-route-updated"
                   duration="0:06"
-                  text="Route updated. Kadugannawa added as stop 03. Dispatch moved this order onto your run. Your run is now 3 stops."
+                  text="Run sheet updated. Kadugannawa added as stop 03. The dispatcher moved this order onto your trip. Your trip now has 3 stops."
                   isNight={isNight}
                   activeAudioId={activeAudioId}
                   onPlayChange={setActiveAudioId}

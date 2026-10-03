@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { IssueCommandKind, type OrderView, type RaiseIssue } from "@shared/domain/types";
 import { Icon, Notice, cx } from "@shared/ui";
 import type { StoreGateway } from "../../data/gateway.ts";
-import { cases, dayLabel, temperatureLabel } from "../../data/format.ts";
+import { units as unitsText, dayLabel, temperatureLabel } from "../../data/format.ts";
 import { REPORT_KINDS, type ReportKind } from "../../data/issues.ts";
 import { shrinkPhoto } from "../../data/photo.ts";
 import { LOWERS_COUNT, noteOf } from "../../data/receive.ts";
@@ -138,13 +138,13 @@ export default function ReportIssue({
             >
               {orders.map((o) => (
                 <option key={o.orderId} value={o.orderId}>
-                  {o.orderRef} · {temperatureLabel(o.temperature)} · {dayLabel(o.deliveryDate)} · {cases(o.itemCount)}
+                  {o.orderRef} · {temperatureLabel(o.temperature)} · {dayLabel(o.deliveryDate)} · {unitsText(o.itemCount)}
                 </option>
               ))}
             </select>
           </label>
           <label className="flex flex-col gap-1.5 text-[13px] text-go-muted">
-            Package
+            Product line
             <select
               value={productId}
               onChange={(e) => {
@@ -155,7 +155,7 @@ export default function ReportIssue({
             >
               {(order?.lines ?? []).map((l) => (
                 <option key={l.productId} value={l.productId}>
-                  {l.productId} · {cases(l.quantity)}
+                  {l.productId} · {unitsText(l.quantity)}
                 </option>
               ))}
             </select>
@@ -177,8 +177,8 @@ export default function ReportIssue({
           </div>
           {kind && LOWERS_COUNT[kind.kind] && line && (
             <div className="flex items-center gap-3 text-[14px] text-go-muted">
-              How many cases?
-              <Stepper value={units} label="Cases affected" onChange={(n) => setUnits(Math.min(Math.max(1, n), line.quantity))} />
+              How many units?
+              <Stepper value={units} label="Units affected" onChange={(n) => setUnits(Math.min(Math.max(1, n), line.quantity))} />
             </div>
           )}
           <label className="flex flex-col gap-1.5 text-[13px] text-go-muted">

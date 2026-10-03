@@ -198,7 +198,7 @@ test("an issue's age reads in minutes, hours, then days, and a redelivery defaul
 test("the second pass is said only when it changed the plan or stopped early", () => {
   const base = { firstPassServed: 70, firstPassDeferred: 14, served: 73, deferred: 11, improved: true, chilledVolumeGainedM3: "30.448", stoppedBy: "NONE" as const, chilledCandidates: 26, chilledSearched: 26 };
   assert.equal(improvementNote(null), null);
-  assert.deepEqual(improvementNote(base)?.title, "Reefers planned again: 3 more orders served");
+  assert.deepEqual(improvementNote(base)?.title, "Refrigerated vehicles planned again: 3 more orders served");
   assert.match(improvementNote(base)!.detail, /from 14 to 11, with 30\.4 m³ more chilled/);
   assert.equal(improvementNote({ ...base, improved: false, served: 70, deferred: 14 }), null);
   assert.match(improvementNote({ ...base, improved: false, stoppedBy: "CLOCK" })!.detail, /stopped before it finished/);

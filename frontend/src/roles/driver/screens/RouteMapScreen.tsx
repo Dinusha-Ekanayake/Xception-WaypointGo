@@ -295,7 +295,7 @@ export default function RouteMapScreen({
                 ? "bg-[#292929] text-white hover:bg-[#333333]"
                 : "bg-white text-black hover:bg-slate-50"
             )}
-            aria-label="Back to route"
+            aria-label="Back to run sheet"
           >
             <svg width="9" height="14" viewBox="0 0 9 14" fill="none">
               <path

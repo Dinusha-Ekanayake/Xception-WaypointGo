@@ -43,27 +43,18 @@ function mockFallback(request: NextRequest, path: string): Response | null {
     new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
 
   if (path === "/api/session") {
-    if (request.method === "GET") {
+    if (request.method === "GET" || request.method === "POST") {
       return json({
-        userId: "loader-device-01",
-        displayName: "Peliyagoda Depot Dock #1",
-        roles: ["loader"],
+        userId: "demo-user-01",
+        displayName: "Dispatcher Control",
+        roles: ["dispatcher", "loader", "driver", "store_manager"],
         operator: {
           userId: "loader-1",
           displayName: "Isuru Perera",
           employeeCode: "LDR-00038",
           since: "2026-10-03T08:00:00Z",
         },
-        scope: ["depot:PELIYAGODA"],
-      });
-    }
-    if (request.method === "POST") {
-      return json({
-        userId: "loader-device-01",
-        displayName: "Peliyagoda Depot Dock #1",
-        roles: ["loader"],
-        operator: null,
-        scope: ["depot:PELIYAGODA"],
+        scope: ["depot:PELIYAGODA", "depot:COLOMBO", "depot:KANDY", "outlet:OUT001"],
       });
     }
   }

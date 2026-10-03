@@ -155,7 +155,11 @@ export default function AppShell(): React.JSX.Element {
     const code = state.status ?? (online ? 503 : "OFFLINE");
     const message =
       sync.pending > 0
+<<<<<<< HEAD
         ? `Having trouble connecting right now.\nDon't worry, ${sync.pending} ${
+=======
+        ? `Having trouble connecting right now.\nDon't worry: ${sync.pending} ${
+>>>>>>> origin/dev
             sync.pending === 1 ? "change is" : "changes are"
           } saved safely on this phone.`
         : undefined;

@@ -140,7 +140,7 @@ export function improvementNote(improvement: ImprovementView | null): { title: s
   const more = improvement.served - improvement.firstPassServed;
   const volume = Number(improvement.chilledVolumeGainedM3);
   return {
-    title: `Reefers planned again: ${more} more ${more === 1 ? "order" : "orders"} served`,
+    title: `Refrigerated vehicles planned again: ${more} more ${more === 1 ? "order" : "orders"} served`,
     detail:
       `Deferred went from ${improvement.firstPassDeferred} to ${improvement.deferred}` +
       (volume > 0 ? `, with ${volume.toFixed(1)} m³ more chilled delivered` : "") +
