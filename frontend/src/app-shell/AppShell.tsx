@@ -24,7 +24,9 @@ import {
  * their own top bar. For these the shell draws no strip of its own and lends
  * the controls through ShellProvider instead.
  */
-const OWN_HEADER = new Set<ShellRole>(["loader", "store_manager", "dispatcher", "driver"]);
+/** How often an open tab asks whether a new build was deployed. */
+const UPDATE_CHECK_MS = 30 * 60_000;
+const OWN_HEADER =new Set<ShellRole>(["loader", "store_manager", "dispatcher", "driver"]);
 
 /**
  * Session gate and role routing. Signed out, server unreachable and offline are
@@ -115,12 +117,33 @@ export default function AppShell(): React.JSX.Element {
   }, [signedIn]);
 
   useEffect(() => {
-    if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") {
-      navigator.serviceWorker.register("/sw.js").catch(() => {
-        // An unavailable service worker degrades offline support; it must not
-        // stop the application loading.
-      });
-    }
+    if (!("serviceWorker" in navigator) || process.env.NODE_ENV !== "production") return;
+    const sw = navigator.serviceWorker;
+    // A dock tablet stays open all shift, so it never navigates and would keep
+    // the build it first loaded. Ask for a new worker when the screen comes
+    // back and every 30 minutes; when one takes over, reload into its build.
+    // Queued work lives in IndexedDB, so the reload loses nothing.
+    const hadController = sw.controller !== null;
+    let reloaded = false;
+    const onControllerChange = () => {
+      if (!hadController || reloaded) return;
+      reloaded = true;
+      window.location.reload();
+    };
+    const check = () => void sw.getRegistration().then((reg) => reg?.update()).catch(() => {});
+    const onVisible = () => document.visibilityState === "visible" && check();
+    sw.addEventListener("controllerchange", onControllerChange);
+    document.addEventListener("visibilitychange", onVisible);
+    const timer = window.setInterval(check, UPDATE_CHECK_MS);
+    sw.register("/sw.js").catch(() => {
+      // An unavailable service worker degrades offline support; it must not
+      // stop the application loading.
+    });
+    return () => {
+      sw.removeEventListener("controllerchange", onControllerChange);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.clearInterval(timer);
+    };
   }, []);
 
 
@@ -132,7 +155,7 @@ export default function AppShell(): React.JSX.Element {
     const code = state.status ?? (online ? 503 : "OFFLINE");
     const message =
       sync.pending > 0
-        ? `Having trouble connecting right now.\nDon't worry—${sync.pending} ${
+        ? `Having trouble connecting right now.\nDon't worry, ${sync.pending} ${
             sync.pending === 1 ? "change is" : "changes are"
           } saved safely on this phone.`
         : undefined;
