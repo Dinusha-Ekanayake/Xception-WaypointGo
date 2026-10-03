@@ -94,6 +94,41 @@ public class JdbcOrderRepository {
         != null;
   }
 
+  /**
+   * How many other outlets of one brand and district hold a live order for each
+   * day in a range (R-ORD-13). A count per day, never which outlets: the caller
+   * runs it as the system, so the result must name nobody.
+   */
+  public Map<LocalDate, Integer> bookedStops(
+      String depotCode,
+      String brandCode,
+      String districtName,
+      String exceptOutletId,
+      LocalDate from,
+      LocalDate to) {
+    Map<LocalDate, Integer> stops = new java.util.HashMap<>();
+    for (Map<String, Object> row :
+        database.query(
+            """
+            SELECT delivery_date, count(DISTINCT outlet_id) AS stops
+              FROM ordering.orders
+             WHERE depot_code = ? AND brand_code = ? AND district_name = ? AND outlet_id <> ?
+               AND delivery_date BETWEEN ? AND ?
+               AND status IN ('stock_unknown','confirmed','allocated','deferred')
+             GROUP BY delivery_date
+            """,
+            depotCode,
+            brandCode,
+            districtName,
+            exceptOutletId,
+            Date.valueOf(from),
+            Date.valueOf(to))) {
+      stops.put(
+          ((Date) row.get("delivery_date")).toLocalDate(), ((Number) row.get("stops")).intValue());
+    }
+    return stops;
+  }
+
   /** An order as stored, with the facts the aggregate does not need but a reader does. */
   public record Stored(Order order, Instant placedAt) {}
 

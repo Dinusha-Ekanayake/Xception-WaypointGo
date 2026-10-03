@@ -141,7 +141,7 @@ export const SHORTFALL: IssueView = {
 
 // ---- the week around today, for "05a Deliveries" and "05b make-up delivery" ----
 
-const shift = (days: number) => new Date(Date.parse(`${today}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
+export const shift = (days: number) => new Date(Date.parse(`${today}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
 export const PAST_DAY = shift(-2);
 
 /** Delivered two days ago, one yoghurt short on the store's count. */
@@ -226,7 +226,7 @@ export type Handover = { status: "AWAITING" | "CONFIRMED" | "LOCKED" | "EXPIRED"
 /** Routes every call the store makes; a delivered order is waiting to be received. */
 export async function mockStore(
   page: Page,
-  options: { answered?: Handover | null; loadingShort?: boolean; week?: boolean; deferred?: boolean; positions?: unknown[]; threads?: ThreadMock[] } = {},
+  options: { answered?: Handover | null; loadingShort?: boolean; week?: boolean; deferred?: boolean; positions?: unknown[]; threads?: ThreadMock[]; rideAlong?: { date: string; stopsBooked: number }[] | "down" } = {},
 ): Promise<{ sent: Sent; handover: { current: Handover | null }; uploads: string[] }> {
   const threads = options.threads ?? [];
   const sent: Sent = [];
@@ -250,7 +250,13 @@ export async function mockStore(
       return json({ outletId: "OUT085", windowOpen: null, windowClose: null, dockType: null, contactName: null, contactPhone: null, receivingNotes: null, rowVersion: 0, updatedAt: null });
     }
     if (pathname === "/api/session") return json(SESSION);
-    if (pathname === "/api/reference/outlets/OUT085") return json(OUTLET);
+    // A Tech store is offered a shared trip (R-ORD-13); the others never are.
+    if (pathname === "/api/reference/outlets/OUT085") return json(options.rideAlong ? { ...OUTLET, brandCode: "Tech" } : OUTLET);
+    if (pathname === "/api/orders/ride-along") {
+      if (options.rideAlong === "down") return route.fulfill({ status: 503, contentType: "application/problem+json", body: JSON.stringify({ title: "Unavailable", status: 503 }) });
+      const requested = url.searchParams.get("requestedDate");
+      return json({ requestedDate: requested, deliveryDate: requested, offered: options.rideAlong !== undefined, days: Array.isArray(options.rideAlong) ? options.rideAlong.filter((d) => d.date !== requested) : [] });
+    }
     if (pathname === "/api/execution/positions") return json(options.positions ?? []);
     if (pathname.startsWith("/api/execution/trips/")) {
       return json({ items: [{ recordedAt: `${today}T00:05:00Z`, latitude: "7.290000", longitude: "80.630000", lowQuality: false }, { recordedAt: `${today}T00:10:00Z`, latitude: "7.270000", longitude: "80.580000", lowQuality: false }], nextCursor: null });

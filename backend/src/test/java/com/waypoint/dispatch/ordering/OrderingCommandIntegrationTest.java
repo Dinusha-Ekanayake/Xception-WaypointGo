@@ -460,7 +460,55 @@ class OrderingCommandIntegrationTest {
     assertEquals(before + 1, denials(managerId, "order:Read"));
   }
 
+  @Test
+  void aTechStoreIsToldWhichNearbyDayATripAlreadyServesItsDistrict() throws Exception {
+    // OUT023 and OUT024 are Tech outlets in Colombo; the manager runs both.
+    database.asModule(
+        ModuleRole.IAM,
+        null,
+        () -> {
+          for (String outlet : List.of("OUT023", "OUT024")) {
+            database.update(
+                "INSERT INTO iam.user_outlet_access (user_id, outlet_id) VALUES (?, ?)",
+                managerId,
+                outlet);
+          }
+        });
+    LocalDate busy = reference.nextOperatingDay(serviceDate.plusDays(1));
+    org.junit.jupiter.api.Assumptions.assumeTrue(
+        !busy.isAfter(serviceDate.plusDays(2)), "the next run is within reach");
+    send(manager, placeFor(UUID.randomUUID(), "OUT024", busy), 200);
+    String path = "/api/orders/ride-along?outlet=OUT023&requestedDate=" + serviceDate;
+
+    JsonNode hint = mapper.readTree(read(manager, path, 200));
+
+    assertTrue(hint.get("offered").asBoolean(), hint.toString());
+    assertEquals(serviceDate.toString(), hint.get("deliveryDate").asText());
+    assertEquals(1, hint.get("days").size(), hint.toString());
+    assertEquals(busy.toString(), hint.get("days").get(0).get("date").asText());
+    assertEquals(1, hint.get("days").get(0).get("stopsBooked").asInt());
+    assertFalse(hint.toString().contains("OUT024"), "a count, never which outlet");
+
+    // R-ORD-13: Fresh is never moved off its day.
+    JsonNode fresh =
+        mapper.readTree(
+            read(manager, "/api/orders/ride-along?outlet=" + OUTLET + "&requestedDate=" + serviceDate, 200));
+    assertFalse(fresh.get("offered").asBoolean());
+
+    // Another store's hint is 403 plus audit, never an empty answer.
+    UUID strangerId = userId(strangerEmail);
+    long before = denials(strangerId, "order:Read");
+    read(stranger, path, 403);
+    assertEquals(before + 1, denials(strangerId, "order:Read"));
+  }
+
   // ---- helpers -------------------------------------------------------------
+
+  private String placeFor(UUID commandId, String outlet, LocalDate requested) {
+    return envelope(commandId, "order:Place", null,
+        "{\"outletId\":\"" + outlet + "\",\"requestedDate\":\"" + requested
+            + "\",\"lines\":[{\"productId\":\"P-1\",\"quantity\":12}]}");
+  }
 
   private UUID placed() throws Exception {
     JsonNode result = mapper.readTree(send(manager, place(UUID.randomUUID(), serviceDate), 200)).get("result");
