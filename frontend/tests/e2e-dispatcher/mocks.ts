@@ -83,6 +83,10 @@ export type Desk = {
   commands: Sent[];
   /** Answer the next command of this kind with this problem instead of applying it. */
   refuse: { kind: string; status: number; code: string; detail: string; rules?: string[] } | null;
+  /** What /api/ml/models answers: the registry, for the forecast error chip (#119). */
+  models?: unknown[];
+  /** What /api/ml/plans/{id}/predictions answers for the published plan; none means not scored (#119). */
+  predictions?: unknown;
   /** What /api/ml/forecast/overview answers for the depot. */
   forecast: ForecastOverviewView;
   /** Saved plans, newest first, and the plan each one holds. */
@@ -213,7 +217,7 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
     if (pathname.startsWith("/api/reference/calendar/")) {
       return route.fulfill(json({ date: pathname.split("/").pop(), operating: true, nextOperatingDay: "2027-03-02", known: true, day: {} }));
     }
-    if (/^\/api\/ml\/plans\/[^/]+\/predictions$/.test(pathname)) return route.fulfill(problem(404, "NOT_FOUND", "Not scored"));
+    if (/^\/api\/ml\/plans\/[^/]+\/predictions$/.test(pathname)) return route.fulfill(desk.predictions ? json(desk.predictions) : problem(404, "NOT_FOUND", "Not scored"));
     if (pathname === "/api/execution/run-sheets") return route.fulfill(json(desk.sheets));
     if (pathname === "/api/execution/positions") return route.fulfill(json(desk.positions ?? []));
     if (pathname.startsWith("/api/execution/deliveries/")) {
@@ -233,6 +237,11 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
       return route.fulfill(json(one[2] ? (desk.history[found.issueId] ?? []) : found));
     }
     if (pathname === "/api/plans/deferrals") return route.fulfill(json(desk.deferrals));
+    if (pathname === "/api/ml/models") {
+      return route.fulfill(json(desk.models ?? [
+        { name: "datathon-task2a", version: "2026.1", kind: "demand_forecast", status: "ACTIVE", metrics: { total_wape: "0.0415", chilled_wape: "0.0439" } },
+      ]));
+    }
     if (pathname === "/api/ml/forecast/overview") {
       const weeks = Number(url.searchParams.get("weeks") ?? "10");
       return route.fulfill(json({ ...desk.forecast, weeks: desk.forecast.weeks.slice(0, weeks) }));

@@ -1,7 +1,7 @@
 import { request } from "@shared/api/client";
 import { useResource, type Resource } from "@shared/api/useResource";
 import type { ForecastOverviewView } from "@shared/domain/types";
-import { WEEKS } from "./forecast.ts";
+import { WEEKS, type ModelMetrics } from "./forecast.ts";
 
 const POLL_MS = 5 * 60_000;
 
@@ -20,4 +20,11 @@ export function useForecast(depots: string[], weeks = WEEKS): Resource<ForecastO
             ),
           );
   return useResource(load, `forecast|${depots.join(",")}|${weeks}`, POLL_MS);
+}
+
+const MODELS_POLL_MS = 30 * 60_000;
+
+/** The model registry (GET /api/ml/models), for the forecast error chip (#119). A refusal hides the chip. */
+export function useModels(enabled: boolean): Resource<ModelMetrics[]> {
+  return useResource(enabled ? (signal: AbortSignal) => request<ModelMetrics[]>("/api/ml/models", { signal }) : null, `models|${enabled}`, MODELS_POLL_MS);
 }
