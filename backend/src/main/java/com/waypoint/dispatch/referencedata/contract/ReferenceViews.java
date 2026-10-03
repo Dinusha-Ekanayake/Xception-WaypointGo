@@ -33,7 +33,19 @@ public final class ReferenceViews {
       LocalTime windowClose,
       Optional<LocalTime> effectiveWindowOpen,
       Optional<LocalTime> effectiveWindowClose,
-      boolean vanOnly) {}
+      boolean vanOnly,
+      Optional<GeoPoint> location) {
+    public OutletView(String outletId, String brandCode, String districtName, String depotCode,
+        String dockType, String parkingConstraint, LocalTime windowOpen, LocalTime windowClose,
+        Optional<LocalTime> effectiveWindowOpen, Optional<LocalTime> effectiveWindowClose, boolean vanOnly) {
+      this(outletId, brandCode, districtName, depotCode, dockType, parkingConstraint, windowOpen,
+          windowClose, effectiveWindowOpen, effectiveWindowClose, vanOnly, Optional.empty());
+    }
+  }
+
+  public record GeoPoint(BigDecimal latitude, BigDecimal longitude, String precision) {}
+  public record DepotView(String depotCode, String displayName, Optional<GeoPoint> location) {}
+  public record DistrictView(String districtName, String depotCode, Optional<GeoPoint> location) {}
 
   public record VehicleView(
       String vehicleId,

@@ -2,7 +2,7 @@
 
 import { cx } from "@shared/ui";
 import { litres } from "../data/fleet.ts";
-import { formatDay } from "../data/scope.ts";
+import { dayLabel } from "../data/scope.ts";
 import { useFuel } from "../data/useDay.ts";
 import Refusal from "./Refusal.tsx";
 
@@ -38,7 +38,7 @@ export default function FuelWeek({ vehicleId, date }: { vehicleId: string; date:
           {over ? `${litres(-remaining)} over` : `${litres(remaining)} left`}
         </span>
       </p>
-      <p className="text-[11px] text-go-secondary">Week from {formatDay(fuel.data.weekStarting)}, published plans only</p>
+      <p className="text-[11px] text-go-secondary">Week from {dayLabel(fuel.data.weekStarting)}, published plans only</p>
     </div>
   );
 }

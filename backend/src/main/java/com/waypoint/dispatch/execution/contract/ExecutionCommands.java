@@ -19,6 +19,7 @@ public final class ExecutionCommands {
   public static final String CAPTURE_PROOF = "delivery:CaptureProof";
   public static final String REPORT_VEHICLE_STATUS = "delivery:ReportVehicleStatus";
   public static final String REPORT_FAULT = "delivery:ReportFault";
+  public static final String RECORD_POSITIONS = "delivery:RecordPositions";
 
   public record StartStop(UUID deliveryId) {}
 
@@ -64,4 +65,23 @@ public final class ExecutionCommands {
   /** @param kind {@code vehicle} or {@code road} */
   public record ReportFault(
       String vehicleId, Optional<UUID> deliveryId, String kind, String description) {}
+
+  /**
+   * A batch of 1-100 GPS fixes from the assigned driver's phone, oldest first
+   * (R-EXE-18). Append only, so no expectedVersion: the command id makes a
+   * replay a no-op and a repeated fix is stored once.
+   */
+  public record RecordPositions(String vehicleId, Optional<UUID> tripId, List<PositionPoint> points) {
+    public RecordPositions {
+      points = List.copyOf(points);
+    }
+  }
+
+  public record PositionPoint(
+      Instant recordedAt,
+      java.math.BigDecimal latitude,
+      java.math.BigDecimal longitude,
+      Optional<java.math.BigDecimal> accuracyM,
+      Optional<java.math.BigDecimal> headingDeg,
+      Optional<java.math.BigDecimal> speedKmh) {}
 }

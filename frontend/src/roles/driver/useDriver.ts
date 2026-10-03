@@ -6,6 +6,7 @@ import { ExecutionCommandKind, type FailureReason, type ReportedVehicleStatus } 
 import { discardUpload, useSync } from "@shared/offline";
 import { useShell } from "@shared/ui";
 import { createGateway } from "./data/gateway.ts";
+import { usePositionRecorder } from "./data/position.ts";
 import { isFinished, nextStop, type Stop } from "./data/run.ts";
 import { DeliveryKind, useRun, type Outcome } from "./data/useRun.ts";
 import type { Report } from "./screens/DeliveryReport.tsx";
@@ -21,7 +22,8 @@ export type View =
   | { name: "route"; deliveryId: string | null }
   | { name: "report"; deliveryId: string; failed: FailureReason | null }
   | { name: "stop"; deliveryId: string }
-  | { name: "complete" };
+  | { name: "complete" }
+  | { name: "map" };
 
 export type Saved = { title: string; onPhone: boolean; last: boolean; warning: string | null };
 
@@ -47,6 +49,9 @@ export function useDriver(userId: string) {
   const run = useRun(gateway, userId, online, `${sync.pending}:${sync.held.length}`, sync.syncNow);
 
   const [view, setView] = useState<View>({ name: "home" });
+  // GPS while a run is open (issue #161): a released trip with a stop still to do.
+  const stillToDo = nextStop(run.stops);
+  const location = usePositionRecorder(gateway, run.vehicle?.vehicleId ?? null, stillToDo?.tripId ?? null, stillToDo !== null);
   const [dark, setDark] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -245,6 +250,7 @@ export function useDriver(userId: string) {
 
   return {
     online,
+    location,
     run,
     sync,
     view,

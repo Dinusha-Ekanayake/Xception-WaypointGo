@@ -80,6 +80,7 @@ public class CsvReferenceImporter {
 
   private static final List<String> FILES =
       List.of(
+          "geo_points.csv",
           "outlets.csv",
           "vehicles.csv",
           "district_travel.csv",
@@ -175,6 +176,15 @@ public class CsvReferenceImporter {
               flag(row, "is_operating"),
               false));
     }
+
+    var geo = GeoCsvReader.read(root.resolve("geo_points.csv"), depots, districts, outlets);
+    depots = depots.stream().map(d -> new Depot(d.code(), d.displayName(), d.timezone(),
+        Optional.of(geo.depot(d.code().value())))).toList();
+    districts = districts.stream().map(d -> new District(d.name(), d.depot(),
+        Optional.of(geo.district(d.name())))).toList();
+    outlets = outlets.stream().map(o -> new Outlet(o.id(), o.brandCode(), o.districtName(),
+        o.dockType(), o.parkingConstraint(), o.window(), o.mallWindow(),
+        Optional.of(geo.outlet(o.id(), o.districtName())))).toList();
 
     ReferenceSnapshot snapshot =
         new ReferenceSnapshot(

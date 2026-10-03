@@ -30,18 +30,28 @@ Each module has the same five internal layers. The spec lists what belongs in ea
 | Layer | Contents |
 | --- | --- |
 | contract | `ReferenceQuery`, and the views it returns: `OutletView`, `VehicleView`, `TravelView`, `AllowanceView`, `CalendarDayView` |
-| domain | `Outlet`, `Vehicle`, `District`, `Depot`, `CalendarDay`, `DeliveryWindow`, `TravelProfile`, `ServiceAllowance`, `OperatingCalendarPolicy`, `ReferenceSnapshot`, `ReferenceValidator` |
-| application | `ImportReferenceDataHandler`, `ReferenceDataQuery`, `SetVehicleDayStatusHandler`, `ReferenceBootstrap`, `ReferenceScope` |
+| domain | `Outlet`, `OutletDetails`, `Vehicle`, `District`, `Depot`, `CalendarDay`, `DeliveryWindow`, `TravelProfile`, `ServiceAllowance`, `OperatingCalendarPolicy`, `ReferenceSnapshot`, `ReferenceValidator` |
+| application | `ImportReferenceDataHandler`, `ReferenceDataQuery`, `SetVehicleDayStatusHandler`, `UpdateOutletDetailsHandler`, `OutletDetailsQuery`, `ReferenceBootstrap`, `ReferenceScope` |
 | infrastructure | `CsvReferenceImporter`, `ReferenceVersionWriter`, `ReferenceVersionReader`, `ReferenceCache` |
 | web | admin read endpoints |
 
-**Owns:** `ref.brands`, `ref.depots`, `ref.districts`, `ref.outlets`, `ref.vehicles`, `ref.vehicle_day_status`, `ref.calendar_days`, `ref.district_travel`, `ref.service_allowances`, `ref.traffic_speed`, `ref.road_conditions`.
+**Owns:** `ref.brands`, `ref.depots`, `ref.districts`, `ref.outlets`, `ref.vehicles`, `ref.vehicle_day_status`, `ref.calendar_days`, `ref.district_travel`, `ref.service_allowances`, `ref.traffic_speed`, `ref.road_conditions`, `ref.calendar_overrides`, `ref.outlet_details`.
+
+**Geographic reference (R-REF-02, #161).** `GeoCsvReader` parses the required `geo_points.csv`;
+`GeoReference` validates kind/code coverage, provenance and precision, and resolves district fallback
+before the snapshot is written. `GeoPoint` validates coordinates. `ReferenceVersionWriter` and
+`ReferenceVersionReader` preserve locations per version. `OutletView`, `DepotView` and `DistrictView`
+carry optional `GeoPoint`; internal `ReferenceQuery.depot` and `.district` lookups are versioned. `GET /api/reference/depots/{depotCode}` serves a depot and its location to the live map, under depot scope.
+Historical rows may have no location. Store detail overrides preserve it. Coordinates do not change
+allocation distances or capacity rules. See [the plan](../issues/161-live-map/PLAN.md).
+
+**A store's own details (R-REF-01).** A store manager changes their outlet's delivery window, dock type and contacts with `reference:UpdateOutletDetails` (`expectedVersion` is the details' `rowVersion`, 0 before the first save) and reads them at `GET /api/reference/outlets/{outletId}/details`. The window and dock are laid over the current version when a snapshot loads, as calendar overrides are, so the next plan, the run sheet and the loading manifest read them and an import cannot discard them; they are not versioned. A mall bay cannot be chosen or left, and a mall outlet's window must still overlap the mall's (R-PLN-29). Scope is the outlet or its depot, checked through `IdentityQuery` (R-IAM-28).
 
 `district_travel` is keyed by **district alone**: depot is a function of district in the supplied data, and the official validator indexes it that way.
 
 **Caches, does not own:** `ref.products`. The catalogue belongs to the external warehouse and arrives by scheduled bulk sync with a catalogue version. It is a projection: never edited here, and always able to report that it is stale.
 
-**Commands:** `SetVehicleDayStatus`, `ImportReferenceData`, `OverrideCalendarDay`.
+**Commands:** `SetVehicleDayStatus`, `ImportReferenceData`, `OverrideCalendarDay`, `UpdateOutletDetails`.
 **Queries:** `snapshotFor(day)`, `outlet(id)`, `vehicle(id)`, `availableVehicles(depot, date)`, `vehiclesOfDepot(depot)` (the whole fleet, so Planning can tell unservable from deferred), `isOperating(date)`, `nextOperatingDay(date)`, `travelProfile(district)`.
 **Publishes:** `vehicle.status_changed`, `reference.version_published`.
 **Consumes:** nothing.
@@ -62,9 +72,11 @@ Each module has the same five internal layers. The spec lists what belongs in ea
 | --- | --- |
 | contract | `CurrentActor`, `Role`, `Scope`, `AuthorizationDecision`, `IdentityQuery`, `McpContextView` |
 | domain | `McpReadPolicy`, `Account`, `Session`, `Role`, `ScopeGrant`, `VehicleAssignment` (temporal), `PasswordPolicy`, and `domain/policy/`: `PolicyDocument`, `Statement`, `Effect`, `Pattern`, `Condition`, `ConditionOperator`, `AccessRequest`, `Decision`, `PolicyEvaluator` |
-| application | `LoginHandler`, `SessionRegistry`, `LoginThrottle`, `AccountAdminUseCase`, `PolicyDecisionPoint`, `McpSessionHandler`, `McpAccessHandler`, `McpContextQuery` |
+| application | `LoginHandler`, `SessionRegistry`, `LoginThrottle`, `AccountAdminUseCase`, `AccountQuery`, `PolicyDecisionPoint`, `McpSessionHandler`, `McpAccessHandler`, `McpContextQuery` |
 | infrastructure | `JdbcPolicyRepository`, `PolicyDocumentParser`, `PolicyCache`, `Argon2PasswordHasher` |
-| web | `AuthController`, `McpSessionController`, `McpCredentialFilter` |
+| web | `AuthController`, `ProfileController`, `McpSessionController`, `McpCredentialFilter` |
+
+**One's own profile (R-IAM-32).** `iam:UpdateOwnProfile`, granted on `wpt:iam:user:self`, changes the actor's own display name and phone (`iam.users.phone`, normalised by `ProfileFields` and the shared `PhoneNumber`); `GET /api/profile` reads them with the account's `rowVersion`. The email and the password stay with the administrator.
 
 **Read-only MCP (#87).** Root `mcp/` is a separate stdio and stateless Streamable HTTP adapter over the existing authorized REST reads. Identity also owns public OAuth client registration, consent, one-time PKCE codes, resource binding and revocation (R-IAM-31). The frontend hosts the consent page and protocol proxy routes; the adapter has no database access. Remote access requires a canonical `MCP_PUBLIC_URL`, identical in backend and adapter. Identity owns dedicated opaque session purpose, the `mcp:Connect` policy action, connection context and revocation. `MCP_ENABLED` defaults off. The connection grant adds no business action or scope; every concrete read still uses its owning module's policy and SQL filtering. It never adopts a shared loader browser's PIN-switched identity. Authentication uses the existing throttle, and reads record their authorization in audit. See [R-IAM-30](RULES-AND-POLICIES.md) and the [walkthrough](../issues/087-readonly-mcp/WALKTHROUGH.md) for the curated surface and remaining work.
 
@@ -232,10 +244,10 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 | infrastructure | `DatabaseProofStore` (default), `LocalProofStore`, `JdbcDeliveryRepository`, `JdbcExecutionReads` |
 | web | `ExecutionController`; state changes go through the shared command endpoint |
 
-**Owns:** `execution.delivery_records` (with actual times), `execution.proofs`, `execution.attachments`, and its run sheets built from `trip.released`.
+**Owns:** `execution.delivery_records` (with actual times), `execution.proofs`, `execution.attachments`, `execution.vehicle_positions` (append only, #161), and its run sheets built from `trip.released`.
 
-**Commands:** `StartStop`, `RecordArrival`, `RecordDelivery`, `RecordFailedDelivery`, `CaptureProof`, `ReportVehicleStatus`, `ReportRoadFault`.
-**Queries:** `runSheet(vehicle, day)`, `deliveryRecord(allocationId)`, `proof(deliveryRecordId)`.
+**Commands:** `StartStop`, `RecordArrival`, `RecordDelivery`, `RecordFailedDelivery`, `CaptureProof`, `ReportVehicleStatus`, `ReportRoadFault`, `RecordPositions` (`delivery:RecordPositions`, no event: R-EXE-18 to R-EXE-21).
+**Queries:** `runSheet(vehicle, day)`, `deliveryRecord(allocationId)`, `proof(deliveryRecordId)`. Live map reads (`PositionsQuery`, web only): `GET /api/execution/positions?date=&depot=|outlet=` (last good fix per vehicle, with `offline`) and `GET /api/execution/trips/{tripId}/trail` (keyset on `recordedAt`).
 **Publishes:** `delivery.started`, `delivery.completed`, `delivery.failed`, `vehicle.fault_reported`, `road.disruption_reported`.
 **Consumes:** `trip.released`.
 
@@ -319,7 +331,7 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 
 **Channels (D-N).** The in-app inbox, which is delivered when the row is written, and web push, sent by `PushDeliveryJob` after commit with retry and a dead letter (P-27). With no VAPID keys push is off, visibly (NOT-05).
 
-**The matrix** is data: version 1 of `notification.routing_rules` (R-NOT-09). Every row produces a durable notification and delivery records.
+**The matrix** is data: version 2 of `notification.routing_rules` (R-NOT-09; version 2 added the loader and outlet rows of `trip.released`, issue #118). Every row produces a durable notification and delivery records.
 
 | Event | To | Push | Why it matters |
 | --- | --- | --- | --- |
@@ -328,7 +340,7 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 | `order.deferred` | Store manager | yes | With the binding reason (R-RCP-03, R-NOT-04) |
 | `order.auto_deferred` | Store manager | yes | The warehouse never confirmed stock before the cutoff (STK-03) |
 | `plan.published`, `plan.revised` | Loader; driver of each trip's vehicle on the service date | yes | Work is available, or changed |
-| `trip.released` | Driver; dispatcher when the vehicle has no driver (LOD-05) | yes | Vehicle ready |
+| `trip.released` | Driver; dispatcher when the vehicle has no driver (LOD-05); the depot's other loaders (R-NOT-10); each outlet on the trip with its stop number and expected arrival (R-NOT-11) | yes | Vehicle ready; the dock is free; the store can staff the arrival |
 | `loading.shortfall` | Dispatcher | yes | Departure is blocked now (R-NOT-02) |
 | `delivery.started`, `delivery.completed` | Store manager | no | Arriving; proof is available to review |
 | `delivery.failed` | Dispatcher, store manager | yes | Requires a decision |
@@ -354,7 +366,7 @@ A driver is pushed only trip-level events (R-NOT-08), and whoever caused an even
 **Owns:** `sync.operations`.
 
 **Commands:** `SubmitOperation`, `AcknowledgeOperation`, `DiscardOperation`, `ResolveOperation`, all built. Decision D-O (2026-10-02): only an operation's owner reviews it, which `p_operations_own` already enforces (R-EXE-16). Discard drops a conflict or a refusal with a reason. Resolve settles a conflict as `RESOLVED` and names the redo the device queued ahead of it on the current version; the redo is its own operation, applied or held like any other (R-EXE-17). Each sync answer carries the operation's `rowVersion`, which a discard or resolve names (issue #28).
-**Queries:** `pendingFor(device)`, `conflictsFor(actor)`.
+**Queries:** `pendingFor(device)`, `conflictsFor(actor)`; over HTTP `GET /api/sync?since=` and `GET /api/sync/{operationId}`, the owner's own operations with their `rowVersion`.
 
 **Protocol.**
 
@@ -394,7 +406,7 @@ A driver is pushed only trip-level events (R-NOT-08), and whoever caused an even
 | domain | `DeterministicEstimator`, `ModelGate`, `SupplyPolicy`, `PlannedRoutes`, `CircuitBreaker` |
 | application | `PlanScoringJob`, `ForecastJob`, `ModelHandlers`, `IntelligenceConsumers`, `IntelligenceDataQuery`, `ReferencePayload` |
 | infrastructure | `ModelServingAdapter` (HTTP to the model service, behind a circuit breaker), `JdbcIntelligenceRepository` |
-| web | `/api/ml/models`, `/plans/{id}/predictions`, `/forecast`, `/orders/{id}/supply-probability`, `/training/deliveries` |
+| web | `/api/ml/models`, `/plans/{id}/predictions`, `/forecast`, `/forecast/overview` (a depot's weeks with calendar and fleet capacity), `/orders/{id}/supply-probability`, `/training/deliveries` |
 
 **The model service** (`ml-server/`, ADR-001's Python trigger) serves the trained Datathon models: `delivery_risk` (service minutes and P(late) per stop, scored over whole planned routes, with a no-road-conditions fallback) and `demand_forecast` (weekly total and chilled m³). It only predicts, and refuses to start if a model file differs from its manifest.
 

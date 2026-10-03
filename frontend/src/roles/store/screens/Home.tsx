@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { ApiError } from "@shared/api/problem";
 import type { DeliveryRecordView, IssueView, OrderStatus, OrderView, OutletView, PendingReceiptView } from "@shared/domain/types";
-import { Icon, Notice, Pending, cx } from "@shared/ui";
+import { Icon, Notice, cx } from "@shared/ui";
 import { cases, addDays, clock, cutoffLabel, dayLabel, depotToday, editable, greeting, hhmm, onTheWay, temperatureLabel, untilCutoff } from "../data/format.ts";
-import { deferralRead } from "../data/deferral.ts";
-import { isOpenIssue, issueCard } from "../data/issues.ts";
+import { isOpenIssue, issueCard, loaderShortUnits } from "../data/issues.ts";
 import NextStop from "./NextStop.tsx";
 import { Button, Card, Chip, Muted } from "../ui.tsx";
 
@@ -49,10 +48,10 @@ export default function Home({
   deliveries,
   issues,
   onOpen,
-  onDeferred,
   onPlace,
   onReceive,
   onTrack,
+  notifications,
 }: {
   orders: OrderView[];
   loading: boolean;
@@ -64,11 +63,11 @@ export default function Home({
   deliveries: DeliveryRecordView[];
   issues: IssueView[];
   onOpen: (orderId: string) => void;
-  /** Open "09 Order deferred" for a deferred order. */
-  onDeferred: (orderId: string) => void;
   onPlace: () => void;
   onReceive: (orderId: string) => void;
   onTrack: () => void;
+  /** The notifications column on desktops (issue #118). */
+  notifications: ReactNode;
 }): React.JSX.Element {
   const [left, setLeft] = useState(() => untilCutoff());
   useEffect(() => {
@@ -84,10 +83,6 @@ export default function Home({
   const forNext = orders.filter((o) => o.deliveryDate === next && o.status !== "CANCELLED");
   const stop = coming ? (deliveries.find((d) => d.orderId === coming.orderId) ?? null) : null;
   const shortage = coming ? issues.find((i) => i.type === "LOADING_SHORTFALL" && isOpenIssue(i) && i.subjects.some((s) => s.id === coming.orderId)) : undefined;
-  // A deferral the manager has read ("Got it") stops asking for attention.
-  const attention = orders.filter(
-    (o) => (o.status === "DEFERRED" && !(outlet && deferralRead(outlet.outletId, o))) || o.status === "UNSERVABLE" || o.status === "STOCK_UNKNOWN",
-  );
 
   return (
     <div className="flex flex-col gap-5">
@@ -104,42 +99,6 @@ export default function Home({
         <div className="flex min-w-0 flex-col gap-5">
           {error && <Notice tone="danger" title="Could not load your orders">{error.message}</Notice>}
 
-          {toReceive.map((r) => (
-            <Notice
-              key={r.orderId}
-              tone="info"
-              live
-              title={`${orders.find((o) => o.orderId === r.orderId)?.orderRef ?? "An order"} was delivered. Count it and confirm what arrived.`}
-              action={
-                <button type="button" onClick={() => onReceive(r.orderId)} className="min-h-12 shrink-0 px-2 text-[13px] font-medium text-go-teal">
-                  Receive
-                </button>
-              }
-            />
-          ))}
-          {attention.map((o) => (
-            <Notice
-              key={o.orderId}
-              tone={o.status === "UNSERVABLE" ? "danger" : "warning"}
-              title={
-                o.status === "DEFERRED"
-                  ? `${o.orderRef} was deferred to ${dayLabel(o.deliveryDate)}`
-                  : o.status === "UNSERVABLE"
-                    ? `${o.orderRef} cannot be served`
-                    : `${o.orderRef}: stock not checked yet`
-              }
-              action={
-                <button
-                  type="button"
-                  onClick={() => (o.status === "DEFERRED" ? onDeferred(o.orderId) : onOpen(o.orderId))}
-                  className="min-h-12 shrink-0 px-2 text-[13px] font-medium text-go-teal"
-                >
-                  Why
-                </button>
-              }
-            />
-          ))}
-
           <Card label="Next delivery">
             <div className="flex items-center gap-1.5">
               <p className="flex-1 text-[13px] font-light text-go-muted">
@@ -153,13 +112,19 @@ export default function Home({
               <>
                 <NextStop stop={stop} order={coming} outlet={outlet} />
                 <Progress status={coming.status} />
+                {/* "Shortage notice" of "02 Home": a grey card, not a warning; the loader already told dispatch. */}
                 {shortage && (
-                  <button type="button" onClick={() => onOpen(coming.orderId)} className="flex flex-col gap-0.5 rounded-[16px] bg-go-warning-tint px-4 py-3 text-left">
-                    <span className="text-[13px] text-go-muted">
-                      {coming.orderRef} · {temperatureLabel(coming.temperature)}
+                  <button type="button" onClick={() => onOpen(coming.orderId)} className="flex flex-col gap-1.5 rounded-[18px] bg-go-surface px-4 py-3.5 text-left">
+                    <span className="flex items-center gap-2">
+                      <Chip outline>{coming.orderRef}</Chip>
+                      <span className="text-[15px] font-medium text-black">{temperatureLabel(coming.temperature)}</span>
                     </span>
-                    <span className="text-[17px] font-medium text-black">Short at loading · {issueCard(shortage, coming, clock).title}</span>
-                    <span className="text-[13px] text-go-warning-text">{issueCard(shortage, coming, clock).detail}</span>
+                    <span className="text-[20px] font-medium text-black">
+                      {loaderShortUnits(shortage) > 0
+                        ? `${loaderShortUnits(shortage)} ${loaderShortUnits(shortage) === 1 ? "package" : "packages"} short - ${Math.max(0, coming.itemCount - loaderShortUnits(shortage))} of ${coming.itemCount} coming`
+                        : issueCard(shortage, coming, clock).title}
+                    </span>
+                    <span className="text-[13px] text-go-secondary">Reported at loading · comes next delivery</span>
                   </button>
                 )}
                 <div className="flex gap-2.5">
@@ -214,13 +179,7 @@ export default function Home({
 
         {/* Desktop: the notifications column from "02 Home". */}
         <aside className="hidden lg:block">
-          <Card label="Notifications">
-            <h2 className="flex items-center gap-2 text-[18px] font-medium text-black">
-              <Icon name="bell" />
-              Notifications
-            </h2>
-            <Pending what="Your notifications" waitingOn="the Notification module (#14)" />
-          </Card>
+          <Card label="Notifications">{notifications}</Card>
         </aside>
       </div>
     </div>

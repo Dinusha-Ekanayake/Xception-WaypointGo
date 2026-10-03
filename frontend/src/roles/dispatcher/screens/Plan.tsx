@@ -2,11 +2,11 @@
 
 import { useMemo, useState } from "react";
 import { PlanCommandKind, type OrderView, type PlanView } from "@shared/domain/types";
-import { Notice, PrimaryButton, SecondaryButton, Segmented, formatClock } from "@shared/ui";
+import { Notice, PrimaryButton, SecondaryButton, Segmented } from "@shared/ui";
 import PageHeader from "../PageHeader.tsx";
 import { useFleet } from "../data/fleet.ts";
 import { improvementNote, openDecisions, summarise, working } from "../data/plan.ts";
-import { formatDay } from "../data/scope.ts";
+import { dayLabel } from "../data/scope.ts";
 import { useCommand } from "../data/useCommand.ts";
 import { useOrders, usePlans } from "../data/useDay.ts";
 import DayPicker from "./DayTools.tsx";
@@ -16,6 +16,7 @@ import PlanDecide, { type Place } from "./PlanDecide.tsx";
 import PlanPublish from "./PlanPublish.tsx";
 import type { TripAction } from "./PlanTrip.tsx";
 import Refusal from "./Refusal.tsx";
+import { clock } from "@shared/wording";
 
 // Figma "Plan": decide, view plan, publish. A plan is one depot's day, so the
 // screen works on one depot. It holds no draft id: every edit replaces the
@@ -95,7 +96,7 @@ export default function Plan({
   };
 
   const publish = () =>
-    plan && send("publishing the plan", PlanCommandKind.publish, { planId: plan.planId }, plan.rowVersion, () => `Plan for ${depot} on ${formatDay(date)} is published. Loaders and drivers now work from it.`).then((ok) => ok && setTab("view"));
+    plan && send("publishing the plan", PlanCommandKind.publish, { planId: plan.planId }, plan.rowVersion, () => `Plan for ${depot} on ${dayLabel(date)} is published. Loaders and drivers now work from it.`).then((ok) => ok && setTab("view"));
 
   const revise = () =>
     plan &&
@@ -111,10 +112,12 @@ export default function Plan({
   return (
     <>
       <PageHeader
-        title={`Plan ${formatDay(date)}`}
+        title={`Plan ${dayLabel(date)}`}
         subtitle={`${depot} · ${plans.data ? stage : "Loading"}`}
         online={online}
         lastSyncedAt={plans.loadedAt}
+        onSync={plans.refresh}
+        syncing={plans.loading}
         tools={
           <>
             {depots.length > 1 && <Segmented label="Depot to plan" value={depot} onChange={setChosen} options={depots.map((code) => ({ value: code, label: code }))} />}
@@ -139,7 +142,7 @@ export default function Plan({
 
       {plans.data && state.stage === "none" && (
         <section aria-label="No plan" className="flex w-full max-w-[760px] flex-col items-start gap-3 rounded-[24px] bg-white p-6 shadow-go-card">
-          <h2 className="text-[19px] font-medium text-go-ink">No plan for {depot} on {formatDay(date)}</h2>
+          <h2 className="text-[19px] font-medium text-go-ink">No plan for {depot} on {dayLabel(date)}</h2>
           <p className="text-[13px] text-go-secondary">
             {orders.data ? `${toPlan} ${toPlan === 1 ? "order is" : "orders are"} confirmed and waiting to be planned.` : "Counting the orders…"} Generating places every order it can and names the rule
             that stopped each one it could not.
@@ -161,7 +164,7 @@ export default function Plan({
                 tab={tab}
                 onTab={setTab}
                 title="Publish"
-                note={state.stage === "published" ? `Published${state.plan.publishedAt ? ` ${formatClock(new Date(state.plan.publishedAt))}` : ""}` : "Not published yet"}
+                note={state.stage === "published" ? `Published${state.plan.publishedAt ? ` ${clock(new Date(state.plan.publishedAt))}` : ""}` : "Not published yet"}
               />
             </div>
             {state.stage === "draft" && (

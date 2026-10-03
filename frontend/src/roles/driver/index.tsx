@@ -4,11 +4,13 @@ import DeliveryReport from "./screens/DeliveryReport.tsx";
 import Home from "./screens/Home.tsx";
 import RefusedUploads from "./screens/RefusedUploads.tsx";
 import Route from "./screens/Route.tsx";
+import RouteMap from "./screens/RouteMap.tsx";
 import RunComplete from "./screens/RunComplete.tsx";
 import { ProblemSheet, SavedSheet, SignOutSheet } from "./screens/Sheets.tsx";
 import StopDetail from "./screens/StopDetail.tsx";
 import TopBar from "./TopBar.tsx";
 import { Banner, OutlineButton } from "./ui.tsx";
+import { nextStop } from "./data/run.ts";
 import { useDriver } from "./useDriver.ts";
 
 /**
@@ -29,7 +31,7 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
           uploads={run.uploadsWaiting.length}
           dark={d.dark}
           onTheme={d.theme}
-          onBack={screen === "home" ? undefined : () => d.go({ name: "home" })}
+          onBack={screen === "home" ? undefined : screen === "map" ? () => d.go({ name: "route", deliveryId: null }) : () => d.go({ name: "home" })}
           onSignOut={screen === "home" ? d.askSignOut : undefined}
         />
 
@@ -49,6 +51,23 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
               </Banner>
             </div>
           )
+        )}
+        {d.location.needsConsent && screen !== "map" && (
+          <div className="flex flex-col gap-3 px-5 pt-3">
+            <Banner tone="warn" title="Share your location while the run is open?">
+              So the dispatcher and the store can see where the truck is. Only while your run is open.
+            </Banner>
+            <div className="grid grid-cols-2 gap-3">
+              <OutlineButton onClick={d.location.decline}>Not now</OutlineButton>
+              <OutlineButton onClick={d.location.allow}>Share location</OutlineButton>
+            </div>
+          </div>
+        )}
+        {d.location.state === "denied" && nextStop(stops) && screen !== "map" && (
+          <p role="status" className="flex items-center gap-2 px-5 pt-3 text-[13px] text-go-muted">
+            Location off · the dispatcher sees your stops only
+            <button type="button" onClick={d.location.allow} className="underline">Turn on</button>
+          </p>
         )}
         {d.problemFor === null && (error || notice) && (
           <div className="px-5 pt-3">
@@ -93,7 +112,11 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
                 onArrived={(stop) => void d.arrived(stop)}
                 onReport={(stop) => d.go({ name: "report", deliveryId: stop.deliveryId, failed: null })}
                 onProblem={d.openProblem}
+                onOpenMap={() => d.go({ name: "map" })}
               />
+            )}
+            {screen === "map" && nextStop(stops) && (
+              <RouteMap next={nextStop(stops)!} outlet={run.outlets[nextStop(stops)!.outletId]} recorder={d.location} syncedAt={run.syncedAt} />
             )}
             {screen === "report" && reporting && view.name === "report" && (
               <DeliveryReport

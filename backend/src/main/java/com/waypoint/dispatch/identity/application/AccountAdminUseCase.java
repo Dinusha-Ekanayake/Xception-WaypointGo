@@ -1,5 +1,6 @@
 package com.waypoint.dispatch.identity.application;
 
+import com.waypoint.dispatch.identity.domain.ProfileFields;
 import com.waypoint.dispatch.identity.infrastructure.Argon2PasswordHasher;
 import com.waypoint.dispatch.platform.audit.AuditEntry;
 import com.waypoint.dispatch.platform.audit.AuditLog;
@@ -92,6 +93,44 @@ public class AccountAdminUseCase {
         });
   }
 
+  public void grantOutlet(String email, String outletId) {
+    database.asModule(
+        ModuleRole.IAM,
+        null,
+        () -> {
+          UUID userId = userIdOf(email.trim().toLowerCase(Locale.ROOT));
+          applyGrantOutlet(null, userId, outletId, versionOf(userId));
+        });
+  }
+
+  /**
+   * Gives a driver one day on each vehicle that has no driver that day. For the
+   * delivery-day seed: the plan decides later which vehicle carries what.
+   *
+   * @return the vehicles assigned
+   */
+  public int assignDriverForDay(String email, List<String> vehicleIds, LocalDate day) {
+    int assigned = 0;
+    for (String vehicleId : vehicleIds) {
+      try {
+        database.asModule(
+            ModuleRole.IAM,
+            null,
+            () -> {
+              UUID userId = userIdOf(email.trim().toLowerCase(Locale.ROOT));
+              applyAssignDriver(null, vehicleId, userId, day, day.plusDays(1), versionOf(userId));
+            });
+        assigned++;
+      } catch (DomainException e) {
+        if (e.code() != ErrorCode.CONFLICT) {
+          throw e;
+        }
+        // The vehicle already has a driver that day; leave it.
+      }
+    }
+    return assigned;
+  }
+
   // ---- command bodies: a transaction is already open ----
 
   UUID applyCreate(
@@ -151,6 +190,33 @@ public class AccountAdminUseCase {
         userId,
         current.get("row_version"));
     record(actor, userId, "iam:UpdateUser", "email and display name reviewed");
+  }
+
+  /**
+   * R-IAM-32: a person's own name and phone number. The subject is always the
+   * actor, so no payload can name another account; the email is the sign-in name
+   * and the password a separate command, so neither changes here. The new values
+   * are personal data and are kept out of the audit reason.
+   *
+   * @return the account's new row version
+   */
+  long applyOwnProfile(Actor actor, String displayName, String phone, Long expectedVersion) {
+    if (actor == null || actor.isSystem()) {
+      throw new DomainException(ErrorCode.FORBIDDEN, "Only a person has a profile to change");
+    }
+    String name = ProfileFields.name(displayName);
+    String number = ProfileFields.phone(phone);
+    Map<String, Object> current = requireUser(actor.userId());
+    guardVersion(actor.userId(), expectedVersion, current);
+    database.updateExpectingOneRow(
+        "UPDATE iam.users SET display_name = ?, phone = ?, row_version = row_version + 1,"
+            + " updated_at = now() WHERE user_id = ? AND row_version = ?",
+        name,
+        number,
+        actor.userId(),
+        current.get("row_version"));
+    record(actor, actor.userId(), "iam:UpdateOwnProfile", "own display name and phone reviewed");
+    return ((Number) current.get("row_version")).longValue() + 1;
   }
 
   /**

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { ItemView, OutletView } from "@shared/domain/types";
 import { Icon, cx } from "@shared/ui";
-import { byStop, CHECK_LABEL, clockTime, isChecked, isFlagged, kg, orderLabel, placeName } from "../data/manifest.ts";
+import { byStop, CHECK_LABEL, clock, isChecked, isFlagged, kg, orderLabel, placeName } from "../data/manifest.ts";
 import type { Line } from "../data/useTrip.ts";
 import { useT } from "../i18n.tsx";
 
@@ -178,7 +178,7 @@ function ItemRow({
             {flagged
               ? `${tr(CHECK_LABEL[item.status])} · ${tr("{a} of {b} not loaded", { a: item.units - item.loadedUnits, b: item.units })}`
               : loaded
-                ? item.checkedAt ? tr("Loaded {time}", { time: clockTime(item.checkedAt) }) : tr("Loaded")
+                ? item.checkedAt ? tr("Loaded {time}", { time: clock(item.checkedAt) }) : tr("Loaded")
                 : tr("Tap when loaded")}
           </span>
         </span>

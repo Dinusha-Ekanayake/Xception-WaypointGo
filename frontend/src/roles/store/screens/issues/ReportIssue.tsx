@@ -35,10 +35,13 @@ export default function ReportIssue({
   onClose: () => void;
   onSent: () => void;
 }): React.JSX.Element {
-  const [orderId, setOrderId] = useState(orders[0]?.orderId ?? "");
-  const order = orders.find((o) => o.orderId === orderId) ?? null;
-  const [productId, setProductId] = useState(order?.lines[0]?.productId ?? "");
-  const line = order?.lines.find((l) => l.productId === productId) ?? null;
+  // The orders can arrive after the dialog opens, so an unset choice falls back to the first.
+  const [pickedOrder, setOrderId] = useState(orders[0]?.orderId ?? "");
+  const order = orders.find((o) => o.orderId === pickedOrder) ?? orders[0] ?? null;
+  const orderId = order?.orderId ?? "";
+  const [pickedLine, setProductId] = useState(order?.lines[0]?.productId ?? "");
+  const line = order?.lines.find((l) => l.productId === pickedLine) ?? order?.lines[0] ?? null;
+  const productId = line?.productId ?? "";
   const [kind, setKind] = useState<ReportKind | null>(preset);
   const [units, setUnits] = useState(1);
   const [comment, setComment] = useState("");

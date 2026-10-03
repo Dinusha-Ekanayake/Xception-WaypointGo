@@ -19,6 +19,8 @@ export type OperationView = {
   currentRowVersion: number | null;
   receivedAt: IsoInstant;
   appliedAt: IsoInstant | null;
+  /** The operation's own version, which a discard or resolve names. */
+  rowVersion: number;
 };
 
 export const SyncCommandKind = {

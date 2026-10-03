@@ -2,7 +2,7 @@
 
 import type { ManifestView, SessionStatus } from "@shared/domain/types";
 import { Icon, Notice, cx } from "@shared/ui";
-import { clockTime, hhmm, kg, m3, timeToDeparture } from "../data/manifest.ts";
+import { clock, hhmm, kg, m3, timeToDeparture } from "../data/manifest.ts";
 import { useT } from "../i18n.tsx";
 import { Bar, BigButton, Ring, TempBadge } from "../ui.tsx";
 
@@ -79,7 +79,7 @@ export default function TruckCard({
           <div className="flex items-center gap-2 rounded-[16px] bg-go-canvas py-2 pr-2 pl-4">
             <Icon name="lock" />
             <span className="flex-1 text-[14px] font-medium text-go-success">
-              {m.holder ? tr("Locked to you since {time}", { time: clockTime(m.holder.since) }) : tr("Locked to you")}
+              {m.holder ? tr("Locked to you since {time}", { time: clock(m.holder.since) }) : tr("Locked to you")}
             </span>
             <button
               type="button"

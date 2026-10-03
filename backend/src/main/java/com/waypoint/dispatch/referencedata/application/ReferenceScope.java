@@ -110,6 +110,22 @@ public class ReferenceScope {
     return identity.driverVehicleOn(actor.userId(), today);
   }
 
+  /**
+   * The write half for one outlet (R-REF-01): its own manager, or the people of
+   * its depot. A driver's day on the depot's vehicle lets them read an outlet,
+   * never change it, so that path is not here.
+   */
+  public void requireOutletChange(Actor actor, String action, String resource, String outletId, String depotCode) {
+    if (actor.isSystem()) {
+      return;
+    }
+    ScopeView scope = identity.scopeOf(actor.userId());
+    if (scope.outletIds().contains(outletId) || (depotCode != null && scope.depotCodes().contains(depotCode))) {
+      return;
+    }
+    refuse(actor, action, resource, "outlet " + outletId + " is outside the actor's scope");
+  }
+
   private void refuse(Actor actor, String action, String resource, String reason) {
     metrics.increment("waypoint.scope.denied", "module", "referencedata");
     // Policy allowed this read, so nothing else has recorded the attempt.

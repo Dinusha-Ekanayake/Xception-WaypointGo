@@ -71,7 +71,7 @@ test("a make-up delivery shows the problem, the booking, then what is still to c
   const original = issue({ type: "RECEIPT_DISPUTE", subjects: [{ type: "order", id: "orig" }], status: "RESOLVED", resolutionAction: "REDELIVERY", resolvedAt: "2026-10-01T13:40:00Z" });
   const makeUp = order("m", { redeliveryOf: "orig", status: "ALLOCATED" });
   assert.equal(issueBehind(makeUp, [issue({ subjects: [{ type: "order", id: "orig" }], raisedAt: "2026-10-01T00:00:00Z" }), original]), original);
-  const steps = makeUpSteps({ order: makeUp, issue: original, timeline: [], record: null, dock: "rear", window: "05:00-07:30", today: "2026-10-03" });
+  const steps = makeUpSteps({ order: makeUp, issue: original, timeline: [], record: null, dock: "rear_dock", window: "05:00-07:30", today: "2026-10-03" });
   assert.deepEqual(
     steps.map((s) => [s.title, s.detail, s.done]),
     [
@@ -82,7 +82,7 @@ test("a make-up delivery shows the problem, the booking, then what is still to c
       ["You confirm what arrived", "Count and confirm with PIN", false],
     ],
   );
-  const arrived = makeUpSteps({ order: makeUp, issue: original, timeline: [], record: record("m", { arrivedAt: "2026-10-03T05:10:00Z" }), dock: "rear", window: null, today: "2026-10-03" });
+  const arrived = makeUpSteps({ order: makeUp, issue: original, timeline: [], record: record("m", { arrivedAt: "2026-10-03T05:10:00Z" }), dock: "rear_dock", window: null, today: "2026-10-03" });
   assert.deepEqual(arrived.slice(2, 4).map((s) => [s.detail, s.done]), [["Today · 04:30", true], ["Arrived 10:40", true]]);
 });
 

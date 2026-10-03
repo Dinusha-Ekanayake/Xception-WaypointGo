@@ -75,7 +75,37 @@ public class IdentityCommandHandlers {
     return new EndDriverAssignmentHandler(accounts);
   }
 
+  @Bean
+  UpdateOwnProfileHandler updateOwnProfileHandler(AccountAdminUseCase accounts) {
+    return new UpdateOwnProfileHandler(accounts);
+  }
+
   // ---- the handlers ----
+
+  /**
+   * R-IAM-32: a person's own name and phone. The payload states the profile as it
+   * should be, so a blank phone clears it; the account is always the actor's own.
+   */
+  static final class UpdateOwnProfileHandler extends IdentityHandler {
+    UpdateOwnProfileHandler(AccountAdminUseCase accounts) {
+      super(accounts, "iam:UpdateOwnProfile", "iam:UpdateOwnProfile");
+    }
+
+    /** Never another account, so a policy grants this on {@code wpt:iam:user:self} only. */
+    @Override
+    public String resource(Command command) {
+      return "wpt:iam:user:self";
+    }
+
+    @Override
+    public Object handle(Actor actor, Command command) {
+      CommandPayload payload = CommandPayload.of(command);
+      long version =
+          accounts.applyOwnProfile(
+              actor, payload.text("displayName"), payload.text("phone"), command.expectedVersion());
+      return Map.of("userId", actor.userId().toString(), "rowVersion", version);
+    }
+  }
 
   static final class CreateAccountHandler extends IdentityHandler {
     CreateAccountHandler(AccountAdminUseCase accounts) {

@@ -129,6 +129,8 @@ docker compose -f compose.prod.yaml --profile observability up -d
 
 Alloy reads every container labelled `com.waypoint.logs=true` through the read-only Docker socket and ships to Loki, which keeps 14 days on the `loki-data` volume (budget roughly 1 GB per week at pilot volume). Grafana listens on `127.0.0.1:3001` only and is never routed through nginx; reach it with `ssh -L 3001:127.0.0.1:3001 <host>` and open http://127.0.0.1:3001. Grafana refuses to start without `GRAFANA_ADMIN_PASSWORD`. The application does not depend on the log store: with Loki down, Alloy retries and requests are served normally.
 
+The same profile runs Prometheus, which scrapes the backend's `/prometheus` every 15 seconds and keeps 15 days on `prometheus-data`. `/prometheus` is never routed by nginx. On the VPS the stack runs in preview only, as the log store does, and scrapes both environments: each backend joins the `waypoint-edge` network as `production-backend` or `preview-backend` (`deploy/vps/compose.vps.yaml`, scrape config `observability/prometheus/vps.yml`), and a `node-exporter` reads the server's CPU, memory and disk. The production target is down until production has been redeployed with that overlay. Grafana provisions the dashboard Waypoint > Waypoint operations from `observability/grafana/provisioning/dashboards/`: service health (up, request rate, 5xx share, p95 latency from the SLO buckets in `application.properties`), commands and jobs, outbox and circuit breakers, JVM and connection pool, the server, then the log panels.
+
 ## Operational limits
 
 What a rollout beyond the competition would have to change, as things stand on 2026-10-02. The full list per module is in [STATUS.md](development-docs/STATUS.md).

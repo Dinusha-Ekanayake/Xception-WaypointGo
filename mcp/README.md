@@ -153,3 +153,51 @@ The assistant gets an opaque, read-only credential; it never gets your password.
 This version supports stateless JSON Streamable HTTP, DCR public clients, authorization code + PKCE S256, and the single `waypoint.read` scope. There are no refresh tokens: the credential follows the normal session lifetimes (12 hours, 2 hours idle) and reconnect means signing in again. Revocation is `POST /api/oauth/revoke` with form fields `token` and `client_id`; account/session revocation also takes effect on subsequent reads. The same 16 tools and output limits apply to both transports. Local stdio credentials cannot be reused at the remote endpoint.
 
 Discovery is published at `/.well-known/oauth-protected-resource/mcp` (also the root resource document) and `/.well-known/oauth-authorization-server`. The public URL is configuration, never derived from request headers. A blank `MCP_PUBLIC_URL` disables remote authorization; `MCP_ENABLED=false` disables MCP access. No production environment is enabled by this change.
+
+## Observing it
+
+What every MCP read leaves behind (issue #140), and what to do when a number moves.
+
+**Metrics** (Prometheus, at the backend's `/prometheus`):
+
+| Metric | Tags | Meaning |
+| --- | --- | --- |
+| `waypoint_mcp_calls_total` | `tool`, `outcome`, `transport` | One per request. `tool` is named by the backend from the path, never from the client; `other` is a path outside the read boundary. `outcome` is `ok`, `not_found`, `denied`, `unauthenticated`, `rate_limited`, `rejected` or `error`. `transport` is `local` (stdio) or `remote` (OAuth) |
+| `waypoint_mcp_duration_seconds` | `tool`, `outcome` | Time inside the backend, with p95 |
+| `waypoint_mcp_outcome_audit_failed_total` | `tool` | An outcome row could not be written; the read itself was answered |
+
+```promql
+sum by (tool, outcome) (rate(waypoint_mcp_calls_total[5m]))
+histogram_quantile(0.95, sum by (tool, le) (rate(waypoint_mcp_duration_seconds_bucket[5m])))
+sum(rate(waypoint_mcp_calls_total{tool="other"}[15m]))
+```
+
+**Audit.** An authorized read writes two rows under one correlation id: the business authorization (`order:Read` and so on, reason `read via MCP`) and the outcome (`mcp:Connect`, resource `wpt:mcp:tool:<tool>`, `after_state` with status, outcome, duration and transport). Refusals are audited where they are refused and get no outcome row.
+
+```sql
+SELECT occurred_at, action, decision, reason, after_state
+FROM integration.audit_log
+WHERE correlation_id = '<from the adapter log or the X-Correlation-Id header>'
+ORDER BY audit_id;
+```
+
+**Adapter log.** One JSON line per tool call on stderr, collected with the container logs:
+
+```json
+{"event":"mcp.tool_call","tool":"list_orders","outcome":"ok","status":200,"durationMs":41,"correlationId":""}
+```
+
+Only catalogue tool names are logged (`unknown` otherwise); arguments, results and credentials never are. Outcomes only the adapter sees appear here: `RESPONSE_TOO_LARGE`, `VALIDATION_FAILED`, `UNKNOWN_TOOL`, `DEPENDENCY_UNAVAILABLE`.
+
+**Rate limits** (R-IAM-33, P-30). 120 requests a minute per credential and 1200 per OAuth client by default (`MCP_RATE_PER_CREDENTIAL`, `MCP_RATE_PER_CLIENT` on the backend); one tool call is about two requests, because the adapter refreshes the context first. Over the limit the backend answers `429` with `Retry-After`, and the assistant gets a tool error with `retryAfterSeconds`. `waypoint_mcp_rate_limited_total{bucket="credential"|"client"}` counts refusals; the first refusal per window is in the audit log with reason `MCP rate limit`.
+
+**When a number moves:**
+
+| Signal | Likely cause | First step |
+| --- | --- | --- |
+| `outcome="denied"` rising for one person | a policy or scope change, or a client probing | Check `integration.audit_log` DENY rows for that actor; revoke the connection if unexpected |
+| `tool="other"` above zero | a client calling paths outside the catalogue | Find the actor from the DENY rows; an old adapter version or a misbehaving client |
+| `outcome="error"` or p95 rising for one tool | the owning module's read is slow or failing | Look at that module's own metrics and logs by correlation id |
+| `RESPONSE_TOO_LARGE` in adapter logs | a plan or manifest above 256 KiB | Expected until owning modules page those reads; ask the user to narrow the request |
+| `waypoint_mcp_rate_limited_total` rising | one assistant looping, or many users of one client | DENY rows with reason `MCP rate limit` name the person; raise P-30 only if the traffic is legitimate |
+| `outcome_audit_failed` above zero | audit writes failing | Database health first; reads keep working, but their outcome rows are missing until fixed |

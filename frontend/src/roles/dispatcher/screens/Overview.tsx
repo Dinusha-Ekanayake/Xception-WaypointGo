@@ -2,9 +2,11 @@
 
 import type { Resource } from "@shared/api/useResource";
 import type { VehicleView } from "@shared/domain/types";
-import { Card, CardHead, LinkAction, Notice, Pending, StatTile, cx } from "@shared/ui";
+import { Card, CardHead, LinkAction, Notice, StatTile, cx } from "@shared/ui";
 import PageHeader from "../PageHeader.tsx";
 import FleetError from "./FleetError.tsx";
+import { NotificationRows } from "../NotificationsPanel.tsx";
+import { useDispatcherInbox } from "../inbox.tsx";
 import Refusal from "./Refusal.tsx";
 import SkippedOutlets from "./SkippedOutlets.tsx";
 import { summarise } from "../data/fleet.ts";
@@ -55,6 +57,8 @@ export default function Overview({
         subtitle={`${depotStamp()} · ${scopeLabel}`}
         online={online}
         lastSyncedAt={fleet.loadedAt}
+        onSync={fleet.refresh}
+        syncing={fleet.loading}
       />
 
       <div className="flex min-h-0 w-full flex-1 gap-5 max-lg:flex-col">
@@ -123,10 +127,7 @@ export default function Overview({
             </Notice>
           </Card>
 
-          <Card label="Recent notifications" className="flex-1">
-            <CardHead title="Recent notifications" meta="Messages sent to you" />
-            <Pending what="Your notifications" waitingOn="the Notification module (#14)" />
-          </Card>
+          <RecentNotifications onNavigate={onNavigate} />
         </div>
       </div>
     </>
@@ -142,5 +143,25 @@ function FleetTile({ value, label, warning = false }: { value: number | null | u
       </p>
       <p className="text-[11px] text-go-secondary">{label}</p>
     </div>
+  );
+}
+
+/** Figma 189:10739: the three newest, with "View all" opening the panel. */
+function RecentNotifications({ onNavigate }: { onNavigate: (view: ViewId) => void }): React.JSX.Element {
+  const ctx = useDispatcherInbox();
+  const items = ctx?.inbox.items ?? [];
+  return (
+    <Card label="Recent notifications" className="flex-1">
+      <CardHead
+        title="Recent notifications"
+        meta="Messages sent to you"
+        action={ctx && <LinkAction onClick={() => ctx.setOpen(true)}>View all</LinkAction>}
+      />
+      {items.length === 0 ? (
+        <p className="text-sm text-go-secondary">{ctx?.inbox.loading ? "Loading…" : "No notifications yet."}</p>
+      ) : (
+        <NotificationRows items={items} onNavigate={onNavigate} limit={3} />
+      )}
+    </Card>
   );
 }

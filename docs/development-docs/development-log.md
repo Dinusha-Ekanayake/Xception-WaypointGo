@@ -1,10 +1,27 @@
 # Development log
 
-Why things changed and what state they left behind. Git history says what changed; this says why, and what is still open. Several people and agents work here in parallel without seeing each other's sessions, so read the top entries before starting.
+Why things changed and what state they left behind. Git history says what changed; this says why, and what is still open. Several people and agents work here in parallel without seeing each other's sessions, so read the recent entries before starting.
+
+## One file per person
+
+The log is split by GitHub user, one file each in [`log/`](log/), so that two pull requests never add to the same file and never conflict:
+
+| GitHub user | File |
+| --- | --- |
+| @Dinusha-Ekanayake | [log/Dinusha-Ekanayake.md](log/Dinusha-Ekanayake.md) |
+| @jv-ransika | [log/jv-ransika.md](log/jv-ransika.md) |
+| @kavindamihiran | [log/kavindamihiran.md](log/kavindamihiran.md) |
+| @Oxshadha | [log/Oxshadha.md](log/Oxshadha.md) |
+| @ranathungaWK | [log/ranathungaWK.md](log/ranathungaWK.md) |
+| @tharushaudana | [log/tharushaudana.md](log/tharushaudana.md) |
+
+- **Write only in the file of the GitHub user who owns the work**, `log/<github-user>.md`, with the login spelled exactly as on GitHub (`gh api user -q .login` prints it; `git config user.name` is not always the login). Never add to someone else's file.
+- Someone new creates their own file with the same heading as the others; adding their row above is welcome but not required, since `log/` is the list.
+- To read what others did recently, read the top entry of every file, or `git log -p -5 -- docs/development-docs/log/`.
 
 ## How to write an entry
 
-Short imperative subject, then a few terse lines. Newest first. Credit the GitHub user who owns the work; never record agent, tool or model names. Skip typo and formatting fixes.
+Short imperative subject, then a few terse lines. Newest first, at the top of your file under its heading. Credit the GitHub user who owns the work; never record agent, tool or model names. Skip typo and formatting fixes.
 
 ```markdown
 ## YYYY-MM-DD - type: short imperative subject
@@ -18,6 +35,86 @@ Open: what is left, or "nothing".
 ```
 
 Entries before 2026-09-26 are in `git log`.
+
+---
+
+## 2026-10-03 - feat: re-release the models as 2026.1.1, and a forecast-run command
+
+`feat/model-rerelease-forecast-run` · @tharushaudana
+
+`ml-server/manifest.json` serves the same model files as `2026.1.1`; a new backend command `forecast-run` runs the demand forecast once, now, under the scheduled job's lease (`ForecastJob.immediately`).
+Why: `2026.1` was retired on preview, and a retired version can never be activated again; and a model activated after a fallback run otherwise waits up to six hours (P-29).
+Verified: `WaypointApplicationLoadingFixtureTest` (2), `IntelligenceDomainTest` (22), `ModuleBoundaryTest`, `EventCatalogueTest`. The model service tests run in CI.
+Open: register and activate `2026.1.1` on preview, then run `forecast-run` there; production only when decided.
+
+---
+
+## 2026-10-03 - feat: the Forecast screen shows the last and next run, with a countdown
+
+`feat/forecast-schedule` · @tharushaudana
+
+The overview gains `nextRunAt`, from `intelligence/domain/ForecastSchedule`, which now also holds the rule `ForecastJob.due` obeys (P-29); the dispatcher's Forecast tab shows both runs in depot time and reads again when one is due.
+Why: after a deploy the screen said only "No forecast yet"; the hour is Colombo's, so the first run came at :30 UTC, which was not obvious.
+Verified: `IntelligenceDomainTest` (22); frontend `npm run typecheck`, `npm test` (109), `npm run build`, dispatcher browser suite (23). The `nextRunAt` assertion in `IntelligenceIntegrationTest` runs in CI.
+Open: nothing.
+
+---
+
+## 2026-10-03 - feat: the dispatcher's Forecast tab on the model service
+
+`feat/dispatcher-forecast` · @tharushaudana
+
+`GET /api/ml/forecast/overview` gives one depot's next weeks with every brand, the calendar and the fleet's weekly capacity (A-40); `ForecastJob` checks hourly and runs once a week, or again once a model replaces a fallback run (P-29). The dispatcher's Forecast tab shows the ten weeks against capacity with a brand filter, the busiest days' needs (A-41) and suggested actions; Vehicles shows reefers against next week's need. Detail in the [#19 walkthrough](../issues/019-dispatcher-ui/WALKTHROUGH.md).
+Why: the Forecast tab was a placeholder waiting on #16; a fresh deploy had no forecast until the next Monday.
+Verified: `IntelligenceDomainTest` (19), `ModuleBoundaryTest`; frontend `npm run typecheck`, `npm test` (101), `npm run build`, dispatcher browser suite (17 passed). `IntelligenceIntegrationTest` runs in CI.
+Open: register and activate `datathon-task2a@2026.1` and `datathon-task1-blend@2026.1` on preview, then production; late risk on the plan.
+
+---
+
+## 2026-10-03 - docs: architecture diagrams and a generated data model (issue #121)
+
+`docs/121-architecture-data-model` · @Oxshadha
+
+`docs/architecture.md` draws what is built: actors and external systems, the containers `docker compose up` runs, the twelve modules and their events, the layers of a module, and one command end to end. `docs/data-model.md` lists every table, key and foreign key by schema and is generated from a database migrated with `migrations/` by `scripts/data-model.py`, so it cannot drift from the schema. Both are linked from the README. `docs/ai-disclosure.md` now lists the tools with their evidence and says the trained Datathon models are served, not trained.
+Why: the booklet asks for an architecture diagram and a data model in `docs/`; the diagrams in SYSTEM-ARCHITECTURE.md show the target (object storage, CDN), not what runs.
+Verified: all 61 migrations on `dev` applied to a fresh PostgreSQL 16; 95 tables, 106 foreign keys; all 19 Mermaid blocks parsed by Mermaid 11.
+Open: every team member adds any other AI tool they used to the disclosure before submission.
+
+---
+
+## 2026-10-03 - feat: notifications inbox and last sync in each role UI (issue #118)
+
+`feat/118-notifications-inbox` · @Dinusha-Ekanayake
+
+The dispatcher, loader and store manager screens now show their notifications, each against its Figma frames: the dispatcher's panel and Overview card, the loader's bell with an unread dot and an inbox, the store manager's drawer, phone sheet and Home card. One shared data hook (`useInbox`) carries the live count from `/api/notifications/stream`, with a "live updates paused" state and polling after 40 s of silence, plus the list, read state and an offline copy; each role draws its own UI (#14). "Synced HH:MM" is a button in every role: it sends what waits and reads again (the dispatcher, online only, reloads the screen). Routing version 2 tells the depot's other loaders of a release (R-NOT-10) and each outlet its stop and expected arrival (R-NOT-11). The stream now stays open through the Next proxy and nginx.
+Why: the booklet's handoffs (p6, p9) were invisible; the issue's priorities were the store's deferral notice and expected arrival, and the loader's release.
+Verified: see the PR. `NotificationConsumersIntegrationTest`, `notifications-inbox.test.ts`, and a `notifications.spec.ts` in the loader, dispatcher and store suites; each screen compared with its Figma frame.
+Open: push opt-in and service worker push handlers; the driver's feed (#21); the dispatcher's Reply (no messaging between roles).
+
+---
+
+## 2026-10-03 - feat: a store manager edits their own profile and their store's window, dock and contacts
+
+`fix/store-figma-visual` · @jv-ransika
+
+Identity: `iam:UpdateOwnProfile` on `wpt:iam:user:self` changes the actor's own name and phone (`iam.users.phone`, migration `T1400`), read at `GET /api/profile` (R-IAM-32). Reference: `reference:UpdateOutletDetails` keeps a store's window, dock type and contacts in `ref.outlet_details` (migration `T1401`), laid over the current version when a snapshot loads, so the next plan reads it; a mall bay stays a mall bay and its window must overlap the mall's (R-REF-01, R-PLN-29); scope through Identity's contract (R-IAM-28). Phone numbers are normalised once, in `shared/domain/PhoneNumber`. The store's account menu opens both editors (a bottom sheet on a phone). Home drops its stacked warning cards and shows the loader's shortage as Figma's grey card; Orders opens on what is still open, with Received, Cancelled and All filters; Delivery confirmed is Figma's check list; dock codes read as words ("Rear dock", not "rear_dock dock").
+Why: request of 2026-10-03; decisions: store window and dock change directly, profile is name and phone.
+Verified: `ProfileFieldsTest` (4), `OutletDetailsTest` (6), `StoreSelfServiceIntegrationTest` (10), `AdministrationIntegrationTest`, `CommandPathIntegrationTest`, `IdentityHardeningIntegrationTest`, `ModuleBoundaryTest`, `EventCatalogueTest` on PostgreSQL 16; frontend `npm run typecheck`, `npm test` (85), `npm run build`, store browser suite (25 passed).
+Open: the store's details are not versioned, like calendar overrides, so a past plan re-read shows today's window; a change made on one instance reaches another's snapshot only at its next publish, as calendar overrides do (REF-02).
+
+---
+
+## 2026-10-03 - fix(offline): Background Sync with no page open, older held writes, and Windows service worker builds
+
+`fix/sync-open-items` · @Dinusha-Ekanayake
+
+The two gaps #109 left, and a build bug it surfaced:
+- With no page open, the service worker drains each account's queue itself (`scripts/sw-drain.mjs`), under the device id the page now keeps in the snapshot store and by the page's rules. A loader queue still waits for a page, which replays its offline operator switches first (A-39).
+- A write held before answers carried a version looks it up (`GET /api/sync/{operationId}`, owner only) before a discard or redo, so the server settles it too.
+- `build-sw.mjs` wrote Windows paths (`/.next\static\...`) into the precache list, so on a Windows build every precache request 404'd and the worker never installed. That was the `e2e-driver/day.spec.ts` failure seen only on Windows.
+Why: the open items recorded when #28 closed.
+Verified: see the PR. `SyncIntegrationTest` reads one operation (owner only); `sw-drain.test.ts` and `background-sync.spec.ts` (the real worker draining IndexedDB); `held.spec.ts` discards an older held write after looking its version up; driver suite 10 of 10 on Windows.
+Open: a loader queue still waits for an open page.
 
 ---
 

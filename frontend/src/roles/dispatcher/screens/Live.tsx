@@ -2,20 +2,21 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { RunSheetStopView } from "@shared/domain/types";
-import { KpiCard, Notice, Pill, type Tone } from "@shared/ui";
+import { KpiCard, Notice, Pill, Segmented, type Tone } from "@shared/ui";
 import PageHeader from "../PageHeader.tsx";
 import { attention, byUrgency, isLate, totals, vehicleDay, type VehicleDay } from "../data/live.ts";
 import { hhmm } from "../data/plan.ts";
-import { formatDay } from "../data/scope.ts";
+import { dayLabel } from "../data/scope.ts";
 import { useLive } from "../data/useDay.ts";
 import DayPicker from "./DayTools.tsx";
 import { Retry } from "./Orders.tsx";
+import LiveMapView from "./LiveMap.tsx";
 import Refusal from "./Refusal.tsx";
 
-// Figma "05 Live", as a list. The design's map needs a position for every
-// outlet and vehicle; outlets have no coordinates (A-11), so the same facts are
-// shown as each vehicle's stops in order. Read every 30 seconds while the tab
-// is visible and online; the header says when it last was.
+// Figma "05 Live": a Map view (LiveMap.tsx, issue #161) and a Timeline view,
+// the list of each vehicle's stops in order. The timeline is also the way to
+// every vehicle without the map. Run sheets are read every 30 seconds and
+// positions every 15 while the tab is visible and online; the header says when.
 
 const STATE: Record<VehicleDay["state"], string> = {
   "not-started": "Released, not started",
@@ -23,6 +24,16 @@ const STATE: Record<VehicleDay["state"], string> = {
   "at-stop": "At",
   finished: "Run finished",
 };
+
+const VIEW_KEY = "waypoint.dispatcher.live-view";
+
+function storedView(): "map" | "timeline" {
+  try {
+    return window.localStorage.getItem(VIEW_KEY) === "timeline" ? "timeline" : "map";
+  } catch {
+    return "map";
+  }
+}
 
 const DOCK: Record<string, { label: string; tone: Tone }> = {
   NOT_STARTED: { label: "Not started", tone: "muted" },
@@ -48,6 +59,16 @@ export default function Live({
   const live = useLive(depots, date);
   const [now, setNow] = useState(() => new Date());
   const [openId, setOpenId] = useState<string | null>(null);
+  const [view, setView] = useState<"map" | "timeline">("timeline");
+  useEffect(() => setView(storedView()), []);
+  const chooseView = (next: "map" | "timeline") => {
+    setView(next);
+    try {
+      window.localStorage.setItem(VIEW_KEY, next);
+    } catch {
+      // Remembered for this visit only.
+    }
+  };
 
   // "Running late" compares a window with the time now, so the time moves.
   useEffect(() => {
@@ -64,11 +85,18 @@ export default function Live({
   return (
     <>
       <PageHeader
-        title={`Live · ${formatDay(date)}`}
+        title={`Live · ${dayLabel(date)}`}
         subtitle={`${live.data ? `${t.onTheRoad} on the road · ${t.atDock} at the dock` : "Loading"} · ${scopeLabel}`}
         online={online}
         lastSyncedAt={live.loadedAt}
-        tools={<DayPicker date={date} onDate={onDate} />}
+        onSync={live.refresh}
+        syncing={live.loading}
+        tools={
+          <div className="flex items-center gap-2">
+            <Segmented label="View" value={view} onChange={chooseView} options={[{ value: "map", label: "Map" }, { value: "timeline", label: "Timeline" }]} />
+            <DayPicker date={date} onDate={onDate} />
+          </div>
+        }
       />
       {live.error && <Refusal error={live.error} what="the live view" action={<Retry onClick={live.refresh} />} />}
 
@@ -79,14 +107,17 @@ export default function Live({
         <KpiCard label="Need you" value={live.data ? needs.length : "…"} note="not delivered, late, or proof owed" valueClassName={needs.length ? "text-go-danger-strong" : "text-go-ink"} />
       </div>
 
-      <div className="flex min-h-0 w-full flex-1 gap-[18px] max-lg:flex-col">
+      {view === "map" && <LiveMapView depots={depots} depotOf={live.data?.depotOf ?? {}} date={date} days={days} now={now} />}
+      {!online && view === "map" && <Notice tone="warning" title="Live updates are paused" />}
+
+      <div className={`${view === "map" ? "hidden" : "flex"} min-h-0 w-full flex-1 gap-[18px] max-lg:flex-col`}>
         <section aria-label="Vehicles on the road" className="flex min-w-0 flex-1 flex-col gap-2.5 rounded-[24px] bg-white p-4 shadow-go-card">
           <div className="flex items-baseline justify-between px-1">
             <h2 className="text-[17px] font-medium text-go-ink">On the road</h2>
             <span className="text-xs text-go-secondary">most urgent first</span>
           </div>
           {live.data && days.length === 0 && (
-            <p className="py-8 text-center text-[13px] text-go-secondary">No vehicle has left the dock on {formatDay(date)}. A vehicle appears here when the loader releases it.</p>
+            <p className="py-8 text-center text-[13px] text-go-secondary">No vehicle has left the dock on {dayLabel(date)}. A vehicle appears here when the loader releases it.</p>
           )}
           {days.map((day) => (
             <VehicleCard key={day.vehicleId} day={day} date={date} now={now} open={openId === day.vehicleId} onToggle={() => setOpenId(openId === day.vehicleId ? null : day.vehicleId)} />

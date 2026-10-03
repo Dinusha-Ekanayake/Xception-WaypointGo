@@ -47,7 +47,9 @@ public final class AuditRedactor {
           "displayname",
           "fullname",
           "contactname",
-          "recipient");
+          "recipient",
+          "latitude",
+          "longitude");
 
   /**
    * Fields that contain a fragment and carry nothing personal. Kept short and
@@ -85,6 +87,7 @@ public final class AuditRedactor {
 
   static boolean sensitive(String fieldName) {
     String name = fieldName.toLowerCase(Locale.ROOT).replace("_", "").replace("-", "");
+    if (name.equals("points")) return true;
     if (ALLOWED.contains(name)) {
       return false;
     }

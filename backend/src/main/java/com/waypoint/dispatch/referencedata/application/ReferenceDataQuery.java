@@ -5,6 +5,9 @@ import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.referencedata.contract.ReferenceQuery;
 import com.waypoint.dispatch.referencedata.contract.ReferenceViews.AllowanceView;
 import com.waypoint.dispatch.referencedata.contract.ReferenceViews.CalendarDayView;
+import com.waypoint.dispatch.referencedata.contract.ReferenceViews.DepotView;
+import com.waypoint.dispatch.referencedata.contract.ReferenceViews.DistrictView;
+import com.waypoint.dispatch.referencedata.contract.ReferenceViews.GeoPoint;
 import com.waypoint.dispatch.referencedata.contract.ReferenceViews.OutletView;
 import com.waypoint.dispatch.referencedata.contract.ReferenceViews.RoadConditionView;
 import com.waypoint.dispatch.referencedata.contract.ReferenceViews.TrafficSpeedView;
@@ -87,6 +90,20 @@ public class ReferenceDataQuery implements ReferenceQuery {
   public Optional<OutletView> outlet(String outletId, UUID versionId) {
     ReferenceSnapshot s = snapshot(versionId);
     return s.outlet(outletId).map(o -> toOutletView(s, o));
+  }
+
+  @Override
+  public Optional<DepotView> depot(String code, UUID versionId) {
+    return snapshot(versionId).depot(new DepotCode(code)).map(d ->
+        new DepotView(d.code().value(), d.displayName(),
+            d.location().map(p -> new GeoPoint(p.latitude(), p.longitude(), p.precision()))));
+  }
+
+  @Override
+  public Optional<DistrictView> district(String name, UUID versionId) {
+    return snapshot(versionId).district(name).map(d ->
+        new DistrictView(d.name(), d.depot().value(),
+            d.location().map(p -> new GeoPoint(p.latitude(), p.longitude(), p.precision()))));
   }
 
   @Override
@@ -269,7 +286,8 @@ public class ReferenceDataQuery implements ReferenceQuery {
         o.window().close(),
         effective.map(DeliveryWindow::open),
         effective.map(DeliveryWindow::close),
-        o.requiresVan());
+        o.requiresVan(), o.location().map(p -> new GeoPoint(
+            p.latitude(), p.longitude(), p.precision())));
   }
 
   private static VehicleView toVehicleView(Vehicle v) {

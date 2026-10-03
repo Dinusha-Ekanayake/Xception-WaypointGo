@@ -15,7 +15,13 @@ public record Outlet(
     DockType dockType,
     ParkingConstraint parkingConstraint,
     DeliveryWindow window,
-    Optional<DeliveryWindow> mallWindow) {
+    Optional<DeliveryWindow> mallWindow,
+    Optional<GeoPoint> location) {
+
+  public Outlet(String id, String brandCode, String districtName, DockType dockType,
+      ParkingConstraint parkingConstraint, DeliveryWindow window, Optional<DeliveryWindow> mallWindow) {
+    this(id, brandCode, districtName, dockType, parkingConstraint, window, mallWindow, Optional.empty());
+  }
 
   /**
    * R-PLN-29: what the outlet will actually accept. For a mall outlet that is

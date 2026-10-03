@@ -116,12 +116,16 @@ A FastAPI service that serves the trained Datathon models and nothing else: it n
 3. As an administrator, register and activate both models. The names and versions are in `ml-server/manifest.json`:
 
    ```json
-   {"kind":"ml:RegisterModel","payload":{"name":"datathon-task1-blend","version":"2026.1","kind":"delivery_risk"}, ...}
-   {"kind":"ml:ActivateModel","expectedVersion":1,"payload":{"name":"datathon-task1-blend","version":"2026.1"}, ...}
+   {"kind":"ml:RegisterModel","payload":{"name":"datathon-task1-blend","version":"2026.1.1","kind":"delivery_risk"}, ...}
+   {"kind":"ml:ActivateModel","expectedVersion":1,"payload":{"name":"datathon-task1-blend","version":"2026.1.1"}, ...}
    ```
 
-4. Publish a plan. Within 30 s, `GET /api/ml/plans/{planId}/predictions` shows every stop with `datathon-task1-blend@2026.1`, and the plan reads `plannedWithoutPredictor: false`. Dates after 2026-06-28 show `roadConditions: fallback`.
+4. Publish a plan. Within 30 s, `GET /api/ml/plans/{planId}/predictions` shows every stop with `datathon-task1-blend@2026.1.1`, and the plan reads `plannedWithoutPredictor: false`. Dates after 2026-06-28 show `roadConditions: fallback`.
 5. Stop the `ml` container and publish again. The predictions are `deterministic` and degraded, with the reason, and the plan reads `plannedWithoutPredictor: true`.
+   Retiring is final: a retired version can never be activated again. Version `2026.1` was retired on preview on 2026-10-03, so the same model files are served as `2026.1.1`; a later re-release needs another version in `ml-server/manifest.json`.
+
+   To see a newly activated demand model at once rather than at the next owed run (up to six hours after a fallback run, P-29), run the job by hand: `docker compose run --rm --no-deps backend java -jar /app/backend.jar forecast-run` (the image starts the jar itself, so a command goes after it; on the VPS add `-f compose.yaml -f deploy/vps/compose.vps.yaml` as in `deploy.sh`, and run it as `deploy`). It takes the scheduled job's lease and run record.
+
 6. The metrics at `/prometheus` are `waypoint_ml_call`, `waypoint_ml_fallback`, `waypoint_ml_circuit_open`, `waypoint_ml_scoring_pending`, `waypoint_ml_scoring`, `waypoint_ml_forecast` and `waypoint_ml_estimate`.
 
 ## Tests

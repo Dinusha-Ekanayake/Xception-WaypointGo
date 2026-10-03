@@ -1,11 +1,32 @@
+"use client";
+
+import { useState } from "react";
 import type { ApiError } from "@shared/api/problem";
 import type { OrderView } from "@shared/domain/types";
-import { Notice } from "@shared/ui";
+import { Notice, cx } from "@shared/ui";
 import { cases, ORDER_STATUS, dayLabel, depotToday, temperatureLabel } from "../data/format.ts";
 import { Chip, Muted } from "../ui.tsx";
 
 // Every order for this outlet, newest delivery day first. Tapping one opens its
-// timeline, where it can be changed or cancelled until it is planned.
+// timeline, where it can be changed or cancelled until it is planned. By
+// default the list shows what is still open: cancelled and received orders are
+// a filter away.
+
+type Filter = "open" | "received" | "cancelled" | "all";
+
+const FILTERS: { id: Filter; label: string; keep: (o: OrderView) => boolean }[] = [
+  { id: "open", label: "Open", keep: (o) => o.status !== "CANCELLED" && o.status !== "RECEIVED" },
+  { id: "received", label: "Received", keep: (o) => o.status === "RECEIVED" },
+  { id: "cancelled", label: "Cancelled", keep: (o) => o.status === "CANCELLED" },
+  { id: "all", label: "All", keep: () => true },
+];
+
+const EMPTY: Record<Filter, string> = {
+  open: "No open orders. Received and cancelled ones are under their filters.",
+  received: "No received orders yet.",
+  cancelled: "No cancelled orders.",
+  all: "No orders yet.",
+};
 
 export default function Orders({
   orders,
@@ -20,8 +41,11 @@ export default function Orders({
   onOpen: (orderId: string) => void;
   onPlace: () => void;
 }): React.JSX.Element {
+  const [filter, setFilter] = useState<Filter>("open");
   const today = depotToday();
-  const days = [...new Set(orders.map((o) => o.deliveryDate))].sort().reverse();
+  const keep = FILTERS.find((f) => f.id === filter)!.keep;
+  const shown = orders.filter(keep);
+  const days = [...new Set(shown.map((o) => o.deliveryDate))].sort().reverse();
 
   return (
     <div className="flex flex-col gap-5">
@@ -31,16 +55,31 @@ export default function Orders({
           + New order
         </button>
       </div>
+
+      <div role="group" aria-label="Show" className="flex gap-1 rounded-full bg-white p-1 lg:w-fit">
+        {FILTERS.map((f) => (
+          <button
+            key={f.id}
+            type="button"
+            aria-pressed={f.id === filter}
+            onClick={() => setFilter(f.id)}
+            className={cx("min-h-12 flex-1 rounded-full px-3 text-[15px] font-medium lg:flex-none lg:px-5", f.id === filter ? "bg-[#031a0c] text-white" : "text-black")}
+          >
+            {f.label} <span className="opacity-60">{orders.filter(f.keep).length}</span>
+          </button>
+        ))}
+      </div>
+
       {error && <Notice tone="danger" title="Could not load your orders">{error.message}</Notice>}
       {loading && orders.length === 0 && <Muted>Loading…</Muted>}
-      {!loading && orders.length === 0 && <Muted>No orders yet.</Muted>}
+      {!loading && shown.length === 0 && <Muted>{EMPTY[filter]}</Muted>}
       {days.map((d) => (
         <section key={d} aria-label={dayLabel(d)} className="flex flex-col gap-2.5">
           <h2 className="text-[17px] font-medium text-black">
             {d === today ? "Today · " : ""}
             {dayLabel(d)}
           </h2>
-          {orders
+          {shown
             .filter((o) => o.deliveryDate === d)
             .map((o) => {
               const s = ORDER_STATUS[o.status];

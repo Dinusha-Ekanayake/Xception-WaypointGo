@@ -2,7 +2,7 @@ import { useRef, useState, type ReactNode } from "react";
 import { Icon, ShellActions, cx, type IconName } from "@shared/ui";
 import type { OutletView } from "@shared/domain/types";
 import AccountMenu from "./AccountMenu.tsx";
-import type { StatusTone } from "./data/format.ts";
+import { dockLabel, type StatusTone } from "./data/format.ts";
 
 // Store pieces from Figma "15 Store Manager · Mobile". Touch targets are at
 // least 48px; the manager works at the counter, often one handed.
@@ -234,7 +234,7 @@ export function TabBar({ tab, onTab, badges }: { tab: Tab; onTab: (t: Tab) => vo
   );
 }
 
-function initials(name: string): string {
+export function initials(name: string): string {
   const parts = name.trim().split(/\s+/);
   return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : "")).toUpperCase();
 }
@@ -250,12 +250,16 @@ export function SideNav({
   badges,
   outlet,
   displayName,
+  onEditProfile,
+  onEditStore,
 }: {
   tab: Tab;
   onTab: (t: Tab) => void;
   badges: Partial<Record<Tab, number>>;
   outlet: OutletView | null;
   displayName: string;
+  onEditProfile: () => void;
+  onEditStore: () => void;
 }): React.JSX.Element {
   const [account, setAccount] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -299,7 +303,7 @@ export function SideNav({
             {outlet.districtName} · {outlet.outletId}
           </span>
           <span className="text-[13px] text-go-muted">
-            {outlet.dockType} dock · {outlet.windowOpen.slice(0, 5)}-{outlet.windowClose.slice(0, 5)}
+            {dockLabel(outlet.dockType)} · {outlet.windowOpen.slice(0, 5)}-{outlet.windowClose.slice(0, 5)}
           </span>
         </div>
       )}
@@ -326,6 +330,8 @@ export function SideNav({
           displayName={displayName}
           initials={initials(displayName)}
           outlet={outlet}
+          onEditProfile={onEditProfile}
+          onEditStore={onEditStore}
           onClose={() => {
             setAccount(false);
             trigger.current?.focus();

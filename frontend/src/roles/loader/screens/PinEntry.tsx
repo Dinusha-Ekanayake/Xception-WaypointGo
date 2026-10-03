@@ -5,6 +5,7 @@ import { cx } from "@shared/ui";
 import { useT } from "../i18n.tsx";
 import { ChevronLeftIcon } from "../icons.tsx";
 import { BigButton } from "../ui.tsx";
+import { countdown } from "@shared/wording";
 
 // Figma "08 Loader · Phone": 09 Enter PIN, 10 Unlock with PIN, 14 Incorrect PIN
 // and 15 PIN entry paused. Four boxes over one real input, so the phone's
@@ -15,11 +16,6 @@ export type PinState =
   | { kind: "entering" }
   | { kind: "wrong"; triesLeft: number }
   | { kind: "paused"; seconds: number };
-
-export function clockOf(seconds: number): string {
-  const s = Math.max(0, Math.ceil(seconds));
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-}
 
 export default function PinEntry({
   title,
@@ -70,7 +66,7 @@ export default function PinEntry({
       >
         <h1 className="text-center text-[22px] font-medium text-go-ink">{paused ? tr("PIN entry paused") : title}</h1>
         <p className="text-center text-[14px] text-go-secondary">
-          {paused ? tr("Too many tries. Wait {time}.", { time: clockOf(state.seconds) }) : who}
+          {paused ? tr("Too many tries. Wait {time}.", { time: countdown(state.seconds) }) : who}
         </p>
         <label className="relative rounded-[14px] p-1 has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-go-signal" htmlFor="loader-pin">
           <span className="sr-only">{tr("4-digit PIN")}</span>

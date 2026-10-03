@@ -24,6 +24,7 @@ export default function LoadSheet({
   waiting,
   onQueued,
   onSynced,
+  refreshKey,
   onBack,
   actingUserId,
 }: {
@@ -34,6 +35,8 @@ export default function LoadSheet({
   waiting: number;
   onQueued: () => void;
   onSynced: (at: Date | null) => void;
+  /** Bumped when the loader taps "Synced": read the manifest again. */
+  refreshKey?: number;
   /** Back to the dock board, after a release or from the top bar. */
   onBack: () => void;
   actingUserId: string;
@@ -50,6 +53,10 @@ export default function LoadSheet({
   const m = t.manifest.data;
 
   useEffect(() => onSynced(t.manifest.loadedAt), [t.manifest.loadedAt, onSynced]);
+  const { refresh: reload } = t.manifest;
+  useEffect(() => {
+    if (refreshKey) reload();
+  }, [refreshKey, reload]);
 
   if (!m) {
     return t.manifest.error ? (

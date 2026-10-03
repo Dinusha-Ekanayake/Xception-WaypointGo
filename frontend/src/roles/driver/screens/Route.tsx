@@ -3,10 +3,12 @@
 import type { OutletView } from "@shared/domain/types";
 import { clock, isFinished, lateMinutes, type Stop } from "../data/run.ts";
 import { ActionButton, Panel, SoftButton, Tag } from "../ui.tsx";
+import { exactPoint } from "./RouteMap.tsx";
 
 // Figma "Route: Next stop": the stops already done, then the one to drive to.
-// The design's Map and Call buttons are left out: outlets have no coordinates
-// (A-11) and the data holds no phone numbers.
+// Open map (component set 62:14) shows only when the store has an exact
+// location (D4); a district centre would send a truck to the wrong place. The
+// Call button is left out: the data holds no phone numbers.
 
 function place(outlet: OutletView | undefined): string {
   return outlet ? `${outlet.districtName} · ${outlet.brandCode}` : "";
@@ -30,6 +32,7 @@ export default function Route({
   onArrived,
   onReport,
   onProblem,
+  onOpenMap,
 }: {
   date: string;
   stops: Stop[];
@@ -41,6 +44,7 @@ export default function Route({
   /** The stop is already reached: open its delivery report. */
   onReport: (stop: Stop) => void;
   onProblem: (stop: Stop) => void;
+  onOpenMap: () => void;
 }): React.JSX.Element {
   const done = stops.filter(isFinished);
   const outlet = outlets[next.outletId];
@@ -93,6 +97,11 @@ export default function Route({
         <p className="mt-5 border-t border-go-rule pt-4 text-[15px] text-go-ink">{next.itemCount} units to deliver</p>
 
         <div className="mt-4 flex flex-col gap-3">
+          {exactPoint(outlet) ? (
+            <SoftButton onClick={onOpenMap}>Open map</SoftButton>
+          ) : (
+            <p className="text-[13px] text-go-muted">No exact location for this store yet</p>
+          )}
           <SoftButton onClick={() => onProblem(next)}>Report problem</SoftButton>
           {next.outcome === "ARRIVED" ? (
             <ActionButton onClick={() => onReport(next)}>Open delivery report</ActionButton>

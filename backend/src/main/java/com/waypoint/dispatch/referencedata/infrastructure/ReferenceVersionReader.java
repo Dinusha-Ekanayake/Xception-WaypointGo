@@ -6,7 +6,9 @@ import com.waypoint.dispatch.referencedata.domain.DeliveryWindow;
 import com.waypoint.dispatch.referencedata.domain.Depot;
 import com.waypoint.dispatch.referencedata.domain.District;
 import com.waypoint.dispatch.referencedata.domain.DockType;
+import com.waypoint.dispatch.referencedata.domain.GeoPoint;
 import com.waypoint.dispatch.referencedata.domain.Outlet;
+import com.waypoint.dispatch.referencedata.domain.OutletDetails;
 import com.waypoint.dispatch.referencedata.domain.ParkingConstraint;
 import com.waypoint.dispatch.referencedata.domain.ReferenceSnapshot;
 import com.waypoint.dispatch.referencedata.domain.ServiceAllowance;
@@ -65,7 +67,7 @@ public class ReferenceVersionReader {
     List<Depot> depots =
         database
             .query(
-                "SELECT depot_code, display_name, timezone_name FROM ref.depots"
+                "SELECT depot_code, display_name, timezone_name, latitude, longitude, location_precision FROM ref.depots"
                     + " WHERE reference_version_id = ?",
                 versionId)
             .stream()
@@ -74,25 +76,27 @@ public class ReferenceVersionReader {
                     new Depot(
                         new DepotCode((String) r.get("depot_code")),
                         (String) r.get("display_name"),
-                        ZoneId.of((String) r.get("timezone_name"))))
+                        ZoneId.of((String) r.get("timezone_name")), location(r, "latitude", "longitude", (String) r.get("location_precision"))))
             .toList();
 
     List<District> districts =
         database
             .query(
-                "SELECT district_name, depot_code FROM ref.districts WHERE reference_version_id = ?",
+                "SELECT district_name, depot_code, centroid_latitude, centroid_longitude FROM ref.districts WHERE reference_version_id = ?",
                 versionId)
             .stream()
             .map(
                 r ->
                     new District(
                         (String) r.get("district_name"),
-                        new DepotCode((String) r.get("depot_code"))))
+                        new DepotCode((String) r.get("depot_code")), location(r, "centroid_latitude", "centroid_longitude", "centroid")))
             .toList();
 
+    Map<String, OutletDetails> details = outletDetails();
     List<Outlet> outlets =
         database.query("SELECT * FROM ref.outlets WHERE reference_version_id = ?", versionId).stream()
             .map(ReferenceVersionReader::toOutlet)
+            .map(o -> details.containsKey(o.id()) ? details.get(o.id()).applyTo(o) : o)
             .toList();
 
     List<Vehicle> vehicles =
@@ -137,6 +141,41 @@ public class ReferenceVersionReader {
             versionId, brands, depots, districts, outlets, vehicles, travel, allowances, calendar));
   }
 
+  /**
+   * The outlet exactly as the current published version has it, without the
+   * store's own details: what a change to those details is checked against.
+   */
+  public Optional<Outlet> publishedOutlet(String outletId) {
+    Map<String, Object> row =
+        database.queryOne(
+            "SELECT o.* FROM ref.outlets o"
+                + " JOIN ref.reference_versions v ON v.reference_version_id = o.reference_version_id"
+                + " WHERE v.is_current AND o.outlet_id = ?",
+            outletId);
+    return Optional.ofNullable(row).map(ReferenceVersionReader::toOutlet);
+  }
+
+  /**
+   * R-REF-01: each store's own window and dock, laid over the published outlets
+   * as the calendar's overrides are laid over its days, so an import cannot
+   * discard them. Like those, they are not versioned: a past plan reads today's.
+   */
+  private Map<String, OutletDetails> outletDetails() {
+    Map<String, OutletDetails> details = new java.util.HashMap<>();
+    for (Map<String, Object> r :
+        database.query("SELECT outlet_id, window_open, window_close, dock_type FROM ref.outlet_details")) {
+      String id = (String) r.get("outlet_id");
+      Optional<DeliveryWindow> window =
+          r.get("window_open") == null
+              ? Optional.empty()
+              : Optional.of(new DeliveryWindow(time(r.get("window_open")), time(r.get("window_close"))));
+      Optional<DockType> dock =
+          r.get("dock_type") == null ? Optional.empty() : Optional.of(DockType.parse((String) r.get("dock_type")));
+      details.put(id, new OutletDetails(id, window, dock, null, null, null));
+    }
+    return details;
+  }
+
   private static Outlet toOutlet(Map<String, Object> r) {
     Optional<DeliveryWindow> mall =
         r.get("mall_window_open") == null
@@ -151,7 +190,14 @@ public class ReferenceVersionReader {
         DockType.parse((String) r.get("dock_type")),
         ParkingConstraint.parse((String) r.get("parking_constraint")),
         new DeliveryWindow(time(r.get("window_open_time")), time(r.get("window_close_time"))),
-        mall);
+        mall, location(r, "latitude", "longitude", (String) r.get("location_precision")));
+  }
+
+  private static Optional<GeoPoint> location(
+      Map<String, Object> row, String lat, String lon, String precision) {
+    if (row.get(lat) == null || row.get(lon) == null || precision == null) return Optional.empty();
+    return Optional.of(new GeoPoint(
+        (BigDecimal) row.get(lat), (BigDecimal) row.get(lon), precision));
   }
 
   private static Vehicle toVehicle(Map<String, Object> r) {
