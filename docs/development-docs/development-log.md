@@ -21,6 +21,17 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-03 - feat: the Forecast screen shows the last and next run, with a countdown
+
+`feat/forecast-schedule` · @tharushaudana
+
+The overview gains `nextRunAt`, from `intelligence/domain/ForecastSchedule`, which now also holds the rule `ForecastJob.due` obeys (P-29); the dispatcher's Forecast tab shows both runs in depot time and reads again when one is due.
+Why: after a deploy the screen said only "No forecast yet"; the hour is Colombo's, so the first run came at :30 UTC, which was not obvious.
+Verified: `IntelligenceDomainTest` (22); frontend `npm run typecheck`, `npm test` (109), `npm run build`, dispatcher browser suite (23). The `nextRunAt` assertion in `IntelligenceIntegrationTest` runs in CI.
+Open: nothing.
+
+---
+
 ## 2026-10-03 - feat: the dispatcher's Forecast tab on the model service
 
 `feat/dispatcher-forecast` · @tharushaudana
