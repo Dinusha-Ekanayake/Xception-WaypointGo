@@ -136,6 +136,7 @@ export const ExecutionCommandKind = {
   captureProof: "delivery:CaptureProof",
   reportVehicleStatus: "delivery:ReportVehicleStatus",
   reportFault: "delivery:ReportFault",
+  recordPositions: "delivery:RecordPositions",
 } as const;
 
 export type StartStop = { deliveryId: Uuid };
@@ -170,3 +171,40 @@ export type ReportFault = {
   kind: "vehicle" | "road";
   description: string;
 };
+
+/**
+ * A vehicle's last good GPS fix (R-EXE-19). `offline` means its trip is in
+ * progress and no good fix arrived for ten minutes: the point is where it was
+ * last seen, never an estimate.
+ */
+export type VehiclePositionView = {
+  vehicleId: string;
+  tripId: Uuid | null;
+  latitude: number | string;
+  longitude: number | string;
+  headingDeg: number | string | null;
+  accuracyM: number | string | null;
+  recordedAt: IsoInstant;
+  offline: boolean;
+};
+
+/** One point of a trip's recorded trail, oldest first. Low quality is drawn faded. */
+export type TrailPointView = {
+  recordedAt: IsoInstant;
+  latitude: number | string;
+  longitude: number | string;
+  lowQuality: boolean;
+};
+
+/** One phone observation, at most six decimals on the coordinates (R-EXE-18). */
+export type PositionPoint = {
+  recordedAt: IsoInstant;
+  latitude: number;
+  longitude: number;
+  accuracyM?: number;
+  headingDeg?: number;
+  speedKmh?: number;
+};
+
+/** `delivery:RecordPositions`: 1-100 points, oldest first. Append only, so no expectedVersion. */
+export type RecordPositionsPayload = { vehicleId: string; tripId?: Uuid; points: PositionPoint[] };

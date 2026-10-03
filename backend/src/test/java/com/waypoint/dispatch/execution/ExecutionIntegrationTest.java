@@ -11,7 +11,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.waypoint.dispatch.execution.ExecutionTestConfig.MovableClock;
+import com.waypoint.dispatch.execution.application.PositionRetentionJob;
 import com.waypoint.dispatch.execution.application.ProofRetentionJob;
+import com.waypoint.dispatch.sync.application.PositionPayloadRetentionJob;
 import com.waypoint.dispatch.identity.application.AccountAdminUseCase;
 import com.waypoint.dispatch.identity.application.LoginHandler;
 import com.waypoint.dispatch.identity.web.AuthController;
@@ -92,6 +94,8 @@ class ExecutionIntegrationTest {
   @Autowired EventPublisher publisher;
   @Autowired OutboxRelay relay;
   @Autowired ProofRetentionJob retention;
+  @Autowired PositionRetentionJob positionRetention;
+  @Autowired PositionPayloadRetentionJob payloadRetention;
 
   String depot;
   LocalDate day;
@@ -820,6 +824,127 @@ class ExecutionIntegrationTest {
   // ---- helpers ----
 
   /** Whether either vehicle already has a driver somewhere in {@code [from, until)}. */
+
+  // ---- positions (issue #161) ----
+
+  @Test
+  void aDriverRecordsPositionsAndOnlyTheirScopeSeesThem() throws Exception {
+    at("05:10");
+    UUID commandId = UUID.randomUUID();
+    String body = envelope(commandId, "delivery:RecordPositions", null,
+        positions(tripId, fix("05:00", "6.960000", "79.880000", 12), fix("05:05", "6.961000", "79.881000", 450),
+            fix("05:05", "6.961000", "79.881000", 450), fix("05:08", "6.962000", "79.882000", 15)),
+        clock.now());
+    JsonNode first = json(command(driver, body, 200));
+    assertEquals(3, first.get("result").get("stored").asInt(), "the exact repeat is stored once");
+    assertTrue(json(command(driver, body, 200)).get("replayed").asBoolean(), "a replay is answered from its receipt");
+
+    // R-EXE-19: the last good fix, never the poor one.
+    JsonNode live = json(read(dispatcher, "/api/execution/positions?date=" + day + "&depot=" + depot, 200));
+    assertEquals(1, live.size());
+    assertEquals(vehicleId, live.get(0).get("vehicleId").asText());
+    assertEquals(0, live.get(0).get("latitude").decimalValue().compareTo(new java.math.BigDecimal("6.962")));
+    assertFalse(live.get(0).get("offline").asBoolean());
+    at("05:20");
+    assertTrue(json(read(dispatcher, "/api/execution/positions?date=" + day + "&depot=" + depot, 200))
+        .get(0).get("offline").asBoolean(), "ten minutes without a good fix on a trip in progress");
+
+    read(farDispatcher, "/api/execution/positions?date=" + day + "&depot=" + depot, 403);
+    assertEquals(1, json(read(manager, "/api/execution/positions?date=" + day + "&outlet=" + OUTLET, 200)).size());
+    read(manager, "/api/execution/positions?date=" + day + "&outlet=" + OTHER_DEPOT_OUTLET, 403);
+    JsonNode trail = json(read(dispatcher, "/api/execution/trips/" + tripId + "/trail", 200));
+    assertEquals(3, trail.get("items").size());
+    assertTrue(trail.get("items").get(1).get("lowQuality").asBoolean());
+
+    // EXE-LOC-04: another vehicle's driver, and yesterday's driver of this one, are refused and audited.
+    send(otherDriver, "delivery:RecordPositions", null, positions(null, fix("05:12", "6.9", "79.9", 10)), 403);
+    send(yesterdaysDriver, "delivery:RecordPositions", null, positions(null, fix("05:12", "6.9", "79.9", 10)), 403);
+    assertTrue(audited("delivery:RecordPositions", "DENY", "wpt:execution:vehicle:" + vehicleId));
+    // EXE-LOC-01: outside Sri Lanka, or from a clock far ahead, is refused whole.
+    send(driver, "delivery:RecordPositions", null, positions(null, fix("05:12", "51.5", "0.1", 10)), 422);
+    send(driver, "delivery:RecordPositions", null, positions(null, fix("06:00", "6.9", "79.9", 10)), 422);
+    assertEquals(3, count("SELECT count(*) AS n FROM execution.vehicle_positions WHERE trip_id = ?", tripId));
+    assertTrue(database.asSystemSeparately(ModuleRole.INTEGRATION, () -> database.query(
+        "SELECT 1 FROM integration.audit_log a WHERE a::text LIKE '%79.88%'")).isEmpty(),
+        "no coordinate reaches the audit log");
+  }
+
+  @Test
+  void aStoreStopsSeeingTheVehicleOnceItsStopsAreDone() throws Exception {
+    // R-EXE-20, enforced by row-level security: the endpoint does not filter the trail.
+    at("05:10");
+    send(driver, "delivery:RecordPositions", null, positions(tripId, fix("05:05", "6.96", "79.88", 10)), 200);
+    assertEquals(1, json(read(manager, "/api/execution/trips/" + tripId + "/trail", 200)).get("items").size());
+    for (UUID stop : List.of(stopA, stopB)) {
+      at("05:30");
+      send(driver, "delivery:RecordArrival", 1L, stop(stop), 200);
+      send(driver, "delivery:Record", 2L, record(stop, "DELIVERED", null, null, null), 200);
+    }
+    at("09:30");
+    send(driver, "delivery:RecordArrival", 1L, stop(mallStop), 200);
+    send(driver, "delivery:Record", 2L, record(mallStop, "DELIVERED", null, null, null), 200);
+
+    assertEquals(0, json(read(manager, "/api/execution/positions?date=" + day + "&outlet=" + OUTLET, 200)).size());
+    assertEquals(0, json(read(manager, "/api/execution/trips/" + tripId + "/trail", 200)).get("items").size());
+    assertEquals(1, json(read(dispatcher, "/api/execution/trips/" + tripId + "/trail", 200)).get("items").size());
+    read(manager, "/api/execution/trips/" + UUID.randomUUID() + "/trail", 403);
+  }
+
+  @Test
+  void oldTrailsAreThinnedToTheStopEventsAndSyncCopiesLoseTheirPoints() throws Exception {
+    // R-EXE-21: after the service day plus 30 days, one point per stop event remains.
+    at("05:40");
+    String batch = envelope(UUID.randomUUID(), "delivery:RecordPositions", null,
+        positions(tripId, fix("05:00", "6.95", "79.87", 10), fix("05:20", "6.96", "79.88", 10),
+            fix("05:29", "6.97", "79.89", 10), fix("05:40", "6.98", "79.90", 10)),
+        clock.now());
+    sync(driver, "{\"deviceId\":\"" + UUID.randomUUID() + "\",\"operations\":[{\"sequence\":1,\"command\":" + batch + "}]}");
+    at("05:30");
+    send(driver, "delivery:RecordArrival", 1L, stop(stopA), 200);
+    send(driver, "delivery:Record", 2L, record(stopA, "DELIVERED", null, null, null), 200);
+
+    clock.set(day.plusDays(30).atTime(LocalTime.NOON).atZone(Clock.OPERATING_ZONE).toInstant());
+    positionRetention.run(clock.now());
+    assertEquals(4, count("SELECT count(*) AS n FROM execution.vehicle_positions WHERE trip_id = ?", tripId),
+        "the thirtieth day is still inside the window");
+    clock.set(day.plusDays(31).atTime(LocalTime.NOON).atZone(Clock.OPERATING_ZONE).toInstant());
+    positionRetention.run(clock.now());
+    positionRetention.run(clock.now());
+    assertEquals(1, count("SELECT count(*) AS n FROM execution.vehicle_positions WHERE trip_id = ?", tripId),
+        "the fix nearest the arrival and the delivery");
+
+    var later = Instant.now().plus(java.time.Duration.ofDays(40));
+    assertTrue(payloadRetention.runAt(later) >= 1, "the queued copy loses its points");
+    assertEquals(0, payloadRetention.runAt(later), "and keeps its envelope: a second run finds nothing");
+  }
+
+  @Test
+  void twoBatchesForOneVehicleAtOnceBothLandWithoutDuplicates() throws Exception {
+    at("05:30");
+    String a = positions(tripId, fix("05:00", "6.95", "79.87", 10), fix("05:10", "6.96", "79.88", 10));
+    String b = positions(tripId, fix("05:10", "6.96", "79.88", 10), fix("05:20", "6.97", "79.89", 10));
+    var pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+    try {
+      var one = pool.submit(() -> send(driver, "delivery:RecordPositions", null, a, 200));
+      var two = pool.submit(() -> send(driver, "delivery:RecordPositions", null, b, 200));
+      one.get();
+      two.get();
+    } finally {
+      pool.shutdown();
+    }
+    assertEquals(3, count("SELECT count(*) AS n FROM execution.vehicle_positions WHERE trip_id = ?", tripId));
+  }
+
+  private String fix(String time, String lat, String lon, int accuracy) {
+    return "{\"recordedAt\":\"" + instant(time) + "\",\"latitude\":" + lat + ",\"longitude\":" + lon
+        + ",\"accuracyM\":" + accuracy + "}";
+  }
+
+  private String positions(UUID trip, String... fixes) {
+    return "{\"vehicleId\":\"" + vehicleId + "\"" + (trip == null ? "" : ",\"tripId\":\"" + trip + "\"")
+        + ",\"points\":[" + String.join(",", fixes) + "]}";
+  }
+
   private boolean alreadyAssigned(String vehicle, String otherVehicle, LocalDate from, LocalDate until) {
     return database.asSystemSeparately(
         ModuleRole.IAM,

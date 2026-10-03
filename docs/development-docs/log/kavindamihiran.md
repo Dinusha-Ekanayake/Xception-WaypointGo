@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-03 - feat: live map for dispatcher, store manager and driver
+
+`feat/161-live-map-tracking` · @kavindamihiran
+
+Drivers' phones record GPS while a run is open, through the offline queue, as `delivery:RecordPositions` into append-only `execution.vehicle_positions` with RLS (R-EXE-20). Dispatcher Live gains a Map view, store Track a live map card, the driver a route map with Navigate for exact stores. Tiles go through `/map-tiles/` on our origin. Trails thin after 30 days, Sync copies included (R-EXE-21).
+Why: #161; [walkthrough](../../issues/161-live-map/WALKTHROUGH.md).
+Verified: `mvn verify` on isolated PostgreSQL 16 (no failures or skips); `npm test`, typecheck, build; dispatcher, driver and store browser suites by hand.
+Open: Figma screenshot comparison; road conditions chip, notify store and the 05e conflict modal have no source yet; exact outlet points need real data.
+
+---
+
 ## 2026-10-03 - feat: define GPS acceptance and audit privacy
 
 `feat/161-live-map` · @kavindamihiran
