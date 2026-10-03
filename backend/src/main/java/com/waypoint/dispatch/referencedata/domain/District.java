@@ -9,4 +9,8 @@ import com.waypoint.dispatch.shared.domain.DepotCode;
  * data, where all 120 outlets sit in the depot their district maps to with zero
  * exceptions, and the official validator indexes travel by district alone.
  */
-public record District(String name, DepotCode depot) {}
+public record District(String name, DepotCode depot, java.util.Optional<GeoPoint> location) {
+  public District(String name, DepotCode depot) {
+    this(name, depot, java.util.Optional.empty());
+  }
+}
