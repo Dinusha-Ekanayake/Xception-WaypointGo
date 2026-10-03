@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { SettingsPanel, cx, initialsOf } from "@shared/ui";
 
 /** Waveform bar heights exactly copied from the Figma specification */
@@ -23,9 +24,14 @@ function DriverProfileButton({
   isNight: boolean;
 }): React.JSX.Element {
   const [open, setOpen] = useState(false);
+  const button = useRef<HTMLButtonElement>(null);
+  // The header scales its controls, and a transformed ancestor traps a fixed
+  // sheet inside it, so the sheet renders into the themed driver root instead.
+  const host = open ? (button.current?.closest<HTMLElement>("[data-theme]") ?? document.body) : null;
   return (
     <>
       <button
+        ref={button}
         type="button"
         aria-haspopup="dialog"
         aria-expanded={open}
@@ -38,9 +44,11 @@ function DriverProfileButton({
       >
         {initialsOf(displayName)}
       </button>
-      {open && (
-        <SettingsPanel displayName={displayName} roleLabel="Driver" lang={lang} onLang={(l) => onLang?.(l)} placement="sheet" onClose={() => setOpen(false)} />
-      )}
+      {host &&
+        createPortal(
+          <SettingsPanel displayName={displayName} roleLabel="Driver" lang={lang} onLang={(l) => onLang?.(l)} placement="sheet" onClose={() => setOpen(false)} />,
+          host,
+        )}
     </>
   );
 }
