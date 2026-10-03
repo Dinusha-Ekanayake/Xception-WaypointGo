@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-10-03 - fix: VPS deploys cap the Docker build cache
+
+`fix/vps-build-cache-cap` · @kavindamihiran
+
+The BuildKit cache on the VPS reached 22.85 GB (606 entries, 22 GB reclaimable) in two days, because `deploy.sh` only pruned dangling images. With 64 GB free that is about a week of deploys. Each successful deploy now runs `docker builder prune --max-used-space 10GB`, keeping recent layers so builds stay fast. See [deployment.md](../../deployment.md).
+
+---
+
 ## 2026-10-03 - fix: failed map tiles are never kept by the browser
 
 `fix/map-tile-no-store` · @kavindamihiran
