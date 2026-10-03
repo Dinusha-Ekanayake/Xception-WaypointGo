@@ -193,7 +193,7 @@ function ChilledStrip({ weeks }: { weeks: ForecastWeek[] }): React.JSX.Element {
           const top = y(w.chilled);
           const height = STRIP_H - top;
           const inside = height >= LABEL_INSIDE_MIN;
-          const label = w.refrigeratedM3 > 0 ? `${Math.round(load * 100)}%` : "No reefers";
+          const label = w.refrigeratedM3 > 0 ? `${Math.round(load * 100)}%` : "No capacity";
           return (
             <g key={w.key}>
               {w.refrigeratedM3 > 0 && (
