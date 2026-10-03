@@ -3,8 +3,7 @@
 import { useState } from "react";
 import type { OutletView } from "@shared/domain/types";
 import { clock, type Stop } from "../data/run.ts";
-import { ActionButton, Banner, Panel } from "../ui.tsx";
-import { StopState } from "./Home.tsx";
+import { ActionButton, Banner, Panel, Tag } from "../ui.tsx";
 import ProofCapture, { EMPTY_PROOF, proofMissing, type ProofDraft } from "./ProofCapture.tsx";
 
 /**
@@ -92,4 +91,22 @@ export default function StopDetail({
       )}
     </div>
   );
+}
+
+export function StopState({ stop }: { stop: Stop }): React.JSX.Element {
+  const waiting = stop.waiting ? " · on phone" : "";
+  switch (stop.outcome) {
+    case "DELIVERED":
+      return <Tag tone="good">Delivered{waiting}</Tag>;
+    case "PARTIAL":
+      return <Tag tone="warn">Partial{waiting}</Tag>;
+    case "FAILED":
+      return <Tag tone="bad">Not delivered{waiting}</Tag>;
+    case "SKIPPED":
+      return <Tag>Replanned</Tag>;
+    case "ARRIVED":
+      return <Tag tone="warn">At the stop{waiting}</Tag>;
+    default:
+      return <Tag>{stop.startedAt ? `On the way${waiting}` : "To do"}</Tag>;
+  }
 }

@@ -9,10 +9,23 @@ import type { StoredEntry } from "./store.ts";
 const newId = (): string => globalThis.crypto?.randomUUID?.() ?? `cmd-${Date.now()}-${Math.random()}`;
 
 /** The order the server applies a device's writes in: when each was recorded. */
-export function inRecordedOrder<T extends Pick<StoredEntry, "enqueuedAt" | "commandId">>(entries: T[]): T[] {
-  return [...entries].sort(
-    (a, b) => (Date.parse(a.enqueuedAt) || 0) - (Date.parse(b.enqueuedAt) || 0) || a.commandId.localeCompare(b.commandId),
-  );
+/**
+ * Where a queued write falls in the order the person did things. `order` is
+ * given at enqueue and strictly increases on the device, so two writes recorded
+ * in the same millisecond keep their order; a write queued before it existed
+ * falls back to its recording time.
+ */
+export function recordedOrder(entry: Pick<StoredEntry, "enqueuedAt" | "order">): number {
+  return entry.order ?? (Date.parse(entry.enqueuedAt) || 0) * 1000;
+}
+
+/** The next order for a write recorded at `recordedAt`, after every one already queued. */
+export function nextOrder(recordedAt: string, queued: Array<Pick<StoredEntry, "enqueuedAt" | "order">>, last = 0): number {
+  return Math.max((Date.parse(recordedAt) || 0) * 1000, last, ...queued.map(recordedOrder)) + 1;
+}
+
+export function inRecordedOrder<T extends Pick<StoredEntry, "enqueuedAt" | "commandId" | "order">>(entries: T[]): T[] {
+  return [...entries].sort((a, b) => recordedOrder(a) - recordedOrder(b) || a.commandId.localeCompare(b.commandId));
 }
 
 /**

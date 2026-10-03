@@ -1,14 +1,24 @@
 "use client";
 
 import { cx } from "@shared/ui";
+import { clock, stops as stopsText } from "../../../shared/wording/index.ts";
+import type { Stop } from "../data/run.ts";
+import { finishedAt, summaryRows } from "../data/stopView.ts";
 
 export type RunCompleteScreenProps = {
   onBack: () => void;
   onBackToHome: () => void;
   isNight?: boolean;
   onToggleTheme?: () => void;
-  vehicleId?: string;
-  depotName?: string;
+  vehicleId: string;
+  depotName: string;
+  stops: Stop[];
+  uploadsWaiting: number;
+  /** Writes still on this phone, waiting to be sent; held ones not included. */
+  writesWaiting: number;
+  /** Writes the server refused, waiting for the driver under "to review". */
+  writesHeld: number;
+  syncedAt: Date | null;
 };
 
 export default function RunCompleteScreen({
@@ -16,9 +26,17 @@ export default function RunCompleteScreen({
   onBackToHome,
   isNight = false,
   onToggleTheme,
-  vehicleId = "VEH043",
-  depotName = "Kandy depot",
+  vehicleId,
+  depotName,
+  stops,
+  uploadsWaiting,
+  writesWaiting,
+  writesHeld,
+  syncedAt,
 }: RunCompleteScreenProps): React.JSX.Element {
+  const rows = summaryRows(stops, uploadsWaiting);
+  const finished = finishedAt(stops);
+  const onPhone = writesWaiting + uploadsWaiting;
   return (
     <div
       className={cx(
@@ -64,7 +82,7 @@ export default function RunCompleteScreen({
             )}
           >
             <span className="text-[16px] font-medium leading-[20px] tracking-tight">
-              Synced 05:31
+              {syncedAt ? `Synced ${clock(syncedAt)}` : "Not synced"}
             </span>
           </div>
 
@@ -129,7 +147,7 @@ export default function RunCompleteScreen({
             isNight ? "text-white" : "text-black"
           )}
         >
-          Kandy run • {vehicleId}
+          {depotName ? `${depotName} · ` : ""}{vehicleId}
         </span>
 
         {/* Title */}
@@ -149,7 +167,7 @@ export default function RunCompleteScreen({
             isNight ? "text-[#A1A1AA]" : "text-[#6B7280]"
           )}
         >
-          All 7 stops delivered • finished 07:45
+          All {stopsText(stops.length)} recorded{finished ? ` · finished ${clock(finished)}` : ""}
         </p>
 
         {/* Run summary card */}
@@ -162,85 +180,18 @@ export default function RunCompleteScreen({
               : "bg-white shadow-[0px_5px_20px_rgba(0,0,0,0.09)]"
           )}
         >
-          {/* Row 1 · Stops delivered */}
-          <div className="flex items-center justify-between py-[12px] border-b border-black/5 dark:border-white/10">
-            <span
+          {rows.map(([label, value], index) => (
+            <div
+              key={label}
               className={cx(
-                "text-[15px] font-light leading-[19px]",
-                isNight ? "text-[#A1A1AA]" : "text-[#6B7280]"
+                "flex items-center justify-between gap-4 py-[12px]",
+                index < rows.length - 1 && "border-b border-black/5 dark:border-white/10"
               )}
             >
-              Stops delivered
-            </span>
-            <span
-              className={cx(
-                "text-[15px] font-medium leading-[19px]",
-                isNight ? "text-white" : "text-black"
-              )}
-            >
-              7 of 7
-            </span>
-          </div>
-
-          {/* Row 2 · Units delivered */}
-          <div className="flex items-center justify-between py-[12px] border-b border-black/5 dark:border-white/10">
-            <span
-              className={cx(
-                "text-[15px] font-light leading-[19px]",
-                isNight ? "text-[#A1A1AA]" : "text-[#6B7280]"
-              )}
-            >
-              Units delivered
-            </span>
-            <span
-              className={cx(
-                "text-[15px] font-medium leading-[19px]",
-                isNight ? "text-white" : "text-black"
-              )}
-            >
-              55 of 56
-            </span>
-          </div>
-
-          {/* Row 3 · Issues reported */}
-          <div className="flex items-center justify-between py-[12px] border-b border-black/5 dark:border-white/10">
-            <span
-              className={cx(
-                "text-[15px] font-light leading-[19px]",
-                isNight ? "text-[#A1A1AA]" : "text-[#6B7280]"
-              )}
-            >
-              Issues reported
-            </span>
-            <span
-              className={cx(
-                "text-[15px] font-medium leading-[19px]",
-                isNight ? "text-white" : "text-black"
-              )}
-            >
-              2 damaged • 1 missing
-            </span>
-          </div>
-
-          {/* Row 4 · Proof of delivery */}
-          <div className="flex items-center justify-between py-[12px]">
-            <span
-              className={cx(
-                "text-[15px] font-light leading-[19px]",
-                isNight ? "text-[#A1A1AA]" : "text-[#6B7280]"
-              )}
-            >
-              Proof of delivery
-            </span>
-            <span
-              className={cx(
-                "text-[15px] font-medium leading-[19px]",
-                isNight ? "text-white" : "text-black"
-              )}
-            >
-              3 saved • syncing
-            </span>
-          </div>
+              <span className={cx("text-[15px] font-light leading-[19px]", isNight ? "text-[#A1A1AA]" : "text-[#6B7280]")}>{label}</span>
+              <span className={cx("text-[15px] font-medium leading-[19px] text-right", isNight ? "text-white" : "text-black")}>{value}</span>
+            </div>
+          ))}
         </div>
 
         {/* Next step prompt */}
@@ -251,7 +202,11 @@ export default function RunCompleteScreen({
             isNight ? "text-white" : "text-black"
           )}
         >
-          Next: return {vehicleId} to {depotName}, Dock 2.
+          {writesHeld > 0
+            ? `${writesHeld} ${writesHeld === 1 ? "record was" : "records were"} refused by the server and ${writesHeld === 1 ? "waits" : "wait"} for you under "to review".`
+            : onPhone > 0
+              ? `${onPhone} ${onPhone === 1 ? "record is" : "records are"} still on this phone and will be sent when the connection is back.`
+              : `Next: return ${vehicleId} to the depot.`}
         </p>
       </div>
 

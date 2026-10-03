@@ -1,76 +1,46 @@
 "use client";
 import { useState, useEffect } from "react";
 import { cx } from "@shared/ui";
-import ReportProblemBottomSheet from "./ReportProblemBottomSheet.tsx";
-import DeliveryPinConfirmModal from "./DeliveryPinConfirmModal.tsx";
-import { ROUTE_STOPS, RouteStop } from "./routeData.ts";
+import type { RouteStop } from "../data/stopView.ts";
 
 export type DeliveryReportWaitingProps = {
+  /** Whether this phone is in step with the server, in words. */
+  syncLabel?: string;
   onBack: () => void;
-  onConfirmSuccess?: () => void;
+  /** The run sheet's stops (issue #117). */
+  stops: RouteStop[];
+  /** Opens the delivery form for this stop: counts, outcome, photo and signature. */
+  onConfirm?: (stop: RouteStop) => void;
+  /** Opens the problem report, which sends to dispatch or records the stop as not delivered. */
+  onProblem?: () => void;
   isNight?: boolean;
   onToggleTheme?: () => void;
   stopIndex?: number;
 };
 
 export default function DeliveryReportWaiting({
+  syncLabel = "Connecting",
   onBack,
-  onConfirmSuccess,
+  onConfirm,
+  onProblem,
+  stops,
   isNight = false,
   onToggleTheme,
   stopIndex = 0,
 }: DeliveryReportWaitingProps): React.JSX.Element {
   const [viewState, setViewState] = useState<"waiting" | "report">("waiting");
-  const [showProblemModal, setShowProblemModal] = useState(false);
-  const [showPinModal, setShowPinModal] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [isConfirmed, setIsConfirmed] = useState(false);
 
-  const safeIndex = Math.min(Math.max(0, stopIndex), ROUTE_STOPS.length - 1);
-  const currentStop: RouteStop = ROUTE_STOPS[safeIndex] ?? ROUTE_STOPS[0];
-  const deliveredItems = currentStop.deliveredItems;
-  const expectedUnits = currentStop.expectedUnits;
+  const safeIndex = Math.min(Math.max(0, stopIndex), Math.max(0, stops.length - 1));
+  const currentStop: RouteStop | undefined = stops[safeIndex];
+  const deliveredItems = currentStop?.deliveredItems ?? [];
+  const expectedUnits = currentStop?.expectedUnits ?? 0;
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
-  };
-
-  // Keyboard shortcut: Press 'd' or 'D' on keyboard to confirm and reveal the report
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger if user is typing in an input
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        return;
-      }
-
-      if (e.key === "d" || e.key === "D") {
-        e.preventDefault();
-        setViewState("report");
-      } else if (e.key === "w" || e.key === "W") {
-        // Dev convenience to switch back to waiting
-        e.preventDefault();
-        setViewState("waiting");
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
 
   const handleConfirmDelivery = () => {
-    setShowPinModal(true);
+    if (currentStop) onConfirm?.(currentStop);
   };
 
-  const handlePinConfirmed = () => {
-    setShowPinModal(false);
-    setIsConfirmed(true);
-    showToast(`✓ Delivery confirmed for ${currentStop.name} (${expectedUnits} units)`);
-    setTimeout(() => {
-      onConfirmSuccess?.();
-      onBack();
-    }, 1200);
-  };
+  if (!currentStop) return <></>;
 
   return (
     <>
@@ -105,7 +75,7 @@ export default function DeliveryReportWaiting({
         {/* =================================================================== */}
         {viewState === "waiting" && (
           <div className="relative flex flex-col h-full w-full justify-between animate-fade-in">
-            {/* Top Header: Back + Synced 05:31 + Theme toggle */}
+            {/* Top Header: Back + sync pill + Theme toggle */}
             <div className="pt-[20px] px-[25px] sm:px-[33px] flex items-center justify-between shrink-0 z-20">
               <button
                 type="button"
@@ -140,7 +110,7 @@ export default function DeliveryReportWaiting({
                   )}
                 >
                   <span className="text-[16px] font-medium leading-[20px] tracking-tight">
-                    Synced 05:31
+                    {syncLabel}
                   </span>
                 </div>
 
@@ -203,7 +173,7 @@ export default function DeliveryReportWaiting({
                   isNight ? "text-[#FFFFFF]" : "text-[#000000]"
                 )}
               >
-                Stop {currentStop.stopNumber} • Proof
+                Stop {currentStop.stopNumber} · Delivery
               </span>
               <h1
                 className={cx(
@@ -218,9 +188,7 @@ export default function DeliveryReportWaiting({
             {/* Center Status Card: Waiting for store confirmation */}
             {/* Figma: top:427px, left:40px, right:40px, h:147px, gap:14px */}
             <div
-              className="px-[40px] flex flex-col items-center text-center gap-3.5 shrink-0 my-auto cursor-pointer"
-              onClick={() => setViewState("report")}
-              title="Click or press 'd' on keyboard to confirm"
+              className="px-[40px] flex flex-col items-center text-center gap-3.5 shrink-0 my-auto"
             >
               {/* 8-tick Circular Spinner */}
               <div className="w-[40px] h-[40px] relative waypoint-spinner">
@@ -257,7 +225,7 @@ export default function DeliveryReportWaiting({
                     isNight ? "text-[#FFFFFF]" : "text-[#000000]"
                   )}
                 >
-                  Waiting for store confirmation
+                  At the stop
                 </h2>
                 <p
                   className={cx(
@@ -265,17 +233,27 @@ export default function DeliveryReportWaiting({
                     isNight ? "text-[#A9A9A9]" : "text-[#6B7280]"
                   )}
                 >
-                  The store manager is checking the delivered units. The report opens when they confirm.
+                  Count the units with the store manager, then open the delivery report. The store confirms its receipt on its own screen afterwards.
                 </p>
               </div>
             </div>
 
             {/* Bottom Action: Report problem button */}
             {/* Figma: left:49px, right:49px, bottom:34px, h:64px, radius:22px */}
-            <div className="px-[49px] pb-[34px] shrink-0">
+            <div className="px-[49px] pb-[34px] shrink-0 flex flex-col gap-3">
               <button
                 type="button"
-                onClick={() => setShowProblemModal(true)}
+                onClick={() => setViewState("report")}
+                className={cx(
+                  "w-full h-[64px] rounded-[22px] text-[20px] font-medium leading-[25px] flex items-center justify-center transition-all active:scale-[0.99] shadow-sm",
+                  isNight ? "bg-[#00BF6A] text-black hover:bg-[#00BF6A]/90" : "bg-[#031B08] text-white hover:bg-[#031B08]/90"
+                )}
+              >
+                Open delivery report
+              </button>
+              <button
+                type="button"
+                onClick={() => onProblem?.()}
                 className={cx(
                   "w-full h-[64px] rounded-[22px] text-[18px] font-medium leading-[23px] flex items-center justify-center transition-all active:scale-[0.99]",
                   isNight
@@ -328,7 +306,7 @@ export default function DeliveryReportWaiting({
                   )}
                 >
                   <span className="text-[16px] font-medium leading-[20px] tracking-tight">
-                    Synced 05:31
+                    {syncLabel}
                   </span>
                 </div>
 
@@ -393,7 +371,7 @@ export default function DeliveryReportWaiting({
                     isNight ? "text-[#FFFFFF]" : "text-[#000000]"
                   )}
                 >
-                  Stop {currentStop.stopNumber} • Proof
+                  Stop {currentStop.stopNumber} · Delivery
                 </span>
                 <h1
                   className={cx(
@@ -468,7 +446,7 @@ export default function DeliveryReportWaiting({
                       isNight ? "text-[#FFFFFF]" : "text-[#000000]"
                     )}
                   >
-                    Received
+                    Products
                   </span>
                   <div className="flex items-baseline justify-center gap-1.5 mt-0.5">
                     <span
@@ -477,7 +455,7 @@ export default function DeliveryReportWaiting({
                         isNight ? "text-[#FFFFFF]" : "text-[#000000]"
                       )}
                     >
-                      {expectedUnits}
+                      {deliveredItems.length}
                     </span>
                     <span
                       className={cx(
@@ -485,7 +463,7 @@ export default function DeliveryReportWaiting({
                         isNight ? "text-[#FFFFFF]" : "text-[#000000]"
                       )}
                     >
-                      Units
+                      Lines
                     </span>
                   </div>
                 </div>
@@ -616,49 +594,21 @@ export default function DeliveryReportWaiting({
               <button
                 type="button"
                 onClick={handleConfirmDelivery}
-                disabled={isConfirmed}
                 className={cx(
                   "w-full h-[64px] rounded-[22px] text-[20px] font-medium leading-[25px] flex items-center justify-center transition-all active:scale-[0.99] shadow-lg",
                   isNight
                     ? "bg-[#00BF6A] text-black hover:bg-[#00BF6A]/90"
-                    : "bg-[#031B08] text-white hover:bg-[#031B08]/90",
-                  isConfirmed && "opacity-75 cursor-not-allowed"
+                    : "bg-[#031B08] text-white hover:bg-[#031B08]/90"
                 )}
               >
-                {isConfirmed ? "Confirmed ✓" : "Confirm"}
+                Record delivery
               </button>
             </div>
           </div>
         )}
 
-        {/* Store Manager PIN & Delivery Confirmed Modal */}
-        <DeliveryPinConfirmModal
-          isOpen={showPinModal}
-          onClose={() => setShowPinModal(false)}
-          onSuccess={handlePinConfirmed}
-          isNight={isNight}
-          stopName={`Stop ${currentStop.stopNumber} • ${currentStop.name}`}
-        />
 
-        {/* Problem reporting bottom sheet */}
-        <ReportProblemBottomSheet
-          isOpen={showProblemModal}
-          onClose={() => setShowProblemModal(false)}
-          onSubmit={(reason) => {
-            showToast(`Reported to dispatch: "${reason}"`);
-          }}
-          isNight={isNight}
-          stopContext={`Stop ${currentStop.stopNumber} · ${currentStop.name} · Expected ${currentStop.eta}`}
-        />
 
-        {/* Floating Toast Notification */}
-        {toastMessage && (
-          <div className="absolute top-[80px] left-6 right-6 z-50 flex justify-center pointer-events-none animate-fade-in">
-            <div className="bg-[#031B08] text-white text-[13px] font-medium px-4 py-2.5 rounded-full shadow-lg border border-white/10">
-              {toastMessage}
-            </div>
-          </div>
-        )}
       </div>
     </>
   );

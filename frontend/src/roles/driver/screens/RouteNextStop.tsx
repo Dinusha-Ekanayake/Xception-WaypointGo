@@ -2,14 +2,18 @@
 
 import { useState, useEffect, useRef } from "react";
 import { cx } from "@shared/ui";
-import ReportProblemBottomSheet from "./ReportProblemBottomSheet.tsx";
-import CallOptionsBottomSheet from "./CallOptionsBottomSheet.tsx";
-import { ROUTE_STOPS, RouteStop } from "./routeData.ts";
+import type { RouteStop } from "../data/stopView.ts";
 
 export type RouteNextStopProps = {
+  /** Whether this phone is in step with the server, in words. */
+  syncLabel?: string;
   onBack: () => void;
   onOpenMap?: () => void;
-  onArrived?: () => void;
+  /** The run sheet's stops, in order (issue #117: never sample data). */
+  stops: RouteStop[];
+  onArrived?: (stop: RouteStop) => void;
+  /** Opens the problem report, which sends to dispatch or records the stop as not delivered. */
+  onProblem?: () => void;
   isNight?: boolean;
   onToggleTheme?: () => void;
   stopIndex?: number;
@@ -326,10 +330,19 @@ function ScrollRevealCard({
   );
 }
 
+/** What a stop in the list says: its outcome, or still to do, and whether it is only on this phone. */
+function stopState(stop: RouteStop): string {
+  const state = stop.finished ? stop.windowStatus : "To do";
+  return stop.onPhone ? `${state} · on phone` : state;
+}
+
 export default function RouteNextStop({
+  syncLabel = "Connecting",
   onBack,
   onOpenMap,
   onArrived,
+  onProblem,
+  stops,
   isNight = false,
   onToggleTheme,
   stopIndex = 0,
@@ -337,59 +350,39 @@ export default function RouteNextStop({
   hideHeader = false,
 }: RouteNextStopProps): React.JSX.Element {
   const [hasArrived, setHasArrived] = useState(false);
-  const [showProblemModal, setShowProblemModal] = useState(false);
-  const [showCallPrompt, setShowCallPrompt] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Dynamic top fade on scroll & rubber band bounce (matching HomeNoVehicle message feed)
   const { scrollRef, pullY, isPulling, maskStyle, handlers } = useRubberBandScroll();
 
   // Active stop, completed stops, upcoming stops
-  const safeIndex = Math.min(Math.max(0, stopIndex), ROUTE_STOPS.length - 1);
-  const activeStop: RouteStop = ROUTE_STOPS[safeIndex] ?? ROUTE_STOPS[0];
-  const completedStops = ROUTE_STOPS.slice(0, safeIndex);
-  const upcomingStops = ROUTE_STOPS.slice(safeIndex + 1);
+  const safeIndex = Math.min(Math.max(0, stopIndex), Math.max(0, stops.length - 1));
+  const activeStop: RouteStop | undefined = stops[safeIndex];
+  const completedStops = stops.slice(0, safeIndex);
+  const upcomingStops = stops.slice(safeIndex + 1);
 
   // Reset arrived state when stop changes
   useEffect(() => {
     setHasArrived(false);
   }, [stopIndex]);
 
-  // Dev keyboard shortcuts: 1, 2, 3 to switch stops directly
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        return;
-      }
-      if (e.key === "1" && onSelectStop) {
-        onSelectStop(0);
-      } else if (e.key === "2" && onSelectStop) {
-        onSelectStop(1);
-      } else if (e.key === "3" && onSelectStop) {
-        onSelectStop(2);
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onSelectStop]);
-
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
-  };
 
   const handleOpenMap = () => {
     if (onOpenMap) {
       onOpenMap();
     } else {
-      const query = encodeURIComponent(`${activeStop.name}, Sri Lanka`);
+      const query = encodeURIComponent(`${activeStop?.name ?? ""}, Sri Lanka`);
       window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, "_blank");
     }
   };
 
-  const handleCallDispatch = () => {
-    setShowCallPrompt(true);
-  };
+
+  if (!activeStop) {
+    return (
+      <div className={cx("flex h-full items-center justify-center px-8 text-center font-go text-[17px]", isNight ? "bg-[#161616] text-white" : "bg-[#E7F3F2] text-black")}>
+        No stops on today's run sheet.
+      </div>
+    );
+  }
 
   return (
     <div
@@ -437,7 +430,7 @@ export default function RouteNextStop({
               )}
             >
               <span className="text-[16px] font-medium leading-[20px] tracking-tight">
-                Synced 05:31
+                {syncLabel}
               </span>
             </div>
 
@@ -495,21 +488,26 @@ export default function RouteNextStop({
               <div className="flex flex-col gap-2.5 mb-3 px-2 animate-fade-in">
                 {completedStops.map((stop) => (
                   <ScrollRevealCard key={stop.id} scrollContainerRef={scrollRef} pullY={pullY}>
-                    <div
+                    <button
+                      type="button"
                       onClick={() => onSelectStop?.(stop.stopIndex)}
-                      className="flex items-center justify-between text-[14px] font-light leading-[18px] cursor-pointer active:opacity-70 transition-opacity"
+                      aria-label={`Stop ${stop.stopNumber} ${stop.name} · ${stopState(stop)}`}
+                      className="w-full flex items-center justify-between text-left text-[14px] font-light leading-[18px] cursor-pointer active:opacity-70 transition-opacity"
                     >
                       <div className="flex items-center gap-3">
                         <span className={cx(isNight ? "text-white" : "text-black")}>{stop.stopNumber}</span>
                         <span className={cx(isNight ? "text-white" : "text-black")}>{stop.name}</span>
                       </div>
-                      {/* Green Checkmark Badge */}
-                      <div className="w-[22px] h-[22px] rounded-full bg-[#00BF6A] flex items-center justify-center shrink-0 shadow-sm">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                      </div>
-                    </div>
+                      {stop.windowStatus === "Delivered" && !stop.onPhone ? (
+                        <div className="w-[22px] h-[22px] rounded-full bg-[#00BF6A] flex items-center justify-center shrink-0 shadow-sm">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        </div>
+                      ) : (
+                        <span className={cx(isNight ? "text-white" : "text-black")}>{stopState(stop)}</span>
+                      )}
+                    </button>
                   </ScrollRevealCard>
                 ))}
               </div>
@@ -532,7 +530,7 @@ export default function RouteNextStop({
                   isNight ? "text-[#7C7583]" : "text-[#A9A9A9]"
                 )}
               >
-                Next • stop {activeStop.stopNumber} of {String(activeStop.totalStops || ROUTE_STOPS.length).padStart(2, "0")}
+                Next · stop {activeStop.stopNumber} of {String(activeStop.totalStops).padStart(2, "0")}
               </span>
 
               {/* Dock tag */}
@@ -644,8 +642,8 @@ export default function RouteNextStop({
                   id="arrived-btn"
                   onClick={() => {
                     setHasArrived(true);
-                    if (onArrived) {
-                      onArrived();
+                    if (onArrived && activeStop) {
+                      onArrived(activeStop);
                     }
                   }}
                   className={cx(
@@ -657,7 +655,7 @@ export default function RouteNextStop({
                         : "bg-[#031B08] text-white hover:bg-[#062613]"
                   )}
                 >
-                  {hasArrived ? "Arrived • Unloading" : "I’ve arrived"}
+                  {hasArrived ? "Arrived · Unloading" : "I've arrived"}
                 </button>
               </div>
             ) : (
@@ -686,7 +684,7 @@ export default function RouteNextStop({
                   {/* Report Problem button */}
                   <button
                     type="button"
-                    onClick={() => setShowProblemModal(true)}
+                    onClick={() => onProblem?.()}
                     className={cx(
                       "flex-1 h-[52px] px-4 rounded-[22px] flex items-center justify-center transition-all active:scale-[0.98]",
                       isNight
@@ -704,8 +702,8 @@ export default function RouteNextStop({
                   id="arrived-btn"
                   onClick={() => {
                     setHasArrived(true);
-                    if (onArrived) {
-                      onArrived();
+                    if (onArrived && activeStop) {
+                      onArrived(activeStop);
                     }
                   }}
                   className={cx(
@@ -717,7 +715,7 @@ export default function RouteNextStop({
                         : "bg-[#031B08] text-white hover:bg-[#062613]"
                   )}
                 >
-                  {hasArrived ? "Arrived • Unloading" : "I’ve arrived"}
+                  {hasArrived ? "Arrived · Unloading" : "I've arrived"}
                 </button>
               </>
             )}
@@ -733,16 +731,18 @@ export default function RouteNextStop({
             <div className="mt-7 px-2 flex flex-col gap-3">
               {upcomingStops.map((stop, i) => (
                 <ScrollRevealCard key={stop.id} scrollContainerRef={scrollRef} pullY={pullY}>
-                  <div
+                  <button
+                    type="button"
                     onClick={() => onSelectStop?.(stop.stopIndex)}
-                    className="flex flex-col gap-3 cursor-pointer active:opacity-70 transition-opacity"
+                    aria-label={`Stop ${stop.stopNumber} ${stop.name} · ${stopState(stop)}`}
+                    className="w-full text-left flex flex-col gap-3 cursor-pointer active:opacity-70 transition-opacity"
                   >
                     <div className="flex items-center justify-between text-[14px] font-light leading-[18px]">
                       <div className="flex items-center gap-3">
                         <span className={cx(isNight ? "text-white" : "text-black")}>{stop.stopNumber}</span>
                         <span className={cx(isNight ? "text-white" : "text-black")}>{stop.name}</span>
                       </div>
-                      <span className={cx(isNight ? "text-white" : "text-black")}>{stop.eta}</span>
+                      <span className={cx(isNight ? "text-white" : "text-black")}>{stop.finished ? stopState(stop) : stop.eta}</span>
                     </div>
 
                     {i < upcomingStops.length - 1 && (
@@ -753,7 +753,7 @@ export default function RouteNextStop({
                         )}
                       />
                     )}
-                  </div>
+                  </button>
                 </ScrollRevealCard>
               ))}
             </div>
@@ -772,56 +772,10 @@ export default function RouteNextStop({
         />
       </div>
 
-      {/* ---- Floating "Call" Button (Call Dispatch button) ------------- */}
-      <div className="absolute bottom-[40px] left-0 right-0 flex justify-center z-30 pointer-events-none">
-        <button
-          type="button"
-          onClick={handleCallDispatch}
-          className={cx(
-            "pointer-events-auto h-[52px] w-[124px] rounded-[54px] flex items-center justify-center gap-2.5 transition-all active:scale-95",
-            isNight
-              ? "bg-[#00BF6A] text-black shadow-[0px_4px_16px_rgba(0,191,106,0.3)] hover:bg-[#00d878]"
-              : "bg-white text-black shadow-[0px_4px_16px_rgba(0,0,0,0.12)] hover:bg-slate-50"
-          )}
-          aria-label="Call Dispatch"
-        >
-          {/* Phone icon */}
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M6.62 10.79a15.053 15.053 0 006.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" />
-          </svg>
-          <span className="text-[20px] font-medium leading-[25px]">Call</span>
-        </button>
-      </div>
 
-      {/* ---- Problem Report Bottom Sheet ----------------------------- */}
-      <ReportProblemBottomSheet
-        isOpen={showProblemModal}
-        onClose={() => setShowProblemModal(false)}
-        onSubmit={(reason) => {
-          showToast(`Reported to dispatch: "${reason}"`);
-        }}
-        isNight={isNight}
-        stopContext={`Stop ${activeStop.stopNumber} · ${activeStop.name} · Expected ${activeStop.eta}`}
-      />
 
-      {/* ---- Call Options Bottom Sheet -------------------------------- */}
-      <CallOptionsBottomSheet
-        isOpen={showCallPrompt}
-        onClose={() => setShowCallPrompt(false)}
-        isNight={isNight}
-        onCall={(contact) => {
-          showToast(`Calling ${contact.name}...`);
-        }}
-      />
 
       {/* ---- Toast Notification ---------------------------------------- */}
-      {toastMessage && (
-        <div className="absolute top-[80px] left-6 right-6 z-50 flex justify-center pointer-events-none animate-fade-in">
-          <div className="bg-[#031B08] text-white text-[13px] font-medium px-4 py-2.5 rounded-full shadow-lg">
-            {toastMessage}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
