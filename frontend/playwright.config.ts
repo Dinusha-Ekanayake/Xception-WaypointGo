@@ -7,6 +7,11 @@ export default defineConfig({
   testDir: "./tests/e2e",
   timeout: 60000,
   workers: 1,
+  // In CI (#120): one retry, reported as flaky rather than hidden; failures as
+  // annotations on the pull request, and a report per suite for the artifact.
+  retries: process.env.CI ? 1 : 0,
+  reporter: process.env.CI ? [["github"], ["list"], ["html", { open: "never", outputFolder: "playwright-report/shell" }]] : "list",
+  outputDir: "test-results/shell",
   fullyParallel: false,
   use: {
     baseURL: "http://127.0.0.1:43219",

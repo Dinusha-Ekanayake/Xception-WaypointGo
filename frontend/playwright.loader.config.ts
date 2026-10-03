@@ -5,7 +5,11 @@ export default defineConfig({
   testMatch: ["offline.spec.ts", "release.spec.ts", "language.spec.ts", "offline-pin.spec.ts", "wide.spec.ts", "held.spec.ts", "notifications.spec.ts"],
   timeout: 30_000,
   workers: 1,
-  reporter: "list",
+  // In CI (#120): one retry, reported as flaky rather than hidden; failures as
+  // annotations on the pull request, and a report per suite for the artifact.
+  retries: process.env.CI ? 1 : 0,
+  reporter: process.env.CI ? [["github"], ["list"], ["html", { open: "never", outputFolder: "playwright-report/loader" }]] : "list",
+  outputDir: "test-results/loader",
   use: {
     baseURL: "http://127.0.0.1:43220",
     viewport: { width: 393, height: 852 },
