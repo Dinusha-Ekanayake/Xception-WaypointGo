@@ -89,7 +89,7 @@ export default function Live({
                 </button>
               ))}
             </span>
-            {view === "timeline" && (
+            {view !== "needs" && (
               <>
                 <span className="flex rounded-full bg-white p-1 shadow-go-card">
                   <button type="button" aria-pressed={depotPick === "all"} className={pill(depotPick === "all")} onClick={() => setDepotPick("all")}>{depotNames.length === 2 ? "Both" : "All depots"}</button>
@@ -110,16 +110,15 @@ export default function Live({
       />
       {live.error && <Refusal error={live.error} what="the live view" action={<Retry onClick={live.refresh} />} />}
 
-      {view !== "timeline" && <div className="flex w-full gap-3.5 max-md:flex-col">
+      {view === "needs" && <div className="flex w-full gap-3.5 max-md:flex-col">
         <KpiCard label="On the road" value={live.data ? t.onTheRoad : "…"} note={`${t.finished} finished`} />
         <KpiCard label="Stops done" value={live.data ? `${t.stopsDone} of ${t.stops}` : "…"} note="recorded by drivers" />
         <KpiCard label="At the dock" value={live.data ? t.atDock : "…"} note="trips not released yet" />
         <KpiCard label="Need you" value={live.data ? needs.length : "…"} note="not delivered, late, or proof owed" valueClassName={needs.length ? "text-go-danger-strong" : "text-go-ink"} />
       </div>}
 
-      {view === "map" && <LiveMapView depots={depots} depotOf={live.data?.depotOf ?? {}} date={date} days={days} now={now} />}
-
       <div className="flex w-full shrink-0 gap-[18px] max-lg:flex-col">
+        {view === "map" && <div className="min-w-0 flex-1"><LiveMapView depots={depots} depotOf={depotOf} date={date} days={shown.days} now={now} /></div>}
         {view === "timeline" && <LiveTimeline days={shown.days} depotOf={depotOf} date={date} now={now} />}
         <div className="flex w-full flex-col gap-[18px] lg:max-w-[340px]">
         <section aria-label="Vehicles on the road" className="flex flex-col gap-2.5 rounded-[24px] bg-white p-4 shadow-go-card">
@@ -130,14 +129,14 @@ export default function Live({
           {live.data && days.length === 0 && (
             <p className="py-8 text-center text-[13px] text-go-secondary">No vehicle has left the dock on {dayLabel(date)}. A vehicle appears here when the loader releases it.</p>
           )}
-          {view === "timeline" ? shown.days.map((day) => (
+          {view !== "needs" ? shown.days.map((day) => (
             <TimelineCard key={day.vehicleId} day={day} depot={depotOf[day.vehicleId]} date={date} now={now} />
           )) : days.map((day) => (
             <VehicleCard key={day.vehicleId} day={day} date={date} now={now} open={openId === day.vehicleId} onToggle={() => setOpenId(openId === day.vehicleId ? null : day.vehicleId)} />
           ))}
         </section>
 
-          {view !== "timeline" && <>
+          {view === "needs" && <>
           <section aria-label="Needs you" className="flex flex-col gap-2 rounded-[24px] bg-white p-4 shadow-go-card">
             <h2 className="px-1 text-[17px] font-medium text-go-ink">Needs you</h2>
             {needs.length === 0 ? (
