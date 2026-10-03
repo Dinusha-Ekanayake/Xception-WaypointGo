@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-03 - ci: backend tests run as three parallel shards
+
+`feat/observability-metrics-dashboard` · @jv-ransika
+
+`checks.yml` runs the backend job as a matrix of three shards, each on its own runner with its own PostgreSQL service, selected by package with surefire `-Dtest`: execution, loading, identity; notification, issues, receipt; everything else (which holds `PeakDayAllocationTest`, so the Task 2B validator runs there, and catches any new package). A `Backend tests` job stays green only when every shard passed. No test code changed: shards share nothing, so the shared-database setup in each class is untouched.
+Why: the backend job was the long pole of every run (5.5 min, `mvn verify` 4m51s) while every other job finished in about a minute.
+Verified: locally each shard selects its classes and together they cover every test class exactly once.
+Open: shards are balanced on 2026-10-03 timings; rebalance when one grows. Each class still migrates and imports reference data before every test.
+
+---
+
 ## 2026-10-03 - feat: Prometheus metrics and the "Waypoint operations" Grafana dashboard
 
 `dev` · @jv-ransika
