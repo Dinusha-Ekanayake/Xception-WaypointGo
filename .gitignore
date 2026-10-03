@@ -145,6 +145,8 @@ artifacts/
 !docs/architecture/schema/README.md
 !.agent/rules/*.md
 !docs/ai-disclosure.md
+!docs/architecture.md
+!docs/data-model.md
 !docs/deployment.md
 !docs/design-mapping.md
 !docs/design-rationale.md

@@ -141,6 +141,11 @@ Integration tests use `TEST_DATABASE_URL` when it is set, a throwaway PostgreSQL
 
 `SYSTEM-ARCHITECTURE.md` sits at the root on purpose: it is the entry point, the way `README.md` is. `docs/architecture/` holds the detail behind it.
 
+**The picture first:**
+
+- [docs/architecture.md](docs/architecture.md), the diagrams: who uses the system, what runs, how the twelve modules connect, and one command end to end
+- [docs/data-model.md](docs/data-model.md), every table, key and foreign key by schema, generated from the live migrations by `scripts/data-model.py`
+
 **The design, in `docs/architecture/`:**
 
 - [MODULES.md](docs/architecture/MODULES.md), every module: its layers, owned data, commands, events, invariants and failure modes
