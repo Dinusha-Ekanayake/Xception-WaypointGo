@@ -1,37 +1,42 @@
 "use client";
 
 import { cx } from "@shared/ui";
-
-export type RunStats = { stops: string; units: string; issues: string; proof: string; next: string };
-
-const SAMPLE_STATS: RunStats = { stops: "7 of 7", units: "55 of 56", issues: "2 damaged • 1 missing", proof: "3 saved • syncing", next: "" };
+import { clock, stops as stopsText } from "../../../shared/wording/index.ts";
+import type { Stop } from "../data/run.ts";
+import { finishedAt, summaryRows } from "../data/stopView.ts";
 
 export type RunCompleteScreenProps = {
-  /** The run's figures; the design's sample when absent. */
-  stats?: RunStats;
-  /** "Synced HH:MM" from the live run; the design's sample time when absent. */
-  syncedLabel?: string;
-  /** The run's outcome line; the design's sample when absent. */
-  summary?: string;
   onBack: () => void;
   onBackToHome: () => void;
   isNight?: boolean;
   onToggleTheme?: () => void;
-  vehicleId?: string;
-  depotName?: string;
+  vehicleId: string;
+  depotName: string;
+  stops: Stop[];
+  uploadsWaiting: number;
+  /** Writes still on this phone, waiting to be sent; held ones not included. */
+  writesWaiting: number;
+  /** Writes the server refused, waiting for the driver under "to review". */
+  writesHeld: number;
+  syncedAt: Date | null;
 };
 
 export default function RunCompleteScreen({
-  stats = SAMPLE_STATS,
-  syncedLabel = "Synced 05:31",
-  summary = "All 7 stops delivered • finished 07:45",
   onBack,
   onBackToHome,
   isNight = false,
   onToggleTheme,
-  vehicleId = "VEH043",
-  depotName = "Kandy depot",
+  vehicleId,
+  depotName,
+  stops,
+  uploadsWaiting,
+  writesWaiting,
+  writesHeld,
+  syncedAt,
 }: RunCompleteScreenProps): React.JSX.Element {
+  const rows = summaryRows(stops, uploadsWaiting);
+  const finished = finishedAt(stops);
+  const onPhone = writesWaiting + uploadsWaiting;
   return (
     <div
       className={cx(
@@ -77,7 +82,7 @@ export default function RunCompleteScreen({
             )}
           >
             <span className="text-[16px] font-medium leading-[20px] tracking-tight">
-              {syncedLabel}
+              {syncedAt ? `Synced ${clock(syncedAt)}` : "Not synced"}
             </span>
           </div>
 
@@ -142,7 +147,7 @@ export default function RunCompleteScreen({
             isNight ? "text-white" : "text-black"
           )}
         >
-          {depotName.replace(/ depot$/, "")} run • {vehicleId}
+          {depotName ? `${depotName} · ` : ""}{vehicleId}
         </span>
 
         {/* Title */}
@@ -162,7 +167,7 @@ export default function RunCompleteScreen({
             isNight ? "text-[#A1A1AA]" : "text-[#6B7280]"
           )}
         >
-          {summary}
+          All {stopsText(stops.length)} recorded{finished ? ` · finished ${clock(finished)}` : ""}
         </p>
 
         {/* Run summary card */}
@@ -175,85 +180,18 @@ export default function RunCompleteScreen({
               : "bg-white shadow-[0px_5px_20px_rgba(0,0,0,0.09)]"
           )}
         >
-          {/* Row 1 · Stops delivered */}
-          <div className="flex items-center justify-between py-[12px] border-b border-black/5 dark:border-white/10">
-            <span
+          {rows.map(([label, value], index) => (
+            <div
+              key={label}
               className={cx(
-                "text-[15px] font-light leading-[19px]",
-                isNight ? "text-[#A1A1AA]" : "text-[#6B7280]"
+                "flex items-center justify-between gap-4 py-[12px]",
+                index < rows.length - 1 && "border-b border-black/5 dark:border-white/10"
               )}
             >
-              Stops delivered
-            </span>
-            <span
-              className={cx(
-                "text-[15px] font-medium leading-[19px]",
-                isNight ? "text-white" : "text-black"
-              )}
-            >
-              {stats.stops}
-            </span>
-          </div>
-
-          {/* Row 2 · Units delivered */}
-          <div className="flex items-center justify-between py-[12px] border-b border-black/5 dark:border-white/10">
-            <span
-              className={cx(
-                "text-[15px] font-light leading-[19px]",
-                isNight ? "text-[#A1A1AA]" : "text-[#6B7280]"
-              )}
-            >
-              Units delivered
-            </span>
-            <span
-              className={cx(
-                "text-[15px] font-medium leading-[19px]",
-                isNight ? "text-white" : "text-black"
-              )}
-            >
-              {stats.units}
-            </span>
-          </div>
-
-          {/* Row 3 · Issues reported */}
-          <div className="flex items-center justify-between py-[12px] border-b border-black/5 dark:border-white/10">
-            <span
-              className={cx(
-                "text-[15px] font-light leading-[19px]",
-                isNight ? "text-[#A1A1AA]" : "text-[#6B7280]"
-              )}
-            >
-              Issues reported
-            </span>
-            <span
-              className={cx(
-                "text-[15px] font-medium leading-[19px]",
-                isNight ? "text-white" : "text-black"
-              )}
-            >
-              {stats.issues}
-            </span>
-          </div>
-
-          {/* Row 4 · Proof of delivery */}
-          <div className="flex items-center justify-between py-[12px]">
-            <span
-              className={cx(
-                "text-[15px] font-light leading-[19px]",
-                isNight ? "text-[#A1A1AA]" : "text-[#6B7280]"
-              )}
-            >
-              Proof of delivery
-            </span>
-            <span
-              className={cx(
-                "text-[15px] font-medium leading-[19px]",
-                isNight ? "text-white" : "text-black"
-              )}
-            >
-              {stats.proof}
-            </span>
-          </div>
+              <span className={cx("text-[15px] font-light leading-[19px]", isNight ? "text-[#A1A1AA]" : "text-[#6B7280]")}>{label}</span>
+              <span className={cx("text-[15px] font-medium leading-[19px] text-right", isNight ? "text-white" : "text-black")}>{value}</span>
+            </div>
+          ))}
         </div>
 
         {/* Next step prompt */}
@@ -264,7 +202,11 @@ export default function RunCompleteScreen({
             isNight ? "text-white" : "text-black"
           )}
         >
-          {stats.next || `Next: return ${vehicleId} to ${depotName}, Dock 2.`}
+          {writesHeld > 0
+            ? `${writesHeld} ${writesHeld === 1 ? "record was" : "records were"} refused by the server and ${writesHeld === 1 ? "waits" : "wait"} for you under "to review".`
+            : onPhone > 0
+              ? `${onPhone} ${onPhone === 1 ? "record is" : "records are"} still on this phone and will be sent when the connection is back.`
+              : `Next: return ${vehicleId} to the depot.`}
         </p>
       </div>
 

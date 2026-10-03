@@ -30,13 +30,13 @@ function trip(vehicleId: string, tripNumber: 1 | 2, weightKg: string, volumeM3: 
 }
 
 function allocation(orderId: string, decision: AllocationView["decision"]): AllocationView {
-  return { orderId, decision, tripId: decision === "SERVED" ? "t" : null, bindingRule: decision === "SERVED" ? null : "R-PLN-06", reason: "no room", checks: [] };
+  return { orderId, decision, tripId: decision === "SERVED" ? "t" : null, bindingRule: decision === "SERVED" ? null : "R-PLN-06", reason: "no room", checks: [], source: "ENGINE", locked: false, decidedBy: null, decidedAt: null, lastServedOn: null };
 }
 
 function plan(trips: TripView[], allocations: AllocationView[], status: PlanView["status"] = "DRAFT"): PlanView {
   return {
     planId: `plan-${status}`, depotCode: "KDY", serviceDate: "2027-03-01", planVersion: 1, status, referenceVersionId: "r", ruleSetVersionId: "s",
-    priorityPolicyVersionId: "p", supersedes: null, publishedAt: null, plannedWithoutPredictor: true, trips, allocations, rowVersion: 1, engine: "priority-insertion-v1", improvement: null,
+    priorityPolicyVersionId: "p", supersedes: null, publishedAt: null, savedAt: "2027-02-28T16:41:00Z", plannedWithoutPredictor: true, trips, allocations, rowVersion: 1, engine: "priority-insertion-v1", improvement: null,
   };
 }
 

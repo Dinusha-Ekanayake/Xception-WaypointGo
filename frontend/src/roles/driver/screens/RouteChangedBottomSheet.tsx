@@ -18,7 +18,7 @@ export default function RouteChangedBottomSheet({
   onClose,
   onViewRoute,
   isNight = false,
-  sender = "Sent by Priya S. • Dispatch",
+  sender = "Sent by dispatch",
   time = "Just now",
 }: RouteChangedBottomSheetProps): React.JSX.Element | null {
   const [isRendered, setIsRendered] = useState(isOpen);
@@ -80,6 +80,7 @@ export default function RouteChangedBottomSheet({
   return (
     <div
       role={isVisible ? "dialog" : undefined}
+      aria-label={isVisible ? "Run sheet changed" : undefined}
       aria-modal={isVisible ? "true" : undefined}
       aria-hidden={!isVisible}
       data-state={isVisible ? "open" : "closed"}

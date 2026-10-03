@@ -7,8 +7,10 @@ import com.waypoint.dispatch.planning.contract.PlanEvents.PlanPublished;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlanRevised;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlannedTrip;
 import com.waypoint.dispatch.planning.contract.PlanViews.AllocationDecision;
+import com.waypoint.dispatch.planning.contract.PlanViews.PlanView;
 import com.waypoint.dispatch.planning.domain.ConstraintRegistry;
 import com.waypoint.dispatch.planning.domain.PlanVerification.Violation;
+import com.waypoint.dispatch.planning.domain.PlanDiff;
 import com.waypoint.dispatch.planning.domain.PlanningRun.Stamps;
 import com.waypoint.dispatch.planning.domain.PriorityPolicy;
 import com.waypoint.dispatch.planning.domain.PublicationGate;
@@ -53,6 +55,7 @@ class PlanPublication {
   private final ConstraintRegistry registry;
   private final EventPublisher events;
   private final Metrics metrics;
+  private final PlanDataQuery view;
 
   PlanPublication(
       PlanningDrafts drafts,
@@ -60,13 +63,15 @@ class PlanPublication {
       ReferenceQuery reference,
       ConstraintRegistry registry,
       EventPublisher events,
-      Metrics metrics) {
+      Metrics metrics,
+      PlanDataQuery view) {
     this.drafts = drafts;
     this.plans = plans;
     this.reference = reference;
     this.registry = registry;
     this.events = events;
     this.metrics = metrics;
+    this.view = view;
   }
 
   Map<String, Object> publish(Actor actor, UUID planId, long expected, Instant now) {
@@ -143,11 +148,16 @@ class PlanPublication {
               .filter(a -> a.decision() == AllocationDecision.UNSERVABLE)
               .map(AllocationRow::orderId)
               .collect(Collectors.toSet());
+      // What a driver or a store would see differently, so only they are told (R-NOT-12).
+      PlanView before = view.draftView(plans.findRun(previous).orElseThrow());
+      PlanView after = view.draftView(plans.findRun(planId).orElseThrow());
       events.publish(
           actor,
           new PlanRevised(
               planId, row.depotCode(), row.serviceDate(), row.planVersion(), previous,
-              row.revisionReason().orElse("revised"), trips));
+              row.revisionReason().orElse("revised"), trips,
+              Optional.of(PlanDiff.changedTrips(before, after)),
+              Optional.of(PlanDiff.affectedOutlets(before, after))));
     } else {
       events.publish(
           actor,

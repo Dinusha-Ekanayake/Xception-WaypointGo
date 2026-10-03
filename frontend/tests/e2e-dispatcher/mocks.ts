@@ -3,7 +3,7 @@ import type { RunSheetStopView, RunSheetView } from "../../src/shared/domain/exe
 import type { ReadyTripView } from "../../src/shared/domain/loading.ts";
 import type { OrderStatus, OrderView } from "../../src/shared/domain/ordering.ts";
 import type { IssueHistoryView, IssueView } from "../../src/shared/domain/issues.ts";
-import type { AllocationView, DeferralView, PlacementView, PlanView, TripView } from "../../src/shared/domain/planning.ts";
+import type { AllocationView, ComparisonView, DeferralView, PlacementView, PlanView, SnapshotView, TripPreview, TripView } from "../../src/shared/domain/planning.ts";
 import type { ForecastOverviewView, ForecastWeekView } from "../../src/shared/domain/intelligence.ts";
 
 // A small stand-in for Ordering, Planning, Loading and Execution, in the shapes
@@ -34,22 +34,25 @@ function trip(vehicleId: string, tripNumber: 1 | 2, orderIds: string[]): TripVie
   };
 }
 
-const served = (orderId: string, tripId: string): AllocationView => ({ orderId, decision: "SERVED", tripId, bindingRule: null, reason: "placed", checks: [] });
+const ENGINE_DECISION = { source: "ENGINE", locked: false, decidedBy: null, decidedAt: null, lastServedOn: null } as const;
+const served = (orderId: string, tripId: string): AllocationView => ({ orderId, decision: "SERVED", tripId, bindingRule: null, reason: "placed", checks: [], ...ENGINE_DECISION });
 const deferred = (orderId: string): AllocationView => ({
   orderId, decision: "DEFERRED", tripId: null, bindingRule: "R-PLN-06", reason: "No refrigerated vehicle has 7.9 m³ free",
   checks: [
     { ruleId: "R-PLN-02", passed: true, reason: "chilled on a refrigerated vehicle", slack: null },
     { ruleId: "R-PLN-06", passed: false, reason: "volume 7.9 m³ exceeds 2.5 m³ free", slack: "-5.4" },
   ],
+  ...ENGINE_DECISION,
 });
 
 /** Orders 1 and 2 on VEH043 trip 1; order 3 deferred for volume. */
-export function draftPlan(version = 1): PlanView {
+export function draftPlan(version = 1, decided = false): PlanView {
   const t = trip("VEH043", 1, ["order-1", "order-2"]);
+  const left = decided ? { ...deferred("order-3"), source: "KEPT" as const, decidedBy: "dispatcher-user", decidedAt: "2027-02-28T16:30:00Z" } : deferred("order-3");
   return {
     planId: `plan-v${version}`, depotCode: DEPOT, serviceDate: "2027-03-01", planVersion: version, status: "DRAFT", referenceVersionId: "ref",
-    ruleSetVersionId: "rules", priorityPolicyVersionId: "policy", supersedes: null, publishedAt: null, plannedWithoutPredictor: true,
-    trips: [t], allocations: [served("order-1", t.tripId), served("order-2", t.tripId), deferred("order-3")], rowVersion: 1,
+    ruleSetVersionId: "rules", priorityPolicyVersionId: "policy", supersedes: null, publishedAt: null, savedAt: "2027-02-28T16:41:00Z", plannedWithoutPredictor: true,
+    trips: [t], allocations: [served("order-1", t.tripId), served("order-2", t.tripId), left], rowVersion: 1,
     engine: "priority-insertion-v1+scarce-replan-v1",
     improvement: { firstPassServed: 1, firstPassDeferred: 2, served: 2, deferred: 1, improved: true, chilledVolumeGainedM3: "7.9", stoppedBy: "NONE", chilledCandidates: 2, chilledSearched: 2 },
   };
@@ -82,7 +85,25 @@ export type Desk = {
   refuse: { kind: string; status: number; code: string; detail: string; rules?: string[] } | null;
   /** What /api/ml/forecast/overview answers for the depot. */
   forecast: ForecastOverviewView;
+  /** Saved plans, newest first, and the plan each one holds. */
+  snapshots: SnapshotView[];
+  savedPlans: Record<string, PlanView>;
+  /** The trip a swap or a stop order would leave; the preview routes answer with it. */
+  preview: TripPreview;
 };
+
+export const FEASIBLE_PREVIEW: TripPreview = {
+  vehicleId: "VEH043", tripNumber: 1, feasible: true,
+  stops: [{ sequence: 1, orderId: "order-3", outletId: "OUT053", plannedArrival: "04:10:00", windowOpen: "03:00:00", windowClose: "08:00:00", serviceMinutes: "20" }],
+  checks: [{ ruleId: "R-PLN-06", passed: true, reason: "fits", slack: "1.2" }],
+};
+
+export function snapshotOf(number: number, label: string, kind: SnapshotView["kind"] = "MANUAL"): SnapshotView {
+  return {
+    snapshotId: `snap-${number}`, depotCode: DEPOT, serviceDate: "2027-03-01", number, label, kind, sourcePlanId: "plan-v1", planVersion: 1,
+    createdBy: "dispatcher-user", createdAt: "2027-02-28T11:10:00Z",
+  };
+}
 
 const body = (plan: PlanView) => ({
   planId: plan.planId, planVersion: plan.planVersion, status: plan.status, rowVersion: plan.rowVersion,
@@ -95,7 +116,7 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
   const desk: Desk = {
     orders: [order(1, "CONFIRMED"), order(2, "CONFIRMED"), order(3, "CONFIRMED")],
     draft: null, published: null, sheets: [], dock: [], issues: [], history: {}, deferrals: [], commands: [], refuse: null,
-    forecast: forecast(), ...start,
+    forecast: forecast(), snapshots: [], savedPlans: {}, preview: FEASIBLE_PREVIEW, ...start,
   };
   const json = (value: unknown) => ({ status: 200, contentType: "application/json", body: JSON.stringify(value) });
   const problem = (status: number, code: string, detail: string, rules: string[] = []) => ({
@@ -116,8 +137,39 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
       const added = trip(String(payload.vehicleId), payload.tripNumber as 1 | 2, [String(payload.orderId)]);
       desk.draft = {
         ...plan, planId: `plan-v${plan.planVersion + 1}`, planVersion: plan.planVersion + 1, trips: [...plan.trips, added],
-        allocations: plan.allocations.map((a) => (a.orderId === payload.orderId ? served(a.orderId, added.tripId) : a)),
+        allocations: plan.allocations.map((a) => (a.orderId === payload.orderId ? { ...served(a.orderId, added.tripId), source: "OVERRIDE" as const, decidedBy: "dispatcher-user", decidedAt: "2027-02-28T16:30:00Z" } : a)),
       };
+      return body(desk.draft);
+    }
+    const next = (changes: (a: AllocationView) => AllocationView, only?: string[]) => {
+      desk.draft = {
+        ...plan, planId: `plan-v${plan.planVersion + 1}`, planVersion: plan.planVersion + 1,
+        allocations: plan.allocations.map((a) => (!only || only.includes(a.orderId) ? changes(a) : a)),
+      };
+      return body(desk.draft);
+    };
+    const hand = { decidedBy: "dispatcher-user", decidedAt: "2027-02-28T16:30:00Z" };
+    if (command.kind === "plan:KeepDeferred") return next((a) => ({ ...a, source: "KEPT", ...hand }), payload.orderIds as string[]);
+    if (command.kind === "plan:Lock") return next((a) => ({ ...a, locked: true, ...hand }), [String(payload.orderId)]);
+    if (command.kind === "plan:Unlock") return next((a) => ({ ...a, locked: false }), [String(payload.orderId)]);
+    if (command.kind === "plan:Swap") {
+      const onTrip = plan.allocations.find((a) => a.orderId === payload.outOrderId)!.tripId!;
+      return next(
+        (a) => (a.orderId === payload.outOrderId ? { ...deferred(a.orderId), source: "MANUAL_DEFER", ...hand } : { ...served(a.orderId, onTrip), source: "SWAP", ...hand }),
+        [String(payload.outOrderId), String(payload.inOrderId)],
+      );
+    }
+    if (command.kind === "plan:ReorderStops") return next((a) => a);
+    if (command.kind === "plan:ContactStore") return { orderId: payload.orderId, outletId: "OUT053" };
+    if (command.kind === "plan:SaveSnapshot") {
+      const saved = snapshotOf(desk.snapshots.length + 1, String(payload.label ?? `Snapshot ${desk.snapshots.length + 1}`));
+      desk.snapshots = [saved, ...desk.snapshots];
+      desk.savedPlans[saved.snapshotId] = plan;
+      return { snapshotId: saved.snapshotId, number: saved.number, label: saved.label };
+    }
+    if (command.kind === "plan:RestoreSnapshot") {
+      const held = desk.savedPlans[String(payload.snapshotId)] ?? plan;
+      desk.draft = { ...held, planId: `plan-v${plan.planVersion + 1}`, planVersion: plan.planVersion + 1, rowVersion: 1 };
       return body(desk.draft);
     }
     if (command.kind === "plan:Publish") {
@@ -139,8 +191,34 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
     if (pathname === "/api/plans/draft") return route.fulfill(desk.draft ? json(desk.draft) : problem(404, "NOT_FOUND", "No open draft"));
     if (pathname === "/api/plans/published") return route.fulfill(desk.published ? json(desk.published) : problem(404, "NOT_FOUND", "No published plan"));
     if (pathname === "/api/plans/preview/placements") return route.fulfill(json(PLACES));
+    if (pathname === "/api/plans/preview/swap" || pathname === "/api/plans/preview/sequence") return route.fulfill(json(desk.preview));
+    if (pathname === "/api/plans/snapshots") return route.fulfill(json(desk.snapshots));
+    const saved = /^\/api\/plans\/snapshots\/([^/]+)$/.exec(pathname);
+    if (saved) {
+      const header = desk.snapshots.find((x) => x.snapshotId === saved[1]);
+      return route.fulfill(header ? json({ snapshot: header, plan: desk.savedPlans[header.snapshotId] }) : problem(404, "NOT_FOUND", "No saved plan"));
+    }
+    if (pathname === "/api/plans/compare") {
+      const side = (id: string, label: string) => {
+        const held = desk.savedPlans[id] ?? desk.draft ?? desk.published!;
+        return { label, planId: held.planId, planVersion: held.planVersion, served: held.allocations.filter((a) => a.decision === "SERVED").length, deferred: held.allocations.filter((a) => a.decision === "DEFERRED").length, unservable: 0, trips: held.trips.length, vehicles: 1 };
+      };
+      const view: ComparisonView = {
+        a: side(String(url.searchParams.get("a")), "Plan A"), b: side(String(url.searchParams.get("b")), "Plan B"),
+        changes: [{ orderId: "order-3", outletId: "OUT053", kind: "ADDED", before: { decision: "DEFERRED", vehicleId: null, tripNumber: null }, after: { decision: "SERVED", vehicleId: "VEH044", tripNumber: 1 } }],
+        changedTrips: ["trip-VEH044-1"], removedTrips: [], affectedOutlets: ["OUT053"],
+      };
+      return route.fulfill(json(view));
+    }
+    if (pathname.startsWith("/api/reference/calendar/")) {
+      return route.fulfill(json({ date: pathname.split("/").pop(), operating: true, nextOperatingDay: "2027-03-02", known: true, day: {} }));
+    }
+    if (/^\/api\/ml\/plans\/[^/]+\/predictions$/.test(pathname)) return route.fulfill(problem(404, "NOT_FOUND", "Not scored"));
     if (pathname === "/api/execution/run-sheets") return route.fulfill(json(desk.sheets));
     if (pathname === "/api/execution/positions") return route.fulfill(json(desk.positions ?? []));
+    if (pathname.startsWith("/api/execution/deliveries/")) {
+      return route.fulfill(json({ deliveryId: pathname.split("/").pop(), driver: { displayName: "Dilan R.", employeeCode: "DRV-00133" } }));
+    }
     if (pathname.startsWith("/api/execution/trips/")) return route.fulfill(json({ items: desk.trail ?? [], nextCursor: null }));
     if (pathname.startsWith("/api/reference/depots/")) {
       const code = decodeURIComponent(pathname.split("/").pop() ?? "");
@@ -269,4 +347,38 @@ export function forecast(over: Partial<ForecastOverviewView> = {}): ForecastOver
     weeks,
     ...over,
   };
+}
+
+/**
+ * A Monday afternoon on the road, as the Figma "05 Live" frames show it: the
+ * clock is 16:12 in Colombo (10:42 UTC). Two vehicles may miss a window, one has
+ * gone quiet, two are on time, one is returning; one stop failed, one owes its
+ * proof, and a store reported a missing unit.
+ */
+export const LIVE_NOW = "2027-03-01T10:42:00Z";
+
+export function liveDay(): Partial<Desk> {
+  const at = (utc: string) => `2027-03-01T${utc}:00Z`;
+  const s = (vehicle: string, seq: number, outlet: string, extra: Partial<RunSheetStopView> = {}): RunSheetStopView =>
+    stop(seq, { deliveryId: `d-${vehicle}-${seq}`, tripId: `t-${vehicle}`, outletId: outlet, windowOpen: "09:00:00", windowClose: "17:00:00", plannedArrival: "16:30:00", ...extra });
+  const done = (utc: string) => ({ outcome: "DELIVERED" as const, proofCaptured: true, arrivedAt: at(utc), completedAt: at(utc), startedAt: at("08:50") });
+  const sheets: RunSheetView[] = [
+    { vehicleId: "VEH020", serviceDate: "2027-03-01", stops: [s("VEH020", 1, "OUT061", done("09:40")), s("VEH020", 2, "OUT063", { expectedArrival: at("11:36"), startedAt: at("08:50") })] },
+    { vehicleId: "VEH019", serviceDate: "2027-03-01", stops: [s("VEH019", 1, "OUT041", done("09:20")), s("VEH019", 2, "OUT044", { expectedArrival: at("11:40"), startedAt: at("08:50") })] },
+    { vehicleId: "VEH029", serviceDate: "2027-03-01", stops: [s("VEH029", 1, "OUT070", done("09:30")), s("VEH029", 2, "OUT072", { expectedArrival: at("11:00"), startedAt: at("08:50") })] },
+    { vehicleId: "VEH030", serviceDate: "2027-03-01", stops: [s("VEH030", 1, "OUT010", { ...done("09:10"), outcome: "FAILED", proofCaptured: false }), s("VEH030", 2, "OUT012", { expectedArrival: at("10:55"), startedAt: at("08:50") })] },
+    { vehicleId: "VEH023", serviceDate: "2027-03-01", stops: [s("VEH023", 1, "OUT030", { ...done("09:50"), proofCaptured: false }), s("VEH023", 2, "OUT031", { expectedArrival: at("11:01"), startedAt: at("08:50") })] },
+    { vehicleId: "VEH011", serviceDate: "2027-03-01", stops: [s("VEH011", 1, "OUT080", done("09:15")), s("VEH011", 2, "OUT081", done("10:20"))] },
+  ];
+  const routes: Record<string, [string, string]> = { VEH020: ["Style", "Matara"], VEH019: ["Style", "Galle"], VEH029: ["Tech", "Kurunegala"], VEH030: ["Tech", "Colombo"], VEH023: ["Style", "Kalutara"], VEH011: ["Style", "Kurunegala"] };
+  const dock: ReadyTripView[] = Object.entries(routes).map(([vehicleId, [brand, district]]) => ({
+    ...dockTrip(vehicleId, "COMPLETED"), tripId: `t-${vehicleId}`, tripNumber: 2, tripsForVehicle: 2, brandCode: brand, districtName: district,
+    volumeM3: "7.5", volumeCapM3: "34", releasedAt: at("08:50"),
+  }));
+  const fix = (vehicleId: string, lat: string, lon: string, offline = false, utc = "10:40") => ({
+    vehicleId, tripId: `t-${vehicleId}`, latitude: lat, longitude: lon, headingDeg: "90.0", accuracyM: "12.0", recordedAt: at(utc), offline,
+  });
+  const positions = [fix("VEH020", "6.020000", "80.400000"), fix("VEH019", "6.100000", "80.150000"), fix("VEH029", "7.480000", "80.300000", true, "10:30"), fix("VEH030", "6.900000", "79.860000"), fix("VEH023", "6.580000", "79.960000")];
+  const issues: IssueView[] = [issue(85, { type: "STOCK_DISCREPANCY", severity: "HIGH", outletId: "OUT085", description: "1 unit missing", raisedAt: at("10:32") })];
+  return { sheets, dock, positions, issues };
 }

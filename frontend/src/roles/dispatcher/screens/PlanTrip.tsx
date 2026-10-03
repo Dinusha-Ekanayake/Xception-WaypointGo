@@ -1,23 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { request } from "@shared/api/client";
 import { useResource } from "@shared/api/useResource";
-import type { InterchangePreview, OrderView, PlanView, VehicleView } from "@shared/domain/types";
-import { Pill, PrimaryButton, SecondaryButton } from "@shared/ui";
+import type { ConstraintResultView, InterchangePreview, OrderView, PlanView, VehicleView } from "@shared/domain/types";
+import { Menu, Pill, PrimaryButton, SecondaryButton } from "@shared/ui";
+import { hhmm, temperatureLabel } from "@shared/wording";
 import { typeLabel } from "../data/fleet.ts";
-import { after, hhmm, type TripLoad } from "../data/plan.ts";
-import { Checks } from "./PlanDecide.tsx";
+import { after, type TripLoad } from "../data/plan.ts";
+import { stopShare, tightLine } from "../data/planViews.ts";
+import CheckList from "./CheckList.tsx";
+import EditTrip from "./EditTrip.tsx";
+import type { PlanActions } from "./planActions.ts";
+import ReasonPicker, { reasonReady } from "./ReasonPicker.tsx";
 import Refusal from "./Refusal.tsx";
 
-// One trip, opened: its load against the vehicle, its stops in order with their
-// windows, and the two things a dispatcher does to it. Taking an order off
-// (plan:Defer) needs a draft; moving the trip whole to another vehicle
-// (plan:Replan) also works on the published plan, where it starts a revision.
-
-export type TripAction =
-  | { kind: "defer"; orderId: string; reason: string }
-  | { kind: "replan"; tripId: string; vehicleId: string; reason: string };
+// Figma "Plan · 2 View plan", the trip opened beside the board: where it leaves
+// and when it is back, how full it is, its stops in order with the share of the
+// load each takes, and what a dispatcher does to it: edit its stops, or move it
+// whole to another vehicle (plan:Replan, which also works on the published plan,
+// where it starts a revision).
 
 export default function PlanTrip({
   plan,
@@ -26,8 +28,7 @@ export default function PlanTrip({
   orders,
   editable,
   canReplan,
-  busy,
-  onAction,
+  actions,
 }: {
   plan: PlanView;
   load: TripLoad;
@@ -35,90 +36,67 @@ export default function PlanTrip({
   orders: Map<string, OrderView>;
   editable: boolean;
   canReplan: boolean;
-  busy: boolean;
-  onAction: (action: TripAction) => void;
+  actions: PlanActions;
 }): React.JSX.Element {
   const { trip } = load;
-  const [mode, setMode] = useState<{ kind: "defer"; orderId: string } | { kind: "replan" } | null>(null);
+  const vehicle = fleet.find((v) => v.vehicleId === trip.vehicleId);
+  const [mode, setMode] = useState<"view" | "edit" | "move">("view");
   const [reason, setReason] = useState("");
   const [vehicleId, setVehicleId] = useState("");
-  const others = fleet.filter((vehicle) => vehicle.vehicleId !== trip.vehicleId);
+  const others = fleet.filter((v) => v.vehicleId !== trip.vehicleId);
+  const warn = tightLine(load.volumePercent, load.weightPercent);
+  const checks = useMemo(() => tripChecks(plan, trip.tripId), [plan, trip.tripId]);
 
   const preview = useResource<InterchangePreview>(
-    mode?.kind === "replan" && vehicleId
+    mode === "move" && vehicleId
       ? (signal) => request<InterchangePreview>(`/api/plans/preview/interchange?trip=${encodeURIComponent(trip.tripId)}&vehicle=${encodeURIComponent(vehicleId)}`, { signal })
       : null,
     `${plan.planId}:${trip.tripId}:${vehicleId}`,
   );
-
-  const start = (next: typeof mode) => {
-    setMode(next);
-    setReason("");
-  };
+  const [showChecks, setShowChecks] = useState(false);
 
   return (
-    <section aria-label={`${trip.vehicleId} trip ${trip.tripNumber}`} className="flex w-full flex-col gap-3 rounded-[24px] bg-white p-5 shadow-go-card lg:max-w-[360px]">
+    <section aria-label={`${trip.vehicleId} trip ${trip.tripNumber}`} className="flex w-full flex-col gap-3 rounded-[24px] bg-go-card p-5 shadow-go-card lg:max-w-[360px]">
       <div>
         <h2 className="flex flex-wrap items-center gap-2 text-[19px] font-medium text-go-ink">
-          {trip.vehicleId} Trip {trip.tripNumber} <Pill tone="success">{trip.brandCode}</Pill> {trip.districtName}
+          {`${trip.vehicleId} Trip ${trip.tripNumber}`} <Pill tone="success">{trip.brandCode}</Pill> {trip.districtName}
         </h2>
         <p className="text-xs text-go-secondary">
-          Departs {hhmm(trip.plannedDeparture)} · back {after(trip.plannedDeparture, trip.plannedMinutes)} · {trip.temperature}
+          {`${vehicle ? `${typeLabel(vehicle)} · ` : ""}Depart ${plan.depotCode} ${hhmm(trip.plannedDeparture)} · back ${after(trip.plannedDeparture, trip.plannedMinutes)} · ${temperatureLabel(trip.temperature).toLowerCase()}`}
         </p>
       </div>
 
       <Bar label="Volume" percent={load.volumePercent} />
       <Bar label="Weight" percent={load.weightPercent} />
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <span className="font-medium text-go-warning-text">{warn ? `! ${warn}` : ""}</span>
+        <Menu
+          label="More about this trip"
+          align="right"
+          className="rounded-full bg-go-surface px-3 py-1 text-xs font-medium text-go-ink"
+          items={[{ id: "checks", label: showChecks ? "Hide trip checks" : "Trip checks", hint: "Why it is Tight or Low" }]}
+          onSelect={() => setShowChecks((value) => !value)}
+        >
+          More
+        </Menu>
+      </div>
+      {showChecks && (checks.length > 0 ? <CheckList checks={checks} title={`Trip checks · ${trip.vehicleId} trip ${trip.tripNumber}`} /> : <p className="text-[13px] text-go-secondary">No checks are recorded for this trip.</p>)}
 
-      <ol className="flex flex-col">
-        {trip.stops.map((stop) => {
-          const order = orders.get(stop.orderId);
-          return (
-            <li key={stop.orderId} className="flex items-start gap-3 border-t border-go-rule py-2">
-              <span className="w-11 shrink-0 text-[14px] font-medium tabular-nums text-go-ink">{hhmm(stop.plannedArrival)}</span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-[14px] font-medium text-go-ink">
-                  {stop.outletId}
-                  {order ? ` · ${order.orderRef}` : ""}
-                </span>
-                <span className="block text-xs text-go-secondary">
-                  Window {hhmm(stop.windowOpen)} to {hhmm(stop.windowClose)}
-                </span>
-              </span>
-              {editable && (
-                <button type="button" onClick={() => start({ kind: "defer", orderId: stop.orderId })} className="shrink-0 text-xs font-medium text-go-teal">
-                  Take off
-                </button>
-              )}
-            </li>
-          );
-        })}
-      </ol>
-
-      {mode?.kind === "defer" && (
-        <div className="flex flex-col gap-2 rounded-go-card bg-go-subtle p-3">
-          <label className="flex flex-col gap-1 text-[13px] font-medium text-go-ink">
-            Why is {orders.get(mode.orderId)?.orderRef ?? "this order"} deferred?
-            <input value={reason} maxLength={300} onChange={(event) => setReason(event.target.value)} className="rounded-go-input border border-go-rule bg-white px-3 py-2.5 text-[14px] font-normal outline-none focus:border-go-teal" />
-          </label>
-          <div className="flex gap-2">
-            <PrimaryButton disabled={busy || !reason.trim()} onClick={() => onAction({ kind: "defer", orderId: mode.orderId, reason: reason.trim() })}>
-              Defer the order
-            </PrimaryButton>
-            <SecondaryButton onClick={() => setMode(null)}>Cancel</SecondaryButton>
-          </div>
-        </div>
+      {mode === "edit" ? (
+        <EditTrip plan={plan} load={load} orders={orders} fleet={fleet} actions={actions} onDone={() => setMode("view")} />
+      ) : (
+        <Timeline plan={plan} load={load} orders={orders} vehicle={vehicle} />
       )}
 
-      {mode?.kind === "replan" && (
+      {mode === "move" && (
         <div className="flex flex-col gap-2 rounded-go-card bg-go-subtle p-3">
           <label className="flex flex-col gap-1 text-[13px] font-medium text-go-ink">
             Move the whole trip to
             <select value={vehicleId} onChange={(event) => setVehicleId(event.target.value)} className="rounded-go-input border border-go-rule bg-white px-3 py-2.5 text-[14px] font-normal">
               <option value="">Choose a vehicle</option>
-              {others.map((vehicle) => (
-                <option key={vehicle.vehicleId} value={vehicle.vehicleId}>
-                  {vehicle.vehicleId} · {typeLabel(vehicle)}
+              {others.map((v) => (
+                <option key={v.vehicleId} value={v.vehicleId}>
+                  {`${v.vehicleId} · ${typeLabel(v)}`}
                 </option>
               ))}
             </select>
@@ -129,27 +107,81 @@ export default function PlanTrip({
               <p role="status" className={`text-[13px] font-medium ${preview.data.feasible ? "text-go-success" : "text-go-danger-strong"}`}>
                 {preview.data.feasible ? `${vehicleId} can take this trip.` : `${vehicleId} cannot take this trip.`}
               </p>
-              <Checks checks={preview.data.checks} />
+              <CheckList checks={preview.data.checks} />
             </>
           )}
-          <label className="flex flex-col gap-1 text-[13px] font-medium text-go-ink">
-            Why is it moving?
-            <input value={reason} maxLength={300} onChange={(event) => setReason(event.target.value)} className="rounded-go-input border border-go-rule bg-white px-3 py-2.5 text-[14px] font-normal outline-none focus:border-go-teal" />
-          </label>
+          <ReasonPicker label="Why is it moving?" value={reason} onChange={setReason} />
           <div className="flex gap-2">
             <PrimaryButton
-              disabled={busy || !reason.trim() || !vehicleId || preview.data?.feasible !== true}
-              onClick={() => onAction({ kind: "replan", tripId: trip.tripId, vehicleId, reason: reason.trim() })}
+              disabled={actions.busy || !reasonReady(reason) || !vehicleId || preview.data?.feasible !== true}
+              onClick={() => void actions.moveTrip(trip.tripId, vehicleId, reason.trim()).then((ok) => ok && setMode("view"))}
             >
               Move the trip
             </PrimaryButton>
-            <SecondaryButton onClick={() => setMode(null)}>Cancel</SecondaryButton>
+            <SecondaryButton onClick={() => setMode("view")}>Cancel</SecondaryButton>
           </div>
         </div>
       )}
 
-      {canReplan && mode === null && <SecondaryButton onClick={() => start({ kind: "replan" })}>Move to another vehicle</SecondaryButton>}
+      {mode === "view" && (
+        <div className="mt-auto flex flex-col gap-2">
+          {editable && <PrimaryButton onClick={() => setMode("edit")}>Edit this trip</PrimaryButton>}
+          {canReplan && <SecondaryButton onClick={() => setMode("move")}>Move to another vehicle</SecondaryButton>}
+        </div>
+      )}
     </section>
+  );
+}
+
+/** The checks recorded for the orders of a trip, each rule once: the vehicle's day as it was judged when they were placed. */
+export function tripChecks(plan: PlanView, tripId: string): ConstraintResultView[] {
+  const seen = new Map<string, ConstraintResultView>();
+  for (const allocation of plan.allocations) {
+    if (allocation.tripId !== tripId) continue;
+    for (const check of allocation.checks) {
+      const key = `${check.ruleId}|${check.reason}`;
+      if (!seen.has(key)) seen.set(key, check);
+    }
+  }
+  return [...seen.values()];
+}
+
+/** Depart, each stop with its window and its share of the load, and back at the depot. */
+function Timeline({ plan, load, orders, vehicle }: { plan: PlanView; load: TripLoad; orders: Map<string, OrderView>; vehicle: VehicleView | undefined }): React.JSX.Element {
+  const { trip } = load;
+  return (
+    <ol aria-label="Stops in order" className="flex flex-col">
+      <Row time={hhmm(trip.plannedDeparture)} dot="hollow" title={`Depart ${plan.depotCode}`} />
+      {trip.stops.map((stop) => {
+        const order = orders.get(stop.orderId);
+        const share = stopShare(order, vehicle);
+        return (
+          <Row
+            key={stop.orderId}
+            time={hhmm(stop.plannedArrival)}
+            dot="filled"
+            title={`${stop.outletId}${order ? ` · ${order.districtName}` : ""}`}
+            note={stop.windowOpen && stop.windowClose ? `${hhmm(stop.windowOpen)}-${hhmm(stop.windowClose)}` : "No window"}
+            aside={share === null ? undefined : `${share}%`}
+          />
+        );
+      })}
+      <Row time={after(trip.plannedDeparture, trip.plannedMinutes)} dot="hollow" title={`Back at ${plan.depotCode}`} />
+    </ol>
+  );
+}
+
+function Row({ time, dot, title, note, aside }: { time: string; dot: "filled" | "hollow"; title: string; note?: string; aside?: string }): React.JSX.Element {
+  return (
+    <li className="flex items-start gap-3 py-1.5">
+      <span className="w-11 shrink-0 text-[14px] font-medium tabular-nums text-go-ink">{time}</span>
+      <span aria-hidden className={`mt-1.5 size-2.5 shrink-0 rounded-full border-2 border-go-teal ${dot === "filled" ? "bg-go-teal" : "bg-go-card"}`} />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[14px] font-medium text-go-ink">{title}</span>
+        {note && <span className="block text-xs text-go-secondary">{note}</span>}
+      </span>
+      {aside && <span className="shrink-0 rounded-full bg-go-surface px-2 py-0.5 text-[11px] text-go-secondary">{aside}</span>}
+    </li>
   );
 }
 

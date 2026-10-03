@@ -1,5 +1,6 @@
 import type { BrowserContext, Page, Route } from "@playwright/test";
 import type { RunSheetStopView } from "../../src/shared/domain/execution.ts";
+import type { NotificationView } from "../../src/shared/domain/notification.ts";
 
 // A small stand-in for Execution, in the shapes ExecutionViews.java serves and
 // with the server's own bookkeeping: one version per command, outcome by
@@ -60,8 +61,14 @@ export type Server = {
   expired: boolean;
   /** Refuse the next command of this kind with a rule violation. */
   refuse: string | null;
+  /** Reading the run sheet fails, as when the signal drops right after a command. */
+  dropReads: boolean;
   /** Refuse every proof file, as the server does for one that is not an image. */
   refuseUploads: boolean;
+  /** The driver's inbox, newest first. */
+  notifications: NotificationView[];
+  /** The store manager's handover PIN by order; absent until the store answers the receipt. */
+  pins: Record<string, string>;
   goOffline: (context: BrowserContext) => Promise<void>;
   goOnline: (context: BrowserContext) => Promise<void>;
 };
@@ -83,6 +90,9 @@ export async function serve(page: Page, stops: RunSheetStopView[] = [stop(1, "OU
     expired: false,
     refuse: null,
     refuseUploads: false,
+    dropReads: false,
+    notifications: [],
+    pins: {},
     goOffline: async (context) => {
       server.offline = true;
       await context.setOffline(true);
@@ -118,6 +128,7 @@ export async function serve(page: Page, stops: RunSheetStopView[] = [stop(1, "OU
     if (pathname === "/api/session") return route.fulfill(json(SESSION));
     if (pathname === "/api/execution/vehicles") return route.fulfill(json(["VEH043"]));
     if (pathname === "/api/execution/run-sheets") {
+      if (server.dropReads) return route.abort("internetdisconnected");
       return route.fulfill(json(server.stops.length ? [{ vehicleId: "VEH043", serviceDate: today(), stops: server.stops }] : []));
     }
     if (pathname === "/api/reference/vehicles/VEH043") {
@@ -132,14 +143,38 @@ export async function serve(page: Page, stops: RunSheetStopView[] = [stop(1, "OU
         : { latitude: "7.290000", longitude: "80.630000", precision: "district" };
       return route.fulfill(json({ outletId, districtName: "Kandy", brandCode: "Fresh", dockType: "street_level", parkingConstraint: "none", location }));
     }
+    if (pathname === "/api/notifications/stream") {
+      const count = server.notifications.filter((n) => n.readAt === null).length;
+      return route.fulfill({ status: 200, contentType: "text/event-stream", body: `event: unread\ndata: {"count":${count}}\n\n` });
+    }
+    if (pathname === "/api/notifications/unread-count") {
+      return route.fulfill(json({ count: server.notifications.filter((n) => n.readAt === null).length }));
+    }
+    if (pathname === "/api/notifications") return route.fulfill(json({ items: server.notifications, nextCursor: null }));
     if (pathname === "/api/commands" && method === "POST") {
       const command = request.postDataJSON() as SentCommand;
+      if (command.kind === "receipt:VerifyHandover") {
+        server.commands.push(command);
+        const orderId = String(command.payload.orderId);
+        const pin = server.pins[orderId];
+        if (!pin) return route.fulfill(problem(403, "FORBIDDEN", `no handover PIN for order ${orderId} is within the actor's scope`));
+        const right = command.payload.pin === pin;
+        const result = { orderId, verified: right, outcome: right ? "VERIFIED" : "WRONG", attemptsLeft: right ? 0 : 4, rowVersion: 2 };
+        return route.fulfill(json({ commandId: command.commandId, kind: command.kind, replayed: false, result }));
+      }
       if (server.refuse === command.kind) {
         server.refuse = null;
         return route.fulfill(problem(409, "CONSTRAINT_VIOLATED", "Arrival is recorded once for a stop"));
       }
+      // A write names the version it read, as on the server: a stale one is refused, never merged.
+      const target = server.stops.find((s) => s.deliveryId === command.payload.deliveryId);
+      if (target && command.expectedVersion !== null && command.expectedVersion !== target.rowVersion) {
+        return route.fulfill(problem(409, "VERSION_CONFLICT", `delivery is at version ${target.rowVersion}, not ${command.expectedVersion}`));
+      }
       const rowVersion = apply(command);
-      return route.fulfill(json({ commandId: command.commandId, kind: command.kind, replayed: false, result: { rowVersion } }));
+      // As ExecutionMessages.result: the stop's new version, so the phone carries it on.
+      const result = target ? { deliveryId: target.deliveryId, rowVersion, outcome: target.outcome, timingUncertain: false } : { rowVersion };
+      return route.fulfill(json({ commandId: command.commandId, kind: command.kind, replayed: false, result }));
     }
     if (pathname === "/api/sync" && method === "POST") {
       const batch = request.postDataJSON() as { operations: Array<{ sequence: number; command: SentCommand }> };
@@ -192,18 +227,13 @@ export async function sign(page: Page): Promise<void> {
   await page.mouse.up();
 }
 
-/** Takes the vehicle by typing its ID (issue #114). */
-export async function takeVehicle(page: Page, id = "VEH043"): Promise<void> {
-  await page.getByRole("button", { name: "Get vehicle" }).first().click();
-  await page.getByRole("button", { name: "Enter vehicle ID" }).click();
-  await page.getByPlaceholder("e.g. VEH003").fill(id);
-  await page.getByRole("button", { name: "Continue with entered vehicle ID" }).click();
+/** Starts or continues the trip from Home. */
+export async function startTrip(page: Page): Promise<void> {
+  await page.getByRole("button", { name: /^(Start|Continue) trip$/ }).click();
 }
 
-/** Starts the trip and answers the location question it asks once; declining never blocks the run. */
-export async function startTrip(page: Page, share = false): Promise<void> {
-  await page.getByRole("button", { name: "Start trip" }).click();
-  const prompt = page.getByRole("region", { name: "Share your location" });
-  await prompt.getByRole("button", { name: share ? "Share location" : "Not now" }).click();
-  await prompt.waitFor({ state: "hidden" });
+/** At the stop: from the Figma report to the delivery form, where counts and proof are entered. */
+export async function openForm(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "Open delivery report" }).click();
+  await page.getByRole("button", { name: "Record delivery" }).click();
 }

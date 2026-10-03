@@ -80,3 +80,73 @@ export type UpdateOwnProfile = {
   displayName: string;
   phone: string | null;
 };
+
+/**
+ * Safe account profile and authorization scope returned by Identity's
+ * account directory reads (GET /api/admin/accounts and /api/admin/accounts/{id}),
+ * mirrored from AccountQuery.AccountView.
+ */
+export type AccountView = {
+  userId: string;
+  email: string;
+  displayName: string;
+  active: boolean;
+  rowVersion: number;
+  roles: string[];
+  depots: string[];
+  outlets: string[];
+};
+
+/**
+ * Vehicle driver assignment view, mirrored from AccountQuery.AssignmentView.
+ */
+export type AssignmentView = {
+  assignmentId: string;
+  vehicleId: string;
+  driverUserId: string;
+  driverName: string;
+  from: string | null;
+  until: string | null;
+  rowVersion: number;
+};
+
+/**
+ * Role catalogue item from Identity (GET /api/admin/roles),
+ * mirrored from AdminAccessQuery.Role.
+ */
+export type RoleView = {
+  roleCode: string;
+  description: string;
+  memberCount?: number;
+  totalPolicyCount?: number;
+  activePolicyCount?: number;
+};
+
+/**
+ * Action catalogue item from Identity (GET /api/admin/actions),
+ * mirrored from AdminAccessQuery.Action.
+ */
+export type ActionView = {
+  action: string;
+  module: string;
+  description: string;
+  implemented: boolean;
+};
+
+export type PolicyStatementView = {
+  policyId: string;
+  name: string;
+  version: number;
+  effect: string;
+  actions: string[];
+  resources: string[];
+};
+
+export type AccountAccessView = {
+  userId: string;
+  roles: string[];
+  scope: string[];
+  policies?: PolicyStatementView[];
+  inheritedPolicies?: PolicyStatementView[];
+  directPolicies?: PolicyStatementView[];
+};

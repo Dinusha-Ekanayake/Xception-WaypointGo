@@ -2,7 +2,7 @@
 
 One word per concept on every screen, message and document a person reads. Each term comes from a field in the data; where the data distinguishes two things, both words stay and each is used only for its own meaning. Code, API fields, command kinds, event names and enum values keep their names (AGENTS.md: the contract is not renamed for wording).
 
-Status: **proposed** in issue #126. A term marked *proposed* is the default until the team records a different choice on that issue. The shared labels and formatters are in `frontend/src/shared/wording/` (#127), the screens follow these terms (#128), and `frontend/tests/wording.test.ts` fails on any retired word, raw code or 12-hour clock that comes back.
+Status: **decided** on issue #126 (2026-10-03). The shared labels and formatters are in `frontend/src/shared/wording/` (#127), the screens follow these terms (#128), and `frontend/tests/wording.test.ts` fails on any retired word, raw code or 12-hour clock that comes back.
 
 ## Quantities
 
@@ -16,7 +16,7 @@ Status: **proposed** in issue #126. A term marked *proposed* is the default unti
 
 | Term | Meaning | Source | Replaces | Notes |
 | --- | --- | --- | --- | --- |
-| **outlet** | A customer site that receives deliveries | `outletId`, `ref.outlets` | shop, customer, store (on other roles' screens) | *Proposed:* the store manager's own screens may say "your store" for their own outlet; every other screen says outlet |
+| **outlet** | A customer site that receives deliveries | `outletId`, `ref.outlets` | shop, customer, store (on other roles' screens) | Decided: the store manager's own screens may say "your store" for their own outlet; every other screen says outlet |
 | **store manager** | The role that orders for and receives at an outlet | role `store_manager` | outlet manager, shop owner | |
 | **depot** | Where vehicles load and start | `depotCode` | warehouse (as a place), hub | "Warehouse" is the external stock system only |
 | **district** | The area a trip serves | `districtName` | zone, area, region | |

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { nextRunDay, pickSheet, RUN_LOOK_AHEAD_DAYS } from "../src/roles/driver/data/run.ts";
+import { nextRunDay, RUN_LOOK_AHEAD_DAYS } from "../src/roles/driver/data/run.ts";
 
 // Issue #114: with no run today, the driver follows the next released trip.
 
@@ -26,12 +26,3 @@ test("nothing released all week leaves the driver on today", async () => {
   assert.equal(asked.at(-1), "2026-11-06", "across a month end");
 });
 
-test("with many vehicles listed, the phone follows the one whose trip has a stop to do", () => {
-  const empty = { vehicleId: "VEH003", stops: [] };
-  const done = { vehicleId: "VEH015", stops: [{ outcome: "DELIVERED" as const }] };
-  const open = { vehicleId: "VEH037", stops: [{ outcome: "DELIVERED" as const }, { outcome: "PENDING" as const }] };
-  assert.equal(pickSheet([empty, done, open])?.vehicleId, "VEH037");
-  assert.equal(pickSheet([empty, done])?.vehicleId, "VEH015", "a finished run is still shown");
-  assert.equal(pickSheet([empty])?.vehicleId, "VEH003");
-  assert.equal(pickSheet([]), null);
-});

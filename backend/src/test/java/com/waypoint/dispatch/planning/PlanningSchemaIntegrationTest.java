@@ -418,7 +418,8 @@ class PlanningSchemaIntegrationTest {
                       new BigDecimal("6.5000"),
                       new BigDecimal("101.00"),
                       LocalTime.of(3, 30),
-                      new BigDecimal("42.500"))));
+                      new BigDecimal("42.500"),
+                      false)));
           plans.insertAllocations(
               planId,
               depot,
@@ -478,7 +479,11 @@ class PlanningSchemaIntegrationTest {
         new BigDecimal("15.00"),
         Optional.empty(),
         "served on trip 1",
-        List.of(ConstraintResult.pass("R-PLN-06", "VolumeCapacity", "fits", new BigDecimal("2.5"))));
+        List.of(ConstraintResult.pass("R-PLN-06", "VolumeCapacity", "fits", new BigDecimal("2.5"))),
+        "engine",
+        false,
+        Optional.empty(),
+        Optional.empty());
   }
 
   private AllocationRow deferred(UUID orderId) {
@@ -494,7 +499,11 @@ class PlanningSchemaIntegrationTest {
         new BigDecimal("15.00"),
         Optional.of("R-PLN-06"),
         "no vehicle had room",
-        List.of(ConstraintResult.fail("R-PLN-06", "VolumeCapacity", "over by 1.5 m3", new BigDecimal("-1.5"))));
+        List.of(ConstraintResult.fail("R-PLN-06", "VolumeCapacity", "over by 1.5 m3", new BigDecimal("-1.5"))),
+        "engine",
+        false,
+        Optional.empty(),
+        Optional.empty());
   }
 
   /** A one-day version; a null depot is global. */

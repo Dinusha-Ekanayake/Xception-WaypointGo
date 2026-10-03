@@ -178,15 +178,12 @@ export function operatingDate(now: Date): string {
 }
 
 
-/** A day has a run when one of its sheets has stops: a vehicle is listed before its trip is released. */
-export const hasRun = (sheets: Array<{ stops: unknown[] }>): boolean => sheets.some((sheet) => sheet.stops.length > 0);
-
 /**
- * The sheet the phone follows when the driver has several vehicles on the day
- * (issue #114): the first with a stop still to do, else the first with stops,
- * else the first. A vehicle with no released trip yet has an empty sheet.
+ * The run sheet this phone works from. A driver can be assigned several
+ * vehicles for a day, most with no released trip: the one with a stop still to
+ * do comes first, then one with any stops, then the first.
  */
-export function pickSheet<S extends { stops: Array<{ outcome: DeliveryOutcome }> }>(sheets: S[]): S | null {
+export function todaysSheet(sheets: RunSheetView[]): RunSheetView | null {
   return (
     sheets.find((sheet) => sheet.stops.some((stop) => !isFinished(stop))) ??
     sheets.find((sheet) => sheet.stops.length > 0) ??
@@ -195,13 +192,38 @@ export function pickSheet<S extends { stops: Array<{ outcome: DeliveryOutcome }>
   );
 }
 
+/** What every stop command answers with (ExecutionMessages.result on the server). */
+export type StopAck = { deliveryId: string; rowVersion: number; outcome: DeliveryOutcome };
+
+export function isStopAck(value: unknown): value is StopAck {
+  const ack = value as Partial<StopAck> | null;
+  return typeof ack?.deliveryId === "string" && typeof ack.rowVersion === "number" && typeof ack.outcome === "string";
+}
+
+/**
+ * The sheets with a sent command's answer taken in, so the next write names the
+ * version the server now holds even when reading the sheet back fails (EXE-29).
+ * Never moves a stop backwards.
+ */
+export function acknowledged(sheets: RunSheetView[], ack: StopAck): RunSheetView[] {
+  return sheets.map((sheet) => ({
+    ...sheet,
+    stops: sheet.stops.map((stop) =>
+      stop.deliveryId === ack.deliveryId && ack.rowVersion > stop.rowVersion ? { ...stop, rowVersion: ack.rowVersion, outcome: ack.outcome } : stop,
+    ),
+  }));
+}
+
+/** A day has a run when one of its sheets has stops: a vehicle is listed before its trip is released. */
+export const hasRun = (sheets: Array<{ stops: unknown[] }>): boolean => sheets.some((sheet) => sheet.stops.length > 0);
+
 /** How far ahead the driver looks for a released trip when today has none. */
 export const RUN_LOOK_AHEAD_DAYS = 7;
 
 /**
- * The first day after `today`, within a week, with a run sheet (issue #114).
- * Run sheets exist once the loader releases a trip, so a driver signed in the
- * evening before an early departure, or on a Saturday before Monday's run,
+ * The first day after `today`, within a week, with a released trip (issue #114).
+ * Run sheets get stops once the loader releases a trip, so a driver signed in
+ * the evening before an early departure, or on a Saturday before Monday's run,
  * still finds it. `read` is asked one day at a time, stopping at the first hit.
  */
 export async function nextRunDay(today: string, read: (date: string) => Promise<{ sheets: Array<{ stops: unknown[] }> }>): Promise<string | null> {

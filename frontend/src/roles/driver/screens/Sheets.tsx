@@ -86,8 +86,11 @@ export function SavedSheet({
   last,
   warning,
   onNext,
+  onHandover,
 }: {
   title: string;
+  /** Opens the store manager's PIN; absent when nothing was handed over. */
+  onHandover?: () => void;
   /** Something about this stop still needs the driver, such as proof the server refused. */
   warning?: string | null;
   /** Saved on this phone and not yet on the server. */
@@ -107,6 +110,7 @@ export function SavedSheet({
         </p>
       </div>
       {warning && <Banner tone="warn" title={warning} />}
+      {onHandover && <OutlineButton onClick={onHandover}>Enter store manager PIN</OutlineButton>}
       <ActionButton onClick={onNext}>{last ? "Finish run" : "Next stop"}</ActionButton>
     </Sheet>
   );

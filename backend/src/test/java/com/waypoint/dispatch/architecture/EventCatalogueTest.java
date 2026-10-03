@@ -34,6 +34,7 @@ class EventCatalogueTest {
           "plan.revised",
           "order.deferred",
           "order.unservable",
+          "plan.store_contacted",
           "loading.started",
           "loading.shortfall",
           "loading.interchange_requested",

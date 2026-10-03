@@ -185,7 +185,7 @@ Four consumers read that one registry: the engine, the manual override path, the
 
 **Commands:** `plan:Generate`, `plan:Override`, `plan:Defer`, `plan:Publish`, `plan:Revise`, `plan:Replan`. A published plan and every child row are immutable; revise and replan create a new version that supersedes it.
 **Queries:** `publishedPlan(depot, day)`, `draft(id)`, `previewAssignments(orderId)`, `previewInterchange(tripId, vehicleId)`, `deferralsFor(depot, day)`, `fuelRemaining(vehicle, week)`.
-**Publishes:** `plan.published`, `plan.revised` (both carry trips and stops, so consumers never read Planning's tables), `order.deferred`, `order.unservable`.
+**Publishes:** `plan.published`, `plan.revised` (both carry trips and stops, so consumers never read Planning's tables), `order.deferred`, `order.unservable`, `plan.store_contacted` (a dispatcher's words to an outlet's store manager about an order the plan did not serve).
 **Consumes:** `order.placed`, `order.amended`, `order.cancelled`, `orders.closed`, `vehicle.status_changed`, `reference.version_published`, `calendar.overridden`, `loading.interchange_requested`. It does not consume `delivery.failed`: a redelivery arrives as a new order. Consumers never publish, except an interchange that moves exactly the requested trip and passes the whole gate: `orders.closed` generates a draft as the system; order changes, a new reference version and a calendar override mark drafts stale; a vehicle lost after publication drafts a revision for the dispatcher. Detail in [the issue #9 walkthrough](../issues/009-planning/WALKTHROUGH.md).
 
 **Ports:** `AllocationEngine`, `TravelAndServiceEstimator`.
@@ -338,8 +338,9 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 | `warehouse.order_status_changed` (`insufficient`, `expired`) | Store manager | yes | A retried placement found stock short, or a partial reservation expired (R-NOT-01) |
 | `order.unservable` | Store manager, dispatcher | yes | No vehicle can take it; needs a decision |
 | `order.deferred` | Store manager | yes | With the binding reason (R-RCP-03, R-NOT-04) |
+| `plan.store_contacted` | Store managers of the outlet | yes | The dispatcher's message about an order the plan did not serve |
 | `order.auto_deferred` | Store manager | yes | The warehouse never confirmed stock before the cutoff (STK-03) |
-| `plan.published`, `plan.revised` | Loader; driver of each trip's vehicle on the service date | yes | Work is available, or changed |
+| `plan.published`, `plan.revised` | Loader; driver of each trip's vehicle on the service date; for a revision, only the drivers of trips that changed and the outlets reached differently (R-NOT-12) | yes | Work is available, or changed |
 | `trip.released` | Driver; dispatcher when the vehicle has no driver (LOD-05); the depot's other loaders (R-NOT-10); each outlet on the trip with its stop number and expected arrival (R-NOT-11) | yes | Vehicle ready; the dock is free; the store can staff the arrival |
 | `loading.shortfall` | Dispatcher | yes | Departure is blocked now (R-NOT-02) |
 | `delivery.started`, `delivery.completed` | Store manager | no | Arriving; proof is available to review |
@@ -510,6 +511,7 @@ Modules connect three ways: a contract query (synchronous, read only), an event 
 | `orders.closed` | Ordering | Planning |
 | `plan.published`, `plan.revised` | Planning | Ordering, Loading, Execution, Notification, Intelligence |
 | `order.deferred`, `order.unservable` | Planning | Ordering, Notification |
+| `plan.store_contacted` | Planning | Notification |
 | `loading.started` | Loading | Ordering, Notification |
 | `loading.shortfall` | Loading | Issues, Notification |
 | `loading.interchange_requested` | Loading | Planning |

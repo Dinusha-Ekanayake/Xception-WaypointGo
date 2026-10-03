@@ -166,6 +166,7 @@ export function DriverHeader({
  */
 export function DriverMorphHeader({
   activeScreen,
+  syncLabel = "Connecting",
   onBack,
   lang = "en",
   onToggleLang,
@@ -174,6 +175,8 @@ export function DriverMorphHeader({
   isNight = false,
 }: {
   activeScreen: "home" | "route-next-stop" | "route-map";
+  /** Whether this phone is in step with the server, in words. */
+  syncLabel?: string;
   onBack?: () => void;
   lang?: SupportedLang;
   onToggleLang?: (l: SupportedLang) => void;
@@ -304,7 +307,7 @@ export function DriverMorphHeader({
             )}
           </div>
 
-          {/* Route & Map Controls: Synced 05:31 Pill */}
+          {/* Route & Map Controls: sync pill */}
           <div
             className={cx(
               "w-[125px] h-[43px] rounded-[25px] flex items-center justify-center transition-all duration-300 transform-gpu origin-right",
@@ -317,7 +320,7 @@ export function DriverMorphHeader({
             )}
           >
             <span className="text-[15px] font-medium leading-[19px] tracking-tight">
-              Synced 05:31
+              {syncLabel}
             </span>
           </div>
         </div>

@@ -8,18 +8,10 @@
 
 `fix/114-fresh-install-check` · @Dinusha-Ekanayake
 
-Ran `docker compose down -v && docker compose up --build` from a Windows clone and walked all eleven README steps in a browser. Fixed what stopped it: `compose-init.sh` checked out with CRLF so init died at `set -eu` (`.gitattributes` now keeps scripts and nginx files LF); the dispatcher's empty plan day names the seeded day; the dock board and the driver look up to a week ahead for the first day with work, since the seed always lands after today; the driver's Figma screens ran on sample stops, so they now take the live run sheet and record through `useDriver` and the offline queue (vehicle by ID, arrive, units handed over with partial reasons, store PIN step as proof, location asked at trip start, the live map).
-Why: the issue's "done when" had never been run; three of its four roles could not be walked on install day.
-Verified: see the PR. Fresh stack: 85 orders, idempotent rerun, plan 73/11/1, release with a shortfall, offline partial delivery applied once, store receipt partial, Live and Issues. `npm test` 143; dispatcher plan, loader 20/20, driver 8 pass.
-Open: the Figma driver flow lacks a not-delivered path, photo or signature proof, sign-out hold and held-stop settling (7 driver tests fixme, #21); the store PIN is not checked; a partial stop's units are not on the run sheet.
-
-## 2026-10-03 - fix(loader): the locked screen's keypad on wide screens, open tabs take new builds, terminal type sizes
-
-`feat/notifications-push-driver-i18n` · @Dinusha-Ekanayake
-
-From a tablet up, the locked screen now shows who locked it and their trip beside the PIN keypad (Figma 06 Locked, tablet, desktop and terminal); phones keep the card and "Enter PIN to unlock". An open tab now asks for a new build when it comes back into view and every 30 minutes, and reloads into it when the new service worker takes over; queued work is in IndexedDB, so nothing is lost. At 1700 px and wider the chips, buttons and Synced step up to the terminal frame's sizes; from 768 to 1440 the measured sizes already equal Figma's. Settings ends with "Apply changes" where it said "Choose loader".
-Why: dock tablets stay open all shift and kept showing the build they first loaded (12-hour clock, no bell, old layouts) after deploys.
-Verified: see the PR. Loader suite 20 of 20, with a new locked-screen test; font sizes measured at 393, 768, 1280, 1440 and 1920 against Figma 11:68288, 11:57924, 11:89184 and 11:99615. The release and theme tests now follow the swipe release and the dark default already on `dev`.
+Ran `docker compose down -v && docker compose up --build` from a Windows clone and walked all eleven README steps in a browser. Fixed what stopped it: `compose-init.sh` checked out with CRLF so init died at `set -eu` (`.gitattributes` now keeps scripts and nginx files LF); the dispatcher's empty plan day names the seeded day; the dock board and the driver look up to a week ahead for the first day with work, since the seed always lands after today. The driver's live wiring is @Oxshadha's from `dev` (#117); this adds only the look-ahead and the remembered run day on top of it.
+Why: the issue's "done when" had never been run; on install day the seed's day is never today.
+Verified: see the PR. Fresh stack: 85 orders, idempotent rerun, plan 73/11/1, release with a shortfall, offline partial delivery applied once, store receipt partial, Live and Issues. `npm test`, the dispatcher plan spec and the loader suite.
+Open: a partial stop's delivered units are not on the run sheet.
 
 ---
 

@@ -17,22 +17,26 @@ test("generate, see why an order was deferred, place it by hand, publish", async
   // The deferral names its rule and its reason, never a generic message; every check is one click away.
   const decision = page.getByRole("region", { name: "Decision", exact: true });
   await expect(decision.getByRole("heading", { name: "ORD0092303" })).toBeVisible();
-  await expect(decision).toContainText("R-PLN-06");
+  await expect(decision).toContainText("No room on the vehicle");
+  await expect(decision).not.toContainText("R-PLN-06");
   await expect(decision).toContainText("No refrigerated vehicle has 7.9 m³ free");
   await decision.getByText("All 2 checks").click();
-  await expect(decision).toContainText("slack -5.4");
+  await expect(decision).toContainText("room -5.4");
 
   // Only places the server says are feasible can be chosen; the refused one says which rule refuses it.
   await expect(decision.getByRole("radio")).toHaveCount(1);
-  await decision.getByRole("button", { name: "Show 1 place it does not fit" }).click();
+  await decision.getByRole("switch", { name: "Only trips it can fit" }).click();
+  await expect(decision.getByRole("radio")).toHaveCount(2);
   await expect(decision).toContainText("volume 7.9 m³ exceeds 2.5 m³ free");
+  await decision.getByRole("switch", { name: "Only trips it can fit" }).click();
   await decision.getByRole("radio", { name: /VEH044 · Trip 1/ }).click();
   const place = decision.getByRole("button", { name: "Place on VEH044 trip 1" });
   await expect(place).toBeDisabled();
-  await decision.getByLabel("Why are you placing it by hand?").fill("Outlet has waited two days");
+  await decision.getByLabel("Why are you deciding this by hand?").fill("Outlet has waited two days");
   await place.click();
 
-  await expect(page.getByRole("heading", { name: "Every order is on a trip" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Every order is decided" })).toBeVisible();
+  await expect(page.getByText("1 of 1 decided")).toBeVisible();
   expect(desk.commands[1]).toMatchObject({
     kind: "plan:Override",
     expectedVersion: 1,
@@ -55,7 +59,7 @@ test("generate, see why an order was deferred, place it by hand, publish", async
 });
 
 test("a refused publish shows every reason and leaves the draft a draft", async ({ page }) => {
-  const desk = await serve(page, { draft: draftPlan() });
+  const desk = await serve(page, { draft: draftPlan(1, true) });
   desk.refuse = {
     kind: "plan:Publish",
     status: 409,
@@ -80,7 +84,7 @@ test("an edit on a draft someone else already changed is refused and the screen 
   await page.goto("/#/plan");
   const decision = page.getByRole("region", { name: "Decision", exact: true });
   await decision.getByRole("radio", { name: /VEH044 · Trip 1/ }).click();
-  await decision.getByLabel("Why are you placing it by hand?").fill("Asked by the store");
+  await decision.getByLabel("Why are you deciding this by hand?").fill("Asked by the store");
 
   // Another dispatcher regenerates while this one is deciding.
   desk.draft = draftPlan(2);

@@ -1,649 +1,337 @@
 "use client";
-import { useState, useEffect } from "react";
-import { useShell, cx } from "@shared/ui";
-import { useInbox } from "@shared/notifications/useInbox";
-import HomeNoVehicle from "./screens/HomeNoVehicle.tsx";
-import DriverLoginScreen from "./screens/DriverLoginScreen.tsx";
-import GetVehicleCameraAccess from "./screens/GetVehicleCameraAccess.tsx";
-import EnterVehicleId from "./screens/EnterVehicleId.tsx";
-import RouteNextStop from "./screens/RouteNextStop.tsx";
-import RouteMapScreen from "./screens/RouteMapScreen.tsx";
-import RouteMap from "./screens/RouteMap.tsx";
-import DeliveryReportWaiting from "./screens/DeliveryReportWaiting.tsx";
-import RunCompleteScreen from "./screens/RunCompleteScreen.tsx";
-import NoTripPlanScreen from "./screens/NoTripPlanScreen.tsx";
-import DrivingModeScreen from "./screens/DrivingModeScreen.tsx";
-import RouteChangedBottomSheet from "./screens/RouteChangedBottomSheet.tsx";
-import SignOutConfirmBottomSheet from "./screens/SignOutConfirmBottomSheet.tsx";
-import { DriverMorphHeader, type SupportedLang } from "./ui.tsx";
-import { ROUTE_STOPS } from "./screens/routeData.ts";
-import { ExecutionCommandKind } from "@shared/domain/types";
-import { useDriver } from "./useDriver.ts";
-import { clock, isFinished, summarize } from "./data/run.ts";
-import { currentIndex, toRouteStops, tripStatus as runStatus } from "./data/routeStops.ts";
-import LiveStatus, { LocationPrompt } from "./LiveStatus.tsx";
 
-export type DriverProps = {
-  userId?: string;
-  displayName?: string;
-  scope?: string[];
-};
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { NotificationView } from "@shared/domain/notification";
+import { ago } from "@shared/notifications/inbox";
+import { useInbox } from "@shared/notifications/useInbox";
+import { cx, McpButton, useShell } from "@shared/ui";
+import { nextStop, type Stop } from "./data/run.ts";
+import { activeIndex, syncLabel, toRouteStops, tripStatus, type RouteStop } from "./data/stopView.ts";
+import DeliveryPinConfirmModal from "./screens/DeliveryPinConfirmModal.tsx";
+import DeliveryReport from "./screens/DeliveryReport.tsx";
+import DeliveryReportWaiting from "./screens/DeliveryReportWaiting.tsx";
+import DrivingModeScreen from "./screens/DrivingModeScreen.tsx";
+import HomeNoVehicle from "./screens/HomeNoVehicle.tsx";
+import RefusedUploads from "./screens/RefusedUploads.tsx";
+import RouteChangedBottomSheet from "./screens/RouteChangedBottomSheet.tsx";
+import RouteMap from "./screens/RouteMap.tsx";
+import RouteNextStop from "./screens/RouteNextStop.tsx";
+import RunCompleteScreen from "./screens/RunCompleteScreen.tsx";
+import { ProblemSheet, SavedSheet } from "./screens/Sheets.tsx";
+import SignOutConfirmBottomSheet from "./screens/SignOutConfirmBottomSheet.tsx";
+import StopDetail from "./screens/StopDetail.tsx";
+import { BackIcon, Banner, DriverMorphHeader, OutlineButton, type SupportedLang } from "./ui.tsx";
+import { useDriver } from "./useDriver.ts";
 
 /**
- * Driver workspace designed strictly for mobile viewports (Figma node 6-37).
- * On desktop or wide screens, it preserves the exact mobile view centered
- * in a phone frame (max-w-[393px]), without expanding into a desktop layout.
+ * The driver's phone (issues #21 and #117, Figma "12 · Driver · Mobile"). What
+ * each screen does is in useDriver; this file chooses which one is drawn. The
+ * Figma screens draw the run sheet Execution serves; the delivery form, the
+ * proof, the problem report and the stop detail keep their working forms.
  */
-export default function Driver({
-  userId,
-  displayName = "Rashmika Dilshan",
-  scope = [],
-}: DriverProps): React.JSX.Element {
+export default function Driver({ userId, displayName, scope }: { userId: string; displayName: string; scope: string[] }): React.JSX.Element {
+  const d = useDriver(userId);
+  const inbox = useInbox(userId);
   const shell = useShell();
-  // The driver's notifications (issue #118): the Home feed and the driving-mode badge.
-  const inbox = useInbox(userId ?? null, Boolean(userId));
-  // The live run (issue #114): with an account the screens draw the run sheet the
-  // loader's release produced and record through useDriver, which keeps every
-  // write on the phone until it is sent. Without one they show the design's samples.
-  const live = Boolean(userId);
-  const d = useDriver(userId ?? "");
-  const ordered = [...d.run.stops].sort((a, b) => a.sequence - b.sequence);
-  const stops = live ? toRouteStops(d.run.stops, d.run.outlets) : ROUTE_STOPS;
-  const syncedLabel = !live
-    ? undefined
-    : d.run.syncedAt
-      ? `Synced ${clock(d.run.syncedAt)}`
-      : d.run.keptAt
-        ? `Saved ${clock(d.run.keptAt)}`
-        : "Not synced yet";
-  const runSummary = (() => {
-    if (!live) return undefined;
-    const sum = summarize(d.run.stops);
-    const done = d.run.stops.map((stop) => stop.completedAt).filter((at): at is string => at !== null).sort().at(-1);
-    const parts = [
-      `${sum.delivered} of ${sum.total} ${sum.total === 1 ? "stop" : "stops"} delivered`,
-      sum.partial > 0 ? `${sum.partial} partly` : "",
-      sum.failed > 0 ? `${sum.failed} not delivered` : "",
-      done ? `finished ${clock(done)}` : "",
-    ];
-    return parts.filter(Boolean).join(" • ");
-  })();
-  const runStats = (() => {
-    if (!live) return undefined;
-    const sum = summarize(d.run.stops);
-    const ordered = d.run.stops.reduce((n, stop) => n + stop.itemCount, 0);
-    // A partial delivery is recorded as a stop total the run sheet does not carry, so it is named, not guessed.
-    const known = (stop: (typeof d.run.stops)[number]) => stop.outcome === "DELIVERED" || stop.lines.every((line) => line.deliveredUnits !== null);
-    const handed = d.run.stops
-      .filter(known)
-      .reduce((n, stop) => n + stop.lines.reduce((m, line) => m + (line.deliveredUnits ?? (stop.outcome === "DELIVERED" ? line.orderedUnits : 0)), 0), 0);
-    const uncounted = d.run.stops.filter((stop) => stop.outcome === "PARTIAL" && !known(stop)).length;
-    const proofs = d.run.stops.filter((stop) => stop.proofCaptured).length;
-    const issues = [sum.partial > 0 ? `${sum.partial} partly delivered` : "", sum.failed > 0 ? `${sum.failed} not delivered` : ""].filter(Boolean).join(" • ");
-    return {
-      stops: `${sum.delivered + sum.partial} of ${sum.total}`,
-      units: `${handed} of ${ordered}${uncounted > 0 ? ` + ${uncounted} partial` : ""}`,
-      issues: issues || "None",
-      proof: `${proofs} saved${d.waiting > 0 ? " • syncing" : ""}`,
-      next: d.run.vehicle ? `Next: return ${d.run.vehicle.vehicleId} to ${scope[0] ?? "the"} depot.` : "",
-    };
-  })();
-  // The route, report and driving screens draw a stop; a live run without one has nothing to draw.
-  const hasStops = stops.length > 0;
-  const [toast, setToast] = useState<string | null>(null);
-  const say = (message: string) => {
-    setToast(message);
-    window.setTimeout(() => setToast(null), 4000);
-  };
-  const [isNight, setIsNight] = useState(false);
+  const { run, view, screen, shown, reporting, detail, online, error, notice, busy } = d;
+  const stops = run.stops;
+  const routeStops = useMemo(() => toRouteStops(stops, run.outlets, run.date, d.now), [stops, run.outlets, run.date, d.now]);
+  const byId = (id: string): Stop | undefined => stops.find((stop) => stop.deliveryId === id);
+  const depot = scope[0] ?? "";
+  const sync = syncLabel(online, run.uploadsWaiting.length, run.syncedAt, run.keptAt);
+
   const [lang, setLang] = useState<SupportedLang>("en");
-  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
-  const [currentScreen, setCurrentScreen] = useState<
-    "login" | "home" | "camera-access" | "enter-id" | "route-next-stop" | "route-map" | "delivery-waiting" | "run-complete" | "no-trip-plan"
-  >(live ? "home" : "login");
-  const [currentStopIndex, setCurrentStopIndex] = useState<number>(0);
-  const [assignedVehicle, setAssignedVehicle] = useState<string | null>(null);
-  const [staffId, setStaffId] = useState<string>("DRV-00021");
-  const [showRouteChangedModal, setShowRouteChangedModal] = useState(false);
-  const [isDrivingMode, setIsDrivingMode] = useState<boolean>(false);
-  const [isDrivingRendered, setIsDrivingRendered] = useState<boolean>(false);
-  const [isDrivingVisible, setIsDrivingVisible] = useState<boolean>(false);
-  const [sampleTripStatus, setTripStatus] = useState<"not-started" | "in-progress" | "completed">("not-started");
-  const tripStatus = live ? runStatus(d.run.stops) : sampleTripStatus;
-  const liveVehicle = d.run.stops.length > 0 ? d.run.vehicle?.vehicleId ?? null : null;
-  const isGetVehicleFlow = currentScreen === "camera-access" || currentScreen === "enter-id";
-  const isPersistentHeader = currentScreen === "home" || currentScreen === "route-next-stop" || currentScreen === "route-map";
+  const [driving, setDriving] = useState(false);
+  const [formFor, setFormFor] = useState<string | null>(null);
+  const [pinFor, setPinFor] = useState<Stop | null>(null);
+  const [revised, setRevised] = useState<NotificationView | null>(null);
+  const seen = useRef<Set<string> | null>(null);
 
-  // 0.5s fade-in and 0.5s fade-out animation orchestration for Driving Mode
+  // The delivery form opens from the waiting screen; a stop reported as not
+  // delivered from the problem sheet opens it straight away.
   useEffect(() => {
-    if (isDrivingMode) {
-      setIsDrivingRendered(true);
-      const raf = requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          setIsDrivingVisible(true);
-        });
-      });
-      return () => cancelAnimationFrame(raf);
-    } else {
-      setIsDrivingVisible(false);
-      const timer = setTimeout(() => {
-        setIsDrivingRendered(false);
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [isDrivingMode]);
+    if (view.name !== "report") return setFormFor(null);
+    if (view.failed) setFormFor(view.deliveryId);
+  }, [view]);
 
-  const handleStartTrip = () => {
-    if (live) {
-      if (ordered.length === 0) return say("No released trip for you yet. It appears once the loader releases your vehicle.");
-      setCurrentStopIndex(currentIndex(d.run.stops));
-      setCurrentScreen("route-next-stop");
-      void d.openRun();
+  // A run sheet revised while the driver is out says so once (Figma "Run sheet changed").
+  useEffect(() => {
+    const ids = inbox.items.map((item) => item.notificationId);
+    if (seen.current === null) {
+      if (!inbox.loading) seen.current = new Set(ids);
       return;
     }
-    if (tripStatus !== "in-progress") {
-      setCurrentStopIndex(0);
-      setTripStatus("in-progress");
-    }
-    setCurrentScreen("route-next-stop");
-  };
+    const fresh = inbox.items.find((item) => !seen.current!.has(item.notificationId) && item.readAt === null && item.eventType === "plan.revised");
+    ids.forEach((id) => seen.current!.add(id));
+    if (fresh) setRevised(fresh);
+  }, [inbox.items, inbox.loading]);
 
-  // Press SPACEBAR to enter Driving mode (cannot be dismissed via Spacebar; only via slider)
-  // 'm' for Route changed, 'n' for No trip plan, 'c' for Run complete demo
+  // Space opens driving mode; only its slider closes it.
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        return;
-      }
-
-      if (e.code === "Space" || e.key === " ") {
-        e.preventDefault();
-        // Space opens Driving Mode only; it cannot disappear from Space
-        setIsDrivingMode(true);
-      } else if (isDrivingMode || live) {
-        // The demo shortcuts below move between sample screens; a live run moves by what is recorded.
-        // While Driving Mode is active, block background demo shortcuts
-        return;
-      } else if (e.key === "m" || e.key === "M") {
-        e.preventDefault();
-        setShowRouteChangedModal((prev) => !prev);
-      } else if (e.key === "n" || e.key === "N") {
-        e.preventDefault();
-        setTripStatus("completed");
-        setCurrentScreen("no-trip-plan");
-      } else if (e.key === "c" || e.key === "C") {
-        e.preventDefault();
-        setTripStatus("completed");
-        setCurrentScreen("run-complete");
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target;
+      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || target instanceof HTMLButtonElement) return;
+      if ((event.code === "Space" || event.key === " ") && nextStop(stops)) {
+        event.preventDefault();
+        setDriving(true);
       }
     };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [stops]);
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isDrivingMode, live]);
-
-  const handleVehicleAssigned = (vehicleId: string, scanned = false) => {
-    if (live) {
-      // The camera only stands in for reading the vehicle's QR, so a scan takes the run's vehicle;
-      // a typed ID must be the one the run is on.
-      if (!liveVehicle) {
-        say("No released trip for you yet. It appears once the loader releases your vehicle.");
-        return setCurrentScreen("home");
-      }
-      if (!scanned && vehicleId.trim().toUpperCase() !== liveVehicle) {
-        return say(`${vehicleId.trim().toUpperCase()} is not on your run. Your vehicle is ${liveVehicle}.`);
-      }
-      setAssignedVehicle(liveVehicle);
-      return setCurrentScreen("home");
-    }
-    setAssignedVehicle(vehicleId);
-    setCurrentScreen("home");
-  };
-
-  /** "I've arrived" at the stop on screen: the arrival is recorded, then the report opens. */
-  const handleArrived = async () => {
-    if (!live) return setCurrentScreen("delivery-waiting");
-    const stop = ordered[currentStopIndex];
+  const arrivedAt = (target: RouteStop) => {
+    const stop = byId(target.id);
     if (!stop) return;
-    if (isFinished(stop)) return say("This stop is already recorded.");
-    if (stop.outcome === "ARRIVED" || (await d.arrived(stop))) setCurrentScreen("delivery-waiting");
-    else say("The arrival could not be recorded. Try again.");
+    if (stop.outcome === "ARRIVED") d.go({ name: "report", deliveryId: stop.deliveryId, failed: null });
+    else void d.arrived(stop);
   };
 
-  /** After a stop is recorded: the next stop, or the end of the run. */
-  const afterRecorded = (index: number) => {
-    const next = ordered.findIndex((stop, i) => i !== index && !isFinished(stop));
-    if (next === -1) {
-      setCurrentScreen("run-complete");
-      return;
-    }
-    setCurrentStopIndex(next);
-    setCurrentScreen("route-next-stop");
-    const nextStop = ordered[next];
-    if (nextStop) void d.openStop(nextStop);
-  };
-
-  const reportProblem = (description: string) => {
-    const stop = ordered[currentStopIndex];
-    if (!liveVehicle) return;
-    void d.run.act(ExecutionCommandKind.reportFault, {
-      vehicleId: liveVehicle,
-      deliveryId: stop?.deliveryId ?? null,
-      kind: "road",
-      description: stop ? `Stop ${String(stop.sequence).padStart(2, "0")}: ${description}` : description,
-    });
-  };
+  const header = screen === "home" || screen === "route" || screen === "map";
+  const next = nextStop(stops);
 
   return (
     <main
       aria-label="Driver workspace"
+      data-theme={d.dark ? "dark" : "light"}
       className={cx(
-        "h-dvh max-h-dvh sm:h-auto sm:min-h-dvh w-full sm:py-6 flex items-center justify-center font-go select-none overflow-hidden transition-colors",
-        isNight ? "bg-[#161616] sm:bg-[#0a0a0a]" : "bg-[#E7F3F2] sm:bg-[#d6e7e5]"
+        "h-dvh max-h-dvh sm:h-auto sm:min-h-dvh w-full sm:py-6 flex items-center justify-center font-go overflow-hidden transition-colors",
+        d.dark ? "go-dark bg-[#161616] sm:bg-[#0a0a0a]" : "bg-[#E7F3F2] sm:bg-[#d6e7e5]"
       )}
     >
       <div
         className={cx(
           "w-full h-full sm:max-w-[393px] h-dvh sm:h-[852px] sm:max-h-[852px] sm:rounded-[44px] sm:shadow-2xl overflow-hidden relative transition-colors",
-          isNight ? "bg-[#161616]" : "bg-[#E7F3F2]"
+          d.dark ? "bg-[#161616]" : "bg-[#E7F3F2]"
         )}
       >
-        {/* Screen 0: Login Screen */}
-        <div
-          className={cx(
-            "absolute inset-0 w-full h-full transition-all duration-350 ease-[cubic-bezier(0.25,1,0.5,1)]",
-            currentScreen === "login"
-              ? "translate-x-0 opacity-100 pointer-events-auto z-10"
-              : "-translate-x-full opacity-0 pointer-events-none z-0"
-          )}
-        >
-          <DriverLoginScreen
-            onLoginSuccess={(id) => {
-              if (id) setStaffId(id);
-              setCurrentScreen("home");
-            }}
-            isNight={isNight}
-            onToggleTheme={() => setIsNight((prev) => !prev)}
-            defaultStaffId=""
-          />
-        </div>
-
-        {/* Persistent Morphing Header for Home, RouteNextStop, and RouteMap screens */}
-        <div
-          className={cx(
-            "driver-header-container absolute top-0 inset-x-0 z-30 transition-all duration-350 ease-[cubic-bezier(0.25,1,0.5,1)]",
-            isPersistentHeader
-              ? "translate-x-0 opacity-100 pointer-events-auto"
-              : currentScreen === "login"
-                ? "translate-x-full opacity-0 pointer-events-none"
-                : "-translate-x-full opacity-0 pointer-events-none"
-          )}
-        >
-          <DriverMorphHeader
-            activeScreen={
-              currentScreen === "route-map"
-                ? "route-map"
-                : currentScreen === "route-next-stop"
-                  ? "route-next-stop"
-                  : "home"
-            }
-            onBack={() => {
-              if (currentScreen === "route-map") {
-                setCurrentScreen("route-next-stop");
-              } else {
-                setCurrentScreen("home");
-              }
-            }}
-            lang={lang}
-            onToggleLang={setLang}
-            onSignOut={() => setShowSignOutConfirm(true)}
-            onToggleTheme={() => setIsNight((prev) => !prev)}
-            isNight={isNight}
-          />
-        </div>
-
-        {/* Screen 1: Home - slides in from login and slides left on forward navigation */}
-        <div
-          className={cx(
-            "absolute inset-0 w-full h-full transition-all duration-350 ease-[cubic-bezier(0.25,1,0.5,1)]",
-            currentScreen === "home"
-              ? "translate-x-0 opacity-100 pointer-events-auto z-10"
-              : currentScreen === "login"
-                ? "translate-x-full opacity-0 pointer-events-none z-0"
-                : "-translate-x-full opacity-0 pointer-events-none z-0"
-          )}
-        >
-          <HomeNoVehicle
-            driverName={displayName || "Rashmika Dilshan"}
-            driverCode={live ? "" : staffId || "DRV-00021"}
-            depotName={live ? `${scope[0] ?? ""} depot` : "Kandy depot"}
-            assignedVehicle={live ? assignedVehicle ?? (tripStatus !== "not-started" ? liveVehicle : null) : assignedVehicle}
-            tripStatus={tripStatus}
-            onGetVehicle={() => setCurrentScreen("camera-access")}
-            onStartRun={handleStartTrip}
-            onStartTrip={handleStartTrip}
-            onSignOut={() => {
-              setTripStatus("not-started");
-              setCurrentStopIndex(0);
-              setCurrentScreen("login");
-              shell?.onSignOut?.();
-            }}
-            isNight={isNight}
-            onToggleTheme={() => setIsNight((prev) => !prev)}
-            hideHeader={isPersistentHeader}
-            inbox={userId ? inbox : undefined}
-          />
-        </div>
-
-        {/* Get Vehicle Flow (Camera Access & Manual ID) with persistent stationary header */}
-        <div
-          className={cx(
-            "absolute inset-0 w-full h-full transition-all duration-350 ease-[cubic-bezier(0.25,1,0.5,1)] flex flex-col font-go select-none overflow-hidden",
-            isGetVehicleFlow
-              ? "translate-x-0 opacity-100 pointer-events-auto z-10"
-              : "translate-x-full opacity-0 pointer-events-none z-0",
-            isNight ? "bg-[#161616] text-white" : "bg-[#E7F3F2] text-black"
-          )}
-        >
-          {/* Persistent Header: Back button + "Get vehicle" step label */}
-          <div className="pt-[27px] px-[43px] shrink-0 z-20">
-            <div className="flex items-center justify-between">
-              <button
-                type="button"
-                onClick={() => setCurrentScreen("home")}
-                className={cx(
-                  "flex items-center gap-[9px] text-[20px] font-medium leading-[25px] h-[30px] transition-opacity active:opacity-70",
-                  isNight ? "text-white" : "text-black"
-                )}
-                aria-label="Go back"
-              >
-                <svg width="9" height="14" viewBox="0 0 9 14" fill="none">
-                  <path
-                    d="M7.75 1L1.25 7L7.75 13"
-                    stroke="currentColor"
-                    strokeWidth="2.2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-                <span>Back</span>
-              </button>
-              <span
-                className={cx(
-                  "text-[15px] font-light leading-[19px] text-right",
-                  isNight ? "text-white" : "text-black"
-                )}
-              >
-                Get vehicle
-              </span>
-            </div>
-          </div>
-
-          {/* Sliding sub-screens: slide beneath the persistent header */}
-          <div className="relative flex-1 w-full overflow-hidden">
-            {/* Screen 2: Get Vehicle (Camera Access) */}
-            <div
-              className={cx(
-                "absolute inset-0 w-full h-full transition-all duration-350 ease-[cubic-bezier(0.25,1,0.5,1)]",
-                currentScreen === "enter-id"
-                  ? "-translate-x-full opacity-0 pointer-events-none z-0"
-                  : "translate-x-0 opacity-100 pointer-events-auto z-10"
-              )}
-            >
-              <GetVehicleCameraAccess
-                isActive={currentScreen === "camera-access"}
-                onBack={() => setCurrentScreen("home")}
-                onScanSuccess={(id) => handleVehicleAssigned(id, true)}
-                onEnterManualId={() => setCurrentScreen("enter-id")}
-                isNight={isNight}
-                hideHeader
-              />
-            </div>
-
-            {/* Screen 3: Enter vehicle ID manually */}
-            <div
-              className={cx(
-                "absolute inset-0 w-full h-full transition-all duration-350 ease-[cubic-bezier(0.25,1,0.5,1)]",
-                currentScreen === "enter-id"
-                  ? "translate-x-0 opacity-100 pointer-events-auto z-10"
-                  : "translate-x-full opacity-0 pointer-events-none z-0"
-              )}
-            >
-              <EnterVehicleId
-                onBack={() => setCurrentScreen("home")}
-                onScanQrInstead={() => setCurrentScreen("camera-access")}
-                onContinue={(id) => handleVehicleAssigned(id)}
-                knownIds={live ? (liveVehicle ? [liveVehicle] : []) : undefined}
-                unknownMessage={
-                  live
-                    ? (id) => (liveVehicle ? `${id} is not on your run. Your vehicle is ${liveVehicle}.` : "No released trip for you yet. It appears once the loader releases your vehicle.")
-                    : undefined
-                }
-                depotName={live ? `${scope[0] ?? ""} depot` : "Kandy depot"}
-                isNight={isNight}
-                hideHeader
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Screen 4: Route Next Stop - slides in from right when Start run is clicked */}
-        <div
-          className={cx(
-            "absolute inset-0 w-full h-full transition-all duration-350 ease-[cubic-bezier(0.25,1,0.5,1)]",
-            currentScreen === "route-next-stop"
-              ? "translate-x-0 opacity-100 pointer-events-auto z-10"
-              : "translate-x-full opacity-0 pointer-events-none z-0"
-          )}
-        >
-          {hasStops && <RouteNextStop
-            stops={stops}
-            syncedLabel={syncedLabel}
-            stopIndex={currentStopIndex}
-            onSelectStop={(idx) => setCurrentStopIndex(idx)}
-            onBack={() => setCurrentScreen("home")}
-            onOpenMap={() => setCurrentScreen("route-map")}
-            onArrived={() => void handleArrived()}
-            isNight={isNight}
-            onToggleTheme={() => setIsNight((prev) => !prev)}
-            hideHeader={isPersistentHeader}
-          />}
-        </div>
-
-        {/* Screen 5: Google Maps API UI View - opens when Map button is tapped */}
-        <div
-          className={cx(
-            "absolute inset-0 w-full h-full transition-all duration-350 ease-[cubic-bezier(0.25,1,0.5,1)]",
-            currentScreen === "route-map"
-              ? "translate-x-0 opacity-100 pointer-events-auto z-10"
-              : "translate-x-full opacity-0 pointer-events-none z-0"
-          )}
-        >
-          {live ? (
-            // The live map: the next stop's exact location and the vehicle's track (issue #161),
-            // under the persistent header's back button. The design's drawn map is sample only.
-            currentScreen === "route-map" && ordered[currentStopIndex] && (
-              <div className="flex h-full flex-col overflow-y-auto px-4 pt-[110px] pb-6">
-                <RouteMap
-                  next={ordered[currentStopIndex]}
-                  outlet={d.run.outlets[ordered[currentStopIndex].outletId]}
-                  recorder={d.location}
-                  syncedAt={d.run.syncedAt}
-                />
-              </div>
-            )
-          ) : (
-            <RouteMapScreen
-              onBack={() => setCurrentScreen("route-next-stop")}
-              isNight={isNight}
-              onToggleTheme={() => setIsNight((prev) => !prev)}
-              hideHeader={isPersistentHeader}
+        {header && (
+          <div className="driver-header-container absolute top-0 inset-x-0 z-30">
+            <DriverMorphHeader
+              activeScreen={screen === "map" ? "route-map" : screen === "route" ? "route-next-stop" : "home"}
+              syncLabel={sync}
+              onBack={() => (screen === "map" ? d.go({ name: "route", deliveryId: null }) : d.go({ name: "home" }))}
+              lang={lang}
+              onToggleLang={setLang}
+              onSignOut={d.askSignOut}
+              onToggleTheme={d.theme}
+              isNight={d.dark}
             />
-          )}
-        </div>
-
-        {/* Screen 6: Delivery report Waiting for store - opens when I've arrived is clicked */}
-        <div
-          className={cx(
-            "absolute inset-0 w-full h-full transition-all duration-350 ease-[cubic-bezier(0.25,1,0.5,1)]",
-            currentScreen === "delivery-waiting"
-              ? "translate-x-0 opacity-100 pointer-events-auto z-10"
-              : "translate-x-full opacity-0 pointer-events-none z-0"
-          )}
-        >
-          {hasStops && <DeliveryReportWaiting
-            syncedLabel={syncedLabel}
-            key={live ? `${ordered[currentStopIndex]?.deliveryId ?? "none"}:${currentScreen === "delivery-waiting"}` : "sample"}
-            stops={stops}
-            live={
-              live && ordered[currentStopIndex]
-                ? {
-                    stop: ordered[currentStopIndex],
-                    busy: d.busy,
-                    error: d.error,
-                    onConfirm: (report) => {
-                      const index = currentStopIndex;
-                      void d.confirm(ordered[index]!, report).then((ok) => ok && afterRecorded(index));
-                    },
-                    onProblem: reportProblem,
-                  }
-                : undefined
-            }
-            stopIndex={currentStopIndex}
-            onBack={() => setCurrentScreen("route-next-stop")}
-            onConfirmSuccess={() => {
-              if (currentStopIndex >= ROUTE_STOPS.length - 1) {
-                // All stops completed -> route loop finished
-                setTripStatus("completed");
-                setCurrentScreen("no-trip-plan");
-              } else {
-                setCurrentStopIndex((prev) => prev + 1);
-                setCurrentScreen("route-next-stop");
-              }
-            }}
-            isNight={isNight}
-            onToggleTheme={() => setIsNight((prev) => !prev)}
-          />}
-        </div>
-
-        {/* Screen 7: Run complete screen */}
-        <div
-          className={cx(
-            "absolute inset-0 w-full h-full transition-all duration-350 ease-[cubic-bezier(0.25,1,0.5,1)]",
-            currentScreen === "run-complete"
-              ? "translate-x-0 opacity-100 pointer-events-auto z-10"
-              : "translate-x-full opacity-0 pointer-events-none z-0"
-          )}
-        >
-          <RunCompleteScreen
-            syncedLabel={syncedLabel}
-            summary={runSummary}
-            stats={runStats}
-            onBack={() => {
-              if (tripStatus === "completed") {
-                setCurrentScreen("home");
-              } else {
-                setCurrentScreen("route-next-stop");
-              }
-            }}
-            onBackToHome={() => {
-              setTripStatus("completed");
-              setCurrentScreen("no-trip-plan");
-            }}
-            isNight={isNight}
-            onToggleTheme={() => setIsNight((prev) => !prev)}
-            vehicleId={live ? liveVehicle ?? "" : assignedVehicle ?? "VEH043"}
-            depotName={live ? `${scope[0] ?? ""} depot` : "Kandy depot"}
-          />
-        </div>
-
-        {/* Screen 8: No trip plan screen - opens after confirming the last stop of the trip */}
-        <div
-          className={cx(
-            "absolute inset-0 w-full h-full transition-all duration-350 ease-[cubic-bezier(0.25,1,0.5,1)]",
-            currentScreen === "no-trip-plan"
-              ? "translate-x-0 opacity-100 pointer-events-auto z-10"
-              : "translate-x-full opacity-0 pointer-events-none z-0"
-          )}
-        >
-          <NoTripPlanScreen
-            syncedLabel={syncedLabel}
-            onBack={() => {
-              if (tripStatus === "completed") {
-                setCurrentScreen("home");
-              } else {
-                setCurrentScreen("route-next-stop");
-              }
-            }}
-            onBackToHome={() => {
-              setCurrentStopIndex(0);
-              setTripStatus("completed");
-              setCurrentScreen("home");
-            }}
-            isNight={isNight}
-            onToggleTheme={() => setIsNight((prev) => !prev)}
-            vehicleId={live ? liveVehicle ?? "" : assignedVehicle ?? "VEH043"}
-            depotName={live ? `${scope[0] ?? ""} depot` : "Kandy depot"}
-          />
-        </div>
-
-        {live && (
-          <LiveStatus
-            online={d.online}
-            waiting={d.waiting}
-            keptAt={d.run.keptAt}
-            expired={d.run.expired}
-            loading={d.run.loading}
-            message={toast}
-          />
+          </div>
         )}
 
-        {live && hasStops && d.location.needsConsent && (currentScreen === "route-next-stop" || currentScreen === "route-map") && (
-          <LocationPrompt onAllow={d.location.allow} onDecline={d.location.decline} />
-        )}
-
-        {/* Sign Out Confirmation Modal */}
-        <SignOutConfirmBottomSheet
-          isOpen={showSignOutConfirm}
-          onClose={() => setShowSignOutConfirm(false)}
-          onConfirm={() => {
-            setShowSignOutConfirm(false);
-            setTripStatus("not-started");
-            setCurrentStopIndex(0);
-            setCurrentScreen("login");
-            shell?.onSignOut?.();
-          }}
-          isNight={isNight}
-        />
-
-        {/* Route Changed Message Bottom Sheet (triggered by 'm' or dispatcher event) */}
-        <RouteChangedBottomSheet
-          isOpen={showRouteChangedModal}
-          onClose={() => setShowRouteChangedModal(false)}
-          onViewRoute={() => {
-            setShowRouteChangedModal(false);
-            setCurrentScreen("route-next-stop");
-          }}
-          isNight={isNight}
-        />
-
-        {/* Driving Mode Overlay - 0.5s fade in and 0.5s fade out */}
-        {isDrivingRendered && hasStops && (
-          <div
-            className={cx(
-              "absolute inset-0 z-50 transition-opacity duration-500 ease-in-out",
-              isDrivingVisible
-                ? "opacity-100 pointer-events-auto"
-                : "opacity-0 pointer-events-none"
+        {run.loading ? (
+          <p role="status" className="absolute inset-x-0 top-[96px] px-8 text-[17px] text-go-muted">
+            Loading today's run…
+          </p>
+        ) : (
+          <div key={screen} className="absolute inset-0 animate-fade-in">
+            {screen === "home" && (
+              <HomeNoVehicle
+                driverName={displayName}
+                depotName={depot}
+                vehicle={run.vehicle}
+                tripStatus={tripStatus(stops)}
+                stopCount={stops.length}
+                unavailable={run.unavailable}
+                online={online}
+                vehicleStatus={d.vehicleStatus}
+                onVehicleStatus={(status) => void d.reportStatus(status)}
+                onStartTrip={() => void d.openRun()}
+                onProblem={() => d.openProblem("run")}
+                inbox={inbox}
+                now={d.now}
+                isNight={d.dark}
+                onToggleTheme={d.theme}
+                hideHeader
+              />
             )}
-          >
+            {screen === "route" && shown && (
+              <RouteNextStop
+                stops={routeStops}
+                stopIndex={stops.indexOf(shown)}
+                syncLabel={sync}
+                onSelectStop={(index) => stops[index] && void d.openStop(stops[index])}
+                onBack={() => d.go({ name: "home" })}
+                onOpenMap={() => d.go({ name: "map" })}
+                onArrived={arrivedAt}
+                onProblem={() => d.openProblem(shown)}
+                isNight={d.dark}
+                onToggleTheme={d.theme}
+                hideHeader
+              />
+            )}
+            {screen === "map" && next && (
+              <GoLayer dark={d.dark} top>
+                <RouteMap next={next} outlet={run.outlets[next.outletId]} recorder={d.location} syncedAt={run.syncedAt} />
+              </GoLayer>
+            )}
+            {screen === "report" && reporting && view.name === "report" && formFor !== reporting.deliveryId && (
+              <DeliveryReportWaiting
+                stops={routeStops}
+                stopIndex={stops.indexOf(reporting)}
+                syncLabel={sync}
+                onBack={() => d.go({ name: "route", deliveryId: reporting.deliveryId })}
+                onConfirm={() => setFormFor(reporting.deliveryId)}
+                onProblem={() => d.openProblem(reporting)}
+                isNight={d.dark}
+                onToggleTheme={d.theme}
+              />
+            )}
+            {screen === "report" && reporting && view.name === "report" && formFor === reporting.deliveryId && (
+              <GoLayer dark={d.dark} sync={sync} onBack={() => setFormFor(null)}>
+                <DeliveryReport
+                  key={`${reporting.deliveryId}:${view.failed ?? ""}`}
+                  stop={reporting}
+                  outlet={run.outlets[reporting.outletId]}
+                  total={stops.length}
+                  busy={busy}
+                  timingUncertain={reporting.waiting}
+                  startFailed={view.failed}
+                  error={error}
+                  onConfirm={(result) => void d.confirm(reporting, result)}
+                />
+              </GoLayer>
+            )}
+            {screen === "stop" && detail && (
+              <GoLayer dark={d.dark} sync={sync} onBack={() => d.go({ name: "home" })}>
+                <StopDetail
+                  key={detail.deliveryId}
+                  stop={detail}
+                  outlet={run.outlets[detail.outletId]}
+                  total={stops.length}
+                  proofOnPhone={run.uploadsWaiting.filter((upload) => upload.subject === detail.deliveryId).length}
+                  busy={busy}
+                  error={error}
+                  onProof={(proof) => void d.addProof(detail, proof)}
+                />
+              </GoLayer>
+            )}
+            {screen === "complete" && (
+              <RunCompleteScreen
+                onBack={() => d.go({ name: "home" })}
+                onBackToHome={() => d.go({ name: "home" })}
+                isNight={d.dark}
+                onToggleTheme={d.theme}
+                vehicleId={run.vehicle?.vehicleId ?? ""}
+                depotName={depot}
+                stops={stops}
+                uploadsWaiting={run.uploadsWaiting.length}
+                writesWaiting={d.sync.pending - d.sync.held.length}
+                writesHeld={d.sync.held.length}
+                syncedAt={run.syncedAt}
+              />
+            )}
+          </div>
+        )}
+
+        {/* What is degraded, said on screen (rule 9): an expired session, a saved copy, location, a refused file. */}
+        <div className={cx("absolute inset-x-0 z-40 flex flex-col gap-2 px-5 pointer-events-none", header ? "top-[78px]" : "top-[84px]")}>
+          {/* The shell's sync badge opens writes the server refused, for review; MCP on Home (#177). */}
+          <div className="pointer-events-auto flex items-center justify-end gap-2 empty:hidden">
+            {shell?.sync}
+            {screen === "home" && <McpButton url={shell?.mcpUrl ?? null} compact className="flex shrink-0 items-center justify-center rounded-full bg-go-card text-go-ink shadow-go-float" />}
+          </div>
+          {run.expired && !run.loading ? (
+            <div className="pointer-events-auto flex flex-col gap-2">
+              <Banner tone="warn" title="You have been signed out" live>
+                Nothing on this phone is lost. Sign in again and everything you recorded is sent.
+              </Banner>
+              <OutlineButton onClick={() => window.location.reload()}>Sign in again</OutlineButton>
+            </div>
+          ) : (
+            run.keptAt &&
+            !run.loading &&
+            screen === "home" && (
+              <Banner tone="warn" title="Showing the run saved on this phone" live>
+                {online ? "Waypoint is not answering." : "This phone is offline."} Everything you record is kept here and sent when the connection is back.
+              </Banner>
+            )
+          )}
+          {d.location.needsConsent && screen === "route" && (
+            <div className="pointer-events-auto flex flex-col gap-2">
+              <Banner tone="warn" title="Share your location while the run is open?">
+                So the dispatcher and the store can see where the truck is. Only while your run is open.
+              </Banner>
+              <div className="grid grid-cols-2 gap-2">
+                <OutlineButton onClick={d.location.decline}>Not now</OutlineButton>
+                <OutlineButton onClick={d.location.allow}>Share location</OutlineButton>
+              </div>
+            </div>
+          )}
+          {d.problemFor === null && !d.saved && (error || notice) && formFor === null && screen !== "stop" && (
+            <div className="pointer-events-auto">
+              <Banner tone={error ? "bad" : "good"} title={error ?? notice ?? ""} live />
+            </div>
+          )}
+          {screen === "home" && run.uploadsWaiting.some((upload) => upload.needsReview) && (
+            <div className="pointer-events-auto rounded-[18px] bg-go-canvas">
+              <RefusedUploads uploads={run.uploadsWaiting} stops={stops} onDiscard={(id) => void d.dropUpload(id)} />
+            </div>
+          )}
+        </div>
+        {d.location.state === "denied" && next && screen === "route" && (
+          <p role="status" className="absolute inset-x-0 bottom-2 z-40 flex justify-center gap-2 text-[13px] text-go-muted">
+            Location off · the dispatcher sees your stops only
+            <button type="button" onClick={d.location.allow} className="underline">
+              Turn on
+            </button>
+          </p>
+        )}
+
+        {d.problemFor !== null && (
+          <ProblemSheet stop={d.problemFor === "run" ? null : d.problemFor} busy={busy} error={error} onSend={(problem) => void d.report(problem)} onClose={d.closeProblem} />
+        )}
+        {d.saved && !pinFor && (
+          <SavedSheet
+            title={d.saved.title}
+            onPhone={d.saved.onPhone}
+            last={d.saved.last}
+            warning={d.saved.warning}
+            onHandover={d.saved.handedOver ? () => setPinFor(d.saved!.handedOver) : undefined}
+            onNext={() => void d.afterSaved()}
+          />
+        )}
+        <DeliveryPinConfirmModal
+          isOpen={pinFor !== null}
+          onClose={() => setPinFor(null)}
+          onVerify={(pin) => d.verifyHandover(pinFor!, pin)}
+          isNight={d.dark}
+          stopName={pinFor?.outletId ?? ""}
+          online={online}
+        />
+        <SignOutConfirmBottomSheet
+          isOpen={d.leaving}
+          onClose={d.cancelSignOut}
+          onConfirm={d.signOut}
+          waiting={d.waiting}
+          online={online}
+          isNight={d.dark}
+        />
+        <RouteChangedBottomSheet
+          isOpen={revised !== null}
+          onClose={() => {
+            if (revised) void inbox.markRead([revised.notificationId]);
+            setRevised(null);
+          }}
+          onViewRoute={() => {
+            if (revised) void inbox.markRead([revised.notificationId]);
+            setRevised(null);
+            void d.openRun();
+          }}
+          time={revised ? ago(revised.createdAt, d.now) : undefined}
+          isNight={d.dark}
+        />
+
+        {driving && (
+          <div className="absolute inset-0 z-50 animate-fade-in">
             <DrivingModeScreen
-              stops={stops}
-              onExit={() => setIsDrivingMode(false)}
-              isNight={isNight}
-              stopIndex={currentStopIndex}
-              onToggleTheme={() => setIsNight((prev) => !prev)}
-              unread={userId ? inbox.unread : undefined}
+              onExit={() => setDriving(false)}
+              isNight={d.dark}
+              stops={routeStops}
+              stopIndex={activeIndex(stops)}
+              onToggleTheme={d.theme}
+              unread={inbox.unread}
             />
           </div>
         )}
@@ -652,4 +340,37 @@ export default function Driver({
   );
 }
 
-
+/** The working forms keep the GO design tokens; inside the phone frame they scroll on their own layer. */
+function GoLayer({
+  dark,
+  sync,
+  onBack,
+  top = false,
+  children,
+}: {
+  dark: boolean;
+  sync?: string;
+  onBack?: () => void;
+  /** Under the persistent header, which brings its own Back. */
+  top?: boolean;
+  children: React.ReactNode;
+}): React.JSX.Element {
+  return (
+    <div className={cx(dark && "go-dark", "absolute inset-0 overflow-y-auto bg-go-canvas font-go text-go-ink", top && "pt-[74px]")}>
+      {onBack && (
+        <div className="flex items-center justify-between px-5 pt-5">
+          <button type="button" onClick={onBack} className="-ml-2 flex min-h-12 items-center gap-2 rounded-full px-2 text-[19px] font-medium text-go-ink">
+            <BackIcon />
+            Back
+          </button>
+          {sync && (
+            <span role="status" className="rounded-full bg-go-card px-4 py-2 text-[15px] font-medium shadow-go-float">
+              {sync}
+            </span>
+          )}
+        </div>
+      )}
+      {children}
+    </div>
+  );
+}

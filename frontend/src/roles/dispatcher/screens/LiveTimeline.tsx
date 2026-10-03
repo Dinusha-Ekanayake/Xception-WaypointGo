@@ -1,21 +1,15 @@
 "use client";
 
 import type { RunSheetStopView } from "@shared/domain/types";
-import { Pill, type Tone } from "@shared/ui";
-import { mapStatus, type MapStatus, type VehicleDay } from "../data/live.ts";
+import { cx } from "@shared/ui";
 import { hhmm } from "../data/plan.ts";
+import { etaOf, progress, routeLabel, runTitle, type Run } from "../data/liveDesk.ts";
+import { Bar, Chip, STATUS as LOOK } from "./LiveParts.tsx";
 
 // Figma "05 Live: timeline": one row per vehicle on a shared clock, a dot per
 // stop at its delivered or predicted arrival, a line at the time now. A dot is
 // a reading of the run sheet, so it moves as each stop closes.
 
-const STATUS: Record<MapStatus, { label: string; tone: Tone }> = {
-  "on-time": { label: "On time", tone: "success" },
-  "at-risk": { label: "At risk", tone: "warning" },
-  late: { label: "Late", tone: "danger" },
-  returning: { label: "Returning", tone: "info" },
-  offline: { label: "Offline", tone: "muted" },
-};
 
 const OFFSET_MINUTES = 330;
 
@@ -39,69 +33,67 @@ function stopMinute(stop: RunSheetStopView): number {
 
 const clockLabel = (minutes: number): string => `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
 
-export type TimelineFilter = "all" | "at-risk" | "offline";
-
-/** The vehicles a depot and status filter keep, shared by the header chips, the timeline and the cards. */
-export function filterDays(allDays: VehicleDay[], depotOf: Record<string, string>, date: string, now: Date, depot: string, filter: TimelineFilter) {
-  const statusOf = (d: VehicleDay): MapStatus => mapStatus(date, d, null, now);
-  const risky = (d: VehicleDay): boolean => statusOf(d) === "at-risk" || statusOf(d) === "late";
-  const inDepot = allDays.filter((d) => depot === "all" || depotOf[d.vehicleId] === depot);
-  const days = inDepot.filter((d) => filter === "all" || (filter === "at-risk" ? risky(d) : statusOf(d) === "offline"));
-  return { days, inDepot, atRisk: inDepot.filter(risky).length, offline: inDepot.filter((d) => statusOf(d) === "offline").length };
-}
-
-const BAR: Record<MapStatus, string> = { "on-time": "bg-go-signal", "at-risk": "bg-go-warning", late: "bg-go-danger", returning: "bg-go-info", offline: "bg-go-secondary" };
-
-/** Figma "05 Live: timeline" right panel card: status dot, ETA and a progress bar. */
-export function TimelineCard({ day, depot, date, now }: { day: VehicleDay; depot?: string; date: string; now: Date }): React.JSX.Element {
-  const key = mapStatus(date, day, null, now);
-  const status = STATUS[key];
-  const done = day.stops.length ? day.done / day.stops.length : 0;
-  const border = key === "at-risk" || key === "late" ? "border-go-warning bg-go-warning/5" : "border-go-rule";
+/** Figma "On the road" card: status dot, title and chip, ETA against the window, and a bar of stops closed. */
+export function RoadCard({ run, onSelect }: { run: Run; onSelect: () => void }): React.JSX.Element {
+  const look = LOOK[run.status];
+  const next = run.day.current;
+  const alert = run.status === "at-risk" || run.status === "late";
   return (
-    <div className={`flex flex-col gap-1.5 rounded-go-card border px-3 py-2.5 ${border}`}>
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-label={`${runTitle(run)}, ${look.label}`}
+      className={cx(
+        "flex w-full flex-col gap-1.5 rounded-2xl border px-3.5 py-3 text-left transition-colors hover:bg-go-subtle",
+        alert ? "border-[#c08a3e]/70 bg-go-warning-tint/40" : "border-go-divider bg-white",
+      )}
+    >
       <span className="flex items-center gap-2">
-        <span className={`h-2 w-2 shrink-0 rounded-full ${BAR[key]}`} />
-        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-go-ink">
-          {day.vehicleId}
-          {depot ? ` · ${depot}` : ""}
-        </span>
-        <Pill tone={status.tone}>{status.label}</Pill>
+        <span aria-hidden className={cx("size-2 shrink-0 rounded-full", look.dot)} />
+        <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-go-ink">{runTitle(run)}</span>
+        <Chip tone={look.tone}>{look.label}</Chip>
       </span>
-      <span className="text-[11px] text-go-secondary">
-        {day.current ? `Expected ${clockLabel(stopMinute(day.current))} · window ${hhmm(day.current.windowClose)}` : `${day.done} of ${day.stops.length} delivered · run finished`}
+      <span className="text-[12px] text-go-secondary">
+        {run.status === "returning"
+          ? `All ${run.day.stops.length} stops closed · back to ${run.depot ?? "the depot"}`
+          : next
+            ? `Expected ${etaOf(next)} · window ${hhmm(next.windowClose)}`
+            : `${run.day.done} of ${run.day.stops.length} closed`}
       </span>
-      <span className="h-1 w-full rounded-full bg-go-subtle">
-        <span className={`block h-1 rounded-full ${BAR[key]}`} style={{ width: `${Math.round(done * 100)}%` }} />
-      </span>
-    </div>
+      <Bar share={run.status === "returning" ? 1 : progress(run)} className={look.bar} />
+    </button>
   );
 }
 
-export default function LiveTimeline({ days, depotOf, date, now }: { days: VehicleDay[]; depotOf: Record<string, string>; date: string; now: Date }): React.JSX.Element {
+export default function LiveTimeline({ runs, now, onOpen }: { runs: Run[]; now: Date; onOpen: (vehicleId: string) => void }): React.JSX.Element {
+  const days = runs.map((r) => r.day);
   const nowMinute = minutesOfInstant(now.toISOString());
-  const all = days.flatMap((day) => day.stops.map(stopMinute));
+  const all = runs.flatMap((r) => [...r.day.stops.map(stopMinute), ...(r.trip?.releasedAt ? [minutesOfInstant(r.trip.releasedAt)] : [])]);
   const first = all.length ? Math.min(...all, nowMinute) : 8 * 60;
   const last = all.length ? Math.max(...all, nowMinute) : 18 * 60;
-  const start = Math.floor((first - 45) / 60) * 60;
-  const end = Math.ceil((last + 30) / 60) * 60;
+  // Fewer labels on a long day, so they never run into each other on a narrow screen.
+  const rough = Math.ceil((last + 30) / 60) * 60 - Math.floor((first - 45) / 60) * 60;
+  const step = rough <= 8 * 60 ? 60 : rough <= 14 * 60 ? 120 : 180;
+  const start = Math.floor((first - 45) / step) * step;
+  const end = Math.ceil((last + 30) / step) * step;
   const span = Math.max(end - start, 60);
   const at = (minute: number): string => `${Math.min(100, Math.max(0, ((minute - start) / span) * 100))}%`;
-  const hours = Array.from({ length: Math.floor(span / 60) + 1 }, (_, i) => start + i * 60);
+  const hours = Array.from({ length: Math.floor(span / step) + 1 }, (_, i) => start + i * step);
+  const edge = (minute: number): string => (minute - start < span * 0.04 ? "translate-x-0" : end - minute < span * 0.04 ? "-translate-x-full" : "-translate-x-1/2");
   const showNow = nowMinute >= start && nowMinute <= end;
 
   return (
-    <section aria-label="Timeline" className="flex min-w-0 flex-1 flex-col gap-3 rounded-[24px] bg-white p-4 shadow-go-card">
+    <section aria-label="Timeline" className="[--lab:180px] xl:[--lab:210px] flex min-w-0 flex-1 flex-col gap-3 rounded-[24px] bg-white p-4 shadow-go-card">
       <div className="flex">
-        <span className="w-[210px] shrink-0 px-1 text-xs text-go-secondary">Run</span>
+        <span className="w-[var(--lab)] shrink-0 px-1 text-xs text-go-secondary">Run</span>
         <div className="relative h-5 flex-1">
-          {hours.map((h) => (
-            <span key={h} className="absolute -translate-x-1/2 text-xs tabular-nums text-go-secondary" style={{ left: at(h) }}>
+          {hours.filter((h) => !showNow || Math.abs(h - nowMinute) > step / 3).map((h) => (
+            <span key={h} className={`absolute whitespace-nowrap text-xs tabular-nums text-go-secondary ${edge(h)}`} style={{ left: at(h) }}>
               {clockLabel(h)}
             </span>
           ))}
           {showNow && (
-            <span className="absolute -top-0.5 -translate-x-1/2 rounded-md bg-go-ink px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-white" style={{ left: at(nowMinute) }}>
+            <span className={`absolute -top-0.5 z-10 whitespace-nowrap ${edge(nowMinute)} rounded-md bg-go-ink px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-white`} style={{ left: at(nowMinute) }}>
               Now {clockLabel(nowMinute)}
             </span>
           )}
@@ -110,37 +102,49 @@ export default function LiveTimeline({ days, depotOf, date, now }: { days: Vehic
 
       <div className="relative">
         {hours.map((h) => (
-          <span key={h} aria-hidden className="absolute bottom-0 top-0 w-px bg-go-rule" style={{ left: `calc(210px + (100% - 210px) * ${((h - start) / span).toFixed(4)})` }} />
+          <span key={h} aria-hidden className="absolute bottom-0 top-0 w-px bg-go-rule" style={{ left: `calc(var(--lab) + (100% - var(--lab)) * ${((h - start) / span).toFixed(4)})` }} />
         ))}
-        {showNow && <span aria-hidden className="absolute bottom-0 top-0 z-10 w-px bg-go-ink" style={{ left: `calc(210px + (100% - 210px) * ${((nowMinute - start) / span).toFixed(4)})` }} />}
-        {days.length === 0 && <p className="py-8 text-center text-[13px] text-go-secondary">No vehicle has left the dock. A vehicle appears here when the loader releases it.</p>}
-        {days.map((day) => {
-          const status = STATUS[mapStatus(date, day, null, now)];
+        {showNow && <span aria-hidden className="absolute bottom-0 top-0 z-10 w-px bg-go-ink" style={{ left: `calc(var(--lab) + (100% - var(--lab)) * ${((nowMinute - start) / span).toFixed(4)})` }} />}
+        {runs.length === 0 && (
+          <p className="relative z-20 mx-auto my-6 w-fit rounded-full bg-white px-4 py-2 text-center text-[13px] text-go-secondary">
+            No vehicle matches. A vehicle appears here when the loader releases it.
+          </p>
+        )}
+        {runs.map((run) => {
+          const day = run.day;
+          const look = LOOK[run.status];
+          const last = day.stops[day.stops.length - 1];
           const minutes = day.stops.map(stopMinute);
-          const lead = Math.min(...minutes) - 30;
+          const lead = run.trip?.releasedAt ? minutesOfInstant(run.trip.releasedAt) : Math.min(...minutes) - 30;
           const sorted = [...day.stops].sort((a, b) => a.sequence - b.sequence);
           return (
-            <div key={day.vehicleId} className="relative flex min-h-[64px] items-center border-t border-go-rule py-3">
-              <div className="flex w-[210px] shrink-0 flex-col gap-0.5 px-1 text-[12px] text-go-secondary">
+            <div key={day.vehicleId} className="relative flex min-h-[86px] items-center border-t border-go-rule py-3">
+              <button type="button" onClick={() => onOpen(day.vehicleId)} className="relative z-20 flex w-[var(--lab)] shrink-0 flex-col gap-0.5 px-1 text-left text-[12.5px] text-go-ink">
                 <span className="flex items-center gap-2">
-                  <span className="text-[13px] font-medium text-go-ink">{day.vehicleId}</span>
-                  <Pill tone={status.tone}>{status.label}</Pill>
+                  <span className="text-[14px] font-medium">{day.vehicleId}</span>
+                  <Chip tone={look.tone}>{look.label}</Chip>
                 </span>
                 <span>
-                  {depotOf[day.vehicleId] ? `${depotOf[day.vehicleId]} · ` : ""}
-                  {day.done} of {day.stops.length} delivered
+                  {[routeLabel(run), run.trip ? `T${run.trip.tripNumber}` : null].filter(Boolean).join(" · ") || `${day.stops.length} stops`}
                 </span>
-                <span>
-                  {day.current ? `Expected ${clockLabel(stopMinute(day.current))} · window ${hhmm(day.current.windowClose)}` : "Run finished"}
+                <span className="text-go-secondary">
+                  {run.status === "offline" && run.position
+                    ? `No signal · last seen ${clockLabel(minutesOfInstant(run.position.recordedAt))}`
+                    : run.status === "returning"
+                      ? `${day.done} of ${day.stops.length} delivered · returning`
+                      : day.current && last
+                        ? `${day.stops.length - day.done === 1 ? "Last stop" : `${day.stops.length - day.done} stops`} · expected ${etaOf(last)} · window ${hhmm(last.windowClose)}`
+                        : "Run finished"}
                 </span>
-              </div>
+              </button>
               <div className="relative h-6 flex-1">
                 <span aria-hidden className="absolute left-0 right-0 top-1/2 h-px bg-go-divider" />
                 <span title="Departed depot" className="absolute top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 bg-go-ink" style={{ left: at(lead) }} />
                 {sorted.map((stop) => {
                   const exception = stop.outcome === "FAILED" || (stop.lateMinutes ?? 0) > 0;
                   const delivered = stop.outcome === "DELIVERED" || stop.outcome === "PARTIAL";
-                  const delayed = !delivered && day.risk !== "ok" && stop.outcome === "PENDING";
+                  const delayed = !delivered && (run.status === "at-risk" || run.status === "late") && stop.outcome === "PENDING";
+                  const estimated = !delivered && run.status === "offline";
                   if (exception) {
                     return (
                       <span key={stop.deliveryId} title={`Exception · stop ${stop.sequence} · ${stop.outletId} · ${clockLabel(stopMinute(stop))}`} className="absolute top-1/2 z-20 flex h-6 w-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-go-danger/40 bg-go-danger/10" style={{ left: at(stopMinute(stop)) }}>
@@ -153,14 +157,14 @@ export default function LiveTimeline({ days, depotOf, date, now }: { days: Vehic
                     <span
                       key={stop.deliveryId}
                       title={`Stop ${stop.sequence} · ${stop.outletId} · ${clockLabel(stopMinute(stop))}`}
-                      className={`absolute top-1/2 flex h-3 w-3 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 ${dot} ${stop.expectedArrival || delivered ? "" : "border-dashed"} ${exception ? "ring-4 ring-go-danger/25" : ""}`}
+                      className={`absolute top-1/2 flex h-3 w-3 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 ${dot} ${estimated ? "border-dashed" : ""} ${exception ? "ring-4 ring-go-danger/25" : ""}`}
                       style={{ left: at(stopMinute(stop)) }}
                     >
                       {exception && <span className="h-1.5 w-1.5 rounded-full bg-go-danger" />}
                     </span>
                   );
                 })}
-                {mapStatus(date, day, null, now) === "returning" && (
+                {run.status === "returning" && (
                   <span title="Back at depot" className="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 border-2 border-go-info bg-white" style={{ left: at(Math.max(...minutes) + 45) }} />
                 )}
               </div>

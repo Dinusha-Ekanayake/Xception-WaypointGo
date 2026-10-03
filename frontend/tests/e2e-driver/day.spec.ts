@@ -1,107 +1,95 @@
-import { expect, test, type Page } from "@playwright/test";
-import { serve, startTrip, stop, takeVehicle } from "./mocks.ts";
-
-// Issue #114: the Figma driver screens run on the live run sheet. The phone
-// takes its vehicle, works each stop and keeps every write on the device until
-// it is sent; the server applies each once, in the order the driver made them.
-
-const HANDOVER = "Handed over in person and confirmed on the driver's phone; no photo or signature taken.";
-
-
-/** Arrive, then confirm the report and the store's PIN step. */
-async function deliver(page: Page) {
-  await page.getByRole("button", { name: "I’ve arrived" }).click();
-  await expect(page.getByRole("region", { name: "Units handed over" })).toBeVisible();
-  await page.getByRole("button", { name: "Confirm", exact: true }).first().click();
-  await expect(page.getByText("Enter Store Manager PIN")).toBeVisible();
-  await page.getByRole("button", { name: "Confirm", exact: true }).last().click();
-}
+import { expect, test } from "@playwright/test";
+import { openForm, serve, sign, startTrip, stop } from "./mocks.ts";
 
 test("a stop worked with no signal survives a reload and is sent once, in order, when the signal returns", async ({ page, context }) => {
   const server = await serve(page);
   await page.goto("/");
-  await takeVehicle(page);
   await expect(page.getByRole("button", { name: "Start trip" })).toBeVisible();
   // The shell must be on the phone before the signal goes, or a reload has nothing to show.
   await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
 
   await server.goOffline(context);
   await startTrip(page);
-  await expect(page.getByText("Next • stop 01 of 02")).toBeVisible();
-  await deliver(page);
-  await expect(page.getByText("Next • stop 02 of 02")).toBeVisible();
-  await page.waitForTimeout(1500); console.log("STATUS:", JSON.stringify(await page.getByRole("status").allTextContents()));
-  await expect(page.getByRole("status").filter({ hasText: "Offline · 5 records saved on this phone" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "OUT0101" })).toBeVisible();
+  await page.getByRole("button", { name: "I've arrived" }).click();
+  await openForm(page);
+  await expect(page.getByText("Stop 01 of 02 · Delivery report")).toBeVisible();
+
+  await page.getByLabel("Received by").fill("Kumari Silva");
+  await sign(page);
+  await expect(page.getByText("Signed", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Confirm" }).click();
+
+  const saved = page.getByRole("dialog", { name: "Delivery confirmed" });
+  await expect(saved).toContainText("Saved on this phone");
   expect(server.commands).toHaveLength(0);
 
-  // The phone restarts with still no signal: the run, and the work, are on it.
+  // The phone restarts with still no signal: the day, and the work, are on it.
   await page.reload();
-  await expect(page.getByRole("status").filter({ hasText: "Offline · 5 records saved on this phone" })).toBeVisible();
+  await expect(page.getByText("Showing the run saved on this phone")).toBeVisible();
+  await expect(page.getByRole("button", { name: "4 saved on this device" })).toBeVisible();
+  await startTrip(page);
+  const first = page.getByRole("button", { name: /^Stop 01 OUT0101/ });
+  await expect(first).toHaveAccessibleName("Stop 01 OUT0101 · Delivered · on phone");
+  await expect(page.getByText("Offline", { exact: true })).toBeVisible();
 
   await server.goOnline(context);
-  // Stop 01 in full, then "heading to stop 02", each on the version the one before it left.
+  // Continuing the trip after the reload heads for stop 02, queued behind stop 01's work.
   await expect.poll(() => server.commands.length).toBe(5);
-  expect(server.commands.map((c) => [c.kind, c.expectedVersion])).toEqual([
-    ["delivery:Start", 1],
-    ["delivery:RecordArrival", 2],
-    ["delivery:Record", 3],
-    ["delivery:CaptureProof", 4],
-    ["delivery:Start", 1],
+  expect(server.commands.map((c) => [c.kind, c.expectedVersion, c.payload.deliveryId])).toEqual([
+    ["delivery:Start", 1, server.stops[0]!.deliveryId],
+    ["delivery:RecordArrival", 2, server.stops[0]!.deliveryId],
+    ["delivery:Record", 3, server.stops[0]!.deliveryId],
+    ["delivery:CaptureProof", 4, server.stops[0]!.deliveryId],
+    ["delivery:Start", 1, server.stops[1]!.deliveryId],
   ]);
   expect(server.commands[2]!.payload).toMatchObject({ outcome: "DELIVERED", deliveredUnits: 12 });
-  expect(server.commands[3]!.payload).toMatchObject({ photoAttachmentId: null, signatureAttachmentId: null, fallbackReason: HANDOVER });
-  await expect(page.getByRole("status").filter({ hasText: "records saved on this phone" })).toHaveCount(0);
+  const proof = server.commands[3]!.payload;
+  expect(proof).toMatchObject({ recipientName: "Kumari Silva", photoAttachmentId: null, fallbackReason: null });
+
+  // The signature travels on its own, under the id the proof named.
+  await expect.poll(() => server.uploads.length).toBe(1);
+  expect(server.uploads[0]!.path).toContain(`/attachments/${proof.signatureAttachmentId}?kind=signature`);
+  expect(server.uploads[0]!.contentType).toBe("image/png");
+  expect(server.uploads[0]!.bytes).toBeGreaterThan(100);
+
+  await expect(first).toHaveAccessibleName("Stop 01 OUT0101 · Delivered");
+  await expect(page.getByText(/^Synced \d\d:\d\d$/)).toBeVisible();
+  // Sent once: a second pass finds nothing to send.
   expect(server.commands).toHaveLength(5);
 });
 
-test("with a signal, each delivery is sent at once and the run completes with its figures", async ({ page }) => {
+test("with a signal, a delivery is sent at once and the run completes", async ({ page }) => {
   const server = await serve(page, [stop(1, "OUT0101")]);
   await page.goto("/");
-  await takeVehicle(page);
   await startTrip(page);
-  await expect(page.getByText("Next • stop 01 of 01")).toBeVisible();
-  await deliver(page);
-  await expect(page.getByText("1 of 1 stop delivered")).toBeVisible();
-  expect(server.commands.map((c) => c.kind)).toEqual(["delivery:Start", "delivery:RecordArrival", "delivery:Record", "delivery:CaptureProof"]);
+  await page.getByRole("button", { name: "I've arrived" }).click();
+  await openForm(page);
+  await page.getByRole("button", { name: "One unit fewer delivered" }).click();
+  await page.getByLabel("Why were some units not delivered?").fill("One crate crushed in transit");
+  await page.getByLabel("What happened to the goods not delivered?").fill("Kept on the vehicle");
+  await page.getByLabel("I can't capture a signature or a photo").check();
+  await page.getByLabel("Why not?").fill("Receiver refused to sign");
+  await page.getByRole("button", { name: "Confirm" }).click();
+
+  const saved = page.getByRole("dialog", { name: "Partial delivery recorded" });
+  await expect(saved).toContainText("Saved and sent to dispatch");
   expect(server.batches).toBe(0);
+  expect(server.commands.map((c) => c.kind)).toEqual(["delivery:Start", "delivery:RecordArrival", "delivery:Record", "delivery:CaptureProof"]);
+  expect(server.commands[2]!.payload).toMatchObject({ outcome: "PARTIAL", deliveredUnits: 11, reason: "One crate crushed in transit", dispositionNote: "Kept on the vehicle" });
+  expect(server.commands[3]!.payload).toMatchObject({ photoAttachmentId: null, signatureAttachmentId: null, fallbackReason: "Receiver refused to sign" });
+
+  await saved.getByRole("button", { name: "Finish run" }).click();
+  await expect(page.getByRole("heading", { name: "Run complete" })).toBeVisible();
+  await expect(page.getByText("1 of 1")).toBeVisible();
 });
 
-test("a partial delivery says why and what happened to the rest before it can be confirmed", async ({ page }) => {
-  const server = await serve(page, [stop(1, "OUT0101")]);
+test("a delivery cannot be confirmed without proof or a reason for its absence", async ({ page }) => {
+  const server = await serve(page, [stop(1, "OUT0101", { outcome: "ARRIVED", arrivedAt: new Date().toISOString(), startedAt: new Date().toISOString(), waitMinutes: 0, lateMinutes: 0, rowVersion: 3 })]);
   await page.goto("/");
-  await takeVehicle(page);
   await startTrip(page);
-  await page.getByRole("button", { name: "I’ve arrived" }).click();
-
-  await page.getByRole("button", { name: "One unit fewer" }).click();
-  await page.getByRole("button", { name: "Confirm", exact: true }).first().click();
-  await expect(page.getByText("Say why the delivery was partial.")).toBeVisible();
-  await expect(page.getByText("Enter Store Manager PIN")).toBeHidden();
-
-  await page.getByLabel("Why were fewer units handed over?").fill("One unit short at loading");
-  await page.getByLabel("What happened to the units not handed over?").fill("Never left the depot");
-  await page.getByRole("button", { name: "Confirm", exact: true }).first().click();
-  await page.getByRole("button", { name: "Confirm", exact: true }).last().click();
-
-  await expect.poll(() => server.commands.find((c) => c.kind === "delivery:Record")?.payload).toMatchObject({
-    outcome: "PARTIAL",
-    deliveredUnits: 11,
-    reason: "One unit short at loading",
-    dispositionNote: "Never left the depot",
-  });
-});
-
-test("a typed vehicle that is not on the run is refused, naming the driver's vehicle", async ({ page }) => {
-  await serve(page);
-  await page.goto("/");
-  await takeVehicle(page, "VEH999");
-  await expect(page.getByText("VEH999 is not on your run. Your vehicle is VEH043.")).toBeVisible();
-});
-
-test("with no released trip the phone says so instead of drawing sample stops", async ({ page }) => {
-  await serve(page, []);
-  await page.goto("/");
-  await takeVehicle(page);
-  await expect(page.getByText("No released trip for you yet. It appears once the loader releases your vehicle.")).toBeVisible();
-  await expect(page.getByText("Peradeniya")).toHaveCount(0);
+  await openForm(page);
+  await page.getByRole("button", { name: "Confirm" }).click();
+  await expect(page.getByText("Add a signature or a photo, or say why neither could be captured.")).toBeVisible();
+  expect(server.commands).toHaveLength(0);
 });

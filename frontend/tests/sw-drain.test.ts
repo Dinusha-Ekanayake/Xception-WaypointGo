@@ -7,7 +7,7 @@ import type { OperationStatus } from "../src/shared/domain/sync.ts";
 // Background Sync with no page open (issue #28, A-39): the service worker
 // drains a queue itself, by the page's rules.
 
-type Entry = { commandId: string; kind: string; enqueuedAt: string; attempts: number; payload: unknown; needsReview?: boolean; serverVersion?: number; problemCode?: string };
+type Entry = { commandId: string; kind: string; enqueuedAt: string; order?: number; attempts: number; payload: unknown; needsReview?: boolean; serverVersion?: number; problemCode?: string };
 
 const entry = (id: string, at: string, kind = "delivery:RecordArrival"): Entry => ({
   commandId: id, kind, enqueuedAt: at, attempts: 0, payload: { commandId: id, kind, payload: {} },
@@ -93,4 +93,15 @@ test("held writes are not sent again, and an empty queue sends nothing", async (
   const { io, posts } = fakeIo([held], results({}));
   assert.equal(await drainAccount(io), "empty");
   assert.equal(posts.length, 0);
+});
+
+test("the worker keeps the device's order for writes recorded in the same millisecond", async () => {
+  const at = "2026-10-05T03:30:00.000Z";
+  const base = Date.parse(at) * 1000;
+  const { io, posts } = fakeIo(
+    [{ ...entry("zz", at), order: base + 3 }, { ...entry("aa", at), order: base + 1 }, { ...entry("mm", at), order: base + 2 }],
+    results({ zz: { status: "APPLIED" }, aa: { status: "APPLIED" }, mm: { status: "APPLIED" } }),
+  );
+  await drainAccount(io);
+  assert.deepEqual(posts[0]!.operations.map((o) => [o.command.commandId, o.sequence]), [["aa", base + 1], ["mm", base + 2], ["zz", base + 3]]);
 });
