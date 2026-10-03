@@ -49,7 +49,8 @@ export default function Orders({
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex items-end gap-3">
+      {/* From lg the sync pill and the bell sit top right over the page (TopBar); keep New order clear of them. */}
+      <div className="flex items-end gap-3 lg:mr-[260px]">
         <h1 className="flex-1 text-[32px] leading-tight font-medium text-black">Orders</h1>
         <button type="button" onClick={onPlace} className="min-h-12 rounded-[22px] bg-go-mint px-5 text-[15px] font-medium text-black">
           + New order
