@@ -249,7 +249,9 @@ class NotificationCommandIntegrationTest extends NotificationSupport {
   private static String await(MvcResult stream, int events) throws Exception {
     for (int i = 0; i < 100; i++) {
       String body = stream.getResponse().getContentAsString();
-      if (body.split("event:unread", -1).length - 1 >= events) {
+      // Count complete data lines, not event names: the event line can arrive
+      // before its data line is written.
+      if (body.lines().filter(l -> l.matches("data:.*\"count\":\\d+.*")).count() >= events) {
         return body;
       }
       Thread.sleep(50);
