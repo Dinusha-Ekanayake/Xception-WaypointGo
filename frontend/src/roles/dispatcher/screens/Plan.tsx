@@ -115,6 +115,8 @@ export default function Plan({
         subtitle={`${depot} · ${plans.data ? stage : "Loading"}`}
         online={online}
         lastSyncedAt={plans.loadedAt}
+        onSync={plans.refresh}
+        syncing={plans.loading}
         tools={
           <>
             {depots.length > 1 && <Segmented label="Depot to plan" value={depot} onChange={setChosen} options={depots.map((code) => ({ value: code, label: code }))} />}
