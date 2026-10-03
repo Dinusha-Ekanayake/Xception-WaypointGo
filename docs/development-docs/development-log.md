@@ -43,6 +43,17 @@ Open: per-client metric tags are deliberately absent (dynamic client registratio
 
 ---
 
+## 2026-10-03 - docs: architecture diagrams and a generated data model (issue #121)
+
+`docs/121-architecture-data-model` · @Oxshadha
+
+`docs/architecture.md` draws what is built: actors and external systems, the containers `docker compose up` runs, the twelve modules and their events, the layers of a module, and one command end to end. `docs/data-model.md` lists every table, key and foreign key by schema and is generated from a database migrated with `migrations/` by `scripts/data-model.py`, so it cannot drift from the schema. Both are linked from the README. `docs/ai-disclosure.md` now lists the tools with their evidence and says the trained Datathon models are served, not trained.
+Why: the booklet asks for an architecture diagram and a data model in `docs/`; the diagrams in SYSTEM-ARCHITECTURE.md show the target (object storage, CDN), not what runs.
+Verified: all 61 migrations on `dev` applied to a fresh PostgreSQL 16; 95 tables, 106 foreign keys; all 19 Mermaid blocks parsed by Mermaid 11.
+Open: every team member adds any other AI tool they used to the disclosure before submission.
+
+---
+
 ## 2026-10-03 - feat: notifications inbox and last sync in each role UI (issue #118)
 
 `feat/118-notifications-inbox` · @Dinusha-Ekanayake
