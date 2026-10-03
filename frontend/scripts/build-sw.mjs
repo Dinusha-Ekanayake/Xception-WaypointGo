@@ -5,7 +5,9 @@ import {readdirSync,readFileSync,writeFileSync} from 'node:fs';import path from 
 // src/shared/offline/queue.ts). With no page open it fails, and the browser tries
 // again later; the queue also drains when the app next opens.
 function walk(dir){return readdirSync(dir,{withFileTypes:true}).flatMap(e=>e.isDirectory()?walk(path.join(dir,e.name)):[path.join(dir,e.name)])}
-const assets=walk('.next/static').filter(p=>!p.endsWith('.map')).map(p=>'/'+p.replace('.next/','_next/'));
+// URL paths always use '/': path.join gives '\' on Windows, and an asset list of
+// '/.next\static\...' made every precache request 404, so the worker never installed.
+const assets=walk('.next/static').filter(p=>!p.endsWith('.map')).map(p=>'/_next/'+path.relative('.next',p).split(path.sep).join('/'));
 const version=readFileSync('.next/BUILD_ID','utf8').trim();
 writeFileSync('public/sw.js',`const CACHE=${JSON.stringify('waypoint-'+version)};const ASSETS=${JSON.stringify(['/', '/manifest.json','/assets/chilled.svg',...assets])};
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
