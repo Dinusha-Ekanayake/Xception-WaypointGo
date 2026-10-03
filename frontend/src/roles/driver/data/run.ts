@@ -177,3 +177,42 @@ export function operatingDate(now: Date): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Colombo", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
 }
 
+
+/** How far ahead the driver looks for a released trip when today has none. */
+export const RUN_LOOK_AHEAD_DAYS = 7;
+
+/**
+ * The first day after `today`, within a week, with a run sheet (issue #114).
+ * Run sheets exist once the loader releases a trip, so a driver signed in the
+ * evening before an early departure, or on a Saturday before Monday's run,
+ * still finds it. `read` is asked one day at a time, stopping at the first hit.
+ */
+export async function nextRunDay(today: string, read: (date: string) => Promise<{ sheets: unknown[] }>): Promise<string | null> {
+  const d = new Date(`${today}T00:00:00Z`);
+  for (let ahead = 1; ahead <= RUN_LOOK_AHEAD_DAYS; ahead++) {
+    d.setUTCDate(d.getUTCDate() + 1);
+    const date = d.toISOString().slice(0, 10);
+    if ((await read(date)).sheets.length > 0) return date;
+  }
+  return null;
+}
+
+/** The run day this phone last followed, so a reload offline opens the same run. */
+const RUN_DAY_KEY = (accountId: string) => `waypoint.driver.runDay.${accountId}`;
+
+export function keptRunDay(accountId: string, today: string): string {
+  try {
+    const kept = window.localStorage.getItem(RUN_DAY_KEY(accountId));
+    return kept && kept >= today ? kept : today;
+  } catch {
+    return today;
+  }
+}
+
+export function keepRunDay(accountId: string, date: string): void {
+  try {
+    window.localStorage.setItem(RUN_DAY_KEY(accountId), date);
+  } catch {
+    // Storage unavailable: the run is found again online.
+  }
+}
