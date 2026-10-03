@@ -37,6 +37,7 @@ export type OutletView = {
   effectiveWindowOpen: IsoTime | null;
   effectiveWindowClose: IsoTime | null;
   vanOnly: boolean;
+  location?: GeoPoint | null;
 };
 
 export type CalendarDayView = {
@@ -126,3 +127,13 @@ export type UpdateOutletDetails = {
   contactPhone: string | null;
   receivingNotes: string | null;
 };
+
+/** Versions published before geo import may have no location. */
+export type GeoPoint = {
+  latitude: WireDecimal;
+  longitude: WireDecimal;
+  precision: "exact" | "approximate" | "centroid" | "district";
+};
+
+export type DepotView = { depotCode: string; displayName: string; location: GeoPoint | null };
+export type DistrictView = { districtName: string; depotCode: string; location: GeoPoint | null };

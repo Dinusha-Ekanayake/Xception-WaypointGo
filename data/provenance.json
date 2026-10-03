@@ -59,5 +59,22 @@
     "source": "Tech-Triathlon 2026/data/General Data/road_conditions.csv",
     "sha256": "e75709fc06531bd83b4b947671903f642d7c2cf3d8e2ee94a69f301e2f3c77d8",
     "transform": "unchanged; added for the predictor (issue #16). Covers 2024-01-01 to 2026-06-28"
+  },
+  {
+    "file": "General Data/geo_points.csv",
+    "source": "https://media.githubusercontent.com/media/wmgeolab/geoBoundaries/9469f09/releaseData/gbOpen/LKA/ADM2/geoBoundaries-LKA-ADM2.geojson",
+    "sha256": "c796c5c88e10f378c3e9306d35add342b16da80e768bccecee500cd739be1cb2",
+    "retrieved": "2026-10-03",
+    "boundary_id": "LKA-ADM2-46371173",
+    "boundary_year": "2017",
+    "boundary_sha256": "47b5ae26225e62052686b6a7ab1dadcaab96d7b968f618b752151f4dc8943a4d",
+    "license": "Open Data Commons Open Database License 1.0",
+    "attribution": "District boundaries: OpenStreetMap contributors, Wambacher, geoBoundaries. Depot locality points: GeoDatos.",
+    "transform": "District polygon area centroids calculated in equal-area EPSG:6933, transformed to WGS84 and rounded to six decimals. Depot coordinates are locality centres, not verified warehouse sites, and marked approximate. No real outlet coordinates supplied; publish uses district centroids with district precision.",
+    "method": "Shapely transform(4326 to 6933), centroid, transform(6933 to 4326); retain the 12 district names in district_travel.csv.",
+    "depot_sources": [
+      "https://www.geodatos.net/en/coordinates/sri-lanka/peliyagoda",
+      "https://www.geodatos.net/en/coordinates/sri-lanka/kandy"
+    ]
   }
 ]

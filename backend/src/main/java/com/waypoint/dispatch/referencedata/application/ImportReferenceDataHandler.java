@@ -106,7 +106,14 @@ public class ImportReferenceDataHandler implements CommandHandler {
 
   /** Read and validate outside any transaction: a rejected import must hold no locks. */
   private CsvReferenceImporter.Staged stage(Path dataDir) {
-    CsvReferenceImporter.Staged staged = importer.stage(dataDir);
+    CsvReferenceImporter.Staged staged;
+    try {
+      staged = importer.stage(dataDir);
+    } catch (com.waypoint.dispatch.referencedata.domain.GeoReference.Invalid e) {
+      metrics.increment("waypoint.reference.import.rejected");
+      throw new DomainException(ErrorCode.VALIDATION_FAILED,
+          "Reference import refused: " + e.getMessage(), List.of("R-REF-02"));
+    }
 
     List<ReferenceViolation> violations =
         ReferenceValidator.validate(staged.snapshot(), ReferenceValidator.Expectations.waypoint());

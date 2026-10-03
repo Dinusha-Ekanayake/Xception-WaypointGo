@@ -70,6 +70,9 @@ export type Desk = {
   draft: PlanView | null;
   published: PlanView | null;
   sheets: RunSheetView[];
+  /** Live map (issue #161): last fixes and the selected trip's trail. */
+  positions?: unknown[];
+  trail?: unknown[];
   dock: ReadyTripView[];
   issues: IssueView[];
   history: Record<string, IssueHistoryView[]>;
@@ -137,6 +140,12 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
     if (pathname === "/api/plans/published") return route.fulfill(desk.published ? json(desk.published) : problem(404, "NOT_FOUND", "No published plan"));
     if (pathname === "/api/plans/preview/placements") return route.fulfill(json(PLACES));
     if (pathname === "/api/execution/run-sheets") return route.fulfill(json(desk.sheets));
+    if (pathname === "/api/execution/positions") return route.fulfill(json(desk.positions ?? []));
+    if (pathname.startsWith("/api/execution/trips/")) return route.fulfill(json({ items: desk.trail ?? [], nextCursor: null }));
+    if (pathname.startsWith("/api/reference/depots/")) {
+      const code = decodeURIComponent(pathname.split("/").pop() ?? "");
+      return route.fulfill(json({ depotCode: code, displayName: code, location: { latitude: "6.960000", longitude: "79.880000", precision: "approximate" } }));
+    }
     if (pathname === "/api/loading/trips") return route.fulfill(json(desk.dock));
     if (pathname === "/api/issues") return route.fulfill(json({ items: desk.issues.filter((i) => i.status === "OPEN" || i.status === "ASSIGNED"), nextCursor: null }));
     const one = /^\/api\/issues\/([^/]+)(\/history)?$/.exec(pathname);

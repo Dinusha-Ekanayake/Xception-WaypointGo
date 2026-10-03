@@ -44,6 +44,8 @@
   --color-go-warning-text: #8a5a0b;
   --color-go-warning-tint: #fdf3e1;
   --color-go-info: #3b82c4;
+  /* A vehicle with no recent position on the live map (issue #161). */
+  --color-go-offline: #9ca3af;
   --color-go-info-tint: #e8f1fb;
 
   /* Radius */

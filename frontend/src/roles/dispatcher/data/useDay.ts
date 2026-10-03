@@ -3,7 +3,7 @@
 import { request, requestAll } from "@shared/api/client";
 import { ApiError } from "@shared/api/problem";
 import { useResource, type Resource } from "@shared/api/useResource";
-import type { DeferralView, FuelView, IssueHistoryView, IssueView, OrderView, PlanView, ReadyTripView, RunSheetView } from "@shared/domain/types";
+import type { DepotView, VehiclePositionView, DeferralView, FuelView, IssueHistoryView, IssueView, OrderView, PlanView, ReadyTripView, RunSheetView } from "@shared/domain/types";
 
 // The dispatcher's reads for a depot and a day. Each polls while the tab is
 // visible and online, so the screen follows the loaders, the drivers and any
@@ -58,7 +58,12 @@ export function usePlans(depots: string[], date: string): Resource<DepotPlans[]>
   return useResource(load, `plans|${depots.join(",")}|${date}`, POLL_MS);
 }
 
-export type LiveDay = { sheets: RunSheetView[]; dock: ReadyTripView[] };
+export type LiveDay = {
+  sheets: RunSheetView[];
+  dock: ReadyTripView[];
+  /** The depot each vehicle's run sheet was read under, for the map's depot filter. */
+  depotOf: Record<string, string>;
+};
 
 /** Vehicles on the road from Execution, and the day's trips at the dock from Loading. */
 export function useLive(depots: string[], date: string): Resource<LiveDay> {
@@ -71,7 +76,9 @@ export function useLive(depots: string[], date: string): Resource<LiveDay> {
             Promise.all(depots.map((depot) => request<RunSheetView[]>(`/api/execution/run-sheets?${where(depot)}`, { signal }))),
             Promise.all(depots.map((depot) => request<ReadyTripView[]>(`/api/loading/trips?${where(depot)}`, { signal }))),
           ]);
-          return { sheets: sheets.flat(), dock: dock.flat() };
+          const depotOf: Record<string, string> = {};
+          sheets.forEach((list, i) => list.forEach((sheet) => (depotOf[sheet.vehicleId] = depots[i]!)));
+          return { sheets: sheets.flat(), dock: dock.flat(), depotOf };
         };
   return useResource(load, `live|${depots.join(",")}|${date}`, POLL_MS);
 }
@@ -122,4 +129,21 @@ export function useFuel(vehicleId: string, date: string): Resource<FuelView> {
     (signal) => request<FuelView>(`/api/plans/fuel?vehicle=${q(vehicleId)}&date=${q(date)}`, { signal }),
     `fuel|${vehicleId}|${date}`,
   );
+}
+
+/** Each vehicle's last good fix in these depots, every 15 seconds while visible (issue #161, D5). */
+export function usePositions(depots: string[], date: string): Resource<VehiclePositionView[]> {
+  const load =
+    depots.length === 0
+      ? null
+      : async (signal: AbortSignal) =>
+          (await Promise.all(depots.map((depot) => request<VehiclePositionView[]>(`/api/execution/positions?depot=${q(depot)}&date=${q(date)}`, { signal })))).flat();
+  return useResource(load, `positions|${depots.join(",")}|${date}`, 15_000);
+}
+
+/** The depots and their locations, read once. */
+export function useDepots(depots: string[]): Resource<DepotView[]> {
+  const load =
+    depots.length === 0 ? null : async (signal: AbortSignal) => Promise.all(depots.map((depot) => request<DepotView>(`/api/reference/depots/${q(depot)}`, { signal })));
+  return useResource(load, `depots|${depots.join(",")}`);
 }

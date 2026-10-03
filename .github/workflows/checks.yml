@@ -52,10 +52,26 @@ jobs:
       # Compares the API with the vendored Datathon inference on real routes.
       - run: pytest
 
+  # Split into shards that run side by side, each on its own runner with its own
+  # PostgreSQL, so the integration tests share nothing and need no changes. The
+  # shards are balanced by measured time; the last one takes every package the
+  # others do not name, so a new test always runs somewhere.
   backend:
-    name: Backend tests
+    name: Backend tests (${{ matrix.shard.name }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard:
+          - name: execution, loading, identity
+            tests: "com/waypoint/dispatch/execution/**,com/waypoint/dispatch/loading/**,com/waypoint/dispatch/identity/**"
+          - name: notification, issues, receipt
+            tests: "com/waypoint/dispatch/notification/**,com/waypoint/dispatch/issues/**,com/waypoint/dispatch/receipt/**"
+          - name: everything else
+            tests: "!com/waypoint/dispatch/execution/**,!com/waypoint/dispatch/loading/**,!com/waypoint/dispatch/identity/**,!com/waypoint/dispatch/notification/**,!com/waypoint/dispatch/issues/**,!com/waypoint/dispatch/receipt/**"
+            # PeakDayAllocationTest (planning) runs here and writes the Task 2B file.
+            validator: true
     services:
       postgres:
         image: postgres:16-bookworm
@@ -83,17 +99,32 @@ jobs:
           cache: maven
       - name: Unit, architecture and integration tests
         working-directory: backend
-        run: mvn -B --no-transfer-progress verify
-      - uses: actions/setup-python@v6
+        run: mvn -B --no-transfer-progress verify -Dtest="$SHARD_TESTS" -Dsurefire.failIfNoSpecifiedTests=false
+        env:
+          SHARD_TESTS: ${{ matrix.shard.tests }}
+      - if: matrix.shard.validator
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       # PeakDayAllocationTest wrote this file in the step above. A planning
       # change that breaks the official scoring rules stops here.
       - name: Official Task 2B validator on the engine's peak-day output (PLN-17)
+        if: matrix.shard.validator
         run: |
           pip install --quiet pandas
           test -f backend/target/task2b/submission_task2b.csv
           python tools/check_allocation/check_allocation.py backend/target/task2b/submission_task2b.csv
+
+  # One status named as before, green only when every shard passed, so a branch
+  # rule or a reader has a single check to look at.
+  backend-result:
+    name: Backend tests
+    needs: backend
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - run: test "${{ needs.backend.result }}" = success
 
   frontend:
     name: Frontend checks

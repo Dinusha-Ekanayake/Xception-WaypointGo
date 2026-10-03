@@ -2,11 +2,13 @@ package com.waypoint.dispatch;
 
 import com.waypoint.dispatch.identity.application.AccountAdminUseCase;
 import com.waypoint.dispatch.identity.application.OperatorRegistry;
+import com.waypoint.dispatch.intelligence.application.ForecastJob;
 import com.waypoint.dispatch.loading.application.LoadingFixture;
 import com.waypoint.dispatch.ordering.application.DeliveryDaySeed;
 import com.waypoint.dispatch.platform.config.AppProperties;
 import com.waypoint.dispatch.platform.config.LoadingProperties;
 import com.waypoint.dispatch.platform.db.Migrator;
+import com.waypoint.dispatch.platform.scheduling.ScheduledJobRunner;
 import com.waypoint.dispatch.referencedata.application.FleetDaySeed;
 import com.waypoint.dispatch.referencedata.application.ImportReferenceDataHandler;
 import com.waypoint.dispatch.referencedata.application.ReferenceBootstrap;
@@ -16,6 +18,7 @@ import com.waypoint.dispatch.shared.error.ErrorCode;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,6 +50,8 @@ import org.springframework.core.env.Environment;
  *       {@code store_manager@waypoint.local} the outlet {@code DEMO_OUTLET}, gives
  *       {@code loader@waypoint.local} the PIN {@code DEMO_LOADER_PIN} and
  *       {@code driver@waypoint.local} the depot's vehicles for that day; orders once per database
+ *   <li>{@code forecast-run} runs the demand forecast once, now, without waiting for the
+ *       hourly check to find a run due (P-29); for a model just activated
  * </ul>
  *
  * <p>Commands can be combined: {@code migrate import-reference demo-accounts}.
@@ -58,7 +63,7 @@ public class WaypointApplication implements ApplicationRunner {
   private static final List<String> COMMANDS =
       List.of(
           "migrate", "import-reference", "account-create", "account-grant-depot", "demo-accounts",
-          "operator-pin", "loading-fixture", "seed-delivery-day");
+          "operator-pin", "loading-fixture", "seed-delivery-day", "forecast-run");
   private static final List<String> DEMO_ROLES =
       List.of("dispatcher", "loader", "driver", "store_manager", "admin", "auditor");
   private static final List<String> DEMO_DEPOT_ROLES = List.of("dispatcher", "loader", "driver");
@@ -75,6 +80,8 @@ public class WaypointApplication implements ApplicationRunner {
   private final DeliveryDaySeed deliveryDaySeed;
   private final FleetDaySeed fleetDaySeed;
   private final ReferenceQuery reference;
+  private final ForecastJob forecastJob;
+  private final Optional<ScheduledJobRunner> jobRunner;
 
   public WaypointApplication(
       Migrator migrator,
@@ -88,7 +95,9 @@ public class WaypointApplication implements ApplicationRunner {
       ReferenceBootstrap referenceBootstrap,
       DeliveryDaySeed deliveryDaySeed,
       FleetDaySeed fleetDaySeed,
-      ReferenceQuery reference) {
+      ReferenceQuery reference,
+      ForecastJob forecastJob,
+      Optional<ScheduledJobRunner> jobRunner) {
     this.migrator = migrator;
     this.referenceImport = referenceImport;
     this.accounts = accounts;
@@ -101,6 +110,8 @@ public class WaypointApplication implements ApplicationRunner {
     this.deliveryDaySeed = deliveryDaySeed;
     this.fleetDaySeed = fleetDaySeed;
     this.reference = reference;
+    this.forecastJob = forecastJob;
+    this.jobRunner = jobRunner;
   }
 
   public static void main(String[] args) {
@@ -194,7 +205,26 @@ public class WaypointApplication implements ApplicationRunner {
       var env = System.getenv();
       seedDeliveryDay(env.getOrDefault("DEMO_OUTLET", "OUT001"), env.getOrDefault("DEMO_LOADER_PIN", "2468"));
     }
+    if (commands.contains("forecast-run")) {
+      if (!runForecast()) {
+        System.exit(1);
+      }
+    }
     System.exit(0);
+  }
+
+  /**
+   * Runs the demand forecast once, now, under the scheduled job's lease and run
+   * record (P-29), whether or not a run is due. False when the lease is held by a
+   * run already in progress, or the run failed; the reason is in the log.
+   */
+  boolean runForecast() {
+    referenceBootstrap.loadCurrentVersion();
+    ScheduledJobRunner runner = jobRunner.orElseThrow(() -> new IllegalStateException(
+        "forecast-run needs the scheduler; app.scheduling.enabled is false"));
+    boolean ran = runner.runOnce(forecastJob.immediately());
+    log.info(ran ? "Forecast run finished." : "Forecast run did not complete; see the log above.");
+    return ran;
   }
 
   void seedDeliveryDay(String outlet, String loaderPin) {

@@ -133,6 +133,7 @@ services:
       - "${PORT:-3000}:3000"
     environment:
       BACKEND_URL: http://backend:8080
+      MAP_TILE_URL: ${MAP_TILE_URL:-}
       MCP_INTERNAL_URL: http://mcp:8081
     depends_on:
       backend:
@@ -188,6 +189,22 @@ services:
       - grafana-data:/var/lib/grafana
     depends_on:
       - loki
+      - prometheus
+    restart: unless-stopped
+  # Metrics: scrapes the backend's /prometheus every 15 s and keeps 15 days.
+  # Grafana reads it as the Prometheus datasource; it publishes no port.
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    profiles: ["observability"]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
     restart: unless-stopped
 volumes:
   waypoint-postgres:
@@ -195,3 +212,4 @@ volumes:
   loki-data:
   alloy-data:
   grafana-data:
+  prometheus-data:

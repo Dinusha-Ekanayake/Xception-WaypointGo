@@ -123,9 +123,14 @@ export async function serve(page: Page, stops: RunSheetStopView[] = [stop(1, "OU
     if (pathname === "/api/reference/vehicles/VEH043") {
       return route.fulfill(json({ vehicleId: "VEH043", depotCode: "KDY", refrigerated: true, van: false }));
     }
+    if (pathname.startsWith("/api/execution/trips/")) return route.fulfill(json({ items: [], nextCursor: null }));
     if (pathname.startsWith("/api/reference/outlets/")) {
       const outletId = pathname.split("/").pop()!;
-      return route.fulfill(json({ outletId, districtName: "Kandy", brandCode: "Fresh", dockType: "street_level", parkingConstraint: "none" }));
+      // Issue #161: OUT0101 has a supplied exact point; the rest share the district centroid.
+      const location = outletId === "OUT0101"
+        ? { latitude: "7.291000", longitude: "80.633000", precision: "exact" }
+        : { latitude: "7.290000", longitude: "80.630000", precision: "district" };
+      return route.fulfill(json({ outletId, districtName: "Kandy", brandCode: "Fresh", dockType: "street_level", parkingConstraint: "none", location }));
     }
     if (pathname === "/api/commands" && method === "POST") {
       const command = request.postDataJSON() as SentCommand;

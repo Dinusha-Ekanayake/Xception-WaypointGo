@@ -37,6 +37,14 @@ Each module has the same five internal layers. The spec lists what belongs in ea
 
 **Owns:** `ref.brands`, `ref.depots`, `ref.districts`, `ref.outlets`, `ref.vehicles`, `ref.vehicle_day_status`, `ref.calendar_days`, `ref.district_travel`, `ref.service_allowances`, `ref.traffic_speed`, `ref.road_conditions`, `ref.calendar_overrides`, `ref.outlet_details`.
 
+**Geographic reference (R-REF-02, #161).** `GeoCsvReader` parses the required `geo_points.csv`;
+`GeoReference` validates kind/code coverage, provenance and precision, and resolves district fallback
+before the snapshot is written. `GeoPoint` validates coordinates. `ReferenceVersionWriter` and
+`ReferenceVersionReader` preserve locations per version. `OutletView`, `DepotView` and `DistrictView`
+carry optional `GeoPoint`; internal `ReferenceQuery.depot` and `.district` lookups are versioned. `GET /api/reference/depots/{depotCode}` serves a depot and its location to the live map, under depot scope.
+Historical rows may have no location. Store detail overrides preserve it. Coordinates do not change
+allocation distances or capacity rules. See [the plan](../issues/161-live-map/PLAN.md).
+
 **A store's own details (R-REF-01).** A store manager changes their outlet's delivery window, dock type and contacts with `reference:UpdateOutletDetails` (`expectedVersion` is the details' `rowVersion`, 0 before the first save) and reads them at `GET /api/reference/outlets/{outletId}/details`. The window and dock are laid over the current version when a snapshot loads, as calendar overrides are, so the next plan, the run sheet and the loading manifest read them and an import cannot discard them; they are not versioned. A mall bay cannot be chosen or left, and a mall outlet's window must still overlap the mall's (R-PLN-29). Scope is the outlet or its depot, checked through `IdentityQuery` (R-IAM-28).
 
 `district_travel` is keyed by **district alone**: depot is a function of district in the supplied data, and the official validator indexes it that way.
@@ -236,10 +244,10 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 | infrastructure | `DatabaseProofStore` (default), `LocalProofStore`, `JdbcDeliveryRepository`, `JdbcExecutionReads` |
 | web | `ExecutionController`; state changes go through the shared command endpoint |
 
-**Owns:** `execution.delivery_records` (with actual times), `execution.proofs`, `execution.attachments`, and its run sheets built from `trip.released`.
+**Owns:** `execution.delivery_records` (with actual times), `execution.proofs`, `execution.attachments`, `execution.vehicle_positions` (append only, #161), and its run sheets built from `trip.released`.
 
-**Commands:** `StartStop`, `RecordArrival`, `RecordDelivery`, `RecordFailedDelivery`, `CaptureProof`, `ReportVehicleStatus`, `ReportRoadFault`.
-**Queries:** `runSheet(vehicle, day)`, `deliveryRecord(allocationId)`, `proof(deliveryRecordId)`.
+**Commands:** `StartStop`, `RecordArrival`, `RecordDelivery`, `RecordFailedDelivery`, `CaptureProof`, `ReportVehicleStatus`, `ReportRoadFault`, `RecordPositions` (`delivery:RecordPositions`, no event: R-EXE-18 to R-EXE-21).
+**Queries:** `runSheet(vehicle, day)`, `deliveryRecord(allocationId)`, `proof(deliveryRecordId)`. Live map reads (`PositionsQuery`, web only): `GET /api/execution/positions?date=&depot=|outlet=` (last good fix per vehicle, with `offline`) and `GET /api/execution/trips/{tripId}/trail` (keyset on `recordedAt`).
 **Publishes:** `delivery.started`, `delivery.completed`, `delivery.failed`, `vehicle.fault_reported`, `road.disruption_reported`.
 **Consumes:** `trip.released`.
 

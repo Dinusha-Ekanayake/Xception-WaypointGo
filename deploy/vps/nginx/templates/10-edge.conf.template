@@ -37,6 +37,10 @@ limit_req_zone $signin_key zone=signin:10m rate=10r/m;
 limit_req_zone $binary_remote_addr zone=api:10m rate=30r/s;
 limit_req_zone $binary_remote_addr zone=pages:10m rate=50r/s;
 limit_conn_zone $binary_remote_addr zone=perip:10m;
+
+# Base map pictures for the live map (issue #161): both environments share one
+# cache, so the tile provider sees each picture about once a week.
+proxy_cache_path /var/cache/nginx/map-tiles levels=1:2 keys_zone=map_tiles:10m max_size=512m inactive=7d use_temp_path=off;
 limit_req_status 429;
 limit_conn_status 429;
 

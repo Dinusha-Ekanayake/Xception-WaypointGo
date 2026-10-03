@@ -1,9 +1,10 @@
 import type { ReactNode } from "react";
-import { Icon, cx, formatClock, useShell } from "@shared/ui";
+import { Icon, cx, useShell } from "@shared/ui";
 import { useT } from "./i18n.tsx";
 import { GearIcon, LockIcon, MoonIcon, SunIcon, SwapIcon } from "./icons.tsx";
 import { useTheme } from "./theme.tsx";
 import { initials } from "./ui.tsx";
+import { clock } from "@shared/wording";
 
 // The loader's top bar, Figma "08 Loader · Phone" (01 Dock board, 02 Load
 // sheet) and the tablet pages. Connection state is always on screen: the
@@ -66,7 +67,7 @@ export default function TopBar({
     : waiting > 0
       ? tr("Sending {n}…", { n: waiting })
       : syncedAt
-        ? tr("Synced {time}", { time: formatClock(syncedAt) })
+        ? tr("Synced {time}", { time: clock(syncedAt) })
         : tr("Connecting…");
 
   const back = onBack && (

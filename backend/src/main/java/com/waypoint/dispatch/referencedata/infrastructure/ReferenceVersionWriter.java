@@ -69,20 +69,25 @@ public class ReferenceVersionWriter {
     for (Depot depot : snapshot.allDepots()) {
       database.update(
           """
-          INSERT INTO ref.depots (reference_version_id, depot_code, display_name, timezone_name)
-          VALUES (?, ?, ?, ?)
+          INSERT INTO ref.depots (reference_version_id, depot_code, display_name, timezone_name, latitude, longitude, location_precision)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
           """,
           versionId,
           depot.code().value(),
           depot.displayName(),
-          depot.timezone().getId());
+          depot.timezone().getId(),
+          depot.location().map(p -> p.latitude()).orElse(null),
+          depot.location().map(p -> p.longitude()).orElse(null),
+          depot.location().map(p -> p.precision()).orElse(null));
     }
     for (District district : snapshot.allDistricts()) {
       database.update(
-          "INSERT INTO ref.districts (reference_version_id, district_name, depot_code) VALUES (?, ?, ?)",
+          "INSERT INTO ref.districts (reference_version_id, district_name, depot_code, centroid_latitude, centroid_longitude) VALUES (?, ?, ?, ?, ?)",
           versionId,
           district.name(),
-          district.depot().value());
+          district.depot().value(),
+          district.location().map(p -> p.latitude()).orElse(null),
+          district.location().map(p -> p.longitude()).orElse(null));
     }
     for (Outlet outlet : snapshot.allOutlets()) {
       database.update(
@@ -90,8 +95,8 @@ public class ReferenceVersionWriter {
           INSERT INTO ref.outlets
               (reference_version_id, outlet_id, brand_code, district_name, dock_type,
                parking_constraint, mall_window_open, mall_window_close,
-               window_open_time, window_close_time)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               window_open_time, window_close_time, latitude, longitude, location_precision)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           """,
           versionId,
           outlet.id(),
@@ -102,7 +107,10 @@ public class ReferenceVersionWriter {
           outlet.mallWindow().map(w -> Time.valueOf(w.open())).orElse(null),
           outlet.mallWindow().map(w -> Time.valueOf(w.close())).orElse(null),
           Time.valueOf(outlet.window().open()),
-          Time.valueOf(outlet.window().close()));
+          Time.valueOf(outlet.window().close()),
+          outlet.location().map(p -> p.latitude()).orElse(null),
+          outlet.location().map(p -> p.longitude()).orElse(null),
+          outlet.location().map(p -> p.precision()).orElse(null));
     }
     for (Vehicle vehicle : snapshot.allVehicles()) {
       database.update(

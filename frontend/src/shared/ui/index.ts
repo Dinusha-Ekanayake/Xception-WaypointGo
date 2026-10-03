@@ -14,7 +14,6 @@ export {
   Segmented,
   StatTile,
   cx,
-  formatClock,
   type Tone,
 } from "./primitives.tsx";
 export { ShellActions, ShellProvider, useShell, type ShellControls, type ShellRoleOption } from "./shell.tsx";

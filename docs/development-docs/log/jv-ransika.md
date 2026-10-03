@@ -4,6 +4,28 @@
 
 ---
 
+## 2026-10-03 - ci: backend tests run as three parallel shards
+
+`feat/observability-metrics-dashboard` · @jv-ransika
+
+`checks.yml` runs the backend job as a matrix of three shards, each on its own runner with its own PostgreSQL service, selected by package with surefire `-Dtest`: execution, loading, identity; notification, issues, receipt; everything else (which holds `PeakDayAllocationTest`, so the Task 2B validator runs there, and catches any new package). A `Backend tests` job stays green only when every shard passed. No test code changed: shards share nothing, so the shared-database setup in each class is untouched.
+Why: the backend job was the long pole of every run (5.5 min, `mvn verify` 4m51s) while every other job finished in about a minute.
+Verified: locally each shard selects its classes and together they cover every test class exactly once.
+Open: shards are balanced on 2026-10-03 timings; rebalance when one grows. Each class still migrates and imports reference data before every test.
+
+---
+
+## 2026-10-03 - feat: Prometheus metrics and the "Waypoint operations" Grafana dashboard
+
+`dev` · @jv-ransika
+
+The observability profile gains Prometheus (15 s scrape of `/prometheus`, 15 days) and a Prometheus datasource. On the VPS it runs in preview and scrapes both backends, which join `waypoint-edge` as `production-backend` / `preview-backend`; `node-exporter` adds the server's CPU, memory and disk. HTTP requests get SLO latency buckets (`application.properties`) for p95. Dashboard provisioned from `observability/grafana/provisioning/dashboards/` (uid `waypoint-logs`): service health, commands and jobs, outbox and circuits, JVM and pool, server, then logs (error counts, top error types, trace lookup, frontend, ML and database errors, search). One Environment switch filters logs and metrics. Details in [deployment.md](../../deployment.md#logs).
+Why: request of 2026-10-03; logs were only reachable through Explore and metrics were not stored.
+Verified: compose renders for local, prod and VPS overlays; every LogQL query against the VPS Loki; every PromQL query against a throwaway Prometheus scraping preview on the VPS (removed after).
+Open: production metrics appear only after production is redeployed with the overlay; p95 panels fill after the backend is redeployed with the buckets; no host network panel (node-exporter runs in its own network namespace).
+
+---
+
 ## 2026-10-03 - feat: a store manager edits their own profile and their store's window, dock and contacts
 
 `fix/store-figma-visual` · @jv-ransika

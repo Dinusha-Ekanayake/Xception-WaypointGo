@@ -53,9 +53,9 @@ test("the last and next run read in depot time, with a countdown to the next", a
   await page.goto("/#/forecast");
 
   const runs = page.getByRole("region", { name: "Forecast runs" });
-  await expect(runs).toContainText("Mon 22 Feb · 9:30 AM");
+  await expect(runs).toContainText("Mon 22 Feb · 09:30");
   await expect(runs).toContainText("datathon-task2a@2026.1");
-  await expect(runs).toContainText("Mon 1 Mar · 12:00 AM");
+  await expect(runs).toContainText("Mon 1 Mar · 00:00");
   await expect(runs.getByRole("timer")).toHaveText("in 23:41");
 });
 
@@ -73,7 +73,7 @@ test("when the run is due the screen says so and shows the new forecast once it 
 
   desk.forecast = forecast({ generatedAt: "2027-02-28T18:30:04Z", nextRunAt: "2027-03-07T18:30:00Z" });
   await page.clock.fastForward(20_000);
-  await expect(runs).toContainText("Mon 1 Mar · 12:00 AM");
-  await expect(runs).toContainText("Mon 8 Mar · 12:00 AM");
+  await expect(runs).toContainText("Mon 1 Mar · 00:00");
+  await expect(runs).toContainText("Mon 8 Mar · 00:00");
   await expect(page.getByText("No forecast yet")).toHaveCount(0);
 });
