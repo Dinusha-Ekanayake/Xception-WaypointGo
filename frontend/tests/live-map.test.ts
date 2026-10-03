@@ -63,7 +63,7 @@ function stop(over: Partial<RunSheetStopView>): RunSheetStopView {
   return {
     deliveryId: "d", tripId: "t", sequence: 1, orderId: "o", outletId: "OUT001", itemCount: 1, mallOutlet: false,
     plannedArrival: "05:20:00", windowOpen: "05:00:00", windowClose: "07:30:00", expectedArrival: null, startedAt: null,
-    arrivedAt: null, completedAt: null, waitMinutes: null, lateMinutes: null, outcome: "PENDING", proofCaptured: false,
+    arrivedAt: null, completedAt: null, waitMinutes: null, lateMinutes: null, outcome: "PENDING", deliveredUnits: null, proofCaptured: false,
     rowVersion: 1, lines: [], ...over,
   };
 }

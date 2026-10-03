@@ -432,6 +432,11 @@ class ExecutionIntegrationTest {
     assertEquals("refused", failed.get("reason").asText());
     assertEquals(depot, failed.get("depotCode").asText());
     assertEquals(38, payload("delivery.completed", stopA).get("deliveredUnits").asInt());
+    // The run sheet carries the stop's recorded units, so the phone can count a partial delivery.
+    for (JsonNode recorded : runSheet(driver).get("stops")) {
+      if (recorded.get("deliveryId").asText().equals(stopA.toString())) assertEquals(38, recorded.get("deliveredUnits").asInt());
+      if (recorded.get("deliveryId").asText().equals(stopB.toString())) assertTrue(recorded.get("deliveredUnits").isNull());
+    }
 
     drain();
     assertEquals("PARTIALLY_DELIVERED", orderStatus(orderA));

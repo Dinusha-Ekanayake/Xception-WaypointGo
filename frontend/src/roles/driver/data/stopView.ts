@@ -1,6 +1,6 @@
 import type { OutletView } from "@shared/domain/types";
 import { clock, codeLabel, DOCK_TYPE, hhmm, units } from "../../../shared/wording/index.ts";
-import { isFinished, lateMinutes, summarize, type Stop } from "./run.ts";
+import { isFinished, lateMinutes, summarize, unitsHandedOver, type Stop } from "./run.ts";
 
 // The Figma driver screens (#174) draw a stop in this shape. It is filled from
 // the run sheet Execution serves, never from sample data (issue #117). Pure; the
@@ -99,14 +99,16 @@ export function tripStatus(stops: Stop[]): TripStatus {
 export function summaryRows(stops: Stop[], uploadsWaiting: number): Array<[string, string]> {
   const summary = summarize(stops);
   const proofs = stops.filter((stop) => stop.proofCaptured).length;
+  const units = unitsHandedOver(stops);
   const rows: Array<[string, string]> = [
     ["Stops delivered", `${summary.delivered + summary.partial} of ${summary.total}`],
+    ["Units delivered", `${units.handed} of ${units.ordered}`],
     ["Partly delivered", String(summary.partial)],
     ["Not delivered", String(summary.failed)],
     ["Replanned by dispatch", String(summary.skipped)],
     ["Proof of delivery", `${proofs} saved${uploadsWaiting > 0 ? ` · ${uploadsWaiting} still sending` : ""}`],
   ];
-  return rows.filter(([label, value]) => value !== "0" || label === "Stops delivered");
+  return rows.filter(([label, value]) => value !== "0" || label === "Stops delivered" || label === "Units delivered");
 }
 
 /** When the last stop was recorded, or null before any was. */

@@ -28,7 +28,7 @@ function stop(id: string, sequence: number, extra: Partial<RunSheetStopView> = {
     waitMinutes: null,
     lateMinutes: null,
     outcome: "PENDING",
-    proofCaptured: false,
+    deliveredUnits: null, proofCaptured: false,
     rowVersion: 1,
     lines: [{ productId: "P-17", orderedUnits: 40, deliveredUnits: null }],
     waiting: false,
@@ -94,6 +94,7 @@ test("run complete counts the real day and leaves the empty rows out", () => {
   ];
   assert.deepEqual(summaryRows(stops, 1), [
     ["Stops delivered", "1 of 2"],
+    ["Units delivered", "40 of 80"],
     ["Not delivered", "1"],
     ["Proof of delivery", "1 saved · 1 still sending"],
   ]);
@@ -108,4 +109,13 @@ test("the header pill says whether the phone is in step with the server", () => 
   assert.equal(syncLabel(true, 0, at, null), "Synced 06:01");
   assert.equal(syncLabel(true, 0, null, at), "Saved copy 06:01");
   assert.equal(syncLabel(true, 0, null, null), "Connecting");
+});
+
+test("a partial stop counts the units it was recorded with, not its whole order", () => {
+  const stops = [
+    stop("d1", 1, { outcome: "DELIVERED", deliveredUnits: 40 }),
+    stop("d2", 2, { outcome: "PARTIAL", deliveredUnits: 31 }),
+    stop("d3", 3),
+  ];
+  assert.deepEqual(summaryRows(stops, 0).find(([label]) => label === "Units delivered"), ["Units delivered", "71 of 120"]);
 });

@@ -41,7 +41,7 @@ function stop(sequence: number, outletId: string, over: Partial<RunSheetStopView
     waitMinutes: null,
     lateMinutes: null,
     outcome: "PENDING",
-    proofCaptured: false,
+    deliveredUnits: null, proofCaptured: false,
     rowVersion: 1,
     lines: [],
     ...over,

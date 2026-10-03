@@ -80,6 +80,7 @@ export function project(sheet: RunSheetView, writes: WaitingWrite[]): Stop[] {
       case DeliveryKind.record:
         stop.outcome = payload.outcome as DeliveryOutcome;
         stop.completedAt = when;
+        stop.deliveredUnits = typeof payload.deliveredUnits === "number" ? payload.deliveredUnits : null;
         break;
       case DeliveryKind.proof:
         stop.proofCaptured = true;
@@ -158,6 +159,20 @@ export type RunSummary = {
   /** Finished stops, other than skipped ones, with no proof captured yet. */
   proofOwed: number;
 };
+
+/**
+ * Units handed over across the finished stops: a full delivery is its order, a
+ * partial one the stop total it was recorded with (on the server or still on
+ * this phone), a failed or replanned stop none.
+ */
+export function unitsHandedOver(stops: Stop[]): { handed: number; ordered: number } {
+  let handed = 0;
+  for (const stop of stops) {
+    if (stop.outcome === "DELIVERED") handed += stop.deliveredUnits ?? stop.itemCount;
+    else if (stop.outcome === "PARTIAL") handed += stop.deliveredUnits ?? 0;
+  }
+  return { handed, ordered: stops.reduce((n, stop) => n + stop.itemCount, 0) };
+}
 
 export function summarize(stops: Stop[]): RunSummary {
   const count = (outcome: DeliveryOutcome) => stops.filter((stop) => stop.outcome === outcome).length;
