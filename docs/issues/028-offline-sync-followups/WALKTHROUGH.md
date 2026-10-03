@@ -31,7 +31,9 @@ Issue [#28](https://github.com/kavindamihiran/Xception-WaypointGo/issues/28), br
 **Background Sync.**
 1. Queuing a write registers `waypoint-drain` where the browser supports it.
 2. On reconnect the service worker posts `waypoint:drain` to open pages, and `useSync` drains through the same path as the online event.
-3. With no page open it fails and the browser retries; the queue also drains when the app next opens (A-39).
+3. With no page open the service worker drains each account's queue itself (`scripts/sw-drain.mjs`), under the device id the page kept in the snapshot store, by the page's rules. A loader queue waits for a page, which replays its offline operator switches first (A-39).
+
+**A Windows build.** `build-sw.mjs` now writes asset URLs with `/` on every OS; a Windows build used to list `\` paths, so the worker never installed there.
 
 **Time to drain.** After a batch that did not stop on an outage, if the device has nothing `RECEIVED` left, the server records the time from the oldest write in the batch.
 
@@ -53,5 +55,6 @@ D-O and the redo rule: [RULES-AND-POLICIES](../../architecture/RULES-AND-POLICIE
 ## Known gaps
 
 - Redo is offered where a role registers a resolver. The loader does. The driver (#21) can, through `registerResolver("delivery:", ...)`. Until then a driver discards a held write and records it again.
-- Writes held before this change carry no server version, so they are dropped on the device only and stay `CONFLICT` on the server.
+- Writes held before this change carry no server version. A discard or redo looks it up first (`GET /api/sync/{operationId}`, the owner's own rows); only with no connection is such a write dropped on the device alone.
+- A loader queue waits for an open page to drain (A-39); every other queue drains from the service worker too.
 - The dispatcher and store screens have no dark mode of their own; the gallery shows the shared components ready for it.
