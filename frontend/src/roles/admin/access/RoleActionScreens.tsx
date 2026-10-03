@@ -46,7 +46,7 @@ export function RolesScreen({
           <div className="flex items-center gap-2.5">
             <h2 className="text-2xl font-semibold">System roles</h2>
             <Badge tone={liveConnected ? "green" : "neutral"}>
-              {liveConnected ? "Live API: GET /api/admin/roles" : "Connecting..."}
+              {liveConnected ? "Live API: GET /api/admin/roles" : "Roles unavailable"}
             </Badge>
           </div>
           <p className="mt-1 text-sm text-go-secondary">
@@ -205,7 +205,7 @@ export function ActionsScreen({
           <div className="flex items-center gap-2.5">
             <h2 className="text-2xl font-semibold">Action catalogue</h2>
             <Badge tone={liveConnected ? "green" : "neutral"}>
-              {liveConnected ? "Live API: GET /api/admin/actions" : "Connecting..."}
+              {liveConnected ? "Live API: GET /api/admin/actions" : "Actions unavailable"}
             </Badge>
           </div>
           <p className="mt-1 text-sm text-go-secondary">

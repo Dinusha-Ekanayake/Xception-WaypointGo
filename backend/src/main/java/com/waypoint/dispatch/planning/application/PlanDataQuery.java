@@ -54,6 +54,8 @@ import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.referencedata.contract.ReferenceQuery;
 import com.waypoint.dispatch.referencedata.contract.ReferenceViews.VehicleView;
 import com.waypoint.dispatch.shared.domain.Actor;
+import com.waypoint.dispatch.shared.domain.Cursor;
+import com.waypoint.dispatch.shared.domain.Page;
 import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
 import java.math.BigDecimal;
@@ -168,6 +170,34 @@ public class PlanDataQuery implements PlanQuery {
     return read(
         actor.userId(),
         () -> plans.snapshots(depotCode, serviceDate).stream().map(SnapshotRecords::view).toList());
+  }
+
+  /** Keyset directory of plans visible under planning's row-level security. */
+  public Page<PlanView> adminPage(Actor actor, String depot, LocalDate date, String status,
+      String after, Integer limit) {
+    int size = Page.limit(limit);
+    List<String> cursor = Cursor.decode(after, 1);
+    UUID key = cursor.isEmpty() ? null : uuidCursor(cursor.get(0));
+    return read(actor.userId(), () -> {
+      List<UUID> ids = database.query(
+          """
+          SELECT plan_id FROM planning.runs
+           WHERE (?::text IS NULL OR depot_code = ?::text)
+             AND (?::date IS NULL OR service_date = ?::date)
+             AND (?::text IS NULL OR status = ?::text)
+             AND (?::uuid IS NULL OR plan_id > ?::uuid)
+           ORDER BY plan_id LIMIT ?
+          """, depot, depot, date == null ? null : java.sql.Date.valueOf(date),
+          date == null ? null : java.sql.Date.valueOf(date), status, status, key, key, size + 1)
+          .stream().map(r -> (UUID) r.get("plan_id")).toList();
+      List<PlanView> rows = ids.stream().map(id -> plans.findRun(id).map(this::assemble)
+          .orElseThrow(() -> new IllegalStateException("Visible plan disappeared"))).toList();
+      return Page.fromOverfetch(rows, size, row -> Cursor.encode(row.planId().toString()));
+    });
+  }
+
+  private static UUID uuidCursor(String value) {
+    try { return UUID.fromString(value); } catch (IllegalArgumentException e) { throw Cursor.invalid(); }
   }
 
   /** One saved plan with the plan itself, read only. Outside the actor's depots it is not found. */

@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-03 - fix: align admin reads with backend and SQL scope
+
+`dev` · @ranathungaWK
+
+Add scoped admin directories for current reference data, orders and plans; connect the console to supported account, audit and forecast APIs and remove invented operational values.
+Why: VPS inspection found missing admin routes and an admin account with no depot grants; the console was showing stale mock access decisions and empty or failed data.
+Verified: frontend typecheck, 161 Node tests, production build, backend test compilation. Database integration test could not run because Maven Surefire dependency retrieval failed certificate validation.
+Open: deploy the local routes and grant intended production depot scope; implement versioned IAM policy editing and effective access reads before enabling those controls.
+
+---
+
 ## 2026-10-03 - refactor: purge admin mock data and wire directly to live backend
 
 `dev` · @ranathungaWK

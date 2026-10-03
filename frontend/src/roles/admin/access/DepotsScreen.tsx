@@ -12,8 +12,8 @@ export type DepotRecord = {
   name: string;
   badge: string;
   region: string;
-  lat: number;
-  lng: number;
+  lat?: number;
+  lng?: number;
   outlets?: string[];
 };
 
@@ -51,8 +51,6 @@ export function DepotsScreen({
             name: d.name || `${d.code} Hub`,
             badge: "Distribution Hub",
             region: `${d.code}, Sri Lanka`,
-            lat: d.code === "KANDY" ? 7.2906 : 6.9697,
-            lng: d.code === "KANDY" ? 80.6337 : 79.8887,
             outlets: [],
           }));
           setDepots(records);
@@ -71,16 +69,16 @@ export function DepotsScreen({
           setVehiclesList(
             page.items.map((v) => ({
               id: v.vehicleId,
-              brand: "Waypoint",
+              brand: "Make unavailable",
               type: v.type?.toLowerCase() === "truck" ? "Truck" : "Van",
-              depot: v.depot || "PELIYAGODA",
-              weightCapKg: Number(v.weightCapKg) || 1200,
-              volumeCapM3: Number(v.volumeCapM3) || 8.5,
-              fuelType: "Diesel",
-              weeklyFuelQuotaL: Number(v.weeklyFuelQuotaL) || 280,
-              fuelEfficiencyKmPerL: Number(v.kmPerL) || 10,
+              depot: v.depot,
+              weightCapKg: Number(v.weightCapKg),
+              volumeCapM3: Number(v.volumeCapM3),
+              fuelType: v.fuelType,
+              weeklyFuelQuotaL: Number(v.weeklyFuelQuotaL),
+              fuelEfficiencyKmPerL: Number(v.kmPerL),
               temp: v.temperature?.toLowerCase().includes("chilled") ? "Chilled (Refrigerated)" : "Ambient",
-              status: v.dayStatus === "workshop" || v.dayStatus === "in_workshop" ? "Workshop" : v.dayStatus === "on_route" ? "On trip" : "Available",
+              status: v.dayStatus === "in_workshop" ? "Workshop" : v.dayStatus === "unavailable" ? "Unavailable" : "Available",
             }))
           );
         }
@@ -96,19 +94,14 @@ export function DepotsScreen({
               id: o.outletId,
               name: `Outlet ${o.outletId}`,
               brand: (o.brand === "Style" || o.brand === "Tech" ? o.brand : "Fresh") as "Fresh" | "Style" | "Tech",
-              tempZone: o.brand === "Fresh" ? "Ambient Fresh" : "Ambient Standard",
               district: o.district || "",
-              depot: o.depot || "",
+              depot: o.depot,
               dockType: (o.dockType === "rear_dock" || o.dockType === "mall_bay" ? o.dockType : "street") as "rear_dock" | "street" | "mall_bay",
               dockDetails: `Unloading capability: ${o.dockType || "standard"}`,
-              windowOpen: o.windowOpen || "08:00",
-              windowClose: o.windowClose || "17:00",
-              windowNotes: `Time window: ${o.windowOpen || "08:00"} - ${o.windowClose || "17:00"}`,
-              storeManager: "Assigned Manager",
-              managerPhone: "+94 77 000 0000",
-              managerEmail: `store.${o.outletId.toLowerCase()}@waypoint.lk`,
-              address: `${o.district || "Commercial District"}, Sri Lanka`,
-              maxVehicleType: o.dockType === "street" ? "Van Only" : "Van & Truck",
+              windowOpen: o.windowOpen,
+              windowClose: o.windowClose,
+              windowNotes: `Time window: ${o.windowOpen} - ${o.windowClose}`,
+              maxVehicleType: o.parking === "van_only" ? "Van Only" : "Van & Truck",
             }))
           );
         }
@@ -322,7 +315,7 @@ export function DepotsScreen({
           </label>
           {liveConnected !== null && (
             <Badge tone={liveConnected ? "green" : "neutral"}>
-              {liveConnected ? "Live API: GET /api/admin/reference/depots" : "Connecting..."}
+              {liveConnected ? "Live API: GET /api/admin/reference/depots" : "Depots unavailable"}
             </Badge>
           )}
         </div>
@@ -331,7 +324,8 @@ export function DepotsScreen({
           <button
             type="button"
             className={`${primary} flex items-center gap-2`}
-            onClick={() => setIsAddModalOpen(true)}
+            disabled
+            title="Adding a depot requires a reference create command that is not available yet"
           >
             <span className="text-lg leading-none" aria-hidden="true">+</span>
             <span>Add depot</span>

@@ -15,8 +15,8 @@ import { TripsScreen, type TripsSubTab } from "./TripsScreen";
 import { CatalogueScreen, PeopleScreen, PersonasScreen } from "./screens";
 import { ActionsScreen } from "./RoleActionScreens";
 import { AuditConsole } from "./audit/AuditConsole";
-import { fetchRoles, fetchActions, submitManagePermission } from "../data/access";
-import { fetchAccounts, accountToMember, submitCreateUser } from "../data/accounts";
+import { fetchRoles, fetchActions } from "../data/access";
+import { fetchAccounts, fetchAccount, accountToMember, submitCreateUser, submitGrantScope } from "../data/accounts";
 import type { RoleView, ActionView } from "@shared/domain/identity";
 import "./access-demo.css";
 
@@ -91,6 +91,7 @@ export default function AccessDemo({ displayName = "Administrator" }: { displayN
   const [details, setDetails] = useState<Details | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [toast, setToast] = useState("");
+  const [pendingCreation, setPendingCreation] = useState<{ email: string; userId: string } | null>(null);
   const viewer = "admin" as "admin" | "super_admin";
   useEffect(() => { const sync = () => setRoute(routeFromHash()); sync(); window.addEventListener("hashchange", sync); return () => window.removeEventListener("hashchange", sync); }, []);
 
@@ -101,21 +102,8 @@ export default function AccessDemo({ displayName = "Administrator" }: { displayN
     fetchAccounts({ limit: 100 })
       .then((page) => {
         if (cancelled) return;
-        if (page.items && page.items.length > 0) {
-          const liveMembers = page.items.map(accountToMember);
-          setState((prev) => {
-            const preservedAdmins = prev.members.filter(
-              (m) =>
-                (m.personas.includes("admin") || m.personas.includes("super_admin")) &&
-                !liveMembers.some((lm) => lm.id === m.id || lm.email.toLowerCase() === m.email.toLowerCase())
-            );
-            return {
-              ...prev,
-              members: [...preservedAdmins, ...liveMembers],
-            };
-          });
-          setLiveConnected(true);
-        }
+        setState((prev) => ({ ...prev, members: page.items.map(accountToMember) }));
+        setLiveConnected(true);
       })
       .catch(() => {
         if (!cancelled) setLiveConnected(false);
@@ -124,19 +112,15 @@ export default function AccessDemo({ displayName = "Administrator" }: { displayN
     fetchRoles({ limit: 50 })
       .then((page) => {
         if (cancelled) return;
-        if (page.items && page.items.length > 0) {
-          setRolesList(page.items);
-        }
+        setRolesList(page.items);
       })
       .catch(() => {});
 
     fetchActions({ limit: 100 })
       .then((page) => {
         if (cancelled) return;
-        if (page.items && page.items.length > 0) {
-          setActionsList(page.items);
-          setActionsLiveConnected(true);
-        }
+        setActionsList(page.items);
+        setActionsLiveConnected(true);
       })
       .catch(() => {
         if (!cancelled) setActionsLiveConnected(false);
@@ -150,12 +134,8 @@ export default function AccessDemo({ displayName = "Administrator" }: { displayN
   const navigate = (tab: Tab, id?: string | null) => { window.location.hash = `${tab}${id ? `/${id}` : ""}`; setRoute({ tab, member: tab === "people" ? id ?? null : null, persona: tab === "personas" ? id as Persona ?? null : null }); };
   const showDetails = (capability: Capability, member?: Member, persona?: Persona) => setDetails({ capability, member, persona });
 
-  function openEditor(capability?: Capability, member?: Member, persona?: Persona) {
-    if (!member && !persona) return;
-    if (persona && (persona === "super_admin" || persona === "admin" && viewer !== "super_admin")) return;
-    if (member && (member.personas.includes("super_admin") || member.personas.includes("admin") && viewer !== "super_admin")) return;
-    const existing = member && capability ? activeException(state, member.id, capability.action) : undefined;
-    setDraft({ target: member ? "member" : "persona", id: member?.id ?? persona!, action: capability?.action ?? "", choice: member ? existing?.decision ?? "inherit" : capability ? personaChoice(state, persona!, capability.action) : "inherit", reason: "", place: existing?.place ?? "", expires: existing?.expires ?? "", stage: "edit" });
+  function openEditor() {
+    setToast("Permission editing is unavailable until policy attachments and versioned commands are exposed by the server.");
   }
 
   const draftMember = draft?.target === "member" ? state.members.find((item) => item.id === draft.id) : undefined;
@@ -184,55 +164,45 @@ export default function AccessDemo({ displayName = "Administrator" }: { displayN
     const targetName = draftMember?.name ?? labelFor(draft.id as Persona);
     const description = (choice: Decision, member: boolean) => choice === "inherit" ? member ? "Use persona access" : "Use published default" : choice === "allow" ? member ? "Allow for this member" : "Allow" : choice === "deny" ? member ? "Block for this member" : "Block" : "Do not grant";
 
-    // Attempt backend persistence through iam:ManagePermission command
-    try {
-      await submitManagePermission({
-        principalType: draft.target === "persona" ? "role" : "user",
-        principalId: draft.id,
-        action: draft.action,
-        choice: draft.choice === "omit" ? "inherit" : (draft.choice as "allow" | "deny" | "inherit"),
-        reason: draft.reason.trim(),
-        place: draft.place || null,
-        expires: draft.expires || null,
-      });
-    } catch {
-      // Degrades gracefully to in-memory state when offline or backend unavailable
-    }
-
-    setState({ ...proposedState, history: [...state.history, { id: Math.max(0, ...state.history.map((item) => item.id)) + 1, at: new Date().toISOString(), actor: displayName, target: targetName, action: draft.action, before: description(beforeChoice, draft.target === "member"), after: description(draft.choice, draft.target === "member"), reason: draft.reason.trim(), place: draft.place || null, expires: draft.expires || null }] });
-    setDraft(null); setToast("Change saved. Access counts and history have updated.");
+    setToast("Permission editing is unavailable until the server exposes a versioned policy command.");
   }
 
-  async function createMember(input: NewMember) {
-    if ((input.persona === "admin" && viewer !== "super_admin")) return;
-    if (state.members.some((member) => member.email.toLowerCase() === input.email.toLowerCase())) { setToast("That email is already used by a member."); return; }
+  async function createMember(input: NewMember): Promise<string | null> {
+    if (input.persona === "admin" && viewer !== "super_admin") return "Only a super admin can add an admin.";
+    if (state.members.some((member) => member.email.toLowerCase() === input.email.toLowerCase())) return "That email is already used by a member.";
 
-    let createdId = crypto.randomUUID();
+    let createdId = pendingCreation?.email === input.email ? pendingCreation.userId : null;
     try {
-      const ack = await submitCreateUser({
-        email: input.email,
-        displayName: input.name,
-        roleCode: input.persona,
-      });
-      if (ack?.result?.userId) {
+      if (!createdId) {
+        const ack = await submitCreateUser({
+          email: input.email, displayName: input.name, password: input.password,
+          roleCode: input.persona,
+        });
         createdId = ack.result.userId;
+        setPendingCreation({ email: input.email, userId: createdId });
       }
-    } catch {
-      // Degrades gracefully to local identifier
+      const created = await fetchAccount(createdId);
+      await submitGrantScope(createdId, input.place,
+        input.persona === "store_manager" ? "outlet" : "depot", created.rowVersion);
+      const configured = await fetchAccount(createdId);
+      setState((current) => ({ ...current,
+        members: [...current.members, accountToMember(configured)],
+        history: [...current.history, { id: Math.max(0, ...current.history.map((item) => item.id)) + 1,
+          at: new Date().toISOString(), actor: displayName, target: input.name, action: "iam:CreateUser",
+          before: "No account", after: `${labelFor(input.persona)} member created`, reason: "Member added",
+          place: input.place, expires: null }],
+      }));
+    } catch (error) {
+      return createdId
+        ? `Account created, but its place was not confirmed. Retry to finish setup. ${error instanceof Error ? error.message : ""}`
+        : `Member creation failed. ${error instanceof Error ? error.message : "Try again."}`;
     }
-
-    setState((current) => {
-      if (current.members.some((member) => member.email.toLowerCase() === input.email.toLowerCase())) return current;
-      return {
-        ...current,
-        members: [...current.members, { id: createdId, name: input.name, email: input.email, personas: [input.persona], places: [input.place], active: true, vehicleType: input.persona === "driver" ? input.vehicleType as "van" | "truck" : undefined, source: "live" }],
-        history: [...current.history, { id: Math.max(0, ...current.history.map((item) => item.id)) + 1, at: new Date().toISOString(), actor: displayName, target: input.name, action: "iam:CreateUser", before: "No account", after: `${labelFor(input.persona)} member created${input.persona === "driver" ? ` . ${input.vehicleType}` : ""}`, reason: "Member added", place: input.place, expires: null }],
-      };
-    });
+    setPendingCreation(null);
     setNewMemberPersona(null);
     setFilterPersona(input.persona);
     navigate("people", createdId);
     setToast("Member added.");
+    return null;
   }
 
   const navItem = (item: (typeof NAV)[number], compact: boolean) => {
@@ -293,7 +263,7 @@ export default function AccessDemo({ displayName = "Administrator" }: { displayN
       {route.tab === "vehicles" && <VehiclesScreen />}
       {route.tab === "assistants" && <AssistantsConsole />}
     </div></div>
-  {details && <Modal title={details.capability.label} onClose={() => setDetails(null)}><div className="space-y-4 text-sm"><p>{details.capability.description}</p><div className="flex flex-wrap gap-2"><Badge tone={details.capability.implemented ? "green" : "amber"}>{details.capability.implemented ? "Available" : "Unavailable"}</Badge><Badge>{details.capability.module}</Badge></div><p className="text-go-secondary">Relevant to: {details.capability.relevant.filter((persona) => persona !== "super_admin").map(labelFor).join(", ")}</p>{details.member && <p className="rounded-xl bg-go-subtle p-3"><strong>{details.member.name}:</strong> {effective(state, details.member, details.capability).source}. Assigned places: {details.member.places.join(", ") || "none"}.</p>}{details.persona && <p className="rounded-xl bg-go-subtle p-3"><strong>{labelFor(details.persona)}:</strong> {personaChoice(state, details.persona, details.capability.action) === "deny" ? "Explicitly blocked" : personaAllows(state, details.persona, details.capability.action) ? "Allowed by persona" : "No persona grant"}.</p>}<details className="text-go-secondary"><summary className="cursor-pointer font-medium">Technical details</summary><code className="mt-2 block rounded-xl bg-go-subtle p-3">{details.capability.action}</code></details><button className={secondary} onClick={() => setDetails(null)}>Close</button></div></Modal>}
+  {details && <Modal title={details.capability.label} onClose={() => setDetails(null)}><div className="space-y-4 text-sm"><p>{details.capability.description}</p><div className="flex flex-wrap gap-2"><Badge tone={details.capability.implemented ? "green" : "amber"}>{details.capability.implemented ? "Catalogue entry" : "Unavailable"}</Badge><Badge>{details.capability.module}</Badge></div><p className="text-go-secondary">This catalogue entry does not establish effective access for a member or role.</p><details className="text-go-secondary"><summary className="cursor-pointer font-medium">Technical details</summary><code className="mt-2 block rounded-xl bg-go-subtle p-3">{details.capability.action}</code></details><button className={secondary} onClick={() => setDetails(null)}>Close</button></div></Modal>}
   {newMemberPersona && <CreateMemberModal members={state.members} viewer={viewer} initialPersona={newMemberPersona} onClose={() => setNewMemberPersona(null)} onCreate={createMember} />}
   {draft && <Modal title={draft.stage === "review" ? "Review access change" : draft.target === "member" ? "Member exception" : "Persona capability"} onClose={() => setDraft(null)} wide>
     {draft.stage === "edit" ? <div className="space-y-5"><div className="rounded-xl bg-go-subtle p-4 text-sm"><strong>{draftMember?.name ?? (draftPersona && labelFor(draftPersona))}</strong><p className="mt-1 text-go-secondary">{draft.target === "persona" ? `This shared choice applies to all ${assigned} assigned members, within their existing places.` : "This choice applies to one member within existing assigned places."}</p></div>

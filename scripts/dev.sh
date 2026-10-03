@@ -41,8 +41,8 @@ if [[ "$MODE" == "setup" ]]; then
       && echo "    $role@waypoint.local" \
       || echo "    $role@waypoint.local (already exists or failed)"
   done
-  echo "==> depot ${DEMO_DEPOT:=Peliyagoda} for dispatcher, loader and driver"
-  for role in dispatcher loader driver; do
+  echo "==> depot ${DEMO_DEPOT:=Peliyagoda} for dispatcher, loader, driver and admin"
+  for role in dispatcher loader driver admin; do
     ACCOUNT_EMAIL="$role@waypoint.local" ACCOUNT_DEPOT="$DEMO_DEPOT" \
       backend_run account-grant-depot >/dev/null 2>&1 || echo "    $role: grant failed or already held"
   done

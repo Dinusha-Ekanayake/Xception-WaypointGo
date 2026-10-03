@@ -41,7 +41,8 @@ import org.springframework.core.env.Environment;
  *       administrator cannot come from an endpoint that requires one
  *   <li>{@code account-grant-depot} grants an account a depot scope
  *   <li>{@code demo-accounts} creates one {@code <role>@waypoint.local} account per
- *       role with {@code SEED_PASSWORD}, and grants the depot roles {@code DEMO_DEPOT}
+ *       role with {@code SEED_PASSWORD}, grants field roles {@code DEMO_DEPOT},
+ *       and explicitly grants the demo admin every imported depot
  *   <li>{@code operator-pin} provisions a loader PIN from a trusted host
  *   <li>{@code loading-fixture} builds a depot-day's loading manifests from its
  *       confirmed orders, for a development demo without a published plan
@@ -172,6 +173,9 @@ public class WaypointApplication implements ApplicationRunner {
       }
       for (String role : DEMO_DEPOT_ROLES) {
         grantDepot(role + "@waypoint.local", depot);
+      }
+      for (String code : reference.depotCodes()) {
+        grantDepot("admin@waypoint.local", code);
       }
     }
     if (commands.contains("operator-pin")) {

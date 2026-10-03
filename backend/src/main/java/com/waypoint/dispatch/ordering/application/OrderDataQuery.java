@@ -14,6 +14,7 @@ import com.waypoint.dispatch.platform.audit.AuditLog;
 import com.waypoint.dispatch.platform.db.Database;
 import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.shared.domain.Actor;
+import com.waypoint.dispatch.shared.domain.Cursor;
 import com.waypoint.dispatch.shared.domain.Page;
 import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
@@ -117,6 +118,40 @@ public class OrderDataQuery implements OrderQuery {
     return read(
         actor.userId(),
         () -> orders.forDay(depotCode, serviceDate).stream().map(OrderDataQuery::toView).toList());
+  }
+
+  /** Keyset directory of orders visible through the actor's SQL scope. */
+  public Page<OrderView> adminPage(Actor actor, String depot, LocalDate date, String status,
+      String brand, String outlet, String temperature, String search, String after, Integer limit) {
+    int size = Page.limit(limit);
+    List<String> cursor = Cursor.decode(after, 1);
+    UUID key = cursor.isEmpty() ? null : uuidCursor(cursor.get(0));
+    return read(actor.userId(), () -> {
+      List<UUID> ids = database.query(
+          """
+          SELECT order_id FROM ordering.orders
+           WHERE (?::text IS NULL OR depot_code = ?::text)
+             AND (?::date IS NULL OR delivery_date = ?::date)
+             AND (?::text IS NULL OR status = ?::text)
+             AND (?::text IS NULL OR brand_code = ?::text)
+             AND (?::text IS NULL OR outlet_id = ?::text)
+             AND (?::text IS NULL OR temperature = ?::text)
+             AND (?::text IS NULL OR order_ref ILIKE '%' || ?::text || '%'
+                  OR outlet_id ILIKE '%' || ?::text || '%')
+             AND (?::uuid IS NULL OR order_id > ?::uuid)
+           ORDER BY order_id LIMIT ?
+          """, depot, depot, date == null ? null : java.sql.Date.valueOf(date),
+          date == null ? null : java.sql.Date.valueOf(date), status, status, brand, brand,
+          outlet, outlet, temperature, temperature, search, search, search, key, key, size + 1)
+          .stream().map(r -> (UUID) r.get("order_id")).toList();
+      List<OrderView> rows = ids.stream().map(id -> orders.findStored(id).map(OrderDataQuery::toView)
+          .orElseThrow(() -> new IllegalStateException("Visible order disappeared"))).toList();
+      return Page.fromOverfetch(rows, size, row -> Cursor.encode(row.orderId().toString()));
+    });
+  }
+
+  private static UUID uuidCursor(String value) {
+    try { return UUID.fromString(value); } catch (IllegalArgumentException e) { throw Cursor.invalid(); }
   }
 
   /** Any other Ordering read, as the authenticated actor. */

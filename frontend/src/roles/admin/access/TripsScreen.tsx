@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Badge, VehicleTypeIcon, card, field, primary, secondary } from "./components";
 import type { DemoState } from "./model";
+import { todayInColombo } from "./model";
 import {
   fetchAdminPlans,
   fetchAdminPlanDetail,
@@ -59,9 +60,7 @@ export function TripsScreen({
           limit: 200,
         });
         if (cancelled) return;
-        if (page.items && page.items.length > 0) {
-          setPlans(page.items);
-        }
+        setPlans(page.items);
         setLiveConnected(true);
       } catch {
         if (!cancelled) setLiveConnected(false);
@@ -91,7 +90,7 @@ export function TripsScreen({
         setSelectedPlanDetail(detail);
       } catch (error) {
         if (!cancelled) {
-          setSelectedPlanDetail(plans.find((p) => p.planId === currentTrip.planId) || plans[0]);
+          setSelectedPlanDetail(null);
         }
       } finally {
         if (!cancelled) setModalLoading(false);
@@ -103,7 +102,7 @@ export function TripsScreen({
     };
   }, [selectedTrip, plans]);
 
-  const TODAY = "2026-10-03";
+  const TODAY = todayInColombo();
 
   // Flatten all trips across plans
   const allTrips = useMemo(() => {
@@ -155,6 +154,11 @@ export function TripsScreen({
   const liveTripsCount = allTrips.filter((t) => t.status === "IN_TRANSIT" || t.status === "LOADING" || t.status === "DELAYED").length;
   const completedTripsCount = allTrips.filter((t) => t.status === "COMPLETED").length;
   const plannedOnlyCount = allTrips.filter((t) => t.status === "PLANNED").length;
+  const measuredTrips = allTrips.filter((t) => t.weightCapKg != null && t.weightCapKg > 0);
+  const fleetWeightUse = measuredTrips.length
+    ? Math.round(100 * measuredTrips.reduce((sum, t) => sum + t.weightKg, 0) /
+        measuredTrips.reduce((sum, t) => sum + (t.weightCapKg ?? 0), 0))
+    : null;
 
   const currentPlan = useMemo(() => {
     if (depotFilter !== "all") {
@@ -239,7 +243,7 @@ export function TripsScreen({
 
         {liveConnected !== null && (
           <Badge tone={liveConnected ? "green" : "neutral"}>
-            {liveConnected ? "Live API: GET /api/admin/plans" : "Connecting..."}
+            {liveConnected ? "Live API: GET /api/admin/plans" : "Plans unavailable"}
           </Badge>
         )}
       </div>
@@ -303,7 +307,7 @@ export function TripsScreen({
               </svg>
             </span>
           </div>
-          <p className="mt-2 text-2xl font-bold text-go-ink">91.4%</p>
+          <p className="mt-2 text-2xl font-bold text-go-ink">{fleetWeightUse == null ? "Unavailable" : `${fleetWeightUse}%`}</p>
           <p className="mt-0.5 text-xs text-go-secondary">Authoritative weight fit</p>
         </div>
       </div>
@@ -365,7 +369,7 @@ export function TripsScreen({
             <div className="rounded-xl border border-go-rule bg-white p-3">
               <span className="text-go-secondary">Estimated Fuel</span>
               <p className="mt-0.5 text-base font-bold text-go-ink">
-                {currentPlan.fuelEstimatedLitres} Litres
+                {currentPlan.fuelEstimatedLitres == null ? "Unavailable" : `${currentPlan.fuelEstimatedLitres} litres`}
               </p>
               <span className="text-[11px] text-go-secondary">Across all trip legs</span>
             </div>
@@ -489,7 +493,7 @@ export function TripsScreen({
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filteredTrips.map((trip) => {
             const weightPct = trip.weightCapKg ? Math.round((trip.weightKg / trip.weightCapKg) * 100) : 0;
-            const volumePct = Math.round((trip.volumeM3 / trip.volumeCapM3) * 100);
+            const volumePct = trip.volumeCapM3 ? Math.round((trip.volumeM3 / trip.volumeCapM3) * 100) : 0;
 
             return (
               <article
@@ -561,7 +565,7 @@ export function TripsScreen({
                       <div className="flex justify-between text-[11px]">
                         <span className="text-go-secondary">Weight Load ({weightPct}%)</span>
                         <span className="font-bold text-go-ink">
-                          {trip.weightKg.toLocaleString()} / {trip.weightCapKg.toLocaleString()} kg
+                          {trip.weightKg.toLocaleString()} / {trip.weightCapKg == null ? "Unavailable" : trip.weightCapKg.toLocaleString()} kg
                         </span>
                       </div>
                       <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-go-subtle">
@@ -576,7 +580,7 @@ export function TripsScreen({
                       <div className="flex justify-between text-[11px]">
                         <span className="text-go-secondary">Volume Load ({volumePct}%)</span>
                         <span className="font-bold text-go-ink">
-                          {trip.volumeM3.toFixed(1)} / {trip.volumeCapM3.toFixed(1)} m³
+                          {trip.volumeM3.toFixed(1)} / {trip.volumeCapM3 == null ? "Unavailable" : trip.volumeCapM3.toFixed(1)} m³
                         </span>
                       </div>
                       <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-go-subtle">
@@ -696,7 +700,7 @@ export function TripsScreen({
                   <h4 className="text-xs font-bold uppercase tracking-wider text-go-ink">
                     Stop Sequence Timeline ({selectedTrip.stops.length} Retail Outlets)
                   </h4>
-                  <span className="text-[11px] text-go-secondary">GET /api/admin/plans/{selectedTrip.planId}</span>
+                  <span className="text-[11px] text-go-secondary">GET /api/plans/{selectedTrip.planId}</span>
                 </div>
 
                 <div className="space-y-2.5">
@@ -715,7 +719,7 @@ export function TripsScreen({
                             <span className="text-xs font-medium text-go-secondary">{stop.outletName || ""}</span>
                           </div>
                           <p className="text-go-secondary text-[11px]">
-                            Order Ref: {stop.orderRef} · {stop.weightKg} kg ({stop.volumeM3} m³)
+                            Order ID: {stop.orderId} · {stop.weightKg == null ? "Weight unavailable" : `${stop.weightKg} kg`} ({stop.volumeM3 == null ? "volume unavailable" : `${stop.volumeM3} m³`})
                           </p>
                         </div>
                       </div>

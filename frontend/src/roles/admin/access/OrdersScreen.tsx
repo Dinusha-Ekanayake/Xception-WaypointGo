@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Badge, card, field, primary, secondary } from "./components";
 import type { DemoState } from "./model";
+import { todayInColombo } from "./model";
+import { fetchAdminOutlets, type AdminOutlet } from "../data/reference";
 import {
   fetchAdminOrders,
   fetchAdminOrderDetail,
@@ -15,15 +17,9 @@ import {
 
 type SubTab = "today" | "deferred" | "all";
 
-export function getOutletWindow(outletId: string, brand?: string) {
-  if (brand?.toLowerCase() === "fresh") return { windowOpen: "05:00", windowClose: "07:30", label: "05:00 - 07:30", notes: "Early morning fresh produce slot." };
-  if (brand?.toLowerCase() === "style") return { windowOpen: "10:00", windowClose: "13:00", label: "10:00 - 13:00", notes: "Midday retail fashion delivery." };
-  if (brand?.toLowerCase() === "tech") return { windowOpen: "14:00", windowClose: "17:30", label: "14:00 - 17:30", notes: "Afternoon secure electronics bay." };
-  return { windowOpen: "08:00", windowClose: "17:00", label: "08:00 - 17:00", notes: "Standard delivery window." };
-}
-
 export function matchesTimeSlot(windowOpen: string, windowClose: string, timeFilter: string): boolean {
   if (timeFilter === "all") return true;
+  if (!windowOpen || !windowClose) return false;
   if (timeFilter === "early_morning") {
     return windowOpen < "08:00" || windowClose <= "08:30";
   }
@@ -48,7 +44,12 @@ export function OrdersScreen({
 }) {
   const [subTab, setSubTab] = useState<SubTab>("today");
   const [orders, setOrders] = useState<AdminOrder[]>([]);
-  const windowFor = getOutletWindow;
+  const [outletWindows, setOutletWindows] = useState<Map<string, AdminOutlet>>(new Map());
+  const windowFor = (outletId: string, _brand?: string) => {
+    const outlet = outletWindows.get(outletId);
+    return { windowOpen: outlet?.windowOpen ?? "", windowClose: outlet?.windowClose ?? "",
+      label: outlet ? `${outlet.windowOpen} - ${outlet.windowClose}` : "Window unavailable" };
+  };
   const [loading, setLoading] = useState(false);
   const [liveConnected, setLiveConnected] = useState<boolean | null>(null);
 
@@ -74,10 +75,18 @@ export function OrdersScreen({
       if (cancelled) return;
       setOrders(page.items);
       setLiveConnected(true);
-    }).catch(() => { if (!cancelled) setLiveConnected(false); })
+    }).catch(() => { if (!cancelled) { setOrders([]); setLiveConnected(false); } })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [depotFilter]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchAdminOutlets().then((page) => {
+      if (!cancelled) setOutletWindows(new Map(page.items.map((outlet) => [outlet.outletId, outlet])));
+    }).catch(() => { if (!cancelled) setOutletWindows(new Map()); });
+    return () => { cancelled = true; };
+  }, []);
 
   // Load detail and timeline when an order is selected
   useEffect(() => {
@@ -126,7 +135,7 @@ export function OrdersScreen({
     };
   }, [selectedOrder]);
 
-  const TODAY_DATE = "2026-10-03";
+  const TODAY_DATE = todayInColombo();
 
   // Unique dates available across all orders
   const availableDates = useMemo(() => {
@@ -160,7 +169,7 @@ export function OrdersScreen({
       }
       return true;
     });
-  }, [subTabOrders, dateFilter, timeFilter]);
+  }, [subTabOrders, dateFilter, timeFilter, outletWindows]);
 
   // Filter based on user controls
   const filteredOrders = useMemo(() => {
@@ -172,7 +181,7 @@ export function OrdersScreen({
       }
       if (brandFilter !== "all" && order.brand.toLowerCase() !== brandFilter.toLowerCase()) return false;
       if (depotFilter !== "all" && order.depot !== depotFilter) return false;
-      if (tempFilter !== "all" && order.temperature.toLowerCase() !== tempFilter.toLowerCase()) return false;
+      if (tempFilter !== "all" && order.temperature?.toLowerCase() !== tempFilter.toLowerCase()) return false;
       if (statusFilter !== "all" && order.status !== statusFilter) return false;
 
       if (searchQuery.trim()) {
@@ -184,7 +193,7 @@ export function OrdersScreen({
 
       return true;
     });
-  }, [subTabOrders, dateFilter, timeFilter, brandFilter, depotFilter, tempFilter, statusFilter, searchQuery]);
+  }, [subTabOrders, dateFilter, timeFilter, brandFilter, depotFilter, tempFilter, statusFilter, searchQuery, outletWindows]);
 
   // Tab counts
   const todayCount = useMemo(() => orders.filter((o) => o.deliveryDate === TODAY_DATE && o.status !== "DEFERRED").length, [orders, TODAY_DATE]);
@@ -197,8 +206,8 @@ export function OrdersScreen({
     const count = list.length;
     const weight = list.reduce((sum, o) => sum + (Number(o.weightKg) || 0), 0);
     const volume = list.reduce((sum, o) => sum + (Number(o.volumeM3) || 0), 0);
-    const chilled = list.filter((o) => o.temperature.toLowerCase() === "chilled").length;
-    const ambient = list.filter((o) => o.temperature.toLowerCase() === "ambient").length;
+    const chilled = list.filter((o) => o.temperature?.toLowerCase() === "chilled").length;
+    const ambient = list.filter((o) => o.temperature?.toLowerCase() === "ambient").length;
     return { count, weight, volume, chilled, ambient };
   }, [currentViewOrders]);
 
@@ -328,7 +337,7 @@ export function OrdersScreen({
 
         {liveConnected !== null && (
           <Badge tone={liveConnected ? "green" : "neutral"}>
-            {liveConnected ? "Live API: GET /api/admin/orders" : "Connecting..."}
+            {liveConnected ? "Live API: GET /api/admin/orders" : "Orders unavailable"}
           </Badge>
         )}
       </div>
@@ -688,10 +697,10 @@ export function OrdersScreen({
               {/* Authoritative Payload (Weight & Volume) */}
               <div className="md:col-span-2">
                 <div className="text-xs font-bold text-go-ink">
-                  {Number(order.weightKg).toLocaleString()} kg
+                  {order.weightKg == null ? "Unavailable" : `${order.weightKg.toLocaleString()} kg`}
                 </div>
                 <div className="text-xs text-go-secondary">
-                  {Number(order.volumeM3).toFixed(1)} m³ capacity
+                  {order.volumeM3 == null ? "Unavailable" : `${order.volumeM3.toFixed(1)} m³ capacity`}
                 </div>
               </div>
 
@@ -700,12 +709,12 @@ export function OrdersScreen({
                 {getStatusBadge(order.status)}
                 <span
                   className={`rounded-md px-2 py-0.5 text-xs font-semibold ${
-                    order.temperature.toLowerCase() === "chilled"
+                    order.temperature?.toLowerCase() === "chilled"
                       ? "bg-[#e0f2fe] text-[#0284c7]"
                       : "bg-go-subtle text-go-secondary"
                   }`}
                 >
-                  {order.temperature.toLowerCase() === "chilled" ? "Chilled (Refrigerated)" : "Ambient"}
+                  {order.temperature == null ? "Stock not confirmed" : order.temperature.toLowerCase() === "chilled" ? "Chilled (Refrigerated)" : "Ambient"}
                 </span>
               </div>
 
@@ -810,13 +819,13 @@ export function OrdersScreen({
                   <div className="rounded-xl border border-go-rule bg-white p-3">
                     <span className="text-xs text-go-secondary">Authoritative Order Weight</span>
                     <p className="text-lg font-bold text-go-teal">
-                      {Number(selectedOrder.weightKg).toLocaleString()} kg
+                      {selectedOrder.weightKg == null ? "Unavailable" : `${selectedOrder.weightKg.toLocaleString()} kg`}
                     </p>
                   </div>
                   <div className="rounded-xl border border-go-rule bg-white p-3">
                     <span className="text-xs text-go-secondary">Authoritative Order Volume</span>
                     <p className="text-lg font-bold text-go-teal">
-                      {Number(selectedOrder.volumeM3).toFixed(2)} m³
+                      {selectedOrder.volumeM3 == null ? "Unavailable" : `${selectedOrder.volumeM3.toFixed(2)} m³`}
                     </p>
                   </div>
                 </div>
@@ -832,7 +841,7 @@ export function OrdersScreen({
                   <h4 className="text-xs font-bold uppercase tracking-wider text-go-ink">
                     Current Line Records ({orderLines.length} product lines)
                   </h4>
-                  <span className="text-[11px] text-go-secondary">GET /api/admin/orders/{selectedOrder.orderId}</span>
+                  <span className="text-[11px] text-go-secondary">GET /api/orders/{selectedOrder.orderId}</span>
                 </div>
 
                 {detailLoading ? (
@@ -852,9 +861,9 @@ export function OrdersScreen({
                         {orderLines.map((line, idx) => (
                           <tr key={`${line.productId}-${idx}`} className="hover:bg-go-subtle">
                             <td className="p-2.5 font-mono font-medium text-go-ink">{line.productId}</td>
-                            <td className="p-2.5 text-go-secondary">{line.productName || "Standard Catalog SKU"}</td>
+                            <td className="p-2.5 text-go-secondary">{line.productName || "Inferred product, description unavailable"}</td>
                             <td className="p-2.5 text-right font-bold text-go-ink">{line.quantity}</td>
-                            <td className="p-2.5 text-right text-go-secondary">Rev {line.revision}</td>
+                            <td className="p-2.5 text-right text-go-secondary">{line.revision == null ? "Unavailable" : `Rev ${line.revision}`}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -871,7 +880,7 @@ export function OrdersScreen({
                   <h4 className="text-xs font-bold uppercase tracking-wider text-go-ink">
                     Recorded Status Changes &amp; Timeline
                   </h4>
-                  <span className="text-[11px] text-go-secondary">GET /api/admin/orders/{selectedOrder.orderId}/timeline</span>
+                  <span className="text-[11px] text-go-secondary">GET /api/orders/{selectedOrder.orderId}/timeline</span>
                 </div>
 
                 {detailLoading ? (
