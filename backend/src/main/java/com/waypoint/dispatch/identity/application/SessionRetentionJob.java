@@ -102,6 +102,18 @@ public class SessionRetentionJob implements ScheduledJob {
                         + " AND NOT EXISTS (SELECT 1 FROM iam.sessions s WHERE s.oauth_client_id = c.client_id)"
                         + " LIMIT " + BATCH + ")",
                     sessionCutoff));
+    // MCP rate windows (R-IAM-33): only the current minute is ever read.
+    int windows =
+        database.asSystem(
+            ModuleRole.IAM,
+            () ->
+                database.update(
+                    "DELETE FROM iam.mcp_rate_windows WHERE ctid IN"
+                        + " (SELECT ctid FROM iam.mcp_rate_windows WHERE window_start < ? LIMIT " + BATCH + ")",
+                    Timestamp.from(now.minus(McpRateLimiter.KEEP))));
+    if (windows > 0) {
+      metrics.count("waypoint.retention.purged", windows, "table", "iam.mcp_rate_windows");
+    }
     if (codes > 0) {
       metrics.count("waypoint.retention.purged", codes, "table", "iam.oauth_authorization_codes");
     }
