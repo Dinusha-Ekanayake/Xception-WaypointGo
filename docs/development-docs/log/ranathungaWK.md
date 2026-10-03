@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-03 - refactor: purge admin mock data and wire directly to live backend
+
+`dev` · @ranathungaWK
+
+Remove all mock, fallback and fixture datasets from admin frontend screens (Orders, Trips, Outlets, Vehicles, Forecasts, and Audit). All views now query live backend endpoints directly with clean empty states.
+Why: replaces sample datasets with authentic operational data and dynamic resolution across the admin console.
+Verified: typecheck (0 errors), boundaries tests (6/6), unit and wording tests (144/144 passed), and Next.js production build with service worker compilation passed.
+Open: nothing.
+
+---
+
 ## 2026-10-03 - feat: wire admin frontend and backend with live reference and access APIs
 
 `dev` · @ranathungaWK

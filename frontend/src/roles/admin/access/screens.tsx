@@ -55,13 +55,10 @@ export function PeopleScreen({ state, selected, setSelected, filterPersona, setF
         m.outlets.forEach((o) => set.add(o));
       }
       for (const p of m.places) {
-        if (p && p.startsWith("OUT-")) {
+        if (p && (p.startsWith("OUT") || p.startsWith("OUT-"))) {
           set.add(p);
         }
       }
-    }
-    if (set.size === 0) {
-      ["OUT-SAMPLE-01", "OUT-SAMPLE-02", "OUT-SAMPLE-03", "OUT-SAMPLE-04"].forEach((o) => set.add(o));
     }
     return Array.from(set).sort();
   }, [state.members]);
@@ -114,7 +111,7 @@ export function PeopleScreen({ state, selected, setSelected, filterPersona, setF
       </>}
     </div>;
   }
-  return <div className="space-y-5"><div className="flex flex-wrap items-end justify-between gap-3"><div><div className="flex items-center gap-2.5"><h2 className="text-2xl font-semibold">People</h2>{liveConnected !== undefined && <Badge tone={liveConnected ? "green" : "neutral"}>{liveConnected ? "Live directory" : "Sample directory"}</Badge>}</div><p className="text-sm text-go-secondary">Find a member, inspect their access and review exceptions.</p></div><button className={primary} onClick={onAddMember}>+ Add member</button></div>
+  return <div className="space-y-5"><div className="flex flex-wrap items-end justify-between gap-3"><div><div className="flex items-center gap-2.5"><h2 className="text-2xl font-semibold">People</h2>{liveConnected !== undefined && <Badge tone={liveConnected ? "green" : "neutral"}>{liveConnected ? "Live directory" : "Connecting..."}</Badge>}</div><p className="text-sm text-go-secondary">Find a member, inspect their access and review exceptions.</p></div><button className={primary} onClick={onAddMember}>+ Add member</button></div>
     <div className={`${card} flex flex-wrap items-end gap-3 p-4`}>
       <label className="min-w-[13rem] flex-1 text-sm font-medium">
         Search people
@@ -230,7 +227,7 @@ export function PersonasScreen({
               <h2 className="text-2xl font-semibold tracking-[-.025em]">Personas & system roles</h2>
               {liveConnected !== undefined && (
                 <Badge tone={liveConnected ? "green" : "neutral"}>
-                  {liveConnected ? "Live API: GET /api/admin/roles" : "Sample catalogue"}
+                  {liveConnected ? "Live API: GET /api/admin/roles" : "Connecting..."}
                 </Badge>
               )}
             </div>
@@ -345,7 +342,7 @@ export function PersonasScreen({
             <h3 className="text-base font-semibold text-go-ink">Role definition & catalogue metadata</h3>
             {liveConnected !== undefined && (
               <Badge tone={liveConnected ? "green" : "neutral"}>
-                {liveConnected ? "Live API: GET /api/admin/roles" : "Sample catalogue"}
+                {liveConnected ? "Live API: GET /api/admin/roles" : "Connecting..."}
               </Badge>
             )}
             <Badge tone={roleBadgeTone(selected)}>{roleCategory(selected)}</Badge>

@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Badge, PersonaIcon, VehicleTypeIcon, card, field, primary, secondary } from "./components";
 import type { DemoState, Member, Persona } from "./model";
-import { VEHICLES, type Vehicle } from "./operations";
-import { INITIAL_OUTLETS, type OutletRecord } from "./OutletsScreen";
-import { fetchAdminDepots } from "../data/reference";
+import type { Vehicle } from "./operations";
+import type { OutletRecord } from "./OutletsScreen";
+import { fetchAdminDepots, fetchAdminOutlets, fetchAdminVehicles } from "../data/reference";
 
 export type DepotRecord = {
   id: string;
@@ -17,26 +17,7 @@ export type DepotRecord = {
   outlets?: string[];
 };
 
-const INITIAL_DEPOTS: DepotRecord[] = [
-  {
-    id: "PELIYAGODA",
-    name: "Peliyagoda Central Hub",
-    badge: "Primary Distribution Centre",
-    region: "Peliyagoda, Western Province",
-    lat: 6.9697,
-    lng: 79.8887,
-    outlets: ["OUT001", "OUT002", "OUT005", "OUT008", "OUT012", "OUT015", "OUT017", "OUT019", "OUT021", "OUT022", "OUT025", "OUT028", "OUT035", "OUT038", "OUT-SAMPLE-01", "OUT-SAMPLE-02"],
-  },
-  {
-    id: "KANDY",
-    name: "Kandy Regional Hub",
-    badge: "Regional Distribution Centre",
-    region: "Kandy, Central Province",
-    lat: 7.2906,
-    lng: 80.6337,
-    outlets: ["OUT076", "OUT077", "OUT080", "OUT084", "OUT088", "OUT089", "OUT092", "OUT098", "OUT101", "OUT105", "OUT112", "OUT-SAMPLE-03", "OUT-SAMPLE-04"],
-  },
-];
+
 
 export function DepotsScreen({
   state,
@@ -47,7 +28,7 @@ export function DepotsScreen({
   onNavigateTab: (tab: "people" | "personas" | "vehicles" | "forecasts" | "audit") => void;
   onSelectMember: (id: string) => void;
 }) {
-  const [depots, setDepots] = useState<DepotRecord[]>(INITIAL_DEPOTS);
+  const [depots, setDepots] = useState<DepotRecord[]>([]);
   const [liveConnected, setLiveConnected] = useState<boolean | null>(null);
   const [selectedDepotId, setSelectedDepotId] = useState<string>("PELIYAGODA");
   const [activeComponent, setActiveComponent] = useState<"people" | "vehicles" | "stores">("people");
@@ -55,8 +36,9 @@ export function DepotsScreen({
   const [selectedOutlet, setSelectedOutlet] = useState<OutletRecord | null>(null);
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
 
-  // Dynamic vehicles list
-  const [vehiclesList, setVehiclesList] = useState<Vehicle[]>(VEHICLES);
+  // Dynamic vehicles & outlets lists
+  const [vehiclesList, setVehiclesList] = useState<Vehicle[]>([]);
+  const [outletsList, setOutletsList] = useState<OutletRecord[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -64,25 +46,75 @@ export function DepotsScreen({
       .then((liveDepots) => {
         if (cancelled) return;
         if (liveDepots && liveDepots.length > 0) {
-          const records: DepotRecord[] = liveDepots.map((d) => {
-            const fallback = INITIAL_DEPOTS.find((init) => init.id === d.code);
-            return {
-              id: d.code,
-              name: d.name || fallback?.name || `${d.code} Hub`,
-              badge: fallback?.badge || "Distribution Hub",
-              region: fallback?.region || `${d.code}, Sri Lanka`,
-              lat: fallback?.lat || (d.code === "KANDY" ? 7.2906 : 6.9697),
-              lng: fallback?.lng || (d.code === "KANDY" ? 80.6337 : 79.8887),
-              outlets: fallback?.outlets || [],
-            };
-          });
+          const records: DepotRecord[] = liveDepots.map((d) => ({
+            id: d.code,
+            name: d.name || `${d.code} Hub`,
+            badge: "Distribution Hub",
+            region: `${d.code}, Sri Lanka`,
+            lat: d.code === "KANDY" ? 7.2906 : 6.9697,
+            lng: d.code === "KANDY" ? 80.6337 : 79.8887,
+            outlets: [],
+          }));
           setDepots(records);
+          setSelectedDepotId((prev) => (records.some((r) => r.id === prev) ? prev : records[0].id));
           setLiveConnected(true);
         }
       })
       .catch(() => {
         if (!cancelled) setLiveConnected(false);
       });
+
+    fetchAdminVehicles({ limit: 100 })
+      .then((page) => {
+        if (cancelled) return;
+        if (page.items) {
+          setVehiclesList(
+            page.items.map((v) => ({
+              id: v.vehicleId,
+              brand: "Waypoint",
+              type: v.type?.toLowerCase() === "truck" ? "Truck" : "Van",
+              depot: v.depot || "PELIYAGODA",
+              weightCapKg: Number(v.weightCapKg) || 1200,
+              volumeCapM3: Number(v.volumeCapM3) || 8.5,
+              fuelType: "Diesel",
+              weeklyFuelQuotaL: Number(v.weeklyFuelQuotaL) || 280,
+              fuelEfficiencyKmPerL: Number(v.kmPerL) || 10,
+              temp: v.temperature?.toLowerCase().includes("chilled") ? "Chilled (Refrigerated)" : "Ambient",
+              status: v.dayStatus === "workshop" || v.dayStatus === "in_workshop" ? "Workshop" : v.dayStatus === "on_route" ? "On trip" : "Available",
+            }))
+          );
+        }
+      })
+      .catch(() => {});
+
+    fetchAdminOutlets({ limit: 200 })
+      .then((page) => {
+        if (cancelled) return;
+        if (page.items) {
+          setOutletsList(
+            page.items.map((o) => ({
+              id: o.outletId,
+              name: `Outlet ${o.outletId}`,
+              brand: (o.brand === "Style" || o.brand === "Tech" ? o.brand : "Fresh") as "Fresh" | "Style" | "Tech",
+              tempZone: o.brand === "Fresh" ? "Ambient Fresh" : "Ambient Standard",
+              district: o.district || "",
+              depot: o.depot || "",
+              dockType: (o.dockType === "rear_dock" || o.dockType === "mall_bay" ? o.dockType : "street") as "rear_dock" | "street" | "mall_bay",
+              dockDetails: `Unloading capability: ${o.dockType || "standard"}`,
+              windowOpen: o.windowOpen || "08:00",
+              windowClose: o.windowClose || "17:00",
+              windowNotes: `Time window: ${o.windowOpen || "08:00"} - ${o.windowClose || "17:00"}`,
+              storeManager: "Assigned Manager",
+              managerPhone: "+94 77 000 0000",
+              managerEmail: `store.${o.outletId.toLowerCase()}@waypoint.lk`,
+              address: `${o.district || "Commercial District"}, Sri Lanka`,
+              maxVehicleType: o.dockType === "street" ? "Van Only" : "Van & Truck",
+            }))
+          );
+        }
+      })
+      .catch(() => {});
+
     return () => {
       cancelled = true;
     };
@@ -129,10 +161,11 @@ export function DepotsScreen({
 
       // Store manager mapping
       if (isStoreMgr) {
-        const isPeliyagodaOutlet = m.places.some((p) => p === "OUT-SAMPLE-01" || p === "OUT-SAMPLE-02");
-        const isKandyOutlet = m.places.some((p) => p === "OUT-SAMPLE-03" || p === "OUT-SAMPLE-04");
-        if (currentDepot.id === "PELIYAGODA" && isPeliyagodaOutlet) return true;
-        if (currentDepot.id === "KANDY" && isKandyOutlet) return true;
+        if (m.places.includes(currentDepot.id)) return true;
+        if (m.depots && m.depots.includes(currentDepot.id)) return true;
+        const managerPlaces = [...(m.outlets ?? []), ...m.places];
+        const belongsToDepot = outletsList.some((o) => o.depot === currentDepot.id && managerPlaces.includes(o.id));
+        if (belongsToDepot) return true;
       }
 
       return false;
@@ -146,8 +179,9 @@ export function DepotsScreen({
 
   // Outlets connected to this depot
   const depotOutlets = useMemo(() => {
-    return INITIAL_OUTLETS.filter((o) => o.depot === currentDepot.id || (currentDepot.outlets && currentDepot.outlets.includes(o.id)));
-  }, [currentDepot]);
+    if (!currentDepot) return [];
+    return outletsList.filter((o) => o.depot === currentDepot.id || (currentDepot.outlets && currentDepot.outlets.includes(o.id)));
+  }, [outletsList, currentDepot]);
 
   // Count summaries for the main buttons
   const driversCount = depotPeople.filter((p) => p.personas.includes("driver")).length;
@@ -288,7 +322,7 @@ export function DepotsScreen({
           </label>
           {liveConnected !== null && (
             <Badge tone={liveConnected ? "green" : "neutral"}>
-              {liveConnected ? "Live API: GET /api/admin/reference/depots" : "Sample hubs"}
+              {liveConnected ? "Live API: GET /api/admin/reference/depots" : "Connecting..."}
             </Badge>
           )}
         </div>

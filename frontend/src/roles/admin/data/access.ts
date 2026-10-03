@@ -2,7 +2,6 @@ import { request } from "@shared/api/client";
 import { newCommand, send, type CommandAck } from "@shared/api/commands";
 import type { Page } from "@shared/domain/common";
 import type { ActionView, RoleView } from "@shared/domain/identity";
-import { CAPABILITIES } from "../access/model";
 
 /**
  * Fetch registered system roles from GET /api/admin/roles.
@@ -89,21 +88,4 @@ export async function submitManagePermission(
   const cmd = newCommand("iam:ManagePermission", payload, expectedVersion);
   return send(cmd);
 }
-
-export const FALLBACK_ROLES: RoleView[] = [
-  { roleCode: "dispatcher", description: "Plans and publishes daily allocation; resolves exceptions" },
-  { roleCode: "loader", description: "Loads to the planned stop sequence and flags shortfalls" },
-  { roleCode: "driver", description: "Executes stops and captures proof of delivery" },
-  { roleCode: "store_manager", description: "Places orders and confirms receipt for an outlet" },
-  { roleCode: "auditor", description: "Read-only across the operation, for investigating a dispute" },
-  { roleCode: "admin", description: "Accounts, roles, scopes, reference import, calendar override" },
-  { roleCode: "super_admin", description: "Protected root governance and privileged account management" },
-];
-
-export const FALLBACK_ACTIONS: ActionView[] = CAPABILITIES.map((c) => ({
-  action: c.action,
-  module: c.module,
-  description: c.description,
-  implemented: c.implemented,
-}));
 

@@ -7,28 +7,15 @@ import {
   fetchAdminOrders,
   fetchAdminOrderDetail,
   fetchAdminOrderTimeline,
-  FALLBACK_ADMIN_ORDERS,
-  FALLBACK_ORDER_LINES,
-  FALLBACK_TIMELINE,
   type AdminOrder,
   type AdminOrderDetail,
   type AdminOrderLine,
   type AdminStatusTimeline,
 } from "../data/orders";
-import { INITIAL_OUTLETS } from "./OutletsScreen";
 
 type SubTab = "today" | "deferred" | "all";
 
 export function getOutletWindow(outletId: string, brand?: string) {
-  const found = INITIAL_OUTLETS.find((o) => o.id === outletId);
-  if (found) {
-    return {
-      windowOpen: found.windowOpen,
-      windowClose: found.windowClose,
-      label: `${found.windowOpen} - ${found.windowClose}`,
-      notes: found.windowNotes,
-    };
-  }
   if (brand?.toLowerCase() === "fresh") return { windowOpen: "05:00", windowClose: "07:30", label: "05:00 - 07:30", notes: "Early morning fresh produce slot." };
   if (brand?.toLowerCase() === "style") return { windowOpen: "10:00", windowClose: "13:00", label: "10:00 - 13:00", notes: "Midday retail fashion delivery." };
   if (brand?.toLowerCase() === "tech") return { windowOpen: "14:00", windowClose: "17:30", label: "14:00 - 17:30", notes: "Afternoon secure electronics bay." };
@@ -60,7 +47,7 @@ export function OrdersScreen({
   onNavigateTab?: (tab: "people" | "personas" | "vehicles" | "forecasts" | "depots" | "outlets" | "audit") => void;
 }) {
   const [subTab, setSubTab] = useState<SubTab>("today");
-  const [orders, setOrders] = useState<AdminOrder[]>(FALLBACK_ADMIN_ORDERS);
+  const [orders, setOrders] = useState<AdminOrder[]>([]);
   const windowFor = getOutletWindow;
   const [loading, setLoading] = useState(false);
   const [liveConnected, setLiveConnected] = useState<boolean | null>(null);
@@ -115,22 +102,18 @@ export function OrdersScreen({
         if (detailRes?.lines) {
           setOrderLines(detailRes.lines);
         } else {
-          setOrderLines(FALLBACK_ORDER_LINES[currentOrder.orderRef] || [
-            { productId: "PROD-GEN-001", productName: `${currentOrder.brand} Standard Unit`, quantity: currentOrder.itemCount, revision: 1 },
-          ]);
+          setOrderLines([]);
         }
 
         if (timelineRes) {
           setTimeline(timelineRes);
         } else {
-          setTimeline(FALLBACK_TIMELINE[currentOrder.orderRef] || [
-            { from: null, to: currentOrder.status, reason: "Order recorded in ordering system", actorId: null, actorName: "System", at: "2026-10-02T16:00:00+05:30" },
-          ]);
+          setTimeline([]);
         }
       } catch {
         if (!cancelled) {
-          setOrderLines(FALLBACK_ORDER_LINES[currentOrder.orderRef] || []);
-          setTimeline(FALLBACK_TIMELINE[currentOrder.orderRef] || []);
+          setOrderLines([]);
+          setTimeline([]);
         }
       } finally {
         if (!cancelled) setDetailLoading(false);
@@ -345,7 +328,7 @@ export function OrdersScreen({
 
         {liveConnected !== null && (
           <Badge tone={liveConnected ? "green" : "neutral"}>
-            {liveConnected ? "Live API: GET /api/admin/orders" : "Sample orders"}
+            {liveConnected ? "Live API: GET /api/admin/orders" : "Connecting..."}
           </Badge>
         )}
       </div>

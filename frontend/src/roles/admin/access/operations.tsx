@@ -28,128 +28,10 @@ export type Vehicle = {
   lastDriver?: LastDriver;
 };
 
-export const VEHICLES: Vehicle[] = [
-  {
-    id: "WP-1042",
-    brand: "Toyota",
-    type: "Van",
-    depot: "PELIYAGODA",
-    weightCapKg: 1200,
-    volumeCapM3: 8.5,
-    fuelType: "Diesel",
-    weeklyFuelQuotaL: 280,
-    fuelEfficiencyKmPerL: 11.2,
-    temp: "Ambient",
-    status: "Available",
-    lastDriver: { id: "DRV-001", name: "Amal Silva", phone: "+94 77 123 4567", lastRunDate: "Today, 06:15" },
-  },
-  {
-    id: "WP-2088",
-    brand: "Isuzu",
-    type: "Truck",
-    depot: "PELIYAGODA",
-    weightCapKg: 5510,
-    volumeCapM3: 26.4,
-    fuelType: "Diesel",
-    weeklyFuelQuotaL: 480,
-    fuelEfficiencyKmPerL: 4.7,
-    temp: "Chilled (Refrigerated)",
-    status: "On trip",
-    lastDriver: { id: "DRV-003", name: "Dinuka Samarakoon", phone: "+94 77 345 6789", lastRunDate: "Today, 05:40" },
-  },
-  {
-    id: "WP-1176",
-    brand: "Toyota",
-    type: "Van",
-    depot: "KANDY",
-    weightCapKg: 1400,
-    volumeCapM3: 9.8,
-    fuelType: "Diesel",
-    weeklyFuelQuotaL: 310,
-    fuelEfficiencyKmPerL: 10.5,
-    temp: "Ambient",
-    status: "Available",
-    lastDriver: { id: "DRV-002", name: "Fathima Rizwan", phone: "+94 71 234 5678", lastRunDate: "Yesterday, 18:20" },
-  },
-  {
-    id: "WP-3041",
-    brand: "Mitsubishi",
-    type: "Truck",
-    depot: "KANDY",
-    weightCapKg: 6840,
-    volumeCapM3: 33.4,
-    fuelType: "Diesel",
-    weeklyFuelQuotaL: 430,
-    fuelEfficiencyKmPerL: 4.4,
-    temp: "Chilled (Refrigerated)",
-    status: "Workshop",
-    lastDriver: { id: "DRV-008", name: "Dinesh Kumara", phone: "+94 72 890 1234", lastRunDate: "2 days ago, 14:10" },
-  },
-  {
-    id: "WP-1223",
-    brand: "Nissan",
-    type: "Van",
-    depot: "PELIYAGODA",
-    weightCapKg: 1200,
-    volumeCapM3: 8.5,
-    fuelType: "Diesel",
-    weeklyFuelQuotaL: 280,
-    fuelEfficiencyKmPerL: 11.2,
-    temp: "Ambient",
-    status: "On trip",
-    lastDriver: { id: "DRV-004", name: "Shehan Mendis", phone: "+94 76 456 7890", lastRunDate: "Today, 07:00" },
-  },
-  {
-    id: "WP-3095",
-    brand: "Isuzu",
-    type: "Truck",
-    depot: "KANDY",
-    weightCapKg: 3990,
-    volumeCapM3: 21.1,
-    fuelType: "Diesel",
-    weeklyFuelQuotaL: 610,
-    fuelEfficiencyKmPerL: 6.1,
-    temp: "Chilled (Refrigerated)",
-    status: "Available",
-    lastDriver: { id: "DRV-005", name: "Maleesha Iqbal", phone: "+94 75 567 8901", lastRunDate: "Yesterday, 16:45" },
-  },
-  {
-    id: "WP-2104",
-    brand: "Tata",
-    type: "Truck",
-    depot: "PELIYAGODA",
-    weightCapKg: 7200,
-    volumeCapM3: 38.0,
-    fuelType: "Diesel",
-    weeklyFuelQuotaL: 540,
-    fuelEfficiencyKmPerL: 4.9,
-    temp: "Ambient",
-    status: "Available",
-    lastDriver: { id: "DRV-006", name: "Nuwan Pathirana", phone: "+94 78 678 9012", lastRunDate: "Yesterday, 19:30" },
-  },
-  {
-    id: "WP-1330",
-    brand: "Toyota",
-    type: "Van",
-    depot: "KANDY",
-    weightCapKg: 1200,
-    volumeCapM3: 8.5,
-    fuelType: "Petrol",
-    weeklyFuelQuotaL: 350,
-    fuelEfficiencyKmPerL: 9.8,
-    temp: "Ambient",
-    status: "Available",
-    lastDriver: { id: "DRV-007", name: "Amani Hassan", phone: "+94 70 789 0123", lastRunDate: "Yesterday, 15:10" },
-  },
-];
-
-const FORECASTS = [
-  { depot: "PELIYAGODA", orders: 128, previous: 112, vans: 7, trucks: 4 },
-  { depot: "KANDY", orders: 94, previous: 88, vans: 5, trucks: 3 },
-] as const;
+const FORECASTS: { depot: string; orders: number; previous: number; vans: number; trucks: number }[] = [];
 
 export function VehiclesScreen() {
-  const [vehiclesList, setVehiclesList] = useState<Vehicle[]>(VEHICLES);
+  const [vehiclesList, setVehiclesList] = useState<Vehicle[]>([]);
   const [liveConnected, setLiveConnected] = useState<boolean | null>(null);
   const [isAddVehicleModalOpen, setIsAddVehicleModalOpen] = useState(false);
 
@@ -191,7 +73,6 @@ export function VehiclesScreen() {
         if (cancelled) return;
         if (page.items && page.items.length > 0) {
           const records: Vehicle[] = page.items.map((v) => {
-            const fallback = VEHICLES.find((item) => item.id === v.vehicleId);
             const isTruck = v.type?.toLowerCase() === "truck";
             const tempVal =
               v.temperature?.toLowerCase().includes("reefer") || v.temperature?.toLowerCase().includes("chilled")
@@ -206,17 +87,17 @@ export function VehiclesScreen() {
 
             return {
               id: v.vehicleId,
-              brand: fallback?.brand || "Toyota",
+              brand: isTruck ? "Isuzu" : "Toyota",
               type: isTruck ? "Truck" : "Van",
-              depot: v.depot || fallback?.depot || "PELIYAGODA",
+              depot: v.depot || "PELIYAGODA",
               weightCapKg: Number(v.weightCapKg) || (isTruck ? 5510 : 1200),
               volumeCapM3: Number(v.volumeCapM3) || (isTruck ? 26.4 : 8.5),
-              fuelType: (v.fuelType === "Petrol" || v.fuelType === "Diesel" ? v.fuelType : fallback?.fuelType || "Diesel") as "Diesel" | "Petrol",
+              fuelType: (v.fuelType === "Petrol" || v.fuelType === "Diesel" ? v.fuelType : "Diesel") as "Diesel" | "Petrol",
               weeklyFuelQuotaL: Number(v.weeklyFuelQuotaL) || (isTruck ? 480 : 280),
               fuelEfficiencyKmPerL: Number(v.kmPerL) || (isTruck ? 4.7 : 11.2),
               temp: tempVal,
-              status: fallback?.status || statusVal,
-              lastDriver: fallback?.lastDriver || {
+              status: statusVal,
+              lastDriver: {
                 id: `DRV-${v.vehicleId.slice(-3)}`,
                 name: "Assigned Driver",
                 phone: "+94 77 123 4567",
@@ -356,7 +237,7 @@ export function VehiclesScreen() {
         <div>
           {liveConnected !== null && (
             <Badge tone={liveConnected ? "green" : "neutral"}>
-              {liveConnected ? "Live API: GET /api/admin/vehicles" : "Sample vehicles"}
+              {liveConnected ? "Live API: GET /api/admin/vehicles" : "Connecting..."}
             </Badge>
           )}
         </div>
@@ -449,7 +330,7 @@ export function VehiclesScreen() {
       </div>
 
       <p className="text-sm text-go-secondary">
-        {rows.length} of {VEHICLES.length} vehicles match filters
+        {rows.length} of {vehiclesList.length} vehicles match filters
       </p>
 
       {/* Output rows showing capacity, fuel quota, and structured details */}
@@ -882,12 +763,51 @@ export function ForecastsScreen() {
   const rows = FORECASTS.filter((item) => depot === "all" || item.depot === depot);
   const totalOrders = rows.reduce((sum, item) => sum + item.orders, 0);
   const totalVehicles = rows.reduce((sum, item) => sum + item.vans + item.trucks, 0);
-  const vehiclesInView = VEHICLES.filter((vehicle) => depot === "all" || vehicle.depot === depot);
-  return <div className="space-y-5"><div><h2 className="text-2xl font-semibold">Forecasts</h2><p className="mt-1 text-sm text-go-secondary">Illustrative order demand and vehicle needs for the next operating day.</p></div>
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Summary value={totalOrders} label="Forecast orders"/><Summary value={totalVehicles} label="Suggested vehicles"/><Summary value={vehiclesInView.filter((vehicle) => vehicle.status === "Available").length} label="Available vehicles"/><Summary value={vehiclesInView.filter((vehicle) => vehicle.status === "Workshop").length} label="Workshop vehicles"/></div>
-    <label className={`${card} block max-w-sm p-4 text-sm font-medium`}>Depot<select className={`${field} mt-1`} value={depot} onChange={(event) => setDepot(event.target.value)}><option value="all">All depots</option>{FORECASTS.map((item) => <option key={item.depot}>{item.depot}</option>)}</select></label>
-    <div className="grid gap-4 lg:grid-cols-3">{rows.map((item) => { const change = Math.round((item.orders - item.previous) / item.previous * 100); return <article key={item.depot} className={`${card} p-5`}><p className="text-xs font-bold uppercase tracking-wider text-go-secondary">{item.depot}</p><div className="mt-4 flex items-end gap-2"><strong className="text-4xl text-go-teal">{item.orders}</strong><span className="pb-1 text-sm text-go-secondary">orders</span></div><p className="mt-2 text-sm text-go-secondary">{change >= 0 ? "+" : ""}{change}% against the comparison day</p><div className="mt-5 border-t border-go-rule pt-4 text-sm"><p>Suggested: <strong>{item.vans} vans</strong> · <strong>{item.trucks} trucks</strong></p></div></article>; })}</div>
-  </div>;
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-2xl font-semibold">Forecasts</h2>
+        <p className="mt-1 text-sm text-go-secondary">
+          Operational order demand and vehicle needs for the next operating day.
+        </p>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Summary value={totalOrders} label="Forecast orders" />
+        <Summary value={totalVehicles} label="Suggested vehicles" />
+        <Summary value={0} label="Available vehicles" />
+        <Summary value={0} label="Workshop vehicles" />
+      </div>
+      <label className={`${card} block max-w-sm p-4 text-sm font-medium`}>
+        Depot
+        <select className={`${field} mt-1`} value={depot} onChange={(event) => setDepot(event.target.value)}>
+          <option value="all">All depots</option>
+          {FORECASTS.map((item) => <option key={item.depot}>{item.depot}</option>)}
+        </select>
+      </label>
+      {rows.length === 0 ? (
+        <Empty>No forecast data published yet.</Empty>
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-3">
+          {rows.map((item) => {
+            const change = Math.round((item.orders - item.previous) / item.previous * 100);
+            return (
+              <article key={item.depot} className={`${card} p-5`}>
+                <p className="text-xs font-bold uppercase tracking-wider text-go-secondary">{item.depot}</p>
+                <div className="mt-4 flex items-end gap-2">
+                  <strong className="text-4xl text-go-teal">{item.orders}</strong>
+                  <span className="pb-1 text-sm text-go-secondary">orders</span>
+                </div>
+                <p className="mt-2 text-sm text-go-secondary">{change >= 0 ? "+" : ""}{change}% against the comparison day</p>
+                <div className="mt-5 border-t border-go-rule pt-4 text-sm">
+                  <p>Suggested: <strong>{item.vans} vans</strong> · <strong>{item.trucks} trucks</strong></p>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function Summary({ value, label }: { value: number; label: string }) { return <div className={`${card} p-5`}><p className="text-3xl font-semibold text-go-teal">{value}</p><p className="mt-1 text-sm text-go-secondary">{label}</p></div>; }

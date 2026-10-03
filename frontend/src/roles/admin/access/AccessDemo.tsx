@@ -15,7 +15,7 @@ import { TripsScreen, type TripsSubTab } from "./TripsScreen";
 import { CatalogueScreen, PeopleScreen, PersonasScreen } from "./screens";
 import { ActionsScreen } from "./RoleActionScreens";
 import { AuditConsole } from "./audit/AuditConsole";
-import { fetchRoles, fetchActions, submitManagePermission, FALLBACK_ROLES, FALLBACK_ACTIONS } from "../data/access";
+import { fetchRoles, fetchActions, submitManagePermission } from "../data/access";
 import { fetchAccounts, accountToMember, submitCreateUser } from "../data/accounts";
 import type { RoleView, ActionView } from "@shared/domain/identity";
 import "./access-demo.css";
@@ -24,6 +24,16 @@ type Tab = "people" | "personas" | "actions" | "catalogue" | "history" | "audit"
 type Route = { tab: Tab; member: string | null; persona: Persona | null };
 type Draft = { target: "member" | "persona"; id: string; action: string; choice: Decision; reason: string; place: string; expires: string; stage: "edit" | "review" };
 type Details = { capability: Capability; member?: Member; persona?: Persona };
+
+const DEFAULT_ADMIN: Member = {
+  id: "admin-system",
+  name: "System Administrator",
+  email: "admin@waypoint.local",
+  personas: ["super_admin", "admin"],
+  places: ["GLOBAL"],
+  active: true,
+  source: "live",
+};
 
 function routeFromHash(): Route {
   if (typeof window === "undefined") return { tab: "people", member: null, persona: null };
@@ -72,8 +82,8 @@ const initials = (name: string) => name.trim().split(/\s+/).filter(Boolean).map(
 export default function AccessDemo({ displayName = "Administrator" }: { displayName?: string }) {
   const [state, setState] = useState<DemoState>(freshState);
   const [route, setRoute] = useState<Route>({ tab: "people", member: null, persona: null });
-  const [rolesList, setRolesList] = useState<RoleView[]>(FALLBACK_ROLES);
-  const [actionsList, setActionsList] = useState<ActionView[]>(FALLBACK_ACTIONS);
+  const [rolesList, setRolesList] = useState<RoleView[]>([]);
+  const [actionsList, setActionsList] = useState<ActionView[]>([]);
   const [liveConnected, setLiveConnected] = useState<boolean>(false);
   const [actionsLiveConnected, setActionsLiveConnected] = useState<boolean>(false);
   const [filterPersona, setFilterPersona] = useState<Persona | "all">("all");
@@ -197,7 +207,7 @@ export default function AccessDemo({ displayName = "Administrator" }: { displayN
     if ((input.persona === "admin" && viewer !== "super_admin")) return;
     if (state.members.some((member) => member.email.toLowerCase() === input.email.toLowerCase())) { setToast("That email is already used by a member."); return; }
 
-    let createdId = `mock-member-${crypto.randomUUID()}`;
+    let createdId = crypto.randomUUID();
     try {
       const ack = await submitCreateUser({
         email: input.email,

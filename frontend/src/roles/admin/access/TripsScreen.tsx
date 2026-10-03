@@ -6,7 +6,6 @@ import type { DemoState } from "./model";
 import {
   fetchAdminPlans,
   fetchAdminPlanDetail,
-  FALLBACK_ADMIN_PLANS,
   type AdminPlan,
   type AdminTrip,
   type AdminStop,
@@ -31,7 +30,7 @@ export function TripsScreen({
     setInternalSubTab(t);
     onSubTabChange?.(t);
   };
-  const [plans, setPlans] = useState<AdminPlan[]>(FALLBACK_ADMIN_PLANS);
+  const [plans, setPlans] = useState<AdminPlan[]>([]);
   const [loading, setLoading] = useState(false);
   const [liveConnected, setLiveConnected] = useState<boolean | null>(null);
 
@@ -240,7 +239,7 @@ export function TripsScreen({
 
         {liveConnected !== null && (
           <Badge tone={liveConnected ? "green" : "neutral"}>
-            {liveConnected ? "Live API: GET /api/admin/plans" : "Sample plans"}
+            {liveConnected ? "Live API: GET /api/admin/plans" : "Connecting..."}
           </Badge>
         )}
       </div>
