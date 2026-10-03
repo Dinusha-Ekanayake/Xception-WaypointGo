@@ -22,6 +22,9 @@ import Track from "./screens/Track.tsx";
 import ProfileDialog from "./screens/account/ProfileDialog.tsx";
 import StoreDetailsDialog from "./screens/account/StoreDetailsDialog.tsx";
 import { SideNav, TabBar, Toast, type Tab } from "./ui.tsx";
+import { NotificationsCard, NotificationsDrawer } from "./screens/Notifications.tsx";
+import { useInbox } from "@shared/notifications/useInbox";
+import type { NotificationView } from "@shared/domain/types";
 
 // The store manager workspace from Figma "15 Store Manager · Mobile" and
 // "14 Store Manager · Desktop": a tab bar on phones, a sidebar from lg. Resilient offline tier
@@ -58,6 +61,10 @@ export default function Store({
   const [editing, setEditing] = useState<"profile" | "store" | null>(null);
   const [savedName, setSavedName] = useState<string | null>(null);
   const [note, setNote] = useState<{ title: string; detail?: string } | null>(null);
+  // Notifications for this store (issue #118); none in the sample.
+  const inbox = useInbox(userId, !gateway.sample);
+  const [inboxOpen, setInboxOpen] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   useEffect(() => {
     if (!note) return;
     const timer = setTimeout(() => setNote(null), 6000);
@@ -107,6 +114,33 @@ export default function Store({
       cancelled = true;
     };
   }, [online, waiting, gateway, refresh]);
+
+  // "Synced 02:23 AM" syncs now: send what waits, then read everything again.
+  const syncNow = () => {
+    refresh();
+    if (!online || waiting === 0) return;
+    setSyncing(true);
+    gateway
+      .flush()
+      .then((report) => {
+        setWaiting(report.remaining - report.heldForReview);
+        refresh();
+      })
+      .catch(() => undefined)
+      .finally(() => setSyncing(false));
+  };
+  // A notification opens what it is about: the order, the deliveries or the issues.
+  const openSubject = (n: NotificationView) => {
+    setView({ kind: "tabs" });
+    if (n.subjectType === "order" && n.subjectId) {
+      setTab("orders");
+      setOpenOrder(n.subjectId);
+    } else if (n.subjectType === "issue") {
+      setTab("issues");
+    } else if (n.subjectType === "delivery" || n.subjectType === "trip" || n.subjectType === "receipt") {
+      setTab("deliveries");
+    }
+  };
 
   const all = orders.data ?? [];
   const toReceive = pending.data ?? [];
@@ -221,6 +255,7 @@ export default function Store({
         onPlace={place}
         onReceive={receive}
         onTrack={() => setView({ kind: "track" })}
+        notifications={<NotificationsCard inbox={inbox} onSubject={openSubject} onAll={() => setInboxOpen(true)} />}
       />
     );
   } else if (tab === "orders") {
@@ -270,7 +305,12 @@ export default function Store({
         outlet={outlet.data}
         onEditProfile={() => setEditing("profile")}
         onEditStore={() => setEditing("store")}
+        onSync={syncNow}
+        syncing={syncing || orders.loading}
+        unread={inbox.unread}
+        onNotifications={gateway.sample ? undefined : () => setInboxOpen(true)}
       />
+      {inboxOpen && <NotificationsDrawer inbox={inbox} onSubject={openSubject} onClose={() => setInboxOpen(false)} />}
       {warehouseDown && (
         <Notice tone="warning" live title="The warehouse is not answering">
           You can still place orders. They are kept as &ldquo;stock not checked&rdquo; and confirmed once the warehouse is back, never before.
