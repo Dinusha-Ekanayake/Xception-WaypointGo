@@ -112,7 +112,7 @@ export default function DockBoard({
               aria-pressed={filter === f.value}
               onClick={() => setFilter(f.value)}
               className={cx(
-                "min-h-12 shrink-0 rounded-full px-[18px] text-[15px] font-medium whitespace-nowrap max-md:px-2.5 max-md:text-[14px]",
+                "min-h-12 shrink-0 rounded-full px-[18px] text-[15px] font-medium whitespace-nowrap min-[1700px]:text-[17px] max-md:px-2.5 max-md:text-[14px]",
                 filter === f.value ? "bg-go-soft text-go-on-soft" : "bg-go-surface text-go-ink",
               )}
             >

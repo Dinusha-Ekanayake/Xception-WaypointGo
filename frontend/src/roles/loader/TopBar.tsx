@@ -173,7 +173,7 @@ export default function TopBar({
           <span className="text-[18px] font-semibold text-go-ink">{title ?? tr("Waypoint · Loader")}</span>
           <span className="text-[14px] text-go-ink/85">{subtitle ?? tr("Depot {depot}", { depot })}</span>
         </div>
-        {syncButton("flex min-h-12 shrink-0 items-center gap-2 rounded-full bg-go-card pr-3.5 pl-3 text-[14px] shadow-go-float")}
+        {syncButton("flex min-h-12 shrink-0 items-center gap-2 rounded-full bg-go-card pr-3.5 pl-3 text-[14px] shadow-go-float min-[1700px]:text-[16px]")}
         <span className="flex-1" />
         {sampleBadge}
         {displayName && (

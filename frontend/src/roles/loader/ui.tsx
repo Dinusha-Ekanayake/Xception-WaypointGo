@@ -88,7 +88,7 @@ export function BigButton({
       className={cx(
         "flex items-center justify-center gap-2 px-[18px] font-medium disabled:cursor-not-allowed disabled:opacity-50",
         fit ? "w-auto min-w-[170px] px-7" : "w-full",
-        size === "l" ? "min-h-16 rounded-[22px] text-[20px]" : "min-h-12 rounded-full text-[15px]",
+        size === "l" ? "min-h-16 rounded-[22px] text-[20px]" : "min-h-12 rounded-full text-[15px] min-[1700px]:text-[17px]",
         TONE[tone],
       )}
     >
