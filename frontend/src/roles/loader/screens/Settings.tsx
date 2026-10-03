@@ -25,7 +25,7 @@ export default function Settings({
   deviceName,
   onClose,
 }: {
-  /** Someone is working, so the way back is Done rather than Choose loader. */
+  /** Someone is working, so the way back is Done rather than Apply changes. */
   hasLoader: boolean;
   /** The supervisor account the device is signed in as. */
   deviceName: string;
@@ -117,7 +117,7 @@ export default function Settings({
           </fieldset>
         </div>
         <BigButton tone="ink" size="l" onClick={onClose}>
-          {tr(hasLoader ? "Done" : "Choose loader")}
+          {tr(hasLoader ? "Done" : "Apply changes")}
         </BigButton>
       </section>
 
