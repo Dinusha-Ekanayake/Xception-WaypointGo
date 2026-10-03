@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { createMcpServer } from '../src/server.ts';
+import { createMcpServer, type ToolCallLog } from '../src/server.ts';
 import { BackendClient } from '../src/client.ts';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -14,6 +14,7 @@ import { saveConnection } from '../src/credentials.ts';
 
 async function fixture(actions = ['order:Read'], options: { redirect?: boolean; oversized?: boolean } = {}) {
   let allowed = true;
+  const logs: ToolCallLog[] = [];
   const requests: string[] = [];
   const http = createServer((req, res) => {
     assert.equal(req.headers.authorization, 'Bearer mcp.test');
@@ -36,12 +37,12 @@ async function fixture(actions = ['order:Read'], options: { redirect?: boolean; 
   await new Promise<void>(resolve => http.listen(0, '127.0.0.1', resolve));
   const address = http.address();
   assert.ok(address && typeof address !== 'string');
-  const server = createMcpServer(new BackendClient(`http://127.0.0.1:${address.port}`, 'mcp.test'));
+  const server = createMcpServer(new BackendClient(`http://127.0.0.1:${address.port}`, 'mcp.test'), entry => logs.push(entry));
   const client = new Client({ name: 'waypoint-test-client', version: '1.0.0' });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   await server.connect(serverTransport);
   await client.connect(clientTransport);
-  return { client, requests, origin: `http://127.0.0.1:${address.port}`, revoke: () => { allowed = false; }, close: async () => {
+  return { client, requests, logs, origin: `http://127.0.0.1:${address.port}`, revoke: () => { allowed = false; }, close: async () => {
     await client.close();
     await server.close();
     http.closeAllConnections();
@@ -265,5 +266,33 @@ test('work discovery returns bounded IDs and discards sensitive neighbours', asy
     assert.ok(!text.includes('99999999'));
     const bad = await f.client.callTool({ name: 'list_ready_trips', arguments: { depot: 'PEL', date: 'not-a-date' } });
     assert.equal(bad.isError, true);
+  } finally { await f.close(); }
+});
+
+test('every tool call logs its tool, outcome and duration, never its arguments or result', async () => {
+  const f = await fixture();
+  try {
+    await f.client.callTool({ name: 'list_orders', arguments: { outlet: 'OUT001', cursor: 'secret-cursor', limit: 5 } });
+    await f.client.callTool({ name: 'made_up_tool_name', arguments: {} });
+    f.revoke();
+    await f.client.callTool({ name: 'list_orders', arguments: { outlet: 'OUT001' } });
+    assert.deepEqual(f.logs.map(l => [l.tool, l.outcome, l.status]), [
+      ['list_orders', 'ok', 200],
+      ['unknown', 'UNKNOWN_TOOL', 400],
+      ['list_orders', 'FORBIDDEN', 403],
+    ]);
+    assert.equal(f.logs[2]!.correlationId, 'test-correlation', 'joins the backend audit rows');
+    assert.ok(f.logs.every(l => l.event === 'mcp.tool_call' && Number.isInteger(l.durationMs) && l.durationMs >= 0));
+    const text = JSON.stringify(f.logs);
+    for (const leaked of ['secret-cursor', 'made_up_tool_name', 'never-return', 'mcp.test', 'OUT001']) assert.ok(!text.includes(leaked), leaked);
+  } finally { await f.close(); }
+});
+
+test('an oversized backend answer is logged as such', async () => {
+  const f = await fixture(['order:Read'], { oversized: true });
+  try {
+    await f.client.callTool({ name: 'list_orders', arguments: { outlet: 'OUT001' } });
+    assert.equal(f.logs.at(-1)!.tool, 'list_orders');
+    assert.notEqual(f.logs.at(-1)!.outcome, 'ok');
   } finally { await f.close(); }
 });

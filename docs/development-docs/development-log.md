@@ -21,6 +21,17 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-03 - feat(mcp): per-tool metrics, outcome audit and call logs (issue #140)
+
+`feat/140-mcp-observability` · @Oxshadha
+
+Every MCP request is counted and timed per tool and outcome (`waypoint_mcp_calls_total`, `waypoint_mcp_duration_seconds`), the tool named by the backend from the path (`McpReadPolicy.toolOf`) so a client cannot invent a metric label. An authorized read also writes an outcome audit row beside its authorization row under one correlation id; a failed outcome write never fails the read and is counted. The adapter logs one JSON line per tool call, without arguments, results or credentials. Runbook in [mcp/README.md](../../mcp/README.md#observing-it), case SEC-38.
+Why: the MCP spec asks servers to log tool usage, and a read that was allowed but ended in 404 or an error was invisible.
+Verified: `McpReadPolicyTest`, `McpConnectionIntegrationTest` (10) and `McpOAuthIntegrationTest` on PostgreSQL, none skipped; `mcp` `npm test` 17.
+Open: per-client metric tags are deliberately absent (dynamic client registration makes them unbounded); per-client views come with #141.
+
+---
+
 ## 2026-10-03 - feat: a store manager edits their own profile and their store's window, dock and contacts
 
 `fix/store-figma-visual` · @jv-ransika

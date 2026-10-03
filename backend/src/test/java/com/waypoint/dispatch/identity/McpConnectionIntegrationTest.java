@@ -48,6 +48,7 @@ class McpConnectionIntegrationTest {
   @Autowired SessionRegistry sessions;
   @Autowired OperatorRegistry operators;
   @Autowired Database database;
+  @Autowired io.micrometer.core.instrument.MeterRegistry meters;
 
   @DynamicPropertySource
   static void database(DynamicPropertyRegistry registry) {
@@ -87,6 +88,43 @@ class McpConnectionIntegrationTest {
     assertTrue(context.get("readActions").toString().contains("order:Read"));
     http.perform(get("/api/audit").header("Authorization", "Bearer " + token))
         .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void everyReadIsCountedPerToolAndAnAuthorizedReadIsAuditedWithItsOutcome() throws Exception {
+    String token = connect(email);
+    double okBefore = calls("list_orders", "ok");
+    double missingBefore = calls("get_order", "not_found");
+    double deniedBefore = calls("other", "denied");
+
+    String correlation = http.perform(get("/api/orders").param("outlet", "OUT001")
+        .header("Authorization", "Bearer " + token)).andExpect(status().isOk())
+        .andReturn().getResponse().getHeader("X-Correlation-Id");
+    http.perform(get("/api/orders/" + UUID.randomUUID()).header("Authorization", "Bearer " + token))
+        .andExpect(status().isNotFound());
+    http.perform(get("/api/accounts").header("Authorization", "Bearer " + token)).andExpect(status().isForbidden());
+
+    assertEquals(okBefore + 1, calls("list_orders", "ok"));
+    assertEquals(missingBefore + 1, calls("get_order", "not_found"), "an allowed read can still find nothing");
+    assertEquals(deniedBefore + 1, calls("other", "denied"), "a path outside the boundary is never its own label");
+    assertTrue(meters.find("waypoint.mcp.duration").tag("tool", "list_orders").timer().count() > 0);
+
+    var rows = database.readAs(ModuleRole.INTEGRATION, null, () -> database.query(
+        "SELECT action, reason, target_id, after_state::text AS after FROM integration.audit_log"
+            + " WHERE correlation_id = ? ORDER BY audit_id", correlation));
+    assertEquals(2, rows.size(), "the authorization row and the outcome row share one correlation id: " + rows);
+    assertEquals("order:Read", rows.get(0).get("action"));
+    assertEquals("mcp:Connect", rows.get(1).get("action"));
+    assertEquals("list_orders", rows.get(1).get("target_id"));
+    JsonNode outcome = mapper.readTree(String.valueOf(rows.get(1).get("after")));
+    assertEquals(200, outcome.get("status").asInt());
+    assertEquals("ok", outcome.get("outcome").asText());
+    assertEquals("local", outcome.get("transport").asText());
+  }
+
+  private double calls(String tool, String outcome) {
+    var counter = meters.find("waypoint.mcp.calls").tag("tool", tool).tag("outcome", outcome).counter();
+    return counter == null ? 0 : counter.count();
   }
 
   @Test
