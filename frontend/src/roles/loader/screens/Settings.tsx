@@ -21,12 +21,9 @@ import { BigButton } from "../ui.tsx";
 const segment = "flex min-h-11 items-center gap-1.5 rounded-full px-4 text-[15px]";
 
 export default function Settings({
-  hasLoader,
   deviceName,
   onClose,
 }: {
-  /** Someone is working, so the way back is Done rather than Apply changes. */
-  hasLoader: boolean;
   /** The supervisor account the device is signed in as. */
   deviceName: string;
   onClose: () => void;
@@ -117,7 +114,7 @@ export default function Settings({
           </fieldset>
         </div>
         <BigButton tone="ink" size="l" onClick={onClose}>
-          {tr(hasLoader ? "Done" : "Apply changes")}
+          {tr("Apply changes")}
         </BigButton>
       </section>
 

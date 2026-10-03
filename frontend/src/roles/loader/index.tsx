@@ -206,7 +206,7 @@ function LoaderWorkspace({
         </div>
       )}
       {settings ? (
-        <Settings hasLoader={operator !== null} deviceName={displayName} onClose={() => setSettings(false)} />
+        <Settings deviceName={displayName} onClose={() => setSettings(false)} />
       ) : !operator && locked && wide ? (
         <OperatorGate
           key="locked"

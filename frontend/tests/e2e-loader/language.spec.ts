@@ -27,7 +27,7 @@ test("settings switch the loader's language and theme, and both survive a reload
   await expect(workspace).toHaveAttribute("data-theme", "light");
   await page.getByRole("button", { name: "සිංහල" }).click();
   await expect(page.locator("html")).toHaveAttribute("lang", "si");
-  await page.getByRole("button", { name: "හරි" }).click();
+  await page.getByRole("button", { name: "වෙනස්කම් යොදන්න" }).click();
   await expect(page.getByRole("heading", { name: "අද රාත්‍රී පිටත්වීම්" })).toBeVisible();
 
   await page.reload();
@@ -40,6 +40,6 @@ test("settings switch the loader's language and theme, and both survive a reload
 
   await page.getByRole("button", { name: "සැකසුම්" }).first().click();
   await page.getByRole("button", { name: "தமிழ்" }).click();
-  await page.getByRole("button", { name: "முடிந்தது" }).click();
+  await page.getByRole("button", { name: "மாற்றங்களைப் பயன்படுத்து" }).click();
   await expect(page.getByRole("heading", { name: "இன்றிரவு புறப்பாடுகள்" })).toBeVisible();
 });
