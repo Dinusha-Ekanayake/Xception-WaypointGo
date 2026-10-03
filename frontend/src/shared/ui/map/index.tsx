@@ -11,7 +11,7 @@ export const LiveMap = dynamic(() => import("./MapCanvas.tsx"), {
 });
 
 export type { LiveMapProps, MapLine, MapMarker, MapStatus } from "./types.ts";
-export { cluster, compass, keepFix, metres, num, round6, tileAllowed, type LatLon } from "./geo.ts";
+export { cluster, compass, keepFix, metres, num, round6, keepTiles, tileAllowed, tilesFor, type LatLon } from "./geo.ts";
 
 const LEGEND: { status: MapStatus; label: string }[] = [
   { status: "on-time", label: "On time" },

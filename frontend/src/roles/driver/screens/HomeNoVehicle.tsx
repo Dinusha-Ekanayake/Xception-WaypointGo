@@ -457,7 +457,7 @@ export default function HomeNoVehicle({
   return (
     <div
       className={cx(
-        "relative mx-auto flex h-full max-h-full w-full flex-col overflow-hidden font-go select-none transition-colors",
+        "relative mx-auto flex h-full max-h-full w-full flex-col overflow-hidden font-go select-none transition-colors short:h-auto short:min-h-full short:max-h-none short:overflow-visible",
         isNight ? "bg-[#161616] text-white" : "bg-[#E7F3F2] text-[#000000]"
       )}
     >
@@ -604,12 +604,12 @@ export default function HomeNoVehicle({
       </div>
 
       {/* Scrollable Container with dynamic mask fade (ONLY this feed scrolls) */}
-      <div style={maskStyle} className="relative flex-1 min-h-0 px-6 overflow-hidden">
+      <div style={maskStyle} className="relative flex-1 min-h-0 px-6 overflow-hidden short:flex-none short:overflow-visible">
         <div
           ref={scrollRef}
           {...handlers}
           aria-label="Notifications"
-          className="h-full overflow-y-auto overscroll-contain pb-6 no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden snap-y snap-mandatory scroll-smooth"
+          className="h-full overflow-y-auto overscroll-contain pb-6 short:h-auto short:overflow-visible no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden snap-y snap-mandatory scroll-smooth"
         >
           <div
             style={{

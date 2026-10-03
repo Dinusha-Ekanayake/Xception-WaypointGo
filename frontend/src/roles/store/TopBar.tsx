@@ -4,6 +4,7 @@ import { CountBadge, Icon, ShellActions, cx } from "@shared/ui";
 import AccountMenu from "./AccountMenu.tsx";
 import { initials } from "./ui.tsx";
 import { clock } from "@shared/wording";
+import { useKeptSince } from "@shared/offline";
 
 // The store's top bar from "02 Home" (mobile and desktop). Connection state is always on screen: the
 // resilient tier keeps working offline, and the manager must know an order is
@@ -40,11 +41,17 @@ export default function TopBar({
 }): React.JSX.Element {
   // Phones have no sidebar, so the account menu opens from here as a bottom sheet.
   const [account, setAccount] = useState(false);
+  // When a screen shows what this device kept rather than the server's answer, say from when (#201).
+  const since = useKeptSince();
   const sync = !online
     ? waiting > 0
       ? `Offline · ${waiting} saved on this phone`
-      : "Offline · showing last sync"
-    : waiting > 0
+      : since
+        ? `Offline · showing ${clock(since)}`
+        : "Offline · showing last sync"
+    : since
+      ? `Server unreachable · showing ${clock(since)}`
+      : waiting > 0
       ? `Sending ${waiting}…`
       : syncing
         ? "Syncing…"

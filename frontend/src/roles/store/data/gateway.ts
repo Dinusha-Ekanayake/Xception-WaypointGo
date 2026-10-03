@@ -1,6 +1,6 @@
 import { request, requestAll } from "@shared/api/client";
 import { send, type Command, type CommandAck } from "@shared/api/commands";
-import { drain, drainUploads, enqueue, saveUpload } from "@shared/offline";
+import { drain, drainUploads, enqueue, readThrough, saveUpload } from "@shared/offline";
 import type {
   CalendarAnswer,
   CatalogueStatusView,
@@ -71,25 +71,30 @@ export type StoreGateway = {
 
 function liveGateway(accountId: string): StoreGateway {
   const q = encodeURIComponent;
+  // Reads are kept on the device so an offline reload still shows the store's
+  // orders, deliveries and receipts (issue #201). Not kept: the delivery date
+  // and the handover state, which are the server's rule and the PIN's state
+  // now, and would mislead from the device.
+  const kept = <T>(key: string, read: () => Promise<T>) => readThrough(accountId, `store:${key}`, read);
   return {
     sample: false,
     // Paths match the controllers in ordering, receipt, warehouse and referencedata.
-    outlet: (id, signal) => request(`/api/reference/outlets/${q(id)}`, { signal }),
+    outlet: (id, signal) => kept(`outlet:${id}`, () => request(`/api/reference/outlets/${q(id)}`, { signal })),
     // One outlet's orders are a page at a time on the server; the screens group
     // them by day, so they read the whole list.
-    orders: (outletId, signal) => requestAll(`/api/orders?outlet=${q(outletId)}`, { signal }, "cursor"),
-    history: (orderId, signal) => request(`/api/orders/${q(orderId)}/timeline`, { signal }),
+    orders: (outletId, signal) => kept(`orders:${outletId}`, () => requestAll(`/api/orders?outlet=${q(outletId)}`, { signal }, "cursor")),
+    history: (orderId, signal) => kept(`history:${orderId}`, () => request(`/api/orders/${q(orderId)}/timeline`, { signal })),
     // The catalogue is a page at a time on the server (cursor param `after`); the
     // picker filters locally, so it reads the whole brand.
-    catalogue: (brand, signal) => requestAll(`/api/warehouse/catalogue?brand=${q(brand)}`, { signal }),
+    catalogue: (brand, signal) => kept(`catalogue:${brand}`, () => requestAll(`/api/warehouse/catalogue?brand=${q(brand)}`, { signal })),
     catalogueStatus: (signal) => request(`/api/warehouse/catalogue/status`, { signal }),
-    calendar: (date, signal) => request(`/api/reference/calendar/${q(date)}`, { signal }),
+    calendar: (date, signal) => kept(`calendar:${date}`, () => request(`/api/reference/calendar/${q(date)}`, { signal })),
     deliveryDate: (outletId, requestedDate, signal) =>
       request(`/api/orders/delivery-date?outlet=${q(outletId)}&requestedDate=${q(requestedDate)}`, { signal }),
-    pendingReceipts: (outletId, signal) => request(`/api/receipts/pending?outlet=${q(outletId)}`, { signal }),
-    receipt: (orderId, signal) => request(`/api/receipts/${q(orderId)}`, { signal }),
+    pendingReceipts: (outletId, signal) => kept(`pending:${outletId}`, () => request(`/api/receipts/pending?outlet=${q(outletId)}`, { signal })),
+    receipt: (orderId, signal) => kept(`receipt:${orderId}`, () => request(`/api/receipts/${q(orderId)}`, { signal })),
     handover: (orderId, signal) => request(`/api/receipts/${q(orderId)}/handover`, { signal }),
-    custody: (orderId, signal) => request(`/api/receipts/${q(orderId)}/custody`, { signal }),
+    custody: (orderId, signal) => kept(`custody:${orderId}`, () => request(`/api/receipts/${q(orderId)}/custody`, { signal })),
     keepPhoto: ({ id, orderId, receiptId, blob }) =>
       saveUpload(accountId, {
         id,
@@ -99,10 +104,11 @@ function liveGateway(accountId: string): StoreGateway {
         blob,
       }),
     sendPhotos: () => drainUploads(accountId),
-    deliveries: (outletId, date, signal) => request(`/api/execution/deliveries?outlet=${q(outletId)}&date=${q(date)}`, { signal }),
-    issuesFor: (orderId, signal) => request(`/api/issues/by-subject?type=order&id=${q(orderId)}`, { signal }),
-    profile: (signal) => request(`/api/profile`, { signal }),
-    outletDetails: (outletId, signal) => request(`/api/reference/outlets/${q(outletId)}/details`, { signal }),
+    deliveries: (outletId, date, signal) =>
+      kept(`deliveries:${outletId}:${date}`, () => request(`/api/execution/deliveries?outlet=${q(outletId)}&date=${q(date)}`, { signal })),
+    issuesFor: (orderId, signal) => kept(`issues:${orderId}`, () => request(`/api/issues/by-subject?type=order&id=${q(orderId)}`, { signal })),
+    profile: (signal) => kept("profile", () => request(`/api/profile`, { signal })),
+    outletDetails: (outletId, signal) => kept(`details:${outletId}`, () => request(`/api/reference/outlets/${q(outletId)}/details`, { signal })),
     send: (command) => send(command),
     queue: (command) => enqueue(accountId, "store_manager", command),
     // Kept writes first, then kept photos: the server links a photo to its issue in either order.

@@ -387,7 +387,7 @@ export default function RouteNextStop({
   return (
     <div
       className={cx(
-        "relative mx-auto flex h-full max-h-full w-full flex-col font-go select-none transition-colors overflow-hidden",
+        "relative mx-auto flex h-full max-h-full w-full flex-col font-go select-none transition-colors overflow-hidden short:h-auto short:min-h-full short:max-h-none short:overflow-visible",
         isNight ? "bg-[#161616] text-white" : "bg-[#E7F3F2] text-black"
       )}
     >
@@ -469,12 +469,12 @@ export default function RouteNextStop({
       )}
 
       {/* ---- Scrollable Area (Stops scroll) with dynamic top fade on scroll ----------------------------- */}
-      <div style={maskStyle} className="relative flex-1 min-h-0 overflow-hidden mt-4">
+      <div style={maskStyle} className="relative flex-1 min-h-0 overflow-hidden mt-4 short:flex-none short:overflow-visible">
         {/* Scroll content container with rubber band bounce & scroll gestures */}
         <div
           ref={scrollRef}
           {...handlers}
-          className="h-full overflow-y-auto overscroll-contain px-[25px] pb-[110px] no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="h-full overflow-y-auto overscroll-contain px-[25px] pb-[110px] short:h-auto short:overflow-visible no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           <div
             style={{

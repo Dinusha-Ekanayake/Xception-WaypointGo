@@ -40,7 +40,7 @@ export default function RunCompleteScreen({
   return (
     <div
       className={cx(
-        "relative mx-auto flex h-full max-h-full w-full flex-col font-go select-none transition-colors overflow-hidden justify-between",
+        "relative mx-auto flex h-full max-h-full w-full flex-col font-go select-none transition-colors overflow-hidden justify-between short:h-auto short:min-h-full short:max-h-none short:overflow-visible",
         isNight ? "bg-[#161616] text-white" : "bg-[#E7F3F2] text-black"
       )}
     >
