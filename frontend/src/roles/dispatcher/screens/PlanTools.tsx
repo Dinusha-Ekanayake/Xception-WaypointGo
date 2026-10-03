@@ -1,7 +1,7 @@
 "use client";
 
 import type { SnapshotView } from "@shared/domain/types";
-import { Menu, Segmented, cx, type MenuItem } from "@shared/ui";
+import { Icon, Menu, Segmented, cx, type MenuItem } from "@shared/ui";
 import { clock } from "@shared/wording";
 import DayPicker from "./DayTools.tsx";
 
@@ -70,10 +70,13 @@ export default function PlanTools({
             align="right"
             items={items}
             onSelect={(id) => onView(id === "" ? null : id)}
-            className="flex min-w-[170px] flex-col rounded-go-card bg-go-card px-4 py-1.5 text-left shadow-go-card"
+            className="flex min-w-[190px] items-center justify-between gap-3 rounded-go-card bg-go-card px-4 py-1.5 text-left shadow-go-card"
           >
-            <span className="text-[10px] font-medium tracking-wide text-go-secondary uppercase">Plan</span>
-            <span className="text-sm font-medium text-go-ink">{current ? current.label : workingLabel}</span>
+            <span className="flex flex-col">
+              <span className="text-[10px] font-medium tracking-wide text-go-secondary uppercase">Plan</span>
+              <span className="text-sm font-medium text-go-ink">{current ? current.label : workingLabel}</span>
+            </span>
+            <Icon name="chevron-down" />
           </Menu>
           <button type="button" disabled={!online || busy || !draft || viewing !== null} onClick={onSave} className={cx(pill, "disabled:cursor-not-allowed disabled:opacity-40")}>
             Save snapshot
@@ -88,6 +91,7 @@ export default function PlanTools({
             ]}
             onSelect={(id) => onRegenerate(id === "keep")}
             className={pill}
+            chevron
           >
             Regenerate
           </Menu>

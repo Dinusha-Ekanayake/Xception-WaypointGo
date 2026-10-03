@@ -56,7 +56,8 @@ export default function PlanTrip({
   const [showChecks, setShowChecks] = useState(false);
 
   return (
-    <section aria-label={`${trip.vehicleId} trip ${trip.tripNumber}`} className="flex w-full flex-col gap-3 rounded-[24px] bg-go-card p-5 shadow-go-card lg:max-w-[360px]">
+    <section aria-label={`${trip.vehicleId} trip ${trip.tripNumber}`} className="flex w-full flex-col rounded-[24px] bg-go-card shadow-go-card lg:max-h-[calc(100dvh-330px)] lg:max-w-[360px]">
+      <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-5 pb-3">
       <div>
         <h2 className="flex flex-wrap items-center gap-2 text-[19px] font-medium text-go-ink">
           {`${trip.vehicleId} Trip ${trip.tripNumber}`} <Pill tone="success">{trip.brandCode}</Pill> {trip.districtName}
@@ -123,8 +124,9 @@ export default function PlanTrip({
         </div>
       )}
 
+      </div>
       {mode === "view" && (
-        <div className="mt-auto flex flex-col gap-2">
+        <div className="flex flex-col gap-2 px-5 pt-2 pb-5">
           {editable && <PrimaryButton onClick={() => setMode("edit")}>Edit this trip</PrimaryButton>}
           {canReplan && <SecondaryButton onClick={() => setMode("move")}>Move to another vehicle</SecondaryButton>}
         </div>
@@ -150,7 +152,7 @@ export function tripChecks(plan: PlanView, tripId: string): ConstraintResultView
 function Timeline({ plan, load, orders, vehicle }: { plan: PlanView; load: TripLoad; orders: Map<string, OrderView>; vehicle: VehicleView | undefined }): React.JSX.Element {
   const { trip } = load;
   return (
-    <ol aria-label="Stops in order" className="flex flex-col">
+    <ol aria-label="Stops in order" className="relative flex flex-col before:absolute before:top-4 before:bottom-4 before:left-[67px] before:w-0.5 before:bg-go-rule">
       <Row time={hhmm(trip.plannedDeparture)} dot="hollow" title={`Depart ${plan.depotCode}`} />
       {trip.stops.map((stop) => {
         const order = orders.get(stop.orderId);
@@ -175,7 +177,7 @@ function Row({ time, dot, title, note, aside }: { time: string; dot: "filled" | 
   return (
     <li className="flex items-start gap-3 py-1.5">
       <span className="w-11 shrink-0 text-[14px] font-medium tabular-nums text-go-ink">{time}</span>
-      <span aria-hidden className={`mt-1.5 size-2.5 shrink-0 rounded-full border-2 border-go-teal ${dot === "filled" ? "bg-go-teal" : "bg-go-card"}`} />
+      <span aria-hidden className={`relative z-10 mt-1.5 size-2.5 shrink-0 rounded-full border-2 border-go-teal ${dot === "filled" ? "bg-go-teal" : "bg-go-card"}`} />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[14px] font-medium text-go-ink">{title}</span>
         {note && <span className="block text-xs text-go-secondary">{note}</span>}

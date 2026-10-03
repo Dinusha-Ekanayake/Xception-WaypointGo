@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { OrderView, PlanView, VehicleView } from "@shared/domain/types";
-import { KpiCard, Pill } from "@shared/ui";
+import { Pill, cx } from "@shared/ui";
 import { capacityLabel, typeLabel } from "../data/fleet.ts";
 import { board, summarise, type TripLoad } from "../data/plan.ts";
 import {
@@ -63,19 +63,21 @@ export default function PlanBoard({
   return (
     <>
       <div className="flex w-full gap-3.5 max-lg:flex-wrap">
-        <KpiCard label="Orders" value={`${summary.served} of ${summary.orders}`} note={`planned · ${summary.deferred} deferred${summary.unservable ? ` · ${summary.unservable} cannot be served` : ""}`} />
-        <KpiCard label="Vehicles" value={summary.vehiclesUsed} note={`in use · ${summary.vehiclesIdle} idle`} />
-        <KpiCard
+        <Kpi label="Orders" tag={summary.deferred > 0 ? `${summary.deferred} deferred` : undefined} tone="danger" value={summary.served} note={`planned of ${summary.orders}${summary.unservable ? ` · ${summary.unservable} cannot be served` : ""}`} />
+        <Kpi label="Vehicles" value={summary.vehiclesUsed} note={`in use · ${summary.vehiclesIdle} idle`} />
+        <Kpi
           label="Low-load trips"
+          tag="under 70% full"
+          tone="warning"
           value={low.trips}
-          note={low.trips > 0 ? `under 70% full · ${low.spareM3} m³ spare` : "none under 70% full"}
-          valueClassName={low.trips > 0 ? "text-go-warning-text" : "text-go-ink"}
+          note={low.trips > 0 ? `${low.trips === 1 ? "trip" : "trips"} · ${low.spareM3} m³ spare` : "trips · none to merge"}
         />
-        <KpiCard
+        <Kpi
           label="Late risk"
+          tag={risk ? "over 35% chance" : undefined}
+          tone="danger"
           value={risk ? `${risk.high} high` : "Not scored"}
-          note={risk ? `${risk.low} low · over 35% chance` : published ? (predictions.loading ? "Reading the scoring…" : "The time predictor has not scored this plan") : "A draft is scored once it is published"}
-          valueClassName={risk && risk.high > 0 ? "text-go-danger-strong" : "text-go-ink"}
+          note={risk ? `${risk.low} low` : published ? (predictions.loading ? "Reading the scoring…" : "The time predictor has not scored this plan") : "A draft is scored once it is published"}
         />
       </div>
 
@@ -137,6 +139,20 @@ export default function PlanBoard({
         )}
       </div>
     </>
+  );
+}
+
+/** A KPI card as the plan is drawn: the label with a coloured tag at the right, a big number, a line under it. */
+function Kpi({ label, value, note, tag, tone = "danger" }: { label: string; value: React.ReactNode; note: string; tag?: string; tone?: "danger" | "warning" }): React.JSX.Element {
+  return (
+    <div className="flex min-w-0 flex-1 flex-col gap-0.5 rounded-go-card-l bg-go-card px-[18px] py-3.5 shadow-go-card">
+      <p className="flex items-center justify-between gap-2 text-xs text-go-secondary">
+        <span className="truncate">{label}</span>
+        {tag && <span className={cx("shrink-0 font-medium", tone === "danger" ? "text-go-danger-strong" : "text-go-warning-text")}>{tag}</span>}
+      </p>
+      <p className="truncate text-2xl font-medium text-go-ink">{value}</p>
+      <p className="truncate text-xs text-go-secondary">{note}</p>
+    </div>
   );
 }
 
