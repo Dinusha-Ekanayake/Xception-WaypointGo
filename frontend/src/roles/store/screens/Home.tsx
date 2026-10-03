@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { ApiError } from "@shared/api/problem";
 import type { DeliveryRecordView, IssueView, OrderStatus, OrderView, OutletView, PendingReceiptView } from "@shared/domain/types";
-import { Icon, Notice, Pending, cx } from "@shared/ui";
+import { Icon, Notice, cx } from "@shared/ui";
 import { cases, addDays, clock, cutoffLabel, dayLabel, depotToday, editable, greeting, hhmm, onTheWay, temperatureLabel, untilCutoff } from "../data/format.ts";
 import { isOpenIssue, issueCard, loaderShortUnits } from "../data/issues.ts";
 import NextStop from "./NextStop.tsx";
@@ -51,6 +51,7 @@ export default function Home({
   onPlace,
   onReceive,
   onTrack,
+  notifications,
 }: {
   orders: OrderView[];
   loading: boolean;
@@ -65,6 +66,8 @@ export default function Home({
   onPlace: () => void;
   onReceive: (orderId: string) => void;
   onTrack: () => void;
+  /** The notifications column on desktops (issue #118). */
+  notifications: ReactNode;
 }): React.JSX.Element {
   const [left, setLeft] = useState(() => untilCutoff());
   useEffect(() => {
@@ -176,13 +179,7 @@ export default function Home({
 
         {/* Desktop: the notifications column from "02 Home". */}
         <aside className="hidden lg:block">
-          <Card label="Notifications">
-            <h2 className="flex items-center gap-2 text-[18px] font-medium text-black">
-              <Icon name="bell" />
-              Notifications
-            </h2>
-            <Pending what="Your notifications" waitingOn="the Notification module (#14)" />
-          </Card>
+          <Card label="Notifications">{notifications}</Card>
         </aside>
       </div>
     </div>

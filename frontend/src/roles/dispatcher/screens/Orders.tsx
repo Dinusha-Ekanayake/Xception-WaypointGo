@@ -85,6 +85,8 @@ export default function Orders({
         subtitle={`${orders.data ? `${f.due} due` : "Loading"} · ${scopeLabel} · ${formatDay(date)}`}
         online={online}
         lastSyncedAt={orders.loadedAt}
+        onSync={orders.refresh}
+        syncing={orders.loading}
         tools={<DayPicker date={date} onDate={onDate} />}
       />
 

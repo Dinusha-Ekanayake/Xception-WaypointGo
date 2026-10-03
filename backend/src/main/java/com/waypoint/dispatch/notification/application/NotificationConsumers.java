@@ -9,6 +9,7 @@ import com.waypoint.dispatch.execution.contract.ExecutionEvents.VehicleFaultRepo
 import com.waypoint.dispatch.issues.contract.IssueEvents.IssueEscalated;
 import com.waypoint.dispatch.issues.contract.IssueEvents.IssueRaised;
 import com.waypoint.dispatch.loading.contract.LoadingEvents.LoadingShortfall;
+import com.waypoint.dispatch.loading.contract.LoadingEvents.ReleasedStop;
 import com.waypoint.dispatch.loading.contract.LoadingEvents.TripReleased;
 import com.waypoint.dispatch.notification.domain.RoutedEvent;
 import com.waypoint.dispatch.notification.domain.RoutedEvent.Subject;
@@ -353,7 +354,11 @@ final class NotificationConsumers {
 
   // ---- Loading -------------------------------------------------------------------
 
-  /** R-EXE-08: the driver's vehicle is ready. With no driver, LOD-05 tells the dispatcher. */
+  /**
+   * R-EXE-08: the driver's vehicle is ready. With no driver, LOD-05 tells the dispatcher. The
+   * depot's other loaders hear the trip left (R-NOT-10; the one who released it is the actor and is
+   * not told), and each outlet on it hears its stop number and expected arrival (R-NOT-11, R-RCP-02).
+   */
   @Component
   static class OnTripReleased extends NotificationConsumer<TripReleased> {
     OnTripReleased(Notifier notifier) {
@@ -372,12 +377,28 @@ final class NotificationConsumers {
 
     @Override
     Routed route(TripReleased e) {
-      return new Routed()
+      Routed r = new Routed()
           .on(e.serviceDate())
           .fact("serviceDate", e.serviceDate()).fact("vehicleId", e.vehicleId())
           .fact("stopCount", e.stops().size()).fact("depotCode", e.depotCode())
           .to(new Target(ScopeKind.VEHICLE, e.vehicleId(), "trip:" + e.tripId(), Map.of(), subject("trip", e.tripId())))
           .to(ScopeKind.DEPOT, e.depotCode(), "trip", e.tripId());
+      // One target per stop, so an outlet visited twice is told about each visit.
+      for (ReleasedStop stop : e.stops()) {
+        if (stop.outletId() == null) {
+          continue;
+        }
+        r.to(
+            new Target(
+                ScopeKind.OUTLET,
+                stop.outletId(),
+                "stop:" + stop.sequence() + ":" + stop.outletId(),
+                Map.of(
+                    "stopNumber", String.valueOf(stop.sequence()),
+                    "plannedArrival", stop.plannedArrival() == null ? "-" : time(stop.plannedArrival())),
+                subject("trip", e.tripId())));
+      }
+      return r;
     }
   }
 
