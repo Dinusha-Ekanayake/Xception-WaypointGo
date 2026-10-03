@@ -238,7 +238,7 @@ export function OrdersScreen({
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "CONFIRMED":
-        return <span className="rounded-md bg-[#e5f4ef] px-2 py-0.5 text-xs font-bold text-[#006b57]">CONFIRMED</span>;
+        return <span className="rounded-md bg-go-subtle px-2 py-0.5 text-xs font-bold text-go-teal">CONFIRMED</span>;
       case "ALLOCATED":
         return <span className="rounded-md bg-[#e0f2fe] px-2 py-0.5 text-xs font-bold text-[#0284c7]">ALLOCATED</span>;
       case "LOADING":
@@ -254,7 +254,7 @@ export function OrdersScreen({
       case "FAILED":
         return <span className="rounded-md bg-[#fee2e2] px-2 py-0.5 text-xs font-bold text-[#b91c1c]">{status}</span>;
       default:
-        return <span className="rounded-md bg-[#f0f4f2] px-2 py-0.5 text-xs font-bold text-[#4d6356]">{status}</span>;
+        return <span className="rounded-md bg-go-subtle px-2 py-0.5 text-xs font-bold text-go-secondary">{status}</span>;
     }
   };
 
@@ -267,14 +267,14 @@ export function OrdersScreen({
       case "Tech":
         return <span className="rounded-md bg-[#e0f2fe] px-2 py-0.5 text-xs font-bold text-[#0284c7]">Tech</span>;
       default:
-        return <span className="rounded-md bg-[#f0f4f2] px-2 py-0.5 text-xs font-bold text-[#4d6356]">{brand}</span>;
+        return <span className="rounded-md bg-go-subtle px-2 py-0.5 text-xs font-bold text-go-secondary">{brand}</span>;
     }
   };
 
   return (
     <div className="space-y-6">
       {/* 3 Sub-tabs Navigation */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#dce9e5] pb-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-go-rule pb-3">
         <div className="flex flex-wrap items-center gap-2">
           {/* Sub-tab 1: Today's Orders */}
           <button
@@ -282,8 +282,8 @@ export function OrdersScreen({
             onClick={() => setSubTab("today")}
             className={`flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-bold transition-all ${
               subTab === "today"
-                ? "bg-[#006b57] text-white shadow-sm"
-                : "bg-white text-[#344940] border border-[#dce8e2] hover:bg-[#edf8f5]"
+                ? "bg-go-teal text-white shadow-sm"
+                : "bg-white text-go-secondary border border-go-rule hover:bg-go-subtle"
             }`}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-4" aria-hidden="true">
@@ -293,7 +293,7 @@ export function OrdersScreen({
               <line x1="3" y1="10" x2="21" y2="10" />
             </svg>
             <span>Today's orders</span>
-            <span className={`rounded-full px-2 py-0.5 text-xs ${subTab === "today" ? "bg-white/20 text-white" : "bg-[#edf4f0] text-[#006b57]"}`}>
+            <span className={`rounded-full px-2 py-0.5 text-xs ${subTab === "today" ? "bg-white/20 text-white" : "bg-go-subtle text-go-teal"}`}>
               {todayCount}
             </span>
           </button>
@@ -305,7 +305,7 @@ export function OrdersScreen({
             className={`flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-bold transition-all ${
               subTab === "deferred"
                 ? "bg-[#b45309] text-white shadow-sm"
-                : "bg-white text-[#344940] border border-[#dce8e2] hover:bg-[#fffbeb]"
+                : "bg-white text-go-secondary border border-go-rule hover:bg-[#fffbeb]"
             }`}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-4" aria-hidden="true">
@@ -326,7 +326,7 @@ export function OrdersScreen({
             className={`flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-bold transition-all ${
               subTab === "all"
                 ? "bg-[#1e293b] text-white shadow-sm"
-                : "bg-white text-[#344940] border border-[#dce8e2] hover:bg-[#f1f5f9]"
+                : "bg-white text-go-secondary border border-go-rule hover:bg-[#f1f5f9]"
             }`}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-4" aria-hidden="true">
@@ -337,7 +337,7 @@ export function OrdersScreen({
               <polyline points="10 9 9 9 8 9" />
             </svg>
             <span>All orders</span>
-            <span className={`rounded-full px-2 py-0.5 text-xs ${subTab === "all" ? "bg-white/20 text-white" : "bg-[#f1f5f9] text-[#475569]"}`}>
+            <span className={`rounded-full px-2 py-0.5 text-xs ${subTab === "all" ? "bg-white/20 text-white" : "bg-[#f1f5f9] text-go-secondary"}`}>
               {allCount}
             </span>
           </button>
@@ -362,8 +362,8 @@ export function OrdersScreen({
           }}
           className={`${card} flex flex-col justify-between p-5 cursor-pointer transition-all ${
             brandFilter.toLowerCase() === "fresh"
-              ? "border-2 border-[#006b57] bg-gradient-to-b from-[#e8f7f2] to-[#f5fbf8] shadow-md ring-2 ring-[#a0e9d6]"
-              : "hover:border-[#a0e9d6] hover:bg-[#fafcfb]"
+              ? "border-2 border-go-teal bg-gradient-to-b from-[#e8f7f2] to-[#f5fbf8] shadow-md ring-2 ring-go-mint"
+              : "hover:border-go-mint hover:bg-go-subtle"
           }`}
         >
           <div className="flex items-start justify-between gap-3">
@@ -377,7 +377,7 @@ export function OrdersScreen({
               </span>
               <div>
                 <span className="text-[11px] font-bold uppercase tracking-wider text-[#15803d]">Category</span>
-                <h3 className="text-base font-bold text-[#10251e]">Waypoint Fresh</h3>
+                <h3 className="text-base font-bold text-go-ink">Waypoint Fresh</h3>
               </div>
             </div>
             <span className="rounded-xl bg-[#dcfce7] px-2.5 py-1 text-sm font-extrabold text-[#15803d]">
@@ -385,24 +385,24 @@ export function OrdersScreen({
             </span>
           </div>
 
-          <div className="mt-4 grid grid-cols-2 gap-2 border-t border-[#edf4f0] pt-3 text-xs">
+          <div className="mt-4 grid grid-cols-2 gap-2 border-t border-go-subtle pt-3 text-xs">
             <div>
-              <p className="text-[#58685f]">Total Weight</p>
-              <p className="text-sm font-bold text-[#10251e]">
+              <p className="text-go-secondary">Total Weight</p>
+              <p className="text-sm font-bold text-go-ink">
                 {freshStats.weight.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg
               </p>
             </div>
             <div>
-              <p className="text-[#58685f]">Total Volume</p>
-              <p className="text-sm font-bold text-[#10251e]">{freshStats.volume.toFixed(1)} m³</p>
+              <p className="text-go-secondary">Total Volume</p>
+              <p className="text-sm font-bold text-go-ink">{freshStats.volume.toFixed(1)} m³</p>
             </div>
           </div>
 
-          <div className="mt-2.5 flex items-center justify-between border-t border-[#edf4f0]/60 pt-2 text-[11px] text-[#58685f]">
+          <div className="mt-2.5 flex items-center justify-between border-t border-go-subtle/60 pt-2 text-[11px] text-go-secondary">
             <span>
-              Split: <strong className="font-semibold text-[#1e3a30]">{freshStats.chilled} Chl · {freshStats.ambient} Amb</strong>
+              Split: <strong className="font-semibold text-go-ink">{freshStats.chilled} Chl · {freshStats.ambient} Amb</strong>
             </span>
-            <span className="font-medium text-[#006b57]">Daily &lt; 08:00</span>
+            <span className="font-medium text-go-teal">Daily &lt; 08:00</span>
           </div>
         </div>
 
@@ -417,7 +417,7 @@ export function OrdersScreen({
           className={`${card} flex flex-col justify-between p-5 cursor-pointer transition-all ${
             brandFilter.toLowerCase() === "style"
               ? "border-2 border-[#7e22ce] bg-gradient-to-b from-[#f9f5ff] to-[#fdfcff] shadow-md ring-2 ring-[#d8b4fe]"
-              : "hover:border-[#d8b4fe] hover:bg-[#fafcfb]"
+              : "hover:border-[#d8b4fe] hover:bg-go-subtle"
           }`}
         >
           <div className="flex items-start justify-between gap-3">
@@ -429,7 +429,7 @@ export function OrdersScreen({
               </span>
               <div>
                 <span className="text-[11px] font-bold uppercase tracking-wider text-[#7e22ce]">Category</span>
-                <h3 className="text-base font-bold text-[#10251e]">Waypoint Style</h3>
+                <h3 className="text-base font-bold text-go-ink">Waypoint Style</h3>
               </div>
             </div>
             <span className="rounded-xl bg-[#f3e8ff] px-2.5 py-1 text-sm font-extrabold text-[#7e22ce]">
@@ -437,22 +437,22 @@ export function OrdersScreen({
             </span>
           </div>
 
-          <div className="mt-4 grid grid-cols-2 gap-2 border-t border-[#edf4f0] pt-3 text-xs">
+          <div className="mt-4 grid grid-cols-2 gap-2 border-t border-go-subtle pt-3 text-xs">
             <div>
-              <p className="text-[#58685f]">Total Weight</p>
-              <p className="text-sm font-bold text-[#10251e]">
+              <p className="text-go-secondary">Total Weight</p>
+              <p className="text-sm font-bold text-go-ink">
                 {styleStats.weight.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg
               </p>
             </div>
             <div>
-              <p className="text-[#58685f]">Total Volume</p>
-              <p className="text-sm font-bold text-[#10251e]">{styleStats.volume.toFixed(1)} m³</p>
+              <p className="text-go-secondary">Total Volume</p>
+              <p className="text-sm font-bold text-go-ink">{styleStats.volume.toFixed(1)} m³</p>
             </div>
           </div>
 
-          <div className="mt-2.5 flex items-center justify-between border-t border-[#edf4f0]/60 pt-2 text-[11px] text-[#58685f]">
+          <div className="mt-2.5 flex items-center justify-between border-t border-go-subtle/60 pt-2 text-[11px] text-go-secondary">
             <span>
-              Type: <strong className="font-semibold text-[#1e3a30]">Apparel &amp; Cartons</strong>
+              Type: <strong className="font-semibold text-go-ink">Apparel &amp; Cartons</strong>
             </span>
             <span className="font-medium text-[#7e22ce]">Midday windows</span>
           </div>
@@ -469,7 +469,7 @@ export function OrdersScreen({
           className={`${card} flex flex-col justify-between p-5 cursor-pointer transition-all ${
             brandFilter.toLowerCase() === "tech"
               ? "border-2 border-[#0284c7] bg-gradient-to-b from-[#f0f9ff] to-[#f8fcff] shadow-md ring-2 ring-[#7dd3fc]"
-              : "hover:border-[#7dd3fc] hover:bg-[#fafcfb]"
+              : "hover:border-[#7dd3fc] hover:bg-go-subtle"
           }`}
         >
           <div className="flex items-start justify-between gap-3">
@@ -483,7 +483,7 @@ export function OrdersScreen({
               </span>
               <div>
                 <span className="text-[11px] font-bold uppercase tracking-wider text-[#0284c7]">Category</span>
-                <h3 className="text-base font-bold text-[#10251e]">Waypoint Tech</h3>
+                <h3 className="text-base font-bold text-go-ink">Waypoint Tech</h3>
               </div>
             </div>
             <span className="rounded-xl bg-[#e0f2fe] px-2.5 py-1 text-sm font-extrabold text-[#0284c7]">
@@ -491,22 +491,22 @@ export function OrdersScreen({
             </span>
           </div>
 
-          <div className="mt-4 grid grid-cols-2 gap-2 border-t border-[#edf4f0] pt-3 text-xs">
+          <div className="mt-4 grid grid-cols-2 gap-2 border-t border-go-subtle pt-3 text-xs">
             <div>
-              <p className="text-[#58685f]">Total Weight</p>
-              <p className="text-sm font-bold text-[#10251e]">
+              <p className="text-go-secondary">Total Weight</p>
+              <p className="text-sm font-bold text-go-ink">
                 {techStats.weight.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg
               </p>
             </div>
             <div>
-              <p className="text-[#58685f]">Total Volume</p>
-              <p className="text-sm font-bold text-[#10251e]">{techStats.volume.toFixed(1)} m³</p>
+              <p className="text-go-secondary">Total Volume</p>
+              <p className="text-sm font-bold text-go-ink">{techStats.volume.toFixed(1)} m³</p>
             </div>
           </div>
 
-          <div className="mt-2.5 flex items-center justify-between border-t border-[#edf4f0]/60 pt-2 text-[11px] text-[#58685f]">
+          <div className="mt-2.5 flex items-center justify-between border-t border-go-subtle/60 pt-2 text-[11px] text-go-secondary">
             <span>
-              Type: <strong className="font-semibold text-[#1e3a30]">Consumer Electronics</strong>
+              Type: <strong className="font-semibold text-go-ink">Consumer Electronics</strong>
             </span>
             <span className="font-medium text-[#0284c7]">Secure Bays</span>
           </div>
@@ -516,13 +516,13 @@ export function OrdersScreen({
       {/* Filter Controls Bar */}
       <div className={`${card} space-y-4 p-5 sm:p-6`}>
         <div className="flex items-center justify-between">
-          <span className="text-xs font-bold uppercase tracking-wider text-[#006b57]">
+          <span className="text-xs font-bold uppercase tracking-wider text-go-teal">
             Filters &amp; Search ({filteredOrders.length} orders shown)
           </span>
           {(dateFilter !== "all" || timeFilter !== "all" || brandFilter !== "all" || depotFilter !== "all" || tempFilter !== "all" || statusFilter !== "all" || searchQuery) && (
             <button
               type="button"
-              className="text-xs font-semibold text-[#006b57] hover:underline"
+              className="text-xs font-semibold text-go-teal hover:underline"
               onClick={() => {
                 setDateFilter("all");
                 setTimeFilter("all");
@@ -540,7 +540,7 @@ export function OrdersScreen({
 
         <div className="grid gap-3.5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
           {/* Search */}
-          <label className="text-xs font-medium text-[#10251e]">
+          <label className="text-xs font-medium text-go-ink">
             Search Orders
             <input
               type="search"
@@ -552,7 +552,7 @@ export function OrdersScreen({
           </label>
 
           {/* Delivery Date Filter */}
-          <label className="text-xs font-medium text-[#10251e]">
+          <label className="text-xs font-medium text-go-ink">
             Delivery Date
             <select
               className={`${field} mt-1`}
@@ -569,7 +569,7 @@ export function OrdersScreen({
           </label>
 
           {/* Delivery Time Window Filter */}
-          <label className="text-xs font-medium text-[#10251e]">
+          <label className="text-xs font-medium text-go-ink">
             Time Window
             <select
               className={`${field} mt-1`}
@@ -585,7 +585,7 @@ export function OrdersScreen({
           </label>
 
           {/* Brand Filter */}
-          <label className="text-xs font-medium text-[#10251e]">
+          <label className="text-xs font-medium text-go-ink">
             Brand
             <select
               className={`${field} mt-1`}
@@ -600,7 +600,7 @@ export function OrdersScreen({
           </label>
 
           {/* Depot Filter */}
-          <label className="text-xs font-medium text-[#10251e]">
+          <label className="text-xs font-medium text-go-ink">
             Depot Hub
             <select
               className={`${field} mt-1`}
@@ -614,7 +614,7 @@ export function OrdersScreen({
           </label>
 
           {/* Temperature Requirement */}
-          <label className="text-xs font-medium text-[#10251e]">
+          <label className="text-xs font-medium text-go-ink">
             Temperature
             <select
               className={`${field} mt-1`}
@@ -628,7 +628,7 @@ export function OrdersScreen({
           </label>
 
           {/* Status Filter */}
-          <label className="text-xs font-medium text-[#10251e]">
+          <label className="text-xs font-medium text-go-ink">
             Order Status
             <select
               className={`${field} mt-1`}
@@ -650,8 +650,8 @@ export function OrdersScreen({
 
       {/* Orders Table / List */}
       {filteredOrders.length > 0 ? (
-        <div className={`${card} divide-y divide-[#edf3ef] overflow-hidden`}>
-          <div className="hidden bg-[#f8faf9] px-5 py-3 text-xs font-bold uppercase tracking-wider text-[#58685f] md:grid md:grid-cols-12 md:gap-4">
+        <div className={`${card} divide-y divide-go-subtle overflow-hidden`}>
+          <div className="hidden bg-go-subtle px-5 py-3 text-xs font-bold uppercase tracking-wider text-go-secondary md:grid md:grid-cols-12 md:gap-4">
             <span className="md:col-span-3">Order Ref &amp; Brand</span>
             <span className="md:col-span-2">Outlet &amp; Depot</span>
             <span className="md:col-span-2">Date &amp; Window</span>
@@ -663,51 +663,51 @@ export function OrdersScreen({
           {filteredOrders.map((order) => (
             <article
               key={order.orderId}
-              className="flex flex-col gap-3 p-4 transition-colors hover:bg-[#fafcfb] md:grid md:grid-cols-12 md:items-center md:gap-4 md:px-5 md:py-4"
+              className="flex flex-col gap-3 p-4 transition-colors hover:bg-go-subtle md:grid md:grid-cols-12 md:items-center md:gap-4 md:px-5 md:py-4"
             >
               {/* Order Ref & Brand */}
               <div className="md:col-span-3">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold text-[#10251e]">{order.orderRef}</span>
+                  <span className="text-sm font-bold text-go-ink">{order.orderRef}</span>
                   {getBrandBadge(order.brand)}
                 </div>
-                <p className="mt-0.5 text-xs text-[#58685f] truncate">
+                <p className="mt-0.5 text-xs text-go-secondary truncate">
                   ID: {order.orderId.slice(0, 8)}...
                 </p>
               </div>
 
               {/* Outlet & Depot */}
               <div className="md:col-span-2">
-                <span className="text-xs font-semibold text-[#10251e]">{order.outletId}</span>
-                <p className="text-xs text-[#58685f]">{order.depot} Depot</p>
+                <span className="text-xs font-semibold text-go-ink">{order.outletId}</span>
+                <p className="text-xs text-go-secondary">{order.depot} Depot</p>
               </div>
 
               {/* Delivery Date & Time Window */}
               <div className="md:col-span-2">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-medium text-[#10251e]">{order.deliveryDate}</span>
+                  <span className="text-xs font-medium text-go-ink">{order.deliveryDate}</span>
                   {order.deliveryDate === TODAY_DATE && (
-                    <span className="rounded-md bg-[#e5f4ef] px-1.5 py-0.2 text-[10px] font-bold text-[#006b57]">
+                    <span className="rounded-md bg-go-subtle px-1.5 py-0.2 text-[10px] font-bold text-go-teal">
                       TODAY
                     </span>
                   )}
                 </div>
-                <div className="mt-0.5 flex items-center gap-1 text-[11px] font-semibold text-[#006b57]">
+                <div className="mt-0.5 flex items-center gap-1 text-[11px] font-semibold text-go-teal">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-3 shrink-0" aria-hidden="true">
                     <circle cx="12" cy="12" r="10" />
                     <polyline points="12 6 12 12 16 14" />
                   </svg>
                   <span>{windowFor(order.outletId, order.brand).label}</span>
                 </div>
-                <p className="mt-0.5 text-[10px] text-[#58685f]">{order.itemCount} items</p>
+                <p className="mt-0.5 text-[10px] text-go-secondary">{order.itemCount} items</p>
               </div>
 
               {/* Authoritative Payload (Weight & Volume) */}
               <div className="md:col-span-2">
-                <div className="text-xs font-bold text-[#10251e]">
+                <div className="text-xs font-bold text-go-ink">
                   {Number(order.weightKg).toLocaleString()} kg
                 </div>
-                <div className="text-xs text-[#58685f]">
+                <div className="text-xs text-go-secondary">
                   {Number(order.volumeM3).toFixed(1)} m³ capacity
                 </div>
               </div>
@@ -719,7 +719,7 @@ export function OrdersScreen({
                   className={`rounded-md px-2 py-0.5 text-xs font-semibold ${
                     order.temperature.toLowerCase() === "chilled"
                       ? "bg-[#e0f2fe] text-[#0284c7]"
-                      : "bg-[#f0f4f2] text-[#4d6356]"
+                      : "bg-go-subtle text-go-secondary"
                   }`}
                 >
                   {order.temperature.toLowerCase() === "chilled" ? "Chilled (Refrigerated)" : "Ambient"}
@@ -731,7 +731,7 @@ export function OrdersScreen({
                 <button
                   type="button"
                   onClick={() => setSelectedOrder(order)}
-                  className="flex items-center gap-1 rounded-xl border border-[#b8e5d9] bg-[#f0fbf7] px-3 py-1.5 text-xs font-bold text-[#006b57] transition-colors hover:bg-[#d8f5ee]"
+                  className="flex items-center gap-1 rounded-xl border border-go-mint bg-go-subtle px-3 py-1.5 text-xs font-bold text-go-teal transition-colors hover:bg-go-mint"
                 >
                   <span>Details</span>
                   <span aria-hidden="true">›</span>
@@ -742,14 +742,14 @@ export function OrdersScreen({
         </div>
       ) : (
         <div className={`${card} flex flex-col items-center justify-center p-10 text-center`}>
-          <span className="grid size-14 place-items-center rounded-2xl bg-[#edf3ef] text-[#58685f]">
+          <span className="grid size-14 place-items-center rounded-2xl bg-go-subtle text-go-secondary">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-7" aria-hidden="true">
               <circle cx="11" cy="11" r="8" />
               <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
           </span>
-          <h3 className="mt-3 text-base font-semibold text-[#10251e]">No matching orders in {subTab === "today" ? "today's list" : subTab === "deferred" ? "deferred list" : "all orders"}</h3>
-          <p className="mt-1 max-w-sm text-xs text-[#58685f]">
+          <h3 className="mt-3 text-base font-semibold text-go-ink">No matching orders in {subTab === "today" ? "today's list" : subTab === "deferred" ? "deferred list" : "all orders"}</h3>
+          <p className="mt-1 max-w-sm text-xs text-go-secondary">
             Try adjusting your search criteria or switching to the All orders tab.
           </p>
         </div>
@@ -763,23 +763,23 @@ export function OrdersScreen({
           aria-labelledby="order-detail-title"
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs"
         >
-          <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-3xl bg-white p-6 sm:p-7 shadow-2xl border border-[#d6e7df] animate-in fade-in duration-200">
+          <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-3xl bg-white p-6 sm:p-7 shadow-2xl border border-go-rule animate-in fade-in duration-200">
             {/* Header */}
-            <div className="flex items-start justify-between border-b border-[#edf4f0] pb-4">
+            <div className="flex items-start justify-between border-b border-go-subtle pb-4">
               <div>
                 <div className="flex items-center gap-2.5">
-                  <span className="text-xl font-bold text-[#10251e]">{selectedOrder.orderRef}</span>
+                  <span className="text-xl font-bold text-go-ink">{selectedOrder.orderRef}</span>
                   {getBrandBadge(selectedOrder.brand)}
                   {getStatusBadge(selectedOrder.status)}
                 </div>
-                <p id="order-detail-title" className="mt-1 text-xs text-[#58685f]">
-                  Order UUID: <code className="font-mono text-[11px] text-[#2c4c3e]">{selectedOrder.orderId}</code> · Version: {selectedOrder.rowVersion}
+                <p id="order-detail-title" className="mt-1 text-xs text-go-secondary">
+                  Order UUID: <code className="font-mono text-[11px] text-go-ink">{selectedOrder.orderId}</code> · Version: {selectedOrder.rowVersion}
                 </p>
               </div>
 
               <button
                 type="button"
-                className="grid size-9 place-items-center rounded-full text-[#58685f] hover:bg-[#f0f4f2] text-lg"
+                className="grid size-9 place-items-center rounded-full text-go-secondary hover:bg-go-subtle text-lg"
                 onClick={() => setSelectedOrder(null)}
                 aria-label="Close"
               >
@@ -789,34 +789,34 @@ export function OrdersScreen({
 
             <div className="mt-5 space-y-5 text-sm">
               {/* Order Meta & Destination */}
-              <div className="grid gap-3 sm:grid-cols-5 rounded-2xl border border-[#edf3ef] bg-[#f8faf9] p-4 text-xs">
+              <div className="grid gap-3 sm:grid-cols-5 rounded-2xl border border-go-subtle bg-go-subtle p-4 text-xs">
                 <div>
-                  <span className="text-[#58685f]">Outlet Destination</span>
-                  <p className="font-bold text-[#10251e] text-sm mt-0.5">{selectedOrder.outletId}</p>
+                  <span className="text-go-secondary">Outlet Destination</span>
+                  <p className="font-bold text-go-ink text-sm mt-0.5">{selectedOrder.outletId}</p>
                 </div>
                 <div>
-                  <span className="text-[#58685f]">Servicing Depot</span>
-                  <p className="font-bold text-[#10251e] text-sm mt-0.5">{selectedOrder.depot}</p>
+                  <span className="text-go-secondary">Servicing Depot</span>
+                  <p className="font-bold text-go-ink text-sm mt-0.5">{selectedOrder.depot}</p>
                 </div>
                 <div>
-                  <span className="text-[#58685f]">Delivery Date</span>
-                  <p className="font-bold text-[#10251e] text-sm mt-0.5">{selectedOrder.deliveryDate}</p>
+                  <span className="text-go-secondary">Delivery Date</span>
+                  <p className="font-bold text-go-ink text-sm mt-0.5">{selectedOrder.deliveryDate}</p>
                 </div>
                 <div>
-                  <span className="text-[#58685f]">Receiving Window</span>
-                  <p className="font-bold text-[#006b57] text-sm mt-0.5">
+                  <span className="text-go-secondary">Receiving Window</span>
+                  <p className="font-bold text-go-teal text-sm mt-0.5">
                     {windowFor(selectedOrder.outletId, selectedOrder.brand).label}
                   </p>
                 </div>
                 <div>
-                  <span className="text-[#58685f]">Temperature Zone</span>
-                  <p className="font-bold text-[#10251e] text-sm mt-0.5 capitalize">{selectedOrder.temperature}</p>
+                  <span className="text-go-secondary">Temperature Zone</span>
+                  <p className="font-bold text-go-ink text-sm mt-0.5 capitalize">{selectedOrder.temperature}</p>
                 </div>
               </div>
 
               {/* Authoritative Order-Level Weight & Volume Box */}
-              <div className="rounded-2xl border border-[#b8e5d9] bg-[#f0fbf7] p-4.5 space-y-2">
-                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#006b57]">
+              <div className="rounded-2xl border border-go-mint bg-go-subtle p-4.5 space-y-2">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-go-teal">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-4" aria-hidden="true">
                     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                   </svg>
@@ -824,21 +824,21 @@ export function OrdersScreen({
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2 pt-1">
-                  <div className="rounded-xl border border-[#d6ebe0] bg-white p-3">
-                    <span className="text-xs text-[#58685f]">Authoritative Order Weight</span>
-                    <p className="text-lg font-bold text-[#006b57]">
+                  <div className="rounded-xl border border-go-rule bg-white p-3">
+                    <span className="text-xs text-go-secondary">Authoritative Order Weight</span>
+                    <p className="text-lg font-bold text-go-teal">
                       {Number(selectedOrder.weightKg).toLocaleString()} kg
                     </p>
                   </div>
-                  <div className="rounded-xl border border-[#d6ebe0] bg-white p-3">
-                    <span className="text-xs text-[#58685f]">Authoritative Order Volume</span>
-                    <p className="text-lg font-bold text-[#006b57]">
+                  <div className="rounded-xl border border-go-rule bg-white p-3">
+                    <span className="text-xs text-go-secondary">Authoritative Order Volume</span>
+                    <p className="text-lg font-bold text-go-teal">
                       {Number(selectedOrder.volumeM3).toFixed(2)} m³
                     </p>
                   </div>
                 </div>
 
-                <p className="text-[11px] text-[#4d6356] pt-1">
+                <p className="text-[11px] text-go-secondary pt-1">
                   Note: Capacity planning and vehicle fit constraints read authoritative order totals returned by the warehouse. Individual SKU line items are descriptive.
                 </p>
               </div>
@@ -846,18 +846,18 @@ export function OrdersScreen({
               {/* Order Lines (GET /api/admin/orders/{id}) */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-[#10251e]">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-go-ink">
                     Current Line Records ({orderLines.length} product lines)
                   </h4>
-                  <span className="text-[11px] text-[#58685f]">GET /api/admin/orders/{selectedOrder.orderId}</span>
+                  <span className="text-[11px] text-go-secondary">GET /api/admin/orders/{selectedOrder.orderId}</span>
                 </div>
 
                 {detailLoading ? (
-                  <div className="p-4 text-center text-xs text-[#58685f]">Loading line items...</div>
+                  <div className="p-4 text-center text-xs text-go-secondary">Loading line items...</div>
                 ) : orderLines.length > 0 ? (
-                  <div className="overflow-hidden rounded-xl border border-[#edf3ef]">
+                  <div className="overflow-hidden rounded-xl border border-go-subtle">
                     <table className="w-full text-left text-xs">
-                      <thead className="bg-[#f8faf9] text-[#58685f] border-b border-[#edf3ef]">
+                      <thead className="bg-go-subtle text-go-secondary border-b border-go-subtle">
                         <tr>
                           <th className="p-2.5 font-bold">Product ID / SKU</th>
                           <th className="p-2.5 font-bold">Item Description</th>
@@ -865,72 +865,72 @@ export function OrdersScreen({
                           <th className="p-2.5 font-bold text-right">Revision</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-[#edf3ef]">
+                      <tbody className="divide-y divide-go-subtle">
                         {orderLines.map((line, idx) => (
-                          <tr key={`${line.productId}-${idx}`} className="hover:bg-[#fafcfb]">
-                            <td className="p-2.5 font-mono font-medium text-[#10251e]">{line.productId}</td>
-                            <td className="p-2.5 text-[#344940]">{line.productName || "Standard Catalog SKU"}</td>
-                            <td className="p-2.5 text-right font-bold text-[#10251e]">{line.quantity}</td>
-                            <td className="p-2.5 text-right text-[#58685f]">Rev {line.revision}</td>
+                          <tr key={`${line.productId}-${idx}`} className="hover:bg-go-subtle">
+                            <td className="p-2.5 font-mono font-medium text-go-ink">{line.productId}</td>
+                            <td className="p-2.5 text-go-secondary">{line.productName || "Standard Catalog SKU"}</td>
+                            <td className="p-2.5 text-right font-bold text-go-ink">{line.quantity}</td>
+                            <td className="p-2.5 text-right text-go-secondary">Rev {line.revision}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
                 ) : (
-                  <p className="text-xs text-[#58685f] italic">No line items available for this order record.</p>
+                  <p className="text-xs text-go-secondary italic">No line items available for this order record.</p>
                 )}
               </div>
 
               {/* Status Timeline (GET /api/admin/orders/{id}/timeline) */}
               <div className="space-y-2 pt-2">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-[#10251e]">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-go-ink">
                     Recorded Status Changes &amp; Timeline
                   </h4>
-                  <span className="text-[11px] text-[#58685f]">GET /api/admin/orders/{selectedOrder.orderId}/timeline</span>
+                  <span className="text-[11px] text-go-secondary">GET /api/admin/orders/{selectedOrder.orderId}/timeline</span>
                 </div>
 
                 {detailLoading ? (
-                  <div className="p-4 text-center text-xs text-[#58685f]">Loading status timeline...</div>
+                  <div className="p-4 text-center text-xs text-go-secondary">Loading status timeline...</div>
                 ) : timeline.length > 0 ? (
                   <div className="space-y-2.5">
                     {timeline.map((change, idx) => (
                       <div
                         key={idx}
-                        className="flex items-start gap-3 rounded-xl border border-[#edf3ef] bg-[#f9fbfb] p-3 text-xs"
+                        className="flex items-start gap-3 rounded-xl border border-go-subtle bg-[#f9fbfb] p-3 text-xs"
                       >
-                        <span className="grid size-6 shrink-0 place-items-center rounded-full bg-[#e5f4ef] text-[#006b57] text-[10px] font-bold">
+                        <span className="grid size-6 shrink-0 place-items-center rounded-full bg-go-subtle text-go-teal text-[10px] font-bold">
                           {idx + 1}
                         </span>
                         <div className="space-y-1 min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
                             {change.from && (
                               <>
-                                <span className="font-semibold text-[#58685f]">{change.from}</span>
-                                <span className="text-[#58685f]">→</span>
+                                <span className="font-semibold text-go-secondary">{change.from}</span>
+                                <span className="text-go-secondary">→</span>
                               </>
                             )}
-                            <span className="font-bold text-[#006b57]">{change.to}</span>
-                            <span className="text-[#58685f]">·</span>
-                            <span className="text-[11px] text-[#58685f]">{new Date(change.at).toLocaleString()}</span>
+                            <span className="font-bold text-go-teal">{change.to}</span>
+                            <span className="text-go-secondary">·</span>
+                            <span className="text-[11px] text-go-secondary">{new Date(change.at).toLocaleString()}</span>
                           </div>
-                          <p className="text-[#10251e] font-medium">{change.reason}</p>
+                          <p className="text-go-ink font-medium">{change.reason}</p>
                           {change.actorName && (
-                            <p className="text-[11px] text-[#58685f]">Actor: {change.actorName}</p>
+                            <p className="text-[11px] text-go-secondary">Actor: {change.actorName}</p>
                           )}
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-xs text-[#58685f] italic">No historical status transitions recorded.</p>
+                  <p className="text-xs text-go-secondary italic">No historical status transitions recorded.</p>
                 )}
               </div>
             </div>
 
             {/* Footer */}
-            <div className="mt-6 flex justify-end border-t border-[#edf4f0] pt-4">
+            <div className="mt-6 flex justify-end border-t border-go-subtle pt-4">
               <button
                 type="button"
                 className={secondary}

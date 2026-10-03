@@ -248,9 +248,9 @@ export function DepotsScreen({
   const getDockBadgeColor = (dockType: "rear_dock" | "street" | "mall_bay") => {
     switch (dockType) {
       case "rear_dock":
-        return "bg-[#d8f5ee] text-[#006b57] border border-[#a0e9d6]";
+        return "bg-go-mint text-go-teal border border-go-mint";
       case "street":
-        return "bg-[#fff7e6] text-[#b45309] border border-[#fed7aa]";
+        return "bg-go-warning-tint text-[#b45309] border border-[#fed7aa]";
       case "mall_bay":
         return "bg-[#e0e7ff] text-[#4338ca] border border-[#c7d2fe]";
     }
@@ -259,7 +259,7 @@ export function DepotsScreen({
   const getBrandBadgeColor = (brand: "Fresh" | "Style" | "Tech") => {
     switch (brand) {
       case "Fresh":
-        return "bg-[#d8f4e7] text-[#006b47]";
+        return "bg-go-mint text-[#006b47]";
       case "Style":
         return "bg-[#f3e8ff] text-[#6b21a8]";
       case "Tech":
@@ -270,12 +270,12 @@ export function DepotsScreen({
   return (
     <div className="space-y-6">
       {/* Top Bar: Single Depot Selection & Actions */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#dce8e2] pb-5">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-go-rule pb-5">
         <div className="flex flex-wrap items-center gap-3">
-          <label className="text-sm font-semibold text-[#10251e]">
+          <label className="text-sm font-semibold text-go-ink">
             Operating Depot:
             <select
-              className="ml-2.5 min-h-11 rounded-xl border border-[#cbded5] bg-white px-3.5 py-2 text-base font-semibold text-[#006b57] shadow-2xs outline-none focus:border-[#00896d] focus:ring-2 focus:ring-[#bdf3e9]"
+              className="ml-2.5 min-h-11 rounded-xl border border-go-rule bg-white px-3.5 py-2 text-base font-semibold text-go-teal shadow-2xs outline-none focus:border-go-teal focus:ring-2 focus:ring-go-mint"
               value={currentDepot.id}
               onChange={(e) => setSelectedDepotId(e.target.value)}
             >
@@ -313,12 +313,12 @@ export function DepotsScreen({
           onClick={() => setActiveComponent("people")}
           className={`flex h-full flex-col justify-between rounded-2xl p-5 text-left transition-all ${
             activeComponent === "people"
-              ? "border-2 border-[#006b57] bg-gradient-to-b from-[#e8f7f2] to-[#f5fbf8] shadow-md ring-2 ring-[#a0e9d6]"
-              : "border border-[#dce8e2] bg-white hover:border-[#b8dacf] hover:bg-[#fafcfb]"
+              ? "border-2 border-go-teal bg-gradient-to-b from-[#e8f7f2] to-[#f5fbf8] shadow-md ring-2 ring-go-mint"
+              : "border border-go-rule bg-white hover:border-go-rule hover:bg-go-subtle"
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="grid size-10 place-items-center rounded-xl bg-[#d8f5ee] text-[#006b57] shadow-2xs">
+            <span className="grid size-10 place-items-center rounded-xl bg-go-mint text-go-teal shadow-2xs">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-5" aria-hidden="true">
                 <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
                 <circle cx="9" cy="7" r="4" />
@@ -328,16 +328,16 @@ export function DepotsScreen({
             </span>
             <span
               className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                activeComponent === "people" ? "bg-[#006b57] text-white" : "bg-[#edf4f0] text-[#58685f]"
+                activeComponent === "people" ? "bg-go-teal text-white" : "bg-go-subtle text-go-secondary"
               }`}
             >
               {activeComponent === "people" ? "Active View" : "View"}
             </span>
           </div>
           <div className="mt-4">
-            <span className="text-xs font-bold uppercase tracking-wider text-[#58685f]">Depot Personnel</span>
-            <p className="mt-1 text-2xl font-bold text-[#10251e]">{depotPeople.length} People</p>
-            <p className="mt-1 text-xs text-[#58685f]">
+            <span className="text-xs font-bold uppercase tracking-wider text-go-secondary">Depot Personnel</span>
+            <p className="mt-1 text-2xl font-bold text-go-ink">{depotPeople.length} People</p>
+            <p className="mt-1 text-xs text-go-secondary">
               Drivers &amp; store managers
             </p>
           </div>
@@ -349,12 +349,12 @@ export function DepotsScreen({
           onClick={() => setActiveComponent("vehicles")}
           className={`flex h-full flex-col justify-between rounded-2xl p-5 text-left transition-all ${
             activeComponent === "vehicles"
-              ? "border-2 border-[#006b57] bg-gradient-to-b from-[#e8f7f2] to-[#f5fbf8] shadow-md ring-2 ring-[#a0e9d6]"
-              : "border border-[#dce8e2] bg-white hover:border-[#b8dacf] hover:bg-[#fafcfb]"
+              ? "border-2 border-go-teal bg-gradient-to-b from-[#e8f7f2] to-[#f5fbf8] shadow-md ring-2 ring-go-mint"
+              : "border border-go-rule bg-white hover:border-go-rule hover:bg-go-subtle"
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="grid size-10 place-items-center rounded-xl bg-[#d8f5ee] text-[#006b57] shadow-2xs">
+            <span className="grid size-10 place-items-center rounded-xl bg-go-mint text-go-teal shadow-2xs">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-5" aria-hidden="true">
                 <rect x="2" y="5" width="12" height="11" rx="1" />
                 <path d="M14 8h4.5a1 1 0 0 1 .8.4l2.4 3.2a1 1 0 0 1 .3.6V16h-3" />
@@ -365,16 +365,16 @@ export function DepotsScreen({
             </span>
             <span
               className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                activeComponent === "vehicles" ? "bg-[#006b57] text-white" : "bg-[#edf4f0] text-[#58685f]"
+                activeComponent === "vehicles" ? "bg-go-teal text-white" : "bg-go-subtle text-go-secondary"
               }`}
             >
               {activeComponent === "vehicles" ? "Active View" : "View"}
             </span>
           </div>
           <div className="mt-4">
-            <span className="text-xs font-bold uppercase tracking-wider text-[#58685f]">Stationed Fleet</span>
-            <p className="mt-1 text-2xl font-bold text-[#10251e]">{depotVehicles.length} Vehicles</p>
-            <p className="mt-1 text-xs text-[#58685f]">
+            <span className="text-xs font-bold uppercase tracking-wider text-go-secondary">Stationed Fleet</span>
+            <p className="mt-1 text-2xl font-bold text-go-ink">{depotVehicles.length} Vehicles</p>
+            <p className="mt-1 text-xs text-go-secondary">
               Vans &amp; trucks fleet
             </p>
           </div>
@@ -386,12 +386,12 @@ export function DepotsScreen({
           onClick={() => setActiveComponent("stores")}
           className={`flex h-full flex-col justify-between rounded-2xl p-5 text-left transition-all ${
             activeComponent === "stores"
-              ? "border-2 border-[#006b57] bg-gradient-to-b from-[#e8f7f2] to-[#f5fbf8] shadow-md ring-2 ring-[#a0e9d6]"
-              : "border border-[#dce8e2] bg-white hover:border-[#b8dacf] hover:bg-[#fafcfb]"
+              ? "border-2 border-go-teal bg-gradient-to-b from-[#e8f7f2] to-[#f5fbf8] shadow-md ring-2 ring-go-mint"
+              : "border border-go-rule bg-white hover:border-go-rule hover:bg-go-subtle"
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="grid size-10 place-items-center rounded-xl bg-[#d8f5ee] text-[#006b57] shadow-2xs">
+            <span className="grid size-10 place-items-center rounded-xl bg-go-mint text-go-teal shadow-2xs">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-5" aria-hidden="true">
                 <path d="M3 9l1.5-6h15L21 9" />
                 <path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0" />
@@ -401,16 +401,16 @@ export function DepotsScreen({
             </span>
             <span
               className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                activeComponent === "stores" ? "bg-[#006b57] text-white" : "bg-[#edf4f0] text-[#58685f]"
+                activeComponent === "stores" ? "bg-go-teal text-white" : "bg-go-subtle text-go-secondary"
               }`}
             >
               {activeComponent === "stores" ? "Active View" : "View"}
             </span>
           </div>
           <div className="mt-4">
-            <span className="text-xs font-bold uppercase tracking-wider text-[#58685f]">Connected Stores</span>
-            <p className="mt-1 text-2xl font-bold text-[#10251e]">{depotOutlets.length} Outlets</p>
-            <p className="mt-1 text-xs text-[#58685f]">
+            <span className="text-xs font-bold uppercase tracking-wider text-go-secondary">Connected Stores</span>
+            <p className="mt-1 text-2xl font-bold text-go-ink">{depotOutlets.length} Outlets</p>
+            <p className="mt-1 text-xs text-go-secondary">
               Fresh, Style &amp; Tech retail
             </p>
           </div>
@@ -435,12 +435,12 @@ export function DepotsScreen({
               </div>
 
               {/* Role filter pills */}
-              <div className="flex flex-wrap items-center gap-1.5 rounded-xl bg-[#edf4f0] p-1 text-xs">
+              <div className="flex flex-wrap items-center gap-1.5 rounded-xl bg-go-subtle p-1 text-xs">
                 <button
                   type="button"
                   onClick={() => setRoleFilter("all")}
                   className={`rounded-lg px-3 py-1.5 font-semibold transition ${
-                    roleFilter === "all" ? "bg-white text-[#006b57] shadow-2xs" : "text-[#58685f] hover:text-[#10251e]"
+                    roleFilter === "all" ? "bg-white text-go-teal shadow-2xs" : "text-go-secondary hover:text-go-ink"
                   }`}
                 >
                   All ({depotPeople.length})
@@ -449,7 +449,7 @@ export function DepotsScreen({
                   type="button"
                   onClick={() => setRoleFilter("driver")}
                   className={`rounded-lg px-3 py-1.5 font-semibold transition ${
-                    roleFilter === "driver" ? "bg-white text-[#006b57] shadow-2xs" : "text-[#58685f] hover:text-[#10251e]"
+                    roleFilter === "driver" ? "bg-white text-go-teal shadow-2xs" : "text-go-secondary hover:text-go-ink"
                   }`}
                 >
                   Drivers ({driversCount})
@@ -458,7 +458,7 @@ export function DepotsScreen({
                   type="button"
                   onClick={() => setRoleFilter("store_manager")}
                   className={`rounded-lg px-3 py-1.5 font-semibold transition ${
-                    roleFilter === "store_manager" ? "bg-white text-[#006b57] shadow-2xs" : "text-[#58685f] hover:text-[#10251e]"
+                    roleFilter === "store_manager" ? "bg-white text-go-teal shadow-2xs" : "text-go-secondary hover:text-go-ink"
                   }`}
                 >
                   Store managers ({storeManagersCount})
@@ -466,13 +466,13 @@ export function DepotsScreen({
               </div>
             </div>
 
-            <p className="text-xs text-[#58685f]">
+            <p className="text-xs text-go-secondary">
               Showing {filteredPeople.length} of {depotPeople.length} personnel in {currentDepot.name}
             </p>
 
             {/* People List */}
             {filteredPeople.length ? (
-              <div className={`${card} divide-y divide-[#edf3ef]`}>
+              <div className={`${card} divide-y divide-go-subtle`}>
                 {filteredPeople.map((person) => {
                   const isDriver = person.personas.includes("driver");
                   const isStoreMgr = person.personas.includes("store_manager");
@@ -480,16 +480,16 @@ export function DepotsScreen({
                   return (
                     <article
                       key={person.id}
-                      className="flex flex-wrap items-center justify-between gap-4 p-4 transition-colors hover:bg-[#fafcfb] sm:px-5"
+                      className="flex flex-wrap items-center justify-between gap-4 p-4 transition-colors hover:bg-go-subtle sm:px-5"
                     >
                       <div className="flex items-center gap-3.5">
                         <div
                           className={`grid size-11 shrink-0 place-items-center rounded-full text-xs font-bold ${
                             isDriver
-                              ? "bg-[#d8f4e7] text-[#006b47]"
+                              ? "bg-go-mint text-[#006b47]"
                               : isStoreMgr
                               ? "bg-[#e0f2fe] text-[#0369a1]"
-                              : "bg-[#eef4f1] text-[#3e5648]"
+                              : "bg-go-subtle text-[#3e5648]"
                           }`}
                         >
                           {person.name
@@ -500,9 +500,9 @@ export function DepotsScreen({
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="font-semibold text-[#10251e]">{person.name}</span>
+                            <span className="font-semibold text-go-ink">{person.name}</span>
                             {isDriver && (
-                              <span className="rounded-md bg-[#d8f4e7] px-2 py-0.5 text-xs font-semibold text-[#006b47]">
+                              <span className="rounded-md bg-go-mint px-2 py-0.5 text-xs font-semibold text-[#006b47]">
                                 Driver {person.vehicleType ? `· ${person.vehicleType}` : ""}
                               </span>
                             )}
@@ -530,7 +530,7 @@ export function DepotsScreen({
                 })}
               </div>
             ) : (
-              <div className={`${card} p-8 text-center text-sm text-[#58685f]`}>
+              <div className={`${card} p-8 text-center text-sm text-go-secondary`}>
                 No personnel match the selected role or search filter.
               </div>
             )}
@@ -542,7 +542,7 @@ export function DepotsScreen({
           <div className="space-y-4">
             {/* Filter Bar with Vehicle Brand filter */}
             <div className={`${card} grid gap-3 p-4 sm:grid-cols-3`}>
-              <label className="text-sm font-medium text-[#10251e]">
+              <label className="text-sm font-medium text-go-ink">
                 Search vehicle
                 <input
                   type="search"
@@ -554,7 +554,7 @@ export function DepotsScreen({
               </label>
 
               {/* Brand Filter */}
-              <label className="text-sm font-medium text-[#10251e]">
+              <label className="text-sm font-medium text-go-ink">
                 Filter by Brand
                 <select
                   className={`${field} mt-1`}
@@ -570,7 +570,7 @@ export function DepotsScreen({
                 </select>
               </label>
 
-              <label className="text-sm font-medium text-[#10251e]">
+              <label className="text-sm font-medium text-go-ink">
                 Vehicle type
                 <select
                   className={`${field} mt-1`}
@@ -584,31 +584,31 @@ export function DepotsScreen({
               </label>
             </div>
 
-            <p className="text-xs text-[#58685f]">
+            <p className="text-xs text-go-secondary">
               Showing {filteredVehicles.length} of {depotVehicles.length} vehicles stationed at {currentDepot.name}
             </p>
 
             {/* Vehicles List */}
             {filteredVehicles.length ? (
-              <div className={`${card} divide-y divide-[#edf3ef]`}>
+              <div className={`${card} divide-y divide-go-subtle`}>
                 {filteredVehicles.map((vehicle) => (
                   <article
                     key={vehicle.id}
-                    className="flex flex-wrap items-center justify-between gap-4 p-4 transition-colors hover:bg-[#fafcfb] sm:px-5"
+                    className="flex flex-wrap items-center justify-between gap-4 p-4 transition-colors hover:bg-go-subtle sm:px-5"
                   >
                     <div className="flex items-center gap-3.5">
-                      <div className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[#e5f4ef] text-[#006b57] shadow-2xs">
+                      <div className="grid size-12 shrink-0 place-items-center rounded-2xl bg-go-subtle text-go-teal shadow-2xs">
                         <VehicleTypeIcon type={vehicle.type} className="size-6" />
                       </div>
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-base font-semibold text-[#10251e]">{vehicle.id}</span>
-                          <span className="rounded-md bg-[#eef5f1] px-2 py-0.5 text-xs font-semibold text-[#2c4c3e]">
+                          <span className="text-base font-semibold text-go-ink">{vehicle.id}</span>
+                          <span className="rounded-md bg-go-subtle px-2 py-0.5 text-xs font-semibold text-go-ink">
                             {vehicle.type}
                           </span>
                           <span
                             className={`rounded-md px-2 py-0.5 text-xs font-semibold ${
-                              vehicle.temp.startsWith("Chilled") ? "bg-[#e0f2fe] text-[#0369a1]" : "bg-[#f0f4f2] text-[#4d6356]"
+                              vehicle.temp.startsWith("Chilled") ? "bg-[#e0f2fe] text-[#0369a1]" : "bg-go-subtle text-go-secondary"
                             }`}
                           >
                             {vehicle.temp}
@@ -623,7 +623,7 @@ export function DepotsScreen({
                       </Badge>
                       <button
                         type="button"
-                        className="flex items-center gap-1 rounded-xl border border-[#b8e5d9] bg-[#f0fbf7] px-3.5 py-1.5 text-xs font-bold text-[#006b57] transition-colors hover:bg-[#d8f5ee] hover:border-[#8adfcb]"
+                        className="flex items-center gap-1 rounded-xl border border-go-mint bg-go-subtle px-3.5 py-1.5 text-xs font-bold text-go-teal transition-colors hover:bg-go-mint hover:border-go-mint"
                         onClick={() => setSelectedVehicle(vehicle)}
                       >
                         <span>More info</span>
@@ -634,7 +634,7 @@ export function DepotsScreen({
                 ))}
               </div>
             ) : (
-              <div className={`${card} p-8 text-center text-sm text-[#58685f]`}>
+              <div className={`${card} p-8 text-center text-sm text-go-secondary`}>
                 No vehicles match the selected brand or filter.
               </div>
             )}
@@ -646,7 +646,7 @@ export function DepotsScreen({
           <div className="space-y-4">
             {/* Filter Bar */}
             <div className={`${card} grid gap-3 p-4 sm:grid-cols-3`}>
-              <label className="text-sm font-medium text-[#10251e]">
+              <label className="text-sm font-medium text-go-ink">
                 Search outlet
                 <input
                   type="search"
@@ -658,7 +658,7 @@ export function DepotsScreen({
               </label>
 
               {/* Brand Filter */}
-              <label className="text-sm font-medium text-[#10251e]">
+              <label className="text-sm font-medium text-go-ink">
                 Filter by Brand
                 <select
                   className={`${field} mt-1`}
@@ -674,7 +674,7 @@ export function DepotsScreen({
                 </select>
               </label>
 
-              <label className="text-sm font-medium text-[#10251e]">
+              <label className="text-sm font-medium text-go-ink">
                 Dock access type
                 <select
                   className={`${field} mt-1`}
@@ -689,25 +689,25 @@ export function DepotsScreen({
               </label>
             </div>
 
-            <p className="text-xs text-[#58685f]">
+            <p className="text-xs text-go-secondary">
               Showing {filteredOutlets.length} of {depotOutlets.length} connected stores supplied by {currentDepot.name}
             </p>
 
             {/* Outlets List (Clean rows without additional info paragraph, details available via More info button) */}
             {filteredOutlets.length ? (
-              <div className={`${card} divide-y divide-[#edf3ef]`}>
+              <div className={`${card} divide-y divide-go-subtle`}>
                 {filteredOutlets.map((outlet) => (
                   <article
                     key={outlet.id}
-                    className="flex flex-wrap items-center justify-between gap-4 p-4 transition-colors hover:bg-[#fafcfb] sm:px-5"
+                    className="flex flex-wrap items-center justify-between gap-4 p-4 transition-colors hover:bg-go-subtle sm:px-5"
                   >
                     <div className="flex items-center gap-3.5 min-w-0">
-                      <div className="grid size-11 shrink-0 place-items-center rounded-2xl bg-[#f0f9f5] text-[#006b57] shadow-2xs font-mono text-xs font-bold">
+                      <div className="grid size-11 shrink-0 place-items-center rounded-2xl bg-[#f0f9f5] text-go-teal shadow-2xs font-mono text-xs font-bold">
                         {outlet.id.slice(-3)}
                       </div>
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-base font-semibold text-[#10251e]">{outlet.id}</span>
+                          <span className="text-base font-semibold text-go-ink">{outlet.id}</span>
                           <span className={`rounded-md px-2 py-0.5 text-xs font-bold ${getBrandBadgeColor(outlet.brand)}`}>
                             {outlet.brand}
                           </span>
@@ -716,7 +716,7 @@ export function DepotsScreen({
                           </span>
                         </div>
                         {outlet.name && (
-                          <h3 className="mt-0.5 text-xs font-medium text-[#526a60] truncate">
+                          <h3 className="mt-0.5 text-xs font-medium text-go-secondary truncate">
                             {outlet.name}
                           </h3>
                         )}
@@ -727,7 +727,7 @@ export function DepotsScreen({
                       <Badge tone="blue">Connected</Badge>
                       <button
                         type="button"
-                        className="flex items-center gap-1 rounded-xl border border-[#b8e5d9] bg-[#f0fbf7] px-3.5 py-1.5 text-xs font-bold text-[#006b57] transition-colors hover:bg-[#d8f5ee] hover:border-[#8adfcb]"
+                        className="flex items-center gap-1 rounded-xl border border-go-mint bg-go-subtle px-3.5 py-1.5 text-xs font-bold text-go-teal transition-colors hover:bg-go-mint hover:border-go-mint"
                         onClick={() => setSelectedOutlet(outlet)}
                       >
                         <span>More info</span>
@@ -738,7 +738,7 @@ export function DepotsScreen({
                 ))}
               </div>
             ) : (
-              <div className={`${card} p-8 text-center text-sm text-[#58685f]`}>
+              <div className={`${card} p-8 text-center text-sm text-go-secondary`}>
                 No outlets match the selected brand or filter.
               </div>
             )}
@@ -754,27 +754,27 @@ export function DepotsScreen({
           aria-labelledby="outlet-details-title"
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs"
         >
-          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl bg-white p-6 sm:p-7 shadow-2xl border border-[#d6e7df] animate-in fade-in duration-200">
+          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl bg-white p-6 sm:p-7 shadow-2xl border border-go-rule animate-in fade-in duration-200">
             {/* Header */}
-            <div className="flex items-start justify-between border-b border-[#edf4f0] pb-4">
+            <div className="flex items-start justify-between border-b border-go-subtle pb-4">
               <div>
                 <div className="flex items-center gap-2.5">
-                  <span className="text-xl font-bold text-[#10251e]">{selectedOutlet.id}</span>
+                  <span className="text-xl font-bold text-go-ink">{selectedOutlet.id}</span>
                   <span className={`rounded-md px-2.5 py-0.5 text-xs font-bold ${getBrandBadgeColor(selectedOutlet.brand)}`}>
                     {selectedOutlet.brand}
                   </span>
-                  <span className="rounded-md bg-[#f0f4f2] px-2 py-0.5 text-xs font-medium text-[#4d6356]">
+                  <span className="rounded-md bg-go-subtle px-2 py-0.5 text-xs font-medium text-go-secondary">
                     {selectedOutlet.district} District
                   </span>
                 </div>
-                <h3 id="outlet-details-title" className="mt-1 text-base font-semibold text-[#10251e]">
+                <h3 id="outlet-details-title" className="mt-1 text-base font-semibold text-go-ink">
                   {selectedOutlet.name || `${selectedOutlet.district} ${selectedOutlet.brand} Outlet`}
                 </h3>
               </div>
 
               <button
                 type="button"
-                className="grid size-9 place-items-center rounded-full text-[#58685f] hover:bg-[#f0f4f2] text-lg"
+                className="grid size-9 place-items-center rounded-full text-go-secondary hover:bg-go-subtle text-lg"
                 onClick={() => setSelectedOutlet(null)}
                 aria-label="Close"
               >
@@ -785,21 +785,21 @@ export function DepotsScreen({
             {/* Outlet Details */}
             <div className="mt-5 space-y-3.5 text-sm">
               {/* 1. Store Manager */}
-              <div className="rounded-2xl border border-[#d6ebe0] bg-[#f8fbf9] p-4">
+              <div className="rounded-2xl border border-go-rule bg-go-subtle p-4">
                 <div className="flex items-start gap-3">
-                  <span className="grid size-10 place-items-center rounded-xl bg-[#d8f5ee] text-[#006b57] shrink-0">
+                  <span className="grid size-10 place-items-center rounded-xl bg-go-mint text-go-teal shrink-0">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-5" aria-hidden="true">
                       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                       <circle cx="12" cy="7" r="4" />
                     </svg>
                   </span>
                   <div>
-                    <span className="text-xs font-bold uppercase tracking-wider text-[#006b57]">Store Manager</span>
-                    <p className="text-base font-semibold text-[#10251e]">
+                    <span className="text-xs font-bold uppercase tracking-wider text-go-teal">Store Manager</span>
+                    <p className="text-base font-semibold text-go-ink">
                       {selectedOutlet.storeManager || "Unassigned"}
                     </p>
                     {(selectedOutlet.managerPhone || selectedOutlet.managerEmail) && (
-                      <p className="mt-1 text-xs text-[#58685f]">
+                      <p className="mt-1 text-xs text-go-secondary">
                         {selectedOutlet.managerPhone && <span>Phone: {selectedOutlet.managerPhone}</span>}
                         {selectedOutlet.managerPhone && selectedOutlet.managerEmail && <span className="mx-2">·</span>}
                         {selectedOutlet.managerEmail && <span>Email: {selectedOutlet.managerEmail}</span>}
@@ -810,45 +810,45 @@ export function DepotsScreen({
               </div>
 
               {/* 2. Dock Type & Details */}
-              <div className="rounded-2xl border border-[#d6ebe0] bg-[#f8fbf9] p-4">
+              <div className="rounded-2xl border border-go-rule bg-go-subtle p-4">
                 <div className="flex items-start gap-3">
-                  <span className="grid size-10 place-items-center rounded-xl bg-[#d8f5ee] text-[#006b57] shrink-0">
+                  <span className="grid size-10 place-items-center rounded-xl bg-go-mint text-go-teal shrink-0">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-5" aria-hidden="true">
                       <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
                       <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
                     </svg>
                   </span>
                   <div>
-                    <span className="text-xs font-bold uppercase tracking-wider text-[#006b57]">Unloading Dock Type</span>
+                    <span className="text-xs font-bold uppercase tracking-wider text-go-teal">Unloading Dock Type</span>
                     <div className="mt-1">
                       <span className={`inline-block rounded-md px-2.5 py-0.5 text-xs font-bold ${getDockBadgeColor(selectedOutlet.dockType)}`}>
                         {getDockLabel(selectedOutlet.dockType)}
                       </span>
                     </div>
                     {selectedOutlet.dockDetails && (
-                      <p className="mt-1.5 text-xs text-[#58685f]">{selectedOutlet.dockDetails}</p>
+                      <p className="mt-1.5 text-xs text-go-secondary">{selectedOutlet.dockDetails}</p>
                     )}
                   </div>
                 </div>
               </div>
 
               {/* 3. Delivery Time Window */}
-              <div className="rounded-2xl border border-[#d6ebe0] bg-[#f8fbf9] p-4">
+              <div className="rounded-2xl border border-go-rule bg-go-subtle p-4">
                 <div className="flex items-start gap-3">
-                  <span className="grid size-10 place-items-center rounded-xl bg-[#d8f5ee] text-[#006b57] shrink-0">
+                  <span className="grid size-10 place-items-center rounded-xl bg-go-mint text-go-teal shrink-0">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-5" aria-hidden="true">
                       <circle cx="12" cy="12" r="10" />
                       <polyline points="12 6 12 12 16 14" />
                     </svg>
                   </span>
                   <div>
-                    <span className="text-xs font-bold uppercase tracking-wider text-[#006b57]">Receiving Time Window</span>
-                    <p className="text-base font-bold text-[#10251e]">
+                    <span className="text-xs font-bold uppercase tracking-wider text-go-teal">Receiving Time Window</span>
+                    <p className="text-base font-bold text-go-ink">
                       {selectedOutlet.windowOpen} - {selectedOutlet.windowClose}
                     </p>
                     {selectedOutlet.windowNotes && (
-                      <p className="mt-1 text-xs text-[#58685f]">
-                        <strong className="font-semibold text-[#1e3a30]">Gate Notes:</strong> {selectedOutlet.windowNotes}
+                      <p className="mt-1 text-xs text-go-secondary">
+                        <strong className="font-semibold text-go-ink">Gate Notes:</strong> {selectedOutlet.windowNotes}
                       </p>
                     )}
                   </div>
@@ -857,22 +857,22 @@ export function DepotsScreen({
 
               {/* 4. Location & Vehicle constraints */}
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-2xl border border-[#edf3ef] bg-[#fafcfb] p-3.5">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#58685f]">Address</span>
-                  <p className="mt-0.5 text-xs font-medium text-[#10251e]">
+                <div className="rounded-2xl border border-go-subtle bg-go-subtle p-3.5">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-go-secondary">Address</span>
+                  <p className="mt-0.5 text-xs font-medium text-go-ink">
                     {selectedOutlet.address || `${selectedOutlet.district} Commercial Zone`}
                   </p>
                 </div>
-                <div className="rounded-2xl border border-[#edf3ef] bg-[#fafcfb] p-3.5">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#58685f]">Vehicle Limit</span>
-                  <p className="mt-0.5 text-xs font-medium text-[#10251e]">
+                <div className="rounded-2xl border border-go-subtle bg-go-subtle p-3.5">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-go-secondary">Vehicle Limit</span>
+                  <p className="mt-0.5 text-xs font-medium text-go-ink">
                     {selectedOutlet.maxVehicleType || "Van & Truck"}
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="mt-6 flex justify-end border-t border-[#edf4f0] pt-4">
+            <div className="mt-6 flex justify-end border-t border-go-subtle pt-4">
               <button
                 type="button"
                 className={secondary}
@@ -893,24 +893,24 @@ export function DepotsScreen({
           aria-labelledby="vehicle-details-title"
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs"
         >
-          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl bg-white p-6 sm:p-7 shadow-2xl border border-[#d6e7df] animate-in fade-in duration-200">
+          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl bg-white p-6 sm:p-7 shadow-2xl border border-go-rule animate-in fade-in duration-200">
             {/* Header */}
-            <div className="flex items-start justify-between border-b border-[#edf4f0] pb-4">
+            <div className="flex items-start justify-between border-b border-go-subtle pb-4">
               <div className="flex items-center gap-3.5">
-                <div className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[#e5f4ef] text-[#006b57] shadow-2xs">
+                <div className="grid size-12 shrink-0 place-items-center rounded-2xl bg-go-subtle text-go-teal shadow-2xs">
                   <VehicleTypeIcon type={selectedVehicle.type} className="size-6" />
                 </div>
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xl font-bold text-[#10251e]">{selectedVehicle.id}</span>
-                    <span className="rounded-md bg-[#eef5f1] px-2 py-0.5 text-xs font-semibold text-[#2c4c3e]">
+                    <span className="text-xl font-bold text-go-ink">{selectedVehicle.id}</span>
+                    <span className="rounded-md bg-go-subtle px-2 py-0.5 text-xs font-semibold text-go-ink">
                       {selectedVehicle.brand} {selectedVehicle.type}
                     </span>
                     <Badge tone={selectedVehicle.status === "Available" ? "green" : selectedVehicle.status === "Workshop" ? "amber" : "blue"}>
                       {selectedVehicle.status}
                     </Badge>
                   </div>
-                  <h3 id="vehicle-details-title" className="mt-1 text-xs font-medium text-[#526a60]">
+                  <h3 id="vehicle-details-title" className="mt-1 text-xs font-medium text-go-secondary">
                     Stationed at {currentDepot.name} ({currentDepot.id})
                   </h3>
                 </div>
@@ -918,7 +918,7 @@ export function DepotsScreen({
 
               <button
                 type="button"
-                className="grid size-9 place-items-center rounded-full text-[#58685f] hover:bg-[#f0f4f2] text-lg"
+                className="grid size-9 place-items-center rounded-full text-go-secondary hover:bg-go-subtle text-lg"
                 onClick={() => setSelectedVehicle(null)}
                 aria-label="Close"
               >
@@ -929,9 +929,9 @@ export function DepotsScreen({
             {/* Vehicle Details */}
             <div className="mt-5 space-y-3.5 text-sm">
               {/* 1. Last Assigned Driver */}
-              <div className="rounded-2xl border border-[#d6ebe0] bg-[#f8fbf9] p-4">
+              <div className="rounded-2xl border border-go-rule bg-go-subtle p-4">
                 <div className="flex items-start gap-3">
-                  <span className="grid size-10 place-items-center rounded-xl bg-[#d8f5ee] text-[#006b57] shrink-0">
+                  <span className="grid size-10 place-items-center rounded-xl bg-go-mint text-go-teal shrink-0">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-5" aria-hidden="true">
                       <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
                       <circle cx="9" cy="7" r="4" />
@@ -940,13 +940,13 @@ export function DepotsScreen({
                     </svg>
                   </span>
                   <div>
-                    <span className="text-xs font-bold uppercase tracking-wider text-[#006b57]">Last Assigned Driver</span>
+                    <span className="text-xs font-bold uppercase tracking-wider text-go-teal">Last Assigned Driver</span>
                     {selectedVehicle.lastDriver ? (
                       <>
-                        <p className="text-base font-semibold text-[#10251e]">
+                        <p className="text-base font-semibold text-go-ink">
                           {selectedVehicle.lastDriver.name}
                         </p>
-                        <p className="mt-1 text-xs text-[#58685f]">
+                        <p className="mt-1 text-xs text-go-secondary">
                           <span>ID: {selectedVehicle.lastDriver.id}</span>
                           <span className="mx-2">·</span>
                           <span>Phone: {selectedVehicle.lastDriver.phone}</span>
@@ -955,33 +955,33 @@ export function DepotsScreen({
                         </p>
                       </>
                     ) : (
-                      <p className="mt-1 text-xs text-[#58685f]">No driver currently assigned</p>
+                      <p className="mt-1 text-xs text-go-secondary">No driver currently assigned</p>
                     )}
                   </div>
                 </div>
               </div>
 
               {/* 2. Payload & Volume Capacity */}
-              <div className="rounded-2xl border border-[#d6ebe0] bg-[#f8fbf9] p-4">
-                <span className="block text-xs font-bold uppercase tracking-wider text-[#006b57] mb-2.5">
+              <div className="rounded-2xl border border-go-rule bg-go-subtle p-4">
+                <span className="block text-xs font-bold uppercase tracking-wider text-go-teal mb-2.5">
                   Payload &amp; Volume Capacity
                 </span>
                 <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-xl border border-[#edf3ef] bg-white p-3">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#58685f]">Max Weight</span>
-                    <p className="mt-0.5 text-base font-bold text-[#10251e]">
+                  <div className="rounded-xl border border-go-subtle bg-white p-3">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-go-secondary">Max Weight</span>
+                    <p className="mt-0.5 text-base font-bold text-go-ink">
                       {selectedVehicle.weightCapKg.toLocaleString()} kg
                     </p>
                   </div>
-                  <div className="rounded-xl border border-[#edf3ef] bg-white p-3">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#58685f]">Max Volume</span>
-                    <p className="mt-0.5 text-base font-bold text-[#10251e]">
+                  <div className="rounded-xl border border-go-subtle bg-white p-3">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-go-secondary">Max Volume</span>
+                    <p className="mt-0.5 text-base font-bold text-go-ink">
                       {selectedVehicle.volumeCapM3} m³
                     </p>
                   </div>
-                  <div className="rounded-xl border border-[#edf3ef] bg-white p-3">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#58685f]">Temp Zone</span>
-                    <p className="mt-0.5 text-sm font-bold text-[#006b57]">
+                  <div className="rounded-xl border border-go-subtle bg-white p-3">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-go-secondary">Temp Zone</span>
+                    <p className="mt-0.5 text-sm font-bold text-go-teal">
                       {selectedVehicle.temp}
                     </p>
                   </div>
@@ -989,26 +989,26 @@ export function DepotsScreen({
               </div>
 
               {/* 3. Fuel Quota & Efficiency */}
-              <div className="rounded-2xl border border-[#d6ebe0] bg-[#f8fbf9] p-4">
-                <span className="block text-xs font-bold uppercase tracking-wider text-[#006b57] mb-2.5">
+              <div className="rounded-2xl border border-go-rule bg-go-subtle p-4">
+                <span className="block text-xs font-bold uppercase tracking-wider text-go-teal mb-2.5">
                   Fuel Quota &amp; Efficiency
                 </span>
                 <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-xl border border-[#edf3ef] bg-white p-3">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#58685f]">Fuel Type</span>
-                    <p className="mt-0.5 text-sm font-bold text-[#10251e]">
+                  <div className="rounded-xl border border-go-subtle bg-white p-3">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-go-secondary">Fuel Type</span>
+                    <p className="mt-0.5 text-sm font-bold text-go-ink">
                       {selectedVehicle.fuelType}
                     </p>
                   </div>
-                  <div className="rounded-xl border border-[#edf3ef] bg-white p-3">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#58685f]">Weekly Quota</span>
-                    <p className="mt-0.5 text-base font-bold text-[#10251e]">
+                  <div className="rounded-xl border border-go-subtle bg-white p-3">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-go-secondary">Weekly Quota</span>
+                    <p className="mt-0.5 text-base font-bold text-go-ink">
                       {selectedVehicle.weeklyFuelQuotaL} L
                     </p>
                   </div>
-                  <div className="rounded-xl border border-[#edf3ef] bg-white p-3">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#58685f]">Efficiency</span>
-                    <p className="mt-0.5 text-base font-bold text-[#10251e]">
+                  <div className="rounded-xl border border-go-subtle bg-white p-3">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-go-secondary">Efficiency</span>
+                    <p className="mt-0.5 text-base font-bold text-go-ink">
                       {selectedVehicle.fuelEfficiencyKmPerL} km/L
                     </p>
                   </div>
@@ -1016,7 +1016,7 @@ export function DepotsScreen({
               </div>
             </div>
 
-            <div className="mt-6 flex justify-end border-t border-[#edf4f0] pt-4">
+            <div className="mt-6 flex justify-end border-t border-go-subtle pt-4">
               <button
                 type="button"
                 className={secondary}
@@ -1037,15 +1037,15 @@ export function DepotsScreen({
           aria-labelledby="add-depot-title"
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs"
         >
-          <div className="w-full max-w-xl rounded-3xl bg-white p-6 sm:p-7 shadow-2xl border border-[#d6e7df] animate-in fade-in duration-200">
-            <div className="flex items-center justify-between border-b border-[#edf4f0] pb-4">
+          <div className="w-full max-w-xl rounded-3xl bg-white p-6 sm:p-7 shadow-2xl border border-go-rule animate-in fade-in duration-200">
+            <div className="flex items-center justify-between border-b border-go-subtle pb-4">
               <div>
-                <h3 id="add-depot-title" className="text-xl font-bold text-[#10251e]">Add New Depot</h3>
-                <p className="text-xs text-[#58685f]">Create an operational distribution hub with geo-location coordinates.</p>
+                <h3 id="add-depot-title" className="text-xl font-bold text-go-ink">Add New Depot</h3>
+                <p className="text-xs text-go-secondary">Create an operational distribution hub with geo-location coordinates.</p>
               </div>
               <button
                 type="button"
-                className="grid size-9 place-items-center rounded-full text-[#58685f] hover:bg-[#f0f4f2] text-lg"
+                className="grid size-9 place-items-center rounded-full text-go-secondary hover:bg-go-subtle text-lg"
                 onClick={() => setIsAddModalOpen(false)}
                 aria-label="Close"
               >
@@ -1055,7 +1055,7 @@ export function DepotsScreen({
 
             <div className="mt-5 space-y-4 text-sm">
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="block font-medium text-[#10251e]">
+                <label className="block font-medium text-go-ink">
                   Depot Name *
                   <input
                     type="text"
@@ -1065,7 +1065,7 @@ export function DepotsScreen({
                     onChange={(e) => setNewDepotName(e.target.value)}
                   />
                 </label>
-                <label className="block font-medium text-[#10251e]">
+                <label className="block font-medium text-go-ink">
                   Depot Code / ID *
                   <input
                     type="text"
@@ -1077,7 +1077,7 @@ export function DepotsScreen({
                 </label>
               </div>
 
-              <label className="block font-medium text-[#10251e]">
+              <label className="block font-medium text-go-ink">
                 Region / District Description *
                 <input
                   type="text"
@@ -1089,12 +1089,12 @@ export function DepotsScreen({
               </label>
 
               {/* Geo-location coordinates */}
-              <div className="rounded-2xl border border-[#d6ebe0] bg-[#f8fbf9] p-4 space-y-3">
-                <span className="block text-xs font-bold uppercase tracking-wider text-[#006b57]">
+              <div className="rounded-2xl border border-go-rule bg-go-subtle p-4 space-y-3">
+                <span className="block text-xs font-bold uppercase tracking-wider text-go-teal">
                   Geo-Location Coordinates
                 </span>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="block font-medium text-[#10251e]">
+                  <label className="block font-medium text-go-ink">
                     Latitude (°N) *
                     <input
                       type="number"
@@ -1105,7 +1105,7 @@ export function DepotsScreen({
                       onChange={(e) => setNewDepotLat(e.target.value)}
                     />
                   </label>
-                  <label className="block font-medium text-[#10251e]">
+                  <label className="block font-medium text-go-ink">
                     Longitude (°E) *
                     <input
                       type="number"
@@ -1120,7 +1120,7 @@ export function DepotsScreen({
               </div>
 
               {/* Related Outlets */}
-              <label className="block font-medium text-[#10251e]">
+              <label className="block font-medium text-go-ink">
                 Related Outlets (comma-separated codes)
                 <input
                   type="text"
@@ -1129,13 +1129,13 @@ export function DepotsScreen({
                   value={newDepotOutletsInput}
                   onChange={(e) => setNewDepotOutletsInput(e.target.value)}
                 />
-                <span className="mt-1 block text-xs text-[#58685f]">
+                <span className="mt-1 block text-xs text-go-secondary">
                   Leave empty to generate initial starter outlets for this depot automatically.
                 </span>
               </label>
             </div>
 
-            <div className="mt-6 flex flex-wrap justify-end gap-3 border-t border-[#edf4f0] pt-4">
+            <div className="mt-6 flex flex-wrap justify-end gap-3 border-t border-go-subtle pt-4">
               <button
                 type="button"
                 className={secondary}

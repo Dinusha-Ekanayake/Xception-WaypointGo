@@ -173,11 +173,11 @@ export function TripsScreen({
       case "LOADING":
         return <span className="rounded-md bg-[#f3e8ff] px-2 py-0.5 text-xs font-bold text-[#7e22ce]">LOADING</span>;
       case "PLANNED":
-        return <span className="rounded-md bg-[#e5f4ef] px-2 py-0.5 text-xs font-bold text-[#006b57]">PLANNED</span>;
+        return <span className="rounded-md bg-go-subtle px-2 py-0.5 text-xs font-bold text-go-teal">PLANNED</span>;
       case "DELAYED":
         return <span className="rounded-md bg-[#fee2e2] px-2 py-0.5 text-xs font-bold text-[#b91c1c]">DELAYED</span>;
       default:
-        return <span className="rounded-md bg-[#f0f4f2] px-2 py-0.5 text-xs font-bold text-[#4d6356]">{status}</span>;
+        return <span className="rounded-md bg-go-subtle px-2 py-0.5 text-xs font-bold text-go-secondary">{status}</span>;
     }
   };
 
@@ -195,7 +195,7 @@ export function TripsScreen({
   return (
     <div className="space-y-6">
       {/* 2 Sub-tabs Navigation: Planned vs Live */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#dce9e5] pb-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-go-rule pb-3">
         <div className="flex flex-wrap items-center gap-2">
           {/* Sub-tab 1: Planned Trips */}
           <button
@@ -203,8 +203,8 @@ export function TripsScreen({
             onClick={() => setSubTab("planned")}
             className={`flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-bold transition-all ${
               subTab === "planned"
-                ? "bg-[#006b57] text-white shadow-sm"
-                : "bg-white text-[#344940] border border-[#dce8e2] hover:bg-[#edf8f5]"
+                ? "bg-go-teal text-white shadow-sm"
+                : "bg-white text-go-secondary border border-go-rule hover:bg-go-subtle"
             }`}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-4" aria-hidden="true">
@@ -215,7 +215,7 @@ export function TripsScreen({
               <polyline points="10 9 9 9 8 9" />
             </svg>
             <span>Planned</span>
-            <span className={`rounded-full px-2 py-0.5 text-xs ${subTab === "planned" ? "bg-white/20 text-white" : "bg-[#edf4f0] text-[#006b57]"}`}>
+            <span className={`rounded-full px-2 py-0.5 text-xs ${subTab === "planned" ? "bg-white/20 text-white" : "bg-go-subtle text-go-teal"}`}>
               {totalTripsCount}
             </span>
           </button>
@@ -227,7 +227,7 @@ export function TripsScreen({
             className={`flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-bold transition-all ${
               subTab === "live"
                 ? "bg-[#1d4ed8] text-white shadow-sm"
-                : "bg-white text-[#344940] border border-[#dce8e2] hover:bg-[#eff6ff]"
+                : "bg-white text-go-secondary border border-go-rule hover:bg-[#eff6ff]"
             }`}
           >
             <span className="size-2.5 rounded-full bg-[#3b82f6] animate-ping" aria-hidden="true"></span>
@@ -250,8 +250,8 @@ export function TripsScreen({
         {/* Metric 1 */}
         <div className={`${card} p-5`}>
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-[#58685f]">Total Trips</span>
-            <span className="grid size-9 place-items-center rounded-xl bg-[#e5f4ef] text-[#006b57]">
+            <span className="text-xs font-bold uppercase tracking-wider text-go-secondary">Total Trips</span>
+            <span className="grid size-9 place-items-center rounded-xl bg-go-subtle text-go-teal">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-5" aria-hidden="true">
                 <rect x="1" y="3" width="15" height="13" rx="1" />
                 <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" />
@@ -260,8 +260,8 @@ export function TripsScreen({
               </svg>
             </span>
           </div>
-          <p className="mt-2 text-2xl font-bold text-[#10251e]">{totalTripsCount}</p>
-          <p className="mt-0.5 text-xs text-[#58685f]">{plannedOnlyCount} awaiting departure</p>
+          <p className="mt-2 text-2xl font-bold text-go-ink">{totalTripsCount}</p>
+          <p className="mt-0.5 text-xs text-go-secondary">{plannedOnlyCount} awaiting departure</p>
         </div>
 
         {/* Metric 2 */}
@@ -274,8 +274,8 @@ export function TripsScreen({
               </svg>
             </span>
           </div>
-          <p className="mt-2 text-2xl font-bold text-[#10251e]">{liveTripsCount}</p>
-          <p className="mt-0.5 text-xs text-[#58685f]">Active road deliveries</p>
+          <p className="mt-2 text-2xl font-bold text-go-ink">{liveTripsCount}</p>
+          <p className="mt-0.5 text-xs text-go-secondary">Active road deliveries</p>
         </div>
 
         {/* Metric 3 */}
@@ -289,32 +289,32 @@ export function TripsScreen({
               </svg>
             </span>
           </div>
-          <p className="mt-2 text-2xl font-bold text-[#10251e]">{completedTripsCount}</p>
-          <p className="mt-0.5 text-xs text-[#58685f]">Returned to depot</p>
+          <p className="mt-2 text-2xl font-bold text-go-ink">{completedTripsCount}</p>
+          <p className="mt-0.5 text-xs text-go-secondary">Returned to depot</p>
         </div>
 
         {/* Metric 4 */}
         <div className={`${card} p-5`}>
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-[#006b57]">Fleet Utilization</span>
-            <span className="grid size-9 place-items-center rounded-xl bg-[#d8f5ee] text-[#006b57]">
+            <span className="text-xs font-bold uppercase tracking-wider text-go-teal">Fleet Utilization</span>
+            <span className="grid size-9 place-items-center rounded-xl bg-go-mint text-go-teal">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-5" aria-hidden="true">
                 <path d="M21.21 15.89A10 10 0 1 1 8 2.83" />
                 <path d="M22 12A10 10 0 0 0 12 2v10z" />
               </svg>
             </span>
           </div>
-          <p className="mt-2 text-2xl font-bold text-[#10251e]">91.4%</p>
-          <p className="mt-0.5 text-xs text-[#58685f]">Authoritative weight fit</p>
+          <p className="mt-2 text-2xl font-bold text-go-ink">91.4%</p>
+          <p className="mt-0.5 text-xs text-go-secondary">Authoritative weight fit</p>
         </div>
       </div>
 
       {/* Planning Run Summary Box (GET /api/admin/plans) */}
       {currentPlan && (
-        <div className="rounded-2xl border border-[#b8e5d9] bg-[#f0fbf7] p-5 sm:p-6 space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#d6ebe0] pb-3">
+        <div className="rounded-2xl border border-go-mint bg-go-subtle p-5 sm:p-6 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-go-rule pb-3">
             <div className="flex items-center gap-3">
-              <span className="grid size-10 place-items-center rounded-xl bg-[#d8f5ee] text-[#006b57]">
+              <span className="grid size-10 place-items-center rounded-xl bg-go-mint text-go-teal">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-5" aria-hidden="true">
                   <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                   <polyline points="14 2 14 8 20 8" />
@@ -322,61 +322,61 @@ export function TripsScreen({
               </span>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-base font-bold text-[#10251e]">
+                  <span className="text-base font-bold text-go-ink">
                     Planning Run Summary · {currentPlan.depot} Hub
                   </span>
-                  <span className="rounded-md bg-[#e5f4ef] px-2 py-0.5 text-xs font-bold text-[#006b57]">
+                  <span className="rounded-md bg-go-subtle px-2 py-0.5 text-xs font-bold text-go-teal">
                     v{currentPlan.planVersion} {currentPlan.status}
                   </span>
                 </div>
-                <p className="text-xs text-[#58685f]">
+                <p className="text-xs text-go-secondary">
                   Plan ID: {currentPlan.planId} · Service Date: {currentPlan.serviceDate}
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-2 text-xs">
-              <span className="rounded-lg bg-white border border-[#cbded5] px-3 py-1 font-semibold text-[#10251e]">
+              <span className="rounded-lg bg-white border border-go-rule px-3 py-1 font-semibold text-go-ink">
                 Solver: {currentPlan.solverEngine}
               </span>
             </div>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-xs">
-            <div className="rounded-xl border border-[#d6ebe0] bg-white p-3">
-              <span className="text-[#58685f]">Orders Allocated</span>
-              <p className="mt-0.5 text-base font-bold text-[#10251e]">
+            <div className="rounded-xl border border-go-rule bg-white p-3">
+              <span className="text-go-secondary">Orders Allocated</span>
+              <p className="mt-0.5 text-base font-bold text-go-ink">
                 {currentPlan.allocatedOrders} / {currentPlan.totalOrders} Orders
               </p>
-              <span className="text-[11px] font-semibold text-[#006b57]">
+              <span className="text-[11px] font-semibold text-go-teal">
                 {currentPlan.deferredOrders === 0 ? "100% Demand Served" : `${currentPlan.deferredOrders} Deferred`}
               </span>
             </div>
 
-            <div className="rounded-xl border border-[#d6ebe0] bg-white p-3">
-              <span className="text-[#58685f]">Total Payload Load</span>
-              <p className="mt-0.5 text-base font-bold text-[#10251e]">
+            <div className="rounded-xl border border-go-rule bg-white p-3">
+              <span className="text-go-secondary">Total Payload Load</span>
+              <p className="mt-0.5 text-base font-bold text-go-ink">
                 {currentPlan.totalWeightKg.toLocaleString()} kg
               </p>
-              <span className="text-[11px] text-[#58685f]">
+              <span className="text-[11px] text-go-secondary">
                 {currentPlan.totalVolumeM3.toFixed(1)} m³ total volume
               </span>
             </div>
 
-            <div className="rounded-xl border border-[#d6ebe0] bg-white p-3">
-              <span className="text-[#58685f]">Estimated Fuel</span>
-              <p className="mt-0.5 text-base font-bold text-[#10251e]">
+            <div className="rounded-xl border border-go-rule bg-white p-3">
+              <span className="text-go-secondary">Estimated Fuel</span>
+              <p className="mt-0.5 text-base font-bold text-go-ink">
                 {currentPlan.fuelEstimatedLitres} Litres
               </p>
-              <span className="text-[11px] text-[#58685f]">Across all trip legs</span>
+              <span className="text-[11px] text-go-secondary">Across all trip legs</span>
             </div>
 
-            <div className="rounded-xl border border-[#d6ebe0] bg-white p-3">
-              <span className="text-[#58685f]">Governance Reference</span>
-              <p className="mt-0.5 text-xs font-bold text-[#10251e] truncate">
+            <div className="rounded-xl border border-go-rule bg-white p-3">
+              <span className="text-go-secondary">Governance Reference</span>
+              <p className="mt-0.5 text-xs font-bold text-go-ink truncate">
                 {currentPlan.referenceVersion}
               </p>
-              <span className="text-[11px] text-[#58685f]">
+              <span className="text-[11px] text-go-secondary">
                 Rules: {currentPlan.ruleSetVersion}
               </span>
             </div>
@@ -387,13 +387,13 @@ export function TripsScreen({
       {/* Filter Controls Bar */}
       <div className={`${card} space-y-4 p-5 sm:p-6`}>
         <div className="flex items-center justify-between">
-          <span className="text-xs font-bold uppercase tracking-wider text-[#006b57]">
+          <span className="text-xs font-bold uppercase tracking-wider text-go-teal">
             Filters &amp; Search ({filteredTrips.length} trips shown)
           </span>
           {(dateFilter !== "all" || depotFilter !== "all" || brandFilter !== "all" || statusFilter !== "all" || searchQuery) && (
             <button
               type="button"
-              className="text-xs font-semibold text-[#006b57] hover:underline"
+              className="text-xs font-semibold text-go-teal hover:underline"
               onClick={() => {
                 setDateFilter("all");
                 setDepotFilter("all");
@@ -409,7 +409,7 @@ export function TripsScreen({
 
         <div className="grid gap-3.5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
           {/* Search */}
-          <label className="text-xs font-medium text-[#10251e]">
+          <label className="text-xs font-medium text-go-ink">
             Search Trips
             <input
               type="search"
@@ -421,7 +421,7 @@ export function TripsScreen({
           </label>
 
           {/* Service Date */}
-          <label className="text-xs font-medium text-[#10251e]">
+          <label className="text-xs font-medium text-go-ink">
             Service Date
             <select
               className={`${field} mt-1`}
@@ -438,7 +438,7 @@ export function TripsScreen({
           </label>
 
           {/* Depot Hub */}
-          <label className="text-xs font-medium text-[#10251e]">
+          <label className="text-xs font-medium text-go-ink">
             Depot Hub
             <select
               className={`${field} mt-1`}
@@ -452,7 +452,7 @@ export function TripsScreen({
           </label>
 
           {/* Brand Category */}
-          <label className="text-xs font-medium text-[#10251e]">
+          <label className="text-xs font-medium text-go-ink">
             Brand Category
             <select
               className={`${field} mt-1`}
@@ -467,7 +467,7 @@ export function TripsScreen({
           </label>
 
           {/* Status */}
-          <label className="text-xs font-medium text-[#10251e]">
+          <label className="text-xs font-medium text-go-ink">
             Trip Status
             <select
               className={`${field} mt-1`}
@@ -495,19 +495,19 @@ export function TripsScreen({
             return (
               <article
                 key={trip.tripId}
-                className={`${card} flex flex-col justify-between p-5 transition-all hover:border-[#b8e5d9] hover:shadow-md`}
+                className={`${card} flex flex-col justify-between p-5 transition-all hover:border-go-mint hover:shadow-md`}
               >
                 <div>
                   {/* Top: Trip ID & Status */}
-                  <div className="flex items-start justify-between gap-2 border-b border-[#edf4f0] pb-3">
+                  <div className="flex items-start justify-between gap-2 border-b border-go-subtle pb-3">
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="text-base font-bold text-[#10251e]">{trip.tripId}</span>
-                        <span className="rounded-md bg-[#eef5f1] px-2 py-0.5 text-xs font-semibold text-[#2c4c3e]">
+                        <span className="text-base font-bold text-go-ink">{trip.tripId}</span>
+                        <span className="rounded-md bg-go-subtle px-2 py-0.5 text-xs font-semibold text-go-ink">
                           Trip {trip.tripNumber}
                         </span>
                       </div>
-                      <p className="mt-0.5 text-xs text-[#58685f]">
+                      <p className="mt-0.5 text-xs text-go-secondary">
                         {trip.depot} Depot · {trip.district} District
                       </p>
                     </div>
@@ -517,18 +517,18 @@ export function TripsScreen({
                   {/* Vehicle & Driver Info */}
                   <div className="mt-3 flex items-center justify-between gap-3 text-xs">
                     <div className="flex items-center gap-2">
-                      <span className="grid size-8 place-items-center rounded-lg bg-[#e5f4ef] text-[#006b57]">
+                      <span className="grid size-8 place-items-center rounded-lg bg-go-subtle text-go-teal">
                         <VehicleTypeIcon type={trip.vehicleType} className="size-4" />
                       </span>
                       <div>
-                        <span className="font-bold text-[#10251e]">{trip.vehicleId}</span>
-                        <p className="text-[#58685f]">{trip.vehicleType}</p>
+                        <span className="font-bold text-go-ink">{trip.vehicleId}</span>
+                        <p className="text-go-secondary">{trip.vehicleType}</p>
                       </div>
                     </div>
 
                     <div className="text-right">
-                      <span className="font-semibold text-[#10251e]">{trip.driverName}</span>
-                      <p className="text-[#58685f]">{trip.driverPhone || "Phone unavailable"}</p>
+                      <span className="font-semibold text-go-ink">{trip.driverName}</span>
+                      <p className="text-go-secondary">{trip.driverPhone || "Phone unavailable"}</p>
                     </div>
                   </div>
 
@@ -537,7 +537,7 @@ export function TripsScreen({
                     {getBrandBadge(trip.brand)}
                     <span
                       className={`rounded-md px-2 py-0.5 text-xs font-semibold ${
-                        trip.temperature.startsWith("Chilled") ? "bg-[#e0f2fe] text-[#0284c7]" : "bg-[#f0f4f2] text-[#4d6356]"
+                        trip.temperature.startsWith("Chilled") ? "bg-[#e0f2fe] text-[#0284c7]" : "bg-go-subtle text-go-secondary"
                       }`}
                     >
                       {trip.temperature}
@@ -545,14 +545,14 @@ export function TripsScreen({
                   </div>
 
                   {/* Schedule Timings */}
-                  <div className="mt-3.5 grid grid-cols-2 gap-2 rounded-xl border border-[#edf3ef] bg-[#fafcfb] p-2.5 text-xs">
+                  <div className="mt-3.5 grid grid-cols-2 gap-2 rounded-xl border border-go-subtle bg-go-subtle p-2.5 text-xs">
                     <div>
-                      <span className="text-[#58685f]">Departure</span>
-                      <p className="font-bold text-[#10251e]">{trip.plannedDeparture}</p>
+                      <span className="text-go-secondary">Departure</span>
+                      <p className="font-bold text-go-ink">{trip.plannedDeparture}</p>
                     </div>
                     <div>
-                      <span className="text-[#58685f]">Est. Return</span>
-                      <p className="font-bold text-[#10251e]">{trip.estimatedReturn}</p>
+                      <span className="text-go-secondary">Est. Return</span>
+                      <p className="font-bold text-go-ink">{trip.estimatedReturn}</p>
                     </div>
                   </div>
 
@@ -560,14 +560,14 @@ export function TripsScreen({
                   <div className="mt-3.5 space-y-2 text-xs">
                     <div>
                       <div className="flex justify-between text-[11px]">
-                        <span className="text-[#58685f]">Weight Load ({weightPct}%)</span>
-                        <span className="font-bold text-[#10251e]">
+                        <span className="text-go-secondary">Weight Load ({weightPct}%)</span>
+                        <span className="font-bold text-go-ink">
                           {trip.weightKg.toLocaleString()} / {trip.weightCapKg.toLocaleString()} kg
                         </span>
                       </div>
-                      <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-[#eef4f1]">
+                      <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-go-subtle">
                         <div
-                          className={`h-full rounded-full ${weightPct > 95 ? "bg-[#b45309]" : "bg-[#00896d]"}`}
+                          className={`h-full rounded-full ${weightPct > 95 ? "bg-[#b45309]" : "bg-go-teal"}`}
                           style={{ width: `${Math.min(weightPct, 100)}%` }}
                         ></div>
                       </div>
@@ -575,12 +575,12 @@ export function TripsScreen({
 
                     <div>
                       <div className="flex justify-between text-[11px]">
-                        <span className="text-[#58685f]">Volume Load ({volumePct}%)</span>
-                        <span className="font-bold text-[#10251e]">
+                        <span className="text-go-secondary">Volume Load ({volumePct}%)</span>
+                        <span className="font-bold text-go-ink">
                           {trip.volumeM3.toFixed(1)} / {trip.volumeCapM3.toFixed(1)} m³
                         </span>
                       </div>
-                      <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-[#eef4f1]">
+                      <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-go-subtle">
                         <div
                           className="h-full rounded-full bg-[#0284c7]"
                           style={{ width: `${Math.min(volumePct, 100)}%` }}
@@ -591,15 +591,15 @@ export function TripsScreen({
                 </div>
 
                 {/* Footer: Stops count & Inspect Button */}
-                <div className="mt-4 flex items-center justify-between border-t border-[#edf4f0] pt-3 text-xs">
-                  <span className="font-semibold text-[#58685f]">
+                <div className="mt-4 flex items-center justify-between border-t border-go-subtle pt-3 text-xs">
+                  <span className="font-semibold text-go-secondary">
                     {trip.stops.length} Stops ({trip.completedStopsCount || 0} done)
                   </span>
 
                   <button
                     type="button"
                     onClick={() => setSelectedTrip(trip)}
-                    className="flex items-center gap-1 rounded-xl border border-[#b8e5d9] bg-[#f0fbf7] px-3 py-1.5 font-bold text-[#006b57] transition-colors hover:bg-[#d8f5ee]"
+                    className="flex items-center gap-1 rounded-xl border border-go-mint bg-go-subtle px-3 py-1.5 font-bold text-go-teal transition-colors hover:bg-go-mint"
                   >
                     <span>Inspect Trip</span>
                     <span aria-hidden="true">›</span>
@@ -611,7 +611,7 @@ export function TripsScreen({
         </div>
       ) : (
         <div className={`${card} flex flex-col items-center justify-center p-10 text-center`}>
-          <span className="grid size-14 place-items-center rounded-2xl bg-[#edf3ef] text-[#58685f]">
+          <span className="grid size-14 place-items-center rounded-2xl bg-go-subtle text-go-secondary">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-7" aria-hidden="true">
               <rect x="1" y="3" width="15" height="13" rx="1" />
               <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" />
@@ -619,10 +619,10 @@ export function TripsScreen({
               <circle cx="18.5" cy="18.5" r="2.5" />
             </svg>
           </span>
-          <h3 className="mt-3 text-base font-semibold text-[#10251e]">
+          <h3 className="mt-3 text-base font-semibold text-go-ink">
             No matching trips in {subTab === "planned" ? "planned view" : "live execution view"}
           </h3>
-          <p className="mt-1 max-w-sm text-xs text-[#58685f]">
+          <p className="mt-1 max-w-sm text-xs text-go-secondary">
             Try adjusting your search criteria or changing the active filters.
           </p>
         </div>
@@ -636,25 +636,25 @@ export function TripsScreen({
           aria-labelledby="trip-detail-title"
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs"
         >
-          <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-3xl bg-white p-6 sm:p-7 shadow-2xl border border-[#d6e7df] animate-in fade-in duration-200">
+          <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-3xl bg-white p-6 sm:p-7 shadow-2xl border border-go-rule animate-in fade-in duration-200">
             {/* Header */}
-            <div className="flex items-start justify-between border-b border-[#edf4f0] pb-4">
+            <div className="flex items-start justify-between border-b border-go-subtle pb-4">
               <div>
                 <div className="flex items-center gap-2.5">
-                  <span className="text-xl font-bold text-[#10251e]">{selectedTrip.tripId}</span>
-                  <span className="rounded-md bg-[#eef5f1] px-2 py-0.5 text-xs font-semibold text-[#2c4c3e]">
+                  <span className="text-xl font-bold text-go-ink">{selectedTrip.tripId}</span>
+                  <span className="rounded-md bg-go-subtle px-2 py-0.5 text-xs font-semibold text-go-ink">
                     Trip {selectedTrip.tripNumber}
                   </span>
                   {getStatusBadge(selectedTrip.status)}
                 </div>
-                <h3 id="trip-detail-title" className="mt-1 text-sm font-semibold text-[#10251e]">
+                <h3 id="trip-detail-title" className="mt-1 text-sm font-semibold text-go-ink">
                   {selectedTrip.depot} Hub · {selectedTrip.district} Stop Sequence
                 </h3>
               </div>
 
               <button
                 type="button"
-                className="grid size-9 place-items-center rounded-full text-[#58685f] hover:bg-[#f0f4f2] text-lg"
+                className="grid size-9 place-items-center rounded-full text-go-secondary hover:bg-go-subtle text-lg"
                 onClick={() => setSelectedTrip(null)}
                 aria-label="Close"
               >
@@ -665,57 +665,57 @@ export function TripsScreen({
             {/* Trip Details Body */}
             <div className="mt-5 space-y-5 text-sm">
               {/* Vehicle, Driver, Timings */}
-              <div className="grid gap-3 sm:grid-cols-4 rounded-2xl border border-[#edf3ef] bg-[#f8faf9] p-4 text-xs">
+              <div className="grid gap-3 sm:grid-cols-4 rounded-2xl border border-go-subtle bg-go-subtle p-4 text-xs">
                 <div>
-                  <span className="text-[#58685f]">Assigned Vehicle</span>
-                  <p className="font-bold text-[#10251e] text-sm mt-0.5">
+                  <span className="text-go-secondary">Assigned Vehicle</span>
+                  <p className="font-bold text-go-ink text-sm mt-0.5">
                     {selectedTrip.vehicleId} ({selectedTrip.vehicleType})
                   </p>
                 </div>
                 <div>
-                  <span className="text-[#58685f]">Driver</span>
-                  <p className="font-bold text-[#10251e] text-sm mt-0.5">{selectedTrip.driverName || "Driver unavailable"}</p>
-                  <p className="text-[#58685f] text-[11px]">{selectedTrip.driverPhone || "Phone unavailable"}</p>
+                  <span className="text-go-secondary">Driver</span>
+                  <p className="font-bold text-go-ink text-sm mt-0.5">{selectedTrip.driverName || "Driver unavailable"}</p>
+                  <p className="text-go-secondary text-[11px]">{selectedTrip.driverPhone || "Phone unavailable"}</p>
                 </div>
                 <div>
-                  <span className="text-[#58685f]">Planned Departure</span>
-                  <p className="font-bold text-[#10251e] text-sm mt-0.5">{selectedTrip.plannedDeparture}</p>
-                  <p className="text-[#58685f] text-[11px]">Return: {selectedTrip.estimatedReturn}</p>
+                  <span className="text-go-secondary">Planned Departure</span>
+                  <p className="font-bold text-go-ink text-sm mt-0.5">{selectedTrip.plannedDeparture}</p>
+                  <p className="text-go-secondary text-[11px]">Return: {selectedTrip.estimatedReturn}</p>
                 </div>
                 <div>
-                  <span className="text-[#58685f]">Load Specifications</span>
-                  <p className="font-bold text-[#006b57] text-sm mt-0.5">
+                  <span className="text-go-secondary">Load Specifications</span>
+                  <p className="font-bold text-go-teal text-sm mt-0.5">
                     {selectedTrip.weightKg} kg · {selectedTrip.volumeM3} m³
                   </p>
-                  <p className="text-[#58685f] text-[11px]">{selectedTrip.temperature}</p>
+                  <p className="text-go-secondary text-[11px]">{selectedTrip.temperature}</p>
                 </div>
               </div>
 
               {/* Stop Sequence Timeline */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-[#10251e]">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-go-ink">
                     Stop Sequence Timeline ({selectedTrip.stops.length} Retail Outlets)
                   </h4>
-                  <span className="text-[11px] text-[#58685f]">GET /api/admin/plans/{selectedTrip.planId}</span>
+                  <span className="text-[11px] text-go-secondary">GET /api/admin/plans/{selectedTrip.planId}</span>
                 </div>
 
                 <div className="space-y-2.5">
                   {selectedTrip.stops.map((stop) => (
                     <div
                       key={stop.sequence}
-                      className="flex flex-col gap-2 rounded-2xl border border-[#edf3ef] bg-[#fafcfb] p-3.5 text-xs sm:flex-row sm:items-center sm:justify-between hover:bg-white"
+                      className="flex flex-col gap-2 rounded-2xl border border-go-subtle bg-go-subtle p-3.5 text-xs sm:flex-row sm:items-center sm:justify-between hover:bg-white"
                     >
                       <div className="flex items-center gap-3">
-                        <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-[#d8f5ee] font-mono text-xs font-bold text-[#006b57]">
+                        <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-go-mint font-mono text-xs font-bold text-go-teal">
                           #{stop.sequence}
                         </span>
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="font-bold text-[#10251e]">{stop.outletId}</span>
-                            <span className="text-xs font-medium text-[#344940]">{stop.outletName || ""}</span>
+                            <span className="font-bold text-go-ink">{stop.outletId}</span>
+                            <span className="text-xs font-medium text-go-secondary">{stop.outletName || ""}</span>
                           </div>
-                          <p className="text-[#58685f] text-[11px]">
+                          <p className="text-go-secondary text-[11px]">
                             Order Ref: {stop.orderRef} · {stop.weightKg} kg ({stop.volumeM3} m³)
                           </p>
                         </div>
@@ -723,10 +723,10 @@ export function TripsScreen({
 
                       <div className="flex items-center gap-3 self-end sm:self-auto">
                         <div className="text-right">
-                          <p className="font-bold text-[#10251e]">
+                          <p className="font-bold text-go-ink">
                             Planned: {stop.plannedArrival}
                           </p>
-                          <p className="text-[11px] text-[#58685f]">
+                          <p className="text-[11px] text-go-secondary">
                             Window: {stop.windowOpen} - {stop.windowClose}
                           </p>
                         </div>
@@ -751,7 +751,7 @@ export function TripsScreen({
               </div>
             </div>
 
-            <div className="mt-6 flex justify-end border-t border-[#edf4f0] pt-4">
+            <div className="mt-6 flex justify-end border-t border-go-subtle pt-4">
               <button
                 type="button"
                 className={secondary}
