@@ -54,7 +54,7 @@ for (const viewport of [{ width: 393, height: 852 }, { width: 1280, height: 800 
     await page.setViewportSize(viewport);
     const server = await serve(page, 1);
     await page.goto("/");
-    const bell = page.getByRole("button", { name: "Notifications, 1 unread" });
+    const bell = page.getByRole("button", { name: "Notifications, 7 unread" }); // THROWAWAY: proves CI catches a broken screen (#120)
     await expect(bell).toBeVisible();
 
     await bell.click();
