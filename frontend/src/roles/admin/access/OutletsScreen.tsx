@@ -88,28 +88,22 @@ export function OutletsScreen({
     })
       .then((page) => {
         if (cancelled) return;
-        if (page.items && page.items.length > 0) {
+        {
           const records: OutletRecord[] = page.items.map((o) => {
             const brand = (o.brand === "Fresh" || o.brand === "Style" || o.brand === "Tech" ? o.brand : "Fresh") as "Fresh" | "Style" | "Tech";
             const dockType = (o.dockType === "rear_dock" || o.dockType === "street" || o.dockType === "mall_bay" ? o.dockType : "street") as "rear_dock" | "street" | "mall_bay";
-            const tempZone = brand === "Fresh" ? "Ambient Fresh" : "Ambient Standard";
-            const maxVehicleType = dockType === "street" ? "Van Only" : "Van & Truck";
+            const maxVehicleType = o.parking === "van_only" ? "Van Only" : "Van & Truck";
             return {
               id: o.outletId,
-              name: `${o.brand} Outlet ${o.outletId}`,
+              name: `Outlet ${o.outletId}`,
               brand,
-              tempZone,
-              district: o.district || "Colombo",
-              depot: o.depot || "PELIYAGODA",
+              district: o.district,
+              depot: o.depot,
               dockType,
               dockDetails: `Unloading capability: ${dockType}`,
-              windowOpen: o.windowOpen || "08:00",
-              windowClose: o.windowClose || "17:00",
-              windowNotes: `Operational window: ${o.windowOpen || "08:00"} - ${o.windowClose || "17:00"}`,
-              storeManager: "Assigned Store Manager",
-              managerPhone: "+94 77 000 0000",
-              managerEmail: `store.${o.outletId.toLowerCase()}@waypoint.lk`,
-              address: `${o.district || "Commercial District"}, Sri Lanka`,
+              windowOpen: o.windowOpen,
+              windowClose: o.windowClose,
+              windowNotes: `Operational window: ${o.windowOpen} - ${o.windowClose}`,
               maxVehicleType,
             };
           });
@@ -273,14 +267,15 @@ export function OutletsScreen({
         <div>
           {liveConnected !== null && (
             <Badge tone={liveConnected ? "green" : "neutral"}>
-              {liveConnected ? "Live API: GET /api/admin/outlets" : "Connecting..."}
+              {liveConnected ? "Live API: GET /api/admin/outlets" : "Outlets unavailable"}
             </Badge>
           )}
         </div>
         <button
           type="button"
           className={`${primary} flex items-center gap-2`}
-          onClick={() => setIsAddModalOpen(true)}
+          disabled
+          title="Adding an outlet requires a reference create command that is not available yet"
         >
           <span className="text-lg leading-none" aria-hidden="true">+</span>
           <span>Add outlet</span>
@@ -457,8 +452,6 @@ export function OutletsScreen({
             >
               <option value="all">All Brands &amp; Zones</option>
               <option value="Fresh">Fresh (All)</option>
-              <option value="Fresh-Ambient">Fresh (Ambient)</option>
-              <option value="Fresh-Chilled">Fresh (Chilled Refrigerated)</option>
               <option value="Style">Style (Apparel)</option>
               <option value="Tech">Tech (Electronics)</option>
             </select>

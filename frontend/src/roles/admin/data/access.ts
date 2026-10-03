@@ -1,5 +1,4 @@
-import { request } from "@shared/api/client";
-import { newCommand, send, type CommandAck } from "@shared/api/commands";
+import { request, requestAll } from "@shared/api/client";
 import type { Page } from "@shared/domain/common";
 import type { ActionView, RoleView } from "@shared/domain/identity";
 
@@ -17,9 +16,9 @@ export async function fetchRoles(options: {
   if (options.after) params.set("after", options.after);
   if (options.limit) params.set("limit", String(options.limit));
   const qs = params.toString();
-  return request<Page<RoleView>>(`/api/admin/roles${qs ? `?${qs}` : ""}`, {
-    signal: options.signal,
-  });
+  const path = `/api/admin/roles${qs ? `?${qs}` : ""}`;
+  return options.after ? request<Page<RoleView>>(path, { signal: options.signal })
+    : { items: await requestAll<RoleView>(path, { signal: options.signal }), nextCursor: null };
 }
 
 /**
@@ -36,56 +35,7 @@ export async function fetchActions(options: {
   if (options.after) params.set("after", options.after);
   if (options.limit) params.set("limit", String(options.limit));
   const qs = params.toString();
-  return request<Page<ActionView>>(`/api/admin/actions${qs ? `?${qs}` : ""}`, {
-    signal: options.signal,
-  });
+  const path = `/api/admin/actions${qs ? `?${qs}` : ""}`;
+  return options.after ? request<Page<ActionView>>(path, { signal: options.signal })
+    : { items: await requestAll<ActionView>(path, { signal: options.signal }), nextCursor: null };
 }
-
-export type PermissionChoice = {
-  policyName: string;
-  policyId: string | null;
-  rowVersion: number;
-  attached: boolean;
-  document: Record<string, unknown> | null;
-};
-
-/**
- * Query current policy choice for a principal and action from GET /api/admin/access/choice.
- */
-export async function fetchPermissionChoice(
-  principalType: "user" | "role",
-  principalId: string,
-  action: string,
-  options?: { signal?: AbortSignal }
-): Promise<PermissionChoice> {
-  const params = new URLSearchParams({
-    principalType,
-    principalId,
-    action,
-  });
-  return request<PermissionChoice>(`/api/admin/access/choice?${params.toString()}`, {
-    signal: options?.signal,
-  });
-}
-
-export type ManagePermissionPayload = {
-  principalType: "user" | "role";
-  principalId: string;
-  action: string;
-  choice: "allow" | "deny" | "inherit";
-  reason: string;
-  place?: string | null;
-  expires?: string | null;
-};
-
-/**
- * Manage permission choice via iam:ManagePermission command.
- */
-export async function submitManagePermission(
-  payload: ManagePermissionPayload,
-  expectedVersion: number | null = null
-): Promise<CommandAck<{ policyName: string; policyId: string | null; rowVersion: number; choice: string }>> {
-  const cmd = newCommand("iam:ManagePermission", payload, expectedVersion);
-  return send(cmd);
-}
-

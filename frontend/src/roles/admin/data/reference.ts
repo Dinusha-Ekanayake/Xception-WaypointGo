@@ -1,4 +1,4 @@
-import { request } from "@shared/api/client";
+import { request, requestAll } from "@shared/api/client";
 import type { Page } from "@shared/domain/common";
 
 export type AdminDepot = {
@@ -27,8 +27,8 @@ export type AdminOutlet = {
   windowClose: string;
   mallOpen?: string;
   mallClose?: string;
-  latitude: number;
-  longitude: number;
+  latitude: number | null;
+  longitude: number | null;
 };
 
 export type AdminVehicle = {
@@ -82,9 +82,9 @@ export async function fetchAdminOutlets(options: {
   if (options.limit) params.set("limit", String(options.limit));
   const qs = params.toString();
 
-  return request<Page<AdminOutlet>>(`/api/admin/outlets${qs ? `?${qs}` : ""}`, {
-    signal: options.signal,
-  });
+  const path = `/api/admin/outlets${qs ? `?${qs}` : ""}`;
+  return options.after ? request<Page<AdminOutlet>>(path, { signal: options.signal })
+    : { items: await requestAll<AdminOutlet>(path, { signal: options.signal }), nextCursor: null };
 }
 
 export async function fetchAdminOutlet(
@@ -118,9 +118,9 @@ export async function fetchAdminVehicles(options: {
   if (options.limit) params.set("limit", String(options.limit));
   const qs = params.toString();
 
-  return request<Page<AdminVehicle>>(`/api/admin/vehicles${qs ? `?${qs}` : ""}`, {
-    signal: options.signal,
-  });
+  const path = `/api/admin/vehicles${qs ? `?${qs}` : ""}`;
+  return options.after ? request<Page<AdminVehicle>>(path, { signal: options.signal })
+    : { items: await requestAll<AdminVehicle>(path, { signal: options.signal }), nextCursor: null };
 }
 
 export async function fetchAdminVehicle(

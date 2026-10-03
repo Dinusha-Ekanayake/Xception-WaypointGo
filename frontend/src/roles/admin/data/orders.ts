@@ -1,6 +1,6 @@
-import { request } from "@shared/api/client";
+import { request, requestAll } from "@shared/api/client";
 import type { Page } from "@shared/domain/common";
-import type { OrderStatus } from "@shared/domain/ordering";
+import type { OrderStatus, OrderView, StatusChangeView } from "@shared/domain/ordering";
 
 export type AdminOrder = {
   orderId: string;
@@ -10,9 +10,9 @@ export type AdminOrder = {
   brand: "Fresh" | "Style" | "Tech" | string;
   deliveryDate: string;
   status: OrderStatus | string;
-  temperature: "ambient" | "chilled" | string;
-  weightKg: number;
-  volumeM3: number;
+  temperature: "ambient" | "chilled" | string | null;
+  weightKg: number | null;
+  volumeM3: number | null;
   itemCount: number;
   rowVersion: number;
 };
@@ -21,7 +21,7 @@ export type AdminOrderLine = {
   productId: string;
   productName?: string;
   quantity: number;
-  revision: number;
+  revision?: number;
 };
 
 export type AdminOrderDetail = {
@@ -62,25 +62,39 @@ export async function fetchAdminOrders(options: {
   if (options.limit) params.set("limit", String(options.limit));
   const qs = params.toString();
 
-  return request<Page<AdminOrder>>(`/api/admin/orders${qs ? `?${qs}` : ""}`, {
+  const path = `/api/admin/orders${qs ? `?${qs}` : ""}`;
+  const page = options.after ? await request<Page<OrderView>>(path, {
     signal: options.signal,
-  });
+  }) : { items: await requestAll<OrderView>(path, { signal: options.signal }), nextCursor: null };
+  return { ...page, items: page.items.map(toAdminOrder) };
+}
+
+function toAdminOrder(order: OrderView): AdminOrder {
+  return {
+    orderId: order.orderId, orderRef: order.orderRef, outletId: order.outletId,
+    depot: order.depotCode, brand: order.brandCode, deliveryDate: order.deliveryDate,
+    status: order.status, temperature: order.temperature,
+    weightKg: order.weightKg == null ? null : Number(order.weightKg),
+    volumeM3: order.volumeM3 == null ? null : Number(order.volumeM3),
+    itemCount: order.itemCount, rowVersion: order.rowVersion,
+  };
 }
 
 export async function fetchAdminOrderDetail(
   id: string,
   options?: { signal?: AbortSignal }
 ): Promise<AdminOrderDetail> {
-  return request<AdminOrderDetail>(`/api/admin/orders/${id}`, {
+  const order = await request<OrderView>(`/api/orders/${encodeURIComponent(id)}`, {
     signal: options?.signal,
   });
+  return { order: toAdminOrder(order), lines: order.lines };
 }
 
 export async function fetchAdminOrderTimeline(
   id: string,
   options?: { signal?: AbortSignal }
 ): Promise<AdminStatusTimeline[]> {
-  return request<AdminStatusTimeline[]>(`/api/admin/orders/${id}/timeline`, {
+  return request<StatusChangeView[]>(`/api/orders/${encodeURIComponent(id)}/timeline`, {
     signal: options?.signal,
   });
 }

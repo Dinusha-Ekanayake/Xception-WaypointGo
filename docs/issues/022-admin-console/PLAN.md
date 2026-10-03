@@ -1,5 +1,10 @@
 # Issue 22: Admin and super-admin console plan
 
+## 2026-10-03 wiring repair
+
+The deployed console calls `/api/admin/*`, while the backend has no matching routes. This repair adds read-only admin routes in the owning module's web and application layers: Identity owns accounts, roles and actions; Reference owns depots, outlets and vehicles; Ordering owns orders and timelines; Planning owns plans. Each read is authorized and scoped before returning data. Existing command endpoints remain the only write path. The frontend maps the returned contracts and must not report a failed command as saved. Unsupported writes stay visibly unavailable until their command contracts exist. Production data is inspected read-only; the fix is made and verified locally before deployment.
+
+
 Date: 2026-10-01. Branch inspected: `22-admin-console`.
 
 Authorization implementation specification: [AWS IAM semantics and delivery plan](IAM-PLAN.md), with [all current and proposed permissions](PERMISSION-INVENTORY.md). These documents define the replacement permission model; the existing frontend preview is not evidence that it is implemented.

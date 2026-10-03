@@ -83,7 +83,7 @@ export type UpdateOwnProfile = {
 
 /**
  * Safe account profile and authorization scope returned by Identity's
- * account directory reads (GET /api/admin/accounts and /api/admin/accounts/{id}),
+ * account directory reads (GET /api/accounts and /api/accounts/{id}),
  * mirrored from AccountQuery.AccountView.
  */
 export type AccountView = {

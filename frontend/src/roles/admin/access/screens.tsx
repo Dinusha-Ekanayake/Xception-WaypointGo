@@ -42,9 +42,6 @@ export function PeopleScreen({ state, selected, setSelected, filterPersona, setF
         }
       }
     }
-    if (set.size === 0) {
-      ["PELIYAGODA", "KANDY"].forEach((d) => set.add(d));
-    }
     return Array.from(set).sort();
   }, [state.members]);
 
@@ -92,23 +89,13 @@ export function PeopleScreen({ state, selected, setSelected, filterPersona, setF
   if (member) {
     const protectedMember = member.personas.some((persona) => persona === "admin" || persona === "super_admin");
     const relevant = CAPABILITIES.filter((item) => member.personas.some((persona) => item.relevant.includes(persona)) || state.exceptions.some((ex) => ex.memberId === member.id && ex.action === item.action));
-    const allowed = relevant.filter((item) => effective(state, member, item).allowed);
-    const exceptions = state.exceptions.filter((ex) => ex.memberId === member.id);
     return <div className="space-y-5">
       <button className="min-h-11 text-sm font-semibold text-go-teal" onClick={() => setSelected(null)}>← Back to people</button>
       <div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm text-go-secondary">People / {member.name}</p><div className="mt-1 flex items-center gap-3"><h2 className="text-3xl font-semibold">{member.name}</h2>{member.source === "live" && <Badge tone="blue">Live account</Badge>}</div><p className="text-go-secondary">{member.personas.map((value) => value.replaceAll("_", " ")).join(" + ")} · {member.email}</p></div><Badge tone={member.active ? "green" : "neutral"}>{member.active ? "Active member" : "Inactive"}</Badge></div>
       <div className="flex flex-wrap gap-2 border-b border-go-rule">{(["access", "profile", "scope"] as const).map((tab) => <button key={tab} className={`min-h-11 border-b-2 px-4 text-sm font-semibold capitalize ${memberTab === tab ? "border-go-teal text-go-teal" : "border-transparent text-go-secondary"}`} onClick={() => setMemberTab(tab)}>{tab}</button>)}</div>
       {memberTab === "profile" && <div className={`${card} p-6`}><h3 className="text-lg font-semibold">Profile</h3><dl className="mt-4 grid gap-4 sm:grid-cols-2"><div><dt className="text-sm text-go-secondary">Staff ID</dt><dd className="font-mono text-sm">{member.id}</dd></div><div><dt className="text-sm text-go-secondary">Email</dt><dd>{member.email}</dd></div><div><dt className="text-sm text-go-secondary">Persona</dt><dd>{member.personas.map((value) => value.replaceAll("_", " ")).join(" + ")}</dd></div><div><dt className="text-sm text-go-secondary">Status</dt><dd>{member.active ? "Active" : "Inactive"}</dd></div>{member.rowVersion !== undefined && <div><dt className="text-sm text-go-secondary">Row version</dt><dd className="font-mono text-sm">v{member.rowVersion}</dd></div>}{member.vehicleType && <div><dt className="text-sm text-go-secondary">Vehicle type</dt><dd className="capitalize">{member.vehicleType}</dd></div>}</dl></div>}
       {memberTab === "scope" && <div className={`${card} p-6`}><h3 className="text-lg font-semibold">Assigned places</h3><p className="mt-1 text-sm text-go-secondary">Capabilities work only within these existing assignments. </p><div className="mt-4 flex flex-wrap gap-2">{member.places.length ? member.places.map((place) => <Badge key={place} tone="blue">{place === "GLOBAL" ? "All depots" : place}</Badge>) : <Badge tone="amber">No place assigned</Badge>}{member.vehicleType && <Badge tone="blue">{member.vehicleType === "van" ? "Van" : "Truck"}</Badge>}</div></div>}
-      {memberTab === "access" && <>
-        <div className="grid gap-4 sm:grid-cols-3"><Summary value={allowed.length} label="Effective capabilities"/><Summary value={exceptions.length} label="Member exceptions"/><Summary value={member.places.length} label="Assigned places"/></div>
-        <section className={`${card} p-5 sm:p-6`}><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-lg font-semibold">Member exceptions</h3><p className="text-sm text-go-secondary">These choices apply only to {member.name.split(" ")[0]}.</p></div><button className={primary} disabled={protectedMember && viewer !== "super_admin" || member.personas.includes("super_admin")} onClick={() => actions.onEdit(undefined, member)}>+ Add exception</button></div>
-          {exceptions.length === 0 ? <p className="mt-5 text-sm text-go-secondary">No exceptions. This member uses persona access.</p> : <div className="mt-4 divide-y divide-go-rule">{exceptions.map((ex) => { const capability = CAPABILITIES.find((item) => item.action === ex.action); const expired = !!ex.expires && ex.expires < todayInColombo(); return <div key={ex.action} className="flex flex-wrap items-center gap-3 py-3"><div className="flex-1"><p className="font-semibold">{capability?.label ?? ex.action}</p><p className="text-sm text-go-secondary">{ex.place ?? "Existing assigned places"}{ex.expires ? ` · Until ${ex.expires}` : ""} · {ex.reason}</p></div><Badge tone={expired ? "neutral" : ex.decision === "deny" ? "red" : "green"}>{expired ? "Expired" : ex.decision === "deny" ? "Blocked" : "Allowed"}</Badge>{capability && !member.personas.includes("super_admin") && (!protectedMember || viewer === "super_admin") && <button className="min-h-11 px-2 text-sm font-semibold text-go-teal" onClick={() => actions.onEdit(capability, member)}>Edit</button>}</div>; })}</div>}
-        </section>
-        <section className={card}><div className="flex flex-wrap items-center justify-between gap-3 p-5"><div><h3 className="text-lg font-semibold">Inherited and effective access</h3><p className="text-sm text-go-secondary">From every assigned persona, with member exceptions applied.</p></div><button className={secondary} onClick={() => setShowUnavailable((value) => !value)}>{showUnavailable ? "Hide unavailable" : "Show unavailable"}</button></div>
-          {relevant.filter((item) => showUnavailable || effective(state, member, item).allowed).map((item) => { const result = effective(state, member, item); return <CapabilityRow key={item.action} capability={item} status={!item.implemented ? "Unavailable" : result.allowed ? "Active" : result.source.startsWith("Blocked") ? "Restricted" : "No grant"} source={result.source} onDetails={() => actions.onDetails(item, member)} onEdit={item.implemented && !member.personas.includes("super_admin") && (!protectedMember || viewer === "super_admin") ? () => actions.onEdit(item, member) : undefined} />; })}
-        </section>
-      </>}
+      {memberTab === "access" && <section className={`${card} p-6`}><h3 className="text-lg font-semibold">Effective access unavailable</h3><p className="mt-2 text-sm text-go-secondary">The server does not provide an effective permission explanation for this account. Assigned places are shown in the Scope tab. Review policy attachments through the IAM API before changing access.</p></section>}
     </div>;
   }
   return <div className="space-y-5"><div className="flex flex-wrap items-end justify-between gap-3"><div><div className="flex items-center gap-2.5"><h2 className="text-2xl font-semibold">People</h2>{liveConnected !== undefined && <Badge tone={liveConnected ? "green" : "neutral"}>{liveConnected ? "Live directory" : "Connecting..."}</Badge>}</div><p className="text-sm text-go-secondary">Find a member, inspect their access and review exceptions.</p></div><button className={primary} onClick={onAddMember}>+ Add member</button></div>
@@ -227,7 +214,7 @@ export function PersonasScreen({
               <h2 className="text-2xl font-semibold tracking-[-.025em]">Personas & system roles</h2>
               {liveConnected !== undefined && (
                 <Badge tone={liveConnected ? "green" : "neutral"}>
-                  {liveConnected ? "Live API: GET /api/admin/roles" : "Connecting..."}
+                  {liveConnected ? "Accounts loaded" : "Accounts unavailable"}
                 </Badge>
               )}
             </div>
@@ -369,17 +356,12 @@ export function PersonasScreen({
         </div>
       </div>
 
-      {/* Persona defaults notice */}
+      {/* Catalogue entries do not evaluate a user's policies or scope. */}
       <div className="rounded-2xl border border-go-rule bg-go-subtle p-4 text-sm text-go-ink">
-        Changes to this persona affect all {members.length} assigned members within their existing place scope. Member exceptions may change the effective result.
+        These are catalogue descriptions. Effective role permissions are unavailable from the current API.
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <Badge tone="green">{counts.active} active</Badge>
-        <Badge tone="blue">{counts.optional} optional</Badge>
-        <Badge tone="red">{counts.restricted} restricted</Badge>
-        <Badge tone="amber">{counts.later} unavailable</Badge>
-      </div>
+      <div className="flex flex-wrap gap-2"><Badge>{shown.length} catalogue entries</Badge></div>
 
       <div className="grid gap-5 lg:grid-cols-[15rem_1fr]">
         <aside className={`${card} h-fit p-2`}>
@@ -413,31 +395,13 @@ export function PersonasScreen({
           </div>
           {shown.length ? (
             shown.map((item) => {
-              const choice = personaChoice(state, selected, item.action);
-              const active = personaAllows(state, selected, item.action);
-              const status = !item.implemented ? "Unavailable" : choice === "deny" ? "Restricted" : active ? "Active" : item.optionalFor?.includes(selected) ? "Optional" : "Restricted";
               return (
                 <CapabilityRow
                   key={item.action}
                   capability={item}
-                  status={status}
-                  source={
-                    choice === "inherit"
-                      ? active
-                        ? "From published persona policy"
-                        : item.description
-                      : choice === "omit"
-                      ? "Not granted by this persona"
-                      : choice === "deny"
-                      ? "Explicitly blocked for this persona"
-                      : "Allowed for this persona"
-                  }
+                  status={item.implemented ? "Available" : "Unavailable"}
+                  source={item.description}
                   onDetails={() => actions.onDetails(item, undefined, selected)}
-                  onEdit={
-                    item.implemented && permitted && (active || item.optionalFor?.includes(selected) || choice !== "inherit")
-                      ? () => actions.onEdit(item, undefined, selected)
-                      : undefined
-                  }
                 />
               );
             })
@@ -469,11 +433,8 @@ function PersonaCard({
 }) {
   const info = PERSONAS.find((item) => item.id === persona)!;
   const roleInfo = roles?.find((r) => r.roleCode === persona);
-  const counts = personaCounts(state, persona);
   const members = state.members.filter((item) => item.personas.includes(persona));
-  const totalPolicies = CAPABILITIES.filter(
-    (item) => item.relevant.includes(persona) || state.personaSettings[`${persona}:${item.action}`]
-  ).length;
+  const catalogueEntries = CAPABILITIES.filter((item) => item.relevant.includes(persona)).length;
 
   return (
     <article className="flex w-full min-w-0 flex-col justify-between rounded-2xl border border-[#dcebe3] bg-white p-4 sm:p-5 shadow-[0_4px_16px_rgba(12,65,45,0.04)] transition hover:shadow-md hover:border-[#bde3d2]">
@@ -524,12 +485,12 @@ function PersonaCard({
             </dd>
           </div>
           <div className="flex items-center justify-between gap-2">
-            <dt className="text-go-secondary">Total policies</dt>
-            <dd className="font-semibold text-go-ink">{totalPolicies}</dd>
+            <dt className="text-go-secondary">Catalogue entries</dt>
+            <dd className="font-semibold text-go-ink">{catalogueEntries}</dd>
           </div>
           <div className="flex items-center justify-between gap-2">
-            <dt className="text-go-secondary">Active policies</dt>
-            <dd className="font-semibold text-go-teal">{counts.active}</dd>
+            <dt className="text-go-secondary">Effective policies</dt>
+            <dd className="font-semibold text-go-secondary">Unavailable</dd>
           </div>
         </dl>
       </div>

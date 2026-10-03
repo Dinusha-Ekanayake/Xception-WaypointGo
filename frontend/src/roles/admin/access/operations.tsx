@@ -2,8 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Badge, Empty, VehicleTypeIcon, card, field, primary, secondary } from "./components";
-import { DEMO_DEPOTS } from "./fixtures";
+import { todayInColombo } from "./model";
 import { fetchAdminVehicles } from "../data/reference";
+import { fetchAdminDepots } from "../data/reference";
+import { request } from "@shared/api/client";
+import type { ForecastOverviewView } from "@shared/domain/intelligence";
 
 
 export type LastDriver = {
@@ -20,15 +23,13 @@ export type Vehicle = {
   depot: string;
   weightCapKg: number;
   volumeCapM3: number;
-  fuelType: "Diesel" | "Petrol";
+  fuelType: string;
   weeklyFuelQuotaL: number;
   fuelEfficiencyKmPerL: number;
   temp: "Ambient" | "Chilled (Refrigerated)";
-  status: "Available" | "On trip" | "Workshop";
+  status: "Available" | "On trip" | "Workshop" | "Unavailable";
   lastDriver?: LastDriver;
 };
-
-const FORECASTS: { depot: string; orders: number; previous: number; vans: number; trucks: number }[] = [];
 
 export function VehiclesScreen() {
   const [vehiclesList, setVehiclesList] = useState<Vehicle[]>([]);
@@ -64,6 +65,7 @@ export function VehiclesScreen() {
   useEffect(() => {
     let cancelled = false;
     fetchAdminVehicles({
+      date: todayInColombo(),
       depot: depot !== "all" ? depot : undefined,
       status: status !== "all" ? status.toLowerCase() : undefined,
       search: query.trim() || undefined,
@@ -71,7 +73,7 @@ export function VehiclesScreen() {
     })
       .then((page) => {
         if (cancelled) return;
-        if (page.items && page.items.length > 0) {
+        {
           const records: Vehicle[] = page.items.map((v) => {
             const isTruck = v.type?.toLowerCase() === "truck";
             const tempVal =
@@ -81,28 +83,20 @@ export function VehiclesScreen() {
             const statusVal =
               v.dayStatus === "in_workshop" || v.dayStatus === "workshop"
                 ? "Workshop"
-                : v.dayStatus === "on_route"
-                ? "On trip"
-                : "Available";
+                : v.dayStatus === "unavailable" ? "Unavailable" : "Available";
 
             return {
               id: v.vehicleId,
-              brand: isTruck ? "Isuzu" : "Toyota",
+              brand: "Make unavailable",
               type: isTruck ? "Truck" : "Van",
-              depot: v.depot || "PELIYAGODA",
-              weightCapKg: Number(v.weightCapKg) || (isTruck ? 5510 : 1200),
-              volumeCapM3: Number(v.volumeCapM3) || (isTruck ? 26.4 : 8.5),
-              fuelType: (v.fuelType === "Petrol" || v.fuelType === "Diesel" ? v.fuelType : "Diesel") as "Diesel" | "Petrol",
-              weeklyFuelQuotaL: Number(v.weeklyFuelQuotaL) || (isTruck ? 480 : 280),
-              fuelEfficiencyKmPerL: Number(v.kmPerL) || (isTruck ? 4.7 : 11.2),
+              depot: v.depot,
+              weightCapKg: Number(v.weightCapKg),
+              volumeCapM3: Number(v.volumeCapM3),
+              fuelType: v.fuelType,
+              weeklyFuelQuotaL: Number(v.weeklyFuelQuotaL),
+              fuelEfficiencyKmPerL: Number(v.kmPerL),
               temp: tempVal,
               status: statusVal,
-              lastDriver: {
-                id: `DRV-${v.vehicleId.slice(-3)}`,
-                name: "Assigned Driver",
-                phone: "+94 77 123 4567",
-                lastRunDate: "Today",
-              },
             };
           });
           setVehiclesList(records);
@@ -237,14 +231,15 @@ export function VehiclesScreen() {
         <div>
           {liveConnected !== null && (
             <Badge tone={liveConnected ? "green" : "neutral"}>
-              {liveConnected ? "Live API: GET /api/admin/vehicles" : "Connecting..."}
+              {liveConnected ? "Live API: GET /api/admin/vehicles" : "Vehicles unavailable"}
             </Badge>
           )}
         </div>
         <button
           type="button"
           className={`${primary} flex items-center gap-2`}
-          onClick={() => setIsAddVehicleModalOpen(true)}
+          disabled
+          title="Adding a vehicle requires a reference create command that is not available yet"
         >
           <span className="text-lg leading-none" aria-hidden="true">+</span>
           <span>Add vehicle</span>
@@ -274,7 +269,7 @@ export function VehiclesScreen() {
           Depot
           <select className={`${field} mt-1`} value={depot} onChange={(event) => setDepot(event.target.value)}>
             <option value="all">All depots</option>
-            {DEMO_DEPOTS.map((item) => (
+            {[...new Set(vehiclesList.map((item) => item.depot))].sort().map((item) => (
               <option key={item} value={item}>
                 {item}
               </option>
@@ -557,7 +552,7 @@ export function VehiclesScreen() {
                     value={newVehicleDepot}
                     onChange={(e) => setNewVehicleDepot(e.target.value)}
                   >
-                    {DEMO_DEPOTS.map((d) => (
+                    {[...new Set(vehiclesList.map((item) => item.depot))].sort().map((d) => (
                       <option key={d} value={d}>
                         {d}
                       </option>
@@ -760,46 +755,60 @@ export function VehiclesScreen() {
 
 export function ForecastsScreen() {
   const [depot, setDepot] = useState("all");
-  const rows = FORECASTS.filter((item) => depot === "all" || item.depot === depot);
-  const totalOrders = rows.reduce((sum, item) => sum + item.orders, 0);
-  const totalVehicles = rows.reduce((sum, item) => sum + item.vans + item.trucks, 0);
+  const [overviews, setOverviews] = useState<ForecastOverviewView[]>([]);
+  const [error, setError] = useState(false);
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetchAdminDepots({ signal: controller.signal })
+      .then((depots) => Promise.all(depots.map((d) => request<ForecastOverviewView>(
+        `/api/ml/forecast/overview?depot=${encodeURIComponent(d.code)}`, { signal: controller.signal }))))
+      .then((rows) => { setOverviews(rows); setError(false); })
+      .catch(() => { if (!controller.signal.aborted) setError(true); });
+    return () => controller.abort();
+  }, []);
+  const rows = overviews.filter((item) => depot === "all" || item.depotCode === depot);
+  const nextWeek = rows.map((item) => item.weeks[0]).filter((week) => week != null);
+  const totalVolume = nextWeek.reduce((sum, week) => sum + Number(week.totalM3), 0);
+  const fleetVolume = nextWeek.reduce((sum, week) => sum + Number(week.capacity.fleetM3), 0);
+  const vehicles = nextWeek.reduce((sum, week) => sum + week.capacity.vehicles, 0);
   return (
     <div className="space-y-5">
       <div>
         <h2 className="text-2xl font-semibold">Forecasts</h2>
         <p className="mt-1 text-sm text-go-secondary">
-          Operational order demand and vehicle needs for the next operating day.
+          Weekly demand volume and reference fleet capacity from the published forecast.
         </p>
       </div>
+      {error && <Empty>Forecast data is unavailable. Reopen this screen to retry.</Empty>}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Summary value={totalOrders} label="Forecast orders" />
-        <Summary value={totalVehicles} label="Suggested vehicles" />
-        <Summary value={0} label="Available vehicles" />
-        <Summary value={0} label="Workshop vehicles" />
+        <Summary value={Number(totalVolume.toFixed(1))} label="Next week forecast m³" />
+        <Summary value={Number(fleetVolume.toFixed(1))} label="Next week fleet capacity m³" />
+        <Summary value={vehicles} label="Reference fleet vehicles" />
+        <Summary value={rows.filter((item) => item.degraded).length} label="Depots using fallback" />
       </div>
       <label className={`${card} block max-w-sm p-4 text-sm font-medium`}>
         Depot
         <select className={`${field} mt-1`} value={depot} onChange={(event) => setDepot(event.target.value)}>
           <option value="all">All depots</option>
-          {FORECASTS.map((item) => <option key={item.depot}>{item.depot}</option>)}
+          {overviews.map((item) => <option key={item.depotCode}>{item.depotCode}</option>)}
         </select>
       </label>
-      {rows.length === 0 ? (
+      {!error && rows.length === 0 ? (
         <Empty>No forecast data published yet.</Empty>
-      ) : (
+      ) : !error && (
         <div className="grid gap-4 lg:grid-cols-3">
           {rows.map((item) => {
-            const change = Math.round((item.orders - item.previous) / item.previous * 100);
+            const week = item.weeks[0];
             return (
-              <article key={item.depot} className={`${card} p-5`}>
-                <p className="text-xs font-bold uppercase tracking-wider text-go-secondary">{item.depot}</p>
+              <article key={item.depotCode} className={`${card} p-5`}>
+                <p className="text-xs font-bold uppercase tracking-wider text-go-secondary">{item.depotCode}</p>
                 <div className="mt-4 flex items-end gap-2">
-                  <strong className="text-4xl text-go-teal">{item.orders}</strong>
-                  <span className="pb-1 text-sm text-go-secondary">orders</span>
+                  <strong className="text-4xl text-go-teal">{week ? Number(week.totalM3).toFixed(1) : "Unavailable"}</strong>
+                  <span className="pb-1 text-sm text-go-secondary">m³ next week</span>
                 </div>
-                <p className="mt-2 text-sm text-go-secondary">{change >= 0 ? "+" : ""}{change}% against the comparison day</p>
+                <p className="mt-2 text-sm text-go-secondary">{item.degraded ? "Deterministic fallback forecast" : item.modelLabel ?? "No model recorded"}</p>
                 <div className="mt-5 border-t border-go-rule pt-4 text-sm">
-                  <p>Suggested: <strong>{item.vans} vans</strong> · <strong>{item.trucks} trucks</strong></p>
+                  <p>Fleet capacity: <strong>{week ? Number(week.capacity.fleetM3).toFixed(1) : "Unavailable"} m³</strong> · {week?.capacity.vehicles ?? 0} vehicles</p>
                 </div>
               </article>
             );

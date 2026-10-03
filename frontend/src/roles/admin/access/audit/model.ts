@@ -1,4 +1,4 @@
-import { CAPABILITIES, type Change } from "../model";
+import { CAPABILITIES } from "../model";
 
 export type Outcome = "Completed" | "Denied" | "Failed" | "Pending sync" | "Not recorded";
 export type AuditEvent = {
@@ -9,18 +9,27 @@ export type AuditEvent = {
   access: boolean; governance?: boolean; expires?: string;
 };
 
-export const SAMPLES: AuditEvent[] = [];
+export type AuditRow = {
+  auditId: number; occurredAt: string; actorId: string | null; deviceId: string | null;
+  action: string; resource: string | null; decision: "ALLOW" | "DENY"; reason: string | null;
+  correlationId: string | null; targetType: string | null; targetId: string | null;
+  before: unknown; after: unknown;
+};
 
-export function auditEvents(changes: Change[], viewer: "admin" | "super_admin"): AuditEvent[] {
-  const dynamic: AuditEvent[] = changes.map((change) => ({
-    id: `CHANGE-${change.id}`, at: change.at, actor: change.actor, title: CAPABILITIES.find((item) => item.action === change.action)?.label ?? change.action,
-    module: "People & access", target: change.target, place: change.place ?? "Existing assigned places",
-    outcome: "Completed", authorization: "Not recorded", reason: change.reason, before: change.before, after: change.after,
-    action: change.action, access: true, expires: change.expires ?? undefined,
-    governance: ["Admin", "Devika Senanayake", "Mahesh de Alwis", "Local Super Admin"].includes(change.target) || change.after.startsWith("Admin sample"),
-  }));
-  return dynamic.filter((event) => viewer === "super_admin" || !event.governance)
-    .sort((a, b) => b.at.localeCompare(a.at) || b.id.localeCompare(a.id));
+export function auditRowToEvent(row: AuditRow): AuditEvent {
+  const access = row.action.startsWith("iam:") || row.action.startsWith("audit:");
+  return {
+    id: String(row.auditId), at: row.occurredAt, actor: row.actorId ?? "System",
+    title: CAPABILITIES.find((item) => item.action === row.action)?.label ?? row.action,
+    module: CAPABILITIES.find((item) => item.action === row.action)?.module ?? row.action.split(":")[0],
+    target: row.targetId ?? row.resource ?? "Unavailable", place: row.resource ?? "Unavailable",
+    outcome: row.decision === "DENY" ? "Denied" : "Completed",
+    authorization: row.decision === "DENY" ? "Denied" : "Allowed",
+    reason: row.reason ?? undefined, before: row.before == null ? undefined : JSON.stringify(row.before),
+    after: row.after == null ? undefined : JSON.stringify(row.after),
+    device: row.deviceId ?? undefined, correlation: row.correlationId ?? undefined,
+    action: row.action, access, governance: access,
+  };
 }
 
 export const localDay = (value: string) => new Date(value).toLocaleDateString("sv-SE", { timeZone: "Asia/Colombo" });
