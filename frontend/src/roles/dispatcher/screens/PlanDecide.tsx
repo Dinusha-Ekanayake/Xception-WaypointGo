@@ -73,9 +73,14 @@ export default function PlanDecide({
             </h2>
             <span className="rounded-full bg-go-surface px-2.5 py-1 text-xs text-go-secondary">{`${decided} of ${total} decided`}</span>
             {editable && open.length > 0 && (
-              <SecondaryButton disabled={actions.busy} onClick={() => setKeeping((value) => !value)}>
+              <button
+                type="button"
+                disabled={actions.busy}
+                onClick={() => setKeeping((value) => !value)}
+                className="rounded-full bg-go-mint px-[18px] py-2.5 text-sm font-medium text-go-ink disabled:cursor-not-allowed disabled:opacity-40"
+              >
                 Keep the rest deferred
-              </SecondaryButton>
+              </button>
             )}
           </header>
           {keeping && (

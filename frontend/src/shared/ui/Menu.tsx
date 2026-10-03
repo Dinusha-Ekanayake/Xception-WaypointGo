@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Icon } from "./Icon.tsx";
 import { cx } from "./primitives.tsx";
 
 export type MenuItem = {
@@ -27,6 +28,7 @@ export function Menu({
   className,
   children,
   disabled = false,
+  chevron = false,
 }: {
   /** What a screen reader calls the list. */
   label: string;
@@ -37,6 +39,8 @@ export function Menu({
   className?: string;
   children: ReactNode;
   disabled?: boolean;
+  /** A small arrow after the label, as the design draws a menu button. */
+  chevron?: boolean;
 }): React.JSX.Element {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -68,6 +72,7 @@ export function Menu({
         className={cx("disabled:cursor-not-allowed disabled:opacity-40", className)}
       >
         {children}
+        {chevron && <Icon name="chevron-down" />}
       </button>
       {open && (
         <ul

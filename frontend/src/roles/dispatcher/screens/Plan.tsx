@@ -139,6 +139,7 @@ export default function Plan({
         lastSyncedAt={plans.loadedAt}
         onSync={plans.refresh}
         syncing={plans.loading}
+        quiet
         tools={
           <PlanTools
             depots={depots}
@@ -178,20 +179,18 @@ export default function Plan({
           A saved plan is never edited. Using it returns the working draft to it and keeps what you decided there.
         </Notice>
       )}
-      {improvement && !viewing && (
-        <Notice tone="info" title={improvement.title}>
-          {improvement.detail}
-        </Notice>
-      )}
-      {plan && !plan.improvement && plan.engine.includes("scarce") && plan.allocations.some((a) => a.source !== "ENGINE") && !viewing && (
-        <Notice tone="neutral" title="Refrigerated vehicles were not planned again">
-          Your decisions were kept, so the second pass that could move them did not run.
-        </Notice>
-      )}
-      {plan?.plannedWithoutPredictor && live && (
-        <Notice tone="neutral" title="Planned on the booklet's travel and service times">
-          The time predictor is not running, so no learned times were used.
-        </Notice>
+      {tab === "view" && !viewing && plan && (
+        <p className="text-xs text-go-secondary">
+          {[
+            improvement ? `${improvement.title}. ${improvement.detail}` : null,
+            !plan.improvement && plan.engine.includes("scarce") && plan.allocations.some((a) => a.source !== "ENGINE")
+              ? "Refrigerated vehicles were not planned again: your decisions were kept, so the second pass that could move them did not run."
+              : null,
+            plan.plannedWithoutPredictor && live ? "Planned on the booklet's travel and service times: the time predictor is not running." : null,
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        </p>
       )}
 
       {plans.data && state.stage === "none" && (
