@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { OrderView, PlanView } from "@shared/domain/types";
 import { Notice, Pill, PrimaryButton, SecondaryButton } from "@shared/ui";
-import { clock, dayLabel, ruleLabel } from "@shared/wording";
+import { clock, dayLabel, ruleLabel, trips } from "@shared/wording";
 import type { PlanSummary, Working } from "../data/plan.ts";
 import type { DecisionRow } from "../data/planViews.ts";
 import { publishBlocker } from "../data/planViews.ts";
@@ -65,7 +65,7 @@ export default function PlanPublish({
           {state.stage === "published" ? "This plan is published" : revises ? "Send this update" : "Publish this plan"}
         </h2>
         <p className="text-[13px] text-go-secondary">
-          {`${depot} · ${dayLabel(date)} · version ${plan.planVersion} · ${summary.served} of ${summary.orders} orders on ${summary.trips} trips, ${summary.vehiclesUsed} vehicles`}
+          {`${depot} · ${dayLabel(date)} · version ${plan.planVersion} · ${summary.served} of ${summary.orders} orders on ${trips(summary.trips)}, ${summary.vehiclesUsed === 1 ? "1 vehicle" : `${summary.vehiclesUsed} vehicles`}`}
         </p>
       </div>
 

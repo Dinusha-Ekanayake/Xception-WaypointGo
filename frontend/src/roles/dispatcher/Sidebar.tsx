@@ -95,7 +95,7 @@ export default function Sidebar({
         {!rail && (
           <>
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <p className="truncate text-[15px] font-medium text-go-ink">{displayName}</p>
+              <p title={displayName} className="text-[15px] leading-tight font-medium text-go-ink [overflow-wrap:anywhere]">{displayName}</p>
               <p className="text-xs text-go-secondary">Dispatcher</p>
             </div>
             <ShellActions compact />

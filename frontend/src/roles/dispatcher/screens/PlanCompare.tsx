@@ -95,7 +95,7 @@ function Chooser({ name, current, picks, onPick }: { name: string; current: Pick
 function Result({ view, orders }: { view: ComparisonView; orders: Map<string, OrderView> }): React.JSX.Element {
   return (
     <>
-      <div className="grid grid-cols-[1fr_auto_auto] items-center gap-x-6 gap-y-1 text-[13px] text-go-ink max-sm:grid-cols-[1fr_auto_auto]">
+      <div className="grid max-w-[560px] grid-cols-[1fr_auto_auto] items-center gap-x-10 gap-y-1 text-[13px] text-go-ink">
         <span />
         <span className="text-xs font-medium text-go-secondary">Plan A</span>
         <span className="text-xs font-medium text-go-secondary">Plan B</span>
@@ -114,7 +114,7 @@ function Result({ view, orders }: { view: ComparisonView; orders: Map<string, Or
               <Pill tone={change.kind === "DROPPED" ? "warning" : change.kind === "ADDED" ? "success" : "info"}>{SIDE_TEXT[change.kind]}</Pill>
               <span className="min-w-[110px] font-medium text-go-ink">{orders.get(change.orderId)?.orderRef ?? change.orderId}</span>
               <span className="text-go-secondary">{change.outletId ?? ""}</span>
-              <span className="ml-auto text-go-ink">{`${where(change.before)} to ${where(change.after)}`}</span>
+              <span className="ml-auto text-go-ink">{`From ${where(change.before)} to ${where(change.after)}`}</span>
             </li>
           ))}
         </ul>
