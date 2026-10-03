@@ -41,11 +41,13 @@ test("the bell names the unread count and opens the panel, newest first, with ma
   const sent = await inbox(page);
   await page.goto("/#/orders");
 
+  await expect(page.getByRole("button", { name: "Notifications, 2 unread" })).toHaveText("2");
   await page.getByRole("button", { name: "Notifications, 2 unread" }).click();
   const panel = page.getByRole("dialog", { name: "Notifications" });
   await expect(panel).toContainText("2 new · newest first");
   const rows = panel.getByRole("listitem");
-  await expect(rows.first()).toContainText("Delivery failed · 2 min ago");
+  await expect(rows.first()).toContainText("Delivery failed");
+  await expect(rows.first()).toContainText("2 min ago");
   await expect(rows.first()).toContainText("Delivery failed at OUT085");
 
   await rows.first().getByRole("button", { name: "Mark as read" }).click();
