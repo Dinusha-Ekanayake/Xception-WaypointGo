@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-10-03 - feat: dispatcher live shows the map and the timeline together
+
+`feat/live-map-with-timeline` · @kavindamihiran
+
+The Map / Timeline toggle on Live is gone: the map (with its selected vehicle panel) sits on top and the timeline (on the road, needs you, at the dock) is always under it, so a dispatcher sees where trucks are and how each run is going without switching. The remembered view in `localStorage` is dropped. Part of #161.
+
+---
+
 ## 2026-10-03 - fix: VPS deploys cap the Docker build cache
 
 `fix/vps-build-cache-cap` · @kavindamihiran

@@ -14,7 +14,7 @@ import { useDepots, usePositions } from "../data/useDay.ts";
 // Figma "05 Live" map view (189:11320) with 05b (selected, at risk) and 05d
 // (offline). A truck is drawn only where it was seen: with no fix it is listed
 // as "No live location · stops only", never placed at a guess. The timeline
-// view beside this one stays the accessible list of every vehicle.
+// under this map stays the accessible list of every vehicle.
 
 const STATUS: Record<MapStatus, { label: string; tone: Tone }> = {
   "on-time": { label: "On time", tone: "success" },
@@ -90,7 +90,7 @@ export default function LiveMapView({ depots, depotOf, date, days, now }: { depo
   const unplaced = shown.filter((r) => !r.at);
 
   return (
-    <div className="flex min-h-0 w-full flex-1 gap-[18px] max-lg:flex-col">
+    <div className="flex w-full shrink-0 gap-[18px] max-lg:flex-col">
       <div className="relative min-h-[560px] min-w-0 flex-1">
         <LiveMap
           className="h-full min-h-[560px] w-full rounded-[24px]"
