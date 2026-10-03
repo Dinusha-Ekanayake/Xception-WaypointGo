@@ -38,6 +38,17 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-03 - feat: re-release the models as 2026.1.1, and a forecast-run command
+
+`feat/model-rerelease-forecast-run` · @tharushaudana
+
+`ml-server/manifest.json` serves the same model files as `2026.1.1`; a new backend command `forecast-run` runs the demand forecast once, now, under the scheduled job's lease (`ForecastJob.immediately`).
+Why: `2026.1` was retired on preview, and a retired version can never be activated again; and a model activated after a fallback run otherwise waits up to six hours (P-29).
+Verified: `WaypointApplicationLoadingFixtureTest` (2), `IntelligenceDomainTest` (22), `ModuleBoundaryTest`, `EventCatalogueTest`. The model service tests run in CI.
+Open: register and activate `2026.1.1` on preview, then run `forecast-run` there; production only when decided.
+
+---
+
 ## 2026-10-03 - feat: the Forecast screen shows the last and next run, with a countdown
 
 `feat/forecast-schedule` · @tharushaudana

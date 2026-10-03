@@ -117,6 +117,37 @@ public class ForecastJob implements ScheduledJob {
         Clock.OPERATING_ZONE));
   }
 
+  /**
+   * This job as an operator runs it ({@code forecast-run}): the same name, so the
+   * same lease and run record, but without waiting for {@link #due}. A model
+   * activated after a fallback run is then seen at once rather than up to six
+   * hours later.
+   */
+  public ScheduledJob immediately() {
+    ForecastJob job = this;
+    return new ScheduledJob() {
+      @Override
+      public String name() {
+        return job.name();
+      }
+
+      @Override
+      public String cron() {
+        return job.cron();
+      }
+
+      @Override
+      public ModuleRole moduleRole() {
+        return job.moduleRole();
+      }
+
+      @Override
+      public void run(Instant now) {
+        job.runAt(now);
+      }
+    };
+  }
+
   record Key(String depot, String brand, int isoYear, int isoWeek) {}
 
   /** @return how many depot-brand-week forecasts were written */
