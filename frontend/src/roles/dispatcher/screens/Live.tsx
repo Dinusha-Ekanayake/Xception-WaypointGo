@@ -6,7 +6,7 @@ import { KpiCard, Notice, Pill, Segmented, type Tone } from "@shared/ui";
 import PageHeader from "../PageHeader.tsx";
 import { attention, byUrgency, isLate, totals, vehicleDay, type VehicleDay } from "../data/live.ts";
 import { hhmm } from "../data/plan.ts";
-import { formatDay } from "../data/scope.ts";
+import { dayLabel } from "../data/scope.ts";
 import { useLive } from "../data/useDay.ts";
 import DayPicker from "./DayTools.tsx";
 import { Retry } from "./Orders.tsx";
@@ -85,7 +85,7 @@ export default function Live({
   return (
     <>
       <PageHeader
-        title={`Live · ${formatDay(date)}`}
+        title={`Live · ${dayLabel(date)}`}
         subtitle={`${live.data ? `${t.onTheRoad} on the road · ${t.atDock} at the dock` : "Loading"} · ${scopeLabel}`}
         online={online}
         lastSyncedAt={live.loadedAt}
@@ -117,7 +117,7 @@ export default function Live({
             <span className="text-xs text-go-secondary">most urgent first</span>
           </div>
           {live.data && days.length === 0 && (
-            <p className="py-8 text-center text-[13px] text-go-secondary">No vehicle has left the dock on {formatDay(date)}. A vehicle appears here when the loader releases it.</p>
+            <p className="py-8 text-center text-[13px] text-go-secondary">No vehicle has left the dock on {dayLabel(date)}. A vehicle appears here when the loader releases it.</p>
           )}
           {days.map((day) => (
             <VehicleCard key={day.vehicleId} day={day} date={date} now={now} open={openId === day.vehicleId} onToggle={() => setOpenId(openId === day.vehicleId ? null : day.vehicleId)} />

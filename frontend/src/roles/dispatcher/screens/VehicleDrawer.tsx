@@ -5,7 +5,7 @@ import { ApiError } from "@shared/api/problem";
 import type { VehicleView } from "@shared/domain/types";
 import { Icon, Notice, Pending, Pill, PrimaryButton, SecondaryButton } from "@shared/ui";
 import { capacityLabel, litres, typeLabel } from "../data/fleet.ts";
-import { formatDay } from "../data/scope.ts";
+import { dayLabel } from "../data/scope.ts";
 import type { SubmitState } from "../data/useSetDayStatus.ts";
 import FuelWeek from "./FuelWeek.tsx";
 
@@ -57,7 +57,7 @@ export default function VehicleDrawer({
               <Pill tone={vehicle.refrigerated ? "info" : "muted"} icon={vehicle.refrigerated ? "snowflake" : undefined}>
                 {typeLabel(vehicle)} vehicle
               </Pill>
-              <Pill tone="success">Available {formatDay(serviceDate)}</Pill>
+              <Pill tone="success">Available {dayLabel(serviceDate)}</Pill>
             </div>
             <p className="text-[13px] text-go-secondary">
               {capacityLabel(vehicle)} · {Number(vehicle.kmPerL)} km/L · {vehicle.depotCode}
@@ -99,7 +99,7 @@ export default function VehicleDrawer({
             }}
           >
             <label htmlFor="workshop-reason" className="text-[13px] font-medium text-go-ink">
-              Why is {vehicle.vehicleId} going to the workshop on {formatDay(serviceDate)}?
+              Why is {vehicle.vehicleId} going to the workshop on {dayLabel(serviceDate)}?
             </label>
             <textarea
               id="workshop-reason"

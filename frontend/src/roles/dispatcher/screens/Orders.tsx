@@ -5,7 +5,7 @@ import { OrderCommandKind, type OrderView } from "@shared/domain/types";
 import { FilterTabs, Icon, Notice, Pill, SecondaryButton } from "@shared/ui";
 import PageHeader from "../PageHeader.tsx";
 import { STATUS, flow, matches, size, type StatusFilter } from "../data/orders.ts";
-import { formatDay } from "../data/scope.ts";
+import { dayLabel } from "../data/scope.ts";
 import { useCommand } from "../data/useCommand.ts";
 import { useOrders, usePlans } from "../data/useDay.ts";
 import DayPicker from "./DayTools.tsx";
@@ -64,8 +64,8 @@ export default function Orders({
     if (!sent.ok) return setFailure(sent.error);
     setClosed(
       sent.result.alreadyClosed
-        ? `Orders for ${depot} on ${formatDay(date)} were already closed.`
-        : `Orders for ${depot} on ${formatDay(date)} are closed. New orders for that day roll to the next run.`,
+        ? `Orders for ${depot} on ${dayLabel(date)} were already closed.`
+        : `Orders for ${depot} on ${dayLabel(date)} are closed. New orders for that day roll to the next run.`,
     );
     orders.refresh();
   };
@@ -82,7 +82,7 @@ export default function Orders({
     <>
       <PageHeader
         title="Orders"
-        subtitle={`${orders.data ? `${f.due} due` : "Loading"} · ${scopeLabel} · ${formatDay(date)}`}
+        subtitle={`${orders.data ? `${f.due} due` : "Loading"} · ${scopeLabel} · ${dayLabel(date)}`}
         online={online}
         lastSyncedAt={orders.loadedAt}
         onSync={orders.refresh}
@@ -172,7 +172,7 @@ export default function Orders({
         </div>
         {orders.data && rows.length === 0 && (
           <p className="py-8 text-center text-[13px] text-go-secondary">
-            {all.length === 0 ? `No orders are due on ${formatDay(date)}.` : "No orders match these filters."}
+            {all.length === 0 ? `No orders are due on ${dayLabel(date)}.` : "No orders match these filters."}
           </p>
         )}
         {!orders.data && !orders.error && <p className="py-8 text-center text-[13px] text-go-secondary">Loading the orders…</p>}
@@ -180,7 +180,7 @@ export default function Orders({
 
       <section aria-label="Close orders" className="flex w-full flex-wrap items-center gap-3 rounded-[24px] bg-white px-5 py-4 shadow-go-card">
         <div className="min-w-[240px] flex-1">
-          <h2 className="text-[15px] font-medium text-go-ink">Close orders for {formatDay(date)}</h2>
+          <h2 className="text-[15px] font-medium text-go-ink">Close orders for {dayLabel(date)}</h2>
           <p className="text-xs text-go-secondary">After the cutoff, closing stops new orders for the day so the plan can be made. Before the cutoff it is refused.</p>
         </div>
         {depots.map((depot) => (
@@ -216,7 +216,7 @@ function OrderRow({ order, ride }: { order: OrderView; ride: string | undefined 
       <span role="cell" className="flex flex-wrap items-center gap-1.5">
         <Pill tone={state.tone}>{state.label}</Pill>
         {order.deferralCount > 0 && <span className="text-xs text-go-warning-text">deferred {order.deferralCount}×</span>}
-        {order.dateRolled && <span className="text-xs text-go-secondary">moved from {formatDay(order.requestedDate)}</span>}
+        {order.dateRolled && <span className="text-xs text-go-secondary">moved from {dayLabel(order.requestedDate)}</span>}
       </span>
     </div>
   );

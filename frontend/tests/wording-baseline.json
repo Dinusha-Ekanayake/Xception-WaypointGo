@@ -1,0 +1,88 @@
+{
+  "src/roles/admin/access/AccessDemo.tsx": {
+    "retired: route for a trip (say trip)": 2
+  },
+  "src/roles/admin/access/audit/AuditConsole.tsx": {
+    "retired: route for a trip (say trip)": 4
+  },
+  "src/roles/admin/access/audit/model.ts": {
+    "retired: route for a trip (say trip)": 1
+  },
+  "src/roles/admin/access/model.ts": {
+    "retired: route for a trip (say trip)": 1
+  },
+  "src/roles/admin/access/operations.tsx": {
+    "retired: route for a trip (say trip)": 3
+  },
+  "src/roles/dispatcher/data/plan.ts": {
+    "retired: reefer (say refrigerated)": 1
+  },
+  "src/roles/driver/screens/Route.tsx": {
+    "raw code on screen": 2
+  },
+  "src/roles/loader/data/strings.ts": {
+    "retired: route for a trip (say trip)": 1,
+    "retired: cases or packages (say units)": 1
+  },
+  "src/roles/loader/screens/DockBoard.tsx": {
+    "retired: route for a trip (say trip)": 2
+  },
+  "src/roles/loader/screens/IssueSheet.tsx": {
+    "retired: cases or packages (say units)": 1
+  },
+  "src/roles/store/data/fixtures.ts": {
+    "raw code on screen": 2
+  },
+  "src/roles/store/data/format.ts": {
+    "retired: cases or packages (say units)": 1,
+    "12-hour clock": 1
+  },
+  "src/roles/store/data/issues.ts": {
+    "retired: cases or packages (say units)": 3
+  },
+  "src/roles/store/data/runs.ts": {
+    "retired: ETA (say expected arrival)": 1
+  },
+  "src/roles/store/screens/account/StoreDetailsDialog.tsx": {
+    "raw code on screen": 4
+  },
+  "src/roles/store/screens/deliveries/Deliveries.tsx": {
+    "retired: cases or packages (say units)": 5,
+    "12-hour clock": 1
+  },
+  "src/roles/store/screens/deliveries/MakeUpDrawer.tsx": {
+    "retired: ETA (say expected arrival)": 1
+  },
+  "src/roles/store/screens/Home.tsx": {
+    "retired: cases or packages (say units)": 2
+  },
+  "src/roles/store/screens/issues/ReportIssue.tsx": {
+    "retired: cases or packages (say units)": 1
+  },
+  "src/roles/store/screens/NextStop.tsx": {
+    "retired: cases or packages (say units)": 1,
+    "retired: ETA (say expected arrival)": 1
+  },
+  "src/roles/store/screens/order/PlaceOrder.tsx": {
+    "12-hour clock": 2,
+    "retired: cases or packages (say units)": 1
+  },
+  "src/roles/store/screens/receive/PhotoDialog.tsx": {
+    "retired: cases or packages (say units)": 2
+  },
+  "src/roles/store/screens/receive/Receive.tsx": {
+    "retired: cases or packages (say units)": 1
+  },
+  "src/roles/store/screens/receive/ReportCard.tsx": {
+    "retired: cases or packages (say units)": 1
+  },
+  "src/roles/store/screens/receive/SummaryCard.tsx": {
+    "retired: cases or packages (say units)": 1
+  },
+  "src/roles/store/screens/Track.tsx": {
+    "retired: cases or packages (say units)": 1
+  },
+  "src/shared/ui/primitives.tsx": {
+    "retired: drop or shop": 1
+  }
+}
