@@ -141,6 +141,7 @@ export function DepotsScreen({
 
   // People belonging to this depot (Only Drivers & Store Managers are bound to a depot)
   const depotPeople = useMemo(() => {
+    if (!currentDepot) return [];
     return state.members.filter((m) => {
       const isDriver = m.personas.includes("driver");
       const isStoreMgr = m.personas.includes("store_manager");
@@ -163,12 +164,13 @@ export function DepotsScreen({
 
       return false;
     });
-  }, [state.members, currentDepot.id]);
+  }, [state.members, currentDepot, outletsList]);
 
   // Vehicles stationed at this depot
   const depotVehicles = useMemo(() => {
+    if (!currentDepot) return [];
     return vehiclesList.filter((v) => v.depot === currentDepot.id);
-  }, [vehiclesList, currentDepot.id]);
+  }, [vehiclesList, currentDepot]);
 
   // Outlets connected to this depot
   const depotOutlets = useMemo(() => {
@@ -293,6 +295,12 @@ export function DepotsScreen({
         return "bg-[#e0f2fe] text-[#0369a1]";
     }
   };
+
+  if (!currentDepot) {
+    return <div className={`${card} p-6 text-go-secondary`} role="status">
+      {liveConnected === false ? "Depots could not be loaded. Try refreshing the page." : "Loading depots..."}
+    </div>;
+  }
 
   return (
     <div className="space-y-6">

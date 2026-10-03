@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-04 - fix: render admin depots while loading
+
+`dev` · @ranathungaWK
+
+Guard depot-specific calculations until the scoped depot list arrives, and show a loading or unavailable state when it is empty.
+Why: the preview Depots page dereferenced `currentDepot.id` on its first render and fell into the app error boundary.
+Verified: frontend typecheck and Next.js compilation on the matching local fix; preview VPS backend and frontend containers healthy.
+
+---
+
 ## 2026-10-04 - fix: grant reference reads of actor scope
 
 `codex/admin-live-wiring` · @ranathungaWK
