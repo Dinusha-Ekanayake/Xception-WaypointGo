@@ -330,13 +330,14 @@ class PlanningSchemaIntegrationTest {
 
   @Test
   void aDispatcherCannotWriteAPlanForAnotherDepot() {
+    LocalDate date = freshDate();
     assertThrows(
         RuntimeException.class,
         () ->
             database.asModule(
                 ModuleRole.PLANNING,
                 elsewhere.userId(),
-                () -> plans.insertRun(run(UUID.randomUUID(), freshDate(), 1, Optional.empty()),UUID.randomUUID(), Instant.now())));
+                () -> plans.insertRun(run(UUID.randomUUID(), date, 1, Optional.empty()),UUID.randomUUID(), Instant.now())));
   }
 
   // ---- reads ---------------------------------------------------------------------
@@ -515,8 +516,22 @@ class PlanningSchemaIntegrationTest {
     database.asSystem(ModuleRole.PLANNING, work);
   }
 
-  private static LocalDate freshDate() {
-    return LocalDate.of(2031, 1, 1).plusDays(ThreadLocalRandom.current().nextInt(0, 20_000));
+  /** A random date no run in the shared test database uses yet, so plan versions cannot collide. */
+  private LocalDate freshDate() {
+    while (true) {
+      LocalDate date = LocalDate.of(2031, 1, 1).plusDays(ThreadLocalRandom.current().nextInt(0, 20_000));
+      Number taken =
+          database.asSystem(
+              ModuleRole.PLANNING,
+              () ->
+                  (Number)
+                      database
+                          .queryOne("SELECT count(*) AS n FROM planning.runs WHERE service_date = ?", java.sql.Date.valueOf(date))
+                          .get("n"));
+      if (taken.longValue() == 0) {
+        return date;
+      }
+    }
   }
 
   private long deniedReads(Actor actor) {
