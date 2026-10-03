@@ -170,7 +170,9 @@ jobs:
       - name: Playwright version
         id: playwright
         run: echo "version=$(npx playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@v4
+      # Restored here and saved at the end even when a suite failed, so a red run
+      # does not make the next one download Chromium again.
+      - uses: actions/cache/restore@v6
         id: browsers
         with:
           path: ~/.cache/ms-playwright
@@ -201,13 +203,19 @@ jobs:
         run: npx playwright test -c playwright.store.config.ts
       - name: Keep the reports of a failed run
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: browser-suites-report
           path: |
             frontend/playwright-report/
             frontend/test-results/
           retention-days: 7
+      - name: Keep Chromium for the next run
+        if: always() && steps.browsers.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ steps.playwright.outputs.version }}
 
   compose:
     name: Compose files parse
