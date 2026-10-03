@@ -14,7 +14,7 @@ import Live from "./screens/Live.tsx";
 import Orders from "./screens/Orders.tsx";
 import Plan from "./screens/Plan.tsx";
 import Issues from "./screens/Issues.tsx";
-import UpcomingScreen from "./screens/Upcoming.tsx";
+import Forecast from "./screens/Forecast.tsx";
 
 // The dispatcher workspace from the Figma "Dispatcher · Desktop" page. It is
 // online only: no write queue, and a read-only state when the connection drops
@@ -68,7 +68,7 @@ export default function Dispatcher({
         ) : view === "overview" ? (
           <Overview displayName={displayName} userId={userId} depots={depots} scopeLabel={label} fleet={fleet} online={online} onNavigate={navigate} />
         ) : view === "vehicles" ? (
-          <Vehicles scopeLabel={label} date={date} onDate={setDate} fleet={fleet} online={online} />
+          <Vehicles depots={depots} scopeLabel={label} date={date} onDate={setDate} fleet={fleet} online={online} />
         ) : view === "orders" ? (
           <Orders depots={depots} scopeLabel={label} date={date} onDate={setDate} online={online} />
         ) : view === "plan" ? (
@@ -78,7 +78,7 @@ export default function Dispatcher({
         ) : view === "issues" ? (
           <Issues depots={depots} scopeLabel={label} userId={userId} online={online} />
         ) : (
-          <UpcomingScreen view={view} scopeLabel={label} online={online} lastSyncedAt={fleet.loadedAt} />
+          <Forecast depots={depots} scopeLabel={label} online={online} />
         )}
       </div>
     </div>
