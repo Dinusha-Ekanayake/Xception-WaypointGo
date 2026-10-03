@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { request } from "@shared/api/client";
 import type { OutletView, TrailPointView } from "@shared/domain/types";
-import { clock } from "@shared/wording";
+import { clock, hhmm } from "@shared/wording";
 import { cx } from "@shared/ui";
-import { LiveMap, num, type LatLon, type MapLine, type MapMarker } from "@shared/ui/map";
+import { LiveMap, metres, num, type LatLon, type MapLine, type MapMarker } from "@shared/ui/map";
 import type { Stop } from "../data/run.ts";
 import type { PositionRecorder } from "../data/position.ts";
 
@@ -23,6 +23,18 @@ export function exactPoint(outlet: OutletView | undefined): LatLon | null {
 
 export function navigateUrl(to: LatLon): string {
   return `https://www.google.com/maps/dir/?api=1&destination=${to.lat},${to.lon}`;
+}
+
+/** Straight-line distance, which a road route is never shorter than. */
+export function distanceText(m: number): string {
+  return m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(m < 10000 ? 1 : 0)} km`;
+}
+
+/** The store's receiving window, when the run carries one. */
+function windowText(outlet: OutletView | undefined): string | null {
+  const open = outlet?.effectiveWindowOpen ?? outlet?.windowOpen;
+  const close = outlet?.effectiveWindowClose ?? outlet?.windowClose;
+  return open && close ? `${hhmm(open)}-${hhmm(close)}` : null;
 }
 
 export default function RouteMap({
@@ -64,22 +76,36 @@ export default function RouteMap({
     <div className={cx("relative", className)}>
       <LiveMap markers={markers} lines={lines} fit={fit} className="h-full w-full" background="var(--color-go-subtle)" overlay={
         <>
-          {syncedAt && <span className="rounded-full bg-white px-3 py-1 text-[13px] text-go-ink shadow">Synced {clock(syncedAt)}</span>}
+          {syncedAt && <span className="rounded-full bg-go-card px-3 py-1 text-[13px] text-go-ink shadow">Synced {clock(syncedAt)}</span>}
         </>
       } />
-      <div className="absolute inset-x-4 bottom-6 z-[600] flex flex-col gap-2">
+      <div className="absolute inset-x-3 bottom-[max(1rem,env(safe-area-inset-bottom))] z-[600] flex flex-col gap-2">
         {!here && (
-          <p role="status" className="rounded-[16px] bg-white px-4 py-3 text-[14px] text-go-ink shadow">
+          <p role="status" className="self-start rounded-full bg-go-card px-4 py-2 text-[13px] text-go-ink shadow">
             {recorder.state === "denied" ? "Location off · the dispatcher sees your stops only" : "Finding your position"}
           </p>
         )}
-        {dest ? (
-          <a href={navigateUrl(dest)} target="_blank" rel="noreferrer" className="flex h-14 items-center justify-center rounded-full bg-go-ink text-[17px] font-medium text-go-canvas">
-            Navigate to {next.outletId}
-          </a>
-        ) : (
-          <p className="rounded-[16px] bg-white px-4 py-3 text-[14px] text-go-ink shadow">No exact location for this store yet · Approximate · {outlet?.districtName ?? "district"}</p>
-        )}
+        <section aria-label="Next stop" className="flex flex-col gap-3 rounded-[24px] bg-go-card p-4 text-go-ink shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
+          <div className="flex items-center gap-3">
+            <span aria-hidden className="flex size-10 shrink-0 items-center justify-center rounded-full bg-go-ink text-[14px] font-semibold text-go-canvas">
+              {String(next.sequence).padStart(2, "0")}
+            </span>
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span className="truncate text-[17px] font-medium">{next.outletId}</span>
+              <span className="truncate text-[13px] text-go-muted">
+                {[outlet?.districtName, windowText(outlet)].filter(Boolean).join(" · ")}
+              </span>
+            </span>
+            {here && dest && <span className="shrink-0 text-[15px] font-medium tabular-nums">{distanceText(metres(here, dest))}</span>}
+          </div>
+          {dest ? (
+            <a href={navigateUrl(dest)} target="_blank" rel="noreferrer" className="flex h-14 items-center justify-center rounded-full bg-go-ink text-[17px] font-medium text-go-canvas active:scale-[0.98]">
+              Navigate to {next.outletId}
+            </a>
+          ) : (
+            <p className="text-[14px] text-go-muted">No exact location for this store yet · Approximate · {outlet?.districtName ?? "district"}</p>
+          )}
+        </section>
       </div>
     </div>
   );

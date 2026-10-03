@@ -3,6 +3,12 @@
 @kavindamihiran's entries, newest first. Only @kavindamihiran adds to this file; how to write an entry is in the [log's index](../development-log.md).
 
 ---
+## 2026-10-04 - fix: driver Settings opens, map stop card
+
+`fix/driver-settings-map` · @kavindamihiran
+
+The driver's picture opened nothing: the sheet is `fixed`, and the header's scaling wrapper is a transformed ancestor that clipped it. It now renders through a portal into the themed driver root. The map's bottom boxes became one theme-aware stop card (stop number, district, window, straight-line distance, Navigate).
+Verified: typecheck, `npm test`, build; driver suite 20 passed, 13 skipped.
 ## 2026-10-04 - feat: loader on a phone held sideways, #201 walkthrough
 
 `feat/role-pwa-loader-layout` · @kavindamihiran · #201, PR 5 of 5 ([walkthrough](../../issues/201-role-pwa/WALKTHROUGH.md))
