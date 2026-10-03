@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { cx, formatClock } from "@shared/ui";
+import { cx } from "@shared/ui";
 import type { Inbox } from "@shared/notifications/useInbox";
 import { ago, isUnread, kindOf, type Tone } from "@shared/notifications/inbox";
 import type { NotificationView } from "@shared/domain/types";
 import { useT } from "../i18n.tsx";
 import { BigButton, Sheet } from "../ui.tsx";
+import { clock } from "@shared/wording";
 
 // The loader's notifications (issue #118): plans published or revised for the
 // depot, and trips other loaders released. Figma gives the loader a bell with
@@ -53,7 +54,7 @@ export default function Notifications({
       {!inbox.online && (
         <p role="status" className="rounded-[16px] bg-go-warning-tint px-4 py-3 text-[14px] text-go-warning-text">
           {inbox.savedAt
-            ? tr("Offline · saved at {time}. Read state updates when you're back online.", { time: formatClock(inbox.savedAt) })
+            ? tr("Offline · saved at {time}. Read state updates when you're back online.", { time: clock(inbox.savedAt) })
             : tr("Offline. Notifications show when you're back online.")}
         </p>
       )}

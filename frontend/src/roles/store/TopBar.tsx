@@ -1,8 +1,9 @@
 import { useState } from "react";
 import type { OutletView } from "@shared/domain/types";
-import { Icon, McpButton, ShellActions, cx, formatClock, useShell } from "@shared/ui";
+import { Icon, McpButton, ShellActions, cx, useShell } from "@shared/ui";
 import AccountMenu from "./AccountMenu.tsx";
 import { initials } from "./ui.tsx";
+import { clock } from "@shared/wording";
 
 // The store's top bar from "02 Home" (mobile and desktop). Connection state is always on screen: the
 // resilient tier keeps working offline, and the manager must know an order is
@@ -49,7 +50,7 @@ export default function TopBar({
       : syncing
         ? "Syncing…"
         : syncedAt
-          ? `Synced ${formatClock(syncedAt)}`
+          ? `Synced ${clock(syncedAt)}`
           : "Connecting…";
   const hasUnread = (unread ?? 0) > 0;
 

@@ -1,4 +1,6 @@
 import type { CheckStatus, HolderView, IssueKind, ItemView, ManifestLineView, OutletView, SessionStatus, Temperature } from "@shared/domain/types";
+import { clock, durationText } from "../../../shared/wording/index.ts";
+export { clock, depotToday, durationText, hhmm } from "../../../shared/wording/index.ts";
 
 // Pure helpers over a manifest. Capacity reads order totals only (AGENTS.md,
 // External Product Catalogue): weight and volume never come from product lines.
@@ -78,26 +80,11 @@ export function orderStatusOf(items: ItemView[]): CheckStatus {
   return items.find((i) => isFlagged(i.status))?.status ?? "LOADED";
 }
 
-/** "HH:mm" of an instant in the depot's timezone. */
-export function clockTime(instant: string): string {
-  return new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Colombo", hour: "2-digit", minute: "2-digit", hour12: false }).format(
-    new Date(instant),
-  );
-}
-
 /** Minutes until a depot wall-clock time today, read in Asia/Colombo whatever the device's timezone. */
 export function minutesUntil(time: string, now: Date = new Date()): number {
   const [h, m] = time.split(":").map(Number);
-  const [nh, nm] = clockTime(now.toISOString()).split(":").map(Number);
+  const [nh, nm] = clock(now.toISOString()).split(":").map(Number);
   return (h ?? 0) * 60 + (m ?? 0) - ((nh ?? 0) * 60 + (nm ?? 0));
-}
-
-export function hhmm(time: string): string {
-  return time.slice(0, 5);
-}
-
-export function depotToday(now: Date = new Date()): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Colombo" }).format(now);
 }
 
 export const STATUS_LABEL: Record<SessionStatus, string> = {
@@ -127,11 +114,6 @@ export const IDLE_RELEASE_MINUTES = 30;
 /** Whether a holder has been idle long enough that anyone may take the trip over. */
 export function holdLapsed(holder: HolderView, now: Date = new Date()): boolean {
   return now.getTime() - Date.parse(holder.lastActiveAt) >= IDLE_RELEASE_MINUTES * 60_000;
-}
-
-/** "14 min" or "1 h 20 min". */
-export function durationText(minutes: number): string {
-  return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
 }
 
 /** "14 min" or "1 h 20 min" until a depot-time departure; empty when past or not today. */

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Icon, type IconName } from "./Icon.tsx";
+import { clock } from "../wording/index.ts";
 
 // The GO components every role composes: cards, pills, tiles and buttons, as
 // drawn in the Figma style guide. Values are the design's, through theme.css.
@@ -262,7 +263,7 @@ export function ConnectionStatus({
   onSync?: () => void;
   syncing?: boolean;
 }): React.JSX.Element {
-  const time = lastSyncedAt ? formatClock(lastSyncedAt) : null;
+  const time = lastSyncedAt ? clock(lastSyncedAt) : null;
   if (!online) {
     return (
       <div role="status" className="flex h-12 shrink-0 items-center gap-2 rounded-full border-[1.5px] border-go-warning bg-go-warning-tint pr-3.5 pl-3 drop-shadow-[0_5px_10px_rgba(0,0,0,0.09)]">
@@ -289,10 +290,6 @@ export function ConnectionStatus({
       <span className="text-sm text-go-muted">{text}</span>
     </div>
   );
-}
-
-export function formatClock(date: Date): string {
-  return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 }
 
 export { cx };

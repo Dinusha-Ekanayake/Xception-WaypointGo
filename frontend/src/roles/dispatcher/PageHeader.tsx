@@ -1,8 +1,9 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ConnectionStatus, Icon, McpButton, Notice, formatClock, useShell } from "@shared/ui";
+import { ConnectionStatus, Icon, McpButton, Notice, useShell } from "@shared/ui";
 import { useDispatcherInbox } from "./inbox.tsx";
+import { clock } from "@shared/wording";
 
 // Title, sync pill and notifications bell, as on every dispatcher screen. The
 // dispatcher is online only (src/shared/offline/tiers.ts), so going offline
@@ -54,7 +55,7 @@ export default function PageHeader({
       </header>
       {!online && (
         <Notice tone="warning" title="You are offline. The dispatcher screens are read only." live>
-          {lastSyncedAt ? `What you see was loaded at ${formatClock(lastSyncedAt)}. ` : ""}
+          {lastSyncedAt ? `What you see was loaded at ${clock(lastSyncedAt)}. ` : ""}
           Changes are turned off until the connection returns, and live updates are paused.
         </Notice>
       )}

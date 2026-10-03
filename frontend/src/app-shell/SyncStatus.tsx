@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import type { StoredEntry, SyncState } from "@shared/offline";
-import { cx, formatClock } from "@shared/ui";
+import { cx } from "@shared/ui";
+import { clock } from "@shared/wording";
 
 // What is still on this device, and what the server refused. A refused write is
 // never merged or dropped by the engine (architecture rule 6): it waits here,
@@ -25,7 +26,7 @@ export default function SyncStatus({ sync, online }: { sync: SyncState; online: 
         <button
           type="button"
           onClick={sync.syncNow}
-          title={sync.lastSyncedAt ? `Last synced ${formatClock(sync.lastSyncedAt)}` : undefined}
+          title={sync.lastSyncedAt ? `Last synced ${clock(sync.lastSyncedAt)}` : undefined}
           className={cx("min-h-10 whitespace-nowrap rounded-full px-3.5 text-[13px] font-medium", online ? "bg-go-mint text-black" : "bg-go-warning-tint text-go-warning-text")}
         >
           {sync.syncing ? "Sending…" : online ? `${waiting} to send · sync now` : `${waiting} saved on this device`}
@@ -81,7 +82,7 @@ function HeldChange({ entry, sync }: { entry: StoredEntry; sync: SyncState }): R
     <li className="flex flex-col gap-2 rounded-[20px] bg-go-canvas p-4">
       <span className="text-[15px] font-medium text-black capitalize">{describeKind(entry.kind)}</span>
       <span className="text-[13px] text-go-muted">
-        Saved {formatClock(new Date(entry.enqueuedAt))} · {entry.lastError ?? "refused"}
+        Saved {clock(new Date(entry.enqueuedAt))} · {entry.lastError ?? "refused"}
       </span>
       {error && (
         <span role="alert" className="text-[13px] text-go-danger-strong">

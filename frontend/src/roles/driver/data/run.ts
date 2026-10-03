@@ -1,5 +1,6 @@
 import type { Command } from "@shared/api/commands";
 import type { DeliveryOutcome, RunSheetStopView, RunSheetView } from "@shared/domain/types";
+export { clock } from "../../../shared/wording/index.ts";
 
 // The driver's run as the phone believes it is: what the server last said, with
 // the writes still waiting on this device applied on top.
@@ -176,10 +177,3 @@ export function operatingDate(now: Date): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Colombo", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
 }
 
-/** HH:mm at the depots, from an instant or a time of day. */
-export function clock(value: string | Date | null | undefined): string {
-  if (!value) return "--:--";
-  if (typeof value === "string" && /^\d{2}:\d{2}/.test(value)) return value.slice(0, 5);
-  const date = typeof value === "string" ? new Date(value) : value;
-  return new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Colombo", hour: "2-digit", minute: "2-digit", hour12: false }).format(date);
-}

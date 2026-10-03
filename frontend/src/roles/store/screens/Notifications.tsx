@@ -4,8 +4,9 @@ import { useState } from "react";
 import type { NotificationView } from "@shared/domain/types";
 import type { Inbox } from "@shared/notifications/useInbox";
 import { isUnread, kindOf, type Tone } from "@shared/notifications/inbox";
-import { Icon, cx, formatClock } from "@shared/ui";
+import { Icon, cx } from "@shared/ui";
 import { Drawer } from "../ui.tsx";
+import { clock, dayLabel, depotToday } from "@shared/wording";
 
 // The store manager's notifications (issue #118), Figma "14 Store Manager ·
 // Desktop" and "15 · Mobile", 10 Notifications (11:117503 drawer, 11:125924
@@ -27,13 +28,12 @@ const DOT: Record<Tone, string> = {
   info: "bg-go-teal",
 };
 
-/** "03:12" today, "Sat 7:10 PM" before, as the drawer writes it. */
+/** "03:12" today, "Sat 19:10" before: depot time, whatever the phone's own zone. */
 export function when(createdAt: string, now: Date = new Date()): string {
   const at = new Date(createdAt);
-  if (at.toDateString() === now.toDateString()) {
-    return at.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-  }
-  return `${at.toLocaleDateString("en-US", { weekday: "short" })} ${formatClock(at)}`;
+  const day = depotToday(at);
+  if (day === depotToday(now)) return clock(at);
+  return `${dayLabel(day).split(" ")[0]} ${clock(at)}`;
 }
 
 export type OpenSubject = (n: NotificationView) => void;
@@ -108,7 +108,7 @@ export function NotificationsDrawer({
       </div>
       {!inbox.online && (
         <p role="status" className="rounded-[14px] bg-go-warning-tint px-3.5 py-2.5 text-[14px] text-go-warning-text">
-          Offline{inbox.savedAt ? ` · saved at ${formatClock(inbox.savedAt)}` : ""}. Read state updates when you&rsquo;re back online.
+          Offline{inbox.savedAt ? ` · saved at ${clock(inbox.savedAt)}` : ""}. Read state updates when you&rsquo;re back online.
         </p>
       )}
       {inbox.online && !inbox.live && inbox.unread !== null && (
