@@ -11,7 +11,7 @@ Last reviewed: 2026-10-02, against `dev` at `7442e5d` (pull request #70 merged).
 1. Read [AGENTS.md](../../AGENTS.md). Its ten architecture rules are enforced by tests and by review.
 2. Get it running: [development.md](development.md). `scripts/dev.sh setup` once, then `scripts/dev.sh`.
 3. Find your work in the tables below, then open the issue on GitHub and the folder under [docs/issues/](../issues/).
-4. Read the top five entries of the [development log](development-log.md). Several people work here at once and the log is how they hear about each other.
+4. Read the top entry of each person's file in the [development log](development-log.md) (`log/`). Several people work here at once and the log is how they hear about each other.
 5. Before any structural change, read the module's section in [MODULES.md](../architecture/MODULES.md) and the rules it names in [RULES-AND-POLICIES.md](../architecture/RULES-AND-POLICIES.md).
 
 Branch from `dev`, open the pull request into `dev`. `main` is what production runs and moves only by a release pull request from `dev`.
