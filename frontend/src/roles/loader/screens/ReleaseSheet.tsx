@@ -5,7 +5,7 @@ import type { OutletView, ReleaseTrip } from "@shared/domain/types";
 import { Icon, cx } from "@shared/ui";
 import { ISSUE_KIND_LABEL, byStop, durationText, isChecked, isFlagged, kg, m3, orderLabel, placeName } from "../data/manifest.ts";
 import type { Line } from "../data/useTrip.ts";
-import { Bar, BigButton, HoldButton, Sheet } from "../ui.tsx";
+import { Bar, BigButton, Sheet, SwipeButton } from "../ui.tsx";
 import { useT } from "../i18n.tsx";
 
 // Figma "04 Confirm & release" and "E9 Release blocked". Release is refused
@@ -167,9 +167,13 @@ export default function ReleaseSheet({
         <BigButton tone="grey" size="l" onClick={onClose}>
           {tr("Not yet")}
         </BigButton>
-        <HoldButton onHeld={() => onRelease(checklist)} disabled={busy || !confirmed}>
-          {tr(busy ? "Releasing…" : "Hold to release vehicle")}
-        </HoldButton>
+        <SwipeButton
+          onSwiped={() => onRelease(checklist)}
+          disabled={busy || !confirmed}
+          busy={busy}
+          label={tr("Swipe to release vehicle")}
+          busyLabel={tr("Releasing…")}
+        />
         <p className="text-center text-[13px] text-go-muted">{tr("Releasing sends the run sheet to the driver.")}</p>
       </div>
     </Sheet>
