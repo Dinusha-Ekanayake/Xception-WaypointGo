@@ -46,7 +46,7 @@ export function RolesScreen({
           <div className="flex items-center gap-2.5">
             <h2 className="text-2xl font-semibold">System roles</h2>
             <Badge tone={liveConnected ? "green" : "neutral"}>
-              {liveConnected ? "Live API: GET /api/admin/roles" : "Roles unavailable"}
+              {liveConnected ? "Live data" : "Roles unavailable"}
             </Badge>
           </div>
           <p className="mt-1 text-sm text-go-secondary">
@@ -58,7 +58,7 @@ export function RolesScreen({
       <div className="rounded-2xl border border-go-rule bg-go-subtle p-4 text-sm text-go-ink">
         <p className="font-semibold text-go-teal">Role catalogue notice</p>
         <p className="mt-1 text-[#486357]">
-          This view provides registered role labels and catalogue descriptions from <code>GET /api/admin/roles</code>. Neither this list nor role detail includes account membership or an effective access decision. User scope and dynamic policies are evaluated separately by the policy engine.
+          This view provides registered role labels and catalogue descriptions. Neither this list nor role detail includes account membership or an effective access decision. User scope and dynamic policies are evaluated separately by the policy engine.
         </p>
       </div>
 
@@ -205,7 +205,7 @@ export function ActionsScreen({
           <div className="flex items-center gap-2.5">
             <h2 className="text-2xl font-semibold">Action catalogue</h2>
             <Badge tone={liveConnected ? "green" : "neutral"}>
-              {liveConnected ? "Live API: GET /api/admin/actions" : "Actions unavailable"}
+              {liveConnected ? "Live data" : "Actions unavailable"}
             </Badge>
           </div>
           <p className="mt-1 text-sm text-go-secondary">

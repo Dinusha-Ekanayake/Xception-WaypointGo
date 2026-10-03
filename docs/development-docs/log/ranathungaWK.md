@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-04 - group trips and remove admin endpoint labels
+
+`dev` · @ranathungaWK
+
+Nest Planned trips and Live trips under Trips, remove AI assistants from admin navigation, and replace visible endpoint strings with plain live-data status.
+Why: the sidebar should group related views and admin screens should not expose implementation paths.
+Verified: source search confirms no endpoint labels or assistant tab remain in the admin UI; automated checks will run on dev.
+
+---
+
 ## 2026-10-04 - simplify admin navigation and trip rows
 
 `dev` · @ranathungaWK

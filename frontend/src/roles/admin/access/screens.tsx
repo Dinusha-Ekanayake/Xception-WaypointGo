@@ -329,7 +329,7 @@ export function PersonasScreen({
             <h3 className="text-base font-semibold text-go-ink">Role definition & catalogue metadata</h3>
             {liveConnected !== undefined && (
               <Badge tone={liveConnected ? "green" : "neutral"}>
-                {liveConnected ? "Live API: GET /api/admin/roles" : "Connecting..."}
+                {liveConnected ? "Live data" : "Connecting..."}
               </Badge>
             )}
             <Badge tone={roleBadgeTone(selected)}>{roleCategory(selected)}</Badge>

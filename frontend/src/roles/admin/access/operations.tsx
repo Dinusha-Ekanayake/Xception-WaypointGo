@@ -231,7 +231,7 @@ export function VehiclesScreen() {
         <div>
           {liveConnected !== null && (
             <Badge tone={liveConnected ? "green" : "neutral"}>
-              {liveConnected ? "Live API: GET /api/admin/vehicles" : "Vehicles unavailable"}
+              {liveConnected ? "Live data" : "Vehicles unavailable"}
             </Badge>
           )}
         </div>

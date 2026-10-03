@@ -323,7 +323,7 @@ export function DepotsScreen({
           </label>
           {liveConnected !== null && (
             <Badge tone={liveConnected ? "green" : "neutral"}>
-              {liveConnected ? "Live API: GET /api/admin/reference/depots" : "Depots unavailable"}
+              {liveConnected ? "Live data" : "Depots unavailable"}
             </Badge>
           )}
         </div>

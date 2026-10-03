@@ -243,7 +243,7 @@ export function TripsScreen({
 
         {liveConnected !== null && (
           <Badge tone={liveConnected ? "green" : "neutral"}>
-            {liveConnected ? "Live API: GET /api/admin/plans" : "Plans unavailable"}
+            {liveConnected ? "Live data" : "Plans unavailable"}
           </Badge>
         )}
       </div>
@@ -312,7 +312,7 @@ export function TripsScreen({
         </div>
       </div>
 
-      {/* Planning Run Summary Box (GET /api/admin/plans) */}
+      {/* Planning run summary */}
       {currentPlan && (
         <div className="rounded-2xl border border-go-mint bg-go-subtle p-5 sm:p-6 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-go-rule pb-3">
@@ -540,7 +540,7 @@ export function TripsScreen({
         </div>
       )}
 
-      {/* Trip Inspection Modal (GET /api/admin/plans/{id}) */}
+      {/* Trip inspection details */}
       {selectedTrip && (
         <div
           role="dialog"
@@ -612,7 +612,6 @@ export function TripsScreen({
                   <h4 className="text-xs font-bold uppercase tracking-wider text-go-ink">
                     Stop Sequence Timeline ({selectedTrip.stops.length} Retail Outlets)
                   </h4>
-                  <span className="text-[11px] text-go-secondary">GET /api/plans/{selectedTrip.planId}</span>
                 </div>
 
                 <div className="space-y-2.5">

@@ -337,7 +337,7 @@ export function OrdersScreen({
 
         {liveConnected !== null && (
           <Badge tone={liveConnected ? "green" : "neutral"}>
-            {liveConnected ? "Live API: GET /api/admin/orders" : "Orders unavailable"}
+            {liveConnected ? "Live data" : "Orders unavailable"}
           </Badge>
         )}
       </div>
@@ -835,13 +835,12 @@ export function OrdersScreen({
                 </p>
               </div>
 
-              {/* Order Lines (GET /api/admin/orders/{id}) */}
+              {/* Order line details */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-go-ink">
                     Current Line Records ({orderLines.length} product lines)
                   </h4>
-                  <span className="text-[11px] text-go-secondary">GET /api/orders/{selectedOrder.orderId}</span>
                 </div>
 
                 {detailLoading ? (
@@ -874,13 +873,12 @@ export function OrdersScreen({
                 )}
               </div>
 
-              {/* Status Timeline (GET /api/admin/orders/{id}/timeline) */}
+              {/* Recorded status changes */}
               <div className="space-y-2 pt-2">
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-go-ink">
                     Recorded Status Changes &amp; Timeline
                   </h4>
-                  <span className="text-[11px] text-go-secondary">GET /api/orders/{selectedOrder.orderId}/timeline</span>
                 </div>
 
                 {detailLoading ? (

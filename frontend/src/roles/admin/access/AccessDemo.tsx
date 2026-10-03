@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Icon, ShellActions, cx, type IconName } from "@shared/ui";
-import AssistantsConsole from "../assistants/AssistantsConsole";
 import { CreateMemberModal, type NewMember } from "./AdminAccessFlows";
 import { Badge, Modal, card, field, primary, secondary } from "./components";
 import { freshState } from "./fixtures";
@@ -20,7 +19,7 @@ import { fetchAccounts, fetchAccount, accountToMember, submitCreateUser, submitG
 import type { RoleView, ActionView } from "@shared/domain/identity";
 import "./access-demo.css";
 
-type Tab = "people" | "personas" | "actions" | "catalogue" | "history" | "audit" | "forecasts" | "vehicles" | "depots" | "outlets" | "orders" | "trips" | "trips_planned" | "trips_live" | "assistants";
+type Tab = "people" | "personas" | "actions" | "catalogue" | "history" | "audit" | "forecasts" | "vehicles" | "depots" | "outlets" | "orders" | "trips" | "trips_planned" | "trips_live";
 type Route = { tab: Tab; member: string | null; persona: Persona | null };
 type Draft = { target: "member" | "persona"; id: string; action: string; choice: Decision; reason: string; place: string; expires: string; stage: "edit" | "review" };
 type Details = { capability: Capability; member?: Member; persona?: Persona };
@@ -38,23 +37,19 @@ const DEFAULT_ADMIN: Member = {
 function routeFromHash(): Route {
   if (typeof window === "undefined") return { tab: "people", member: null, persona: null };
   const [rawTab, id] = window.location.hash.replace(/^#\/?/, "").split("/");
-  const tab: Tab = rawTab === "roles" ? "personas" : (rawTab === "personas" || rawTab === "assistants" || rawTab === "actions" || rawTab === "catalogue" || rawTab === "history" || rawTab === "audit" || rawTab === "forecasts" || rawTab === "vehicles" || rawTab === "depots" || rawTab === "outlets" || rawTab === "orders" || rawTab === "trips" || rawTab === "trips_planned" || rawTab === "trips_live" ? rawTab : "people");
+  const tab: Tab = rawTab === "roles" ? "personas" : (rawTab === "personas" || rawTab === "actions" || rawTab === "catalogue" || rawTab === "history" || rawTab === "audit" || rawTab === "forecasts" || rawTab === "vehicles" || rawTab === "depots" || rawTab === "outlets" || rawTab === "orders" || rawTab === "trips" || rawTab === "trips_planned" || rawTab === "trips_live" ? rawTab : "people");
   return { tab, member: tab === "people" && id || null, persona: tab === "personas" && PERSONAS.some((item) => item.id === id && item.id !== "super_admin") ? id as Persona : null };
 }
 
-// One sidebar for the whole admin workspace, drawn as the dispatcher's is, with
-// the AI assistants console (#177) in the same nav. Sign in and sign out belong
-// to the shell, as for every other role.
+// One sidebar for the whole admin workspace. Sign in and sign out belong to the
+// shell, as for every other role.
 const NAV: Array<{ tab: Tab; label: string; icon: IconName; also?: Tab[] }> = [
   { tab: "depots", label: "Depots", icon: "dock" },
   { tab: "outlets", label: "Retail outlets", icon: "cart" },
   { tab: "orders", label: "Orders", icon: "box" },
-  { tab: "trips_planned", label: "Planned trips", icon: "plan", also: ["trips"] },
-  { tab: "trips_live", label: "Live trips", icon: "live" },
   { tab: "vehicles", label: "Vehicles", icon: "truck" },
   { tab: "forecasts", label: "Forecasts", icon: "chart-line" },
   { tab: "audit", label: "Audit console", icon: "grid" },
-  { tab: "assistants", label: "AI assistants", icon: "hand" },
 ];
 
 const PEOPLE_NAV: Array<{ tab: Tab; label: string; icon: IconName }> = [
@@ -64,12 +59,17 @@ const PEOPLE_NAV: Array<{ tab: Tab; label: string; icon: IconName }> = [
   { tab: "history", label: "Change history", icon: "history" },
 ];
 const PEOPLE_TABS: Tab[] = ["people", "personas", "actions", "catalogue", "history"];
+const TRIPS_NAV: Array<{ tab: Tab; label: string; icon: IconName }> = [
+  { tab: "trips_planned", label: "Planned trips", icon: "plan" },
+  { tab: "trips_live", label: "Live trips", icon: "live" },
+];
+const TRIPS_TABS: Tab[] = ["trips", "trips_planned", "trips_live"];
 
 const PEOPLE: [string, string] = ["People & access", "See who can do what, where they can do it, and why."];
 const TRIPS: [string, string] = ["Trips & execution", "Planning run summary, vehicle allocations, planned stops, and live road execution tracking."];
 const TITLES: Record<Tab, [string, string]> = {
   people: PEOPLE, personas: PEOPLE, catalogue: PEOPLE, history: PEOPLE,
-  actions: ["Actions", "Action catalogue entries from GET /api/admin/actions."],
+  actions: ["Actions", "Action catalogue entries."],
   audit: ["Audit console", "Review access changes across the operation."],
   forecasts: ["Forecasts", "See order demand and fleet needs."],
   vehicles: ["Vehicles", "Review fleet by depot and day status."],
@@ -77,7 +77,6 @@ const TITLES: Record<Tab, [string, string]> = {
   outlets: ["Retail outlets", "Receiving store destinations, unloading dock capabilities, and delivery time windows."],
   orders: ["Orders", "Operational store orders, authoritative payload weight and volume, product line items, and audit timeline."],
   trips: TRIPS, trips_planned: TRIPS, trips_live: TRIPS,
-  assistants: ["AI assistants", "Assistant apps people have connected to Waypoint."],
 };
 
 const initials = (name: string) => name.trim().split(/\s+/).filter(Boolean).map((part) => part[0]).slice(0, 2).join("").toUpperCase() || "?";
@@ -86,6 +85,7 @@ export default function AccessDemo({ displayName = "Administrator" }: { displayN
   const [state, setState] = useState<DemoState>(freshState);
   const [route, setRoute] = useState<Route>({ tab: "people", member: null, persona: null });
   const [peopleOpen, setPeopleOpen] = useState(false);
+  const [tripsOpen, setTripsOpen] = useState(false);
   const [rolesList, setRolesList] = useState<RoleView[]>([]);
   const [actionsList, setActionsList] = useState<ActionView[]>([]);
   const [liveConnected, setLiveConnected] = useState<boolean>(false);
@@ -97,7 +97,7 @@ export default function AccessDemo({ displayName = "Administrator" }: { displayN
   const [toast, setToast] = useState("");
   const [pendingCreation, setPendingCreation] = useState<{ email: string; userId: string } | null>(null);
   const viewer = "admin" as "admin" | "super_admin";
-  useEffect(() => { const sync = () => { const next = routeFromHash(); setRoute(next); setPeopleOpen(PEOPLE_TABS.includes(next.tab)); }; sync(); window.addEventListener("hashchange", sync); return () => window.removeEventListener("hashchange", sync); }, []);
+  useEffect(() => { const sync = () => { const next = routeFromHash(); setRoute(next); setPeopleOpen(PEOPLE_TABS.includes(next.tab)); setTripsOpen(TRIPS_TABS.includes(next.tab)); }; sync(); window.addEventListener("hashchange", sync); return () => window.removeEventListener("hashchange", sync); }, []);
 
   // Fetch live accounts, roles, and actions from backend
   useEffect(() => {
@@ -135,7 +135,7 @@ export default function AccessDemo({ displayName = "Administrator" }: { displayN
     };
   }, []);
 
-  const navigate = (tab: Tab, id?: string | null) => { window.location.hash = `${tab}${id ? `/${id}` : ""}`; setRoute({ tab, member: tab === "people" ? id ?? null : null, persona: tab === "personas" ? id as Persona ?? null : null }); setPeopleOpen(PEOPLE_TABS.includes(tab)); };
+  const navigate = (tab: Tab, id?: string | null) => { window.location.hash = `${tab}${id ? `/${id}` : ""}`; setRoute({ tab, member: tab === "people" ? id ?? null : null, persona: tab === "personas" ? id as Persona ?? null : null }); setPeopleOpen(PEOPLE_TABS.includes(tab)); setTripsOpen(TRIPS_TABS.includes(tab)); };
   const showDetails = (capability: Capability, member?: Member, persona?: Persona) => setDetails({ capability, member, persona });
 
   function openEditor() {
@@ -238,13 +238,31 @@ export default function AccessDemo({ displayName = "Administrator" }: { displayN
     </div>}
   </>;
 
+  const tripsNav = (compact: boolean) => <>
+    <button type="button" aria-expanded={tripsOpen} onClick={() => { setTripsOpen(true); navigate("trips_planned"); }}
+      className={compact
+        ? cx("flex min-h-11 shrink-0 items-center gap-2 rounded-full px-3.5 text-[15px] text-go-ink", TRIPS_TABS.includes(route.tab) ? "bg-go-mint font-medium" : "bg-go-subtle")
+        : cx("flex w-full items-center gap-3 rounded-go-card-l px-3.5 py-2.5 text-[15px] text-go-ink", TRIPS_TABS.includes(route.tab) ? "bg-go-mint font-medium" : "hover:bg-go-subtle")}>
+      <Icon name="plan" /><span className="min-w-0 flex-1 text-left">Trips</span>
+    </button>
+    {tripsOpen && <div className={compact ? "flex gap-1.5" : "ml-5 flex flex-col gap-1 border-l border-go-rule pl-3"}>
+      {TRIPS_NAV.map((item) => <a key={item.tab} href={`#${item.tab}`} aria-current={route.tab === item.tab ? "page" : undefined}
+        onClick={(event) => { event.preventDefault(); navigate(item.tab); }}
+        className={compact
+          ? cx("flex min-h-11 shrink-0 items-center gap-2 rounded-full px-3.5 text-sm text-go-ink", route.tab === item.tab ? "bg-go-mint font-medium" : "bg-go-subtle")
+          : cx("flex w-full items-center gap-3 rounded-go-card-l px-3 py-2 text-sm text-go-ink", route.tab === item.tab ? "bg-go-mint font-medium" : "hover:bg-go-subtle")}>
+        <Icon name={item.icon} /><span className="min-w-0 flex-1">{item.label}</span>
+      </a>)}
+    </div>}
+  </>;
+
   return <main aria-label="Admin workspace" className="access-demo flex min-h-dvh w-full flex-col bg-go-canvas font-go text-go-ink lg:h-dvh lg:flex-row">
     <aside className="hidden h-full w-[260px] shrink-0 flex-col gap-1 overflow-y-auto bg-white px-5 pt-7 pb-6 lg:flex">
       <div className="flex items-center gap-2.5 px-2 pb-5">
         <span className="text-[34px] font-extrabold text-go-ink">GO</span>
         <span className="rounded-full bg-go-mint px-2.5 py-1 text-[13px] font-medium text-go-ink">Admin</span>
       </div>
-      <nav aria-label="Admin" className="flex flex-col gap-1">{peopleNav(false)}{NAV.map((item) => navItem(item, false))}</nav>
+      <nav aria-label="Admin" className="flex flex-col gap-1">{peopleNav(false)}{NAV.slice(0, 3).map((item) => navItem(item, false))}{tripsNav(false)}{NAV.slice(3).map((item) => navItem(item, false))}</nav>
       <div className="flex-1" />
       <div className="flex items-center gap-2.5 pt-3.5">
         <span className="flex size-10 shrink-0 items-center justify-center rounded-[20px] bg-go-mint text-sm font-medium text-go-ink">{initials(displayName)}</span>
@@ -259,7 +277,7 @@ export default function AccessDemo({ displayName = "Administrator" }: { displayN
         <span className="flex-1" />
         <ShellActions compact />
       </div>
-      <nav aria-label="Admin" className="-mx-4 flex gap-1.5 overflow-x-auto px-4">{peopleNav(true)}{NAV.map((item) => navItem(item, true))}</nav>
+      <nav aria-label="Admin" className="-mx-4 flex gap-1.5 overflow-x-auto px-4">{peopleNav(true)}{NAV.slice(0, 3).map((item) => navItem(item, true))}{tripsNav(true)}{NAV.slice(3).map((item) => navItem(item, true))}</nav>
     </div>
     <div className="flex min-w-0 flex-1 flex-col px-4 py-5 md:px-9 md:py-7 lg:overflow-y-auto"><div className="mx-auto w-full max-w-[1180px]">
       <header className="mb-6 flex flex-col gap-0.5"><h1 className="text-[26px] font-medium text-go-ink md:text-[30px]">{TITLES[route.tab][0]}</h1><p className="text-sm text-go-secondary">{TITLES[route.tab][1]}</p></header>
@@ -283,7 +301,6 @@ export default function AccessDemo({ displayName = "Administrator" }: { displayN
       )}
       {route.tab === "forecasts" && <ForecastsScreen />}
       {route.tab === "vehicles" && <VehiclesScreen />}
-      {route.tab === "assistants" && <AssistantsConsole />}
     </div></div>
   {details && <Modal title={details.capability.label} onClose={() => setDetails(null)}><div className="space-y-4 text-sm"><p>{details.capability.description}</p><div className="flex flex-wrap gap-2"><Badge tone={details.capability.implemented ? "green" : "amber"}>{details.capability.implemented ? "Catalogue entry" : "Unavailable"}</Badge><Badge>{details.capability.module}</Badge></div><p className="text-go-secondary">This catalogue entry does not establish effective access for a member or role.</p><details className="text-go-secondary"><summary className="cursor-pointer font-medium">Technical details</summary><code className="mt-2 block rounded-xl bg-go-subtle p-3">{details.capability.action}</code></details><button className={secondary} onClick={() => setDetails(null)}>Close</button></div></Modal>}
   {newMemberPersona && <CreateMemberModal members={state.members} viewer={viewer} initialPersona={newMemberPersona} onClose={() => setNewMemberPersona(null)} onCreate={createMember} />}

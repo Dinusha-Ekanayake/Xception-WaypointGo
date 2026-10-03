@@ -267,7 +267,7 @@ export function OutletsScreen({
         <div>
           {liveConnected !== null && (
             <Badge tone={liveConnected ? "green" : "neutral"}>
-              {liveConnected ? "Live API: GET /api/admin/outlets" : "Outlets unavailable"}
+              {liveConnected ? "Live data" : "Outlets unavailable"}
             </Badge>
           )}
         </div>
