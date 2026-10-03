@@ -1,6 +1,7 @@
 "use client";
 
-import { CountBadge, Icon, Segmented, ShellActions, cx } from "@shared/ui";
+import { useState } from "react";
+import { CountBadge, Icon, Segmented, SettingsPanel, ShellActions, cx, useDeviceLang } from "@shared/ui";
 import { VIEWS, type ViewId } from "./navigation.ts";
 import type { DepotFilter } from "./data/scope.ts";
 
@@ -86,12 +87,7 @@ export default function Sidebar({
       )}
 
       <div className="flex items-center gap-2.5 pt-3.5">
-        <span
-          title={rail ? displayName : undefined}
-          className="flex size-10 shrink-0 items-center justify-center rounded-[20px] bg-go-mint text-sm font-medium text-go-ink"
-        >
-          {initials(displayName)}
-        </span>
+        <ProfileButton displayName={displayName} placement="popover" />
         {!rail && (
           <>
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -117,6 +113,7 @@ export function CompactNav({
   depotFilter,
   onDepotFilter,
   badges = {},
+  displayName,
 }: {
   view: ViewId;
   onNavigate: (view: ViewId) => void;
@@ -124,6 +121,7 @@ export function CompactNav({
   depotFilter: DepotFilter;
   onDepotFilter: (filter: DepotFilter) => void;
   badges?: Badges;
+  displayName: string;
 }): React.JSX.Element {
   const depotOptions = [
     ...(depots.length > 1 ? [{ value: "all", label: depots.length === 2 ? "Both" : "All" }] : []),
@@ -138,6 +136,7 @@ export function CompactNav({
         <span className="flex-1" />
         {depotOptions.length > 1 && <Segmented label="Depot" options={depotOptions} value={depotFilter} onChange={onDepotFilter} />}
         <ShellActions compact />
+        <ProfileButton displayName={displayName} placement="sheet" />
       </div>
       <nav aria-label="Dispatcher" className="-mx-4 flex gap-1.5 overflow-x-auto px-4">
         {VIEWS.map((item) => {
@@ -168,6 +167,38 @@ export function CompactNav({
         })}
       </nav>
     </div>
+  );
+}
+
+/** The dispatcher's picture: opens Settings (language and the assistant connection). */
+function ProfileButton({ displayName, placement }: { displayName: string; placement: "popover" | "sheet" }): React.JSX.Element {
+  const [open, setOpen] = useState(false);
+  const [lang, setLang] = useDeviceLang();
+  return (
+    <>
+      <button
+        type="button"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-label={`Settings: ${displayName}`}
+        title={displayName}
+        onClick={() => setOpen(true)}
+        className="flex size-10 shrink-0 items-center justify-center rounded-[20px] bg-go-mint text-sm font-medium text-go-ink"
+      >
+        {initials(displayName)}
+      </button>
+      {open && (
+        <SettingsPanel
+          displayName={displayName}
+          roleLabel="Dispatcher"
+          lang={lang}
+          onLang={setLang}
+          translated={false}
+          placement={placement}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </>
   );
 }
 

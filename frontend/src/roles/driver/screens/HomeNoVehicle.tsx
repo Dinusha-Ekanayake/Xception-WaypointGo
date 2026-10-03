@@ -4,10 +4,10 @@ import { useState, useRef, useEffect } from "react";
 import { VehicleStatuses, type ReportedVehicleStatus, type VehicleView } from "@shared/domain/types";
 import { isUnread, kindOf } from "@shared/notifications/inbox";
 import type { Inbox } from "@shared/notifications/useInbox";
-import { cx } from "@shared/ui";
+import { cx, useDeviceLang } from "@shared/ui";
 import { clock, countdown, stops as stopsText } from "../../../shared/wording/index.ts";
 import type { TripStatus } from "../data/stopView.ts";
-import { DriverHeader, VoiceMessagePlayer, type SupportedLang } from "../ui.tsx";
+import { DriverHeader, VoiceMessagePlayer } from "../ui.tsx";
 
 /**
  * Apple UIScrollView rubber-band resistance formula:
@@ -422,7 +422,7 @@ export default function HomeNoVehicle({
   onToggleTheme,
   hideHeader = false,
 }: DriverHomeProps): React.JSX.Element {
-  const [lang, setLang] = useState<SupportedLang>("en");
+  const [lang, setLang] = useDeviceLang();
   const [activeAudioId, setActiveAudioId] = useState<string | null>(null);
   const { scrollRef, pullY, isPulling, maskStyle, handlers } = useRubberBandScroll();
 
@@ -466,7 +466,7 @@ export default function HomeNoVehicle({
         {hideHeader ? (
           <div className="w-full h-[74px] shrink-0 pointer-events-none" />
         ) : (
-          <DriverHeader lang={lang} onToggleLang={setLang} onSignOut={onSignOut} onToggleTheme={onToggleTheme} isNight={isNight} />
+          <DriverHeader displayName={driverName} lang={lang} onToggleLang={setLang} onSignOut={onSignOut} onToggleTheme={onToggleTheme} isNight={isNight} />
         )}
 
         {/* Driver Identity Card (Figma "Driver card") */}

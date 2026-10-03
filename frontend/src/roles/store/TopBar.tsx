@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { OutletView } from "@shared/domain/types";
-import { CountBadge, Icon, McpButton, ShellActions, cx, useShell } from "@shared/ui";
+import { CountBadge, Icon, ShellActions, cx } from "@shared/ui";
 import AccountMenu from "./AccountMenu.tsx";
 import { initials } from "./ui.tsx";
 import { clock } from "@shared/wording";
@@ -38,7 +38,6 @@ export default function TopBar({
   unread: number | null;
   onNotifications?: () => void;
 }): React.JSX.Element {
-  const shell = useShell();
   // Phones have no sidebar, so the account menu opens from here as a bottom sheet.
   const [account, setAccount] = useState(false);
   const sync = !online
@@ -87,7 +86,6 @@ export default function TopBar({
           <CountBadge count={unread} />
         </button>
       )}
-      <McpButton url={shell?.mcpUrl ?? null} compact />
       <span className="lg:hidden">
         <ShellActions compact />
       </span>
