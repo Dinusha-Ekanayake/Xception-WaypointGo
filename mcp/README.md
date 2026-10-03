@@ -120,6 +120,19 @@ A client is shown only the tools your account may use, and every call is authori
 | `list_audit` | Audit activity in a bounded time range | `audit:Read` |
 | `get_command_decision` | The recorded decisions for one command | `audit:Read` |
 | `list_policies` | Policy names and versions | `iam:ReadPolicy` |
+| `day_summary` | One depot and day in counts: orders served and deferred, trips by loading status, open issues by severity. A part you may not read, or that does not exist, is listed in `unavailable` with its code, never shown as zero | `plan:Read` (and `loading:Read`, `issue:Read` for those parts) |
+
+Every description ends with one example question, so an assistant picks the right tool. `day_summary` is made of up to six backend reads, each authorized on its own, so it counts that many requests against the rate limit.
+
+## Prompts
+
+Clients that show MCP prompts (often as slash commands) offer these. A prompt only starts the conversation and names the tools to call; it grants nothing, and it is offered only when you hold every read it needs.
+
+| Prompt | Arguments | Needs |
+| --- | --- | --- |
+| `morning_briefing` | `depot`, `date` | `plan:Read` |
+| `what_to_load_next` | `depot`, `date` | `loading:Read` |
+| `pending_receipts` | `outlet` | `receipt:Read` |
 
 The definitions are in [`src/catalogue.ts`](src/catalogue.ts). Product identifiers in order, manifest and receipt results are inferred catalogue identifiers, not verified SKUs, and are labelled so in the output.
 
@@ -150,7 +163,7 @@ Signed in to Waypoint, the **Connect AI** button in any role (header, top bar or
 
 The assistant gets an opaque, read-only credential; it never gets your password. Your account still needs `mcp:Connect`, the business read permission and the relevant scope. A shared loader PIN cannot authorize this connection. Ask first for `my_context`: if it answers `FORBIDDEN`, the account lacks scope; if `UNAUTHENTICATED`, reconnect.
 
-This version supports stateless JSON Streamable HTTP, DCR public clients, authorization code + PKCE S256, and the single `waypoint.read` scope. There are no refresh tokens: the credential follows the normal session lifetimes (12 hours, 2 hours idle) and reconnect means signing in again. Revocation is `POST /api/oauth/revoke` with form fields `token` and `client_id`; account/session revocation also takes effect on subsequent reads. The same 16 tools and output limits apply to both transports. Local stdio credentials cannot be reused at the remote endpoint.
+This version supports stateless JSON Streamable HTTP, DCR public clients, authorization code + PKCE S256, and the single `waypoint.read` scope. There are no refresh tokens: the credential follows the normal session lifetimes (12 hours, 2 hours idle) and reconnect means signing in again. Revocation is `POST /api/oauth/revoke` with form fields `token` and `client_id`; account/session revocation also takes effect on subsequent reads. The same tools, prompts and output limits apply to both transports. Local stdio credentials cannot be reused at the remote endpoint.
 
 Discovery is published at `/.well-known/oauth-protected-resource/mcp` (also the root resource document) and `/.well-known/oauth-authorization-server`. The public URL is configuration, never derived from request headers. A blank `MCP_PUBLIC_URL` disables remote authorization; `MCP_ENABLED=false` disables MCP access. No production environment is enabled by this change.
 
