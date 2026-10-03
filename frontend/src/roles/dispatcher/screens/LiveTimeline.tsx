@@ -69,7 +69,7 @@ export function TimelineCard({ day, depot, date, now }: { day: VehicleDay; depot
         <Pill tone={status.tone}>{status.label}</Pill>
       </span>
       <span className="text-[11px] text-go-secondary">
-        {day.current ? `ETA ${clockLabel(stopMinute(day.current))} · window ${hhmm(day.current.windowClose)}` : `${day.done} of ${day.stops.length} delivered · run finished`}
+        {day.current ? `Expected ${clockLabel(stopMinute(day.current))} · window ${hhmm(day.current.windowClose)}` : `${day.done} of ${day.stops.length} delivered · run finished`}
       </span>
       <span className="h-1 w-full rounded-full bg-go-subtle">
         <span className={`block h-1 rounded-full ${BAR[key]}`} style={{ width: `${Math.round(done * 100)}%` }} />
@@ -131,7 +131,7 @@ export default function LiveTimeline({ days, depotOf, date, now }: { days: Vehic
                   {day.done} of {day.stops.length} delivered
                 </span>
                 <span>
-                  {day.current ? `ETA ${clockLabel(stopMinute(day.current))} · window ${hhmm(day.current.windowClose)}` : "Run finished"}
+                  {day.current ? `Expected ${clockLabel(stopMinute(day.current))} · window ${hhmm(day.current.windowClose)}` : "Run finished"}
                 </span>
               </div>
               <div className="relative h-6 flex-1">
