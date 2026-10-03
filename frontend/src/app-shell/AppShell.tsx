@@ -43,6 +43,7 @@ export default function AppShell(): React.JSX.Element {
             userId: "dev-driver-id",
             displayName: "Rashmika Dilshan",
             roles: ["driver", "loader", "store_manager", "dispatcher"],
+            operator: null,
             scope: ["depot:PELIYAGODA", "outlet:OUT001", "vehicle:DRV-00021"],
           },
         };
@@ -158,6 +159,7 @@ export default function AppShell(): React.JSX.Element {
                           userId: "dev-driver-id",
                           displayName: "Dev Driver",
                           roles: ["driver", "loader", "store_manager", "dispatcher"],
+                          operator: null,
                           scope: ["depot:PELIYAGODA", "outlet:OUT001", "vehicle:DRV-00021"],
                         },
                       });
