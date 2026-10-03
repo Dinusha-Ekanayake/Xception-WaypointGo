@@ -186,7 +186,7 @@ export function FilterTabs<T extends string>({
   label: string;
 }): React.JSX.Element {
   return (
-    <div role="tablist" aria-label={label} className="flex items-center gap-2">
+    <div role="tablist" aria-label={label} className="flex flex-wrap items-center gap-2">
       {options.map((option) => {
         const selected = option.value === value;
         return (

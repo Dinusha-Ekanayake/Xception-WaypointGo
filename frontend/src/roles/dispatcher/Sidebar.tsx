@@ -131,7 +131,8 @@ export function CompactNav({
   ];
   return (
     <div className="flex flex-col gap-3 bg-white px-4 pt-4 pb-3 lg:hidden">
-      <div className="flex items-center gap-2.5">
+      {/* Wraps on a narrow phone so the depot switch and actions stay on screen. */}
+      <div className="flex flex-wrap items-center gap-2.5">
         <span className="text-[34px] leading-none font-extrabold text-go-ink">GO</span>
         <span className="rounded-full bg-go-mint px-2.5 py-1 text-[13px] font-medium text-go-ink">Dispatch</span>
         <span className="flex-1" />

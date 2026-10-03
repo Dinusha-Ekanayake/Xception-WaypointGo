@@ -129,7 +129,9 @@ export default function ForecastChart({ weeks }: { weeks: ForecastWeek[] }): Rea
         })}
       </svg>
       <ChilledStrip weeks={weeks} />
-      <table className="sr-only">
+      {/* A table ignores the 1px of sr-only and widens the page on a phone; its wrapper does not. */}
+      <div className="sr-only">
+      <table>
         <caption>Forecast by week</caption>
         <thead>
           <tr>
@@ -152,6 +154,7 @@ export default function ForecastChart({ weeks }: { weeks: ForecastWeek[] }): Rea
           ))}
         </tbody>
       </table>
+      </div>
     </figure>
   );
 }
