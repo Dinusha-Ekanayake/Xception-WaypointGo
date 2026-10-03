@@ -61,6 +61,11 @@ export function useRun(gateway: DriverGateway, accountId: string, online: boolea
   const [busy, setBusy] = useState(false);
   const [tick, setTick] = useState(0);
   const entriesRef = useRef<StoredEntry[]>([]);
+  // The day as last read, for the version of the next write: React state lags a render behind.
+  const dataRef = useRef<RunData | null>(null);
+  dataRef.current = data;
+  // One write at a time, so each names the version the one before it produced.
+  const writes = useRef<Promise<unknown>>(Promise.resolve());
 
   const refresh = useCallback(() => setTick((n) => n + 1), []);
 
@@ -82,6 +87,7 @@ export function useRun(gateway: DriverGateway, accountId: string, online: boolea
         try {
           const fresh = await gateway.run(date, controller.signal);
           if (cancelled) return;
+          dataRef.current = fresh;
           setData(fresh);
           setKeptAt(null);
           setSyncedAt(new Date());
@@ -134,45 +140,66 @@ export function useRun(gateway: DriverGateway, accountId: string, online: boolea
     [sheet, entries],
   );
 
-  const act = useCallback<Run["act"]>(
-    async (kind, payload, stop) => {
-      const command = newCommand(kind, payload, stop ? stop.rowVersion : null);
-      const keepOnPhone = async (): Promise<Outcome> => {
-        const saved = await gateway.queue(command);
-        if (!saved.durable) {
-          return { ok: false, error: new Error(`Not saved on this phone: ${saved.reason ?? "storage unavailable"}`) };
-        }
-        await readDevice();
-        onQueued();
-        return { ok: true, queued: true };
-      };
-      // Anything already waiting goes first, so this write queues behind it.
-      const inFlight = (await readDevice()).some((entry) => !entry.needsReview);
-      if (!online || inFlight) return keepOnPhone();
+  /**
+   * The version a write for this stop must name: what the last read holds with
+   * every write still on the phone applied, and never below what the caller saw.
+   */
+  const versionOf = useCallback((stop: Stop, queued: StoredEntry[]): number => {
+    const sheet = dataRef.current?.sheets[0];
+    const projected = sheet
+      ? project(sheet, queued.map((entry) => ({ command: entry.payload as Command, needsReview: entry.needsReview === true }))).find(
+          (other) => other.deliveryId === stop.deliveryId,
+        )
+      : undefined;
+    return Math.max(stop.rowVersion, projected?.rowVersion ?? 0);
+  }, []);
 
-      setBusy(true);
-      try {
-        await gateway.send(command);
-        // Read the stop back before answering, so the next screen opens on what
-        // the server now holds rather than on what it held a moment ago.
+  const act = useCallback<Run["act"]>(
+    (kind, payload, stop) => {
+      const write = async (): Promise<Outcome> => {
+        const command = newCommand(kind, payload, stop ? versionOf(stop, await readDevice()) : null);
+        const keepOnPhone = async (): Promise<Outcome> => {
+          const saved = await gateway.queue(command);
+          if (!saved.durable) {
+            return { ok: false, error: new Error(`Not saved on this phone: ${saved.reason ?? "storage unavailable"}`) };
+          }
+          await readDevice();
+          onQueued();
+          return { ok: true, queued: true };
+        };
+        // Anything already waiting goes first, so this write queues behind it.
+        const inFlight = (await readDevice()).some((entry) => !entry.needsReview);
+        if (!online || inFlight) return keepOnPhone();
+
+        setBusy(true);
         try {
-          setData(await gateway.run(date, new AbortController().signal));
-          setKeptAt(null);
-          setSyncedAt(new Date());
-        } catch {
+          await gateway.send(command);
+          // Read the stop back before answering, so the next screen opens on what
+          // the server now holds rather than on what it held a moment ago.
+          try {
+            const fresh = await gateway.run(date, new AbortController().signal);
+            dataRef.current = fresh;
+            setData(fresh);
+            setKeptAt(null);
+            setSyncedAt(new Date());
+          } catch {
+            refresh();
+          }
+          return { ok: true, queued: false };
+        } catch (failure) {
+          const refused = failure instanceof ApiError && !failure.isRetryable && failure.status !== 401;
+          if (!refused) return keepOnPhone();
           refresh();
+          return { ok: false, error: failure };
+        } finally {
+          setBusy(false);
         }
-        return { ok: true, queued: false };
-      } catch (failure) {
-        const refused = failure instanceof ApiError && !failure.isRetryable && failure.status !== 401;
-        if (!refused) return keepOnPhone();
-        refresh();
-        return { ok: false, error: failure };
-      } finally {
-        setBusy(false);
-      }
+      };
+      const next = writes.current.then(write);
+      writes.current = next.catch(() => undefined);
+      return next;
     },
-    [gateway, date, online, readDevice, refresh, onQueued],
+    [gateway, date, online, readDevice, refresh, onQueued, versionOf],
   );
 
   return {

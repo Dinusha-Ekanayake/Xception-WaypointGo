@@ -8,6 +8,9 @@ export type SignOutConfirmBottomSheetProps = {
   onClose: () => void;
   onConfirm: () => void;
   isNight?: boolean;
+  /** Writes and proof files still only on this phone: signing out now would strand them. */
+  waiting?: number;
+  online?: boolean;
 };
 
 export default function SignOutConfirmBottomSheet({
@@ -15,6 +18,8 @@ export default function SignOutConfirmBottomSheet({
   onClose,
   onConfirm,
   isNight = false,
+  waiting = 0,
+  online = true,
 }: SignOutConfirmBottomSheetProps): React.JSX.Element | null {
   const [isRendered, setIsRendered] = useState(isOpen);
   const [isVisible, setIsVisible] = useState(false);
@@ -70,6 +75,7 @@ export default function SignOutConfirmBottomSheet({
   return (
     <div
       role={isVisible ? "dialog" : undefined}
+      aria-label={isVisible ? "Sign out" : undefined}
       aria-modal={isVisible ? "true" : undefined}
       aria-hidden={!isVisible}
       data-state={isVisible ? "open" : "closed"}
@@ -149,12 +155,20 @@ export default function SignOutConfirmBottomSheet({
               isNight ? "text-[#A9A9A9]" : "text-[#6B6B6B]"
             )}
           >
-            You’ll need your staff ID and password to sign in again. Your work is saved and synced.
+            {waiting > 0
+              ? `${waiting} ${waiting === 1 ? "record is" : "records are"} still only on this phone. ${
+                  online
+                    ? `Wait for ${waiting === 1 ? "it" : "them"} to be sent before you sign out.`
+                    : `Reconnect so ${waiting === 1 ? "it" : "they"} can be sent before you sign out.`
+                }`
+              : "You'll need your email and password to sign in again. Your work is saved and sent."}
           </p>
         </div>
 
         {/* Action Buttons: Sign out + Cancel */}
         <div className="w-full flex flex-col items-center gap-3 mt-[20px]">
+          {waiting === 0 && (
+            <>
           {/* Sign out button (Figma: w: 295px, h: 64px, rounded: 22px) */}
           <button
             type="button"
@@ -169,6 +183,9 @@ export default function SignOutConfirmBottomSheet({
             Sign out
           </button>
 
+            </>
+          )}
+
           {/* Cancel button (Figma: w: 295px, h: 64px, rounded: 22px, border: 1px solid) */}
           <button
             type="button"
@@ -180,7 +197,7 @@ export default function SignOutConfirmBottomSheet({
                 : "border-[#6B6B6B] text-black hover:bg-black/5"
             )}
           >
-            Cancel
+            {waiting === 0 ? "Cancel" : "Stay signed in"}
           </button>
         </div>
       </div>

@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-03 - feat(frontend): the driver's Figma screens run on the real run sheet (issue #117)
+
+`feat/117-driver-gaps` · @Oxshadha
+
+The driver UI rebuild (#174) drew sample stops and never sent a command: no arrival, delivery, proof or problem reached the server, and all 13 driver browser tests failed. The Figma screens are now fed by `useDriver` through `data/stopView.ts` (run sheet to the screens' stop shape, trip status, run summary, sync label; pure and tested). Home shows the vehicle, the stop count and vehicle status, and keeps #184's inbox and driving-mode badge; a revised plan opens "Run sheet changed". The delivery form, proof, problem sheet, stop detail and refused files keep their working forms inside the frame. New: the store manager's handover PIN after saving a delivery (`receipt:VerifyHandover`, online only, Skip always there, wrong tries counted down). Restored: the shell's sync badge with its review panel, and MCP. Removed: the sign-in, QR and vehicle ID screens, fake map, fake fuel QR and every "Synced 05:31". A real race fixed: tapping I've arrived while Start was still in flight sent a stale version; the run's writes now go one at a time and each takes its version from the last read plus the queue (EXE-29). The waiting screen no longer says the store confirms first.
+Why: the judge flow could not deliver anything on the driver phone, and #117 asked for the PIN and the inbox.
+Verified: `npm test` 140, typecheck, build; Playwright driver 16 (13 rewritten, 3 new: PIN, no PIN yet, inbox), loader 20, store 32; dispatcher 20 of 25, the five Live and Forecast failures arriving with today's `dev` (no dispatcher, shared or shell file changed here); the shell's CSP test waits for network idle that a signed-out page with no backend never reaches. The offline batch against the real backend was run with #115's walkthrough; the browser flow against a running backend was not, Docker being down.
+Open: the browser walkthrough against the real stack; the language toggle in the Figma header changes nothing yet.
+
+---
+
 ## 2026-10-03 - fix(frontend): every screen uses the glossary's words (issue #128)
 
 `feat/128-apply-glossary` · @Oxshadha
