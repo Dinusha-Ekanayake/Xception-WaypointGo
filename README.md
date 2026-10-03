@@ -128,7 +128,7 @@ cd frontend && npx playwright test -c playwright.driver.config.ts
 cd frontend && npx playwright test -c playwright.loader.config.ts
 ```
 
-Integration tests use `TEST_DATABASE_URL` when it is set, a throwaway PostgreSQL 16 container when Docker is available, and are skipped with a stated reason otherwise. `TEST_DATABASE_URL` must name a dedicated database, never the application one. CI (`.github/workflows/checks.yml`) runs the backend tests, the typecheck, `npm test` and the build on every pull request to `dev` and `main`, and before every deploy. The browser suites are not in CI and are run by hand.
+Integration tests use `TEST_DATABASE_URL` when it is set, a throwaway PostgreSQL 16 container when Docker is available, and are skipped with a stated reason otherwise. `TEST_DATABASE_URL` must name a dedicated database, never the application one. CI (`.github/workflows/checks.yml`) runs the backend tests, the typecheck, `npm test`, the build and the browser suites (the shell and every role) on every pull request to `dev` and `main`, and before every deploy.
 
 ## Documentation
 

@@ -170,14 +170,16 @@ npx playwright install chromium   # once
 npm run test:e2e   # browser tests of the shell on port 43219, after a build
 npm run verify     # test, typecheck, build and mvn verify in sequence
 
-# one suite per role, after a build, against a mocked API. Not in CI: run the one you touched
+# one suite per role, after a build, against a mocked API. CI runs them all (job "Browser suites"); run the one you touched before pushing
 npx playwright test -c playwright.dispatcher.config.ts   # tests/e2e-dispatcher, port 43222
 npx playwright test -c playwright.driver.config.ts       # tests/e2e-driver, port 43221, phone width
 npx playwright test -c playwright.loader.config.ts       # tests/e2e-loader, port 43220, phone width
 npx playwright test -c playwright.store.config.ts        # tests/e2e-store, port 43223, desktop width
 ```
 
-One test at a time: `mvn test -Dtest=ModuleBoundaryTest` or `-Dtest='SomeTest#method'` from `backend/`; `node --test --experimental-strip-types tests/boundaries.test.ts` from `frontend/`; a spec file name or `-g "title"` after a Playwright config. `playwright.loader.live.config.ts` runs `live.spec.ts` against a running instance named by `LOADER_LIVE_BASE_URL`.
+One test at a time: `mvn test -Dtest=ModuleBoundaryTest` or `-Dtest='SomeTest#method'` from `backend/`; `node --test --experimental-strip-types tests/boundaries.test.ts` from `frontend/`; a spec file name or `-g "title"` after a Playwright config. `playwright.loader.live.config.ts` runs `live.spec.ts` against a running instance named by `LOADER_LIVE_BASE_URL`; it is not in CI.
+
+When the "Browser suites" job fails, the step name says which role broke and the failing tests are annotated on the pull request. The run's artifact `browser-suites-report` holds each suite's HTML report (`playwright-report/<suite>`) and traces (`test-results/<suite>`): open a trace with `npx playwright show-trace <file>.zip`. A test that passed only on its retry is listed as flaky; fix it rather than lean on the retry.
 
 Integration tests pick their database in this order: `TEST_DATABASE_URL` if exported (it must differ from `DATABASE_URL`), else a throwaway PostgreSQL 16 container if Docker is running, else they are skipped with that reason in the report. A green run with them skipped proves nothing about the database. CI always sets `TEST_DATABASE_URL`. Migrations are checksummed, so after editing a migration that has not merged, drop and recreate the test database. If an editor's Java extension compiles into `backend/target/classes`, run `mvn clean` before trusting a result: stale classes surface as "Unresolved compilation problems" at test time.
 

@@ -10,6 +10,14 @@ test("the app shell loads under its Content-Security-Policy", async ({ page }) =
     }
   });
 
+  // Signed out, as every browser suite answers its own API: with no backend the
+  // page would keep retrying its session and never settle (#120).
+  await page.route("**/api/**", (route) =>
+    route.fulfill({
+      status: 401,
+      contentType: "application/problem+json",
+      body: JSON.stringify({ type: "about:blank", title: "Unauthenticated", status: 401, code: "UNAUTHENTICATED", detail: "Sign in", violations: [] }),
+    }));
   const response = await page.goto("/");
   expect(response?.status()).toBe(200);
   expect(response?.headers()["content-security-policy"]).toContain("frame-ancestors 'none'");
