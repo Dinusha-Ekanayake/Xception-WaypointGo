@@ -8,7 +8,7 @@ import { Menu, Pill, PrimaryButton, SecondaryButton } from "@shared/ui";
 import { hhmm, temperatureLabel } from "@shared/wording";
 import { typeLabel } from "../data/fleet.ts";
 import { after, type TripLoad } from "../data/plan.ts";
-import { stopShare, tightLine } from "../data/planViews.ts";
+import { riskLabel, riskTone, stopShare, tightLine, type StopRisk } from "../data/planViews.ts";
 import CheckList from "./CheckList.tsx";
 import EditTrip from "./EditTrip.tsx";
 import type { PlanActions } from "./planActions.ts";
@@ -29,6 +29,7 @@ export default function PlanTrip({
   editable,
   canReplan,
   actions,
+  risks = null,
 }: {
   plan: PlanView;
   load: TripLoad;
@@ -36,6 +37,8 @@ export default function PlanTrip({
   orders: Map<string, OrderView>;
   editable: boolean;
   canReplan: boolean;
+  /** Each stop's late risk, keyed by order, once the published plan is scored (#119). */
+  risks?: Map<string, StopRisk> | null;
   actions: PlanActions;
 }): React.JSX.Element {
   const { trip } = load;
@@ -86,7 +89,7 @@ export default function PlanTrip({
       {mode === "edit" ? (
         <EditTrip plan={plan} load={load} orders={orders} fleet={fleet} actions={actions} onDone={() => setMode("view")} />
       ) : (
-        <Timeline plan={plan} load={load} orders={orders} vehicle={vehicle} />
+        <Timeline plan={plan} load={load} orders={orders} vehicle={vehicle} risks={risks} />
       )}
 
       {mode === "move" && (
@@ -149,7 +152,7 @@ export function tripChecks(plan: PlanView, tripId: string): ConstraintResultView
 }
 
 /** Depart, each stop with its window and its share of the load, and back at the depot. */
-function Timeline({ plan, load, orders, vehicle }: { plan: PlanView; load: TripLoad; orders: Map<string, OrderView>; vehicle: VehicleView | undefined }): React.JSX.Element {
+function Timeline({ plan, load, orders, vehicle, risks }: { plan: PlanView; load: TripLoad; orders: Map<string, OrderView>; vehicle: VehicleView | undefined; risks: Map<string, StopRisk> | null }): React.JSX.Element {
   const { trip } = load;
   return (
     <ol aria-label="Stops in order" className="relative flex flex-col before:absolute before:top-4 before:bottom-4 before:left-[67px] before:w-0.5 before:bg-go-rule">
@@ -165,6 +168,7 @@ function Timeline({ plan, load, orders, vehicle }: { plan: PlanView; load: TripL
             title={`${stop.outletId}${order ? ` · ${order.districtName}` : ""}`}
             note={stop.windowOpen && stop.windowClose ? `${hhmm(stop.windowOpen)}-${hhmm(stop.windowClose)}` : "No window"}
             aside={share === null ? undefined : `${share}%`}
+            risk={risks?.get(stop.orderId)}
           />
         );
       })}
@@ -173,7 +177,7 @@ function Timeline({ plan, load, orders, vehicle }: { plan: PlanView; load: TripL
   );
 }
 
-function Row({ time, dot, title, note, aside }: { time: string; dot: "filled" | "hollow"; title: string; note?: string; aside?: string }): React.JSX.Element {
+function Row({ time, dot, title, note, aside, risk }: { time: string; dot: "filled" | "hollow"; title: string; note?: string; aside?: string; risk?: StopRisk }): React.JSX.Element {
   return (
     <li className="flex items-start gap-3 py-1.5">
       <span className="w-11 shrink-0 text-[14px] font-medium tabular-nums text-go-ink">{time}</span>
@@ -182,10 +186,18 @@ function Row({ time, dot, title, note, aside }: { time: string; dot: "filled" | 
         <span className="block truncate text-[14px] font-medium text-go-ink">{title}</span>
         {note && <span className="block text-xs text-go-secondary">{note}</span>}
       </span>
-      {aside && <span className="shrink-0 rounded-full bg-go-surface px-2 py-0.5 text-[11px] text-go-secondary">{aside}</span>}
+      {risk && (
+        <span className="shrink-0" title="Chance this stop arrives after its window">
+          <Pill tone={RISK_PILL[riskTone(risk.percent)]}>{riskLabel(risk)}</Pill>
+        </span>
+      )}
+      {aside && <span className="shrink-0 rounded-full bg-go-surface px-2 py-0.5 text-[11px] text-go-secondary" title="Share of the vehicle's load">{aside}</span>}
     </li>
   );
 }
+
+/** Late risk reads amber from 20% and red from 35%; below that it is quiet. */
+const RISK_PILL = { low: "muted", watch: "warning", high: "danger" } as const;
 
 function Bar({ label, percent }: { label: string; percent: number | null }): React.JSX.Element {
   const shown = percent === null ? 0 : Math.min(100, percent);

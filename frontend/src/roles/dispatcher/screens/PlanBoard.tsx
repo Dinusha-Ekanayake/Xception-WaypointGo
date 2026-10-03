@@ -13,7 +13,13 @@ import {
   freeLabel,
   lateRisk,
   lowLoad,
+  riskLabel,
+  riskTone,
+  scoredByEstimate,
+  stopRisks,
   tripMatches,
+  tripRisks,
+  type StopRisk,
   type BoardFilter as Filter,
 } from "../data/planViews.ts";
 import { usePredictions } from "../data/usePlanReads.ts";
@@ -56,6 +62,10 @@ export default function PlanBoard({
   const [openId, setOpenId] = useState<string | null>(null);
   const predictions = usePredictions(published ? plan.planId : null);
   const risk = predictions.data ? lateRisk(plan, predictions.data) : null;
+  // Per trip and per stop (#119): the board tags risky trips, the open trip tags every stop.
+  const trips = useMemo(() => (predictions.data ? tripRisks(predictions.data) : null), [predictions.data]);
+  const stops = useMemo(() => (predictions.data ? stopRisks(predictions.data) : null), [predictions.data]);
+  const estimate = predictions.data ? scoredByEstimate(predictions.data) : false;
   const shown = useMemo(() => filterBoard(rows, filter), [rows, filter]);
   const loads = rows.flatMap((row) => row.trips).filter((load): load is TripLoad => load !== null);
   const open = loads.find((load) => load.trip.tripId === openId) ?? loads[0] ?? null;
@@ -77,7 +87,7 @@ export default function PlanBoard({
           tag={risk ? "over 35% chance" : undefined}
           tone="danger"
           value={risk ? `${risk.high} high` : "Not scored"}
-          note={risk ? `${risk.low} low` : published ? (predictions.loading ? "Reading the scoring…" : "The time predictor has not scored this plan") : "A draft is scored once it is published"}
+          note={risk ? `${risk.low} low${estimate ? " · estimated" : ""}` : published ? (predictions.loading ? "Reading the scoring…" : "The time predictor has not scored this plan") : "A draft is scored once it is published"}
         />
       </div>
 
@@ -115,6 +125,7 @@ export default function PlanBoard({
                             <TripCell
                               load={load}
                               added={addedByHand(plan, load.trip)}
+                              risk={trips?.get(load.trip.tripId)}
                               dim={!tripMatches(load.trip, filter)}
                               active={open?.trip.tripId === load.trip.tripId}
                               onOpen={() => setOpenId(load.trip.tripId)}
@@ -135,7 +146,7 @@ export default function PlanBoard({
         </section>
 
         {open && (
-          <PlanTrip key={open.trip.tripId} plan={plan} load={open} fleet={fleet} orders={orders} editable={editable} canReplan={canReplan} actions={actions} />
+          <PlanTrip key={open.trip.tripId} plan={plan} load={open} fleet={fleet} orders={orders} editable={editable} canReplan={canReplan} actions={actions} risks={stops} />
         )}
       </div>
     </>
@@ -145,8 +156,8 @@ export default function PlanBoard({
 /** A KPI card as the plan is drawn: the label with a coloured tag at the right, a big number, a line under it. */
 function Kpi({ label, value, note, tag, tone = "danger" }: { label: string; value: React.ReactNode; note: string; tag?: string; tone?: "danger" | "warning" }): React.JSX.Element {
   return (
-    <div className="flex min-w-0 flex-1 flex-col gap-0.5 rounded-go-card-l bg-go-card px-[18px] py-3.5 shadow-go-card">
-      <p className="flex items-center justify-between gap-2 text-xs text-go-secondary">
+    <div className="flex min-w-0 flex-1 flex-col gap-0.5 rounded-go-card-l bg-go-card px-[18px] py-3.5 shadow-go-card max-lg:min-w-[calc(50%-7px)]">
+      <p className="flex flex-wrap items-center justify-between gap-x-2 text-xs text-go-secondary">
         <span className="truncate">{label}</span>
         {tag && <span className={cx("shrink-0 font-medium", tone === "danger" ? "text-go-danger-strong" : "text-go-warning-text")}>{tag}</span>}
       </p>
@@ -156,7 +167,7 @@ function Kpi({ label, value, note, tag, tone = "danger" }: { label: string; valu
   );
 }
 
-function TripCell({ load, added, dim, active, onOpen }: { load: TripLoad; added: boolean; dim: boolean; active: boolean; onOpen: () => void }): React.JSX.Element {
+function TripCell({ load, added, dim, active, onOpen, risk }: { load: TripLoad; added: boolean; dim: boolean; active: boolean; onOpen: () => void; risk?: StopRisk }): React.JSX.Element {
   const { trip } = load;
   const chilled = trip.temperature === "chilled";
   return (
@@ -172,6 +183,9 @@ function TripCell({ load, added, dim, active, onOpen }: { load: TripLoad; added:
         <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-go-ink">{trip.districtName}</span>
         {added && <Pill tone="success">Added</Pill>}
         {load.tight && <Pill tone="warning">Tight</Pill>}
+        {risk && riskTone(risk.percent) !== "low" && (
+          <Pill tone={riskTone(risk.percent) === "high" ? "danger" : "warning"}>{riskLabel(risk, "Late risk")}</Pill>
+        )}
       </span>
       <span className="flex items-center gap-1.5 text-xs text-go-secondary">
         <span aria-hidden className={`size-2 rounded-full ${chilled ? "bg-go-info" : "bg-go-placeholder"}`} />
