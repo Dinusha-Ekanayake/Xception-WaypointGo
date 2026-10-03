@@ -3,6 +3,12 @@
 @kavindamihiran's entries, newest first. Only @kavindamihiran adds to this file; how to write an entry is in the [log's index](../development-log.md).
 
 ---
+## 2026-10-04 - fix: integration tests no longer share a service day
+
+`fix/test-date-collisions` · @kavindamihiran
+
+Two of six `dev` preview deploys failed on a different backend test each time (planning saw 4 stops instead of 2, ordering 3 orders instead of 1): a dozen integration classes drew random days from overlapping windows for the same depot and read each other's orders. `support/TestDates` now hands out a day no other test in the run has, after `nextOperatingDay`, from a wider window.
+Verified: `mvn verify` on a fresh local database, 914 tests, 0 failed, 0 skipped.
 ## 2026-10-04 - fix: way back between role addresses
 
 `fix/role-address-flow` · @kavindamihiran

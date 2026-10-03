@@ -28,6 +28,7 @@ import com.waypoint.dispatch.referencedata.contract.ReferenceQuery;
 import com.waypoint.dispatch.referencedata.contract.ReferenceViews.OutletView;
 import com.waypoint.dispatch.shared.event.EventEnvelope;
 import com.waypoint.dispatch.support.TestDatabase;
+import com.waypoint.dispatch.support.TestDates;
 import jakarta.servlet.http.Cookie;
 import java.math.BigDecimal;
 import java.nio.file.Path;
@@ -114,8 +115,7 @@ class IntelligenceIntegrationTest {
         .filter(o -> !o.vanOnly() && o.effectiveWindowOpen().isPresent())
         .min(Comparator.comparing(OutletView::outletId))
         .orElseThrow();
-    serviceDate = reference.nextOperatingDay(
-        LocalDate.of(2045, 1, 1).plusDays(ThreadLocalRandom.current().nextInt(0, 15_000)));
+    serviceDate = TestDates.unusedDay(reference::nextOperatingDay);
     run = UUID.randomUUID().toString().substring(0, 8);
     dispatcherId = account("mld-" + run, "dispatcher", true);
     dispatcher = session("mld-" + run);

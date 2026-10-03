@@ -24,6 +24,7 @@ import com.waypoint.dispatch.shared.domain.Actor;
 import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
 import com.waypoint.dispatch.shared.util.Clock;
+import com.waypoint.dispatch.support.TestDates;
 import com.waypoint.dispatch.warehouse.contract.StockPort.Insufficient;
 import com.waypoint.dispatch.warehouse.contract.StockPort.LineAvailability;
 import com.waypoint.dispatch.warehouse.contract.StockPort.Unavailable;
@@ -40,7 +41,6 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.ThreadLocalRandom;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -136,8 +136,7 @@ class OrderingCommandIntegrationTest {
                 OUTLET));
     // A day no earlier run has closed, with "now" the morning before it.
     serviceDate =
-        reference.nextOperatingDay(
-            LocalDate.of(2040, 1, 1).plusDays(ThreadLocalRandom.current().nextInt(0, 15_000)));
+        TestDates.unusedDay(reference::nextOperatingDay);
     moveTo(at(serviceDate.minusDays(1), LocalTime.of(10, 0)));
   }
 
