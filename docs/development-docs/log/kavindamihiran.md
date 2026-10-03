@@ -3,6 +3,15 @@
 @kavindamihiran's entries, newest first. Only @kavindamihiran adds to this file; how to write an entry is in the [log's index](../development-log.md).
 
 ---
+## 2026-10-03 - feat: MCP day summary, prompts and example questions
+
+`feat/177-mcp-reads` · @kavindamihiran
+
+Issue #177 PR 1 of 6 ([plan](../../issues/177-mcp/PLAN.md)). `day_summary` composes the plan, loading trips and open issues reads in the adapter; a refused or absent part is named in `unavailable` (SEC-40). Prompts `morning_briefing`, `what_to_load_next`, `pending_receipts` are offered by read action. Every tool description carries an example question.
+Why: one call answers "how does the depot look today" without new backend reads or authorization paths.
+Verified: `npm test` in `mcp/` (24 passed).
+Open: paging, per-client scopes, personal-field grant, confirmed writes, admin view (#177 PRs 2-6).
+
 ## 2026-10-03 - feat: add listen-to-message play button to all driver notification cards
 
 `feat/driver-UI` · @kavindamihiran
