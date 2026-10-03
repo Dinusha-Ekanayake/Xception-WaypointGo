@@ -11,11 +11,12 @@ import java.util.function.UnaryOperator;
  * share one database and mostly one depot, so a test that reads "the depot's
  * orders for a day" sees another test's orders when both drew the same random
  * day. A wide window keeps a rerun against a kept database clear of old rows;
- * the set keeps one run clear of itself.
+ * the set keeps one run clear of itself. The window ends before 2286, where
+ * epoch seconds reach the 9999999999 that tests use as a far-future expiry.
  */
 public final class TestDates {
   private static final LocalDate START = LocalDate.of(2100, 1, 1);
-  private static final int SPAN_DAYS = 300_000;
+  private static final int SPAN_DAYS = 60_000;
   private static final Set<LocalDate> GIVEN = ConcurrentHashMap.newKeySet();
 
   private TestDates() {}
