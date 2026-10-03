@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ConnectionStatus, Icon, Notice, formatClock } from "@shared/ui";
+import { ConnectionStatus, Icon, McpButton, Notice, formatClock, useShell } from "@shared/ui";
 
 // Title, sync pill and notifications bell, as on every dispatcher screen. The
 // dispatcher is online only (src/shared/offline/tiers.ts), so going offline
@@ -20,6 +20,7 @@ export default function PageHeader({
   lastSyncedAt: Date | null;
   tools?: ReactNode;
 }): React.JSX.Element {
+  const shell = useShell();
   return (
     <>
       <header className="flex w-full flex-wrap items-center gap-3">
@@ -29,6 +30,7 @@ export default function PageHeader({
         </div>
         {tools}
         <ConnectionStatus online={online} lastSyncedAt={lastSyncedAt} offlineNote="read only" />
+        <McpButton url={shell?.mcpUrl ?? null} className="flex min-h-[42px] items-center gap-2 rounded-[21px] bg-white px-3.5 text-sm font-medium text-go-ink" />
         <button
           type="button"
           disabled

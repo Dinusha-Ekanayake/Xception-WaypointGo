@@ -19,6 +19,8 @@ export type ShellControls = {
   onSignOut: () => void;
   /** The pending-writes badge and review list, or nothing when there is none. */
   sync: ReactNode;
+  /** The read-only MCP address on the shared host, for "Connect AI assistant". */
+  mcpUrl: string | null;
 };
 
 const ShellContext = createContext<ShellControls | null>(null);
