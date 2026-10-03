@@ -16,6 +16,11 @@ import RouteChangedBottomSheet from "./screens/RouteChangedBottomSheet.tsx";
 import SignOutConfirmBottomSheet from "./screens/SignOutConfirmBottomSheet.tsx";
 import { DriverMorphHeader, type SupportedLang } from "./ui.tsx";
 import { ROUTE_STOPS } from "./screens/routeData.ts";
+import { ExecutionCommandKind } from "@shared/domain/types";
+import { useDriver } from "./useDriver.ts";
+import { clock, isFinished, summarize } from "./data/run.ts";
+import { currentIndex, toRouteStops, tripStatus as runStatus } from "./data/routeStops.ts";
+import LiveStatus from "./LiveStatus.tsx";
 
 export type DriverProps = {
   userId?: string;
@@ -36,12 +41,45 @@ export default function Driver({
   const shell = useShell();
   // The driver's notifications (issue #118): the Home feed and the driving-mode badge.
   const inbox = useInbox(userId ?? null, Boolean(userId));
+  // The live run (issue #114): with an account the screens draw the run sheet the
+  // loader's release produced and record through useDriver, which keeps every
+  // write on the phone until it is sent. Without one they show the design's samples.
+  const live = Boolean(userId);
+  const d = useDriver(userId ?? "");
+  const ordered = [...d.run.stops].sort((a, b) => a.sequence - b.sequence);
+  const stops = live ? toRouteStops(d.run.stops, d.run.outlets) : ROUTE_STOPS;
+  const syncedLabel = !live
+    ? undefined
+    : d.run.syncedAt
+      ? `Synced ${clock(d.run.syncedAt)}`
+      : d.run.keptAt
+        ? `Saved ${clock(d.run.keptAt)}`
+        : "Not synced yet";
+  const runSummary = (() => {
+    if (!live) return undefined;
+    const sum = summarize(d.run.stops);
+    const done = d.run.stops.map((stop) => stop.completedAt).filter((at): at is string => at !== null).sort().at(-1);
+    const parts = [
+      `${sum.delivered} of ${sum.total} ${sum.total === 1 ? "stop" : "stops"} delivered`,
+      sum.partial > 0 ? `${sum.partial} partly` : "",
+      sum.failed > 0 ? `${sum.failed} not delivered` : "",
+      done ? `finished ${clock(done)}` : "",
+    ];
+    return parts.filter(Boolean).join(" • ");
+  })();
+  // The route, report and driving screens draw a stop; a live run without one has nothing to draw.
+  const hasStops = stops.length > 0;
+  const [toast, setToast] = useState<string | null>(null);
+  const say = (message: string) => {
+    setToast(message);
+    window.setTimeout(() => setToast(null), 4000);
+  };
   const [isNight, setIsNight] = useState(false);
   const [lang, setLang] = useState<SupportedLang>("en");
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const [currentScreen, setCurrentScreen] = useState<
     "login" | "home" | "camera-access" | "enter-id" | "route-next-stop" | "route-map" | "delivery-waiting" | "run-complete" | "no-trip-plan"
-  >("login");
+  >(live ? "home" : "login");
   const [currentStopIndex, setCurrentStopIndex] = useState<number>(0);
   const [assignedVehicle, setAssignedVehicle] = useState<string | null>(null);
   const [staffId, setStaffId] = useState<string>("DRV-00021");
@@ -49,7 +87,9 @@ export default function Driver({
   const [isDrivingMode, setIsDrivingMode] = useState<boolean>(false);
   const [isDrivingRendered, setIsDrivingRendered] = useState<boolean>(false);
   const [isDrivingVisible, setIsDrivingVisible] = useState<boolean>(false);
-  const [tripStatus, setTripStatus] = useState<"not-started" | "in-progress" | "completed">("not-started");
+  const [sampleTripStatus, setTripStatus] = useState<"not-started" | "in-progress" | "completed">("not-started");
+  const tripStatus = live ? runStatus(d.run.stops) : sampleTripStatus;
+  const liveVehicle = d.run.stops.length > 0 ? d.run.vehicle?.vehicleId ?? null : null;
   const isGetVehicleFlow = currentScreen === "camera-access" || currentScreen === "enter-id";
   const isPersistentHeader = currentScreen === "home" || currentScreen === "route-next-stop" || currentScreen === "route-map";
 
@@ -73,6 +113,13 @@ export default function Driver({
   }, [isDrivingMode]);
 
   const handleStartTrip = () => {
+    if (live) {
+      if (ordered.length === 0) return say("No released trip for you yet. It appears once the loader releases your vehicle.");
+      setCurrentStopIndex(currentIndex(d.run.stops));
+      setCurrentScreen("route-next-stop");
+      void d.openRun();
+      return;
+    }
     if (tripStatus !== "in-progress") {
       setCurrentStopIndex(0);
       setTripStatus("in-progress");
@@ -92,7 +139,8 @@ export default function Driver({
         e.preventDefault();
         // Space opens Driving Mode only; it cannot disappear from Space
         setIsDrivingMode(true);
-      } else if (isDrivingMode) {
+      } else if (isDrivingMode || live) {
+        // The demo shortcuts below move between sample screens; a live run moves by what is recorded.
         // While Driving Mode is active, block background demo shortcuts
         return;
       } else if (e.key === "m" || e.key === "M") {
@@ -111,11 +159,58 @@ export default function Driver({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isDrivingMode]);
+  }, [isDrivingMode, live]);
 
-  const handleVehicleAssigned = (vehicleId: string) => {
+  const handleVehicleAssigned = (vehicleId: string, scanned = false) => {
+    if (live) {
+      // The camera only stands in for reading the vehicle's QR, so a scan takes the run's vehicle;
+      // a typed ID must be the one the run is on.
+      if (!liveVehicle) {
+        say("No released trip for you yet. It appears once the loader releases your vehicle.");
+        return setCurrentScreen("home");
+      }
+      if (!scanned && vehicleId.trim().toUpperCase() !== liveVehicle) {
+        return say(`${vehicleId.trim().toUpperCase()} is not on your run. Your vehicle is ${liveVehicle}.`);
+      }
+      setAssignedVehicle(liveVehicle);
+      return setCurrentScreen("home");
+    }
     setAssignedVehicle(vehicleId);
     setCurrentScreen("home");
+  };
+
+  /** "I've arrived" at the stop on screen: the arrival is recorded, then the report opens. */
+  const handleArrived = async () => {
+    if (!live) return setCurrentScreen("delivery-waiting");
+    const stop = ordered[currentStopIndex];
+    if (!stop) return;
+    if (isFinished(stop)) return say("This stop is already recorded.");
+    if (stop.outcome === "ARRIVED" || (await d.arrived(stop))) setCurrentScreen("delivery-waiting");
+    else say("The arrival could not be recorded. Try again.");
+  };
+
+  /** After a stop is recorded: the next stop, or the end of the run. */
+  const afterRecorded = (index: number) => {
+    const next = ordered.findIndex((stop, i) => i !== index && !isFinished(stop));
+    if (next === -1) {
+      setCurrentScreen("run-complete");
+      return;
+    }
+    setCurrentStopIndex(next);
+    setCurrentScreen("route-next-stop");
+    const nextStop = ordered[next];
+    if (nextStop) void d.openStop(nextStop);
+  };
+
+  const reportProblem = (description: string) => {
+    const stop = ordered[currentStopIndex];
+    if (!liveVehicle) return;
+    void d.run.act(ExecutionCommandKind.reportFault, {
+      vehicleId: liveVehicle,
+      deliveryId: stop?.deliveryId ?? null,
+      kind: "road",
+      description: stop ? `Stop ${String(stop.sequence).padStart(2, "0")}: ${description}` : description,
+    });
   };
 
   return (
@@ -199,9 +294,9 @@ export default function Driver({
         >
           <HomeNoVehicle
             driverName={displayName || "Rashmika Dilshan"}
-            driverCode={staffId || "DRV-00021"}
-            depotName="Kandy depot"
-            assignedVehicle={assignedVehicle}
+            driverCode={live ? "" : staffId || "DRV-00021"}
+            depotName={live ? `${scope[0] ?? ""} depot` : "Kandy depot"}
+            assignedVehicle={live ? assignedVehicle ?? (tripStatus !== "not-started" ? liveVehicle : null) : assignedVehicle}
             tripStatus={tripStatus}
             onGetVehicle={() => setCurrentScreen("camera-access")}
             onStartRun={handleStartTrip}
@@ -277,7 +372,7 @@ export default function Driver({
               <GetVehicleCameraAccess
                 isActive={currentScreen === "camera-access"}
                 onBack={() => setCurrentScreen("home")}
-                onScanSuccess={handleVehicleAssigned}
+                onScanSuccess={(id) => handleVehicleAssigned(id, true)}
                 onEnterManualId={() => setCurrentScreen("enter-id")}
                 isNight={isNight}
                 hideHeader
@@ -296,8 +391,14 @@ export default function Driver({
               <EnterVehicleId
                 onBack={() => setCurrentScreen("home")}
                 onScanQrInstead={() => setCurrentScreen("camera-access")}
-                onContinue={handleVehicleAssigned}
-                depotName="Kandy depot"
+                onContinue={(id) => handleVehicleAssigned(id)}
+                knownIds={live ? (liveVehicle ? [liveVehicle] : []) : undefined}
+                unknownMessage={
+                  live
+                    ? (id) => (liveVehicle ? `${id} is not on your run. Your vehicle is ${liveVehicle}.` : "No released trip for you yet. It appears once the loader releases your vehicle.")
+                    : undefined
+                }
+                depotName={live ? `${scope[0] ?? ""} depot` : "Kandy depot"}
                 isNight={isNight}
                 hideHeader
               />
@@ -314,16 +415,18 @@ export default function Driver({
               : "translate-x-full opacity-0 pointer-events-none z-0"
           )}
         >
-          <RouteNextStop
+          {hasStops && <RouteNextStop
+            stops={stops}
+            syncedLabel={syncedLabel}
             stopIndex={currentStopIndex}
             onSelectStop={(idx) => setCurrentStopIndex(idx)}
             onBack={() => setCurrentScreen("home")}
             onOpenMap={() => setCurrentScreen("route-map")}
-            onArrived={() => setCurrentScreen("delivery-waiting")}
+            onArrived={() => void handleArrived()}
             isNight={isNight}
             onToggleTheme={() => setIsNight((prev) => !prev)}
             hideHeader={isPersistentHeader}
-          />
+          />}
         </div>
 
         {/* Screen 5: Google Maps API UI View - opens when Map button is tapped */}
@@ -352,7 +455,24 @@ export default function Driver({
               : "translate-x-full opacity-0 pointer-events-none z-0"
           )}
         >
-          <DeliveryReportWaiting
+          {hasStops && <DeliveryReportWaiting
+            syncedLabel={syncedLabel}
+            key={live ? `${ordered[currentStopIndex]?.deliveryId ?? "none"}:${currentScreen === "delivery-waiting"}` : "sample"}
+            stops={stops}
+            live={
+              live && ordered[currentStopIndex]
+                ? {
+                    stop: ordered[currentStopIndex],
+                    busy: d.busy,
+                    error: d.error,
+                    onConfirm: (report) => {
+                      const index = currentStopIndex;
+                      void d.confirm(ordered[index]!, report).then((ok) => ok && afterRecorded(index));
+                    },
+                    onProblem: reportProblem,
+                  }
+                : undefined
+            }
             stopIndex={currentStopIndex}
             onBack={() => setCurrentScreen("route-next-stop")}
             onConfirmSuccess={() => {
@@ -367,7 +487,7 @@ export default function Driver({
             }}
             isNight={isNight}
             onToggleTheme={() => setIsNight((prev) => !prev)}
-          />
+          />}
         </div>
 
         {/* Screen 7: Run complete screen */}
@@ -380,6 +500,8 @@ export default function Driver({
           )}
         >
           <RunCompleteScreen
+            syncedLabel={syncedLabel}
+            summary={runSummary}
             onBack={() => {
               if (tripStatus === "completed") {
                 setCurrentScreen("home");
@@ -393,8 +515,8 @@ export default function Driver({
             }}
             isNight={isNight}
             onToggleTheme={() => setIsNight((prev) => !prev)}
-            vehicleId={assignedVehicle ?? "VEH043"}
-            depotName="Kandy depot"
+            vehicleId={live ? liveVehicle ?? "" : assignedVehicle ?? "VEH043"}
+            depotName={live ? `${scope[0] ?? ""} depot` : "Kandy depot"}
           />
         </div>
 
@@ -408,6 +530,7 @@ export default function Driver({
           )}
         >
           <NoTripPlanScreen
+            syncedLabel={syncedLabel}
             onBack={() => {
               if (tripStatus === "completed") {
                 setCurrentScreen("home");
@@ -422,10 +545,21 @@ export default function Driver({
             }}
             isNight={isNight}
             onToggleTheme={() => setIsNight((prev) => !prev)}
-            vehicleId={assignedVehicle ?? "VEH043"}
-            depotName="Kandy depot"
+            vehicleId={live ? liveVehicle ?? "" : assignedVehicle ?? "VEH043"}
+            depotName={live ? `${scope[0] ?? ""} depot` : "Kandy depot"}
           />
         </div>
+
+        {live && (
+          <LiveStatus
+            online={d.online}
+            waiting={d.waiting}
+            keptAt={d.run.keptAt}
+            expired={d.run.expired}
+            loading={d.run.loading}
+            message={toast}
+          />
+        )}
 
         {/* Sign Out Confirmation Modal */}
         <SignOutConfirmBottomSheet
@@ -453,7 +587,7 @@ export default function Driver({
         />
 
         {/* Driving Mode Overlay - 0.5s fade in and 0.5s fade out */}
-        {isDrivingRendered && (
+        {isDrivingRendered && hasStops && (
           <div
             className={cx(
               "absolute inset-0 z-50 transition-opacity duration-500 ease-in-out",
@@ -463,6 +597,7 @@ export default function Driver({
             )}
           >
             <DrivingModeScreen
+              stops={stops}
               onExit={() => setIsDrivingMode(false)}
               isNight={isNight}
               stopIndex={currentStopIndex}

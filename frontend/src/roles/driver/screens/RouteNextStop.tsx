@@ -7,6 +7,10 @@ import CallOptionsBottomSheet from "./CallOptionsBottomSheet.tsx";
 import { ROUTE_STOPS, RouteStop } from "./routeData.ts";
 
 export type RouteNextStopProps = {
+  /** "Synced HH:MM" from the live run; the design's sample time when absent. */
+  syncedLabel?: string;
+  /** The run's stops; the design's sample stops when absent. */
+  stops?: RouteStop[];
   onBack: () => void;
   onOpenMap?: () => void;
   onArrived?: () => void;
@@ -327,6 +331,8 @@ function ScrollRevealCard({
 }
 
 export default function RouteNextStop({
+  syncedLabel = "Synced 05:31",
+  stops: routeStops = ROUTE_STOPS,
   onBack,
   onOpenMap,
   onArrived,
@@ -345,10 +351,10 @@ export default function RouteNextStop({
   const { scrollRef, pullY, isPulling, maskStyle, handlers } = useRubberBandScroll();
 
   // Active stop, completed stops, upcoming stops
-  const safeIndex = Math.min(Math.max(0, stopIndex), ROUTE_STOPS.length - 1);
-  const activeStop: RouteStop = ROUTE_STOPS[safeIndex] ?? ROUTE_STOPS[0];
-  const completedStops = ROUTE_STOPS.slice(0, safeIndex);
-  const upcomingStops = ROUTE_STOPS.slice(safeIndex + 1);
+  const safeIndex = Math.min(Math.max(0, stopIndex), routeStops.length - 1);
+  const activeStop: RouteStop = routeStops[safeIndex] ?? routeStops[0];
+  const completedStops = routeStops.slice(0, safeIndex);
+  const upcomingStops = routeStops.slice(safeIndex + 1);
 
   // Reset arrived state when stop changes
   useEffect(() => {
@@ -437,7 +443,7 @@ export default function RouteNextStop({
               )}
             >
               <span className="text-[16px] font-medium leading-[20px] tracking-tight">
-                Synced 05:31
+                {syncedLabel}
               </span>
             </div>
 
@@ -532,7 +538,7 @@ export default function RouteNextStop({
                   isNight ? "text-[#7C7583]" : "text-[#A9A9A9]"
                 )}
               >
-                Next • stop {activeStop.stopNumber} of {String(activeStop.totalStops || ROUTE_STOPS.length).padStart(2, "0")}
+                Next • stop {activeStop.stopNumber} of {String(activeStop.totalStops || routeStops.length).padStart(2, "0")}
               </span>
 
               {/* Dock tag */}

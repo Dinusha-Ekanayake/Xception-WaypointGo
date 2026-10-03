@@ -5,6 +5,8 @@ import { cx } from "@shared/ui";
 import { ROUTE_STOPS, RouteStop } from "./routeData.ts";
 
 export type DrivingModeScreenProps = {
+  /** The run's stops; the design's sample stops when absent. */
+  stops?: RouteStop[];
   onExit: () => void;
   isNight?: boolean;
   stopIndex?: number;
@@ -12,6 +14,7 @@ export type DrivingModeScreenProps = {
 };
 
 export default function DrivingModeScreen({
+  stops: routeStops = ROUTE_STOPS,
   onExit,
   isNight = false,
   stopIndex = 2, // Defaults to Kadugannawa as in Figma, or current stop
@@ -22,8 +25,8 @@ export default function DrivingModeScreen({
   unread?: number | null;
 }): React.JSX.Element {
   const badge = unread === undefined ? 3 : unread ?? 0;
-  const safeIndex = Math.min(Math.max(0, stopIndex), ROUTE_STOPS.length - 1);
-  const activeStop: RouteStop = ROUTE_STOPS[safeIndex] ?? ROUTE_STOPS[2];
+  const safeIndex = Math.min(Math.max(0, stopIndex), routeStops.length - 1);
+  const activeStop: RouteStop = routeStops[safeIndex] ?? routeStops[2];
 
   // Slide to exit slider state
   const trackRef = useRef<HTMLDivElement>(null);

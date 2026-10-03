@@ -178,6 +178,23 @@ export function operatingDate(now: Date): string {
 }
 
 
+/** A day has a run when one of its sheets has stops: a vehicle is listed before its trip is released. */
+export const hasRun = (sheets: Array<{ stops: unknown[] }>): boolean => sheets.some((sheet) => sheet.stops.length > 0);
+
+/**
+ * The sheet the phone follows when the driver has several vehicles on the day
+ * (issue #114): the first with a stop still to do, else the first with stops,
+ * else the first. A vehicle with no released trip yet has an empty sheet.
+ */
+export function pickSheet<S extends { stops: Array<{ outcome: DeliveryOutcome }> }>(sheets: S[]): S | null {
+  return (
+    sheets.find((sheet) => sheet.stops.some((stop) => !isFinished(stop))) ??
+    sheets.find((sheet) => sheet.stops.length > 0) ??
+    sheets[0] ??
+    null
+  );
+}
+
 /** How far ahead the driver looks for a released trip when today has none. */
 export const RUN_LOOK_AHEAD_DAYS = 7;
 
@@ -187,12 +204,12 @@ export const RUN_LOOK_AHEAD_DAYS = 7;
  * evening before an early departure, or on a Saturday before Monday's run,
  * still finds it. `read` is asked one day at a time, stopping at the first hit.
  */
-export async function nextRunDay(today: string, read: (date: string) => Promise<{ sheets: unknown[] }>): Promise<string | null> {
+export async function nextRunDay(today: string, read: (date: string) => Promise<{ sheets: Array<{ stops: unknown[] }> }>): Promise<string | null> {
   const d = new Date(`${today}T00:00:00Z`);
   for (let ahead = 1; ahead <= RUN_LOOK_AHEAD_DAYS; ahead++) {
     d.setUTCDate(d.getUTCDate() + 1);
     const date = d.toISOString().slice(0, 10);
-    if ((await read(date)).sheets.length > 0) return date;
+    if (hasRun((await read(date)).sheets)) return date;
   }
   return null;
 }

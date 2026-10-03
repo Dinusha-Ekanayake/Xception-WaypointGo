@@ -3,6 +3,10 @@
 import { cx } from "@shared/ui";
 
 export type RunCompleteScreenProps = {
+  /** "Synced HH:MM" from the live run; the design's sample time when absent. */
+  syncedLabel?: string;
+  /** The run's outcome line; the design's sample when absent. */
+  summary?: string;
   onBack: () => void;
   onBackToHome: () => void;
   isNight?: boolean;
@@ -12,6 +16,8 @@ export type RunCompleteScreenProps = {
 };
 
 export default function RunCompleteScreen({
+  syncedLabel = "Synced 05:31",
+  summary = "All 7 stops delivered • finished 07:45",
   onBack,
   onBackToHome,
   isNight = false,
@@ -64,7 +70,7 @@ export default function RunCompleteScreen({
             )}
           >
             <span className="text-[16px] font-medium leading-[20px] tracking-tight">
-              Synced 05:31
+              {syncedLabel}
             </span>
           </div>
 
@@ -129,7 +135,7 @@ export default function RunCompleteScreen({
             isNight ? "text-white" : "text-black"
           )}
         >
-          Kandy run • {vehicleId}
+          {depotName.replace(/ depot$/, "")} run • {vehicleId}
         </span>
 
         {/* Title */}
@@ -149,7 +155,7 @@ export default function RunCompleteScreen({
             isNight ? "text-[#A1A1AA]" : "text-[#6B7280]"
           )}
         >
-          All 7 stops delivered • finished 07:45
+          {summary}
         </p>
 
         {/* Run summary card */}

@@ -1,5 +1,7 @@
 export type RouteStop = {
   id: string;
+  /** The live delivery this stop draws; absent on the design's sample stops. */
+  deliveryId?: string;
   stopNumber: string;
   stopIndex: number;
   totalStops: number;

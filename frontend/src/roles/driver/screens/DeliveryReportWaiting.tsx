@@ -4,8 +4,29 @@ import { cx } from "@shared/ui";
 import ReportProblemBottomSheet from "./ReportProblemBottomSheet.tsx";
 import DeliveryPinConfirmModal from "./DeliveryPinConfirmModal.tsx";
 import { ROUTE_STOPS, RouteStop } from "./routeData.ts";
+import LiveRecordFields, { blocker, draftOf, startFields, type RecordFields } from "./LiveRecordFields.tsx";
+import type { Stop } from "../data/run.ts";
+import type { Report } from "./DeliveryReport.tsx";
+
+/** A real delivery (issue #114): the stop, and what confirming records. */
+export type LiveReport = {
+  stop: Stop;
+  busy: boolean;
+  error: string | null;
+  onConfirm: (report: Report) => void;
+  onProblem: (description: string) => void;
+};
+
+/** The design confirms the handover with the store manager's PIN, not a photo or a signature. */
+export const PIN_HANDOVER = "Handed over in person; the store manager confirmed it with their PIN on the driver's phone.";
 
 export type DeliveryReportWaitingProps = {
+  /** "Synced HH:MM" from the live run; the design's sample time when absent. */
+  syncedLabel?: string;
+  /** The run's stops; the design's sample stops when absent. */
+  stops?: RouteStop[];
+  /** Records a real delivery instead of the design's sample confirmation. */
+  live?: LiveReport;
   onBack: () => void;
   onConfirmSuccess?: () => void;
   isNight?: boolean;
@@ -14,20 +35,26 @@ export type DeliveryReportWaitingProps = {
 };
 
 export default function DeliveryReportWaiting({
+  syncedLabel = "Synced 05:31",
+  stops: routeStops = ROUTE_STOPS,
+  live,
   onBack,
   onConfirmSuccess,
   isNight = false,
   onToggleTheme,
   stopIndex = 0,
 }: DeliveryReportWaitingProps): React.JSX.Element {
-  const [viewState, setViewState] = useState<"waiting" | "report">("waiting");
+  // A real delivery has no store-confirmation step before the record: the store receives it afterwards.
+  const [viewState, setViewState] = useState<"waiting" | "report">(live ? "report" : "waiting");
+  const [fields, setFields] = useState<RecordFields | null>(live ? startFields(live.stop) : null);
+  const liveFields = live ? (fields ?? startFields(live.stop)) : null;
   const [showProblemModal, setShowProblemModal] = useState(false);
   const [showPinModal, setShowPinModal] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isConfirmed, setIsConfirmed] = useState(false);
 
-  const safeIndex = Math.min(Math.max(0, stopIndex), ROUTE_STOPS.length - 1);
-  const currentStop: RouteStop = ROUTE_STOPS[safeIndex] ?? ROUTE_STOPS[0];
+  const safeIndex = Math.min(Math.max(0, stopIndex), routeStops.length - 1);
+  const currentStop: RouteStop = routeStops[safeIndex] ?? routeStops[0];
   const deliveredItems = currentStop.deliveredItems;
   const expectedUnits = currentStop.expectedUnits;
 
@@ -59,11 +86,20 @@ export default function DeliveryReportWaiting({
   }, []);
 
   const handleConfirmDelivery = () => {
+    const blocked = live && liveFields ? blocker(live.stop, liveFields) : null;
+    if (blocked) return showToast(blocked);
     setShowPinModal(true);
   };
 
   const handlePinConfirmed = () => {
     setShowPinModal(false);
+    if (live && liveFields) {
+      live.onConfirm({
+        record: draftOf(live.stop, liveFields),
+        proof: { recipientName: "", signature: null, photo: null, fallbackReason: PIN_HANDOVER },
+      });
+      return;
+    }
     setIsConfirmed(true);
     showToast(`✓ Delivery confirmed for ${currentStop.name} (${expectedUnits} units)`);
     setTimeout(() => {
@@ -140,7 +176,7 @@ export default function DeliveryReportWaiting({
                   )}
                 >
                   <span className="text-[16px] font-medium leading-[20px] tracking-tight">
-                    Synced 05:31
+                    {syncedLabel}
                   </span>
                 </div>
 
@@ -328,7 +364,7 @@ export default function DeliveryReportWaiting({
                   )}
                 >
                   <span className="text-[16px] font-medium leading-[20px] tracking-tight">
-                    Synced 05:31
+                    {syncedLabel}
                   </span>
                 </div>
 
@@ -477,7 +513,7 @@ export default function DeliveryReportWaiting({
                         isNight ? "text-[#FFFFFF]" : "text-[#000000]"
                       )}
                     >
-                      {expectedUnits}
+                      {liveFields ? liveFields.delivered : expectedUnits}
                     </span>
                     <span
                       className={cx(
@@ -597,6 +633,13 @@ export default function DeliveryReportWaiting({
                 ))}
               </div>
 
+              {live && liveFields && (
+                <LiveRecordFields stop={live.stop} fields={liveFields} onChange={setFields} isNight={isNight} />
+              )}
+              {live?.error && (
+                <p role="alert" className="mt-[14px] rounded-[16px] bg-[#FDECEC] px-4 py-3 text-[14px] text-[#B42318]">{live.error}</p>
+              )}
+
               {/* Scroll Spacer to let the user scroll cleanly past the floating bottom button & gradient */}
               <div className="h-[170px] shrink-0" />
             </div>
@@ -616,7 +659,7 @@ export default function DeliveryReportWaiting({
               <button
                 type="button"
                 onClick={handleConfirmDelivery}
-                disabled={isConfirmed}
+                disabled={isConfirmed || live?.busy}
                 className={cx(
                   "w-full h-[64px] rounded-[22px] text-[20px] font-medium leading-[25px] flex items-center justify-center transition-all active:scale-[0.99] shadow-lg",
                   isNight
@@ -645,6 +688,7 @@ export default function DeliveryReportWaiting({
           isOpen={showProblemModal}
           onClose={() => setShowProblemModal(false)}
           onSubmit={(reason) => {
+            live?.onProblem(reason);
             showToast(`Reported to dispatch: "${reason}"`);
           }}
           isNight={isNight}

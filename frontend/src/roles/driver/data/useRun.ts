@@ -6,7 +6,7 @@ import { ApiError } from "@shared/api/problem";
 import { drainUploads, pendingEntries, pendingUploads, UPLOADS_EVENT, type StoredEntry, type StoredUpload } from "@shared/offline";
 import type { OutletView, VehicleView } from "@shared/domain/types";
 import type { DriverGateway, RunData } from "./gateway.ts";
-import { DeliveryKind, keepRunDay, keptRunDay, nextRunDay, operatingDate, project, type Stop } from "./run.ts";
+import { DeliveryKind, hasRun, keepRunDay, keptRunDay, nextRunDay, operatingDate, pickSheet, project, type Stop } from "./run.ts";
 
 // The driver's day: read from the server when it answers, from the phone when it
 // does not, and shown with the writes still waiting applied on top.
@@ -84,7 +84,7 @@ export function useRun(gateway: DriverGateway, accountId: string, online: boolea
         try {
           const fresh = await gateway.run(date, controller.signal);
           if (cancelled) return;
-          if (fresh.sheets.length === 0 && date === today) {
+          if (!hasRun(fresh.sheets) && date === today) {
             const ahead = await nextRunDay(today, (day) => gateway.run(day, controller.signal));
             if (cancelled) return;
             if (ahead) {
@@ -139,7 +139,7 @@ export function useRun(gateway: DriverGateway, accountId: string, online: boolea
     };
   }, [online, accountId, readDevice]);
 
-  const sheet = data?.sheets[0] ?? null;
+  const sheet = data ? pickSheet(data.sheets) : null;
   const stops = useMemo(
     () => (sheet ? project(sheet, entries.map((entry) => ({ command: entry.payload as Command, needsReview: entry.needsReview === true }))) : []),
     [sheet, entries],

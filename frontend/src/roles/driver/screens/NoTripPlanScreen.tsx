@@ -3,6 +3,8 @@
 import { cx } from "@shared/ui";
 
 export type NoTripPlanScreenProps = {
+  /** "Synced HH:MM" from the live run; the design's sample time when absent. */
+  syncedLabel?: string;
   onBack: () => void;
   onBackToHome: () => void;
   isNight?: boolean;
@@ -12,6 +14,7 @@ export type NoTripPlanScreenProps = {
 };
 
 export default function NoTripPlanScreen({
+  syncedLabel = "Synced 05:31",
   onBack,
   onBackToHome,
   isNight = false,
@@ -64,7 +67,7 @@ export default function NoTripPlanScreen({
             )}
           >
             <span className="text-[16px] font-medium leading-[20px] tracking-tight">
-              Synced 05:31
+              {syncedLabel}
             </span>
           </div>
 

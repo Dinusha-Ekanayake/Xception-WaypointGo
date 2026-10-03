@@ -10,7 +10,13 @@ export type EnterVehicleIdProps = {
   depotName?: string;
   isNight?: boolean;
   hideHeader?: boolean;
+  /** The IDs this driver may take; the design's sample vehicles when absent. */
+  knownIds?: string[];
+  /** What to say for any other ID. */
+  unknownMessage?: (vehicleId: string) => string;
 };
+
+const SAMPLE_IDS = ["VEH001", "VEH002", "VEH003", "VEH004", "VEH005"];
 
 /**
  * "Enter vehicle ID" screen -- pixel-accurate to Figma spec.
@@ -30,6 +36,8 @@ export default function EnterVehicleId({
   depotName = "Kandy depot",
   isNight = false,
   hideHeader = false,
+  knownIds = SAMPLE_IDS,
+  unknownMessage,
 }: EnterVehicleIdProps): React.JSX.Element {
   const [value, setValue] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -55,16 +63,15 @@ export default function EnterVehicleId({
     setError(null);
     // Simulate network lookup -- replace with real API call
     await new Promise<void>((resolve) => setTimeout(resolve, 500));
-    const knownIds = ["VEH001", "VEH002", "VEH003", "VEH004", "VEH005"];
     if (!knownIds.includes(trimmed)) {
-      setError(`No vehicle ${trimmed} at ${depotName}. Check the sticker.`);
+      setError(unknownMessage ? unknownMessage(trimmed) : `No vehicle ${trimmed} at ${depotName}. Check the sticker.`);
       setIsSubmitting(false);
       inputRef.current?.focus();
       return;
     }
     setIsSubmitting(false);
     onContinue?.(trimmed);
-  }, [value, depotName, onContinue]);
+  }, [value, depotName, onContinue, knownIds, unknownMessage]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") void handleContinue();

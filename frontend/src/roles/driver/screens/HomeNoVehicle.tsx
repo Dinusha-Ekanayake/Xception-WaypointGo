@@ -561,7 +561,7 @@ export default function HomeNoVehicle({
                   {driverName}
                 </h1>
                 <p className="text-[13px] font-light text-[#A9A9A9] leading-none pt-0.5">
-                  Driver • {driverCode} • {depotName}
+                  {["Driver", driverCode, depotName].filter(Boolean).join(" • ")}
                 </p>
               </div>
             </div>
