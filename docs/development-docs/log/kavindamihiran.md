@@ -3,6 +3,12 @@
 @kavindamihiran's entries, newest first. Only @kavindamihiran adds to this file; how to write an entry is in the [log's index](../development-log.md).
 
 ---
+## 2026-10-04 - feat: loader on a phone held sideways, #201 walkthrough
+
+`feat/role-pwa-loader-layout` · @kavindamihiran · #201, PR 5 of 5 ([walkthrough](../../issues/201-role-pwa/WALKTHROUGH.md))
+
+The loader's tablet, desk and terminal layouts held on every size; on a phone held sideways the completion ring filled the first screen, so under `short:` it is 104 px. `e2e-loader/devices.spec.ts` opens a trip and checks an item on eight sizes. Walkthrough written; #201 closes.
+Verified: typecheck, `npm test`, build; loader suite 29 (21 plus the device spec on eight sizes).
 ## 2026-10-04 - feat: store fits phones and tablets either way up
 
 `feat/role-pwa-store-layout` · @kavindamihiran · #201, PR 4 of 5
