@@ -3,6 +3,12 @@
 @kavindamihiran's entries, newest first. Only @kavindamihiran adds to this file; how to write an entry is in the [log's index](../development-log.md).
 
 ---
+## 2026-10-04 - feat: store fits phones and tablets either way up
+
+`feat/role-pwa-store-layout` · @kavindamihiran · #201, PR 4 of 5
+
+The store's portrait tablet layout (720 px column with the tab bar) already held. On a phone held sideways the tab bar's fade and padding took nearly half the screen; under `short:` it now sits low with no fade. From `lg` the floating sync pill and bell covered Orders' "+ New order"; the header keeps clear of them.
+Verified: typecheck, build; store suite 41 (33 plus `e2e-store/devices.spec.ts` on eight sizes: every tab opens, nothing overflows, New order and Receive can be pressed).
 ## 2026-10-04 - feat: driver fits phones and tablets either way up
 
 `feat/role-pwa-driver-layout` · @kavindamihiran · #201, PR 3 of 5
