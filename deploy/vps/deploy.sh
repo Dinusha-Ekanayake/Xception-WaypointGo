@@ -35,7 +35,7 @@ ROLE_HOSTS=(dispatcher loader driver store admin auditor)
 ensure_certificate() {
   local site="$1" name role missing=0
   local live="/etc/letsencrypt/live/$site/fullchain.pem"
-  local names=("$site" "www.$site" "preview.$site" "grafana-preview.$site")
+  local names=("$site" "www.$site" "preview.$site" "grafana.$site" "grafana-preview.$site")
   for role in "${ROLE_HOSTS[@]}"; do names+=("$role.$site" "$role-preview.$site"); done
 
   for name in "${names[@]}"; do
