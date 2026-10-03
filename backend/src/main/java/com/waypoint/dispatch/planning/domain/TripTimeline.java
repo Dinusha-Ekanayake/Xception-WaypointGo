@@ -85,7 +85,7 @@ public final class TripTimeline {
       BigDecimal base = minuteOf(trip.fresh() ? rules.freshDeparture() : rules.daytimeDeparture());
       BigDecimal earliest = previousEnd == null ? base : base.max(previousEnd);
       TripSchedule best = null;
-      for (Comparator<PlanOrder> order : SEQUENCES) {
+      for (Comparator<PlanOrder> order : sequencesFor(trip)) {
         TripSchedule candidate = simulate(i + 1, trip, d, earliest, order);
         if (best == null || better(candidate, best)) {
           best = candidate;
@@ -127,6 +127,20 @@ public final class TripTimeline {
           .thenComparing(Trip.STABLE);
 
   private static final List<Comparator<PlanOrder>> SEQUENCES = List.of(CLOSE_FIRST, OPEN_FIRST);
+
+  /** A dispatcher's stop order is the only one tried: it is the decision, checked like any other. */
+  private static List<Comparator<PlanOrder>> sequencesFor(Trip trip) {
+    if (!trip.hasFixedSequence()) {
+      return SEQUENCES;
+    }
+    Map<java.util.UUID, Integer> position = new java.util.HashMap<>();
+    for (int i = 0; i < trip.sequence().size(); i++) {
+      position.put(trip.sequence().get(i), i);
+    }
+    return List.of(
+        Comparator.comparingInt((PlanOrder o) -> position.getOrDefault(o.orderId(), Integer.MAX_VALUE))
+            .thenComparing(Trip.STABLE));
+  }
 
   private static TripSchedule simulate(
       int tripNumber, Trip trip, DistrictTravel d, BigDecimal earliest, Comparator<PlanOrder> sequence) {

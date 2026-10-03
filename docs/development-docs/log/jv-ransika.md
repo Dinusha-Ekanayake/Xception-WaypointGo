@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-04 - feat: the Plan screen follows the design, with decisions recorded and saved plans
+
+`feat/plan-figma` · @jv-ransika
+
+Each hand decision is recorded on the order (who, when, held or not); a regenerate can keep them; swap, keep deferred, lock, a fixed stop order, a message to a store, saved plans and compare are commands and reads; a revision tells only the trips and outlets it changes. The Plan screen is rebuilt around them: counter and bulk keep, swap window, too-big card, deferred column, filter, low-load and late risk, timeline, Edit trip, publish gate, plan switcher, compare, and an icon rail. No rule id is shown; `ruleLabel` says it in words. Migrations 20261004T0900, 0910, 1000, 1100; R-PLN-33 to 37, R-NOT-12 and 13, PLN-25 to 32, NOT-11 to 13.
+Why: Figma is the ground truth and the Plan screen lacked most of it; decision 9 of #19 had left these out only because nothing served them (reversed, see FIGMA-GAP).
+Verified: `mvn test` on PlanningRunTest (28), PinnedDecisionsTest, PlanDiffTest, PeakDayAllocationTest, ModuleBoundaryTest, EventCatalogueTest, and against PostgreSQL 16 Planning{Decisions,Snapshots,Revision,Command,Schema}IntegrationTest, CommandPathIntegrationTest, NotificationConsumersIntegrationTest, LoadingIntegrationTest, ExecutionIntegrationTest; frontend `npm run typecheck`, `npm test` (146), `npm run build`; browser `plan.spec.ts` and `plan-decisions.spec.ts` (13). Five other dispatcher specs (live, forecast, live map) fail the same way on a clean origin/dev.
+Open: Overview and Orders still differ from the design (FIGMA-GAP sections 1 and 2); the swap window, Compare, Edit trip and publish frames were built from the workflow map, not seen; the full `mvn verify` was not run; after editing these migrations before merge, recreate the test database (checksums).
+
+---
+
 ## 2026-10-03 - ci: backend tests run as three parallel shards
 
 `feat/observability-metrics-dashboard` · @jv-ransika

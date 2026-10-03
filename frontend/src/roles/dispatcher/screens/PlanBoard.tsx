@@ -1,15 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { OrderView, PlanView, VehicleView } from "@shared/domain/types";
 import { KpiCard, Pill } from "@shared/ui";
-import { typeLabel } from "../data/fleet.ts";
+import { capacityLabel, typeLabel } from "../data/fleet.ts";
 import { board, summarise, type TripLoad } from "../data/plan.ts";
-import PlanTrip, { type TripAction } from "./PlanTrip.tsx";
+import {
+  NO_FILTER,
+  addedByHand,
+  brandsOf,
+  filterBoard,
+  freeLabel,
+  lateRisk,
+  lowLoad,
+  tripMatches,
+  type BoardFilter as Filter,
+} from "../data/planViews.ts";
+import { usePredictions } from "../data/usePlanReads.ts";
+import BoardFilter from "./BoardFilter.tsx";
+import DeferredColumn from "./DeferredColumn.tsx";
+import type { PlanActions } from "./planActions.ts";
+import PlanTrip from "./PlanTrip.tsx";
 
-// Figma "Plan · 2 View plan": every vehicle's two trips side by side, and one
-// trip opened beside them. The design's late-risk percentages wait on the
-// predictor (#16) and are not shown.
+// Figma "Plan · 2 View plan": what the day adds up to, the orders it leaves out,
+// every vehicle's two trips side by side, and one trip opened beside them with
+// its timeline. Late risk is read from the scoring of a published plan; a draft
+// is never scored, and the card says so instead of showing a zero.
 
 export default function PlanBoard({
   plan,
@@ -17,37 +33,61 @@ export default function PlanBoard({
   orders,
   editable,
   canReplan,
-  busy,
-  onAction,
+  published,
+  actions,
+  onOpenDecision,
 }: {
   plan: PlanView;
   fleet: VehicleView[];
   orders: Map<string, OrderView>;
-  /** A draft, online: orders can be taken off a trip. */
+  /** A draft, online: orders can be taken off a trip and its stops reordered. */
   editable: boolean;
   /** Online: a trip can be moved to another vehicle, on a draft or on the published plan. */
   canReplan: boolean;
-  busy: boolean;
-  onAction: (action: TripAction) => void;
+  /** The plan is the published one, so it has been scored. */
+  published: boolean;
+  actions: PlanActions;
+  onOpenDecision: (orderId: string) => void;
 }): React.JSX.Element {
   const rows = board(plan, fleet);
   const summary = summarise(plan, fleet);
+  const low = lowLoad(rows);
+  const [filter, setFilter] = useState<Filter>(NO_FILTER);
   const [openId, setOpenId] = useState<string | null>(null);
+  const predictions = usePredictions(published ? plan.planId : null);
+  const risk = predictions.data ? lateRisk(plan, predictions.data) : null;
+  const shown = useMemo(() => filterBoard(rows, filter), [rows, filter]);
   const loads = rows.flatMap((row) => row.trips).filter((load): load is TripLoad => load !== null);
   const open = loads.find((load) => load.trip.tripId === openId) ?? loads[0] ?? null;
 
   return (
     <>
-      <div className="flex w-full gap-3.5 max-md:flex-col">
+      <div className="flex w-full gap-3.5 max-lg:flex-wrap">
         <KpiCard label="Orders" value={`${summary.served} of ${summary.orders}`} note={`planned · ${summary.deferred} deferred${summary.unservable ? ` · ${summary.unservable} cannot be served` : ""}`} />
         <KpiCard label="Vehicles" value={summary.vehiclesUsed} note={`in use · ${summary.vehiclesIdle} idle`} />
-        <KpiCard label="Trips" value={summary.trips} note={summary.tightTrips ? `${summary.tightTrips} over 90% full` : "none over 90% full"} valueClassName={summary.tightTrips ? "text-go-warning-text" : "text-go-ink"} />
+        <KpiCard
+          label="Low-load trips"
+          value={low.trips}
+          note={low.trips > 0 ? `under 70% full · ${low.spareM3} m³ spare` : "none under 70% full"}
+          valueClassName={low.trips > 0 ? "text-go-warning-text" : "text-go-ink"}
+        />
+        <KpiCard
+          label="Late risk"
+          value={risk ? `${risk.high} high` : "Not scored"}
+          note={risk ? `${risk.low} low · over 35% chance` : published ? (predictions.loading ? "Reading the scoring…" : "The time predictor has not scored this plan") : "A draft is scored once it is published"}
+          valueClassName={risk && risk.high > 0 ? "text-go-danger-strong" : "text-go-ink"}
+        />
       </div>
 
       <div className="flex min-h-0 w-full flex-1 gap-[18px] max-lg:flex-col">
-        <section aria-label="Trips by vehicle" className="flex min-w-0 flex-1 flex-col rounded-[24px] bg-white px-5 pt-4 pb-3 shadow-go-card">
-          {rows.length === 0 ? (
-            <p className="py-8 text-center text-[13px] text-go-secondary">This plan has no trips: no order could be placed.</p>
+        <DeferredColumn plan={plan} orders={orders} onOpen={onOpenDecision} />
+
+        <section aria-label="Trips by vehicle" className="flex min-w-0 flex-1 flex-col rounded-[24px] bg-go-card px-5 pt-4 pb-3 shadow-go-card">
+          <BoardFilter filter={filter} brands={brandsOf(plan)} onChange={setFilter} />
+          {shown.length === 0 ? (
+            <p className="py-8 text-center text-[13px] text-go-secondary">
+              {rows.length === 0 ? "This plan has no trips: no order could be placed." : "No trip matches this filter."}
+            </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[560px] border-separate border-spacing-y-2 text-left">
@@ -59,18 +99,28 @@ export default function PlanBoard({
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row) => (
+                  {shown.map((row) => (
                     <tr key={row.vehicleId} className="align-top">
                       <th scope="row" className="pr-2 text-left font-normal">
                         <span className="block text-[15px] font-medium text-go-ink">{row.vehicleId}</span>
-                        <span className="block text-xs text-go-secondary">{row.vehicle ? typeLabel(row.vehicle) : "No longer available"}</span>
+                        <span className="block text-xs text-go-secondary">
+                          {row.vehicle ? `${typeLabel(row.vehicle)} · ${capacityLabel(row.vehicle).split(" · ")[0]}` : "No longer available"}
+                        </span>
                       </th>
                       {row.trips.map((load, index) => (
                         <td key={index} className="pr-2">
                           {load ? (
-                            <TripCell load={load} active={open?.trip.tripId === load.trip.tripId} onOpen={() => setOpenId(load.trip.tripId)} />
+                            <TripCell
+                              load={load}
+                              added={addedByHand(plan, load.trip)}
+                              dim={!tripMatches(load.trip, filter)}
+                              active={open?.trip.tripId === load.trip.tripId}
+                              onOpen={() => setOpenId(load.trip.tripId)}
+                            />
                           ) : (
-                            <span className="flex min-h-[58px] items-center justify-center rounded-go-card border border-dashed border-go-rule text-xs text-go-secondary">Free</span>
+                            <span className="flex min-h-[58px] items-center justify-center rounded-go-card border border-dashed border-go-rule text-xs text-go-secondary">
+                              {freeLabel(row.vehicle)}
+                            </span>
                           )}
                         </td>
                       ))}
@@ -83,40 +133,33 @@ export default function PlanBoard({
         </section>
 
         {open && (
-          <PlanTrip
-            key={open.trip.tripId}
-            plan={plan}
-            load={open}
-            fleet={fleet}
-            orders={orders}
-            editable={editable}
-            canReplan={canReplan}
-            busy={busy}
-            onAction={onAction}
-          />
+          <PlanTrip key={open.trip.tripId} plan={plan} load={open} fleet={fleet} orders={orders} editable={editable} canReplan={canReplan} actions={actions} />
         )}
       </div>
     </>
   );
 }
 
-function TripCell({ load, active, onOpen }: { load: TripLoad; active: boolean; onOpen: () => void }): React.JSX.Element {
+function TripCell({ load, added, dim, active, onOpen }: { load: TripLoad; added: boolean; dim: boolean; active: boolean; onOpen: () => void }): React.JSX.Element {
   const { trip } = load;
+  const chilled = trip.temperature === "chilled";
   return (
     <button
       type="button"
       aria-pressed={active}
       aria-label={`${trip.vehicleId} trip ${trip.tripNumber}: ${trip.brandCode} ${trip.districtName}, ${trip.stops.length} stops`}
       onClick={onOpen}
-      className={`flex min-h-[58px] w-full flex-col gap-1 rounded-go-card border px-3 py-2 text-left ${active ? "border-go-teal bg-go-success-tint" : "border-go-rule"}`}
+      className={`flex min-h-[58px] w-full flex-col gap-1 rounded-go-card border px-3 py-2 text-left ${dim ? "opacity-40" : ""} ${active ? "border-go-teal bg-go-success-tint" : "border-go-rule"}`}
     >
       <span className="flex items-center gap-2">
         <Pill tone="success">{trip.brandCode}</Pill>
-        <span className="truncate text-[14px] font-medium text-go-ink">{trip.districtName}</span>
+        <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-go-ink">{trip.districtName}</span>
+        {added && <Pill tone="success">Added</Pill>}
         {load.tight && <Pill tone="warning">Tight</Pill>}
       </span>
-      <span className="text-xs text-go-secondary">
-        {trip.temperature === "chilled" ? "Chilled" : "Ambient"} · {trip.stops.length} {trip.stops.length === 1 ? "stop" : "stops"}
+      <span className="flex items-center gap-1.5 text-xs text-go-secondary">
+        <span aria-hidden className={`size-2 rounded-full ${chilled ? "bg-go-info" : "bg-go-placeholder"}`} />
+        {chilled ? "Chilled" : "Ambient"} · {trip.stops.length} {trip.stops.length === 1 ? "stop" : "stops"}
       </span>
     </button>
   );

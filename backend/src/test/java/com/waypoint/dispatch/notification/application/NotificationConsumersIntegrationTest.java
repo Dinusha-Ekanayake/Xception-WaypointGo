@@ -12,6 +12,8 @@ import com.waypoint.dispatch.notification.domain.Delivery.PushResult;
 import com.waypoint.dispatch.ordering.domain.Order;
 import com.waypoint.dispatch.planning.contract.PlanEvents.OrderDeferred;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlanPublished;
+import com.waypoint.dispatch.planning.contract.PlanEvents.PlanRevised;
+import com.waypoint.dispatch.planning.contract.PlanEvents.StoreContacted;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlannedStop;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlannedTrip;
 import com.waypoint.dispatch.platform.messaging.EventSubscriber;
@@ -167,6 +169,96 @@ class NotificationConsumersIntegrationTest extends NotificationSupport {
         written.stream().filter(n -> n.get("recipient_user_id").equals(driver.id())).findFirst().orElseThrow();
     assertEquals("trip:" + tripId, toDriver.get("target_key"));
     assertEquals("Trip 1 on " + vehicle + ", departing 06:30, 1 stops.", toDriver.get("body"));
+  }
+
+  // ---- a revision tells only what it changed (R-NOT-12) ----------------------------
+
+  private PlannedTrip tripOn(UUID tripId, String vehicle, int number, String outletId) {
+    return new PlannedTrip(
+        tripId, vehicle, number, "B", "Colombo", "ambient", LocalTime.of(6, 30),
+        List.of(new PlannedStop(1, UUID.randomUUID(), outletId, LocalTime.of(8, 0))));
+  }
+
+  @Test
+  void aRevisionTellsOnlyTheDriversOfTripsThatChangedAndTheOutletsItReaches() {
+    LocalDate date = someFarDate();
+    String vehicle = assignOn(driver, date);
+    UUID changed = UUID.randomUUID();
+    UUID untouched = UUID.randomUUID();
+    String otherVehicle =
+        reference.vehiclesOfDepot(depot, null).stream()
+            .map(v -> v.vehicleId())
+            .filter(id -> !id.equals(vehicle))
+            .findFirst()
+            .orElseThrow();
+
+    UUID eventId =
+        deliver(
+            "notification.on-plan-revised",
+            new PlanRevised(
+                UUID.randomUUID(), depot, date, 2, UUID.randomUUID(), "vehicle fault",
+                List.of(tripOn(changed, vehicle, 1, outlet.outletId()), tripOn(untouched, otherVehicle, 1, otherOutlet.outletId())),
+                Optional.of(List.of(changed)),
+                Optional.of(List.of(outlet.outletId()))));
+
+    List<Map<String, Object>> written = notificationsOf(eventId);
+    assertTrue(written.stream().anyMatch(n -> n.get("target_key").equals("trip:" + changed)), "the changed trip's driver");
+    assertTrue(written.stream().noneMatch(n -> n.get("target_key").equals("trip:" + untouched)), "an untouched trip is not news");
+    assertTrue(recipientsOf(eventId).contains(manager.id()), "the outlet it now reaches differently");
+    assertFalse(recipientsOf(eventId).contains(stranger.id()), "an outlet the revision did not touch");
+    assertEquals("Your delivery plan changed", notificationFor(eventId, manager).get("title"));
+    assertTrue(recipientsOf(eventId).contains(loader.id()), "the depot's loaders work from the plan");
+  }
+
+  @Test
+  void aRevisionThatChangedNoTripTellsNobodyOnTheRoadOrTheDock() {
+    LocalDate date = someFarDate();
+    String vehicle = assignOn(driver, date);
+
+    UUID eventId =
+        deliver(
+            "notification.on-plan-revised",
+            new PlanRevised(
+                UUID.randomUUID(), depot, date, 2, UUID.randomUUID(), "an order was deferred",
+                List.of(tripOn(UUID.randomUUID(), vehicle, 1, outlet.outletId())),
+                Optional.of(List.of()),
+                Optional.of(List.of())));
+
+    assertTrue(recipientsOf(eventId).isEmpty(), "nothing a driver, a loader or a store would see differently");
+  }
+
+  @Test
+  void aRevisionWrittenBeforeChangesWereRecordedStillTellsEveryTrip() {
+    LocalDate date = someFarDate();
+    String vehicle = assignOn(driver, date);
+    UUID tripId = UUID.randomUUID();
+
+    UUID eventId =
+        deliver(
+            "notification.on-plan-revised",
+            new PlanRevised(
+                UUID.randomUUID(), depot, date, 2, UUID.randomUUID(), "vehicle fault",
+                List.of(tripOn(tripId, vehicle, 1, outlet.outletId()))));
+
+    assertTrue(recipientsOf(eventId).containsAll(Set.of(driver.id(), loader.id())), "as it always did");
+    assertFalse(recipientsOf(eventId).contains(manager.id()), "no outlet is named, so none is told separately");
+  }
+
+  @Test
+  void aDispatchersMessageReachesTheOutletsStoreManagerInTheirOwnWords() {
+    UUID orderId = UUID.randomUUID();
+
+    UUID eventId =
+        deliver(
+            "notification.on-store-contacted",
+            new StoreContacted(
+                orderId, UUID.randomUUID(), outlet.outletId(), LocalDate.of(2026, 10, 3),
+                "Please confirm you can take this on Wednesday", UUID.randomUUID()));
+
+    Map<String, Object> mine = notificationFor(eventId, manager);
+    assertEquals("Message from the dispatcher", mine.get("title"));
+    assertEquals("Please confirm you can take this on Wednesday", mine.get("body"));
+    assertFalse(recipientsOf(eventId).contains(stranger.id()), "another outlet's manager");
   }
 
   @Test

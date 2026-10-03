@@ -1,12 +1,16 @@
 "use client";
 
-import { Icon, Segmented, ShellActions, cx } from "@shared/ui";
+import { CountBadge, Icon, Segmented, ShellActions, cx } from "@shared/ui";
 import { VIEWS, type ViewId } from "./navigation.ts";
 import type { DepotFilter } from "./data/scope.ts";
 
 // The Figma "Shell / Sidebar": brand, seven destinations, the depot scope and
 // the signed-in dispatcher. Badges appear only when a module serves the count;
-// a made-up "3" would be worse than none.
+// a made-up "3" would be worse than none. On the Plan screen the sidebar folds
+// to the icon rail Figma draws there, to give the plan the room it needs.
+
+/** Counts the screens serve, for the badge on their destination. */
+export type Badges = Partial<Record<ViewId, number>>;
 
 export default function Sidebar({
   view,
@@ -15,6 +19,8 @@ export default function Sidebar({
   depots,
   depotFilter,
   onDepotFilter,
+  badges = {},
+  rail = false,
 }: {
   view: ViewId;
   onNavigate: (view: ViewId) => void;
@@ -22,6 +28,9 @@ export default function Sidebar({
   depots: string[];
   depotFilter: DepotFilter;
   onDepotFilter: (filter: DepotFilter) => void;
+  badges?: Badges;
+  /** Fold to icons only, as on the Plan screen. */
+  rail?: boolean;
 }): React.JSX.Element {
   const depotOptions = [
     ...(depots.length > 1 ? [{ value: "all", label: depots.length === 2 ? "Both" : "All" }] : []),
@@ -29,31 +38,39 @@ export default function Sidebar({
   ];
 
   return (
-    <aside className="hidden h-full w-[260px] shrink-0 flex-col gap-1.5 overflow-y-auto bg-white px-5 pt-7 pb-6 lg:flex">
-      <div className="flex items-center gap-2.5 px-2 pb-5">
-        <span className="text-[34px] font-extrabold text-go-ink">GO</span>
-        <span className="rounded-full bg-go-mint px-2.5 py-1 text-[13px] font-medium text-go-ink">Dispatch</span>
+    <aside className={cx("hidden h-full shrink-0 flex-col gap-1.5 overflow-y-auto bg-white pt-7 pb-6 lg:flex", rail ? "w-[84px] items-center px-3" : "w-[260px] px-5")}>
+      <div className={cx("flex items-center gap-2.5 pb-5", rail ? "justify-center" : "px-2")}>
+        <span className={cx("font-extrabold text-go-ink", rail ? "text-[26px]" : "text-[34px]")}>GO</span>
+        {!rail && <span className="rounded-full bg-go-mint px-2.5 py-1 text-[13px] font-medium text-go-ink">Dispatch</span>}
       </div>
 
-      <nav aria-label="Dispatcher" className="flex flex-col gap-1.5">
+      <nav aria-label="Dispatcher" className="flex w-full flex-col gap-1.5">
         {VIEWS.map((item) => {
           const active = item.id === view;
+          const count = badges[item.id] ?? 0;
           return (
             <a
               key={item.id}
               href={`#/${item.id}`}
               aria-current={active ? "page" : undefined}
+              aria-label={rail ? (count > 0 ? `${item.label}, ${count}` : item.label) : undefined}
+              title={rail ? item.label : undefined}
               onClick={(event) => {
                 event.preventDefault();
                 onNavigate(item.id);
               }}
               className={cx(
-                "flex w-full items-center gap-3 rounded-go-card-l px-3.5 py-3 text-base text-go-ink",
+                "relative flex w-full items-center rounded-go-card-l text-base text-go-ink",
+                rail ? "justify-center px-0 py-3" : "gap-3 px-3.5 py-3",
                 active ? "bg-go-mint font-medium" : "hover:bg-go-subtle",
               )}
             >
               <Icon name={item.icon} />
-              <span className="min-w-0 flex-1">{item.label}</span>
+              {!rail && <span className="min-w-0 flex-1">{item.label}</span>}
+              {!rail && count > 0 && (
+                <span className="rounded-full bg-go-danger-tint px-2 py-0.5 text-xs font-medium text-go-danger">{count}</span>
+              )}
+              {rail && <CountBadge count={count} />}
             </a>
           );
         })}
@@ -61,7 +78,7 @@ export default function Sidebar({
 
       <div className="flex-1" />
 
-      {depotOptions.length > 1 && (
+      {!rail && depotOptions.length > 1 && (
         <div className="mb-3 flex flex-col gap-2 rounded-go-card-s bg-go-surface p-3">
           <p className="text-[11px] font-medium text-go-teal">Showing</p>
           <Segmented label="Depot" options={depotOptions} value={depotFilter} onChange={onDepotFilter} />
@@ -69,14 +86,21 @@ export default function Sidebar({
       )}
 
       <div className="flex items-center gap-2.5 pt-3.5">
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-[20px] bg-go-mint text-sm font-medium text-go-ink">
+        <span
+          title={rail ? displayName : undefined}
+          className="flex size-10 shrink-0 items-center justify-center rounded-[20px] bg-go-mint text-sm font-medium text-go-ink"
+        >
           {initials(displayName)}
         </span>
-        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <p className="truncate text-[15px] font-medium text-go-ink">{displayName}</p>
-          <p className="text-xs text-go-secondary">Dispatcher</p>
-        </div>
-        <ShellActions compact />
+        {!rail && (
+          <>
+            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <p className="truncate text-[15px] font-medium text-go-ink">{displayName}</p>
+              <p className="text-xs text-go-secondary">Dispatcher</p>
+            </div>
+            <ShellActions compact />
+          </>
+        )}
       </div>
     </aside>
   );
@@ -92,12 +116,14 @@ export function CompactNav({
   depots,
   depotFilter,
   onDepotFilter,
+  badges = {},
 }: {
   view: ViewId;
   onNavigate: (view: ViewId) => void;
   depots: string[];
   depotFilter: DepotFilter;
   onDepotFilter: (filter: DepotFilter) => void;
+  badges?: Badges;
 }): React.JSX.Element {
   const depotOptions = [
     ...(depots.length > 1 ? [{ value: "all", label: depots.length === 2 ? "Both" : "All" }] : []),
@@ -131,6 +157,11 @@ export function CompactNav({
             >
               <Icon name={item.icon} />
               {item.label}
+              {(badges[item.id] ?? 0) > 0 && (
+                <span aria-label={`${badges[item.id]} to look at`} className="rounded-full bg-go-danger-tint px-2 py-0.5 text-xs font-medium text-go-danger">
+                  {badges[item.id]}
+                </span>
+              )}
             </a>
           );
         })}
