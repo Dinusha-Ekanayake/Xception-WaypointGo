@@ -3,6 +3,12 @@
 @kavindamihiran's entries, newest first. Only @kavindamihiran adds to this file; how to write an entry is in the [log's index](../development-log.md).
 
 ---
+## 2026-10-03 - feat: Settings behind each role's profile picture
+
+`feat/role-settings-panel` · @kavindamihiran
+
+Dispatcher, driver, store and loader open Settings from the person's picture (shared `SettingsPanel` in `@shared/ui`; the store's account menu gains the same rows). Settings holds the language, kept per device, and the MCP button, which leaves the headers. The theme toggle and alerts stay where they were, and the loader's Settings loses Appearance. Dispatcher and store screens are English only, and the picker says so.
+Verified: typecheck, `npm test`, build, loader, driver and store suites green; dispatcher suite green except three `forecast.spec.ts` cases that fail on the model version text and are unrelated.
 ## 2026-10-03 - fix: one sign-in for every role, admin workspace on the shared shell
 
 `fix/single-sign-in` · @kavindamihiran

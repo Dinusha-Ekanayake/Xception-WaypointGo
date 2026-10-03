@@ -1,10 +1,10 @@
 import { expect, test } from "@playwright/test";
 import { board, manifest, SESSION } from "./mocks.ts";
 
-// Figma "08 Loader · Phone" Settings: Appearance (Light or Dark) and Language
-// (සිං / த / EN), kept per device; the sun button switches the theme directly.
+// Figma "08 Loader · Phone" Settings: Language (සිං / த / EN), kept per device.
+// The theme is only the sun and moon button in the top bar, also kept per device.
 
-test("settings switch the loader's language and theme, and both survive a reload", async ({ page }) => {
+test("settings switch the loader's language, the top bar the theme, and both survive a reload", async ({ page }) => {
   const current = manifest("trip-lang", false, 2);
   const json = (body: unknown) => ({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
   await page.route("**/api/**", async (route) => {
@@ -21,10 +21,11 @@ test("settings switch the loader's language and theme, and both survive a reload
   // Dark is the default on a new device.
   await expect(workspace).toHaveAttribute("data-theme", "dark");
 
+  await page.getByRole("button", { name: "Use the light theme" }).first().click();
+  await expect(workspace).toHaveAttribute("data-theme", "light");
   await page.getByRole("button", { name: "Settings", exact: true }).first().click();
   await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
-  await page.getByRole("button", { name: "Light", exact: true }).click();
-  await expect(workspace).toHaveAttribute("data-theme", "light");
+  await expect(page.getByRole("button", { name: "Light", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "සිංහල" }).click();
   await expect(page.locator("html")).toHaveAttribute("lang", "si");
   await page.getByRole("button", { name: "වෙනස්කම් යොදන්න" }).click();

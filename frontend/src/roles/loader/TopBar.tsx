@@ -11,9 +11,9 @@ import { clock } from "@shared/wording";
 // resilient tier keeps working offline, and the loader must know their ticks
 // are waiting.
 //
-// Phone: the brand or back, then theme and settings; under it, when a loader is
-// working, their name with the bell and the lock, and Switch user. Tablet: one
-// row, the bell between the name and the actions. The bell carries the unread count
+// Phone: the brand or back, then theme and settings; under it, when a loader
+// is working, their name (it opens Settings, as the picture does on tablets)
+// with the bell and the lock, and Switch user. Tablet: one row, the bell between the name and the actions. The bell carries the unread count
 // while anything is unread (issue #118). "Synced 02:23" is a button: it sends
 // what waits and reads the board again.
 
@@ -154,7 +154,9 @@ export default function TopBar({
         {displayName && (
           <div className="flex w-full items-center justify-between gap-2">
             <span className="flex h-12 min-w-0 items-center gap-1 rounded-full border border-go-muted pr-1 pl-5 text-[15px] text-go-muted">
-              <span className="truncate">{displayName}</span>
+              <button type="button" onClick={onSettings} aria-label={`${tr("Settings")}: ${displayName}`} className="min-h-10 truncate text-left">
+                {displayName}
+              </button>
               {bell("size-10")}
               {lock}
             </span>
@@ -178,10 +180,12 @@ export default function TopBar({
         {sampleBadge}
         {displayName && (
           <span className="flex min-h-12 shrink-0 items-center gap-2 rounded-full bg-go-card py-1 pr-1 pl-1 shadow-go-float lg:pl-1">
-            <span className="flex size-10 items-center justify-center rounded-full bg-go-soft text-[13px] font-semibold text-go-on-soft">
-              {initials(displayName)}
-            </span>
-            <span className="text-[14px] text-go-muted max-lg:hidden">{displayName}</span>
+            <button type="button" onClick={onSettings} aria-label={`${tr("Settings")}: ${displayName}`} className="flex items-center gap-2">
+              <span className="flex size-10 items-center justify-center rounded-full bg-go-soft text-[13px] font-semibold text-go-on-soft">
+                {initials(displayName)}
+              </span>
+              <span className="text-[14px] text-go-muted max-lg:hidden">{displayName}</span>
+            </button>
             {lock}
           </span>
         )}
