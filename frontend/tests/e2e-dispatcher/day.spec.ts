@@ -52,7 +52,6 @@ test("live lists vehicles most urgent first and what needs the dispatcher", asyn
     dock: [dockTrip("VEH045", "IN_PROGRESS")],
   });
   await page.goto("/#/live");
-  await page.getByRole("radio", { name: "Timeline" }).click();
 
   const road = page.getByRole("region", { name: "Vehicles on the road" });
   await expect(road.getByRole("button").first()).toContainText("VEH044");

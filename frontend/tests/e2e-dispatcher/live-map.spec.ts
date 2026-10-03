@@ -22,7 +22,6 @@ test("the map shows each seen vehicle, filters, selects and greys an offline one
     ],
   });
   await page.goto("/#/live");
-  await page.getByRole("radio", { name: "Map" }).click();
 
   await expect(page.getByRole("button", { name: /^VEH043, / })).toBeVisible();
   await expect(page.getByRole("button", { name: /^VEH044, offline/ })).toBeVisible();
