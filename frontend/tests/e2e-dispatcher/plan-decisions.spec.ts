@@ -10,7 +10,8 @@ test("publishing waits for a decision on every deferred order, and keeping them 
   await page.goto("/#/plan");
   await page.getByRole("tab", { name: /Publish/ }).click();
 
-  await expect(page.getByText("Publishing is blocked: 1 order still needs a decision")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Publishing is blocked" })).toBeVisible();
+  await expect(page.getByText("1 order still needs a decision")).toBeVisible();
   await expect(page.getByRole("button", { name: "Publish plan" })).toBeDisabled();
 
   await page.getByRole("button", { name: "Decide now" }).click();
@@ -37,19 +38,48 @@ test("a swap is previewed on the trip it would leave and sent only when the serv
   await page.getByRole("button", { name: "Open swap window" }).click();
 
   const window = page.getByRole("dialog", { name: "Swap window" });
-  await expect(window).toContainText("Swap in ORD0092303");
-  await window.getByRole("button", { name: /ORD0092301/ }).click();
-  await expect(window.getByRole("status")).toContainText("VEH043 Trip 1 can take it.");
-  await expect(window.getByRole("button", { name: "Approve swap" })).toBeDisabled();
-  await window.getByLabel("Why are you swapping them?").fill("The outlet asked for the earlier delivery");
-  await window.getByRole("button", { name: "Approve swap" }).click();
+  await expect(window).toContainText("Swap ORD0092303");
+  await expect(window.getByRole("button", { name: "Accept changes" })).toBeDisabled();
+  // The stop that gives way is dragged, or sent with its Defer button, to "Will be deferred".
+  await window.getByRole("listitem").filter({ hasText: "OUT051" }).getByRole("button", { name: "Defer" }).click();
+  await expect(window).toContainText("Every check passes");
+  await expect(window).toContainText("NEW · added by you");
+  await window.getByLabel("Reason for the store").fill("The outlet asked for the earlier delivery");
+  await window.getByRole("button", { name: "Accept changes" }).click();
 
   expect(desk.commands[0]).toMatchObject({
     kind: "plan:Swap",
     expectedVersion: 1,
     payload: { planId: "plan-v1", outOrderId: "order-1", inOrderId: "order-3", reason: "The outlet asked for the earlier delivery" },
   });
-  await expect(page.getByRole("status").filter({ hasText: "Swapped. Draft version 2" })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Swap approved. Draft version 2" })).toBeVisible();
+});
+
+test("a swap and a new stop order go to the server as one command", async ({ page }) => {
+  const desk = await serve(page, { draft: draftPlan() });
+  const stop = (sequence: number, orderId: string, outletId: string) => ({
+    sequence, orderId, outletId, plannedArrival: "04:10:00", windowOpen: "03:00:00", windowClose: "08:00:00", serviceMinutes: "20",
+  });
+  desk.preview = { ...FEASIBLE_PREVIEW, stops: [stop(1, "order-2", "OUT052"), stop(2, "order-3", "OUT053")] };
+  await page.goto("/#/plan");
+  await page.getByRole("button", { name: "Open swap window" }).click();
+
+  const window = page.getByRole("dialog", { name: "Swap window" });
+  await window.getByRole("listitem").filter({ hasText: "OUT051" }).getByRole("button", { name: "Defer" }).click();
+  // The AI order slot is there, and says plainly that nothing proposes one yet.
+  await expect(window).toContainText("Not available yet: no service proposes a stop order");
+  await expect(window.getByRole("button", { name: "Use AI order" })).toBeDisabled();
+
+  await window.getByRole("button", { name: /Move .*OUT053.* earlier/ }).click();
+  await expect(window.getByRole("button", { name: "Default order" })).toBeVisible();
+  await expect(window).toContainText("your stop order goes with the swap");
+  await window.getByRole("button", { name: "Accept changes" }).click();
+
+  expect(desk.commands[0]).toMatchObject({
+    kind: "plan:Swap",
+    payload: { outOrderId: "order-1", inOrderId: "order-3", orderIds: ["order-3", "order-2"] },
+  });
+  await expect(page.getByRole("status").filter({ hasText: "Swap approved with your stop order." })).toBeVisible();
 });
 
 test("a swap that breaks a rule says which and cannot be approved", async ({ page }) => {
@@ -59,10 +89,11 @@ test("a swap that breaks a rule says which and cannot be approved", async ({ pag
   await page.getByRole("button", { name: "Open swap window" }).click();
 
   const window = page.getByRole("dialog", { name: "Swap window" });
-  await window.getByRole("button", { name: /ORD0092301/ }).click();
-  await expect(window.getByRole("status")).toContainText("It cannot swap in: Needs a refrigerated vehicle.");
-  await window.getByLabel("Why are you swapping them?").fill("Trying anyway");
-  await expect(window.getByRole("button", { name: "Approve swap" })).toBeDisabled();
+  await window.getByRole("button", { name: "Use it" }).click();
+  await expect(window).toContainText("A rule refuses this swap");
+  await expect(window).toContainText("✕ Needs a refrigerated vehicle");
+  await window.getByLabel("Reason for the store").fill("Trying anyway");
+  await expect(window.getByRole("button", { name: "Accept changes" })).toBeDisabled();
   await expect(window).not.toContainText("R-PLN-02");
 });
 
@@ -103,8 +134,10 @@ test("a plan can be saved, looked at read only, compared and returned to", async
 
   await page.getByRole("button", { name: "Compare" }).click();
   await expect(page.getByRole("heading", { name: "Compare plans" })).toBeVisible();
-  await expect(page.getByText("1 order differs")).toBeVisible();
-  await expect(page.getByText("not in the plan").or(page.getByText("deferred to VEH044"))).toBeVisible();
+  const differ = page.getByRole("region", { name: "Orders that differ" });
+  await expect(differ).toContainText("1 order");
+  await expect(differ).toContainText("ORD0092303");
+  await expect(page.getByRole("region", { name: "Compare plans" }).getByText("Decision impact")).toBeVisible();
   await page.getByRole("button", { name: "Use plan A" }).click();
   expect(desk.commands[1]).toMatchObject({ kind: "plan:RestoreSnapshot", expectedVersion: 1, payload: { snapshotId: early.snapshotId } });
 });
@@ -119,18 +152,20 @@ test("a stop order that breaks a rule shows the rule in words and cannot be save
   await page.goto("/#/plan");
   await page.getByRole("tab", { name: /View plan/ }).click();
   await page.getByRole("button", { name: "Edit this trip" }).click();
+  const window = page.getByRole("dialog", { name: "Edit trip" });
 
-  await page.getByRole("button", { name: /Move OUT052 earlier/ }).click();
-  await expect(page.getByText("This order does not work: Delivery window missed.")).toBeVisible();
-  await page.getByLabel("Why change the stop order?").fill("The store asked");
-  await expect(page.getByRole("button", { name: "Save stop order" })).toBeDisabled();
+  await window.getByRole("button", { name: /Move .*OUT052.* earlier/ }).click();
+  await expect(window).toContainText("a rule refuses it");
+  await expect(window).toContainText("✕ Delivery window missed");
+  await window.getByLabel("Why this change?").fill("The store asked");
+  await expect(window.getByRole("button", { name: "Accept changes" })).toBeDisabled();
 
   desk.preview = FEASIBLE_PREVIEW;
   // Back to the order it had, then to the new one again, so the server is asked once more.
-  await page.getByRole("button", { name: /Move OUT052 later/ }).click();
-  await page.getByRole("button", { name: /Move OUT052 earlier/ }).click();
-  await expect(page.getByText("Every stop is still on time.")).toBeVisible();
-  await page.getByRole("button", { name: "Save stop order" }).click();
+  await window.getByRole("button", { name: /Move .*OUT052.* later/ }).click();
+  await window.getByRole("button", { name: /Move .*OUT052.* earlier/ }).click();
+  await expect(window).toContainText("1 change · new stop order");
+  await window.getByRole("button", { name: "Accept changes" }).click();
   expect(desk.commands[0]).toMatchObject({ kind: "plan:ReorderStops", expectedVersion: 1, payload: { planId: "plan-v1", tripId: "trip-VEH043-1" } });
 });
 
@@ -152,7 +187,7 @@ test("an order too big for any vehicle is drawn apart and the store manager can 
   await expect(card.getByText("Store manager contacted")).toBeVisible();
 });
 
-test("a deferred order on the board opens its decision", async ({ page }) => {
+test("a deferred order on the board opens its card, and from it its decision", async ({ page }) => {
   await serve(page, { draft: draftPlan() });
   await page.goto("/#/plan");
   await page.getByRole("tab", { name: /View plan/ }).click();
@@ -162,6 +197,10 @@ test("a deferred order on the board opens its decision", async ({ page }) => {
   await expect(column.getByText("No room on the vehicle")).toBeVisible();
   await expect(column).toContainText("first on Tue");
   await column.getByRole("button").first().click();
+  const card = page.getByRole("dialog", { name: "Deferred order ORD0092303" });
+  await expect(card).toContainText("Deferred · needs a decision");
+  await expect(card).toContainText("No room on the vehicle");
+  await card.getByRole("button", { name: "Open in Decide" }).click();
   await expect(page.getByRole("region", { name: "Decision", exact: true }).getByRole("heading", { name: "ORD0092303" })).toBeVisible();
 });
 

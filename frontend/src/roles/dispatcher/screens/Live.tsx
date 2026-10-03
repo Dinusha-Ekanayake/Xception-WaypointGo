@@ -32,6 +32,8 @@ export default function Live({
   onDate,
   online,
   onOpenIssue,
+  depotFilter,
+  onDepotFilter,
 }: {
   depots: string[];
   scopeLabel: string;
@@ -39,6 +41,9 @@ export default function Live({
   onDate: (date: string) => void;
   online: boolean;
   onOpenIssue: (issueId: string) => void;
+  /** The sidebar's depot scope: the depot pills here read and set it, so there is one depot choice. */
+  depotFilter?: string;
+  onDepotFilter?: (filter: string) => void;
 }): React.JSX.Element {
   const live = useLive(depots, date);
   const positions = usePositions(depots, date);
@@ -47,7 +52,9 @@ export default function Live({
   const inbox = useDispatcherInbox();
   const [now, setNow] = useState(() => new Date());
   const [view, setView] = useState<View>("needs");
-  const [depot, setDepot] = useState("all");
+  const [localDepot, setLocalDepot] = useState("all");
+  const depot = depotFilter ?? localDepot;
+  const setDepot = onDepotFilter ?? setLocalDepot;
   const [filter, setFilter] = useState<RunFilter>("all");
   const [trip, setTrip] = useState<string | null>(null);
 

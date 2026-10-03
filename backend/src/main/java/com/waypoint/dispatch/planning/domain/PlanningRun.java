@@ -435,6 +435,17 @@ public record PlanningRun(
    * takes the trip {@code out} leaves, on the same vehicle (the whole day is checked).
    */
   public Proposed proposeSwap(PlanOrder out, PlanOrder in, ConstraintRegistry registry, PlanContext context) {
+    return proposeSwap(out, in, List.of(), registry, context);
+  }
+
+  /**
+   * The swap with the trip's stops in the order a dispatcher gave, so a swap and a
+   * new stop order are judged, and applied, as one change (R-PLN-19, R-PLN-13).
+   * An empty {@code sequence} leaves the order to the timeline. A sequence names
+   * every order of the trip after the swap exactly once, the incoming one included.
+   */
+  public Proposed proposeSwap(
+      PlanOrder out, PlanOrder in, List<UUID> sequence, ConstraintRegistry registry, PlanContext context) {
     OrderDecision leaving = decisionOrThrow(out.orderId());
     OrderDecision entering = decisionOrThrow(in.orderId());
     if (leaving.decision() != AllocationDecision.SERVED || leaving.vehicleId().isEmpty()) {
@@ -450,11 +461,23 @@ public record PlanningRun(
     VehicleDay base = dayOf(leaving.vehicleId().get()).without(out.orderId());
     int trip = leaving.tripNumber().orElseThrow();
     int trips = base.trips().size();
-    VehicleDay placed = trip <= trips ? base.withJoined(trip, in) : base.withNewTrip(in);
-    return new Proposed(
-        placed,
-        placed.tripNumberOf(in.orderId()).orElseThrow(),
-        registry.evaluate(new Candidate(placed, context, Set.of())));
+    VehicleDay joined = trip <= trips ? base.withJoined(trip, in) : base.withNewTrip(in);
+    int tripNumber = joined.tripNumberOf(in.orderId()).orElseThrow();
+    VehicleDay placed = sequence.isEmpty() ? joined : withSequence(joined, tripNumber, sequence);
+    return new Proposed(placed, tripNumber, registry.evaluate(new Candidate(placed, context, Set.of())));
+  }
+
+  /** The day with one trip's stops in the given order, which must name every order of the trip once. */
+  private static VehicleDay withSequence(VehicleDay day, int tripNumber, List<UUID> orderIds) {
+    Trip trip = day.trip(tripNumber);
+    Set<UUID> onTrip = trip.orders().stream().map(PlanOrder::orderId).collect(java.util.stream.Collectors.toSet());
+    if (orderIds.size() != onTrip.size() || !onTrip.equals(new java.util.HashSet<>(orderIds))) {
+      throw new DomainException(
+          ErrorCode.VALIDATION_FAILED, "name every order of " + day.vehicleId() + " trip " + tripNumber + " exactly once");
+    }
+    List<Trip> next = new ArrayList<>(day.trips());
+    next.set(tripNumber - 1, trip.withSequence(orderIds));
+    return new VehicleDay(day.vehicle(), next);
   }
 
   /**
@@ -471,8 +494,22 @@ public record PlanningRun(
       UUID actor,
       ConstraintRegistry registry,
       PlanContext context) {
+    return swap(nextPlanId, nextVersion, out, in, List.of(), reason, actor, registry, context);
+  }
+
+  /** The swap, with the trip's stop order when the dispatcher fixed one in the same window. */
+  public PlanningRun swap(
+      UUID nextPlanId,
+      int nextVersion,
+      PlanOrder out,
+      PlanOrder in,
+      List<UUID> sequence,
+      String reason,
+      UUID actor,
+      ConstraintRegistry registry,
+      PlanContext context) {
     requireOpenDraft();
-    Proposed proposed = proposeSwap(out, in, registry, context);
+    Proposed proposed = proposeSwap(out, in, sequence, registry, context);
     refuseFailures("swap", proposed.checks());
     List<VehicleDay> next = new ArrayList<>(days);
     next.removeIf(d -> d.vehicleId().equals(proposed.day().vehicleId()));

@@ -44,7 +44,7 @@ export default function BoardFilter({
               : { ...filter, temperatures: toggle(filter.temperatures, value as "chilled" | "ambient") },
           );
         }}
-        className={cx("flex items-center gap-1.5 rounded-go-card-s px-3 py-2 text-[13px] font-medium", chosen > 0 ? "bg-go-ink text-go-card" : "bg-go-surface text-go-ink")}
+        className={cx("flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[13px] font-medium", chosen > 0 ? "border-go-ink bg-go-ink text-go-card" : "border-go-rule bg-go-card text-go-ink")}
       >
         {chosen > 0 ? `Filter · ${chosen}` : "Filter"}
       </Menu>
@@ -54,7 +54,7 @@ export default function BoardFilter({
         onChange={(event) => onChange({ ...filter, text: event.target.value })}
         placeholder="Search vehicle, outlet..."
         aria-label="Search trips"
-        className="min-w-[180px] flex-1 rounded-go-card-s bg-go-surface px-3 py-2 text-[13px] text-go-ink outline-none placeholder:text-go-placeholder"
+        className="w-[200px] rounded-full border border-go-rule bg-go-card px-3 py-1.5 text-[13px] text-go-ink outline-none placeholder:text-go-placeholder"
       />
       {filterActive(filter) && (
         <button type="button" onClick={() => onChange(NO_FILTER)} className="text-[13px] font-medium text-go-teal">

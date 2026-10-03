@@ -336,6 +336,26 @@ class PlanningRunTest {
   }
 
   @Test
+  void aSwapCanFixTheTripsStopOrderInTheSameChange() {
+    PlanningRun plan = draftWithAmbientDeferred();
+    PlanningRun swapped =
+        plan.swap(UUID.randomUUID(), 2, a, d, List.of(d.orderId(), b.orderId()), "the new outlet first", DISPATCHER, REGISTRY, CONTEXT);
+
+    Trip trip = swapped.days().get(0).trip(1);
+    assertEquals(List.of(d.orderId(), b.orderId()), trip.sequence());
+    assertTrue(trip.hasFixedSequence());
+    assertEquals(AllocationDecision.DEFERRED, swapped.decisionFor(a.orderId()).orElseThrow().decision());
+    assertEquals(Source.SWAP, swapped.markOf(d.orderId()).orElseThrow().source());
+
+    DomainException wrong =
+        assertThrows(
+            DomainException.class,
+            () -> plan.swap(UUID.randomUUID(), 2, a, d, List.of(a.orderId(), b.orderId()), "names the outgoing one", DISPATCHER, REGISTRY, CONTEXT));
+    assertEquals(ErrorCode.VALIDATION_FAILED, wrong.code());
+    assertEquals(AllocationDecision.SERVED, plan.decisionFor(a.orderId()).orElseThrow().decision(), "nothing half done");
+  }
+
+  @Test
   void aSwapThatBreaksARuleIsRefusedWholeWithThatRule() {
     PlanningRun before = draft();
     DomainException refused =

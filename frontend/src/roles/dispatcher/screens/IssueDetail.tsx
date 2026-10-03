@@ -32,18 +32,25 @@ export default function IssueDetail({
   const person = (id: string | null) => (id === null ? "the system" : id === userId ? "you" : shortId(id));
 
   return (
-    <section aria-label="Selected issue" className="flex flex-col gap-3 rounded-[24px] bg-white p-5 shadow-go-card">
+    <section aria-label="Selected issue" className="flex flex-col gap-3 rounded-go-panel bg-go-card p-5">
       {record.error && <Refusal error={record.error} what="this issue" action={<Retry onClick={record.refresh} />} />}
       {!issue ? (
         !record.error && <p className="text-[13px] text-go-secondary">Reading the issue…</p>
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="min-w-0 flex-1 text-[19px] font-medium text-go-ink">{TYPE[issue.type]}</h2>
-            <Pill tone={SEVERITY[issue.severity].tone}>{SEVERITY[issue.severity].label}</Pill>
-            <Pill tone={STATUS[issue.status].tone}>{STATUS[issue.status].label}</Pill>
+            <h2 className="min-w-0 flex-1 text-[22px] font-medium text-go-ink">{TYPE[issue.type]}</h2>
+            <Pill tone={issue.status === "OPEN" ? "danger" : STATUS[issue.status].tone}>{issue.status === "OPEN" ? "New" : STATUS[issue.status].label}</Pill>
           </div>
-          <p className="text-[14px] text-go-ink">{issue.description}</p>
+          <p className="-mt-2 text-[13px] text-go-secondary">{`${SEVERITY[issue.severity].label} · ${issue.depotCode}${issue.outletId ? ` · ${issue.outletId}` : ""}`}</p>
+          <h3 className="text-[15px] font-medium text-go-ink">What was reported</h3>
+          <div className="rounded-go-card bg-go-surface px-4 py-3">
+            <p className="flex justify-between gap-2 text-xs text-go-secondary">
+              <span>{`Raised by ${person(issue.raisedBy)}`}</span>
+              <span>{`${age(issue.raisedAt, now)} ago`}</span>
+            </p>
+            <p className="text-[14px] font-medium text-go-ink">{issue.description}</p>
+          </div>
           <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[13px]">
             <dt className="text-go-secondary">Where</dt>
             <dd className="text-go-ink">

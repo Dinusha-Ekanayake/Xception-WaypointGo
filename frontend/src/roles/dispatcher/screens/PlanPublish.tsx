@@ -2,21 +2,24 @@
 
 import { useState } from "react";
 import type { OrderView, PlanView } from "@shared/domain/types";
-import { Notice, Pill, PrimaryButton, SecondaryButton } from "@shared/ui";
-import { clock, dayLabel, ruleLabel, trips } from "@shared/wording";
+import { PrimaryButton, SecondaryButton, cx } from "@shared/ui";
+import { clock, dayLabel, ruleLabel } from "@shared/wording";
 import type { PlanSummary, Working } from "../data/plan.ts";
-import type { DecisionRow } from "../data/planViews.ts";
-import { publishBlocker } from "../data/planViews.ts";
+import { daysBetween, publishBlocker, type DecisionRow } from "../data/planViews.ts";
 import { useComparison } from "../data/usePlanReads.ts";
+import PublishAudience from "./PublishAudience.tsx";
 import ReasonPicker, { reasonReady } from "./ReasonPicker.tsx";
 
-// Figma "Plan · 3 Publish". Publishing is a deliberate second step, and two
-// things stand in front of it. Every order the engine deferred needs a
-// dispatcher's decision first (3a), and the server's gate then decides: if the
-// demand, the reference data or a rule changed since the draft was made, it
-// refuses and names every reason (PLN-07, PLN-14). A published plan is
-// immutable; changing it starts a revision, and sending that revision tells
-// only the drivers and stores it changes (R-NOT-12).
+// Figma "Plan · 3 Publish" (3a blocked, 3b ready, 3c published, 3d send
+// update). Publishing is a deliberate second step with two gates: every order
+// the engine deferred needs a dispatcher's decision first, and the server's
+// gate then decides: if the demand, the reference data or a rule changed since
+// the draft was made, it refuses and names every reason (PLN-07, PLN-14). A
+// published plan is immutable; changing it starts a revision, and sending that
+// revision tells only the drivers and stores it changes (R-NOT-12). The step
+// bar holds the button; this is what it will do.
+
+const WAITING_DAYS = 3;
 
 export default function PlanPublish({
   state,
@@ -28,6 +31,10 @@ export default function PlanPublish({
   rows,
   online,
   busy,
+  confirming,
+  onConfirming,
+  revising,
+  onRevising,
   reviseReason,
   onReviseReason,
   onPublish,
@@ -43,89 +50,130 @@ export default function PlanPublish({
   rows: DecisionRow[];
   online: boolean;
   busy: boolean;
+  /** The step bar's Publish was pressed: ask once more. */
+  confirming: boolean;
+  onConfirming: (confirming: boolean) => void;
+  /** The step bar's Edit plan was pressed on a published plan. */
+  revising: boolean;
+  onRevising: (revising: boolean) => void;
   reviseReason: string;
   onReviseReason: (reason: string) => void;
   onPublish: () => void;
   onRevise: () => void;
-  /** Jumps back to the Decide step at the first order still waiting. */
+  /** Jumps back to the Decide step at an order. */
   onDecide: (orderId: string) => void;
 }): React.JSX.Element {
-  const [confirming, setConfirming] = useState(false);
+  const [showAll, setShowAll] = useState(false);
   const blocker = publishBlocker(rows);
   const blocked = state.stage === "draft" && blocker.open > 0;
   const revises = state.stage === "draft" ? state.revises : null;
   const left = plan.allocations.filter((a) => a.decision !== "SERVED");
+  const deferred = left.filter((a) => a.decision === "DEFERRED");
+  const byHand = plan.allocations.filter((a) => a.source !== "ENGINE").length;
+  const waiting = deferred.filter((a) => a.lastServedOn !== null && daysBetween(a.lastServedOn, plan.serviceDate) + 1 >= WAITING_DAYS);
   const changes = useComparison(revises ? revises.planId : null, revises ? plan.planId : null);
   const told = changes.data ? changes.data.changedTrips.length : null;
+  const published = state.stage === "published";
+  const outletCount = new Set(deferred.map((a) => orders.get(a.orderId)?.outletId).filter(Boolean)).size;
+
+  const headline = published
+    ? `Published at ${state.plan.publishedAt ? clock(new Date(state.plan.publishedAt)) : "-"}`
+    : blocked
+      ? "Publishing is blocked"
+      : revises
+        ? told === 0
+          ? "Nothing to send"
+          : "Ready to send the update"
+        : "Ready to publish. Every decision is made.";
+  const subline = published
+    ? "Sent · you can still edit and publish again"
+    : blocked
+      ? `${blocker.open} ${blocker.open === 1 ? "order still needs" : "orders still need"} a decision`
+      : "The server checks every rule again when you publish";
 
   return (
-    <section aria-label="Publish" className="flex w-full max-w-[820px] flex-col gap-4 rounded-[24px] bg-go-card p-6 shadow-go-card">
-      <div>
-        <h2 className="text-[19px] font-medium text-go-ink">
-          {state.stage === "published" ? "This plan is published" : revises ? "Send this update" : "Publish this plan"}
-        </h2>
-        <p className="text-[13px] text-go-secondary">
-          {`${depot} · ${dayLabel(date)} · version ${plan.planVersion} · ${summary.served} of ${summary.orders} orders on ${trips(summary.trips)}, ${summary.vehiclesUsed === 1 ? "1 vehicle" : `${summary.vehiclesUsed} vehicles`}`}
-        </p>
-      </div>
-
-      {blocked && (
-        <Notice
-          tone="danger"
-          title={`Publishing is blocked: ${blocker.open} ${blocker.open === 1 ? "order still needs" : "orders still need"} a decision`}
-          action={
-            blocker.first && (
-              <SecondaryButton onClick={() => onDecide(blocker.first!.allocation.orderId)}>
-                Decide now
-              </SecondaryButton>
-            )
-          }
-        >
-          Place each one, swap it with an order on a trip, or keep it deferred and say why.
-        </Notice>
-      )}
-
-      {revises && (
-        <div className="flex flex-col gap-2 rounded-go-card bg-go-warning-tint px-4 py-3 text-[13px] text-go-ink">
-          <p className="font-medium text-go-warning-text">
-            {told === null ? "Checking what changes…" : told === 0 ? "No trip changes: nobody on the road or at a store is told." : `${told} ${told === 1 ? "change is" : "changes are"} not sent yet`}
-          </p>
-          {changes.data && told !== null && told > 0 && (
-            <p>
-              {`Sending tells the drivers of ${told} ${told === 1 ? "trip" : "trips"}`}
-              {changes.data.affectedOutlets.length > 0 ? ` and ${changes.data.affectedOutlets.length} ${changes.data.affectedOutlets.length === 1 ? "outlet" : "outlets"}` : ""}
-              {". Everyone else keeps the plan they have."}
-            </p>
-          )}
+    <div className="flex w-full gap-[18px] max-lg:flex-col">
+      <section aria-label="Publish" className="flex min-w-0 flex-1 flex-col gap-3 rounded-go-panel bg-go-card p-5">
+        <div className="flex items-center gap-3">
+          <span
+            aria-hidden
+            className={cx("flex size-11 shrink-0 items-center justify-center rounded-full text-[15px] font-semibold", blocked ? "bg-go-danger-tint text-go-danger-strong" : "bg-go-success-tint text-go-teal")}
+          >
+            {blocked ? "!" : "✓"}
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-[22px] font-medium text-go-ink">{headline}</h2>
+            <p className="text-[13px] text-go-secondary">{subline}</p>
+          </div>
         </div>
-      )}
 
-      {left.length > 0 && (
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+          <Stat value={`${summary.served} of ${summary.orders}`} note="orders planned" />
+          <Stat value={`${summary.trips} ${summary.trips === 1 ? "trip" : "trips"}`} note={`on ${summary.vehiclesUsed} ${summary.vehiclesUsed === 1 ? "vehicle" : "vehicles"}`} />
+          <Stat value={`${deferred.length}`} note={deferred.length === 1 ? "order deferred, first on the next run" : "orders deferred, first on the next run"} />
+        </div>
+
+        <ul className="flex flex-col">
+          <Row
+            tone={blocked ? "danger" : "ok"}
+            title={blocked ? `${blocker.open} ${blocker.open === 1 ? "order needs" : "orders need"} a decision` : "Every order has a decision"}
+            note={`${left.length} not on a trip · ${deferred.length} with a reason · ${byHand} your ${byHand === 1 ? "change" : "changes"}`}
+            action={
+              blocked && blocker.first
+                ? { label: "Decide now", onClick: () => onDecide(blocker.first!.allocation.orderId) }
+                : left.length > 0
+                  ? { label: showAll ? "Hide" : "Show all", onClick: () => setShowAll((v) => !v) }
+                  : undefined
+            }
+          />
+          {showAll && (
+            <li className="flex flex-col pb-2 pl-11">
+              {left.map((allocation) => {
+                const order = orders.get(allocation.orderId);
+                return (
+                  <p key={allocation.orderId} className="flex flex-wrap gap-x-3 border-t border-go-rule py-1.5 text-xs text-go-ink">
+                    <span className="w-[100px] font-medium">{order?.orderRef ?? allocation.orderId}</span>
+                    <span className="flex-1 text-go-secondary">{order ? `${order.outletId} · ${order.districtName}` : ""}</span>
+                    <span className={allocation.decision === "UNSERVABLE" ? "text-go-danger-strong" : "text-go-warning-text"}>
+                      {`${allocation.decision === "UNSERVABLE" ? "Cannot be served" : "Deferred"} · ${ruleLabel(allocation.bindingRule)}`}
+                    </span>
+                  </p>
+                );
+              })}
+            </li>
+          )}
+          {waiting.length > 0 && (
+            <Row
+              tone="danger"
+              title={`${waiting.length} ${waiting.length === 1 ? "outlet reaches" : "outlets reach"} ${WAITING_DAYS} days without a delivery`}
+              note={`${waiting.map((a) => orders.get(a.orderId)?.outletId ?? "").filter(Boolean).join(", ")} · the store manager is told the reason`}
+              action={!published ? { label: "Review", onClick: () => onDecide(waiting[0]!.orderId) } : undefined}
+            />
+          )}
+          {revises && (
+            <Row
+              tone="warning"
+              title={told === null ? "Checking what changes…" : told === 0 ? "No trip changes" : `${told} ${told === 1 ? "change is" : "changes are"} not sent yet`}
+              note={
+                changes.data && told
+                  ? `Sending tells the drivers of ${told} ${told === 1 ? "trip" : "trips"}${changes.data.affectedOutlets.length ? ` and ${changes.data.affectedOutlets.length} ${changes.data.affectedOutlets.length === 1 ? "outlet" : "outlets"}` : ""}. Everyone else keeps the plan they have.`
+                  : "Nobody on the road or at a store is told about an unchanged trip."
+              }
+            />
+          )}
+        </ul>
+
         <div className="flex flex-col gap-2">
-          <h3 className="text-[15px] font-medium text-go-ink">{state.stage === "published" ? "Not delivered by this plan" : "Publishing leaves these undelivered"}</h3>
-          <ul className="flex flex-col">
-            {left.map((allocation) => {
-              const order = orders.get(allocation.orderId);
-              return (
-                <li key={allocation.orderId} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-go-rule py-2 text-[13px] text-go-ink">
-                  <span className="min-w-[110px] font-medium">{order?.orderRef ?? allocation.orderId}</span>
-                  <span className="min-w-[140px] flex-1 text-go-secondary">{order ? `${order.outletId} · ${order.districtName}` : ""}</span>
-                  <Pill tone={allocation.decision === "UNSERVABLE" ? "danger" : "warning"}>
-                    {`${allocation.decision === "UNSERVABLE" ? "Cannot be served" : "Deferred"} · ${ruleLabel(allocation.bindingRule)}`}
-                  </Pill>
-                  <span className="w-full text-xs text-go-secondary">{allocation.reason}</span>
-                </li>
-              );
-            })}
-          </ul>
-          {state.stage === "draft" && left.some((a) => a.decision === "DEFERRED") && (
-            <p className="text-xs text-go-secondary">A deferred order is offered first on the next plan, and its store is told.</p>
-          )}
+          <h3 className="text-[15px] font-medium text-go-ink">Send to</h3>
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+            <Audience label={`Loaders · dock board`} />
+            <Audience label={`${summary.vehiclesUsed} ${summary.vehiclesUsed === 1 ? "driver" : "drivers"}`} />
+            <Audience label={`${outletCount} ${outletCount === 1 ? "store manager" : "store managers"}`} />
+          </div>
+          <p className="text-xs text-go-secondary">Checked again on publish · later publishes send only changes</p>
         </div>
-      )}
 
-      {state.stage === "draft" &&
-        (confirming ? (
+        {confirming && state.stage === "draft" && (
           <div className="flex flex-wrap items-center gap-2 rounded-go-card bg-go-success-tint p-3">
             <p className="min-w-[220px] flex-1 text-[13px] font-medium text-go-ink">
               {revises ? "Send this change to the loaders and drivers?" : `Publish for ${depot} on ${dayLabel(date)}? It cannot be edited afterwards, only revised.`}
@@ -133,34 +181,82 @@ export default function PlanPublish({
             <PrimaryButton disabled={!online || busy || blocked} onClick={onPublish}>
               {busy ? "Sending…" : revises ? "Send update" : "Confirm publish"}
             </PrimaryButton>
-            <SecondaryButton onClick={() => setConfirming(false)}>Cancel</SecondaryButton>
+            <SecondaryButton onClick={() => onConfirming(false)}>Cancel</SecondaryButton>
           </div>
-        ) : (
-          <div>
-            <PrimaryButton disabled={!online || busy || blocked} onClick={() => setConfirming(true)}>
-              {revises ? "Send update" : "Publish plan"}
-            </PrimaryButton>
-          </div>
-        ))}
+        )}
 
-      {state.stage === "published" && (
-        <>
-          <Notice tone="info" title={`Published${state.plan.publishedAt ? ` at ${clock(new Date(state.plan.publishedAt))}` : ""}. Loaders and drivers work from this version.`}>
-            It cannot be edited. To change it, start a revision: it becomes a draft, and nothing changes on the dock or the road until that draft is sent.
-          </Notice>
-          <ReasonPicker
-            label="Why is the plan being revised?"
-            value={reviseReason}
-            onChange={onReviseReason}
-            placeholder="For example: a vehicle broke down, new orders were confirmed"
-          />
-          <div>
-            <SecondaryButton disabled={!online || busy || !reasonReady(reviseReason)} onClick={onRevise}>
-              Start a revision
-            </SecondaryButton>
+        {published && revising && (
+          <div className="flex flex-col gap-2 rounded-go-card bg-go-surface p-3">
+            <p className="text-[13px] text-go-ink">
+              A published plan is not edited. A revision becomes a draft, and nothing changes on the dock or the road until it is sent.
+            </p>
+            <ReasonPicker label="Why is the plan being revised?" value={reviseReason} onChange={onReviseReason} placeholder="For example: a vehicle broke down, new orders were confirmed" />
+            <div className="flex gap-2">
+              <PrimaryButton disabled={!online || busy || !reasonReady(reviseReason)} onClick={onRevise}>
+                Start a revision
+              </PrimaryButton>
+              <SecondaryButton onClick={() => onRevising(false)}>Cancel</SecondaryButton>
+            </div>
           </div>
-        </>
+        )}
+      </section>
+
+      <PublishAudience plan={plan} orders={orders} changes={revises ? (changes.data ?? null) : null} />
+    </div>
+  );
+}
+
+function Stat({ value, note }: { value: string; note: string }): React.JSX.Element {
+  return (
+    <div className="flex flex-col rounded-go-card bg-go-surface px-4 py-3">
+      <span className="text-[20px] font-medium text-go-ink">{value}</span>
+      <span className="text-xs text-go-secondary">{note}</span>
+    </div>
+  );
+}
+
+function Row({
+  tone,
+  title,
+  note,
+  action,
+}: {
+  tone: "ok" | "warning" | "danger";
+  title: string;
+  note: string;
+  action?: { label: string; onClick: () => void };
+}): React.JSX.Element {
+  return (
+    <li className="flex items-center gap-3 border-t border-go-rule py-3.5">
+      <span
+        aria-hidden
+        className={cx(
+          "flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
+          tone === "ok" ? "bg-go-success-tint text-go-teal" : tone === "warning" ? "bg-go-warning-tint text-go-warning-text" : "bg-go-danger-tint text-go-danger-strong",
+        )}
+      >
+        {tone === "ok" ? "✓" : "!"}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[14px] font-medium text-go-ink">{title}</span>
+        <span className="block text-xs text-go-secondary">{note}</span>
+      </span>
+      {action && (
+        <button type="button" onClick={action.onClick} className="shrink-0 text-[13px] font-medium text-go-teal">
+          {`${action.label} ›`}
+        </button>
       )}
-    </section>
+    </li>
+  );
+}
+
+function Audience({ label }: { label: string }): React.JSX.Element {
+  return (
+    <p className="flex items-center gap-2.5 rounded-go-input bg-go-success-tint px-3 py-2.5 text-[13px] font-medium text-go-ink">
+      <span aria-hidden className="flex size-4 items-center justify-center rounded-[4px] bg-go-ink text-[10px] text-go-card">
+        ✓
+      </span>
+      {label}
+    </p>
   );
 }

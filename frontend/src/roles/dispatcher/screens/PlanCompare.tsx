@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { ComparisonView, OrderView, SnapshotView } from "@shared/domain/types";
-import { Menu, Pill, PrimaryButton } from "@shared/ui";
+import { Icon, Menu, Pill, PrimaryButton } from "@shared/ui";
 import { clock } from "@shared/wording";
 import { useComparison } from "../data/usePlanReads.ts";
 import Refusal from "./Refusal.tsx";
@@ -13,12 +13,6 @@ import Refusal from "./Refusal.tsx";
 // returns the draft to it (the saved plan itself is never edited).
 
 export type Pick = { id: string; label: string; snapshotId: string | null };
-
-const SIDE_TEXT: Record<"MOVED" | "ADDED" | "DROPPED", string> = {
-  MOVED: "Moved",
-  ADDED: "Added",
-  DROPPED: "Dropped",
-};
 
 export function pickLabel(snapshot: SnapshotView): string {
   return `${snapshot.label} · ${clock(snapshot.createdAt)}`;
@@ -53,91 +47,136 @@ export default function PlanCompare({
   const comparison = useComparison(a.id === b.id ? null : a.id, a.id === b.id ? null : b.id);
 
   return (
-    <section aria-label="Compare plans" className="flex w-full flex-col gap-4 rounded-[24px] bg-go-card p-6 shadow-go-card">
-      <div className="flex flex-wrap items-center gap-3">
-        <h2 className="mr-auto text-[19px] font-medium text-go-ink">Compare plans</h2>
-        <Chooser name="Plan A" current={a} picks={picks} onPick={setAId} />
-        <Chooser name="Plan B" current={b} picks={picks} onPick={setBId} />
-      </div>
+    <div className="flex w-full gap-[18px] max-lg:flex-col">
+      <section aria-label="Compare plans" className="flex min-w-0 flex-1 flex-col gap-4 rounded-go-panel bg-go-card p-5">
+        <h2 className="text-[19px] font-medium text-go-ink">Compare plans</h2>
+        <div className="flex items-center gap-3">
+          <Chooser name="Plan A" dot="bg-go-ink" current={a} picks={picks} onPick={setAId} />
+          <span className="text-xs text-go-secondary">vs</span>
+          <Chooser name="Plan B" dot="bg-go-teal" current={b} picks={picks} onPick={setBId} />
+        </div>
 
-      {a.id === b.id && <p className="text-[13px] text-go-secondary">Pick two different plans to compare.</p>}
-      {comparison.error && <Refusal error={comparison.error} what="the comparison" />}
-      {comparison.loading && !comparison.data && a.id !== b.id && <p className="text-[13px] text-go-secondary">Comparing…</p>}
-      {comparison.data && a.id !== b.id && <Result view={comparison.data} orders={orders} />}
+        {a.id === b.id && <p className="text-[13px] text-go-secondary">Pick two different plans to compare.</p>}
+        {comparison.error && <Refusal error={comparison.error} what="the comparison" />}
+        {comparison.loading && !comparison.data && a.id !== b.id && <p className="text-[13px] text-go-secondary">Comparing…</p>}
+        {comparison.data && a.id !== b.id && <Metrics view={comparison.data} a={a} b={b} />}
 
-      <div className="flex flex-wrap gap-2">
-        {[a, b].map((side, index) =>
-          side.snapshotId ? (
-            <PrimaryButton key={side.id} disabled={!editable || busy} onClick={() => onUse(side.snapshotId!)}>
-              {`Use plan ${index === 0 ? "A" : "B"}`}
-            </PrimaryButton>
-          ) : null,
-        )}
-      </div>
-    </section>
+        <div className="mt-auto flex flex-wrap gap-2">
+          {[a, b].map((side, index) =>
+            side.snapshotId ? (
+              <PrimaryButton key={side.id} disabled={!editable || busy} onClick={() => onUse(side.snapshotId!)}>
+                {`Use plan ${index === 0 ? "A" : "B"}`}
+              </PrimaryButton>
+            ) : null,
+          )}
+        </div>
+      </section>
+
+      <section aria-label="Orders that differ" className="flex w-full flex-col gap-2 rounded-go-panel bg-go-card p-5 lg:w-[380px] lg:shrink-0">
+        <header className="flex items-baseline justify-between gap-2">
+          <h2 className="text-[19px] font-medium text-go-ink">Orders that differ</h2>
+          {comparison.data && <span className="text-xs text-go-secondary">{`${comparison.data.changes.length} ${comparison.data.changes.length === 1 ? "order" : "orders"}`}</span>}
+        </header>
+        {comparison.data && a.id !== b.id ? <Differences view={comparison.data} orders={orders} /> : <p className="text-[13px] text-go-secondary">Nothing to compare yet.</p>}
+      </section>
+    </div>
   );
 }
 
-function Chooser({ name, current, picks, onPick }: { name: string; current: Pick; picks: Pick[]; onPick: (id: string) => void }): React.JSX.Element {
+function Chooser({ name, dot, current, picks, onPick }: { name: string; dot: string; current: Pick; picks: Pick[]; onPick: (id: string) => void }): React.JSX.Element {
   return (
-    <Menu
-      label={`${name}: choose a plan`}
-      align="right"
-      className="flex flex-col rounded-go-card bg-go-surface px-3.5 py-1.5 text-left"
-      items={picks.map((p) => ({ id: p.id, label: p.label, selected: p.id === current.id }))}
-      onSelect={onPick}
-    >
-      <span className="text-[11px] text-go-secondary">{name}</span>
-      <span className="max-w-[220px] truncate text-[13px] font-medium text-go-ink">{current.label}</span>
-    </Menu>
+    <div className="min-w-0 flex-1">
+      <Menu
+        label={`${name}: choose a plan`}
+        className="flex w-full items-center gap-3 rounded-go-input border border-go-rule bg-go-card px-3.5 py-2 text-left"
+        items={picks.map((p) => ({ id: p.id, label: p.label, selected: p.id === current.id }))}
+        onSelect={onPick}
+      >
+        <span aria-hidden className={`size-2 shrink-0 rounded-full ${dot}`} />
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="text-[10px] font-medium tracking-[0.08em] text-go-secondary uppercase">{name}</span>
+          <span className="truncate text-[14px] font-medium text-go-ink">{current.label}</span>
+        </span>
+        <Icon name="chevron-down" />
+      </Menu>
+    </div>
   );
 }
 
-function Result({ view, orders }: { view: ComparisonView; orders: Map<string, OrderView> }): React.JSX.Element {
+function Metrics({ view, a, b }: { view: ComparisonView; a: Pick; b: Pick }): React.JSX.Element {
+  const short = (p: Pick) => p.label.split(" · ")[0]!.replace(/ \(version \d+\)/, "");
   return (
-    <>
-      <div className="grid max-w-[560px] grid-cols-[1fr_auto_auto] items-center gap-x-10 gap-y-1 text-[13px] text-go-ink">
-        <span />
-        <span className="text-xs font-medium text-go-secondary">Plan A</span>
-        <span className="text-xs font-medium text-go-secondary">Plan B</span>
-        <Row label="Orders planned" a={view.a.served} b={view.b.served} better="more" />
-        <Row label="Deferred" a={view.a.deferred} b={view.b.deferred} better="fewer" />
-        <Row label="Cannot be served" a={view.a.unservable} b={view.b.unservable} better="fewer" />
-        <Row label="Trips" a={view.a.trips} b={view.b.trips} />
-        <Row label="Vehicles in use" a={view.a.vehicles} b={view.b.vehicles} />
-      </div>
-
-      <div className="flex flex-col gap-1.5">
-        <h3 className="text-[15px] font-medium text-go-ink">{view.changes.length === 0 ? "The two plans place every order the same way" : `${view.changes.length} ${view.changes.length === 1 ? "order differs" : "orders differ"}`}</h3>
-        <ul className="flex flex-col">
-          {view.changes.map((change) => (
-            <li key={change.orderId} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-go-rule py-2 text-[13px]">
-              <Pill tone={change.kind === "DROPPED" ? "warning" : change.kind === "ADDED" ? "success" : "info"}>{SIDE_TEXT[change.kind]}</Pill>
-              <span className="min-w-[110px] font-medium text-go-ink">{orders.get(change.orderId)?.orderRef ?? change.orderId}</span>
-              <span className="text-go-secondary">{change.outletId ?? ""}</span>
-              <span className="ml-auto text-go-ink">{`From ${where(change.before)} to ${where(change.after)}`}</span>
-            </li>
-          ))}
-        </ul>
-        {view.changedTrips.length > 0 && <p className="text-xs text-go-secondary">{`Plan B changes ${view.changedTrips.length} ${view.changedTrips.length === 1 ? "trip" : "trips"} a driver would see differently.`}</p>}
-      </div>
-    </>
+    <table className="w-full text-left text-[13px]">
+      <thead>
+        <tr className="text-[10px] tracking-[0.08em] text-go-secondary uppercase">
+          <th scope="col" className="w-[40%] pb-2 font-medium" />
+          <th scope="col" className="pb-2 font-medium">{`A · ${short(a)}`}</th>
+          <th scope="col" className="pb-2 font-medium">{`B · ${short(b)}`}</th>
+          <th scope="col" className="pb-2 font-medium">Decision impact</th>
+        </tr>
+      </thead>
+      <tbody>
+        <Metric label="Orders served" note="planned onto a trip" a={view.a.served} b={view.b.served} better="more" />
+        <Metric label="Orders deferred" note="move to the next run" a={view.a.deferred} b={view.b.deferred} better="fewer" />
+        <Metric label="Cannot be served" note="need a new order from the store" a={view.a.unservable} b={view.b.unservable} better="fewer" />
+        <Metric label="Trips" note="loaded and driven" a={view.a.trips} b={view.b.trips} />
+        <Metric label="Vehicles used" note="out of the depot" a={view.a.vehicles} b={view.b.vehicles} />
+      </tbody>
+    </table>
   );
+}
+
+function Metric({ label, note, a, b, better }: { label: string; note: string; a: number; b: number; better?: "more" | "fewer" }): React.JSX.Element {
+  const diff = b - a;
+  const good = better !== undefined && diff !== 0 && (better === "more" ? diff > 0 : diff < 0);
+  return (
+    <tr className="border-t border-go-rule">
+      <th scope="row" className="py-3 font-normal">
+        <span className="block font-medium text-go-ink">{label}</span>
+        <span className="block text-xs text-go-secondary">{note}</span>
+      </th>
+      <td className="py-3 text-go-ink tabular-nums">{a}</td>
+      <td className="py-3 font-semibold text-go-ink tabular-nums">{b}</td>
+      <td className="py-3">
+        <Pill tone={diff === 0 ? "muted" : good ? "success" : "warning"}>{diff === 0 ? "Same" : `${diff > 0 ? "+" : "-"}${Math.abs(diff)}`}</Pill>
+      </td>
+    </tr>
+  );
+}
+
+function Differences({ view, orders }: { view: ComparisonView; orders: Map<string, OrderView> }): React.JSX.Element {
+  if (view.changes.length === 0) return <p className="text-[13px] text-go-secondary">The two plans place every order the same way.</p>;
+  return (
+    <table className="w-full text-left text-[13px]">
+      <thead>
+        <tr className="text-[10px] tracking-[0.08em] text-go-secondary uppercase">
+          <th scope="col" className="pb-2 font-medium">Order</th>
+          <th scope="col" className="pb-2 font-medium">A</th>
+          <th scope="col" className="pb-2 font-medium">B</th>
+        </tr>
+      </thead>
+      <tbody>
+        {view.changes.map((change) => (
+          <tr key={change.orderId} className="border-t border-go-rule">
+            <th scope="row" className="py-2.5 font-normal">
+              <span className="block font-medium text-go-ink">{orders.get(change.orderId)?.orderRef ?? change.orderId}</span>
+              <span className="block text-xs text-go-secondary">{change.outletId ?? ""}</span>
+            </th>
+            <td className={`py-2.5 ${tone(change.before)}`}>{where(change.before)}</td>
+            <td className={`py-2.5 ${tone(change.after)}`}>{where(change.after)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function tone(place: { decision: string | null }): string {
+  return place.decision === "SERVED" ? "text-go-teal" : "text-go-warning-text";
 }
 
 function where(place: { decision: string | null; vehicleId: string | null; tripNumber: number | null }): string {
-  if (place.decision === null) return "not in the plan";
-  if (place.decision !== "SERVED") return place.decision === "DEFERRED" ? "deferred" : "cannot be served";
+  if (place.decision === null) return "Not in the plan";
+  if (place.decision !== "SERVED") return place.decision === "DEFERRED" ? "Deferred" : "Cannot be served";
   return `${place.vehicleId} Trip ${place.tripNumber}`;
-}
-
-function Row({ label, a, b, better }: { label: string; a: number; b: number; better?: "more" | "fewer" }): React.JSX.Element {
-  const good = (n: number, other: number) => better !== undefined && n !== other && (better === "more" ? n > other : n < other);
-  return (
-    <>
-      <span className="text-go-secondary">{label}</span>
-      <span className={`text-right tabular-nums ${good(a, b) ? "font-medium text-go-success" : ""}`}>{a}</span>
-      <span className={`text-right tabular-nums ${good(b, a) ? "font-medium text-go-success" : ""}`}>{b}</span>
-    </>
-  );
 }

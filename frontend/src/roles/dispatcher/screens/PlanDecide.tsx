@@ -131,7 +131,7 @@ export default function PlanDecide({
           onSwap={() => setSwapping(true)}
         />
       )}
-      {swapping && selected?.order && <SwapWindow plan={plan} incoming={selected.order} orders={orders} actions={actions} onClose={() => setSwapping(false)} />}
+      {swapping && selected?.order && <SwapWindow plan={plan} incoming={selected.order} orders={orders} fleet={fleet} actions={actions} onClose={() => setSwapping(false)} />}
     </div>
   );
 }
