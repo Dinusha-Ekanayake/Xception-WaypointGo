@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-04 - fix: grant reference reads of actor scope
+
+`codex/admin-live-wiring` · @ranathungaWK
+
+Give the reference module read access to only the depot and outlet scope tables, with policies limited to the current actor.
+Why: the admin reference directory calls the shared scope predicates in SQL; CI showed waypoint_ref lacked IAM schema usage and returned 500.
+Verified: CI failure traced to the scoped depot query; the forward migration awaits a fresh integration run.
+Open: confirm the admin integration test on CI and keep policy editing as separate issue 22 work.
+
+---
+
 ## 2026-10-03 - fix: align admin reads with backend and SQL scope
 
 `dev` · @ranathungaWK
