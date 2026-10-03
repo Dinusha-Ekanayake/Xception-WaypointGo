@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-10-03 - fix: failed map tiles are never kept by the browser
+
+`fix/map-tile-no-store` · @kavindamihiran
+
+`/map-tiles/` answered 404 with no `Cache-Control` while preview had no `MAP_TILE_URL`; Cloudflare stamped `max-age=14400` on it, so browsers kept a blank map for four hours after the URL was set. Every failed tile (404, 502, 504) now sends `no-store`.
+Why: #161 base map stayed "unavailable" on dispatcher-preview.
+
+---
+
 ## 2026-10-03 - fix: VPS edge loads again and caches map tiles
 
 `fix/vps-map-tile-cache` · @kavindamihiran
