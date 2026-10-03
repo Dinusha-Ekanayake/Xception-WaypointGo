@@ -30,6 +30,49 @@ The one-shot `init` service runs `migrate`, `import-reference`, `demo-accounts` 
 
 For day-to-day work run PostgreSQL in Docker and the application natively: `scripts/dev.sh setup` once, then `scripts/dev.sh`. The steps behind those two commands are in [development.md](docs/development-docs/development.md). Production deployment is in [deployment.md](docs/deployment.md).
 
+## Seeded accounts
+
+`docker compose up` creates one account per role, all with the password in `SEED_PASSWORD` (default `Waypoint2026!` locally). The deployed system uses a private `SEED_PASSWORD`, given in the submission form.
+
+| Role | Email | Scope after the seed | Device |
+| --- | --- | --- | --- |
+| Dispatcher | `dispatcher@waypoint.local` | Peliyagoda depot | desktop, 1440 px |
+| Loader | `loader@waypoint.local` | Peliyagoda depot; dock PIN `DEMO_LOADER_PIN` (default `2468`) | phone or tablet |
+| Driver | `driver@waypoint.local` | Peliyagoda depot; every Peliyagoda vehicle on the seeded day | phone |
+| Store manager | `store_manager@waypoint.local` | outlet `DEMO_OUTLET` (default `OUT001`, Waypoint Fresh, Colombo) | desktop or phone |
+
+`admin@waypoint.local` and `auditor@waypoint.local` exist too but are not part of the walkthrough. Locally every role is on http://localhost:3000. On the deployed system each role has its own address: `dispatcher.`, `loader.`, `driver.` and `store.` in front of `waypointgo.live`.
+
+## Judge walkthrough
+
+The seed places the Task 2B peak day: 85 confirmed Peliyagoda orders across all three brands on the first operating day still open for ordering, with the scenario's 10 workshop vehicles out. That is more than the fleet can carry, so the plan has to defer orders. Open the driver and loader at phone width (for example 393 px in the browser's device toolbar).
+
+1. **Store manager: see the order.** Sign in as `store_manager@waypoint.local`. Home and Orders show OUT001's two orders for the seeded day (one ambient, one chilled), confirmed and waiting to be planned.
+2. **Dispatcher: one queue.** Sign in as `dispatcher@waypoint.local` and open **Orders**. Every order due at Peliyagoda that day is in one table with its brand, temperature and status. **Close orders** is accepted only after the 16:00 cutoff the day before (R-ORD-01); before then the screen shows the refusal and its rule, and planning still works.
+3. **Dispatcher: plan the peak day.** Open **Plan**, choose Peliyagoda and **Generate**. The engine allocates against weight and volume limits, refrigerated vehicles for chilled goods, vans for `van_only` outlets, delivery and mall windows, weekly fuel and at most two trips per vehicle.
+4. **Dispatcher: explain the deferrals.** In **Decide**, each order the plan could not place shows the rule that stopped it. Open one to see where it could go; only feasible places can be chosen, and a manual placement needs a reason. In **View plan**, open a trip to see its load against capacity, departure and stop order; **Take off** defers an order with a reason.
+5. **Dispatcher: publish.** **Publish** lists what the plan leaves undelivered, then **Confirm publish**. **Vehicles** shows each vehicle's planned fuel against its weekly quota, and Overview lists outlets skipped on earlier runs.
+6. **Loader: load in stop order.** Sign in as `loader@waypoint.local`, then enter PIN `2468` on the dock screen. The dock board lists the published trips. Open the trip that carries OUT001: items are listed in reverse stop order, so the first stop is loaded last. Check items off one by one.
+7. **Loader: flag a shortfall (degradation).** Mark one item missing or damaged. The shortfall is recorded before departure and reaches the dispatcher's **Issues** inbox. Complete the release checklist and **release** the trip.
+8. **Driver: follow the run.** Sign in as `driver@waypoint.local`. Home shows the released trip; **Route** lists its stops in order with their windows.
+9. **Driver: deliver with no signal (degradation).** In the browser's developer tools set the network to Offline. Open the OUT001 stop, record the delivery with receiver name, count, photo and signature, and finish. The record is kept on the phone and the screen says it is waiting to sync. Reload the page: it is still there. Set the network back to Online and the queue drains on its own; the server applies each record once.
+10. **Dispatcher: watch progress.** **Live** lists vehicles most urgent first, with the delivered stop and anything that still needs the dispatcher.
+11. **Store manager: confirm receipt.** Back as the store manager, the delivery shows as arrived. **Receive this delivery**, confirm what arrived per item, or report a problem (missing, damaged, wrong item) with a photo. The report reaches the dispatcher's **Issues** inbox, where it can be taken, resolved and closed.
+
+To start again from an empty database: `docker compose down -v && docker compose up --build`.
+
+## Departures from the Designathon design
+
+The Figma file (pages 04 to 17) is the specification. Where the design shows something no backend module provides yet, it is left out rather than faked:
+
+- **Driver:** vehicle pick-up by QR code, the notifications inbox, fuel logging, call and voice notes, driving mode and the map. The store's handover PIN is shown to the store manager but no driver screen asks for it yet. English only.
+- **Dispatcher:** the Forecast and late-risk screens (the Intelligence backend exists, the screens do not), snapshots and compare, regenerate with locked orders, contact store manager, global search and the map. Vehicle interchange approval waits on Loading.
+- **Loader:** vehicle interchange and dispatcher handover. Sinhala and Tamil are drafts awaiting a native speaker.
+- **Store manager:** notifications, call options, the live map and draft orders.
+- **All roles:** the notification inbox and live badge are built in the backend but not yet placed in the role screens.
+
+Role by role detail is in [design-mapping.md](docs/design-mapping.md).
+
 ## Backend commands
 
 The backend jar serves by default. Operational commands run explicitly, never as a side effect of a build or a request:

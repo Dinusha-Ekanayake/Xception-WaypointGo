@@ -102,6 +102,34 @@ public class AccountAdminUseCase {
         });
   }
 
+  /**
+   * Gives a driver one day on each vehicle that has no driver that day. For the
+   * delivery-day seed: the plan decides later which vehicle carries what.
+   *
+   * @return the vehicles assigned
+   */
+  public int assignDriverForDay(String email, List<String> vehicleIds, LocalDate day) {
+    int assigned = 0;
+    for (String vehicleId : vehicleIds) {
+      try {
+        database.asModule(
+            ModuleRole.IAM,
+            null,
+            () -> {
+              UUID userId = userIdOf(email.trim().toLowerCase(Locale.ROOT));
+              applyAssignDriver(null, vehicleId, userId, day, day.plusDays(1), versionOf(userId));
+            });
+        assigned++;
+      } catch (DomainException e) {
+        if (e.code() != ErrorCode.CONFLICT) {
+          throw e;
+        }
+        // The vehicle already has a driver that day; leave it.
+      }
+    }
+    return assigned;
+  }
+
   // ---- command bodies: a transaction is already open ----
 
   UUID applyCreate(
