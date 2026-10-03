@@ -91,7 +91,7 @@ server {
   server_name ${SITE_ADDRESS} www.${SITE_ADDRESS} preview.${SITE_ADDRESS}
     dispatcher.${SITE_ADDRESS} loader.${SITE_ADDRESS} driver.${SITE_ADDRESS} store.${SITE_ADDRESS} admin.${SITE_ADDRESS} auditor.${SITE_ADDRESS}
     dispatcher-preview.${SITE_ADDRESS} loader-preview.${SITE_ADDRESS} driver-preview.${SITE_ADDRESS} store-preview.${SITE_ADDRESS} admin-preview.${SITE_ADDRESS} auditor-preview.${SITE_ADDRESS}
-    grafana-preview.${SITE_ADDRESS};
+    grafana.${SITE_ADDRESS} grafana-preview.${SITE_ADDRESS};
 
   if ($deny_direct) {
     return 444;
@@ -158,7 +158,7 @@ server {
 server {
   listen 443 ssl;
   http2 on;
-  server_name grafana-preview.${SITE_ADDRESS};
+  server_name grafana.${SITE_ADDRESS} grafana-preview.${SITE_ADDRESS};
 
   if ($deny_direct) {
     return 444;
