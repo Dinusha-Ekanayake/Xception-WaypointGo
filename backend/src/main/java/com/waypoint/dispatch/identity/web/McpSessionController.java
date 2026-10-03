@@ -22,11 +22,12 @@ public class McpSessionController {
     this.context = context;
   }
 
-  public record Credentials(String email, String password) {}
+  /** @param scope optional, space separated (R-IAM-34); blank is the default grant */
+  public record Credentials(String email, String password, String scope) {}
 
   @PostMapping("/session")
   public ResponseEntity<Map<String, String>> connect(@RequestBody Credentials body, HttpServletRequest request) {
-    String token = sessions.connect(body.email(), body.password(), request.getRemoteAddr());
+    String token = sessions.connect(body.email(), body.password(), request.getRemoteAddr(), body.scope());
     return ResponseEntity.ok().header("Cache-Control", "no-store").body(Map.of("token", token));
   }
 

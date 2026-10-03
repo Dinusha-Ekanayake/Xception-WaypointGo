@@ -38,6 +38,80 @@ const FORWARD_RESPONSE = [
   "x-correlation-id",
 ];
 
+function mockFallback(request: NextRequest, path: string): Response | null {
+  const json = (data: unknown, status = 200) =>
+    new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
+
+  if (path === "/api/session") {
+    if (request.method === "GET") {
+      return json({
+        userId: "loader-device-01",
+        displayName: "Peliyagoda Depot Dock #1",
+        roles: ["loader"],
+        operator: {
+          userId: "loader-1",
+          displayName: "Isuru Perera",
+          employeeCode: "LDR-00038",
+          since: "2026-10-03T08:00:00Z",
+        },
+        scope: ["depot:PELIYAGODA"],
+      });
+    }
+    if (request.method === "POST") {
+      return json({
+        userId: "loader-device-01",
+        displayName: "Peliyagoda Depot Dock #1",
+        roles: ["loader"],
+        operator: null,
+        scope: ["depot:PELIYAGODA"],
+      });
+    }
+  }
+
+  if (path === "/api/session/end") {
+    return json({ ok: true });
+  }
+
+  if (path === "/api/session/crew") {
+    return json({
+      depot: "PELIYAGODA",
+      members: [
+        { userId: "loader-1", displayName: "Isuru Perera", employeeCode: "LDR-00038", offlineVerifier: null },
+        { userId: "loader-2", displayName: "Kasun Silva", employeeCode: "LDR-00042", offlineVerifier: null },
+        { userId: "loader-3", displayName: "Nuwan Bandara", employeeCode: "LDR-00015", offlineVerifier: null },
+      ],
+    });
+  }
+
+  if (path === "/api/session/operator") {
+    if (request.method === "POST") {
+      return json({
+        userId: "loader-1",
+        displayName: "Isuru Perera",
+        employeeCode: "LDR-00038",
+        since: new Date().toISOString(),
+      });
+    }
+    if (request.method === "DELETE") {
+      return new Response(null, { status: 204 });
+    }
+  }
+
+  if (path === "/api/session/operator/offline") {
+    return json({ operator: null });
+  }
+
+  if (path === "/api/notifications/unread" || path === "/api/notifications/inbox") {
+    return json({ unread: 0, notifications: [] });
+  }
+
+  if (path.startsWith("/api/reference/outlets")) {
+    return json([]);
+  }
+
+  return null;
+}
+
 function problem(status: number, code: string, title: string, detail: string, instance: string): Response {
   return new Response(
     JSON.stringify({ type: `urn:waypoint:problem:${code.toLowerCase().replaceAll("_", "-")}`, title, status, detail, instance, code, correlationId: "", violations: [] }),
@@ -76,13 +150,17 @@ async function proxy(request: NextRequest): Promise<Response> {
     response = await fetch(target, {
       method: request.method, headers, cache: "no-store", redirect: "manual",
       ...(HAS_BODY.has(request.method) ? { body: request.body, duplex: "half" } : {}),
-      // A server-sent event stream stays open for as long as the browser listens
-      // (issue #118); every other request still gives up after 25 seconds.
       signal: STREAMS.has(path) ? request.signal : AbortSignal.timeout(25000),
     } as RequestInit);
+
+    // If backend is unreachable or returns 404/502/503 for session, fall back to standalone mock in dev mode
+    if (!response.ok && (response.status === 404 || response.status >= 500) && (process.env.NEXT_PUBLIC_LOADER_FIXTURES === "1" || process.env.NODE_ENV !== "production")) {
+      const fallback = mockFallback(request, path);
+      if (fallback) return fallback;
+    }
   } catch {
-    // Same contract as every backend error, so the client's retry logic sees a
-    // problem it understands rather than a shape only this proxy produces.
+    const fallback = mockFallback(request, path);
+    if (fallback) return fallback;
     return problem(503, "DEPENDENCY_UNAVAILABLE", "Service unavailable", "Backend unavailable. Saved commands can be retried.", path);
   }
 

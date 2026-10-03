@@ -10,7 +10,9 @@ const instant = z.iso.datetime({ offset: true });
 const date = z.iso.date();
 const time = z.string().regex(/^\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?$/);
 const array = <T extends z.ZodType>(schema: T) => z.array(schema).max(1000);
-export const contextOutput = z.object({ userId: id, roles: array(text), scope: array(text), readActions: array(text) });
+export const contextOutput = z.object({ userId: id, roles: array(text), scope: array(text), readActions: array(text),
+  // Issue #177. Defaults keep an adapter working against a backend that predates them: no writes, no personal fields.
+  grantedScopes: array(text).default(['waypoint.read']), writeTools: array(text).default([]), personalFields: z.boolean().default(false) });
 export const orderOutput = z.object({
   orderId: id, orderRef: text, outletId: text, depotCode: text, brandCode: text, districtName: text,
   requestedDate: date, deliveryDate: date, dateRolled: z.boolean(), temperature: text,
@@ -21,15 +23,21 @@ export const orderOutput = z.object({
 const stop = z.object({ sequence: version, orderId: id, outletId: text, plannedArrival: time,
   windowOpen: time, windowClose: time, serviceMinutes: number });
 const check = z.object({ ruleId: text, passed: z.boolean(), reason: text, slack: number.nullish() });
-export const planOutput = z.object({
+// Issue #177: a plan of any size is read as a summary, then allocations in pages.
+export const planSummaryOutput = z.object({
   planId: id, depotCode: text, serviceDate: date, planVersion: version, status: text,
   referenceVersionId: id, ruleSetVersionId: id, priorityPolicyVersionId: id,
-  supersedes: optionalId, publishedAt: instant.nullish(), plannedWithoutPredictor: z.boolean(), rowVersion: version,
+  supersedes: optionalId, publishedAt: instant.nullish(), rowVersion: version,
+  served: version, deferred: version, unservable: version,
   trips: array(z.object({ tripId: id, vehicleId: text, tripNumber: version, brandCode: text,
     districtName: text, temperature: text, weightKg: number, volumeM3: number,
-    plannedMinutes: number, plannedDeparture: time, stops: array(stop) })),
-  allocations: array(z.object({ orderId: id, decision: text, tripId: optionalId,
-    bindingRule: text.nullish(), reason: text, checks: array(check) })),
+    plannedMinutes: number, plannedDeparture: time, stopCount: version })),
+});
+export const allocationPageOutput = z.object({
+  planId: id, planVersion: version, nextCursor: z.string().max(2048).nullish(),
+  items: z.array(z.object({ orderId: id, decision: text, tripId: optionalId,
+    stopSequence: version.nullish(), plannedArrival: time.nullish(),
+    bindingRule: text.nullish(), reason: text, checks: array(check) })).max(100),
 });
 export const manifestOutput = z.object({
   tripId: id, planId: id, planVersion: version, depotCode: text, serviceDate: date,
@@ -54,10 +62,14 @@ export const receiptOutput = z.object({
   confirmedAt: instant.nullish(), rowVersion: version, tripId: optionalId,
   depotCode: text, deliveredAt: instant, autoClosesAt: instant, late: z.boolean(),
   lines: array(z.object({ productId: text, expectedQuantity: version, receivedQuantity: version.nullish() })),
+  // Personal (R-IAM-36): returned only with the mcp:ReadPersonal grant.
+  note: text.nullish(), confirmedBy: optionalId,
 });
 export const issueOutput = z.object({ issueId: id, type: text, severity: text, status: text,
   depotCode: text, outletId: text.nullish(), subjects: array(z.object({ type: text, id: text })),
-  resolutionAction: text.nullish(), raisedAt: instant, resolvedAt: instant.nullish(), rowVersion: version });
+  resolutionAction: text.nullish(), raisedAt: instant, resolvedAt: instant.nullish(), rowVersion: version,
+  // Personal (R-IAM-36): returned only with the mcp:ReadPersonal grant.
+  description: text.nullish(), assignee: optionalId, resolutionNote: text.nullish(), raisedBy: optionalId });
 export const auditOutput = z.object({ auditId: version, occurredAt: instant, actorId: optionalId,
   action: text, resource: text.nullish(), decision: z.enum(['ALLOW', 'DENY']), reason: text.nullish(),
   correlationId: text.nullish(), commandId: optionalId, targetType: text.nullish(),
@@ -96,3 +108,34 @@ export const custodyOutput = z.object({
 export const pageOutput = <T extends z.ZodType>(item: T) => z.object({
   items: z.array(item).max(50), nextCursor: z.string().max(2048).nullish(),
 });
+
+/**
+ * Field classes (issue #177, R-IAM-36). Every output field is operational unless
+ * it is named here. Internal fields are versions and audit plumbing an assistant
+ * may quote but should not reason about; they are always returned. Personal
+ * fields name or describe people and are removed unless the person holds the
+ * mcp:ReadPersonal grant, and the result then says so in `withheld`.
+ */
+export const fieldClasses = {
+  personal: ['description', 'assignee', 'resolutionNote', 'raisedBy', 'note', 'confirmedBy'],
+  internal: ['rowVersion', 'correlationId', 'policyGeneration', 'policyGenerationAtDecision', 'currentPolicyGeneration',
+    'referenceVersionId', 'ruleSetVersionId', 'priorityPolicyVersionId'],
+} as const;
+
+const personal = new Set<string>(fieldClasses.personal);
+
+/** Removes personal fields at any depth. Returns whether anything was removed. */
+export function withholdPersonal(value: unknown): { value: unknown; withheld: boolean } {
+  let withheld = false;
+  const walk = (node: unknown): unknown => {
+    if (Array.isArray(node)) return node.map(walk);
+    if (node === null || typeof node !== 'object') return node;
+    const out: Record<string, unknown> = {};
+    for (const [key, child] of Object.entries(node)) {
+      if (personal.has(key)) { if (child !== undefined && child !== null) withheld = true; continue; }
+      out[key] = walk(child);
+    }
+    return out;
+  };
+  return { value: walk(value), withheld };
+}

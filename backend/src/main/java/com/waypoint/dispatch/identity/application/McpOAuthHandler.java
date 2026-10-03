@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.waypoint.dispatch.identity.contract.McpAuthorizationView;
+import com.waypoint.dispatch.identity.domain.McpScopes;
 import com.waypoint.dispatch.identity.domain.oauth.CodeExchangePolicy;
 import com.waypoint.dispatch.identity.domain.oauth.Pkce;
 import com.waypoint.dispatch.identity.domain.oauth.RedirectUriPolicy;
@@ -54,8 +55,6 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class McpOAuthHandler {
-  /** The only scope there is. A client may ask for it or for nothing. */
-  public static final String SCOPE = "waypoint.read";
 
   /** Clients collect the token at once, so minutes is generous. */
   static final Duration CODE_LIFETIME = Duration.ofMinutes(2);
@@ -119,8 +118,8 @@ public class McpOAuthHandler {
       String resource,
       String scope) {}
 
-  /** A session for the client, and how long it can last at most. */
-  public record Grant(String accessToken, Duration lifetime) {}
+  /** A session for the client, how long it can last at most, and what it may do (R-IAM-34). */
+  public record Grant(String accessToken, Duration lifetime, java.util.Set<String> scopes) {}
 
   // ---- registration (RFC 7591) ------------------------------------------------
 
@@ -189,7 +188,8 @@ public class McpOAuthHandler {
   public McpAuthorizationView describe(Request request) {
     requireRemote();
     Client client = validated(request);
-    return new McpAuthorizationView(client.name(), RedirectUriPolicy.displayHost(request.redirectUri()));
+    return new McpAuthorizationView(client.name(), RedirectUriPolicy.displayHost(request.redirectUri()),
+        McpScopes.granted(request.scope()).orElseThrow().stream().sorted().toList());
   }
 
   /**
@@ -213,22 +213,23 @@ public class McpOAuthHandler {
         () ->
             database.update(
                 "INSERT INTO iam.oauth_authorization_codes"
-                    + " (code_hash, client_id, user_id, redirect_uri, code_challenge, issued_at, expires_at, resource_uri)"
-                    + " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    + " (code_hash, client_id, user_id, redirect_uri, code_challenge, issued_at, expires_at, resource_uri, scopes)"
+                    + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?::text[])",
                 tokens.hash(code),
                 client.clientId(),
                 userId,
                 request.redirectUri(),
                 request.codeChallenge(),
                 Timestamp.from(now),
-                Timestamp.from(now.plus(CODE_LIFETIME)), effectiveResource(request.resource())));
+                Timestamp.from(now.plus(CODE_LIFETIME)), effectiveResource(request.resource()),
+                "{" + String.join(",", McpScopes.granted(request.scope()).orElseThrow()) + "}"));
     audit.recordStandalone(
         AuditEntry.allowed(
             userId,
             null,
             McpAccessHandler.CONNECT,
             McpAccessHandler.RESOURCE,
-            "approved remote client " + client.clientId()));
+            "approved remote client " + client.clientId() + " for " + McpScopes.format(McpScopes.granted(request.scope()).orElseThrow())));
 
     StringBuilder target = new StringBuilder(request.redirectUri());
     target.append(request.redirectUri().contains("?") ? '&' : '?').append("code=").append(encode(code));
@@ -262,10 +263,11 @@ public class McpOAuthHandler {
               Map<String, Object> row =
                   database.queryOne(
                       "SELECT client_id, user_id, redirect_uri, code_challenge, expires_at, consumed_at,"
-                          + " session_key, resource_uri FROM iam.oauth_authorization_codes WHERE code_hash = ? FOR UPDATE",
+                          + " session_key, resource_uri, array_to_string(scopes, ',') AS scopes"
+                          + " FROM iam.oauth_authorization_codes WHERE code_hash = ? FOR UPDATE",
                       codeHash);
               if (row == null || client == null) {
-                return new Exchange(null, null, "unknown");
+                return new Exchange(null, null, "unknown", null);
               }
               UUID userId = (UUID) row.get("user_id");
               Timestamp consumed = (Timestamp) row.get("consumed_at");
@@ -286,7 +288,7 @@ public class McpOAuthHandler {
                 if (sessionKey != null) {
                   sessions.revokeByKeyInTransaction(sessionKey, "code_replay");
                 }
-                return new Exchange(null, userId, "replayed");
+                return new Exchange(null, userId, "replayed", null);
               }
               // Spent on any attempt, successful or not: a code is tried once.
               database.update(
@@ -294,12 +296,19 @@ public class McpOAuthHandler {
                   Timestamp.from(now),
                   codeHash);
               if (refusal.isPresent()) {
-                return new Exchange(null, userId, refusal.get().name().toLowerCase(Locale.ROOT));
+                return new Exchange(null, userId, refusal.get().name().toLowerCase(Locale.ROOT), null);
               }
               if (!effectiveResource.equals(row.get("resource_uri")) || !effectiveResource.equals(properties.publicUrl())) {
-                return new Exchange(null, userId, "wrong_resource");
+                return new Exchange(null, userId, "wrong_resource", null);
+              }
+              if (blocked(client)) {
+                return new Exchange(null, userId, "client_blocked", null);
               }
               String token = sessions.issue(userId, null, true);
+              String stored = (String) row.get("scopes");
+              java.util.Set<String> scopes = stored == null
+                  ? McpScopes.stored(null) : McpScopes.stored(java.util.List.of(stored.split(",")));
+              sessions.grantMcpScopesInTransaction(token, scopes);
               database.update("UPDATE iam.sessions SET oauth_resource = ?, oauth_client_id = ? WHERE token_hash = ?",
                   effectiveResource, client, sessions.keyOf(token));
               database.update(
@@ -310,7 +319,7 @@ public class McpOAuthHandler {
                   "UPDATE iam.oauth_clients SET last_used_at = ? WHERE client_id = ?",
                   Timestamp.from(now),
                   client);
-              return new Exchange(token, userId, null);
+              return new Exchange(token, userId, null, scopes);
             });
 
     if (outcome.token() == null) {
@@ -334,12 +343,12 @@ public class McpOAuthHandler {
             null,
             McpAccessHandler.CONNECT,
             McpAccessHandler.RESOURCE,
-            "remote read-only connection for client " + client));
+            "remote connection for client " + client + " with " + McpScopes.format(outcome.scopes())));
     metrics.increment("waypoint.mcp.oauth.token.issued");
-    return new Grant(outcome.token(), sessions.absoluteLifetime());
+    return new Grant(outcome.token(), sessions.absoluteLifetime(), outcome.scopes());
   }
 
-  private record Exchange(String token, UUID userId, String reason) {}
+  private record Exchange(String token, UUID userId, String reason, java.util.Set<String> scopes) {}
 
   private OAuthProtocolException refused(UUID userId, String reason) {
     metrics.increment("waypoint.mcp.oauth.code.refused", "reason", reason);
@@ -374,8 +383,13 @@ public class McpOAuthHandler {
     if (!properties.publicUrl().equals(effectiveResource(request.resource()))) {
       throw invalid("resource", "is not this MCP endpoint");
     }
-    if (!scopeAllowed(request.scope())) {
-      throw invalid("scope", "only waypoint.read is available");
+    if (McpScopes.granted(request.scope()).isEmpty()) {
+      throw invalid("scope", "names none of " + McpScopes.format(java.util.Set.copyOf(McpScopes.supported())));
+    }
+    if (blocked(client.clientId())) {
+      // Shown on our page, never redirected: the person learns the client is blocked here.
+      throw DomainException.withViolations(ErrorCode.VALIDATION_FAILED, "client_id is blocked by an administrator",
+          List.of(Violation.onField("R-IAM-37", "client_id", "client_id is blocked by an administrator")));
     }
     return client;
   }
@@ -390,17 +404,12 @@ public class McpOAuthHandler {
     return isBlank(resource) ? properties.publicUrl() : resource;
   }
 
-  /** Blank, exactly the read scope, or a list that contains it. The grant is still only the read scope. */
-  private static boolean scopeAllowed(String scope) {
-    if (isBlank(scope)) {
-      return true;
-    }
-    for (String token : scope.trim().split("\\s+")) {
-      if (SCOPE.equals(token)) {
-        return true;
-      }
-    }
-    return false;
+  /** An administrator blocked the client (R-IAM-37): no new code, no new token. */
+  private boolean blocked(UUID clientId) {
+    return database.readAs(ModuleRole.IAM, null, () -> {
+      var row = database.queryOne("SELECT blocked_at IS NOT NULL AS blocked FROM iam.oauth_clients WHERE client_id = ?", clientId);
+      return row != null && Boolean.TRUE.equals(row.get("blocked"));
+    });
   }
 
   private void requireRemote() {

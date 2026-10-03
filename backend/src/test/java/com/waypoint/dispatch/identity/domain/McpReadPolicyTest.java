@@ -30,6 +30,9 @@ class McpReadPolicyTest {
     tools.put("/api/orders/" + id, "get_order");
     tools.put("/api/plans/draft", "get_plan");
     tools.put("/api/plans/published", "get_plan");
+    tools.put("/api/plans/draft/summary", "get_plan");
+    tools.put("/api/plans/published/summary", "get_plan");
+    tools.put("/api/plans/" + id + "/allocations", "list_plan_allocations");
     tools.put("/api/loading/trips/" + id + "/manifest", "get_manifest");
     tools.put("/api/loading/trips", "list_ready_trips");
     tools.put("/api/execution/deliveries/" + id, "get_delivery");
@@ -43,10 +46,12 @@ class McpReadPolicyTest {
     tools.put("/api/audit/decisions/" + id, "get_command_decision");
     tools.put("/api/policies", "list_policies");
     tools.forEach((path, tool) -> org.junit.jupiter.api.Assertions.assertEquals(tool, McpReadPolicy.toolOf("GET", path), path));
-    org.junit.jupiter.api.Assertions.assertEquals(16, new java.util.HashSet<>(tools.values()).size(), "the sixteen catalogue tools");
+    org.junit.jupiter.api.Assertions.assertEquals(17, new java.util.HashSet<>(tools.values()).size(), "the backend-facing catalogue tools");
     org.junit.jupiter.api.Assertions.assertEquals("disconnect", McpReadPolicy.toolOf("POST", "/api/mcp/session/end"));
     org.junit.jupiter.api.Assertions.assertEquals("other", McpReadPolicy.toolOf("GET", "/api/commands"));
     org.junit.jupiter.api.Assertions.assertEquals("other", McpReadPolicy.toolOf("GET", "/api/orders/not-an-id"), "a caller cannot invent a label");
+    org.junit.jupiter.api.Assertions.assertEquals("other", McpReadPolicy.toolOf("GET", "/api/plans/not-an-id/allocations"));
+    org.junit.jupiter.api.Assertions.assertEquals("other", McpReadPolicy.toolOf("POST", "/api/plans/" + id + "/allocations"), "a page is read only");
   }
 
   @Test

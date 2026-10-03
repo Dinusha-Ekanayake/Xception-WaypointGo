@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { cx } from "@shared/ui";
-import { ago, isUnread, kindOf } from "@shared/notifications/inbox";
+import { ago, isUnread, kindOf, toneOf, TONE_STYLE } from "@shared/notifications/inbox";
 import type { NotificationView } from "@shared/domain/types";
 import { useDispatcherInbox } from "./inbox.tsx";
 import type { ViewId } from "./navigation.ts";
@@ -42,10 +42,23 @@ export function NotificationRows({
         {shown.map((n) => {
           const fresh = isUnread(n);
           const view = viewOf(n);
+          const tone = TONE_STYLE[toneOf(n)];
           return (
-            <li key={n.notificationId} className={cx("flex flex-col gap-1 rounded-go-card-s px-3.5 py-3", fresh ? "bg-go-surface" : "border border-go-divider bg-go-card")}>
-              <span className="text-xs text-go-secondary">
-                {kindOf(n.eventType).label} · {ago(n.createdAt, now)}
+            <li
+              key={n.notificationId}
+              className={cx(
+                "flex flex-col gap-1 rounded-go-card-s border-l-4 px-3.5 py-3",
+                tone.edge,
+                fresh ? tone.tint : "border-y border-r border-y-go-divider border-r-go-divider bg-go-card",
+              )}
+            >
+              <span className="flex items-center justify-between gap-2 text-xs">
+                <span className={cx("flex items-center gap-1.5 font-medium", tone.label)}>
+                  <span aria-hidden className={cx("size-2 rounded-full", tone.dot)} />
+                  {kindOf(n.eventType).label}
+                  {fresh && <span className="sr-only">, unread</span>}
+                </span>
+                <span className="text-go-secondary">{ago(n.createdAt, now)}</span>
               </span>
               <span className={cx("text-[15px] text-go-ink", fresh && "font-medium")}>{n.title}</span>
               <span className="text-[13px] text-go-secondary">{n.body}</span>

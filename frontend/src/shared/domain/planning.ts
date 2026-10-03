@@ -83,6 +83,41 @@ export type PlanView = {
   improvement: ImprovementView | null;
 };
 
+/** GET /api/plans/{published|draft}/summary (issue #177): a plan without its allocations. */
+export type PlanSummaryView = {
+  planId: Uuid;
+  depotCode: string;
+  serviceDate: IsoDate;
+  planVersion: number;
+  status: PlanStatus;
+  referenceVersionId: Uuid;
+  ruleSetVersionId: Uuid;
+  priorityPolicyVersionId: Uuid;
+  supersedes: Uuid | null;
+  publishedAt: IsoInstant | null;
+  rowVersion: number;
+  served: number;
+  deferred: number;
+  unservable: number;
+  trips: TripSummaryView[];
+};
+
+export type TripSummaryView = Omit<TripView, "stops"> & { stopCount: number };
+
+/** One allocation with where it stops; stop fields are null for an order not served. */
+export type AllocationLineView = AllocationView & {
+  stopSequence: number | null;
+  plannedArrival: IsoTime | null;
+};
+
+/** GET /api/plans/{planId}/allocations: a keyset page in order id order. */
+export type AllocationPageView = {
+  planId: Uuid;
+  planVersion: number;
+  items: AllocationLineView[];
+  nextCursor: string | null;
+};
+
 /** Issue #92: the reefers planned again as a whole, kept only when better by rank (R-PLN-32). */
 export type ImprovementView = {
   firstPassServed: number;

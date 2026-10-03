@@ -70,6 +70,21 @@ public class AuditController {
     return audit.list(caller, filter, Optional.ofNullable(cursor), limit);
   }
 
+  /**
+   * MCP usage per tool and client (issue #177), for the admin view. Defaults to
+   * the last 24 hours; at most 7 days.
+   */
+  @GetMapping("/mcp-usage")
+  public java.util.List<AuditQuery.McpUsageView> mcpUsage(
+      @RequestParam(required = false) String from,
+      @RequestParam(required = false) String to,
+      HttpServletRequest request) {
+    var caller = authorizer.require(request, AuditQuery.READ, "wpt:platform:audit:*");
+    Instant end = to == null || to.isBlank() ? Instant.now() : instant(to, "to");
+    Instant start = from == null || from.isBlank() ? end.minus(java.time.Duration.ofHours(24)) : instant(from, "from");
+    return audit.mcpUsage(caller, start, end);
+  }
+
   /** Why a command was allowed or refused, as recorded at the time (POL-03). */
   @GetMapping("/decisions/{commandId}")
   public DecisionReplay decision(@PathVariable UUID commandId, HttpServletRequest request) {

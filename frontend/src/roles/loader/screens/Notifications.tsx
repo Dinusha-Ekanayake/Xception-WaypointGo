@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { cx } from "@shared/ui";
 import type { Inbox } from "@shared/notifications/useInbox";
-import { ago, isUnread, kindOf, type Tone } from "@shared/notifications/inbox";
+import { ago, isUnread, kindOf, toneOf, TONE_STYLE } from "@shared/notifications/inbox";
 import type { NotificationView } from "@shared/domain/types";
 import { useT } from "../i18n.tsx";
 import { localized } from "../data/messages.ts";
@@ -17,12 +17,6 @@ import { clock } from "@shared/wording";
 // with the time, a bold title, the detail. Messages are shown in the loader's
 // language, filled from the facts the server kept (data/messages.ts).
 
-const DOT: Record<Tone, string> = {
-  urgent: "bg-go-danger-strong",
-  warning: "bg-go-warning",
-  good: "bg-go-success",
-  info: "bg-go-teal",
-};
 
 export default function Notifications({
   inbox,
@@ -74,6 +68,7 @@ export default function Notifications({
             const kind = kindOf(n.eventType);
             const fresh = isUnread(n);
             const text = localized(n, tr);
+            const tone = TONE_STYLE[toneOf(n)];
             return (
               <li key={n.notificationId}>
                 <button
@@ -81,13 +76,14 @@ export default function Notifications({
                   onClick={() => open(n)}
                   aria-label={`${fresh ? tr("Unread") + ". " : ""}${tr(kind.label)}. ${text.title}. ${text.body}`}
                   className={cx(
-                    "flex w-full flex-col gap-1 rounded-[20px] px-4 py-3.5 text-left",
-                    fresh ? "bg-go-surface" : "border border-go-rule bg-go-card",
+                    "flex w-full flex-col gap-1 rounded-[20px] border-l-4 px-4 py-3.5 text-left",
+                    tone.edge,
+                    fresh ? tone.tint : "border-y border-r border-y-go-rule border-r-go-rule bg-go-card",
                   )}
                 >
                   <span className="flex items-center justify-between gap-2 text-[13px]">
-                    <span className="flex items-center gap-1.5 text-go-muted">
-                      <span aria-hidden className={cx("size-2 rounded-full", DOT[kind.tone])} />
+                    <span className={cx("flex items-center gap-1.5 font-medium", tone.label)}>
+                      <span aria-hidden className={cx("size-2 rounded-full", tone.dot)} />
                       {tr(kind.label)}
                     </span>
                     <span className="text-go-muted">{ago(n.createdAt, now)}</span>

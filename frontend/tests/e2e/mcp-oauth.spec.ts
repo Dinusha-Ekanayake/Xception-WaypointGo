@@ -3,7 +3,7 @@ const query = "?client_id=client&redirect_uri=https%3A%2F%2Fassistant.test%2Fcal
 test("MCP consent identifies the client and submits credentials only on approval", async ({ page }) => {
   let approvals = 0;
   await page.route("**/api/oauth/authorize**", async route => {
-    if (route.request().method() === "GET") return route.fulfill({ json: { clientName: "Example assistant", redirectHost: "assistant.test" } });
+    if (route.request().method() === "GET") return route.fulfill({ json: { clientName: "Example assistant", redirectHost: "assistant.test", scopes: ["issues.write", "orders.read"] } });
     approvals++;
     expect(route.request().postDataJSON()).toMatchObject({ email: "reader@example.test", password: "test-secret", resource: "https://waypoint.test/mcp" });
     expect(route.request().url()).not.toContain("test-secret");
@@ -12,10 +12,12 @@ test("MCP consent identifies the client and submits credentials only on approval
   await page.goto("/oauth/authorize" + query);
   await expect(page.getByText("Example assistant", { exact: true })).toBeVisible();
   await expect(page.getByText("assistant.test", { exact: true })).toBeVisible();
+  await expect(page.getByText("read orders", { exact: true })).toBeVisible();
+  await expect(page.getByText("raise and assign issues, after you confirm", { exact: true })).toBeVisible();
   expect(approvals).toBe(0);
   await page.getByLabel("Email", { exact: true }).fill("reader@example.test");
   await page.getByLabel("Password", { exact: true }).fill("test-secret");
-  await page.getByRole("button", { name: "Authorize read-only access" }).click();
+  await page.getByRole("button", { name: "Approve access" }).click();
   await expect(page.locator("main").getByRole("alert")).toHaveText("Email or password is incorrect.");
   await expect(page.getByLabel("Password", { exact: true })).toHaveValue("");
   expect(approvals).toBe(1);
@@ -33,11 +35,11 @@ test("invalid authorization request has no credentials form", async ({ page }) =
 });
 test("successful consent returns to the registered client", async ({ page }) => {
   await page.route("https://assistant.test/**", route => route.fulfill({ body: "Connected" }));
-  await page.route("**/api/oauth/authorize**", route => route.fulfill({ json: route.request().method() === "GET" ? { clientName: "Example", redirectHost: "assistant.test" } : { redirectTo: "https://assistant.test/callback?code=opaque&state=state" } }));
+  await page.route("**/api/oauth/authorize**", route => route.fulfill({ json: route.request().method() === "GET" ? { clientName: "Example", redirectHost: "assistant.test", scopes: ["waypoint.read"] } : { redirectTo: "https://assistant.test/callback?code=opaque&state=state" } }));
   await page.goto("/oauth/authorize" + query);
   await page.getByLabel("Email", { exact: true }).fill("reader@example.test");
   await page.getByLabel("Password", { exact: true }).fill("test-secret");
-  await page.getByRole("button", { name: "Authorize read-only access" }).click();
+  await page.getByRole("button", { name: "Approve access" }).click();
   await expect(page).toHaveURL("https://assistant.test/callback?code=opaque&state=state");
 });
 
