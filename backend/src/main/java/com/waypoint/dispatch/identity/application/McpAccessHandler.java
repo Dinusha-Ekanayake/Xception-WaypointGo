@@ -4,6 +4,7 @@ import com.waypoint.dispatch.identity.contract.SessionView;
 import com.waypoint.dispatch.identity.domain.McpReadPolicy;
 import com.waypoint.dispatch.platform.audit.AuditEntry;
 import com.waypoint.dispatch.platform.audit.AuditLog;
+import com.waypoint.dispatch.platform.observability.Metrics;
 import com.waypoint.dispatch.platform.config.McpProperties;
 import com.waypoint.dispatch.shared.domain.Actor;
 import com.waypoint.dispatch.shared.error.DomainException;
@@ -19,13 +20,15 @@ public class McpAccessHandler {
   private final PolicyDecisionPoint policies;
   private final AuditLog audit;
   private final McpProperties properties;
+  private final Metrics metrics;
 
   public McpAccessHandler(SessionRegistry sessions, PolicyDecisionPoint policies,
-      AuditLog audit, McpProperties properties) {
+      AuditLog audit, McpProperties properties, Metrics metrics) {
     this.sessions = sessions;
     this.policies = policies;
     this.audit = audit;
     this.properties = properties;
+    this.metrics = metrics;
   }
 
   public void requireEnabled() {
@@ -67,5 +70,39 @@ public class McpAccessHandler {
 
   public void recordRead(Actor actor, String action, String resource) {
     audit.recordStandalone(AuditEntry.allowed(actor.userId(), actor.deviceId(), action, resource, "read via MCP"));
+  }
+
+  /**
+   * One finished MCP request (issue #140). Every request is counted and timed per
+   * tool and outcome. A request that was authorized also gets an outcome row in
+   * the audit log, beside its authorization row and under the same correlation
+   * id, because an allowed read can still end in 404 or an error. Refusals are
+   * already audited where they were refused.
+   *
+   * <p>Recording never fails the request: if the audit write fails the response
+   * stands and the failure is counted, so the gap is visible (rule 9).
+   *
+   * @param session null when the credential itself was refused
+   * @param remote whether the request came through the remote OAuth resource
+   */
+  public void recordOutcome(SessionView session, String method, String path, boolean remote, int status, long durationMs) {
+    String tool = McpReadPolicy.toolOf(method, path);
+    String outcome = McpReadPolicy.outcomeOf(status);
+    String transport = remote ? "remote" : "local";
+    metrics.increment("waypoint.mcp.calls", "tool", tool, "outcome", outcome, "transport", transport);
+    metrics.record("waypoint.mcp.duration", durationMs, "tool", tool, "outcome", outcome);
+    if (session == null || "unauthenticated".equals(outcome) || "denied".equals(outcome)) {
+      return;
+    }
+    try {
+      Actor actor = sessions.actorOf(session);
+      String result =
+          "{\"tool\":\"" + tool + "\",\"status\":" + status + ",\"outcome\":\"" + outcome
+              + "\",\"durationMs\":" + durationMs + ",\"transport\":\"" + transport + "\"}";
+      audit.recordStandalone(new AuditEntry(actor.userId(), actor.deviceId(), CONNECT, "wpt:mcp:tool:" + tool,
+          "ALLOW", "MCP read finished: " + outcome, null, null, "tool", tool, null, result, null));
+    } catch (RuntimeException failure) {
+      metrics.increment("waypoint.mcp.outcome_audit_failed", "tool", tool);
+    }
   }
 }

@@ -4,6 +4,28 @@
 
 ---
 
+## 2026-10-03 - feat(mcp): per-tool metrics, outcome audit and call logs (issue #140)
+
+`feat/140-mcp-observability` · @Oxshadha
+
+Every MCP request is counted and timed per tool and outcome (`waypoint_mcp_calls_total`, `waypoint_mcp_duration_seconds`), the tool named by the backend from the path (`McpReadPolicy.toolOf`) so a client cannot invent a metric label. An authorized read also writes an outcome audit row beside its authorization row under one correlation id; a failed outcome write never fails the read and is counted. The adapter logs one JSON line per tool call, without arguments, results or credentials. Runbook in [mcp/README.md](../../mcp/README.md#observing-it), case SEC-38.
+Why: the MCP spec asks servers to log tool usage, and a read that was allowed but ended in 404 or an error was invisible.
+Verified: `McpReadPolicyTest`, `McpConnectionIntegrationTest` (10) and `McpOAuthIntegrationTest` on PostgreSQL, none skipped; `mcp` `npm test` 17.
+Open: per-client metric tags are deliberately absent (dynamic client registration makes them unbounded); per-client views come with #141.
+
+---
+
+## 2026-10-03 - docs: glossary, one term per concept (issue #126)
+
+`docs/126-glossary` · @Oxshadha
+
+`docs/architecture/GLOSSARY.md` names one term per concept with its meaning, its source field and the words it replaces: units (never cases or packages), product line, trip, stop, delivery, run sheet, manifest, outlet, refrigerated, deferred, expected arrival, 24-hour depot time, and labels for every raw code. AGENTS.md and the README link it.
+Why: the same thing had up to four names across roles (store screens said cases and packages for `itemCount`), and the data already says which word is right.
+Verified: every cited field checked against `frontend/src/shared/domain/`; word counts from visible text only.
+Open: the team confirms the proposed terms on #126 (outlet or store on the store manager's screens); #127 builds the shared labels and formatters, #128 to #132 apply them.
+
+---
+
 ## 2026-10-03 - docs: architecture diagrams and a generated data model (issue #121)
 
 `docs/121-architecture-data-model` · @Oxshadha

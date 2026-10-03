@@ -1,6 +1,7 @@
 package com.waypoint.dispatch.identity.web;
 
 import com.waypoint.dispatch.identity.application.McpAccessHandler;
+import com.waypoint.dispatch.identity.contract.SessionView;
 import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
 import jakarta.servlet.FilterChain;
@@ -44,12 +45,16 @@ public class McpCredentialFilter extends OncePerRequestFilter {
       return;
     }
     response.setHeader("Cache-Control", "no-store");
+    long started = System.nanoTime();
+    boolean remote = request.getHeader("X-Waypoint-Mcp-Resource") != null;
+    SessionView session = null;
+    boolean unresolved = false;
     try {
       if (header != null && (!header.startsWith("Bearer ") || browser != null)) {
         throw new DomainException(ErrorCode.UNAUTHENTICATED, "Use one dedicated MCP bearer credential");
       }
       String token = header == null ? browser : header.substring(7);
-      access.require(token, request.getMethod(), request.getRequestURI());
+      session = access.require(token, request.getMethod(), request.getRequestURI());
       if (!"/api/mcp/session/end".equals(request.getRequestURI())) {
         access.requireResource(token, request.getHeader("X-Waypoint-Mcp-Resource"));
       }
@@ -57,8 +62,12 @@ public class McpCredentialFilter extends OncePerRequestFilter {
       chain.doFilter(request, response);
     } catch (RuntimeException error) {
       if (errors.getObject().resolveException(request, response, null, error) == null) {
+        unresolved = true;
         throw error;
       }
+    } finally {
+      access.recordOutcome(session, request.getMethod(), request.getRequestURI(), remote,
+          unresolved ? 500 : response.getStatus(), (System.nanoTime() - started) / 1_000_000L);
     }
   }
 }

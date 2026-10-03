@@ -38,14 +38,6 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
-## 2026-10-03 - docs: glossary, one term per concept (issue #126)
-
-`docs/126-glossary` · @Oxshadha
-
-`docs/architecture/GLOSSARY.md` names one term per concept with its meaning, its source field and the words it replaces: units (never cases or packages), product line, trip, stop, delivery, run sheet, manifest, outlet, refrigerated, deferred, expected arrival, 24-hour depot time, and labels for every raw code. AGENTS.md and the README link it.
-Why: the same thing had up to four names across roles (store screens said cases and packages for `itemCount`), and the data already says which word is right.
-Verified: every cited field checked against `frontend/src/shared/domain/`; word counts from visible text only.
-Open: the team confirms the proposed terms on #126 (outlet or store on the store manager's screens); #127 builds the shared labels and formatters, #128 to #132 apply them.
 ## 2026-10-03 - feat: the Forecast screen shows the last and next run, with a countdown
 
 `feat/forecast-schedule` · @tharushaudana
