@@ -635,7 +635,10 @@ class ExecutionIntegrationTest {
     assertEquals("nosniff", image.getResponse().getHeader("X-Content-Type-Options"));
 
     // Forged, stretched and expired links all answer the same.
-    assertEquals(404, http.perform(get(link.substring(0, link.length() - 2) + "00")).andReturn().getResponse().getStatus());
+    // Flip the last hex digit, so the forgery always differs from the real signature.
+    char last = link.charAt(link.length() - 1);
+    String forged = link.substring(0, link.length() - 1) + (last == '0' ? '1' : '0');
+    assertEquals(404, http.perform(get(forged)).andReturn().getResponse().getStatus());
     assertEquals(404, http.perform(get(link.replaceFirst("exp=\\d+", "exp=9999999999"))).andReturn().getResponse().getStatus());
     clock.set(clock.now().plusSeconds(301));
     assertEquals(404, http.perform(get(link)).andReturn().getResponse().getStatus());

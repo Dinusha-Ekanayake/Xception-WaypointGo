@@ -3,6 +3,12 @@
 @kavindamihiran's entries, newest first. Only @kavindamihiran adds to this file; how to write an entry is in the [log's index](../development-log.md).
 
 ---
+## 2026-10-04 - fix: proof link forgery test could forge the real link
+
+`fix/proof-link-forgery-flake` · @kavindamihiran
+
+`ExecutionIntegrationTest` forged a proof link by setting the last two signature digits to `00`; one signature in 256 already ends that way, so the "forgery" opened (Checks #195). It now flips the last digit. `TestDates` ends before 2286, where epoch seconds pass the `9999999999` expiry the stretched-link check relies on.
+Verified: `mvn verify` on a fresh local database.
 ## 2026-10-04 - fix: integration tests no longer share a service day
 
 `fix/test-date-collisions` · @kavindamihiran
