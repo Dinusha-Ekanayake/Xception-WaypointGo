@@ -10,6 +10,7 @@ import com.waypoint.dispatch.platform.web.RequestAuthorizer;
 import com.waypoint.dispatch.shared.domain.Actor;
 import com.waypoint.dispatch.shared.domain.Page;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.UUID;
@@ -72,8 +73,10 @@ public class NotificationController {
    * and falls back to polling {@code /unread-count} (rule 9).
    */
   @GetMapping(path = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-  public SseEmitter stream(HttpServletRequest request) {
+  public SseEmitter stream(HttpServletRequest request, HttpServletResponse response) {
     Actor actor = require(request);
+    // nginx would otherwise buffer the small events and hold them back (issue #118).
+    response.setHeader("X-Accel-Buffering", "no");
     SseEmitter emitter = new SseEmitter(STREAM_LIFETIME.toMillis());
     Runnable stop =
         signals.listen(

@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useOnline } from "@shared/api/useResource";
 import Sidebar, { CompactNav } from "./Sidebar.tsx";
+import { InboxProvider } from "./inbox.tsx";
+import NotificationsPanel from "./NotificationsPanel.tsx";
 import { useView } from "./navigation.ts";
 import { depotToday, depotsFor, scopeLabel, type DepotFilter } from "./data/scope.ts";
 import { useFleet } from "./data/fleet.ts";
@@ -48,6 +50,8 @@ export default function Dispatcher({
   }, [online, refresh]);
 
   return (
+    <InboxProvider userId={userId}>
+    <NotificationsPanel onNavigate={navigate} />
     <div className="flex min-h-dvh w-full flex-col bg-go-canvas font-go text-go-ink lg:h-dvh lg:flex-row">
       <CompactNav view={view} onNavigate={navigate} depots={scope} depotFilter={depotFilter} onDepotFilter={setDepotFilter} />
       <Sidebar
@@ -78,5 +82,6 @@ export default function Dispatcher({
         )}
       </div>
     </div>
+    </InboxProvider>
   );
 }

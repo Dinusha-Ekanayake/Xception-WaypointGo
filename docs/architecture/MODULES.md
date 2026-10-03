@@ -323,7 +323,7 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 
 **Channels (D-N).** The in-app inbox, which is delivered when the row is written, and web push, sent by `PushDeliveryJob` after commit with retry and a dead letter (P-27). With no VAPID keys push is off, visibly (NOT-05).
 
-**The matrix** is data: version 1 of `notification.routing_rules` (R-NOT-09). Every row produces a durable notification and delivery records.
+**The matrix** is data: version 2 of `notification.routing_rules` (R-NOT-09; version 2 added the loader and outlet rows of `trip.released`, issue #118). Every row produces a durable notification and delivery records.
 
 | Event | To | Push | Why it matters |
 | --- | --- | --- | --- |
@@ -332,7 +332,7 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 | `order.deferred` | Store manager | yes | With the binding reason (R-RCP-03, R-NOT-04) |
 | `order.auto_deferred` | Store manager | yes | The warehouse never confirmed stock before the cutoff (STK-03) |
 | `plan.published`, `plan.revised` | Loader; driver of each trip's vehicle on the service date | yes | Work is available, or changed |
-| `trip.released` | Driver; dispatcher when the vehicle has no driver (LOD-05) | yes | Vehicle ready |
+| `trip.released` | Driver; dispatcher when the vehicle has no driver (LOD-05); the depot's other loaders (R-NOT-10); each outlet on the trip with its stop number and expected arrival (R-NOT-11) | yes | Vehicle ready; the dock is free; the store can staff the arrival |
 | `loading.shortfall` | Dispatcher | yes | Departure is blocked now (R-NOT-02) |
 | `delivery.started`, `delivery.completed` | Store manager | no | Arriving; proof is available to review |
 | `delivery.failed` | Dispatcher, store manager | yes | Requires a decision |

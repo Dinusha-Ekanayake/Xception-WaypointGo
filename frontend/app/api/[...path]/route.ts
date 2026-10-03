@@ -23,8 +23,13 @@ const FORWARD_REQUEST = [
 ];
 
 // Response headers a client acts on. Everything else stays on this side.
+/** Long-lived responses: tied to the browser's connection instead of the 25 second limit. */
+const STREAMS = new Set(["/api/notifications/stream"]);
+
 const FORWARD_RESPONSE = [
   "content-type",
+  // The notification stream asks nginx in front of this proxy not to buffer it.
+  "x-accel-buffering",
   "content-disposition",
   "x-content-type-options",
   "location",
@@ -71,7 +76,9 @@ async function proxy(request: NextRequest): Promise<Response> {
     response = await fetch(target, {
       method: request.method, headers, cache: "no-store", redirect: "manual",
       ...(HAS_BODY.has(request.method) ? { body: request.body, duplex: "half" } : {}),
-      signal: AbortSignal.timeout(25000),
+      // A server-sent event stream stays open for as long as the browser listens
+      // (issue #118); every other request still gives up after 25 seconds.
+      signal: STREAMS.has(path) ? request.signal : AbortSignal.timeout(25000),
     } as RequestInit);
   } catch {
     // Same contract as every backend error, so the client's retry logic sees a
