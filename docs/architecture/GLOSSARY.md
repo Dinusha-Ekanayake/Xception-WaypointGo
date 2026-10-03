@@ -2,7 +2,7 @@
 
 One word per concept on every screen, message and document a person reads. Each term comes from a field in the data; where the data distinguishes two things, both words stay and each is used only for its own meaning. Code, API fields, command kinds, event names and enum values keep their names (AGENTS.md: the contract is not renamed for wording).
 
-Status: **proposed** in issue #126. A term marked *proposed* is the default until the team records a different choice on that issue. The shared labels and formatters that apply these terms are built in #127.
+Status: **proposed** in issue #126. A term marked *proposed* is the default until the team records a different choice on that issue. The shared labels and formatters are in `frontend/src/shared/wording/` (#127), the screens follow these terms (#128), and `frontend/tests/wording.test.ts` fails on any retired word, raw code or 12-hour clock that comes back.
 
 ## Quantities
 
@@ -96,9 +96,9 @@ A code from the data is never shown raw. The label is:
 | vehicle type | `truck`, `van` | Truck, Van |
 | brand | `Fresh`, `Style`, `Tech` | as in the data |
 
-## Where the words come from today
+## What was replaced
 
-Counted in visible text under `frontend/src` on 2026-10-03 (class names excluded). These are the variants #128 to #132 remove:
+Counted in visible text under `frontend/src` on 2026-10-03 (class names excluded), before #128 replaced them:
 
 | Concept | Words in use | By role |
 | --- | --- | --- |

@@ -11,7 +11,7 @@ test("generate, see why an order was deferred, place it by hand, publish", async
   await expect(page.getByRole("status").filter({ hasText: "Draft version 1: 2 placed, 1 deferred." })).toBeVisible();
   expect(desk.commands[0]).toMatchObject({ kind: "plan:Generate", expectedVersion: null, payload: { depotCode: DEPOT } });
   // Issue #92: what the engine's second pass achieved is said on the plan.
-  await expect(page.getByText("Reefers planned again: 1 more order served")).toBeVisible();
+  await expect(page.getByText("Refrigerated vehicles planned again: 1 more order served")).toBeVisible();
   await expect(page.getByText("Deferred went from 2 to 1, with 7.9 m³ more chilled delivered")).toBeVisible();
 
   // The deferral names its rule and its reason, never a generic message; every check is one click away.

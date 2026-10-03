@@ -212,7 +212,7 @@ export default function LoadSheet({
                 at: new Date(),
                 title: tr("Issue saved on this device"),
                 detail: tr("Sends when you're back online. Keep loading."),
-                note: tr("Sends to the dispatcher and the store"),
+                note: tr("Sends to the dispatcher and the store manager"),
               });
             }
             return outcome.ok;

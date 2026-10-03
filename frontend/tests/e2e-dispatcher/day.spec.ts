@@ -12,7 +12,7 @@ test("the order board follows each order from due to confirmed, and says where i
   const flow = page.getByRole("region", { name: "Order flow" });
   await expect(flow).toContainText("Due4");
   await expect(flow).toContainText("Planned2");
-  await expect(flow).toContainText("Confirmed by store1");
+  await expect(flow).toContainText("Confirmed by the store manager1");
   await expect(page.getByText("1 order has no stock answer from the warehouse")).toBeVisible();
 
   const table = page.getByRole("table", { name: "Orders due" });

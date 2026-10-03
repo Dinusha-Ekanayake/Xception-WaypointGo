@@ -68,7 +68,7 @@ export default function PlanPublish({
               </li>
             ))}
           </ul>
-          {state.stage === "draft" && deferred.length > 0 && <p className="text-xs text-go-secondary">A deferred order is offered first on the next plan, and its store is told.</p>}
+          {state.stage === "draft" && deferred.length > 0 && <p className="text-xs text-go-secondary">A deferred order is offered first on the next plan, and its store manager is told.</p>}
         </div>
       )}
 

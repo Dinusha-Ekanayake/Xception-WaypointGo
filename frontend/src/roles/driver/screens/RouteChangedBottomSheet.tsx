@@ -114,7 +114,7 @@ export default function RouteChangedBottomSheet({
             isNight ? "bg-[#121212]" : "bg-[#E7F3F2]"
           )}
         >
-          {/* Meta row: Dot + "Route changed" + "Just now" */}
+          {/* Meta row: Dot + "Run sheet changed" + "Just now" */}
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-1.5">
               <span
@@ -129,7 +129,7 @@ export default function RouteChangedBottomSheet({
                   isNight ? "text-[#00BF6A]" : "text-[#0E766D]"
                 )}
               >
-                Route changed
+                Run sheet changed
               </span>
             </div>
             <span
@@ -142,14 +142,14 @@ export default function RouteChangedBottomSheet({
             </span>
           </div>
 
-          {/* Title: "Your route has changed" */}
+          {/* Title: "Your run sheet has changed" */}
           <h3
             className={cx(
               "text-[24px] font-medium leading-[30px] tracking-tight mt-0.5",
               isNight ? "text-white" : "text-black"
             )}
           >
-            Your route has changed
+            Your run sheet has changed
           </h3>
 
           {/* Body */}
@@ -159,7 +159,7 @@ export default function RouteChangedBottomSheet({
               isNight ? "text-[#A9A9A9]" : "text-[#6B6B6B]"
             )}
           >
-            Stops were added or reordered. Check the new route before you continue.
+            Stops were added or reordered. Check the new run sheet before you continue.
           </p>
 
           {/* From sender */}
@@ -173,7 +173,7 @@ export default function RouteChangedBottomSheet({
           </span>
           <VoiceMessagePlayer
             duration="0:07"
-            text="Your route has changed. Stops were added or reordered. Check the new route before you continue."
+            text="Your run sheet has changed. Stops were added or reordered. Check the new run sheet before you continue."
             isNight={isNight}
             className="pt-2"
           />
@@ -190,7 +190,7 @@ export default function RouteChangedBottomSheet({
               : "bg-[#031B08] text-white hover:bg-[#031B08]/90"
           )}
         >
-          View route
+          View run sheet
         </button>
       </div>
     </div>

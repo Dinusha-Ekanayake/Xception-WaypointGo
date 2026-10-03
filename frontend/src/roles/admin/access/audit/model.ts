@@ -12,7 +12,7 @@ export type AuditEvent = {
 const scenarios: [string, string, string, string, Outcome, string][] = [
   ["Orders", "Placed an order", "Ayesha Hassan", "ORD-1041", "Completed", "Outlet replenishment submitted"],
   ["Orders", "Amended an order", "Ayesha Hassan", "ORD-1041", "Completed", "Updated quantities before allocation"],
-  ["Planning", "Published route plan", "Nimali Perera", "PLAN-210", "Completed", "All publication checks passed"],
+  ["Planning", "Published plan", "Nimali Perera", "PLAN-210", "Completed", "All publication checks passed"],
   ["Planning", "Deferred trip", "Nimali Perera", "TRIP-310", "Completed", "Vehicle capacity constraint"],
   ["Loading", "Completed loading check", "Ravi Fernando", "TRIP-310", "Completed", "Manifest checked at the dock"],
   ["Loading", "Recorded shortfall", "Ravi Fernando", "TRIP-310", "Completed", "Two cartons missing"],

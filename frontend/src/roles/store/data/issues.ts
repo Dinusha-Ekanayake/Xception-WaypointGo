@@ -1,6 +1,7 @@
 import type { IssueStatus, IssueType, IssueView, OrderView } from "@shared/domain/types";
 import { addDays, depotToday, type StatusTone } from "./format.ts";
 import type { StoreGateway } from "./gateway.ts";
+import { units as unitsText } from "../../../shared/wording/index.ts";
 
 // What the store sees of issues: the ones about its own orders. Issues are read
 // per order (`/api/issues/by-subject`), because the list endpoint is per depot
@@ -97,7 +98,6 @@ export type IssueCard = {
   stamp: string;
 };
 
-const packages = (n: number) => `${n} ${n === 1 ? "package" : "packages"}`;
 
 /** Units the loader kept back, from a shortfall issue's words ("SHORT at loading: 1 units. ..."). */
 export const loaderShortUnits = (issue: IssueView): number => Number(issue.description.match(/(\d+) units?/)?.[1]) || 0;
@@ -114,7 +114,7 @@ export function issueCard(issue: IssueView, order: OrderView | null, clock: (ins
     return {
       label: "Short delivery",
       tone: closed ? "muted" : "ok",
-      title: units ? `${packages(units)} of ${of}` : `Short at loading: ${of}`,
+      title: units ? `${unitsText(units)} of ${of}` : `Short at loading: ${of}`,
       detail: `Reported by the loader at ${at}`,
       stamp: `Reported ${at}`,
     };
@@ -134,7 +134,7 @@ export function issueCard(issue: IssueView, order: OrderView | null, clock: (ins
   return {
     label,
     tone: closed ? "muted" : "danger",
-    title: total ? `${packages(total)} of ${of}` : `${ISSUE_TYPE[issue.type]}: ${of}`,
+    title: total ? `${unitsText(total)} of ${of}` : `${ISSUE_TYPE[issue.type]}: ${of}`,
     detail: (problems.length ? problems.map((p) => `${p.units} ${p.word}`).join(" · ") : issue.description) + photos,
     stamp: closed ? `${ISSUE_STATUS[issue.status].label} ${clock(issue.resolvedAt ?? issue.raisedAt)}` : `Sent ${at}`,
   };

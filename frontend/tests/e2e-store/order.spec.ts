@@ -11,7 +11,7 @@ test("an item added from the catalogue is kept in a draft, and submitting shows 
   await expect(page.getByRole("group", { name: "Basmati rice 5 kg" })).toHaveCount(0);
   await page.getByRole("searchbox", { name: "Add an item" }).fill("bas");
   await page.getByRole("button", { name: "Add Basmati rice 5 kg" }).click();
-  await expect(page.getByRole("status").filter({ hasText: "Basmati rice 5 kg added · 1 case" })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Basmati rice 5 kg added · 1 unit" })).toBeVisible();
   await page.getByRole("button", { name: "One more Basmati rice 5 kg" }).click();
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Draft saved" })).toBeVisible();
@@ -59,7 +59,7 @@ test("the Issues tab lists what was reported about the outlet's orders", async (
   await page.goto("/");
   await page.getByRole("button", { name: /^Issues/ }).click();
   await expect(page.getByRole("heading", { name: "Issues" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "1 package of ORD0092336 (Chilled)" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "1 unit of ORD0092336 (Chilled)" })).toBeVisible();
   await expect(page.getByText("Short delivery")).toBeVisible();
   await expect(page.getByText(/Reported by the loader at/)).toBeVisible();
 });

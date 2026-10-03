@@ -6,10 +6,10 @@ import { DEMO_DEPOTS } from "./fixtures";
 
 const VEHICLES = [
   { id: "WP-1042", type: "Van", depot: "PELIYAGODA", capacity: "1,200 kg", status: "Available" },
-  { id: "WP-2088", type: "Truck", depot: "PELIYAGODA", capacity: "5,500 kg", status: "On route" },
+  { id: "WP-2088", type: "Truck", depot: "PELIYAGODA", capacity: "5,500 kg", status: "On a trip" },
   { id: "WP-1176", type: "Van", depot: "KANDY", capacity: "1,200 kg", status: "Available" },
   { id: "WP-3041", type: "Truck", depot: "KANDY", capacity: "5,500 kg", status: "Workshop" },
-  { id: "WP-1223", type: "Van", depot: "PELIYAGODA", capacity: "1,200 kg", status: "On route" },
+  { id: "WP-1223", type: "Van", depot: "PELIYAGODA", capacity: "1,200 kg", status: "On a trip" },
   { id: "WP-3095", type: "Truck", depot: "KANDY", capacity: "5,500 kg", status: "Available" },
 ] as const;
 
@@ -27,7 +27,7 @@ export function VehiclesScreen() {
   const vehicle = VEHICLES.find((item) => item.id === selected);
   return <div className="space-y-5"><div><h2 className="text-2xl font-semibold">Vehicles</h2><p className="mt-1 text-sm text-[#58685f]">A sample fleet overview for the admin workspace.</p></div>
     <div className="grid gap-4 sm:grid-cols-3"><Summary value={VEHICLES.length} label="Vehicles"/><Summary value={VEHICLES.filter((item) => item.status === "Available").length} label="Available"/><Summary value={VEHICLES.filter((item) => item.status === "Workshop").length} label="In workshop"/></div>
-    <div className={`${card} grid gap-3 p-4 md:grid-cols-3`}><label className="text-sm font-medium">Search vehicle<input className={`${field} mt-1`} type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Vehicle ID or type"/></label><label className="text-sm font-medium">Depot<select className={`${field} mt-1`} value={depot} onChange={(event) => setDepot(event.target.value)}><option value="all">All depots</option>{DEMO_DEPOTS.map((item) => <option key={item}>{item}</option>)}</select></label><label className="text-sm font-medium">Status<select className={`${field} mt-1`} value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">All statuses</option>{["Available", "On route", "Workshop"].map((item) => <option key={item}>{item}</option>)}</select></label></div>
+    <div className={`${card} grid gap-3 p-4 md:grid-cols-3`}><label className="text-sm font-medium">Search vehicle<input className={`${field} mt-1`} type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Vehicle ID or type"/></label><label className="text-sm font-medium">Depot<select className={`${field} mt-1`} value={depot} onChange={(event) => setDepot(event.target.value)}><option value="all">All depots</option>{DEMO_DEPOTS.map((item) => <option key={item}>{item}</option>)}</select></label><label className="text-sm font-medium">Status<select className={`${field} mt-1`} value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">All statuses</option>{["Available", "On a trip", "Workshop"].map((item) => <option key={item}>{item}</option>)}</select></label></div>
     {rows.length ? <div className={`${card} divide-y divide-[#e9efea]`}>{rows.map((item) => <div key={item.id} className="flex flex-wrap items-center gap-4 p-5"><div className="grid size-11 place-items-center rounded-xl bg-[#e5f4ef] text-lg text-[#006b57]">▣</div><div className="min-w-40 flex-1"><p className="font-semibold">{item.id} · {item.type}</p><p className="text-sm text-[#58685f]">{item.depot} · {item.capacity}</p></div><Badge tone={item.status === "Available" ? "green" : item.status === "Workshop" ? "amber" : "blue"}>{item.status}</Badge><button className={secondary} onClick={() => setSelected(selected === item.id ? null : item.id)}>{selected === item.id ? "Hide details" : "View details"}</button>{vehicle?.id === item.id && <div className="w-full rounded-xl bg-[#f2f8f5] p-4 text-sm"><strong>Sample vehicle record</strong><p className="mt-1 text-[#58685f]">Depot: {item.depot} · Type: {item.type} · Capacity: {item.capacity} · Day status: {item.status}</p></div>}</div>)}</div> : <Empty>No vehicles match these filters.</Empty>}
     <p className="text-xs text-[#6c7e74]">Fleet data here is mock data. Vehicle status changes require a live backend connection.</p>
   </div>;

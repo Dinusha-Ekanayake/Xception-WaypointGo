@@ -26,16 +26,17 @@ export const RULES: Record<string, RegExp> = {
   "retired: cases or packages (say units)": /\b(cases?|packages?|pieces?)\b/i,
   "retired: reefer (say refrigerated)": /\breefers?\b/i,
   "retired: ETA (say expected arrival)": /\bETA\b/,
-  "retired: drop or shop": /\b(drops?|shops?)\b/i,
-  "retired: route for a trip (say trip)": /\broutes?\b/i,
+  "retired: drop or shop": /(?<![-\w])(drops?|shops?)(?![-\w])/i,
+  "retired: route for a trip (say trip)": /(?<![-\w])routes?(?![-\w])/i,
   "raw code on screen": /\b(rear_dock|mall_bay|van_only|mall_dock)\b/,
   "12-hour clock": /\b\d{1,2}(:\d{2})?\s?(AM|PM)\b/,
-  "em or en dash": /[\u2013\u2014]/,
 };
 
 /** Formatting that bypasses shared/wording: a 12-hour or device-zone clock. */
 const CODE_RULES: Record<string, RegExp> = {
   "time formatted outside shared/wording": /hour12:\s*true|toLocaleTimeString\(|"en-US",\s*\{\s*hour/,
+  // AGENTS.md: no em or en dash anywhere, comments and multi-line strings included.
+  "em or en dash": /[\u2013\u2014]/,
 };
 
 /** The strings and JSX text on a line that a person could read; class names and imports are not. */
@@ -43,11 +44,24 @@ export function visibleText(line: string): string[] {
   const trimmed = line.trim();
   if (trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/*") || trimmed.startsWith("import ")) return [];
   const cleaned = line.replace(/className=("[^"]*"|\{`[^`]*`\})/g, "");
+  // JSX text alone on its line, such as `How many units?` between tags on the lines around it.
+  if (/^[A-Za-z][^{}()<>=;"'`]*$/.test(trimmed) && /\s/.test(trimmed) === /\s/.test(trimmed)) {
+    if (!/^(return|const|let|export|type|case|default|else|if|for|while)\b/.test(trimmed) && !/[:,]$/.test(trimmed)) return [trimmed];
+  }
   const found: string[] = [];
   for (const m of cleaned.matchAll(/"([^"\n]{2,})"|'([^'\n]{2,})'|`([^`\n]{2,})`|>([^<>{}\n]{2,})</g)) {
-    const text = m[1] ?? m[2] ?? m[3] ?? m[4] ?? "";
-    // A bare identifier or path, such as a key or a test id, is not text a person reads.
-    if (/^[\w./@:-]+$/.test(text) && !/rear_dock|mall_bay|van_only|mall_dock/.test(text)) continue;
+    // An interpolation is code, not text: `${route}` names a variable.
+    const raw = m[1] ?? m[2] ?? m[3] ?? m[4] ?? "";
+    const text = raw.replace(/\$\{[^}]*\}/g, " ");
+    // A bare identifier, code or path, such as a key, a compared code or a test id, is not text a person
+    // reads; text built around an interpolation always is.
+    const between = m[4] !== undefined;
+    if (!between && !raw.includes("${") && /^[\w./@:#-]+$/.test(text.trim())) continue;
+    if (!text.trim()) continue;
+    // Two strings paired across code, such as `"a"].includes(x)) go("`, are code.
+    if (/\]\.|\)\)|\.\w+\(|=>|;\s/.test(text)) continue;
+    // A class list is styling, not text.
+    if (/(^|\s)(flex|grid|text-|bg-|px-|py-|rounded|items-|gap-)/.test(text)) continue;
     found.push(text);
   }
   return found;
@@ -90,6 +104,12 @@ function scanTree(): Record<string, Record<string, number>> {
 test("the guardrail recognises each rule it enforces", () => {
   assert.deepEqual(countRules(`<p>3 cases of chilled</p>`), { "retired: cases or packages (say units)": 1 });
   assert.deepEqual(countRules(`const t = "Dock: rear_dock";`), { "raw code on screen": 1 });
+  assert.deepEqual(countRules(`if (dock === "rear_dock") return;`), {}, "a code compared in code is not on screen");
+  assert.deepEqual(countRules(`window.location.hash = \`#\${route}\`;`), {}, "an interpolated variable is not text");
+  assert.deepEqual(countRules(`const pill = "flex rounded-full drop-shadow-[0_5px]";`), {}, "a class list is styling");
+  assert.deepEqual(countRules("detail: `ETA ${clock(at)}`,"), { "retired: ETA (say expected arrival)": 1 }, "text around an interpolation");
+  assert.deepEqual(countRules("  ? `Having trouble.\\nDon't worry\u2014${n} ${"), { "em or en dash": 1 }, "a dash in a string that spans lines");
+  assert.deepEqual(countRules(`            How many cases?`), { "retired: cases or packages (say units)": 1 }, "JSX text on its own line");
   assert.deepEqual(countRules(`label: "Today 4:00 PM",`), { "12-hour clock": 1 });
   assert.deepEqual(countRules(`x.toLocaleTimeString("en-US")`), { "time formatted outside shared/wording": 1 });
   assert.deepEqual(countRules(`<span className="items-center">12 units</span>`), {}, "class names and the right word pass");

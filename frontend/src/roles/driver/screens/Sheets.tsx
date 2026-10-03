@@ -20,7 +20,7 @@ const CHOICES: Array<{ id: string; label: string; problem: (text: string) => Pro
   { id: "road", label: "Road closed or blocked", hint: "Tells dispatch about the road.", needsText: true, problem: (t) => ({ kind: "report", fault: "road", description: t }) },
   { id: "vehicle", label: "Vehicle problem", hint: "Tells dispatch the vehicle has a fault.", needsText: true, problem: (t) => ({ kind: "report", fault: "vehicle", description: t }) },
   { id: "unload", label: "Cannot unload here", hint: "Records this stop as not delivered.", problem: () => ({ kind: "not-delivered", reason: "access_blocked" }) },
-  { id: "nobody", label: "No one at the store", hint: "Records this stop as not delivered.", problem: () => ({ kind: "not-delivered", reason: "outlet_closed" }) },
+  { id: "nobody", label: "No one at the outlet", hint: "Records this stop as not delivered.", problem: () => ({ kind: "not-delivered", reason: "outlet_closed" }) },
   { id: "damaged", label: "Goods damaged", hint: "Records this stop as not delivered.", problem: () => ({ kind: "not-delivered", reason: "goods_damaged" }) },
 ];
 

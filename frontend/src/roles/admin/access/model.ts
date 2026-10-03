@@ -42,7 +42,7 @@ export const CAPABILITIES: Capability[] = [
   c("sync:Read", "View sync status", "See own pending operations and conflicts.", "Offline work", true, ALL),
   c("sync:Submit", "Send offline work", "Submit work saved on a device; each action is checked separately.", "Offline work", true, ["loader", "driver", "store_manager"]),
   c("sync:Acknowledge", "Acknowledge synced work", "Mark an own operation as synchronized.", "Offline work", true, ["loader", "driver", "store_manager"]),
-  c("plan:Read", "View route plans", "See assigned plans and deferrals.", "Planning", false, ["dispatcher", "loader", "driver"]),
+  c("plan:Read", "View plans", "See assigned plans and deferrals.", "Planning", false, ["dispatcher", "loader", "driver"]),
   c("plan:Generate", "Generate draft plan", "Build a draft allocation for a depot.", "Planning", false, ["dispatcher"]),
   c("plan:Override", "Override plan decision", "Change a draft allocation with a reason.", "Planning", false, ["dispatcher"]),
   c("plan:Publish", "Publish plan", "Release a reviewed plan to field teams.", "Planning", false, ["dispatcher"]),

@@ -12,11 +12,11 @@ test("damaged items found after unpacking are sent to the dispatcher with a phot
   await page.getByRole("button", { name: "Damaged items" }).click();
   const dialog = page.getByRole("dialog", { name: "Report an issue" });
   await expect(dialog.getByRole("radio", { name: "Damaged items" })).toHaveAttribute("aria-checked", "true");
-  await dialog.getByLabel("Package").selectOption("Fresh milk 1 L");
-  await dialog.getByRole("button", { name: "One more Cases affected" }).click();
+  await dialog.getByLabel("Product line").selectOption("Fresh milk 1 L");
+  await dialog.getByRole("button", { name: "One more Units affected" }).click();
   await dialog.getByLabel("Comment (optional)").fill("carton wet");
   await dialog.getByLabel("Take a photo of the problem").setInputFiles({ name: "wet.png", mimeType: "image/png", buffer: PNG });
-  await page.getByRole("dialog", { name: "Package photo" }).getByRole("button", { name: "Close" }).click();
+  await page.getByRole("dialog", { name: "Product photo" }).getByRole("button", { name: "Close" }).click();
   await dialog.getByRole("button", { name: "Send to dispatcher" }).click();
 
   await expect(page.getByRole("dialog", { name: "Issue sent" })).toBeVisible();

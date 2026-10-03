@@ -297,7 +297,7 @@ export default function ReportProblemBottomSheet({
               isNight ? "text-[#A9A9A9]" : "text-[#6B6B6B]"
             )}
           >
-            Not in the cases above? Record a voice note to explain
+            None of the above? Record a voice note to explain
           </span>
 
           {/* Voice Detail Card (h: 100px, rounded: 60px, p: 18px) */}

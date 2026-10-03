@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { ApiError } from "@shared/api/problem";
 import type { OrderView } from "@shared/domain/types";
 import { Notice, cx } from "@shared/ui";
-import { cases, ORDER_STATUS, dayLabel, depotToday, temperatureLabel } from "../data/format.ts";
+import { units, ORDER_STATUS, dayLabel, depotToday, temperatureLabel } from "../data/format.ts";
 import { Chip, Muted } from "../ui.tsx";
 
 // Every order for this outlet, newest delivery day first. Tapping one opens its
@@ -95,7 +95,7 @@ export default function Orders({
                     <Chip tone={s.tone}>{s.label}</Chip>
                   </span>
                   <span className="text-[13px] text-go-muted">
-                    {temperatureLabel(o.temperature)} · {cases(o.itemCount)}
+                    {temperatureLabel(o.temperature)} · {units(o.itemCount)}
                     {o.dateRolled ? ` · moved from ${dayLabel(o.requestedDate)}` : ""}
                     {o.deferralCount > 0 ? ` · deferred ${o.deferralCount}×` : ""}
                   </span>

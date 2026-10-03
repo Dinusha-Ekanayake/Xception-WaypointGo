@@ -21,13 +21,13 @@ const record = (orderId: string, over: Partial<DeliveryRecordView> = {}): Delive
 const issue = (over: Partial<IssueView>): IssueView =>
   ({ issueId: "iss", type: "LOADING_SHORTFALL", status: "OPEN", subjects: [], description: "", resolutionAction: null, raisedAt: "2026-10-01T00:25:00Z", resolvedAt: null, ...over }) as IssueView;
 
-test("a run is one vehicle's visit: its orders, cases, stop, and what the loader kept back", () => {
+test("a run is one vehicle's visit: its orders, units, stop, and what the loader kept back", () => {
   const orders = [order("a", { temperature: "chilled", itemCount: 6 }), order("b", { itemCount: 7 })];
   const records = [record("a"), record("b"), record("c", { tripId: "trip-2", vehicleId: "VEH057", plannedArrival: "10:40:00" })];
   const short = issue({ subjects: [{ type: "order", id: "a" }], description: "SHORT at loading: 1 units. next run" });
   const [first, second] = runsOf(records, orders, [short, issue({ status: "RESOLVED", subjects: [{ type: "order", id: "b" }], description: "MISSING at loading: 4 units." })]);
   assert.equal(first!.vehicleId, "VEH043");
-  assert.equal(first!.cases, 13);
+  assert.equal(first!.units, 13);
   assert.equal(first!.refrigerated, true, "a chilled order rides a refrigerated vehicle");
   assert.equal(first!.short, 1, "a resolved shortfall no longer counts");
   assert.deepEqual(first!.stop, { sequence: 3, of: 7 });

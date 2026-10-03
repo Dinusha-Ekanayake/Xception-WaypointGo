@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Button, Card } from "../../ui.tsx";
+import { productLines } from "@shared/wording";
 
 // "Receipt summary" (Figma 06): what arrived, what is wrong, and the two ways to
 // finish: submit the count, or say something else is wrong (a dispute).
@@ -39,7 +40,7 @@ export default function SummaryCard({
       <h2 className="text-[20px] font-medium text-black">Receipt summary</h2>
       <div className="grid grid-cols-2 gap-2.5">
         <div className="flex flex-col rounded-[16px] bg-go-canvas px-3.5 py-3">
-          <span className="text-[12px] text-go-muted">Packages</span>
+          <span className="text-[12px] text-go-muted">Product lines</span>
           <span className="text-[28px] leading-tight font-semibold text-black">{expected}</span>
         </div>
         <div className="flex flex-col rounded-[16px] bg-go-canvas px-3.5 py-3">
@@ -48,9 +49,9 @@ export default function SummaryCard({
         </div>
       </div>
       <p className="flex justify-between text-[14px]">
-        <span className="text-go-muted">Package issues</span>
+        <span className="text-go-muted">Problems</span>
         <span className={problems > 0 ? "font-medium text-go-danger-strong" : "text-black"}>
-          {problems} {problems === 1 ? "package" : "packages"}
+          {productLines(problems)}
         </span>
       </p>
       {!closed && <p className="text-[13px] text-go-muted">{sends ? "Sent to the dispatcher" : "Nothing new for the dispatcher"}</p>}
