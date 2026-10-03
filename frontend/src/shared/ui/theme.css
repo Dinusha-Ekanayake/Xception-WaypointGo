@@ -99,3 +99,12 @@
   --color-go-info-tint: #172e45;
   --shadow-go-card: 0 6px 24px 0 rgba(0, 0, 0, 0.4);
 }
+
+/*
+ * Installed apps (issue #201): `short:` is a phone held sideways, with little
+ * height, so bars compact and actions sit beside the content, not below it.
+ * Bars at the bottom pad with max(their own padding, env(safe-area-inset-
+ * bottom)) so the home bar never covers them once the app draws edge to edge
+ * (`viewportFit: cover` in app/layout.tsx); in a browser tab the inset is zero.
+ */
+@custom-variant short (@media (orientation: landscape) and (max-height: 500px));

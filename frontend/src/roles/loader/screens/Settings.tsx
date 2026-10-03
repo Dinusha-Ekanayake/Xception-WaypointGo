@@ -1,6 +1,6 @@
 "use client";
 
-import { McpButton, cx, useShell } from "@shared/ui";
+import { InstallApp, McpButton, cx, useShell } from "@shared/ui";
 import { usePush, type PushState } from "@shared/notifications/push";
 import { LANGS } from "../data/strings.ts";
 import { useLang, useT } from "../i18n.tsx";
@@ -65,6 +65,7 @@ export default function Settings({
           {shell && (
             <McpButton url={shell.mcpUrl} className="flex min-h-14 w-full items-center justify-center gap-2 rounded-[18px] bg-go-card text-[16px] font-medium text-go-ink" />
           )}
+          <InstallApp t={tr} className="flex min-h-14 w-full items-center justify-center gap-2 rounded-[18px] bg-go-card text-[16px] font-medium text-go-ink" />
           <hr className="border-go-rule" />
           <fieldset className="flex flex-col gap-3">
             <legend className="flex flex-col">

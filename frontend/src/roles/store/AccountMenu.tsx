@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { OutletView } from "@shared/domain/types";
-import { APP_LANGS, McpButton, cx, useDeviceLang, useShell } from "@shared/ui";
+import { APP_LANGS, InstallApp, McpButton, cx, useDeviceLang, useShell } from "@shared/ui";
 import { usePush, type PushState } from "@shared/notifications/push";
 import { dockLabel } from "./data/format.ts";
 
@@ -79,7 +79,7 @@ export default function AccountMenu({
         aria-label="Account"
         className={cx(
           "z-50 flex flex-col gap-1 bg-white p-[7px] shadow-[0_10px_30px_rgba(0,0,0,0.18)] outline-none",
-          placement === "sheet" ? "fixed inset-x-0 bottom-0 rounded-t-[28px] px-4 pt-4 pb-8" : "absolute bottom-[84px] left-5 w-[280px] rounded-[20px]",
+          placement === "sheet" ? "fixed inset-x-0 bottom-0 rounded-t-[28px] px-4 pt-4 pb-[max(2rem,env(safe-area-inset-bottom))]" : "absolute bottom-[84px] left-5 w-[280px] rounded-[20px]",
         )}
       >
         <div className="flex items-center gap-3 p-2.5">
@@ -199,6 +199,7 @@ function SettingsRows(): React.JSX.Element {
       </div>
       <span className="text-[12px] text-go-secondary">These screens are in English for now; your choice is kept on this device.</span>
       <McpButton url={shell?.mcpUrl ?? null} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-go-surface text-[14px] font-medium text-black" />
+      <InstallApp className="flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-go-surface text-[14px] font-medium text-black" />
     </div>
   );
 }

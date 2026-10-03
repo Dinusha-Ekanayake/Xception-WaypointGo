@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useOnline } from "@shared/api/useResource";
-import { useSync } from "@shared/offline";
+import { queuesWrites, useSync, type Role } from "@shared/offline";
+import { keepStorage, watchInstall } from "@shared/pwa";
 import { McpButton, Notice, ShellProvider, StructuredError, cx, type ShellControls } from "@shared/ui";
 import { ROLE_ADDRESSES, hostForRole, roleForHost, sharedHomeFor } from "./hostRole.ts";
 import RoleLanding from "./RoleLanding.tsx";
@@ -115,6 +116,15 @@ export default function AppShell(): React.JSX.Element {
       .then((m: { resource?: unknown } | null) => setMcpUrl(typeof m?.resource === "string" ? m.resource : null))
       .catch(() => setMcpUrl(null));
   }, [signedIn]);
+
+  // The browser offers to install once, early; hold the offer for settings.
+  useEffect(() => watchInstall(), []);
+
+  // A role that queues writes keeps them on the device; ask the browser not to
+  // clear that storage when space runs low (issue #201).
+  useEffect(() => {
+    if (role && role !== "admin" && role !== "auditor" && queuesWrites(role as Role)) void keepStorage();
+  }, [role]);
 
   useEffect(() => {
     if (!("serviceWorker" in navigator) || process.env.NODE_ENV !== "production") return;

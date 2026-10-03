@@ -206,7 +206,7 @@ const TABS: { id: Tab; icon: IconName; label: string }[] = [
 /** "SM / Tab bar": floating, dark, the active tab on a white pill. */
 export function TabBar({ tab, onTab, badges }: { tab: Tab; onTab: (t: Tab) => void; badges: Partial<Record<Tab, number>> }): React.JSX.Element {
   return (
-    <nav aria-label="Store" className="fixed inset-x-0 bottom-0 z-30 flex justify-center lg:hidden bg-gradient-to-b from-go-canvas/0 via-go-canvas via-45% to-go-canvas px-4 pt-10 pb-6">
+    <nav aria-label="Store" className="fixed inset-x-0 bottom-0 z-30 flex justify-center lg:hidden bg-gradient-to-b from-go-canvas/0 via-go-canvas via-45% to-go-canvas px-4 pt-10 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
       <div className="flex h-16 w-full max-w-[324px] items-center justify-around rounded-[32px] bg-[#031b08] px-2 drop-shadow-[0_8px_12px_rgba(0,0,0,0.18)]">
         {TABS.map((t) => {
           const active = t.id === tab;
