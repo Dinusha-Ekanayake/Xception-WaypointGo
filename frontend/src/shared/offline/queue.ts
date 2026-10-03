@@ -5,7 +5,7 @@ import type { OperationView, SubmitBatch, SyncAck } from "@shared/domain/sync";
 import { outcomeAction } from "./outcome.ts";
 import { discardCommand, inRecordedOrder, redoCommands } from "./review.ts";
 import type { RedoBasis } from "./resolvers.ts";
-import { all, put, remove, type StoredEntry } from "./store.ts";
+import { all, put, putSnapshot, remove, type StoredEntry } from "./store.ts";
 import { queuesWrites, type Role } from "./tiers.ts";
 
 // The write queue.
@@ -136,6 +136,24 @@ function deviceId(): string {
 /** The server takes at most this many per batch (SubmitBatchHandler.MAX_BATCH). */
 const BATCH = 100;
 
+/** Where the service worker finds this browser's device id (scripts/sw-drain.mjs). */
+const WORKER_DEVICE_KEY = "waypoint.deviceId";
+const devicesKept = new Set<string>();
+
+/**
+ * Keep the device id where the service worker can read it, once per account per
+ * page load, so a Background Sync with no page open sends under the same device.
+ */
+async function keepDeviceForWorker(accountId: string, id: string): Promise<void> {
+  if (devicesKept.has(accountId)) return;
+  try {
+    await putSnapshot(accountId, WORKER_DEVICE_KEY, id);
+    devicesKept.add(accountId);
+  } catch {
+    // Blocked storage: the worker waits for a page instead.
+  }
+}
+
 async function drainOnce(accountId: string): Promise<DrainReport> {
   await beforeDrain.get(accountId)?.();
   const entries = await all(accountId);
@@ -146,8 +164,10 @@ async function drainOnce(accountId: string): Promise<DrainReport> {
   let heldForReview = entries.length - entries.filter((e) => !e.needsReview).length;
   if (ready.length === 0) return { sent, heldForReview, remaining: entries.length };
 
+  const device = deviceId();
+  await keepDeviceForWorker(accountId, device);
   const batch: SubmitBatch = {
-    deviceId: deviceId(),
+    deviceId: device,
     // The recording time is the sequence: stable across retries, and in the
     // order the person did things.
     operations: ready.map((e, i) => ({ sequence: Date.parse(e.enqueuedAt) || i, command: e.payload as Command })),
