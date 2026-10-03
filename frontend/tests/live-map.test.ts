@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { cluster, compass, keepFix, metres, tileAllowed } from "../src/shared/ui/map/geo.ts";
+import { serveTile } from "../src/app-shell/mapTiles.ts";
 import { mapStatus, vehicleDay } from "../src/roles/dispatcher/data/live.ts";
 import { batches, toPoint } from "../src/roles/driver/data/points.ts";
 import type { RunSheetStopView } from "../src/shared/domain/types.ts";
@@ -14,6 +15,15 @@ test("the tile proxy serves Sri Lanka at zoom 5-17 and nothing else", () => {
   assert.equal(tileAllowed(4, 11, 7), false, "too far out");
   assert.equal(tileAllowed(18, 96132, 63168), false, "too far in");
   assert.equal(tileAllowed(12.5, 2956, 1968), false, "not an integer");
+});
+
+test("a missing tile is never cached by the browser", async () => {
+  const unset = await serveTile("12", "2956", "1968", "");
+  assert.equal(unset.status, 404);
+  assert.equal(unset.headers.get("cache-control"), "no-store");
+  const outside = await serveTile("12", "0", "0", "https://tiles.invalid/{z}/{x}/{y}.png");
+  assert.equal(outside.status, 404);
+  assert.equal(outside.headers.get("cache-control"), "no-store");
 });
 
 test("vehicles closer than the radius cluster; distant ones stay apart", () => {
