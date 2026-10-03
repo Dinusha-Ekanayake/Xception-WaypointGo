@@ -21,7 +21,7 @@ export const prompts: PromptDefinition[] = [
     args: [{ name: 'depot', description: 'Depot code, for example PEL', schema: code },
       { name: 'date', description: 'Service day, YYYY-MM-DD', schema: date }],
     text: a => `Give me the morning briefing for depot ${a.depot} on ${a.date}. Call day_summary first. `
-      + 'If orders were deferred, call get_plan and quote each recorded rule and reason. '
+      + 'If orders were deferred, call list_plan_allocations with the plan ID and quote each recorded rule and reason for the deferred ones. '
       + 'List anything named in unavailable as not readable, never as zero. Keep it short.' },
   { name: 'what_to_load_next', title: 'What to load next', actions: ['loading:Read'],
     description: 'A loader\'s next trip and its manifest in loading order.',

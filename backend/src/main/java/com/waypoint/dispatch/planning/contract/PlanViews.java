@@ -144,6 +144,72 @@ public final class PlanViews {
   }
 
   /**
+   * A plan without its allocations (issue #177): the header, how many orders
+   * each decision took, and the trips without their stops. Small for any depot,
+   * so a client that cannot hold a whole plan reads this and then pages
+   * {@link AllocationPageView}.
+   */
+  public record PlanSummaryView(
+      UUID planId,
+      String depotCode,
+      LocalDate serviceDate,
+      int planVersion,
+      PlanStatus status,
+      UUID referenceVersionId,
+      UUID ruleSetVersionId,
+      UUID priorityPolicyVersionId,
+      Optional<UUID> supersedes,
+      Optional<Instant> publishedAt,
+      long rowVersion,
+      int served,
+      int deferred,
+      int unservable,
+      List<TripSummaryView> trips) {
+
+    public PlanSummaryView {
+      trips = List.copyOf(trips);
+    }
+  }
+
+  public record TripSummaryView(
+      UUID tripId,
+      String vehicleId,
+      int tripNumber,
+      String brandCode,
+      String districtName,
+      String temperature,
+      BigDecimal weightKg,
+      BigDecimal volumeM3,
+      BigDecimal plannedMinutes,
+      LocalTime plannedDeparture,
+      int stopCount) {}
+
+  /** One allocation with where it stops, for a paged read. Empty stop fields for an order not served. */
+  public record AllocationLineView(
+      UUID orderId,
+      AllocationDecision decision,
+      Optional<UUID> tripId,
+      Optional<Integer> stopSequence,
+      Optional<LocalTime> plannedArrival,
+      Optional<String> bindingRule,
+      String reason,
+      List<ConstraintResultView> checks) {
+
+    public AllocationLineView {
+      checks = List.copyOf(checks);
+    }
+  }
+
+  /** A keyset page of one plan's allocations in order id order; {@code nextCursor} is empty on the last page. */
+  public record AllocationPageView(
+      UUID planId, int planVersion, List<AllocationLineView> items, Optional<String> nextCursor) {
+
+    public AllocationPageView {
+      items = List.copyOf(items);
+    }
+  }
+
+  /**
    * What the engine's second pass achieved over its first (issue #92): the
    * reefers planned again as a whole, kept only when better by rank (R-PLN-32).
    *

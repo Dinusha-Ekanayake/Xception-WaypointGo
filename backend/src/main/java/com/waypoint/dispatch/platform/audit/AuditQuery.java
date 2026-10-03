@@ -91,6 +91,52 @@ public class AuditQuery {
       Boolean policyUnchangedSince,
       List<PolicyHistory.VersionInForce> policyVersions) {}
 
+  /**
+   * MCP calls per tool and per OAuth client over a window (issue #177), from
+   * the outcome rows Identity writes for every finished MCP call. A local
+   * connection has no client. {@code attention} marks a pair whose refusals
+   * reached {@link #ATTENTION_REFUSALS}: an assistant being denied or rate
+   * limited that often is misconfigured or probing.
+   */
+  public record McpUsageView(String tool, String clientId, long calls, long ok, long denied, long rateLimited,
+      long notFound, long errors, Double p95Ms, boolean attention) {}
+
+  public static final int ATTENTION_REFUSALS = 10;
+  public static final java.time.Duration MAX_USAGE_WINDOW = java.time.Duration.ofDays(7);
+
+  public List<McpUsageView> mcpUsage(Actor actor, Instant from, Instant to) {
+    if (!from.isBefore(to) || java.time.Duration.between(from, to).compareTo(MAX_USAGE_WINDOW) > 0) {
+      throw new com.waypoint.dispatch.shared.error.DomainException(
+          com.waypoint.dispatch.shared.error.ErrorCode.VALIDATION_FAILED, "the window must be positive and at most 7 days");
+    }
+    List<Map<String, Object>> rows = database.asModule(ModuleRole.INTEGRATION, actor.userId(), () -> database.query(
+        """
+        SELECT target_id AS tool, after_state->>'client' AS client_id,
+               count(*) AS calls,
+               count(*) FILTER (WHERE after_state->>'outcome' = 'ok') AS ok,
+               count(*) FILTER (WHERE after_state->>'outcome' = 'denied') AS denied,
+               count(*) FILTER (WHERE after_state->>'outcome' = 'rate_limited') AS rate_limited,
+               count(*) FILTER (WHERE after_state->>'outcome' = 'not_found') AS not_found,
+               count(*) FILTER (WHERE after_state->>'outcome' IN ('error', 'rejected')) AS errors,
+               percentile_cont(0.95) WITHIN GROUP (ORDER BY (after_state->>'durationMs')::numeric) AS p95
+          FROM integration.audit_log
+         WHERE action = 'mcp:Connect' AND target_type = 'tool' AND occurred_at >= ? AND occurred_at < ?
+         GROUP BY 1, 2
+         ORDER BY calls DESC
+         LIMIT 500
+        """,
+        Timestamp.from(from), Timestamp.from(to)));
+    return rows.stream().map(row -> {
+      long denied = ((Number) row.get("denied")).longValue();
+      long limited = ((Number) row.get("rate_limited")).longValue();
+      Number p95 = (Number) row.get("p95");
+      return new McpUsageView((String) row.get("tool"), (String) row.get("client_id"),
+          ((Number) row.get("calls")).longValue(), ((Number) row.get("ok")).longValue(), denied, limited,
+          ((Number) row.get("not_found")).longValue(), ((Number) row.get("errors")).longValue(),
+          p95 == null ? null : p95.doubleValue(), denied + limited >= ATTENTION_REFUSALS);
+    }).toList();
+  }
+
   public Page<AuditRowView> list(Actor actor, Filter filter, Optional<String> cursor, int limit) {
     int size = Page.limit(limit);
     StringBuilder sql =

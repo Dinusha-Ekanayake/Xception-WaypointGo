@@ -48,12 +48,13 @@ public class McpCredentialFilter extends OncePerRequestFilter {
     long started = System.nanoTime();
     boolean remote = request.getHeader("X-Waypoint-Mcp-Resource") != null;
     SessionView session = null;
+    String token = null;
     boolean unresolved = false;
     try {
       if (header != null && (!header.startsWith("Bearer ") || browser != null)) {
         throw new DomainException(ErrorCode.UNAUTHENTICATED, "Use one dedicated MCP bearer credential");
       }
-      String token = header == null ? browser : header.substring(7);
+      token = header == null ? browser : header.substring(7);
       session = access.require(token, request.getMethod(), request.getRequestURI());
       if (!"/api/mcp/session/end".equals(request.getRequestURI())) {
         access.requireResource(token, request.getHeader("X-Waypoint-Mcp-Resource"));
@@ -66,7 +67,7 @@ public class McpCredentialFilter extends OncePerRequestFilter {
         throw error;
       }
     } finally {
-      access.recordOutcome(session, request.getMethod(), request.getRequestURI(), remote,
+      access.recordOutcome(session, token, request.getMethod(), request.getRequestURI(), remote,
           unresolved ? 500 : response.getStatus(), (System.nanoTime() - started) / 1_000_000L);
     }
   }

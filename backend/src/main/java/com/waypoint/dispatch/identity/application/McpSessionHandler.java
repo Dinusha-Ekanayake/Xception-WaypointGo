@@ -1,5 +1,10 @@
 package com.waypoint.dispatch.identity.application;
 
+import com.waypoint.dispatch.identity.domain.McpScopes;
+import com.waypoint.dispatch.shared.error.DomainException;
+import com.waypoint.dispatch.shared.error.ErrorCode;
+import java.util.Set;
+
 import com.waypoint.dispatch.platform.audit.AuditEntry;
 import com.waypoint.dispatch.platform.audit.AuditLog;
 import org.springframework.stereotype.Component;
@@ -19,14 +24,21 @@ public class McpSessionHandler {
     this.audit = audit;
   }
 
-  public String connect(String email, String password, String sourceIp) {
+  /**
+   * @param scope the scopes asked for, space separated; blank is the default of
+   *     every read and the safe writes (R-IAM-34)
+   */
+  public String connect(String email, String password, String sourceIp, String scope) {
     access.requireEnabled();
+    Set<String> scopes = McpScopes.granted(scope).orElseThrow(() -> new DomainException(
+        ErrorCode.VALIDATION_FAILED, "scope names none of " + McpScopes.format(Set.copyOf(McpScopes.supported()))));
     String token = login.loginMcp(email, password, sourceIp);
     var session = sessions.resolveMcp(token).orElseThrow();
     try {
+      sessions.grantMcpScopes(token, scopes);
       access.requireGrant(sessions.actorOf(session));
       audit.recordStandalone(AuditEntry.allowed(session.userId(), null,
-          McpAccessHandler.CONNECT, McpAccessHandler.RESOURCE, "personal read-only connection"));
+          McpAccessHandler.CONNECT, McpAccessHandler.RESOURCE, "personal connection with " + McpScopes.format(scopes)));
       return token;
     } catch (RuntimeException error) {
       sessions.revoke(token);

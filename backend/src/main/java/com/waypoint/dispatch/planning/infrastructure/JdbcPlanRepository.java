@@ -260,32 +260,60 @@ public class JdbcPlanRepository {
 
   /** Served first by trip and stop, then the rest by order id, so the order is stable. */
   public List<AllocationRow> allocations(UUID planId) {
-    List<AllocationRow> allocations = new ArrayList<>();
-    for (Map<String, Object> row :
-        database.query(
+    return database
+        .query(
             """
             SELECT order_id, outlet_id, decision, trip_id, stop_sequence, planned_arrival,
                    window_open, window_close, service_minutes, binding_rule, reason, checks::text AS checks
               FROM planning.allocations WHERE plan_id = ?
              ORDER BY trip_id NULLS LAST, stop_sequence, order_id
             """,
-            planId)) {
-      allocations.add(
-          new AllocationRow(
-              (UUID) row.get("order_id"),
-              (String) row.get("outlet_id"),
-              decision(row.get("decision")),
-              Optional.ofNullable((UUID) row.get("trip_id")),
-              Optional.ofNullable((Number) row.get("stop_sequence")).map(Number::intValue),
-              time(row.get("planned_arrival")),
-              time(row.get("window_open")),
-              time(row.get("window_close")),
-              (BigDecimal) row.get("service_minutes"),
-              Optional.ofNullable((String) row.get("binding_rule")),
-              (String) row.get("reason"),
-              readChecks((String) row.get("checks"))));
-    }
-    return allocations;
+            planId)
+        .stream()
+        .map(this::allocation)
+        .toList();
+  }
+
+  /**
+   * One keyset page of a plan's allocations in order id order, on the primary
+   * key, so a client can read a plan of any size (issue #177). Returns up to
+   * {@code limit} rows after {@code after}; the caller asks for one more than it
+   * shows to know whether another page exists.
+   */
+  public List<AllocationRow> allocationsAfter(UUID planId, Optional<UUID> after, int limit) {
+    return database
+        .query(
+            """
+            SELECT order_id, outlet_id, decision, trip_id, stop_sequence, planned_arrival,
+                   window_open, window_close, service_minutes, binding_rule, reason, checks::text AS checks
+              FROM planning.allocations
+             WHERE plan_id = ? AND (?::uuid IS NULL OR order_id > ?::uuid)
+             ORDER BY order_id
+             LIMIT ?
+            """,
+            planId,
+            after.orElse(null),
+            after.orElse(null),
+            limit)
+        .stream()
+        .map(this::allocation)
+        .toList();
+  }
+
+  private AllocationRow allocation(Map<String, Object> row) {
+    return new AllocationRow(
+        (UUID) row.get("order_id"),
+        (String) row.get("outlet_id"),
+        decision(row.get("decision")),
+        Optional.ofNullable((UUID) row.get("trip_id")),
+        Optional.ofNullable((Number) row.get("stop_sequence")).map(Number::intValue),
+        time(row.get("planned_arrival")),
+        time(row.get("window_open")),
+        time(row.get("window_close")),
+        (BigDecimal) row.get("service_minutes"),
+        Optional.ofNullable((String) row.get("binding_rule")),
+        (String) row.get("reason"),
+        readChecks((String) row.get("checks")));
   }
 
   public List<DeferralRow> deferrals(UUID planId) {

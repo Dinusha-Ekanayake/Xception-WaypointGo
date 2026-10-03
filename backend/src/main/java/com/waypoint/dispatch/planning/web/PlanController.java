@@ -1,7 +1,9 @@
 package com.waypoint.dispatch.planning.web;
 
 import com.waypoint.dispatch.planning.application.PlanDataQuery;
+import com.waypoint.dispatch.planning.contract.PlanViews.AllocationPageView;
 import com.waypoint.dispatch.planning.contract.PlanViews.AllocationView;
+import com.waypoint.dispatch.planning.contract.PlanViews.PlanSummaryView;
 import com.waypoint.dispatch.planning.contract.PlanViews.DeferralView;
 import com.waypoint.dispatch.planning.contract.PlanViews.FuelView;
 import com.waypoint.dispatch.planning.contract.PlanViews.InterchangePreview;
@@ -52,6 +54,45 @@ public class PlanController {
       @RequestParam String depot, @RequestParam LocalDate date, HttpServletRequest request) {
     var actor = authorizer.require(request, READ, "wpt:plan:depot:" + depot);
     return plans.workingDraft(actor, depot, date);
+  }
+
+  /** The published plan without its allocations (issue #177); 404 while none is published. */
+  @GetMapping("/published/summary")
+  public PlanSummaryView publishedSummary(
+      @RequestParam String depot, @RequestParam LocalDate date, HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:plan:depot:" + depot);
+    return plans.publishedSummary(actor, depot, date);
+  }
+
+  /** The open draft without its allocations; 404 while none is open. */
+  @GetMapping("/draft/summary")
+  public PlanSummaryView draftSummary(
+      @RequestParam String depot, @RequestParam LocalDate date, HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:plan:depot:" + depot);
+    return plans.draftSummary(actor, depot, date);
+  }
+
+  /** One keyset page of a plan's allocations, in order id order. */
+  @GetMapping("/{planId}/allocations")
+  public AllocationPageView allocations(
+      @PathVariable UUID planId,
+      @RequestParam(required = false) String after,
+      @RequestParam(required = false, defaultValue = "50") int limit,
+      HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:plan:plan:" + planId);
+    return plans.allocationPage(actor, planId, cursor(after), limit);
+  }
+
+  private static java.util.Optional<UUID> cursor(String after) {
+    if (after == null || after.isBlank()) {
+      return java.util.Optional.empty();
+    }
+    try {
+      return java.util.Optional.of(UUID.fromString(after));
+    } catch (IllegalArgumentException e) {
+      throw new com.waypoint.dispatch.shared.error.DomainException(
+          com.waypoint.dispatch.shared.error.ErrorCode.VALIDATION_FAILED, "after is not a cursor from this list");
+    }
   }
 
   /** Any version, draft to superseded, with every allocation's constraint results. */

@@ -15,16 +15,15 @@ const VERSION_ID = '66666666-6666-4666-8666-666666666666';
 const plan = {
   planId: PLAN_ID, depotCode: 'PEL', serviceDate: '2026-10-02', planVersion: 3, status: 'DRAFT',
   referenceVersionId: VERSION_ID, ruleSetVersionId: VERSION_ID, priorityPolicyVersionId: VERSION_ID,
-  supersedes: null, publishedAt: null, plannedWithoutPredictor: false, rowVersion: 1,
+  supersedes: null, publishedAt: null, rowVersion: 1, served: 2, deferred: 1, unservable: 0,
   trips: [{ tripId: TRIP_ID, vehicleId: 'V1', tripNumber: 1, brandCode: 'Fresh', districtName: 'Colombo',
-    temperature: 'ambient', weightKg: 10, volumeM3: 1, plannedMinutes: 60, plannedDeparture: '06:00', stops: [] }],
-  allocations: [
-    { orderId: ORDER(1), decision: 'SERVED', tripId: TRIP_ID, bindingRule: null, reason: 'fits', checks: [] },
-    { orderId: ORDER(2), decision: 'SERVED', tripId: TRIP_ID, bindingRule: null, reason: 'fits', checks: [] },
-    { orderId: ORDER(3), decision: 'DEFERRED', tripId: null, bindingRule: 'R-PLN-1', reason: 'over weight', checks: [] },
-  ],
+    temperature: 'ambient', weightKg: 10, volumeM3: 1, plannedMinutes: 60, plannedDeparture: '06:00', stopCount: 2 }],
   driverPhone: 'never-return',
 };
+const allocation = (n: number, decision: string) => ({ orderId: ORDER(n), decision, tripId: decision === 'SERVED' ? TRIP_ID : null,
+  stopSequence: decision === 'SERVED' ? n : null, plannedArrival: decision === 'SERVED' ? '07:00' : null,
+  bindingRule: decision === 'SERVED' ? null : 'R-PLN-1', reason: decision === 'SERVED' ? 'fits' : 'over weight',
+  checks: [{ ruleId: 'R-PLN-1', passed: decision === 'SERVED', reason: 'weight', slack: null }], outletContact: 'never-return' });
 const issue = (n: number, severity: string) => ({ issueId: ORDER(100 + n), type: 'DAMAGE', severity, status: 'OPEN',
   depotCode: 'PEL', outletId: null, subjects: [], resolutionAction: null, raisedAt: '2026-10-02T01:00:00Z',
   resolvedAt: null, rowVersion: 1, notes: 'never-return' });
@@ -60,8 +59,14 @@ async function fixture(actions: string[], routes: (path: string) => Answer) {
 }
 
 const dispatcher = (path: string): Answer => {
-  if (path.startsWith('/api/plans/published')) return problem(404, 'NOT_FOUND');
-  if (path.startsWith('/api/plans/draft')) return { status: 200, body: plan };
+  if (path.startsWith('/api/plans/published/summary')) return problem(404, 'NOT_FOUND');
+  if (path.startsWith('/api/plans/draft/summary')) return { status: 200, body: plan };
+  if (path.startsWith(`/api/plans/${PLAN_ID}/allocations`)) {
+    const after = new URL(path, 'http://x').searchParams.get('after');
+    return after === null
+      ? { status: 200, body: { planId: PLAN_ID, planVersion: 3, items: [allocation(1, 'SERVED'), allocation(2, 'SERVED')], nextCursor: ORDER(2) } }
+      : { status: 200, body: { planId: PLAN_ID, planVersion: 3, items: [allocation(3, 'DEFERRED')], nextCursor: null } };
+  }
   if (path.startsWith('/api/loading/trips')) return problem(403, 'FORBIDDEN');
   if (path.startsWith('/api/issues')) {
     const after = new URL(path, 'http://x').searchParams.get('after');
@@ -141,4 +146,26 @@ test('prompts follow the caller\'s read actions and refuse arguments that could 
 
 test('every tool description carries one example question', () => {
   for (const tool of catalogue) assert.match(tool.description, / Example: "[^"]+\?" /, tool.name);
+});
+
+test('a plan is read as a summary, then its allocations page by page with their reasons', async () => {
+  const f = await fixture(['plan:Read'], dispatcher);
+  try {
+    const summary = await f.client.callTool({ name: 'get_plan', arguments: { depot: 'PEL', date: '2026-10-02', state: 'draft' } });
+    assert.equal(summary.isError, undefined);
+    const plan = (summary.structuredContent as { data: { served: number; deferred: number; trips: { stopCount: number }[] } }).data;
+    assert.deepEqual([plan.served, plan.deferred, plan.trips[0]!.stopCount], [2, 1, 2]);
+    assert.ok(f.requests.some(p => p.startsWith('/api/plans/draft/summary?depot=PEL&date=2026-10-02')));
+    const first = await f.client.callTool({ name: 'list_plan_allocations', arguments: { planId: PLAN_ID, limit: 2 } });
+    const page = (first.structuredContent as { data: { items: { orderId: string }[]; nextCursor: string } }).data;
+    assert.equal(page.items.length, 2);
+    assert.equal(page.nextCursor, ORDER(2));
+    const second = await f.client.callTool({ name: 'list_plan_allocations', arguments: { planId: PLAN_ID, cursor: page.nextCursor } });
+    const last = (second.structuredContent as { data: { items: { bindingRule: string; reason: string }[]; nextCursor: null } }).data;
+    assert.deepEqual([last.items[0]!.bindingRule, last.items[0]!.reason, last.nextCursor], ['R-PLN-1', 'over weight', null]);
+    assert.ok(f.requests.some(p => p.includes(`/api/plans/${PLAN_ID}/allocations?after=${ORDER(2)}`)), 'the cursor is passed back as after');
+    assert.ok(!JSON.stringify([summary, first, second]).includes('never-return'));
+    const bad = await f.client.callTool({ name: 'list_plan_allocations', arguments: { planId: 'not-a-plan' } });
+    assert.equal(bad.isError, true);
+  } finally { await f.close(); }
 });

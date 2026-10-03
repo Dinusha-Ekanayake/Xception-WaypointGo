@@ -62,16 +62,17 @@ export async function daySummary(get: Get, args: { depot: string; date: string }
     let state: 'published' | 'draft' = 'published';
     let raw: unknown;
     try {
-      raw = await get(query('/api/plans/published', { depot: args.depot, date: args.date }));
+      raw = await get(query('/api/plans/published/summary', { depot: args.depot, date: args.date }));
     } catch (error) {
       // Nothing published yet: the open draft is the next best fact, and is labelled draft.
       if (!(error instanceof BackendError) || error.status !== 404) throw error;
       state = 'draft';
-      raw = await get(query('/api/plans/draft', { depot: args.depot, date: args.date }));
+      raw = await get(query('/api/plans/draft/summary', { depot: args.depot, date: args.date }));
     }
-    const view = parsed(out.planOutput, raw);
-    return { state, planId: view.planId, planVersion: view.planVersion, trips: view.trips.length,
-      orders: count(view.allocations.map(a => a.decision)) };
+    const view = parsed(out.planSummaryOutput, raw);
+    const orders: Record<string, number> = {};
+    for (const [decision, n] of [['SERVED', view.served], ['DEFERRED', view.deferred], ['UNSERVABLE', view.unservable]] as const) if (n > 0) orders[decision] = n;
+    return { state, planId: view.planId, planVersion: view.planVersion, trips: view.trips.length, orders };
   });
   const loading = await attempt('loading', unavailable, async () => {
     const trips = parsed(z.array(out.readyTripOutput).max(1000), await get(query('/api/loading/trips', { depot: args.depot, date: args.date })));
