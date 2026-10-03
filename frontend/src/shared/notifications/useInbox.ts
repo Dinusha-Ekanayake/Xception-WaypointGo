@@ -13,12 +13,14 @@ import { POLL_MS, appended, isStale, markedAllRead, markedRead } from "./inbox.t
 // marking read. Data only; each role draws its own bell and inbox.
 //
 // The count comes from GET /api/notifications/stream, which the server feeds
-// on connect, on every change and every 25 s. Heard nothing for 40 s, or the
-// stream failed, the inbox says live updates are paused and polls
-// /unread-count instead, until the stream speaks again. The last list is kept
+// on connect, on every change and every 25 s, and the browser reconnects it by
+// itself. Heard nothing for 40 s, the inbox says live updates are paused and
+// polls /unread-count instead, until the stream speaks again. The last list is kept
 // on the device so an offline screen still shows it, with when it was saved.
 
 const PAGE_SIZE = 20;
+/** How often silence is checked; a stale count is polled every POLL_MS. */
+const CHECK_MS = 10_000;
 const KEPT = "notifications";
 
 export type Inbox = {
@@ -73,7 +75,8 @@ export function useInbox(accountId: string | null, enabled = true): Inbox {
         // A malformed event is ignored; the next one, or the poll, corrects the count.
       }
     });
-    source?.addEventListener("error", () => setLive(false));
+    // A dropped connection is not yet "paused": EventSource reconnects by
+    // itself. Only silence past STALE_AFTER_MS is (the watch below).
 
     const poll = () =>
       request<UnreadCountView>("/api/notifications/unread-count")
@@ -81,12 +84,16 @@ export function useInbox(accountId: string | null, enabled = true): Inbox {
         .catch(() => undefined);
     // Ask once now, so the badge does not wait for the stream to open.
     void poll();
+    let polledAt = Date.now();
     const watch = window.setInterval(() => {
-      if (isStale(heardAt.current, Date.now())) {
-        setLive(false);
+      const now = Date.now();
+      if (!isStale(heardAt.current, now)) return;
+      setLive(false);
+      if (now - polledAt >= POLL_MS) {
+        polledAt = now;
         void poll();
       }
-    }, POLL_MS);
+    }, CHECK_MS);
     return () => {
       closed = true;
       source?.close();

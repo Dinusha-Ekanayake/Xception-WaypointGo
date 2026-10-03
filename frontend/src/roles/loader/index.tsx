@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { useOnline, useResource } from "@shared/api/useResource";
 import { registerResolver, useSync } from "@shared/offline";
+import { useInbox } from "@shared/notifications/useInbox";
 import { Notice } from "@shared/ui";
 import { crew, lockOperator, replayBeforeSync } from "@app-shell/operators";
 import { keptCrew, logOfflineSwitch } from "@app-shell/offlinePin";
@@ -17,6 +18,7 @@ import { redoVersion, tripOf } from "./data/redo.ts";
 import DockBoard from "./screens/DockBoard.tsx";
 import Locked from "./screens/Locked.tsx";
 import LoadSheet from "./screens/LoadSheet.tsx";
+import Notifications from "./screens/Notifications.tsx";
 import OperatorGate from "./screens/OperatorGate.tsx";
 import Settings from "./screens/Settings.tsx";
 
@@ -84,6 +86,16 @@ function LoaderWorkspace({
   const { theme } = useTheme();
 
   const trips = useResource(depot ? (signal) => gateway.readyTrips(depot, date, signal) : null, `${depot}:${date}`, 30_000);
+  // Notifications for this device's account (issue #118); none in the sample.
+  const inbox = useInbox(userId, !gateway.sample);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  // "Synced 02:23" syncs now: send what waits, read the board and an open trip again.
+  const [syncKey, setSyncKey] = useState(0);
+  const syncNow = () => {
+    sync.syncNow();
+    trips.refresh();
+    setSyncKey((k) => k + 1);
+  };
   const outletList = useResource(depot ? (signal) => gateway.outlets(depot, signal) : null, depot);
   const outlets = useMemo(() => new Map((outletList.data ?? []).map((o) => [o.outletId, o])), [outletList.data]);
   const open = trips.data?.find((t) => t.tripId === openId) ?? null;
@@ -170,7 +182,12 @@ function LoaderWorkspace({
         onLock={operator ? () => void lock() : undefined}
         onSwitch={operator ? () => void switchUser() : undefined}
         onSettings={() => setSettings(true)}
+        unread={inbox.unread}
+        onNotifications={gateway.sample ? undefined : () => setNotificationsOpen(true)}
+        onSync={syncNow}
+        syncing={sync.syncing || trips.loading}
       />}
+      {notificationsOpen && <Notifications inbox={inbox} onClose={() => setNotificationsOpen(false)} />}
       {lockError && (
         <div className="px-5 pb-3">
           <Notice
@@ -222,6 +239,7 @@ function LoaderWorkspace({
           onSynced={setTripSync}
           onBack={back}
           actingUserId={operator.userId}
+          refreshKey={syncKey}
         />
       ) : (
         <DockBoard depot={depot} meId={operator.userId} trips={trips} online={online} onOpen={setOpenId} />
