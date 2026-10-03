@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-04 - feat: the dispatcher's Live tab as in the Figma frames
+
+`feat/dispatcher-live-figma` · @tharushaudana
+
+Needs you (cards most urgent first and the trip board), the timeline, the map with the vehicle panel, and the trip page, from one join of run sheet, loading trip and position (`data/liveDesk.ts`). The header no longer wraps; the map no longer repeats the header's filters; the offline count works. Detail in the [#19 walkthrough](../../issues/019-dispatcher-ui/WALKTHROUGH.md).
+Why: Live differed from the Figma in layout and shapes, and had no trip page or recommended actions.
+Verified: `npm run typecheck`, `npm test` (149), `npm run build`, dispatcher browser suite (26 passed; the 3 Forecast failures are already on `dev` since 86e6d57).
+Open: store and driver messages (Notify store, Send an update, voice, calls, what each outlet was told) need a Notification command; they are drawn and disabled.
+
+---
+
 ## 2026-10-03 - feat: the Forecast chart scales to demand, and says how many refrigerated vehicles a day needs
 
 `feat/forecast-dispatcher-scale` · @tharushaudana

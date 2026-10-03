@@ -99,3 +99,15 @@ Runs: `screens/ForecastRuns.tsx` shows the last run (with its model, or "Recent 
 Verify: `npm test` (9 in `dispatcher-forecast.test.ts`), `npx playwright test -c playwright.dispatcher.config.ts forecast.spec.ts` (4: the screen, a brand filter, the fallback notice, no forecast yet), `mvn test -Dtest=IntelligenceDomainTest`, and `IntelligenceIntegrationTest` on PostgreSQL (overview shape and capacity, out of scope, the job runs once a week).
 
 Gaps: the models must be registered and activated on each deployment (`ml:RegisterModel`, `ml:ActivateModel`) before the forecast is the model's; until then it says it is the fallback. Late risk on the plan is still to build.
+
+## Fourth slice: Live as in the Figma frames (2026-10-04)
+
+Figma 189:20983 (needs you), 189:21127 (timeline), 189:21358, 189:21553 and 189:21746 (map with the vehicle panel) and 189:21943 (trip). Frontend only; every read already existed.
+
+- `data/liveDesk.ts`, pure: `runsOf` joins each run sheet to its loading trip (brand, district, trip number, load, release) and its last position; `needCards` (a stop not delivered, a window that will close first, a vehicle gone quiet, an open issue, a proof owed), `filterRuns` (depot and status, with the chip counts; offline now counts, it was always 0), `limits` (trip time since release against R-PLN-09 and R-PLN-10, the fuel quota, the load), `activity` (what the trip recorded, newest first).
+- `screens/Live.tsx` (container): the view toggle in the header, depot and status under it, so the header never wraps. `LiveNeeds.tsx` (cards and the trip board), `LiveMap.tsx` (the map wide, one panel that is the list until a vehicle is chosen), `LivePanel.tsx` (the vehicle), `LiveTimeline.tsx` (rows and the "On the road" cards), `LiveTrip.tsx` (the trip page), `LiveParts.tsx` (the segmented control, chips, bars, buttons).
+- "Book make-up" opens the issue on the Issues screen (`focusIssueId`), where redelivery or a replacement is booked with the existing commands.
+
+Not built, waiting on store and driver messages from the backend: Notify store and its Undo, Send an update, voice notes and calls, and what each outlet was told. They are drawn as designed, disabled, with "not available yet". The glossary words win over the Figma's: "expected" for ETA, "Trip" for route.
+
+Verify: `npm test` (`dispatcher-live-desk.test.ts`, 5), `npx playwright test -c playwright.dispatcher.config.ts live.spec.ts live-map.spec.ts day.spec.ts` (8; `live.spec.ts` runs on the Figma-like afternoon in `mocks.ts` `liveDay()` at 16:12).
