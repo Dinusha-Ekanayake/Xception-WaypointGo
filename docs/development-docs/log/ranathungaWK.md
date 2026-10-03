@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-03 - feat: wire admin frontend and backend with live reference and access APIs
+
+`dev` · @ranathungaWK
+
+Wire admin console screens (Depots, Outlets, Vehicles, Orders, Trips, People, Actions) to live backend endpoints with offline resilient fallbacks, typed identity and reference contracts, and glossary compliant wording.
+Why: provides live management operations and data inspection for the admin workspace across depots, retail outlets, fleet vehicles, and IAM permissions.
+Verified: boundaries test (6/6 passed), typecheck (0 errors), npm test (144/144 passed), and production build with service worker compilation passed.
+Open: nothing.
+
+---
+
 ## 2026-10-02 - fix: simplify admin preview sidebar
 
 `dev` · @ranathungaWK
