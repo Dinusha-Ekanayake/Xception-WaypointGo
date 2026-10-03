@@ -204,6 +204,11 @@ main() {
   for attempt in $(seq 1 30); do
     if curl -fsS --max-time 10 -o /dev/null "https://$site/"; then
       docker image prune -f >/dev/null
+      # Every build adds layers to the BuildKit cache and nothing else removes
+      # them: both environments filled 22 GB in two days. Keep the most recently
+      # used 10 GB, enough for the next build to reuse its dependency layers.
+      docker builder prune -f --max-used-space 10GB >/dev/null \
+        || echo "deploy: could not trim the build cache; check disk space." >&2
       echo "==> $environment live: https://$site ($(git rev-parse --short HEAD))"
       return 0
     fi
