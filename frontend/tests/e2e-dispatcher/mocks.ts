@@ -4,6 +4,7 @@ import type { ReadyTripView } from "../../src/shared/domain/loading.ts";
 import type { OrderStatus, OrderView } from "../../src/shared/domain/ordering.ts";
 import type { IssueHistoryView, IssueView } from "../../src/shared/domain/issues.ts";
 import type { AllocationView, DeferralView, PlacementView, PlanView, TripView } from "../../src/shared/domain/planning.ts";
+import type { ForecastOverviewView, ForecastWeekView } from "../../src/shared/domain/intelligence.ts";
 
 // A small stand-in for Ordering, Planning, Loading and Execution, in the shapes
 // their contracts serve. Like Planning, every edit of a draft replaces it with
@@ -76,6 +77,8 @@ export type Desk = {
   commands: Sent[];
   /** Answer the next command of this kind with this problem instead of applying it. */
   refuse: { kind: string; status: number; code: string; detail: string; rules?: string[] } | null;
+  /** What /api/ml/forecast/overview answers for the depot. */
+  forecast: ForecastOverviewView;
 };
 
 const body = (plan: PlanView) => ({
@@ -88,7 +91,8 @@ const body = (plan: PlanView) => ({
 export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk> {
   const desk: Desk = {
     orders: [order(1, "CONFIRMED"), order(2, "CONFIRMED"), order(3, "CONFIRMED")],
-    draft: null, published: null, sheets: [], dock: [], issues: [], history: {}, deferrals: [], commands: [], refuse: null, ...start,
+    draft: null, published: null, sheets: [], dock: [], issues: [], history: {}, deferrals: [], commands: [], refuse: null,
+    forecast: forecast(), ...start,
   };
   const json = (value: unknown) => ({ status: 200, contentType: "application/json", body: JSON.stringify(value) });
   const problem = (status: number, code: string, detail: string, rules: string[] = []) => ({
@@ -142,6 +146,10 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
       return route.fulfill(json(one[2] ? (desk.history[found.issueId] ?? []) : found));
     }
     if (pathname === "/api/plans/deferrals") return route.fulfill(json(desk.deferrals));
+    if (pathname === "/api/ml/forecast/overview") {
+      const weeks = Number(url.searchParams.get("weeks") ?? "10");
+      return route.fulfill(json({ ...desk.forecast, weeks: desk.forecast.weeks.slice(0, weeks) }));
+    }
     if (pathname === "/api/plans/fuel") {
       return route.fulfill(json({ vehicleId: url.searchParams.get("vehicle"), weekStarting: "2027-03-01", quotaLitres: "200", usedLitres: "150", remainingLitres: "50" }));
     }
@@ -207,4 +215,47 @@ function applyIssue(desk: Desk, command: Sent): Record<string, unknown> {
   const action = command.kind.replace("issue:", "").toLowerCase();
   (desk.history[next.issueId] ??= []).push({ from: before.status, to: next.status, action, reason: String(payload.note ?? payload.reason ?? ""), actorId: SESSION.userId, at: now });
   return { issueId: next.issueId, status: next.status, rowVersion: next.rowVersion };
+}
+
+/**
+ * Ten forecast weeks for the depot: a festival peak in week 2 that fills the
+ * refrigerated fleet, and a short holiday week 3. Capacity is two trucks of
+ * 33.4 m3, one of them a reefer.
+ */
+export function forecast(over: Partial<ForecastOverviewView> = {}): ForecastOverviewView {
+  const weeks: ForecastWeekView[] = Array.from({ length: 10 }, (_, i) => {
+    const start = new Date(Date.UTC(2027, 2, 1 + 7 * i)).toISOString().slice(0, 10);
+    const peak = i === 1;
+    const short = i === 2;
+    const freshTotal = peak ? 520 : short ? 260 : 400;
+    const freshChilled = peak ? 395 : short ? 90 : 130;
+    const days = short ? 3 : 6;
+    return {
+      isoYear: 2027,
+      isoWeek: 9 + i,
+      weekStart: start,
+      operatingDays: days,
+      holidayDays: short ? 3 : 0,
+      paydays: i === 3 ? 1 : 0,
+      festival: peak ? "Poson" : null,
+      generatedDays: 0,
+      brands: [
+        { brandCode: "Fresh", totalM3: String(freshTotal), chilledM3: String(freshChilled) },
+        { brandCode: "Style", totalM3: "80", chilledM3: "0" },
+        { brandCode: "Tech", totalM3: "12", chilledM3: "0" },
+      ],
+      totalM3: String(freshTotal + 92),
+      chilledM3: String(freshChilled),
+      capacity: { vehicles: 2, refrigeratedVehicles: 1, fleetM3: String(2 * 33.4 * 2 * days), refrigeratedM3: String(33.4 * 2 * days) },
+    };
+  });
+  return {
+    depotCode: DEPOT,
+    status: "READY",
+    modelLabel: "datathon-task2a@2026.1",
+    degraded: false,
+    generatedAt: "2027-02-22T04:00:00Z",
+    weeks,
+    ...over,
+  };
 }

@@ -275,6 +275,59 @@ class IntelligenceIntegrationTest {
     assertTrue(rows.get(0).get("degraded").asBoolean());
   }
 
+  @Test
+  void theOverviewGivesTenWeeksWithBrandsCalendarAndFleetCapacity() throws Exception {
+    String label = activate("demand_forecast");
+    STUB.demandLabel.set(label);
+    forecasts.runAt(Instant.now());
+
+    JsonNode o = read(dispatcher, "/api/ml/forecast/overview?depot=" + depot + "&weeks=10", 200);
+
+    assertEquals("READY", o.get("status").asText());
+    assertEquals(label, o.get("modelLabel").asText());
+    assertFalse(o.get("degraded").asBoolean());
+    assertEquals(10, o.get("weeks").size());
+    BigDecimal reeferM3PerDay = BigDecimal.ZERO;
+    BigDecimal fleetM3PerDay = BigDecimal.ZERO;
+    for (var v : reference.vehiclesOfDepot(depot, null)) {
+      fleetM3PerDay = fleetM3PerDay.add(v.volumeCapM3().multiply(BigDecimal.valueOf(2)));
+      if (v.refrigerated()) {
+        reeferM3PerDay = reeferM3PerDay.add(v.volumeCapM3().multiply(BigDecimal.valueOf(2)));
+      }
+    }
+    for (JsonNode w : o.get("weeks")) {
+      assertEquals(reference.brandCodes().size(), w.get("brands").size());
+      assertEquals(10.5 * reference.brandCodes().size(), w.get("totalM3").asDouble(), 1e-9);
+      assertEquals(2.25, w.get("chilledM3").asDouble(), 1e-9, "only Fresh has chilled demand");
+      int days = w.get("operatingDays").asInt();
+      assertTrue(days >= 0 && days <= 7);
+      assertEquals(fleetM3PerDay.multiply(BigDecimal.valueOf(days)).doubleValue(),
+          w.at("/capacity/fleetM3").asDouble(), 1e-6, "A-40: the fleet twice a day on each operating day");
+      assertEquals(reeferM3PerDay.multiply(BigDecimal.valueOf(days)).doubleValue(),
+          w.at("/capacity/refrigeratedM3").asDouble(), 1e-6);
+    }
+  }
+
+  @Test
+  void aDepotOutsideScopeIsRefusedAndRecorded() throws Exception {
+    UUID strangerId = accounts.createAccount("mlx-" + run + "@intelligence.test", "mlx", PASSWORD, "dispatcher");
+    Cookie outsider = session("mlx-" + run);
+    long before = denials(strangerId, "ml:Read");
+
+    read(outsider, "/api/ml/forecast/overview?depot=" + depot, 403);
+
+    assertEquals(before + 1, denials(strangerId, "ml:Read"));
+  }
+
+  @Test
+  void theForecastJobRunsOnceAWeekAndCatchesUpOnAFreshDeployment() {
+    STUB.failing = true;
+    forecasts.runAt(Instant.now());
+
+    assertFalse(forecasts.due(Instant.now()), "a run this week: nothing owed");
+    assertTrue(forecasts.due(Instant.now().plus(java.time.Duration.ofDays(8))), "next week owes a run");
+  }
+
   // ---- the registry ------------------------------------------------------------------------
 
   @Test
