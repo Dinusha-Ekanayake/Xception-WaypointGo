@@ -367,7 +367,7 @@ function driverKind(eventType: string, isNight: boolean): { label: string; color
     case "plan.published":
       return { label: "Run published", color: "#A9A9A9" };
     case "plan.revised":
-      return { label: "Route updated", color: teal };
+      return { label: "Run updated", color: teal };
     case "trip.released":
       return { label: "Vehicle loaded", color: teal };
     default: {

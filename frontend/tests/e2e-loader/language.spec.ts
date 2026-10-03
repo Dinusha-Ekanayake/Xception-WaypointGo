@@ -18,12 +18,13 @@ test("settings switch the loader's language and theme, and both survive a reload
 
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Tonight's departures" })).toBeVisible();
-  await expect(workspace).toHaveAttribute("data-theme", "light");
+  // Dark is the default on a new device.
+  await expect(workspace).toHaveAttribute("data-theme", "dark");
 
   await page.getByRole("button", { name: "Settings", exact: true }).first().click();
   await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
-  await page.getByRole("button", { name: "Dark", exact: true }).click();
-  await expect(workspace).toHaveAttribute("data-theme", "dark");
+  await page.getByRole("button", { name: "Light", exact: true }).click();
+  await expect(workspace).toHaveAttribute("data-theme", "light");
   await page.getByRole("button", { name: "සිංහල" }).click();
   await expect(page.locator("html")).toHaveAttribute("lang", "si");
   await page.getByRole("button", { name: "හරි" }).click();
@@ -31,11 +32,11 @@ test("settings switch the loader's language and theme, and both survive a reload
 
   await page.reload();
   await expect(page.getByRole("heading", { name: "අද රාත්‍රී පිටත්වීම්" })).toBeVisible();
-  await expect(workspace).toHaveAttribute("data-theme", "dark");
-
-  // The moon button in the top bar turns the theme back to light.
-  await page.getByRole("button", { name: "ආලෝක තේමාව භාවිත කරන්න" }).first().click();
   await expect(workspace).toHaveAttribute("data-theme", "light");
+
+  // The moon button in the top bar turns the theme back to dark.
+  await page.getByRole("button", { name: "අඳුරු තේමාව භාවිත කරන්න" }).first().click();
+  await expect(workspace).toHaveAttribute("data-theme", "dark");
 
   await page.getByRole("button", { name: "සැකසුම්" }).first().click();
   await page.getByRole("button", { name: "தமிழ்" }).click();
