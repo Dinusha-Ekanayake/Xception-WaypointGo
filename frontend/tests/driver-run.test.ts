@@ -12,6 +12,8 @@ import {
   operatingDate,
   project,
   summarize,
+  todaysSheet,
+  acknowledged,
   waitMinutes,
   type Stop,
 } from "../src/roles/driver/data/run.ts";
@@ -182,4 +184,23 @@ test("dates and clocks are the depots', whatever the phone's time zone", () => {
   assert.equal(clock("05:20:00"), "05:20");
   assert.equal(clock("2027-02-28T23:50:00Z"), "05:20");
   assert.equal(clock(null), "--:--");
+});
+
+test("a driver assigned several vehicles works from the sheet with a stop still to do", () => {
+  const empty = { vehicleId: "VEH003", serviceDate: DAY, stops: [] };
+  const done = { vehicleId: "VEH006", serviceDate: DAY, stops: [stop("a", 1, { outcome: "DELIVERED" })] };
+  const open = { vehicleId: "VEH037", serviceDate: DAY, stops: [stop("b", 1)] };
+  assert.equal(todaysSheet([empty, done, open])?.vehicleId, "VEH037");
+  assert.equal(todaysSheet([empty, done])?.vehicleId, "VEH006");
+  assert.equal(todaysSheet([empty])?.vehicleId, "VEH003");
+  assert.equal(todaysSheet([]), null);
+});
+
+test("a sent command's answer carries the stop's version on, never backwards", () => {
+  const sheets = [{ vehicleId: "VEH037", serviceDate: DAY, stops: [stop("a", 1), stop("b", 2)] }];
+  const after = acknowledged(sheets, { deliveryId: "a", rowVersion: 2, outcome: "PENDING" });
+  assert.equal(after[0]!.stops[0]!.rowVersion, 2);
+  assert.equal(after[0]!.stops[1]!.rowVersion, 1);
+  const stale = acknowledged(after, { deliveryId: "a", rowVersion: 1, outcome: "PENDING" });
+  assert.equal(stale[0]!.stops[0]!.rowVersion, 2, "an older answer changes nothing");
 });

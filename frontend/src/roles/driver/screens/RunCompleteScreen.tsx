@@ -14,7 +14,10 @@ export type RunCompleteScreenProps = {
   depotName: string;
   stops: Stop[];
   uploadsWaiting: number;
+  /** Writes still on this phone, waiting to be sent; held ones not included. */
   writesWaiting: number;
+  /** Writes the server refused, waiting for the driver under "to review". */
+  writesHeld: number;
   syncedAt: Date | null;
 };
 
@@ -28,6 +31,7 @@ export default function RunCompleteScreen({
   stops,
   uploadsWaiting,
   writesWaiting,
+  writesHeld,
   syncedAt,
 }: RunCompleteScreenProps): React.JSX.Element {
   const rows = summaryRows(stops, uploadsWaiting);
@@ -198,9 +202,11 @@ export default function RunCompleteScreen({
             isNight ? "text-white" : "text-black"
           )}
         >
-          {onPhone > 0
-            ? `${onPhone} ${onPhone === 1 ? "record is" : "records are"} still on this phone and will be sent when the connection is back.`
-            : `Next: return ${vehicleId} to the depot.`}
+          {writesHeld > 0
+            ? `${writesHeld} ${writesHeld === 1 ? "record was" : "records were"} refused by the server and ${writesHeld === 1 ? "waits" : "wait"} for you under "to review".`
+            : onPhone > 0
+              ? `${onPhone} ${onPhone === 1 ? "record is" : "records are"} still on this phone and will be sent when the connection is back.`
+              : `Next: return ${vehicleId} to the depot.`}
         </p>
       </div>
 

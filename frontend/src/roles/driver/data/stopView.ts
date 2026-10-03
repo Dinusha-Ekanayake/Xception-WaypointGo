@@ -66,7 +66,7 @@ export function toRouteStops(
       address: outlet ? `${outlet.districtName} · ${outlet.brandCode}` : "",
       dockTag: outlet ? codeLabel(DOCK_TYPE, outlet.dockType) : "",
       eta: clock(stop.expectedArrival ?? stop.plannedArrival),
-      etaDistanceTime: `Planned ${hhmm(stop.plannedArrival)}`,
+      etaDistanceTime: stop.expectedArrival ? `Planned ${hhmm(stop.plannedArrival)}` : "As planned",
       window: hhmm(stop.windowClose),
       windowStatus: status(serviceDate, stop, now),
       cargoText: units(stop.itemCount),

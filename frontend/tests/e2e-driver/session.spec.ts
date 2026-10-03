@@ -70,3 +70,31 @@ test("a stop replanned while the phone was offline is held for the driver, never
   await page.getByRole("button", { name: "2 to review" }).click();
   await expect(page.getByRole("dialog", { name: "Changes to review" })).toContainText("This stop changed on another device or in the plan");
 });
+
+test("a write the server took, with the signal gone before the phone read it back, still carries its version on", async ({ page, context }) => {
+  const server = await serve(page);
+  await page.goto("/");
+  await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
+  // Start reaches the server, then the signal goes before the run sheet is read again.
+  server.dropReads = true;
+  await page.getByRole("button", { name: "Start trip" }).click();
+  await expect.poll(() => server.commands.map((c) => c.kind)).toEqual(["delivery:Start"]);
+  await server.goOffline(context);
+  await page.getByRole("button", { name: "I've arrived" }).click();
+  await openForm(page);
+  await page.getByLabel("I can't capture a signature or a photo").check();
+  await page.getByLabel("Why not?").fill("Receiver refused to sign");
+  await page.getByRole("button", { name: "Confirm" }).click();
+  await expect(page.getByRole("dialog", { name: "Delivery confirmed" })).toContainText("Saved on this phone");
+
+  server.dropReads = false;
+  await server.goOnline(context);
+  await expect.poll(() => server.commands.length).toBe(4);
+  expect(server.commands.map((c) => [c.kind, c.expectedVersion])).toEqual([
+    ["delivery:Start", 1],
+    ["delivery:RecordArrival", 2],
+    ["delivery:Record", 3],
+    ["delivery:CaptureProof", 4],
+  ]);
+  await expect(page.getByRole("button", { name: /to review/ })).toHaveCount(0);
+});

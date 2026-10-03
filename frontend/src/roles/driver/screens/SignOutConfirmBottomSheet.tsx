@@ -158,7 +158,7 @@ export default function SignOutConfirmBottomSheet({
             {waiting > 0
               ? `${waiting} ${waiting === 1 ? "record is" : "records are"} still only on this phone. ${
                   online
-                    ? `Wait for ${waiting === 1 ? "it" : "them"} to be sent before you sign out.`
+                    ? `Wait for ${waiting === 1 ? "it" : "them"} to be sent, or review anything the server refused, before you sign out.`
                     : `Reconnect so ${waiting === 1 ? "it" : "they"} can be sent before you sign out.`
                 }`
               : "You'll need your email and password to sign in again. Your work is saved and sent."}

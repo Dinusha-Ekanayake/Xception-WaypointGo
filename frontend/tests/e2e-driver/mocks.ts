@@ -61,6 +61,8 @@ export type Server = {
   expired: boolean;
   /** Refuse the next command of this kind with a rule violation. */
   refuse: string | null;
+  /** Reading the run sheet fails, as when the signal drops right after a command. */
+  dropReads: boolean;
   /** Refuse every proof file, as the server does for one that is not an image. */
   refuseUploads: boolean;
   /** The driver's inbox, newest first. */
@@ -88,6 +90,7 @@ export async function serve(page: Page, stops: RunSheetStopView[] = [stop(1, "OU
     expired: false,
     refuse: null,
     refuseUploads: false,
+    dropReads: false,
     notifications: [],
     pins: {},
     goOffline: async (context) => {
@@ -125,6 +128,7 @@ export async function serve(page: Page, stops: RunSheetStopView[] = [stop(1, "OU
     if (pathname === "/api/session") return route.fulfill(json(SESSION));
     if (pathname === "/api/execution/vehicles") return route.fulfill(json(["VEH043"]));
     if (pathname === "/api/execution/run-sheets") {
+      if (server.dropReads) return route.abort("internetdisconnected");
       return route.fulfill(json(server.stops.length ? [{ vehicleId: "VEH043", serviceDate: today(), stops: server.stops }] : []));
     }
     if (pathname === "/api/reference/vehicles/VEH043") {
@@ -168,7 +172,9 @@ export async function serve(page: Page, stops: RunSheetStopView[] = [stop(1, "OU
         return route.fulfill(problem(409, "VERSION_CONFLICT", `delivery is at version ${target.rowVersion}, not ${command.expectedVersion}`));
       }
       const rowVersion = apply(command);
-      return route.fulfill(json({ commandId: command.commandId, kind: command.kind, replayed: false, result: { rowVersion } }));
+      // As ExecutionMessages.result: the stop's new version, so the phone carries it on.
+      const result = target ? { deliveryId: target.deliveryId, rowVersion, outcome: target.outcome, timingUncertain: false } : { rowVersion };
+      return route.fulfill(json({ commandId: command.commandId, kind: command.kind, replayed: false, result }));
     }
     if (pathname === "/api/sync" && method === "POST") {
       const batch = request.postDataJSON() as { operations: Array<{ sequence: number; command: SentCommand }> };

@@ -56,6 +56,8 @@ test("a stop is drawn from the run sheet: number, outlet, units, window and acce
   assert.equal(a.windowStatus, "On time");
   assert.doesNotMatch(a.instructions, /rear_dock/, "a code from the data is never shown raw");
   assert.equal(b.eta, "05:45", "the expected arrival in depot time, moved by the delay");
+  assert.equal(b.etaDistanceTime, "Planned 05:20");
+  assert.equal(a.etaDistanceTime, "As planned", "no delay seen yet");
   assert.match(b.instructions, /^Mall dock/);
   assert.equal(a.deliveredItems[0]!.category, "Inferred product", "a product is never shown as a real SKU");
 });

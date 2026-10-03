@@ -217,7 +217,8 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
                 depotName={depot}
                 stops={stops}
                 uploadsWaiting={run.uploadsWaiting.length}
-                writesWaiting={d.sync.pending}
+                writesWaiting={d.sync.pending - d.sync.held.length}
+                writesHeld={d.sync.held.length}
                 syncedAt={run.syncedAt}
               />
             )}
