@@ -11,9 +11,10 @@ import { initials } from "./ui.tsx";
 // are waiting.
 //
 // Phone: the brand or back, then theme and settings; under it, when a loader is
-// working, their name with the lock, and Switch user. Tablet: one row.
-// Figma's name pill also has a notifications bell; loader notifications are not
-// built (Notification, #14), so it is left out rather than shown doing nothing.
+// working, their name with the bell and the lock, and Switch user. Tablet: one
+// row, the bell between the name and the actions. The bell carries a red dot
+// while anything is unread (issue #118). "Synced 02:23" is a button: it sends
+// what waits and reads the board again.
 
 const round = "flex size-12 shrink-0 items-center justify-center rounded-full bg-go-card text-go-ink shadow-go-float";
 
@@ -30,6 +31,10 @@ export default function TopBar({
   onLock,
   onSwitch,
   onSettings,
+  unread,
+  onNotifications,
+  onSync,
+  syncing,
 }: {
   /** The loader working on the device, or null while nobody is. */
   displayName: string | null;
@@ -45,6 +50,11 @@ export default function TopBar({
   onLock?: () => void;
   onSwitch?: () => void;
   onSettings: () => void;
+  /** Unread notifications; null while unknown. */
+  unread: number | null;
+  onNotifications?: () => void;
+  onSync: () => void;
+  syncing: boolean;
 }): React.JSX.Element {
   const tr = useT();
   const { theme, setTheme } = useTheme();
@@ -65,12 +75,34 @@ export default function TopBar({
     </button>
   );
   const brand = <span className="w-[68px] shrink-0 text-[40px] leading-none font-extrabold text-go-ink">GO</span>;
+  const label = syncing && online ? tr("Syncing…") : sync;
   const status = (
     <span role="status" className={cx("truncate", online ? "text-go-ink/85" : "font-medium text-go-warning-text")}>
       {!online && <span aria-hidden className="mr-1.5 inline-block size-2 rounded-full bg-go-warning" />}
-      {sync}
+      {label}
     </span>
   );
+  // Tapping the time syncs now (issue #118). Offline it still checks what waits.
+  const syncButton = (className: string) => (
+    <button
+      type="button"
+      onClick={onSync}
+      disabled={syncing}
+      aria-label={`${label}. ${tr("Sync now")}`}
+      className={cx("text-left disabled:cursor-wait", className)}
+    >
+      {status}
+    </button>
+  );
+  const hasUnread = (unread ?? 0) > 0;
+  const bellLabel = hasUnread ? tr("Notifications, {n} unread", { n: unread ?? 0 }) : tr("Notifications");
+  const bell = (className: string) =>
+    onNotifications && (
+      <button type="button" onClick={onNotifications} aria-label={bellLabel} className={cx("relative flex shrink-0 items-center justify-center text-go-ink", className)}>
+        <Icon name="bell" />
+        {hasUnread && <span aria-hidden className="absolute top-1.5 right-1.5 size-2.5 rounded-full border-2 border-go-card bg-[#ea2525]" />}
+      </button>
+    );
   const sampleBadge = sample && (
     <span className="shrink-0 rounded-full bg-go-warning-tint px-3 py-1.5 text-xs font-medium text-go-warning-text">{tr("Sample data")}</span>
   );
@@ -108,11 +140,11 @@ export default function TopBar({
         <div className="flex w-full items-center gap-2">
           {back ?? brand}
           {back ? (
-            <span className="min-w-0 flex-1 truncate text-[13px]">{status}</span>
+            <span className="min-w-0 flex-1 truncate text-[13px]">{syncButton("min-h-12 max-w-full")}</span>
           ) : (
             <div className="flex min-w-0 flex-1 flex-col">
               <span className="text-[18px] font-semibold text-go-ink">{tr("Loader")}</span>
-              <span className="text-[13px]">{status}</span>
+              <span className="text-[13px]">{syncButton("min-h-6")}</span>
             </div>
           )}
           {sampleBadge}
@@ -122,6 +154,7 @@ export default function TopBar({
           <div className="flex w-full items-center justify-between gap-2">
             <span className="flex h-12 min-w-0 items-center gap-1 rounded-full border border-go-muted pr-1 pl-5 text-[15px] text-go-muted">
               <span className="truncate">{displayName}</span>
+              {bell("size-10")}
               {lock}
             </span>
             <div className="flex items-center gap-2">
@@ -139,7 +172,7 @@ export default function TopBar({
           <span className="text-[18px] font-semibold text-go-ink">{title ?? tr("Waypoint · Loader")}</span>
           <span className="text-[14px] text-go-ink/85">{subtitle ?? tr("Depot {depot}", { depot })}</span>
         </div>
-        <span className="flex min-h-12 shrink-0 items-center gap-2 rounded-full bg-go-card pr-3.5 pl-3 text-[14px] shadow-go-float">{status}</span>
+        {syncButton("flex min-h-12 shrink-0 items-center gap-2 rounded-full bg-go-card pr-3.5 pl-3 text-[14px] shadow-go-float")}
         <span className="flex-1" />
         {sampleBadge}
         {displayName && (
@@ -151,6 +184,7 @@ export default function TopBar({
             {lock}
           </span>
         )}
+        {displayName && bell("size-12 rounded-full bg-go-card shadow-go-float")}
         {shell?.sync}
         {swap}
         {actions}
