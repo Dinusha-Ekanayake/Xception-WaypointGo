@@ -330,13 +330,14 @@ class PlanningSchemaIntegrationTest {
 
   @Test
   void aDispatcherCannotWriteAPlanForAnotherDepot() {
+    LocalDate date = freshDate();
     assertThrows(
         RuntimeException.class,
         () ->
             database.asModule(
                 ModuleRole.PLANNING,
                 elsewhere.userId(),
-                () -> plans.insertRun(run(UUID.randomUUID(), freshDate(), 1, Optional.empty()),UUID.randomUUID(), Instant.now())));
+                () -> plans.insertRun(run(UUID.randomUUID(), date, 1, Optional.empty()),UUID.randomUUID(), Instant.now())));
   }
 
   // ---- reads ---------------------------------------------------------------------
