@@ -18,7 +18,7 @@ jobs:
     name: Deploy to VPS
     needs: checks
     if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 30
     # One deploy at a time, and never cancel one halfway through a migration.
     concurrency:

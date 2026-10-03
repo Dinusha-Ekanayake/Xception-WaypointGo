@@ -13,7 +13,7 @@ permissions:
 jobs:
   mcp:
     name: Read-only MCP checks
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 10
     defaults:
       run:
@@ -32,7 +32,7 @@ jobs:
 
   ml-server:
     name: Model service tests
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 20
     defaults:
       run:
@@ -58,7 +58,7 @@ jobs:
   # others do not name, so a new test always runs somewhere.
   backend:
     name: Backend tests (${{ matrix.shard.name }})
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -121,14 +121,14 @@ jobs:
     name: Backend tests
     needs: backend
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 2
     steps:
       - run: test "${{ needs.backend.result }}" = success
 
   frontend:
     name: Frontend checks
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 15
     defaults:
       run:
@@ -147,7 +147,7 @@ jobs:
 
   compose:
     name: Compose files parse
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v5
