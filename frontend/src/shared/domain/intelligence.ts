@@ -131,4 +131,6 @@ export type ForecastOverviewView = {
   degraded: boolean;
   generatedAt: IsoInstant | null;
   weeks: ForecastWeekView[];
+  /** When the forecast job next runs, as things stand (P-29): hourly in depot time, only when a run is owed. */
+  nextRunAt: IsoInstant;
 };

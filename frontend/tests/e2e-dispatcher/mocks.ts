@@ -255,6 +255,8 @@ export function forecast(over: Partial<ForecastOverviewView> = {}): ForecastOver
     modelLabel: "datathon-task2a@2026.1",
     degraded: false,
     generatedAt: "2027-02-22T04:00:00Z",
+    // Monday 1 March, 00:00 in Colombo.
+    nextRunAt: "2027-02-28T18:30:00Z",
     weeks,
     ...over,
   };
