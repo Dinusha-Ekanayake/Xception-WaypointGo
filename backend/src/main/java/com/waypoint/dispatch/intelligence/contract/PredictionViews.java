@@ -104,4 +104,69 @@ public final class PredictionViews {
       Optional<Integer> lateMinutes,
       String outcome,
       boolean timingUncertain) {}
+
+  public enum OverviewStatus {
+    /** A forecast run covers these weeks. */
+    READY,
+    /** No run yet: the forecast job catches up within the hour (P-29). */
+    NONE
+  }
+
+  /** One brand's demand in a week; chilled is zero for Style and Tech. */
+  public record BrandVolumeView(String brandCode, BigDecimal totalM3, BigDecimal chilledM3) {}
+
+  /**
+   * What the depot's reference fleet can carry in the week: every vehicle, two
+   * trips a day, each operating day (A-40). An upper bound, not availability.
+   */
+  public record WeekCapacityView(
+      int vehicles, int refrigeratedVehicles, BigDecimal fleetM3, BigDecimal refrigeratedM3) {}
+
+  /**
+   * One ISO week of the forecast with the calendar around it.
+   *
+   * @param festival the festival the week ramps towards, if any
+   * @param generatedDays days past the supplied calendar, from the extension policy (R-CAL-03)
+   */
+  public record ForecastWeekView(
+      int isoYear,
+      int isoWeek,
+      LocalDate weekStart,
+      int operatingDays,
+      int holidayDays,
+      int paydays,
+      Optional<String> festival,
+      int generatedDays,
+      List<BrandVolumeView> brands,
+      BigDecimal totalM3,
+      BigDecimal chilledM3,
+      WeekCapacityView capacity) {
+
+    public ForecastWeekView {
+      brands = List.copyOf(brands);
+    }
+  }
+
+  /**
+   * The Forecast screen's read for one depot: the newest run, week by week,
+   * with calendar and fleet capacity alongside.
+   *
+   * @param modelLabel {@code name@version}, {@code deterministic}, or empty with no run
+   * @param degraded the deterministic forecast answered because no model could be used
+   * @param generatedAt when the newest run was generated, empty with no run
+   * @param nextRunAt when the forecast job will next run, as things stand (P-29)
+   */
+  public record ForecastOverviewView(
+      String depotCode,
+      OverviewStatus status,
+      Optional<String> modelLabel,
+      boolean degraded,
+      Optional<Instant> generatedAt,
+      List<ForecastWeekView> weeks,
+      Instant nextRunAt) {
+
+    public ForecastOverviewView {
+      weeks = List.copyOf(weeks);
+    }
+  }
 }

@@ -5,6 +5,7 @@ import com.waypoint.dispatch.intelligence.contract.PredictionViews;
 import com.waypoint.dispatch.intelligence.domain.DeterministicEstimator;
 import com.waypoint.dispatch.intelligence.domain.DeterministicEstimator.DailyVolume;
 import com.waypoint.dispatch.intelligence.domain.DeterministicEstimator.WeekVolume;
+import com.waypoint.dispatch.intelligence.domain.ForecastSchedule;
 import com.waypoint.dispatch.intelligence.domain.ModelGate;
 import com.waypoint.dispatch.intelligence.domain.ModelGate.Decision;
 import com.waypoint.dispatch.intelligence.domain.ModelGate.Served;
@@ -83,9 +84,10 @@ public class ForecastJob implements ScheduledJob {
     return "ml.demand-forecast";
   }
 
+  /** Hourly, but it runs only when {@link #due} says so: in practice once a week, Monday's first hour. */
   @Override
   public String cron() {
-    return "0 0 4 * * MON";
+    return "0 0 * * * *";
   }
 
   @Override
@@ -95,7 +97,24 @@ public class ForecastJob implements ScheduledJob {
 
   @Override
   public void run(Instant now) {
-    runAt(now);
+    if (due(now)) {
+      runAt(now);
+    }
+  }
+
+  /**
+   * Whether a run is owed ({@link ForecastSchedule#due}, P-29): none yet this
+   * week, so a fresh deployment has a forecast within the hour rather than on the
+   * next Monday; or the newest run is the fallback while a demand model is now
+   * active, retried at most every six hours so a model service that stays down
+   * does not write a run every hour.
+   */
+  boolean due(Instant now) {
+    return database.asSystem(ModuleRole.ML, () -> ForecastSchedule.due(
+        now,
+        repository.latestForecastRun().map(r -> new ForecastSchedule.LastRun(r.at(), r.degraded())),
+        repository.activeModel(ModelViews.DEMAND_FORECAST).isPresent(),
+        Clock.OPERATING_ZONE));
   }
 
   record Key(String depot, String brand, int isoYear, int isoWeek) {}

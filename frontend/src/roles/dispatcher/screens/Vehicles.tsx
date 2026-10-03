@@ -5,6 +5,7 @@ import type { Resource } from "@shared/api/useResource";
 import type { VehicleView } from "@shared/domain/types";
 import { Card, CardHead, KpiCard, Notice, Pending } from "@shared/ui";
 import PageHeader from "../PageHeader.tsx";
+import ReeferNeed from "./ReeferNeed.tsx";
 import FleetError from "./FleetError.tsx";
 import FleetTable from "./FleetTable.tsx";
 import VehicleDrawer from "./VehicleDrawer.tsx";
@@ -16,12 +17,14 @@ import { useSetDayStatus } from "../data/useSetDayStatus.ts";
 // workshop. Container only; the table and the drawer are views.
 
 export default function Vehicles({
+  depots,
   scopeLabel,
   date,
   onDate,
   fleet,
   online,
 }: {
+  depots: string[];
   scopeLabel: string;
   date: string;
   onDate: (date: string) => void;
@@ -118,8 +121,8 @@ export default function Vehicles({
             <Pending what="The workshop list" waitingOn="a fleet status read in reference data" />
           </Card>
           <Card label="Refrigerated vehicles">
-            <CardHead title="Refrigerated vehicles" meta="Available against needed, next 6 days" />
-            <Pending what="Refrigerated demand" waitingOn="the forecast (#16)" />
+            <CardHead title="Refrigerated vehicles" meta="Available today against an average day next week" />
+            <ReeferNeed depots={depots} available={fleet.data ? summary.refrigerated : null} />
           </Card>
         </div>
       </div>

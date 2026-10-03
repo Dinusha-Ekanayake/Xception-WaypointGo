@@ -7,7 +7,16 @@ import com.waypoint.dispatch.intelligence.contract.ModelViews.ModelQuery;
 import com.waypoint.dispatch.intelligence.contract.ModelViews.ModelVersionView;
 import com.waypoint.dispatch.intelligence.contract.PredictionQuery;
 import com.waypoint.dispatch.intelligence.contract.PredictionViews;
+import com.waypoint.dispatch.intelligence.contract.PredictionViews.BrandVolumeView;
+import com.waypoint.dispatch.intelligence.contract.PredictionViews.ForecastOverviewView;
+import com.waypoint.dispatch.intelligence.contract.PredictionViews.ForecastWeekView;
+import com.waypoint.dispatch.intelligence.contract.PredictionViews.OverviewStatus;
 import com.waypoint.dispatch.intelligence.contract.PredictionViews.PlanPredictionsView;
+import com.waypoint.dispatch.intelligence.contract.PredictionViews.WeekCapacityView;
+import com.waypoint.dispatch.intelligence.domain.FleetCapacity;
+import com.waypoint.dispatch.intelligence.domain.ForecastSchedule;
+import com.waypoint.dispatch.intelligence.contract.ModelViews;
+import com.waypoint.dispatch.referencedata.contract.ReferenceViews.CalendarDayView;
 import com.waypoint.dispatch.intelligence.contract.PredictionViews.PlanScoringView;
 import com.waypoint.dispatch.intelligence.contract.PredictionViews.ScoringStatus;
 import com.waypoint.dispatch.intelligence.contract.PredictionViews.StopPredictionView;
@@ -34,6 +43,7 @@ import com.waypoint.dispatch.shared.error.ErrorCode;
 import com.waypoint.dispatch.shared.util.Clock;
 import java.math.BigDecimal;
 import java.sql.Date;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
@@ -71,6 +81,7 @@ public class IntelligenceDataQuery implements PredictionQuery, ModelQuery, Trave
   private final ReferenceQuery reference;
   private final Metrics metrics;
   private final Clock clock;
+  private final com.waypoint.dispatch.platform.audit.AuditLog audit;
 
   public IntelligenceDataQuery(
       Database database,
@@ -80,7 +91,8 @@ public class IntelligenceDataQuery implements PredictionQuery, ModelQuery, Trave
       ExecutionQuery execution,
       ReferenceQuery reference,
       Metrics metrics,
-      Clock clock) {
+      Clock clock,
+      com.waypoint.dispatch.platform.audit.AuditLog audit) {
     this.database = database;
     this.repository = repository;
     this.plans = plans;
@@ -89,6 +101,7 @@ public class IntelligenceDataQuery implements PredictionQuery, ModelQuery, Trave
     this.reference = reference;
     this.metrics = metrics;
     this.clock = clock;
+    this.audit = audit;
   }
 
   // ---- PredictionQuery: as the ambient actor -----------------------------------
@@ -199,6 +212,98 @@ public class IntelligenceDataQuery implements PredictionQuery, ModelQuery, Trave
     Page<StopActualView> page =
         read(actor.userId(), () -> execution.actuals(depot, from, to, cursor, Page.limit(limit)));
     return new Page<>(page.items().stream().map(IntelligenceDataQuery::training).toList(), page.nextCursor());
+  }
+
+  /**
+   * The Forecast screen's read for one depot: the next {@code weeks} ISO weeks
+   * from next Monday, each with the newest forecast per brand, the calendar
+   * around it and what the depot's fleet can carry (A-40). One call per depot
+   * instead of one per brand, day and vehicle list.
+   */
+  public ForecastOverviewView forecastOverview(Actor actor, String depot, int weeks) {
+    if (weeks < 1 || weeks > 12) {
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, "weeks must be from 1 to 12");
+    }
+    requireDepot(actor, depot);
+    LocalDate origin = clock.now().atZone(Clock.OPERATING_ZONE).toLocalDate()
+        .with(java.time.temporal.TemporalAdjusters.next(java.time.DayOfWeek.MONDAY));
+    LocalDate end = origin.plusWeeks(weeks).minusDays(1);
+    int fromKey = weekKey(origin);
+    int toKey = weekKey(end);
+    List<Map<String, Object>> rows =
+        read(actor.userId(), () -> repository.latestDepotForecasts(depot, fromKey, toKey));
+    List<CalendarDayView> days = reference.calendarDays(origin, end);
+    List<FleetCapacity.Vehicle> fleet = reference.vehiclesOfDepot(depot, null).stream()
+        .map(v -> new FleetCapacity.Vehicle(v.volumeCapM3(), v.refrigerated()))
+        .toList();
+
+    Optional<Instant> generatedAt = rows.stream()
+        .map(r -> JdbcIntelligenceRepository.instant(r.get("generated_at")))
+        .max(java.util.Comparator.naturalOrder());
+    Optional<String> label = rows.stream().map(r -> (String) r.get("model_label")).distinct()
+        .reduce((a, b) -> "mixed");
+    boolean degraded = rows.stream().anyMatch(r -> (Boolean) r.get("degraded"));
+
+    List<ForecastWeekView> out = new ArrayList<>();
+    for (LocalDate monday = origin; !monday.isAfter(end); monday = monday.plusWeeks(1)) {
+      LocalDate weekStart = monday;
+      List<CalendarDayView> week = days.stream()
+          .filter(d -> !d.date().isBefore(weekStart) && d.date().isBefore(weekStart.plusDays(7)))
+          .toList();
+      int year = monday.get(java.time.temporal.IsoFields.WEEK_BASED_YEAR);
+      int isoWeek = monday.get(java.time.temporal.IsoFields.WEEK_OF_WEEK_BASED_YEAR);
+      List<BrandVolumeView> brands = rows.stream()
+          .filter(r -> ((Number) r.get("iso_year")).intValue() == year
+              && ((Number) r.get("iso_week")).intValue() == isoWeek)
+          .map(r -> new BrandVolumeView(
+              (String) r.get("brand_code"), (BigDecimal) r.get("total_m3"), (BigDecimal) r.get("chilled_m3")))
+          .sorted(java.util.Comparator.comparing(BrandVolumeView::brandCode))
+          .toList();
+      int operating = (int) week.stream().filter(CalendarDayView::operating).count();
+      FleetCapacity.Week capacity = FleetCapacity.weekly(fleet, operating);
+      out.add(new ForecastWeekView(
+          year, isoWeek, weekStart, operating,
+          (int) week.stream().filter(CalendarDayView::holiday).count(),
+          (int) week.stream().filter(CalendarDayView::payday).count(),
+          week.stream().map(CalendarDayView::festival).filter(f -> f != null && !f.isBlank()).findFirst(),
+          (int) week.stream().filter(CalendarDayView::generated).count(),
+          brands,
+          brands.stream().map(BrandVolumeView::totalM3).reduce(BigDecimal.ZERO, BigDecimal::add),
+          brands.stream().map(BrandVolumeView::chilledM3).reduce(BigDecimal.ZERO, BigDecimal::add),
+          new WeekCapacityView(capacity.vehicles(), capacity.refrigeratedVehicles(), capacity.fleetM3(),
+              capacity.refrigeratedM3())));
+    }
+    Instant now = clock.now();
+    Instant nextRunAt = read(actor.userId(), () -> ForecastSchedule.nextRun(
+        now,
+        repository.latestForecastRun().map(r -> new ForecastSchedule.LastRun(r.at(), r.degraded())),
+        repository.activeModel(ModelViews.DEMAND_FORECAST).isPresent(),
+        Clock.OPERATING_ZONE));
+    return new ForecastOverviewView(
+        depot, rows.isEmpty() ? OverviewStatus.NONE : OverviewStatus.READY, label, degraded, generatedAt, out,
+        nextRunAt);
+  }
+
+  /**
+   * A depot outside the actor's scope is {@code 403} plus an audit row, never an
+   * empty forecast: rows would be hidden by row-level security, but the calendar
+   * and fleet beside them are not, and "no forecast" would be a false answer.
+   */
+  private void requireDepot(Actor actor, String depot) {
+    boolean inScope = read(actor.userId(), () -> Boolean.TRUE.equals(
+        database.queryOne("SELECT app.actor_has_depot(?) AS ok", depot).get("ok")));
+    if (!inScope) {
+      String resource = "wpt:ml:forecast:" + depot;
+      String reason = "outside the actor's scope";
+      audit.recordStandalone(com.waypoint.dispatch.platform.audit.AuditEntry.denied(
+          actor.userId(), actor.deviceId(), READ, resource, reason));
+      throw new DomainException(ErrorCode.FORBIDDEN, resource + " is " + reason);
+    }
+  }
+
+  private static int weekKey(LocalDate day) {
+    return day.get(java.time.temporal.IsoFields.WEEK_BASED_YEAR) * 100
+        + day.get(java.time.temporal.IsoFields.WEEK_OF_WEEK_BASED_YEAR);
   }
 
   // ---- internals --------------------------------------------------------------------------
