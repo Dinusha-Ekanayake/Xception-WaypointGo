@@ -26,11 +26,24 @@ public interface IdentityQuery {
   Optional<String> driverVehicleOn(UUID userId, LocalDate date);
 
   /**
+   * The inverse: who drives a vehicle on a date, so a store manager can be told the driver's name
+   * (decision 2026-10-02, Figma "05 Delivery tracking"). Empty when nobody is assigned.
+   */
+  Optional<UUID> driverOn(String vehicleId, LocalDate date);
+
+  /**
    * Active accounts with a role and a scope, for Notification to route to.
    *
    * @param scopeType {@code depot}, {@code outlet} or {@code vehicle}
    */
   List<UUID> recipientsFor(String roleCode, String scopeType, String scopeId);
+
+  /**
+   * As {@link #recipientsFor(String, String, String)}, with a vehicle's driver
+   * taken on {@code on} rather than today: a plan published today for tomorrow
+   * belongs to tomorrow's driver. Depot and outlet scope are not dated.
+   */
+  List<UUID> recipientsFor(String roleCode, String scopeType, String scopeId, LocalDate on);
 
   record ScopeView(
       UUID userId, List<String> roles, List<String> depotCodes, List<String> outletIds) {

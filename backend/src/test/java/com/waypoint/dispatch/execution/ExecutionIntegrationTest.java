@@ -132,13 +132,17 @@ class ExecutionIntegrationTest {
                 + " WHERE status IN ('pending','failed','processing')"));
 
     depot = reference.outlet(OUTLET, null).orElseThrow().depotCode();
-    day = reference.nextOperatingDay(
-        LocalDate.of(2040, 1, 1).plusDays(ThreadLocalRandom.current().nextInt(0, 15_000)));
+    // Every test assigns the same two vehicles around its own day, and the
+    // assignments stay in the database. A random day that lands beside an
+    // earlier test's would break the no-overlap constraint, so pick again.
+    do {
+      day = reference.nextOperatingDay(
+          LocalDate.of(2040, 1, 1).plusDays(ThreadLocalRandom.current().nextInt(0, 15_000)));
+      var vehicles = reference.availableVehicles(depot, day, null);
+      vehicleId = vehicles.get(0).vehicleId();
+      otherVehicleId = vehicles.get(1).vehicleId();
+    } while (alreadyAssigned(vehicleId, otherVehicleId, day.minusDays(1), day.plusDays(1)));
     clock.set(day.minusDays(1).atTime(LocalTime.of(10, 0)).atZone(Clock.OPERATING_ZONE).toInstant());
-
-    var vehicles = reference.availableVehicles(depot, day, null);
-    vehicleId = vehicles.get(0).vehicleId();
-    otherVehicleId = vehicles.get(1).vehicleId();
 
     String run = UUID.randomUUID().toString().substring(0, 8);
     manager = "xm-" + run + "@execution.test";
@@ -267,6 +271,46 @@ class ExecutionIntegrationTest {
     assertEquals(
         stopA.toString(),
         json(read(manager, "/api/execution/deliveries?order=" + orderA, 200)).get(0).get("deliveryId").asText());
+  }
+
+  @Test
+  void aStoreManagerSeesWhereTheStopIsOnTheTripAndWhoDrives() throws Exception {
+    JsonNode coming = json(read(manager, "/api/execution/deliveries?outlet=" + OUTLET + "&date=" + day, 200));
+    JsonNode first = coming.get(0);
+    assertEquals(stopA.toString(), first.get("deliveryId").asText());
+    assertEquals(1, first.get("stopSequence").asInt());
+    assertEquals(
+        3, first.get("tripStopCount").asInt(), "the trip's size is kept at release: the store sees only its own stops");
+    assertEquals("05:20:00", first.get("plannedArrival").asText());
+    assertTrue(first.get("expectedArrival") == null || first.get("expectedArrival").isNull(), "no delay observed yet");
+    assertTrue(first.has("releasedAt"));
+    // Name and badge only: never an email or a phone number.
+    JsonNode who = first.get("driver");
+    assertEquals("Driver", who.get("displayName").asText());
+    assertFalse(who.toString().contains("@"));
+    assertFalse(first.toString().contains(driver), "the driver's email is not part of the store's view");
+
+    // The same on a single delivery, and the other driver's stop names that driver.
+    assertEquals("Driver", json(read(manager, "/api/execution/deliveries/" + stopA, 200)).get("driver").get("displayName").asText());
+  }
+
+  @Test
+  void aVehicleWithNoDriverForTheDayStillShowsItsDeliveryWithoutAName() throws Exception {
+    // The assignment moves off the day: the stop is real, the driver is not known.
+    database.asModule(
+        ModuleRole.IAM,
+        null,
+        () ->
+            database.update(
+                "UPDATE iam.vehicle_driver_assignments SET validity = daterange(?, ?) WHERE driver_user_id = ?",
+                java.sql.Date.valueOf(day.plusDays(10)),
+                java.sql.Date.valueOf(day.plusDays(11)),
+                driverId));
+
+    JsonNode coming = json(read(manager, "/api/execution/deliveries?outlet=" + OUTLET + "&date=" + day, 200));
+    assertEquals(2, coming.size(), "a missing name never takes the delivery away from the store");
+    assertTrue(coming.get(0).get("driver") == null || coming.get(0).get("driver").isNull());
+    assertEquals(vehicleId, coming.get(0).get("vehicleId").asText());
   }
 
   @Test
@@ -774,6 +818,16 @@ class ExecutionIntegrationTest {
   }
 
   // ---- helpers ----
+
+  /** Whether either vehicle already has a driver somewhere in {@code [from, until)}. */
+  private boolean alreadyAssigned(String vehicle, String otherVehicle, LocalDate from, LocalDate until) {
+    return database.asSystemSeparately(
+        ModuleRole.IAM,
+        () -> database.queryOne(
+            "SELECT 1 FROM iam.vehicle_driver_assignments WHERE vehicle_id IN (?, ?)"
+                + " AND validity && daterange(?::date, ?::date) LIMIT 1",
+            vehicle, otherVehicle, Date.valueOf(from), Date.valueOf(until)) != null);
+  }
 
   private void assign(UUID driverUserId, String vehicle, LocalDate from, LocalDate until) {
     database.update(

@@ -47,4 +47,20 @@ class OperationOutcomeTest {
       }
     }
   }
+
+  @Test
+  void onlyAWriteTheServerHeldCanBeDiscarded() {
+    for (OperationStatus status : OperationStatus.values()) {
+      boolean held = status == OperationStatus.CONFLICT || status == OperationStatus.REJECTED;
+      assertEquals(held, OperationOutcome.canDiscard(status), status.name());
+    }
+  }
+
+  @Test
+  void onlyAConflictCanBeRedoneBecauseARefusalWouldBeRefusedAgain() {
+    for (OperationStatus status : OperationStatus.values()) {
+      assertEquals(
+          status == OperationStatus.CONFLICT, OperationOutcome.canResolve(status), status.name());
+    }
+  }
 }

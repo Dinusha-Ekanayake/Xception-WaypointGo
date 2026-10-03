@@ -2,9 +2,12 @@
 
 import { useEffect, useState } from "react";
 import type { ApiError } from "@shared/api/problem";
-import type { OrderStatus, OrderView, OutletView, PendingReceiptView } from "@shared/domain/types";
+import type { DeliveryRecordView, IssueView, OrderStatus, OrderView, OutletView, PendingReceiptView } from "@shared/domain/types";
 import { Icon, Notice, Pending, cx } from "@shared/ui";
-import { cases, addDays, cutoffLabel, dayLabel, depotToday, editable, greeting, hhmm, onTheWay, temperatureLabel, untilCutoff } from "../data/format.ts";
+import { cases, addDays, clock, cutoffLabel, dayLabel, depotToday, editable, greeting, hhmm, onTheWay, temperatureLabel, untilCutoff } from "../data/format.ts";
+import { deferralRead } from "../data/deferral.ts";
+import { isOpenIssue, issueCard } from "../data/issues.ts";
+import NextStop from "./NextStop.tsx";
 import { Button, Card, Chip, Muted } from "../ui.tsx";
 
 // Figma "02 Home": the next delivery, what needs attention, and tomorrow's order
@@ -43,7 +46,10 @@ export default function Home({
   displayName,
   outlet,
   toReceive,
+  deliveries,
+  issues,
   onOpen,
+  onDeferred,
   onPlace,
   onReceive,
   onTrack,
@@ -54,7 +60,12 @@ export default function Home({
   displayName: string;
   outlet: OutletView | null;
   toReceive: PendingReceiptView[];
+  /** Today's stops at this outlet; empty when Execution does not answer. */
+  deliveries: DeliveryRecordView[];
+  issues: IssueView[];
   onOpen: (orderId: string) => void;
+  /** Open "09 Order deferred" for a deferred order. */
+  onDeferred: (orderId: string) => void;
   onPlace: () => void;
   onReceive: (orderId: string) => void;
   onTrack: () => void;
@@ -71,7 +82,12 @@ export default function Home({
   const todays = orders.filter((o) => o.deliveryDate === today && o.status !== "CANCELLED");
   const coming = todays.find((o) => onTheWay(o.status)) ?? todays.find((o) => o.status === "DELIVERED") ?? null;
   const forNext = orders.filter((o) => o.deliveryDate === next && o.status !== "CANCELLED");
-  const attention = orders.filter((o) => o.status === "DEFERRED" || o.status === "UNSERVABLE" || o.status === "STOCK_UNKNOWN");
+  const stop = coming ? (deliveries.find((d) => d.orderId === coming.orderId) ?? null) : null;
+  const shortage = coming ? issues.find((i) => i.type === "LOADING_SHORTFALL" && isOpenIssue(i) && i.subjects.some((s) => s.id === coming.orderId)) : undefined;
+  // A deferral the manager has read ("Got it") stops asking for attention.
+  const attention = orders.filter(
+    (o) => (o.status === "DEFERRED" && !(outlet && deferralRead(outlet.outletId, o))) || o.status === "UNSERVABLE" || o.status === "STOCK_UNKNOWN",
+  );
 
   return (
     <div className="flex flex-col gap-5">
@@ -80,7 +96,7 @@ export default function Home({
           {greeting()}, {displayName}
         </h1>
         <Muted>
-          {dayLabel(today)} · {outlet ? `${outlet.districtName} ${outlet.outletId} · delivery window ${hhmm(outlet.windowOpen)}–${hhmm(outlet.windowClose)}` : "…"}
+          {dayLabel(today)} · {outlet ? `${outlet.districtName} ${outlet.outletId} · delivery window ${hhmm(outlet.windowOpen)}-${hhmm(outlet.windowClose)}` : "…"}
         </Muted>
       </div>
 
@@ -113,7 +129,11 @@ export default function Home({
                     : `${o.orderRef}: stock not checked yet`
               }
               action={
-                <button type="button" onClick={() => onOpen(o.orderId)} className="min-h-12 shrink-0 px-2 text-[13px] font-medium text-go-teal">
+                <button
+                  type="button"
+                  onClick={() => (o.status === "DEFERRED" ? onDeferred(o.orderId) : onOpen(o.orderId))}
+                  className="min-h-12 shrink-0 px-2 text-[13px] font-medium text-go-teal"
+                >
                   Why
                 </button>
               }
@@ -127,19 +147,21 @@ export default function Home({
               </p>
               {coming && <Chip>{onTheWay(coming.status) ? "On the way" : "Arrived"}</Chip>}
               {coming && <Chip outline>{temperatureLabel(coming.temperature)}</Chip>}
+              {stop && <Chip outline>{stop.vehicleId}</Chip>}
             </div>
             {coming ? (
               <>
-                <div className="flex flex-col items-center rounded-[20px] bg-go-canvas px-4 pt-3 pb-3.5">
-                  <span className="text-[15px] text-black">Expected in your window</span>
-                  <span className="text-[40px] leading-tight font-semibold text-black">
-                    {outlet ? `${hhmm(outlet.windowOpen)}–${hhmm(outlet.windowClose)}` : "—"}
-                  </span>
-                  <span className="text-[13px] text-go-muted">
-                    {coming.orderRef} · {cases(coming.itemCount)}
-                  </span>
-                </div>
+                <NextStop stop={stop} order={coming} outlet={outlet} />
                 <Progress status={coming.status} />
+                {shortage && (
+                  <button type="button" onClick={() => onOpen(coming.orderId)} className="flex flex-col gap-0.5 rounded-[16px] bg-go-warning-tint px-4 py-3 text-left">
+                    <span className="text-[13px] text-go-muted">
+                      {coming.orderRef} · {temperatureLabel(coming.temperature)}
+                    </span>
+                    <span className="text-[17px] font-medium text-black">Short at loading · {issueCard(shortage, coming, clock).title}</span>
+                    <span className="text-[13px] text-go-warning-text">{issueCard(shortage, coming, clock).detail}</span>
+                  </button>
+                )}
                 <div className="flex gap-2.5">
                   <Button tone="plain" onClick={onTrack}>
                     Track delivery
@@ -162,22 +184,28 @@ export default function Home({
               </div>
               <Chip tone={forNext.length ? "ok" : "muted"}>{forNext.length ? `${forNext.length} placed` : "Not placed yet"}</Chip>
             </div>
-            {forNext.length > 0 && (
-              <ul className="flex flex-col gap-2">
-                {forNext.map((o) => (
-                  <li key={o.orderId}>
-                    <button type="button" onClick={() => onOpen(o.orderId)} className="flex min-h-12 w-full items-center gap-2 rounded-[16px] bg-go-canvas px-3.5 py-2.5 text-left">
-                      <span className="flex-1 text-[15px] font-medium">
-                        {o.orderRef} · {temperatureLabel(o.temperature)}
-                      </span>
+            <ul className="grid grid-cols-2 gap-2.5">
+              {(["ambient", "chilled"] as const).map((t) => {
+                const placed = forNext.filter((o) => o.temperature === t);
+                const total = placed.reduce((s, o) => s + o.itemCount, 0);
+                const first = placed[0];
+                return (
+                  <li key={t}>
+                    <button
+                      type="button"
+                      disabled={!first}
+                      onClick={() => first && onOpen(first.orderId)}
+                      className="flex min-h-[72px] w-full flex-col gap-0.5 rounded-[16px] bg-go-canvas px-3.5 py-2.5 text-left disabled:cursor-default"
+                    >
+                      <span className="text-[15px] font-medium">{temperatureLabel(t)}</span>
                       <span className="text-[13px] text-go-muted">
-                        {cases(o.itemCount)}{editable(o.status) ? " · change" : ""}
+                        {first ? `${first.orderRef} · ${cases(total)}${placed.some((o) => editable(o.status)) ? " · change" : ""}` : "Not placed"}
                       </span>
                     </button>
                   </li>
-                ))}
-              </ul>
-            )}
+                );
+              })}
+            </ul>
             <button type="button" onClick={onPlace} className="flex min-h-12 w-full items-center justify-center rounded-[22px] bg-go-mint px-4 text-[16px] font-medium text-black">
               +&nbsp;&nbsp;{forNext.length ? "Place another order" : `Place order for ${dayLabel(next)}`}
             </button>

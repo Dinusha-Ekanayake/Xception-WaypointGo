@@ -1,6 +1,7 @@
-import type { ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Icon, ShellActions, cx, type IconName } from "@shared/ui";
 import type { OutletView } from "@shared/domain/types";
+import AccountMenu from "./AccountMenu.tsx";
 import type { StatusTone } from "./data/format.ts";
 
 // Store pieces from Figma "15 Store Manager · Mobile". Touch targets are at
@@ -112,6 +113,79 @@ export function Sheet({ label, onClose, children }: { label: string; onClose: ()
   );
 }
 
+/**
+ * A centred dialog over a blurred page: "04 Order sent", "06b Enter PIN" and
+ * "07 Delivery confirmed". Phones still get the bottom {@link Sheet}; this is
+ * for the desktop layout, and falls back to a full-width card on a phone.
+ */
+export function Modal({ label, onClose, children }: { label: string; onClose?: () => void; children: ReactNode }): React.JSX.Element {
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center p-4" role="presentation">
+      <button type="button" aria-label="Close" tabIndex={-1} onClick={onClose} className="absolute inset-0 bg-black/20 backdrop-blur-[6px]" />
+      <div role="dialog" aria-modal="true" aria-label={label} className="relative flex max-h-[92dvh] w-full max-w-[520px] flex-col gap-4 overflow-y-auto rounded-[32px] bg-white px-7 pt-8 pb-7">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** A panel from the right over a blurred page, as in "05b make-up delivery"; a bottom sheet on a phone. */
+export function Drawer({ label, onClose, children }: { label: string; onClose: () => void; children: ReactNode }): React.JSX.Element {
+  return (
+    <div className="fixed inset-0 z-40 flex items-end justify-center lg:items-stretch lg:justify-end" role="presentation">
+      <button type="button" aria-label="Close" tabIndex={-1} onClick={onClose} className="absolute inset-0 bg-black/20 backdrop-blur-[6px]" />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={label}
+        className="relative flex max-h-[92dvh] w-full flex-col gap-5 overflow-y-auto rounded-t-[32px] bg-white px-6 pt-6 pb-8 lg:max-h-none lg:w-[440px] lg:rounded-t-none lg:rounded-l-[32px] lg:pt-7"
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** The round mint badge that heads a Figma dialog. */
+export function Badge({ children }: { children: ReactNode }): React.JSX.Element {
+  return <span className="mx-auto flex size-[60px] items-center justify-center rounded-full bg-go-mint/60">{children}</span>;
+}
+
+/** Label left, value right, on a pale card: the rows of "04 Order sent" and "07 Delivery confirmed". */
+export function Facts({ rows }: { rows: { label: string; value: ReactNode; strong?: boolean }[] }): React.JSX.Element {
+  return (
+    <dl className="flex flex-col gap-2.5 rounded-[16px] bg-go-canvas px-4 py-4 text-[14px]">
+      {rows.map((r) => (
+        <div key={r.label} className="flex justify-between gap-3">
+          <dt className="text-go-muted">{r.label}</dt>
+          <dd className={cx("text-right", r.strong === false ? "text-black" : "font-semibold text-black")}>{r.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+/**
+ * A dark note that says what just happened, as in "03d Item added" and "03e
+ * Draft saved". The live region stays mounted so a screen reader hears each
+ * new message; the note itself shows only while there is one.
+ */
+export function Toast({ note }: { note: { title: string; detail?: string; tone?: "ok" | "danger" } | null }): React.JSX.Element {
+  return (
+    <div role="status" className="pointer-events-none fixed inset-x-0 bottom-[260px] z-40 flex justify-center px-4 lg:bottom-8 lg:pl-[260px]">
+      {note && (
+        <div className="flex max-w-[420px] items-center gap-3 rounded-[20px] bg-[#031a0c] px-5 py-3 text-white shadow-[0_8px_20px_rgba(0,0,0,0.18)]">
+          <span aria-hidden className={cx("size-2 shrink-0 rounded-full", note.tone === "danger" ? "bg-go-danger" : "bg-[#22c55e]")} />
+          <span className="flex min-w-0 flex-col">
+            <span className="text-[15px] font-medium">{note.title}</span>
+            {note.detail && <span className="text-[13px] text-white/75">{note.detail}</span>}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function BackButton({ onClick, label = "Back" }: { onClick: () => void; label?: string }): React.JSX.Element {
   return (
     <button type="button" onClick={onClick} className="flex min-h-12 items-center gap-2 self-start pr-3 text-[17px] text-black">
@@ -121,11 +195,12 @@ export function BackButton({ onClick, label = "Back" }: { onClick: () => void; l
   );
 }
 
-export type Tab = "home" | "orders" | "deliveries";
+export type Tab = "home" | "orders" | "deliveries" | "issues";
 const TABS: { id: Tab; icon: IconName; label: string }[] = [
   { id: "home", icon: "home", label: "Home" },
   { id: "orders", icon: "cart", label: "Orders" },
   { id: "deliveries", icon: "truck", label: "Deliveries" },
+  { id: "issues", icon: "alert", label: "Issues" },
 ];
 
 /** "SM / Tab bar": floating, dark, the active tab on a white pill. */
@@ -166,8 +241,8 @@ function initials(name: string): string {
 
 /**
  * "Shell / Sidebar" from "14 Store Manager · Desktop": brand, the destinations
- * with their counts, and at the foot the outlet and the person signed in. From
- * lg only; phones keep the floating tab bar.
+ * with their counts, and at the foot the outlet and the person signed in, who
+ * opens the account menu. From lg only; phones keep the floating tab bar.
  */
 export function SideNav({
   tab,
@@ -182,6 +257,8 @@ export function SideNav({
   outlet: OutletView | null;
   displayName: string;
 }): React.JSX.Element {
+  const [account, setAccount] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-[260px] flex-col gap-6 bg-white px-5 pt-8 pb-6 lg:flex">
       <div className="flex items-center gap-2.5 px-2">
@@ -205,7 +282,11 @@ export function SideNav({
             >
               <Icon name={t.icon} />
               <span className="flex-1">{t.label}</span>
-              {badge > 0 && <span className="flex size-7 items-center justify-center rounded-full bg-go-mint text-[12px] font-semibold text-black">{badge}</span>}
+              {badge > 0 && (
+                <span className={cx("flex size-7 items-center justify-center rounded-full text-[12px] font-semibold", t.id === "issues" ? "bg-go-danger-tint text-go-danger-strong" : "bg-go-mint text-black")}>
+                  {badge}
+                </span>
+              )}
             </button>
           );
         })}
@@ -213,23 +294,44 @@ export function SideNav({
       <span className="flex-1" />
       {outlet && (
         <div className="flex flex-col gap-0.5 rounded-[16px] bg-[#e7f3f2] px-4 py-3">
-          <span className="text-[13px] font-medium text-go-teal">Your outlet</span>
+          <span className="text-[13px] font-medium text-go-teal">{outlet.brandCode}</span>
           <span className="text-[16px] font-medium text-black">
             {outlet.districtName} · {outlet.outletId}
           </span>
           <span className="text-[13px] text-go-muted">
-            {outlet.dockType} dock · {outlet.windowOpen.slice(0, 5)}–{outlet.windowClose.slice(0, 5)}
+            {outlet.dockType} dock · {outlet.windowOpen.slice(0, 5)}-{outlet.windowClose.slice(0, 5)}
           </span>
         </div>
       )}
       <div className="flex items-center gap-3">
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-go-mint text-[14px] font-semibold text-black">{initials(displayName)}</span>
-        <span className="flex min-w-0 flex-1 flex-col">
-          <span className="truncate text-[15px] font-medium text-black">{displayName}</span>
-          <span className="text-[13px] text-go-muted">Store manager</span>
-        </span>
+        <button
+          ref={trigger}
+          type="button"
+          aria-haspopup="dialog"
+          aria-expanded={account}
+          aria-label={`Account: ${displayName}`}
+          onClick={() => setAccount((open) => !open)}
+          className="flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-[16px] text-left"
+        >
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-go-mint text-[14px] font-semibold text-black">{initials(displayName)}</span>
+          <span className="flex min-w-0 flex-1 flex-col">
+            <span className="truncate text-[15px] font-medium text-black">{displayName}</span>
+            <span className="text-[13px] text-go-muted">Store manager</span>
+          </span>
+        </button>
         <ShellActions compact />
       </div>
+      {account && (
+        <AccountMenu
+          displayName={displayName}
+          initials={initials(displayName)}
+          outlet={outlet}
+          onClose={() => {
+            setAccount(false);
+            trigger.current?.focus();
+          }}
+        />
+      )}
     </aside>
   );
 }

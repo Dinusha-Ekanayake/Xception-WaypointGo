@@ -1,8 +1,12 @@
 package com.waypoint.dispatch.planning.application;
 
+import com.waypoint.dispatch.intelligence.contract.PredictionQuery;
+import com.waypoint.dispatch.intelligence.contract.PredictionViews.PlanScoringView;
+import org.springframework.beans.factory.ObjectProvider;
 import com.waypoint.dispatch.planning.contract.PlanQuery;
 import com.waypoint.dispatch.planning.contract.PlanViews.AllocationDecision;
 import com.waypoint.dispatch.planning.contract.PlanViews.AllocationView;
+import com.waypoint.dispatch.planning.contract.PlanViews.ImprovementView;
 import com.waypoint.dispatch.planning.contract.PlanViews.ConstraintResultView;
 import com.waypoint.dispatch.planning.contract.PlanViews.DeferralView;
 import com.waypoint.dispatch.planning.contract.PlanViews.FuelView;
@@ -77,6 +81,7 @@ public class PlanDataQuery implements PlanQuery {
   private final PlanningDrafts drafts;
   private final PlanningRevisions revisions;
   private final ConstraintRegistry registry;
+  private final ObjectProvider<PredictionQuery> predictions;
 
   PlanDataQuery(
       Database database,
@@ -85,7 +90,8 @@ public class PlanDataQuery implements PlanQuery {
       AuditLog audit,
       PlanningDrafts drafts,
       PlanningRevisions revisions,
-      ConstraintRegistry registry) {
+      ConstraintRegistry registry,
+      ObjectProvider<PredictionQuery> predictions) {
     this.database = database;
     this.plans = plans;
     this.reference = reference;
@@ -93,6 +99,7 @@ public class PlanDataQuery implements PlanQuery {
     this.drafts = drafts;
     this.revisions = revisions;
     this.registry = registry;
+    this.predictions = predictions;
   }
 
   // ---- contract: as the ambient actor --------------------------------------
@@ -100,6 +107,11 @@ public class PlanDataQuery implements PlanQuery {
   @Override
   public Optional<PlanView> publishedPlan(String depotCode, LocalDate serviceDate) {
     return read(ambient(), () -> plans.published(depotCode, serviceDate).map(this::assemble));
+  }
+
+  @Override
+  public Optional<PlanView> plan(UUID planId) {
+    return read(ambient(), () -> plans.findRun(planId).map(this::assemble));
   }
 
   @Override
@@ -347,10 +359,28 @@ public class PlanDataQuery implements PlanQuery {
         run.priorityPolicyVersionId(),
         run.supersedes(),
         run.publishedAt(),
-        run.plannedWithoutPredictor(),
+        withoutPredictor(run.planId()),
         trips,
         allocations.stream().map(PlanDataQuery::toView).toList(),
-        run.rowVersion());
+        run.rowVersion(),
+        run.engine(),
+        run.improvement()
+            .map(i -> new ImprovementView(i.greedyServed(), i.greedyDeferred(), i.served(), i.deferred(), i.improved(),
+                i.chilledVolumeGainedM3(), i.stoppedBy().name(), i.chilledCandidates(), i.chilledSearched())));
+  }
+
+  /**
+   * Intelligence answers whether a model scored this plan (issue #16). Allocation
+   * keeps the booklet allowances either way (R-ML-05); this says whether learned
+   * late risk exists for it. A draft is never scored, and with no Intelligence
+   * module deployed every plan is without a predictor, as before.
+   */
+  private boolean withoutPredictor(UUID planId) {
+    PredictionQuery intelligence = predictions.getIfAvailable();
+    if (intelligence == null) {
+      return true;
+    }
+    return intelligence.planScoring(planId).map(PlanScoringView::withoutPredictor).orElse(true);
   }
 
   private static TripView toView(TripRow t, List<StopView> stops) {

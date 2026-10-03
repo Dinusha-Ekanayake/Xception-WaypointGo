@@ -1,5 +1,7 @@
 import type { DemoState, Member, Persona } from "./model";
 
+export const DEMO_DEPOTS = ["PELIYAGODA", "KANDY"] as const;
+
 const member = (id: string, name: string, persona: Persona, place: string, extra?: Persona): Member => ({
   id, name, email: `${name.toLowerCase().replaceAll(" ", ".")}@example.test`,
   personas: extra ? [persona, extra] : [persona], places: place ? [place] : [], active: true,
@@ -9,22 +11,22 @@ export const MEMBERS: Member[] = [
   member("d1", "Nimali Perera", "dispatcher", "PELIYAGODA"),
   member("d2", "Kavindu Silva", "dispatcher", "KANDY"),
   member("d3", "Tharushi Jayasinghe", "dispatcher", "PELIYAGODA"),
-  member("d4", "Ruwani Fernando", "dispatcher", "GALLE"),
+  member("d4", "Ruwani Fernando", "dispatcher", "PELIYAGODA"),
   member("d5", "Isuru Wijeratne", "dispatcher", "KANDY"),
   member("d6", "Sahani Dias", "dispatcher", "PELIYAGODA", "loader"),
   member("l1", "Ravi Fernando", "loader", "PELIYAGODA"),
   member("l2", "Kasun Bandara", "loader", "KANDY"),
-  member("l3", "Dilmi Ranasinghe", "loader", "GALLE"),
+  member("l3", "Dilmi Ranasinghe", "loader", "KANDY"),
   member("l4", "Akila Perera", "loader", "PELIYAGODA"),
   member("l5", "Nethmi Gunasekara", "loader", "KANDY"),
   member("l6", "Mihira Senanayake", "loader", ""),
   member("r1", "Amal Silva", "driver", "PELIYAGODA"),
   member("r2", "Fathima Rizwan", "driver", "KANDY"),
-  member("r3", "Dinuka Samarakoon", "driver", "GALLE"),
+  member("r3", "Dinuka Samarakoon", "driver", "PELIYAGODA"),
   member("r4", "Shehan Mendis", "driver", "PELIYAGODA"),
   member("r5", "Maleesha Iqbal", "driver", "KANDY"),
   member("r6", "Nuwan Pathirana", "driver", "PELIYAGODA"),
-  member("r7", "Amani Hassan", "driver", "GALLE"),
+  member("r7", "Amani Hassan", "driver", "KANDY"),
   member("r8", "Dinesh Kumara", "driver", "KANDY"),
   member("s1", "Ayesha Hassan", "store_manager", "OUT-SAMPLE-01"),
   member("s2", "Chamari Silva", "store_manager", "OUT-SAMPLE-02"),

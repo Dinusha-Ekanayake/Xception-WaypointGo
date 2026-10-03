@@ -10,6 +10,16 @@
   --ui-hover: #e6eeea;
 }
 
+/*
+ * The dark theme (the go-dark tokens in src/shared/ui/theme.css), for every
+ * screen that turns it on: the loader and the driver. The GO icons are black
+ * SVG images, so they are inverted here, with the hue turned back so red and
+ * green stay red and green.
+ */
+.go-dark img[src^='/icons/go/'] {
+  filter: invert(1) hue-rotate(180deg);
+}
+
 .driver-workspace {
   --driver-base: #f4f7f5;
   --driver-card: #ffffff;
@@ -142,6 +152,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   outline: 3px solid #0a6b63;
   outline-offset: 3px;
 }
+/* A loader field whose surrounding box shows focus with its own border. */
+.loader-workspace input.focus-in-box:focus-visible { outline: none; }
 dialog { color: var(--ui-text); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; }

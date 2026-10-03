@@ -51,8 +51,32 @@ import org.springframework.stereotype.Component;
 @Component
 public class CsvReferenceImporter {
 
-  /** Staged content plus the hash that decides whether this import is new. */
-  public record Staged(ReferenceSnapshot snapshot, String contentHash, String sourceLabel) {}
+  /**
+   * Staged content plus the hash that decides whether this import is new.
+   *
+   * @param trafficSpeed speed index by district, hour and monsoon (D9), versioned with the rest
+   * @param roadConditions disruption index by district and date, a date-keyed series like the calendar
+   */
+  public record Staged(
+      ReferenceSnapshot snapshot,
+      List<TrafficSpeedRow> trafficSpeed,
+      List<RoadConditionRow> roadConditions,
+      String contentHash,
+      String sourceLabel) {
+
+    public Staged {
+      trafficSpeed = List.copyOf(trafficSpeed);
+      roadConditions = List.copyOf(roadConditions);
+    }
+
+    public Staged(ReferenceSnapshot snapshot, String contentHash, String sourceLabel) {
+      this(snapshot, List.of(), List.of(), contentHash, sourceLabel);
+    }
+  }
+
+  public record TrafficSpeedRow(String district, int hour, boolean monsoon, BigDecimal speedIndex) {}
+
+  public record RoadConditionRow(String district, LocalDate date, BigDecimal disruptionIndex) {}
 
   private static final List<String> FILES =
       List.of(
@@ -60,7 +84,9 @@ public class CsvReferenceImporter {
           "vehicles.csv",
           "district_travel.csv",
           "service_allowance.csv",
-          "calendar.csv");
+          "calendar.csv",
+          "traffic_speed.csv",
+          "road_conditions.csv");
 
   public Staged stage(Path dataDir) {
     Path base = Files.isDirectory(dataDir) ? dataDir : DirectoryLocator.resolve(dataDir.toString(), "data");
@@ -161,7 +187,31 @@ public class CsvReferenceImporter {
             travel,
             allowances,
             calendar);
-    return new Staged(snapshot, hashOf(root), root.toString());
+    // Traffic speed and road conditions feed the predictor (issue #16). They are optional
+    // here so an older data directory without them still imports; the predictor then
+    // uses its fallback model and says so.
+    List<TrafficSpeedRow> traffic = new ArrayList<>();
+    Path trafficFile = root.resolve("traffic_speed.csv");
+    if (Files.exists(trafficFile)) {
+      for (CSVRecord row : read(trafficFile)) {
+        traffic.add(
+            new TrafficSpeedRow(
+                row.get("district"),
+                Integer.parseInt(row.get("hour")),
+                flag(row, "monsoon"),
+                decimal(row, "speed_index")));
+      }
+    }
+    List<RoadConditionRow> roads = new ArrayList<>();
+    Path roadFile = root.resolve("road_conditions.csv");
+    if (Files.exists(roadFile)) {
+      for (CSVRecord row : read(roadFile)) {
+        roads.add(
+            new RoadConditionRow(
+                row.get("district"), LocalDate.parse(row.get("date")), decimal(row, "disruption_index")));
+      }
+    }
+    return new Staged(snapshot, traffic, roads, hashOf(root), root.toString());
   }
 
   /**

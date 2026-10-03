@@ -176,6 +176,10 @@ class OutboxRelayIntegrationTest {
     for (int i = 0; i < events; i++) {
       publish("N" + i);
     }
+    // Each event is due from the database time it was written. Sixty writes can
+    // outlast the one second set before the test on a slow runner, so move the
+    // relays' clock past the last of them.
+    now.set(Instant.now().plusSeconds(1));
     // Different consumer names, so the inbox cannot hide a double claim: an
     // event claimed by both relays would be seen by both recordings.
     Recording one = new Recording("one");

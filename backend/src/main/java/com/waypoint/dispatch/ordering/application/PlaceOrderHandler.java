@@ -211,14 +211,8 @@ public class PlaceOrderHandler implements CommandHandler {
     }
 
     Map<String, Object> body = new LinkedHashMap<>();
-    body.put("orderId", order.orderId().toString());
-    body.put("orderRef", order.orderRef());
-    body.put("status", order.status().name());
-    body.put("requestedDate", requested.toString());
-    body.put("deliveryDate", date.delivery().toString());
-    body.put("dateRolled", date.rolled());
+    body.putAll(OrderMessages.answer(order, 1));
     body.put("rolledBecause", date.reasons());
-    body.put("rowVersion", 1);
     if (order.status() == OrderStatus.STOCK_UNKNOWN) {
       // Degrade visibly: the store is told the stock is unconfirmed and why.
       body.put("degraded", degraded);

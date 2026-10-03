@@ -126,7 +126,35 @@ export WAREHOUSE_BASE_URL=https://triathon-warehouse-simple.vercel.app/api/v1
 export WAREHOUSE_TIMEOUT_MS=3000
 ```
 
-Never put it in `frontend/.env.local` or a `NEXT_PUBLIC_*` variable: the browser never calls the warehouse. With the key blank the backend still starts, and every order saves as `STOCK_UNKNOWN` with the reason on screen. The warehouse is shared by the whole team, so do not place or cancel orders against it by hand except to test the lifecycle on purpose; a placed order locks real stock.
+Never put it in `frontend/.env.local` or a `NEXT_PUBLIC_*` variable: the browser never calls the warehouse.
+
+### The model service
+
+The trained models run in their own Python service, `ml-server/` (issue #16). The backend works without it: plans and forecasts then use the deterministic estimates and say so. To run with the models:
+
+```bash
+git lfs pull                                    # the model files are in Git LFS
+cd ml-server
+python -m venv .venv && . .venv/bin/activate    # Python 3.11, as trained
+pip install -r requirements-dev.txt && pytest
+uvicorn app.main:app --port 8000
+export ML_BASE_URL=http://localhost:8000        # in the backend shell
+```
+
+A model answers only once it is registered and activated, and only when the service reports that exact version. As an administrator, send `ml:RegisterModel` with `name`, `version` and `kind` (copy `name` and `version` from `ml-server/manifest.json`, `kind` is `delivery_risk` or `demand_forecast`), then `ml:ActivateModel` with `expectedVersion: 1`.
+
+### Web push for notifications
+
+The notification inbox works with no setup. Web push needs a VAPID key pair, one per deployment; both blank turns push off, and `GET /api/notifications/push-config` says so. Generate a pair and export it in the backend shell (root `.env` for Compose):
+
+```bash
+npx web-push generate-vapid-keys        # prints a public and a private key, base64url
+export PUSH_VAPID_PUBLIC_KEY=B...
+export PUSH_VAPID_PRIVATE_KEY=...       # a backend secret, like the warehouse key
+export PUSH_SUBJECT=mailto:you@example.com
+```
+
+One key without the other, or a private key that does not belong to the public one, refuses to start. Changing the pair invalidates every browser subscription (A-35). The browser only ever sees the public key, from `push-config`. With the key blank the backend still starts, and every order saves as `STOCK_UNKNOWN` with the reason on screen. The warehouse is shared by the whole team, so do not place or cancel orders against it by hand except to test the lifecycle on purpose; a placed order locks real stock.
 
 ## Tests
 
@@ -146,6 +174,7 @@ npm run verify     # test, typecheck, build and mvn verify in sequence
 npx playwright test -c playwright.dispatcher.config.ts   # tests/e2e-dispatcher, port 43222
 npx playwright test -c playwright.driver.config.ts       # tests/e2e-driver, port 43221, phone width
 npx playwright test -c playwright.loader.config.ts       # tests/e2e-loader, port 43220, phone width
+npx playwright test -c playwright.store.config.ts        # tests/e2e-store, port 43223, desktop width
 ```
 
 One test at a time: `mvn test -Dtest=ModuleBoundaryTest` or `-Dtest='SomeTest#method'` from `backend/`; `node --test --experimental-strip-types tests/boundaries.test.ts` from `frontend/`; a spec file name or `-g "title"` after a Playwright config. `playwright.loader.live.config.ts` runs `live.spec.ts` against a running instance named by `LOADER_LIVE_BASE_URL`.

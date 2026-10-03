@@ -11,8 +11,10 @@ import com.waypoint.dispatch.planning.domain.AllocationEngine.AllocationResult;
 import com.waypoint.dispatch.planning.domain.AllocationEngine.OrderDecision;
 import com.waypoint.dispatch.planning.domain.ConstraintRegistry;
 import com.waypoint.dispatch.planning.domain.PlanVerification.Violation;
+import com.waypoint.dispatch.planning.domain.PlanOrder;
 import com.waypoint.dispatch.planning.domain.PriorityPolicy;
 import com.waypoint.dispatch.planning.domain.RuleSet;
+import com.waypoint.dispatch.planning.domain.ScarceFleetReplan;
 import com.waypoint.dispatch.planning.domain.Trip;
 import com.waypoint.dispatch.planning.domain.VehicleDay;
 import com.waypoint.dispatch.shared.error.DomainException;
@@ -43,7 +45,7 @@ class PeakDayAllocationTest {
 
   static AllocationEngine engine() {
     ConstraintRegistry registry = ConstraintRegistry.standard();
-    return new ValidatingEngine(new PriorityInsertionEngine(registry), registry, v -> {});
+    return new ValidatingEngine(new ImprovingEngine(new PriorityInsertionEngine(registry), registry), registry, v -> {});
   }
 
   @Test
@@ -70,7 +72,7 @@ class PeakDayAllocationTest {
         result.decisions().stream()
             .filter(d -> d.bindingRule().isPresent())
             .collect(Collectors.groupingBy(d -> d.bindingRule().get(), Collectors.counting()));
-    System.out.println("S1 decisions " + byDecision + ", binding rules " + byRule);
+    System.out.println("S1 decisions " + byDecision + ", binding rules " + byRule + ", " + result.improvement());
   }
 
   @Test
@@ -104,6 +106,60 @@ class PeakDayAllocationTest {
     long skipped = s1.problem().orders().stream().filter(o -> o.deferralCount() > 0).count();
     System.out.println("S1 outlets skipped yesterday and served today: " + skippedServed + " of " + skipped);
     assertTrue(skippedServed > 0);
+  }
+
+  @Test
+  void theSecondPassServesMoreAndEveryOrderItDropsIsOutrankedByOneItAdds() {
+    PeakDayScenario s1 = PeakDayScenario.load(DATA, RULES, POLICY);
+    ConstraintRegistry registry = ConstraintRegistry.standard();
+    AllocationResult first = new PriorityInsertionEngine(registry).allocate(s1.problem());
+    AllocationResult improved = engine().allocate(s1.problem());
+
+    java.util.Set<UUID> before = served(first);
+    java.util.Set<UUID> after = served(improved);
+    assertTrue(after.size() > before.size(), "issue #92: the reefers are planned again as a whole");
+    assertEquals(73, after.size(), "S1 measured: 70 to 73, every chilled order closing before 08:00 served");
+    var summary = improved.improvement().orElseThrow();
+    assertTrue(summary.improved());
+    assertEquals(ScarceFleetReplan.Stop.NONE, summary.stoppedBy(), "the search finished; nothing was cut short");
+
+    java.util.Comparator<PlanOrder> rank = POLICY.comparator(s1.problem().context());
+    List<PlanOrder> added = s1.problem().orders().stream().filter(o -> after.contains(o.orderId()) && !before.contains(o.orderId())).toList();
+    for (PlanOrder dropped : s1.problem().orders()) {
+      if (before.contains(dropped.orderId()) && !after.contains(dropped.orderId())) {
+        assertTrue(
+            added.stream().anyMatch(a -> rank.compare(a, dropped) < 0),
+            s1.orderRef(dropped.orderId()) + " was dropped without a higher ranked order taking its place (R-PLN-32)");
+      }
+    }
+    for (PlanOrder o : s1.problem().orders()) {
+      if (o.deferralCount() > 0) {
+        assertTrue(after.contains(o.orderId()), s1.orderRef(o.orderId()) + " was skipped yesterday and is still served");
+      }
+    }
+  }
+
+  @Test
+  void aPartialFirstPassIsNotImproved() {
+    AtomicLong now = new AtomicLong();
+    Map<String, BigDecimal> params = new HashMap<>(RuleSet.bookletParameters());
+    params.put(RuleSet.ENGINE_BUDGET_MS, BigDecimal.ONE);
+    PeakDayScenario s1 = PeakDayScenario.load(DATA, new RuleSet(UUID.randomUUID(), params), POLICY);
+    ConstraintRegistry registry = ConstraintRegistry.standard();
+    AllocationEngine slow = new ImprovingEngine(new PriorityInsertionEngine(registry, () -> now.addAndGet(200_000)), registry);
+
+    AllocationResult result = new ValidatingEngine(slow, registry, v -> {}).allocate(s1.problem());
+
+    assertTrue(result.partial(), "PLN-11: out of time already, so the plan is returned as it is");
+    assertTrue(result.improvement().isEmpty());
+    assertEquals(PriorityInsertionEngine.NAME, result.engine(), "the run records the engine that produced it");
+  }
+
+  private static java.util.Set<UUID> served(AllocationResult r) {
+    return r.decisions().stream()
+        .filter(d -> d.decision() == AllocationDecision.SERVED)
+        .map(OrderDecision::orderId)
+        .collect(Collectors.toSet());
   }
 
   @Test

@@ -44,6 +44,8 @@ final class LoadingViewMapper {
         integer(r, "order_count"),
         (BigDecimal) r.get("weight_kg"),
         (BigDecimal) r.get("volume_m3"),
+        (BigDecimal) r.get("weight_cap_kg"),
+        (BigDecimal) r.get("volume_cap_m3"),
         holder(r),
         instant(r.get("released_at")),
         ((Number) r.get("row_version")).longValue());
@@ -60,34 +62,11 @@ final class LoadingViewMapper {
     int loadSequence = 1;
     for (Map<String, Object> stop : stops) {
       UUID orderId = (UUID) stop.get("order_id");
-      List<ItemView> orderItems = new ArrayList<>();
-      for (Map<String, Object> i : items) {
-        if (orderId.equals(i.get("order_id"))) {
-          orderItems.add(item(i));
-        }
-      }
-      anyPending |= orderItems.stream().anyMatch(i -> i.status() == CheckStatus.PENDING);
-      anyFlagged |= orderItems.stream().anyMatch(i -> ItemLine.isFlag(i.status()));
-      Optional<OutletView> outlet = reference.outlet((String) stop.get("outlet_id"), null);
-      lines.add(
-          new ManifestLineView(
-              loadSequence++,
-              integer(stop, "stop_sequence"),
-              orderId,
-              (String) stop.get("order_ref"),
-              (String) stop.get("outlet_id"),
-              outlet.map(OutletView::districtName).orElse((String) stop.get("outlet_id")),
-              outlet.map(o -> o.effectiveWindowOpen().orElse(o.windowOpen())),
-              outlet.map(o -> o.effectiveWindowClose().orElse(o.windowClose())),
-              Optional.ofNullable(time(stop.get("planned_arrival"))),
-              (String) stop.get("temperature"),
-              integer(stop, "item_count"),
-              (BigDecimal) stop.get("weight_kg"),
-              (BigDecimal) stop.get("volume_m3"),
-              orderStatus(orderItems),
-              orderItems.stream().mapToInt(ItemView::loadedUnits).sum(),
-              orderItems.stream().mapToInt(ItemView::attempt).max().orElse(0),
-              orderItems));
+      List<Map<String, Object>> orderItems = items.stream().filter(i -> orderId.equals(i.get("order_id"))).toList();
+      ManifestLineView line = line(loadSequence++, stop, orderItems, reference);
+      anyPending |= line.items().stream().anyMatch(i -> i.status() == CheckStatus.PENDING);
+      anyFlagged |= line.items().stream().anyMatch(i -> ItemLine.isFlag(i.status()));
+      lines.add(line);
     }
     return new ManifestView(
         (UUID) trip.get("trip_id"),
@@ -110,6 +89,36 @@ final class LoadingViewMapper {
         instant(trip.get("released_at")),
         lines,
         ((Number) trip.get("row_version")).longValue());
+  }
+
+  /**
+   * One order on a trip and its item checks.
+   *
+   * @param loadSequence its place in loading order, or 0 when it is read on its own and the rest of
+   *     the trip is not in view
+   */
+  static ManifestLineView line(
+      int loadSequence, Map<String, Object> stop, List<Map<String, Object>> rows, ReferenceQuery reference) {
+    List<ItemView> orderItems = rows.stream().map(LoadingViewMapper::item).toList();
+    Optional<OutletView> outlet = reference.outlet((String) stop.get("outlet_id"), null);
+    return new ManifestLineView(
+        loadSequence,
+        integer(stop, "stop_sequence"),
+        (UUID) stop.get("order_id"),
+        (String) stop.get("order_ref"),
+        (String) stop.get("outlet_id"),
+        outlet.map(OutletView::districtName).orElse((String) stop.get("outlet_id")),
+        outlet.map(o -> o.effectiveWindowOpen().orElse(o.windowOpen())),
+        outlet.map(o -> o.effectiveWindowClose().orElse(o.windowClose())),
+        Optional.ofNullable(time(stop.get("planned_arrival"))),
+        (String) stop.get("temperature"),
+        integer(stop, "item_count"),
+        (BigDecimal) stop.get("weight_kg"),
+        (BigDecimal) stop.get("volume_m3"),
+        orderStatus(orderItems),
+        orderItems.stream().mapToInt(ItemView::loadedUnits).sum(),
+        orderItems.stream().mapToInt(ItemView::attempt).max().orElse(0),
+        orderItems);
   }
 
   static ShortfallView shortfall(Map<String, Object> r) {

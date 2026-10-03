@@ -72,6 +72,22 @@ public class IdentityDataQuery implements IdentityQuery {
                 .findFirst());
   }
 
+  /** The exclusion constraint allows at most one driver per vehicle and date. */
+  @Override
+  public Optional<UUID> driverOn(String vehicleId, LocalDate date) {
+    return read(
+        () ->
+            database
+                .query(
+                    "SELECT driver_user_id FROM iam.vehicle_driver_assignments"
+                        + " WHERE vehicle_id = ? AND validity @> ?::date",
+                    vehicleId,
+                    Date.valueOf(date))
+                .stream()
+                .map(row -> (UUID) row.get("driver_user_id"))
+                .findFirst());
+  }
+
   /**
    * Active accounts only: a disabled account has no session to read a
    * notification with. A vehicle's recipients are whoever is assigned to it
@@ -79,6 +95,12 @@ public class IdentityDataQuery implements IdentityQuery {
    */
   @Override
   public List<UUID> recipientsFor(String roleCode, String scopeType, String scopeId) {
+    return recipientsFor(roleCode, scopeType, scopeId, null);
+  }
+
+  /** A null date is today in the operating zone, read from the database clock. */
+  @Override
+  public List<UUID> recipientsFor(String roleCode, String scopeType, String scopeId, LocalDate on) {
     String scoped =
         switch (scopeType) {
           case "depot" ->
@@ -90,11 +112,15 @@ public class IdentityDataQuery implements IdentityQuery {
           case "vehicle" ->
               "EXISTS (SELECT 1 FROM iam.vehicle_driver_assignments s"
                   + " WHERE s.driver_user_id = u.user_id AND s.vehicle_id = ?"
-                  + " AND s.validity @> (now() AT TIME ZONE 'Asia/Colombo')::date)";
+                  + " AND s.validity @> coalesce(?::date, (now() AT TIME ZONE 'Asia/Colombo')::date))";
           default ->
               throw new IllegalArgumentException(
                   "scopeType is depot, outlet or vehicle, not " + scopeType);
         };
+    Object[] params =
+        "vehicle".equals(scopeType)
+            ? new Object[] {roleCode, scopeId, on == null ? null : Date.valueOf(on)}
+            : new Object[] {roleCode, scopeId};
     return read(
         () ->
             database
@@ -104,8 +130,7 @@ public class IdentityDataQuery implements IdentityQuery {
                         + " WHERE u.is_active AND "
                         + scoped
                         + " ORDER BY u.user_id",
-                    roleCode,
-                    scopeId)
+                    params)
                 .stream()
                 .map(row -> (UUID) row.get("user_id"))
                 .toList());

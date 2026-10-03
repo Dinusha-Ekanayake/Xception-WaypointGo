@@ -19,7 +19,9 @@ public final class SyncViews {
     APPLIED,
     CONFLICT,
     REJECTED,
-    DISCARDED
+    DISCARDED,
+    /** Redone on the current version by its owner; the redo is another operation. */
+    RESOLVED
   }
 
   /**

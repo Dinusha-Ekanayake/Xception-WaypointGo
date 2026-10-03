@@ -60,16 +60,18 @@ Each module has the same five internal layers. The spec lists what belongs in ea
 
 | Layer | Contents |
 | --- | --- |
-| contract | `CurrentActor`, `Role`, `Scope`, `AuthorizationDecision`, `IdentityQuery` |
-| domain | `Account`, `Session`, `Role`, `ScopeGrant`, `VehicleAssignment` (temporal), `PasswordPolicy`, and `domain/policy/`: `PolicyDocument`, `Statement`, `Effect`, `Pattern`, `Condition`, `ConditionOperator`, `AccessRequest`, `Decision`, `PolicyEvaluator` |
-| application | `LoginHandler`, `SessionRegistry`, `LoginThrottle`, `AccountAdminUseCase`, `PolicyDecisionPoint` |
+| contract | `CurrentActor`, `Role`, `Scope`, `AuthorizationDecision`, `IdentityQuery`, `McpContextView` |
+| domain | `McpReadPolicy`, `Account`, `Session`, `Role`, `ScopeGrant`, `VehicleAssignment` (temporal), `PasswordPolicy`, and `domain/policy/`: `PolicyDocument`, `Statement`, `Effect`, `Pattern`, `Condition`, `ConditionOperator`, `AccessRequest`, `Decision`, `PolicyEvaluator` |
+| application | `LoginHandler`, `SessionRegistry`, `LoginThrottle`, `AccountAdminUseCase`, `PolicyDecisionPoint`, `McpSessionHandler`, `McpAccessHandler`, `McpContextQuery` |
 | infrastructure | `JdbcPolicyRepository`, `PolicyDocumentParser`, `PolicyCache`, `Argon2PasswordHasher` |
-| web | `AuthController` |
+| web | `AuthController`, `McpSessionController`, `McpCredentialFilter` |
+
+**Read-only MCP (#87).** Root `mcp/` is a separate stdio and stateless Streamable HTTP adapter over the existing authorized REST reads. Identity also owns public OAuth client registration, consent, one-time PKCE codes, resource binding and revocation (R-IAM-31). The frontend hosts the consent page and protocol proxy routes; the adapter has no database access. Remote access requires a canonical `MCP_PUBLIC_URL`, identical in backend and adapter. Identity owns dedicated opaque session purpose, the `mcp:Connect` policy action, connection context and revocation. `MCP_ENABLED` defaults off. The connection grant adds no business action or scope; every concrete read still uses its owning module's policy and SQL filtering. It never adopts a shared loader browser's PIN-switched identity. Authentication uses the existing throttle, and reads record their authorization in audit. See [R-IAM-30](RULES-AND-POLICIES.md) and the [walkthrough](../issues/087-readonly-mcp/WALKTHROUGH.md) for the curated surface and remaining work.
 
 **Owns:** `iam.users`, `iam.roles`, `iam.user_roles`, `iam.user_depot_access`, `iam.user_outlet_access`, `iam.vehicle_driver_assignments`, `iam.devices`, `iam.sessions`, `iam.login_attempts`, `iam.policies`, `iam.policy_versions`, `iam.policy_attachments`, `iam.action_catalogue`.
 
 **Commands:** `Login`, `Logout`, `CreateAccount`, `UpdateAccount`, `ResetPassword`, `DisableAccount`, `GrantScope`, `RevokeScope`, `RegisterDevice`, `AssignDriverToVehicle`, `CreatePolicy`, `CreatePolicyVersion`, `SetDefaultPolicyVersion`, `AttachPolicy`, `DetachPolicy`.
-**Queries:** `permits(actor, command, target)`, `scopeOf(actor)`, `actorForSession(token)`, `driverVehicleOn(date)`.
+**Queries:** `permits(actor, command, target)`, `scopeOf(actor)`, `actorForSession(token)`, `driverVehicleOn(date)`, `driverOn(vehicleId, date)` (who drives a vehicle, so a store manager sees the driver's name).
 **Publishes:** `access.granted`, `access.revoked`, `account.disabled`, `authorization.denied`.
 **Consumes:** nothing.
 
@@ -136,9 +138,9 @@ Revised 2026-09-30. `OrderStatus` in `ordering/contract` is the one vocabulary; 
 | Layer | Contents |
 | --- | --- |
 | contract | `PlanViews` (`PlanView`, `TripView`, `AllocationView`, `ConstraintResultView`, `DeferralView`, `FuelView`, `InterchangePreview`), `PlanQuery`, `PlanCommands`, `PlanEvents` |
-| domain | `PlanningRun` (the aggregate: draft, override, defer, revision, trip move and replan, options), `VehicleDay`, `Trip`, `PlanOrder`, `FleetVehicle`, `DistrictTravel`, `PlanContext`, `RuleSet`, `PriorityPolicy` (versioned decision table), `ConstraintRegistry`, `Constraint`, `Constraints`, `ConstraintResult`, `PlanVerification`, `PublicationGate`, `DemandFingerprint`, `TripTimeline`, `FuelLedger`, `TemperatureClass`, `AllocationEngine` (port, with `Problem` and `AllocationResult`) |
+| domain | `PlanningRun` (the aggregate: draft, override, defer, revision, trip move and replan, options), `VehicleDay`, `Trip`, `PlanOrder`, `FleetVehicle`, `DistrictTravel`, `PlanContext`, `RuleSet`, `CheapestInsertion` and `ScarceFleetReplan` (placement, deferral explanation and the reefer re-plan, issue #92), `PriorityPolicy` (versioned decision table), `ConstraintRegistry`, `Constraint`, `Constraints`, `ConstraintResult`, `PlanVerification`, `PublicationGate`, `DemandFingerprint`, `TripTimeline`, `FuelLedger`, `TemperatureClass`, `AllocationEngine` (port, with `Problem` and `AllocationResult`) |
 | application | `GeneratePlanHandler`, `OverrideAllocationHandler`, `DeferOrderHandler`, `PublishPlanHandler`, `RevisePlanHandler`, `ReplanTripHandler`, `PlanDataQuery` (implements `PlanQuery`, previews included), `PlanningProblems`, `PlanningDrafts`, `PlanningRevisions`, `PlanPublication` (the gate), `PlanRecords` (translation only), `PlanningConsumers` |
-| infrastructure | `PriorityInsertionEngine`, `ValidatingEngine` (decorator), `PlanningEngineConfiguration`, `JdbcPlanRepository`, `PeakDayScenario` (the Task 2B fixture and CSV export) |
+| infrastructure | `PriorityInsertionEngine`, `ImprovingEngine` (decorator running `ScarceFleetReplan` after it, issue #92), `ValidatingEngine` (decorator, always outermost), `PlanningEngineConfiguration`, `JdbcPlanRepository`, `PeakDayScenario` (the Task 2B fixture and CSV export) |
 | web | routed through the command endpoint |
 
 **Owns:** `planning.runs`, `planning.trips`, `planning.allocations`, `planning.deferrals`, `planning.route_legs` (planned times only; actual times belong to Execution), `planning.fuel_usage`, `planning.rule_sets`, `planning.rule_parameters`, `planning.policy_versions`. A trip id is unique within a plan and stable across versions while the trip carries the same orders, whichever vehicle carries it.
@@ -199,7 +201,7 @@ Four consumers read that one registry: the engine, the manual override path, the
 **Owns:** `loading.trips`, `loading.stops`, `loading.items`, `loading.sessions`, append-only `loading.item_checks` and `loading.shortfalls`, built from `plan.published` and `plan.revised`.
 
 **Commands:** `loading:Start`, `loading:Check`, `loading:Shortfall`, `loading:HandBack`, `loading:Release`. Interchange and dispatcher handover are deferred.
-**Queries:** `manifest(tripId)`, `readyTrips(depot, day)`, `openShortfalls(depot)`.
+**Queries:** `manifest(tripId)`, `orderLine(tripId, orderId)` (one order's line and item checks, readable by the depot and by the order's own outlet, which sees nothing else of the trip), `readyTrips(depot, day)`, `openShortfalls(depot)`.
 **Publishes:** `loading.started`, `loading.shortfall`, `trip.released`. `loading.interchange_requested` is a planned event; the interchange command is deferred.
 **Consumes:** `plan.published`, `plan.revised`, `shortfall.resolved` (from Issues).
 
@@ -257,14 +259,14 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 | --- | --- |
 | contract | `ReceiptStatus`, `ReceiptEvents` |
 | domain | `Receipt`, `ReceiptLine`, `ReceiptStateMachine`, `AutoClosePolicy`, `ReceiptParameters` |
-| application | `ReceiptAnswerHandler` with `ConfirmReceiptHandler`, `ConfirmPartialReceiptHandler`, `DisputeReceiptHandler`; `ReceiptConsumers.OnDeliveryCompleted`; `ReceiptAutoCloseJob`; `ReceiptDataQuery` |
-| infrastructure | `JdbcReceiptRepository` |
+| application | `ReceiptAnswerHandler` with `ConfirmReceiptHandler`, `ConfirmPartialReceiptHandler`, `DisputeReceiptHandler`; `ReceiptConsumers.OnDeliveryCompleted`; `ReceiptAutoCloseJob`; `ReceiptDataQuery`; `HandoverIssuer`, `VerifyHandoverHandler`, `ReissueHandoverPinHandler` |
+| infrastructure | `JdbcReceiptRepository`, `JdbcHandoverRepository` |
 
-**Owns:** `receipt.confirmations`, `receipt.confirmation_lines`, `receipt.confirmation_history`, `receipt.parameters`.
+**Owns:** `receipt.confirmations`, `receipt.confirmation_lines`, `receipt.confirmation_history`, `receipt.parameters`, `receipt.handovers`, `receipt.handover_history`.
 
-**Commands:** `ConfirmReceipt`, `ConfirmPartialReceipt`, `DisputeReceipt`.
-**Queries:** `receiptFor(orderId)`, `pendingConfirmations(outletId)`, `custodyChain(orderId)`, the loading check, the proof and the receipt side by side (R-RCP-08). Web: `/api/receipts/pending?outlet=`, `/{orderId}`, `/{orderId}/custody`.
-**Publishes:** `receipt.confirmed` (with `partial`), `receipt.disputed`, `receipt.auto_closed`. A shortage reported after auto-close is announced as `receipt.disputed`, because the order is already UNCONFIRMED.
+**Commands:** `ConfirmReceipt`, `ConfirmPartialReceipt`, `DisputeReceipt`, `VerifyHandover` (the driver's), `ReissueHandoverPin` (the store's).
+**Queries:** `receiptFor(orderId)`, `pendingConfirmations(outletId)`, `custodyChain(orderId)`, the loading check, the proof and the receipt side by side (R-RCP-08). Web: `/api/receipts/pending?outlet=`, `/{orderId}`, `/{orderId}/custody`, `/{orderId}/handover` (where the PIN stands, never the PIN).
+**Publishes:** `receipt.confirmed` (with `partial`), `receipt.disputed`, `receipt.auto_closed`, `receipt.handover_confirmed` (the driver typed the store's PIN, R-RCP-09). A shortage reported after auto-close is announced as `receipt.disputed`, because the order is already UNCONFIRMED.
 **Consumes:** `delivery.completed`, which opens the receipt. Not `delivery.failed`: nothing arrived, so there is nothing to accept, and Issues raises the failure.
 
 **Invariants.** Confirmation refers to a real delivery record. Driver proof and store acceptance are separate events and neither overwrites the other, which is the entire point: disputes become evidence-based rather than memory-based.
@@ -279,16 +281,18 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 
 | Layer | Contents |
 | --- | --- |
-| contract | `IssueViews` (`IssueView`, `IssueHistoryView`, `SubjectRef`), `IssueQuery`, `IssueCommands`, `IssueEvents` |
+| contract | `IssueViews` (`IssueView`, `IssueHistoryView`, `SubjectRef`, `AttachmentView`), `IssueQuery`, `IssueCommands`, `IssueEvents` |
 | domain | `Issue`, `IssueLifecycle`, `ResolutionAction`, `SeverityPolicy` |
-| application | `RaiseIssueHandler`, `IssueCommandHandler` with six decisions in `IssueHandlers`, `IssueScope`, `IssuesConsumers`, `IssueEscalationJob`, `IssueDataQuery` |
-| infrastructure | `JdbcIssueRepository` |
-| web | `IssueController`, reads only |
+| application | `RaiseIssueHandler`, `IssueCommandHandler` with six decisions in `IssueHandlers`, `IssueScope`, `IssuesConsumers`, `IssueEscalationJob`, `IssueDataQuery`, `IssueAttachments`, `IssueAttachmentRetentionJob` |
+| infrastructure | `JdbcIssueRepository`, `JdbcIssueAttachments` |
+| web | `IssueController`: reads, and the one binary write, a photo upload |
 
-**Owns:** `issues.issues`, `issues.issue_subjects`, `issues.issue_history`, `issues.parameters`.
+**Owns:** `issues.issues`, `issues.issue_subjects`, `issues.issue_history`, `issues.parameters`, `issues.attachments`, `issues.attachment_content`, `issues.issue_attachments`.
+
+**Photos.** A store manager uploads a photo of a delivery problem for its order (`PUT /api/issues/attachments/{id}?order=&receipt=`, action `issue:AttachPhoto`): id minted on the phone, content addressed by SHA-256, type read from the bytes, 3 MB cap, kept in the database and cleared past P-14. `RaiseIssue` names photos in `attachmentIds`; a photo taken while counting names the receipt and joins its shortage investigation. A link is made whichever arrives first, so an offline phone can send the photo and the report in either order. Read through `/{issueId}/attachments/{attachmentId}/content` by anyone who can see the issue.
 
 **Commands:** `RaiseIssue`, `AssignIssue`, `ResolveIssue`, `RecordReplacement`, `ScheduleRedelivery`, `CloseIssue`, `CancelIssue`. Raise rights by type are policy data (R-ISS-07).
-**Queries:** `openIssues(depot)` (most severe first, keyset), `issuesFor(subject)`. Web: `/api/issues?depot=`, `/by-subject?type=&id=`, `/{id}`, `/{id}/history`.
+**Queries:** `openIssues(depot)` (most severe first, keyset), `issuesFor(subject)`. Web: `/api/issues?depot=`, `/by-subject?type=&id=`, `/{id}`, `/{id}/history`, `/{id}/attachments/{attachmentId}/content`.
 **Publishes:** `issue.raised`, `issue.resolved`, `issue.escalated`, `shortfall.resolved` (naming the shortfall when the issue came from one), `redelivery.requested`.
 **Consumes:** `loading.shortfall`, `delivery.failed`, `vehicle.fault_reported`, `road.disruption_reported`, `receipt.disputed`, `receipt.confirmed` (partial only), `warehouse.discrepancy_found`. One issue per source event.
 
@@ -300,39 +304,46 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 
 ## 9. Notification (`notification`)
 
-**Not built.** Only `notification/contract` exists; the work is issue #14.
+**Built** (issue #14), backend only. Each role UI places its own inbox, push opt-in and service worker handlers; there is no shared notification component (decided on the issue). What was built is in [the walkthrough](../issues/014-notification/WALKTHROUGH.md).
 
 **Purpose.** Turn domain events into messages people actually receive, with delivery tracked per channel.
 
 | Layer | Contents |
 | --- | --- |
-| domain | `Notification`, `Recipient`, `Channel`, `DeliveryAttempt`, `NotificationPolicy` |
-| application | `NotifierWorker`, `DeadLetterHandler`. The outbox relay is platform, not Notification |
-| infrastructure | `JdbcNotificationRepository`, channel adapters (in-app inbox, web push; decision D-N) |
+| domain | `NotificationPolicy` (the routing table applied to one event), `RoutingRule`, `RoutingTable`, `RoutedEvent`, `Template`, `Delivery` (channels, statuses, retry policy) |
+| application | `NotificationConsumers` (one subscriber per routed event), `Notifier`, `PushDeliveryJob`, `NotificationHandlers`, `NotificationDataQuery`, `InboxSignals`, the port `PushGateway`. The outbox relay is platform, not Notification |
+| infrastructure | `JdbcNotificationRepository`, `WebPushGateway` and `WebPushCrypto` (RFC 8030, 8291, 8292 on the JDK) |
+| web | `NotificationController`: `/api/notifications`, `/unread-count`, `/stream` (server-sent events), `/push-config` |
 
-**Owns:** `notification.notifications`, `notification.deliveries`, `notification.push_subscriptions`. It consumes events like any other module; `integration.outbox_events` and the relay belong to the platform.
+**Owns:** `notification.notifications`, `notification.deliveries`, `notification.push_subscriptions`, and the read-only `notification.routing_versions` and `notification.routing_rules`. It consumes events like any other module; `integration.outbox_events` and the relay belong to the platform. Recipients come from `IdentityQuery.recipientsFor`; it never reads `iam` tables.
 
-**The matrix.** Every row is an outbox event with a durable delivery record:
+**Channels (D-N).** The in-app inbox, which is delivered when the row is written, and web push, sent by `PushDeliveryJob` after commit with retry and a dead letter (P-27). With no VAPID keys push is off, visibly (NOT-05).
 
-| Event | To | Why it matters |
-| --- | --- | --- |
-| `warehouse.order_status_changed` | Store manager | A `stock_unknown` order was confirmed, or found short |
-| `order.unservable` | Dispatcher, store manager | No vehicle can take it; needs a decision |
-| `order.deferred` | Store manager | With the binding reason and the next planned date |
-| `order.auto_deferred` | Store manager | The warehouse never confirmed stock before the cutoff (STK-03) |
-| `plan.published` | Loader, driver | Work is available |
-| `loading.shortfall` | Dispatcher | Departure is blocked now |
-| `trip.released` | Driver | Vehicle ready, dock assigned |
-| `delivery.completed` | Store manager | Proof is available to review |
-| `delivery.failed` | Dispatcher, store manager | Requires a decision |
-| `issue.raised` | Dispatcher | Fault, delay, damage, access problem |
-| `issue.escalated` | Dispatcher | An issue waited unassigned past its severity's deadline (R-ISS-06) |
-| `vehicle.fault_reported` | Dispatcher | A driver reported the vehicle; the dispatcher decides its status |
-| `receipt.disputed` | Dispatcher | The store disagrees with what arrived |
-| `vehicle.status_changed` | Dispatcher | Fleet availability changed |
-| `eta.changed` | Store manager | Staffing decision at the outlet |
+**The matrix** is data: version 1 of `notification.routing_rules` (R-NOT-09). Every row produces a durable notification and delivery records.
 
-**Invariants.** A notification is never sent inside the request transaction. The state change and the outbox row commit together; the relay publishes after commit, at least once, and consumers are idempotent by `event_id`. A poison event goes to dead-letter with its attempt history; it never blocks the queue and never vanishes.
+| Event | To | Push | Why it matters |
+| --- | --- | --- | --- |
+| `warehouse.order_status_changed` (`insufficient`, `expired`) | Store manager | yes | A retried placement found stock short, or a partial reservation expired (R-NOT-01) |
+| `order.unservable` | Store manager, dispatcher | yes | No vehicle can take it; needs a decision |
+| `order.deferred` | Store manager | yes | With the binding reason (R-RCP-03, R-NOT-04) |
+| `order.auto_deferred` | Store manager | yes | The warehouse never confirmed stock before the cutoff (STK-03) |
+| `plan.published`, `plan.revised` | Loader; driver of each trip's vehicle on the service date | yes | Work is available, or changed |
+| `trip.released` | Driver; dispatcher when the vehicle has no driver (LOD-05) | yes | Vehicle ready |
+| `loading.shortfall` | Dispatcher | yes | Departure is blocked now (R-NOT-02) |
+| `delivery.started`, `delivery.completed` | Store manager | no | Arriving; proof is available to review |
+| `delivery.failed` | Dispatcher, store manager | yes | Requires a decision |
+| `eta.changed` | Store manager, dispatcher | yes | Staffing at the outlet, lateness at the depot (R-RCP-02, R-EXE-15) |
+| `issue.raised` | Dispatcher; store manager when an outlet is named | yes | Fault, delay, damage, access problem (R-NOT-03) |
+| `issue.escalated` | Dispatcher | yes | Waited unassigned past its severity's deadline (R-ISS-06) |
+| `vehicle.fault_reported`, `road.disruption_reported` | Dispatcher | yes | The dispatcher decides the vehicle's status |
+| `receipt.disputed` | Dispatcher | yes | The store disagrees with what arrived |
+| `vehicle.status_changed` | Dispatcher | no | Fleet availability changed. Reference does not publish it yet |
+
+A driver is pushed only trip-level events (R-NOT-08), and whoever caused an event is not told about it (R-NOT-07).
+
+**Commands:** `notification:MarkRead` (ids), `notification:MarkAllRead` (`upTo`), `notification:Subscribe`, `notification:Unsubscribe`. Read state is set-once, so marking takes no `expectedVersion` (R-NOT-06).
+
+**Invariants.** A notification is never sent inside the request transaction (R-NOT-05): the consumer writes the intent, and the push job sends with no transaction open. The state change and the outbox row commit together; the relay publishes after commit, at least once, and each person's notification is unique per event and target, so a redelivery writes nothing (NOT-03). A push that keeps failing is dead with its last error; it never blocks the queue and never vanishes (NOT-04). Notifications are never deleted (A-34).
 
 ---
 
@@ -342,7 +353,7 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 
 **Owns:** `sync.operations`.
 
-**Commands:** `SubmitOperation`, `AcknowledgeOperation`, `DiscardOperation`. Batch submit and acknowledge are built. Discard, and a resolve that reapplies a held write, are not: they wait on decision D-O, who may review another person's conflict (issue #28).
+**Commands:** `SubmitOperation`, `AcknowledgeOperation`, `DiscardOperation`, `ResolveOperation`, all built. Decision D-O (2026-10-02): only an operation's owner reviews it, which `p_operations_own` already enforces (R-EXE-16). Discard drops a conflict or a refusal with a reason. Resolve settles a conflict as `RESOLVED` and names the redo the device queued ahead of it on the current version; the redo is its own operation, applied or held like any other (R-EXE-17). Each sync answer carries the operation's `rowVersion`, which a discard or resolve names (issue #28).
 **Queries:** `pendingFor(device)`, `conflictsFor(actor)`.
 
 **Protocol.**
@@ -373,21 +384,33 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 
 ## 12. Intelligence (`ml`)
 
-**Not built.** Only `intelligence/contract` exists; the work is issue #16. Planning marks every plan `plannedWithoutPredictor` until it lands.
+**Built** (issue #16), backend only; the screens are the role UIs' (Forecast and late risk #19, supply probability #18, model registry #22). What was built is in [the walkthrough](../issues/016-intelligence/WALKTHROUGH.md).
 
 **Purpose.** Predictions that support planning, kept strictly out of the transactional core.
 
 | Layer | Contents |
 | --- | --- |
-| contract | `ServiceTimeEstimate`, `LatenessEstimate`, `DemandForecast` |
-| domain | `TravelAndServiceEstimator` (port), `DeterministicEstimator` (default implementation) |
-| infrastructure | `ModelServingAdapter`, `JdbcPredictionRepository` |
+| contract | `TravelAndServiceEstimator` (port), `PredictionQuery`, `ModelViews` (registry, kinds `delivery_risk` and `demand_forecast`), `PredictionViews` |
+| domain | `DeterministicEstimator`, `ModelGate`, `SupplyPolicy`, `PlannedRoutes`, `CircuitBreaker` |
+| application | `PlanScoringJob`, `ForecastJob`, `ModelHandlers`, `IntelligenceConsumers`, `IntelligenceDataQuery`, `ReferencePayload` |
+| infrastructure | `ModelServingAdapter` (HTTP to the model service, behind a circuit breaker), `JdbcIntelligenceRepository` |
+| web | `/api/ml/models`, `/plans/{id}/predictions`, `/forecast`, `/orders/{id}/supply-probability`, `/training/deliveries` |
 
-**Owns:** `ml.model_versions`, `ml.delivery_predictions`, `ml.demand_forecasts`.
+**The model service** (`ml-server/`, ADR-001's Python trigger) serves the trained Datathon models: `delivery_risk` (service minutes and P(late) per stop, scored over whole planned routes, with a no-road-conditions fallback) and `demand_forecast` (weekly total and chilled m³). It only predicts, and refuses to start if a model file differs from its manifest.
 
-**Invariants.** Every stored prediction records the model version that produced it, so results are reproducible and a bad model is traceable and replaceable. Predictions **never** participate in a transaction with operational state. The system plans without the predictor when it is unavailable and says so on screen.
+**Owns:** `ml.model_versions`, `ml.plan_scorings`, `ml.delivery_predictions`, `ml.demand_forecasts`.
 
-**Connections.** Planning consumes estimates through the port and degrades to the deterministic implementation when model serving is unavailable. Nothing else depends on this module.
+**Invariants.**
+- A model is never called inside an operational transaction (R-ML-01).
+- Every stored prediction names its model or `deterministic` and is written once (R-ML-02).
+- One model per kind is active (R-ML-03).
+- A model answers only when it is the active one and the service reports exactly it; otherwise the deterministic answer, marked degraded with the reason, and the plan says it was scored without the predictor (R-ML-04).
+- Predictions never change allocation (R-ML-05).
+
+**Connections.**
+- Consumes `plan.published` and `plan.revised`.
+- Reads Planning (`PlanQuery.plan`), Ordering (`order`, `dailyVolumes`), Execution (`actuals`) and Reference (outlets, vehicles, travel, calendar, traffic speed, road conditions) through their contracts.
+- Planning reads `PredictionQuery.planScoring` for `plannedWithoutPredictor`, lazily, so it still works without this module.
 
 ---
 
@@ -457,12 +480,12 @@ Modules connect three ways: a contract query (synchronous, read only), an event 
 
 | Synchronous connection | From | To |
 | --- | --- | --- |
-| `IdentityQuery` (`permits`, `scopeOf`, `driverVehicleOn`, `recipientsFor`) | every module | Identity |
+| `IdentityQuery` (`permits`, `scopeOf`, `driverVehicleOn`, `driverOn`, `recipientsFor`) | every module | Identity |
 | `ReferenceQuery`, cached | every module | Reference |
 | `StockPort.placeOrder`, `amendOrder`, with circuit breaker | Ordering | Warehouse |
 | `OrderQuery.confirmedDemand` | Planning | Ordering |
 | `PlanQuery.previewInterchange` | Loading | Planning |
-| `TravelAndServiceEstimator`, degradable | Planning | Intelligence |
+| `PredictionQuery` (plan scoring, degradable) | Planning | Intelligence |
 | `CatalogueQuery` | store UI, admin | Warehouse |
 | audit row, written in the same transaction | all | platform |
 
@@ -473,7 +496,7 @@ Modules connect three ways: a contract query (synchronous, read only), an event 
 | `order.placed`, `order.amended`, `order.cancelled` | Ordering | Planning, Warehouse (cancel), Notification |
 | `order.auto_deferred` | Ordering | Notification |
 | `orders.closed` | Ordering | Planning |
-| `plan.published`, `plan.revised` | Planning | Ordering, Loading, Execution, Notification |
+| `plan.published`, `plan.revised` | Planning | Ordering, Loading, Execution, Notification, Intelligence |
 | `order.deferred`, `order.unservable` | Planning | Ordering, Notification |
 | `loading.started` | Loading | Ordering, Notification |
 | `loading.shortfall` | Loading | Issues, Notification |
@@ -482,6 +505,7 @@ Modules connect three ways: a contract query (synchronous, read only), an event 
 | `delivery.started`, `delivery.completed`, `delivery.failed`, `eta.changed` | Execution | Ordering, Receipt, Warehouse (delivered), Issues, Notification |
 | `vehicle.fault_reported`, `road.disruption_reported` | Execution | Issues, Notification |
 | `receipt.confirmed`, `receipt.disputed`, `receipt.auto_closed` | Receipt | Ordering, Issues, Notification |
+| `receipt.handover_confirmed` | Receipt | Notification |
 | `issue.raised`, `issue.resolved`, `issue.escalated` | Issues | Notification |
 | `shortfall.resolved` | Issues | Loading |
 | `redelivery.requested` | Issues | Ordering |

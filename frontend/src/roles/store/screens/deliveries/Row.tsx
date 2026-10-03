@@ -1,0 +1,75 @@
+import { cx } from "@shared/ui";
+import type { Status } from "../../data/runs.ts";
+import { Button, Chip } from "../../ui.tsx";
+
+// One row of "05a Deliveries": the time box, what is coming, where it stands and
+// what the store can do. On a phone the chip and the buttons wrap below.
+
+export type RowAction = { label: string; tone?: "ink" | "plain"; onClick: () => void };
+
+export default function Row({
+  time,
+  title,
+  tag,
+  badge,
+  line,
+  sub,
+  status,
+  actions,
+  highlight,
+}: {
+  /** "ETA 05:44", "Window 05:00", "Sat 26 05:48". */
+  time: { label: string; value: string; tone?: "warm" | "mint" | "plain" };
+  title: string;
+  /** "Refrigerated vehicle", "Chilled". */
+  tag?: string;
+  /** "2 orders". */
+  badge?: string;
+  line: string;
+  sub?: string;
+  status: Status;
+  actions: RowAction[];
+  /** Waiting for the store: outlined, as the row to act on. */
+  highlight?: boolean;
+}): React.JSX.Element {
+  return (
+    <article
+      aria-label={title}
+      className={cx(
+        "flex flex-col gap-3 rounded-[20px] bg-white p-3 lg:flex-row lg:items-center lg:gap-4 lg:pr-4",
+        highlight && "outline-2 outline-[#0f766e]",
+      )}
+    >
+      <div className="flex min-w-0 flex-1 items-center gap-4">
+        <span
+          className={cx(
+            "flex w-[84px] shrink-0 flex-col items-center rounded-[14px] py-2",
+            time.tone === "warm" ? "bg-[#fbf1e1]" : time.tone === "mint" ? "bg-go-mint" : "bg-go-canvas",
+          )}
+        >
+          <span className="text-[11px] text-go-muted">{time.label}</span>
+          <span className="text-[20px] leading-tight font-semibold text-black">{time.value}</span>
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="flex flex-wrap items-center gap-2">
+            <span className="text-[17px] font-medium text-black">{title}</span>
+            {tag && <Chip outline>{tag}</Chip>}
+            {badge && <Chip tone="muted">{badge}</Chip>}
+          </span>
+          <span className="text-[14px] text-black">{line}</span>
+          {sub && <span className="text-[13px] text-go-muted">{sub}</span>}
+        </span>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 lg:flex-nowrap">
+        <Chip tone={status.tone}>{status.label}</Chip>
+        {actions.map((a) => (
+          <span key={a.label} className="min-w-[112px] flex-1 lg:flex-none">
+            <Button tone={a.tone ?? "plain"} onClick={a.onClick}>
+              {a.label}
+            </Button>
+          </span>
+        ))}
+      </div>
+    </article>
+  );
+}

@@ -3,6 +3,7 @@ package com.waypoint.dispatch.receipt.web;
 import com.waypoint.dispatch.platform.web.RequestAuthorizer;
 import com.waypoint.dispatch.receipt.application.ReceiptDataQuery;
 import com.waypoint.dispatch.receipt.contract.ReceiptViews.CustodyChainView;
+import com.waypoint.dispatch.receipt.contract.ReceiptViews.HandoverView;
 import com.waypoint.dispatch.receipt.contract.ReceiptViews.PendingReceiptView;
 import com.waypoint.dispatch.receipt.contract.ReceiptViews.ReceiptView;
 import jakarta.servlet.http.HttpServletRequest;
@@ -46,6 +47,13 @@ public class ReceiptController {
   public ReceiptView receipt(@PathVariable UUID orderId, HttpServletRequest request) {
     var actor = authorizer.require(request, READ, "wpt:receipt:order:" + orderId);
     return receipts.receipt(actor, orderId);
+  }
+
+  /** Where the handover PIN stands, never the PIN itself (R-RCP-09); 404 when none was issued or outside scope. */
+  @GetMapping("/{orderId}/handover")
+  public HandoverView handover(@PathVariable UUID orderId, HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:receipt:order:" + orderId);
+    return receipts.handover(actor, orderId);
   }
 
   /** The loading check, the proof and the receipt side by side (R-RCP-08), for disputes and audit. */

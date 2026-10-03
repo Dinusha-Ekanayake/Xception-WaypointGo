@@ -1,4 +1,4 @@
-import { ShellActions, cx, formatClock } from "@shared/ui";
+import { McpButton, ShellActions, cx, formatClock, useShell } from "@shared/ui";
 
 // The store's top bar from "02 Home" (mobile and desktop). Connection state is always on screen: the
 // resilient tier keeps working offline, and the manager must know an order is
@@ -15,6 +15,7 @@ export default function TopBar({
   waiting: number;
   sample: boolean;
 }): React.JSX.Element {
+  const shell = useShell();
   const sync = !online
     ? waiting > 0
       ? `Offline · ${waiting} saved on this phone`
@@ -42,6 +43,7 @@ export default function TopBar({
         {!online && <span aria-hidden className="mr-1.5 inline-block size-2 rounded-full bg-go-warning" />}
         {sync}
       </span>
+      <McpButton url={shell?.mcpUrl ?? null} compact />
       <span className="lg:hidden">
         <ShellActions compact />
       </span>

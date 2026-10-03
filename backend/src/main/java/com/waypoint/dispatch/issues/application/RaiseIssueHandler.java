@@ -8,6 +8,7 @@ import com.waypoint.dispatch.issues.contract.IssueViews.IssueStatus;
 import com.waypoint.dispatch.issues.contract.IssueViews.IssueType;
 import com.waypoint.dispatch.issues.contract.IssueViews.SubjectRef;
 import com.waypoint.dispatch.issues.domain.Issue;
+import com.waypoint.dispatch.issues.infrastructure.JdbcIssueAttachments;
 import com.waypoint.dispatch.issues.infrastructure.JdbcIssueRepository;
 import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.platform.messaging.Command;
@@ -29,6 +30,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Anyone may report a problem at any stage (R-EXE-09), within two limits that
@@ -52,6 +54,7 @@ public class RaiseIssueHandler implements CommandHandler {
   private final Metrics metrics;
   private final Clock clock;
   private final IssueScope scope;
+  private final JdbcIssueAttachments attachments;
   private final SecureRandom random = new SecureRandom();
 
   RaiseIssueHandler(
@@ -60,7 +63,9 @@ public class RaiseIssueHandler implements CommandHandler {
       EventPublisher events,
       Metrics metrics,
       Clock clock,
-      IssueScope scope) {
+      IssueScope scope,
+      JdbcIssueAttachments attachments) {
+    this.attachments = attachments;
     this.issues = issues;
     this.reference = reference;
     this.events = events;
@@ -119,6 +124,8 @@ public class RaiseIssueHandler implements CommandHandler {
             UuidV7.generate(now, random), type, severity, depot, outlet, subjects(command),
             payload.requiredText("description"), false, Optional.empty(), actor.userId(), now);
     issues.insert(issue, now);
+    // Photos named by id: those already here show at once, one still on the phone when it arrives.
+    attachments.link(issue.issueId(), attachmentIds(command), now);
     issues.record(
         issue.issueId(), Optional.empty(), IssueStatus.OPEN, "raised", "raised by a person", actor.userId(),
         Optional.empty(), now);
@@ -127,6 +134,26 @@ public class RaiseIssueHandler implements CommandHandler {
     metrics.increment("waypoint.issue.raised", "type", type.name(), "severity", severity.name(), "by", "person");
 
     return Map.of("issueId", issue.issueId().toString(), "status", issue.status().name(), "rowVersion", 1L);
+  }
+
+  /** {@code attachmentIds: [uuid]}, optional: photos uploaded for the problem (issue:AttachPhoto). */
+  static List<UUID> attachmentIds(Command command) {
+    JsonNode node = command.payload() == null ? null : command.payload().get("attachmentIds");
+    if (node == null || node.isNull()) {
+      return List.of();
+    }
+    if (!node.isArray() || node.size() > 10) {
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, "attachmentIds is a list of at most ten photo ids");
+    }
+    List<UUID> out = new ArrayList<>();
+    for (JsonNode id : node) {
+      try {
+        out.add(UUID.fromString(id.asText()));
+      } catch (IllegalArgumentException e) {
+        throw new DomainException(ErrorCode.VALIDATION_FAILED, "attachmentIds holds photo ids");
+      }
+    }
+    return out;
   }
 
   /** {@code subjects: [{type, id}]}, at least one; the domain checks the types. */

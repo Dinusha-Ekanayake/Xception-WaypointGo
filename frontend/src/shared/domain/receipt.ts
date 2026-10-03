@@ -66,10 +66,45 @@ export const ReceiptCommandKind = {
   confirm: "receipt:Confirm",
   confirmPartial: "receipt:ConfirmPartial",
   dispute: "receipt:Dispute",
+  verifyHandover: "receipt:VerifyHandover",
+  reissueHandoverPin: "receipt:ReissueHandoverPin",
 } as const;
+
+/** Past its time reads as EXPIRED though the row still says awaiting. */
+export type HandoverStatus = "AWAITING" | "CONFIRMED" | "LOCKED" | "EXPIRED";
+
+/**
+ * Where the handover PIN stands (R-RCP-09), for the store's screen. The PIN is
+ * never here: it is returned once, as the answer to the command that issued it.
+ * Evidence of presence, never a gate: nothing waits for it.
+ */
+export type HandoverView = {
+  orderId: Uuid;
+  status: HandoverStatus;
+  expiresAt: IsoInstant;
+  /** Wrong entries the driver may still make. */
+  attemptsLeft: number;
+  confirmedAt: IsoInstant | null;
+  /** The version a reissue is made against. */
+  rowVersion: number;
+};
+
+/** What a receipt answer adds to its result when a PIN was issued; absent when none could be. */
+export type HandoverIssued = { handoverPin?: string; handoverExpiresAt?: string };
+
+/** What the driver's entry answers. A wrong or late entry is an answer, not an error. */
+export type HandoverEntryResult = {
+  orderId: Uuid;
+  verified: boolean;
+  outcome: "VERIFIED" | "ALREADY_CONFIRMED" | "WRONG" | "LOCKED" | "EXPIRED";
+  attemptsLeft: number;
+  rowVersion: number;
+};
 
 export type ReceivedLine = { productId: string; receivedQuantity: number };
 
 export type ConfirmReceipt = { orderId: Uuid };
 export type ConfirmPartialReceipt = { orderId: Uuid; lines: ReceivedLine[]; note: string | null };
 export type DisputeReceipt = { orderId: Uuid; reason: string; lines: ReceivedLine[] };
+export type VerifyHandover = { orderId: Uuid; pin: string };
+export type ReissueHandoverPin = { orderId: Uuid };

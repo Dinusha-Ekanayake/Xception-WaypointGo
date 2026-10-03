@@ -1,14 +1,21 @@
 import type { Command, CommandAck } from "@shared/api/commands";
 import { ApiError, parseProblem } from "@shared/api/problem";
 import {
+  IssueCommandKind,
   OrderCommandKind,
   ReceiptCommandKind,
   type AmendOrder,
   type CalendarAnswer,
   type CancelOrder,
+  type CustodyChainView,
+  type AcceptShortfall,
   type ConfirmPartialReceipt,
+  type DeliveryRecordView,
   type DisputeReceipt,
+  type HandoverView,
+  type IssueView,
   type LineAvailability,
+  type RaiseIssue,
   type OrderLine,
   type OrderStatus,
   type OrderView,
@@ -55,6 +62,10 @@ const CATALOGUE: [string, Temperature, number, number][] = [
   ["Fresh milk 1 L", "chilled", 1.04, 30],
   ["Butter 200 g", "chilled", 0.21, 6],
   ["Cheese slices 200 g", "chilled", 0.2, 20],
+  // Never ordered by this outlet, so "03c Add item" has something to find.
+  ["Chickpeas 1 kg", "ambient", 1.02, 40],
+  ["Chicken stock cubes 20 g", "ambient", 0.03, 30],
+  ["Chilli powder 250 g", "ambient", 0.26, 20],
 ];
 
 const PRODUCTS: ProductView[] = CATALOGUE.map(([id, temperature, kg]) => ({
@@ -85,6 +96,32 @@ export function sampleGateway(): StoreGateway {
   const history = new Map<string, StatusChangeView[]>();
   const receipts = new Map<string, ReceiptView>();
   const kept: Command[] = [];
+  const issues: IssueView[] = [];
+  const photos: { id: string; orderId: string; receiptId: string | null }[] = [];
+  // The handover PIN (R-RCP-09): kept here in the clear only because this is sample data.
+  const handovers = new Map<string, HandoverView & { pin: string; wrong: number }>();
+  const newPin = () => String(Math.floor(Math.random() * 10_000)).padStart(4, "0");
+  const issuePin = (orderId: string) => {
+    const pin = newPin();
+    const before = handovers.get(orderId);
+    handovers.set(orderId, {
+      orderId,
+      status: "AWAITING",
+      expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
+      attemptsLeft: 5,
+      confirmedAt: null,
+      rowVersion: (before?.rowVersion ?? 0) + 1,
+      pin,
+      wrong: 0,
+    });
+    return { handoverPin: pin, handoverExpiresAt: handovers.get(orderId)!.expiresAt };
+  };
+  const handoverView = (orderId: string): HandoverView => {
+    const h = handovers.get(orderId);
+    if (!h) throw problem(404, "NOT_FOUND", "No handover PIN for this order.");
+    const { pin: _pin, wrong: _wrong, ...view } = h;
+    return view.status === "AWAITING" && new Date(view.expiresAt) <= new Date() ? { ...view, status: "EXPIRED" } : view;
+  };
 
   const push = (o: OrderView, to: OrderStatus, reason: string, at = new Date().toISOString()) => {
     const h = history.get(o.orderId) ?? [];
@@ -150,7 +187,64 @@ export function sampleGateway(): StoreGateway {
   push(past, "RECEIVED", "store confirmed receipt");
   delivered(make(addDays(today, -1), "chilled", L([6, 12], [7, 8]), "IN_TRANSIT"));
   make(today, "ambient", L([0, 12], [1, 8], [2, 12], [4, 6], [5, 4]), "IN_TRANSIT");
-  make(today, "chilled", L([6, 10], [7, 6], [9, 4]), "LOADING");
+  const todayChilled = make(today, "chilled", L([6, 10], [7, 6], [9, 4]), "IN_TRANSIT");
+  // The chilled order was one case short at the dock, as in Figma "02 Home".
+  issues.push({
+    issueId: "iss-1",
+    type: "LOADING_SHORTFALL",
+    severity: "MEDIUM",
+    status: "OPEN",
+    depotCode: OUTLET.depotCode,
+    outletId: OUTLET.outletId,
+    subjects: [{ type: "order", id: todayChilled.orderId }],
+    description: "SHORT at loading: 1 units. It comes with the next delivery.",
+    assignee: null,
+    resolutionAction: null,
+    resolutionNote: null,
+    raisedBy: "usr-loader",
+    raisedAt: new Date().toISOString(),
+    resolvedAt: null,
+    rowVersion: 1,
+    attachments: [],
+  });
+
+  /** One stop for the order on the vehicle that carries today's run. */
+  const stopOf = (o: OrderView): DeliveryRecordView => {
+    const arrived = o.status === "DELIVERED" || o.status === "RECEIVED";
+    const planned = new Date(`${today}T05:44:00+05:30`).toISOString();
+    return {
+      deliveryId: `dlv-${o.orderId}`,
+      orderId: o.orderId,
+      tripId: "trip-1",
+      outletId: o.outletId,
+      vehicleId: "VEH043",
+      serviceDate: o.deliveryDate,
+      outcome: arrived ? "DELIVERED" : "PENDING",
+      arrivedAt: arrived ? planned : null,
+      serviceStartedAt: arrived ? planned : null,
+      completedAt: arrived ? planned : null,
+      waitMinutes: arrived ? 0 : null,
+      lateMinutes: arrived ? 0 : null,
+      lateReason: null,
+      timingUncertain: false,
+      deliveredUnits: arrived ? o.itemCount : null,
+      failureReason: null,
+      dispositionNote: null,
+      lowEvidence: false,
+      proofId: null,
+      clientRecordedAt: null,
+      serverRecordedAt: planned,
+      rowVersion: 1,
+      lines: o.lines.map((l) => ({ productId: l.productId, orderedUnits: l.quantity, deliveredUnits: arrived ? l.quantity : null })),
+      stopSequence: 3,
+      tripStopCount: 7,
+      plannedArrival: "05:44:00",
+      expectedArrival: null,
+      releasedAt: new Date(`${today}T04:30:00+05:30`).toISOString(),
+      startedAt: null,
+      driver: { displayName: "Rashmika Dilshan", employeeCode: "DRV-00021" },
+    };
+  };
   const deferred = make(addDays(today, 1), "chilled", L([8, 4]), "DEFERRED");
   deferred.deferralCount = 1;
 
@@ -166,7 +260,7 @@ export function sampleGateway(): StoreGateway {
     const short: LineAvailability[] = lines
       .filter((l) => l.quantity > (STOCK.get(l.productId) ?? 0))
       .map((l) => ({ productId: l.productId, requested: l.quantity, available: STOCK.get(l.productId) ?? 0 }));
-    if (short.length > 0) throw problem(409, "INSUFFICIENT_STOCK", "The warehouse cannot supply every line. Nothing was saved.", { availability: short });
+    if (short.length > 0) throw problem(422, "VALIDATION_FAILED", "Insufficient stock, nothing was reserved.", { availability: short }, ["STK-01"]);
   };
   const calendar = (date: string): CalendarAnswer => {
     const operating = date !== poya;
@@ -194,7 +288,12 @@ export function sampleGateway(): StoreGateway {
           history.set(o.orderId, [{ from: null, to: "STOCK_UNKNOWN", reason: "warehouse unreachable", actorId: null, at: o.placedAt }]);
           o.status = "STOCK_UNKNOWN";
         }
-        return clone(o);
+        // The same answer as PlaceOrderHandler: no totals are guessed while stock is unchecked.
+        return {
+          ...clone(o),
+          rolledBecause: o.dateRolled ? ["non_operating"] : [],
+          ...(warehouseDown ? { temperature: null, itemCount: null, weightKg: null, volumeM3: null, degraded: "warehouse unreachable" } : {}),
+        };
       }
       case OrderCommandKind.amend: {
         const { orderId, lines } = p as AmendOrder;
@@ -207,6 +306,14 @@ export function sampleGateway(): StoreGateway {
         o.rowVersion++;
         push(o, o.status, "amended by the store");
         return clone(o);
+      }
+      case OrderCommandKind.acceptShortfall: {
+        const { orderId } = p as AcceptShortfall;
+        const o = find(orderId);
+        guard(o.rowVersion, command.expectedVersion);
+        o.rowVersion++;
+        push(o, "CONFIRMED", "store accepted the reserved quantities");
+        return { orderId, status: o.status, rowVersion: o.rowVersion };
       }
       case OrderCommandKind.cancel: {
         const { orderId, reason } = p as CancelOrder;
@@ -230,7 +337,33 @@ export function sampleGateway(): StoreGateway {
         r.confirmedAt = new Date().toISOString();
         r.rowVersion++;
         push(find(orderId), "RECEIVED", r.status === "CONFIRMED" ? "store confirmed receipt" : `store recorded ${r.status.toLowerCase()} receipt`);
-        return clone(r);
+        return { ...clone(r), ...issuePin(orderId) };
+      }
+      case ReceiptCommandKind.reissueHandoverPin: {
+        const { orderId } = p as { orderId: string };
+        const h = handovers.get(orderId);
+        if (!h) throw problem(403, "FORBIDDEN", "No handover PIN for this order is within your scope.");
+        guard(h.rowVersion, command.expectedVersion);
+        if (h.status === "CONFIRMED") throw problem(409, "CONFLICT", "The handover for this order is already confirmed.");
+        return { orderId, ...issuePin(orderId), rowVersion: handovers.get(orderId)!.rowVersion };
+      }
+      case IssueCommandKind.raise: {
+        const raise = p as RaiseIssue;
+        const issue: IssueView = {
+          issueId: `iss-${issues.length + 1}`,
+          ...raise,
+          status: "OPEN",
+          assignee: null,
+          resolutionAction: null,
+          resolutionNote: null,
+          raisedBy: "usr-store",
+          raisedAt: new Date().toISOString(),
+          resolvedAt: null,
+          rowVersion: 1,
+          attachments: (raise.attachmentIds ?? []).map((attachmentId) => ({ attachmentId, contentType: "image/jpeg" })),
+        };
+        issues.push(issue);
+        return clone(issue);
       }
       default:
         throw problem(400, "UNKNOWN_COMMAND", `${command.kind} is not a store command.`);
@@ -251,15 +384,74 @@ export function sampleGateway(): StoreGateway {
       circuitState: warehouseDown ? "open" : "closed",
     }),
     calendar: async (date) => calendar(date),
+    deliveryDate: async (_outletId, requested) => {
+      const day = calendar(requested);
+      return { requested, delivery: day.nextOperatingDay, reasons: day.operating ? [] : ["non_operating"] };
+    },
     pendingReceipts: async () =>
       [...receipts.values()]
         .filter((r) => r.status === "PENDING")
         .map((r) => ({ orderId: r.orderId, deliveryId: r.deliveryId, outletId: r.outletId, deliveredAt: history.get(r.orderId)!.at(-1)!.at })),
+    handover: async (orderId) => clone(handoverView(orderId)),
+    custody: async (orderId) => {
+      const r = receipts.get(orderId);
+      if (!r) throw problem(404, "NOT_FOUND", "No delivery to receive for this order.");
+      const o = find(orderId);
+      // The chilled order of today was one case of cheese short at the dock, as in Figma "06-5".
+      const shortAtDock = o === todayChilled;
+      const view: CustodyChainView = {
+        orderId,
+        receipt: clone(r),
+        delivery: { deliveryId: r.deliveryId, tripId: "trip-1", completedAt: r.deliveredAt, deliveredUnits: o.itemCount, recordedBy: null },
+        loadingCheck: {
+          loadSequence: 0,
+          stopSequence: 3,
+          orderId,
+          orderRef: o.orderRef,
+          outletId: o.outletId,
+          districtName: o.districtName,
+          windowOpen: OUTLET.windowOpen,
+          windowClose: OUTLET.windowClose,
+          plannedArrival: "05:44:00",
+          temperature: o.temperature,
+          itemCount: o.itemCount,
+          weightKg: o.weightKg,
+          volumeM3: o.volumeM3,
+          status: shortAtDock ? "SHORT" : "LOADED",
+          loadedUnits: o.itemCount - (shortAtDock ? 1 : 0),
+          attempt: 1,
+          items: o.lines.map((l, i) => {
+            const short = shortAtDock && l.productId.startsWith("Cheese");
+            return {
+              lineNo: i + 1,
+              productId: l.productId,
+              units: l.quantity,
+              status: short ? "SHORT" : "LOADED",
+              loadedUnits: l.quantity - (short ? 1 : 0),
+              attempt: 1,
+              checkedAt: new Date().toISOString(),
+              checkedBy: "usr-loader",
+            };
+          }),
+        },
+        proof: null,
+        unavailable: [],
+      };
+      return view;
+    },
+    keepPhoto: async ({ id, orderId, receiptId }) => (photos.push({ id, orderId, receiptId }), { durable: true }),
+    sendPhotos: async () => {
+      const sent = photos.splice(0).length;
+      return { sent, remaining: 0, heldForReview: 0 };
+    },
     receipt: async (orderId) => {
       const r = receipts.get(orderId);
       if (!r) throw problem(404, "NOT_FOUND", "No delivery to receive for this order.");
       return clone(r);
     },
+    deliveries: async (_outletId, date) =>
+      orders.filter((o) => o.deliveryDate === date && ["IN_TRANSIT", "DELIVERED", "RECEIVED"].includes(o.status)).map((o) => clone(stopOf(o))),
+    issuesFor: async (orderId) => clone(issues.filter((i) => i.subjects.some((s) => s.type === "order" && s.id === orderId))),
     send: async (command): Promise<CommandAck> => {
       await wait();
       return { commandId: command.commandId, kind: command.kind, replayed: false, result: run(command) };
@@ -281,6 +473,12 @@ export function sampleGateway(): StoreGateway {
     },
     setWarehouseDown: (down) => {
       warehouseDown = down;
+    },
+    confirmHandover: (orderId) => {
+      const h = handovers.get(orderId);
+      if (h && h.status === "AWAITING" && new Date(h.expiresAt) > new Date()) {
+        handovers.set(orderId, { ...h, status: "CONFIRMED", confirmedAt: new Date().toISOString(), rowVersion: h.rowVersion + 1 });
+      }
     },
     deliver: (orderId) => {
       const o = orders.find((x) => x.orderId === orderId);

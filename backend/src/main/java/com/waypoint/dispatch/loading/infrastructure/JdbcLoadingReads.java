@@ -36,7 +36,7 @@ public class JdbcLoadingReads {
     return database.query(
         """
         SELECT t.trip_id, t.vehicle_id, t.trip_number, t.trips_for_vehicle, t.planned_departure,
-               t.brand_code, t.district_name, t.temperature, t.dock_code,
+               t.brand_code, t.district_name, t.temperature, t.dock_code, t.weight_cap_kg, t.volume_cap_m3,
                s.status AS phase, s.holder_user_id, s.holder_name, s.holder_code, s.held_since, s.holder_active_at,
                s.released_at, s.row_version,
                agg.order_count, agg.stop_count, agg.weight_kg, agg.volume_m3,
@@ -108,6 +108,43 @@ public class JdbcLoadingReads {
         """,
         tripId,
         planVersion);
+  }
+
+  /**
+   * One order's stop on a trip, from the newest plan version that still carries it, or null. Reads
+   * the stop alone, never the trip header, so a store manager, who may see its own outlet's stops and
+   * nothing of the trip, can read it too.
+   */
+  public Map<String, Object> orderStop(UUID tripId, UUID orderId) {
+    return database.queryOne(
+        """
+        SELECT plan_version, order_id, stop_sequence, order_ref, outlet_id, temperature, item_count, weight_kg,
+               volume_m3, planned_arrival
+        FROM loading.stops
+        WHERE trip_id = ? AND order_id = ?
+        ORDER BY plan_version DESC
+        LIMIT 1
+        """,
+        tripId,
+        orderId);
+  }
+
+  /** One order's item lines in one plan version, each with its latest check. */
+  public List<Map<String, Object>> orderItems(UUID tripId, int planVersion, UUID orderId) {
+    return database.query(
+        """
+        SELECT i.order_id, i.line_no, i.product_id, i.units,
+               c.status, c.attempt, c.units AS loaded_units, c.recorded_at, c.actor_user_id
+        FROM loading.items i
+        """
+            + LATEST_CHECK
+            + """
+        WHERE i.trip_id = ? AND i.plan_version = ? AND i.order_id = ?
+        ORDER BY i.line_no
+        """,
+        tripId,
+        planVersion,
+        orderId);
   }
 
   public List<Map<String, Object>> shortfalls(String depotCode, boolean openOnly) {

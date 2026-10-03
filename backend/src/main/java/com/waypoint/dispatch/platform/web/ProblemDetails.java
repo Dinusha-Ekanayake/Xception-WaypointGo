@@ -14,6 +14,7 @@ import java.util.Map;
  * @param correlationId the id of the request that failed, also on every log line and audit
  *     row it produced, so a support call can quote it
  * @param violations each failed constraint as {@code {rule, field?, message}}
+ * @param extensions further members a client may read, added after the standard ones
  */
 public record ProblemDetails(
     String type,
@@ -23,7 +24,20 @@ public record ProblemDetails(
     String instance,
     String code,
     String correlationId,
-    List<Violation> violations) {
+    List<Violation> violations,
+    Map<String, Object> extensions) {
+
+  public ProblemDetails(
+      String type,
+      String title,
+      int status,
+      String detail,
+      String instance,
+      String code,
+      String correlationId,
+      List<Violation> violations) {
+    this(type, title, status, detail, instance, code, correlationId, violations, Map.of());
+  }
 
   public Map<String, Object> toBody() {
     Map<String, Object> body = new LinkedHashMap<>();
@@ -35,6 +49,7 @@ public record ProblemDetails(
     body.put("code", code);
     body.put("correlationId", correlationId == null ? "" : correlationId);
     body.put("violations", violations.stream().map(ProblemDetails::violationBody).toList());
+    extensions.forEach(body::putIfAbsent);
     return body;
   }
 

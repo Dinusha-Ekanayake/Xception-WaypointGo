@@ -1,6 +1,6 @@
 "use client";
 
-import { useShell } from "@shared/ui";
+import { McpButton, useShell } from "@shared/ui";
 import { clock } from "./data/run.ts";
 import { BackIcon, MoonIcon, RoundButton, SignOutIcon, SunIcon } from "./ui.tsx";
 
@@ -64,6 +64,7 @@ export default function TopBar({
           {status}
         </span>
         {shell?.sync}
+        {onSignOut && <McpButton url={shell?.mcpUrl ?? null} compact className="flex shrink-0 items-center justify-center rounded-full bg-go-card text-go-ink shadow-go-float" />}
         {onSignOut && (
           <RoundButton label="Sign out" onClick={onSignOut}>
             <SignOutIcon />

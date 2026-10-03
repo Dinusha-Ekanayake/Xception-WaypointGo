@@ -3,6 +3,7 @@ package com.waypoint.dispatch.issues.infrastructure;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.waypoint.dispatch.issues.contract.IssueViews.AttachmentView;
 import com.waypoint.dispatch.issues.contract.IssueViews.IssueSeverity;
 import com.waypoint.dispatch.issues.contract.IssueViews.IssueStatus;
 import com.waypoint.dispatch.issues.contract.IssueViews.IssueType;
@@ -42,7 +43,12 @@ public class JdbcIssueRepository {
       i.resolved_at, i.redelivery_requested_at, i.escalated_at, i.raised_by, i.raised_at, i.row_version,
       (SELECT coalesce(json_agg(json_build_array(s.subject_type, s.subject_id)
                                 ORDER BY s.subject_type, s.subject_id), '[]'::json)
-         FROM issues.issue_subjects s WHERE s.issue_id = i.issue_id)::text AS subjects
+         FROM issues.issue_subjects s WHERE s.issue_id = i.issue_id)::text AS subjects,
+      (SELECT coalesce(json_agg(json_build_array(a.attachment_id, a.content_type)
+                                ORDER BY a.uploaded_at, a.attachment_id), '[]'::json)
+         FROM issues.issue_attachments l
+         JOIN issues.attachments a ON a.attachment_id = l.attachment_id
+        WHERE l.issue_id = i.issue_id AND a.purged_at IS NULL)::text AS attachments
       """;
 
   private static final TypeReference<List<List<String>>> PAIRS = new TypeReference<>() {};
@@ -55,8 +61,17 @@ public class JdbcIssueRepository {
     this.json = json;
   }
 
-  /** An issue and its sort key for the inbox. */
-  public record Stored(Issue issue, int severityRank) {}
+  /**
+   * An issue, its sort key for the inbox, and the photos of it that have arrived.
+   *
+   * @param attachments photos the reader can see, oldest first; a photo past its retention is gone
+   */
+  public record Stored(Issue issue, int severityRank, List<AttachmentView> attachments) {
+
+    public Stored {
+      attachments = List.copyOf(attachments);
+    }
+  }
 
   // ---- reads ---------------------------------------------------------------
 
@@ -285,7 +300,8 @@ public class JdbcIssueRepository {
   private List<Stored> many(String sql, Object... params) {
     List<Stored> out = new ArrayList<>();
     for (Map<String, Object> row : database.query(sql, params)) {
-      out.add(new Stored(map(row), ((Number) row.get("severity_rank")).intValue()));
+      out.add(
+          new Stored(map(row), ((Number) row.get("severity_rank")).intValue(), attachments((String) row.get("attachments"))));
     }
     return out;
   }
@@ -325,6 +341,17 @@ public class JdbcIssueRepository {
       return json.readValue(text, PAIRS).stream().map(p -> new SubjectRef(p.get(0), p.get(1))).toList();
     } catch (JsonProcessingException e) {
       throw new IllegalStateException("unreadable issue subjects", e);
+    }
+  }
+
+  private List<AttachmentView> attachments(String text) {
+    if (text == null) {
+      return List.of();
+    }
+    try {
+      return json.readValue(text, PAIRS).stream().map(p -> new AttachmentView(UUID.fromString(p.get(0)), p.get(1))).toList();
+    } catch (JsonProcessingException e) {
+      throw new IllegalStateException("unreadable issue attachments", e);
     }
   }
 

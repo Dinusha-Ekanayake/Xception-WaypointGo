@@ -12,6 +12,7 @@ const MAX_BODY_BYTES = Number(process.env.MAX_BODY_BYTES) || 4 * 1024 * 1024;
 // proxy hop; the correlation id lets a support ticket be followed into the logs.
 const FORWARD_REQUEST = [
   "accept",
+  "authorization",
   "content-type",
   "cookie",
   "origin",

@@ -20,6 +20,8 @@ import com.waypoint.dispatch.platform.messaging.CommandPayload;
 import com.waypoint.dispatch.shared.domain.Actor;
 import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import jakarta.servlet.http.Cookie;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -74,6 +76,13 @@ class SyncIntegrationTest {
   private static final UUID OUTAGE = UUID.randomUUID();
   private static final UUID AFTER_OUTAGE = UUID.randomUUID();
 
+  // A second device that drains completely, for review and time to drain.
+  private static final UUID DEVICE_TWO = UUID.randomUUID();
+  private static final UUID HELD = UUID.randomUUID();
+  private static final UUID REDO = UUID.randomUUID();
+  private static final UUID RESOLVE_HELD = UUID.randomUUID();
+  private static final UUID HELD_TWO = UUID.randomUUID();
+
   static final AtomicInteger RUNS = new AtomicInteger();
 
   @TestConfiguration
@@ -117,6 +126,7 @@ class SyncIntegrationTest {
   @Autowired Migrator migrator;
   @Autowired AccountAdminUseCase accounts;
   @Autowired LoginHandler login;
+  @Autowired MeterRegistry meters;
 
   @DynamicPropertySource
   static void databaseUrl(DynamicPropertyRegistry registry) {
@@ -173,6 +183,7 @@ class SyncIntegrationTest {
 
     assertEquals("CONFLICT", results.get(0).get("status").asText());
     assertEquals("VERSION_CONFLICT", results.get(0).get("problemCode").asText());
+    assertEquals(2, results.get(0).get("rowVersion").asLong(), "the version a review must name");
     assertEquals("REJECTED", results.get(1).get("status").asText());
     assertEquals("RECEIVED", results.get(2).get("status").asText(), "an outage is not decided");
     assertEquals(3, results.size(), "nothing may overtake an operation still in flight");
@@ -217,7 +228,85 @@ class SyncIntegrationTest {
     assertFalse(result.getResponse().getContentAsString().isEmpty());
   }
 
+  @Test
+  @Order(8)
+  void theOwnerDiscardsAHeldWriteWithAReasonAndNobodyElseCan() throws Exception {
+    send(DRIVER, discard(STALE, 2, null), 422);
+    send(OTHER_DRIVER, discard(STALE, 2, "Not mine"), 404);
+    // D-O: a dispatcher may hold the action, but row-level security still hides the row.
+    send(DISPATCHER, discard(STALE, 2, "Not theirs either"), 404);
+    send(DRIVER, discard(FIRST, 3, "Applied writes stay"), 422);
+    send(DRIVER, discard(STALE, 1, "Stale version"), 409);
+
+    send(DRIVER, discard(STALE, 2, "Dispatch replanned the stop"), 200);
+    send(DRIVER, discard(REFUSED, 2, "Entered by mistake"), 200);
+    assertEquals("DISCARDED", statusOf(DRIVER, STALE));
+    assertEquals("DISCARDED", statusOf(DRIVER, REFUSED));
+    send(DRIVER, discard(STALE, 3, "Twice"), 422);
+  }
+
+  @Test
+  @Order(9)
+  void aConflictIsRedoneOnTheCurrentVersionAndTheTrailNamesTheRedo() throws Exception {
+    JsonNode held = results(submit(DRIVER, batch(DEVICE_TWO, op(1, HELD, "conflict")), 200));
+    assertEquals("CONFLICT", held.get(0).get("status").asText());
+    long version = held.get(0).get("rowVersion").asLong();
+
+    long drainedBefore = drains();
+    int runsBefore = RUNS.get();
+    // The redo goes first, then the review that names it: one device, one order.
+    JsonNode results =
+        results(
+            submit(
+                DRIVER,
+                batch(DEVICE_TWO, op(2, REDO, "apply"), resolveOp(3, RESOLVE_HELD, HELD, REDO, version)),
+                200));
+    assertEquals("APPLIED", results.get(0).get("status").asText());
+    assertEquals("APPLIED", results.get(1).get("status").asText(), results.toString());
+    assertEquals(runsBefore + 1, RUNS.get(), "the redo ran once; the held write never ran again");
+    assertEquals("RESOLVED", statusOf(DRIVER, HELD));
+    assertEquals("APPLIED", statusOf(DRIVER, REDO));
+    assertTrue(drains() > drainedBefore, "EXE-02: a device left with nothing undecided records time to drain");
+  }
+
+  @Test
+  @Order(10)
+  void aResolveMustNameARealRedoOfTheSameKindForAConflict() throws Exception {
+    JsonNode held = results(submit(DRIVER, batch(DEVICE_TWO, op(4, HELD_TWO, "conflict")), 200));
+    long version = held.get(0).get("rowVersion").asLong();
+
+    send(DRIVER, resolve(HELD_TWO, HELD_TWO, version), 422);
+    send(DRIVER, resolve(HELD_TWO, UUID.randomUUID(), version), 422);
+    send(DRIVER, resolve(HELD_TWO, RESOLVE_HELD, version), 422);
+    send(DRIVER, resolve(HELD, REDO, 3), 422);
+    send(OTHER_DRIVER, resolve(HELD_TWO, REDO, version), 404);
+    send(DRIVER, resolve(HELD_TWO, REDO, version - 1), 409);
+    assertEquals("CONFLICT", statusOf(DRIVER, HELD_TWO), "every refusal left it held");
+  }
+
+  @Test
+  @Order(11)
+  void anOutageLeavesTheDeviceUndrained() throws Exception {
+    long before = drains();
+    results(submit(DRIVER, batch(op(20, UUID.randomUUID(), "outage")), 200));
+    assertEquals(before, drains(), "a batch that stopped has not drained");
+  }
+
   // ---- helpers ----
+
+  private long drains() {
+    Timer timer = meters.find("waypoint.sync.time_to_drain").timer();
+    return timer == null ? 0 : timer.count();
+  }
+
+  private String statusOf(String email, UUID operationId) throws Exception {
+    for (JsonNode operation : mapper.readTree(read(email, 200)).get("operations")) {
+      if (operation.get("operationId").asText().equals(operationId.toString())) {
+        return operation.get("status").asText();
+      }
+    }
+    throw new AssertionError("no operation " + operationId);
+  }
 
   private String submit(String email, String body, int status) throws Exception {
     return perform(email, post("/api/sync").contentType(MediaType.APPLICATION_JSON).content(body), status);
@@ -248,9 +337,13 @@ class SyncIntegrationTest {
   }
 
   private static String batch(String... operations) {
+    return batch(DEVICE, operations);
+  }
+
+  private static String batch(UUID device, String... operations) {
     return """
         {"deviceId":"%s","operations":[%s]}
-        """.formatted(DEVICE, String.join(",", operations));
+        """.formatted(device, String.join(",", operations));
   }
 
   private static String op(long sequence, UUID id, String outcome) {
@@ -258,6 +351,31 @@ class SyncIntegrationTest {
         {"sequence":%d,"command":{"commandId":"%s","kind":"test:SyncProbe","expectedVersion":7,
          "payload":{"outcome":"%s"},"clientRecordedAt":"2026-10-01T08:00:00Z"}}
         """.formatted(sequence, id, outcome);
+  }
+
+  private static String discard(UUID operationId, long version, String reason) {
+    String why = reason == null ? "" : ",\"reason\":\"" + reason + "\"";
+    return """
+        {"commandId":"%s","kind":"sync:Discard","expectedVersion":%d,
+         "payload":{"operationId":"%s"%s},"clientRecordedAt":"2026-10-01T08:00:00Z"}
+        """.formatted(UUID.randomUUID(), version, operationId, why);
+  }
+
+  private static String resolve(UUID operationId, UUID replacedBy, long version) {
+    return resolveCommand(UUID.randomUUID(), operationId, replacedBy, version);
+  }
+
+  private static String resolveCommand(UUID commandId, UUID operationId, UUID replacedBy, long version) {
+    return """
+        {"commandId":"%s","kind":"sync:Resolve","expectedVersion":%d,
+         "payload":{"operationId":"%s","replacedBy":"%s"},"clientRecordedAt":"2026-10-01T08:00:01Z"}
+        """.formatted(commandId, version, operationId, replacedBy);
+  }
+
+  private static String resolveOp(long sequence, UUID commandId, UUID operationId, UUID replacedBy, long version) {
+    return """
+        {"sequence":%d,"command":%s}
+        """.formatted(sequence, resolveCommand(commandId, operationId, replacedBy, version));
   }
 
   private static String acknowledge(UUID operationId, long version) {

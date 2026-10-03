@@ -53,7 +53,12 @@ class PlanningCommandIntegrationTest extends PlanningIntegrationSupport {
     read(dispatcher, path, 404);
 
     UUID planId = UUID.fromString(generate(dispatcher, 200).get("planId").asText());
-    assertEquals(planId.toString(), mapper.readTree(read(dispatcher, path, 200)).get("planId").asText());
+    JsonNode generated = mapper.readTree(read(dispatcher, path, 200));
+    assertEquals(planId.toString(), generated.get("planId").asText());
+    assertEquals("priority-insertion-v1+scarce-replan-v1", generated.get("engine").asText(), "the run says which engine made it");
+    JsonNode improvement = generated.get("improvement");
+    assertEquals(2, improvement.get("firstPassServed").asInt(), "issue #92: what the second pass did is stored with the run");
+    assertFalse(improvement.get("improved").asBoolean(), "two ambient orders on a truck: nothing for the reefers to improve");
 
     JsonNode next =
         mapper.readTree(send(dispatcher, defer(planId, 1L, first, "outlet asked to skip today"), 200)).get("result");

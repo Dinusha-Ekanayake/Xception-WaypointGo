@@ -213,6 +213,7 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-PLN-26 | **Frozen goods.** The schema allows `frozen`; the supplied data contains only `ambient` and `chilled` | Treat `frozen` as reefer-requiring, identically to `chilled` |
 | R-PLN-27 | **Balanced routes without unnecessary looping** (team) | Interpreted as: minimise stop count variance across trips in a district, and never revisit a district within one trip. Not a hard constraint |
 | R-PLN-28 | **Published plan immutability** | A published plan is never edited. A change creates a new version that supersedes it |
+| R-PLN-32 | **Improving a plan never trades priority** (issue #92). The engine's second pass plans the reefers again as a whole | A changed plan is kept only when it is better **by rank**: the highest ranked order that only one of the two plans serves decides (R-PLN-21). So no order is deferred to serve a lower ranked one, and the pass can never make a plan worse. It stops on a fixed node budget that is part of the engine version, so the same inputs give the same plan on any machine; the clock is a safety stop and the plan says when it fired. Deferrals are explained against the final plan (R-PLN-19) |
 
 ## 4. Loading
 
@@ -249,6 +250,8 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-EXE-10 | **Server time is authoritative.** Device time is stored for forensics only. A record whose two clocks differ by more than five minutes is marked `timing_uncertain` (A-31) | Policy | Policy |
 | R-EXE-11 | A device limitation, such as a denied camera, never blocks completing the work. The outcome records the reason and is flagged lower-evidence | Policy | Policy |
 | R-EXE-12 | **Returns are out of scope.** A failed delivery records the outcome and raises an issue; goods disposition is recorded but no return workflow exists | Team draft | Team |
+| R-EXE-16 | **Only the owner reviews a held offline write.** Discarding or redoing a conflict or refusal is done by the account that made it, on its own device; no role reads or settles another account's operations (decision D-O, 2026-10-02). Enforced by row-level security on `sync.operations` | Team decision | Team |
+| R-EXE-17 | **A held write is redone, never resent or merged.** A redo is the same command on the version the device now sees, under a new id, recorded before the `sync:Resolve` that names it; the held operation becomes `RESOLVED` with `replaced_by`. Discarding needs a reason. Only a conflict can be redone, because a refusal broke a rule and would be refused again | Policy | Policy |
 
 ## 6. Receipt
 
@@ -259,9 +262,10 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-RCP-03 | The store receives clear notice when an order is deferred | Booklet | Binding |
 | R-RCP-04 | Driver proof and store acceptance are separate records; neither overwrites the other | Policy | Policy |
 | R-RCP-05 | An unconfirmed receipt auto-closes after a configured window as `unconfirmed`, never silently `delivered` | Policy | Policy |
-| R-RCP-06 | The store sees the probability that an order can be supplied on its scheduled day | Team draft | Team, needs a model |
-| R-RCP-07 | **Loaded but not received.** When a passing loading check, a completed delivery and a short receipt disagree, the system raises a shortage investigation linked to all three records. It is **never auto-resolved in favour of either party**, and no record is amended to make them agree | Policy | Policy |
+| R-RCP-06 | The store sees the probability that an order can be supplied on its scheduled day. Answered by Intelligence with its basis (planned, deferred, deferral rate), deterministic for now: `GET /api/ml/orders/{id}/supply-probability` (issue #16) | Team draft | Team |
+| R-RCP-07 | **Loaded but not received.** When a passing loading check, a completed delivery and a short receipt disagree, the system raises a shortage investigation linked to all three records. It is **never auto-resolved in favour of either party**, and no record is amended to make them agree. A short receipt the loader's own flags explain in full (every short unit flagged at the dock for that product) and to which the store added nothing is not a contradiction: it is already the loader's issue, and no second one is raised (decision 2026-10-02, Figma store manager "06-5") | Policy | Policy |
 | R-RCP-08 | Each link in the custody chain is attributed: who checked it at the dock, who delivered it, who received it. That chain is the evidence, and it is what replaces memory in a dispute | Booklet, policy | Policy |
+| R-RCP-09 | **Handover PIN.** When the store answers a receipt it is given a one-time four-digit PIN, shown once. The driver of the vehicle on that date types it on their own phone, which is evidence the handover happened at the store. **It is never a gate:** the delivery, the trip and the receipt do not wait for it, and a handover nobody confirms is shown as not confirmed, not as a failure. Five wrong entries lock it, it expires after 15 minutes, and the store can issue a new one, which starts the count again. Only a salted hash is held. A confirmed handover is final | Decision 2026-10-02, Figma store manager "06b" | Binding |
 
 ### 6a. Operational issues (issue #13)
 
@@ -293,6 +297,10 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-NOT-03 | Driver to dispatcher: report messages | Team draft | Team |
 | R-NOT-04 | Dispatcher to store manager: automatic message when deferred, with a note | Team draft | Team |
 | R-NOT-05 | A notification is never sent inside the request transaction. Intent commits with the state change; delivery is a separate tracked attempt | Policy | Policy |
+| R-NOT-06 | Read state is set-once: a notification goes from unread to read and never back, and keeps the time it was first read. Marking read therefore takes no `expectedVersion`; `MarkAllRead` covers only what existed when the person looked (`upTo`) | Policy, issue #14 | Policy |
+| R-NOT-07 | The person who caused an event is not notified of it | Policy, issue #14 | Policy |
+| R-NOT-08 | A driver is pushed only trip-level events (plan published, plan revised, trip released), all of which happen before departure. Anything else routed to a driver reaches the inbox only | Policy, issue #14 | Policy |
+| R-NOT-09 | Who hears about which event is data: a versioned routing table in `notification.routing_rules`, one version current, changed by a new version and never edited in place. The module may read it, not write it | Policy, issue #14 | Policy |
 
 ---
 
@@ -329,6 +337,8 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-IAM-27 | A loader may switch with their PIN while offline against the crew list the device downloaded: a PBKDF2 verifier per member, never the PIN, valid for 12 hours and wiped at sign-out, with the same five-try pause kept on the device. On reconnect the switches are replayed into the operator history before any queued work, only for crew of that device, in order, after the history the server has, and audited as offline. A four-digit PIN is recoverable from its verifier; that risk is accepted because the list reaches only a supervisor-signed-in loader device (decision 2026-10-01) | Confirmed product decision | Binding |
 | R-IAM-28 | A reference read keyed by a depot, an outlet or a vehicle is `policy AND scope` like any other read, checked by `ReferenceScope` because reference data is one shared snapshot with no row for row-level security to hide. A depot's lists are for accounts scoped to that depot; one outlet for its own scope, its depot's, or a driver whose vehicle today works from that depot; one vehicle for its depot's scope or its driver today (R-IAM-13). The version and the calendar are the same for every depot and are not scoped. A refusal is `403` with an audit row. The store policy's `reference:Read` covers outlets and calendar days only | Policy, issue #5 decision 9 | Policy |
 | R-IAM-29 | Every schema, table and function is owned by `waypoint_migrator`, which is not a superuser and holds no `BYPASSRLS`. `migrate` applies every file as that role once a database has been handed over, whoever it logged in as, and with `row_security` off so a statement that forced row-level security would filter is refused instead. A migration can therefore not grant `SUPERUSER` or `BYPASSRLS`, install an untrusted extension, or read past a forced policy without lifting the force in the same file | Policy, issue #5 decision 8 | Policy |
+| R-IAM-30 | MCP is opt-in and read-only: a dedicated opaque server-side session plus `mcp:Connect` AND the normal business read policy AND SQL scope. Its immutable credential purpose admits only curated GETs and ending its own connection; cookie placement never upgrades it to a browser session. Context and policy are refreshed on each request, the loader actor is the personal account, and access decisions are audited. The local adapter selects safe fields, labels inferred product identifiers and fails visibly on dependency or size limits | Policy, issue #87 [plan](../issues/087-readonly-mcp/PLAN.md) | Policy |
+| R-IAM-31 | Remote MCP uses personal consent, registered exact redirects, one-time two-minute codes and PKCE S256. Codes and opaque sessions bind the client and configured resource; a missing resource defaults to the configured one and anything else must match, at exchange and each remote read. Scope blank, exact or containing the read scope is accepted; the grant is still only the read scope. Replaying a code revokes its session. No refresh tokens or browser-session upgrade; blank public URL disables remote OAuth. Authentication bookkeeping is owned by Identity outside the business command bus | Policy, issue #87 [plan](../issues/087-readonly-mcp/PLAN.md) | Policy |
 
 ## 7b. Platform: events, jobs and audit (issue #6)
 
@@ -358,6 +368,17 @@ Seven places where the sources disagree. C-1, C-2, C-3, C-5, C-6 and C-7 are set
 | **C-6** | **No ordering on holidays** | Team draft. The booklet does not restrict *placing* an order, only *delivering* on a non-operating day. Blocking placement stops a store preparing Monday's order on a Sunday | **Resolved 2026-09-30 (D-I):** allow placement, roll the delivery date to the next operating day, and show the store the date it will arrive. R-ORD-09 withdrawn |
 | **C-7** | **A late arrival at a mall** | R-EXE-05 (booklet): a late arrival is still delivered. R-PLN-14 (booklet): a mall accepts deliveries only inside its fixed access window. After the window closes the goods physically cannot be unloaded | **Resolved 2026-10-02 (issue #13):** R-EXE-05 holds for ordinary outlets. At a mall outlet, arrival after the effective window is a failed delivery (`mall_window_closed`), raised as an issue; the dispatcher decides on a redelivery, which carries a skip so the next plan serves it first (EXE-20, ORD-15) |
 
+## 7c. Intelligence: predictions and models (issue #16)
+
+| ID | Rule | Source | Status |
+| --- | --- | --- | --- |
+| R-ML-01 | A model is never called inside an operational transaction. A published plan only queues a scoring; the job calls the model service with no transaction open and stores the answer in a transaction of its own | ADR-001, Policy | Policy |
+| R-ML-02 | Every stored prediction and forecast names the model that produced it (`name@version`) or `deterministic`, and is written once, so a result can be reproduced and a bad model traced | Policy, issue #16 | Policy |
+| R-ML-03 | One model per kind is active. Activating a model returns the kind's previous one to registered; a retired model is never activated again; retiring needs a reason | Policy, issue #16 | Policy |
+| R-ML-04 | A model answers only when serving is configured, a model of that kind is active, and the service reports exactly that model. Anything else is the deterministic answer, marked degraded with the reason, and the plan says it was scored without the predictor | Rule 9, Policy | Policy |
+| R-ML-05 | Predictions are advice. Allocation keeps the booklet's service allowances and travel times, which the validator checks (R-PLN-08); learned times never change a plan | Booklet, Policy | Policy |
+| R-ML-06 | The training export keeps waiting for the window apart from service time, so an early arrival never teaches a long service (EXE-18) | R-EXE-04, Policy | Policy |
+
 ---
 
 ## 9. Where each rule is enforced
@@ -372,12 +393,14 @@ One rule, one enforcement point, so a change has one home.
 | R-PLN-01 to 12 | Planning constraint registry | Property tests plus `check_allocation.py` on the real submission |
 | R-PLN-13 to 20 | Planning constraint registry | Property tests |
 | R-PLN-21 to 28 | Priority policy and publication gate, versioned | Domain unit tests |
+| R-PLN-32 | Improvement pass keeps rank | `ScarceFleetReplanTest`, `PeakDayAllocationTest.theSecondPassServesMoreAndEveryOrderItDropsIsOutrankedByOneItAdds` |
 | R-LOD-* | Loading domain and departure gate | Integration tests |
 | R-EXE-* | Execution domain and offline queue | Browser tests |
 | R-RCP-* | Receipt domain, `ReceiptAutoCloseJob`, `ReceiptAnswerHandler` | Domain unit tests, integration tests with the job run at chosen instants |
 | R-ISS-* | Issues domain, `IssueCommandHandler`, role policies (R-ISS-07), `IssueEscalationJob` | Domain unit tests, integration tests through the command bus |
 | R-FLT-*, R-CAL-* | Reference data module | Domain unit tests |
-| R-NOT-* | Notification outbox | Integration tests |
+| R-ML-*, R-RCP-06 | `ModelGate`, `PlanScoringJob`, `ForecastJob`, `ModelHandlers`, `SupplyPolicy`, `ml.*` constraints | Domain unit tests (`IntelligenceDomainTest`), integration tests against a stub model service (`IntelligenceIntegrationTest`), the model service's own tests (`ml-server/tests`) |
+| R-NOT-* | `NotificationPolicy`, `Notifier`, `PushDeliveryJob`, `NotificationHandlers`, the routing table | Domain unit tests (`NotificationPolicyTest`, `DeliveryTest`), integration tests with events delivered and the push job run at chosen instants |
 
 Rules with status **Validated** get a second gate: our allocation output is run through the supplied `check_allocation.py` in CI, so a regression against the scoring rules fails the build rather than the submission.
 
