@@ -189,6 +189,8 @@ ORDER BY audit_id;
 
 Only catalogue tool names are logged (`unknown` otherwise); arguments, results and credentials never are. Outcomes only the adapter sees appear here: `RESPONSE_TOO_LARGE`, `VALIDATION_FAILED`, `UNKNOWN_TOOL`, `DEPENDENCY_UNAVAILABLE`.
 
+**Rate limits** (R-IAM-33, P-30). 120 requests a minute per credential and 1200 per OAuth client by default (`MCP_RATE_PER_CREDENTIAL`, `MCP_RATE_PER_CLIENT` on the backend); one tool call is about two requests, because the adapter refreshes the context first. Over the limit the backend answers `429` with `Retry-After`, and the assistant gets a tool error with `retryAfterSeconds`. `waypoint_mcp_rate_limited_total{bucket="credential"|"client"}` counts refusals; the first refusal per window is in the audit log with reason `MCP rate limit`.
+
 **When a number moves:**
 
 | Signal | Likely cause | First step |
@@ -197,4 +199,5 @@ Only catalogue tool names are logged (`unknown` otherwise); arguments, results a
 | `tool="other"` above zero | a client calling paths outside the catalogue | Find the actor from the DENY rows; an old adapter version or a misbehaving client |
 | `outcome="error"` or p95 rising for one tool | the owning module's read is slow or failing | Look at that module's own metrics and logs by correlation id |
 | `RESPONSE_TOO_LARGE` in adapter logs | a plan or manifest above 256 KiB | Expected until owning modules page those reads; ask the user to narrow the request |
+| `waypoint_mcp_rate_limited_total` rising | one assistant looping, or many users of one client | DENY rows with reason `MCP rate limit` name the person; raise P-30 only if the traffic is legitimate |
 | `outcome_audit_failed` above zero | audit writes failing | Database health first; reads keep working, but their outcome rows are missing until fixed |

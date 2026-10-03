@@ -7,8 +7,17 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 
 /** Local access can be enabled independently; remote access needs a canonical resource URL. */
 @ConfigurationProperties(prefix = "app.mcp")
-public record McpProperties(@DefaultValue("false") boolean enabled, @DefaultValue("") String publicUrl) {
+public record McpProperties(
+    @DefaultValue("false") boolean enabled,
+    @DefaultValue("") String publicUrl,
+    /** P-30: requests a minute per MCP credential; one tool call is about two requests. */
+    @DefaultValue("120") int ratePerCredentialPerMinute,
+    /** P-30: requests a minute per OAuth client, across every person using it. */
+    @DefaultValue("1200") int ratePerClientPerMinute) {
   public McpProperties {
+    if (ratePerCredentialPerMinute < 1 || ratePerClientPerMinute < 1) {
+      throw new IllegalArgumentException("MCP_RATE_PER_CREDENTIAL and MCP_RATE_PER_CLIENT must be at least 1");
+    }
     publicUrl = publicUrl == null ? "" : publicUrl.trim();
     if (!publicUrl.isEmpty()) {
       URI uri = URI.create(publicUrl);

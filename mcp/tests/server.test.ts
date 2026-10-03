@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { saveConnection } from '../src/credentials.ts';
 
-async function fixture(actions = ['order:Read'], options: { redirect?: boolean; oversized?: boolean } = {}) {
+async function fixture(actions = ['order:Read'], options: { redirect?: boolean; oversized?: boolean; limited?: boolean } = {}) {
   let allowed = true;
   const logs: ToolCallLog[] = [];
   const requests: string[] = [];
@@ -25,6 +25,9 @@ async function fixture(actions = ['order:Read'], options: { redirect?: boolean; 
       res.end(JSON.stringify({ code: 'FORBIDDEN', detail: 'denied', correlationId: 'test-correlation', violations: [] }));
     } else if (req.url === '/api/mcp/context') {
       res.end(JSON.stringify({ userId: '11111111-1111-4111-8111-111111111111', roles: ['store_manager'], scope: ['outlet:OUT001'], readActions: actions }));
+    } else if (options.limited) {
+      res.writeHead(429, { 'content-type': 'application/problem+json', 'retry-after': '17' });
+      res.end(JSON.stringify({ code: 'RATE_LIMITED', detail: 'Too many MCP requests', correlationId: 'limited-correlation', violations: [] }));
     } else if (options.redirect) {
       res.writeHead(302, { location: '/api/commands' });
       res.end();
@@ -294,5 +297,18 @@ test('an oversized backend answer is logged as such', async () => {
     await f.client.callTool({ name: 'list_orders', arguments: { outlet: 'OUT001' } });
     assert.equal(f.logs.at(-1)!.tool, 'list_orders');
     assert.notEqual(f.logs.at(-1)!.outcome, 'ok');
+  } finally { await f.close(); }
+});
+
+test('a rate-limited read tells the assistant when to try again', async () => {
+  const f = await fixture(['order:Read'], { limited: true });
+  try {
+    const result = await f.client.callTool({ name: 'list_orders', arguments: { outlet: 'OUT001' } });
+    assert.equal(result.isError, true);
+    const error = JSON.parse((result.content as { text: string }[])[0]!.text);
+    assert.equal(error.code, 'RATE_LIMITED');
+    assert.equal(error.status, 429);
+    assert.equal(error.retryAfterSeconds, 17);
+    assert.deepEqual([f.logs.at(-1)!.outcome, f.logs.at(-1)!.status], ['RATE_LIMITED', 429]);
   } finally { await f.close(); }
 });

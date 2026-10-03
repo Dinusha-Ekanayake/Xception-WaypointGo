@@ -10,15 +10,21 @@ export class BackendError extends Error {
   readonly status: number;
   readonly correlationId: string;
   readonly violations: { rule: string; field?: string }[];
+  /** From the backend's Retry-After on a 429 (R-IAM-33), so the assistant knows when to try again. */
+  readonly retryAfterSeconds: number | undefined;
   constructor(code: string, status: number, correlationId = '',
-    violations: { rule: string; field?: string }[] = []) {
+    violations: { rule: string; field?: string }[] = [], retryAfterSeconds?: number) {
     super(code);
     this.code = code;
     this.status = status;
     this.correlationId = correlationId;
     this.violations = violations;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
-  toJSON() { return { code: this.code, status: this.status, correlationId: this.correlationId, violations: this.violations }; }
+  toJSON() {
+    return { code: this.code, status: this.status, correlationId: this.correlationId, violations: this.violations,
+      ...(this.retryAfterSeconds === undefined ? {} : { retryAfterSeconds: this.retryAfterSeconds }) };
+  }
 }
 
 export function backendOrigin(value: string, allowInternalHttp = false): string {
@@ -86,8 +92,10 @@ export class BackendClient {
     const data = await readJson(response);
     if (!response.ok) {
       const parsed = problem.safeParse(data);
-      throw parsed.success ? new BackendError(parsed.data.code, response.status, parsed.data.correlationId, parsed.data.violations)
-        : new BackendError('DEPENDENCY_UNAVAILABLE', response.status);
+      const retry = Number(response.headers.get('retry-after'));
+      const retryAfter = Number.isInteger(retry) && retry > 0 && retry <= 3600 ? retry : undefined;
+      throw parsed.success ? new BackendError(parsed.data.code, response.status, parsed.data.correlationId, parsed.data.violations, retryAfter)
+        : new BackendError('DEPENDENCY_UNAVAILABLE', response.status, '', [], retryAfter);
     }
     return data;
   }

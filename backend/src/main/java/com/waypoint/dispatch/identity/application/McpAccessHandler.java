@@ -21,9 +21,11 @@ public class McpAccessHandler {
   private final AuditLog audit;
   private final McpProperties properties;
   private final Metrics metrics;
+  private final McpRateLimiter limiter;
 
   public McpAccessHandler(SessionRegistry sessions, PolicyDecisionPoint policies,
-      AuditLog audit, McpProperties properties, Metrics metrics) {
+      AuditLog audit, McpProperties properties, Metrics metrics, McpRateLimiter limiter) {
+    this.limiter = limiter;
     this.sessions = sessions;
     this.policies = policies;
     this.audit = audit;
@@ -53,6 +55,8 @@ public class McpAccessHandler {
     if ("POST".equals(method) && "/api/mcp/session/end".equals(path)) {
       return session;
     }
+    // Before any policy work, so a flood costs one upsert per request (R-IAM-33).
+    limiter.require(token, actor);
     if (!properties.enabled() || !McpReadPolicy.permits(method, path)) {
       audit.recordStandalone(AuditEntry.denied(actor.userId(), actor.deviceId(), CONNECT,
           RESOURCE, properties.enabled() ? "MCP credential permits approved reads only" : "MCP disabled"));
