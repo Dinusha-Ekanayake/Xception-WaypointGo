@@ -4,7 +4,8 @@ import { useEffect, useRef } from "react";
 import { cx } from "@shared/ui";
 import { useT } from "../i18n.tsx";
 import { BigButton } from "../ui.tsx";
-import { clockOf, type PinState } from "./PinEntry.tsx";
+import { type PinState } from "./PinEntry.tsx";
+import { countdown } from "@shared/wording";
 
 // The PIN side of the sign-in on a tablet, desk or terminal (Figma 07, 09 and
 // 10: 01 Sign in, 01a no employee selected, E1 wrong PIN, E2 too many tries).
@@ -86,7 +87,7 @@ export default function PinPad({
           {paused ? tr("PIN entry paused") : chosen ? title : tr("Select your name to continue.")}
         </h2>
         {paused && (
-          <p className="text-[15px] text-go-muted">{tr("Too many tries. Wait {time}, or ask your supervisor.", { time: clockOf(state.seconds) })}</p>
+          <p className="text-[15px] text-go-muted">{tr("Too many tries. Wait {time}, or ask your supervisor.", { time: countdown(state.seconds) })}</p>
         )}
         {wrong && (
           <p role="alert" className="text-[15px] text-go-danger-strong">

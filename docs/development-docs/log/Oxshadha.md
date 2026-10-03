@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-03 - feat(frontend): one wording layer and a guardrail against drift (issue #127)
+
+`feat/127-wording-layer` · @Oxshadha
+
+`frontend/src/shared/wording/` holds every time and date format (24-hour depot time), the glossary's count words and labels for raw codes. The eleven local formatters across the four roles and the shared UI are gone: role data modules re-export, screens import it, so `npm test` still loads data modules without path aliases. Two visible changes, both the glossary's: the dispatcher's date stamp and every "Synced" time read 24-hour. The store's notification times were in the phone's own zone and are now depot time. `tests/wording.test.ts` (from #134) fails on new retired words, raw codes, 12-hour clocks or dashes in screen text, and counts today's 53 leftovers in 27 files in `tests/wording-baseline.json`, which #128 works down.
+Why: the same time was formatted eleven ways, two of them 12-hour and one in the device's zone, and nothing stopped a new screen adding a twelfth.
+Verified: `npm test` 118, typecheck, build; Playwright dispatcher 23 and store 29 pass; loader 16 of 18 and driver 8 of 10, the four failures the same on untouched `dev` (loader inbox read state, driver unit stepper and arrival message).
+Open: #128 applies the glossary across the screens and lowers the baseline to zero.
+
+---
+
 ## 2026-10-03 - feat(mcp): rate limit per credential and per OAuth client (issue #139)
 
 `feat/139-mcp-rate-limit` · @Oxshadha

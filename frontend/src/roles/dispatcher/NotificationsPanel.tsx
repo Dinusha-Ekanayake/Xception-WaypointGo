@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { cx, formatClock } from "@shared/ui";
+import { cx } from "@shared/ui";
 import { ago, isUnread, kindOf } from "@shared/notifications/inbox";
 import type { NotificationView } from "@shared/domain/types";
 import { useDispatcherInbox } from "./inbox.tsx";
 import type { ViewId } from "./navigation.ts";
+import { clock } from "@shared/wording";
 
 // Figma "05 Dispatcher Desktop": the notifications panel (189:23606) and the
 // Overview card (189:10739). Each row: a small grey line naming the kind and
@@ -102,7 +103,7 @@ export default function NotificationsPanel({ onNavigate }: { onNavigate: (view: 
         </p>
         {!inbox.online && (
           <p role="status" className="rounded-go-card-s bg-go-warning-tint px-3.5 py-2.5 text-sm text-go-warning-text">
-            Offline{inbox.savedAt ? ` · saved at ${formatClock(inbox.savedAt)}` : ""}. Read state updates when you are back online.
+            Offline{inbox.savedAt ? ` · saved at ${clock(inbox.savedAt)}` : ""}. Read state updates when you are back online.
           </p>
         )}
         {inbox.error && <p role="alert" className="text-sm text-go-danger-strong">{inbox.error}</p>}

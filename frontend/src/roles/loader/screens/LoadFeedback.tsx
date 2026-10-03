@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { cx, formatClock } from "@shared/ui";
+import { cx } from "@shared/ui";
 import { BigButton, Sheet } from "../ui.tsx";
 import { useT } from "../i18n.tsx";
 import { CheckIcon, LockIcon } from "../icons.tsx";
+import { clock } from "@shared/wording";
 
 // States around the load sheet, from Figma "08 Loader · Phone": 18 Order
 // loaded with Undo, 19 Out of sequence, 20 Hand back, 21 Issue saved offline,
@@ -43,7 +44,7 @@ export function Toast({ message, onDone }: { message: ToastMessage; onDone: () =
               <span aria-hidden className={cx("size-2 rounded-full", loaded ? "bg-go-success" : "bg-go-muted")} />
               {tr(loaded ? "Order loaded" : "Saved offline")}
             </span>
-            <span className="text-go-muted">{loaded ? formatClock(message.at) : tr("Just now")}</span>
+            <span className="text-go-muted">{loaded ? clock(message.at) : tr("Just now")}</span>
           </div>
           <span className="text-[22px] font-medium">{message.title}</span>
           {message.detail && <span className="text-[14px] text-go-muted">{message.detail}</span>}

@@ -10,7 +10,7 @@ import FleetError from "./FleetError.tsx";
 import FleetTable from "./FleetTable.tsx";
 import VehicleDrawer from "./VehicleDrawer.tsx";
 import { litres, summarise } from "../data/fleet.ts";
-import { formatDay } from "../data/scope.ts";
+import { dayLabel } from "../data/scope.ts";
 import { useSetDayStatus } from "../data/useSetDayStatus.ts";
 
 // Figma "06 Vehicles": the fleet for a day, and sending a vehicle to the
@@ -47,7 +47,7 @@ export default function Vehicles({
     if (!open) return;
     const ok = await submit({ vehicleId: open.vehicleId, status: "in_workshop", serviceDate: date, reason });
     if (ok) {
-      setConfirmation(`${open.vehicleId} is in the workshop on ${formatDay(date)} and leaves that day's next plan run.`);
+      setConfirmation(`${open.vehicleId} is in the workshop on ${dayLabel(date)} and leaves that day's next plan run.`);
       setOpenId(null);
       reset();
       fleet.refresh();
@@ -58,7 +58,7 @@ export default function Vehicles({
     <>
       <PageHeader
         title="Vehicles"
-        subtitle={`${fleet.data ? `${summary.total} available` : "Loading"} · ${scopeLabel} · ${formatDay(date)}`}
+        subtitle={`${fleet.data ? `${summary.total} available` : "Loading"} · ${scopeLabel} · ${dayLabel(date)}`}
         online={online}
         lastSyncedAt={fleet.loadedAt}
         onSync={fleet.refresh}

@@ -1,4 +1,5 @@
 import type { AllocationView, ImprovementView, OrderView, PlanView, TripView, VehicleView } from "@shared/domain/types";
+export { hhmm } from "../../../shared/wording/index.ts";
 
 // What a plan adds up to on the dispatcher's screen. Pure: the plan, the day's
 // orders and the fleet go in, rows and counts come out.
@@ -107,10 +108,6 @@ export function after(time: string, minutes: string | number): string {
   const total = Math.round((h ?? 0) * 60 + (m ?? 0) + Number(minutes));
   const wrapped = ((total % 1440) + 1440) % 1440;
   return `${String(Math.floor(wrapped / 60)).padStart(2, "0")}:${String(wrapped % 60).padStart(2, "0")}`;
-}
-
-export function hhmm(time: string): string {
-  return time.slice(0, 5);
 }
 
 /** The plan the screen works on: the open draft when there is one, else what is published. */

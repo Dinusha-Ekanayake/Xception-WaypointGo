@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Notice, Pill, PrimaryButton, SecondaryButton, formatClock } from "@shared/ui";
+import { Notice, Pill, PrimaryButton, SecondaryButton } from "@shared/ui";
 import type { Decision, PlanSummary, Working } from "../data/plan.ts";
-import { formatDay } from "../data/scope.ts";
+import { dayLabel } from "../data/scope.ts";
+import { clock } from "@shared/wording";
 
 // Figma "Plan · 3 Publish". Publishing is a deliberate second step, and the
 // server's gate decides: if the demand, the reference data or a rule changed
@@ -46,7 +47,7 @@ export default function PlanPublish({
           {state.stage === "published" ? "This plan is published" : state.revises ? "Publish this revision" : "Publish this plan"}
         </h2>
         <p className="text-[13px] text-go-secondary">
-          {depot} · {formatDay(date)} · version {state.plan.planVersion} · {summary.served} of {summary.orders} orders on {summary.trips} trips, {summary.vehiclesUsed} vehicles
+          {depot} · {dayLabel(date)} · version {state.plan.planVersion} · {summary.served} of {summary.orders} orders on {summary.trips} trips, {summary.vehiclesUsed} vehicles
         </p>
       </div>
 
@@ -75,7 +76,7 @@ export default function PlanPublish({
         (confirming ? (
           <div className="flex flex-wrap items-center gap-2 rounded-go-card bg-go-success-tint p-3">
             <p className="min-w-[220px] flex-1 text-[13px] font-medium text-go-ink">
-              {state.revises ? "Send this change to the loaders and drivers?" : `Publish for ${depot} on ${formatDay(date)}? It cannot be edited afterwards, only revised.`}
+              {state.revises ? "Send this change to the loaders and drivers?" : `Publish for ${depot} on ${dayLabel(date)}? It cannot be edited afterwards, only revised.`}
             </p>
             <PrimaryButton disabled={!online || busy} onClick={onPublish}>
               {busy ? "Publishing…" : "Confirm publish"}
@@ -92,7 +93,7 @@ export default function PlanPublish({
 
       {state.stage === "published" && (
         <>
-          <Notice tone="info" title={`Published${state.plan.publishedAt ? ` at ${formatClock(new Date(state.plan.publishedAt))}` : ""}. Loaders and drivers work from this version.`}>
+          <Notice tone="info" title={`Published${state.plan.publishedAt ? ` at ${clock(new Date(state.plan.publishedAt))}` : ""}. Loaders and drivers work from this version.`}>
             It cannot be edited. To change it, start a revision: it becomes a draft, and nothing changes on the dock or the road until that draft is published.
           </Notice>
           <label className="flex flex-col gap-1 text-[13px] font-medium text-go-ink">
