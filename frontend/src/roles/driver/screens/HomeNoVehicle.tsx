@@ -3,6 +3,9 @@
 import { useState, useRef, useEffect } from "react";
 import { cx } from "@shared/ui";
 import { DriverHeader, VoiceMessagePlayer, type SupportedLang } from "../ui.tsx";
+import type { Inbox } from "@shared/notifications/useInbox";
+import { kindOf } from "@shared/notifications/inbox";
+import { clock } from "@shared/wording";
 import SignOutConfirmBottomSheet from "./SignOutConfirmBottomSheet.tsx";
 
 /**
@@ -349,7 +352,37 @@ export type DriverHomeProps = {
   onToggleTheme?: () => void;
   hideHeader?: boolean;
   tripStatus?: "not-started" | "in-progress" | "completed";
+  /** The driver's notifications (issue #118). Without it, Figma's sample feed shows. */
+  inbox?: Inbox;
 };
+
+/**
+ * Figma "Driver: Home" notification cards: the label and its colour by what
+ * happened. A driver is routed plan published, plan revised and trip released
+ * (R-NOT-08); anything else falls back to the shared label, coloured by urgency.
+ */
+function driverKind(eventType: string, isNight: boolean): { label: string; color: string } {
+  const teal = isNight ? "#00BF6A" : "#0E766D";
+  switch (eventType) {
+    case "plan.published":
+      return { label: "Run published", color: "#A9A9A9" };
+    case "plan.revised":
+      return { label: "Run updated", color: teal };
+    case "trip.released":
+      return { label: "Vehicle loaded", color: teal };
+    default: {
+      const kind = kindOf(eventType);
+      const color = kind.tone === "urgent" ? "#E5484D" : kind.tone === "warning" ? "#B7791F" : kind.tone === "good" ? teal : isNight ? "#7FB3E6" : "#16324F";
+      return { label: kind.tone === "urgent" ? "Action needed" : kind.label, color };
+    }
+  }
+}
+
+/** About how long the message takes to read aloud, for the player's time ("0:12"). */
+function spokenLength(text: string): string {
+  const seconds = Math.max(2, Math.round(text.split(/\s+/).length / 2.5));
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
 
 const FUEL_QR_ROWS: number[][] = [
   // 0:
@@ -417,6 +450,7 @@ export default function HomeNoVehicle({
   onToggleTheme,
   hideHeader = false,
   tripStatus,
+  inbox,
 }: DriverHomeProps): React.JSX.Element {
   const [lang, setLang] = useState<SupportedLang>("en");
   const [internalIsNight, setInternalIsNight] = useState(false);
@@ -732,15 +766,17 @@ export default function HomeNoVehicle({
             </h2>
           </div>
 
-          {/* New count badge */}
-          <span
-            className={cx(
-              "text-[12px] font-medium px-2.5 py-0.5 rounded-[34px] transition-colors",
-              isNight ? "bg-[#00BF6A] text-black" : "bg-[#B7F2ED] text-black"
-            )}
-          >
-            3 new
-          </span>
+          {/* New count badge: the real unread count once signed in (issue #118). */}
+          {(!inbox || (inbox.unread ?? 0) > 0) && (
+            <span
+              className={cx(
+                "text-[12px] font-medium px-2.5 py-0.5 rounded-[34px] transition-colors",
+                isNight ? "bg-[#00BF6A] text-black" : "bg-[#B7F2ED] text-black"
+              )}
+            >
+              {inbox ? `${inbox.unread} new` : "3 new"}
+            </span>
+          )}
         </div>
       </div>
 
@@ -763,6 +799,57 @@ export default function HomeNoVehicle({
             }}
             className="flex flex-col gap-2.5 will-change-transform"
           >
+            {inbox ? (
+              inbox.items.length === 0 ? (
+                <p className={cx("px-2 py-6 text-center text-[13px] font-light", isNight ? "text-white/70" : "text-black/60")}>
+                  {inbox.loading ? "Loading…" : inbox.online ? "No notifications yet." : "Offline. Notifications show when you're back online."}
+                </p>
+              ) : (
+                inbox.items.map((n) => {
+                  const kind = driverKind(n.eventType, isNight);
+                  const fresh = n.readAt === null;
+                  const id = `n-${n.notificationId}`;
+                  return (
+                    <ScrollRevealCard key={n.notificationId} scrollContainerRef={scrollRef} pullY={pullY}>
+                      <div
+                        className={cx(
+                          "rounded-[20px] p-[14px_20px] flex flex-col gap-1 transition-all duration-200",
+                          isNight ? "bg-[#292929]" : "bg-white",
+                          activeAudioId === id &&
+                            (isNight ? "ring-1 ring-[#00BF6A]/60 shadow-[0_0_15px_rgba(0,191,106,0.15)]" : "ring-1 ring-[#0E766D]/50 shadow-[0_0_15px_rgba(14,118,109,0.12)]"),
+                        )}
+                      >
+                      <button
+                        type="button"
+                        onClick={() => fresh && inbox.online && void inbox.markRead([n.notificationId]).catch(() => undefined)}
+                        aria-label={`${fresh ? "Unread. " : ""}${kind.label}. ${n.title}. ${n.body}`}
+                        className={cx("flex w-full flex-col gap-1 text-left", !fresh && "opacity-70")}
+                      >
+                        <span className="flex items-center justify-between">
+                          <span className="flex items-center gap-1.5">
+                            <span className="size-2 rounded-full" style={{ backgroundColor: kind.color }} />
+                            <span className="text-[12px] font-medium" style={{ color: kind.color }}>{kind.label}</span>
+                          </span>
+                          <span className="text-[12px] font-light text-[#A9A9A9]">{clock(n.createdAt)}</span>
+                        </span>
+                        <span className={cx("text-[15px] font-medium leading-[19px] pt-0.5", isNight ? "text-white" : "text-black")}>{n.title}</span>
+                        <span className={cx("text-[13px] font-light leading-4 pt-0.5", isNight ? "text-white" : "text-black")}>{n.body}</span>
+                      </button>
+                      <VoiceMessagePlayer
+                        id={id}
+                        duration={spokenLength(`${n.title}. ${n.body}`)}
+                        text={`${kind.label}. ${n.title}. ${n.body}`}
+                        isNight={isNight}
+                        activeAudioId={activeAudioId}
+                        onPlayChange={setActiveAudioId}
+                      />
+                      </div>
+                    </ScrollRevealCard>
+                  );
+                })
+              )
+            ) : (
+              <>
             {/* 1. Voice Message */}
             <ScrollRevealCard scrollContainerRef={scrollRef} pullY={pullY}>
               <div
@@ -1041,6 +1128,8 @@ export default function HomeNoVehicle({
                 />
               </div>
             </ScrollRevealCard>
+              </>
+            )}
           </div>
         </div>
       </div>

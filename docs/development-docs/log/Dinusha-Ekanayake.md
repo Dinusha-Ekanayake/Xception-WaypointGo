@@ -4,6 +4,27 @@
 
 ---
 
+## 2026-10-03 - fix(loader): the locked screen's keypad on wide screens, open tabs take new builds, terminal type sizes
+
+`feat/notifications-push-driver-i18n` · @Dinusha-Ekanayake
+
+From a tablet up, the locked screen now shows who locked it and their trip beside the PIN keypad (Figma 06 Locked, tablet, desktop and terminal); phones keep the card and "Enter PIN to unlock". An open tab now asks for a new build when it comes back into view and every 30 minutes, and reloads into it when the new service worker takes over; queued work is in IndexedDB, so nothing is lost. At 1700 px and wider the chips, buttons and Synced step up to the terminal frame's sizes; from 768 to 1440 the measured sizes already equal Figma's. Settings ends with "Apply changes" where it said "Choose loader".
+Why: dock tablets stay open all shift and kept showing the build they first loaded (12-hour clock, no bell, old layouts) after deploys.
+Verified: see the PR. Loader suite 20 of 20, with a new locked-screen test; font sizes measured at 393, 768, 1280, 1440 and 1920 against Figma 11:68288, 11:57924, 11:89184 and 11:99615. The release and theme tests now follow the swipe release and the dark default already on `dev`.
+
+---
+
+## 2026-10-03 - feat: push alerts, the driver's notification feed, and loader notifications in Sinhala and Tamil (issue #118)
+
+`feat/notifications-push-driver-i18n` · @Dinusha-Ekanayake
+
+The three gaps #153 left. Push: a switch in each role's settings subscribes this device (VAPID key from `push-config`, `notification:Subscribe`), says why when it cannot, and the service worker shows each push and opens the app on a tap. Driver: Isuru's Figma feed and driving-mode badge now carry the driver's real notifications and count; his sample feed stays without an account. Loader: each notification keeps the facts its message was filled from, and the loader fills the same templates in Sinhala and Tamil.
+Why: phones should alert with the app closed; the driver and the loader's languages were the last roles without their notifications.
+Verified: see the PR. `NotificationConsumersIntegrationTest` (facts in the inbox), `loader-messages.test.ts`, `push-keys.test.ts`, the loader suite with the Settings alerts row; driver Home compared with Figma 83:1996.
+Open: push needs VAPID keys on the server. The driver browser suite fails 13 of its tests on `dev` itself since the driver rework; they test the old screens.
+
+---
+
 ## 2026-10-03 - feat: notifications inbox and last sync in each role UI (issue #118)
 
 `feat/118-notifications-inbox` · @Dinusha-Ekanayake

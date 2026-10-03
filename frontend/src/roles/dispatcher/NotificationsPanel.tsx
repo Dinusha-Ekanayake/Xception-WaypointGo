@@ -7,6 +7,7 @@ import type { NotificationView } from "@shared/domain/types";
 import { useDispatcherInbox } from "./inbox.tsx";
 import type { ViewId } from "./navigation.ts";
 import { clock } from "@shared/wording";
+import { usePush, type PushState } from "@shared/notifications/push";
 
 // Figma "05 Dispatcher Desktop": the notifications panel (189:23606) and the
 // Overview card (189:10739). Each row: a small grey line naming the kind and
@@ -144,7 +145,47 @@ export default function NotificationsPanel({ onNavigate }: { onNavigate: (view: 
             </button>
           )}
         </span>
+        <PushSwitch />
       </section>
+    </div>
+  );
+}
+
+const PUSH_NOTE: Record<PushState["kind"], string> = {
+  checking: "Checking…",
+  unsupported: "This browser cannot show alerts",
+  "server-off": "Not set up on this server",
+  blocked: "Blocked in this browser's settings",
+  off: "Off",
+  on: "On, even with Waypoint closed",
+};
+
+/** Alerts on this computer (issue #118): push on or off, and why not when it cannot be. */
+function PushSwitch(): React.JSX.Element {
+  const push = usePush();
+  const on = push.state.kind === "on";
+  const usable = push.state.kind === "on" || push.state.kind === "off";
+  return (
+    <div className="flex flex-col gap-1 border-t border-go-divider pt-3">
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on}
+        disabled={!usable || push.busy}
+        onClick={() => void (on ? push.turnOff() : push.turnOn())}
+        className="flex items-center justify-between gap-3 text-left"
+      >
+        <span className="flex flex-col">
+          <span className="text-sm font-medium text-go-ink">Alerts on this computer</span>
+          <span className="text-xs text-go-secondary">{PUSH_NOTE[push.state.kind]}</span>
+        </span>
+        {usable && (
+          <span aria-hidden className={cx("flex h-6 w-10 shrink-0 items-center rounded-full p-0.5", on ? "justify-end bg-go-success" : "justify-start bg-go-divider")}>
+            <span className="size-5 rounded-full bg-go-card shadow" />
+          </span>
+        )}
+      </button>
+      {push.error && <p role="alert" className="text-xs text-go-danger-strong">{push.error}</p>}
     </div>
   );
 }

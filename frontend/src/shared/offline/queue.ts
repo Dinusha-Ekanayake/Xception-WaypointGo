@@ -121,7 +121,7 @@ const DEVICE_KEY = "waypoint.deviceId";
  * it, so it outlives sign-in and sign-out. Blocked storage gets a fresh id per
  * page load, which only costs ordering across reloads, never a write.
  */
-function deviceId(): string {
+export function deviceId(): string {
   try {
     const known = localStorage.getItem(DEVICE_KEY);
     if (known) return known;

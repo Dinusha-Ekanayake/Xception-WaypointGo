@@ -225,7 +225,7 @@ const STRINGS: Record<string, [string, string]> = {
   "Light": ["ආලෝක", "ஒளி"],
   "Dark": ["අඳුරු", "இருண்ட"],
   "App language": ["යෙදුමේ භාෂාව", "செயலி மொழி"],
-  "Choose loader": ["පටවන්නා තෝරන්න", "ஏற்றுபவரைத் தேர்ந்தெடு"],
+  "Apply changes": ["වෙනස්කම් යොදන්න", "மாற்றங்களைப் பயன்படுத்து"],
   "This device": ["මෙම උපාංගය", "இந்தச் சாதனம்"],
   "This device is signed in as {name}.": ["මෙම උපාංගය {name} ලෙස පුරනය වී ඇත.", "இந்தச் சாதனம் {name} ஆக உள்நுழைந்துள்ளது."],
   "Role": ["භූමිකාව", "பங்கு"],
@@ -388,6 +388,29 @@ const STRINGS: Record<string, [string, string]> = {
   "Plan revised": ["සැලැස්ම සංශෝධිතයි", "திட்டம் திருத்தப்பட்டது"],
   "Vehicle left": ["වාහනය පිටත් විය", "வாகனம் புறப்பட்டது"],
   "Loading shortfall": ["පැටවීමේ හිඟය", "ஏற்றுதல் பற்றாக்குறை"],
+  // Push on this device (Settings).
+  "On": ["සක්‍රියයි", "இயக்கு"],
+  "Off": ["අක්‍රියයි", "அணை"],
+  "This browser cannot show alerts": ["මෙම බ්‍රව්සරයට ඇඟවීම් පෙන්විය නොහැක", "இந்த உலாவியால் விழிப்பூட்டல்களைக் காட்ட முடியாது"],
+  "Alerts are not set up on this server": ["මෙම සේවාදායකයේ ඇඟවීම් සකසා නැත", "இந்த சேவையகத்தில் விழிப்பூட்டல்கள் அமைக்கப்படவில்லை"],
+  "Blocked in this browser's settings": ["මෙම බ්‍රව්සරයේ සැකසුම්වල අවහිර කර ඇත", "இந்த உலாவியின் அமைப்புகளில் தடுக்கப்பட்டுள்ளது"],
+  "Alerts on this device, even with the app closed": ["යෙදුම වසා තිබුණත් මෙම උපාංගයට ඇඟවීම්", "செயலி மூடியிருந்தாலும் இந்தச் சாதனத்தில் விழிப்பூட்டல்கள்"],
+  // The loader's notification messages, filled from their facts (data/messages.ts).
+  "Plan published for {serviceDate}": ["{serviceDate} සඳහා සැලැස්ම ප්‍රකාශිතයි", "{serviceDate} க்கான திட்டம் வெளியிடப்பட்டது"],
+  "Version {planVersion} with {tripCount} trips is ready to load.": [
+    "ගමන් {tripCount} ක් සහිත {planVersion} වන අනුවාදය පැටවීමට සූදානම්.",
+    "{tripCount} பயணங்களுடன் பதிப்பு {planVersion} ஏற்றத் தயார்.",
+  ],
+  "Plan revised for {serviceDate}": ["{serviceDate} සඳහා සැලැස්ම සංශෝධිතයි", "{serviceDate} க்கான திட்டம் திருத்தப்பட்டது"],
+  "Version {planVersion} with {tripCount} trips replaces the earlier plan: {reason}": [
+    "ගමන් {tripCount} ක් සහිත {planVersion} වන අනුවාදය පෙර සැලැස්ම වෙනුවට: {reason}",
+    "{tripCount} பயணங்களுடன் பதிப்பு {planVersion} முந்தைய திட்டத்தை மாற்றுகிறது: {reason}",
+  ],
+  "Trip released · {vehicleId}": ["ගමන නිදහස් කළා · {vehicleId}", "பயணம் விடுவிக்கப்பட்டது · {vehicleId}"],
+  "{vehicleId} left for {serviceDate} with {stopCount} stops.": [
+    "{vehicleId} නැවතුම් {stopCount} ක් සමඟ {serviceDate} සඳහා පිටත් විය.",
+    "{vehicleId} {stopCount} நிறுத்தங்களுடன் {serviceDate} க்கு புறப்பட்டது.",
+  ],
 };
 
 export type Vars = Record<string, string | number>;

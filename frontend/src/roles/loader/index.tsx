@@ -10,6 +10,7 @@ import { keptCrew, logOfflineSwitch } from "@app-shell/offlinePin";
 import type { CrewMember } from "@app-shell/operators";
 import type { Operator } from "@app-shell/session";
 import TopBar from "./TopBar.tsx";
+import { useWide } from "./useWide.ts";
 import { LangProvider, useT } from "./i18n.tsx";
 import { ThemeProvider, useTheme } from "./theme.tsx";
 import { createGateway } from "./data/gateway.ts";
@@ -79,6 +80,8 @@ function LoaderWorkspace({
   // Who locked the device (Figma 08), kept across a reload so the locked screen survives one.
   const [locked, setLockedState] = useState<Operator | null>(() => readLocked(userId));
   const [unlocking, setUnlocking] = useState(false);
+  // From a tablet up the locked screen carries its own keypad (Figma 06 Locked).
+  const wide = useWide();
   const setLocked = useCallback((who: Operator | null) => {
     setLockedState(who);
     writeLocked(userId, who);
@@ -203,7 +206,16 @@ function LoaderWorkspace({
         </div>
       )}
       {settings ? (
-        <Settings hasLoader={operator !== null} deviceName={displayName} onClose={() => setSettings(false)} />
+        <Settings deviceName={displayName} onClose={() => setSettings(false)} />
+      ) : !operator && locked && wide ? (
+        <OperatorGate
+          key="locked"
+          account={userId}
+          online={online}
+          onOperator={signedIn}
+          unlock={unlockMember}
+          aside={<Locked gateway={gateway} operator={locked} depot={depot} trip={lockedTrip} onUnlock={() => {}} onSwitch={() => void switchUser()} wide />}
+        />
       ) : !operator && locked && unlocking ? (
         <OperatorGate
           key="unlock"

@@ -98,7 +98,7 @@ public class Notifier {
           repository.insert(
               new NewNotification(
                   notificationId, a.recipient(), event.eventId(), type, a.target().key(), table.version(),
-                  a.title(), a.body(), subject.map(Subject::type), subject.map(Subject::id), now));
+                  a.title(), a.body(), subject.map(Subject::type), subject.map(Subject::id), now, a.facts()));
       if (!inserted) {
         metrics.increment("waypoint.notification.duplicate", "event", type);
         continue;
