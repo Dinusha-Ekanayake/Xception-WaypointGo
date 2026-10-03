@@ -3,6 +3,12 @@
 @kavindamihiran's entries, newest first. Only @kavindamihiran adds to this file; how to write an entry is in the [log's index](../development-log.md).
 
 ---
+## 2026-10-03 - feat: dispatcher live screen matching Figma 05 Live
+
+`feat/live-timeline-figma` · @kavindamihiran
+
+Live screen gets a `Needs you / Map / Timeline` switch, header depot and status filters, a timeline of every vehicle on a shared clock (`LiveTimeline.tsx`) and compact progress cards, following Figma "05 Live" and "05 Live: timeline". The KPI, Needs you and dock panels move to the Needs you view.
+Verified: typecheck.
 ## 2026-10-03 - feat: MCP scopes, confirmed issue writes, personal fields and app blocking
 
 `feat/177-mcp-enterprise` · @kavindamihiran
