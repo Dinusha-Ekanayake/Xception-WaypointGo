@@ -12,6 +12,12 @@
 //   dispatcher    online    stated stable connectivity, and offline planning is
 //                           actively harmful: two dispatchers planning offline
 //                           produce irreconcilable plans.
+//
+// Since issue #201 the resilient tier also keeps its reads (readThrough in
+// keptReads.ts) and may carry on with the remembered session when the server
+// cannot be asked, so a dock tablet or a store phone reloaded with no network
+// still opens on the day's work. What still separates the tiers: only the full
+// tier downloads its working set ahead of time (prefetchesWorkingSet).
 
 export type OfflineTier = "full" | "resilient" | "online";
 

@@ -3,6 +3,12 @@
 @kavindamihiran's entries, newest first. Only @kavindamihiran adds to this file; how to write an entry is in the [log's index](../development-log.md).
 
 ---
+## 2026-10-04 - feat: loader and store open offline on kept reads
+
+`feat/role-pwa-offline-reads` · @kavindamihiran · #201, PR 2 of 5
+
+`shared/offline/keptReads.ts` `readThrough` keeps each loader and store read per account and, in an outage only (no network, timeout, 5xx), answers with the kept copy; a refusal passes through. The loader's trips are keyed by depot and day; the store's delivery date and handover state are not kept. `session.ts` now lets the resilient tier carry on unverified like the driver (A-43). Both top bars say "Offline · showing HH:MM" or "Server unreachable · showing HH:MM" while kept data is on screen. EDGE-CASES EXE-31 to EXE-33.
+Verified: typecheck, `npm test` (189), build, driver, loader (21, new offline reload case) and store (33, new `offline.spec.ts`) suites.
 ## 2026-10-04 - feat: each field role installs as its own app
 
 `feat/role-pwa` · @kavindamihiran · #201, PR 1 of 5 ([plan](../../issues/201-role-pwa/PLAN.md))

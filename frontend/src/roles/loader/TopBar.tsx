@@ -5,6 +5,7 @@ import { GearIcon, LockIcon, MoonIcon, SunIcon, SwapIcon } from "./icons.tsx";
 import { useTheme } from "./theme.tsx";
 import { initials } from "./ui.tsx";
 import { clock } from "@shared/wording";
+import { useKeptSince } from "@shared/offline";
 
 // The loader's top bar, Figma "08 Loader · Phone" (01 Dock board, 02 Load
 // sheet) and the tablet pages. Connection state is always on screen: the
@@ -60,11 +61,17 @@ export default function TopBar({
   const tr = useT();
   const { theme, setTheme } = useTheme();
   const shell = useShell();
+  // When a screen shows what this device kept rather than the server's answer, say from when (#201).
+  const since = useKeptSince();
   const sync = !online
     ? waiting > 0
       ? tr("Offline · {n} saved on this device", { n: waiting })
-      : tr("Offline · showing last sync")
-    : waiting > 0
+      : since
+        ? tr("Offline · showing {time}", { time: clock(since) })
+        : tr("Offline · showing last sync")
+    : since
+      ? tr("Server unreachable · showing {time}", { time: clock(since) })
+      : waiting > 0
       ? tr("Sending {n}…", { n: waiting })
       : syncedAt
         ? tr("Synced {time}", { time: clock(syncedAt) })
