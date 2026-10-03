@@ -87,6 +87,44 @@ class McpOAuthIntegrationTest {
     http.perform(post("/api/commands").header("Authorization", "Bearer " + token).header("X-Waypoint-Mcp-Resource", RESOURCE)
         .contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isForbidden());
   }
+  @Test void theRequestedScopesAreShownGrantedAndEnforcedAndABlockedClientCannotConnect() throws Exception {
+    String client = register();
+    var consent = mapper.readTree(http.perform(get("/api/oauth/authorize").param("client_id", client).param("redirect_uri", REDIRECT)
+        .param("response_type", "code").param("code_challenge", Pkce.challengeOf(VERIFIER)).param("code_challenge_method", "S256")
+        .param("resource", RESOURCE).param("scope", "openid orders.read"))
+        .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+    assertEquals("[\"orders.read\"]", consent.get("scopes").toString(), "the person sees exactly what approving grants");
+
+    var approval = approval(client);
+    approval.put("scope", "openid orders.read");
+    String redirect = mapper.readTree(http.perform(post("/api/oauth/authorize").contentType(MediaType.APPLICATION_JSON)
+        .content(mapper.writeValueAsString(approval))).andExpect(status().isOk()).andReturn().getResponse().getContentAsString())
+        .get("redirectTo").asText();
+    String code = Arrays.stream(URI.create(redirect).getRawQuery().split("&")).filter(v -> v.startsWith("code="))
+        .map(v -> URLDecoder.decode(v.substring(5), StandardCharsets.UTF_8)).findFirst().orElseThrow();
+    var grant = mapper.readTree(exchange(client, code, VERIFIER, RESOURCE).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+    assertEquals("orders.read", grant.get("scope").asText());
+    String token = grant.get("access_token").asText();
+    http.perform(get("/api/orders").param("outlet", "OUT001").header("Authorization", "Bearer " + token).header("X-Waypoint-Mcp-Resource", RESOURCE)).andExpect(status().isOk());
+    http.perform(get("/api/receipts/pending").param("outlet", "OUT001").header("Authorization", "Bearer " + token).header("X-Waypoint-Mcp-Resource", RESOURCE)).andExpect(status().isForbidden());
+
+    var unknown = approval(client);
+    unknown.put("scope", "openid");
+    http.perform(post("/api/oauth/authorize").contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(unknown)))
+        .andExpect(status().isUnprocessableEntity());
+
+    database.asModule(ModuleRole.IAM, null, () -> database.update(
+        "UPDATE iam.oauth_clients SET blocked_at = now(), blocked_by = ?, block_reason = 'test' WHERE client_id = ?::uuid", user, client));
+    String refused = http.perform(post("/api/oauth/authorize").contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(approval(client))))
+        .andExpect(status().isUnprocessableEntity()).andReturn().getResponse().getContentAsString();
+    assertTrue(refused.contains("R-IAM-37"), refused);
+    exchange(client, code, VERIFIER, RESOURCE).andExpect(status().isBadRequest());
+  }
+  @Test void scopesSupportedListsEveryAreaAndTheSafeWrites() throws Exception {
+    var meta = mapper.readTree(http.perform(get("/api/oauth/authorization-server")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+    assertTrue(meta.get("scopes_supported").toString().contains("issues.write"));
+    assertTrue(meta.get("scopes_supported").toString().contains("orders.read"));
+  }
   @Test void tokenRequiresItsResourceOnExchangeAndEveryRead() throws Exception {
     String client = register();
     exchange(client, authorize(client), VERIFIER, "https://other.test/mcp").andExpect(status().isBadRequest());

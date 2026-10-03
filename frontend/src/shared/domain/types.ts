@@ -19,7 +19,7 @@ export type * from "./intelligence.ts";
 export type * from "./events.ts";
 
 export { OutletCommandKind, VehicleCommandKind } from "./referencedata.ts";
-export { IdentityCommandKind } from "./identity.ts";
+export { IdentityCommandKind, McpCommandKind } from "./identity.ts";
 export { OrderCommandKind } from "./ordering.ts";
 export { PlanCommandKind } from "./planning.ts";
 export { LoadingCommandKind } from "./loading.ts";

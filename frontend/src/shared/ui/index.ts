@@ -1,5 +1,5 @@
 export { Icon, ICON_NAMES, type IconName } from "./Icon.tsx";
-export { McpButton } from "./McpConnect.tsx";
+export { McpButton, scopeWords } from "./McpConnect.tsx";
 export { Notice, Pending } from "./Notice.tsx";
 export {
   Card,

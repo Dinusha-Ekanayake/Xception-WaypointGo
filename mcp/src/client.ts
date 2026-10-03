@@ -2,8 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 
 export const MAX_RESPONSE_BYTES = 256 * 1024;
+const WRITE_PATHS = new Set(['/api/mcp/writes', '/api/mcp/writes/confirm']);
 const problem = z.object({ code: z.string().max(80), correlationId: z.string().max(100).optional(),
-  violations: z.array(z.object({ rule: z.string().max(100), field: z.string().max(100).optional() })).max(50).optional() });
+  violations: z.array(z.object({ rule: z.string().max(100), field: z.string().max(100).nullish().transform(v => v ?? undefined) })).max(50).optional() });
 
 export class BackendError extends Error {
   readonly code: string;
@@ -81,10 +82,21 @@ export class BackendClient {
     if (url.origin !== this.origin || !path.startsWith('/api/') || path.includes('#')) {
       throw new BackendError('INVALID_READ_PATH', 400);
     }
+    return this.send(url, 'GET');
+  }
+
+  /** The only two writes (R-IAM-35): prepare and confirm. Nothing else is ever posted. */
+  async post(path: '/api/mcp/writes' | '/api/mcp/writes/confirm', body: unknown): Promise<unknown> {
+    if (!WRITE_PATHS.has(path)) throw new BackendError('INVALID_WRITE_PATH', 400);
+    return this.send(new URL(path, this.origin), 'POST', JSON.stringify(body));
+  }
+
+  private async send(url: URL, method: 'GET' | 'POST', body?: string): Promise<unknown> {
     let response: Response;
     try {
-      response = await fetch(url, { method: 'GET', redirect: 'error', cache: 'no-store',
-        headers: { Authorization: `Bearer ${this.token}`, Accept: 'application/json', ...(this.options.resource ? { 'X-Waypoint-Mcp-Resource': this.options.resource } : {}), 'X-Correlation-Id': randomUUID() },
+      response = await fetch(url, { method, redirect: 'error', cache: 'no-store', body,
+        headers: { Authorization: `Bearer ${this.token}`, Accept: 'application/json', ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+          ...(this.options.resource ? { 'X-Waypoint-Mcp-Resource': this.options.resource } : {}), 'X-Correlation-Id': randomUUID() },
         signal: AbortSignal.timeout(10_000) });
     } catch {
       throw new BackendError('DEPENDENCY_UNAVAILABLE', 503);

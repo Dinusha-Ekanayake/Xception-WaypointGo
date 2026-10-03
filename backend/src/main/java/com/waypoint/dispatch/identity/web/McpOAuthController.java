@@ -1,5 +1,7 @@
 package com.waypoint.dispatch.identity.web;
 
+import com.waypoint.dispatch.identity.domain.McpScopes;
+
 import com.waypoint.dispatch.identity.application.McpOAuthHandler;
 import com.waypoint.dispatch.identity.application.OAuthProtocolException;
 import com.waypoint.dispatch.platform.config.McpProperties;
@@ -60,7 +62,7 @@ public class McpOAuthController {
     body.put("resource", origin + McpAuthorizationController.MCP_PATH);
     body.put("authorization_servers", List.of(origin));
     body.put("bearer_methods_supported", List.of("header"));
-    body.put("scopes_supported", List.of(McpOAuthHandler.SCOPE));
+    body.put("scopes_supported", McpScopes.supported());
     body.put("resource_name", "Waypoint Dispatch (read-only)");
     return json(200, body);
   }
@@ -82,7 +84,7 @@ public class McpOAuthController {
     body.put("grant_types_supported", List.of("authorization_code"));
     body.put("code_challenge_methods_supported", List.of("S256"));
     body.put("token_endpoint_auth_methods_supported", List.of("none"));
-    body.put("scopes_supported", List.of(McpOAuthHandler.SCOPE));
+    body.put("scopes_supported", McpScopes.supported());
     return json(200, body);
   }
 
@@ -132,7 +134,7 @@ public class McpOAuthController {
     body.put("access_token", grant.accessToken());
     body.put("token_type", "Bearer");
     body.put("expires_in", grant.lifetime().toSeconds());
-    body.put("scope", McpOAuthHandler.SCOPE);
+    body.put("scope", McpScopes.format(grant.scopes()));
     return json(200, body);
   }
 

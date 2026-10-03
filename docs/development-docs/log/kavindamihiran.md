@@ -3,6 +3,15 @@
 @kavindamihiran's entries, newest first. Only @kavindamihiran adds to this file; how to write an entry is in the [log's index](../development-log.md).
 
 ---
+## 2026-10-03 - feat: MCP scopes, confirmed issue writes, personal fields and app blocking
+
+`feat/177-mcp-enterprise` · @kavindamihiran
+
+Finishes #177 ([walkthrough](../../issues/177-mcp/WALKTHROUGH.md)): paged plans, client scopes (R-IAM-34), confirmed `raise_issue` and `assign_issue` through the command bus with an hourly limit (R-IAM-35, P-32), personal fields withheld unless granted (R-IAM-36), blocking an app (R-IAM-37), own connections and the admin AI assistants screen.
+Why: reads and safe writes on by default, an administrator can turn either off (decision 2026-10-03); plan generation left out because it cancels the open draft.
+Verified: `mvn verify`, `npm test` in `mcp/` and `frontend/`, typecheck, build, Playwright `mcp-oauth` and `mcp-admin`.
+Open: `get_thread` (#136), production enablement.
+
 ## 2026-10-03 - feat: MCP day summary, prompts and example questions
 
 `feat/177-mcp-reads` · @kavindamihiran

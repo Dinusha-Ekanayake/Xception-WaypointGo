@@ -5,7 +5,11 @@ import com.waypoint.dispatch.intelligence.contract.PredictionViews.PlanScoringVi
 import org.springframework.beans.factory.ObjectProvider;
 import com.waypoint.dispatch.planning.contract.PlanQuery;
 import com.waypoint.dispatch.planning.contract.PlanViews.AllocationDecision;
+import com.waypoint.dispatch.planning.contract.PlanViews.AllocationLineView;
+import com.waypoint.dispatch.planning.contract.PlanViews.AllocationPageView;
 import com.waypoint.dispatch.planning.contract.PlanViews.AllocationView;
+import com.waypoint.dispatch.planning.contract.PlanViews.PlanSummaryView;
+import com.waypoint.dispatch.planning.contract.PlanViews.TripSummaryView;
 import com.waypoint.dispatch.planning.contract.PlanViews.ImprovementView;
 import com.waypoint.dispatch.planning.contract.PlanViews.ConstraintResultView;
 import com.waypoint.dispatch.planning.contract.PlanViews.DeferralView;
@@ -180,6 +184,59 @@ public class PlanDataQuery implements PlanQuery {
             () ->
                 new DomainException(
                     ErrorCode.NOT_FOUND, "No open draft for " + depotCode + " on " + serviceDate));
+  }
+
+  /** The largest allocation page; a client asks again with the cursor for more. */
+  public static final int MAX_ALLOCATION_PAGE = 100;
+
+  /**
+   * The published plan without its allocations (issue #177), for a client that
+   * cannot hold a whole plan. The same depot scope and the same 404 as
+   * {@link #publishedPlan}.
+   */
+  public PlanSummaryView publishedSummary(Actor actor, String depotCode, LocalDate serviceDate) {
+    requireDepot(actor, depotCode);
+    return read(actor.userId(), () -> plans.published(depotCode, serviceDate).map(this::summarise))
+        .orElseThrow(
+            () ->
+                new DomainException(
+                    ErrorCode.NOT_FOUND,
+                    "No published plan for " + depotCode + " on " + serviceDate));
+  }
+
+  public PlanSummaryView draftSummary(Actor actor, String depotCode, LocalDate serviceDate) {
+    requireDepot(actor, depotCode);
+    return read(actor.userId(), () -> plans.latestDraft(depotCode, serviceDate).map(this::summarise))
+        .orElseThrow(
+            () ->
+                new DomainException(
+                    ErrorCode.NOT_FOUND, "No open draft for " + depotCode + " on " + serviceDate));
+  }
+
+  /**
+   * One keyset page of a plan's allocations, each with its constraint results.
+   * Read under the actor like {@link #plan}, so row-level security hides a plan
+   * outside their depots as not found.
+   */
+  public AllocationPageView allocationPage(Actor actor, UUID planId, Optional<UUID> after, int limit) {
+    if (limit < 1 || limit > MAX_ALLOCATION_PAGE) {
+      throw new DomainException(
+          ErrorCode.VALIDATION_FAILED, "limit must be between 1 and " + MAX_ALLOCATION_PAGE);
+    }
+    return read(
+            actor.userId(),
+            () ->
+                plans.findRun(planId).map(run -> {
+                  List<AllocationRow> rows = plans.allocationsAfter(planId, after, limit + 1);
+                  boolean more = rows.size() > limit;
+                  List<AllocationRow> page = more ? rows.subList(0, limit) : rows;
+                  return new AllocationPageView(
+                      planId,
+                      run.planVersion(),
+                      page.stream().map(PlanDataQuery::toLine).toList(),
+                      more ? Optional.of(page.get(page.size() - 1).orderId().toString()) : Optional.empty());
+                }))
+        .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No plan " + planId));
   }
 
   /** Any run by id, in any status, so the dispatcher can read a superseded version too. */
@@ -367,6 +424,47 @@ public class PlanDataQuery implements PlanQuery {
         run.improvement()
             .map(i -> new ImprovementView(i.greedyServed(), i.greedyDeferred(), i.served(), i.deferred(), i.improved(),
                 i.chilledVolumeGainedM3(), i.stoppedBy().name(), i.chilledCandidates(), i.chilledSearched())));
+  }
+
+  /** Called inside a read, like {@link #assemble}. */
+  private PlanSummaryView summarise(RunRow run) {
+    List<AllocationRow> allocations = plans.allocations(run.planId());
+    Map<UUID, Long> stops =
+        allocations.stream()
+            .filter(a -> a.decision() == AllocationDecision.SERVED)
+            .collect(Collectors.groupingBy(a -> a.tripId().orElseThrow(), Collectors.counting()));
+    return new PlanSummaryView(
+        run.planId(),
+        run.depotCode(),
+        run.serviceDate(),
+        run.planVersion(),
+        run.status(),
+        run.referenceVersionId(),
+        run.ruleSetId(),
+        run.priorityPolicyVersionId(),
+        run.supersedes(),
+        run.publishedAt(),
+        run.rowVersion(),
+        count(allocations, AllocationDecision.SERVED),
+        count(allocations, AllocationDecision.DEFERRED),
+        count(allocations, AllocationDecision.UNSERVABLE),
+        plans.trips(run.planId()).stream()
+            .map(t -> new TripSummaryView(
+                t.tripId(), t.vehicleId(), t.tripNumber(), t.brandCode(), t.districtName(), t.temperature(),
+                t.weightKg(), t.volumeM3(), t.plannedMinutes(), t.plannedDeparture(),
+                stops.getOrDefault(t.tripId(), 0L).intValue()))
+            .toList());
+  }
+
+  private static int count(List<AllocationRow> allocations, AllocationDecision decision) {
+    return (int) allocations.stream().filter(a -> a.decision() == decision).count();
+  }
+
+  private static AllocationLineView toLine(AllocationRow a) {
+    AllocationView view = toView(a);
+    return new AllocationLineView(
+        a.orderId(), a.decision(), a.tripId(), a.stopSequence(), a.plannedArrival(),
+        a.bindingRule(), a.reason(), view.checks());
   }
 
   /**
