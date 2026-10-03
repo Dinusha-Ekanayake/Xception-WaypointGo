@@ -20,6 +20,7 @@ export default function Locked({
   trip,
   onUnlock,
   onSwitch,
+  wide = false,
 }: {
   gateway: LoadingGateway;
   /** The loader who locked the device. */
@@ -29,6 +30,8 @@ export default function Locked({
   trip: ReadyTripView | null;
   onUnlock: () => void;
   onSwitch: () => void;
+  /** Tablet or wider: the left column only, beside the keypad. */
+  wide?: boolean;
 }): React.JSX.Element {
   const tr = useT();
   const manifest = useResource(trip ? (signal) => gateway.manifest(trip.tripId, signal) : null, trip?.tripId ?? "none");
@@ -39,6 +42,50 @@ export default function Locked({
     p && p.flagged > 0 && tr(p.flagged === 1 ? "{n} issue reported" : "{n} issues reported", { n: p.flagged }),
     trip && tr("departs {time}", { time: hhmm(trip.plannedDeparture) }),
   ].filter(Boolean).join(" · ");
+
+  const tripLine = trip && [trip.vehicleId, trip.brandCode, tr(trip.stopCount === 1 ? "{n} stop" : "{n} stops", { n: trip.stopCount }), trip.districtName].join(" · ");
+  const switchRow = (
+    <div className="flex items-center gap-3">
+      <span className="text-[16px] text-go-muted">{tr("Not {name}?", { name: first })}</span>
+      <button type="button" onClick={onSwitch} className="flex min-h-12 items-center gap-2 rounded-full bg-go-card px-5 text-[16px] text-go-ink shadow-go-float">
+        <SwapIcon /> {tr("Switch user")}
+      </button>
+    </div>
+  );
+
+  // Tablet, desk and terminal (Figma 07, 09, 10 "06 Locked"): the left column
+  // beside the keypad, which OperatorGate draws.
+  if (wide) {
+    return (
+      <div className="flex flex-col gap-5 pt-2">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-[34px] leading-tight font-semibold text-go-ink lg:text-[48px]">{tr("Device locked")}</h1>
+          <p className="text-[16px] text-go-muted">
+            {trip ? tr("Locked by the loader on this trip. Work is saved.") : tr("Locked by the loader. Work is saved.")}
+          </p>
+        </div>
+        <div className="flex items-center gap-4">
+          <span className="flex size-14 shrink-0 items-center justify-center rounded-full bg-go-soft text-[20px] font-medium text-go-on-soft">
+            {initials(operator.displayName)}
+          </span>
+          <div className="flex min-w-0 flex-col">
+            <span className="truncate text-[24px] font-medium text-go-ink">{operator.displayName}</span>
+            <span className="text-[13px] text-go-muted">{[tr("Loader"), operator.employeeCode, depot].filter(Boolean).join(" · ")}</span>
+          </div>
+        </div>
+        {trip && (
+          <section className="flex items-center gap-4 rounded-go-panel bg-go-card px-5 py-4 text-go-ink shadow-go-card">
+            <span className="flex size-14 shrink-0 items-center justify-center rounded-[16px] bg-go-soft text-go-on-soft"><TruckIcon /></span>
+            <div className="flex min-w-0 flex-col">
+              <span className="text-[18px] font-medium">{tripLine}</span>
+              <span className="text-[13px] text-go-muted">{progressLine}</span>
+            </div>
+          </section>
+        )}
+        {switchRow}
+      </div>
+    );
+  }
 
   return (
     <main className="flex w-full flex-1 flex-col items-center gap-5 px-4 pt-6 pb-8 md:mx-auto md:max-w-[560px]">
@@ -65,9 +112,7 @@ export default function Locked({
           <div className="flex items-center gap-4 border-t border-go-rule pt-3">
             <span className="flex size-14 shrink-0 items-center justify-center rounded-[16px] bg-go-soft text-go-on-soft"><TruckIcon /></span>
             <div className="flex min-w-0 flex-col">
-              <span className="text-[18px] font-medium">
-                {[trip.vehicleId, trip.brandCode, tr(trip.stopCount === 1 ? "{n} stop" : "{n} stops", { n: trip.stopCount }), trip.districtName].join(" · ")}
-              </span>
+              <span className="text-[18px] font-medium">{tripLine}</span>
               <span className="text-[13px] text-go-muted">{progressLine}</span>
             </div>
           </div>
@@ -76,12 +121,7 @@ export default function Locked({
       <BigButton size="l" icon="arrow-right" onClick={onUnlock}>
         {tr("Enter PIN to unlock")}
       </BigButton>
-      <div className="mt-auto flex items-center gap-3 pt-10">
-        <span className="text-[16px] text-go-muted">{tr("Not {name}?", { name: first })}</span>
-        <button type="button" onClick={onSwitch} className="flex min-h-12 items-center gap-2 rounded-full bg-go-card px-5 text-[16px] text-go-ink shadow-go-float">
-          <SwapIcon /> {tr("Switch user")}
-        </button>
-      </div>
+      <div className="mt-auto pt-10">{switchRow}</div>
     </main>
   );
 }
