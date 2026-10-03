@@ -178,7 +178,7 @@ export default function MapCanvas(props: LiveMapProps): React.JSX.Element {
       <div ref={host} role="group" aria-label="Map" className="absolute inset-0 z-0" style={{ background: "transparent" }} />
       {props.overlay && <div className="pointer-events-none absolute left-4 top-4 z-[500] flex flex-col items-start gap-2 [&>*]:pointer-events-auto">{props.overlay}</div>}
       {base === "failed" && (
-        <p role="status" className="pointer-events-none absolute bottom-14 left-1/2 z-[500] -translate-x-1/2 rounded-full bg-white px-3 py-1 text-[12px] text-go-ink shadow">Base map unavailable · positions and routes still shown</p>
+        <p role="status" className="pointer-events-none absolute bottom-14 left-1/2 z-[500] -translate-x-1/2 rounded-full bg-white px-3 py-1 text-[12px] text-go-ink shadow">Base map unavailable · positions and trails still shown</p>
       )}
       <div className="absolute right-4 top-4 z-[500] flex flex-col overflow-hidden rounded-[10px] bg-white text-go-ink shadow">
         <button type="button" aria-label="Zoom in" onClick={() => zoomBy(1)} className="h-[26px] w-[30px] text-[16px] leading-none">+</button>

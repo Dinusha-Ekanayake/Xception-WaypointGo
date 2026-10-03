@@ -5,6 +5,7 @@ import { request } from "@shared/api/client";
 import { useResource } from "@shared/api/useResource";
 import type { TrailPointView, VehiclePositionView } from "@shared/domain/types";
 import { FilterTabs, Pill, type Tone } from "@shared/ui";
+import { clock } from "@shared/wording";
 import { LiveMap, MapLegend, num, type LatLon, type MapLine, type MapMarker } from "@shared/ui/map";
 import { mapStatus, type MapStatus, type VehicleDay } from "../data/live.ts";
 import { hhmm } from "../data/plan.ts";
@@ -25,7 +26,6 @@ const STATUS: Record<MapStatus, { label: string; tone: Tone }> = {
 
 type Row = { day: VehicleDay; position: VehiclePositionView | null; status: MapStatus; at: LatLon | null };
 
-const time = (iso: string) => new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Colombo" });
 
 export default function LiveMapView({ depots, depotOf, date, days, now }: { depots: string[]; depotOf: Record<string, string>; date: string; days: VehicleDay[]; now: Date }): React.JSX.Element {
   const positions = usePositions(depots, date);
@@ -123,14 +123,14 @@ export default function LiveMapView({ depots, depotOf, date, days, now }: { depo
         />
         {positions.error && (
           <p role="status" className="absolute bottom-16 left-4 z-[600] rounded-full bg-white px-3 py-1 text-[12px] text-go-danger-strong shadow">
-            Positions not updated{positions.loadedAt ? ` since ${positions.loadedAt.toTimeString().slice(0, 5)}` : ""} · <button type="button" className="underline" onClick={positions.refresh}>Retry</button>
+            Positions not updated{positions.loadedAt ? ` since ${clock(positions.loadedAt)}` : ""} · <button type="button" className="underline" onClick={positions.refresh}>Retry</button>
           </p>
         )}
       </div>
 
       <aside aria-label="Selected vehicle" className="flex w-full flex-col gap-3 rounded-[24px] bg-white p-4 shadow-go-card lg:max-w-[340px]">
         {chosen ? <Panel row={chosen} date={date} trailPoints={trail.data?.items.length ?? null} onClose={() => setSelected(null)} /> : (
-          <p className="text-[13px] text-go-secondary">Select a vehicle on the map to see its route, its next stop and how late it is.</p>
+          <p className="text-[13px] text-go-secondary">Select a vehicle on the map to see its trip, its next stop and how late it is.</p>
         )}
         {unplaced.length > 0 && (
           <div className="border-t border-go-rule pt-3">
@@ -176,7 +176,7 @@ function Panel({ row, date, trailPoints, onClose }: { row: Row; date: string; tr
       <div className="flex flex-wrap items-center gap-2">
         <Pill tone={STATUS[status].tone}>{STATUS[status].label}</Pill>
         {position ? (
-          <span className="text-[12px] text-go-secondary">{status === "offline" ? `Last seen ${time(position.recordedAt)}` : `Updated ${time(position.recordedAt)}`}</span>
+          <span className="text-[12px] text-go-secondary">{status === "offline" ? `Last seen ${clock(position.recordedAt)}` : `Updated ${clock(position.recordedAt)}`}</span>
         ) : (
           <span className="text-[12px] text-go-secondary">No live location · stops only</span>
         )}
@@ -185,7 +185,7 @@ function Panel({ row, date, trailPoints, onClose }: { row: Row; date: string; tr
         <div className="rounded-go-card bg-go-subtle p-3 text-[13px] text-go-ink">
           <p className="font-medium">Next · stop {next.sequence} · {next.outletId}</p>
           <p className="text-go-secondary">
-            Window {hhmm(next.windowOpen)} to {hhmm(next.windowClose)} · {next.expectedArrival ? `ETA ${time(next.expectedArrival)}` : `planned ${hhmm(next.plannedArrival)}`}
+            Window {hhmm(next.windowOpen)} to {hhmm(next.windowClose)} · {next.expectedArrival ? `expected ${clock(next.expectedArrival)}` : `planned ${hhmm(next.plannedArrival)}`}
             {lateBy !== null && lateBy > 0 ? ` · ${lateBy} min past the window` : ""}
           </p>
         </div>

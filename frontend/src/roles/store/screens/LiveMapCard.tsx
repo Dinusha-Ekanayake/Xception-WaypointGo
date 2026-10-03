@@ -4,6 +4,7 @@ import { request } from "@shared/api/client";
 import { useResource } from "@shared/api/useResource";
 import type { DeliveryRecordView, OutletView, TrailPointView, VehiclePositionView } from "@shared/domain/types";
 import { LiveMap, num, type MapLine, type MapMarker } from "@shared/ui/map";
+import { clock } from "@shared/wording";
 import { Card, Chip, Muted } from "../ui.tsx";
 
 // Figma "05 Delivery tracking" map card (11:113478): this vehicle only, the
@@ -13,7 +14,6 @@ import { Card, Chip, Muted } from "../ui.tsx";
 // done (R-EXE-20), and the card then says so.
 
 const q = encodeURIComponent;
-const time = (iso: string) => new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Colombo" });
 
 export default function LiveMapCard({ outlet, stop }: { outlet: OutletView | null; stop: DeliveryRecordView }): React.JSX.Element | null {
   const positions = useResource(
@@ -47,7 +47,7 @@ export default function LiveMapCard({ outlet, stop }: { outlet: OutletView | nul
   if (here && position) {
     markers.push({
       id: stop.vehicleId, kind: "vehicle", ...here, heading: num(position.headingDeg), status: position.offline ? "offline" : "on-time",
-      faded: position.offline, label: stop.vehicleId, ariaLabel: `${stop.vehicleId}, ${position.offline ? `last seen ${time(position.recordedAt)}` : "live"}`, selectable: false,
+      faded: position.offline, label: stop.vehicleId, ariaLabel: `${stop.vehicleId}, ${position.offline ? `last seen ${clock(position.recordedAt)}` : "live"}`, selectable: false,
     });
   }
   const lines: MapLine[] = [];
@@ -62,19 +62,19 @@ export default function LiveMapCard({ outlet, stop }: { outlet: OutletView | nul
       <h2 className="text-[17px] font-medium text-black">Live map · {stop.vehicleId}</h2>
       <div className="flex flex-wrap items-center gap-2">
         {position ? (
-          position.offline ? <Chip outline>Last seen {time(position.recordedAt)}</Chip> : <Chip tone="mint">Live</Chip>
+          position.offline ? <Chip outline>Last seen {clock(position.recordedAt)}</Chip> : <Chip tone="mint">Live</Chip>
         ) : (
           <Chip outline>{done ? "Delivered" : "No live location"}</Chip>
         )}
         <Muted>
-          Stop {stop.stopSequence}{of}{position ? ` · updated ${time(position.recordedAt)}` : ""}
+          Stop {stop.stopSequence}{of}{position ? ` · updated ${clock(position.recordedAt)}` : ""}
         </Muted>
       </div>
       <div className="mt-3 h-[300px] w-full overflow-hidden rounded-[20px]">
         <LiveMap markers={markers} lines={lines} fit={fit} className="h-full w-full" background="#eef3ef" />
       </div>
       {!position && !done && <Muted>The driver&rsquo;s position appears here while the vehicle is on its way. Until then the times above are the plan.</Muted>}
-      {positions.error && <Muted>Position not updated{positions.loadedAt ? ` since ${positions.loadedAt.toTimeString().slice(0, 5)}` : ""}.</Muted>}
+      {positions.error && <Muted>Position not updated{positions.loadedAt ? ` since ${clock(positions.loadedAt)}` : ""}.</Muted>}
     </Card>
   );
 }

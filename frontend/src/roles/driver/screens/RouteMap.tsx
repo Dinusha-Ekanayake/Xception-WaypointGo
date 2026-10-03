@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { request } from "@shared/api/client";
 import type { OutletView, TrailPointView } from "@shared/domain/types";
+import { clock } from "@shared/wording";
 import { LiveMap, num, type LatLon, type MapLine, type MapMarker } from "@shared/ui/map";
 import type { Stop } from "../data/run.ts";
 import type { PositionRecorder } from "../data/position.ts";
@@ -59,7 +60,7 @@ export default function RouteMap({
     <div className="relative h-[calc(100dvh-64px)] w-full">
       <LiveMap markers={markers} lines={lines} fit={fit} className="h-full w-full" background="var(--color-go-subtle)" overlay={
         <>
-          {syncedAt && <span className="rounded-full bg-white px-3 py-1 text-[13px] text-go-ink shadow">Synced {syncedAt.toTimeString().slice(0, 5)}</span>}
+          {syncedAt && <span className="rounded-full bg-white px-3 py-1 text-[13px] text-go-ink shadow">Synced {clock(syncedAt)}</span>}
         </>
       } />
       <div className="absolute inset-x-4 bottom-6 z-[600] flex flex-col gap-2">
