@@ -86,6 +86,6 @@ Tests:
   layouts follow the existing built screens and the device matrix, not a frame-by-frame comparison.
 - Persistent storage is requested, but a browser cannot be made to evict in a test, so EXE-33 is
   checked by hand on a device.
-- The role browser suites are still not in CI (as before); run them by hand.
-- `e2e/shell.spec.ts`, "the app shell loads under its Content-Security-Policy", times out on
-  `networkidle`. It does the same on `dev` without these changes.
+- `e2e/shell.spec.ts`, "the app shell loads under its Content-Security-Policy", can time out on
+  `networkidle` on a local machine. It passes in CI, where every role suite also runs (the Browser
+  suites job in `checks.yml`).
