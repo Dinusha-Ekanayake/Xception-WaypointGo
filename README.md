@@ -147,6 +147,7 @@ Integration tests use `TEST_DATABASE_URL` when it is set, a throwaway PostgreSQL
 - [RULES-AND-POLICIES.md](docs/architecture/RULES-AND-POLICIES.md), every operational rule with its source and status, and the conflicts between sources
 - [ASSUMPTIONS.md](docs/architecture/ASSUMPTIONS.md), what we treat as true but have not proved, plus the parameter register
 - [EDGE-CASES.md](docs/architecture/EDGE-CASES.md), each case with its behaviour, enforcement point, detection signal and test
+- [GLOSSARY.md](docs/architecture/GLOSSARY.md), one word per concept on every screen, each taken from a field in the data
 - [DATA-MODEL-REVIEW.md](docs/architecture/DATA-MODEL-REVIEW.md), the schema findings and the corrected model
 - [schema/](docs/architecture/schema/README.md), the target schema design, superseded for `ref` and `iam` by the live `migrations/`
 

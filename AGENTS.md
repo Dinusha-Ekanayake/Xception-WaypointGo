@@ -65,6 +65,8 @@ Naming: `*Test.java` under `backend/src/test/`, `*.test.ts` for Node tests, `*.s
 
 TypeScript with the repository's strict settings, two-space indentation, and the surrounding file's quote style. React components and types in `PascalCase`, functions and variables in `camelCase`. Frontend mirrors of every backend contract (views, command payloads, events) live in `frontend/src/shared/domain/`, one file per module, re-exported from `types.ts`; a contract change on the backend is a change there. A component file over roughly 300 lines gets split into a container and a view. There is no configured formatter or lint command.
 
+User-visible wording follows [docs/architecture/GLOSSARY.md](docs/architecture/GLOSSARY.md): one term per concept, taken from the data (units, never cases or packages; trip, stop and delivery each for their own meaning; 24-hour depot time; no raw codes such as `rear_dock` on screen). The glossary governs words people read, never API fields, command kinds or event names.
+
 Next.js here is version 16, built with `next build --webpack`. Its conventions differ from older versions, so read the relevant guide under `frontend/node_modules/next/dist/docs/` before writing Next-specific code.
 
 Never use an em dash (U+2014) or an en dash (U+2013) in any file, UI string, comment, commit message or pull request. Use a hyphen for ranges, a comma, colon or parentheses for a clause, and the middle dot as a metadata separator in the UI. The rule is in `.agent/rules/no-em-dash.md`; search the files you touched before finishing.
