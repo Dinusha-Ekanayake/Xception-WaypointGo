@@ -68,6 +68,8 @@ export default function Live({
         subtitle={`${live.data ? `${t.onTheRoad} on the road · ${t.atDock} at the dock` : "Loading"} · ${scopeLabel}`}
         online={online}
         lastSyncedAt={live.loadedAt}
+        onSync={live.refresh}
+        syncing={live.loading}
         tools={<DayPicker date={date} onDate={onDate} />}
       />
       {live.error && <Refusal error={live.error} what="the live view" action={<Retry onClick={live.refresh} />} />}

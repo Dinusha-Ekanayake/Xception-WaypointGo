@@ -58,6 +58,8 @@ export default function Vehicles({
         subtitle={`${fleet.data ? `${summary.total} available` : "Loading"} · ${scopeLabel} · ${formatDay(date)}`}
         online={online}
         lastSyncedAt={fleet.loadedAt}
+        onSync={fleet.refresh}
+        syncing={fleet.loading}
         tools={
           <label className="flex shrink-0 items-center gap-1.5 rounded-[20px] bg-white px-3.5 py-2.5 text-[13px] font-medium text-go-ink">
             <span className="text-go-secondary">Day</span>

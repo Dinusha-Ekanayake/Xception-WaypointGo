@@ -32,6 +32,17 @@ Open: per-client metric tags are deliberately absent (dynamic client registratio
 
 ---
 
+## 2026-10-03 - feat: notifications inbox and last sync in each role UI (issue #118)
+
+`feat/118-notifications-inbox` · @Dinusha-Ekanayake
+
+The dispatcher, loader and store manager screens now show their notifications, each against its Figma frames: the dispatcher's panel and Overview card, the loader's bell with an unread dot and an inbox, the store manager's drawer, phone sheet and Home card. One shared data hook (`useInbox`) carries the live count from `/api/notifications/stream`, with a "live updates paused" state and polling after 40 s of silence, plus the list, read state and an offline copy; each role draws its own UI (#14). "Synced HH:MM" is a button in every role: it sends what waits and reads again (the dispatcher, online only, reloads the screen). Routing version 2 tells the depot's other loaders of a release (R-NOT-10) and each outlet its stop and expected arrival (R-NOT-11). The stream now stays open through the Next proxy and nginx.
+Why: the booklet's handoffs (p6, p9) were invisible; the issue's priorities were the store's deferral notice and expected arrival, and the loader's release.
+Verified: see the PR. `NotificationConsumersIntegrationTest`, `notifications-inbox.test.ts`, and a `notifications.spec.ts` in the loader, dispatcher and store suites; each screen compared with its Figma frame.
+Open: push opt-in and service worker push handlers; the driver's feed (#21); the dispatcher's Reply (no messaging between roles).
+
+---
+
 ## 2026-10-03 - feat: a store manager edits their own profile and their store's window, dock and contacts
 
 `fix/store-figma-visual` · @jv-ransika
