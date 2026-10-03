@@ -24,6 +24,8 @@ export const OUTLET = {
   effectiveWindowOpen: null,
   effectiveWindowClose: null,
   vanOnly: false,
+  // Issue #161: no supplied point, so the district centroid with district precision.
+  location: { latitude: "7.254000", longitude: "80.523000", precision: "district" },
 };
 
 export const PRODUCTS = [
@@ -222,7 +224,7 @@ export type Handover = { status: "AWAITING" | "CONFIRMED" | "LOCKED" | "EXPIRED"
 /** Routes every call the store makes; a delivered order is waiting to be received. */
 export async function mockStore(
   page: Page,
-  options: { answered?: Handover | null; loadingShort?: boolean; week?: boolean; deferred?: boolean } = {},
+  options: { answered?: Handover | null; loadingShort?: boolean; week?: boolean; deferred?: boolean; positions?: unknown[] } = {},
 ): Promise<{ sent: Sent; handover: { current: Handover | null }; uploads: string[] }> {
   const sent: Sent = [];
   /** Photo uploads, as the paths they were PUT to. */
@@ -246,6 +248,10 @@ export async function mockStore(
     }
     if (pathname === "/api/session") return json(SESSION);
     if (pathname === "/api/reference/outlets/OUT085") return json(OUTLET);
+    if (pathname === "/api/execution/positions") return json(options.positions ?? []);
+    if (pathname.startsWith("/api/execution/trips/")) {
+      return json({ items: [{ recordedAt: `${today}T00:05:00Z`, latitude: "7.290000", longitude: "80.630000", lowQuality: false }, { recordedAt: `${today}T00:10:00Z`, latitude: "7.270000", longitude: "80.580000", lowQuality: false }], nextCursor: null });
+    }
     if (pathname === "/api/orders") {
       return json({ items: [order, ...(options.week ? [ORIGINAL, MAKE_UP, NEXT] : []), ...(options.deferred ? [DEFERRED] : [])], nextCursor: null });
     }

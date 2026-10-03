@@ -10,12 +10,14 @@ import { dayLabel } from "../data/scope.ts";
 import { useLive } from "../data/useDay.ts";
 import DayPicker from "./DayTools.tsx";
 import { Retry } from "./Orders.tsx";
+import LiveMapView from "./LiveMap.tsx";
 import Refusal from "./Refusal.tsx";
 
-// Figma "05 Live", as a list. The design's map needs a position for every
-// outlet and vehicle; outlets have no coordinates (A-11), so the same facts are
-// shown as each vehicle's stops in order. Read every 30 seconds while the tab
-// is visible and online; the header says when it last was.
+// Figma "05 Live": the map (LiveMap.tsx, issue #161) with the timeline under
+// it, the list of each vehicle's stops in order, both always on screen with no
+// view toggle. The timeline is also the way to every vehicle without the map.
+// Run sheets are read every 30 seconds and positions every 15 while the tab is
+// visible and online; the header says when.
 
 const STATE: Record<VehicleDay["state"], string> = {
   "not-started": "Released, not started",
@@ -81,7 +83,9 @@ export default function Live({
         <KpiCard label="Need you" value={live.data ? needs.length : "…"} note="not delivered, late, or proof owed" valueClassName={needs.length ? "text-go-danger-strong" : "text-go-ink"} />
       </div>
 
-      <div className="flex min-h-0 w-full flex-1 gap-[18px] max-lg:flex-col">
+      <LiveMapView depots={depots} depotOf={live.data?.depotOf ?? {}} date={date} days={days} now={now} />
+
+      <div className="flex w-full shrink-0 gap-[18px] max-lg:flex-col">
         <section aria-label="Vehicles on the road" className="flex min-w-0 flex-1 flex-col gap-2.5 rounded-[24px] bg-white p-4 shadow-go-card">
           <div className="flex items-baseline justify-between px-1">
             <h2 className="text-[17px] font-medium text-go-ink">On the road</h2>

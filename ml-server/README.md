@@ -6,8 +6,8 @@ Serves the trained Datathon models to the backend (issue #16). It only predicts:
 
 | Kind | Model | Endpoint |
 | --- | --- | --- |
-| `delivery_risk` | `datathon-task1-blend` 2026.1: service minutes and P(late) per stop, scored over whole planned routes. It blends two LightGBM/XGBoost/CatBoost pipelines (0.4/0.6 for lateness, 0.3/0.7 for service time) with a Monte-Carlo route simulator. A route whose date has no road-conditions row is scored by the shipped model trained without them. | `POST /v1/delivery-risk` |
-| `demand_forecast` | `datathon-task2a` 2026.1: weekly total and chilled m³ per depot and brand | `POST /v1/demand-forecast` |
+| `delivery_risk` | `datathon-task1-blend` 2026.1.1: service minutes and P(late) per stop, scored over whole planned routes. It blends two LightGBM/XGBoost/CatBoost pipelines (0.4/0.6 for lateness, 0.3/0.7 for service time) with a Monte-Carlo route simulator. A route whose date has no road-conditions row is scored by the shipped model trained without them. | `POST /v1/delivery-risk` |
+| `demand_forecast` | `datathon-task2a` 2026.1.1: weekly total and chilled m³ per depot and brand | `POST /v1/demand-forecast` |
 
 `GET /health` names the loaded models and their versions. The backend uses a model only when this name and version match the active entry in its registry.
 

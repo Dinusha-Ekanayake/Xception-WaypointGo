@@ -120,6 +120,10 @@ body {
 p, dd, dt, h1, h2, h3, label { overflow-wrap: anywhere; }
 button, input, select, textarea { font-family: inherit; }
 
+.font-sinhala {
+  font-family: var(--font-sinhala), 'UN-Malithi', sans-serif !important;
+}
+
 h1, h2 {
   letter-spacing: -0.03em;
 }
@@ -139,6 +143,17 @@ h1, h2 {
 .wp-scroll::-webkit-scrollbar { height: 8px; width: 8px; }
 .wp-scroll::-webkit-scrollbar-thumb { background: #d4d4d4; border-radius: 999px; }
 
+/* Hide scrollbar completely across Chrome, Safari, Edge, and Firefox */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 /* route line */
 .wp-route-line {
   background-image: linear-gradient(to bottom, #0a6b63 55%, rgba(10,107,99,0) 45%);
@@ -148,10 +163,74 @@ h1, h2 {
 
 /* Keep the type scale explicit so phone layouts do not silently overflow. */
 button, a, input, select, textarea { touch-action: manipulation; }
-button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+button:focus-visible, a:focus-visible, select:focus-visible {
   outline: 3px solid #0a6b63;
   outline-offset: 3px;
 }
+input:focus-visible:not(.outline-none):not([style*="outline"]),
+textarea:focus-visible:not(.outline-none):not([style*="outline"]) {
+  outline: 3px solid #0a6b63;
+  outline-offset: 3px;
+}
+
+/* Driver UI and custom inputs with outline-none must not render square browser focus rings or borders */
+input.outline-none,
+input:focus.outline-none,
+input:focus-visible.outline-none,
+.font-go input,
+.font-go input:focus,
+.font-go input:focus-visible {
+  outline: none !important;
+  outline-offset: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Chrome / WebKit / Safari autofill: eliminate browser default light-blue/yellow rectangular box */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus, 
+input:-webkit-autofill:active {
+  transition: background-color 5000000s ease-in-out 0s, color 5000000s ease-in-out 0s;
+  -webkit-text-fill-color: currentColor !important;
+  caret-color: currentColor !important;
+}
+
+/* Driver UI and custom inputs autofill background and text color matching */
+.driver-login-input:-webkit-autofill,
+.driver-login-input:-webkit-autofill:hover,
+.driver-login-input:-webkit-autofill:focus,
+.driver-login-input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px var(--autofill-bg, transparent) inset !important;
+  box-shadow: 0 0 0 1000px var(--autofill-bg, transparent) inset !important;
+  -webkit-text-fill-color: var(--autofill-text, currentColor) !important;
+  caret-color: var(--autofill-text, currentColor) !important;
+  transition: background-color 5000000s ease-in-out 0s;
+}
+
+/* Driver header blur when any popup or modal is active */
+.driver-morph-header,
+.driver-header {
+  transition: filter 300ms ease-out, opacity 300ms ease-out;
+}
+
+.modal-active .driver-morph-header,
+.modal-active .driver-header,
+body:has([aria-modal="true"]:not([aria-hidden="true"]):not([data-state="closed"])) .driver-morph-header,
+body:has([aria-modal="true"]:not([aria-hidden="true"]):not([data-state="closed"])) .driver-header,
+body:has([role="dialog"]:not([aria-hidden="true"]):not([data-state="closed"])) .driver-morph-header,
+body:has([role="dialog"]:not([aria-hidden="true"]):not([data-state="closed"])) .driver-header {
+  filter: blur(8px) !important;
+  opacity: 0.35 !important;
+  pointer-events: none !important;
+}
+
+.modal-active .driver-header-container,
+body:has([aria-modal="true"]:not([aria-hidden="true"]):not([data-state="closed"])) .driver-header-container,
+body:has([role="dialog"]:not([aria-hidden="true"]):not([data-state="closed"])) .driver-header-container {
+  pointer-events: none !important;
+}
+
 /* A loader field whose surrounding box shows focus with its own border. */
 .loader-workspace input.focus-in-box:focus-visible { outline: none; }
 dialog { color: var(--ui-text); }

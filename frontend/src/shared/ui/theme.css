@@ -1,3 +1,11 @@
+@font-face {
+  font-family: 'UN-Malithi';
+  src: url('/fonts/UN-Malithi-4.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 /*
  * GO design tokens, from the Figma style guide (page 17, "Foundations").
  * Prefixed `go-` so they sit beside the prototype palette in app/globals.css
@@ -5,6 +13,7 @@
  */
 @theme {
   --font-go: 'Google Sans Flex Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-sinhala: 'UN-Malithi', sans-serif;
 
   /* Brand and action */
   --color-go-ink: #031b08;
@@ -35,6 +44,8 @@
   --color-go-warning-text: #8a5a0b;
   --color-go-warning-tint: #fdf3e1;
   --color-go-info: #3b82c4;
+  /* A vehicle with no recent position on the live map (issue #161). */
+  --color-go-offline: #9ca3af;
   --color-go-info-tint: #e8f1fb;
 
   /* Radius */

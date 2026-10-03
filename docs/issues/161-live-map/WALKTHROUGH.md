@@ -1,70 +1,101 @@
-# Live map: reference geo checkpoint
+# Live map: walkthrough
 
-Issue #161 remains open. This checkpoint adds the geographic reference foundation; it does not
-capture driver positions or render any of the three role maps.
+Issue #161: a live map for the dispatcher, the store manager and the driver. Decisions D1 to D7 are in
+the [PLAN](PLAN.md). Java paths are under `backend/src/main/java/com/waypoint/dispatch/`; frontend
+paths under `frontend/`.
 
-## What is implemented
+## What is built, layer by layer
 
-- `data/General Data/geo_points.csv`: two approximate depot locality points and 12 district centroids.
-  Per-row source links and `data/provenance.json` identify sources, the fixed boundary revision,
-  checksum, licence and equal-area centroid calculation. No outlet coordinates are fabricated.
-- `referencedata/domain/GeoPoint.java` and `GeoReference.java`: pure R-REF-02 validation for ranges,
-  stored precision, known unique keys, required depot/district coverage and provenance. An absent
-  outlet row resolves to the exact same district point with `district` precision.
-- `referencedata/infrastructure/GeoCsvReader.java`: strict six-column parsing. `CsvReferenceImporter`
-  attaches validated points before publication and includes the file in the content hash.
-- `migrations/20261003T1800_referencedata_geo.sql`: nullable coordinates and precision checks.
-  `ReferenceVersionWriter` persists the locations; `ReferenceVersionReader` reloads them. Existing
-  snapshots keep absent locations, and the store's detail overlay preserves imported coordinates.
-- `referencedata/application/ImportReferenceDataHandler.java`: rejects invalid geo before writing,
-  with a validation error and the existing rejected-import metric. Publication still uses the one
-  existing transaction, so the version pointer, rows and content hash move together.
-- `ReferenceViews` adds optional locations and depot/district views; `ReferenceQuery` exposes
-  versioned internal depot/district lookups. Existing outlet REST reads carry the additive location.
-  `frontend/src/shared/domain/referencedata.ts` mirrors the contracts. New map endpoints wait for
-  the role implementation and its scope tests.
+**Reference geography** (merged in #163). `data/General Data/geo_points.csv` carries two approximate
+depot locality points and 12 district centroids, each sourced; `data/provenance.json` records sources,
+boundary revision, checksum, licence and the centroid method. `referencedata/domain/GeoPoint` and
+`GeoReference` validate (R-REF-02); an outlet with no row gets its district centroid with `district`
+precision at publish time. No outlet point is invented. `GET /api/reference/depots/{depotCode}`
+serves a depot's location to the dispatcher map under depot scope.
 
-Java paths above are under `backend/src/main/java/com/waypoint/dispatch/`.
+**Positions, database.** `migrations/20261003T2000_execution_vehicle_positions.sql`:
+`execution.vehicle_positions`, append only (the execution role has `SELECT, INSERT`), forced
+row-level security, `UNIQUE (vehicle_id, recorded_at)`, coordinate and sensor checks, and the
+`delivery:RecordPositions` catalogue row (the driver policy already allows `delivery:*`). Two
+`SECURITY DEFINER` functions do retention: `execution.thin_vehicle_positions` (execution role only)
+and `sync.redact_position_payloads` (sync role only).
 
-## Verify and run
+**Positions, domain.** `execution/domain/PositionFix` and `PositionPolicy` (R-EXE-18, R-EXE-19).
 
-Run `migrate` then `import-reference` explicitly as described in
-[development.md](../../development-docs/development.md). Custom data directories must include
-`geo_points.csv`; a previous dataset without it will now be rejected for new imports. Applications
-can still read historical snapshots with no location.
+**Positions, application.**
+- `execution/application/RecordPositionsHandler`: parses, applies `PositionPolicy`, checks each
+  point's service date with `app.actor_drives`, ties points to the trip only when the trip is this
+  vehicle's on that date, inserts. No event. Metrics: `positions_accepted`, `positions_duplicate`,
+  `positions_rejected{reason}`, `positions_lag`.
+- `execution/application/PositionsQuery`: last good fix per vehicle for a depot or an outlet, with
+  `offline` from `PositionPolicy.isOffline`, and a trip's trail on a keyset cursor. Out-of-scope
+  depot, outlet or trip is an audited `403`.
+- `execution/application/PositionRetentionJob` (02:45) and `sync/application/PositionPayloadRetentionJob`
+  (02:50): R-EXE-21.
+- `execution/infrastructure/JdbcPositions`, `execution/web/PositionsController`.
+- `platform/audit/AuditRedactor` strips points and coordinates from audit snapshots (#163).
 
-From `backend/`, run `mvn test -Dtest=GeoReferenceTest,GeoImportTest,FoundationIntegrationTest`.
-The foundation integration test requires isolated PostgreSQL, and checks publication, identical
-re-import, rejected missing-district data, exact outlet publication and historical version stability.
-`GeoReferenceTest` also protects locations from the store detail overlay. Never treat skipped
-integration tests as successful database verification.
+**Tiles and the shared map.**
+- `src/app-shell/mapTiles.ts` behind `app/map-tiles/[z]/[x]/[y]/route.ts`: fetches from
+  `MAP_TILE_URL` server side, Sri Lanka at zoom 5-17 only, a week's cache header. The CSP is unchanged.
+  `nginx/templates/waypoint.conf.template` caches `/map-tiles/`; compose passes `MAP_TILE_URL`.
+- `src/shared/ui/map/`: `geo.ts` (pure: tile bounds, distance, the recorder's keep rule, grid
+  clusterer, eight headings), `MapCanvas.tsx` (the only Leaflet file; our own markers, zoom,
+  attribution and "Base map unavailable"), `index.tsx` (client-only `LiveMap` via `next/dynamic`
+  with `ssr: false`, `MapLegend`), `types.ts`. Colour `--color-go-offline` added to `theme.css`.
 
-Rules and edge cases are in [R-REF-02](../../architecture/RULES-AND-POLICIES.md) and
-[REF-04 to REF-06](../../architecture/EDGE-CASES.md); coordinate limitations are in
-[A-11](../../architecture/ASSUMPTIONS.md). The [PLAN](PLAN.md) records all D1-D7 decisions,
-including the product's 2026-10-03 approval of the 30-day full-trail retention window.
+**Driver.** `src/roles/driver/data/position.ts` (`usePositionRecorder`: asks once, records while a
+stop is still to do, keeps a fix every 30 s or 150 m, flushes every 60 s or 20 points through the
+offline queue, flushes on stop) and `data/points.ts` (pure shaping). `screens/RouteMap.tsx`: own
+position, trail, dashed leg, store pin, Navigate hand-off. `screens/Route.tsx` shows Open map only
+for an exact store location. Declining shows "Location off · the dispatcher sees your stops only"
+with Turn on.
 
-## Local evidence (2026-10-03)
+**Dispatcher.** `data/live.ts` `mapStatus`; `data/useDay.ts` `usePositions` (15 s) and `useDepots`;
+`screens/LiveMap.tsx`: depot and status filters, clustering, the selected vehicle's panel (next stop,
+window, ETA, stops, "Last seen", trail point count) and its trail drawn; vehicles with no fix listed
+as "No live location · stops only". `screens/Live.tsx` has the Map / Timeline toggle, remembered per
+browser.
 
-`mvn verify`: 826 tests passed, zero skips, using a throwaway PostgreSQL 16.15 cluster under `/tmp`.
-Docker was unavailable; no application database was used. The first full run encountered the existing
-random-date assignment collision in `ReceiptHandoverIntegrationTest`; the isolated rerun and second
-full suite passed without changing that fixture. The official allocation validator passed.
-Frontend: 109 Node tests, typecheck and production build passed. No role screen changed, so role
-browser suites and screenshots belong to the later UI checkpoints. This work is local, not deployed.
+**Store manager.** `screens/LiveMapCard.tsx` on the Track screen: this vehicle, its trail, the dashed
+leg to this store, "Live" or "Last seen", and "Approximate · <district>" on a district location.
+Other stores on the trip are not drawn.
 
-## Position policy checkpoint
+## Flows end to end
 
-`execution/domain/PositionFix.java` and `PositionPolicy.java` add tested pure rules for batches,
-Sri Lanka bounds, five-minute clock skew, ordered offline trails, quality, exact-fix deduplication and
-ten-minute offline status. Stationary heartbeats survive. These are domain building blocks only:
-no GPS command, endpoint or capture is enabled. `platform/audit/AuditRedactor.java` now removes
-whole points arrays and nested coordinates. The tests are `PositionPolicyTest` and `AuditRedactorTest`. Final `mvn verify` passed 833 tests
-with no failures, errors or skips on the isolated PostgreSQL instance.
+1. **Recording.** Driver starts the run and shares location; `watchPosition` feeds the recorder;
+   a batch becomes a `delivery:RecordPositions` command in the IndexedDB queue; the queue drains to
+   `POST /api/sync`; Sync replays it through the command bus; the handler inserts under
+   `waypoint_execution` with RLS checking `app.actor_drives`.
+2. **Reading.** Dispatcher Live polls `/api/execution/positions?depot=` every 15 s; the store card
+   polls `?outlet=`. RLS returns only rows in scope; the store's rows vanish once its stops are done.
+3. **Retention.** Nightly, the execution job thins trips older than 30 days past their service date
+   to the fixes nearest each arrival and completion; the sync job removes points from stored copies.
 
-## Remaining on #161
+## Run and verify locally
 
-Positions command, RLS and retention; durable driver capture; tile proxy and shared Leaflet map;
-dispatcher, store and driver screens; Figma comparisons and role browser verification. Depot points
-are locality approximations, and exact outlet coordinates still require real supplied data. The
-existing screen comments about missing maps remain until the corresponding screens are built.
+`migrate`, then `import-reference` (see [development.md](../../development-docs/development.md)).
+Set `MAP_TILE_URL` in `frontend/.env.local` to see a base map; without it the maps say so.
+
+- `mvn verify` from `backend/` with `TEST_DATABASE_URL` set: all tests pass, none skipped.
+- Position tests: `mvn test -Dtest='ExecutionIntegrationTest,PositionPolicyTest'`.
+- `npm test`, `npm run typecheck`, `npm run build` from `frontend/`.
+- Browser suites, by hand: dispatcher (`live-map.spec.ts`), driver (`location.spec.ts`, including
+  offline points surviving a reload), store (`track-map.spec.ts`).
+
+## Decisions and where they are recorded
+
+R-EXE-18 to R-EXE-21 and R-REF-02 in [RULES-AND-POLICIES](../../architecture/RULES-AND-POLICIES.md);
+EXE-LOC-01 to EXE-LOC-10 and REF-04 to REF-06 in [EDGE-CASES](../../architecture/EDGE-CASES.md);
+A-11, A-42 and P-31 in [ASSUMPTIONS](../../architecture/ASSUMPTIONS.md); module contracts in
+[MODULES](../../architecture/MODULES.md).
+
+## Known gaps
+
+- Screenshots against the Figma frames were not taken; the layout follows the issue's visual spec.
+- No road-snapped route (D6) and no turn by turn inside the app (D4), by design.
+- The road conditions chip (Figma 05) and the 05c "Notify store" confirmation are not on the map:
+  no source is wired for either. The 05e conflict modal does not exist yet; the selected vehicle's
+  trail and point count stand in for "Review on map".
+- Push updates replace polling when #147 lands.
+- Exact outlet coordinates need real data from Waypoint; until then Navigate is never offered.

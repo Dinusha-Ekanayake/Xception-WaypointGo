@@ -41,7 +41,7 @@ Each module has the same five internal layers. The spec lists what belongs in ea
 `GeoReference` validates kind/code coverage, provenance and precision, and resolves district fallback
 before the snapshot is written. `GeoPoint` validates coordinates. `ReferenceVersionWriter` and
 `ReferenceVersionReader` preserve locations per version. `OutletView`, `DepotView` and `DistrictView`
-carry optional `GeoPoint`; internal `ReferenceQuery.depot` and `.district` lookups are versioned.
+carry optional `GeoPoint`; internal `ReferenceQuery.depot` and `.district` lookups are versioned. `GET /api/reference/depots/{depotCode}` serves a depot and its location to the live map, under depot scope.
 Historical rows may have no location. Store detail overrides preserve it. Coordinates do not change
 allocation distances or capacity rules. See [the plan](../issues/161-live-map/PLAN.md).
 
@@ -244,10 +244,10 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 | infrastructure | `DatabaseProofStore` (default), `LocalProofStore`, `JdbcDeliveryRepository`, `JdbcExecutionReads` |
 | web | `ExecutionController`; state changes go through the shared command endpoint |
 
-**Owns:** `execution.delivery_records` (with actual times), `execution.proofs`, `execution.attachments`, and its run sheets built from `trip.released`.
+**Owns:** `execution.delivery_records` (with actual times), `execution.proofs`, `execution.attachments`, `execution.vehicle_positions` (append only, #161), and its run sheets built from `trip.released`.
 
-**Commands:** `StartStop`, `RecordArrival`, `RecordDelivery`, `RecordFailedDelivery`, `CaptureProof`, `ReportVehicleStatus`, `ReportRoadFault`.
-**Queries:** `runSheet(vehicle, day)`, `deliveryRecord(allocationId)`, `proof(deliveryRecordId)`.
+**Commands:** `StartStop`, `RecordArrival`, `RecordDelivery`, `RecordFailedDelivery`, `CaptureProof`, `ReportVehicleStatus`, `ReportRoadFault`, `RecordPositions` (`delivery:RecordPositions`, no event: R-EXE-18 to R-EXE-21).
+**Queries:** `runSheet(vehicle, day)`, `deliveryRecord(allocationId)`, `proof(deliveryRecordId)`. Live map reads (`PositionsQuery`, web only): `GET /api/execution/positions?date=&depot=|outlet=` (last good fix per vehicle, with `offline`) and `GET /api/execution/trips/{tripId}/trail` (keyset on `recordedAt`).
 **Publishes:** `delivery.started`, `delivery.completed`, `delivery.failed`, `vehicle.fault_reported`, `road.disruption_reported`.
 **Consumes:** `trip.released`.
 

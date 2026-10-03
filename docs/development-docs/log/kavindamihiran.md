@@ -3,6 +3,104 @@
 @kavindamihiran's entries, newest first. Only @kavindamihiran adds to this file; how to write an entry is in the [log's index](../development-log.md).
 
 ---
+## 2026-10-03 - feat: MCP day summary, prompts and example questions
+
+`feat/177-mcp-reads` · @kavindamihiran
+
+Issue #177 PR 1 of 6 ([plan](../../issues/177-mcp/PLAN.md)). `day_summary` composes the plan, loading trips and open issues reads in the adapter; a refused or absent part is named in `unavailable` (SEC-40). Prompts `morning_briefing`, `what_to_load_next`, `pending_receipts` are offered by read action. Every tool description carries an example question.
+Why: one call answers "how does the depot look today" without new backend reads or authorization paths.
+Verified: `npm test` in `mcp/` (24 passed).
+Open: paging, per-client scopes, personal-field grant, confirmed writes, admin view (#177 PRs 2-6).
+
+## 2026-10-03 - feat: add listen-to-message play button to all driver notification cards
+
+`feat/driver-UI` · @kavindamihiran
+
+Enhanced `VoiceMessagePlayer` in `frontend/src/roles/driver/ui.tsx` with optional `id`, `text`, `activeAudioId`, `onPlayChange`, and `className` props. Added Web Speech API (`window.speechSynthesis`) support so pressing the play button reads the message aloud, with waveform animation, auto-reset on speech end, and mutual exclusion across all cards. Added `VoiceMessagePlayer` to all 8 notification cards in `HomeNoVehicle.tsx` (including the two existing voice message cards) and to the `RouteChangedBottomSheet` message card. Active-playing card gets a subtle green ring highlight. Speech is cancelled on unmount, on sheet close, and on Start/Get-vehicle actions.
+Why: drivers need to listen to notifications rather than read while operating the vehicle.
+Verified: `npm run typecheck`, `npm test` (10 passed).
+Open: nothing.
+
+## 2026-10-03 - fix: align driving mode theme toggle position with home page header
+
+`feat/driver-UI` · @kavindamihiran
+
+Adjusted the header padding (`px-6 pt-5 pb-3`), right-controls gap, and theme toggle button dimensions (`43px x 43px`) in `DrivingModeScreen` to match the exact position and styling of the dark/light toggle in the home page header.
+Why: prevent visual jump or misalignment of the theme toggle button when transitioning between the home screen and driving mode.
+Verified: `npm run typecheck`, `npm test` (10 passed).
+Open: none.
+
+## 2026-10-03 - feat: swap notification and theme toggle positions in driving mode
+
+`feat/driver-UI` · @kavindamihiran
+
+Interchanged positions of notification bell button and dark/light theme toggle in `DrivingModeScreen` header so the bell button is on the left and theme toggle is on the far right.
+Why: align driver header layout preferences and maintain consistency with other screens where theme toggle is on the far right.
+Verified: `npm run typecheck`, `npm test` (10 passed).
+Open: none.
+
+## 2026-10-03 - feat: driving mode 0.5s fade transitions and slider-only exit
+
+`feat/driver-UI` · @kavindamihiran
+
+Added 0.5s fade-in and 0.5s fade-out animations for Driving Mode with enter/exit opacity orchestration. Configured the spacebar to open Driving Mode only without closing it, removed the Escape key handler, and ensured exit can only be performed via the `Slide to exit` slider.
+Why: meet driver UX requirement where driving mode opens on spacebar and dismisses exclusively via the slider with 0.5s fade animations.
+Verified: `npm run typecheck`, `npm test` (10 passed).
+Open: none.
+
+## 2026-10-03 - fix: synchronize driver header blur removal with popup dismissal
+
+`feat/driver-UI` · @kavindamihiran
+
+Synchronized header unblurring with popup and bottom sheet dismissals by excluding animating out modals from `body:has()` selector and aligning the transition curve to `300ms ease-out`. Updated `RouteChangedBottomSheet`, `SignOutConfirmBottomSheet`, `ReportProblemBottomSheet`, and `CallOptionsBottomSheet` to clear active modal state on exit trigger.
+Why: prevent the header elements from delaying 300ms before starting their unblur transition after closing message popups.
+Verified: `npm run typecheck`, `npm test` (10 passed).
+Open: none.
+
+## 2026-10-03 - feat: dispatcher live shows the map and the timeline together
+
+`feat/live-map-with-timeline` · @kavindamihiran
+
+The Map / Timeline toggle on Live is gone: the map (with its selected vehicle panel) sits on top and the timeline (on the road, needs you, at the dock) is always under it, so a dispatcher sees where trucks are and how each run is going without switching. The remembered view in `localStorage` is dropped. Part of #161.
+
+---
+
+## 2026-10-03 - fix: VPS deploys cap the Docker build cache
+
+`fix/vps-build-cache-cap` · @kavindamihiran
+
+The BuildKit cache on the VPS reached 22.85 GB (606 entries, 22 GB reclaimable) in two days, because `deploy.sh` only pruned dangling images. With 64 GB free that is about a week of deploys. Each successful deploy now runs `docker builder prune --max-used-space 10GB`, keeping recent layers so builds stay fast. See [deployment.md](../../deployment.md).
+
+---
+
+## 2026-10-03 - fix: failed map tiles are never kept by the browser
+
+`fix/map-tile-no-store` · @kavindamihiran
+
+`/map-tiles/` answered 404 with no `Cache-Control` while preview had no `MAP_TILE_URL`; Cloudflare stamped `max-age=14400` on it, so browsers kept a blank map for four hours after the URL was set. Every failed tile (404, 502, 504) now sends `no-store`.
+Why: #161 base map stayed "unavailable" on dispatcher-preview.
+
+---
+
+## 2026-10-03 - fix: VPS edge loads again and caches map tiles
+
+`fix/vps-map-tile-cache` · @kavindamihiran
+
+The VPS nginx on `dev` failed `nginx -t`: the notifications stream location set `proxy_read_timeout` twice through `proxy.conf`, so the next production deploy would have lost its edge. `proxy.conf` now leaves the 60 s default. `/map-tiles/` gets a shared 7 day cache on the edge (the earlier cache was only in `nginx/templates`, which the VPS does not use). `MAP_TILE_URL` is set in both server `.env` files.
+Why: #161 base map showed "unavailable" on preview.
+
+---
+
+## 2026-10-03 - feat: live map for dispatcher, store manager and driver
+
+`feat/161-live-map-tracking` · @kavindamihiran
+
+Drivers' phones record GPS while a run is open, through the offline queue, as `delivery:RecordPositions` into append-only `execution.vehicle_positions` with RLS (R-EXE-20). Dispatcher Live gains a Map view, store Track a live map card, the driver a route map with Navigate for exact stores. Tiles go through `/map-tiles/` on our origin. Trails thin after 30 days, Sync copies included (R-EXE-21).
+Why: #161; [walkthrough](../../issues/161-live-map/WALKTHROUGH.md).
+Verified: `mvn verify` on isolated PostgreSQL 16 (no failures or skips); `npm test`, typecheck, build; dispatcher, driver and store browser suites by hand.
+Open: Figma screenshot comparison; road conditions chip, notify store and the 05e conflict modal have no source yet; exact outlet points need real data.
+
+---
 
 ## 2026-10-03 - feat: define GPS acceptance and audit privacy
 

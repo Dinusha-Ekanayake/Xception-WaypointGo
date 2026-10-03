@@ -25,10 +25,17 @@ services:
   db:
     ports: !reset []
 
+  # On the edge network so preview's Prometheus can scrape both environments'
+  # /prometheus. nginx never routes to it; the frontend stays the only way in.
   backend:
     ports: !reset []
     environment:
       COOKIE_SECURE: "1"
+    networks:
+      default:
+      edge:
+        aliases:
+          - ${DEPLOY_ENV:-production}-backend
 
   waypoint:
     # nginx serves an address per role beside the shared one, so the shared one
@@ -44,8 +51,8 @@ services:
           - ${DEPLOY_ENV:-production}-waypoint
 
   # Preview only (the observability profile is enabled by deploy.sh there). nginx
-  # reaches it as preview-grafana at grafana-preview.SITE_ADDRESS; the localhost
-  # port is dropped like every other.
+  # reaches it as preview-grafana at grafana.SITE_ADDRESS and
+  # grafana-preview.SITE_ADDRESS; the localhost port is dropped like every other.
   grafana:
     ports: !reset []
     environment:
@@ -55,6 +62,26 @@ services:
       edge:
         aliases:
           - preview-grafana
+
+  # Preview only, with the log store. Scrapes production-backend and
+  # preview-backend over the edge network (observability/prometheus/vps.yml).
+  prometheus:
+    volumes:
+      - ./observability/prometheus/vps.yml:/etc/prometheus/prometheus.yml:ro
+    networks:
+      default:
+      edge:
+
+  # Host CPU, memory, disk and network for the Prometheus above. Reads the host
+  # filesystem read-only; publishes no port.
+  node-exporter:
+    image: prom/node-exporter:v1.9.0
+    profiles: ["observability"]
+    command: ["--path.rootfs=/host"]
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+    restart: unless-stopped
 
   nginx:
     build: ./deploy/vps/nginx

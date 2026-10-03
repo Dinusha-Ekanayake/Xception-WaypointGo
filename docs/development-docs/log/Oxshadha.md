@@ -8,9 +8,9 @@
 
 `feat/128-apply-glossary` · @Oxshadha
 
-The guardrail's baseline is empty: no retired word, raw code or 12-hour clock is left in screen text. Store manager: units, never cases or packages; product line where it means one product; Expected, never ETA; 16:00, never 4:00 PM; Regular delivery, never Regular run. Dispatcher and loader: "store" that meant the person reads store manager; "Refrigerated vehicles planned again". Loader: "Search vehicle, trip or loader" and "two units crushed", with Sinhala and Tamil changed to match (drafts for a native speaker). Driver: "No one at the outlet". Admin: plans, never route plans; "On a trip". Backend: a deferral reads "is not refrigerated"; notification text already followed the glossary, so no routing version. The guardrail is sharper: it reads JSX text on its own line and between tags, and ignores code, class lists and interpolated names.
+The guardrail's baseline is empty: no retired word, raw code or 12-hour clock is left in screen text. Store manager: units, never cases or packages; product line where it means one product; Expected, never ETA; 16:00, never 4:00 PM; Regular delivery, never Regular run. Dispatcher and loader: "store" that meant the person reads store manager; "Refrigerated vehicles planned again". Loader: "Search vehicle, trip or loader" and "two units crushed", with Sinhala and Tamil changed to match (drafts for a native speaker). Driver: "No one at the outlet", Expected for ETA, run sheet for route, units in the demo cargo. Error screens: "Don't worry: your work is saved", with no em dash. Admin: plans, never route plans; "On a trip". Backend: a deferral reads "is not refrigerated"; notification text already followed the glossary, so no routing version. The guardrail is sharper: it reads JSX text on its own line and between tags, and ignores code, class lists and interpolated names.
 Why: issue #126's glossary, applied; the store screens alone called one quantity three names.
-Verified: `npm test` 118, typecheck, build; Playwright dispatcher 23, store 29, loader 16 of 18 and driver 8 of 10 (the same four failures as untouched `dev`); `ConstraintsTest`, `PeakDayAllocationTest`, `ScarceFleetReplanTest`, `PlanningRunTest`.
+Verified: `npm test` 125, typecheck, build; Playwright dispatcher 24, store 32, loader 16 of 18 (the same two failures as untouched `dev`); the driver suite fails all 13 on untouched `dev` too, since the driver UI rebuild (#174) removed the screens it drives; `ConstraintsTest`, `PeakDayAllocationTest`, `ScarceFleetReplanTest`, `PlanningRunTest`.
 Open: the two proposed terms on #126; the landing page's role card keeps "store" for the store manager's own store.
 
 ---
@@ -23,6 +23,14 @@ Open: the two proposed terms on #126; the landing page's role card keeps "store"
 Why: the same time was formatted eleven ways, two of them 12-hour and one in the device's zone, and nothing stopped a new screen adding a twelfth.
 Verified: `npm test` 118, typecheck, build; Playwright dispatcher 23 and store 29 pass; loader 16 of 18 and driver 8 of 10, the four failures the same on untouched `dev` (loader inbox read state, driver unit stepper and arrival message).
 Open: #128 applies the glossary across the screens and lowers the baseline to zero.
+## 2026-10-03 - docs: README checked against a running system (issue #115)
+
+`docs/115-readme-walkthrough` · @Oxshadha
+
+Ran the judge path on a fresh PostgreSQL seeded exactly as the `init` service does (`migrate import-reference demo-accounts seed-delivery-day`), then every walkthrough step through the API as each role: 85 orders, close refused before the cutoff, generate and publish, loader PIN and reverse stop order, shortfall to Issues, release, the driver's offline batch applied once and ignored on resend, Live, and the store's dispute reaching Issues. All eleven steps hold. Fixed what did not: `ADMIN_PASSWORD` is read by nothing (`SEED_PASSWORD` sets every account, admin included, and the `.env.example` placeholder becomes the password if left), the Datathon models are served, Forecast and the role inboxes are built, and the walkthrough now says a partial delivery asks what happened to the missing goods.
+Why: the README is what judges follow; three of its setup lines would have stopped them at sign-in.
+Verified: the API run above against a local backend; no code changed.
+Open: the browser pass of the same steps belongs with the demo recording (#122).
 
 ---
 

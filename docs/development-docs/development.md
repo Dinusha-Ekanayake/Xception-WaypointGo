@@ -79,18 +79,18 @@ Use `npm run build && npm start` instead of `npm run dev` when testing offline b
 
 ## Searching logs
 
-Optional. Loki stores logs, Alloy collects them, Grafana searches them. Off unless you start the `observability` profile.
+Optional. Loki stores logs, Alloy collects them, Prometheus scrapes the backend's `/prometheus` metrics, Grafana shows both. Off unless you start the `observability` profile.
 
 ```sh
 # once per session, beside the database
-docker compose --profile observability up -d loki alloy grafana
+docker compose --profile observability up -d loki alloy prometheus grafana
 
 # backend: also write JSON logs to var/log, which Alloy tails
 export LOG_FILE=../var/log/backend.log
 mvn spring-boot:run
 ```
 
-Open http://127.0.0.1:3001 (user `admin`, password `GRAFANA_ADMIN_PASSWORD`, default `local-testing-only`), then Explore. Every container labelled `com.waypoint.logs=true` is collected too.
+Open http://127.0.0.1:3001 (user `admin`, password `GRAFANA_ADMIN_PASSWORD`, default `local-testing-only`), then Explore, or the provisioned dashboard Waypoint > Waypoint operations (`observability/grafana/provisioning/dashboards/json/`; edit it there, a change made only in the UI is lost with the volume). Its Environment switch matches the VPS container names, so locally use Explore. Every container labelled `com.waypoint.logs=true` is collected too. Prometheus scrapes `backend:8080` and `host.docker.internal:8080`, so it finds the backend whether it runs in Docker or natively; the other target shows as down.
 
 | Find | LogQL |
 | --- | --- |
@@ -203,6 +203,8 @@ Then sign in as the administrator and walk the role flows from a fresh database.
 
 Run the explicit `migrate` then `import-reference` steps after pulling the geo migration.
 `data/General Data/geo_points.csv` is required for new imports, including custom data directories.
+
+`MAP_TILE_URL` (issue #161) is read by the Next server only, in `frontend/src/app-shell/mapTiles.ts` behind `/map-tiles/{z}/{x}/{y}.png`: a template with `{z}`, `{x}`, `{y}`, so any provider key stays on the server and the CSP stays `'self'`. Put it in `frontend/.env.local` for local development (`https://tile.openstreetmap.org/{z}/{x}/{y}.png` is acceptable locally only) and in root `.env` for Compose. Unset, the maps draw with no base layer and say "Base map unavailable". nginx caches tiles for a week under `/var/cache/nginx/map-tiles`.
 Its header is `kind,code,latitude,longitude,precision,source`. Every depot and district needs one
 sourced row; optional outlet rows must carry real exact coordinates. Missing outlet rows resolve to
 the district centroid with district precision. Older published snapshots keep their absent locations.

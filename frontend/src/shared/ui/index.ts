@@ -18,3 +18,4 @@ export {
 } from "./primitives.tsx";
 export { ShellActions, ShellProvider, useShell, type ShellControls, type ShellRoleOption } from "./shell.tsx";
 export { Sheet } from "./Sheet.tsx";
+export { StructuredError, getErrorDefaults, type StructuredErrorProps } from "./StructuredError.tsx";
