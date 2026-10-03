@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-03 - feat: Prometheus metrics and the "Waypoint operations" Grafana dashboard
+
+`dev` · @jv-ransika
+
+The observability profile gains Prometheus (15 s scrape of `/prometheus`, 15 days) and a Prometheus datasource. On the VPS it runs in preview and scrapes both backends, which join `waypoint-edge` as `production-backend` / `preview-backend`; `node-exporter` adds the server's CPU, memory and disk. HTTP requests get SLO latency buckets (`application.properties`) for p95. Dashboard provisioned from `observability/grafana/provisioning/dashboards/` (uid `waypoint-logs`): service health, commands and jobs, outbox and circuits, JVM and pool, server, then logs (error counts, top error types, trace lookup, frontend, ML and database errors, search). One Environment switch filters logs and metrics. Details in [deployment.md](../../deployment.md#logs).
+Why: request of 2026-10-03; logs were only reachable through Explore and metrics were not stored.
+Verified: compose renders for local, prod and VPS overlays; every LogQL query against the VPS Loki; every PromQL query against a throwaway Prometheus scraping preview on the VPS (removed after).
+Open: production metrics appear only after production is redeployed with the overlay; p95 panels fill after the backend is redeployed with the buckets; no host network panel (node-exporter runs in its own network namespace).
+
+---
+
 ## 2026-10-03 - feat: a store manager edits their own profile and their store's window, dock and contacts
 
 `fix/store-figma-visual` · @jv-ransika

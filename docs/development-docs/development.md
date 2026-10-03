@@ -79,18 +79,18 @@ Use `npm run build && npm start` instead of `npm run dev` when testing offline b
 
 ## Searching logs
 
-Optional. Loki stores logs, Alloy collects them, Grafana searches them. Off unless you start the `observability` profile.
+Optional. Loki stores logs, Alloy collects them, Prometheus scrapes the backend's `/prometheus` metrics, Grafana shows both. Off unless you start the `observability` profile.
 
 ```sh
 # once per session, beside the database
-docker compose --profile observability up -d loki alloy grafana
+docker compose --profile observability up -d loki alloy prometheus grafana
 
 # backend: also write JSON logs to var/log, which Alloy tails
 export LOG_FILE=../var/log/backend.log
 mvn spring-boot:run
 ```
 
-Open http://127.0.0.1:3001 (user `admin`, password `GRAFANA_ADMIN_PASSWORD`, default `local-testing-only`), then Explore. Every container labelled `com.waypoint.logs=true` is collected too.
+Open http://127.0.0.1:3001 (user `admin`, password `GRAFANA_ADMIN_PASSWORD`, default `local-testing-only`), then Explore, or the provisioned dashboard Waypoint > Waypoint operations (`observability/grafana/provisioning/dashboards/json/`; edit it there, a change made only in the UI is lost with the volume). Its Environment switch matches the VPS container names, so locally use Explore. Every container labelled `com.waypoint.logs=true` is collected too. Prometheus scrapes `backend:8080` and `host.docker.internal:8080`, so it finds the backend whether it runs in Docker or natively; the other target shows as down.
 
 | Find | LogQL |
 | --- | --- |
