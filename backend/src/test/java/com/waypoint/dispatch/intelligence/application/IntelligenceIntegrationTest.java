@@ -287,6 +287,12 @@ class IntelligenceIntegrationTest {
     assertEquals(label, o.get("modelLabel").asText());
     assertFalse(o.get("degraded").asBoolean());
     assertEquals(10, o.get("weeks").size());
+    var nextRun = Instant.parse(o.get("nextRunAt").asText()).atZone(com.waypoint.dispatch.shared.util.Clock.OPERATING_ZONE);
+    assertEquals(
+        java.time.LocalDate.now(com.waypoint.dispatch.shared.util.Clock.OPERATING_ZONE).with(java.time.temporal.TemporalAdjusters.next(java.time.DayOfWeek.MONDAY))
+            .atStartOfDay(com.waypoint.dispatch.shared.util.Clock.OPERATING_ZONE),
+        nextRun,
+        "a model run this week means the next one is Monday's first hour (P-29)");
     BigDecimal reeferM3PerDay = BigDecimal.ZERO;
     BigDecimal fleetM3PerDay = BigDecimal.ZERO;
     for (var v : reference.vehiclesOfDepot(depot, null)) {
