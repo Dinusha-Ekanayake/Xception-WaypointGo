@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-03 - feat: notifications coloured by tone, issues in red, and an unread count on every bell
+
+`feat/notification-tones-badge` · @tharushaudana
+
+`toneOf` makes anything about an issue urgent, and `TONE_STYLE` gives each tone one edge, tint, dot and label colour, used by the dispatcher, loader and store manager inboxes; info is blue, so only good news is green. `CountBadge` puts the unread count on each bell (99+ above 99) in place of the red dot.
+Why: every row read green whatever it said, and only two bells showed that anything was unread, not how much.
+Verified: `npm run typecheck`, `npm test` (127), `npm run build`, dispatcher (24), loader (18) and store (32) browser suites.
+Open: the driver screens still show a sample count; they get the real one with the driver inbox (#21).
+
+---
+
 ## 2026-10-02 - fix(deploy): start the model service
 
 `fix/deploy-start-ml` · @tharushaudana

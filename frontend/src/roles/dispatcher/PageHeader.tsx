@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ConnectionStatus, Icon, McpButton, Notice, useShell } from "@shared/ui";
+import { ConnectionStatus, CountBadge, Icon, McpButton, Notice, useShell } from "@shared/ui";
 import { useDispatcherInbox } from "./inbox.tsx";
 import { clock } from "@shared/wording";
 
@@ -48,9 +48,10 @@ export default function PageHeader({
           disabled={!inbox}
           onClick={() => inbox?.setOpen(true)}
           aria-label={unread > 0 ? `Notifications, ${unread} unread` : "Notifications"}
-          className="flex rounded-[21px] bg-go-card p-[11px] disabled:cursor-not-allowed"
+          className="relative flex rounded-[21px] bg-go-card p-[11px] disabled:cursor-not-allowed"
         >
           <Icon name="bell" />
+          <CountBadge count={unread} />
         </button>
       </header>
       {!online && (

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { OutletView } from "@shared/domain/types";
-import { Icon, McpButton, ShellActions, cx, useShell } from "@shared/ui";
+import { CountBadge, Icon, McpButton, ShellActions, cx, useShell } from "@shared/ui";
 import AccountMenu from "./AccountMenu.tsx";
 import { initials } from "./ui.tsx";
 import { clock } from "@shared/wording";
@@ -84,7 +84,7 @@ export default function TopBar({
           className="relative flex size-12 shrink-0 items-center justify-center rounded-full bg-white text-black shadow-[0_5px_20px_rgba(0,0,0,0.09)]"
         >
           <Icon name="bell" />
-          {hasUnread && <span aria-hidden className="absolute top-2.5 right-2.5 size-2.5 rounded-full border-2 border-white bg-[#ea2525] lg:hidden" />}
+          <CountBadge count={unread} />
         </button>
       )}
       <McpButton url={shell?.mcpUrl ?? null} compact />
