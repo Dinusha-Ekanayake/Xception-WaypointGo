@@ -14,6 +14,8 @@ import com.waypoint.dispatch.intelligence.contract.PredictionViews.OverviewStatu
 import com.waypoint.dispatch.intelligence.contract.PredictionViews.PlanPredictionsView;
 import com.waypoint.dispatch.intelligence.contract.PredictionViews.WeekCapacityView;
 import com.waypoint.dispatch.intelligence.domain.FleetCapacity;
+import com.waypoint.dispatch.intelligence.domain.ForecastSchedule;
+import com.waypoint.dispatch.intelligence.contract.ModelViews;
 import com.waypoint.dispatch.referencedata.contract.ReferenceViews.CalendarDayView;
 import com.waypoint.dispatch.intelligence.contract.PredictionViews.PlanScoringView;
 import com.waypoint.dispatch.intelligence.contract.PredictionViews.ScoringStatus;
@@ -271,8 +273,15 @@ public class IntelligenceDataQuery implements PredictionQuery, ModelQuery, Trave
           new WeekCapacityView(capacity.vehicles(), capacity.refrigeratedVehicles(), capacity.fleetM3(),
               capacity.refrigeratedM3())));
     }
+    Instant now = clock.now();
+    Instant nextRunAt = read(actor.userId(), () -> ForecastSchedule.nextRun(
+        now,
+        repository.latestForecastRun().map(r -> new ForecastSchedule.LastRun(r.at(), r.degraded())),
+        repository.activeModel(ModelViews.DEMAND_FORECAST).isPresent(),
+        Clock.OPERATING_ZONE));
     return new ForecastOverviewView(
-        depot, rows.isEmpty() ? OverviewStatus.NONE : OverviewStatus.READY, label, degraded, generatedAt, out);
+        depot, rows.isEmpty() ? OverviewStatus.NONE : OverviewStatus.READY, label, degraded, generatedAt, out,
+        nextRunAt);
   }
 
   /**

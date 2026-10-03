@@ -4,6 +4,7 @@ import type { ForecastOverviewView, ForecastWeekView } from "../src/shared/domai
 import {
   actions,
   combine,
+  countdown,
   dayNeeds,
   forBrand,
   kpis,
@@ -43,6 +44,7 @@ function overview(depot: string, weeks: ForecastWeekView[], over: Partial<Foreca
     modelLabel: "datathon-task2a@2026.1",
     degraded: false,
     generatedAt: "2026-10-05T04:00:00Z",
+    nextRunAt: "2026-10-11T18:30:00Z",
     weeks,
     ...over,
   };
@@ -137,4 +139,20 @@ test("suggested actions put a full refrigerated fleet first, then overload, then
 test("a week reads as its Monday", () => {
   const w = combine([overview("Kandy", [week(42)])]).weeks[0]!;
   assert.equal(weekDate(w), "12 Oct");
+});
+
+test("the countdown reads in days, hours, then minutes and seconds, and ends at the run", () => {
+  assert.equal(countdown(2 * 86_400_000 + 9 * 3_600_000 + 5_000), "2 d 9 h");
+  assert.equal(countdown(9 * 3_600_000 + 5 * 60_000), "9 h 05 min");
+  assert.equal(countdown(23 * 60_000 + 41_000), "23:41");
+  assert.equal(countdown(400), "00:01", "a part second still counts");
+  assert.equal(countdown(0), null);
+});
+
+test("the next run is the earliest across the depots in view", () => {
+  const f = combine([
+    overview("Kandy", [week(41)], { nextRunAt: "2026-10-11T18:30:00Z" }),
+    overview("Peliyagoda", [week(41)], { nextRunAt: "2026-10-05T08:30:00Z" }),
+  ]);
+  assert.equal(f.nextRunAt, "2026-10-05T08:30:00Z");
 });

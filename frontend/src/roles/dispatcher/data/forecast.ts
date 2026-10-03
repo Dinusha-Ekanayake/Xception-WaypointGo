@@ -36,6 +36,8 @@ export type Forecast = {
   modelLabel: string | null;
   degraded: boolean;
   generatedAt: string | null;
+  /** The earliest next run across the depots in view; one run serves them all. */
+  nextRunAt: string | null;
   weeks: ForecastWeek[];
   brandCodes: string[];
 };
@@ -94,11 +96,13 @@ export function combine(overviews: ForecastOverviewView[]): Forecast {
   const weeks = [...byKey.values()].sort((a, b) => a.key - b.key).map((w, i) => ({ ...w, index: i + 1 }));
   const labels = [...new Set(overviews.map((o) => o.modelLabel).filter((l): l is string => !!l))];
   const generated = overviews.map((o) => o.generatedAt).filter((g): g is string => !!g).sort();
+  const next = overviews.map((o) => o.nextRunAt).filter((n): n is string => !!n).sort();
   return {
     status: overviews.some((o) => o.status === "READY") ? "READY" : "NONE",
     modelLabel: labels.length === 0 ? null : labels.length === 1 ? labels[0] : "mixed",
     degraded: overviews.some((o) => o.degraded),
     generatedAt: generated.length ? generated[generated.length - 1] : null,
+    nextRunAt: next.length ? next[0] : null,
     weeks,
     brandCodes: [...brandCodes].sort(),
   };
@@ -269,4 +273,21 @@ export function m3(value: number): string {
 
 export function pct(value: number): string {
   return `${Math.round(value * 100)}%`;
+}
+
+/**
+ * Time left until a run, for a countdown that ticks every second: "2 d 9 h",
+ * "9 h 05 min", then "23:41" in the last hour. Null once the time has come.
+ */
+export function countdown(ms: number): string | null {
+  if (ms <= 0) return null;
+  const s = Math.ceil(ms / 1000);
+  const days = Math.floor(s / 86_400);
+  const hours = Math.floor((s % 86_400) / 3600);
+  const minutes = Math.floor((s % 3600) / 60);
+  const seconds = s % 60;
+  const two = (n: number) => String(n).padStart(2, "0");
+  if (days > 0) return `${days} d ${hours} h`;
+  if (hours > 0) return `${hours} h ${two(minutes)} min`;
+  return `${two(minutes)}:${two(seconds)}`;
 }
