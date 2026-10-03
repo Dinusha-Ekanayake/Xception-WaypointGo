@@ -8,12 +8,15 @@ import com.waypoint.dispatch.sync.application.OperationsQuery;
 import com.waypoint.dispatch.sync.application.SubmitBatchHandler;
 import com.waypoint.dispatch.sync.application.SubmitBatchHandler.Outcome;
 import com.waypoint.dispatch.sync.contract.SyncCommands.SubmitBatch;
+import com.waypoint.dispatch.sync.contract.SyncViews.OperationView;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -65,6 +68,11 @@ public class SyncController {
   public OperationsQuery.Page since(
       @RequestParam(required = false) String since, HttpServletRequest request) {
     return query.since(actor(request), OperationsQuery.Cursor.parse(since));
+  }
+
+  @GetMapping("/{operationId}")
+  public OperationView one(@PathVariable UUID operationId, HttpServletRequest request) {
+    return query.one(actor(request), operationId);
   }
 
   private Actor actor(HttpServletRequest request) {

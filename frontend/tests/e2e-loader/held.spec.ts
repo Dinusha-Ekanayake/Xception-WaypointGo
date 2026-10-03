@@ -134,3 +134,50 @@ test("Background Sync: the service worker's drain message sends what waits, with
   await page.evaluate(() => navigator.serviceWorker.dispatchEvent(new MessageEvent("message", { data: { type: "waypoint:drain" } })));
   await expect.poll(() => batches, { timeout: 5_000 }).toBe(1);
 });
+
+test("a check held before answers carried a version is still discarded on the server, after looking the version up", async ({ page, context }) => {
+  const batches: Sent[][] = [];
+  const lookups: string[] = [];
+  let serverVersion = 4;
+  const json = (body: unknown) => ({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
+  await page.route("**/api/**", async (route) => {
+    const { pathname } = new URL(route.request().url());
+    const current = manifest("trip-old", false, serverVersion);
+    if (pathname === "/api/session") return route.fulfill(json(SESSION));
+    if (pathname === "/api/loading/trips") return route.fulfill(json(board(current)));
+    if (pathname === "/api/reference/outlets") return route.fulfill(json([]));
+    if (pathname === "/api/loading/trips/trip-old/manifest") return route.fulfill(json(current));
+    if (pathname.startsWith("/api/sync/") && route.request().method() === "GET") {
+      const id = pathname.slice("/api/sync/".length);
+      lookups.push(id);
+      return route.fulfill(json({ operationId: id, deviceId: "d", sequence: 1, kind: "loading:Check", status: "CONFLICT",
+        problemCode: "VERSION_CONFLICT", baseRowVersion: 4, currentRowVersion: null, receivedAt: "2026-10-03T01:00:00Z", appliedAt: null, rowVersion: 2 }));
+    }
+    if (pathname === "/api/sync" && route.request().method() === "POST") {
+      const body = route.request().postDataJSON() as { operations: Array<{ command: Sent }> };
+      const sent = body.operations.map((o) => o.command);
+      batches.push(sent);
+      // An answer from before #109: no rowVersion, no problem code.
+      return route.fulfill(json({ results: sent.map((c, i) => batches.length === 1
+        ? { operationId: c.commandId, sequence: i + 1, status: "CONFLICT", problemCode: null, detail: "The record changed", replayed: false }
+        : { operationId: c.commandId, sequence: i + 1, status: "APPLIED", problemCode: null, detail: null, replayed: false, rowVersion: 2 }) }));
+    }
+    return route.fulfill({ status: 404, body: "not mocked" });
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Continue" }).click();
+  await context.setOffline(true);
+  await page.getByRole("button", { name: /Mark item 1 of ORD0092336 loaded/ }).click();
+  serverVersion = 7;
+  await context.setOffline(false);
+  await page.getByRole("button", { name: "1 to review" }).first().click();
+  const held = batches[0]![0]!;
+
+  const dialog = page.getByRole("dialog", { name: "Changes to review" });
+  await dialog.getByRole("button", { name: "Discard…" }).click();
+  await dialog.getByRole("button", { name: "Discard", exact: true }).click();
+  await expect.poll(() => batches.length).toBe(2);
+  expect(lookups).toEqual([held.commandId]);
+  expect(batches[1]).toEqual([expect.objectContaining({ kind: "sync:Discard", expectedVersion: 2, payload: { operationId: held.commandId, reason: "No longer needed" } })]);
+});

@@ -292,6 +292,16 @@ class SyncIntegrationTest {
     assertEquals(before, drains(), "a batch that stopped has not drained");
   }
 
+  @Test
+  @Order(12)
+  void theOwnerReadsOneHeldOperationWithTheVersionToNameAndNobodyElseCan() throws Exception {
+    JsonNode held = mapper.readTree(perform(DRIVER, get("/api/sync/" + HELD_TWO), 200));
+    assertEquals("CONFLICT", held.get("status").asText());
+    assertEquals(2, held.get("rowVersion").asLong(), "what a device held before answers carried it names");
+    perform(OTHER_DRIVER, get("/api/sync/" + HELD_TWO), 404);
+    perform(DRIVER, get("/api/sync/" + UUID.randomUUID()), 404);
+  }
+
   // ---- helpers ----
 
   private long drains() {
