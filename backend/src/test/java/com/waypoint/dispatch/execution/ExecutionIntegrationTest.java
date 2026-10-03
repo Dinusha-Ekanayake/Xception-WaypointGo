@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.waypoint.dispatch.execution.ExecutionTestConfig.MovableClock;
 import com.waypoint.dispatch.execution.application.PositionRetentionJob;
 import com.waypoint.dispatch.execution.application.ProofRetentionJob;
+import com.waypoint.dispatch.support.TestDates;
 import com.waypoint.dispatch.sync.application.PositionPayloadRetentionJob;
 import com.waypoint.dispatch.identity.application.AccountAdminUseCase;
 import com.waypoint.dispatch.identity.application.LoginHandler;
@@ -45,7 +46,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -140,8 +140,7 @@ class ExecutionIntegrationTest {
     // assignments stay in the database. A random day that lands beside an
     // earlier test's would break the no-overlap constraint, so pick again.
     do {
-      day = reference.nextOperatingDay(
-          LocalDate.of(2040, 1, 1).plusDays(ThreadLocalRandom.current().nextInt(0, 15_000)));
+      day = TestDates.unusedDay(reference::nextOperatingDay);
       var vehicles = reference.availableVehicles(depot, day, null);
       vehicleId = vehicles.get(0).vehicleId();
       otherVehicleId = vehicles.get(1).vehicleId();

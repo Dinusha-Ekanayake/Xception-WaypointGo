@@ -10,6 +10,7 @@ import com.waypoint.dispatch.ordering.domain.Order;
 import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.receipt.contract.ReceiptEvents.ReceiptConfirmed;
 import com.waypoint.dispatch.support.ReceiptIssuesSupport;
+import com.waypoint.dispatch.support.TestDates;
 import java.sql.Date;
 import java.sql.Time;
 import java.sql.Timestamp;
@@ -18,7 +19,6 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -38,8 +38,7 @@ class ShortageInvestigationIntegrationTest extends ReceiptIssuesSupport {
   void loadedWithOneLineMissing() {
     order = deliveredOrder(outlet);
     tripId = UUID.randomUUID();
-    LocalDate day = reference.nextOperatingDay(
-        LocalDate.of(2040, 1, 1).plusDays(ThreadLocalRandom.current().nextInt(0, 15_000)));
+    LocalDate day = TestDates.unusedDay(reference::nextOperatingDay);
     String vehicle = reference.availableVehicles(depot, day, null).get(0).vehicleId();
     UUID shortfall = UUID.randomUUID();
     Timestamp now = Timestamp.from(Instant.now());

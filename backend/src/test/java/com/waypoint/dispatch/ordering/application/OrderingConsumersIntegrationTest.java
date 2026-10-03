@@ -32,6 +32,7 @@ import com.waypoint.dispatch.shared.domain.Actor;
 import com.waypoint.dispatch.shared.event.DomainEvent;
 import com.waypoint.dispatch.shared.event.EventEnvelope;
 import com.waypoint.dispatch.shared.util.Clock;
+import com.waypoint.dispatch.support.TestDates;
 import com.waypoint.dispatch.warehouse.contract.StockPort.Reserved;
 import com.waypoint.dispatch.warehouse.contract.WarehouseEvents.WarehouseOrderStatusChanged;
 import java.math.BigDecimal;
@@ -99,8 +100,7 @@ class OrderingConsumersIntegrationTest {
     migrator.migrate();
     referenceImport.importFrom(Path.of("../data"), null);
     serviceDate =
-        reference.nextOperatingDay(
-            LocalDate.of(2031, 1, 1).plusDays(ThreadLocalRandom.current().nextInt(0, 20_000)));
+        TestDates.unusedDay(reference::nextOperatingDay);
   }
 
   @Test

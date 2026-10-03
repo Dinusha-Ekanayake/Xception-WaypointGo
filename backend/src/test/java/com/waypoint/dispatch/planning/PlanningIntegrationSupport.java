@@ -20,6 +20,7 @@ import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.referencedata.application.ImportReferenceDataHandler;
 import com.waypoint.dispatch.referencedata.contract.ReferenceQuery;
 import com.waypoint.dispatch.referencedata.contract.ReferenceViews.OutletView;
+import com.waypoint.dispatch.support.TestDates;
 import jakarta.servlet.http.Cookie;
 import java.math.BigDecimal;
 import java.nio.file.Path;
@@ -31,7 +32,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.junit.jupiter.api.BeforeAll;
@@ -117,8 +117,7 @@ abstract class PlanningIntegrationSupport {
             .min(Comparator.comparing(OutletView::outletId))
             .orElseThrow();
     serviceDate =
-        reference.nextOperatingDay(
-            LocalDate.of(2045, 1, 1).plusDays(ThreadLocalRandom.current().nextInt(0, 15_000)));
+        TestDates.unusedDay(reference::nextOperatingDay);
 
     String run = UUID.randomUUID().toString().substring(0, 8);
     String here = "pcd-" + run + "@planning.test";
