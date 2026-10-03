@@ -64,6 +64,30 @@ public class AccountQuery {
     return Page.fromOverfetch(rows, size, account -> Cursor.encode(account.userId().toString()));
   }
 
+  /** R-IAM-32: what a person sees and edits of their own account, with its version. */
+  public record ProfileView(UUID userId, String email, String displayName, String phone, long rowVersion) {}
+
+  /** The actor's own account. The phone is read only here, for its owner. */
+  public ProfileView profile(UUID userId) {
+    Map<String, Object> r =
+        database.asModule(
+            ModuleRole.IAM,
+            null,
+            () ->
+                database.queryOne(
+                    "SELECT user_id, email, display_name, phone, row_version FROM iam.users WHERE user_id = ?",
+                    userId));
+    if (r == null) {
+      throw new DomainException(ErrorCode.NOT_FOUND, "No account " + userId);
+    }
+    return new ProfileView(
+        (UUID) r.get("user_id"),
+        (String) r.get("email"),
+        (String) r.get("display_name"),
+        (String) r.get("phone"),
+        ((Number) r.get("row_version")).longValue());
+  }
+
   public AccountView byId(UUID userId) {
     return select("u.user_id = ?", 1, userId).stream()
         .findFirst()

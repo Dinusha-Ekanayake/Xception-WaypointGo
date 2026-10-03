@@ -10,9 +10,11 @@ import type {
   HandoverView,
   IssueView,
   OrderView,
+  OutletDetailsView,
   OutletView,
   PendingReceiptView,
   ProductView,
+  ProfileView,
   ReceiptView,
   StatusChangeView,
 } from "@shared/domain/types";
@@ -48,6 +50,10 @@ export type StoreGateway = {
   handover: (orderId: string, signal: AbortSignal) => Promise<HandoverView>;
   /** What is coming to, or has reached, the outlet on a day (Execution, `delivery:Read`). */
   deliveries: (outletId: string, date: string, signal: AbortSignal) => Promise<DeliveryRecordView[]>;
+  /** The signed-in person's own account: name, phone and its version (R-IAM-32). */
+  profile: (signal: AbortSignal) => Promise<ProfileView>;
+  /** What the store says about itself: its own window and dock, and its contacts (R-REF-01). */
+  outletDetails: (outletId: string, signal: AbortSignal) => Promise<OutletDetailsView>;
   /** Issues raised about one order: a loading shortfall, damage, a receipt dispute. */
   issuesFor: (orderId: string, signal: AbortSignal) => Promise<IssueView[]>;
   send: (command: Command) => Promise<CommandAck>;
@@ -95,6 +101,8 @@ function liveGateway(accountId: string): StoreGateway {
     sendPhotos: () => drainUploads(accountId),
     deliveries: (outletId, date, signal) => request(`/api/execution/deliveries?outlet=${q(outletId)}&date=${q(date)}`, { signal }),
     issuesFor: (orderId, signal) => request(`/api/issues/by-subject?type=order&id=${q(orderId)}`, { signal }),
+    profile: (signal) => request(`/api/profile`, { signal }),
+    outletDetails: (outletId, signal) => request(`/api/reference/outlets/${q(outletId)}/details`, { signal }),
     send: (command) => send(command),
     queue: (command) => enqueue(accountId, "store_manager", command),
     // Kept writes first, then kept photos: the server links a photo to its issue in either order.

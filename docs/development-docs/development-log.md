@@ -21,6 +21,17 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-03 - feat: a store manager edits their own profile and their store's window, dock and contacts
+
+`fix/store-figma-visual` · @jv-ransika
+
+Identity: `iam:UpdateOwnProfile` on `wpt:iam:user:self` changes the actor's own name and phone (`iam.users.phone`, migration `T1400`), read at `GET /api/profile` (R-IAM-32). Reference: `reference:UpdateOutletDetails` keeps a store's window, dock type and contacts in `ref.outlet_details` (migration `T1401`), laid over the current version when a snapshot loads, so the next plan reads it; a mall bay stays a mall bay and its window must overlap the mall's (R-REF-01, R-PLN-29); scope through Identity's contract (R-IAM-28). Phone numbers are normalised once, in `shared/domain/PhoneNumber`. The store's account menu opens both editors (a bottom sheet on a phone). Home drops its stacked warning cards and shows the loader's shortage as Figma's grey card; Orders opens on what is still open, with Received, Cancelled and All filters; Delivery confirmed is Figma's check list; dock codes read as words ("Rear dock", not "rear_dock dock").
+Why: request of 2026-10-03; decisions: store window and dock change directly, profile is name and phone.
+Verified: `ProfileFieldsTest` (4), `OutletDetailsTest` (6), `StoreSelfServiceIntegrationTest` (10), `AdministrationIntegrationTest`, `CommandPathIntegrationTest`, `IdentityHardeningIntegrationTest`, `ModuleBoundaryTest`, `EventCatalogueTest` on PostgreSQL 16; frontend `npm run typecheck`, `npm test` (85), `npm run build`, store browser suite (25 passed).
+Open: the store's details are not versioned, like calendar overrides, so a past plan re-read shows today's window; a change made on one instance reaches another's snapshot only at its next publish, as calendar overrides do (REF-02).
+
+---
+
 ## 2026-10-03 - fix(offline): Background Sync with no page open, older held writes, and Windows service worker builds
 
 `fix/sync-open-items` · @Dinusha-Ekanayake

@@ -16,11 +16,11 @@ import {
 } from "@shared/domain/types";
 import { Icon, Notice } from "@shared/ui";
 import type { StoreGateway } from "../../data/gateway.ts";
-import { clock, temperatureLabel } from "../../data/format.ts";
+import { clock, dockWhere, temperatureLabel } from "../../data/format.ts";
 import { shrinkPhoto } from "../../data/photo.ts";
 import { answerFor, counted, knownShortages, LOWERS_COUNT, room as roomFor, type Kind, type Report } from "../../data/receive.ts";
 import { conflictMessage, type useCommands } from "../../data/useCommands.ts";
-import { BackButton, Badge, Button, Facts, Modal, Muted } from "../../ui.tsx";
+import { BackButton, Badge, Button, Modal, Muted } from "../../ui.tsx";
 import HandoverModal, { type IssuedPin } from "../HandoverModal.tsx";
 import HandoverCard from "./HandoverCard.tsx";
 import PhotoDialog from "./PhotoDialog.tsx";
@@ -210,7 +210,7 @@ export default function Receive({
       <div className="flex flex-col gap-1">
         <h1 className="text-[32px] leading-tight font-medium text-black">Receive delivery</h1>
         <Muted>
-          {delivery ? `${delivery.vehicleId} is at your ${outlet?.dockType ?? ""} dock${delivery.arrivedAt ? ` · arrived ${clock(delivery.arrivedAt)}` : ""}` : order ? `${order.orderRef} · ${temperatureLabel(order.temperature)}` : "Order"}
+          {delivery ? `${delivery.vehicleId} is ${dockWhere(outlet?.dockType)}${delivery.arrivedAt ? ` · arrived ${clock(delivery.arrivedAt)}` : ""}` : order ? `${order.orderRef} · ${temperatureLabel(order.temperature)}` : "Order"}
           {r.confirmedAt ? ` · recorded ${clock(r.confirmedAt)}` : ""}
         </Muted>
       </div>
@@ -325,21 +325,33 @@ export default function Receive({
       )}
       {done && (!done.pin || done.confirmedAt) && (
         <Modal label="Delivery confirmed" onClose={onBack}>
-          <Badge>
-            <Icon name={done.queued ? "clock" : "check"} />
-          </Badge>
+          {done.queued ? (
+            <Badge>
+              <Icon name="clock" />
+            </Badge>
+          ) : (
+            <span aria-hidden className="mx-auto flex rounded-full bg-go-success-tint p-4">
+              <img alt="" src="/icons/store/dialog-check.svg" width={34} height={34} />
+            </span>
+          )}
           <div className="flex flex-col items-center gap-1 text-center">
             <h2 className="text-[26px] font-medium text-black">{done.queued ? "Saved on this phone" : done.disputed ? "Delivery disputed" : "Delivery confirmed"}</h2>
             <p className="text-[14px] text-go-muted">{done.queued ? "It is sent when the connection returns." : `${done.units} units received · recorded at ${clock(done.at)}`}</p>
           </div>
+          {/* "07 Delivery confirmed": what is settled, as a list of checks. */}
           {!done.queued && (
-            <Facts
-              rows={[
-                { label: "Your count", value: "On record", strong: false },
-                ...(done.confirmedAt ? [{ label: "Handover", value: `Confirmed with PIN · ${clock(done.confirmedAt)}`, strong: false }] : []),
-                { label: "Dispatcher", value: done.sent ? "Told what is wrong" : "Nothing new to tell", strong: false },
-              ]}
-            />
+            <ul className="flex flex-col gap-2 rounded-[20px] bg-go-surface px-[18px] py-3.5 text-[14px] text-black">
+              {[
+                done.confirmedAt ? `Confirmed with PIN · ${clock(done.confirmedAt)}` : "Your count is on record",
+                ...(done.confirmedAt ? ["Driver can leave for next stop"] : []),
+                ...(done.sent ? ["The dispatcher is told what is wrong"] : []),
+              ].map((line) => (
+                <li key={line} className="flex items-center gap-2">
+                  <img alt="" aria-hidden src="/icons/store/list-check.svg" width={16} height={16} />
+                  {line}
+                </li>
+              ))}
+            </ul>
           )}
           <div className="flex gap-2.5">
             {done.sent && !done.queued && (

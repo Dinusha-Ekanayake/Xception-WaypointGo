@@ -1,5 +1,5 @@
 import type { DeliveryRecordView, IssueType, IssueView, OrderView, ReceiptView, StatusChangeView } from "@shared/domain/types";
-import { addDays, clock, dayLabel, depotToday, expectedAt, type StatusTone } from "./format.ts";
+import { addDays, clock, dayLabel, depotToday, dockWhere, expectedAt, type StatusTone } from "./format.ts";
 import type { StoreGateway } from "./gateway.ts";
 import { isOpenIssue, loaderShortUnits } from "./issues.ts";
 
@@ -180,7 +180,7 @@ export function makeUpSteps(input: {
       done: loaded !== undefined || record !== null,
     },
     {
-      title: dock ? `Arriving at your ${dock} dock` : "Arriving at your store",
+      title: `Arriving ${dockWhere(dock)}`,
       detail: record?.arrivedAt ? `Arrived ${clock(record.arrivedAt)}` : record ? `ETA ${clock(expectedAt(record))}` : window ? `Window ${window}` : "Time set when it leaves",
       done: Boolean(record?.arrivedAt),
     },
