@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-04 - feat(dispatcher): late risk per trip and stop, the forecast error, counts in brackets, phone widths (issue #119)
+
+`feat/119-forecast-late-risk` · @Dinusha-Ekanayake
+
+On the teammates' Plan and Forecast screens, kept as built: a published plan tags each trip from 20% late risk and every stop with its chance (`<1%` for a tiny one, `· estimate` when the predictor was off); the Forecast shows the demand model's measured error from the registry, total and chilled, never per brand. Live, Orders and Vehicles counts read `(9)` as Isuru asked. Every dispatcher screen fits from 1440 down to 360 px.
+Why: #119 asked for late risk per stop and trip and the forecast fallback; the dispatcher overflowed on phones.
+Verified: see the PR. `npm test` 170, the dispatcher suite 42; on the VPS preview database the real registry and a published Peliyagoda plan, and no overflow at five widths. [walkthrough](../../issues/119-dispatcher-forecast-late-risk/WALKTHROUGH.md)
+Open: the preview's model service answers 500, so plans are scored by the estimate (#16).
+
+---
+
 ## 2026-10-03 - feat(execution): the run sheet carries a stop's recorded units
 
 `fix/partial-units-and-preview-cleanup` · @Dinusha-Ekanayake
