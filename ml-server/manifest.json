@@ -3,7 +3,7 @@
     {
       "kind": "delivery_risk",
       "name": "datathon-task1-blend",
-      "version": "2026.1",
+      "version": "2026.1.1",
       "trainedFrom": "2024-01-01",
       "trainedTo": "2026-02-14",
       "metrics": {
@@ -25,7 +25,7 @@
     {
       "kind": "demand_forecast",
       "name": "datathon-task2a",
-      "version": "2026.1",
+      "version": "2026.1.1",
       "trainedFrom": "2024-01-01",
       "trainedTo": "2026-02-14",
       "metrics": {

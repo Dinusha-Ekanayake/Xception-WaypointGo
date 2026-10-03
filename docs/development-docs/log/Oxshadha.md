@@ -12,6 +12,14 @@
 Why: the same time was formatted eleven ways, two of them 12-hour and one in the device's zone, and nothing stopped a new screen adding a twelfth.
 Verified: `npm test` 118, typecheck, build; Playwright dispatcher 23 and store 29 pass; loader 16 of 18 and driver 8 of 10, the four failures the same on untouched `dev` (loader inbox read state, driver unit stepper and arrival message).
 Open: #128 applies the glossary across the screens and lowers the baseline to zero.
+## 2026-10-03 - docs: README checked against a running system (issue #115)
+
+`docs/115-readme-walkthrough` · @Oxshadha
+
+Ran the judge path on a fresh PostgreSQL seeded exactly as the `init` service does (`migrate import-reference demo-accounts seed-delivery-day`), then every walkthrough step through the API as each role: 85 orders, close refused before the cutoff, generate and publish, loader PIN and reverse stop order, shortfall to Issues, release, the driver's offline batch applied once and ignored on resend, Live, and the store's dispute reaching Issues. All eleven steps hold. Fixed what did not: `ADMIN_PASSWORD` is read by nothing (`SEED_PASSWORD` sets every account, admin included, and the `.env.example` placeholder becomes the password if left), the Datathon models are served, Forecast and the role inboxes are built, and the walkthrough now says a partial delivery asks what happened to the missing goods.
+Why: the README is what judges follow; three of its setup lines would have stopped them at sign-in.
+Verified: the API run above against a local backend; no code changed.
+Open: the browser pass of the same steps belongs with the demo recording (#122).
 
 ---
 
