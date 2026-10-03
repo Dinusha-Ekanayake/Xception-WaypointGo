@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-03 - feat(execution): the run sheet carries a stop's recorded units
+
+`fix/partial-units-and-preview-cleanup` · @Dinusha-Ekanayake
+
+`RunSheetStopView` gains `deliveredUnits` (additive), read from `delivery_records.delivered_units`; the frontend mirror follows, the phone's projection of a record still on the phone sets it, and the driver's run complete shows "Units delivered" counted by it.
+Why: a partial delivery is recorded as a stop total, so the phone could not count it (open item of #114).
+Verified: see the PR. `ExecutionIntegrationTest` asserts the units on the run sheet (runs in CI; no local database here); `npm test` 168.
+
+---
+
 ## 2026-10-03 - fix: a fresh install walks the whole judge path (issue #114)
 
 `fix/114-fresh-install-check` · @Dinusha-Ekanayake
