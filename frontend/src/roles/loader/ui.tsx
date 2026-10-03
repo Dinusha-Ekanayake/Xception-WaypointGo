@@ -113,13 +113,13 @@ export function Bar({ label, value, share }: { label: string; value: string; sha
   );
 }
 
-/** The 168px completion ring. */
+/** The 168px completion ring; 104px on a phone held sideways, where it filled the screen above the load list (#201). */
 export function Ring({ percent }: { percent: number }): React.JSX.Element {
   const tr = useT();
   const r = 76;
   const c = 2 * Math.PI * r;
   return (
-    <div className="relative size-[168px]" role="img" aria-label={tr("{n}% of orders checked", { n: percent })}>
+    <div className="relative size-[168px] short:size-[104px]" role="img" aria-label={tr("{n}% of orders checked", { n: percent })}>
       <svg viewBox="0 0 168 168" className="size-full -rotate-90">
         <circle cx="84" cy="84" r={r} fill="none" stroke="var(--color-go-surface)" strokeWidth="12" />
         <circle
@@ -135,8 +135,8 @@ export function Ring({ percent }: { percent: number }): React.JSX.Element {
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-[36px] font-semibold text-go-ink">{percent}%</span>
-        <span className="text-[15px] text-go-muted">{tr("Completed")}</span>
+        <span className="text-[36px] font-semibold text-go-ink short:text-[24px]">{percent}%</span>
+        <span className="text-[15px] text-go-muted short:text-[12px]">{tr("Completed")}</span>
       </div>
     </div>
   );
