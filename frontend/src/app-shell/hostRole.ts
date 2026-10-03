@@ -62,3 +62,13 @@ export function hostForRole(hostname: string, role: ShellRole): string {
   const label = [...HOST_ROLE].find(([, r]) => r === role)![0];
   return [first!.endsWith(PREVIEW) ? label + PREVIEW : label, ...rest].join(".");
 }
+
+/**
+ * The address every role shares, seen from a role address: the reverse of
+ * `sharedHomeFor`. Null on an address that is not a role's own.
+ */
+export function sharedHostFor(hostname: string): string | null {
+  if (roleForHost(hostname) === null) return null;
+  const [first, ...rest] = hostname.toLowerCase().split(".");
+  return first!.endsWith(PREVIEW) ? ["preview", ...rest].join(".") : rest.join(".");
+}

@@ -38,11 +38,14 @@ export default function SignIn({
   onSignedIn,
   notice,
   role = null,
+  home = null,
 }: {
   onSignedIn: (session: Session) => void;
   notice?: string;
   /** Set on a role address: the workspace this sign-in opens. */
   role?: ShellRole | null;
+  /** Set on a role address: the address every role shares, for the way back. */
+  home?: string | null;
 }): React.JSX.Element {
   const online = useOnline();
   const [email, setEmail] = useState("");
@@ -76,7 +79,14 @@ export default function SignIn({
 
   return (
     <div className="flex min-h-dvh flex-col bg-go-canvas px-4 pt-6 pb-10 font-go text-go-ink md:px-16 md:pt-12">
-      <span className="text-[40px] leading-none font-extrabold text-black">GO</span>
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-[40px] leading-none font-extrabold text-black">GO</span>
+        {home && (
+          <a href={`https://${home}/`} className="flex min-h-10 items-center gap-1.5 rounded-full bg-white px-4 text-[14px] font-medium text-[#031b08] outline-none focus-visible:ring-2 focus-visible:ring-go-teal">
+            <span aria-hidden="true">←</span> All roles
+          </a>
+        )}
+      </div>
       <div className="mx-auto flex w-full max-w-[440px] flex-1 flex-col justify-center gap-5 py-10 md:justify-start md:pt-[10vh]">
         <div className="flex flex-col gap-1.5">
           <h1 className="text-[40px] leading-tight font-medium text-black md:text-[48px]">Welcome back</h1>

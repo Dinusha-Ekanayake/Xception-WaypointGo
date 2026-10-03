@@ -1,16 +1,11 @@
 import { ROLE_ADDRESSES, isPreviewHome, sharedHomeFor } from "./hostRole.ts";
-import type { ShellRole } from "./session.ts";
+import { FIELD_ROLES, ROLE_DOES } from "./roleCards.ts";
+import { ROLE_LABEL } from "./session.ts";
 
 // The address every role shares has no sign-in of its own, on production and on
 // preview alike: it says what Waypoint is and hands each of the four field
 // roles to its own address, where the session lives.
 
-const ROLES: { role: ShellRole; title: string; does: string }[] = [
-  { role: "store_manager", title: "Store manager", does: "Place the store's order and confirm what arrived." },
-  { role: "dispatcher", title: "Dispatcher", does: "Turn confirmed orders into a plan for the day's trucks." },
-  { role: "loader", title: "Loader", does: "Load each truck against the plan and record the checks." },
-  { role: "driver", title: "Driver", does: "Deliver stop by stop and capture proof, online or offline." },
-];
 
 export default function RoleLanding({ host }: { host: string }): React.JSX.Element {
   const preview = isPreviewHome(host);
@@ -34,17 +29,26 @@ export default function RoleLanding({ host }: { host: string }): React.JSX.Eleme
         <nav aria-label="Choose a role" className="flex flex-col gap-3">
           <h2 className="text-[15px] font-medium text-go-muted">Choose your role to sign in</h2>
           <div className="grid gap-3 sm:grid-cols-2">
-            {ROLES.map(({ role, title, does }) => (
+            {FIELD_ROLES.map((role) => (
               <a
                 key={role}
                 href={`https://${sharedHomeFor(host, role, ROLE_ADDRESSES)}/`}
                 className="flex min-h-24 flex-col justify-center gap-1 rounded-[24px] bg-white p-6 shadow-[0_5px_20px_rgba(0,0,0,0.09)] outline-none focus-visible:ring-2 focus-visible:ring-go-teal"
               >
-                <span className="text-[19px] font-medium text-black">{title}</span>
-                <span className="text-[14px] text-go-muted">{does}</span>
+                <span className="text-[19px] font-medium text-black">{ROLE_LABEL[role]}</span>
+                <span className="text-[14px] text-go-muted">{ROLE_DOES[role]}</span>
               </a>
             ))}
           </div>
+          <a
+            href={`https://${sharedHomeFor(host, "admin", ROLE_ADDRESSES)}/`}
+            className="flex min-h-12 items-center justify-between gap-3 rounded-[16px] px-4 text-[14px] text-go-muted outline-none hover:bg-white focus-visible:ring-2 focus-visible:ring-go-teal"
+          >
+            <span>
+              Administrator? <span className="font-medium text-go-teal">Sign in to the admin console</span>
+            </span>
+            <span aria-hidden="true" className="text-go-teal">→</span>
+          </a>
         </nav>
 
         {preview && <p className="text-[13px] text-go-muted">This is the preview environment: unreviewed changes and demo data, kept apart from production.</p>}
