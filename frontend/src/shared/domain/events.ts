@@ -1,6 +1,7 @@
 import type { CheckStatus } from "./loading.ts";
 import type { DeliveryOutcome } from "./execution.ts";
 import type { IssueSeverity, IssueType, SubjectRef } from "./issues.ts";
+import type { MemberRole, MessageAudience, ReportType } from "./messaging.ts";
 import type { OrderStatus } from "./ordering.ts";
 import type { Decimal, IsoDate, IsoInstant, IsoTime, Temperature, Uuid } from "./common.ts";
 
@@ -238,6 +239,24 @@ export type EventPayloads = {
     reason: string | null;
   };
   "calendar.overridden": { date: IsoDate; operating: boolean; reason: string };
+  /** Someone wrote on a thread (issue #136). Never the body: an excerpt for the notification. */
+  "message.posted": {
+    threadId: Uuid;
+    messageId: Uuid;
+    subjectType: string;
+    subjectId: string;
+    depotCode: string;
+    vehicleId: string | null;
+    serviceDate: IsoDate | null;
+    authorName: string;
+    authorRole: MemberRole;
+    kind: "message" | "report";
+    reportType: ReportType | null;
+    audience: MessageAudience;
+    outletIds: string[];
+    excerpt: string;
+    at: IsoInstant;
+  };
 };
 
 export type EventType = keyof EventPayloads;

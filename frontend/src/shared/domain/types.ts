@@ -16,6 +16,7 @@ export type * from "./notification.ts";
 export type * from "./sync.ts";
 export type * from "./warehouse.ts";
 export type * from "./intelligence.ts";
+export type * from "./messaging.ts";
 export type * from "./events.ts";
 
 export { OutletCommandKind, VehicleCommandKind } from "./referencedata.ts";
@@ -28,5 +29,6 @@ export { ReceiptCommandKind } from "./receipt.ts";
 export { IssueCommandKind } from "./issues.ts";
 export { NotificationCommandKind } from "./notification.ts";
 export { SyncCommandKind } from "./sync.ts";
+export { MessageCommandKind } from "./messaging.ts";
 export { WarehouseCommandKind } from "./warehouse.ts";
 export { ModelCommandKind } from "./intelligence.ts";
