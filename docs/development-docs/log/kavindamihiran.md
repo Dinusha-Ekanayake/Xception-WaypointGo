@@ -3,6 +3,12 @@
 @kavindamihiran's entries, newest first. Only @kavindamihiran adds to this file; how to write an entry is in the [log's index](../development-log.md).
 
 ---
+## 2026-10-04 - feat: each field role installs as its own app
+
+`feat/role-pwa` · @kavindamihiran · #201, PR 1 of 5 ([plan](../../issues/201-role-pwa/PLAN.md))
+
+`app/manifest.ts` serves a manifest chosen by Host (`appManifest.ts` over `hostRole.ts`), so `driver.`, `loader.` and `store.` install as Waypoint Driver, Loader and Store, each with its own icon (`scripts/build-app-icons.mjs`, PNGs committed) and the shared address as the generic app; `app/apple-touch-icon.png` does the same for iOS, and the page stays static. The layout draws edge to edge (`viewportFit: cover`) and fixed bottom bars pad for the home bar. The worker keeps icons, fonts and `/assets` cache first and map tiles up to 1500, oldest out, across builds (`scripts/sw-cache.mjs`); `/api` is never kept, offline reads stay the per-account snapshots. Settings gains Install app (Chrome's prompt, Safari's steps), and queuing roles ask for persistent storage. No orientation lock: tablets mount in landscape.
+Verified: typecheck, `npm test` (184), build, `e2e/install.spec.ts` (Chrome reports each address installable; icons load offline, `/api` does not), driver, loader and store suites green. `e2e/shell.spec.ts` CSP case times out on `networkidle`, also on a clean `dev`.
 ## 2026-10-03 - feat: Settings behind each role's profile picture
 
 `feat/role-settings-panel` · @kavindamihiran

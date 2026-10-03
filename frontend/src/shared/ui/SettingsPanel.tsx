@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { InstallApp } from "./InstallApp.tsx";
 import { McpButton } from "./McpConnect.tsx";
 import { cx } from "./primitives.tsx";
 import { useShell } from "./shell.tsx";
@@ -111,7 +112,7 @@ export function SettingsPanel({
         className={cx(
           "z-50 flex flex-col gap-4 bg-go-card p-4 text-go-ink shadow-[0_10px_30px_rgba(0,0,0,0.18)] outline-none",
           placement === "sheet"
-            ? "fixed inset-x-0 bottom-0 rounded-t-[28px] pb-8 md:inset-x-auto md:left-1/2 md:w-[420px] md:-translate-x-1/2"
+            ? "fixed inset-x-0 bottom-0 rounded-t-[28px] pb-[max(2rem,env(safe-area-inset-bottom))] md:inset-x-auto md:left-1/2 md:w-[420px] md:-translate-x-1/2"
             : "fixed bottom-5 left-5 w-[300px] rounded-[20px]",
         )}
       >
@@ -149,6 +150,7 @@ export function SettingsPanel({
           url={shell?.mcpUrl ?? null}
           className="flex min-h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-go-surface text-[15px] font-medium text-go-ink"
         />
+        <InstallApp className="flex min-h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-go-surface text-[15px] font-medium text-go-ink" />
         {children}
       </div>
     </>
