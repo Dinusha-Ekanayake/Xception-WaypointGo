@@ -1,14 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { newCommand } from "@shared/api/commands";
+import { ApiError } from "@shared/api/problem";
 import { useOnline } from "@shared/api/useResource";
-import { ExecutionCommandKind, type FailureReason, type ReportedVehicleStatus } from "@shared/domain/types";
+import type { HandoverEntryResult } from "@shared/domain/receipt";
+import { ExecutionCommandKind, ReceiptCommandKind, type FailureReason, type ReportedVehicleStatus } from "@shared/domain/types";
 import { discardUpload, useSync } from "@shared/offline";
 import { useShell } from "@shared/ui";
 import { createGateway } from "./data/gateway.ts";
 import { usePositionRecorder } from "./data/position.ts";
 import { isFinished, nextStop, type Stop } from "./data/run.ts";
 import { DeliveryKind, useRun, type Outcome } from "./data/useRun.ts";
+import type { HandoverAnswer } from "./screens/DeliveryPinConfirmModal.tsx";
 import type { Report } from "./screens/DeliveryReport.tsx";
 import type { ProofDraft } from "./screens/ProofCapture.tsx";
 import type { Problem } from "./screens/Sheets.tsx";
@@ -25,7 +29,14 @@ export type View =
   | { name: "complete" }
   | { name: "map" };
 
-export type Saved = { title: string; onPhone: boolean; last: boolean; warning: string | null };
+export type Saved = {
+  title: string;
+  onPhone: boolean;
+  last: boolean;
+  warning: string | null;
+  /** The stop just recorded; null when nothing was handed over, so there is no PIN to enter. */
+  handedOver: Stop | null;
+};
 
 const THEME_KEY = "waypoint.driver.theme";
 
@@ -103,6 +114,8 @@ export function useDriver(userId: string) {
   const openRun = async () => {
     const next = nextStop(stops);
     if (!next) return go({ name: "complete" });
+    // Already at the stop, recorded here or before a restart: straight to its report.
+    if (next.outcome === "ARRIVED") return go({ name: "report", deliveryId: next.deliveryId, failed: null });
     go({ name: "route", deliveryId: null });
     await start(next);
   };
@@ -114,11 +127,16 @@ export function useDriver(userId: string) {
     await start(stop);
   };
 
-  const arrived = async (stop: Stop) => {
+  /** True once the arrival is recorded, sent or kept on this phone. */
+  const arrived = async (stop: Stop): Promise<boolean> => {
     setError(null);
     const outcome = await act(DeliveryKind.arrive, { deliveryId: stop.deliveryId, deviceArrivedAt: new Date().toISOString() }, stop);
-    if (!outcome.ok) return setError(words(outcome));
+    if (!outcome.ok) {
+      setError(words(outcome));
+      return false;
+    }
     go({ name: "report", deliveryId: stop.deliveryId, failed: null });
+    return true;
   };
 
   /**
@@ -148,7 +166,8 @@ export function useDriver(userId: string) {
     );
   };
 
-  const confirm = async (stop: Stop, report: Report) => {
+  /** True once the record is kept, sent or on this phone; its proof may still have failed (see `saved`). */
+  const confirm = async (stop: Stop, report: Report): Promise<boolean> => {
     setError(null);
     setWorking(true);
     try {
@@ -164,7 +183,10 @@ export function useDriver(userId: string) {
         },
         stop,
       );
-      if (!recorded.ok) return setError(words(recorded));
+      if (!recorded.ok) {
+        setError(words(recorded));
+        return false;
+      }
       // The record moved the stop's version on by one, sent or waiting.
       const proven = report.proof ? await captureProof(stop, stop.rowVersion + 1, report.proof) : null;
       setSaved({
@@ -172,7 +194,9 @@ export function useDriver(userId: string) {
         onPhone: recorded.queued || (proven?.ok === true && proven.queued),
         last: stops.every((other) => other.deliveryId === stop.deliveryId || isFinished(other)),
         warning: proven && !proven.ok ? `The delivery is recorded, but its proof was not: ${proven.error.message} Open the stop from Home to add it.` : null,
+        handedOver: record.outcome === "FAILED" ? null : stop,
       });
+      return true;
     } finally {
       setWorking(false);
     }
@@ -228,6 +252,25 @@ export function useDriver(userId: string) {
     setNotice(outcome.queued ? "Vehicle status saved on this phone." : "Vehicle status sent to dispatch.");
   };
 
+  /**
+   * The store manager's handover PIN (R-RCP-09). Online only: the PIN is checked
+   * by the server and expires, so a queued guess would mean nothing. Never a
+   * gate: whatever the answer, the delivery stands.
+   */
+  const verifyHandover = async (stop: Stop, pin: string): Promise<HandoverAnswer> => {
+    try {
+      const ack = await gateway.send(newCommand(ReceiptCommandKind.verifyHandover, { orderId: stop.orderId, pin }));
+      const result = ack.result as HandoverEntryResult;
+      return { outcome: result.outcome, attemptsLeft: result.attemptsLeft };
+    } catch (failure) {
+      if (failure instanceof ApiError && failure.code === "FORBIDDEN" && /no handover PIN/i.test(failure.message)) {
+        return { error: "The store manager has not confirmed the receipt yet, so there is no PIN to check. Ask them to confirm it, or skip." };
+      }
+      if (failure instanceof ApiError) return { error: failure.message };
+      return { error: "Waypoint is not answering. The delivery is recorded; you can skip the PIN." };
+    }
+  };
+
   /** A proof file the server refused: only the driver drops it. */
   const dropUpload = async (id: string) => {
     await discardUpload(userId, id);
@@ -278,6 +321,7 @@ export function useDriver(userId: string) {
     afterSaved,
     report,
     reportStatus,
+    verifyHandover,
     dropUpload,
     openProblem: (target: Stop | "run") => setProblemFor(target),
     closeProblem: () => {

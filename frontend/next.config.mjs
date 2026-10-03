@@ -1,9 +1,11 @@
-// Same policy as nginx (nginx/templates/waypoint.conf.template). Inline scripts
-// and styles stay allowed because Next.js emits both without a nonce; everything
-// else, including where the page may connect and who may frame it, is self only.
+const isDev = process.env.NODE_ENV !== "production";
+const scriptSrc = isDev
+  ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
+  : "script-src 'self' 'unsafe-inline'";
+
 const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
+  scriptSrc,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self' data:",

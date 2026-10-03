@@ -30,13 +30,13 @@ function trip(vehicleId: string, tripNumber: 1 | 2, weightKg: string, volumeM3: 
 }
 
 function allocation(orderId: string, decision: AllocationView["decision"]): AllocationView {
-  return { orderId, decision, tripId: decision === "SERVED" ? "t" : null, bindingRule: decision === "SERVED" ? null : "R-PLN-06", reason: "no room", checks: [] };
+  return { orderId, decision, tripId: decision === "SERVED" ? "t" : null, bindingRule: decision === "SERVED" ? null : "R-PLN-06", reason: "no room", checks: [], source: "ENGINE", locked: false, decidedBy: null, decidedAt: null, lastServedOn: null };
 }
 
 function plan(trips: TripView[], allocations: AllocationView[], status: PlanView["status"] = "DRAFT"): PlanView {
   return {
     planId: `plan-${status}`, depotCode: "KDY", serviceDate: "2027-03-01", planVersion: 1, status, referenceVersionId: "r", ruleSetVersionId: "s",
-    priorityPolicyVersionId: "p", supersedes: null, publishedAt: null, plannedWithoutPredictor: true, trips, allocations, rowVersion: 1, engine: "priority-insertion-v1", improvement: null,
+    priorityPolicyVersionId: "p", supersedes: null, publishedAt: null, savedAt: "2027-02-28T16:41:00Z", plannedWithoutPredictor: true, trips, allocations, rowVersion: 1, engine: "priority-insertion-v1", improvement: null,
   };
 }
 
@@ -115,7 +115,7 @@ function stop(sequence: number, extra: Partial<RunSheetStopView> = {}): RunSheet
   return {
     deliveryId: `d${sequence}`, tripId: "t", sequence, orderId: `o${sequence}`, outletId: `OUT00${sequence}`, itemCount: 5, mallOutlet: false,
     plannedArrival: "09:00:00", windowOpen: "08:00:00", windowClose: "10:00:00", expectedArrival: null, startedAt: null, arrivedAt: null,
-    completedAt: null, waitMinutes: null, lateMinutes: null, outcome: "PENDING", proofCaptured: false, rowVersion: 1, lines: [], ...extra,
+    completedAt: null, waitMinutes: null, lateMinutes: null, outcome: "PENDING", deliveredUnits: null, proofCaptured: false, rowVersion: 1, lines: [], ...extra,
   };
 }
 
@@ -198,7 +198,7 @@ test("an issue's age reads in minutes, hours, then days, and a redelivery defaul
 test("the second pass is said only when it changed the plan or stopped early", () => {
   const base = { firstPassServed: 70, firstPassDeferred: 14, served: 73, deferred: 11, improved: true, chilledVolumeGainedM3: "30.448", stoppedBy: "NONE" as const, chilledCandidates: 26, chilledSearched: 26 };
   assert.equal(improvementNote(null), null);
-  assert.deepEqual(improvementNote(base)?.title, "Reefers planned again: 3 more orders served");
+  assert.deepEqual(improvementNote(base)?.title, "Refrigerated vehicles planned again: 3 more orders served");
   assert.match(improvementNote(base)!.detail, /from 14 to 11, with 30\.4 m³ more chilled/);
   assert.equal(improvementNote({ ...base, improved: false, served: 70, deferred: 14 }), null);
   assert.match(improvementNote({ ...base, improved: false, stoppedBy: "CLOCK" })!.detail, /stopped before it finished/);

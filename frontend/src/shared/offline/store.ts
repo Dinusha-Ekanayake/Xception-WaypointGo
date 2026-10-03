@@ -13,6 +13,8 @@ export type StoredEntry<T = unknown> = {
   kind: string;
   payload: T;
   enqueuedAt: string;
+  /** Strictly increasing on this device: the batch sequence and the order writes are sent in. */
+  order?: number;
   attempts: number;
   lastError?: string;
   /** Held for human review after a conflict. Never retried automatically. */
@@ -72,7 +74,9 @@ export async function all(accountId: string): Promise<StoredEntry[]> {
   const db = await open(accountId);
   const entries = await tx<StoredEntry[]>(db, "readonly", (store) => store.getAll());
   db.close();
-  return entries.sort((a, b) => a.enqueuedAt.localeCompare(b.enqueuedAt));
+  // In the order recorded on this device (review.ts recordedOrder), the recording time for older entries.
+  const at = (e: StoredEntry) => e.order ?? (Date.parse(e.enqueuedAt) || 0) * 1000;
+  return entries.sort((a, b) => at(a) - at(b) || a.commandId.localeCompare(b.commandId));
 }
 
 export async function remove(accountId: string, commandId: string): Promise<void> {

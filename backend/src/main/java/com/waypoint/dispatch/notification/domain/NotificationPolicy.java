@@ -50,10 +50,12 @@ public final class NotificationPolicy {
       boolean push,
       String title,
       String body,
-      Set<String> missingFacts) {
+      Set<String> missingFacts,
+      Map<String, String> facts) {
 
     public Addressed {
       missingFacts = Set.copyOf(missingFacts);
+      facts = Map.copyOf(facts);
     }
   }
 
@@ -119,7 +121,7 @@ public final class NotificationPolicy {
           continue;
         }
         if (seen.add(person + "|" + target.key())) {
-          out.add(new Addressed(person, rule.role(), target, push, title.text(), body.text(), missing));
+          out.add(new Addressed(person, rule.role(), target, push, title.text(), body.text(), missing, facts));
         }
       }
     }

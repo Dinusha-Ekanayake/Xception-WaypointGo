@@ -4,6 +4,8 @@ import type { Decimal, IsoDate, IsoInstant, IsoTime, Temperature, Uuid } from ".
 
 export type PlanStatus = "DRAFT" | "PUBLISHED" | "SUPERSEDED" | "CANCELLED";
 export type AllocationDecision = "SERVED" | "DEFERRED" | "UNSERVABLE";
+/** Who decided where an order stands: the engine, or a dispatcher's hand decision. */
+export type AllocationSource = "ENGINE" | "OVERRIDE" | "SWAP" | "KEPT" | "MANUAL_DEFER" | "RESTORED";
 
 /** One rule's verdict. `ruleId` is a RULES-AND-POLICIES identifier such as R-PLN-06. */
 export type ConstraintResultView = {
@@ -46,6 +48,13 @@ export type AllocationView = {
   bindingRule: string | null;
   reason: string;
   checks: ConstraintResultView[];
+  source: AllocationSource;
+  /** Held on its trip, so a regenerate keeps it there. */
+  locked: boolean;
+  decidedBy: Uuid | null;
+  decidedAt: IsoInstant | null;
+  /** The outlet's latest day a published plan served it before this plan's day. */
+  lastServedOn: IsoDate | null;
 };
 
 /** One place an order could take in its open draft, as a `plan:Override` names it. */
@@ -73,6 +82,8 @@ export type PlanView = {
   priorityPolicyVersionId: Uuid;
   supersedes: Uuid | null;
   publishedAt: IsoInstant | null;
+  /** When this version was written; for a draft, its last edit. */
+  savedAt: IsoInstant;
   plannedWithoutPredictor: boolean;
   trips: TripView[];
   allocations: AllocationView[];
@@ -81,6 +92,41 @@ export type PlanView = {
   engine: string;
   /** What the engine's second pass achieved over its first; null when no second pass ran. */
   improvement: ImprovementView | null;
+};
+
+/** GET /api/plans/{published|draft}/summary (issue #177): a plan without its allocations. */
+export type PlanSummaryView = {
+  planId: Uuid;
+  depotCode: string;
+  serviceDate: IsoDate;
+  planVersion: number;
+  status: PlanStatus;
+  referenceVersionId: Uuid;
+  ruleSetVersionId: Uuid;
+  priorityPolicyVersionId: Uuid;
+  supersedes: Uuid | null;
+  publishedAt: IsoInstant | null;
+  rowVersion: number;
+  served: number;
+  deferred: number;
+  unservable: number;
+  trips: TripSummaryView[];
+};
+
+export type TripSummaryView = Omit<TripView, "stops"> & { stopCount: number };
+
+/** One allocation with where it stops; stop fields are null for an order not served. */
+export type AllocationLineView = AllocationView & {
+  stopSequence: number | null;
+  plannedArrival: IsoTime | null;
+};
+
+/** GET /api/plans/{planId}/allocations: a keyset page in order id order. */
+export type AllocationPageView = {
+  planId: Uuid;
+  planVersion: number;
+  items: AllocationLineView[];
+  nextCursor: string | null;
 };
 
 /** Issue #92: the reefers planned again as a whole, kept only when better by rank (R-PLN-32). */
@@ -131,9 +177,18 @@ export const PlanCommandKind = {
   publish: "plan:Publish",
   revise: "plan:Revise",
   replan: "plan:Replan",
+  swap: "plan:Swap",
+  keepDeferred: "plan:KeepDeferred",
+  lock: "plan:Lock",
+  unlock: "plan:Unlock",
+  reorderStops: "plan:ReorderStops",
+  contactStore: "plan:ContactStore",
+  saveSnapshot: "plan:SaveSnapshot",
+  restoreSnapshot: "plan:RestoreSnapshot",
 } as const;
 
-export type GenerateDraft = { depotCode: string; serviceDate: IsoDate };
+/** `keepDecisions` puts back what the dispatcher placed, locked or kept deferred; absent means start over. */
+export type GenerateDraft = { depotCode: string; serviceDate: IsoDate; keepDecisions?: boolean };
 export type OverrideAllocation = {
   planId: Uuid;
   orderId: Uuid;
@@ -149,4 +204,82 @@ export type ReplanTrip = {
   tripId: Uuid;
   replacementVehicleId: string | null;
   reason: string;
+};
+
+/** Trade a served order for a deferred one on its trip; whole or not at all. */
+export type SwapOrders = { planId: Uuid; outOrderId: Uuid; inOrderId: Uuid; reason: string };
+/** Decide that deferred orders stay deferred. */
+export type KeepDeferred = { planId: Uuid; orderIds: Uuid[]; reason: string };
+/** Hold a served order on its trip (`plan:Lock`) or let it go (`plan:Unlock`). */
+export type LockOrder = { planId: Uuid; orderId: Uuid };
+/** Fix the order of one trip's stops: every order of the trip, once. */
+export type ReorderStops = { planId: Uuid; tripId: Uuid; orderIds: Uuid[]; reason: string };
+/** Tell an outlet's store manager about an order the plan did not serve. Changes no plan. */
+export type ContactStore = { planId: Uuid; orderId: Uuid; message: string };
+export type SaveSnapshot = { planId: Uuid; label?: string };
+export type RestoreSnapshot = { planId: Uuid; snapshotId: Uuid };
+
+/** What a swap or a new stop order would leave: the trip as it would run, and every rule's verdict. */
+export type TripPreview = {
+  vehicleId: string;
+  tripNumber: number;
+  feasible: boolean;
+  stops: StopView[];
+  checks: ConstraintResultView[];
+};
+
+export type SnapshotKind = "AUTO" | "MANUAL" | "REGENERATED";
+
+/** A saved plan's header. */
+export type SnapshotView = {
+  snapshotId: Uuid;
+  depotCode: string;
+  serviceDate: IsoDate;
+  number: number;
+  label: string;
+  kind: SnapshotKind;
+  sourcePlanId: Uuid;
+  planVersion: number;
+  createdBy: Uuid;
+  createdAt: IsoInstant;
+};
+
+/** A saved plan with the plan itself, read only. */
+export type SnapshotDetailView = { snapshot: SnapshotView; plan: PlanView };
+
+export type ChangeKind = "MOVED" | "ADDED" | "DROPPED";
+
+export type PlaceView = {
+  decision: AllocationDecision | null;
+  vehicleId: string | null;
+  tripNumber: number | null;
+};
+
+export type OrderChange = {
+  orderId: Uuid;
+  outletId: string | null;
+  kind: ChangeKind;
+  before: PlaceView;
+  after: PlaceView;
+};
+
+export type PlanSideView = {
+  label: string;
+  planId: Uuid;
+  planVersion: number;
+  served: number;
+  deferred: number;
+  unservable: number;
+  trips: number;
+  vehicles: number;
+};
+
+/** GET /api/plans/compare: two plans of one depot and day, side by side. */
+export type ComparisonView = {
+  a: PlanSideView;
+  b: PlanSideView;
+  changes: OrderChange[];
+  changedTrips: Uuid[];
+  removedTrips: Uuid[];
+  affectedOutlets: string[];
 };

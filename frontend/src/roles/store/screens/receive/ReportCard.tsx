@@ -1,6 +1,6 @@
 import type { OrderView, ReceiptLineView } from "@shared/domain/types";
 import { Icon, cx } from "@shared/ui";
-import { cases, temperatureLabel } from "../../data/format.ts";
+import { temperatureLabel, units as unitsText } from "../../data/format.ts";
 import { KINDS, LOWERS_COUNT, type Kind, type Report } from "../../data/receive.ts";
 import { Card, Stepper } from "../../ui.tsx";
 
@@ -55,7 +55,7 @@ export default function ReportCard({
   const expected = lines.reduce((s, l) => s + l.expectedQuantity, 0);
   return (
     <Card label="Report an issue">
-      <h2 className="text-[18px] font-medium text-black">Report a package issue</h2>
+      <h2 className="text-[18px] font-medium text-black">Report a problem with a product line</h2>
 
       <label className="flex flex-col gap-1.5 text-[13px] text-go-muted">
         Order
@@ -68,7 +68,7 @@ export default function ReportCard({
           >
             {siblings.map((o) => (
               <option key={o.orderId} value={o.orderId}>
-                {o.orderRef} · {temperatureLabel(o.temperature)} · {cases(o.itemCount)}
+                {o.orderRef} · {temperatureLabel(o.temperature)} · {unitsText(o.itemCount)}
               </option>
             ))}
           </select>
@@ -81,7 +81,7 @@ export default function ReportCard({
       </label>
 
       <p className="text-[13px] text-go-muted">
-        Package · {expected} {expected === 1 ? "unit" : "units"}
+        Product line · {unitsText(expected)}
       </p>
       <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3" aria-label="Items">
         {lines.map((l) => {

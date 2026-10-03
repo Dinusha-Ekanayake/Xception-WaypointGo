@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ConnectionStatus, Icon, McpButton, Notice, useShell } from "@shared/ui";
+import { ConnectionStatus, CountBadge, Icon, McpButton, Notice, useShell } from "@shared/ui";
 import { useDispatcherInbox } from "./inbox.tsx";
 import { clock } from "@shared/wording";
 
@@ -20,6 +20,7 @@ export default function PageHeader({
   tools,
   onSync,
   syncing,
+  quiet = false,
 }: {
   title: string;
   subtitle: string;
@@ -29,6 +30,8 @@ export default function PageHeader({
   /** Reads this screen again; the pill becomes a button. */
   onSync?: () => void;
   syncing?: boolean;
+  /** Leave out the sync pill, the MCP button and the bell, as the Plan screen is drawn. Offline still says so. */
+  quiet?: boolean;
 }): React.JSX.Element {
   const shell = useShell();
   const inbox = useDispatcherInbox();
@@ -41,17 +44,22 @@ export default function PageHeader({
           <p className="truncate text-sm text-go-secondary">{subtitle}</p>
         </div>
         {tools}
-        <ConnectionStatus online={online} lastSyncedAt={lastSyncedAt} offlineNote="read only" onSync={onSync} syncing={syncing} />
-        <McpButton url={shell?.mcpUrl ?? null} className="flex min-h-[42px] items-center gap-2 rounded-[21px] bg-white px-3.5 text-sm font-medium text-go-ink" />
-        <button
-          type="button"
-          disabled={!inbox}
-          onClick={() => inbox?.setOpen(true)}
-          aria-label={unread > 0 ? `Notifications, ${unread} unread` : "Notifications"}
-          className="flex rounded-[21px] bg-go-card p-[11px] disabled:cursor-not-allowed"
-        >
-          <Icon name="bell" />
-        </button>
+        {!quiet && (
+          <>
+            <ConnectionStatus online={online} lastSyncedAt={lastSyncedAt} offlineNote="read only" onSync={onSync} syncing={syncing} />
+            <McpButton url={shell?.mcpUrl ?? null} className="flex min-h-[42px] items-center gap-2 rounded-[21px] bg-white px-3.5 text-sm font-medium text-go-ink" />
+            <button
+              type="button"
+              disabled={!inbox}
+              onClick={() => inbox?.setOpen(true)}
+              aria-label={unread > 0 ? `Notifications, ${unread} unread` : "Notifications"}
+              className="relative flex rounded-[21px] bg-go-card p-[11px] disabled:cursor-not-allowed"
+            >
+              <Icon name="bell" />
+              <CountBadge count={unread} />
+            </button>
+          </>
+        )}
       </header>
       {!online && (
         <Notice tone="warning" title="You are offline. The dispatcher screens are read only." live>

@@ -22,20 +22,20 @@ test("the map shows each seen vehicle, filters, selects and greys an offline one
     ],
   });
   await page.goto("/#/live");
-  await page.getByRole("radio", { name: "Map" }).click();
+  await page.getByRole("button", { name: "Map", exact: true }).click();
 
-  await expect(page.getByRole("button", { name: /^VEH043, / })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^VEH043, [a-z]/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /^VEH044, offline/ })).toBeVisible();
   // Never placed at a guess: a vehicle with no fix is listed, not drawn.
-  await expect(page.getByRole("button", { name: /^VEH045, / })).toHaveCount(0);
-  await expect(page.getByText("No live location · stops only").first()).toBeVisible();
+  await expect(page.getByRole("button", { name: /^VEH045, [a-z]/ })).toHaveCount(0);
+  await expect(page.getByText(/No live location · stops only: VEH045/)).toBeVisible();
   // No MAP_TILE_URL in the test server: degrade visibly.
   await expect(page.getByText(/Base map unavailable/)).toBeVisible();
 
-  await page.getByRole("tab", { name: "Offline 1" }).click();
-  await expect(page.getByRole("button", { name: /^VEH043, / })).toHaveCount(0);
+  await page.getByRole("button", { name: "Offline 1" }).click();
+  await expect(page.getByRole("button", { name: /^VEH043, [a-z]/ })).toHaveCount(0);
 
-  await page.getByRole("button", { name: /^VEH044, / }).click();
+  await page.getByRole("button", { name: /^VEH044, [a-z]/ }).click();
   const panel = page.getByRole("complementary", { name: "Selected vehicle" });
   await expect(panel).toContainText("Offline");
   await expect(panel).toContainText("Last seen");

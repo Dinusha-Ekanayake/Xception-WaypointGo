@@ -6,8 +6,15 @@ import "@fontsource/ibm-plex-mono/400.css";
 import "@fontsource/ibm-plex-mono/500.css";
 import "@fontsource-variable/google-sans-flex/wght.css";
 import type { Metadata, Viewport } from "next";
+import localFont from "next/font/local";
 import type { ReactNode } from "react";
 import "./globals.css";
+
+const unMalithi = localFont({
+  src: "../public/fonts/UN-Malithi-4.ttf",
+  variable: "--font-sinhala",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Waypoint Dispatch",
@@ -24,7 +31,7 @@ export default function RootLayout({
 }): React.JSX.Element {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body className={unMalithi.variable}>{children}</body>
     </html>
   );
 }

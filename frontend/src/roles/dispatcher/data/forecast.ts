@@ -201,16 +201,14 @@ export function dayNeeds(weeks: ForecastWeek[], limit = 4): DayNeed[] {
     .filter((w) => w.operatingDays > 0)
     .map((w) => {
       const m3 = perOperatingDay(w.total, w.operatingDays);
-      const chilled = perOperatingDay(w.chilled, w.operatingDays);
       const perVehicle = w.vehicles > 0 ? w.fleetM3 / w.operatingDays / w.vehicles : 0;
-      const perReefer = w.refrigeratedVehicles > 0 ? w.refrigeratedM3 / w.operatingDays / w.refrigeratedVehicles : 0;
       const vehiclesNeeded = perVehicle > 0 ? Math.ceil(m3 / perVehicle) : 0;
       return {
         week: w,
         m3,
         vehiclesNeeded,
         vehicles: w.vehicles,
-        refrigeratedNeeded: perReefer > 0 ? Math.ceil(chilled / perReefer) : 0,
+        refrigeratedNeeded: refrigeratedNeeded(w),
         refrigeratedVehicles: w.refrigeratedVehicles,
         drivers: vehiclesNeeded,
       };
@@ -218,6 +216,47 @@ export function dayNeeds(weeks: ForecastWeek[], limit = 4): DayNeed[] {
     .sort((a, b) => b.m3 - a.m3)
     .slice(0, limit)
     .sort((a, b) => a.week.key - b.week.key);
+}
+
+/**
+ * Refrigerated vehicles an average operating day of the week needs: its chilled
+ * demand per day over what one refrigerated vehicle carries a day (two trips of
+ * the mean refrigerated volume, A-40).
+ */
+export function refrigeratedNeeded(w: ForecastWeek): number {
+  if (w.operatingDays <= 0 || w.refrigeratedVehicles <= 0 || w.refrigeratedM3 <= 0) return 0;
+  const perVehicleDay = w.refrigeratedM3 / w.operatingDays / w.refrigeratedVehicles;
+  return Math.ceil(perOperatingDay(w.chilled, w.operatingDays) / perVehicleDay);
+}
+
+/** Capacity this close to the busiest week is drawn on the chart; further above, it would flatten every bar. */
+export const CAPACITY_IN_VIEW = 1.6;
+
+export type Scale = { top: number; ticks: number[]; capacityOnScale: boolean };
+
+/**
+ * The value axis for a demand chart with capacity beside it. Capacity is drawn
+ * on the scale only when it is within CAPACITY_IN_VIEW of the busiest week, as
+ * in the design; otherwise the scale follows demand, so the weeks can be told
+ * apart, and the chart states capacity instead of drawing it. The top is a
+ * round number with round ticks ("0, 600, 1200, 1800").
+ */
+export function focusScale(demand: number[], capacity: number[], steps = 3): Scale {
+  const peak = Math.max(0, ...demand);
+  const cap = Math.max(0, ...capacity);
+  const capacityOnScale = cap > 0 && cap <= Math.max(peak, 1) * CAPACITY_IN_VIEW;
+  const raw = Math.max(1, capacityOnScale ? Math.max(peak, cap) : peak) * 1.1;
+  const step = niceStep(raw / steps);
+  const top = Math.ceil(raw / step) * step;
+  const ticks: number[] = [];
+  for (let v = 0; v <= top + step / 2; v += step) ticks.push(Math.round(v * 100) / 100);
+  return { top, ticks, capacityOnScale };
+}
+
+function niceStep(x: number): number {
+  const p = 10 ** Math.floor(Math.log10(x));
+  const f = x / p;
+  return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p;
 }
 
 export type Action = { tone: "danger" | "warning" | "success"; title: string; detail: string };

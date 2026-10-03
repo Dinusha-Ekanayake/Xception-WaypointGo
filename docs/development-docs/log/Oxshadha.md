@@ -4,6 +4,29 @@
 
 ---
 
+## 2026-10-03 - feat(frontend): the driver's Figma screens run on the real run sheet (issue #117)
+
+`feat/117-driver-gaps` · @Oxshadha
+
+The driver UI rebuild (#174) drew sample stops and never sent a command: no arrival, delivery, proof or problem reached the server, and all 13 driver browser tests failed. The Figma screens are now fed by `useDriver` through `data/stopView.ts` (run sheet to the screens' stop shape, trip status, run summary, sync label; pure and tested). Home shows the vehicle, the stop count and vehicle status, and keeps #184's inbox and driving-mode badge; a revised plan opens "Run sheet changed". The delivery form, proof, problem sheet, stop detail and refused files keep their working forms inside the frame. New: the store manager's handover PIN after saving a delivery (`receipt:VerifyHandover`, online only, Skip always there, wrong tries counted down). Restored: the shell's sync badge with its review panel, and MCP. Removed: the sign-in, QR and vehicle ID screens, fake map, fake fuel QR and every "Synced 05:31". The waiting screen no longer says the store confirms first.
+Found running it against a real backend, all fixed: the phone worked from the first of the driver's 28 vehicles, not the one with a released trip (`todaysSheet`); a write tapped while the one before was in flight, or sent just before the signal went, named a stale version (EXE-29: writes in turn, and the server's answered version is kept, in the saved run too); writes recorded in the same millisecond went to the server in random order, so a proof could land before its record (EXE-30: a strictly increasing order per device, in the page's queue and the service worker's); Run complete called refused writes "waiting for the connection".
+Why: the judge flow could not deliver anything on the driver phone, and #117 asked for the PIN and the inbox.
+Verified: `npm test` 144, typecheck, build; Playwright driver 17 (13 rewritten, 4 new), loader 20, store 32; dispatcher 20 of 25, the five Live and Forecast failures arriving with today's `dev` (no dispatcher file changed here). Against a real backend on a fresh database seeded as `init` does: plan, publish, load and release through the API, then the browser trip: three stops, the second with the store manager's real PIN (a wrong one counted, the right one confirmed), the third with no signal, a reload and the sync; all three DELIVERED with proof on the server, applied once and in order.
+Open: the driver phone asks for today's run, but the seed plans the first day still open for ordering (two days out), so the README's driver step shows no trip on the day; the language toggle in the Figma header changes nothing yet.
+
+---
+
+## 2026-10-03 - fix(frontend): every screen uses the glossary's words (issue #128)
+
+`feat/128-apply-glossary` · @Oxshadha
+
+The guardrail's baseline is empty: no retired word, raw code or 12-hour clock is left in screen text. Store manager: units, never cases or packages; product line where it means one product; Expected, never ETA; 16:00, never 4:00 PM; Regular delivery, never Regular run. Dispatcher and loader: "store" that meant the person reads store manager; "Refrigerated vehicles planned again". Loader: "Search vehicle, trip or loader" and "two units crushed", with Sinhala and Tamil changed to match (drafts for a native speaker). Driver: "No one at the outlet", Expected for ETA, run sheet for route, units in the demo cargo. Error screens: "Don't worry: your work is saved", with no em dash. Admin: plans, never route plans; "On a trip". Backend: a deferral reads "is not refrigerated"; notification text already followed the glossary, so no routing version. The guardrail is sharper: it reads JSX text on its own line and between tags, and ignores code, class lists and interpolated names.
+Why: issue #126's glossary, applied; the store screens alone called one quantity three names.
+Verified: `npm test` 125, typecheck, build; Playwright dispatcher 24, store 32, loader 16 of 18 (the same two failures as untouched `dev`); the driver suite fails all 13 on untouched `dev` too, since the driver UI rebuild (#174) removed the screens it drives; `ConstraintsTest`, `PeakDayAllocationTest`, `ScarceFleetReplanTest`, `PlanningRunTest`.
+Open: the two proposed terms on #126; the landing page's role card keeps "store" for the store manager's own store.
+
+---
+
 ## 2026-10-03 - feat(frontend): one wording layer and a guardrail against drift (issue #127)
 
 `feat/127-wording-layer` · @Oxshadha

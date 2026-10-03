@@ -1,6 +1,7 @@
 "use client";
 
 import { McpButton, cx, useShell } from "@shared/ui";
+import { usePush, type PushState } from "@shared/notifications/push";
 import { LANGS } from "../data/strings.ts";
 import { useLang, useT } from "../i18n.tsx";
 import { ChevronLeftIcon, MoonIcon, SunIcon } from "../icons.tsx";
@@ -10,6 +11,8 @@ import { BigButton } from "../ui.tsx";
 // Figma "08 Loader · Phone", Settings (rationale 24): Appearance (Light or
 // Dark) and Language (සිං / த / EN), and one clear way back to work. Both are
 // kept per device, so the next loader on a shared tablet finds them as left.
+// Notifications (issue #118) turns this device's alerts on or off, and says
+// plainly when it cannot: not supported, not set up on the server, or blocked.
 //
 // Below the card, the device's own sign-in: the supervisor signs the device out
 // here at the end of the shift (decision 2026-10-01). Figma has no place for it,
@@ -18,12 +21,9 @@ import { BigButton } from "../ui.tsx";
 const segment = "flex min-h-11 items-center gap-1.5 rounded-full px-4 text-[15px]";
 
 export default function Settings({
-  hasLoader,
   deviceName,
   onClose,
 }: {
-  /** Someone is working, so the way back is Done rather than Choose loader. */
-  hasLoader: boolean;
   /** The supervisor account the device is signed in as. */
   deviceName: string;
   onClose: () => void;
@@ -32,6 +32,7 @@ export default function Settings({
   const { theme, setTheme } = useTheme();
   const { lang, setLang } = useLang();
   const shell = useShell();
+  const push = usePush();
   const themes: Array<{ value: Theme; label: string; icon: React.JSX.Element }> = [
     { value: "light", label: tr("Light"), icon: <SunIcon size={18} /> },
     { value: "dark", label: tr("Dark"), icon: <MoonIcon size={18} /> },
@@ -87,9 +88,33 @@ export default function Settings({
               ))}
             </div>
           </fieldset>
+          <hr className="border-go-rule" />
+          <fieldset className="flex flex-col gap-3">
+            <legend className="flex flex-col">
+              <span className="text-[16px] text-go-ink">{tr("Notifications")}</span>
+              <span className="text-[13px] text-go-muted">{tr(pushNote(push.state))}</span>
+            </legend>
+            {(push.state.kind === "on" || push.state.kind === "off") && (
+              <div className="flex gap-1">
+                {(["on", "off"] as const).map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-pressed={push.state.kind === value}
+                    disabled={push.busy}
+                    onClick={() => void (value === "on" ? push.turnOn() : push.turnOff())}
+                    className={cx(segment, "min-w-16 justify-center", push.state.kind === value ? "bg-go-card font-medium text-go-ink shadow-go-float" : "text-go-muted")}
+                  >
+                    {tr(value === "on" ? "On" : "Off")}
+                  </button>
+                ))}
+              </div>
+            )}
+            {push.error && <p role="alert" className="text-[13px] text-go-danger-strong">{push.error}</p>}
+          </fieldset>
         </div>
         <BigButton tone="ink" size="l" onClick={onClose}>
-          {tr(hasLoader ? "Done" : "Choose loader")}
+          {tr("Apply changes")}
         </BigButton>
       </section>
 
@@ -120,4 +145,19 @@ export default function Settings({
       )}
     </main>
   );
+}
+
+function pushNote(state: PushState): string {
+  switch (state.kind) {
+    case "checking":
+      return "Checking…";
+    case "unsupported":
+      return "This browser cannot show alerts";
+    case "server-off":
+      return "Alerts are not set up on this server";
+    case "blocked":
+      return "Blocked in this browser's settings";
+    default:
+      return "Alerts on this device, even with the app closed";
+  }
 }

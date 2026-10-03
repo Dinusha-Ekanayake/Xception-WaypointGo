@@ -3,6 +3,105 @@
 @kavindamihiran's entries, newest first. Only @kavindamihiran adds to this file; how to write an entry is in the [log's index](../development-log.md).
 
 ---
+## 2026-10-03 - fix: one sign-in for every role, admin workspace on the shared shell
+
+`fix/single-sign-in` · @kavindamihiran
+
+The admin console's demo sign-in is removed: the shell `SignIn` is the only sign-in (the driver's own login went with the driver rewrite in #186), and the admin signs out through the shell. The admin workspace gets the dispatcher's sidebar with every screen and AI assistants in one nav, and `go-*` tokens in place of its own greens; status colours in the operations screens stay.
+Verified: typecheck, `npm test`, build, `e2e/mcp-admin.spec.ts`.
+## 2026-10-03 - feat: dispatcher live screen matching Figma 05 Live
+
+`feat/live-timeline-figma` · @kavindamihiran
+
+Live screen gets a `Needs you / Map / Timeline` switch, header depot and status filters, a timeline of every vehicle on a shared clock (`LiveTimeline.tsx`) and compact progress cards, following Figma "05 Live" and "05 Live: timeline". The KPI, Needs you and dock panels move to the Needs you view.
+Verified: typecheck.
+## 2026-10-03 - feat: MCP scopes, confirmed issue writes, personal fields and app blocking
+
+`feat/177-mcp-enterprise` · @kavindamihiran
+
+Finishes #177 ([walkthrough](../../issues/177-mcp/WALKTHROUGH.md)): paged plans, client scopes (R-IAM-34), confirmed `raise_issue` and `assign_issue` through the command bus with an hourly limit (R-IAM-35, P-32), personal fields withheld unless granted (R-IAM-36), blocking an app (R-IAM-37), own connections and the admin AI assistants screen.
+Why: reads and safe writes on by default, an administrator can turn either off (decision 2026-10-03); plan generation left out because it cancels the open draft.
+Verified: `mvn verify`, `npm test` in `mcp/` and `frontend/`, typecheck, build, Playwright `mcp-oauth` and `mcp-admin`.
+Open: `get_thread` (#136), production enablement.
+
+## 2026-10-03 - feat: MCP day summary, prompts and example questions
+
+`feat/177-mcp-reads` · @kavindamihiran
+
+Issue #177 PR 1 of 6 ([plan](../../issues/177-mcp/PLAN.md)). `day_summary` composes the plan, loading trips and open issues reads in the adapter; a refused or absent part is named in `unavailable` (SEC-40). Prompts `morning_briefing`, `what_to_load_next`, `pending_receipts` are offered by read action. Every tool description carries an example question.
+Why: one call answers "how does the depot look today" without new backend reads or authorization paths.
+Verified: `npm test` in `mcp/` (24 passed).
+Open: paging, per-client scopes, personal-field grant, confirmed writes, admin view (#177 PRs 2-6).
+
+## 2026-10-03 - feat: add listen-to-message play button to all driver notification cards
+
+`feat/driver-UI` · @kavindamihiran
+
+Enhanced `VoiceMessagePlayer` in `frontend/src/roles/driver/ui.tsx` with optional `id`, `text`, `activeAudioId`, `onPlayChange`, and `className` props. Added Web Speech API (`window.speechSynthesis`) support so pressing the play button reads the message aloud, with waveform animation, auto-reset on speech end, and mutual exclusion across all cards. Added `VoiceMessagePlayer` to all 8 notification cards in `HomeNoVehicle.tsx` (including the two existing voice message cards) and to the `RouteChangedBottomSheet` message card. Active-playing card gets a subtle green ring highlight. Speech is cancelled on unmount, on sheet close, and on Start/Get-vehicle actions.
+Why: drivers need to listen to notifications rather than read while operating the vehicle.
+Verified: `npm run typecheck`, `npm test` (10 passed).
+Open: nothing.
+
+## 2026-10-03 - fix: align driving mode theme toggle position with home page header
+
+`feat/driver-UI` · @kavindamihiran
+
+Adjusted the header padding (`px-6 pt-5 pb-3`), right-controls gap, and theme toggle button dimensions (`43px x 43px`) in `DrivingModeScreen` to match the exact position and styling of the dark/light toggle in the home page header.
+Why: prevent visual jump or misalignment of the theme toggle button when transitioning between the home screen and driving mode.
+Verified: `npm run typecheck`, `npm test` (10 passed).
+Open: none.
+
+## 2026-10-03 - feat: swap notification and theme toggle positions in driving mode
+
+`feat/driver-UI` · @kavindamihiran
+
+Interchanged positions of notification bell button and dark/light theme toggle in `DrivingModeScreen` header so the bell button is on the left and theme toggle is on the far right.
+Why: align driver header layout preferences and maintain consistency with other screens where theme toggle is on the far right.
+Verified: `npm run typecheck`, `npm test` (10 passed).
+Open: none.
+
+## 2026-10-03 - feat: driving mode 0.5s fade transitions and slider-only exit
+
+`feat/driver-UI` · @kavindamihiran
+
+Added 0.5s fade-in and 0.5s fade-out animations for Driving Mode with enter/exit opacity orchestration. Configured the spacebar to open Driving Mode only without closing it, removed the Escape key handler, and ensured exit can only be performed via the `Slide to exit` slider.
+Why: meet driver UX requirement where driving mode opens on spacebar and dismisses exclusively via the slider with 0.5s fade animations.
+Verified: `npm run typecheck`, `npm test` (10 passed).
+Open: none.
+
+## 2026-10-03 - fix: synchronize driver header blur removal with popup dismissal
+
+`feat/driver-UI` · @kavindamihiran
+
+Synchronized header unblurring with popup and bottom sheet dismissals by excluding animating out modals from `body:has()` selector and aligning the transition curve to `300ms ease-out`. Updated `RouteChangedBottomSheet`, `SignOutConfirmBottomSheet`, `ReportProblemBottomSheet`, and `CallOptionsBottomSheet` to clear active modal state on exit trigger.
+Why: prevent the header elements from delaying 300ms before starting their unblur transition after closing message popups.
+Verified: `npm run typecheck`, `npm test` (10 passed).
+Open: none.
+
+## 2026-10-03 - feat: dispatcher live shows the map and the timeline together
+
+`feat/live-map-with-timeline` · @kavindamihiran
+
+The Map / Timeline toggle on Live is gone: the map (with its selected vehicle panel) sits on top and the timeline (on the road, needs you, at the dock) is always under it, so a dispatcher sees where trucks are and how each run is going without switching. The remembered view in `localStorage` is dropped. Part of #161.
+
+---
+
+## 2026-10-03 - fix: VPS deploys cap the Docker build cache
+
+`fix/vps-build-cache-cap` · @kavindamihiran
+
+The BuildKit cache on the VPS reached 22.85 GB (606 entries, 22 GB reclaimable) in two days, because `deploy.sh` only pruned dangling images. With 64 GB free that is about a week of deploys. Each successful deploy now runs `docker builder prune --max-used-space 10GB`, keeping recent layers so builds stay fast. See [deployment.md](../../deployment.md).
+
+---
+
+## 2026-10-03 - fix: failed map tiles are never kept by the browser
+
+`fix/map-tile-no-store` · @kavindamihiran
+
+`/map-tiles/` answered 404 with no `Cache-Control` while preview had no `MAP_TILE_URL`; Cloudflare stamped `max-age=14400` on it, so browsers kept a blank map for four hours after the URL was set. Every failed tile (404, 502, 504) now sends `no-store`.
+Why: #161 base map stayed "unavailable" on dispatcher-preview.
+
+---
 
 ## 2026-10-03 - fix: VPS edge loads again and caches map tiles
 

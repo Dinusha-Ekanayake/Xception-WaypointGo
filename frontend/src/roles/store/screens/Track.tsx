@@ -5,7 +5,7 @@ import { useResource } from "@shared/api/useResource";
 import type { DeliveryRecordView, IssueView, OrderView, OutletView, PendingReceiptView } from "@shared/domain/types";
 import { Icon, Notice, Pending, cx } from "@shared/ui";
 import type { StoreGateway } from "../data/gateway.ts";
-import { ORDER_STATUS, cases, clock, depotToday, hhmm, longDay, onTheWay, temperatureLabel } from "../data/format.ts";
+import { ORDER_STATUS, units, clock, depotToday, hhmm, longDay, onTheWay, temperatureLabel } from "../data/format.ts";
 import { ISSUE_TYPE, isOpenIssue } from "../data/issues.ts";
 import { BackButton, Button, Card, Chip, Muted } from "../ui.tsx";
 import LiveMapCard from "./LiveMapCard.tsx";
@@ -159,7 +159,7 @@ export default function Track({
                           {o?.orderRef ?? "Order"} · {o ? temperatureLabel(o.temperature) : ""}
                         </span>
                         {/* The order's own volume, which the warehouse returned: never summed from lines. */}
-                        <span className="text-[13px] text-go-muted">{o ? `${cases(o.itemCount)} · ${o.volumeM3} m³` : `${d.lines.length} lines`}</span>
+                        <span className="text-[13px] text-go-muted">{o ? `${units(o.itemCount)} · ${o.volumeM3} m³` : `${d.lines.length} lines`}</span>
                         <span className={cx("text-[13px] font-medium", short ? "text-go-warning-text" : "text-go-success")}>
                           {short ? ISSUE_TYPE[short.type] : o && onTheWay(o.status) ? "Loaded in full" : (o && ORDER_STATUS[o.status].label) ?? ""}
                         </span>

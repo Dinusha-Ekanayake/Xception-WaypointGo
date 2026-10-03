@@ -4,6 +4,39 @@
 
 ---
 
+## 2026-10-04 - feat: the dispatcher's Live tab as in the Figma frames
+
+`feat/dispatcher-live-figma` · @tharushaudana
+
+Needs you (cards most urgent first and the trip board), the timeline, the map with the vehicle panel, and the trip page, from one join of run sheet, loading trip and position (`data/liveDesk.ts`). The header no longer wraps; the map no longer repeats the header's filters; the offline count works. Detail in the [#19 walkthrough](../../issues/019-dispatcher-ui/WALKTHROUGH.md).
+Why: Live differed from the Figma in layout and shapes, and had no trip page or recommended actions.
+Verified: `npm run typecheck`, `npm test` (149), `npm run build`, dispatcher browser suite (26 passed; the 3 Forecast failures are already on `dev` since 86e6d57).
+Open: store and driver messages (Notify store, Send an update, voice, calls, what each outlet was told) need a Notification command; they are drawn and disabled.
+
+---
+
+## 2026-10-03 - feat: the Forecast chart scales to demand, and says how many refrigerated vehicles a day needs
+
+`feat/forecast-dispatcher-scale` · @tharushaudana
+
+`focusScale` draws fleet capacity on the chart only when it is within 1.6 times the busiest week; otherwise the bars follow demand with round ticks and the fleet is stated on the top edge with the peak week's share. The chilled strip does the same and adds the refrigerated vehicles an average day needs under each bar. With the Figma's numbers the chart is unchanged.
+Why: on preview the fleet (about 12,150 m³ a week at Peliyagoda) is ten times a week's demand, so every bar was a sliver and the chilled shares (5-16%) were unreadable.
+Verified: `npm run typecheck`, `npm test` (129), `npm run build`, dispatcher browser suite (25). Screenshots with preview-like and Figma-like numbers.
+Open: nothing.
+
+---
+
+## 2026-10-03 - feat: notifications coloured by tone, issues in red, and an unread count on every bell
+
+`feat/notification-tones-badge` · @tharushaudana
+
+`toneOf` makes anything about an issue urgent, and `TONE_STYLE` gives each tone one edge, tint, dot and label colour, used by the dispatcher, loader and store manager inboxes; info is blue, so only good news is green. `CountBadge` puts the unread count on each bell (99+ above 99) in place of the red dot.
+Why: every row read green whatever it said, and only two bells showed that anything was unread, not how much.
+Verified: `npm run typecheck`, `npm test` (127), `npm run build`, dispatcher (24), loader (18) and store (32) browser suites.
+Open: the driver screens still show a sample count; they get the real one with the driver inbox (#21).
+
+---
+
 ## 2026-10-02 - fix(deploy): start the model service
 
 `fix/deploy-start-ml` · @tharushaudana

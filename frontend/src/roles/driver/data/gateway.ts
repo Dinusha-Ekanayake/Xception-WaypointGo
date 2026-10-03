@@ -22,6 +22,8 @@ export type DriverGateway = {
   run: (date: string, signal: AbortSignal) => Promise<RunData>;
   /** The copy kept on this phone, with when it was read. */
   keptRun: (date: string) => Promise<{ data: RunData; savedAt: Date } | null>;
+  /** Replaces the kept copy, such as with a version the server just acknowledged. */
+  keepRun: (date: string, data: RunData) => Promise<void>;
   send: (command: Command) => Promise<CommandAck>;
   /** Keep a write on this phone until it can be sent. */
   queue: (command: Command) => Promise<{ durable: boolean; reason?: string }>;
@@ -55,6 +57,9 @@ export function createGateway(accountId: string): DriverGateway {
     keptRun: async (date) => {
       const snapshot = await kept<RunData>(accountId, key(date));
       return snapshot ? { data: snapshot.value, savedAt: new Date(snapshot.savedAt) } : null;
+    },
+    keepRun: async (date, data) => {
+      await keep(accountId, key(date), data);
     },
     send: (command) => send(command),
     queue: (command) => enqueue(accountId, "driver", command),

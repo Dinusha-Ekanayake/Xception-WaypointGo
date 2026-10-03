@@ -36,7 +36,7 @@ const STRINGS: Record<string, [string, string]> = {
   "Tonight's departures": ["අද රාත්‍රී පිටත්වීම්", "இன்றிரவு புறப்பாடுகள்"],
   "Dock": ["පැටවුම් ස්ථානය", "ஏற்றுமிடம்"],
   "All docks · {depot}": ["සියලු පැටවුම් ස්ථාන · {depot}", "அனைத்து ஏற்றுமிடங்கள் · {depot}"],
-  "Search vehicle, route or loader": ["වාහනය, මාර්ගය හෝ පටවන්නා සොයන්න", "வாகனம், வழி அல்லது ஏற்றுபவரைத் தேடு"],
+  "Search vehicle, trip or loader": ["වාහනය, ගමන හෝ පටවන්නා සොයන්න", "வாகனம், பயணம் அல்லது ஏற்றுபவரைத் தேடு"],
   "All": ["සියල්ල", "அனைத்தும்"],
   "Available": ["ලබා ගත හැකි", "கிடைக்கும்"],
   "Mine": ["මගේ", "என்னுடையது"],
@@ -175,6 +175,7 @@ const STRINGS: Record<string, [string, string]> = {
   "Driver present": ["රියදුරු සිටී", "ஓட்டுநர் உள்ளார்"],
   "Not yet": ["තවම නැත", "இன்னும் இல்லை"],
   "Releasing…": ["නිකුත් කරමින්…", "விடுவிக்கிறது…"],
+  "Swipe to release vehicle": ["වාහනය නිකුත් කිරීමට ස්වයිප් කරන්න", "வாகனத்தை விடுவிக்க ஸ்வைப் செய்யவும்"],
   "Hold to release vehicle": ["වාහනය නිකුත් කිරීමට ඔබාගෙන සිටින්න", "வாகனத்தை விடுவிக்க அழுத்திப் பிடிக்கவும்"],
   "Releasing sends the run sheet to the driver.": ["නිකුත් කිරීමෙන් ගමන් පත්‍රය රියදුරුට යවයි.", "விடுவித்ததும் பயணத் தாள் ஓட்டுநருக்கு அனுப்பப்படும்."],
 
@@ -224,7 +225,7 @@ const STRINGS: Record<string, [string, string]> = {
   "Light": ["ආලෝක", "ஒளி"],
   "Dark": ["අඳුරු", "இருண்ட"],
   "App language": ["යෙදුමේ භාෂාව", "செயலி மொழி"],
-  "Choose loader": ["පටවන්නා තෝරන්න", "ஏற்றுபவரைத் தேர்ந்தெடு"],
+  "Apply changes": ["වෙනස්කම් යොදන්න", "மாற்றங்களைப் பயன்படுத்து"],
   "This device": ["මෙම උපාංගය", "இந்தச் சாதனம்"],
   "This device is signed in as {name}.": ["මෙම උපාංගය {name} ලෙස පුරනය වී ඇත.", "இந்தச் சாதனம் {name} ஆக உள்நுழைந்துள்ளது."],
   "Role": ["භූමිකාව", "பங்கு"],
@@ -269,7 +270,7 @@ const STRINGS: Record<string, [string, string]> = {
   "Every item of the order not already reported": ["තවම වාර්තා නොකළ ඇණවුමේ සියලු භාණ්ඩ", "இன்னும் புகாரளிக்கப்படாத ஆர்டரின் அனைத்துப் பொருட்களும்"],
   "Fewer": ["අඩු කරන්න", "குறை"],
   "More": ["වැඩි කරන්න", "கூட்டு"],
-  "For example: two cases crushed on the pallet": ["උදා: පැලට් එකේ පෙට්ටි දෙකක් පොඩි විය", "எ.கா: தட்டில் இரண்டு பெட்டிகள் நசுங்கின"],
+  "For example: two units crushed on the pallet": ["උදා: පැලට් එකේ ඒකක දෙකක් පොඩි විය", "எ.கா: தட்டில் இரண்டு அலகுகள் நசுங்கின"],
   "Going back automatically in {n} s": ["තත්පර {n} කින් ස්වයංක්‍රීයව ආපසු යයි", "{n} விநாடிகளில் தானாகத் திரும்பும்"],
   "Hand back {vehicle}?": ["{vehicle} ආපසු භාර දෙන්නද?", "{vehicle} ஐத் திருப்பி ஒப்படைக்கவா?"],
   "Item {n}": ["භාණ්ඩය {n}", "பொருள் {n}"],
@@ -289,7 +290,7 @@ const STRINGS: Record<string, [string, string]> = {
   "Saved offline": ["නොබැඳිව සුරැකිණි", "இணைப்பின்றிச் சேமிக்கப்பட்டது"],
   "See available trips": ["ලබා ගත හැකි ගමන් බලන්න", "கிடைக்கும் பயணங்களைப் பார்"],
   "Sending again records a new report; the earlier one stays on record.": ["නැවත යැවීමෙන් නව වාර්තාවක් සටහන් වේ; පෙර එක වාර්තාගතව පවතී.", "மீண்டும் அனுப்புவது புதிய புகாரைப் பதிவு செய்யும்; முந்தையது பதிவில் இருக்கும்."],
-  "Sends to the dispatcher and the store": ["යැවීම් භාරකරුට සහ වෙළඳසැලට යවයි", "அனுப்புநருக்கும் கடைக்கும் அனுப்பப்படும்"],
+  "Sends to the dispatcher and the store manager": ["යැවීම් භාරකරුට සහ වෙළඳසැල් කළමනාකරුට යවයි", "அனுப்புநருக்கும் கடை மேலாளருக்கும் அனுப்பப்படும்"],
   "Sends when you're back online. Keep loading.": ["නැවත සම්බන්ධ වූ විට යවයි. දිගටම පටවන්න.", "இணைப்பு வந்ததும் அனுப்பப்படும். தொடர்ந்து ஏற்றவும்."],
   "Someone else took it first. One loader per trip.": ["වෙනත් අයෙක් එය මුලින් ගත්තා. එක් ගමනකට එක් පටවන්නෙක්.", "வேறொருவர் முதலில் எடுத்தார். ஒரு பயணத்திற்கு ஒரு ஏற்றுபவர்."],
   "Trip already taken": ["ගමන දැනටමත් ගෙන ඇත", "பயணம் ஏற்கனவே எடுக்கப்பட்டது"],
@@ -327,7 +328,7 @@ const STRINGS: Record<string, [string, string]> = {
   "{n}% of orders checked": ["ඇණවුම් වලින් {n}% පරීක්ෂා කළා", "ஆர்டர்களில் {n}% சரிபார்க்கப்பட்டன"],
   "{order} · item {n}": ["{order} · භාණ්ඩය {n}", "{order} · பொருள் {n}"],
   "{order} · item {n} loaded": ["{order} · භාණ්ඩය {n} පටවා ඇත", "{order} · பொருள் {n} ஏற்றப்பட்டது"],
-  "{place}: {kinds}. Dispatcher and store notified.": ["{place}: {kinds}. යැවීම් භාරකරුට සහ වෙළඳසැලට දැනුම් දුන්නා.", "{place}: {kinds}. அனுப்புநருக்கும் கடைக்கும் தெரிவிக்கப்பட்டது."],
+  "{place}: {kinds}. Dispatcher and store manager notified.": ["{place}: {kinds}. යැවීම් භාරකරුට සහ වෙළඳසැල් කළමනාකරුට දැනුම් දුන්නා.", "{place}: {kinds}. அனுப்புநருக்கும் கடை மேலாளருக்கும் தெரிவிக்கப்பட்டது."],
   "{self} loads after {stop}. Loading it now blocks {stop}.": ["{self} පටවන්නේ {stop} ට පසුවය. දැන් පැටවීමෙන් {stop} අවහිර වේ.", "{self} ஐ {stop} க்குப் பின் ஏற்ற வேண்டும். இப்போது ஏற்றினால் {stop} தடுக்கப்படும்."],
   "{self} loads last. Loading it now blocks {stop}.": ["{self} අවසානයට පටවයි. දැන් පැටවීමෙන් {stop} අවහිර වේ.", "{self} கடைசியாக ஏற்றப்படும். இப்போது ஏற்றினால் {stop} தடுக்கப்படும்."],
   "{vehicle} released": ["{vehicle} නිකුත් කළා", "{vehicle} விடுவிக்கப்பட்டது"],
@@ -387,6 +388,29 @@ const STRINGS: Record<string, [string, string]> = {
   "Plan revised": ["සැලැස්ම සංශෝධිතයි", "திட்டம் திருத்தப்பட்டது"],
   "Vehicle left": ["වාහනය පිටත් විය", "வாகனம் புறப்பட்டது"],
   "Loading shortfall": ["පැටවීමේ හිඟය", "ஏற்றுதல் பற்றாக்குறை"],
+  // Push on this device (Settings).
+  "On": ["සක්‍රියයි", "இயக்கு"],
+  "Off": ["අක්‍රියයි", "அணை"],
+  "This browser cannot show alerts": ["මෙම බ්‍රව්සරයට ඇඟවීම් පෙන්විය නොහැක", "இந்த உலாவியால் விழிப்பூட்டல்களைக் காட்ட முடியாது"],
+  "Alerts are not set up on this server": ["මෙම සේවාදායකයේ ඇඟවීම් සකසා නැත", "இந்த சேவையகத்தில் விழிப்பூட்டல்கள் அமைக்கப்படவில்லை"],
+  "Blocked in this browser's settings": ["මෙම බ්‍රව්සරයේ සැකසුම්වල අවහිර කර ඇත", "இந்த உலாவியின் அமைப்புகளில் தடுக்கப்பட்டுள்ளது"],
+  "Alerts on this device, even with the app closed": ["යෙදුම වසා තිබුණත් මෙම උපාංගයට ඇඟවීම්", "செயலி மூடியிருந்தாலும் இந்தச் சாதனத்தில் விழிப்பூட்டல்கள்"],
+  // The loader's notification messages, filled from their facts (data/messages.ts).
+  "Plan published for {serviceDate}": ["{serviceDate} සඳහා සැලැස්ම ප්‍රකාශිතයි", "{serviceDate} க்கான திட்டம் வெளியிடப்பட்டது"],
+  "Version {planVersion} with {tripCount} trips is ready to load.": [
+    "ගමන් {tripCount} ක් සහිත {planVersion} වන අනුවාදය පැටවීමට සූදානම්.",
+    "{tripCount} பயணங்களுடன் பதிப்பு {planVersion} ஏற்றத் தயார்.",
+  ],
+  "Plan revised for {serviceDate}": ["{serviceDate} සඳහා සැලැස්ම සංශෝධිතයි", "{serviceDate} க்கான திட்டம் திருத்தப்பட்டது"],
+  "Version {planVersion} with {tripCount} trips replaces the earlier plan: {reason}": [
+    "ගමන් {tripCount} ක් සහිත {planVersion} වන අනුවාදය පෙර සැලැස්ම වෙනුවට: {reason}",
+    "{tripCount} பயணங்களுடன் பதிப்பு {planVersion} முந்தைய திட்டத்தை மாற்றுகிறது: {reason}",
+  ],
+  "Trip released · {vehicleId}": ["ගමන නිදහස් කළා · {vehicleId}", "பயணம் விடுவிக்கப்பட்டது · {vehicleId}"],
+  "{vehicleId} left for {serviceDate} with {stopCount} stops.": [
+    "{vehicleId} නැවතුම් {stopCount} ක් සමඟ {serviceDate} සඳහා පිටත් විය.",
+    "{vehicleId} {stopCount} நிறுத்தங்களுடன் {serviceDate} க்கு புறப்பட்டது.",
+  ],
 };
 
 export type Vars = Record<string, string | number>;

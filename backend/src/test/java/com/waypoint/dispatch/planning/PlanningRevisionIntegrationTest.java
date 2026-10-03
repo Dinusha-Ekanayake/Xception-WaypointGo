@@ -65,6 +65,33 @@ class PlanningRevisionIntegrationTest extends PlanningIntegrationSupport {
   }
 
   @Test
+  void aRevisionThatMovesATripNamesItAndOneThatChangesNothingNamesNone() throws Exception {
+    demand("ambient");
+    demand("ambient");
+    UUID original = publishedPlan();
+    JsonNode trip = plan(original).get("trips").get(0);
+    UUID tripId = UUID.fromString(trip.get("tripId").asText());
+
+    UUID nothing =
+        UUID.fromString(mapper.readTree(send(dispatcher, revise(original, 2L, "a second look"), 200)).get("result").get("planId").asText());
+    send(dispatcher, publish(nothing, 1L), 200);
+    JsonNode unchanged = mapper.readTree(outboxRows(nothing.toString(), "plan.revised").get(0).get("payload").toString());
+    assertEquals(0, unchanged.get("changedTripIds").size(), "nothing a driver would see differently");
+    assertEquals(0, unchanged.get("affectedOutletIds").size());
+
+    String replacement = spareTruck(nothing);
+    JsonNode moved =
+        mapper.readTree(send(dispatcher, replan(nothing, 2L, tripId, replacement, "tyre puncture"), 200)).get("result");
+    UUID revision = UUID.fromString(moved.get("planId").asText());
+    send(dispatcher, publish(revision, 1L), 200);
+
+    JsonNode event = mapper.readTree(outboxRows(revision.toString(), "plan.revised").get(0).get("payload").toString());
+    assertEquals(1, event.get("changedTripIds").size(), "the trip on another vehicle");
+    assertEquals(tripId.toString(), event.get("changedTripIds").get(0).asText());
+    assertTrue(event.get("affectedOutletIds").size() >= 1, "the outlet on it now sees another vehicle and time");
+  }
+
+  @Test
   void replanningAPublishedTripMovesItWholeAndKeepsItsId() throws Exception {
     demand("ambient");
     demand("ambient");

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Icon, cx, useShell } from "@shared/ui";
+import { CountBadge, Icon, cx, useShell } from "@shared/ui";
 import { useT } from "./i18n.tsx";
 import { GearIcon, LockIcon, MoonIcon, SunIcon, SwapIcon } from "./icons.tsx";
 import { useTheme } from "./theme.tsx";
@@ -13,7 +13,7 @@ import { clock } from "@shared/wording";
 //
 // Phone: the brand or back, then theme and settings; under it, when a loader is
 // working, their name with the bell and the lock, and Switch user. Tablet: one
-// row, the bell between the name and the actions. The bell carries a red dot
+// row, the bell between the name and the actions. The bell carries the unread count
 // while anything is unread (issue #118). "Synced 02:23" is a button: it sends
 // what waits and reads the board again.
 
@@ -101,7 +101,7 @@ export default function TopBar({
     onNotifications && (
       <button type="button" onClick={onNotifications} aria-label={bellLabel} className={cx("relative flex shrink-0 items-center justify-center text-go-ink", className)}>
         <Icon name="bell" />
-        {hasUnread && <span aria-hidden className="absolute top-1.5 right-1.5 size-2.5 rounded-full border-2 border-go-card bg-[#ea2525]" />}
+        <CountBadge count={unread} />
       </button>
     );
   const sampleBadge = sample && (
@@ -173,7 +173,7 @@ export default function TopBar({
           <span className="text-[18px] font-semibold text-go-ink">{title ?? tr("Waypoint · Loader")}</span>
           <span className="text-[14px] text-go-ink/85">{subtitle ?? tr("Depot {depot}", { depot })}</span>
         </div>
-        {syncButton("flex min-h-12 shrink-0 items-center gap-2 rounded-full bg-go-card pr-3.5 pl-3 text-[14px] shadow-go-float")}
+        {syncButton("flex min-h-12 shrink-0 items-center gap-2 rounded-full bg-go-card pr-3.5 pl-3 text-[14px] shadow-go-float min-[1700px]:text-[16px]")}
         <span className="flex-1" />
         {sampleBadge}
         {displayName && (

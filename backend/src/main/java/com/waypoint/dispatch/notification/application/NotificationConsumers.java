@@ -22,6 +22,7 @@ import com.waypoint.dispatch.planning.contract.PlanEvents.OrderDeferred;
 import com.waypoint.dispatch.planning.contract.PlanEvents.OrderUnservable;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlanPublished;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlanRevised;
+import com.waypoint.dispatch.planning.contract.PlanEvents.StoreContacted;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlannedTrip;
 import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.platform.messaging.EventSubscriber;
@@ -321,21 +322,50 @@ final class NotificationConsumers {
       return PlanRevised.class;
     }
 
+    /**
+     * Only what a revision changed is news (R-NOT-12): the drivers of the trips that differ, the
+     * outlets reached on another trip or at another time, and the depot when any trip differs. An
+     * event written before the revision recorded what changed tells every trip, as it always did.
+     */
     @Override
     Routed route(PlanRevised e) {
-      return plan(e.planId(), e.depotCode(), e.serviceDate(), e.planVersion(), e.trips(), e.reason());
+      List<PlannedTrip> told =
+          e.changedTripIds()
+              .map(ids -> e.trips().stream().filter(t -> ids.contains(t.tripId())).toList())
+              .orElse(e.trips());
+      boolean depotHears = e.changedTripIds().isEmpty() || !told.isEmpty();
+      Routed r = plan(e.planId(), e.depotCode(), e.serviceDate(), e.planVersion(), told, e.reason(), depotHears);
+      e.affectedOutletIds()
+          .ifPresent(
+              outlets ->
+                  outlets.forEach(
+                      outlet -> r.to(Target.of(ScopeKind.OUTLET, outlet, subject("plan", e.planId())))));
+      return r;
     }
   }
 
   /** One target per trip, so a vehicle driven twice in a plan is told about both trips. */
   private static Routed plan(
       UUID planId, String depotCode, LocalDate serviceDate, int planVersion, List<PlannedTrip> trips, String reason) {
+    return plan(planId, depotCode, serviceDate, planVersion, trips, reason, true);
+  }
+
+  private static Routed plan(
+      UUID planId,
+      String depotCode,
+      LocalDate serviceDate,
+      int planVersion,
+      List<PlannedTrip> trips,
+      String reason,
+      boolean depotHears) {
     Routed r =
         new Routed()
             .on(serviceDate)
             .fact("serviceDate", serviceDate).fact("planVersion", planVersion).fact("tripCount", trips.size())
-            .fact("depotCode", depotCode).fact("reason", reason)
-            .to(ScopeKind.DEPOT, depotCode, "plan", planId);
+            .fact("depotCode", depotCode).fact("reason", reason);
+    if (depotHears) {
+      r.to(ScopeKind.DEPOT, depotCode, "plan", planId);
+    }
     for (PlannedTrip trip : trips) {
       r.to(
           new Target(
@@ -350,6 +380,38 @@ final class NotificationConsumers {
               subject("trip", trip.tripId())));
     }
     return r;
+  }
+
+  /** A dispatcher's own words to the store that owns an order the plan could not serve. */
+  @Component
+  static class OnStoreContacted extends NotificationConsumer<StoreContacted> {
+    private final Scopes scopes;
+
+    OnStoreContacted(Notifier notifier, Scopes scopes) {
+      super(notifier);
+      this.scopes = scopes;
+    }
+
+    @Override
+    public String consumerName() {
+      return "notification.on-store-contacted";
+    }
+
+    @Override
+    public Class<StoreContacted> eventType() {
+      return StoreContacted.class;
+    }
+
+    @Override
+    Routed route(StoreContacted e) {
+      Optional<OrderView> order = scopes.order(e.orderId());
+      return new Routed()
+          .on(e.serviceDate())
+          .fact("message", e.message())
+          .fact("orderRef", order.map(OrderView::orderRef))
+          .fact("outletId", e.outletId())
+          .to(ScopeKind.OUTLET, e.outletId(), "order", e.orderId());
+    }
   }
 
   // ---- Loading -------------------------------------------------------------------

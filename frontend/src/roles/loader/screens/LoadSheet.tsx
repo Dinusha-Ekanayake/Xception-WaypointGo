@@ -107,29 +107,7 @@ export default function LoadSheet({
       }
     }
     const to = item.status === "LOADED" ? "PENDING" : "LOADED";
-    const outcome = await t.check(line, item, to);
-    if (outcome.ok && to === "LOADED") {
-      const orderLeft = line.items.filter((i) => i.lineNo !== item.lineNo && i.status === "PENDING").length;
-      const stopLeft = t.lines
-        .filter((l) => l.stopSequence === line.stopSequence)
-        .flatMap((l) => l.items.filter((i) => i.status === "PENDING" && !(l.orderId === line.orderId && i.lineNo === item.lineNo)))
-        .length;
-      const stop = `Stop ${String(line.stopSequence).padStart(2, "0")}`;
-      setToast({
-        kind: "loaded",
-        at: new Date(),
-        title: tr("{order} · item {n} loaded", { order: orderLabel(line), n: item.lineNo }),
-        detail:
-          orderLeft > 0
-            ? tr(orderLeft === 1 ? "{n} item left in this order" : "{n} items left in this order", { n: orderLeft })
-            : [
-                tr("Order completed"),
-                stopLeft > 0 && tr(stopLeft === 1 ? "{n} item left for {stop}." : "{n} items left for {stop}.", { n: stopLeft, stop }),
-              ].filter(Boolean).join(" · "),
-        note: outcome.queued ? tr("Saved on this device; sends when you're back online.") : undefined,
-        undo: () => void t.check(line, { ...item, status: "LOADED" }, "PENDING"),
-      });
-    }
+    await t.check(line, item, to);
   };
 
   if (justReleased) {
@@ -234,7 +212,7 @@ export default function LoadSheet({
                 at: new Date(),
                 title: tr("Issue saved on this device"),
                 detail: tr("Sends when you're back online. Keep loading."),
-                note: tr("Sends to the dispatcher and the store"),
+                note: tr("Sends to the dispatcher and the store manager"),
               });
             }
             return outcome.ok;

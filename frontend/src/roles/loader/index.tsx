@@ -10,10 +10,12 @@ import { keptCrew, logOfflineSwitch } from "@app-shell/offlinePin";
 import type { CrewMember } from "@app-shell/operators";
 import type { Operator } from "@app-shell/session";
 import TopBar from "./TopBar.tsx";
+import { useWide } from "./useWide.ts";
 import { LangProvider, useT } from "./i18n.tsx";
 import { ThemeProvider, useTheme } from "./theme.tsx";
 import { createGateway } from "./data/gateway.ts";
 import { depotToday, hhmm } from "./data/manifest.ts";
+import { dockDay, stillToLoad } from "./data/dockDay.ts";
 import { redoVersion, tripOf } from "./data/redo.ts";
 import DockBoard from "./screens/DockBoard.tsx";
 import Locked from "./screens/Locked.tsx";
@@ -52,7 +54,9 @@ function LoaderWorkspace({
   const gateway = useMemo(() => createGateway(userId), [userId]);
   const online = useOnline();
   const depot = scope[0] ?? "";
-  const date = depotToday();
+  // The dock's day: the first from today with a trip still to load (issue #114).
+  const today = depotToday();
+  const [date, setDate] = useState(today);
   const [openId, setOpenId] = useState<string | null>(null);
   const [tripSync, setTripSync] = useState<Date | null>(null);
   // Before the first sync pass: queued work goes after the switches it was recorded under.
@@ -79,6 +83,8 @@ function LoaderWorkspace({
   // Who locked the device (Figma 08), kept across a reload so the locked screen survives one.
   const [locked, setLockedState] = useState<Operator | null>(() => readLocked(userId));
   const [unlocking, setUnlocking] = useState(false);
+  // From a tablet up the locked screen carries its own keypad (Figma 06 Locked).
+  const wide = useWide();
   const setLocked = useCallback((who: Operator | null) => {
     setLockedState(who);
     writeLocked(userId, who);
@@ -86,6 +92,18 @@ function LoaderWorkspace({
   const { theme } = useTheme();
 
   const trips = useResource(depot ? (signal) => gateway.readyTrips(depot, date, signal) : null, `${depot}:${date}`, 30_000);
+  // Found again on start, on reconnecting, and once the shown day has nothing left to load.
+  const dayDone = trips.data !== null && !stillToLoad(trips.data);
+  useEffect(() => {
+    if (!depot || !online) return;
+    const controller = new AbortController();
+    dockDay(today, (day) => gateway.readyTrips(depot, day, controller.signal))
+      .then((day) => !controller.signal.aborted && setDate(day))
+      .catch(() => {
+        // Unreachable: keep the day shown; the board says it could not read it.
+      });
+    return () => controller.abort();
+  }, [depot, online, gateway, today, dayDone]);
   // Notifications for this device's account (issue #118); none in the sample.
   const inbox = useInbox(userId, !gateway.sample);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -203,7 +221,16 @@ function LoaderWorkspace({
         </div>
       )}
       {settings ? (
-        <Settings hasLoader={operator !== null} deviceName={displayName} onClose={() => setSettings(false)} />
+        <Settings deviceName={displayName} onClose={() => setSettings(false)} />
+      ) : !operator && locked && wide ? (
+        <OperatorGate
+          key="locked"
+          account={userId}
+          online={online}
+          onOperator={signedIn}
+          unlock={unlockMember}
+          aside={<Locked gateway={gateway} operator={locked} depot={depot} trip={lockedTrip} onUnlock={() => {}} onSwitch={() => void switchUser()} wide />}
+        />
       ) : !operator && locked && unlocking ? (
         <OperatorGate
           key="unlock"

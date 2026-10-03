@@ -36,6 +36,12 @@ public class SessionRequestAuthorizer implements RequestAuthorizer {
                 ? actors.resolveLoading(request)
                 : actors.resolve(request))
             .orElseThrow(() -> new DomainException(ErrorCode.UNAUTHENTICATED, "Not signed in"));
+    // An MCP connection is narrowed by its client scope first (R-IAM-34); the
+    // scope never widens what the policy below allows.
+    String mcpToken = (String) request.getAttribute(McpCredentialFilter.CREDENTIAL);
+    if (mcpToken != null) {
+      mcp.requireReadScope(mcpToken, actor, action);
+    }
     // The same call a command goes through, so a denied read is audited the same
     // way a denied write is. decide() answers without recording, which is not what
     // a refused request should do.
@@ -43,7 +49,7 @@ public class SessionRequestAuthorizer implements RequestAuthorizer {
     if (denial.isPresent()) {
       throw new DomainException(ErrorCode.FORBIDDEN, denial.get());
     }
-    if (request.getAttribute(McpCredentialFilter.CREDENTIAL) != null) {
+    if (mcpToken != null) {
       mcp.requireGrant(actor);
       mcp.recordRead(actor, action, resource);
     }

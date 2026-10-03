@@ -13,10 +13,12 @@ public record McpProperties(
     /** P-30: requests a minute per MCP credential; one tool call is about two requests. */
     @DefaultValue("120") int ratePerCredentialPerMinute,
     /** P-30: requests a minute per OAuth client, across every person using it. */
-    @DefaultValue("1200") int ratePerClientPerMinute) {
+    @DefaultValue("1200") int ratePerClientPerMinute,
+    /** P-32: confirmed-write requests (prepare or confirm) an hour per MCP credential. */
+    @DefaultValue("30") int writesPerCredentialPerHour) {
   public McpProperties {
-    if (ratePerCredentialPerMinute < 1 || ratePerClientPerMinute < 1) {
-      throw new IllegalArgumentException("MCP_RATE_PER_CREDENTIAL and MCP_RATE_PER_CLIENT must be at least 1");
+    if (ratePerCredentialPerMinute < 1 || ratePerClientPerMinute < 1 || writesPerCredentialPerHour < 1) {
+      throw new IllegalArgumentException("MCP_RATE_PER_CREDENTIAL, MCP_RATE_PER_CLIENT and MCP_WRITES_PER_HOUR must be at least 1");
     }
     publicUrl = publicUrl == null ? "" : publicUrl.trim();
     if (!publicUrl.isEmpty()) {

@@ -4,6 +4,38 @@
 
 ---
 
+## 2026-10-03 - feat(execution): the run sheet carries a stop's recorded units
+
+`fix/partial-units-and-preview-cleanup` · @Dinusha-Ekanayake
+
+`RunSheetStopView` gains `deliveredUnits` (additive), read from `delivery_records.delivered_units`; the frontend mirror follows, the phone's projection of a record still on the phone sets it, and the driver's run complete shows "Units delivered" counted by it.
+Why: a partial delivery is recorded as a stop total, so the phone could not count it (open item of #114).
+Verified: see the PR. `ExecutionIntegrationTest` asserts the units on the run sheet (runs in CI; no local database here); `npm test` 168.
+
+---
+
+## 2026-10-03 - fix: a fresh install walks the whole judge path (issue #114)
+
+`fix/114-fresh-install-check` · @Dinusha-Ekanayake
+
+Ran `docker compose down -v && docker compose up --build` from a Windows clone and walked all eleven README steps in a browser. Fixed what stopped it: `compose-init.sh` checked out with CRLF so init died at `set -eu` (`.gitattributes` now keeps scripts and nginx files LF); the dispatcher's empty plan day names the seeded day; the dock board and the driver look up to a week ahead for the first day with work, since the seed always lands after today. The driver's live wiring is @Oxshadha's from `dev` (#117); this adds only the look-ahead and the remembered run day on top of it.
+Why: the issue's "done when" had never been run; on install day the seed's day is never today.
+Verified: see the PR. Fresh stack: 85 orders, idempotent rerun, plan 73/11/1, release with a shortfall, offline partial delivery applied once, store receipt partial, Live and Issues. `npm test`, the dispatcher plan spec and the loader suite.
+Open: a partial stop's delivered units are not on the run sheet.
+
+---
+
+## 2026-10-03 - feat: push alerts, the driver's notification feed, and loader notifications in Sinhala and Tamil (issue #118)
+
+`feat/notifications-push-driver-i18n` · @Dinusha-Ekanayake
+
+The three gaps #153 left. Push: a switch in each role's settings subscribes this device (VAPID key from `push-config`, `notification:Subscribe`), says why when it cannot, and the service worker shows each push and opens the app on a tap. Driver: Isuru's Figma feed and driving-mode badge now carry the driver's real notifications and count; his sample feed stays without an account. Loader: each notification keeps the facts its message was filled from, and the loader fills the same templates in Sinhala and Tamil.
+Why: phones should alert with the app closed; the driver and the loader's languages were the last roles without their notifications.
+Verified: see the PR. `NotificationConsumersIntegrationTest` (facts in the inbox), `loader-messages.test.ts`, `push-keys.test.ts`, the loader suite with the Settings alerts row; driver Home compared with Figma 83:1996.
+Open: push needs VAPID keys on the server. The driver browser suite fails 13 of its tests on `dev` itself since the driver rework; they test the old screens.
+
+---
+
 ## 2026-10-03 - feat: notifications inbox and last sync in each role UI (issue #118)
 
 `feat/118-notifications-inbox` · @Dinusha-Ekanayake

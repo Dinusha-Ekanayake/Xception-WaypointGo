@@ -20,7 +20,7 @@ export type Run = {
   refrigerated: boolean;
   /** Every order on it resends one that went wrong. */
   makeUp: boolean;
-  cases: number;
+  units: number;
   eta: Date;
   arrivedAt: string | null;
   /** When the last of its orders was handed over; null until all were. */
@@ -54,7 +54,7 @@ export function runsOf(records: DeliveryRecordView[], orders: OrderView[], issue
         orders: own,
         refrigerated: own.some((o) => o.temperature === "chilled"),
         makeUp: own.length > 0 && own.every((o) => o.redeliveryOf !== null),
-        cases: sorted.reduce((s, r) => s + (orderOf(r)?.itemCount ?? r.lines.reduce((n, l) => n + l.orderedUnits, 0)), 0),
+        units: sorted.reduce((s, r) => s + (orderOf(r)?.itemCount ?? r.lines.reduce((n, l) => n + l.orderedUnits, 0)), 0),
         eta: expectedAt(first),
         arrivedAt: sorted.find((r) => r.arrivedAt)?.arrivedAt ?? null,
         completedAt: done ? sorted.map((r) => r.completedAt!).sort().at(-1)! : null,
@@ -181,7 +181,7 @@ export function makeUpSteps(input: {
     },
     {
       title: `Arriving ${dockWhere(dock)}`,
-      detail: record?.arrivedAt ? `Arrived ${clock(record.arrivedAt)}` : record ? `ETA ${clock(expectedAt(record))}` : window ? `Window ${window}` : "Time set when it leaves",
+      detail: record?.arrivedAt ? `Arrived ${clock(record.arrivedAt)}` : record ? `Expected ${clock(expectedAt(record))}` : window ? `Window ${window}` : "Time set when it leaves",
       done: Boolean(record?.arrivedAt),
     },
     { title: "You confirm what arrived", detail: order.status === "RECEIVED" ? "Counted" : "Count and confirm with PIN", done: order.status === "RECEIVED" },

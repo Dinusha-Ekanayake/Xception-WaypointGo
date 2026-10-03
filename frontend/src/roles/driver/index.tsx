@@ -1,166 +1,376 @@
 "use client";
 
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { NotificationView } from "@shared/domain/notification";
+import { ago } from "@shared/notifications/inbox";
+import { useInbox } from "@shared/notifications/useInbox";
+import { cx, McpButton, useShell } from "@shared/ui";
+import { nextStop, type Stop } from "./data/run.ts";
+import { activeIndex, syncLabel, toRouteStops, tripStatus, type RouteStop } from "./data/stopView.ts";
+import DeliveryPinConfirmModal from "./screens/DeliveryPinConfirmModal.tsx";
 import DeliveryReport from "./screens/DeliveryReport.tsx";
-import Home from "./screens/Home.tsx";
+import DeliveryReportWaiting from "./screens/DeliveryReportWaiting.tsx";
+import DrivingModeScreen from "./screens/DrivingModeScreen.tsx";
+import HomeNoVehicle from "./screens/HomeNoVehicle.tsx";
 import RefusedUploads from "./screens/RefusedUploads.tsx";
-import Route from "./screens/Route.tsx";
+import RouteChangedBottomSheet from "./screens/RouteChangedBottomSheet.tsx";
 import RouteMap from "./screens/RouteMap.tsx";
-import RunComplete from "./screens/RunComplete.tsx";
-import { ProblemSheet, SavedSheet, SignOutSheet } from "./screens/Sheets.tsx";
+import RouteNextStop from "./screens/RouteNextStop.tsx";
+import RunCompleteScreen from "./screens/RunCompleteScreen.tsx";
+import { ProblemSheet, SavedSheet } from "./screens/Sheets.tsx";
+import SignOutConfirmBottomSheet from "./screens/SignOutConfirmBottomSheet.tsx";
 import StopDetail from "./screens/StopDetail.tsx";
-import TopBar from "./TopBar.tsx";
-import { Banner, OutlineButton } from "./ui.tsx";
-import { nextStop } from "./data/run.ts";
+import { BackIcon, Banner, DriverMorphHeader, OutlineButton, type SupportedLang } from "./ui.tsx";
 import { useDriver } from "./useDriver.ts";
 
 /**
- * The driver's phone (issue #21, Figma "12 · Driver · Mobile"). What each
- * screen does is in useDriver; this file chooses which one is drawn.
+ * The driver's phone (issues #21 and #117, Figma "12 · Driver · Mobile"). What
+ * each screen does is in useDriver; this file chooses which one is drawn. The
+ * Figma screens draw the run sheet Execution serves; the delivery form, the
+ * proof, the problem report and the stop detail keep their working forms.
  */
 export default function Driver({ userId, displayName, scope }: { userId: string; displayName: string; scope: string[] }): React.JSX.Element {
   const d = useDriver(userId);
+  const inbox = useInbox(userId);
+  const shell = useShell();
   const { run, view, screen, shown, reporting, detail, online, error, notice, busy } = d;
   const stops = run.stops;
-  return (
-    <div className={`${d.dark ? "go-dark " : ""}min-h-dvh bg-go-canvas font-go text-go-ink`} data-theme={d.dark ? "dark" : "light"}>
-      <div className="mx-auto flex min-h-dvh w-full max-w-[720px] flex-col">
-        <TopBar
-          online={online}
-          syncedAt={run.syncedAt}
-          keptAt={run.keptAt}
-          uploads={run.uploadsWaiting.length}
-          dark={d.dark}
-          onTheme={d.theme}
-          onBack={screen === "home" ? undefined : screen === "map" ? () => d.go({ name: "route", deliveryId: null }) : () => d.go({ name: "home" })}
-          onSignOut={screen === "home" ? d.askSignOut : undefined}
-        />
+  const routeStops = useMemo(() => toRouteStops(stops, run.outlets, run.date, d.now), [stops, run.outlets, run.date, d.now]);
+  const byId = (id: string): Stop | undefined => stops.find((stop) => stop.deliveryId === id);
+  const depot = scope[0] ?? "";
+  const sync = syncLabel(online, run.uploadsWaiting.length, run.syncedAt, run.keptAt);
 
-        {run.expired && !run.loading ? (
-          <div className="flex flex-col gap-3 px-5 pt-3">
-            <Banner tone="warn" title="You have been signed out" live>
-              Nothing on this phone is lost. Sign in again and everything you recorded is sent.
-            </Banner>
-            <OutlineButton onClick={() => window.location.reload()}>Sign in again</OutlineButton>
-          </div>
-        ) : (
-          run.keptAt &&
-          !run.loading && (
-            <div className="px-5 pt-3">
-              <Banner tone="warn" title="Showing the run saved on this phone" live>
-                {online ? "Waypoint is not answering." : "This phone is offline."} You can keep working: everything you record is kept here and sent when the connection is back.
-              </Banner>
-            </div>
-          )
+  const [lang, setLang] = useState<SupportedLang>("en");
+  const [driving, setDriving] = useState(false);
+  const [formFor, setFormFor] = useState<string | null>(null);
+  const [pinFor, setPinFor] = useState<Stop | null>(null);
+  const [revised, setRevised] = useState<NotificationView | null>(null);
+  const seen = useRef<Set<string> | null>(null);
+
+  // The delivery form opens from the waiting screen; a stop reported as not
+  // delivered from the problem sheet opens it straight away.
+  useEffect(() => {
+    if (view.name !== "report") return setFormFor(null);
+    if (view.failed) setFormFor(view.deliveryId);
+  }, [view]);
+
+  // A run sheet revised while the driver is out says so once (Figma "Run sheet changed").
+  useEffect(() => {
+    const ids = inbox.items.map((item) => item.notificationId);
+    if (seen.current === null) {
+      if (!inbox.loading) seen.current = new Set(ids);
+      return;
+    }
+    const fresh = inbox.items.find((item) => !seen.current!.has(item.notificationId) && item.readAt === null && item.eventType === "plan.revised");
+    ids.forEach((id) => seen.current!.add(id));
+    if (fresh) setRevised(fresh);
+  }, [inbox.items, inbox.loading]);
+
+  // Space opens driving mode; only its slider closes it.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target;
+      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || target instanceof HTMLButtonElement) return;
+      if ((event.code === "Space" || event.key === " ") && nextStop(stops)) {
+        event.preventDefault();
+        setDriving(true);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [stops]);
+
+  const arrivedAt = (target: RouteStop) => {
+    const stop = byId(target.id);
+    if (!stop) return;
+    if (stop.outcome === "ARRIVED") d.go({ name: "report", deliveryId: stop.deliveryId, failed: null });
+    else void d.arrived(stop);
+  };
+
+  const header = screen === "home" || screen === "route" || screen === "map";
+  const next = nextStop(stops);
+
+  return (
+    <main
+      aria-label="Driver workspace"
+      data-theme={d.dark ? "dark" : "light"}
+      className={cx(
+        "h-dvh max-h-dvh sm:h-auto sm:min-h-dvh w-full sm:py-6 flex items-center justify-center font-go overflow-hidden transition-colors",
+        d.dark ? "go-dark bg-[#161616] sm:bg-[#0a0a0a]" : "bg-[#E7F3F2] sm:bg-[#d6e7e5]"
+      )}
+    >
+      <div
+        className={cx(
+          "w-full h-full sm:max-w-[393px] h-dvh sm:h-[852px] sm:max-h-[852px] sm:rounded-[44px] sm:shadow-2xl overflow-hidden relative transition-colors",
+          d.dark ? "bg-[#161616]" : "bg-[#E7F3F2]"
         )}
-        {d.location.needsConsent && screen !== "map" && (
-          <div className="flex flex-col gap-3 px-5 pt-3">
-            <Banner tone="warn" title="Share your location while the run is open?">
-              So the dispatcher and the store can see where the truck is. Only while your run is open.
-            </Banner>
-            <div className="grid grid-cols-2 gap-3">
-              <OutlineButton onClick={d.location.decline}>Not now</OutlineButton>
-              <OutlineButton onClick={d.location.allow}>Share location</OutlineButton>
-            </div>
-          </div>
-        )}
-        {d.location.state === "denied" && nextStop(stops) && screen !== "map" && (
-          <p role="status" className="flex items-center gap-2 px-5 pt-3 text-[13px] text-go-muted">
-            Location off · the dispatcher sees your stops only
-            <button type="button" onClick={d.location.allow} className="underline">Turn on</button>
-          </p>
-        )}
-        {d.problemFor === null && (error || notice) && (
-          <div className="px-5 pt-3">
-            <Banner tone={error ? "bad" : "good"} title={error ?? notice ?? ""} live />
+      >
+        {header && (
+          <div className="driver-header-container absolute top-0 inset-x-0 z-30">
+            <DriverMorphHeader
+              activeScreen={screen === "map" ? "route-map" : screen === "route" ? "route-next-stop" : "home"}
+              syncLabel={sync}
+              onBack={() => (screen === "map" ? d.go({ name: "route", deliveryId: null }) : d.go({ name: "home" }))}
+              lang={lang}
+              onToggleLang={setLang}
+              onSignOut={d.askSignOut}
+              onToggleTheme={d.theme}
+              isNight={d.dark}
+            />
           </div>
         )}
 
         {run.loading ? (
-          <p role="status" className="px-5 py-10 text-[17px] text-go-muted">
+          <p role="status" className="absolute inset-x-0 top-[96px] px-8 text-[17px] text-go-muted">
             Loading today's run…
           </p>
         ) : (
-          <>
+          <div key={screen} className="absolute inset-0 animate-fade-in">
             {screen === "home" && (
-              <>
-                <Home
-                  displayName={displayName}
-                  depot={scope[0] ?? ""}
-                  vehicle={run.vehicle}
-                  stops={stops}
-                  unavailable={run.unavailable}
-                  online={online}
-                  vehicleStatus={d.vehicleStatus}
-                  onVehicleStatus={(status) => void d.reportStatus(status)}
-                  onOpenRun={() => void d.openRun()}
-                  onOpenStop={(stop) => void d.openStop(stop)}
-                  onProblem={() => d.openProblem("run")}
-                />
-                <div className="px-5 pb-8">
-                  <RefusedUploads uploads={run.uploadsWaiting} stops={stops} onDiscard={(id) => void d.dropUpload(id)} />
-                </div>
-              </>
+              <HomeNoVehicle
+                driverName={displayName}
+                depotName={depot}
+                vehicle={run.vehicle}
+                tripStatus={tripStatus(stops)}
+                stopCount={stops.length}
+                unavailable={run.unavailable}
+                online={online}
+                vehicleStatus={d.vehicleStatus}
+                onVehicleStatus={(status) => void d.reportStatus(status)}
+                onStartTrip={() => void d.openRun()}
+                onProblem={() => d.openProblem("run")}
+                inbox={inbox}
+                now={d.now}
+                isNight={d.dark}
+                onToggleTheme={d.theme}
+                hideHeader
+              />
             )}
             {screen === "route" && shown && (
-              <Route
-                date={run.date}
-                stops={stops}
-                next={shown}
-                outlets={run.outlets}
-                busy={busy}
-                now={d.now}
-                onArrived={(stop) => void d.arrived(stop)}
-                onReport={(stop) => d.go({ name: "report", deliveryId: stop.deliveryId, failed: null })}
-                onProblem={d.openProblem}
+              <RouteNextStop
+                stops={routeStops}
+                stopIndex={stops.indexOf(shown)}
+                syncLabel={sync}
+                onSelectStop={(index) => stops[index] && void d.openStop(stops[index])}
+                onBack={() => d.go({ name: "home" })}
                 onOpenMap={() => d.go({ name: "map" })}
+                onArrived={arrivedAt}
+                onProblem={() => d.openProblem(shown)}
+                isNight={d.dark}
+                onToggleTheme={d.theme}
+                hideHeader
               />
             )}
-            {screen === "map" && nextStop(stops) && (
-              <RouteMap next={nextStop(stops)!} outlet={run.outlets[nextStop(stops)!.outletId]} recorder={d.location} syncedAt={run.syncedAt} />
+            {screen === "map" && next && (
+              <GoLayer dark={d.dark} top>
+                <RouteMap next={next} outlet={run.outlets[next.outletId]} recorder={d.location} syncedAt={run.syncedAt} />
+              </GoLayer>
             )}
-            {screen === "report" && reporting && view.name === "report" && (
-              <DeliveryReport
-                key={`${reporting.deliveryId}:${view.failed ?? ""}`}
-                stop={reporting}
-                outlet={run.outlets[reporting.outletId]}
-                total={stops.length}
-                busy={busy}
-                timingUncertain={reporting.waiting}
-                startFailed={view.failed}
-                error={error}
-                onConfirm={(result) => void d.confirm(reporting, result)}
+            {screen === "report" && reporting && view.name === "report" && formFor !== reporting.deliveryId && (
+              <DeliveryReportWaiting
+                stops={routeStops}
+                stopIndex={stops.indexOf(reporting)}
+                syncLabel={sync}
+                onBack={() => d.go({ name: "route", deliveryId: reporting.deliveryId })}
+                onConfirm={() => setFormFor(reporting.deliveryId)}
+                onProblem={() => d.openProblem(reporting)}
+                isNight={d.dark}
+                onToggleTheme={d.theme}
               />
+            )}
+            {screen === "report" && reporting && view.name === "report" && formFor === reporting.deliveryId && (
+              <GoLayer dark={d.dark} sync={sync} onBack={() => setFormFor(null)}>
+                <DeliveryReport
+                  key={`${reporting.deliveryId}:${view.failed ?? ""}`}
+                  stop={reporting}
+                  outlet={run.outlets[reporting.outletId]}
+                  total={stops.length}
+                  busy={busy}
+                  timingUncertain={reporting.waiting}
+                  startFailed={view.failed}
+                  error={error}
+                  onConfirm={(result) => void d.confirm(reporting, result)}
+                />
+              </GoLayer>
             )}
             {screen === "stop" && detail && (
-              <StopDetail
-                key={detail.deliveryId}
-                stop={detail}
-                outlet={run.outlets[detail.outletId]}
-                total={stops.length}
-                proofOnPhone={run.uploadsWaiting.filter((upload) => upload.subject === detail.deliveryId).length}
-                busy={busy}
-                error={error}
-                onProof={(proof) => void d.addProof(detail, proof)}
-              />
+              <GoLayer dark={d.dark} sync={sync} onBack={() => d.go({ name: "home" })}>
+                <StopDetail
+                  key={detail.deliveryId}
+                  stop={detail}
+                  outlet={run.outlets[detail.outletId]}
+                  total={stops.length}
+                  proofOnPhone={run.uploadsWaiting.filter((upload) => upload.subject === detail.deliveryId).length}
+                  busy={busy}
+                  error={error}
+                  onProof={(proof) => void d.addProof(detail, proof)}
+                />
+              </GoLayer>
             )}
-            {screen === "complete" && run.vehicle && (
-              <RunComplete
-                vehicleId={run.vehicle.vehicleId}
+            {screen === "complete" && (
+              <RunCompleteScreen
+                onBack={() => d.go({ name: "home" })}
+                onBackToHome={() => d.go({ name: "home" })}
+                isNight={d.dark}
+                onToggleTheme={d.theme}
+                vehicleId={run.vehicle?.vehicleId ?? ""}
+                depotName={depot}
                 stops={stops}
                 uploadsWaiting={run.uploadsWaiting.length}
-                writesWaiting={d.sync.pending}
-                onHome={() => d.go({ name: "home" })}
+                writesWaiting={d.sync.pending - d.sync.held.length}
+                writesHeld={d.sync.held.length}
+                syncedAt={run.syncedAt}
               />
             )}
-          </>
+          </div>
+        )}
+
+        {/* What is degraded, said on screen (rule 9): an expired session, a saved copy, location, a refused file. */}
+        <div className={cx("absolute inset-x-0 z-40 flex flex-col gap-2 px-5 pointer-events-none", header ? "top-[78px]" : "top-[84px]")}>
+          {/* The shell's sync badge opens writes the server refused, for review; MCP on Home (#177). */}
+          <div className="pointer-events-auto flex items-center justify-end gap-2 empty:hidden">
+            {shell?.sync}
+            {screen === "home" && <McpButton url={shell?.mcpUrl ?? null} compact className="flex shrink-0 items-center justify-center rounded-full bg-go-card text-go-ink shadow-go-float" />}
+          </div>
+          {run.expired && !run.loading ? (
+            <div className="pointer-events-auto flex flex-col gap-2">
+              <Banner tone="warn" title="You have been signed out" live>
+                Nothing on this phone is lost. Sign in again and everything you recorded is sent.
+              </Banner>
+              <OutlineButton onClick={() => window.location.reload()}>Sign in again</OutlineButton>
+            </div>
+          ) : (
+            run.keptAt &&
+            !run.loading &&
+            screen === "home" && (
+              <Banner tone="warn" title="Showing the run saved on this phone" live>
+                {online ? "Waypoint is not answering." : "This phone is offline."} Everything you record is kept here and sent when the connection is back.
+              </Banner>
+            )
+          )}
+          {d.location.needsConsent && screen === "route" && (
+            <div className="pointer-events-auto flex flex-col gap-2">
+              <Banner tone="warn" title="Share your location while the run is open?">
+                So the dispatcher and the store can see where the truck is. Only while your run is open.
+              </Banner>
+              <div className="grid grid-cols-2 gap-2">
+                <OutlineButton onClick={d.location.decline}>Not now</OutlineButton>
+                <OutlineButton onClick={d.location.allow}>Share location</OutlineButton>
+              </div>
+            </div>
+          )}
+          {d.problemFor === null && !d.saved && (error || notice) && formFor === null && screen !== "stop" && (
+            <div className="pointer-events-auto">
+              <Banner tone={error ? "bad" : "good"} title={error ?? notice ?? ""} live />
+            </div>
+          )}
+          {screen === "home" && run.uploadsWaiting.some((upload) => upload.needsReview) && (
+            <div className="pointer-events-auto rounded-[18px] bg-go-canvas">
+              <RefusedUploads uploads={run.uploadsWaiting} stops={stops} onDiscard={(id) => void d.dropUpload(id)} />
+            </div>
+          )}
+        </div>
+        {d.location.state === "denied" && next && screen === "route" && (
+          <p role="status" className="absolute inset-x-0 bottom-2 z-40 flex justify-center gap-2 text-[13px] text-go-muted">
+            Location off · the dispatcher sees your stops only
+            <button type="button" onClick={d.location.allow} className="underline">
+              Turn on
+            </button>
+          </p>
         )}
 
         {d.problemFor !== null && (
           <ProblemSheet stop={d.problemFor === "run" ? null : d.problemFor} busy={busy} error={error} onSend={(problem) => void d.report(problem)} onClose={d.closeProblem} />
         )}
-        {d.saved && <SavedSheet title={d.saved.title} onPhone={d.saved.onPhone} last={d.saved.last} warning={d.saved.warning} onNext={() => void d.afterSaved()} />}
-        {d.leaving && <SignOutSheet waiting={d.waiting} online={online} onSignOut={d.signOut} onClose={d.cancelSignOut} />}
+        {d.saved && !pinFor && (
+          <SavedSheet
+            title={d.saved.title}
+            onPhone={d.saved.onPhone}
+            last={d.saved.last}
+            warning={d.saved.warning}
+            onHandover={d.saved.handedOver ? () => setPinFor(d.saved!.handedOver) : undefined}
+            onNext={() => void d.afterSaved()}
+          />
+        )}
+        <DeliveryPinConfirmModal
+          isOpen={pinFor !== null}
+          onClose={() => setPinFor(null)}
+          onVerify={(pin) => d.verifyHandover(pinFor!, pin)}
+          isNight={d.dark}
+          stopName={pinFor?.outletId ?? ""}
+          online={online}
+        />
+        <SignOutConfirmBottomSheet
+          isOpen={d.leaving}
+          onClose={d.cancelSignOut}
+          onConfirm={d.signOut}
+          waiting={d.waiting}
+          online={online}
+          isNight={d.dark}
+        />
+        <RouteChangedBottomSheet
+          isOpen={revised !== null}
+          onClose={() => {
+            if (revised) void inbox.markRead([revised.notificationId]);
+            setRevised(null);
+          }}
+          onViewRoute={() => {
+            if (revised) void inbox.markRead([revised.notificationId]);
+            setRevised(null);
+            void d.openRun();
+          }}
+          time={revised ? ago(revised.createdAt, d.now) : undefined}
+          isNight={d.dark}
+        />
+
+        {driving && (
+          <div className="absolute inset-0 z-50 animate-fade-in">
+            <DrivingModeScreen
+              onExit={() => setDriving(false)}
+              isNight={d.dark}
+              stops={routeStops}
+              stopIndex={activeIndex(stops)}
+              onToggleTheme={d.theme}
+              unread={inbox.unread}
+            />
+          </div>
+        )}
       </div>
+    </main>
+  );
+}
+
+/** The working forms keep the GO design tokens; inside the phone frame they scroll on their own layer. */
+function GoLayer({
+  dark,
+  sync,
+  onBack,
+  top = false,
+  children,
+}: {
+  dark: boolean;
+  sync?: string;
+  onBack?: () => void;
+  /** Under the persistent header, which brings its own Back. */
+  top?: boolean;
+  children: React.ReactNode;
+}): React.JSX.Element {
+  return (
+    <div className={cx(dark && "go-dark", "absolute inset-0 overflow-y-auto bg-go-canvas font-go text-go-ink", top && "pt-[74px]")}>
+      {onBack && (
+        <div className="flex items-center justify-between px-5 pt-5">
+          <button type="button" onClick={onBack} className="-ml-2 flex min-h-12 items-center gap-2 rounded-full px-2 text-[19px] font-medium text-go-ink">
+            <BackIcon />
+            Back
+          </button>
+          {sync && (
+            <span role="status" className="rounded-full bg-go-card px-4 py-2 text-[15px] font-medium shadow-go-float">
+              {sync}
+            </span>
+          )}
+        </div>
+      )}
+      {children}
     </div>
   );
 }

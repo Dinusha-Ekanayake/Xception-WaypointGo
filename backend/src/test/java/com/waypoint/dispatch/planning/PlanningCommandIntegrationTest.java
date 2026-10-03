@@ -188,4 +188,40 @@ class PlanningCommandIntegrationTest extends PlanningIntegrationSupport {
     assertEquals(1, deferrals.get(0).get("skipCount").asInt());
   }
 
+  @Test
+  void aHandDecisionNamesWhoTookItAndSurvivesPublication() throws Exception {
+    UUID first = demand("ambient");
+    UUID second = demand("ambient");
+    UUID planId = UUID.fromString(generate(dispatcher, 200).get("planId").asText());
+    JsonNode next =
+        mapper.readTree(send(dispatcher, defer(planId, 1L, first, "outlet asked to skip today"), 200)).get("result");
+    UUID successor = UUID.fromString(next.get("planId").asText());
+
+    JsonNode draft = mapper.readTree(read(dispatcher, "/api/plans/draft?depot=" + depot + "&date=" + serviceDate, 200));
+    assertTrue(draft.get("savedAt").asText().length() > 0, "a draft says when it was last saved");
+    JsonNode deferred = allocation(draft, first);
+    assertEquals("MANUAL_DEFER", deferred.get("source").asText());
+    assertFalse(deferred.get("decidedBy").isNull(), "rule 8: a hand decision names who");
+    assertFalse(deferred.get("decidedAt").isNull());
+    assertEquals("ENGINE", allocation(draft, second).get("source").asText());
+    assertFalse(allocation(draft, second).get("locked").asBoolean());
+
+    send(dispatcher, publish(successor, 1L), 200);
+    JsonNode published = mapper.readTree(read(dispatcher, "/api/plans/published?depot=" + depot + "&date=" + serviceDate, 200));
+    assertEquals("MANUAL_DEFER", allocation(published, first).get("source").asText());
+    assertEquals(
+        deferred.get("decidedAt").asText(),
+        allocation(published, first).get("decidedAt").asText(),
+        "publishing does not change when it was decided");
+  }
+
+  private static JsonNode allocation(JsonNode plan, UUID orderId) {
+    for (JsonNode a : plan.get("allocations")) {
+      if (a.get("orderId").asText().equals(orderId.toString())) {
+        return a;
+      }
+    }
+    throw new AssertionError("order " + orderId + " is not in the plan");
+  }
+
 }

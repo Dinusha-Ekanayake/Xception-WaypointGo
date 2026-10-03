@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import type { OutletView } from "@shared/domain/types";
 import { cx, useShell } from "@shared/ui";
+import { usePush, type PushState } from "@shared/notifications/push";
 import { dockLabel } from "./data/format.ts";
 
 // Figma "Overlay · Account menu": on a shared counter computer, who is signed in
@@ -11,6 +12,8 @@ import { dockLabel } from "./data/format.ts";
 // own profile (R-IAM-32) and the store's details (R-REF-01). Signing out goes
 // through the shell, which first says when writes are still waiting on this
 // device (SEC-01). Beside the sidebar on a desktop; a bottom sheet on a phone.
+// "Alerts on this device" turns push on or off (issue #118), and says why when
+// it cannot.
 
 export default function AccountMenu({
   displayName,
@@ -112,6 +115,7 @@ export default function AccountMenu({
             <span className="text-[12px] text-go-secondary">{item.note}</span>
           </button>
         ))}
+        <PushRow />
         <button
           type="button"
           disabled={!shell}
@@ -128,5 +132,43 @@ export default function AccountMenu({
         </button>
       </div>
     </>
+  );
+}
+
+const PUSH_NOTE: Record<PushState["kind"], string> = {
+  checking: "Checking…",
+  unsupported: "This browser cannot show alerts",
+  "server-off": "Not set up on this server",
+  blocked: "Blocked in this browser's settings",
+  off: "Off · deliveries and deferrals even with the app closed",
+  on: "On · deliveries and deferrals even with the app closed",
+};
+
+function PushRow(): React.JSX.Element {
+  const push = usePush();
+  const on = push.state.kind === "on";
+  const usable = push.state.kind === "on" || push.state.kind === "off";
+  return (
+    <div className="flex flex-col gap-1">
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on}
+        disabled={!usable || push.busy}
+        onClick={() => void (on ? push.turnOff() : push.turnOn())}
+        className="flex min-h-12 items-center justify-between gap-3 rounded-[14px] px-3 text-left hover:bg-go-surface disabled:hover:bg-transparent"
+      >
+        <span className="flex flex-col">
+          <span className="text-[14px] font-medium text-black">Alerts on this device</span>
+          <span className="text-[12px] text-go-secondary">{PUSH_NOTE[push.state.kind]}</span>
+        </span>
+        {usable && (
+          <span aria-hidden className={cx("flex h-6 w-10 shrink-0 items-center rounded-full p-0.5", on ? "justify-end bg-go-success" : "justify-start bg-go-divider")}>
+            <span className="size-5 rounded-full bg-white shadow" />
+          </span>
+        )}
+      </button>
+      {push.error && <p role="alert" className="px-3 text-[12px] text-go-danger-strong">{push.error}</p>}
+    </div>
   );
 }

@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import type { ApiError } from "@shared/api/problem";
 import type { DeliveryRecordView, IssueView, OrderStatus, OrderView, OutletView, PendingReceiptView } from "@shared/domain/types";
 import { Icon, Notice, cx } from "@shared/ui";
-import { cases, addDays, clock, cutoffLabel, dayLabel, depotToday, editable, greeting, hhmm, onTheWay, temperatureLabel, untilCutoff } from "../data/format.ts";
+import { units, addDays, clock, cutoffLabel, dayLabel, depotToday, editable, greeting, hhmm, onTheWay, temperatureLabel, untilCutoff } from "../data/format.ts";
 import { isOpenIssue, issueCard, loaderShortUnits } from "../data/issues.ts";
 import NextStop from "./NextStop.tsx";
 import { Button, Card, Chip, Muted } from "../ui.tsx";
@@ -22,7 +22,7 @@ export function Progress({ status }: { status: OrderStatus }): React.JSX.Element
     <ol className="flex w-full" aria-label="Delivery progress">
       {STEPS.map((step, i) => (
         <li key={step} className="relative flex flex-1 flex-col items-center gap-1" aria-current={i === done ? "step" : undefined}>
-          {i > 0 && <span aria-hidden className={cx("absolute top-3 -left-1/2 h-0.5 w-full", i <= done ? "bg-go-success" : "bg-[#dfe7e6]")} />}
+          {i > 0 && <span aria-hidden className={cx("absolute top-3 left-[calc(-50%+13px)] h-0.5 w-[calc(100%-26px)]", i <= done ? "bg-go-success" : "bg-[#dfe7e6]")} />}
           <span
             className={cx(
               "relative flex size-[26px] items-center justify-center rounded-full",
@@ -121,7 +121,7 @@ export default function Home({
                     </span>
                     <span className="text-[20px] font-medium text-black">
                       {loaderShortUnits(shortage) > 0
-                        ? `${loaderShortUnits(shortage)} ${loaderShortUnits(shortage) === 1 ? "package" : "packages"} short - ${Math.max(0, coming.itemCount - loaderShortUnits(shortage))} of ${coming.itemCount} coming`
+                        ? `${units(loaderShortUnits(shortage))} short - ${Math.max(0, coming.itemCount - loaderShortUnits(shortage))} of ${coming.itemCount} coming`
                         : issueCard(shortage, coming, clock).title}
                     </span>
                     <span className="text-[13px] text-go-secondary">Reported at loading · comes next delivery</span>
@@ -145,7 +145,7 @@ export default function Home({
             <div className="flex items-start gap-2">
               <div className="flex flex-1 flex-col gap-[3px]">
                 <h2 className="text-[18px] font-medium text-black">Order for {dayLabel(next)}</h2>
-                <Muted>Closes 4:00 PM · {cutoffLabel(left)}</Muted>
+                <Muted>Closes 16:00 · {cutoffLabel(left)}</Muted>
               </div>
               <Chip tone={forNext.length ? "ok" : "muted"}>{forNext.length ? `${forNext.length} placed` : "Not placed yet"}</Chip>
             </div>
@@ -164,7 +164,7 @@ export default function Home({
                     >
                       <span className="text-[15px] font-medium">{temperatureLabel(t)}</span>
                       <span className="text-[13px] text-go-muted">
-                        {first ? `${first.orderRef} · ${cases(total)}${placed.some((o) => editable(o.status)) ? " · change" : ""}` : "Not placed"}
+                        {first ? `${first.orderRef} · ${units(total)}${placed.some((o) => editable(o.status)) ? " · change" : ""}` : "Not placed"}
                       </span>
                     </button>
                   </li>

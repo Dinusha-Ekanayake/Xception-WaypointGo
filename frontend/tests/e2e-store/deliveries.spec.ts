@@ -12,13 +12,13 @@ test("today is a row per vehicle, and a make-up delivery opens its drawer", asyn
   const today = page.getByRole("region", { name: "Today" });
   const run = today.getByRole("article", { name: "VEH043" });
   await expect(run).toContainText("Refrigerated vehicle");
-  await expect(run).toContainText("Regular run · 1 order · 5 cases");
-  await expect(run).toContainText("Stop 3 of 7 · 1 case short at loading");
+  await expect(run).toContainText("Regular delivery · 1 order · 5 units");
+  await expect(run).toContainText("Stop 3 of 7 · 1 unit short at loading");
   await expect(run).toContainText("Delivered · to receive");
   await expect(run.getByRole("button", { name: "Receive" })).toBeVisible();
 
   const makeUp = today.getByRole("article", { name: "ORD0092418" });
-  await expect(makeUp).toContainText("Make-up delivery · 2 cases");
+  await expect(makeUp).toContainText("Make-up delivery · 2 units");
   await expect(makeUp).toContainText("Scheduled");
   await makeUp.getByRole("button", { name: "Details" }).click();
 
@@ -46,7 +46,7 @@ test("upcoming days wait for the plan, and the past week shows the store's count
   const past = page.getByRole("region", { name: "Past 7 days" });
   await expect(past).toContainText("1 delivery · 0 open issues");
   const run = past.getByRole("article", { name: "VEH040" });
-  await expect(run).toContainText("Delivered · 1 order · 2 cases · signed 05:55");
+  await expect(run).toContainText("Delivered · 1 order · 2 units · signed 05:55");
   await expect(run).toContainText("Confirmed · 1 short");
-  await expect(run).toContainText("1 case short on your count");
+  await expect(run).toContainText("1 unit short on your count");
 });

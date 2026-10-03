@@ -51,8 +51,8 @@ services:
           - ${DEPLOY_ENV:-production}-waypoint
 
   # Preview only (the observability profile is enabled by deploy.sh there). nginx
-  # reaches it as preview-grafana at grafana-preview.SITE_ADDRESS; the localhost
-  # port is dropped like every other.
+  # reaches it as preview-grafana at grafana.SITE_ADDRESS and
+  # grafana-preview.SITE_ADDRESS; the localhost port is dropped like every other.
   grafana:
     ports: !reset []
     environment:

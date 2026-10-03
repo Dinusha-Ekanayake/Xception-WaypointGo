@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { Command } from "../src/shared/api/commands.ts";
 import type { StoredEntry } from "../src/shared/offline/store.ts";
-import { discardCommand, inRecordedOrder, redoCommands } from "../src/shared/offline/review.ts";
+import { discardCommand, inRecordedOrder, nextOrder, recordedOrder, redoCommands } from "../src/shared/offline/review.ts";
 import { outcomeAction } from "../src/shared/offline/outcome.ts";
 import { redoVersion, tripOf } from "../src/roles/loader/data/redo.ts";
 
@@ -86,4 +86,19 @@ test("a loader redo counts the checks for the same trip still waiting to apply f
   assert.equal(tripOf(held()), "trip-1");
   assert.equal(redoVersion("trip-1", 7, waiting), 9);
   assert.equal(redoVersion("trip-3", 7, waiting), 7);
+});
+
+test("writes recorded in the same millisecond keep the order they were queued in", () => {
+  const at = "2026-10-05T03:30:00.000Z";
+  const start = { commandId: "zz-start", enqueuedAt: at, order: nextOrder(at, []) };
+  const arrival = { commandId: "mm-arrival", enqueuedAt: at, order: nextOrder(at, [start]) };
+  const record = { commandId: "aa-record", enqueuedAt: at, order: nextOrder(at, [start, arrival]) };
+  const proof = { commandId: "00-proof", enqueuedAt: at, order: nextOrder(at, [start, arrival, record]) };
+  const queued = [proof, record, start, arrival];
+  assert.deepEqual(inRecordedOrder(queued).map((e) => e.commandId), ["zz-start", "mm-arrival", "aa-record", "00-proof"]);
+  const sequences = inRecordedOrder(queued).map(recordedOrder);
+  assert.equal(new Set(sequences).size, 4, "every write has its own sequence");
+  // A write queued before order existed falls back to its recording time, and the next one goes after it.
+  const old = { commandId: "old", enqueuedAt: "2026-10-05T03:31:00.000Z" };
+  assert.ok(nextOrder(at, [old]) > recordedOrder(old));
 });

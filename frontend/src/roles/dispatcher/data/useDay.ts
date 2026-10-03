@@ -3,6 +3,7 @@
 import { request, requestAll } from "@shared/api/client";
 import { ApiError } from "@shared/api/problem";
 import { useResource, type Resource } from "@shared/api/useResource";
+import { addDays } from "@shared/wording";
 import type { DepotView, VehiclePositionView, DeferralView, FuelView, IssueHistoryView, IssueView, OrderView, PlanView, ReadyTripView, RunSheetView } from "@shared/domain/types";
 
 // The dispatcher's reads for a depot and a day. Each polls while the tab is
@@ -21,6 +22,39 @@ async function orNone<T>(path: string, signal: AbortSignal): Promise<T | null> {
     if (failure instanceof ApiError && failure.status === 404) return null;
     throw failure;
   }
+}
+
+/** Orders a plan for their day would still take: confirmed, or deferred and back in the queue. */
+export function waitingToPlan(orders: OrderView[]): number {
+  return orders.filter((order) => order.status === "CONFIRMED" || order.status === "DEFERRED").length;
+}
+
+/** How far ahead the Plan screen looks for the next day with orders waiting. */
+export const LOOK_AHEAD_DAYS = 7;
+
+/**
+ * The first day after `date`, within a week, with orders waiting to be planned
+ * (issue #114). A dispatcher usually plans the next delivery day while the
+ * screen opens on today, so an empty today points there instead of to an
+ * empty plan. Read only while `enabled`, one day at a time, stopping at the
+ * first hit.
+ */
+export function useNextOrderDay(depots: string[], date: string, enabled: boolean): Resource<{ date: string; waiting: number } | null> {
+  const load =
+    !enabled || depots.length === 0
+      ? null
+      : async (signal: AbortSignal) => {
+          for (let ahead = 1; ahead <= LOOK_AHEAD_DAYS; ahead++) {
+            const day = addDays(date, ahead);
+            const perDepot = await Promise.all(
+              depots.map((depot) => request<OrderView[]>(`/api/orders/day?depot=${q(depot)}&date=${q(day)}`, { signal })),
+            );
+            const waiting = waitingToPlan(perDepot.flat());
+            if (waiting > 0) return { date: day, waiting };
+          }
+          return null;
+        };
+  return useResource(load, `next-order-day|${depots.join(",")}|${date}|${enabled}`);
 }
 
 /** Every order due at these depots on the day, whatever became of it. */

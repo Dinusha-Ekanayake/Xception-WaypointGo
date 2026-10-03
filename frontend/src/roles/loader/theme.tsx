@@ -12,20 +12,20 @@ export type Theme = "light" | "dark";
 const STORAGE_KEY = "waypoint.loader.theme";
 
 const ThemeContext = createContext<{ theme: Theme; setTheme: (theme: Theme) => void }>({
-  theme: "light",
+  theme: "dark",
   setTheme: () => {},
 });
 
 function stored(): Theme {
   try {
-    return window.localStorage.getItem(STORAGE_KEY) === "dark" ? "dark" : "light";
+    return window.localStorage.getItem(STORAGE_KEY) === "light" ? "light" : "dark";
   } catch {
-    return "light";
+    return "dark";
   }
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }): React.JSX.Element {
-  const [theme, setThemeState] = useState<Theme>("light");
+  const [theme, setThemeState] = useState<Theme>("dark");
   useEffect(() => setThemeState(stored()), []);
   const setTheme = useCallback((next: Theme) => {
     setThemeState(next);

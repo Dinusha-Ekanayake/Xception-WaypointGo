@@ -13,8 +13,8 @@ import ProofCapture, { EMPTY_PROOF, proofMissing, type ProofDraft } from "./Proo
 // overwrites the other.
 
 const REASON_LABEL: Record<FailureReason, string> = {
-  outlet_closed: "No one at the store",
-  refused: "The store refused the goods",
+  outlet_closed: "No one at the outlet",
+  refused: "The outlet refused the goods",
   mall_window_closed: "The mall's delivery window has closed",
   access_blocked: "Cannot unload here",
   vehicle_breakdown: "Vehicle broke down",

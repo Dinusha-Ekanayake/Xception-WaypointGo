@@ -27,6 +27,7 @@ export default function OperatorGate({
   unlock,
   onCancelUnlock,
   onPinStep,
+  aside,
 }: {
   /** The supervisor account the device is signed in as. */
   account: string;
@@ -39,6 +40,8 @@ export default function OperatorGate({
   onCancelUnlock?: () => void;
   /** True while the PIN screen is up: Figma shows it without the top bar. */
   onPinStep?: (pinStep: boolean) => void;
+  /** On a tablet or wider, shown beside the keypad instead of the crew list (the locked screen). */
+  aside?: React.ReactNode;
 }): React.JSX.Element {
   const tr = useT();
   const wide = useWide();
@@ -155,6 +158,32 @@ export default function OperatorGate({
     );
   }
 
+  const pad = wide && (
+    <PinPad
+      title={selected ? (unlock ? tr("Enter PIN to unlock") : tr("Enter PIN")) : null}
+      pin={pin}
+      onPin={typed}
+      onComplete={(value) => void submit(value)}
+      state={state}
+      busy={busy}
+    />
+  );
+  const columns = "w-full px-4 pt-2 pb-8 md:grid md:grid-cols-[minmax(0,1fr)_minmax(300px,0.75fr)] md:gap-8 md:px-8 lg:gap-16 lg:px-[42px]";
+
+  // Locked on a tablet or wider (Figma 07, 09, 10 "06 Locked"): who locked it
+  // and their trip beside the keypad, with no list to choose from.
+  if (wide && aside) {
+    return (
+      <main className={columns}>
+        <div className="flex flex-col gap-5">
+          {aside}
+          {error && <Notice tone="danger" live title={error} />}
+        </div>
+        {pad}
+      </main>
+    );
+  }
+
   const usable = (member: CrewMember) => online || member.offlineVerifier !== null;
   const q = query.trim().toLowerCase();
   const ordered = [...members].sort((a, b) => Number(b.userId === recentId) - Number(a.userId === recentId));
@@ -166,7 +195,7 @@ export default function OperatorGate({
   const marked = (member: CrewMember) => (wide && selected ? member.userId === selected.userId : member.userId === recentId);
 
   return (
-    <main className="w-full px-4 pt-2 pb-8 md:grid md:grid-cols-[minmax(0,1fr)_minmax(300px,0.75fr)] md:gap-8 md:px-8 lg:gap-16 lg:px-[42px]">
+    <main className={columns}>
       <div className="flex flex-col gap-5">
         {wide && unlock && onCancelUnlock && (
           <button type="button" onClick={onCancelUnlock} className="flex min-h-12 items-center gap-3 self-start text-[18px] text-go-ink">
@@ -264,16 +293,7 @@ export default function OperatorGate({
           </section>
         )}
       </div>
-      {wide && (
-        <PinPad
-          title={selected ? (unlock ? tr("Enter PIN to unlock") : tr("Enter PIN")) : null}
-          pin={pin}
-          onPin={typed}
-          onComplete={(value) => void submit(value)}
-          state={state}
-          busy={busy}
-        />
-      )}
+      {pad}
     </main>
   );
 }

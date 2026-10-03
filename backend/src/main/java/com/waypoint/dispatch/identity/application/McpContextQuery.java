@@ -1,5 +1,9 @@
 package com.waypoint.dispatch.identity.application;
 
+import com.waypoint.dispatch.identity.domain.McpScopes;
+import com.waypoint.dispatch.shared.error.DomainException;
+import com.waypoint.dispatch.shared.error.ErrorCode;
+
 import com.waypoint.dispatch.identity.contract.McpContextView;
 import java.util.Map;
 import org.springframework.stereotype.Component;
@@ -29,10 +33,20 @@ public class McpContextQuery {
   public McpContextView context(String token) {
     var session = access.require(token, "GET", "/api/mcp/context");
     var actor = sessions.actorOf(session);
+    var connection = sessions.mcpConnection(token).orElseThrow(
+        () -> new DomainException(ErrorCode.UNAUTHENTICATED, "MCP credential is expired or revoked"));
     var actions = READS.entrySet().stream()
+        .filter(entry -> McpScopes.coversRead(connection.scopes(), entry.getKey()))
         .filter(entry -> policies.decide(actor, entry.getKey(), entry.getValue(), Map.of()).allowed())
         .map(Map.Entry::getKey).sorted().toList();
+    // A write tool is offered when the connection has its scope and the person the
+    // MCP write grant; the command's own policy and scope are decided by the bus.
+    boolean writes = access.mayWrite(actor);
+    var writeTools = McpScopes.writeTools().stream()
+        .filter(tool -> writes && connection.scopes().contains(tool.scope()))
+        .map(McpScopes.WriteTool::name).toList();
     access.recordRead(actor, McpAccessHandler.CONNECT, McpAccessHandler.RESOURCE);
-    return new McpContextView(session.userId(), session.roles(), session.scope(), actions);
+    return new McpContextView(session.userId(), session.roles(), session.scope(), actions,
+        connection.scopes().stream().sorted().toList(), writeTools, access.mayReadPersonal(actor));
   }
 }

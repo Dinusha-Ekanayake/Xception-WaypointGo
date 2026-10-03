@@ -21,7 +21,7 @@ export default function SkippedOutlets({
   const deferrals = useDeferrals(depots, date);
   const rows = deferrals.data ?? [];
   return (
-    <Card label="Skipped outlets">
+    <Card label="Skipped outlets" className="flex-1">
       <CardHead
         title="Skipped outlets"
         meta="Left out of today's published plans"

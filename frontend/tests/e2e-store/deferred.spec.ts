@@ -18,7 +18,7 @@ test("a deferred order says where it moved and why, and Got it stops the Orders 
 
   await expect(page.getByRole("heading", { name: "Order deferred" })).toBeVisible();
   const card = page.getByRole("region", { name: "Deferred order" });
-  await expect(card).toContainText("ORD0092413 · Chilled · 6 cases");
+  await expect(card).toContainText("ORD0092413 · Chilled · 6 units");
   await expect(card).toContainText("Was");
   await expect(card).toContainText("Now");
   await expect(card).toContainText("No cold space");

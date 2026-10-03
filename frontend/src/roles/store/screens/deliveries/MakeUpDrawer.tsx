@@ -4,7 +4,7 @@ import { useResource } from "@shared/api/useResource";
 import type { DeliveryRecordView, IssueView, OrderView, OutletView } from "@shared/domain/types";
 import { Icon, cx } from "@shared/ui";
 import type { StoreGateway } from "../../data/gateway.ts";
-import { cases, clock, depotToday, expectedAt, hhmm, temperatureLabel } from "../../data/format.ts";
+import { units, clock, depotToday, expectedAt, hhmm, temperatureLabel } from "../../data/format.ts";
 import { makeUpSteps } from "../../data/runs.ts";
 import { Button, Drawer } from "../../ui.tsx";
 
@@ -35,7 +35,7 @@ export default function MakeUpDrawer({
   const title = record ? `${record.vehicleId} · make-up delivery` : "Make-up delivery";
   const about = [
     order.temperature === "chilled" ? "Refrigerated vehicle" : null,
-    record ? `ETA ${clock(expectedAt(record))}` : window ? `Window ${window}` : null,
+    record ? `Expected ${clock(expectedAt(record))}` : window ? `Window ${window}` : null,
   ].filter(Boolean);
 
   return (
@@ -57,7 +57,7 @@ export default function MakeUpDrawer({
             <li key={l.productId} className="flex flex-col">
               <span className="text-[15px] text-black">{l.productId}</span>
               <span className="text-[13px] text-go-muted">
-                {cases(l.quantity)} · {temperatureLabel(order.temperature)} · <span title="Reconstructed from order totals, not a confirmed product">inferred</span>
+                {units(l.quantity)} · {temperatureLabel(order.temperature)} · <span title="Reconstructed from order totals, not a confirmed product">inferred</span>
               </span>
             </li>
           ))}
