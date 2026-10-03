@@ -15,6 +15,7 @@ import { LangProvider, useT } from "./i18n.tsx";
 import { ThemeProvider, useTheme } from "./theme.tsx";
 import { createGateway } from "./data/gateway.ts";
 import { depotToday, hhmm } from "./data/manifest.ts";
+import { dockDay, stillToLoad } from "./data/dockDay.ts";
 import { redoVersion, tripOf } from "./data/redo.ts";
 import DockBoard from "./screens/DockBoard.tsx";
 import Locked from "./screens/Locked.tsx";
@@ -53,7 +54,9 @@ function LoaderWorkspace({
   const gateway = useMemo(() => createGateway(userId), [userId]);
   const online = useOnline();
   const depot = scope[0] ?? "";
-  const date = depotToday();
+  // The dock's day: the first from today with a trip still to load (issue #114).
+  const today = depotToday();
+  const [date, setDate] = useState(today);
   const [openId, setOpenId] = useState<string | null>(null);
   const [tripSync, setTripSync] = useState<Date | null>(null);
   // Before the first sync pass: queued work goes after the switches it was recorded under.
@@ -89,6 +92,18 @@ function LoaderWorkspace({
   const { theme } = useTheme();
 
   const trips = useResource(depot ? (signal) => gateway.readyTrips(depot, date, signal) : null, `${depot}:${date}`, 30_000);
+  // Found again on start, on reconnecting, and once the shown day has nothing left to load.
+  const dayDone = trips.data !== null && !stillToLoad(trips.data);
+  useEffect(() => {
+    if (!depot || !online) return;
+    const controller = new AbortController();
+    dockDay(today, (day) => gateway.readyTrips(depot, day, controller.signal))
+      .then((day) => !controller.signal.aborted && setDate(day))
+      .catch(() => {
+        // Unreachable: keep the day shown; the board says it could not read it.
+      });
+    return () => controller.abort();
+  }, [depot, online, gateway, today, dayDone]);
   // Notifications for this device's account (issue #118); none in the sample.
   const inbox = useInbox(userId, !gateway.sample);
   const [notificationsOpen, setNotificationsOpen] = useState(false);

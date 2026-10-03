@@ -3,3 +3,12 @@
 # ml-server/manifest.json at start, so no line-ending conversion may touch it.
 ml-server/models/*.joblib filter=lfs diff=lfs merge=lfs -text
 ml-server/models/* -text
+
+# Files that run or are read inside Linux containers keep LF on every OS. A
+# Windows checkout with core.autocrlf would otherwise give compose-init.sh CRLF
+# endings, and /bin/sh stops at "set: Illegal option -" before the stack starts
+# (issue #114). SQL migrations are left alone: they are checksummed as applied.
+*.sh text eol=lf
+*.template text eol=lf
+deploy/vps/nginx/**/*.conf text eol=lf
+Dockerfile text eol=lf

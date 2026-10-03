@@ -6,7 +6,7 @@ import { ApiError } from "@shared/api/problem";
 import { drainUploads, pendingEntries, pendingUploads, UPLOADS_EVENT, type StoredEntry, type StoredUpload } from "@shared/offline";
 import type { OutletView, VehicleView } from "@shared/domain/types";
 import type { DriverGateway, RunData } from "./gateway.ts";
-import { DeliveryKind, acknowledged, isStopAck, operatingDate, project, todaysSheet, type Stop } from "./run.ts";
+import { DeliveryKind, acknowledged, hasRun, isStopAck, keepRunDay, keptRunDay, nextRunDay, operatingDate, project, todaysSheet, type Stop } from "./run.ts";
 
 // The driver's day: read from the server when it answers, from the phone when it
 // does not, and shown with the writes still waiting applied on top.
@@ -50,7 +50,9 @@ export type Run = {
  *     would leave a refused write drawn as if it had happened (EXE-03).
  */
 export function useRun(gateway: DriverGateway, accountId: string, online: boolean, queueState: string, onQueued: () => void): Run {
-  const date = useMemo(() => operatingDate(new Date()), []);
+  const today = useMemo(() => operatingDate(new Date()), []);
+  // The run's day: today, or the first day ahead with a released trip (issue #114).
+  const [date, setDate] = useState(() => keptRunDay(accountId, today));
   const [data, setData] = useState<RunData | null>(null);
   const [keptAt, setKeptAt] = useState<Date | null>(null);
   const [syncedAt, setSyncedAt] = useState<Date | null>(null);
@@ -89,6 +91,15 @@ export function useRun(gateway: DriverGateway, accountId: string, online: boolea
         try {
           const fresh = await gateway.run(date, controller.signal);
           if (cancelled) return;
+          if (!hasRun(fresh.sheets) && date === today) {
+            const ahead = await nextRunDay(today, (day) => gateway.run(day, controller.signal));
+            if (cancelled) return;
+            if (ahead) {
+              keepRunDay(accountId, ahead);
+              setDate(ahead);
+              return;
+            }
+          }
           dataRef.current = fresh;
           setData(fresh);
           setKeptAt(null);
@@ -113,7 +124,7 @@ export function useRun(gateway: DriverGateway, accountId: string, online: boolea
       cancelled = true;
       controller.abort();
     };
-  }, [gateway, date, online, tick, readDevice]);
+  }, [gateway, accountId, today, date, online, tick, readDevice]);
 
   // The shell's engine sent, or kept, something: read the queue again, and the
   // server's copy once nothing of ours is in flight.

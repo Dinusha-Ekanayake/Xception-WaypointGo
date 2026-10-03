@@ -127,11 +127,16 @@ export function useDriver(userId: string) {
     await start(stop);
   };
 
-  const arrived = async (stop: Stop) => {
+  /** True once the arrival is recorded, sent or kept on this phone. */
+  const arrived = async (stop: Stop): Promise<boolean> => {
     setError(null);
     const outcome = await act(DeliveryKind.arrive, { deliveryId: stop.deliveryId, deviceArrivedAt: new Date().toISOString() }, stop);
-    if (!outcome.ok) return setError(words(outcome));
+    if (!outcome.ok) {
+      setError(words(outcome));
+      return false;
+    }
     go({ name: "report", deliveryId: stop.deliveryId, failed: null });
+    return true;
   };
 
   /**
@@ -161,7 +166,8 @@ export function useDriver(userId: string) {
     );
   };
 
-  const confirm = async (stop: Stop, report: Report) => {
+  /** True once the record is kept, sent or on this phone; its proof may still have failed (see `saved`). */
+  const confirm = async (stop: Stop, report: Report): Promise<boolean> => {
     setError(null);
     setWorking(true);
     try {
@@ -177,7 +183,10 @@ export function useDriver(userId: string) {
         },
         stop,
       );
-      if (!recorded.ok) return setError(words(recorded));
+      if (!recorded.ok) {
+        setError(words(recorded));
+        return false;
+      }
       // The record moved the stop's version on by one, sent or waiting.
       const proven = report.proof ? await captureProof(stop, stop.rowVersion + 1, report.proof) : null;
       setSaved({
@@ -187,6 +196,7 @@ export function useDriver(userId: string) {
         warning: proven && !proven.ok ? `The delivery is recorded, but its proof was not: ${proven.error.message} Open the stop from Home to add it.` : null,
         handedOver: record.outcome === "FAILED" ? null : stop,
       });
+      return true;
     } finally {
       setWorking(false);
     }

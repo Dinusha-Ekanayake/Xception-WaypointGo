@@ -109,3 +109,28 @@ test("offline, the plan can be read and nothing can be changed", async ({ page, 
   await page.getByRole("tab", { name: /Publish/ }).click();
   await expect(page.getByRole("button", { name: "Publish plan" })).toBeDisabled();
 });
+
+test("with nothing waiting today, the plan points to the next day that has orders and switches to it", async ({ page }) => {
+  // Issue #114: a fresh install seeds the next operating day, while the screen opens on today.
+  const desk = await serve(page);
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Colombo" }).format(new Date());
+  const later = new Date(`${today}T00:00:00Z`);
+  later.setUTCDate(later.getUTCDate() + 2);
+  const seeded = later.toISOString().slice(0, 10);
+  const asked: string[] = [];
+  await page.route("**/api/orders/day?*", (route) => {
+    const date = new URL(route.request().url()).searchParams.get("date")!;
+    asked.push(date);
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(date === seeded ? desk.orders : []) });
+  });
+
+  await page.goto("/#/plan");
+  await expect(page.getByText("0 orders are confirmed and waiting to be planned.")).toBeVisible();
+  await expect(page.getByText(/^3 orders wait for \w{3} \d{1,2} \w{3}\.$/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Generate draft" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: /^Plan \w{3} \d{1,2} \w{3}$/ }).click();
+  await expect(page.getByText("3 orders are confirmed and waiting to be planned.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Generate draft" })).toBeVisible();
+  expect(asked).toContain(seeded);
+});

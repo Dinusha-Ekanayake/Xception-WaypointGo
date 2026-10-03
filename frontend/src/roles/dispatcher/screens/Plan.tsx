@@ -9,7 +9,7 @@ import { useFleet } from "../data/fleet.ts";
 import { improvementNote, summarise, working } from "../data/plan.ts";
 import { decidedCount, decisionRows } from "../data/planViews.ts";
 import { useCommand } from "../data/useCommand.ts";
-import { useOrders, usePlans } from "../data/useDay.ts";
+import { useNextOrderDay, useOrders, usePlans, waitingToPlan } from "../data/useDay.ts";
 import { useSnapshot, useSnapshots } from "../data/usePlanReads.ts";
 import { Retry } from "./Orders.tsx";
 import PlanBoard from "./PlanBoard.tsx";
@@ -68,7 +68,9 @@ export default function Plan({
   const { decided, total, open } = decidedCount(rows);
   const summary = plan ? summarise(plan, vehicles) : null;
   const editable = online && state.stage === "draft" && viewing === null;
-  const toPlan = (orders.data ?? []).filter((order) => order.status === "CONFIRMED" || order.status === "DEFERRED").length;
+  const toPlan = waitingToPlan(orders.data ?? []);
+  // Nothing waits today: name the next day that has orders waiting (issue #114).
+  const nextDay = useNextOrderDay(one, date, Boolean(plans.data) && state.stage === "none" && Boolean(orders.data) && toPlan === 0);
 
   /** Sends one command, then reads the day again whatever the answer: a refusal often means the plan moved. */
   const send = async (what: string, kind: string, payload: unknown, version: number | null, done: (body: Body) => string) => {
@@ -199,9 +201,18 @@ export default function Plan({
             {orders.data ? `${toPlan} ${toPlan === 1 ? "order is" : "orders are"} confirmed and waiting to be planned.` : "Counting the orders…"} Generating places every order it can and names the rule
             that stopped each one it could not.
           </p>
-          <PrimaryButton disabled={!online || busy} onClick={() => void generate(false)}>
-            {busy ? "Generating…" : "Generate draft"}
-          </PrimaryButton>
+          {toPlan === 0 && nextDay.data ? (
+            <>
+              <p className="text-[13px] text-go-ink">
+                {nextDay.data.waiting} {nextDay.data.waiting === 1 ? "order waits" : "orders wait"} for {dayLabel(nextDay.data.date)}.
+              </p>
+              <PrimaryButton onClick={() => onDate(nextDay.data!.date)}>Plan {dayLabel(nextDay.data.date)}</PrimaryButton>
+            </>
+          ) : (
+            <PrimaryButton disabled={!online || busy} onClick={() => void generate(false)}>
+              {busy ? "Generating…" : "Generate draft"}
+            </PrimaryButton>
+          )}
         </section>
       )}
 
