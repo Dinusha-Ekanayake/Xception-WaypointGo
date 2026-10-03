@@ -302,6 +302,8 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-NOT-07 | The person who caused an event is not notified of it | Policy, issue #14 | Policy |
 | R-NOT-08 | A driver is pushed only trip-level events (plan published, plan revised, trip released), all of which happen before departure. Anything else routed to a driver reaches the inbox only | Policy, issue #14 | Policy |
 | R-NOT-09 | Who hears about which event is data: a versioned routing table in `notification.routing_rules`, one version current, changed by a new version and never edited in place. The module may read it, not write it | Policy, issue #14 | Policy |
+| R-NOT-10 | When a trip is released, the depot's other loaders are told it left; the loader who released it is the actor and is not (R-NOT-07). Routing version 2 | Team decision, issue #118 | Team |
+| R-NOT-11 | When a trip is released, each outlet on it is told its stop number and expected arrival, so the store can schedule staff to receive (booklet p6, R-RCP-02). Routing version 2 | Booklet, issue #118 | Binding |
 
 ---
 

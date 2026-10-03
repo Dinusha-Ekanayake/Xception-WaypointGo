@@ -181,10 +181,50 @@ class NotificationConsumersIntegrationTest extends NotificationSupport {
             new TripReleased(UUID.randomUUID(), UUID.randomUUID(), 1, vehicle, depot, date,
                 List.of(new ReleasedStop(1, UUID.randomUUID(), outlet.outletId(), LocalTime.of(8, 0)))));
 
-    List<Map<String, Object>> written = notificationsOf(eventId);
     assertTrue(recipientsOf(eventId).contains(dispatcher.id()), "LOD-05");
-    assertTrue(
-        written.stream().allMatch(n -> n.get("title").equals("Released trip has no driver")));
+    assertEquals("Released trip has no driver", notificationFor(eventId, dispatcher).get("title"));
+  }
+
+  @Test
+  void aReleasedTripTellsTheOtherLoadersButNotTheOneWhoReleasedIt() {
+    LocalDate date = someFarDate();
+    String vehicle = assignOn(driver, date);
+    UUID tripId = UUID.randomUUID();
+    TripReleased released =
+        new TripReleased(tripId, UUID.randomUUID(), 1, vehicle, depot, date,
+            List.of(new ReleasedStop(1, UUID.randomUUID(), outlet.outletId(), LocalTime.of(8, 0))));
+
+    UUID byThisLoader = deliver("notification.on-trip-released", released, loader.id());
+    assertFalse(recipientsOf(byThisLoader).contains(loader.id()), "R-NOT-07: the releaser is not told");
+
+    UUID bySomeoneElse =
+        deliver("notification.on-trip-released",
+            new TripReleased(UUID.randomUUID(), UUID.randomUUID(), 1, vehicle, depot, date, released.stops()));
+    Map<String, Object> toLoader = notificationFor(bySomeoneElse, loader);
+    assertEquals("Trip released · " + vehicle, toLoader.get("title"));
+    assertFalse(recipientsOf(bySomeoneElse).contains(dispatcher.id()), "a driver was reached, so no LOD-05 fallback");
+  }
+
+  @Test
+  void aReleasedTripTellsEachOutletItsStopAndExpectedArrival() {
+    LocalDate date = someFarDate();
+    String vehicle = assignOn(driver, date);
+    UUID tripId = UUID.randomUUID();
+
+    UUID eventId =
+        deliver(
+            "notification.on-trip-released",
+            new TripReleased(tripId, UUID.randomUUID(), 1, vehicle, depot, date,
+                List.of(
+                    new ReleasedStop(1, UUID.randomUUID(), otherOutlet.outletId(), LocalTime.of(7, 15)),
+                    new ReleasedStop(2, UUID.randomUUID(), outlet.outletId(), LocalTime.of(8, 5)))));
+
+    Map<String, Object> toManager = notificationFor(eventId, manager);
+    assertEquals(vehicle + " is on the way", toManager.get("title"));
+    assertEquals("You're stop 2 of 2. Expected 08:05.", toManager.get("body"));
+    assertEquals("stop:2:" + outlet.outletId(), toManager.get("target_key"), "one per stop");
+    assertEquals("You're stop 1 of 2. Expected 07:15.", notificationFor(eventId, stranger).get("body"),
+        "each outlet hears its own stop");
   }
 
   // ---- push ---------------------------------------------------------------------------

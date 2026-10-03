@@ -61,6 +61,8 @@ export default function Issues({
         subtitle={`${issues.data ? `${counts.open} open` : "Loading"} · ${scopeLabel}`}
         online={online}
         lastSyncedAt={issues.loadedAt}
+        onSync={issues.refresh}
+        syncing={issues.loading}
       />
       {issues.error && <Refusal error={issues.error} what="the issues" action={<Retry onClick={issues.refresh} />} />}
 
