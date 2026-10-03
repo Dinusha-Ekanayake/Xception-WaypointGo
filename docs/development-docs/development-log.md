@@ -25,7 +25,7 @@ Entries before 2026-09-26 are in `git log`.
 
 `feat/139-mcp-rate-limit` · @Oxshadha
 
-MCP requests are counted per credential and per OAuth client in `iam.mcp_rate_windows` (migration `20261003T1500`), one atomic upsert per bucket per request, so every replica shares the count. Over the limit is `429` with `Retry-After` to the next minute; the adapter hands the assistant `retryAfterSeconds`. The first refusal per window is audited, a flood only counted; disconnecting is never limited; the retention job prunes old windows. Rule R-IAM-33, parameter P-30 (120 a minute per credential, 1200 per client), case SEC-39.
+MCP requests are counted per credential and per OAuth client in `iam.mcp_rate_windows` (migration `20261003T1600`), one atomic upsert per bucket per request, so every replica shares the count. Over the limit is `429` with `Retry-After` to the next minute; the adapter hands the assistant `retryAfterSeconds`. The first refusal per window is audited, a flood only counted; disconnecting is never limited; the retention job prunes old windows. Rule R-IAM-33, parameter P-30 (120 a minute per credential, 1200 per client), case SEC-39.
 Why: the MCP specification requires servers to rate limit tool invocations, and nothing did.
 Verified: `McpRateLimitIntegrationTest` (3, clock pinned mid-minute), `RateWindowTest`, all MCP integration tests and `ModuleBoundaryTest` on PostgreSQL, none skipped; `mcp` `npm test` 18.
 Open: stacked on #140 (same filter); merge #140 first. A fixed window allows up to twice the limit across a minute boundary, accepted for one shared upsert per request.
