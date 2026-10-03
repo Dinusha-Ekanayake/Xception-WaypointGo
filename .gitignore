@@ -141,6 +141,7 @@ artifacts/
 !docs/architecture/ASSUMPTIONS.md
 !docs/architecture/DATA-MODEL-REVIEW.md
 !docs/architecture/EDGE-CASES.md
+!docs/architecture/GLOSSARY.md
 !docs/architecture/schema/README.md
 !.agent/rules/*.md
 !docs/ai-disclosure.md
@@ -151,6 +152,7 @@ artifacts/
 !docs/design-rationale.md
 !docs/development-docs/development.md
 !docs/development-docs/development-log.md
+!docs/development-docs/log/*.md
 !docs/issues/022-admin-console/CAPABILITY-UI-PLAN.md
 !docs/development-docs/enterprise-architecture-plan.md
 !docs/development-docs/STATUS.md

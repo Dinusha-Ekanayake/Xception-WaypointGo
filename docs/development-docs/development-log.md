@@ -1,10 +1,27 @@
 # Development log
 
-Why things changed and what state they left behind. Git history says what changed; this says why, and what is still open. Several people and agents work here in parallel without seeing each other's sessions, so read the top entries before starting.
+Why things changed and what state they left behind. Git history says what changed; this says why, and what is still open. Several people and agents work here in parallel without seeing each other's sessions, so read the recent entries before starting.
+
+## One file per person
+
+The log is split by GitHub user, one file each in [`log/`](log/), so that two pull requests never add to the same file and never conflict:
+
+| GitHub user | File |
+| --- | --- |
+| @Dinusha-Ekanayake | [log/Dinusha-Ekanayake.md](log/Dinusha-Ekanayake.md) |
+| @jv-ransika | [log/jv-ransika.md](log/jv-ransika.md) |
+| @kavindamihiran | [log/kavindamihiran.md](log/kavindamihiran.md) |
+| @Oxshadha | [log/Oxshadha.md](log/Oxshadha.md) |
+| @ranathungaWK | [log/ranathungaWK.md](log/ranathungaWK.md) |
+| @tharushaudana | [log/tharushaudana.md](log/tharushaudana.md) |
+
+- **Write only in the file of the GitHub user who owns the work**, `log/<github-user>.md`, with the login spelled exactly as on GitHub (`gh api user -q .login` prints it; `git config user.name` is not always the login). Never add to someone else's file.
+- Someone new creates their own file with the same heading as the others; adding their row above is welcome but not required, since `log/` is the list.
+- To read what others did recently, read the top entry of every file, or `git log -p -5 -- docs/development-docs/log/`.
 
 ## How to write an entry
 
-Short imperative subject, then a few terse lines. Newest first. Credit the GitHub user who owns the work; never record agent, tool or model names. Skip typo and formatting fixes.
+Short imperative subject, then a few terse lines. Newest first, at the top of your file under its heading. Credit the GitHub user who owns the work; never record agent, tool or model names. Skip typo and formatting fixes.
 
 ```markdown
 ## YYYY-MM-DD - type: short imperative subject
@@ -21,25 +38,14 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
-## 2026-10-03 - feat(mcp): rate limit per credential and per OAuth client (issue #139)
+## 2026-10-03 - feat: the Forecast screen shows the last and next run, with a countdown
 
-`feat/139-mcp-rate-limit` · @Oxshadha
+`feat/forecast-schedule` · @tharushaudana
 
-MCP requests are counted per credential and per OAuth client in `iam.mcp_rate_windows` (migration `20261003T1600`), one atomic upsert per bucket per request, so every replica shares the count. Over the limit is `429` with `Retry-After` to the next minute; the adapter hands the assistant `retryAfterSeconds`. The first refusal per window is audited, a flood only counted; disconnecting is never limited; the retention job prunes old windows. Rule R-IAM-33, parameter P-30 (120 a minute per credential, 1200 per client), case SEC-39.
-Why: the MCP specification requires servers to rate limit tool invocations, and nothing did.
-Verified: `McpRateLimitIntegrationTest` (3, clock pinned mid-minute), `RateWindowTest`, all MCP integration tests and `ModuleBoundaryTest` on PostgreSQL, none skipped; `mcp` `npm test` 18.
-Open: stacked on #140 (same filter); merge #140 first. A fixed window allows up to twice the limit across a minute boundary, accepted for one shared upsert per request.
-
----
-
-## 2026-10-03 - feat(mcp): per-tool metrics, outcome audit and call logs (issue #140)
-
-`feat/140-mcp-observability` · @Oxshadha
-
-Every MCP request is counted and timed per tool and outcome (`waypoint_mcp_calls_total`, `waypoint_mcp_duration_seconds`), the tool named by the backend from the path (`McpReadPolicy.toolOf`) so a client cannot invent a metric label. An authorized read also writes an outcome audit row beside its authorization row under one correlation id; a failed outcome write never fails the read and is counted. The adapter logs one JSON line per tool call, without arguments, results or credentials. Runbook in [mcp/README.md](../../mcp/README.md#observing-it), case SEC-38.
-Why: the MCP spec asks servers to log tool usage, and a read that was allowed but ended in 404 or an error was invisible.
-Verified: `McpReadPolicyTest`, `McpConnectionIntegrationTest` (10) and `McpOAuthIntegrationTest` on PostgreSQL, none skipped; `mcp` `npm test` 17.
-Open: per-client metric tags are deliberately absent (dynamic client registration makes them unbounded); per-client views come with #141.
+The overview gains `nextRunAt`, from `intelligence/domain/ForecastSchedule`, which now also holds the rule `ForecastJob.due` obeys (P-29); the dispatcher's Forecast tab shows both runs in depot time and reads again when one is due.
+Why: after a deploy the screen said only "No forecast yet"; the hour is Colombo's, so the first run came at :30 UTC, which was not obvious.
+Verified: `IntelligenceDomainTest` (22); frontend `npm run typecheck`, `npm test` (109), `npm run build`, dispatcher browser suite (23). The `nextRunAt` assertion in `IntelligenceIntegrationTest` runs in CI.
+Open: nothing.
 
 ---
 

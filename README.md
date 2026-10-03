@@ -136,7 +136,7 @@ Integration tests use `TEST_DATABASE_URL` when it is set, a throwaway PostgreSQL
 | --- | --- |
 | **What are we building, and why this shape?** | [SYSTEM-ARCHITECTURE.md](SYSTEM-ARCHITECTURE.md) |
 | **What is built, what is left, and what do I pick up?** | [docs/development-docs/STATUS.md](docs/development-docs/STATUS.md) |
-| **Why did it change, and what did that leave open?** | [docs/development-docs/development-log.md](docs/development-docs/development-log.md) |
+| **Why did it change, and what did that leave open?** | [docs/development-docs/development-log.md](docs/development-docs/development-log.md), one file per person in `log/` |
 | **What is the base that must not change?** | [docs/architecture/FOUNDATION-PLAN.md](docs/architecture/FOUNDATION-PLAN.md), complete |
 
 `SYSTEM-ARCHITECTURE.md` sits at the root on purpose: it is the entry point, the way `README.md` is. `docs/architecture/` holds the detail behind it.
@@ -152,6 +152,7 @@ Integration tests use `TEST_DATABASE_URL` when it is set, a throwaway PostgreSQL
 - [RULES-AND-POLICIES.md](docs/architecture/RULES-AND-POLICIES.md), every operational rule with its source and status, and the conflicts between sources
 - [ASSUMPTIONS.md](docs/architecture/ASSUMPTIONS.md), what we treat as true but have not proved, plus the parameter register
 - [EDGE-CASES.md](docs/architecture/EDGE-CASES.md), each case with its behaviour, enforcement point, detection signal and test
+- [GLOSSARY.md](docs/architecture/GLOSSARY.md), one word per concept on every screen, each taken from a field in the data
 - [DATA-MODEL-REVIEW.md](docs/architecture/DATA-MODEL-REVIEW.md), the schema findings and the corrected model
 - [schema/](docs/architecture/schema/README.md), the target schema design, superseded for `ref` and `iam` by the live `migrations/`
 
@@ -161,7 +162,7 @@ Integration tests use `TEST_DATABASE_URL` when it is set, a throwaway PostgreSQL
 - [development.md](docs/development-docs/development.md), local setup: PostgreSQL in Docker, the application native
 - [docs/issues/](docs/issues/), per issue: `PLAN.md` before the code and `WALKTHROUGH.md` after it, the best way into a module you did not build
 - [AGENTS.md](AGENTS.md), the rules a change is reviewed against
-- [development-log.md](docs/development-docs/development-log.md), what changed and why, newest first
+- [development-log.md](docs/development-docs/development-log.md), what changed and why: the index of `log/<github-user>.md`, one file per person, newest first
 
 **Submission material, in `docs/`:** [design rationale](docs/design-rationale.md), [design mapping](docs/design-mapping.md), [AI disclosure](docs/ai-disclosure.md), [deployment](docs/deployment.md), [verification](docs/verification.md) and the [submission checklist](docs/submission-checklist.md).
 

@@ -92,6 +92,8 @@ Frontend, under `frontend/src/roles/dispatcher/`:
 
 States: no run yet is a notice, a fallback run is a warning that names it, an error is the Refusal screen.
 
+Runs: `screens/ForecastRuns.tsx` shows the last run (with its model, or "Recent averages" for the fallback) and the next, in depot time, with a countdown. The next run is `nextRunAt` on the overview, from `domain/ForecastSchedule.nextRun`, which walks the job's hourly wake-ups through the same `due` rule the job obeys, so the screen and the job cannot disagree. When it comes the strip says "Running now" and the screen reads again every 20 seconds until the run lands.
+
 Verify: `npm test` (9 in `dispatcher-forecast.test.ts`), `npx playwright test -c playwright.dispatcher.config.ts forecast.spec.ts` (4: the screen, a brand filter, the fallback notice, no forecast yet), `mvn test -Dtest=IntelligenceDomainTest`, and `IntelligenceIntegrationTest` on PostgreSQL (overview shape and capacity, out of scope, the job runs once a week).
 
 Gaps: the models must be registered and activated on each deployment (`ml:RegisterModel`, `ml:ActivateModel`) before the forecast is the model's; until then it says it is the fallback. Late risk on the plan is still to build.

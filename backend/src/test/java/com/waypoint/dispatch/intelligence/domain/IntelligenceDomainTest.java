@@ -186,6 +186,42 @@ class IntelligenceDomainTest {
     assertEquals(d("0.00"), FleetCapacity.weekly(List.of(new FleetCapacity.Vehicle(d("10"), true)), 0).fleetM3());
   }
 
+  // ---- forecast schedule ----------------------------------------------------------------------
+
+  private static final java.time.ZoneId COLOMBO = java.time.ZoneId.of("Asia/Colombo");
+
+  private static java.time.Instant colombo(String local) {
+    return java.time.LocalDateTime.parse(local).atZone(COLOMBO).toInstant();
+  }
+
+  private static Optional<ForecastSchedule.LastRun> ran(String local, boolean degraded) {
+    return Optional.of(new ForecastSchedule.LastRun(colombo(local), degraded));
+  }
+
+  @Test
+  void withNoRunTheForecastRunsAtTheNextHourDepotTime() {
+    // Saturday 13:01:44 in Colombo is 07:31:44 UTC; the hour is Colombo's, so 14:00 there, 08:30 UTC.
+    var now = colombo("2026-10-03T13:01:44");
+    assertEquals(java.time.Instant.parse("2026-10-03T08:30:00Z"),
+        ForecastSchedule.nextRun(now, Optional.empty(), false, COLOMBO));
+    assertTrue(ForecastSchedule.due(now, Optional.empty(), false, COLOMBO));
+  }
+
+  @Test
+  void aRunThisWeekWaitsForMondayMidnight() {
+    var next = ForecastSchedule.nextRun(colombo("2026-10-03T14:05"), ran("2026-10-03T14:00", false), true, COLOMBO);
+    assertEquals(colombo("2026-10-05T00:00"), next);
+    assertFalse(ForecastSchedule.due(colombo("2026-10-04T23:00"), ran("2026-10-03T14:00", false), true, COLOMBO));
+  }
+
+  @Test
+  void aFallbackRunIsRetriedSixHoursLaterOnlyOnceAModelIsActive() {
+    var last = ran("2026-10-03T14:00", true);
+    assertEquals(colombo("2026-10-03T20:00"), ForecastSchedule.nextRun(colombo("2026-10-03T14:05"), last, true, COLOMBO));
+    assertEquals(colombo("2026-10-05T00:00"), ForecastSchedule.nextRun(colombo("2026-10-03T14:05"), last, false, COLOMBO),
+        "with no model a retry would only write the fallback again");
+  }
+
   // ---- routes ---------------------------------------------------------------------------------
 
   private static TripFacts trip(List<StopFacts> stops) {
