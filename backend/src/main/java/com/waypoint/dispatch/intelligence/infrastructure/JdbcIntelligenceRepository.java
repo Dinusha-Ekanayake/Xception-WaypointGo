@@ -245,6 +245,28 @@ public class JdbcIntelligenceRepository {
         depot, brand, fromKey, toKey);
   }
 
+  /** The newest forecast for every brand and week of a depot in the range, with when and by what. */
+  public List<Map<String, Object>> latestDepotForecasts(String depot, int fromKey, int toKey) {
+    return database.query(
+        """
+        SELECT DISTINCT ON (brand_code, iso_year, iso_week) brand_code, iso_year, iso_week, total_m3, chilled_m3,
+               model_label, degraded, generated_at
+          FROM ml.demand_forecasts
+         WHERE depot_code = ? AND iso_year * 100 + iso_week BETWEEN ? AND ?
+         ORDER BY brand_code, iso_year, iso_week, generated_at DESC, forecast_id
+        """,
+        depot, fromKey, toKey);
+  }
+
+  public record RunMark(Instant at, boolean degraded) {}
+
+  /** The newest forecast run, as the process sees every depot: when, and whether a model answered. */
+  public Optional<RunMark> latestForecastRun() {
+    Map<String, Object> row = database.queryOne(
+        "SELECT generated_at, degraded FROM ml.demand_forecasts ORDER BY generated_at DESC LIMIT 1");
+    return Optional.ofNullable(row).map(r -> new RunMark(instant(r.get("generated_at")), (Boolean) r.get("degraded")));
+  }
+
   // ---- mapping ----------------------------------------------------------------------
 
   private String write(Map<String, BigDecimal> metrics) {

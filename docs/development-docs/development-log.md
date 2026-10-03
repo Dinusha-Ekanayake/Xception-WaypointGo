@@ -32,6 +32,17 @@ Open: the team confirms the proposed terms on #126 (outlet or store on the store
 
 ---
 
+## 2026-10-03 - feat: the dispatcher's Forecast tab on the model service
+
+`feat/dispatcher-forecast` · @tharushaudana
+
+`GET /api/ml/forecast/overview` gives one depot's next weeks with every brand, the calendar and the fleet's weekly capacity (A-40); `ForecastJob` checks hourly and runs once a week, or again once a model replaces a fallback run (P-29). The dispatcher's Forecast tab shows the ten weeks against capacity with a brand filter, the busiest days' needs (A-41) and suggested actions; Vehicles shows reefers against next week's need. Detail in the [#19 walkthrough](../issues/019-dispatcher-ui/WALKTHROUGH.md).
+Why: the Forecast tab was a placeholder waiting on #16; a fresh deploy had no forecast until the next Monday.
+Verified: `IntelligenceDomainTest` (19), `ModuleBoundaryTest`; frontend `npm run typecheck`, `npm test` (101), `npm run build`, dispatcher browser suite (17 passed). `IntelligenceIntegrationTest` runs in CI.
+Open: register and activate `datathon-task2a@2026.1` and `datathon-task1-blend@2026.1` on preview, then production; late risk on the plan.
+
+---
+
 ## 2026-10-03 - docs: architecture diagrams and a generated data model (issue #121)
 
 `docs/121-architecture-data-model` · @Oxshadha

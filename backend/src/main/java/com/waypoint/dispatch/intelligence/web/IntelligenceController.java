@@ -2,6 +2,7 @@ package com.waypoint.dispatch.intelligence.web;
 
 import com.waypoint.dispatch.intelligence.application.IntelligenceDataQuery;
 import com.waypoint.dispatch.intelligence.contract.ModelViews.ModelVersionView;
+import com.waypoint.dispatch.intelligence.contract.PredictionViews.ForecastOverviewView;
 import com.waypoint.dispatch.intelligence.contract.PredictionViews.PlanPredictionsView;
 import com.waypoint.dispatch.intelligence.contract.PredictionViews.SupplyProbabilityView;
 import com.waypoint.dispatch.intelligence.contract.PredictionViews.TrainingDeliveryView;
@@ -62,6 +63,18 @@ public class IntelligenceController {
       HttpServletRequest request) {
     Actor actor = read(request, "wpt:ml:forecast:" + depot);
     return intelligence.forecast(actor, depot, brand, week(from, "from"), week(to, "to"));
+  }
+
+  /**
+   * The Forecast screen: the next {@code weeks} weeks for a depot, all brands,
+   * with the calendar and fleet capacity alongside. A depot outside scope is 403.
+   */
+  @GetMapping("/forecast/overview")
+  public ForecastOverviewView forecastOverview(
+      @RequestParam String depot,
+      @RequestParam(required = false, defaultValue = "10") int weeks,
+      HttpServletRequest request) {
+    return intelligence.forecastOverview(read(request, "wpt:ml:forecast:" + depot), depot, weeks);
   }
 
   /** R-RCP-06. */
