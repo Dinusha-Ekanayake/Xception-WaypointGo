@@ -9,7 +9,7 @@ export type OutletRecord = {
   id: string;
   name?: string;
   brand: "Fresh" | "Style" | "Tech";
-  tempZone?: "Ambient Fresh" | "Chilled (Reefer)" | "Ambient Standard";
+  tempZone?: "Ambient Fresh" | "Chilled (Refrigerated)" | "Ambient Standard";
   district: string;
   depot: string;
   dockType: "rear_dock" | "street" | "mall_bay";
@@ -48,7 +48,7 @@ export const INITIAL_OUTLETS: OutletRecord[] = [
     id: "OUT002",
     name: "Kollupitiya Super Fresh",
     brand: "Fresh",
-    tempZone: "Chilled (Reefer)",
+    tempZone: "Chilled (Refrigerated)",
     district: "Colombo",
     depot: "PELIYAGODA",
     dockType: "street",
@@ -84,14 +84,14 @@ export const INITIAL_OUTLETS: OutletRecord[] = [
     id: "OUT008",
     name: "Nugegoda Fresh Mart",
     brand: "Fresh",
-    tempZone: "Chilled (Reefer)",
+    tempZone: "Chilled (Refrigerated)",
     district: "Colombo",
     depot: "PELIYAGODA",
     dockType: "rear_dock",
     dockDetails: "Dedicated rear dock with temperature-controlled air curtain barrier.",
     windowOpen: "05:00",
     windowClose: "07:30",
-    windowNotes: "Reefer vehicle connection available for direct dairy unloading.",
+    windowNotes: "Refrigerated vehicle connection available for direct dairy unloading.",
     storeManager: "Nalaka Perera",
     managerPhone: "+94 77 556 7808",
     managerEmail: "nalaka.p@waypoint.lk",
@@ -210,7 +210,7 @@ export const INITIAL_OUTLETS: OutletRecord[] = [
     id: "OUT025",
     name: "Negombo Coastal Fresh",
     brand: "Fresh",
-    tempZone: "Chilled (Reefer)",
+    tempZone: "Chilled (Refrigerated)",
     district: "Gampaha",
     depot: "PELIYAGODA",
     dockType: "rear_dock",
@@ -232,7 +232,7 @@ export const INITIAL_OUTLETS: OutletRecord[] = [
     district: "Gampaha",
     depot: "PELIYAGODA",
     dockType: "street",
-    dockDetails: "Kerbside loading zone designated in front of shop between 03:00 and 08:00.",
+    dockDetails: "Kerbside loading zone designated in front of store between 03:00 and 08:00.",
     windowOpen: "03:00",
     windowClose: "08:00",
     windowNotes: "Wide pre-dawn receiving window for bulk agricultural produce.",
@@ -338,14 +338,14 @@ export const INITIAL_OUTLETS: OutletRecord[] = [
     id: "OUT077",
     name: "Peradeniya Road Super Fresh",
     brand: "Fresh",
-    tempZone: "Chilled (Reefer)",
+    tempZone: "Chilled (Refrigerated)",
     district: "Kandy",
     depot: "KANDY",
     dockType: "street",
     dockDetails: "Wide roadside parking bay with covered ramp for dairy crates.",
     windowOpen: "05:00",
     windowClose: "07:30",
-    windowNotes: "Reefer unit unloading for chilled food supplies.",
+    windowNotes: "Refrigerated unit unloading for chilled food supplies.",
     storeManager: "Meena Raj",
     managerPhone: "+94 77 878 9077",
     managerEmail: "meena.r@waypoint.lk",
@@ -374,7 +374,7 @@ export const INITIAL_OUTLETS: OutletRecord[] = [
     id: "OUT084",
     name: "Kandy Lakeview Fresh Plaza",
     brand: "Fresh",
-    tempZone: "Chilled (Reefer)",
+    tempZone: "Chilled (Refrigerated)",
     district: "Kandy",
     depot: "KANDY",
     dockType: "rear_dock",
@@ -417,7 +417,7 @@ export const INITIAL_OUTLETS: OutletRecord[] = [
     dockDetails: "KCC Basement delivery dock 2. Heavy security clearance required.",
     windowOpen: "10:30",
     windowClose: "12:30",
-    windowNotes: "Strict shopping mall delivery cutoff at 12:30 PM.",
+    windowNotes: "Strict shopping mall delivery cutoff at 12:30.",
     storeManager: "Ashan Weerasinghe",
     managerPhone: "+94 77 292 3489",
     managerEmail: "ashan.w@waypoint.lk",
@@ -507,7 +507,7 @@ export const INITIAL_OUTLETS: OutletRecord[] = [
     dockDetails: "Covered mountain street dock with anti-slip ramp for high-altitude weather.",
     windowOpen: "09:00",
     windowClose: "17:00",
-    windowNotes: "Consignments dispatched via Kandy depot mountain route.",
+    windowNotes: "Consignments dispatched via Kandy depot mountain trip.",
     storeManager: "Kithsiri Senewiratne",
     managerPhone: "+94 77 797 8912",
     managerEmail: "kithsiri.s@waypoint.lk",
@@ -575,7 +575,7 @@ export function OutletsScreen({
   const [newOutletId, setNewOutletId] = useState("");
   const [newOutletName, setNewOutletName] = useState("");
   const [newOutletBrand, setNewOutletBrand] = useState<"Fresh" | "Style" | "Tech">("Fresh");
-  const [newOutletTempZone, setNewOutletTempZone] = useState<"Ambient Fresh" | "Chilled (Reefer)" | "Ambient Standard">("Ambient Fresh");
+  const [newOutletTempZone, setNewOutletTempZone] = useState<"Ambient Fresh" | "Chilled (Refrigerated)" | "Ambient Standard">("Ambient Fresh");
   const [newOutletDistrict, setNewOutletDistrict] = useState("Colombo");
   const [newOutletDepot, setNewOutletDepot] = useState("PELIYAGODA");
   const [newOutletDockType, setNewOutletDockType] = useState<"rear_dock" | "street" | "mall_bay">("rear_dock");
@@ -660,7 +660,7 @@ export function OutletsScreen({
         } else if (brandFilter === "Fresh-Ambient") {
           if (outlet.brand !== "Fresh" || outlet.tempZone !== "Ambient Fresh") return false;
         } else if (brandFilter === "Fresh-Chilled") {
-          if (outlet.brand !== "Fresh" || outlet.tempZone !== "Chilled (Reefer)") return false;
+          if (outlet.brand !== "Fresh" || outlet.tempZone !== "Chilled (Refrigerated)") return false;
         } else if (brandFilter === "Style") {
           if (outlet.brand !== "Style") return false;
         } else if (brandFilter === "Tech") {
@@ -983,7 +983,7 @@ export function OutletsScreen({
               <option value="all">All Brands &amp; Zones</option>
               <option value="Fresh">Fresh (All)</option>
               <option value="Fresh-Ambient">Fresh (Ambient)</option>
-              <option value="Fresh-Chilled">Fresh (Chilled Reefer)</option>
+              <option value="Fresh-Chilled">Fresh (Chilled Refrigerated)</option>
               <option value="Style">Style (Apparel)</option>
               <option value="Tech">Tech (Electronics)</option>
             </select>
@@ -1305,10 +1305,10 @@ export function OutletsScreen({
                       <select
                         className={`${field} mt-1`}
                         value={newOutletTempZone}
-                        onChange={(e) => setNewOutletTempZone(e.target.value as "Ambient Fresh" | "Chilled (Reefer)")}
+                        onChange={(e) => setNewOutletTempZone(e.target.value as "Ambient Fresh" | "Chilled (Refrigerated)")}
                       >
                         <option value="Ambient Fresh">Ambient Fresh (Dry &amp; packaged foods)</option>
-                        <option value="Chilled (Reefer)">Chilled Reefer (Cold chain &amp; perishables)</option>
+                        <option value="Chilled (Refrigerated)">Chilled Refrigerated (Cold chain &amp; perishables)</option>
                       </select>
                     </label>
                   ) : (

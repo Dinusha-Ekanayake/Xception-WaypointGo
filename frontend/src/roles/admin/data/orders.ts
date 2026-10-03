@@ -402,7 +402,7 @@ export const FALLBACK_TIMELINE: Record<string, AdminStatusTimeline[]> = {
   ],
   "ORD-20261003-002": [
     { from: null, to: "CONFIRMED", reason: "Store order placed and verified", actorId: "s2", actorName: "Chamari Silva (Store Mgr)", at: "2026-10-02T15:30:00+05:30" },
-    { from: "CONFIRMED", to: "ALLOCATED", reason: "Assigned to Reefer Truck VEH014 (Trip 1)", actorId: "d1", actorName: "Nimali Perera (Dispatcher)", at: "2026-10-02T16:30:00+05:30" },
+    { from: "CONFIRMED", to: "ALLOCATED", reason: "Assigned to refrigerated truck VEH014 (Trip 1)", actorId: "d1", actorName: "Nimali Perera (Dispatcher)", at: "2026-10-02T16:30:00+05:30" },
     { from: "ALLOCATED", to: "IN_TRANSIT", reason: "Driver departed Peliyagoda dock", actorId: "r1", actorName: "Amal Silva (Driver)", at: "2026-10-03T05:15:00+05:30" },
   ],
   "ORD-20261002-014": [

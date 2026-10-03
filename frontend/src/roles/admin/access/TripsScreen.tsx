@@ -368,7 +368,7 @@ export function TripsScreen({
               <p className="mt-0.5 text-base font-bold text-[#10251e]">
                 {currentPlan.fuelEstimatedLitres} Litres
               </p>
-              <span className="text-[11px] text-[#58685f]">Across all route legs</span>
+              <span className="text-[11px] text-[#58685f]">Across all trip legs</span>
             </div>
 
             <div className="rounded-xl border border-[#d6ebe0] bg-white p-3">
@@ -648,7 +648,7 @@ export function TripsScreen({
                   {getStatusBadge(selectedTrip.status)}
                 </div>
                 <h3 id="trip-detail-title" className="mt-1 text-sm font-semibold text-[#10251e]">
-                  {selectedTrip.depot} Hub · {selectedTrip.district} Route Sequence
+                  {selectedTrip.depot} Hub · {selectedTrip.district} Stop Sequence
                 </h3>
               </div>
 

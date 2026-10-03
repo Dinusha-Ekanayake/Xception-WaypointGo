@@ -34,7 +34,7 @@ export type AdminTrip = {
   brand: "Fresh" | "Style" | "Tech";
   district: string;
   depot: string;
-  temperature: "Ambient" | "Chilled (Reefer)";
+  temperature: "Ambient" | "Chilled (Refrigerated)";
   serviceDate: string;
   plannedDeparture: string;
   estimatedReturn: string;
@@ -222,7 +222,7 @@ export const FALLBACK_ADMIN_PLANS: AdminPlan[] = [
         brand: "Fresh",
         district: "Colombo",
         depot: "PELIYAGODA",
-        temperature: "Chilled (Reefer)",
+        temperature: "Chilled (Refrigerated)",
         serviceDate: TODAY,
         plannedDeparture: "05:15",
         estimatedReturn: "09:00",
@@ -540,7 +540,7 @@ export const FALLBACK_ADMIN_PLANS: AdminPlan[] = [
         brand: "Fresh",
         district: "Kandy",
         depot: "KANDY",
-        temperature: "Chilled (Reefer)",
+        temperature: "Chilled (Refrigerated)",
         serviceDate: TODAY,
         plannedDeparture: "05:00",
         estimatedReturn: "08:45",

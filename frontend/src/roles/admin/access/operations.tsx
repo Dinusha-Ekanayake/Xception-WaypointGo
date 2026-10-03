@@ -23,8 +23,8 @@ export type Vehicle = {
   fuelType: "Diesel" | "Petrol";
   weeklyFuelQuotaL: number;
   fuelEfficiencyKmPerL: number;
-  temp: "Ambient" | "Chilled (Reefer)";
-  status: "Available" | "On route" | "Workshop";
+  temp: "Ambient" | "Chilled (Refrigerated)";
+  status: "Available" | "On trip" | "Workshop";
   lastDriver?: LastDriver;
 };
 
@@ -53,8 +53,8 @@ export const VEHICLES: Vehicle[] = [
     fuelType: "Diesel",
     weeklyFuelQuotaL: 480,
     fuelEfficiencyKmPerL: 4.7,
-    temp: "Chilled (Reefer)",
-    status: "On route",
+    temp: "Chilled (Refrigerated)",
+    status: "On trip",
     lastDriver: { id: "DRV-003", name: "Dinuka Samarakoon", phone: "+94 77 345 6789", lastRunDate: "Today, 05:40" },
   },
   {
@@ -81,7 +81,7 @@ export const VEHICLES: Vehicle[] = [
     fuelType: "Diesel",
     weeklyFuelQuotaL: 430,
     fuelEfficiencyKmPerL: 4.4,
-    temp: "Chilled (Reefer)",
+    temp: "Chilled (Refrigerated)",
     status: "Workshop",
     lastDriver: { id: "DRV-008", name: "Dinesh Kumara", phone: "+94 72 890 1234", lastRunDate: "2 days ago, 14:10" },
   },
@@ -96,7 +96,7 @@ export const VEHICLES: Vehicle[] = [
     weeklyFuelQuotaL: 280,
     fuelEfficiencyKmPerL: 11.2,
     temp: "Ambient",
-    status: "On route",
+    status: "On trip",
     lastDriver: { id: "DRV-004", name: "Shehan Mendis", phone: "+94 76 456 7890", lastRunDate: "Today, 07:00" },
   },
   {
@@ -109,7 +109,7 @@ export const VEHICLES: Vehicle[] = [
     fuelType: "Diesel",
     weeklyFuelQuotaL: 610,
     fuelEfficiencyKmPerL: 6.1,
-    temp: "Chilled (Reefer)",
+    temp: "Chilled (Refrigerated)",
     status: "Available",
     lastDriver: { id: "DRV-005", name: "Maleesha Iqbal", phone: "+94 75 567 8901", lastRunDate: "Yesterday, 16:45" },
   },
@@ -165,7 +165,7 @@ export function VehiclesScreen() {
   const [newVehicleFuelType, setNewVehicleFuelType] = useState<"Diesel" | "Petrol">("Diesel");
   const [newVehicleFuelQuota, setNewVehicleFuelQuota] = useState("280");
   const [newVehicleEfficiency, setNewVehicleEfficiency] = useState("11.2");
-  const [newVehicleStatus, setNewVehicleStatus] = useState<"Available" | "On route" | "Workshop">("Available");
+  const [newVehicleStatus, setNewVehicleStatus] = useState<"Available" | "On trip" | "Workshop">("Available");
   const [newVehicleDriverName, setNewVehicleDriverName] = useState("");
   const [newVehicleDriverPhone, setNewVehicleDriverPhone] = useState("");
 
@@ -195,13 +195,13 @@ export function VehiclesScreen() {
             const isTruck = v.type?.toLowerCase() === "truck";
             const tempVal =
               v.temperature?.toLowerCase().includes("reefer") || v.temperature?.toLowerCase().includes("chilled")
-                ? "Chilled (Reefer)"
+                ? "Chilled (Refrigerated)"
                 : "Ambient";
             const statusVal =
               v.dayStatus === "in_workshop" || v.dayStatus === "workshop"
                 ? "Workshop"
                 : v.dayStatus === "on_route"
-                ? "On route"
+                ? "On trip"
                 : "Available";
 
             return {
@@ -277,7 +277,7 @@ export function VehiclesScreen() {
       fuelType: newVehicleFuelType,
       weeklyFuelQuotaL: quota,
       fuelEfficiencyKmPerL: efficiency,
-      temp: newVehicleTemp as "Ambient" | "Chilled (Reefer)",
+      temp: newVehicleTemp as "Ambient" | "Chilled (Refrigerated)",
       status: newVehicleStatus,
       lastDriver: newVehicleDriverName.trim()
         ? {
@@ -373,7 +373,7 @@ export function VehiclesScreen() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Summary value={vehiclesList.length} label="Total fleet vehicles" />
         <Summary value={vehiclesList.filter((item) => item.status === "Available").length} label="Available for dispatch" />
-        <Summary value={vehiclesList.filter((item) => item.status === "On route").length} label="Currently on route" />
+        <Summary value={vehiclesList.filter((item) => item.status === "On trip").length} label="Currently on trip" />
         <Summary value={vehiclesList.filter((item) => item.status === "Workshop").length} label="In workshop maintenance" />
       </div>
 
@@ -430,7 +430,7 @@ export function VehiclesScreen() {
           Status
           <select className={`${field} mt-1`} value={status} onChange={(event) => setStatus(event.target.value)}>
             <option value="all">All statuses</option>
-            {["Available", "On route", "Workshop"].map((item) => (
+            {["Available", "On trip", "Workshop"].map((item) => (
               <option key={item} value={item}>
                 {item}
               </option>
@@ -469,7 +469,7 @@ export function VehiclesScreen() {
                       className={`grid size-12 shrink-0 place-items-center rounded-2xl shadow-2xs ${
                         item.status === "Workshop"
                           ? "bg-[#fff2d8] text-[#835500]"
-                          : item.status === "On route"
+                          : item.status === "On trip"
                           ? "bg-[#d8f5ee] text-[#006b57]"
                           : "bg-[#e5f4ef] text-[#006b57]"
                       }`}
@@ -714,7 +714,7 @@ export function VehiclesScreen() {
                         onChange={(e) => setNewVehicleTemp(e.target.value)}
                       >
                         <option value="Ambient Fresh">Ambient Fresh (Dry &amp; packaged foods)</option>
-                        <option value="Chilled (Reefer)">Chilled Reefer (Cold chain &amp; perishables)</option>
+                        <option value="Chilled (Refrigerated)">Chilled Refrigerated (Cold chain &amp; perishables)</option>
                       </select>
                     </label>
                   ) : (
@@ -724,7 +724,7 @@ export function VehiclesScreen() {
                       </span>
                       <div className="mt-1 flex items-center gap-2 rounded-xl border border-[#e1ece5] bg-white px-3 py-2 text-sm text-[#3b5246]">
                         <span className="size-2 rounded-full bg-[#00896d]"></span>
-                        <span>Standard Ambient ({newVehicleTargetBrand} does not require reefer)</span>
+                        <span>Standard Ambient ({newVehicleTargetBrand} does not require refrigerated)</span>
                       </div>
                     </div>
                   )}
@@ -750,10 +750,10 @@ export function VehiclesScreen() {
                   <select
                     className={`${field} mt-1`}
                     value={newVehicleStatus}
-                    onChange={(e) => setNewVehicleStatus(e.target.value as "Available" | "On route" | "Workshop")}
+                    onChange={(e) => setNewVehicleStatus(e.target.value as "Available" | "On trip" | "Workshop")}
                   >
                     <option value="Available">Available</option>
-                    <option value="On route">On route</option>
+                    <option value="On trip">On trip</option>
                     <option value="Workshop">Workshop</option>
                   </select>
                 </label>

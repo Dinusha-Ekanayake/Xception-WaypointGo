@@ -116,7 +116,7 @@ export function OrdersScreen({
           setOrderLines(detailRes.lines);
         } else {
           setOrderLines(FALLBACK_ORDER_LINES[currentOrder.orderRef] || [
-            { productId: "PROD-GEN-001", productName: `${currentOrder.brand} Standard Package`, quantity: currentOrder.itemCount, revision: 1 },
+            { productId: "PROD-GEN-001", productName: `${currentOrder.brand} Standard Unit`, quantity: currentOrder.itemCount, revision: 1 },
           ]);
         }
 
@@ -623,7 +623,7 @@ export function OrdersScreen({
             >
               <option value="all">All Temperatures</option>
               <option value="ambient">Ambient</option>
-              <option value="chilled">Chilled (Reefer)</option>
+              <option value="chilled">Chilled (Refrigerated)</option>
             </select>
           </label>
 
@@ -722,7 +722,7 @@ export function OrdersScreen({
                       : "bg-[#f0f4f2] text-[#4d6356]"
                   }`}
                 >
-                  {order.temperature.toLowerCase() === "chilled" ? "Chilled Reefer" : "Ambient"}
+                  {order.temperature.toLowerCase() === "chilled" ? "Chilled (Refrigerated)" : "Ambient"}
                 </span>
               </div>
 
