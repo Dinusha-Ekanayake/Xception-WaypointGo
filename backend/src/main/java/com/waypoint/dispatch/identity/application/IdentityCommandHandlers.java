@@ -17,7 +17,7 @@ import org.springframework.context.annotation.Configuration;
  * The identity commands, as a family.
  *
  * <p>One file because each handler is a few lines of payload reading over
- * {@link AccountAdminUseCase}, and eight files of imports and constructors would
+ * {@link AccountAdminUseCase}, and nine files of imports and constructors would
  * hide how similar they are rather than reveal anything. Each is still a named
  * class, so a stack trace and a grep both find it.
  *
@@ -51,6 +51,11 @@ public class IdentityCommandHandlers {
   }
 
   @Bean
+  ChangeRoleHandler changeRoleHandler(AccountAdminUseCase accounts) {
+    return new ChangeRoleHandler(accounts);
+  }
+
+  @Bean
   GrantScopeHandler grantScopeHandler(AccountAdminUseCase accounts) {
     return new GrantScopeHandler(accounts);
   }
@@ -70,7 +75,37 @@ public class IdentityCommandHandlers {
     return new EndDriverAssignmentHandler(accounts);
   }
 
+  @Bean
+  UpdateOwnProfileHandler updateOwnProfileHandler(AccountAdminUseCase accounts) {
+    return new UpdateOwnProfileHandler(accounts);
+  }
+
   // ---- the handlers ----
+
+  /**
+   * R-IAM-32: a person's own name and phone. The payload states the profile as it
+   * should be, so a blank phone clears it; the account is always the actor's own.
+   */
+  static final class UpdateOwnProfileHandler extends IdentityHandler {
+    UpdateOwnProfileHandler(AccountAdminUseCase accounts) {
+      super(accounts, "iam:UpdateOwnProfile", "iam:UpdateOwnProfile");
+    }
+
+    /** Never another account, so a policy grants this on {@code wpt:iam:user:self} only. */
+    @Override
+    public String resource(Command command) {
+      return "wpt:iam:user:self";
+    }
+
+    @Override
+    public Object handle(Actor actor, Command command) {
+      CommandPayload payload = CommandPayload.of(command);
+      long version =
+          accounts.applyOwnProfile(
+              actor, payload.text("displayName"), payload.text("phone"), command.expectedVersion());
+      return Map.of("userId", actor.userId().toString(), "rowVersion", version);
+    }
+  }
 
   static final class CreateAccountHandler extends IdentityHandler {
     CreateAccountHandler(AccountAdminUseCase accounts) {
@@ -88,7 +123,7 @@ public class IdentityCommandHandlers {
       CommandPayload payload = CommandPayload.of(command);
       UUID userId =
           accounts.applyCreate(
-              actor.userId(),
+              actor,
               payload.requiredText("email"),
               payload.requiredText("displayName"),
               payload.secret("password"),
@@ -107,7 +142,7 @@ public class IdentityCommandHandlers {
       CommandPayload payload = CommandPayload.of(command);
       UUID userId = payload.uuid("userId");
       accounts.applyUpdate(
-          actor.userId(),
+          actor,
           userId,
           payload.text("displayName"),
           payload.text("email"),
@@ -129,7 +164,7 @@ public class IdentityCommandHandlers {
         // holding the only admin policy locks everyone out, permanently.
         throw new DomainException(ErrorCode.VALIDATION_FAILED, "An account cannot disable itself");
       }
-      int revoked = accounts.applyDisable(actor.userId(), userId, command.expectedVersion());
+      int revoked = accounts.applyDisable(actor, userId, command.expectedVersion());
       return Map.of("userId", userId.toString(), "sessionsRevoked", revoked);
     }
   }
@@ -144,9 +179,30 @@ public class IdentityCommandHandlers {
       CommandPayload payload = CommandPayload.of(command);
       UUID userId = payload.uuid("userId");
       accounts.applyResetPassword(
-          actor.userId(), userId, payload.secret("password"), command.expectedVersion());
+          actor, userId, payload.secret("password"), command.expectedVersion());
       // The password is never echoed back, not even to the administrator who set it.
       return Map.of("userId", userId.toString());
+    }
+  }
+
+  static final class ChangeRoleHandler extends IdentityHandler {
+    ChangeRoleHandler(AccountAdminUseCase accounts) {
+      super(accounts, "iam:ChangeRole", "iam:ChangeRole");
+    }
+
+    @Override
+    public Object handle(Actor actor, Command command) {
+      CommandPayload payload = CommandPayload.of(command);
+      UUID userId = payload.uuid("userId");
+      if (userId.equals(actor.userId())) {
+        // The same reason an account cannot disable itself (R-IAM-16): the only
+        // administrator demoting themselves leaves nobody who can undo it.
+        throw new DomainException(
+            ErrorCode.VALIDATION_FAILED, "An account cannot change its own role");
+      }
+      String roleCode = payload.requiredText("roleCode");
+      int revoked = accounts.applyChangeRole(actor, userId, roleCode, command.expectedVersion());
+      return Map.of("userId", userId.toString(), "roleCode", roleCode, "sessionsRevoked", revoked);
     }
   }
 
@@ -177,17 +233,25 @@ public class IdentityCommandHandlers {
       super(accounts, "iam:AssignDriver", "iam:AssignDriver");
     }
 
+    /** The account the vehicle is given to, which is also what the version guards. */
+    @Override
+    public String resource(Command command) {
+      UUID driver = CommandPayload.of(command).optionalUuid("driverUserId");
+      return driver == null ? null : "wpt:iam:user:" + driver;
+    }
+
     @Override
     public Object handle(Actor actor, Command command) {
       CommandPayload payload = CommandPayload.of(command);
       LocalDate from = payload.date("from");
       UUID assignmentId =
           accounts.applyAssignDriver(
-              actor.userId(),
+              actor,
               payload.requiredText("vehicleId"),
               payload.uuid("driverUserId"),
               from,
-              payload.optionalDate("until"));
+              payload.optionalDate("until"),
+              command.expectedVersion());
       return Map.of("assignmentId", assignmentId.toString(), "from", from.toString());
     }
   }
@@ -215,7 +279,7 @@ public class IdentityCommandHandlers {
       CommandPayload payload = CommandPayload.of(command);
       UUID assignmentId = payload.uuid("assignmentId");
       LocalDate on = payload.date("on");
-      accounts.applyEndDriverAssignment(actor.userId(), assignmentId, on);
+      accounts.applyEndDriverAssignment(actor, assignmentId, on, command.expectedVersion());
       return Map.of("assignmentId", assignmentId.toString(), "endedOn", on.toString());
     }
   }
@@ -239,16 +303,16 @@ public class IdentityCommandHandlers {
     }
     if (depotCode != null) {
       if (granting) {
-        accounts.applyGrantDepot(actor.userId(), userId, depotCode);
+        accounts.applyGrantDepot(actor, userId, depotCode, command.expectedVersion());
       } else {
-        accounts.applyRevokeDepot(actor.userId(), userId, depotCode);
+        accounts.applyRevokeDepot(actor, userId, depotCode, command.expectedVersion());
       }
       return Map.of("userId", userId.toString(), "depotCode", depotCode);
     }
     if (granting) {
-      accounts.applyGrantOutlet(actor.userId(), userId, outletId);
+      accounts.applyGrantOutlet(actor, userId, outletId, command.expectedVersion());
     } else {
-      accounts.applyRevokeOutlet(actor.userId(), userId, outletId);
+      accounts.applyRevokeOutlet(actor, userId, outletId, command.expectedVersion());
     }
     return Map.of("userId", userId.toString(), "outletId", outletId);
   }

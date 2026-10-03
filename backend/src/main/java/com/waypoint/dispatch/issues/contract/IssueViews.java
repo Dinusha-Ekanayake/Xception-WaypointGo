@@ -66,10 +66,32 @@ public final class IssueViews {
       UUID raisedBy,
       Instant raisedAt,
       Optional<Instant> resolvedAt,
-      long rowVersion) {
+      long rowVersion,
+      List<AttachmentView> attachments) {
 
     public IssueView {
       subjects = List.copyOf(subjects);
+      attachments = List.copyOf(attachments);
     }
   }
+
+  /**
+   * A photo of the problem that has reached the server. Its bytes are read from
+   * {@code /api/issues/{issueId}/attachments/{attachmentId}/content} by someone who
+   * can see the issue; a photo past its retention is no longer listed.
+   */
+  public record AttachmentView(UUID attachmentId, String contentType) {}
+
+  /**
+   * One change to an issue, with who made it, what they did and why (rule 8).
+   *
+   * @param action what was done: raised, assigned, resolved, escalated, closed, cancelled
+   */
+  public record IssueHistoryView(
+      Optional<IssueStatus> from,
+      IssueStatus to,
+      String action,
+      String reason,
+      Optional<UUID> actorId,
+      Instant at) {}
 }

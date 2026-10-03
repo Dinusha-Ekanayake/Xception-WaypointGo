@@ -4,11 +4,30 @@
 # Required environment (see .env.example / docs/deployment.md):
 #   DOMAIN            public hostname, DNS pointed at this host
 #   CERTBOT_EMAIL     contact for Let's Encrypt expiry notices
-#   DATABASE_URL      pooled connection string (app traffic)
+#   DATABASE_URL      pooled connection string (app traffic). Log in as
+#                     waypoint_app when MIGRATION_DATABASE_URL is set
+#   MIGRATION_DATABASE_URL  optional: the owner's direct connection string,
+#                     read only by `migrate`. Unset, DATABASE_URL does both
 #
 # Deployment and certificate issuance: see docs/deployment.md.
 
 services:
+  mcp:
+    build: ./mcp
+    expose: ["8081"]
+    environment:
+      MCP_ENABLED: ${MCP_ENABLED:-false}
+      MCP_PUBLIC_URL: ${MCP_PUBLIC_URL:-}
+      MCP_BACKEND_URL: http://backend:8080
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8081/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
   nginx:
     labels:
       com.waypoint.logs: "true"
@@ -50,7 +69,8 @@ services:
       dockerfile: backend/Dockerfile
     environment:
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL to the pooled connection string}
-    command: ["sh", "-c", "java -jar /app/backend.jar migrate && java -jar /app/backend.jar import-reference"]
+      MIGRATION_DATABASE_URL: ${MIGRATION_DATABASE_URL:-}
+    command: ["java", "-jar", "/app/backend.jar", "migrate", "import-reference"]
     restart: "no"
 
   backend:
@@ -64,9 +84,26 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL to the pooled connection string}
       COOKIE_SECURE: "1"
+      MCP_ENABLED: ${MCP_ENABLED:-false}
+      MCP_PUBLIC_URL: ${MCP_PUBLIC_URL:-}
+      MCP_RATE_PER_CREDENTIAL: ${MCP_RATE_PER_CREDENTIAL:-120}
+      MCP_RATE_PER_CLIENT: ${MCP_RATE_PER_CLIENT:-1200}
       WAREHOUSE_BASE_URL: ${WAREHOUSE_BASE_URL:-https://triathon-warehouse-simple.vercel.app/api/v1}
       WAREHOUSE_API_KEY: ${WAREHOUSE_API_KEY:-}
+      WAREHOUSE_TIMEOUT_MS: ${WAREHOUSE_TIMEOUT_MS:-2000}
+      WAREHOUSE_CATALOGUE_STALE_AFTER: ${WAREHOUSE_CATALOGUE_STALE_AFTER:-2h}
+      WAREHOUSE_WEBHOOK_SECRET: ${WAREHOUSE_WEBHOOK_SECRET:-}
+      # Signs proof-of-delivery links. Unset, links stop working at a restart.
+      PROOF_STORE: ${PROOF_STORE:-database}
+      PROOF_URL_SECRET: ${PROOF_URL_SECRET:-}
+      # Web push for notifications. Both VAPID keys blank turns push off, visibly.
+      PUSH_VAPID_PUBLIC_KEY: ${PUSH_VAPID_PUBLIC_KEY:-}
+      PUSH_VAPID_PRIVATE_KEY: ${PUSH_VAPID_PRIVATE_KEY:-}
+      PUSH_SUBJECT: ${PUSH_SUBJECT:-mailto:operations@waypoint.invalid}
       LOG_FORMAT: ecs
+    volumes:
+      # Proof photos and signatures. Evidence: back it up with the database.
+      - waypoint-proofs:/var/lib/waypoint/proofs
     depends_on:
       init:
         condition: service_completed_successfully
@@ -85,6 +122,7 @@ services:
       - "3000"
     environment:
       BACKEND_URL: http://backend:8080
+      MCP_INTERNAL_URL: http://mcp:8081
     depends_on:
       backend:
         condition: service_healthy
@@ -142,6 +180,7 @@ services:
     restart: unless-stopped
 
 volumes:
+  waypoint-proofs:
   certbot-www:
   certs:
   loki-data:

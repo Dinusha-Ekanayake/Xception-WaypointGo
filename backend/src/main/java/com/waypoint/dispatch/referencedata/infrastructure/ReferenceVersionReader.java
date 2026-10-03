@@ -7,6 +7,7 @@ import com.waypoint.dispatch.referencedata.domain.Depot;
 import com.waypoint.dispatch.referencedata.domain.District;
 import com.waypoint.dispatch.referencedata.domain.DockType;
 import com.waypoint.dispatch.referencedata.domain.Outlet;
+import com.waypoint.dispatch.referencedata.domain.OutletDetails;
 import com.waypoint.dispatch.referencedata.domain.ParkingConstraint;
 import com.waypoint.dispatch.referencedata.domain.ReferenceSnapshot;
 import com.waypoint.dispatch.referencedata.domain.ServiceAllowance;
@@ -90,9 +91,11 @@ public class ReferenceVersionReader {
                         new DepotCode((String) r.get("depot_code"))))
             .toList();
 
+    Map<String, OutletDetails> details = outletDetails();
     List<Outlet> outlets =
         database.query("SELECT * FROM ref.outlets WHERE reference_version_id = ?", versionId).stream()
             .map(ReferenceVersionReader::toOutlet)
+            .map(o -> details.containsKey(o.id()) ? details.get(o.id()).applyTo(o) : o)
             .toList();
 
     List<Vehicle> vehicles =
@@ -135,6 +138,41 @@ public class ReferenceVersionReader {
     return Optional.of(
         new ReferenceSnapshot(
             versionId, brands, depots, districts, outlets, vehicles, travel, allowances, calendar));
+  }
+
+  /**
+   * The outlet exactly as the current published version has it, without the
+   * store's own details: what a change to those details is checked against.
+   */
+  public Optional<Outlet> publishedOutlet(String outletId) {
+    Map<String, Object> row =
+        database.queryOne(
+            "SELECT o.* FROM ref.outlets o"
+                + " JOIN ref.reference_versions v ON v.reference_version_id = o.reference_version_id"
+                + " WHERE v.is_current AND o.outlet_id = ?",
+            outletId);
+    return Optional.ofNullable(row).map(ReferenceVersionReader::toOutlet);
+  }
+
+  /**
+   * R-REF-01: each store's own window and dock, laid over the published outlets
+   * as the calendar's overrides are laid over its days, so an import cannot
+   * discard them. Like those, they are not versioned: a past plan reads today's.
+   */
+  private Map<String, OutletDetails> outletDetails() {
+    Map<String, OutletDetails> details = new java.util.HashMap<>();
+    for (Map<String, Object> r :
+        database.query("SELECT outlet_id, window_open, window_close, dock_type FROM ref.outlet_details")) {
+      String id = (String) r.get("outlet_id");
+      Optional<DeliveryWindow> window =
+          r.get("window_open") == null
+              ? Optional.empty()
+              : Optional.of(new DeliveryWindow(time(r.get("window_open")), time(r.get("window_close"))));
+      Optional<DockType> dock =
+          r.get("dock_type") == null ? Optional.empty() : Optional.of(DockType.parse((String) r.get("dock_type")));
+      details.put(id, new OutletDetails(id, window, dock, null, null, null));
+    }
+    return details;
   }
 
   private static Outlet toOutlet(Map<String, Object> r) {

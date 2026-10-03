@@ -1,25 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { OutletView, ReadyTripView } from "@shared/domain/types";
-import { Icon, Notice } from "@shared/ui";
+import type { ItemView, OutletView, ReadyTripView, ReleaseTrip } from "@shared/domain/types";
+import { ApiError } from "@shared/api/problem";
+import { Notice } from "@shared/ui";
 import type { LoadingGateway } from "../data/gateway.ts";
-import { hhmm, kg, loadedTotals, m3, progress, tripTemperature } from "../data/manifest.ts";
+import { loadedTotals, orderLabel, paceOf, progress } from "../data/manifest.ts";
 import { useTrip, type Line, type Outcome } from "../data/useTrip.ts";
-import { Bar, BigButton, Ring, TempBadge } from "../ui.tsx";
 import IssueSheet from "./IssueSheet.tsx";
+import { HandBack, OutOfSequence, Released, Toast, TripTaken, type ToastMessage } from "./LoadFeedback.tsx";
 import ManifestList from "./ManifestList.tsx";
+import TruckCard from "./TruckCard.tsx";
 import ReleaseSheet from "./ReleaseSheet.tsx";
+import { useT } from "../i18n.tsx";
 
 // Figma "02 Load sheet". Container: the trip hook, the sheets and the notices.
-
-/** Minutes until the planned departure, in the depot's day; nothing once it has passed. */
-function untilDeparture(time: string, now: Date = new Date()): string {
-  const [h, m] = time.split(":").map(Number);
-  const minutes = (h ?? 0) * 60 + (m ?? 0) - (now.getHours() * 60 + now.getMinutes());
-  if (minutes <= 0 || minutes >= 12 * 60) return "";
-  return minutes < 60 ? `${minutes} min to departure` : `${Math.floor(minutes / 60)} h ${minutes % 60} min to departure`;
-}
 
 export default function LoadSheet({
   gateway,
@@ -29,6 +24,9 @@ export default function LoadSheet({
   waiting,
   onQueued,
   onSynced,
+  refreshKey,
+  onBack,
+  actingUserId,
 }: {
   gateway: LoadingGateway;
   trip: ReadyTripView;
@@ -37,38 +35,118 @@ export default function LoadSheet({
   waiting: number;
   onQueued: () => void;
   onSynced: (at: Date | null) => void;
+  /** Bumped when the loader taps "Synced": read the manifest again. */
+  refreshKey?: number;
+  /** Back to the dock board, after a release or from the top bar. */
+  onBack: () => void;
+  actingUserId: string;
 }): React.JSX.Element {
-  const t = useTrip(gateway, trip.tripId, online, waiting, onQueued);
-  const [issueFor, setIssueFor] = useState<Line | null | undefined>(undefined);
+  const tr = useT();
+  const t = useTrip(gateway, trip.tripId, online, waiting, onQueued, actingUserId);
+  const [issueFor, setIssueFor] = useState<{ line: Line; item: ItemView | null } | null | undefined>(undefined);
+  const [handingBack, setHandingBack] = useState(false);
+  const [toast, setToast] = useState<ToastMessage | null>(null);
+  const [sequence, setSequence] = useState<{ line: Line; item: ItemView; firstStop: number } | null>(null);
+  const [justReleased, setJustReleased] = useState(false);
   const [releasing, setReleasing] = useState(false);
   const [blockedBy, setBlockedBy] = useState<string | null>(null);
   const m = t.manifest.data;
 
   useEffect(() => onSynced(t.manifest.loadedAt), [t.manifest.loadedAt, onSynced]);
+  const { refresh: reload } = t.manifest;
+  useEffect(() => {
+    if (refreshKey) reload();
+  }, [refreshKey, reload]);
 
   if (!m) {
     return t.manifest.error ? (
       <div className="px-5">
-        <Notice tone="danger" title="Could not load this trip's load sheet">
+        <Notice tone="danger" title={tr("Could not load this trip's load sheet")}>
           {t.manifest.error.message}
         </Notice>
       </div>
     ) : (
-      <p className="py-10 text-center text-[15px] text-go-muted">Loading the load sheet…</p>
+      <p className="py-10 text-center text-[15px] text-go-muted">{tr("Loading the load sheet…")}</p>
     );
   }
 
   const status = m.status;
   const p = progress(t.lines);
   const totals = loadedTotals(t.lines);
-  const editable = status === "IN_PROGRESS" || status === "BLOCKED";
+  // Bars compare the load with what the vehicle can carry, by order-level weight
+  // and volume (AGENTS.md, capacity never reads product lines).
+  const weightCap = Number(m.weightCapKg);
+  const volumeCap = Number(m.volumeCapM3);
+  const editable = status === "IN_PROGRESS" || status === "BLOCKED" || status === "READY";
   const left = p.total - p.checked;
+  const pace = editable && m.holder ? paceOf(p.checked, p.total, m.holder.since, m.plannedDeparture) : null;
+  // 04: the trip went to another loader first (R-LOD-11).
+  const taken =
+    t.error instanceof ApiError && t.error.status === 409 && t.error.problem.violations.some((v) => v.rule === "R-LOD-11")
+    && m.holder !== null && m.holder.userId !== actingUserId;
+  const nextUp = t.lines
+    .flatMap((l) => l.items.filter((i) => i.status === "PENDING").map((i) => tr("{order} · item {n}", { order: orderLabel(l), n: i.lineNo })))
+    [0] ?? null;
 
-  const release = async () => {
-    const outcome: Outcome = await t.release();
-    if (outcome.ok) setReleasing(false);
+  const release = async (checklist: Omit<ReleaseTrip, "tripId">) => {
+    const outcome: Outcome = await t.release(checklist);
+    if (outcome.ok) {
+      setReleasing(false);
+      setJustReleased(true);
+    }
     else setBlockedBy(outcome.error.message);
   };
+
+  /** Tick one item; a pending stop that loads earlier is warned about first (E6), then Undo is offered (E5). */
+  const tick = async (line: Line, item: ItemView, force = false) => {
+    if (item.status !== "LOADED" && !force) {
+      const earlier = t.lines.filter((l) => l.stopSequence > line.stopSequence && l.items.some((i) => i.status === "PENDING"));
+      if (earlier.length > 0) {
+        setSequence({ line, item, firstStop: Math.max(...earlier.map((l) => l.stopSequence)) });
+        return;
+      }
+    }
+    const to = item.status === "LOADED" ? "PENDING" : "LOADED";
+    const outcome = await t.check(line, item, to);
+    if (outcome.ok && to === "LOADED") {
+      const orderLeft = line.items.filter((i) => i.lineNo !== item.lineNo && i.status === "PENDING").length;
+      const stopLeft = t.lines
+        .filter((l) => l.stopSequence === line.stopSequence)
+        .flatMap((l) => l.items.filter((i) => i.status === "PENDING" && !(l.orderId === line.orderId && i.lineNo === item.lineNo)))
+        .length;
+      const stop = `Stop ${String(line.stopSequence).padStart(2, "0")}`;
+      setToast({
+        kind: "loaded",
+        at: new Date(),
+        title: tr("{order} · item {n} loaded", { order: orderLabel(line), n: item.lineNo }),
+        detail:
+          orderLeft > 0
+            ? tr(orderLeft === 1 ? "{n} item left in this order" : "{n} items left in this order", { n: orderLeft })
+            : [
+                tr("Order completed"),
+                stopLeft > 0 && tr(stopLeft === 1 ? "{n} item left for {stop}." : "{n} items left for {stop}.", { n: stopLeft, stop }),
+              ].filter(Boolean).join(" · "),
+        note: outcome.queued ? tr("Saved on this device; sends when you're back online.") : undefined,
+        undo: () => void t.check(line, { ...item, status: "LOADED" }, "PENDING"),
+      });
+    }
+  };
+
+  if (justReleased) {
+    const reported = t.lines.filter((l) => l.items.some((i) => i.status !== "LOADED" && i.status !== "PENDING")).length;
+    return (
+      <Released
+        vehicleId={m.vehicleId}
+        summary={[
+          m.brandCode,
+          tr("{n} stops", { n: new Set(t.lines.map((l) => l.stopSequence)).size }),
+          tr("{n} orders", { n: t.lines.length }),
+          reported > 0 && tr("{n} with items reported", { n: reported }),
+        ].filter(Boolean).join(" · ")}
+        onBack={onBack}
+      />
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4 px-5 pb-8 md:px-8 lg:px-10">
@@ -79,21 +157,22 @@ export default function LoadSheet({
           title={`Plan changed: version ${t.planChangedFrom} → ${m.planVersion}`}
           action={
             <button type="button" onClick={t.acknowledgePlan} className="min-h-12 shrink-0 px-2 text-[13px] font-medium text-go-teal">
-              Got it
+              {tr("Got it")}
             </button>
           }
         >
           {t.lines.filter((l) => l.recheck).length} orders moved and must be checked again. They are marked below; earlier checks on them no longer count.
         </Notice>
       )}
-      {t.error && (
+      {taken && <TripTaken vehicleId={m.vehicleId} onBack={onBack} />}
+      {t.error && !taken && (
         <Notice
           tone="danger"
           live
           title={t.error.message}
           action={
             <button type="button" onClick={t.clearError} className="min-h-12 shrink-0 px-2 text-[13px] font-medium text-go-teal">
-              Dismiss
+              {tr("Dismiss")}
             </button>
           }
         />
@@ -101,101 +180,43 @@ export default function LoadSheet({
 
       {/* Landscape tablet: truck summary pinned left, load list beside it. */}
       <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[440px_minmax(0,1fr)] lg:items-start">
-      <section aria-label="Truck" className="flex flex-col gap-4 rounded-[31px] bg-white px-[22px] py-5 shadow-[0_5px_20px_rgba(0,0,0,0.09)] lg:sticky lg:top-[132px]">
-        <div className="flex items-center gap-2.5">
-          <span className="rounded-full bg-black px-3.5 py-1.5 text-[15px] font-medium text-white">
-            {status === "COMPLETED" ? "Released" : status === "NOT_STARTED" ? "Not started" : "Loading"}
-          </span>
-          <TempBadge temperature={tripTemperature(t.lines)} />
-          <span className="flex-1" />
-          <span className="text-right text-[13px] text-go-muted md:hidden">
-            {m.vehicleId} · Trip {m.tripNumber}
-            <br />
-            Departs {hhmm(trip.plannedDeparture)}
-          </span>
-        </div>
-        <div className="flex justify-center py-2">
-          <Ring percent={p.percent} />
-        </div>
-        <Bar label="Volume" value={`${m3(totals.volume)} / ${m3(totals.volumeAll)}`} share={totals.volumeAll ? totals.volume / totals.volumeAll : 0} />
-        <Bar label="Weight" value={`${kg(totals.weight)} / ${kg(totals.weightAll)}`} share={totals.weightAll ? totals.weight / totals.weightAll : 0} />
-        {editable && (
-          <div className="flex items-center gap-2 rounded-[16px] bg-[#e7f3f2] py-2 pr-2 pl-4">
-            <Icon name="lock" />
-            <span className="flex-1 text-[14px] font-medium text-go-success">Locked to you</span>
-            <button
-              type="button"
-              onClick={() => window.confirm("Hand this trip back? Your checks stay, and another loader can take it.") && void t.handBack()}
-              className="min-h-12 rounded-full bg-white px-4 text-[14px] font-medium text-black"
-            >
-              Hand back
-            </button>
-          </div>
-        )}
-        <div className="flex flex-col gap-1">
-          <p className="text-[28px] font-semibold">
-            {p.checked} of {p.total} orders loaded
-          </p>
-          <p className="text-[15px] font-medium text-go-success">
-            {[left > 0 ? `${left} left` : "All loaded", untilDeparture(trip.plannedDeparture)].filter(Boolean).join(" · ")}
-          </p>
-          {p.flagged > 0 && <p className="text-[15px] font-medium text-go-danger-strong">{p.flagged} reported to the dispatcher</p>}
-        </div>
-
-        {status === "NOT_STARTED" && (
-          <BigButton size="l" onClick={() => void t.start()} disabled={t.busy}>
-            Start loading
-          </BigButton>
-        )}
-        {editable && (
-          <div className="flex flex-wrap gap-3">
-            <BigButton tone="danger" size="l" fit onClick={() => setIssueFor(null)}>
-              Report issue
-            </BigButton>
-            <BigButton
-              tone={left === 0 && t.planChangedFrom === null ? "ink" : "muted"}
-              size="l"
-              fit
-              onClick={() => {
-                setBlockedBy(
-                  waiting > 0
-                    ? "Some checks are still saved only on this phone. Release once they are sent."
-                    : t.planChangedFrom !== null
-                      ? "The plan changed. Confirm the change and recheck the marked orders first."
-                      : null,
-                );
-                setReleasing(true);
-              }}
-            >
-              {left === 0 ? "Release vehicle" : `Release · ${left} left`}
-            </BigButton>
-          </div>
-        )}
-        {status === "COMPLETED" && (
-          <Notice tone="info" title="Vehicle released">
-            The driver can depart. Reports made here stay with the trip.
-          </Notice>
-        )}
-        {gateway.revisePlan && editable && (
-          <button
-            type="button"
-            onClick={() => {
-              gateway.revisePlan!(trip.tripId);
-              t.manifest.refresh();
-            }}
-            className="min-h-12 text-[13px] text-go-warning-text underline"
-          >
-            Sample data: publish a plan change
-          </button>
-        )}
-      </section>
+      <TruckCard
+        m={m}
+        status={status}
+        percent={p.percent}
+        checked={p.checked}
+        total={p.total}
+        flagged={p.flagged}
+        left={left}
+        pace={pace}
+        totals={totals}
+        weightCap={weightCap}
+        volumeCap={volumeCap}
+        editable={editable}
+        busy={t.busy}
+        planChanged={t.planChangedFrom !== null}
+        waiting={waiting}
+        sample={gateway.revisePlan ? () => {
+          gateway.revisePlan!(trip.tripId);
+          t.manifest.refresh();
+        } : undefined}
+        onStart={() => void t.start()}
+        onHandBack={() => setHandingBack(true)}
+        onReport={() => setIssueFor(null)}
+        onRelease={(blocked) => {
+          setBlockedBy(blocked);
+          setReleasing(true);
+        }}
+      />
 
       <ManifestList
         lines={t.lines}
         outlets={outlets}
         editable={editable}
-        onToggle={(line) => void t.check(line, line.status === "LOADED" ? "PENDING" : "LOADED")}
-        onReport={(line) => setIssueFor(line)}
+        onToggle={(line, item) =>
+          item ? void tick(line, item) : void t.check(line, null, line.status === "LOADED" ? "PENDING" : "LOADED")
+        }
+        onReport={(line, item) => setIssueFor({ line, item })}
       />
       </div>
 
@@ -205,8 +226,46 @@ export default function LoadSheet({
           initial={issueFor}
           outlets={outlets}
           busy={t.busy}
-          onSend={async (payload) => (await t.flag(payload)).ok}
+          onSend={async (payload) => {
+            const outcome = await t.flag(payload);
+            if (outcome.ok && outcome.queued) {
+              setToast({
+                kind: "saved",
+                at: new Date(),
+                title: tr("Issue saved on this device"),
+                detail: tr("Sends when you're back online. Keep loading."),
+                note: tr("Sends to the dispatcher and the store"),
+              });
+            }
+            return outcome.ok;
+          }}
           onClose={() => setIssueFor(undefined)}
+        />
+      )}
+      {sequence && (
+        <OutOfSequence
+          firstStop={sequence.firstStop}
+          thisStop={sequence.line.stopSequence}
+          loadsLast={sequence.line.stopSequence === Math.min(...t.lines.map((l) => l.stopSequence))}
+          onAnyway={() => {
+            const { line, item } = sequence;
+            setSequence(null);
+            void tick(line, item, true);
+          }}
+          onClose={() => setSequence(null)}
+        />
+      )}
+      {toast && <Toast message={toast} onDone={() => setToast(null)} />}
+      {handingBack && (
+        <HandBack
+          vehicleId={m.vehicleId}
+          checked={p.checked}
+          nextUp={nextUp}
+          busy={t.busy}
+          onConfirm={async () => {
+            if ((await t.handBack()).ok) setHandingBack(false);
+          }}
+          onClose={() => setHandingBack(false)}
         />
       )}
       {releasing && (
@@ -214,8 +273,9 @@ export default function LoadSheet({
           lines={t.lines}
           outlets={outlets}
           blockedBy={blockedBy}
+          capacity={{ weight: totals.weight, weightCap, volume: totals.volume, volumeCap }}
           busy={t.busy}
-          onRelease={() => void release()}
+          onRelease={(checklist) => void release(checklist)}
           onReport={() => {
             setReleasing(false);
             setIssueFor(null);

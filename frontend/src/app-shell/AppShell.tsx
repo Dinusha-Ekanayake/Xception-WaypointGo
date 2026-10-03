@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { useOnline } from "@shared/api/useResource";
 import { useSync } from "@shared/offline";
-import { Notice, ShellProvider, StructuredError, cx, type ShellControls } from "@shared/ui";
-import { hostForRole, roleForHost } from "./hostRole.ts";
+import { McpButton, Notice, ShellProvider, StructuredError, cx, type ShellControls } from "@shared/ui";
+import { ROLE_ADDRESSES, hostForRole, roleForHost, sharedHomeFor } from "./hostRole.ts";
+import RoleLanding from "./RoleLanding.tsx";
 import RoleRouter from "./RoleRouter.tsx";
 import SignIn from "./SignIn.tsx";
 import SyncStatus from "./SyncStatus.tsx";
@@ -49,6 +50,7 @@ export default function AppShell(): React.JSX.Element {
     }
     return null;
   });
+  const unverified = state?.kind === "signed-in" && state.unverified === true;
 
   const [role, setRole] = useState<ShellRole | null>(() => {
     if (typeof window !== "undefined" && process.env.NODE_ENV !== "production") {
@@ -77,14 +79,39 @@ export default function AppShell(): React.JSX.Element {
     }
   }, [check, state]);
 
+  // Working from the remembered session because the server could not be asked:
+  // ask again when the connection returns, so an expired session is found out
+  // before the queue is sent rather than by it.
+  useEffect(() => {
+    if (!unverified || !online) return;
+    void currentSession().then(setState);
+  }, [unverified, online]);
+
   // A role address such as loader.waypointgo.live shows that role and no other.
   // Read only once the session is known, so the first paint matches the server's.
   const host = state ? window.location.hostname : "";
   const pinned = roleForHost(host);
 
+  // The address every role shares has no workspace or sign-in where the role
+  // addresses are served: it offers them, whatever the session on this one says.
+  const landing = sharedHomeFor(host, "dispatcher", ROLE_ADDRESSES) !== null;
+
   useEffect(() => {
     if (state?.kind === "signed-in") setRole(rememberedRole(state.session));
   }, [state]);
+
+  // The read-only MCP address for "Connect AI assistant", taken from the
+  // server's own metadata: it is the configured shared host, never a role
+  // address, and the button stays hidden where MCP is off (404) or unreachable.
+  const [mcpUrl, setMcpUrl] = useState<string | null>(null);
+  const signedIn = state?.kind === "signed-in";
+  useEffect(() => {
+    if (!signedIn) return;
+    fetch("/.well-known/oauth-protected-resource/mcp", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((m: { resource?: unknown } | null) => setMcpUrl(typeof m?.resource === "string" ? m.resource : null))
+      .catch(() => setMcpUrl(null));
+  }, [signedIn]);
 
   useEffect(() => {
     if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") {
@@ -97,6 +124,8 @@ export default function AppShell(): React.JSX.Element {
 
 
   if (!state) return <main className="flex min-h-dvh items-center justify-center bg-go-canvas font-go text-go-muted">Checking your session…</main>;
+
+  if (landing) return <RoleLanding host={host} />;
 
   if (state.kind === "unreachable") {
     const code = state.status ?? (online ? 503 : "OFFLINE");
@@ -166,6 +195,7 @@ export default function AppShell(): React.JSX.Element {
   const misplaced = pinned !== null && !session.roles.includes(pinned);
   const roles = pinned ? (misplaced ? [] : [pinned]) : session.roles;
   const active = pinned && !misplaced ? pinned : role ?? rememberedRole(session);
+  const adminPreview = !misplaced && active === "admin" && host.startsWith("admin-preview.");
 
   const leave = async (force: boolean) => {
     // Writes still on this device belong to this account; signing out would
@@ -194,14 +224,16 @@ export default function AppShell(): React.JSX.Element {
     },
     onSignOut: () => void leave(false),
     sync: <SyncStatus sync={sync} online={online} />,
+    mcpUrl,
   };
 
   return (
     <ShellProvider value={controls}>
-      <main className="shell">
-        {(misplaced || !OWN_HEADER.has(active)) && (
-          <div className="mx-auto flex w-full max-w-[1440px] flex-wrap items-center justify-end gap-2 bg-go-canvas px-4 pt-2 font-go">
+      <main className={cx("shell", adminPreview && "relative")}>
+        {(misplaced || !OWN_HEADER.has(active) && !adminPreview) && (
+          <div className={cx("mx-auto flex w-full max-w-[1440px] flex-wrap items-center justify-end gap-2 bg-go-canvas px-4 pt-2 font-go", adminPreview && "lg:absolute lg:inset-x-0 lg:top-0 lg:z-10 lg:max-w-none lg:bg-transparent lg:pr-8")}>
             <SyncStatus sync={sync} online={online} />
+            {!misplaced && <McpButton url={mcpUrl} className="flex min-h-10 items-center gap-2 rounded-full border border-[#dfe7e6] bg-white px-3.5 text-[13px] font-medium text-[#031b08]" />}
             {roles.length > 1 && (
               <div role="tablist" aria-label="Role" className="flex gap-1 rounded-full bg-white p-1">
                 {roles.map((r) => (

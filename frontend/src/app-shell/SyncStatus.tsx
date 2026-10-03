@@ -1,12 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import type { SyncState } from "@shared/offline";
+import type { StoredEntry, SyncState } from "@shared/offline";
 import { cx, formatClock } from "@shared/ui";
 
 // What is still on this device, and what the server refused. A refused write is
 // never merged or dropped by the engine (architecture rule 6): it waits here,
-// with the server's reason, for a person to send it again or discard it.
+// with the server's reason, for its owner (decision D-O) to redo it on the
+// current version or to discard it with a reason. Both are recorded on the server.
+
+/** Short reasons a person picks when dropping a change; kept with it on the server (rule 8). */
+const DISCARD_REASONS = ["No longer needed", "Entered by mistake", "Done another way"] as const;
 
 const describeKind = (kind: string) => kind.replace(":", " · ").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
 
@@ -22,13 +26,13 @@ export default function SyncStatus({ sync, online }: { sync: SyncState; online: 
           type="button"
           onClick={sync.syncNow}
           title={sync.lastSyncedAt ? `Last synced ${formatClock(sync.lastSyncedAt)}` : undefined}
-          className={cx("min-h-10 rounded-full px-3.5 text-[13px] font-medium", online ? "bg-go-mint text-black" : "bg-go-warning-tint text-go-warning-text")}
+          className={cx("min-h-10 whitespace-nowrap rounded-full px-3.5 text-[13px] font-medium", online ? "bg-go-mint text-black" : "bg-go-warning-tint text-go-warning-text")}
         >
           {sync.syncing ? "Sending…" : online ? `${waiting} to send · sync now` : `${waiting} saved on this device`}
         </button>
       )}
       {sync.held.length > 0 && (
-        <button type="button" onClick={() => setOpen(true)} className="min-h-10 rounded-full bg-go-danger-tint px-3.5 text-[13px] font-medium text-go-danger-strong">
+        <button type="button" onClick={() => setOpen(true)} className="min-h-10 whitespace-nowrap rounded-full bg-go-danger-tint px-3.5 text-[13px] font-medium text-go-danger-strong">
           {sync.held.length} to review
         </button>
       )}
@@ -38,29 +42,12 @@ export default function SyncStatus({ sync, online }: { sync: SyncState; online: 
           <div role="dialog" aria-modal="true" aria-label="Changes to review" className="relative flex max-h-[85dvh] w-full max-w-[520px] flex-col gap-4 overflow-y-auto rounded-t-[32px] bg-white px-6 pt-6 pb-8 font-go sm:rounded-[32px]">
             <h2 className="text-[22px] font-medium text-black">Changes the server refused</h2>
             <p className="text-[14px] text-go-muted">
-              These were saved on this device but could not be applied, usually because the record changed while you were offline. Check the screen they came from, then send again or discard.
+              These were saved on this device but could not be applied, usually because the record changed while you were offline. Check the screen they came from, then redo them on the current version or discard them.
             </p>
             {sync.held.length === 0 && <p className="text-[15px] text-go-muted">Nothing left to review.</p>}
             <ul className="flex flex-col gap-3">
               {sync.held.map((e) => (
-                <li key={e.commandId} className="flex flex-col gap-2 rounded-[20px] bg-go-canvas p-4">
-                  <span className="text-[15px] font-medium text-black capitalize">{describeKind(e.kind)}</span>
-                  <span className="text-[13px] text-go-muted">
-                    Saved {formatClock(new Date(e.enqueuedAt))} · {e.lastError ?? "refused"}
-                  </span>
-                  <span className="flex gap-2">
-                    <button type="button" onClick={() => void sync.retry(e)} className="min-h-12 flex-1 rounded-[18px] border border-go-mint bg-white text-[14px] font-medium">
-                      Send again
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => window.confirm("Discard this change? It will not be sent.") && void sync.discard(e.commandId)}
-                      className="min-h-12 flex-1 rounded-[18px] bg-[#ea2525] text-[14px] font-medium text-white"
-                    >
-                      Discard
-                    </button>
-                  </span>
-                </li>
+                <HeldChange key={e.commandId} entry={e} sync={sync} />
               ))}
             </ul>
             <button type="button" onClick={() => setOpen(false)} className="min-h-12 rounded-[22px] bg-[#031a0c] text-[15px] font-medium text-white">
@@ -70,5 +57,80 @@ export default function SyncStatus({ sync, online }: { sync: SyncState; online: 
         </div>
       )}
     </>
+  );
+}
+
+function HeldChange({ entry, sync }: { entry: StoredEntry; sync: SyncState }): React.JSX.Element {
+  const [dropping, setDropping] = useState(false);
+  const [reason, setReason] = useState<string>(DISCARD_REASONS[0]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const act = async (work: () => Promise<void>) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await work();
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Could not do that. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <li className="flex flex-col gap-2 rounded-[20px] bg-go-canvas p-4">
+      <span className="text-[15px] font-medium text-black capitalize">{describeKind(entry.kind)}</span>
+      <span className="text-[13px] text-go-muted">
+        Saved {formatClock(new Date(entry.enqueuedAt))} · {entry.lastError ?? "refused"}
+      </span>
+      {error && (
+        <span role="alert" className="text-[13px] text-go-danger-strong">
+          {error}
+        </span>
+      )}
+      {dropping ? (
+        <span className="flex flex-col gap-2">
+          <label className="flex flex-col gap-1 text-[13px] text-go-muted">
+            Why discard it?
+            <select value={reason} onChange={(ev) => setReason(ev.target.value)} className="min-h-12 rounded-[14px] border border-go-rule bg-white px-3 text-[15px] text-black">
+              {DISCARD_REASONS.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+          </label>
+          <span className="flex gap-2">
+            <button type="button" onClick={() => setDropping(false)} disabled={busy} className="min-h-12 flex-1 rounded-[18px] border border-go-rule bg-white text-[14px] font-medium">
+              Keep it
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void act(() => sync.discard(entry.commandId, reason))}
+              className="min-h-12 flex-1 rounded-[18px] bg-[#ea2525] text-[14px] font-medium text-white disabled:opacity-50"
+            >
+              Discard
+            </button>
+          </span>
+        </span>
+      ) : (
+        <span className="flex gap-2">
+          {sync.canRedo(entry) && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void act(() => sync.redo(entry))}
+              className="min-h-12 flex-1 rounded-[18px] border border-go-mint bg-white text-[14px] font-medium disabled:opacity-50"
+            >
+              Redo on the current version
+            </button>
+          )}
+          <button type="button" disabled={busy} onClick={() => setDropping(true)} className="min-h-12 flex-1 rounded-[18px] border border-[#ea2525] bg-white text-[14px] font-medium text-[#ea2525]">
+            Discard…
+          </button>
+        </span>
+      )}
+    </li>
   );
 }

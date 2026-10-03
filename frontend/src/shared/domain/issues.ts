@@ -37,6 +37,25 @@ export type IssueView = {
   raisedAt: IsoInstant;
   resolvedAt: IsoInstant | null;
   rowVersion: number;
+  /** Photos of the problem that have reached the server, oldest first. Absent from a server before photos. */
+  attachments?: AttachmentView[];
+};
+
+/**
+ * A photo of a delivery problem. Its bytes are read from
+ * `/api/issues/{issueId}/attachments/{attachmentId}/content` by someone who can
+ * see the issue; one past its retention is no longer listed.
+ */
+export type AttachmentView = { attachmentId: Uuid; contentType: string };
+
+/** One change to an issue, with who made it, what they did and why (rule 8). */
+export type IssueHistoryView = {
+  from: IssueStatus | null;
+  to: IssueStatus;
+  action: string;
+  reason: string;
+  actorId: Uuid | null;
+  at: IsoInstant;
 };
 
 export const IssueCommandKind = {
@@ -56,6 +75,11 @@ export type RaiseIssue = {
   outletId: string | null;
   subjects: SubjectRef[];
   description: string;
+  /**
+   * Photos uploaded for the problem (`PUT /api/issues/attachments/{id}`, action
+   * `issue:AttachPhoto`), by id. One still on the phone links when it arrives.
+   */
+  attachmentIds?: Uuid[];
 };
 export type AssignIssue = { issueId: Uuid; assigneeUserId: Uuid };
 export type ResolveIssue = { issueId: Uuid; action: string; note: string };

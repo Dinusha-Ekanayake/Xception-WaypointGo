@@ -19,6 +19,7 @@ export default function OrderSheet({
   commands,
   onAmend,
   onReceive,
+  onDeferred,
   onClose,
 }: {
   gateway: StoreGateway;
@@ -26,6 +27,8 @@ export default function OrderSheet({
   commands: ReturnType<typeof useCommands>;
   onAmend: () => void;
   onReceive: () => void;
+  /** Open "09 Order deferred": where it moved and why. */
+  onDeferred: () => void;
   onClose: () => void;
 }): React.JSX.Element {
   const history = useResource((s) => gateway.history(order.orderId, s), `${order.orderId}:${order.rowVersion}:${order.status}`);
@@ -79,7 +82,18 @@ export default function OrderSheet({
         </ol>
       </section>
 
+      {order.status === "DEFERRED" && (
+        <Button tone="plain" onClick={onDeferred}>
+          Why it moved
+        </Button>
+      )}
       {order.status === "DELIVERED" && <Button onClick={onReceive}>Receive this delivery</Button>}
+      {/* An answered receipt: what was counted and where the handover PIN stands (R-RCP-09). */}
+      {order.status === "RECEIVED" && (
+        <Button tone="plain" onClick={onReceive}>
+          Receipt and handover PIN
+        </Button>
+      )}
       {editable(order.status) && !cancelling && (
         <div className="flex gap-2.5">
           <Button tone="plain" onClick={() => setCancelling(true)}>

@@ -2,6 +2,7 @@ package com.waypoint.dispatch.sync.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.waypoint.dispatch.platform.db.Database;
+import com.waypoint.dispatch.identity.contract.OperatorQuery;
 import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.platform.messaging.Command;
 import com.waypoint.dispatch.platform.messaging.CommandAuthorizer;
@@ -23,6 +24,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.Semaphore;
@@ -59,6 +61,7 @@ public class SubmitBatchHandler {
   private final Database database;
   private final Metrics metrics;
   private final ObjectMapper mapper;
+  private final Optional<OperatorQuery> operators;
 
   public SubmitBatchHandler(
       CommandBus bus,
@@ -66,13 +69,15 @@ public class SubmitBatchHandler {
       OperationRepository operations,
       Database database,
       Metrics metrics,
-      ObjectMapper mapper) {
+      ObjectMapper mapper,
+      Optional<OperatorQuery> operators) {
     this.bus = bus;
     this.authorizer = authorizer;
     this.operations = operations;
     this.database = database;
     this.metrics = metrics;
     this.mapper = mapper;
+    this.operators = operators;
   }
 
   /** Thrown when the instance is at capacity; the web layer turns it into 429 with Retry-After. */
@@ -87,6 +92,8 @@ public class SubmitBatchHandler {
    * reached and stays on the device.
    *
    * @param status {@code RECEIVED} means recorded but not decided; send it again later
+   * @param rowVersion the operation's version after this answer, which a device names when it
+   *     discards or resolves a held write; null when the id belongs to someone else
    */
   public record Outcome(
       UUID operationId,
@@ -94,21 +101,26 @@ public class SubmitBatchHandler {
       OperationStatus status,
       String problemCode,
       String detail,
-      boolean replayed) {}
+      boolean replayed,
+      Long rowVersion) {}
 
   public List<Outcome> submit(Actor actor, SubmitBatch batch) {
+    return submit(actor, null, batch);
+  }
+
+  public List<Outcome> submit(Actor actor, String sessionToken, SubmitBatch batch) {
     if (!capacity.tryAcquire()) {
       metrics.increment("waypoint.sync.busy");
       throw new Busy();
     }
     try {
-      return apply(actor, batch);
+      return apply(actor, sessionToken, batch);
     } finally {
       capacity.release();
     }
   }
 
-  private List<Outcome> apply(Actor actor, SubmitBatch batch) {
+  private List<Outcome> apply(Actor actor, String sessionToken, SubmitBatch batch) {
     if (batch.deviceId() == null) {
       throw new DomainException(ErrorCode.VALIDATION_FAILED, "deviceId is required");
     }
@@ -129,18 +141,48 @@ public class SubmitBatchHandler {
             .sorted(Comparator.comparingLong(SubmittedOperation::sequence))
             .toList();
     List<Outcome> outcomes = new ArrayList<>();
+    boolean stopped = false;
     for (SubmittedOperation op : ordered) {
-      Outcome outcome = applyOne(actor, batch.deviceId(), op);
+      Outcome outcome = applyOne(actor, sessionToken, batch.deviceId(), op);
       outcomes.add(outcome);
       metrics.increment("waypoint.sync.operation", "status", outcome.status().name());
       if (outcome.status() == OperationStatus.RECEIVED) {
+        stopped = true;
         break;
       }
+    }
+    if (!stopped) {
+      recordTimeToDrain(actor, batch.deviceId(), ordered);
     }
     return outcomes;
   }
 
-  private Outcome applyOne(Actor actor, UUID deviceId, SubmittedOperation op) {
+  /**
+   * Time to drain (EXE-02): from the oldest write in this batch being recorded on the device to the
+   * moment the server holds nothing undecided from that device. A batch that stopped on an outage
+   * has not drained, and neither has a device with operations still in flight.
+   */
+  private void recordTimeToDrain(Actor actor, UUID deviceId, List<SubmittedOperation> ordered) {
+    Optional<Instant> oldest =
+        ordered.stream()
+            .map(SubmittedOperation::command)
+            .map(c -> c == null ? null : c.clientRecordedAt())
+            .filter(Objects::nonNull)
+            .min(Comparator.naturalOrder());
+    if (oldest.isEmpty()) {
+      return;
+    }
+    boolean drained =
+        database.asModule(
+            ModuleRole.SYNC, actor.userId(), () -> operations.pendingFor(deviceId).isEmpty());
+    if (drained) {
+      metrics.record(
+          "waypoint.sync.time_to_drain",
+          Math.max(0, Duration.between(oldest.get(), Instant.now()).toMillis()));
+    }
+  }
+
+  private Outcome applyOne(Actor actor, String sessionToken, UUID deviceId, SubmittedOperation op) {
     Command command = op.command();
     if (command == null || command.commandId() == null || command.kind() == null) {
       throw new DomainException(
@@ -152,13 +194,13 @@ public class SubmitBatchHandler {
     if (known.isEmpty()) {
       return new Outcome(
           id, op.sequence(), OperationStatus.REJECTED, ErrorCode.CONFLICT.name(),
-          "This operation id is already in use", false);
+          "This operation id is already in use", false, null);
     }
     if (OperationOutcome.isSettled(known.get().status())) {
       // A replayed batch: answer what the device was told the first time.
       return new Outcome(
           id, op.sequence(), known.get().status(), known.get().problemCode().orElse(null), null,
-          true);
+          true, version(actor, id));
     }
 
     if (command.clientRecordedAt() != null) {
@@ -170,24 +212,36 @@ public class SubmitBatchHandler {
     }
 
     try {
-      CommandResult result = bus.dispatch(actor, command);
-      settle(actor, id, OperationStatus.APPLIED, null, null);
-      return new Outcome(id, op.sequence(), OperationStatus.APPLIED, null, null, result.replayed());
+      Actor commandActor = actor;
+      if (command.kind().startsWith("loading:")) {
+        if (command.actingUserId() == null || command.clientRecordedAt() == null || operators.isEmpty()) {
+          throw new DomainException(ErrorCode.FORBIDDEN,
+              "Queued loading work must identify the loader who recorded it on this device");
+        }
+        commandActor = operators.get().operatorAt(sessionToken, command.actingUserId(), command.clientRecordedAt())
+            .orElseThrow(() -> new DomainException(ErrorCode.FORBIDDEN,
+                "This loader was not operating the device when the work was recorded"));
+      }
+      CommandResult result = bus.dispatch(commandActor, command);
+      long version = settle(actor, id, OperationStatus.APPLIED, null, null);
+      return new Outcome(
+          id, op.sequence(), OperationStatus.APPLIED, null, null, result.replayed(), version);
     } catch (DomainException e) {
       Optional<OperationStatus> settled = OperationOutcome.forFailure(e.code());
       if (settled.isEmpty()) {
         return new Outcome(
-            id, op.sequence(), OperationStatus.RECEIVED, e.code().name(), e.getMessage(), false);
+            id, op.sequence(), OperationStatus.RECEIVED, e.code().name(), e.getMessage(), false,
+            version(actor, id));
       }
-      settle(actor, id, settled.get(), e.code().name(), e.getMessage());
+      long version = settle(actor, id, settled.get(), e.code().name(), e.getMessage());
       return new Outcome(
-          id, op.sequence(), settled.get(), e.code().name(), e.getMessage(), false);
+          id, op.sequence(), settled.get(), e.code().name(), e.getMessage(), false, version);
     } catch (RuntimeException e) {
       // Not the operation's fault as far as anyone can tell. Keep it in flight.
       log.error("Sync could not apply operation {} ({})", id, command.kind(), e);
       return new Outcome(
           id, op.sequence(), OperationStatus.RECEIVED, "INTERNAL_ERROR",
-          "The server could not apply this yet", false);
+          "The server could not apply this yet", false, version(actor, id));
     }
   }
 
@@ -203,7 +257,7 @@ public class SubmitBatchHandler {
         ModuleRole.SYNC,
         actor.userId(),
         () -> {
-          operations.insert(
+          boolean inserted = operations.insert(
               command.commandId(),
               actor.userId(),
               deviceId,
@@ -212,12 +266,26 @@ public class SubmitBatchHandler {
               json,
               command.expectedVersion(),
               command.clientRecordedAt());
+          if (!inserted && !operations.matches(command.commandId(), actor.userId(), deviceId, json)) {
+            return Optional.empty();
+          }
           return operations.find(command.commandId());
         });
   }
 
-  private void settle(Actor actor, UUID id, OperationStatus status, String code, String detail) {
-    database.asModule(
-        ModuleRole.SYNC, actor.userId(), () -> operations.settle(id, status, code, detail));
+  /** Settles the operation and answers its version afterwards, in one transaction. */
+  private long settle(Actor actor, UUID id, OperationStatus status, String code, String detail) {
+    return database.asModule(
+        ModuleRole.SYNC,
+        actor.userId(),
+        () -> {
+          operations.settle(id, status, code, detail);
+          return operations.rowVersion(id).orElse(0L);
+        });
+  }
+
+  private Long version(Actor actor, UUID id) {
+    return database.asModule(
+        ModuleRole.SYNC, actor.userId(), () -> operations.rowVersion(id).orElse(null));
   }
 }

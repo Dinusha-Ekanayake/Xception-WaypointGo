@@ -58,7 +58,9 @@ public final class PlanViews {
       boolean plannedWithoutPredictor,
       List<TripView> trips,
       List<AllocationView> allocations,
-      long rowVersion) {
+      long rowVersion,
+      String engine,
+      Optional<ImprovementView> improvement) {
 
     public PlanView {
       trips = List.copyOf(trips);
@@ -102,6 +104,28 @@ public final class PlanViews {
       BigDecimal serviceMinutes) {}
 
   /**
+   * One place an order could take in its open draft: the vehicle and trip an
+   * override would name, and what every rule says about it.
+   *
+   * @param joins true when the trip already exists; false when the order would open it
+   * @param bindingRule the first rule that refuses this place; empty when it is feasible
+   */
+  public record PlacementView(
+      String vehicleId,
+      int tripNumber,
+      boolean joins,
+      Optional<UUID> tripId,
+      boolean feasible,
+      Optional<String> bindingRule,
+      String reason,
+      List<ConstraintResultView> checks) {
+
+    public PlacementView {
+      checks = List.copyOf(checks);
+    }
+  }
+
+  /**
    * @param bindingRule the rule that decided a deferral or an unservable order;
    *     never a generic message (R-PLN-19)
    * @param checks every constraint evaluated, with its slack
@@ -118,6 +142,27 @@ public final class PlanViews {
       checks = List.copyOf(checks);
     }
   }
+
+  /**
+   * What the engine's second pass achieved over its first (issue #92): the
+   * reefers planned again as a whole, kept only when better by rank (R-PLN-32).
+   *
+   * @param improved false when the first plan was already the best the pass found
+   * @param stoppedBy {@code NONE}, or {@code NODES} or {@code CLOCK} when the
+   *     search stopped before finishing and kept the best it had (rule 9)
+   * @param chilledSearched of {@code chilledCandidates}, how many the search
+   *     ranked; the rest were placed by insertion (rule 9)
+   */
+  public record ImprovementView(
+      int firstPassServed,
+      int firstPassDeferred,
+      int served,
+      int deferred,
+      boolean improved,
+      BigDecimal chilledVolumeGainedM3,
+      String stoppedBy,
+      int chilledCandidates,
+      int chilledSearched) {}
 
   /**
    * @param ruleId an identifier from RULES-AND-POLICIES, for example R-PLN-06

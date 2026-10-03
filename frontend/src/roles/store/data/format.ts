@@ -56,6 +56,15 @@ export function cutoffLabel(ms: number): string {
   return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} m left` : `${m} m left`;
 }
 
+/**
+ * When an order for `deliveryDate` stops being changeable: 4:00 PM the day
+ * before, said as "Today 4:00 PM" while that is still today.
+ */
+export function changeDeadline(deliveryDate: IsoDate, today: IsoDate): string {
+  const before = addDays(deliveryDate, -1);
+  return `${before === today ? "Today" : dayLabel(before)} ${CUTOFF_HOUR - 12}:00 PM`;
+}
+
 export function greeting(now = new Date()): string {
   const h = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: TZ }).format(now));
   return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
@@ -65,6 +74,7 @@ export type StatusTone = "mint" | "ink" | "warn" | "danger" | "muted" | "ok";
 
 export const ORDER_STATUS: Record<OrderStatus, { label: string; tone: StatusTone }> = {
   STOCK_UNKNOWN: { label: "Stock not checked", tone: "warn" },
+  PARTIALLY_RESERVED: { label: "Partly in stock", tone: "warn" },
   CONFIRMED: { label: "Confirmed", tone: "ok" },
   ALLOCATED: { label: "Planned", tone: "ok" },
   DEFERRED: { label: "Deferred", tone: "warn" },
@@ -83,3 +93,33 @@ export const ORDER_STATUS: Record<OrderStatus, { label: string; tone: StatusTone
 export const editable = (status: OrderStatus) => status === "CONFIRMED" || status === "STOCK_UNKNOWN";
 export const onTheWay = (status: OrderStatus) => status === "LOADING" || status === "IN_TRANSIT";
 export const temperatureLabel = (t: string) => (t === "chilled" ? "Chilled" : "Ambient");
+
+/**
+ * When the vehicle is expected at the outlet, as an instant. The observed delay
+ * moves it (R-EXE-15); until one is observed it is the plan's time at this stop.
+ * The plan's time is a wall-clock time on the delivery day in the depot's zone.
+ */
+export function expectedAt(stop: { expectedArrival: string | null; plannedArrival: string; serviceDate: IsoDate }): Date {
+  if (stop.expectedArrival) return new Date(stop.expectedArrival);
+  return new Date(`${stop.serviceDate}T${stop.plannedArrival.slice(0, 8)}+05:30`);
+}
+
+/** "13 min", "1 h 5 min"; "now" inside a minute, "late" once past. */
+export function minutesLabel(target: Date, now = new Date()): string {
+  const m = Math.round((target.getTime() - now.getTime()) / 60_000);
+  if (m < 0) return "late";
+  if (m < 1) return "now";
+  return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`;
+}
+
+const DOCKS: Record<string, { label: string; where: string }> = {
+  rear_dock: { label: "Rear dock", where: "at your rear dock" },
+  street: { label: "Street", where: "outside your store" },
+  mall_bay: { label: "Mall bay", where: "at the mall bay" },
+};
+
+/** "Rear dock", from the outlet's dock code ("rear_dock"). */
+export const dockLabel = (code: string) => DOCKS[code]?.label ?? code.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+
+/** "at your rear dock", for a sentence about where a vehicle stands. */
+export const dockWhere = (code: string | null | undefined) => (code ? (DOCKS[code]?.where ?? `at your ${code.replace(/_/g, " ")}`) : "at your store");

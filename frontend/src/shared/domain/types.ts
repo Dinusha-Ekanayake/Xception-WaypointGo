@@ -4,6 +4,7 @@
 // is the source of truth.
 
 export type * from "./common.ts";
+export type * from "./identity.ts";
 export type * from "./referencedata.ts";
 export type * from "./ordering.ts";
 export type * from "./planning.ts";
@@ -17,11 +18,12 @@ export type * from "./warehouse.ts";
 export type * from "./intelligence.ts";
 export type * from "./events.ts";
 
-export { VehicleCommandKind } from "./referencedata.ts";
+export { OutletCommandKind, VehicleCommandKind } from "./referencedata.ts";
+export { IdentityCommandKind } from "./identity.ts";
 export { OrderCommandKind } from "./ordering.ts";
 export { PlanCommandKind } from "./planning.ts";
 export { LoadingCommandKind } from "./loading.ts";
-export { ExecutionCommandKind } from "./execution.ts";
+export { ExecutionCommandKind, FailureReasons, VehicleStatuses } from "./execution.ts";
 export { ReceiptCommandKind } from "./receipt.ts";
 export { IssueCommandKind } from "./issues.ts";
 export { NotificationCommandKind } from "./notification.ts";

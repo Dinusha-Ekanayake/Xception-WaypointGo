@@ -12,6 +12,7 @@ const MAX_BODY_BYTES = Number(process.env.MAX_BODY_BYTES) || 4 * 1024 * 1024;
 // proxy hop; the correlation id lets a support ticket be followed into the logs.
 const FORWARD_REQUEST = [
   "accept",
+  "authorization",
   "content-type",
   "cookie",
   "origin",
@@ -22,8 +23,15 @@ const FORWARD_REQUEST = [
 ];
 
 // Response headers a client acts on. Everything else stays on this side.
+/** Long-lived responses: tied to the browser's connection instead of the 25 second limit. */
+const STREAMS = new Set(["/api/notifications/stream"]);
+
 const FORWARD_RESPONSE = [
   "content-type",
+  // The notification stream asks nginx in front of this proxy not to buffer it.
+  "x-accel-buffering",
+  "content-disposition",
+  "x-content-type-options",
   "location",
   "retry-after",
   "www-authenticate",
@@ -51,8 +59,9 @@ async function proxy(request: NextRequest): Promise<Response> {
     if (value) headers.set(name, value);
   }
   // Node fetch (undici) forbids overriding `Host`, so the backend would see
-  // BACKEND_URL's host instead of the browser's. Forward it separately so
-  // the backend origin guard can compare against the real page host.
+  // BACKEND_URL's host instead of the browser's. Forward it separately: the
+  // backend's OriginGuardFilter compares `Origin` with X-Forwarded-Host and
+  // refuses a state-changing request that came from another site.
   const browserHost = request.headers.get("host") || request.nextUrl.host;
   headers.set("Host", browserHost);
   headers.set("X-Forwarded-Host", browserHost);
@@ -67,7 +76,9 @@ async function proxy(request: NextRequest): Promise<Response> {
     response = await fetch(target, {
       method: request.method, headers, cache: "no-store", redirect: "manual",
       ...(HAS_BODY.has(request.method) ? { body: request.body, duplex: "half" } : {}),
-      signal: AbortSignal.timeout(25000),
+      // A server-sent event stream stays open for as long as the browser listens
+      // (issue #118); every other request still gives up after 25 seconds.
+      signal: STREAMS.has(path) ? request.signal : AbortSignal.timeout(25000),
     } as RequestInit);
   } catch {
     // Same contract as every backend error, so the client's retry logic sees a
@@ -85,9 +96,9 @@ async function proxy(request: NextRequest): Promise<Response> {
   for (const cookie of response.headers.getSetCookie()) outgoing.append("set-cookie", cookie);
   return new Response(response.body, { status: response.status, headers: outgoing });
 }
-// PUT and DELETE are here because policy administration uses them. Exporting only
-// GET and POST made those routes reachable from curl against the backend and not
-// from the browser, which is the kind of gap nobody finds until a demo.
+// Every write is a POST to /api/commands today. The other methods are forwarded
+// so that what the browser can reach and what curl can reach against the backend
+// never drift apart.
 export const GET = proxy;
 export const POST = proxy;
 export const PUT = proxy;

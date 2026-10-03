@@ -1,12 +1,17 @@
 package com.waypoint.dispatch.planning.application;
 
+import com.waypoint.dispatch.intelligence.contract.PredictionQuery;
+import com.waypoint.dispatch.intelligence.contract.PredictionViews.PlanScoringView;
+import org.springframework.beans.factory.ObjectProvider;
 import com.waypoint.dispatch.planning.contract.PlanQuery;
 import com.waypoint.dispatch.planning.contract.PlanViews.AllocationDecision;
 import com.waypoint.dispatch.planning.contract.PlanViews.AllocationView;
+import com.waypoint.dispatch.planning.contract.PlanViews.ImprovementView;
 import com.waypoint.dispatch.planning.contract.PlanViews.ConstraintResultView;
 import com.waypoint.dispatch.planning.contract.PlanViews.DeferralView;
 import com.waypoint.dispatch.planning.contract.PlanViews.FuelView;
 import com.waypoint.dispatch.planning.contract.PlanViews.InterchangePreview;
+import com.waypoint.dispatch.planning.contract.PlanViews.PlacementView;
 import com.waypoint.dispatch.planning.contract.PlanViews.PlanStatus;
 import com.waypoint.dispatch.planning.contract.PlanViews.PlanView;
 import com.waypoint.dispatch.planning.contract.PlanViews.StopView;
@@ -76,6 +81,7 @@ public class PlanDataQuery implements PlanQuery {
   private final PlanningDrafts drafts;
   private final PlanningRevisions revisions;
   private final ConstraintRegistry registry;
+  private final ObjectProvider<PredictionQuery> predictions;
 
   PlanDataQuery(
       Database database,
@@ -84,7 +90,8 @@ public class PlanDataQuery implements PlanQuery {
       AuditLog audit,
       PlanningDrafts drafts,
       PlanningRevisions revisions,
-      ConstraintRegistry registry) {
+      ConstraintRegistry registry,
+      ObjectProvider<PredictionQuery> predictions) {
     this.database = database;
     this.plans = plans;
     this.reference = reference;
@@ -92,6 +99,7 @@ public class PlanDataQuery implements PlanQuery {
     this.drafts = drafts;
     this.revisions = revisions;
     this.registry = registry;
+    this.predictions = predictions;
   }
 
   // ---- contract: as the ambient actor --------------------------------------
@@ -99,6 +107,11 @@ public class PlanDataQuery implements PlanQuery {
   @Override
   public Optional<PlanView> publishedPlan(String depotCode, LocalDate serviceDate) {
     return read(ambient(), () -> plans.published(depotCode, serviceDate).map(this::assemble));
+  }
+
+  @Override
+  public Optional<PlanView> plan(UUID planId) {
+    return read(ambient(), () -> plans.findRun(planId).map(this::assemble));
   }
 
   @Override
@@ -120,6 +133,11 @@ public class PlanDataQuery implements PlanQuery {
 
   public List<AllocationView> previewAssignments(Actor actor, UUID orderId) {
     return read(actor.userId(), () -> assignments(orderId));
+  }
+
+  /** The same places as {@link #previewAssignments}, each naming the vehicle and trip an override sends. */
+  public List<PlacementView> previewPlacements(Actor actor, UUID orderId) {
+    return read(actor.userId(), () -> options(orderId, PlanDataQuery::toPlacement));
   }
 
   public InterchangePreview previewInterchange(Actor actor, UUID tripId, String replacementVehicleId) {
@@ -148,6 +166,20 @@ public class PlanDataQuery implements PlanQuery {
                 new DomainException(
                     ErrorCode.NOT_FOUND,
                     "No published plan for " + depotCode + " on " + serviceDate));
+  }
+
+  /**
+   * The open draft for a depot and day. Every edit replaces the draft with its
+   * next version under a new id, so a screen asks for it here rather than
+   * holding an id that the next edit, or another dispatcher, makes stale.
+   */
+  public PlanView workingDraft(Actor actor, String depotCode, LocalDate serviceDate) {
+    requireDepot(actor, depotCode);
+    return read(actor.userId(), () -> plans.latestDraft(depotCode, serviceDate).map(this::assemble))
+        .orElseThrow(
+            () ->
+                new DomainException(
+                    ErrorCode.NOT_FOUND, "No open draft for " + depotCode + " on " + serviceDate));
   }
 
   /** Any run by id, in any status, so the dispatcher can read a superseded version too. */
@@ -202,6 +234,10 @@ public class PlanDataQuery implements PlanQuery {
 
   /** Every place the order could take in its open draft, feasible first, each with its checks. */
   private List<AllocationView> assignments(UUID orderId) {
+    return options(orderId, (p, tripIds) -> toView(orderId, p, tripIds));
+  }
+
+  private <T> List<T> options(UUID orderId, java.util.function.BiFunction<Placement, Map<String, UUID>, T> view) {
     RunRow row =
         plans.openDraftsWithOrder(orderId).stream().findFirst()
             .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "order " + orderId + " is in no open draft"));
@@ -218,8 +254,21 @@ public class PlanDataQuery implements PlanQuery {
             opened.built().problem().context())
         .stream()
         .sorted(java.util.Comparator.comparing((Placement p) -> !p.feasible()))
-        .map(p -> toView(orderId, p, tripIds))
+        .map(p -> view.apply(p, tripIds))
         .toList();
+  }
+
+  private static PlacementView toPlacement(Placement p, Map<String, UUID> tripIds) {
+    Optional<ConstraintResult> failed = ConstraintRegistry.firstFailure(p.checks());
+    return new PlacementView(
+        p.vehicleId(),
+        p.tripNumber(),
+        p.joins(),
+        p.joins() ? Optional.ofNullable(tripIds.get(p.vehicleId() + "/" + p.tripNumber())) : Optional.empty(),
+        p.feasible(),
+        failed.map(ConstraintResult::ruleId),
+        failed.map(ConstraintResult::reason).orElse(p.joins() ? "Fits on the trip" : "Fits as a new trip"),
+        p.checks().stream().map(PlanDataQuery::toView).toList());
   }
 
   /** Whether {@code replacement} could take the trip whole, judged as the interchange itself would be. */
@@ -310,10 +359,28 @@ public class PlanDataQuery implements PlanQuery {
         run.priorityPolicyVersionId(),
         run.supersedes(),
         run.publishedAt(),
-        run.plannedWithoutPredictor(),
+        withoutPredictor(run.planId()),
         trips,
         allocations.stream().map(PlanDataQuery::toView).toList(),
-        run.rowVersion());
+        run.rowVersion(),
+        run.engine(),
+        run.improvement()
+            .map(i -> new ImprovementView(i.greedyServed(), i.greedyDeferred(), i.served(), i.deferred(), i.improved(),
+                i.chilledVolumeGainedM3(), i.stoppedBy().name(), i.chilledCandidates(), i.chilledSearched())));
+  }
+
+  /**
+   * Intelligence answers whether a model scored this plan (issue #16). Allocation
+   * keeps the booklet allowances either way (R-ML-05); this says whether learned
+   * late risk exists for it. A draft is never scored, and with no Intelligence
+   * module deployed every plan is without a predictor, as before.
+   */
+  private boolean withoutPredictor(UUID planId) {
+    PredictionQuery intelligence = predictions.getIfAvailable();
+    if (intelligence == null) {
+      return true;
+    }
+    return intelligence.planScoring(planId).map(PlanScoringView::withoutPredictor).orElse(true);
   }
 
   private static TripView toView(TripRow t, List<StopView> stops) {

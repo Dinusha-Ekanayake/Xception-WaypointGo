@@ -18,8 +18,8 @@ public final class CatalogueViews {
   /**
    * @param verifiedRealSku false on every reconstructed row; the UI must label
    *     such a product "inferred" (CAT-06)
-   * @param temperature {@code chilled} or {@code ambient} once the warehouse
-   *     publishes it (decision D-M); empty until then
+   * @param temperature {@code chilled} or {@code ambient}, from the warehouse's
+   *     {@code temp_requirement} (decision D-M); empty if a row lacks it
    */
   public record ProductView(
       String productId,

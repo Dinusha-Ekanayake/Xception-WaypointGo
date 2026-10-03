@@ -21,7 +21,6 @@ export type DriverProps = {
   displayName?: string;
   scope?: string[];
 };
-
 /**
  * Driver workspace designed strictly for mobile viewports (Figma node 6-37).
  * On desktop or wide screens, it preserves the exact mobile view centered
@@ -470,3 +469,4 @@ export default function Driver({
     </main>
   );
 }
+

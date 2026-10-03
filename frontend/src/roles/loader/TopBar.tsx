@@ -1,19 +1,22 @@
-import { Icon, ShellActions, cx, formatClock } from "@shared/ui";
+import type { ReactNode } from "react";
+import { Icon, cx, formatClock, useShell } from "@shared/ui";
+import { useT } from "./i18n.tsx";
+import { GearIcon, LockIcon, MoonIcon, SunIcon, SwapIcon } from "./icons.tsx";
+import { useTheme } from "./theme.tsx";
+import { initials } from "./ui.tsx";
 
-// The loader's top bar, Figma "02 Dock board" (tablet) and "01 Dock board"
-// (phone). Connection state is always on screen: the resilient tier keeps
-// working offline, and the loader must know their ticks are waiting.
+// The loader's top bar, Figma "08 Loader · Phone" (01 Dock board, 02 Load
+// sheet) and the tablet pages. Connection state is always on screen: the
+// resilient tier keeps working offline, and the loader must know their ticks
+// are waiting.
 //
-// Phone: two rows, the name pill under the brand. Tablet (md and up): one row
-// with the sync pill and the name as an avatar pill; labels on the actions
-// from lg, icon buttons below that, as in the portrait designs.
+// Phone: the brand or back, then theme and settings; under it, when a loader is
+// working, their name with the bell and the lock, and Switch user. Tablet: one
+// row, the bell between the name and the actions. The bell carries a red dot
+// while anything is unread (issue #118). "Synced 02:23" is a button: it sends
+// what waits and reads the board again.
 
-const pill = "flex min-h-12 shrink-0 items-center rounded-full bg-white shadow-[0_5px_20px_rgba(0,0,0,0.09)]";
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : "")).toUpperCase();
-}
+const round = "flex size-12 shrink-0 items-center justify-center rounded-full bg-go-card text-go-ink shadow-go-float";
 
 export default function TopBar({
   displayName,
@@ -25,8 +28,16 @@ export default function TopBar({
   waiting,
   sample,
   onBack,
+  onLock,
+  onSwitch,
+  onSettings,
+  unread,
+  onNotifications,
+  onSync,
+  syncing,
 }: {
-  displayName: string;
+  /** The loader working on the device, or null while nobody is. */
+  displayName: string | null;
   depot: string;
   /** The open trip, replacing the brand on tablets. */
   title?: string;
@@ -36,36 +47,90 @@ export default function TopBar({
   waiting: number;
   sample: boolean;
   onBack?: () => void;
+  onLock?: () => void;
+  onSwitch?: () => void;
+  onSettings: () => void;
+  /** Unread notifications; null while unknown. */
+  unread: number | null;
+  onNotifications?: () => void;
+  onSync: () => void;
+  syncing: boolean;
 }): React.JSX.Element {
+  const tr = useT();
+  const { theme, setTheme } = useTheme();
+  const shell = useShell();
   const sync = !online
     ? waiting > 0
-      ? `Offline · ${waiting} saved on this device`
-      : "Offline · showing last sync"
+      ? tr("Offline · {n} saved on this device", { n: waiting })
+      : tr("Offline · showing last sync")
     : waiting > 0
-      ? `Sending ${waiting}…`
+      ? tr("Sending {n}…", { n: waiting })
       : syncedAt
-        ? `Synced ${formatClock(syncedAt)}`
-        : "Connecting…";
+        ? tr("Synced {time}", { time: formatClock(syncedAt) })
+        : tr("Connecting…");
 
   const back = onBack && (
-    <button
-      type="button"
-      onClick={onBack}
-      aria-label="Back to departures"
-      className="flex size-12 shrink-0 items-center justify-center rounded-full bg-white drop-shadow-[0_5px_10px_rgba(0,0,0,0.09)]"
-    >
+    <button type="button" onClick={onBack} aria-label={tr("Back to departures")} className={round}>
       <Icon name="arrow-left" />
     </button>
   );
-  const brand = <span className="w-[68px] shrink-0 text-[40px] leading-none font-extrabold text-black">GO</span>;
+  const brand = <span className="w-[68px] shrink-0 text-[40px] leading-none font-extrabold text-go-ink">GO</span>;
+  const label = syncing && online ? tr("Syncing…") : sync;
   const status = (
-    <span role="status" className={cx("truncate", online ? "text-black/85" : "font-medium text-go-warning-text")}>
+    <span role="status" className={cx("truncate", online ? "text-go-ink/85" : "font-medium text-go-warning-text")}>
       {!online && <span aria-hidden className="mr-1.5 inline-block size-2 rounded-full bg-go-warning" />}
-      {sync}
+      {label}
     </span>
   );
+  // Tapping the time syncs now (issue #118). Offline it still checks what waits.
+  const syncButton = (className: string) => (
+    <button
+      type="button"
+      onClick={onSync}
+      disabled={syncing}
+      aria-label={`${label}. ${tr("Sync now")}`}
+      className={cx("text-left disabled:cursor-wait", className)}
+    >
+      {status}
+    </button>
+  );
+  const hasUnread = (unread ?? 0) > 0;
+  const bellLabel = hasUnread ? tr("Notifications, {n} unread", { n: unread ?? 0 }) : tr("Notifications");
+  const bell = (className: string) =>
+    onNotifications && (
+      <button type="button" onClick={onNotifications} aria-label={bellLabel} className={cx("relative flex shrink-0 items-center justify-center text-go-ink", className)}>
+        <Icon name="bell" />
+        {hasUnread && <span aria-hidden className="absolute top-1.5 right-1.5 size-2.5 rounded-full border-2 border-go-card bg-[#ea2525]" />}
+      </button>
+    );
   const sampleBadge = sample && (
-    <span className="shrink-0 rounded-full bg-go-warning-tint px-3 py-1.5 text-xs font-medium text-go-warning-text">Sample data</span>
+    <span className="shrink-0 rounded-full bg-go-warning-tint px-3 py-1.5 text-xs font-medium text-go-warning-text">{tr("Sample data")}</span>
+  );
+  const dark = theme === "dark";
+  const actions: ReactNode = (
+    <>
+      <button
+        type="button"
+        onClick={() => setTheme(dark ? "light" : "dark")}
+        aria-label={tr(dark ? "Use the light theme" : "Use the dark theme")}
+        className={round}
+      >
+        {dark ? <MoonIcon /> : <SunIcon />}
+      </button>
+      <button type="button" onClick={onSettings} aria-label={tr("Settings")} className={round}>
+        <GearIcon />
+      </button>
+    </>
+  );
+  const lock = onLock && (
+    <button type="button" onClick={onLock} aria-label={tr("Lock loader")} className="flex size-10 shrink-0 items-center justify-center rounded-full text-go-muted">
+      <LockIcon />
+    </button>
+  );
+  const swap = onSwitch && (
+    <button type="button" onClick={onSwitch} aria-label={tr("Switch user")} className={round}>
+      <SwapIcon />
+    </button>
   );
 
   return (
@@ -75,43 +140,54 @@ export default function TopBar({
         <div className="flex w-full items-center gap-2">
           {back ?? brand}
           {back ? (
-            <span className="min-w-0 flex-1 truncate text-[13px]">{status}</span>
+            <span className="min-w-0 flex-1 truncate text-[13px]">{syncButton("min-h-12 max-w-full")}</span>
           ) : (
             <div className="flex min-w-0 flex-1 flex-col">
-              <span className="text-[18px] font-semibold text-black">Loader</span>
-              <span className="text-[13px]">{status}</span>
+              <span className="text-[18px] font-semibold text-go-ink">{tr("Loader")}</span>
+              <span className="text-[13px]">{syncButton("min-h-6")}</span>
             </div>
           )}
           {sampleBadge}
+          {actions}
         </div>
-        <div className="flex w-full items-center justify-between gap-2">
-          <span className="flex h-10 min-w-0 items-center gap-1 rounded-full border border-go-muted pr-2 pl-4 text-[14px] text-go-muted">
-            <span className="truncate">{displayName}</span>
-            <span className="ml-1 flex size-8 shrink-0 items-center justify-center" title="Signed in on this device">
-              <Icon name="lock" />
+        {displayName && (
+          <div className="flex w-full items-center justify-between gap-2">
+            <span className="flex h-12 min-w-0 items-center gap-1 rounded-full border border-go-muted pr-1 pl-5 text-[15px] text-go-muted">
+              <span className="truncate">{displayName}</span>
+              {bell("size-10")}
+              {lock}
             </span>
-          </span>
-          <ShellActions compact />
-        </div>
+            <div className="flex items-center gap-2">
+              {shell?.sync}
+              {swap}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Tablet and up. */}
       <div className="hidden flex-wrap items-center gap-x-3.5 gap-y-3 px-8 py-6 md:flex lg:px-10 lg:py-[34px]">
         {back ?? brand}
         <div className={cx("flex min-w-[140px] flex-col", back && "max-lg:order-last max-lg:basis-full")}>
-          <span className="text-[18px] font-semibold text-black">{title ?? "Waypoint · Loader"}</span>
-          <span className="text-[14px] text-black/85">{subtitle ?? `Depot ${depot}`}</span>
+          <span className="text-[18px] font-semibold text-go-ink">{title ?? tr("Waypoint · Loader")}</span>
+          <span className="text-[14px] text-go-ink/85">{subtitle ?? tr("Depot {depot}", { depot })}</span>
         </div>
-        <span className={cx(pill, "gap-2 pr-3.5 pl-3 text-[14px]")}>{status}</span>
+        {syncButton("flex min-h-12 shrink-0 items-center gap-2 rounded-full bg-go-card pr-3.5 pl-3 text-[14px] shadow-go-float")}
         <span className="flex-1" />
         {sampleBadge}
-        <span className={cx(pill, "gap-2 py-2 pr-2 pl-2 lg:pr-4")} title="Signed in on this device">
-          <span className="flex size-8 items-center justify-center rounded-[16px] bg-go-mint text-[12px] font-semibold text-black">
-            {initials(displayName)}
+        {displayName && (
+          <span className="flex min-h-12 shrink-0 items-center gap-2 rounded-full bg-go-card py-1 pr-1 pl-1 shadow-go-float lg:pl-1">
+            <span className="flex size-10 items-center justify-center rounded-full bg-go-soft text-[13px] font-semibold text-go-on-soft">
+              {initials(displayName)}
+            </span>
+            <span className="text-[14px] text-go-muted max-lg:hidden">{displayName}</span>
+            {lock}
           </span>
-          <span className="text-[14px] text-go-muted max-lg:hidden">{displayName}</span>
-        </span>
-        <ShellActions />
+        )}
+        {displayName && bell("size-12 rounded-full bg-go-card shadow-go-float")}
+        {shell?.sync}
+        {swap}
+        {actions}
       </div>
     </header>
   );

@@ -243,7 +243,7 @@ class AdministrationIntegrationTest {
         command(
             ADMIN,
             "iam:GrantScope",
-            null,
+            versionOf(userId),
             """
             {"userId":"%s","outletId":"OUT001"}
             """.formatted(userId),
@@ -257,7 +257,7 @@ class AdministrationIntegrationTest {
     command(
         ADMIN,
         "iam:GrantScope",
-        null,
+        versionOf(userId),
         """
         {"userId":"%s","outletId":"OUT999"}
         """.formatted(userId),
@@ -267,7 +267,7 @@ class AdministrationIntegrationTest {
     command(
         ADMIN,
         "iam:GrantScope",
-        null,
+        versionOf(userId),
         """
         {"userId":"%s","outletId":"OUT001","depotCode":"Peliyagoda"}
         """.formatted(userId),
@@ -277,7 +277,7 @@ class AdministrationIntegrationTest {
         command(
             ADMIN,
             "iam:RevokeScope",
-            null,
+            versionOf(userId),
             """
             {"userId":"%s","outletId":"OUT001"}
             """.formatted(userId),
@@ -299,7 +299,7 @@ class AdministrationIntegrationTest {
             command(
                 ADMIN,
                 "iam:AssignDriver",
-                null,
+                versionOf(driverId),
                 """
                 {"vehicleId":"VEH002","driverUserId":"%s","from":"2027-05-03","until":"2027-05-10"}
                 """
@@ -313,7 +313,7 @@ class AdministrationIntegrationTest {
         command(
             ADMIN,
             "iam:AssignDriver",
-            null,
+            versionOf(otherDriverId),
             """
             {"vehicleId":"VEH002","driverUserId":"%s","from":"2027-05-05","until":"2027-05-12"}
             """
@@ -327,7 +327,7 @@ class AdministrationIntegrationTest {
         command(
             ADMIN,
             "iam:AssignDriver",
-            null,
+            versionOf(otherDriverId),
             """
             {"vehicleId":"VEH002","driverUserId":"%s","from":"2027-05-10","until":"2027-05-17"}
             """
@@ -340,7 +340,8 @@ class AdministrationIntegrationTest {
         command(
             ADMIN,
             "iam:EndDriverAssignment",
-            null,
+            // A new assignment is at version 1; the read surface carries it as rowVersion.
+            1L,
             """
             {"assignmentId":"%s","on":"2027-05-06"}
             """.formatted(assignmentId),
@@ -357,7 +358,7 @@ class AdministrationIntegrationTest {
     command(
         ADMIN,
         "iam:AssignDriver",
-        null,
+        versionOf(userIdOf(MANAGER).toString()),
         """
         {"vehicleId":"VEH003","driverUserId":"%s","from":"2027-06-01","until":"2027-06-08"}
         """
@@ -432,16 +433,19 @@ class AdministrationIntegrationTest {
   @Test
   @Order(10)
   void readEndpointsAreAPermissionAndADriverDoesNotHaveThisOne() throws Exception {
-    // A driver may read reference data, which is what a route needs.
+    // A driver may read reference data, which is what a route needs. The calendar
+    // is the same for every depot; an outlet is also a question of scope, and this
+    // driver has none today (R-IAM-28, covered in IdentityHardeningIntegrationTest).
     assertTrue(
-        mapper.readTree(read(DRIVER, "/api/reference/outlets/OUT001", 200)).has("brandCode"));
+        mapper.readTree(read(DRIVER, "/api/reference/calendar/" + CLOSED_SUNDAY, 200)).has("operating"));
+    read(DRIVER, "/api/reference/outlets/OUT001", 403);
 
     // A driver may not read the account list, and the refusal is a 403 with a
     // reason, never an empty list.
     String problem = read(DRIVER, "/api/accounts", 403);
     assertTrue(problem.contains("FORBIDDEN"), problem);
 
-    // A store manager has no reference:Read in the seeded policy.
+    // A store manager's reference:Read covers outlets and the calendar only.
     read(MANAGER, "/api/reference/version", 403);
 
     // And an unsigned caller gets 401 rather than a hint about what exists.

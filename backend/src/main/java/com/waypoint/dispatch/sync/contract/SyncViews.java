@@ -19,13 +19,16 @@ public final class SyncViews {
     APPLIED,
     CONFLICT,
     REJECTED,
-    DISCARDED
+    DISCARDED,
+    /** Redone on the current version by its owner; the redo is another operation. */
+    RESOLVED
   }
 
   /**
    * @param operationId the command id, so a replay is recognised
    * @param sequence per device, so operations apply in the order they were recorded
    * @param problemCode the problem type code when rejected or in conflict
+   * @param rowVersion the operation's own version, which a discard or resolve names
    */
   public record OperationView(
       UUID operationId,
@@ -37,5 +40,6 @@ public final class SyncViews {
       Optional<Long> baseRowVersion,
       Optional<Long> currentRowVersion,
       Instant receivedAt,
-      Optional<Instant> appliedAt) {}
+      Optional<Instant> appliedAt,
+      long rowVersion) {}
 }

@@ -1,10 +1,17 @@
+# syntax=docker/dockerfile:1
 FROM node:24-bookworm-slim AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci
+# Both caches survive between builds on the same host: npm's downloads, and the
+# compiler's cache so a rebuild only recompiles what changed.
+RUN --mount=type=cache,target=/root/.npm npm ci
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN npm run build
+# Set to 1 where each role has an address of its own beside the shared one (the
+# VPS overlay does). It is compiled into the page, so it is a build argument.
+ARG NEXT_PUBLIC_ROLE_ADDRESSES=
+ENV NEXT_PUBLIC_ROLE_ADDRESSES=$NEXT_PUBLIC_ROLE_ADDRESSES
+RUN --mount=type=cache,target=/app/.next/cache npm run build
 
 FROM node:24-bookworm-slim
 WORKDIR /app

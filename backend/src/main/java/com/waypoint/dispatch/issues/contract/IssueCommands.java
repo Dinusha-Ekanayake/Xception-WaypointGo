@@ -16,20 +16,28 @@ public final class IssueCommands {
   public static final String ASSIGN = "issue:Assign";
   public static final String RESOLVE = "issue:Resolve";
   public static final String RECORD_REPLACEMENT = "issue:RecordReplacement";
+  /** Binary, so not a command: the upload endpoint checks this action before it stores a photo. */
+  public static final String ATTACH_PHOTO = "issue:AttachPhoto";
   public static final String SCHEDULE_REDELIVERY = "issue:ScheduleRedelivery";
   public static final String CLOSE = "issue:Close";
   public static final String CANCEL = "issue:Cancel";
 
+  /**
+   * @param attachmentIds photos uploaded for the problem (issue:AttachPhoto), by id. A photo still on
+   *     the phone may arrive after the issue; it is linked when it does.
+   */
   public record RaiseIssue(
       IssueType type,
       IssueSeverity severity,
       String depotCode,
       Optional<String> outletId,
       List<SubjectRef> subjects,
-      String description) {
+      String description,
+      List<UUID> attachmentIds) {
 
     public RaiseIssue {
       subjects = List.copyOf(subjects);
+      attachmentIds = attachmentIds == null ? List.of() : List.copyOf(attachmentIds);
     }
   }
 

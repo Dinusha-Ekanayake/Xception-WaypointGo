@@ -19,7 +19,10 @@ import com.waypoint.dispatch.shared.error.ErrorCode;
 import com.waypoint.dispatch.shared.util.Clock;
 import com.waypoint.dispatch.warehouse.contract.StockPort;
 import com.waypoint.dispatch.warehouse.contract.StockPort.Insufficient;
+import com.waypoint.dispatch.warehouse.contract.StockPort.PartiallyReserved;
+import com.waypoint.dispatch.warehouse.contract.StockPort.PlacementRequest;
 import com.waypoint.dispatch.warehouse.contract.StockPort.PlacementResult;
+import com.waypoint.dispatch.warehouse.contract.StockPort.Rejected;
 import com.waypoint.dispatch.warehouse.contract.StockPort.Reserved;
 import java.time.Instant;
 import java.util.List;
@@ -116,23 +119,34 @@ public class AmendOrderHandler implements CommandHandler {
     events.publish(actor, OrderMessages.amended(next));
     metrics.increment("waypoint.order.amended", "status", JdbcOrderRepository.code(next.status()));
 
-    return Map.of(
-        "orderId", orderId.toString(),
-        "status", next.status().name(),
-        "rowVersion", version);
+    Map<String, Object> body = OrderMessages.answer(next, version);
+    body.put("rolledBecause", List.of());
+    return body;
   }
 
   private Optional<Reservation> reserve(Order order, List<OrderLine> lines) {
     boolean confirmed = order.status() == OrderStatus.CONFIRMED;
+    PlacementRequest request =
+        new PlacementRequest(
+            order.orderId(), order.orderRef(), order.depotCode(), OrderMessages.stockLines(lines));
     PlacementResult result =
         confirmed
-            ? stock.amendOrder(
-                order.reservation().orElseThrow().warehouseOrderRef(),
-                OrderMessages.stockLines(lines))
-            : stock.placeOrder(order.orderRef(), OrderMessages.stockLines(lines));
+            ? stock.amendOrder(order.reservation().orElseThrow().warehouseOrderRef(), request)
+            : stock.placeOrder(request);
     if (result instanceof Insufficient i) {
       metrics.increment("waypoint.order.rejected", "reason", "insufficient_stock");
       throw OrderMessages.insufficient(i);
+    }
+    if (result instanceof Rejected rejected) {
+      metrics.increment("waypoint.order.rejected", "reason", "warehouse_refused");
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, rejected.reason(), List.of("R-STK-08"));
+    }
+    if (result instanceof PartiallyReserved p) {
+      // An amendment keeps nothing short: StockPort#amendOrder answers Insufficient,
+      // but placing a stock-unknown order's new lines can still come back partial.
+      // That lock is released by the warehouse on expiry; the store resubmits.
+      metrics.increment("waypoint.order.rejected", "reason", "insufficient_stock");
+      throw OrderMessages.insufficient(new Insufficient(p.lines()));
     }
     if (result instanceof Reserved r) {
       Optional<Reservation> reservation = OrderMessages.reservation(r);

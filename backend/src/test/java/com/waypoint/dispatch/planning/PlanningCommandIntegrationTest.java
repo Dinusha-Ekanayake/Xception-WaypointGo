@@ -46,6 +46,36 @@ class PlanningCommandIntegrationTest extends PlanningIntegrationSupport {
   }
 
   @Test
+  void theOpenDraftIsFoundByDepotAndDayThroughEveryEdit() throws Exception {
+    String path = "/api/plans/draft?depot=" + depot + "&date=" + serviceDate;
+    UUID first = demand("ambient");
+    demand("ambient");
+    read(dispatcher, path, 404);
+
+    UUID planId = UUID.fromString(generate(dispatcher, 200).get("planId").asText());
+    JsonNode generated = mapper.readTree(read(dispatcher, path, 200));
+    assertEquals(planId.toString(), generated.get("planId").asText());
+    assertEquals("priority-insertion-v1+scarce-replan-v1", generated.get("engine").asText(), "the run says which engine made it");
+    JsonNode improvement = generated.get("improvement");
+    assertEquals(2, improvement.get("firstPassServed").asInt(), "issue #92: what the second pass did is stored with the run");
+    assertFalse(improvement.get("improved").asBoolean(), "two ambient orders on a truck: nothing for the reefers to improve");
+
+    JsonNode next =
+        mapper.readTree(send(dispatcher, defer(planId, 1L, first, "outlet asked to skip today"), 200)).get("result");
+    JsonNode current = mapper.readTree(read(dispatcher, path, 200));
+    assertEquals(next.get("planId").asText(), current.get("planId").asText(), "an edit moves the draft on");
+    assertEquals("DRAFT", current.get("status").asText());
+
+    send(dispatcher, publish(UUID.fromString(next.get("planId").asText()), 1L), 200);
+    read(dispatcher, path, 404);
+
+    UUID actor = userId(elsewhereEmail);
+    long before = denials(actor, "plan:Read");
+    read(elsewhere, path, 403);
+    assertEquals(before + 1, denials(actor, "plan:Read"), "another depot's draft is 403 plus audit, not 404");
+  }
+
+  @Test
   void aNonOperatingDayIsNotPlanned() throws Exception {
     serviceDate = serviceDate.plusDays(1);
     for (int i = 0; i < 30 && reference.isOperating(serviceDate); i++) {
@@ -101,6 +131,22 @@ class PlanningCommandIntegrationTest extends PlanningIntegrationSupport {
             .sorted()
             .findFirst()
             .orElseThrow();
+
+    // The preview names each place as the override will, and says which rule refuses it.
+    JsonNode places = mapper.readTree(read(dispatcher, "/api/plans/preview/placements?order=" + chilled, 200));
+    JsonNode onAmbient = null;
+    boolean refusedSeen = false;
+    for (JsonNode place : places) {
+      assertFalse(refusedSeen && place.get("feasible").asBoolean(), "feasible places come first");
+      refusedSeen |= !place.get("feasible").asBoolean();
+      if (place.get("vehicleId").asText().equals(ambientTruck) && place.get("tripNumber").asInt() == 1) {
+        onAmbient = place;
+      }
+    }
+    assertTrue(onAmbient != null, "every vehicle of the depot is offered: " + places);
+    assertFalse(onAmbient.get("feasible").asBoolean());
+    assertEquals("R-PLN-02", onAmbient.get("bindingRule").asText());
+    read(elsewhere, "/api/plans/preview/placements?order=" + chilled, 404);
 
     String refused = send(dispatcher, override(planId, 1L, chilled, ambientTruck, 1, "no reefer free"), 409);
 

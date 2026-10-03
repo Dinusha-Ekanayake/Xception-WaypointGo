@@ -48,7 +48,8 @@ public class AccountQuery {
       UUID driverUserId,
       String driverName,
       LocalDate from,
-      LocalDate until) {}
+      LocalDate until,
+      long rowVersion) {}
 
   /**
    * Keyset paginated on the user id, which is unique, stable and not personal
@@ -61,6 +62,30 @@ public class AccountQuery {
     List<AccountView> rows =
         select("(?::uuid IS NULL OR u.user_id > ?::uuid)", size + 1, afterId, afterId);
     return Page.fromOverfetch(rows, size, account -> Cursor.encode(account.userId().toString()));
+  }
+
+  /** R-IAM-32: what a person sees and edits of their own account, with its version. */
+  public record ProfileView(UUID userId, String email, String displayName, String phone, long rowVersion) {}
+
+  /** The actor's own account. The phone is read only here, for its owner. */
+  public ProfileView profile(UUID userId) {
+    Map<String, Object> r =
+        database.asModule(
+            ModuleRole.IAM,
+            null,
+            () ->
+                database.queryOne(
+                    "SELECT user_id, email, display_name, phone, row_version FROM iam.users WHERE user_id = ?",
+                    userId));
+    if (r == null) {
+      throw new DomainException(ErrorCode.NOT_FOUND, "No account " + userId);
+    }
+    return new ProfileView(
+        (UUID) r.get("user_id"),
+        (String) r.get("email"),
+        (String) r.get("display_name"),
+        (String) r.get("phone"),
+        ((Number) r.get("row_version")).longValue());
   }
 
   public AccountView byId(UUID userId) {
@@ -127,7 +152,8 @@ public class AccountQuery {
                 .query(
                     """
                     SELECT a.assignment_id, a.vehicle_id, a.driver_user_id, u.display_name,
-                           lower(a.validity) AS starts_on, upper(a.validity) AS ends_on
+                           lower(a.validity) AS starts_on, upper(a.validity) AS ends_on,
+                           a.row_version
                     FROM iam.vehicle_driver_assignments a
                     JOIN iam.users u ON u.user_id = a.driver_user_id
                     WHERE (?::date IS NULL OR a.validity @> ?::date)
@@ -153,7 +179,8 @@ public class AccountQuery {
                             (UUID) r.get("driver_user_id"),
                             (String) r.get("display_name"),
                             date(r.get("starts_on")),
-                            date(r.get("ends_on"))))
+                            date(r.get("ends_on")),
+                            ((Number) r.get("row_version")).longValue()))
                 .toList());
     return Page.fromOverfetch(
         rows,

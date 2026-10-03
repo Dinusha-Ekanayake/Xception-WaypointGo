@@ -28,4 +28,12 @@ public interface OrderQuery {
   List<StatusChangeView> timeline(UUID orderId);
 
   Page<OrderView> ordersForOutlet(String outletId, Optional<String> cursor, int limit);
+
+  /**
+   * Orders placed per day for a depot and brand, by placement date in the
+   * operating zone, cancelled ones excluded (issue #16: the deterministic demand
+   * forecast). Chilled volume counts only chilled orders.
+   */
+  List<OrderViews.DailyVolumeView> dailyVolumes(
+      String depotCode, String brandCode, LocalDate from, LocalDate to);
 }

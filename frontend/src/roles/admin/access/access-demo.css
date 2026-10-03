@@ -1,0 +1,87 @@
+.access-demo {
+  --font-sans: "Google Sans Flex Variable", ui-sans-serif, system-ui, sans-serif;
+  background: #e7f3f2;
+  font-family: var(--font-sans);
+}
+
+.access-demo .go-mark {
+  color: #050c0a;
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.access-demo .go-preview-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #62716c;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  line-height: 1;
+  padding: 0.35rem 0.65rem;
+}
+
+.go-sidebar .go-preview-badge {
+  border: 1px solid #e2e9e6;
+}
+
+.access-demo .go-nav-glyph {
+  display: inline-grid;
+  width: 1.3rem;
+  flex: 0 0 1.3rem;
+  place-items: center;
+  font-size: 1.15rem;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.access-login {
+  background: #e7f3f2;
+  color: #07130e;
+}
+
+.access-login-input {
+  min-height: 50px;
+  border: 1px solid transparent;
+  background: #e8f3f2;
+}
+
+.access-login-input:focus-visible {
+  border-color: #0a6b63;
+  outline: 2px solid #a8e8d9;
+}
+
+.access-login-dark {
+  background: #112d29;
+  color: #f5fffa;
+}
+
+.access-login-dark .go-mark { color: #f5fffa; }
+.access-login-dark form { color: #10251e; }
+.access-login-dark > div:last-child > p { color: #c8dad3; }
+
+.access-demo button,
+.access-demo a,
+.access-demo input,
+.access-demo select,
+.access-demo textarea {
+  transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.access-demo :is(button, a, input, select, textarea, summary):focus-visible {
+  outline: 3px solid #18a98a;
+  outline-offset: 2px;
+}
+
+.access-demo button:disabled {
+  cursor: not-allowed;
+}
+
+@media (min-width: 1024px) {
+  .access-demo .go-sidebar {
+    box-shadow: 6px 0 24px rgba(14, 51, 42, 0.025);
+  }
+}

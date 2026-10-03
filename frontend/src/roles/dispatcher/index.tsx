@@ -3,21 +3,29 @@
 import { useEffect, useRef, useState } from "react";
 import { useOnline } from "@shared/api/useResource";
 import Sidebar, { CompactNav } from "./Sidebar.tsx";
+import { InboxProvider } from "./inbox.tsx";
+import NotificationsPanel from "./NotificationsPanel.tsx";
 import { useView } from "./navigation.ts";
 import { depotToday, depotsFor, scopeLabel, type DepotFilter } from "./data/scope.ts";
 import { useFleet } from "./data/fleet.ts";
 import Overview from "./screens/Overview.tsx";
 import Vehicles from "./screens/Vehicles.tsx";
-import UpcomingScreen from "./screens/Upcoming.tsx";
+import Live from "./screens/Live.tsx";
+import Orders from "./screens/Orders.tsx";
+import Plan from "./screens/Plan.tsx";
+import Issues from "./screens/Issues.tsx";
+import Forecast from "./screens/Forecast.tsx";
 
 // The dispatcher workspace from the Figma "Dispatcher · Desktop" page. It is
 // online only: no write queue, and a read-only state when the connection drops
 // (src/shared/offline/tiers.ts).
 
 export default function Dispatcher({
+  userId,
   displayName,
   scope,
 }: {
+  userId: string;
   displayName: string;
   /** Depot codes from the session. The server enforces them; this only chooses among them. */
   scope: string[];
@@ -42,6 +50,8 @@ export default function Dispatcher({
   }, [online, refresh]);
 
   return (
+    <InboxProvider userId={userId}>
+    <NotificationsPanel onNavigate={navigate} />
     <div className="flex min-h-dvh w-full flex-col bg-go-canvas font-go text-go-ink lg:h-dvh lg:flex-row">
       <CompactNav view={view} onNavigate={navigate} depots={scope} depotFilter={depotFilter} onDepotFilter={setDepotFilter} />
       <Sidebar
@@ -56,13 +66,22 @@ export default function Dispatcher({
         {scope.length === 0 ? (
           <p className="text-sm text-go-secondary">Your account has no depot in scope. Ask an administrator to grant one.</p>
         ) : view === "overview" ? (
-          <Overview displayName={displayName} scopeLabel={label} fleet={fleet} online={online} onNavigate={navigate} />
+          <Overview displayName={displayName} userId={userId} depots={depots} scopeLabel={label} fleet={fleet} online={online} onNavigate={navigate} />
         ) : view === "vehicles" ? (
-          <Vehicles scopeLabel={label} date={date} onDate={setDate} fleet={fleet} online={online} />
+          <Vehicles depots={depots} scopeLabel={label} date={date} onDate={setDate} fleet={fleet} online={online} />
+        ) : view === "orders" ? (
+          <Orders depots={depots} scopeLabel={label} date={date} onDate={setDate} online={online} />
+        ) : view === "plan" ? (
+          <Plan depots={depots} date={date} onDate={setDate} online={online} />
+        ) : view === "live" ? (
+          <Live depots={depots} scopeLabel={label} date={date} onDate={setDate} online={online} />
+        ) : view === "issues" ? (
+          <Issues depots={depots} scopeLabel={label} userId={userId} online={online} />
         ) : (
-          <UpcomingScreen view={view} scopeLabel={label} online={online} lastSyncedAt={fleet.loadedAt} />
+          <Forecast depots={depots} scopeLabel={label} online={online} />
         )}
       </div>
     </div>
+    </InboxProvider>
   );
 }

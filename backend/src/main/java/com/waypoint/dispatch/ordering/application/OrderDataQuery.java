@@ -111,9 +111,49 @@ public class OrderDataQuery implements OrderQuery {
         () -> orders.demand(depotCode, serviceDate).stream().map(OrderDataQuery::toDemand).toList());
   }
 
+  /** What became of every order due at a depot on a day, for the dispatcher's order board. */
+  public List<OrderView> ordersForDay(Actor actor, String depotCode, LocalDate serviceDate) {
+    requireScope(actor, "wpt:order:depot:" + depotCode, "SELECT app.actor_has_depot(?) AS ok", depotCode);
+    return read(
+        actor.userId(),
+        () -> orders.forDay(depotCode, serviceDate).stream().map(OrderDataQuery::toView).toList());
+  }
+
   /** Any other Ordering read, as the authenticated actor. */
   public <T> T asActor(Actor actor, java.util.function.Supplier<T> work) {
     return read(actor.userId(), work);
+  }
+
+  @Override
+  public List<com.waypoint.dispatch.ordering.contract.OrderViews.DailyVolumeView> dailyVolumes(
+      String depotCode, String brandCode, LocalDate from, LocalDate to) {
+    return read(
+        ambient(),
+        () ->
+            database
+                .query(
+                    """
+                    SELECT (o.placed_at AT TIME ZONE 'Asia/Colombo')::date AS day, count(*) AS n,
+                           coalesce(sum(o.volume_m3), 0) AS total,
+                           coalesce(sum(o.volume_m3) FILTER (WHERE o.temperature = 'chilled'), 0) AS chilled
+                      FROM ordering.orders o
+                     WHERE o.depot_code = ? AND o.brand_code = ? AND o.status <> 'cancelled'
+                       AND (o.placed_at AT TIME ZONE 'Asia/Colombo')::date BETWEEN ? AND ?
+                     GROUP BY 1 ORDER BY 1
+                    """,
+                    depotCode,
+                    brandCode,
+                    java.sql.Date.valueOf(from),
+                    java.sql.Date.valueOf(to))
+                .stream()
+                .map(
+                    r ->
+                        new com.waypoint.dispatch.ordering.contract.OrderViews.DailyVolumeView(
+                            ((java.sql.Date) r.get("day")).toLocalDate(),
+                            ((Number) r.get("n")).intValue(),
+                            (java.math.BigDecimal) r.get("total"),
+                            (java.math.BigDecimal) r.get("chilled")))
+                .toList());
   }
 
   // ---- internals -----------------------------------------------------------

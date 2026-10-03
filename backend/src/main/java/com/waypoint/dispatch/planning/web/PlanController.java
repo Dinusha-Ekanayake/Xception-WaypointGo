@@ -5,6 +5,7 @@ import com.waypoint.dispatch.planning.contract.PlanViews.AllocationView;
 import com.waypoint.dispatch.planning.contract.PlanViews.DeferralView;
 import com.waypoint.dispatch.planning.contract.PlanViews.FuelView;
 import com.waypoint.dispatch.planning.contract.PlanViews.InterchangePreview;
+import com.waypoint.dispatch.planning.contract.PlanViews.PlacementView;
 import com.waypoint.dispatch.planning.contract.PlanViews.PlanView;
 import com.waypoint.dispatch.platform.web.RequestAuthorizer;
 import jakarta.servlet.http.HttpServletRequest;
@@ -45,6 +46,14 @@ public class PlanController {
     return plans.publishedPlan(actor, depot, date);
   }
 
+  /** The open draft for a depot and day; 404 while none is open. */
+  @GetMapping("/draft")
+  public PlanView draft(
+      @RequestParam String depot, @RequestParam LocalDate date, HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:plan:depot:" + depot);
+    return plans.workingDraft(actor, depot, date);
+  }
+
   /** Any version, draft to superseded, with every allocation's constraint results. */
   @GetMapping("/{planId}")
   public PlanView plan(@PathVariable UUID planId, HttpServletRequest request) {
@@ -64,6 +73,13 @@ public class PlanController {
   public List<AllocationView> previewAssignments(@RequestParam UUID order, HttpServletRequest request) {
     var actor = authorizer.require(request, READ, "wpt:plan:order:" + order);
     return plans.previewAssignments(actor, order);
+  }
+
+  /** The same places, each naming the vehicle and trip number a {@code plan:Override} sends. */
+  @GetMapping("/preview/placements")
+  public List<PlacementView> previewPlacements(@RequestParam UUID order, HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:plan:order:" + order);
+    return plans.previewPlacements(actor, order);
   }
 
   /** Whether a substitute vehicle could take a trip whole, checked against the whole registry. */

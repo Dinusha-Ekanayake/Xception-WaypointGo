@@ -1,8 +1,12 @@
 // IndexedDB, account-scoped. Small on purpose: the queue's contract is what
 // matters, and the storage behind it should be replaceable.
 
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const QUEUE_STORE = "outbox";
+/** Reads kept for a full-tier role, so its working set survives a reload with no signal. */
+const SNAPSHOT_STORE = "snapshots";
+/** Binary artifacts waiting to reach the server: proof photos and signatures. */
+const UPLOAD_STORE = "uploads";
 
 export type StoredEntry<T = unknown> = {
   commandId: string;
@@ -13,6 +17,10 @@ export type StoredEntry<T = unknown> = {
   lastError?: string;
   /** Held for human review after a conflict. Never retried automatically. */
   needsReview?: boolean;
+  /** Why the server held it, such as VERSION_CONFLICT. */
+  problemCode?: string;
+  /** The held operation's version on the server, which discarding or redoing it names. */
+  serverVersion?: number;
 };
 
 function databaseName(accountId: string): string {
@@ -25,8 +33,15 @@ function open(accountId: string): Promise<IDBDatabase> {
     const request = indexedDB.open(databaseName(accountId), DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
+      // Additive: a device upgrading from version 1 keeps its queue.
       if (!db.objectStoreNames.contains(QUEUE_STORE)) {
         db.createObjectStore(QUEUE_STORE, { keyPath: "commandId" });
+      }
+      if (!db.objectStoreNames.contains(SNAPSHOT_STORE)) {
+        db.createObjectStore(SNAPSHOT_STORE, { keyPath: "key" });
+      }
+      if (!db.objectStoreNames.contains(UPLOAD_STORE)) {
+        db.createObjectStore(UPLOAD_STORE, { keyPath: "id" });
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -38,9 +53,10 @@ function tx<T>(
   db: IDBDatabase,
   mode: IDBTransactionMode,
   run: (store: IDBObjectStore) => IDBRequest<T>,
+  storeName: string = QUEUE_STORE,
 ): Promise<T> {
   return new Promise((resolve, reject) => {
-    const request = run(db.transaction(QUEUE_STORE, mode).objectStore(QUEUE_STORE));
+    const request = run(db.transaction(storeName, mode).objectStore(storeName));
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
@@ -62,5 +78,59 @@ export async function all(accountId: string): Promise<StoredEntry[]> {
 export async function remove(accountId: string, commandId: string): Promise<void> {
   const db = await open(accountId);
   await tx(db, "readwrite", (store) => store.delete(commandId));
+  db.close();
+}
+
+// ---- snapshots ---------------------------------------------------------------
+
+export type Snapshot<T = unknown> = { key: string; value: T; savedAt: string };
+
+export async function putSnapshot<T>(accountId: string, key: string, value: T): Promise<void> {
+  const db = await open(accountId);
+  await tx(db, "readwrite", (store) => store.put({ key, value, savedAt: new Date().toISOString() }), SNAPSHOT_STORE);
+  db.close();
+}
+
+export async function getSnapshot<T>(accountId: string, key: string): Promise<Snapshot<T> | null> {
+  const db = await open(accountId);
+  const found = await tx<Snapshot<T> | undefined>(db, "readonly", (store) => store.get(key), SNAPSHOT_STORE);
+  db.close();
+  return found ?? null;
+}
+
+// ---- uploads -----------------------------------------------------------------
+
+export type StoredUpload = {
+  /** Minted on the device; the server stores the artifact under this id. */
+  id: string;
+  /** Where the bytes go, as a PUT. */
+  path: string;
+  /** What the upload belongs to, so a screen can say which record still owes one. */
+  subject: string;
+  contentType: string;
+  blob: Blob;
+  savedAt: string;
+  attempts: number;
+  lastError?: string;
+  /** Refused by the server. Kept until a person decides; never resent automatically. */
+  needsReview?: boolean;
+};
+
+export async function putUpload(accountId: string, upload: StoredUpload): Promise<void> {
+  const db = await open(accountId);
+  await tx(db, "readwrite", (store) => store.put(upload), UPLOAD_STORE);
+  db.close();
+}
+
+export async function allUploads(accountId: string): Promise<StoredUpload[]> {
+  const db = await open(accountId);
+  const uploads = await tx<StoredUpload[]>(db, "readonly", (store) => store.getAll(), UPLOAD_STORE);
+  db.close();
+  return uploads.sort((a, b) => a.savedAt.localeCompare(b.savedAt));
+}
+
+export async function removeUpload(accountId: string, id: string): Promise<void> {
+  const db = await open(accountId);
+  await tx(db, "readwrite", (store) => store.delete(id), UPLOAD_STORE);
   db.close();
 }

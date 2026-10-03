@@ -14,6 +14,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -41,6 +43,7 @@ public class Database {
   private final JdbcTemplate jdbc;
   private final TransactionTemplate serializable;
   private final TransactionTemplate separateRead;
+  private final TransactionTemplate separateWrite;
   private final Metrics metrics;
 
   public Database(
@@ -51,6 +54,9 @@ public class Database {
     separateRead.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     separateRead.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
     separateRead.setReadOnly(true);
+    this.separateWrite = new TransactionTemplate(serializableTransactions.getTransactionManager());
+    separateWrite.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+    separateWrite.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
     this.metrics = metrics;
   }
 
@@ -102,6 +108,42 @@ public class Database {
    */
   public <T> T readAs(ModuleRole role, UUID actorId, Supplier<T> work) {
     return separateRead.execute(status -> runAs(role, actorId, work));
+  }
+
+  /**
+   * Runs {@code work} once the transaction this thread is inside has committed,
+   * and not at all if it rolls back. With no transaction open it runs now.
+   *
+   * <p>For effects that live outside the database, such as clearing an in-memory
+   * cache: done before the commit, another request can refill the cache from the
+   * state that is about to be replaced.
+   */
+  public void afterCommit(Runnable work) {
+    if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+      work.run();
+      return;
+    }
+    TransactionSynchronizationManager.registerSynchronization(
+        new TransactionSynchronization() {
+          @Override
+          public void afterCommit() {
+            work.run();
+          }
+        });
+  }
+
+  /**
+   * System work that must commit on its own, even when called from inside
+   * another module's transaction.
+   *
+   * <p>For an adapter recording that it is about to call an external system: if
+   * the caller's transaction later rolls back, the record of the call must
+   * survive, because the call itself cannot be rolled back (R-STK-11). Suspends
+   * the caller's transaction and borrows another connection, like
+   * {@link #readAs}. Use sparingly; each nested call holds a second connection.
+   */
+  public <T> T asSystemSeparately(ModuleRole role, Supplier<T> work) {
+    return separateWrite.execute(status -> runAs(role, Actor.SYSTEM_ID, work));
   }
 
   /** The actor of the unit of work this thread is inside, if any. */

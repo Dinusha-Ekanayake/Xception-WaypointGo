@@ -10,7 +10,7 @@
     "dev": "next dev --hostname 0.0.0.0",
     "build": "next build --webpack && node scripts/build-sw.mjs",
     "start": "next start --hostname 0.0.0.0",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit --incremental false",
     "test": "node --test --experimental-strip-types tests/*.test.ts",
     "backend:build": "mvn -q -f ../backend/pom.xml package",
     "verify": "npm test && npm run typecheck && npm run build && npm run backend:test",

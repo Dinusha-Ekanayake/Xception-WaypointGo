@@ -2,6 +2,7 @@ package com.waypoint.dispatch.execution.contract;
 
 import com.waypoint.dispatch.execution.contract.ExecutionViews.DeliveryOutcome;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -27,13 +28,24 @@ public final class ExecutionCommands {
    * @param outcome {@code DELIVERED}, {@code PARTIAL} or {@code FAILED}
    * @param dispositionNote what happened to undelivered goods; there is no
    *     returns workflow (A-10)
+   * @param lines what arrived of each product, to record the delivery product
+   *     by product; empty to record a total only. When the products add up to
+   *     the order's unit count, {@code deliveredUnits} follows from them
    */
   public record RecordDelivery(
       UUID deliveryId,
       DeliveryOutcome outcome,
       Optional<Integer> deliveredUnits,
       Optional<String> reason,
-      Optional<String> dispositionNote) {}
+      Optional<String> dispositionNote,
+      List<DeliveredLine> lines) {
+
+    public RecordDelivery {
+      lines = List.copyOf(lines);
+    }
+  }
+
+  public record DeliveredLine(String productId, int units) {}
 
   /**
    * A device limitation never blocks the work: with no photo or signature the

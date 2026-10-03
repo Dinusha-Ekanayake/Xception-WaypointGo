@@ -141,15 +141,21 @@ artifacts/
 !docs/architecture/ASSUMPTIONS.md
 !docs/architecture/DATA-MODEL-REVIEW.md
 !docs/architecture/EDGE-CASES.md
+!docs/architecture/GLOSSARY.md
 !docs/architecture/schema/README.md
 !.agent/rules/*.md
 !docs/ai-disclosure.md
+!docs/architecture.md
+!docs/data-model.md
 !docs/deployment.md
 !docs/design-mapping.md
 !docs/design-rationale.md
 !docs/development-docs/development.md
 !docs/development-docs/development-log.md
 !docs/development-docs/log/*.md
+!docs/issues/022-admin-console/CAPABILITY-UI-PLAN.md
+!docs/development-docs/enterprise-architecture-plan.md
+!docs/development-docs/STATUS.md
 !docs/submission-checklist.md
 !docs/verification.md
 !docs/issues/**/*.md
@@ -157,3 +163,5 @@ artifacts/
 # Java / Maven build output (including nested modules)
 target/
 *.class
+
+/competition-docs

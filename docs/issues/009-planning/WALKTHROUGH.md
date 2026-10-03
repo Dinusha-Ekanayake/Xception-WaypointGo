@@ -22,7 +22,7 @@ All paths are under `backend/src/main/java/com/waypoint/dispatch/` unless they s
 | infrastructure | `planning/infrastructure/` | `PriorityInsertionEngine`, `ValidatingEngine`, `PlanningEngineConfiguration`, `JdbcPlanRepository`, `PeakDayScenario` |
 | web | `planning/web/PlanController.java` | Reads only, under `/api/plans` |
 | schema | `migrations/20261001T0400_planning_plans.sql`, `T0500_planning_actions_implemented.sql`, `T0600_planning_trip_identity.sql` | Tables, row-level security, immutability triggers, seeds, catalogue flags |
-| CI | `.github/workflows/ci.yml`, `tools/check_allocation/` | The official validator, vendored unmodified, judges the engine on the peak day |
+| CI | `.github/workflows/checks.yml` (was `ci.yml` until the two were merged), `tools/check_allocation/` | The official validator, vendored unmodified, judges the engine on the peak day |
 
 Outside the module, `ReferenceQuery.vehiclesOfDepot` was added; the change is additive. Without it, an order only a vehicle in the workshop could carry would look unservable rather than deferred. `FoundationIntegrationTest` now retires reference versions instead of deleting them, because a plan holds a foreign key to the version it stamped.
 
@@ -179,7 +179,7 @@ To try it by hand:
 | No replay command (POL-03); every run is stamped, so replay is possible | Follow-up issue |
 | Publication does not yet require an explanation for an outlet skipped twice (PLN-03) | Planning follow-up, with the dispatcher screens |
 | Learned travel and service times: plans are built with `plannedWithoutPredictor = true` | Intelligence, issue #16 |
-| An optimiser behind `AllocationEngine` | Follow-up, with #16 |
+| An optimiser behind `AllocationEngine` | First pass built in #92: the scarce-fleet re-plan ([walkthrough](../092-engine-improvement/WALKTHROUGH.md)) |
 | An order Ordering already rolled to tomorrow, overridden back into today's revision, is not guarded against | Planning with Ordering |
 | A vehicle removed from reference data after publication makes a revision fail loudly instead of planning around it | Planning follow-up |
 | `FuelView` reports usage from plans; actual usage above quota (FLT-05) is Execution's to record | Execution |
