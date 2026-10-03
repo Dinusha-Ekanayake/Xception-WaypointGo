@@ -12,6 +12,8 @@ export type NotificationView = {
   subjectId: string | null;
   createdAt: IsoInstant;
   readAt: IsoInstant | null;
+  /** The values title and body were filled from, for a translated message. Empty on older ones. */
+  facts?: Record<string, string>;
 };
 
 /** GET /api/notifications/unread-count, and each `unread` event of /api/notifications/stream. */

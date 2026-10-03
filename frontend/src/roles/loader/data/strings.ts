@@ -387,6 +387,22 @@ const STRINGS: Record<string, [string, string]> = {
   "Plan revised": ["සැලැස්ම සංශෝධිතයි", "திட்டம் திருத்தப்பட்டது"],
   "Vehicle left": ["වාහනය පිටත් විය", "வாகனம் புறப்பட்டது"],
   "Loading shortfall": ["පැටවීමේ හිඟය", "ஏற்றுதல் பற்றாக்குறை"],
+  // The loader's notification messages, filled from their facts (data/messages.ts).
+  "Plan published for {serviceDate}": ["{serviceDate} සඳහා සැලැස්ම ප්‍රකාශිතයි", "{serviceDate} க்கான திட்டம் வெளியிடப்பட்டது"],
+  "Version {planVersion} with {tripCount} trips is ready to load.": [
+    "ගමන් {tripCount} ක් සහිත {planVersion} වන අනුවාදය පැටවීමට සූදානම්.",
+    "{tripCount} பயணங்களுடன் பதிப்பு {planVersion} ஏற்றத் தயார்.",
+  ],
+  "Plan revised for {serviceDate}": ["{serviceDate} සඳහා සැලැස්ම සංශෝධිතයි", "{serviceDate} க்கான திட்டம் திருத்தப்பட்டது"],
+  "Version {planVersion} with {tripCount} trips replaces the earlier plan: {reason}": [
+    "ගමන් {tripCount} ක් සහිත {planVersion} වන අනුවාදය පෙර සැලැස්ම වෙනුවට: {reason}",
+    "{tripCount} பயணங்களுடன் பதிப்பு {planVersion} முந்தைய திட்டத்தை மாற்றுகிறது: {reason}",
+  ],
+  "Trip released · {vehicleId}": ["ගමන නිදහස් කළා · {vehicleId}", "பயணம் விடுவிக்கப்பட்டது · {vehicleId}"],
+  "{vehicleId} left for {serviceDate} with {stopCount} stops.": [
+    "{vehicleId} නැවතුම් {stopCount} ක් සමඟ {serviceDate} සඳහා පිටත් විය.",
+    "{vehicleId} {stopCount} நிறுத்தங்களுடன் {serviceDate} க்கு புறப்பட்டது.",
+  ],
 };
 
 export type Vars = Record<string, string | number>;
