@@ -10,7 +10,7 @@
 
 Group Personas, Actions, Permission catalogue and Change history beneath People, and show trips as compact rows with the existing detail dialog behind More info.
 Why: the admin sidebar and trip cards took too much space for routine scanning.
-Verified: frontend typecheck, 193 Node tests and production build passed for the trip-row change; the sidebar grouping was added afterwards and has not yet been verified.
+Verified: frontend typecheck, 193 Node tests and production build passed. CI found the shell browser test still locating People as a link; it now targets the expandable button. Local Playwright could not run because Chromium is not installed in this worktree.
 
 ---
 

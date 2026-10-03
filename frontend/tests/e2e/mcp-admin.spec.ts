@@ -62,6 +62,6 @@ test("an administrator sees assistant apps and their usage and blocks one with a
   await expect(page.getByRole("status")).toContainText("is unblocked");
   expect(commands[1]).toMatchObject({ kind: "mcp:UnblockClient", expectedVersion: 2 });
 
-  await page.getByRole("link", { name: "People" }).click();
+  await page.getByRole("button", { name: "People" }).click();
   await expect(page.getByRole("heading", { name: "People & access" })).toBeVisible();
 });
