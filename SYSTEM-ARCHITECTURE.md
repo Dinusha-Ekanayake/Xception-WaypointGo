@@ -101,7 +101,7 @@ Each of those modules is already designed as if remote: it is reached through a 
 
 ### ADR-002: Schema per module in one database
 
-One PostgreSQL schema per module, one **database** in one cluster: the kernel `ref` and `iam`, the platform `integration`, and one schema each for `ordering`, `planning`, `loading`, `execution`, `receipt`, `issues`, `notification`, `sync`, `warehouse` and `ml`. These are namespaces, not separate databases: one connection reaches all of them and one transaction can span them, which is what lets state, audit row and outbox event commit together.
+One PostgreSQL schema per module, one **database** in one cluster: the kernel `ref` and `iam`, the platform `integration`, and one schema each for `ordering`, `planning`, `loading`, `execution`, `receipt`, `issues`, `notification`, `sync`, `warehouse`, `ml` and `messaging`. These are namespaces, not separate databases: one connection reaches all of them and one transaction can span them, which is what lets state, audit row and outbox event commit together.
 
 **Revised 2026-09-30 (decision D-B).** The first version put every operational module in one shared `ops` schema under one role. That made the per-module role meaningless, because any module could read any other module's tables. Each module now owns a schema and a `waypoint_<module>` role granted that schema alone (`SELECT, INSERT, UPDATE`, never `DELETE`), plus read on `ref` and the scope tables. Reading another module's tables is therefore a permission error, not a review comment.
 
@@ -116,6 +116,20 @@ Writes go through aggregates with full validation. An append-only event log reco
 Full event sourcing is rejected: it would give replay and audit that the event log already provides, at the cost of schema evolution pain and a much steeper on-ramp for the team.
 
 ---
+
+### ADR-004: Conversations are threads anchored to a subject
+
+**Decided 2026-10-04 (issue #135, built in #136).** People talk on a **thread anchored to one subject**: a trip first, and later an issue, an order or a delivery. Messaging owns the threads and messages (schema `messaging`); every other fact keeps its owner. An issue stays an aggregate in Issues with its state graph, version guard and raise rights. The thread only carries a **report** that points at it. Notification fans out `message.posted` like any other event and never holds the words as truth.
+
+The rejected option made an issue a templated message in one messages table. It would have moved `issues.*`, rewritten seven consumers and every issue screen, and re-implemented R-ISS-01 to R-ISS-08 and R-RCP-07 per message type.
+
+A trip's thread joins the depot's **dispatcher**, the depot's **loaders**, the vehicle's **driver** on the service date, and the **store managers** of the trip's outlets. The rules are R-MSG-01 to R-MSG-06:
+
+- The dispatcher reads everything.
+- Everyone else reads messages for everyone, messages addressed to them, and their own.
+- Reports and replies go to the dispatcher only.
+
+The thread opens when the plan is published, so a loader's shortfall has somewhere to go before release. Every membership question is answered by the thread's own row through the scope predicates, so Messaging reads no other module's tables.
 
 ## 4. Layers
 

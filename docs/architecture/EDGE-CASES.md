@@ -242,6 +242,20 @@ Most of the cases below are instances of nine patterns. Learn the patterns and t
 | ML-07 | A stop's order has no size (weight, volume or temperature missing) | The model scores whole routes, so that route gets the deterministic estimate and the scoring says how many stops it covers | `PlannedRoutes`, `PlanScoringJob` | Scoring reason | `IntelligenceDomainTest.aRouteWithAStopMissingItsOrderIsNotScoredByTheModel` |
 | ML-08 | A model file is altered or missing | The model service refuses to start; the backend degrades (ML-01) | `ml-server` manifest check | Service health | `ml-server` `test_an_altered_model_file_refuses_to_load` |
 
+## 7d. Messaging
+
+| ID | Trigger | Required behaviour | Enforced in | Detection | Test |
+| --- | --- | --- | --- | --- | --- |
+| MSG-01 | A store manager opens a trip's thread that also carries another store's messages and the crew's | It reads only messages for everyone, for its outlet, and its own; the rest are absent, not blanked | `messages_read` row-level security | none needed | `MessagingIntegrationTest.theDispatcherReadsEveryMessageAndEveryoneElseOnlyWhatIsForThem` |
+| MSG-02 | A driver of another vehicle, a store off the trip, or another depot's dispatcher writes to or reads a thread | 403 plus an audit row, never an empty thread | `MessagingQuery`, `PostMessageHandler`, the command bus | `waypoint.command.denied` | `MessagingIntegrationTest.whoMayWriteToWhomAndWhoMayNotReadAtAll` |
+| MSG-03 | A store or the driver tries to broadcast, or a loader writes to the driver | Refused with 422 naming R-MSG-02 | `MessagePolicy.check` | none needed | `MessagePolicyTest`, `MessagingIntegrationTest.whoMayWriteToWhomAndWhoMayNotReadAtAll` |
+| MSG-04 | A phone with no signal sends a message, then its queue sends it again under a new command id | One message: the author's `clientMessageId` is unique | `messaging.messages` `uq_messages_client` | none needed | `MessagingIntegrationTest.aResendFromAPhoneQueueIsOneMessage` |
+| MSG-05 | The same `issue.raised` is delivered twice | One report: the source event id is unique | `messaging.messages` `uq_messages_source` | `waypoint.message.reported` | `MessagingIntegrationTest.aShortfallTheLoaderReportedBecomesAWarningOnTheTripForTheDispatcherAlone` |
+| MSG-06 | A loader reports a shortfall before the trip leaves the dock | The thread already exists, because it opens with the published plan | `MessagingConsumers.OnPlanPublished` | `waypoint.message.report_without_trip` | `MessagingIntegrationTest.aShortfallTheLoaderReportedBecomesAWarningOnTheTripForTheDispatcherAlone` |
+| MSG-07 | A revision adds a stop to a trip | The thread is widened to the new outlet and never narrowed, so nobody loses what they were told | `JdbcThreadRepository.openTrip` | `waypoint.message.thread_opened` | `MessagingIntegrationTest.aPublishedPlanOpensTheTripsThreadForEveryoneOnIt` |
+| MSG-08 | Someone posts two days after the trip | Refused with 409; the thread is read only (R-MSG-04) | `MessagePolicy.check` | none needed | `MessagePolicyTest.theThreadTakesPostsUntilTheEndOfTheNextDay` |
+| MSG-09 | A voice note is posted by someone who did not record it, or is not audio, or is longer than two minutes | Refused (422, or 415 for the media type); the audio of a message is served only to who may see it | `PostMessageHandler`, `MessagePolicy.voiceType`, `voice_notes_read` | `waypoint.message.voice_uploaded` | `MessagingIntegrationTest.aVoiceReportIsHeardByTheDispatcherAndNobodyItWasNotFor` |
+
 ## 8. Fleet and vehicles
 
 | ID | Trigger | Required behaviour | Enforced in | Detection | Test |
