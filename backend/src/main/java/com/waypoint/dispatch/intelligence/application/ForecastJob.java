@@ -5,6 +5,7 @@ import com.waypoint.dispatch.intelligence.contract.PredictionViews;
 import com.waypoint.dispatch.intelligence.domain.DeterministicEstimator;
 import com.waypoint.dispatch.intelligence.domain.DeterministicEstimator.DailyVolume;
 import com.waypoint.dispatch.intelligence.domain.DeterministicEstimator.WeekVolume;
+import com.waypoint.dispatch.intelligence.domain.ForecastSchedule;
 import com.waypoint.dispatch.intelligence.domain.ModelGate;
 import com.waypoint.dispatch.intelligence.domain.ModelGate.Decision;
 import com.waypoint.dispatch.intelligence.domain.ModelGate.Served;
@@ -102,26 +103,18 @@ public class ForecastJob implements ScheduledJob {
   }
 
   /**
-   * Whether a run is owed (P-29): none yet this week (from Monday 00:00, depot
-   * time), so a fresh deployment has a forecast within the hour rather than on
-   * the next Monday; or the newest run is the fallback while a demand model is
-   * now active, so an activated model takes over within six hours. A fallback is
-   * retried at most every six hours, so a model service that stays down does
-   * not write a run every hour.
+   * Whether a run is owed ({@link ForecastSchedule#due}, P-29): none yet this
+   * week, so a fresh deployment has a forecast within the hour rather than on the
+   * next Monday; or the newest run is the fallback while a demand model is now
+   * active, retried at most every six hours so a model service that stays down
+   * does not write a run every hour.
    */
   boolean due(Instant now) {
-    LocalDate monday = now.atZone(Clock.OPERATING_ZONE).toLocalDate()
-        .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
-    Instant weekStart = monday.atStartOfDay(Clock.OPERATING_ZONE).toInstant();
-    return database.asSystem(ModuleRole.ML, () -> {
-      Optional<JdbcIntelligenceRepository.RunMark> last = repository.latestForecastRun();
-      if (last.isEmpty() || last.get().at().isBefore(weekStart)) {
-        return true;
-      }
-      return last.get().degraded()
-          && last.get().at().isBefore(now.minus(java.time.Duration.ofHours(6)))
-          && repository.activeModel(ModelViews.DEMAND_FORECAST).isPresent();
-    });
+    return database.asSystem(ModuleRole.ML, () -> ForecastSchedule.due(
+        now,
+        repository.latestForecastRun().map(r -> new ForecastSchedule.LastRun(r.at(), r.degraded())),
+        repository.activeModel(ModelViews.DEMAND_FORECAST).isPresent(),
+        Clock.OPERATING_ZONE));
   }
 
   record Key(String depot, String brand, int isoYear, int isoWeek) {}
