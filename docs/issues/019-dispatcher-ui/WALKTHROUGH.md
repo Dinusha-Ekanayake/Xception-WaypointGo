@@ -54,7 +54,7 @@ All nine are in [PLAN.md](PLAN.md). Added while building:
 
 ## Known gaps
 
-- Still open on #19: assigning an issue to someone other than yourself (no read lists a depot's staff), interchange approval (waits on #10), the sync conflict queue, Forecast (waits on #16).
+- Still open on #19: assigning an issue to someone other than yourself (no read lists a depot's staff), interchange approval (waits on #10), the sync conflict queue, late risk on the plan (backend built, #16). Forecast is built (see the third slice).
 - No backend for these parts of the design, so they are left out: snapshots and compare, regenerate with locked orders, late-risk percentages, contact store manager, global search, the map.
 - A stale draft is shown as the server's message, not as a side by side diff.
 - The browser tests run against a mocked API and are not in CI, like the loader's and the driver's. The flows against the real backend need the fresh-install seed.
@@ -74,3 +74,24 @@ Flows: every command is followed by reading the issue and the list again, whatev
 Verify: `npm test` (4 new tests in `dispatcher-data.test.ts`), `npm run typecheck && npm run build`, `npx playwright test -c playwright.dispatcher.config.ts` (4 new in `issues.spec.ts`: take and resolve then close, redelivery offered only when nothing arrived with a stale refusal, overview tiles and skipped outlets, offline read only).
 
 Gaps: assigning to another person needs a read of the depot's staff, which identity does not serve to dispatchers; the server already checks the assignee works the depot (R-ISS-08). People are shown by the tail of their id until such a read exists. The fuel drawer has no browser test.
+
+## Third slice: Forecast (2026-10-03)
+
+The Forecast tab on the model service (#16). One new backend read and the screen; the Figma design (node 189:11993) is followed where the endpoints can honestly support it.
+
+Backend, in `backend/.../intelligence/`:
+
+- `GET /api/ml/forecast/overview?depot=&weeks=10` (`ml:Read`, weeks 1 to 12): for one depot, every brand of the newest run per ISO week, the calendar of each week (operating days, holidays, paydays, festival) and what the reference fleet can carry (`domain/FleetCapacity`, A-40). A depot outside the actor's scope is `403` plus an audit row. `status` is `NONE` before the first run; `degraded` says the run came from the weekday averages (A-38).
+- `ForecastJob` checks hourly (P-29): it runs when no run exists since this Monday, or when the newest run is the fallback, a model has since been activated and six hours have passed. A fresh deploy has a forecast within the hour.
+
+Frontend, under `frontend/src/roles/dispatcher/`:
+
+- `data/forecast.ts`, pure: `combine` sums the depots in view (Both shows combined totals), `forBrand`, `segments` (chilled first, then each brand's ambient), `kpis`, `dayNeeds` (an average operating day against the fleet, A-41), `actions` (refrigerated fleet at 95% or more, over weekly capacity, a short week). `data/useForecast.ts` reads one overview per depot, polled every 5 minutes.
+- `screens/Forecast.tsx` (container), `ForecastChart.tsx` (plain SVG stacked bars, dashed capacity, festival, short week and payday tags, the chilled against refrigerated strip, a hidden table for screen readers), `ForecastSide.tsx` (what the busiest days need, suggested actions).
+- `screens/ReeferNeed.tsx` replaces the Vehicles rail's pending refrigerated card: reefers available today against next week's average day. `Upcoming.tsx` is gone.
+
+States: no run yet is a notice, a fallback run is a warning that names it, an error is the Refusal screen.
+
+Verify: `npm test` (9 in `dispatcher-forecast.test.ts`), `npx playwright test -c playwright.dispatcher.config.ts forecast.spec.ts` (4: the screen, a brand filter, the fallback notice, no forecast yet), `mvn test -Dtest=IntelligenceDomainTest`, and `IntelligenceIntegrationTest` on PostgreSQL (overview shape and capacity, out of scope, the job runs once a week).
+
+Gaps: the models must be registered and activated on each deployment (`ml:RegisterModel`, `ml:ActivateModel`) before the forecast is the model's; until then it says it is the fallback. Late risk on the plan is still to build.
