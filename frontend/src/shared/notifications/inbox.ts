@@ -21,7 +21,7 @@ const KINDS: Record<string, { label: string; tone: Tone }> = {
   "delivery.completed": { label: "Delivery recorded", tone: "good" },
   "delivery.failed": { label: "Delivery failed", tone: "urgent" },
   "eta.changed": { label: "Arrival changed", tone: "warning" },
-  "issue.raised": { label: "Issue raised", tone: "warning" },
+  "issue.raised": { label: "Issue raised", tone: "urgent" },
   "issue.escalated": { label: "Issue escalated", tone: "urgent" },
   "vehicle.fault_reported": { label: "Vehicle fault", tone: "urgent" },
   "road.disruption_reported": { label: "Road disruption", tone: "warning" },
@@ -31,6 +31,33 @@ const KINDS: Record<string, { label: string; tone: Tone }> = {
 
 export function kindOf(eventType: string): { label: string; tone: Tone } {
   return KINDS[eventType] ?? { label: "Notification", tone: "info" };
+}
+
+/**
+ * How loud a notification is. Anything about an issue is urgent, whatever event
+ * raised it, so an issue always reads red; the rest take their event's tone.
+ */
+export function toneOf(n: Pick<NotificationView, "eventType" | "subjectType">): Tone {
+  if (n.subjectType === "issue" || n.eventType.startsWith("issue.")) return "urgent";
+  return kindOf(n.eventType).tone;
+}
+
+/**
+ * The classes for each tone, so every role's inbox colours the same way: the
+ * left edge and dot in the tone's colour, an unread row on its tint, the label
+ * in its text colour. Only good news is green.
+ */
+export const TONE_STYLE: Record<Tone, { edge: string; tint: string; dot: string; label: string }> = {
+  urgent: { edge: "border-l-go-danger", tint: "bg-go-danger-tint", dot: "bg-go-danger", label: "text-go-danger-strong" },
+  warning: { edge: "border-l-go-warning", tint: "bg-go-warning-tint", dot: "bg-go-warning", label: "text-go-warning-text" },
+  good: { edge: "border-l-go-success", tint: "bg-go-success-tint", dot: "bg-go-success", label: "text-go-teal" },
+  info: { edge: "border-l-go-info", tint: "bg-go-info-tint", dot: "bg-go-info", label: "text-go-info" },
+};
+
+/** The bell's count: nothing at zero or unknown, then the number, capped at "99+". */
+export function badgeText(count: number | null | undefined): string | null {
+  if (!count || count <= 0) return null;
+  return count > 99 ? "99+" : String(count);
 }
 
 export const isUnread = (n: Pick<NotificationView, "readAt">): boolean => n.readAt === null;
