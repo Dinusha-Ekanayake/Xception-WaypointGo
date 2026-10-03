@@ -69,7 +69,7 @@
   --text-caption--line-height: 1.5;
   --text-copy: 1.0625rem;
   --text-copy--line-height: 1.55;
-  --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, -apple-system, 'Inter', sans-serif;
+  --font-sans: 'Google Sans Flex Variable', 'Google Sans', ui-sans-serif, system-ui, -apple-system, 'Inter', sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
 
   /* Neutrals - near black & white */

@@ -177,3 +177,39 @@ export function operatingDate(now: Date): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Colombo", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
 }
 
+
+/**
+ * The run sheet this phone works from. A driver can be assigned several
+ * vehicles for a day, most with no released trip: the one with a stop still to
+ * do comes first, then one with any stops, then the first.
+ */
+export function todaysSheet(sheets: RunSheetView[]): RunSheetView | null {
+  return (
+    sheets.find((sheet) => sheet.stops.some((stop) => !isFinished(stop))) ??
+    sheets.find((sheet) => sheet.stops.length > 0) ??
+    sheets[0] ??
+    null
+  );
+}
+
+/** What every stop command answers with (ExecutionMessages.result on the server). */
+export type StopAck = { deliveryId: string; rowVersion: number; outcome: DeliveryOutcome };
+
+export function isStopAck(value: unknown): value is StopAck {
+  const ack = value as Partial<StopAck> | null;
+  return typeof ack?.deliveryId === "string" && typeof ack.rowVersion === "number" && typeof ack.outcome === "string";
+}
+
+/**
+ * The sheets with a sent command's answer taken in, so the next write names the
+ * version the server now holds even when reading the sheet back fails (EXE-29).
+ * Never moves a stop backwards.
+ */
+export function acknowledged(sheets: RunSheetView[], ack: StopAck): RunSheetView[] {
+  return sheets.map((sheet) => ({
+    ...sheet,
+    stops: sheet.stops.map((stop) =>
+      stop.deliveryId === ack.deliveryId && ack.rowVersion > stop.rowVersion ? { ...stop, rowVersion: ack.rowVersion, outcome: ack.outcome } : stop,
+    ),
+  }));
+}

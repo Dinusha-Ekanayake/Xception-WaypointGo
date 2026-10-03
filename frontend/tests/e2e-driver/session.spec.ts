@@ -1,13 +1,13 @@
 import { expect, test } from "@playwright/test";
-import { serve } from "./mocks.ts";
+import { openForm, serve, startTrip } from "./mocks.ts";
 
 test("sign-out is refused while work is still only on the phone", async ({ page, context }) => {
   const server = await serve(page);
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Start run" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Start trip" })).toBeVisible();
   await server.goOffline(context);
-  await page.getByRole("button", { name: "Start run" }).click();
-  await page.getByRole("button", { name: "Back" }).click();
+  await startTrip(page);
+  await page.getByRole("button", { name: "Go back to home" }).click();
 
   await page.getByRole("button", { name: "Sign out" }).click();
   const sheet = page.getByRole("dialog", { name: "Sign out" });
@@ -25,10 +25,11 @@ test("sign-out is refused while work is still only on the phone", async ({ page,
 test("a session that ended while offline keeps the work and sends it after signing in again", async ({ page, context }) => {
   const server = await serve(page);
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Start run" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Start trip" })).toBeVisible();
   await server.goOffline(context);
-  await page.getByRole("button", { name: "Start run" }).click();
+  await startTrip(page);
   await page.getByRole("button", { name: "I've arrived" }).click();
+  await openForm(page);
   await expect(page.getByText("Stop 01 of 02 · Delivery report")).toBeVisible();
 
   server.expired = true;
@@ -40,16 +41,18 @@ test("a session that ended while offline keeps the work and sends it after signi
   server.expired = false;
   await page.getByRole("button", { name: "Sign in again" }).click();
   await expect.poll(() => server.commands.map((c) => c.kind)).toEqual(["delivery:Start", "delivery:RecordArrival"]);
-  await expect(page.getByRole("button", { name: /OUT0101/ })).toContainText("At the stop");
+  await startTrip(page);
+  await expect(page.getByRole("heading", { name: "At the stop" })).toBeVisible();
 });
 
 test("a stop replanned while the phone was offline is held for the driver, never merged", async ({ page, context }) => {
   const server = await serve(page);
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Start run" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Start trip" })).toBeVisible();
   await server.goOffline(context);
-  await page.getByRole("button", { name: "Start run" }).click();
+  await startTrip(page);
   await page.getByRole("button", { name: "I've arrived" }).click();
+  await openForm(page);
   await expect(page.getByText("Stop 01 of 02 · Delivery report")).toBeVisible();
 
   // Meanwhile dispatch replans: the stop leaves the run and its version moves on.
@@ -60,11 +63,38 @@ test("a stop replanned while the phone was offline is held for the driver, never
   expect(server.commands).toHaveLength(0);
   // The screen shows what the server holds, not the arrival it refused.
   await expect(page.getByText("Dispatch replanned this stop")).toBeVisible();
-  await page.getByRole("button", { name: "Back" }).click();
-  const first = page.getByRole("button", { name: /OUT0101/ });
-  await expect(first).toContainText("Replanned");
-  await expect(first).not.toContainText("on phone");
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await startTrip(page);
+  await expect(page.getByRole("button", { name: /^Stop 01 OUT0101/ })).toHaveAccessibleName("Stop 01 OUT0101 · Replanned");
 
   await page.getByRole("button", { name: "2 to review" }).click();
   await expect(page.getByRole("dialog", { name: "Changes to review" })).toContainText("This stop changed on another device or in the plan");
+});
+
+test("a write the server took, with the signal gone before the phone read it back, still carries its version on", async ({ page, context }) => {
+  const server = await serve(page);
+  await page.goto("/");
+  await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
+  // Start reaches the server, then the signal goes before the run sheet is read again.
+  server.dropReads = true;
+  await page.getByRole("button", { name: "Start trip" }).click();
+  await expect.poll(() => server.commands.map((c) => c.kind)).toEqual(["delivery:Start"]);
+  await server.goOffline(context);
+  await page.getByRole("button", { name: "I've arrived" }).click();
+  await openForm(page);
+  await page.getByLabel("I can't capture a signature or a photo").check();
+  await page.getByLabel("Why not?").fill("Receiver refused to sign");
+  await page.getByRole("button", { name: "Confirm" }).click();
+  await expect(page.getByRole("dialog", { name: "Delivery confirmed" })).toContainText("Saved on this phone");
+
+  server.dropReads = false;
+  await server.goOnline(context);
+  await expect.poll(() => server.commands.length).toBe(4);
+  expect(server.commands.map((c) => [c.kind, c.expectedVersion])).toEqual([
+    ["delivery:Start", 1],
+    ["delivery:RecordArrival", 2],
+    ["delivery:Record", 3],
+    ["delivery:CaptureProof", 4],
+  ]);
+  await expect(page.getByRole("button", { name: /to review/ })).toHaveCount(0);
 });

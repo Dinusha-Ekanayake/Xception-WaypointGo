@@ -56,10 +56,10 @@ The seed places the Task 2B peak day: 85 confirmed Peliyagoda orders across all 
 5. **Dispatcher: publish.** **Publish** lists what the plan leaves undelivered, then **Confirm publish**. **Vehicles** shows each vehicle's planned fuel against its weekly quota, and Overview lists outlets skipped on earlier runs.
 6. **Loader: load in stop order.** Sign in as `loader@waypoint.local`, then enter PIN `2468` on the dock screen. The dock board lists the published trips. Open the trip that carries OUT001: items are listed in reverse stop order, so the first stop is loaded last. Check items off one by one.
 7. **Loader: flag a shortfall (degradation).** Mark one item short by a unit, or missing or damaged. The shortfall is recorded before departure and reaches the dispatcher's **Issues** inbox. Complete the release checklist and **release** the trip.
-8. **Driver: follow the run.** Sign in as `driver@waypoint.local`. Home shows the released trip; **Route** lists its stops in order with their windows.
-9. **Driver: deliver with no signal (degradation).** In the browser's developer tools set the network to Offline. Open the OUT001 stop, record the delivery with receiver name, count, photo and signature, and finish. If a unit was short at loading, record a partial delivery: the screen asks what happened to the goods that did not arrive. The record is kept on the phone and the screen says it is waiting to sync. Reload the page: it is still there. Set the network back to Online and the queue drains on its own; the server applies each record once.
+8. **Driver: follow the run.** Sign in as `driver@waypoint.local`. Home shows the vehicle, today's stop count and the driver's notifications (plan published, trip released). **Start trip** opens the run sheet: the next stop with its expected arrival, window and units, and the other stops in order.
+9. **Driver: deliver with no signal (degradation).** In the browser's developer tools set the network to Offline. At OUT001 tap **I've arrived**, then **Open delivery report** and **Record delivery**, and record the delivery with receiver name, count, photo and signature. If a unit was short at loading, record a partial delivery: the screen asks what happened to the goods that did not arrive. The record is kept on the phone and the screen says it is waiting to sync. Reload the page: it is still there. Set the network back to Online and the queue drains on its own; the server applies each record once.
 10. **Dispatcher: watch progress.** **Live** lists vehicles most urgent first, with the delivered stop and anything that still needs the dispatcher.
-11. **Store manager: confirm receipt.** Back as the store manager, the delivery shows as arrived. **Receive this delivery**, confirm what arrived per item, or report a problem (missing, damaged, wrong item) with a photo. The report reaches the dispatcher's **Issues** inbox, where it can be taken, resolved and closed.
+11. **Store manager: confirm receipt.** Back as the store manager, the delivery shows as arrived. **Receive this delivery**, confirm what arrived per item, or report a problem (missing, damaged, wrong item) with a photo. The report reaches the dispatcher's **Issues** inbox, where it can be taken, resolved and closed. The answer shows a four-digit handover PIN; the driver can enter it from **Enter store manager PIN** after saving the delivery, as evidence the two met. A wrong PIN says how many tries are left, and skipping it never holds the delivery up.
 
 To start again from an empty database: `docker compose down -v && docker compose up --build`.
 
@@ -67,11 +67,11 @@ To start again from an empty database: `docker compose down -v && docker compose
 
 The Figma file (pages 04 to 17) is the specification. Where the design shows something no backend module provides yet, it is left out rather than faked:
 
-- **Driver:** vehicle pick-up by QR code, the notifications inbox, fuel logging, call and voice notes, driving mode and the map. The store's handover PIN is shown to the store manager but no driver screen asks for it yet. English only.
+- **Driver:** vehicle pick-up by QR code (dispatch assigns the vehicle), the fuel pass QR and fuel logging, call and voice notes: none has a backend. The map is the run's own trail and next stop, handing off to the phone's maps app only for an exact store location. Notifications can be read aloud by the phone; there are no recorded voice notes. English only.
 - **Dispatcher:** late risk on the plan (its backend exists; the Forecast tab is built), snapshots and compare, regenerate with locked orders, contact store manager, global search and the map. Vehicle interchange approval waits on Loading.
 - **Loader:** vehicle interchange and dispatcher handover. Sinhala and Tamil are drafts awaiting a native speaker.
 - **Store manager:** call options, the live map and draft orders.
-- **All roles:** notifications arrive in the dispatcher, loader and store manager screens with a live badge; push to a closed phone is not switched on, and the driver has no inbox yet.
+- **All roles:** notifications arrive in every role's screens with a live count; push to a closed phone is not switched on.
 
 Role by role detail is in [design-mapping.md](docs/design-mapping.md).
 

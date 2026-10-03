@@ -216,6 +216,9 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
     if (/^\/api\/ml\/plans\/[^/]+\/predictions$/.test(pathname)) return route.fulfill(problem(404, "NOT_FOUND", "Not scored"));
     if (pathname === "/api/execution/run-sheets") return route.fulfill(json(desk.sheets));
     if (pathname === "/api/execution/positions") return route.fulfill(json(desk.positions ?? []));
+    if (pathname.startsWith("/api/execution/deliveries/")) {
+      return route.fulfill(json({ deliveryId: pathname.split("/").pop(), driver: { displayName: "Dilan R.", employeeCode: "DRV-00133" } }));
+    }
     if (pathname.startsWith("/api/execution/trips/")) return route.fulfill(json({ items: desk.trail ?? [], nextCursor: null }));
     if (pathname.startsWith("/api/reference/depots/")) {
       const code = decodeURIComponent(pathname.split("/").pop() ?? "");
@@ -344,4 +347,38 @@ export function forecast(over: Partial<ForecastOverviewView> = {}): ForecastOver
     weeks,
     ...over,
   };
+}
+
+/**
+ * A Monday afternoon on the road, as the Figma "05 Live" frames show it: the
+ * clock is 16:12 in Colombo (10:42 UTC). Two vehicles may miss a window, one has
+ * gone quiet, two are on time, one is returning; one stop failed, one owes its
+ * proof, and a store reported a missing unit.
+ */
+export const LIVE_NOW = "2027-03-01T10:42:00Z";
+
+export function liveDay(): Partial<Desk> {
+  const at = (utc: string) => `2027-03-01T${utc}:00Z`;
+  const s = (vehicle: string, seq: number, outlet: string, extra: Partial<RunSheetStopView> = {}): RunSheetStopView =>
+    stop(seq, { deliveryId: `d-${vehicle}-${seq}`, tripId: `t-${vehicle}`, outletId: outlet, windowOpen: "09:00:00", windowClose: "17:00:00", plannedArrival: "16:30:00", ...extra });
+  const done = (utc: string) => ({ outcome: "DELIVERED" as const, proofCaptured: true, arrivedAt: at(utc), completedAt: at(utc), startedAt: at("08:50") });
+  const sheets: RunSheetView[] = [
+    { vehicleId: "VEH020", serviceDate: "2027-03-01", stops: [s("VEH020", 1, "OUT061", done("09:40")), s("VEH020", 2, "OUT063", { expectedArrival: at("11:36"), startedAt: at("08:50") })] },
+    { vehicleId: "VEH019", serviceDate: "2027-03-01", stops: [s("VEH019", 1, "OUT041", done("09:20")), s("VEH019", 2, "OUT044", { expectedArrival: at("11:40"), startedAt: at("08:50") })] },
+    { vehicleId: "VEH029", serviceDate: "2027-03-01", stops: [s("VEH029", 1, "OUT070", done("09:30")), s("VEH029", 2, "OUT072", { expectedArrival: at("11:00"), startedAt: at("08:50") })] },
+    { vehicleId: "VEH030", serviceDate: "2027-03-01", stops: [s("VEH030", 1, "OUT010", { ...done("09:10"), outcome: "FAILED", proofCaptured: false }), s("VEH030", 2, "OUT012", { expectedArrival: at("10:55"), startedAt: at("08:50") })] },
+    { vehicleId: "VEH023", serviceDate: "2027-03-01", stops: [s("VEH023", 1, "OUT030", { ...done("09:50"), proofCaptured: false }), s("VEH023", 2, "OUT031", { expectedArrival: at("11:01"), startedAt: at("08:50") })] },
+    { vehicleId: "VEH011", serviceDate: "2027-03-01", stops: [s("VEH011", 1, "OUT080", done("09:15")), s("VEH011", 2, "OUT081", done("10:20"))] },
+  ];
+  const routes: Record<string, [string, string]> = { VEH020: ["Style", "Matara"], VEH019: ["Style", "Galle"], VEH029: ["Tech", "Kurunegala"], VEH030: ["Tech", "Colombo"], VEH023: ["Style", "Kalutara"], VEH011: ["Style", "Kurunegala"] };
+  const dock: ReadyTripView[] = Object.entries(routes).map(([vehicleId, [brand, district]]) => ({
+    ...dockTrip(vehicleId, "COMPLETED"), tripId: `t-${vehicleId}`, tripNumber: 2, tripsForVehicle: 2, brandCode: brand, districtName: district,
+    volumeM3: "7.5", volumeCapM3: "34", releasedAt: at("08:50"),
+  }));
+  const fix = (vehicleId: string, lat: string, lon: string, offline = false, utc = "10:40") => ({
+    vehicleId, tripId: `t-${vehicleId}`, latitude: lat, longitude: lon, headingDeg: "90.0", accuracyM: "12.0", recordedAt: at(utc), offline,
+  });
+  const positions = [fix("VEH020", "6.020000", "80.400000"), fix("VEH019", "6.100000", "80.150000"), fix("VEH029", "7.480000", "80.300000", true, "10:30"), fix("VEH030", "6.900000", "79.860000"), fix("VEH023", "6.580000", "79.960000")];
+  const issues: IssueView[] = [issue(85, { type: "STOCK_DISCREPANCY", severity: "HIGH", outletId: "OUT085", description: "1 unit missing", raisedAt: at("10:32") })];
+  return { sheets, dock, positions, issues };
 }

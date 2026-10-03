@@ -11,7 +11,20 @@ export type Capability = {
   relevant: Persona[];
   optionalFor?: Persona[];
 };
-export type Member = { id: string; name: string; email: string; personas: Persona[]; places: string[]; active: boolean; vehicleType?: "van" | "truck" };
+export type Member = {
+  id: string;
+  name: string;
+  email: string;
+  personas: Persona[];
+  places: string[];
+  active: boolean;
+  vehicleType?: "van" | "truck";
+  rowVersion?: number;
+  depots?: string[];
+  outlets?: string[];
+  source?: "live" | "demo";
+  roleCodes?: string[];
+};
 export type Exception = { memberId: string; action: string; decision: "allow" | "deny"; reason: string; place: string | null; expires: string | null };
 export type Change = { id: number; at: string; actor: string; target: string; action: string; before: string; after: string; reason: string; place: string | null; expires: string | null };
 export type DemoState = { members: Member[]; personaSettings: Record<string, Decision>; exceptions: Exception[]; history: Change[] };

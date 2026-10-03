@@ -24,6 +24,11 @@ export function outcomeOf(status) {
   return "wait";
 }
 
+/** As recordedOrder in src/shared/offline/review.ts: the device's write order, else its recording time. */
+function recordedOrder(entry) {
+  return entry.order ?? (Date.parse(entry.enqueuedAt) || 0) * 1000;
+}
+
 /**
  * One account's queue. `io` reaches storage and the network:
  * entries(), deviceId(), post(body) -> {status, json}, put(entry), remove(id).
@@ -34,7 +39,7 @@ export async function drainAccount(io) {
   const entries = await io.entries();
   const ready = entries
     .filter((e) => !e.needsReview)
-    .sort((a, b) => (Date.parse(a.enqueuedAt) || 0) - (Date.parse(b.enqueuedAt) || 0) || a.commandId.localeCompare(b.commandId))
+    .sort((a, b) => recordedOrder(a) - recordedOrder(b) || a.commandId.localeCompare(b.commandId))
     .slice(0, BATCH);
   if (ready.length === 0) return "empty";
   if (ready.some((e) => typeof e.kind === "string" && e.kind.startsWith("loading:"))) return "needs-page";
@@ -43,7 +48,7 @@ export async function drainAccount(io) {
 
   const answer = await io.post({
     deviceId,
-    operations: ready.map((e, i) => ({ sequence: Date.parse(e.enqueuedAt) || i, command: e.payload })),
+    operations: ready.map((e, i) => ({ sequence: recordedOrder(e) || i, command: e.payload })),
   });
   if (answer.status === 401) return "kept";
   if (answer.status < 200 || answer.status >= 300) throw new Error("sync answered " + answer.status);

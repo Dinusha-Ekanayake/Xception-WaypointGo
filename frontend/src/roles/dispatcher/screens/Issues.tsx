@@ -27,15 +27,21 @@ export default function Issues({
   scopeLabel,
   userId,
   online,
+  focusIssueId = null,
 }: {
   depots: string[];
   scopeLabel: string;
   userId: string;
   online: boolean;
+  /** An issue another screen opened, such as Live's "Book make-up". */
+  focusIssueId?: string | null;
 }): React.JSX.Element {
   const issues = useIssues(depots);
   const [filter, setFilter] = useState<IssueFilter>("all");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(focusIssueId);
+  useEffect(() => {
+    if (focusIssueId) setSelectedId(focusIssueId);
+  }, [focusIssueId]);
   const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {

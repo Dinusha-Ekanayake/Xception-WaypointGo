@@ -53,17 +53,16 @@ test("live lists vehicles most urgent first and what needs the dispatcher", asyn
   });
   await page.goto("/#/live");
 
-  const road = page.getByRole("region", { name: "Vehicles on the road" });
-  await expect(road.getByRole("button").first()).toContainText("VEH044");
-  await expect(road.getByRole("button").first()).toContainText("1 not delivered");
-  await expect(road.getByRole("img", { name: "1 of 2 stops done" })).toBeVisible();
+  const board = page.getByRole("region", { name: "Trip board" });
+  await expect(board.getByRole("button").first()).toContainText("VEH044");
+  await expect(board.getByRole("button", { name: "VEH044, Returning, 2 of 2 stops done" })).toBeVisible();
 
   const needs = page.getByRole("region", { name: "Needs you" });
-  await expect(needs.getByRole("listitem").nth(0)).toContainText("Not delivered");
-  await expect(needs.getByRole("listitem").nth(1)).toContainText("Proof owed");
-  await expect(page.getByRole("region", { name: "At the dock" })).toContainText("VEH045");
-  await expect(page.getByRole("region", { name: "At the dock" })).toContainText("Loading");
+  await expect(needs.getByRole("listitem").nth(0)).toContainText("OUT053 · not delivered");
+  await expect(needs.getByRole("listitem").nth(1)).toContainText("proof of delivery owed");
+  await expect(page.getByText("1 at the dock")).toBeVisible();
 
-  await needs.getByRole("button").first().click();
-  await expect(road.getByRole("listitem").filter({ hasText: "OUT053" })).toContainText("Not delivered");
+  await needs.getByRole("listitem").nth(0).getByRole("button", { name: "Open trip" }).click();
+  await expect(page.getByRole("heading", { name: "VEH044" })).toBeVisible();
+  await expect(page.getByRole("row", { name: /OUT053/ })).toContainText("Not delivered");
 });

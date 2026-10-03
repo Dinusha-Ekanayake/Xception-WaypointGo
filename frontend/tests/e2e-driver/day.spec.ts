@@ -1,17 +1,18 @@
 import { expect, test } from "@playwright/test";
-import { serve, sign, stop } from "./mocks.ts";
+import { openForm, serve, sign, startTrip, stop } from "./mocks.ts";
 
 test("a stop worked with no signal survives a reload and is sent once, in order, when the signal returns", async ({ page, context }) => {
   const server = await serve(page);
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Start run" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Start trip" })).toBeVisible();
   // The shell must be on the phone before the signal goes, or a reload has nothing to show.
   await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
 
   await server.goOffline(context);
-  await page.getByRole("button", { name: "Start run" }).click();
+  await startTrip(page);
   await expect(page.getByRole("heading", { name: "OUT0101" })).toBeVisible();
   await page.getByRole("button", { name: "I've arrived" }).click();
+  await openForm(page);
   await expect(page.getByText("Stop 01 of 02 · Delivery report")).toBeVisible();
 
   await page.getByLabel("Received by").fill("Kumari Silva");
@@ -26,18 +27,21 @@ test("a stop worked with no signal survives a reload and is sent once, in order,
   // The phone restarts with still no signal: the day, and the work, are on it.
   await page.reload();
   await expect(page.getByText("Showing the run saved on this phone")).toBeVisible();
-  const first = page.getByRole("button", { name: /OUT0101/ });
-  await expect(first).toContainText("Delivered · on phone");
-  await expect(page.getByRole("status").filter({ hasText: /^Offline$/ })).toBeVisible();
   await expect(page.getByRole("button", { name: "4 saved on this device" })).toBeVisible();
+  await startTrip(page);
+  const first = page.getByRole("button", { name: /^Stop 01 OUT0101/ });
+  await expect(first).toHaveAccessibleName("Stop 01 OUT0101 · Delivered · on phone");
+  await expect(page.getByText("Offline", { exact: true })).toBeVisible();
 
   await server.goOnline(context);
-  await expect.poll(() => server.commands.length).toBe(4);
-  expect(server.commands.map((c) => [c.kind, c.expectedVersion])).toEqual([
-    ["delivery:Start", 1],
-    ["delivery:RecordArrival", 2],
-    ["delivery:Record", 3],
-    ["delivery:CaptureProof", 4],
+  // Continuing the trip after the reload heads for stop 02, queued behind stop 01's work.
+  await expect.poll(() => server.commands.length).toBe(5);
+  expect(server.commands.map((c) => [c.kind, c.expectedVersion, c.payload.deliveryId])).toEqual([
+    ["delivery:Start", 1, server.stops[0]!.deliveryId],
+    ["delivery:RecordArrival", 2, server.stops[0]!.deliveryId],
+    ["delivery:Record", 3, server.stops[0]!.deliveryId],
+    ["delivery:CaptureProof", 4, server.stops[0]!.deliveryId],
+    ["delivery:Start", 1, server.stops[1]!.deliveryId],
   ]);
   expect(server.commands[2]!.payload).toMatchObject({ outcome: "DELIVERED", deliveredUnits: 12 });
   const proof = server.commands[3]!.payload;
@@ -49,18 +53,18 @@ test("a stop worked with no signal survives a reload and is sent once, in order,
   expect(server.uploads[0]!.contentType).toBe("image/png");
   expect(server.uploads[0]!.bytes).toBeGreaterThan(100);
 
-  await expect(first).toContainText("Delivered");
-  await expect(first).not.toContainText("on phone");
-  await expect(page.getByRole("status").filter({ hasText: /^Synced/ })).toBeVisible();
+  await expect(first).toHaveAccessibleName("Stop 01 OUT0101 · Delivered");
+  await expect(page.getByText(/^Synced \d\d:\d\d$/)).toBeVisible();
   // Sent once: a second pass finds nothing to send.
-  expect(server.commands).toHaveLength(4);
+  expect(server.commands).toHaveLength(5);
 });
 
 test("with a signal, a delivery is sent at once and the run completes", async ({ page }) => {
   const server = await serve(page, [stop(1, "OUT0101")]);
   await page.goto("/");
-  await page.getByRole("button", { name: "Start run" }).click();
+  await startTrip(page);
   await page.getByRole("button", { name: "I've arrived" }).click();
+  await openForm(page);
   await page.getByRole("button", { name: "One unit fewer delivered" }).click();
   await page.getByLabel("Why were some units not delivered?").fill("One crate crushed in transit");
   await page.getByLabel("What happened to the goods not delivered?").fill("Kept on the vehicle");
@@ -83,7 +87,8 @@ test("with a signal, a delivery is sent at once and the run completes", async ({
 test("a delivery cannot be confirmed without proof or a reason for its absence", async ({ page }) => {
   const server = await serve(page, [stop(1, "OUT0101", { outcome: "ARRIVED", arrivedAt: new Date().toISOString(), startedAt: new Date().toISOString(), waitMinutes: 0, lateMinutes: 0, rowVersion: 3 })]);
   await page.goto("/");
-  await page.getByRole("button", { name: /OUT0101/ }).click();
+  await startTrip(page);
+  await openForm(page);
   await page.getByRole("button", { name: "Confirm" }).click();
   await expect(page.getByText("Add a signature or a photo, or say why neither could be captured.")).toBeVisible();
   expect(server.commands).toHaveLength(0);

@@ -1,11 +1,11 @@
 import { expect, test } from "@playwright/test";
-import { serve, sign, stop } from "./mocks.ts";
+import { openForm, serve, sign, startTrip, stop } from "./mocks.ts";
 
 test("no one at the store: the stop is recorded as not delivered, with what happened to the goods", async ({ page }) => {
   const server = await serve(page);
   await page.goto("/");
-  await page.getByRole("button", { name: "Start run" }).click();
-  await page.getByRole("button", { name: "Report problem" }).click();
+  await startTrip(page);
+  await page.getByRole("button", { name: "Report problem" }).first().click();
 
   const sheet = page.getByRole("dialog", { name: "Report a problem" });
   await sheet.getByRole("radio", { name: /No one at the outlet/ }).click();
@@ -35,8 +35,8 @@ test("no one at the store: the stop is recorded as not delivered, with what happ
 test("a road report reaches dispatch with the stop it is about", async ({ page }) => {
   const server = await serve(page);
   await page.goto("/");
-  await page.getByRole("button", { name: "Start run" }).click();
-  await page.getByRole("button", { name: "Report problem" }).click();
+  await startTrip(page);
+  await page.getByRole("button", { name: "Report problem" }).first().click();
   const sheet = page.getByRole("dialog", { name: "Report a problem" });
   await sheet.getByRole("radio", { name: /Road closed or blocked/ }).click();
   await expect(sheet.getByRole("button", { name: "Send to dispatch" })).toBeDisabled();
@@ -54,7 +54,7 @@ test("a road report reaches dispatch with the stop it is about", async ({ page }
 test("a write the server refuses on a rule is shown and is not kept for later", async ({ page }) => {
   const server = await serve(page);
   await page.goto("/");
-  await page.getByRole("button", { name: "Start run" }).click();
+  await startTrip(page);
   await expect(page.getByRole("heading", { name: "OUT0101" })).toBeVisible();
   server.refuse = "delivery:RecordArrival";
   await page.getByRole("button", { name: "I've arrived" }).click();
@@ -67,8 +67,9 @@ test("a proof file the server refuses stays on the phone until the driver remove
   const server = await serve(page, [stop(1, "OUT0101")]);
   server.refuseUploads = true;
   await page.goto("/");
-  await page.getByRole("button", { name: "Start run" }).click();
+  await startTrip(page);
   await page.getByRole("button", { name: "I've arrived" }).click();
+  await openForm(page);
   await sign(page);
   await expect(page.getByText("Signed", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Confirm" }).click();

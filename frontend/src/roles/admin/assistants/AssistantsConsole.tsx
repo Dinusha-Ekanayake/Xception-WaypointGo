@@ -35,26 +35,23 @@ export default function AssistantsConsole(): React.JSX.Element {
   };
 
   return (
-    <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-8 text-[#14231e] sm:px-6">
-      <header>
-        <h1 className="text-2xl font-semibold">AI assistants</h1>
-        <p className="mt-1 text-sm text-[#58685f]">
+    <div className="flex flex-col gap-6 text-go-ink">
+      <p className="text-sm text-go-secondary">
           Assistant apps people have connected to Waypoint. Each one only ever acts as the person who connected it, within their own
           permissions, and every change it proposes waits for that person to confirm. Blocking an app disconnects everyone using it.
-        </p>
-      </header>
-      {message && <p role="status" className="rounded-xl bg-[#edf8f5] px-4 py-3 text-sm">{message}</p>}
+      </p>
+      {message && <p role="status" className="rounded-xl bg-go-subtle px-4 py-3 text-sm">{message}</p>}
 
       <section aria-label="Assistant apps" className={card}>
-        <h2 className="border-b border-[#edf1ed] px-5 py-4 text-lg font-semibold">Apps</h2>
-        {clients.error ? <p className="px-5 py-4 text-sm text-[#a82a1d]">The apps could not be loaded: {refusal(clients.error)}</p>
-          : !clients.data ? <p className="px-5 py-4 text-sm text-[#58685f]">Loading...</p>
+        <h2 className="border-b border-go-rule px-5 py-4 text-lg font-semibold">Apps</h2>
+        {clients.error ? <p className="px-5 py-4 text-sm text-go-danger">The apps could not be loaded: {refusal(clients.error)}</p>
+          : !clients.data ? <p className="px-5 py-4 text-sm text-go-secondary">Loading...</p>
           : clients.data.length === 0 ? <div className="p-5"><Empty>No assistant app has been connected yet.</Empty></div>
           : clients.data.map((client) => (
-            <div key={client.clientId} className="flex flex-wrap items-center gap-3 border-b border-[#edf1ed] px-5 py-4 last:border-0">
+            <div key={client.clientId} className="flex flex-wrap items-center gap-3 border-b border-go-rule px-5 py-4 last:border-0">
               <div className="min-w-48 flex-1">
                 <p className="font-semibold">{client.clientName}</p>
-                <p className="text-sm text-[#58685f]">
+                <p className="text-sm text-go-secondary">
                   {client.activeConnections} connected · last used {when(client.lastUsedAt)}
                   {client.blockReason && ` · blocked: ${client.blockReason}`}
                 </p>
@@ -70,7 +67,7 @@ export default function AssistantsConsole(): React.JSX.Element {
       <Usage usage={usage.data} error={usage.error} clients={clients.data ?? []} />
 
       {blocking && <BlockDialog client={blocking} onClose={() => setBlocking(null)} onDone={(text) => { setBlocking(null); setMessage(text); refresh(); }} />}
-    </main>
+    </div>
   );
 }
 
@@ -78,21 +75,21 @@ function Usage({ usage, error, clients }: { usage: McpUsageView[] | null; error:
   const name = (clientId: string | null) => clientId === null ? "On a computer" : clients.find((c) => c.clientId === clientId)?.clientName ?? "Removed app";
   return (
     <section aria-label="Last 24 hours" className={card}>
-      <h2 className="border-b border-[#edf1ed] px-5 py-4 text-lg font-semibold">Last 24 hours</h2>
-      {error ? <p className="px-5 py-4 text-sm text-[#a82a1d]">Usage could not be loaded: {refusal(error)}</p>
-        : !usage ? <p className="px-5 py-4 text-sm text-[#58685f]">Loading...</p>
+      <h2 className="border-b border-go-rule px-5 py-4 text-lg font-semibold">Last 24 hours</h2>
+      {error ? <p className="px-5 py-4 text-sm text-go-danger">Usage could not be loaded: {refusal(error)}</p>
+        : !usage ? <p className="px-5 py-4 text-sm text-go-secondary">Loading...</p>
         : usage.length === 0 ? <div className="p-5"><Empty>No assistant used Waypoint in the last 24 hours.</Empty></div>
         : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-left text-sm">
-              <thead className="text-[#58685f]"><tr>
+              <thead className="text-go-secondary"><tr>
                 <th className="px-5 py-3 font-medium">What</th><th className="px-3 py-3 font-medium">App</th>
                 <th className="px-3 py-3 font-medium">Calls</th><th className="px-3 py-3 font-medium">Refused</th>
                 <th className="px-3 py-3 font-medium">Failed</th><th className="px-3 py-3 font-medium">Slowest 5%</th><th className="px-5 py-3" />
               </tr></thead>
               <tbody>
                 {usage.map((row) => (
-                  <tr key={`${row.tool}:${row.clientId ?? "local"}`} className="border-t border-[#edf1ed]">
+                  <tr key={`${row.tool}:${row.clientId ?? "local"}`} className="border-t border-go-rule">
                     <td className="px-5 py-3">{codeLabel(TOOL_LABELS, row.tool)}</td>
                     <td className="px-3 py-3">{name(row.clientId)}</td>
                     <td className="px-3 py-3">{row.calls}</td>
@@ -106,7 +103,7 @@ function Usage({ usage, error, clients }: { usage: McpUsageView[] | null; error:
             </table>
           </div>
         )}
-      <p className="px-5 py-3 text-xs text-[#58685f]">Needs attention: ten or more refused calls. The app may be set up wrongly, or trying records its person cannot see.</p>
+      <p className="px-5 py-3 text-xs text-go-secondary">Needs attention: ten or more refused calls. The app may be set up wrongly, or trying records its person cannot see.</p>
     </section>
   );
 }
@@ -133,7 +130,7 @@ function BlockDialog({ client, onClose, onDone }: { client: McpClientView; onClo
       <label className="mt-4 block text-sm font-medium">Reason (recorded with your name)
         <textarea className={`${field} mt-1 min-h-24`} maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} />
       </label>
-      {error && <p role="alert" className="mt-3 text-sm text-[#a82a1d]">{error}</p>}
+      {error && <p role="alert" className="mt-3 text-sm text-go-danger">{error}</p>}
       <div className="mt-5 flex justify-end gap-2">
         <button className={secondary} onClick={onClose} disabled={busy}>Cancel</button>
         <button className={primary} onClick={() => void submit()} disabled={busy || reason.trim().length === 0}>{busy ? "Blocking..." : "Block app"}</button>
