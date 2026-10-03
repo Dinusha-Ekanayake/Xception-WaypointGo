@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-10-03 - fix: VPS edge loads again and caches map tiles
+
+`fix/vps-map-tile-cache` · @kavindamihiran
+
+The VPS nginx on `dev` failed `nginx -t`: the notifications stream location set `proxy_read_timeout` twice through `proxy.conf`, so the next production deploy would have lost its edge. `proxy.conf` now leaves the 60 s default. `/map-tiles/` gets a shared 7 day cache on the edge (the earlier cache was only in `nginx/templates`, which the VPS does not use). `MAP_TILE_URL` is set in both server `.env` files.
+Why: #161 base map showed "unavailable" on preview.
+
+---
+
 ## 2026-10-03 - feat: live map for dispatcher, store manager and driver
 
 `feat/161-live-map-tracking` · @kavindamihiran
