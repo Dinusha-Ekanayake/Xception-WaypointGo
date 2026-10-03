@@ -83,25 +83,29 @@ export default function LiveTimeline({ days, depotOf, date, now }: { days: Vehic
   const all = days.flatMap((day) => day.stops.map(stopMinute));
   const first = all.length ? Math.min(...all, nowMinute) : 8 * 60;
   const last = all.length ? Math.max(...all, nowMinute) : 18 * 60;
-  const start = Math.floor((first - 45) / 60) * 60;
-  const end = Math.ceil((last + 30) / 60) * 60;
+  // Fewer labels on a long day, so they never run into each other on a narrow screen.
+  const rough = Math.ceil((last + 30) / 60) * 60 - Math.floor((first - 45) / 60) * 60;
+  const step = rough <= 8 * 60 ? 60 : rough <= 14 * 60 ? 120 : 180;
+  const start = Math.floor((first - 45) / step) * step;
+  const end = Math.ceil((last + 30) / step) * step;
   const span = Math.max(end - start, 60);
   const at = (minute: number): string => `${Math.min(100, Math.max(0, ((minute - start) / span) * 100))}%`;
-  const hours = Array.from({ length: Math.floor(span / 60) + 1 }, (_, i) => start + i * 60);
+  const hours = Array.from({ length: Math.floor(span / step) + 1 }, (_, i) => start + i * step);
+  const edge = (minute: number): string => (minute - start < span * 0.04 ? "translate-x-0" : end - minute < span * 0.04 ? "-translate-x-full" : "-translate-x-1/2");
   const showNow = nowMinute >= start && nowMinute <= end;
 
   return (
-    <section aria-label="Timeline" className="flex min-w-0 flex-1 flex-col gap-3 rounded-[24px] bg-white p-4 shadow-go-card">
+    <section aria-label="Timeline" className="[--lab:180px] xl:[--lab:210px] flex min-w-0 flex-1 flex-col gap-3 rounded-[24px] bg-white p-4 shadow-go-card">
       <div className="flex">
-        <span className="w-[210px] shrink-0 px-1 text-xs text-go-secondary">Run</span>
+        <span className="w-[var(--lab)] shrink-0 px-1 text-xs text-go-secondary">Run</span>
         <div className="relative h-5 flex-1">
-          {hours.map((h) => (
-            <span key={h} className="absolute -translate-x-1/2 text-xs tabular-nums text-go-secondary" style={{ left: at(h) }}>
+          {hours.filter((h) => !showNow || Math.abs(h - nowMinute) > step / 3).map((h) => (
+            <span key={h} className={`absolute whitespace-nowrap text-xs tabular-nums text-go-secondary ${edge(h)}`} style={{ left: at(h) }}>
               {clockLabel(h)}
             </span>
           ))}
           {showNow && (
-            <span className="absolute -top-0.5 -translate-x-1/2 rounded-md bg-go-ink px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-white" style={{ left: at(nowMinute) }}>
+            <span className={`absolute -top-0.5 z-10 whitespace-nowrap ${edge(nowMinute)} rounded-md bg-go-ink px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-white`} style={{ left: at(nowMinute) }}>
               Now {clockLabel(nowMinute)}
             </span>
           )}
@@ -110,9 +114,9 @@ export default function LiveTimeline({ days, depotOf, date, now }: { days: Vehic
 
       <div className="relative">
         {hours.map((h) => (
-          <span key={h} aria-hidden className="absolute bottom-0 top-0 w-px bg-go-rule" style={{ left: `calc(210px + (100% - 210px) * ${((h - start) / span).toFixed(4)})` }} />
+          <span key={h} aria-hidden className="absolute bottom-0 top-0 w-px bg-go-rule" style={{ left: `calc(var(--lab) + (100% - var(--lab)) * ${((h - start) / span).toFixed(4)})` }} />
         ))}
-        {showNow && <span aria-hidden className="absolute bottom-0 top-0 z-10 w-px bg-go-ink" style={{ left: `calc(210px + (100% - 210px) * ${((nowMinute - start) / span).toFixed(4)})` }} />}
+        {showNow && <span aria-hidden className="absolute bottom-0 top-0 z-10 w-px bg-go-ink" style={{ left: `calc(var(--lab) + (100% - var(--lab)) * ${((nowMinute - start) / span).toFixed(4)})` }} />}
         {days.length === 0 && <p className="py-8 text-center text-[13px] text-go-secondary">No vehicle has left the dock. A vehicle appears here when the loader releases it.</p>}
         {days.map((day) => {
           const status = STATUS[mapStatus(date, day, null, now)];
@@ -121,7 +125,7 @@ export default function LiveTimeline({ days, depotOf, date, now }: { days: Vehic
           const sorted = [...day.stops].sort((a, b) => a.sequence - b.sequence);
           return (
             <div key={day.vehicleId} className="relative flex min-h-[64px] items-center border-t border-go-rule py-3">
-              <div className="flex w-[210px] shrink-0 flex-col gap-0.5 px-1 text-[12px] text-go-secondary">
+              <div className="flex w-[var(--lab)] shrink-0 flex-col gap-0.5 px-1 text-[12px] text-go-secondary">
                 <span className="flex items-center gap-2">
                   <span className="text-[13px] font-medium text-go-ink">{day.vehicleId}</span>
                   <Pill tone={status.tone}>{status.label}</Pill>
