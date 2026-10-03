@@ -1,4 +1,10 @@
 {
+  "src/app-shell/ErrorBoundary.tsx": {
+    "em or en dash": 1
+  },
+  "src/app-shell/NotFound.tsx": {
+    "em or en dash": 1
+  },
   "src/roles/admin/access/AccessDemo.tsx": {
     "retired: route for a trip (say trip)": 2
   },
@@ -17,8 +23,33 @@
   "src/roles/dispatcher/data/plan.ts": {
     "retired: reefer (say refrigerated)": 1
   },
+  "src/roles/driver/screens/DeliveryReportWaiting.tsx": {
+    "retired: ETA (say expected arrival)": 1
+  },
+  "src/roles/driver/screens/GetVehicleCameraAccess.tsx": {
+    "retired: drop or shop": 4
+  },
+  "src/roles/driver/screens/HomeNoVehicle.tsx": {
+    "retired: route for a trip (say trip)": 1
+  },
   "src/roles/driver/screens/Route.tsx": {
     "raw code on screen": 2
+  },
+  "src/roles/driver/screens/RouteChangedBottomSheet.tsx": {
+    "retired: route for a trip (say trip)": 3
+  },
+  "src/roles/driver/screens/routeData.ts": {
+    "retired: cases or packages (say units)": 22
+  },
+  "src/roles/driver/screens/RouteMapScreen.tsx": {
+    "retired: drop or shop": 2,
+    "retired: route for a trip (say trip)": 1
+  },
+  "src/roles/driver/screens/RouteNextStop.tsx": {
+    "retired: ETA (say expected arrival)": 1
+  },
+  "src/roles/driver/ui.tsx": {
+    "retired: route for a trip (say trip)": 1
   },
   "src/roles/loader/data/strings.ts": {
     "retired: route for a trip (say trip)": 1,
@@ -84,5 +115,8 @@
   },
   "src/shared/ui/primitives.tsx": {
     "retired: drop or shop": 1
+  },
+  "src/shared/ui/StructuredError.tsx": {
+    "em or en dash": 7
   }
 }

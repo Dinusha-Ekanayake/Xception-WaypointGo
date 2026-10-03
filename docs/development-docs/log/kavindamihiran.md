@@ -3,6 +3,50 @@
 @kavindamihiran's entries, newest first. Only @kavindamihiran adds to this file; how to write an entry is in the [log's index](../development-log.md).
 
 ---
+## 2026-10-03 - feat: add listen-to-message play button to all driver notification cards
+
+`feat/driver-UI` · @kavindamihiran
+
+Enhanced `VoiceMessagePlayer` in `frontend/src/roles/driver/ui.tsx` with optional `id`, `text`, `activeAudioId`, `onPlayChange`, and `className` props. Added Web Speech API (`window.speechSynthesis`) support so pressing the play button reads the message aloud, with waveform animation, auto-reset on speech end, and mutual exclusion across all cards. Added `VoiceMessagePlayer` to all 8 notification cards in `HomeNoVehicle.tsx` (including the two existing voice message cards) and to the `RouteChangedBottomSheet` message card. Active-playing card gets a subtle green ring highlight. Speech is cancelled on unmount, on sheet close, and on Start/Get-vehicle actions.
+Why: drivers need to listen to notifications rather than read while operating the vehicle.
+Verified: `npm run typecheck`, `npm test` (10 passed).
+Open: nothing.
+
+## 2026-10-03 - fix: align driving mode theme toggle position with home page header
+
+`feat/driver-UI` · @kavindamihiran
+
+Adjusted the header padding (`px-6 pt-5 pb-3`), right-controls gap, and theme toggle button dimensions (`43px x 43px`) in `DrivingModeScreen` to match the exact position and styling of the dark/light toggle in the home page header.
+Why: prevent visual jump or misalignment of the theme toggle button when transitioning between the home screen and driving mode.
+Verified: `npm run typecheck`, `npm test` (10 passed).
+Open: none.
+
+## 2026-10-03 - feat: swap notification and theme toggle positions in driving mode
+
+`feat/driver-UI` · @kavindamihiran
+
+Interchanged positions of notification bell button and dark/light theme toggle in `DrivingModeScreen` header so the bell button is on the left and theme toggle is on the far right.
+Why: align driver header layout preferences and maintain consistency with other screens where theme toggle is on the far right.
+Verified: `npm run typecheck`, `npm test` (10 passed).
+Open: none.
+
+## 2026-10-03 - feat: driving mode 0.5s fade transitions and slider-only exit
+
+`feat/driver-UI` · @kavindamihiran
+
+Added 0.5s fade-in and 0.5s fade-out animations for Driving Mode with enter/exit opacity orchestration. Configured the spacebar to open Driving Mode only without closing it, removed the Escape key handler, and ensured exit can only be performed via the `Slide to exit` slider.
+Why: meet driver UX requirement where driving mode opens on spacebar and dismisses exclusively via the slider with 0.5s fade animations.
+Verified: `npm run typecheck`, `npm test` (10 passed).
+Open: none.
+
+## 2026-10-03 - fix: synchronize driver header blur removal with popup dismissal
+
+`feat/driver-UI` · @kavindamihiran
+
+Synchronized header unblurring with popup and bottom sheet dismissals by excluding animating out modals from `body:has()` selector and aligning the transition curve to `300ms ease-out`. Updated `RouteChangedBottomSheet`, `SignOutConfirmBottomSheet`, `ReportProblemBottomSheet`, and `CallOptionsBottomSheet` to clear active modal state on exit trigger.
+Why: prevent the header elements from delaying 300ms before starting their unblur transition after closing message popups.
+Verified: `npm run typecheck`, `npm test` (10 passed).
+Open: none.
 
 ## 2026-10-03 - feat: dispatcher live shows the map and the timeline together
 

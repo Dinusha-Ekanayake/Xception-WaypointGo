@@ -16,8 +16,9 @@ import { test } from "node:test";
 //
 // rewrites the baseline from the current tree. Lower it freely; raising it needs
 // a reason in the pull request.
+import { fileURLToPath } from "node:url";
 
-const ROOT = new URL("..", import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const BASELINE = join(ROOT, "tests", "wording-baseline.json");
 const SCANNED = ["src/roles", "src/shared/ui", "src/app-shell"];
 
@@ -80,7 +81,7 @@ function scanTree(): Record<string, Record<string, number>> {
   for (const dir of SCANNED) {
     for (const path of files(join(ROOT, dir))) {
       const counts = countRules(readFileSync(path, "utf8"));
-      if (Object.keys(counts).length > 0) result[relative(ROOT, path)] = counts;
+      if (Object.keys(counts).length > 0) result[relative(ROOT, path).replaceAll("\\", "/")] = counts;
     }
   }
   return Object.fromEntries(Object.entries(result).sort(([a], [b]) => a.localeCompare(b)));
