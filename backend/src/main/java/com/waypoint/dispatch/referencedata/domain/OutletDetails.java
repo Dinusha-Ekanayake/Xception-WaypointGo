@@ -38,7 +38,7 @@ public record OutletDetails(
         dockType.orElse(published.dockType()),
         published.parkingConstraint(),
         window.orElse(published.window()),
-        published.mallWindow());
+        published.mallWindow(), published.location());
   }
 
   /**

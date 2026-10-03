@@ -230,6 +230,9 @@ Most of the cases below are instances of nine patterns. Learn the patterns and t
 | REF-01 | A store tries to leave its mall bay, or sets a window outside the mall's hours | Refused (`422`, R-REF-01, R-PLN-29): the outlet stays servable | Reference domain (`OutletDetails`) | n/a | Unit (`OutletDetailsTest`), integration (`StoreSelfServiceIntegrationTest` `aMallBayStaysAndTheWindowMustStillOverlapTheMalls`) |
 | REF-02 | A store changes its window after today's plan is published | The next plan uses the new window; the published plan does not change. The run sheet and lateness read it at once, as the store's own declaration | Reference snapshot | `waypoint_reference_outlet_details_changed_total{window,dock}` | Integration (`StoreSelfServiceIntegrationTest` `aManagerChangesTheirStoresWindowDockAndContactsAndPlanningSeesIt`) |
 | REF-03 | Two people save a store's details from stale screens | The second is refused (`409`), never merged | Reference handler (version guard) | Conflict rate | Integration (`StoreSelfServiceIntegrationTest` `aStaleVersionIsRefusedAndBlanksGoBackToThePublishedOutlet`) |
+| REF-04 | Geo file missing, malformed, incomplete, duplicated, unsourced or containing unknown keys, bad precision or coordinates | Reject before publication, preserve current reference version (R-REF-02) | Reference geo staging | `waypoint_reference_import_rejected_total` | Unit (`GeoImportTest`, `GeoReferenceTest`), integration (`FoundationIntegrationTest.referenceImportPublishesAndReImportIsANoOp`) |
+| REF-05 | An outlet has no supplied exact point | Publish the district centroid with district precision; all outlets in that district share the point (R-REF-02) | Reference geo domain | Imported precision | Unit (`GeoReferenceTest.fallbackIsTheSamePointForEveryOutletInADistrict`, `GeoImportTest.importedOutletsShareTheDistrictCentroidWithoutInventedExactPoints`) |
+| REF-06 | A store changes its own window or dock after geo import | Preserve the imported location and precision | Reference domain | n/a | Unit (`GeoReferenceTest.storeDetailsNeverDiscardThePublishedPoint`) |
 
 ## 9. Identity, access and security
 
@@ -332,3 +335,13 @@ Two rules keep this honest:
 
 1. **A case without a test is a case that is not handled.** The register and the suite are reviewed together.
 2. **Every detection column must exist as a real metric or alert.** An edge case handled in code but invisible in production is one you will learn about from a user.
+
+
+### Live location foundation (#161, command and UI integration pending)
+
+| Case | Situation | Behavior | Owner | Detection | Test |
+| --- | --- | --- | --- | --- | --- |
+| EXE-LOC-01 | Out-of-bounds, malformed sensor data, future clock or unordered/oversized batch | R-EXE-18 rejects with no personal values in the error | PositionPolicy | Planned position-rejected metric, not wired yet | `PositionPolicyTest` |
+| EXE-LOC-02 | Late offline trail, repeated observation or stationary heartbeat | Accept old points, deduplicate exact repeated observations, keep later stationary heartbeats | PositionPolicy | Planned batch lag metric, not wired yet | `PositionPolicyTest.acceptsOldOfflinePointsAndTheInclusiveSriLankaBounds`, `exactDuplicateFixIsDroppedButStationaryHeartbeatsAndQualityChangesSurvive` |
+| EXE-LOC-03 | Recent poor fix after an old good fix | Poor accuracy cannot refresh last-seen; only active trips become offline | PositionPolicy | Planned offline metric, not wired yet | `PositionPolicyTest.lowAccuracyNeverAdvancesLastSeenAndOfflineNeedsAnActiveTrip` |
+| SEC-LOC-01 | A command audit snapshot contains GPS points | Redact whole points arrays and nested latitude/longitude fields | AuditRedactor | n/a | `AuditRedactorTest.locationTrailsAndNestedCoordinatesNeverReachAuditSnapshots` |

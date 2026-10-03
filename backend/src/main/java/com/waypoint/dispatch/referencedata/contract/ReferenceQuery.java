@@ -24,6 +24,11 @@ public interface ReferenceQuery {
   /** The version a plan should stamp when it is built. */
   Optional<UUID> currentVersionId();
 
+  /** A depot in the requested snapshot; historical snapshots may have no location. */
+  Optional<ReferenceViews.DepotView> depot(String code, UUID versionId);
+
+  Optional<ReferenceViews.DistrictView> district(String name, UUID versionId);
+
   Optional<OutletView> outlet(String outletId, UUID versionId);
 
   Optional<VehicleView> vehicle(String vehicleId, UUID versionId);

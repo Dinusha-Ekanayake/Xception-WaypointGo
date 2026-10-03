@@ -37,6 +37,14 @@ Each module has the same five internal layers. The spec lists what belongs in ea
 
 **Owns:** `ref.brands`, `ref.depots`, `ref.districts`, `ref.outlets`, `ref.vehicles`, `ref.vehicle_day_status`, `ref.calendar_days`, `ref.district_travel`, `ref.service_allowances`, `ref.traffic_speed`, `ref.road_conditions`, `ref.calendar_overrides`, `ref.outlet_details`.
 
+**Geographic reference (R-REF-02, #161).** `GeoCsvReader` parses the required `geo_points.csv`;
+`GeoReference` validates kind/code coverage, provenance and precision, and resolves district fallback
+before the snapshot is written. `GeoPoint` validates coordinates. `ReferenceVersionWriter` and
+`ReferenceVersionReader` preserve locations per version. `OutletView`, `DepotView` and `DistrictView`
+carry optional `GeoPoint`; internal `ReferenceQuery.depot` and `.district` lookups are versioned.
+Historical rows may have no location. Store detail overrides preserve it. Coordinates do not change
+allocation distances or capacity rules. See [the plan](../issues/161-live-map/PLAN.md).
+
 **A store's own details (R-REF-01).** A store manager changes their outlet's delivery window, dock type and contacts with `reference:UpdateOutletDetails` (`expectedVersion` is the details' `rowVersion`, 0 before the first save) and reads them at `GET /api/reference/outlets/{outletId}/details`. The window and dock are laid over the current version when a snapshot loads, as calendar overrides are, so the next plan, the run sheet and the loading manifest read them and an import cannot discard them; they are not versioned. A mall bay cannot be chosen or left, and a mall outlet's window must still overlap the mall's (R-PLN-29). Scope is the outlet or its depot, checked through `IdentityQuery` (R-IAM-28).
 
 `district_travel` is keyed by **district alone**: depot is a function of district in the supplied data, and the official validator indexes it that way.

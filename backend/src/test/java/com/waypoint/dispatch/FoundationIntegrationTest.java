@@ -77,7 +77,7 @@ class FoundationIntegrationTest {
 
   @Test
   @Order(2)
-  void referenceImportPublishesAndReImportIsANoOp() {
+  void referenceImportPublishesAndReImportIsANoOp(@org.junit.jupiter.api.io.TempDir Path temporary) throws Exception {
     clearAccounts();
     // A publish can only be asserted from a known starting point. Another test
     // class importing first would otherwise turn the first call into the no-op
@@ -91,6 +91,39 @@ class FoundationIntegrationTest {
     var second = referenceImport.importFrom(Path.of("../data"), null);
     assertFalse(second.published(), "identical content must not mint a new version");
     assertEquals(first.versionId(), second.versionId());
+
+    var point = reference.outlet("OUT001", first.versionId()).orElseThrow().location().orElseThrow();
+    assertEquals("district", point.precision());
+    var outlet = reference.outlet("OUT001", first.versionId()).orElseThrow();
+    var centroid = reference.district(outlet.districtName(), first.versionId()).orElseThrow().location().orElseThrow();
+    assertEquals(centroid.latitude(), point.latitude());
+    assertEquals(centroid.longitude(), point.longitude());
+    assertEquals("approximate", reference.depot("Kandy", first.versionId()).orElseThrow().location().orElseThrow().precision());
+
+    try (var files = java.nio.file.Files.list(Path.of("../data/General Data"))) {
+      for (Path file : files.filter(p -> p.toString().endsWith(".csv")).toList()) {
+        java.nio.file.Files.copy(file, temporary.resolve(file.getFileName()));
+      }
+    }
+    Path geo = temporary.resolve("geo_points.csv");
+    java.nio.file.Files.write(geo, java.nio.file.Files.readAllLines(geo).stream()
+        .filter(line -> !line.startsWith("district,Colombo,")).toList());
+    DomainException rejected = assertThrows(DomainException.class, () -> referenceImport.importFrom(temporary, null));
+    assertEquals(ErrorCode.VALIDATION_FAILED, rejected.code());
+    assertEquals(first.versionId(), reference.currentVersionId().orElseThrow());
+    assertEquals(point, reference.outlet("OUT001", first.versionId()).orElseThrow().location().orElseThrow());
+
+    java.nio.file.Files.copy(Path.of("../data/General Data/geo_points.csv"), geo,
+        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+    java.nio.file.Files.writeString(geo, "outlet,OUT001,6.900000,79.900000,exact,integration-fixture\n",
+        java.nio.file.StandardOpenOption.APPEND);
+    var exactVersion = referenceImport.importFrom(temporary, null);
+    assertTrue(exactVersion.published());
+    var exact = reference.outlet("OUT001", exactVersion.versionId()).orElseThrow().location().orElseThrow();
+    assertEquals("exact", exact.precision());
+    assertEquals(new java.math.BigDecimal("6.900000"), exact.latitude());
+    assertEquals(point, reference.outlet("OUT001", first.versionId()).orElseThrow().location().orElseThrow());
+    assertFalse(referenceImport.importFrom(temporary, null).published());
   }
 
   @Test

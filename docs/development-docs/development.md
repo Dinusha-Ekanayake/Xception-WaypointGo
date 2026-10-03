@@ -197,3 +197,16 @@ Then sign in as the administrator and walk the role flows from a fresh database.
 - No second development compose file with source bind mounts and hot reload. It is a second configuration to keep in sync and it is slow on macOS. If containerized development is ever needed, use Compose's `develop`/`watch` support rather than hand-rolled mounts.
 - No devcontainer and no Nix or mise toolchain pinning. Both are reasonable later; neither earns anything before the submission deadlines.
 - No Testcontainers-only setup. Testcontainers is the fallback when `TEST_DATABASE_URL` is unset, so a database that is already running is still used.
+
+
+### Live-map reference coordinates (#161)
+
+Run the explicit `migrate` then `import-reference` steps after pulling the geo migration.
+`data/General Data/geo_points.csv` is required for new imports, including custom data directories.
+Its header is `kind,code,latitude,longitude,precision,source`. Every depot and district needs one
+sourced row; optional outlet rows must carry real exact coordinates. Missing outlet rows resolve to
+the district centroid with district precision. Older published snapshots keep their absent locations.
+The file is hashed with the other reference data, so identical imports remain a no-op. Source links,
+licence attribution, boundary revision, checksum and centroid method are in `data/provenance.json`.
+The shipped depot points identify localities, not verified warehouse entrances. UI map work is still
+pending on #161; this import alone does not enable a map.

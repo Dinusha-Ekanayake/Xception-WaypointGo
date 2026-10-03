@@ -4,6 +4,28 @@
 
 ---
 
+## 2026-10-03 - feat: define GPS acceptance and audit privacy
+
+`feat/161-live-map` · @kavindamihiran
+
+Add pure position batch, quality and freshness rules (R-EXE-18/19), with stationary heartbeats kept and exact repeated observations deduplicated. Redact point arrays and nested coordinates from audit snapshots.
+Why: #161 needs testable acceptance and privacy before the position command; [plan](../../issues/161-live-map/PLAN.md).
+Verified: `mvn verify` on isolated PostgreSQL 16 (833 tests, no failures or skips), including policy, redactor and boundary tests.
+Open: no GPS command or read is wired yet. Retention must cover Sync payload copies, and delayed batches need service-date assignment checks.
+
+---
+
+## 2026-10-03 - feat: add the live map reference geography
+
+`feat/161-live-map` · @kavindamihiran
+
+Start #161 with sourced depot locality points and district centroids, strict geo CSV validation, a nullable migration, versioned coordinates and additive reference contracts. Missing outlet points use district precision; store detail overrides preserve the point. [Plan](../../issues/161-live-map/PLAN.md) and [checkpoint walkthrough](../../issues/161-live-map/WALKTHROUGH.md); product approved the 30-day GPS retention window.
+Why: the three role maps need honest location data before a renderer or GPS stream.
+Verified: `mvn verify` against isolated PostgreSQL 16 (826 tests, no skips), allocation validator, `npm test` (109), typecheck and production build. The first full run hit the existing random-date driver-assignment collision in `ReceiptHandoverIntegrationTest`; its isolated rerun and the second full run passed. No role UI changed.
+Open: position capture, SQL visibility and retention, tile proxy and the three role screens remain on #161. Depot points are approximate; exact outlet points still need supplied data.
+
+---
+
 ## 2026-10-03 - feat: a Connect AI button for every role
 
 `feat/mcp-connect-button` · @kavindamihiran
