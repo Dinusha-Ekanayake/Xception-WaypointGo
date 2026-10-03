@@ -3,6 +3,12 @@
 @kavindamihiran's entries, newest first. Only @kavindamihiran adds to this file; how to write an entry is in the [log's index](../development-log.md).
 
 ---
+## 2026-10-04 - fix: way back between role addresses
+
+`fix/role-address-flow` · @kavindamihiran
+
+The wrong-address screen was a bare warning with one link. It is now a full page (`app-shell/WrongAddress.tsx`) offering the account's own roles, another account on this address, and "All roles". Sign-in on a role address links back to the shared landing (`sharedHostFor` in `hostRole.ts`), and the landing links to the admin console.
+Verified: typecheck, hostRole, wording and boundary tests, build, shell browser suite 13 passed.
 ## 2026-10-04 - fix: driver Settings opens, map stop card
 
 `fix/driver-settings-map` · @kavindamihiran
