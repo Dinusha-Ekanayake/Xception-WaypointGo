@@ -1,11 +1,11 @@
 import { request } from "@shared/api/client";
 import type { Command } from "@shared/api/commands";
 import { ApiError } from "@shared/api/problem";
-import type { SubmitBatch, SyncAck } from "@shared/domain/sync";
+import type { OperationView, SubmitBatch, SyncAck } from "@shared/domain/sync";
 import { outcomeAction } from "./outcome.ts";
 import { discardCommand, inRecordedOrder, redoCommands } from "./review.ts";
 import type { RedoBasis } from "./resolvers.ts";
-import { all, put, remove, type StoredEntry } from "./store.ts";
+import { all, put, putSnapshot, remove, type StoredEntry } from "./store.ts";
 import { queuesWrites, type Role } from "./tiers.ts";
 
 // The write queue.
@@ -136,6 +136,24 @@ function deviceId(): string {
 /** The server takes at most this many per batch (SubmitBatchHandler.MAX_BATCH). */
 const BATCH = 100;
 
+/** Where the service worker finds this browser's device id (scripts/sw-drain.mjs). */
+const WORKER_DEVICE_KEY = "waypoint.deviceId";
+const devicesKept = new Set<string>();
+
+/**
+ * Keep the device id where the service worker can read it, once per account per
+ * page load, so a Background Sync with no page open sends under the same device.
+ */
+async function keepDeviceForWorker(accountId: string, id: string): Promise<void> {
+  if (devicesKept.has(accountId)) return;
+  try {
+    await putSnapshot(accountId, WORKER_DEVICE_KEY, id);
+    devicesKept.add(accountId);
+  } catch {
+    // Blocked storage: the worker waits for a page instead.
+  }
+}
+
 async function drainOnce(accountId: string): Promise<DrainReport> {
   await beforeDrain.get(accountId)?.();
   const entries = await all(accountId);
@@ -146,8 +164,10 @@ async function drainOnce(accountId: string): Promise<DrainReport> {
   let heldForReview = entries.length - entries.filter((e) => !e.needsReview).length;
   if (ready.length === 0) return { sent, heldForReview, remaining: entries.length };
 
+  const device = deviceId();
+  await keepDeviceForWorker(accountId, device);
   const batch: SubmitBatch = {
-    deviceId: deviceId(),
+    deviceId: device,
     // The recording time is the sequence: stable across retries, and in the
     // order the person did things.
     operations: ready.map((e, i) => ({ sequence: Date.parse(e.enqueuedAt) || i, command: e.payload as Command })),
@@ -211,8 +231,9 @@ export async function heldForReview(accountId: string): Promise<StoredEntry[]> {
  * version (sync:Discard); the drop is queued, so it works offline too.
  */
 export async function discard(accountId: string, commandId: string, reason: string): Promise<void> {
-  const entry = (await all(accountId)).find((e) => e.commandId === commandId);
-  if (!entry) return;
+  const stored = (await all(accountId)).find((e) => e.commandId === commandId);
+  if (!stored) return;
+  const entry = await withServerVersion(stored);
   const command = discardCommand(entry, reason, new Date());
   if (command) await keepCommand(accountId, command);
   await remove(accountId, commandId);
@@ -225,12 +246,35 @@ export async function discard(accountId: string, commandId: string, reason: stri
  * resend of the held write itself could never work: the server answers a
  * replayed id with the answer it gave the first time.
  */
-export async function redo(accountId: string, entry: StoredEntry, basis: RedoBasis): Promise<void> {
+export async function redo(accountId: string, stored: StoredEntry, basis: RedoBasis): Promise<void> {
+  const entry = await withServerVersion(stored, true);
   const { redo: again, resolve } = redoCommands(entry, basis.expectedVersion, basis.actingUserId, new Date());
   await keepCommand(accountId, again);
   if (resolve) await keepCommand(accountId, resolve);
   await remove(accountId, entry.commandId);
   queued();
+}
+
+/**
+ * A write held before sync answers carried the operation's version has none on
+ * the device. Ask the server for it (GET /api/sync/{id}, the owner's own rows
+ * only), so the discard or redo is recorded there too. With no connection the
+ * entry is used as it is: a discard then drops it here only, and a redo goes
+ * without the resolve. A redo of something the server holds as other than a
+ * conflict is refused, because it would be refused again.
+ */
+async function withServerVersion(entry: StoredEntry, forRedo = false): Promise<StoredEntry> {
+  if (entry.serverVersion !== undefined) return entry;
+  let view: OperationView;
+  try {
+    view = await request<OperationView>(`/api/sync/${encodeURIComponent(entry.commandId)}`);
+  } catch {
+    return entry;
+  }
+  if (forRedo && view.status !== "CONFLICT") {
+    throw new Error("Only a change held because the record moved on can be redone. Discard this one.");
+  }
+  return { ...entry, serverVersion: view.rowVersion, ...(view.problemCode ? { problemCode: view.problemCode } : {}) };
 }
 
 async function keepCommand(accountId: string, command: Command): Promise<void> {

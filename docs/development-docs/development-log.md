@@ -21,6 +21,20 @@ Entries before 2026-09-26 are in `git log`.
 
 ---
 
+## 2026-10-03 - fix(offline): Background Sync with no page open, older held writes, and Windows service worker builds
+
+`fix/sync-open-items` · @Dinusha-Ekanayake
+
+The two gaps #109 left, and a build bug it surfaced:
+- With no page open, the service worker drains each account's queue itself (`scripts/sw-drain.mjs`), under the device id the page now keeps in the snapshot store and by the page's rules. A loader queue still waits for a page, which replays its offline operator switches first (A-39).
+- A write held before answers carried a version looks it up (`GET /api/sync/{operationId}`, owner only) before a discard or redo, so the server settles it too.
+- `build-sw.mjs` wrote Windows paths (`/.next\static\...`) into the precache list, so on a Windows build every precache request 404'd and the worker never installed. That was the `e2e-driver/day.spec.ts` failure seen only on Windows.
+Why: the open items recorded when #28 closed.
+Verified: see the PR. `SyncIntegrationTest` reads one operation (owner only); `sw-drain.test.ts` and `background-sync.spec.ts` (the real worker draining IndexedDB); `held.spec.ts` discards an older held write after looking its version up; driver suite 10 of 10 on Windows.
+Open: a loader queue still waits for an open page.
+
+---
+
 ## 2026-10-03 - feat: a Connect AI button for every role
 
 `feat/mcp-connect-button` · @kavindamihiran

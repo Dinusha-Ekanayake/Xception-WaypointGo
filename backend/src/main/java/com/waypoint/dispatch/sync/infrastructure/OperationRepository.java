@@ -187,7 +187,8 @@ public class OperationRepository {
         // not read. A reviewer fetches it from there.
         Optional.empty(),
         instant(row.get("received_at")),
-        Optional.ofNullable(row.get("applied_at")).map(OperationRepository::instant));
+        Optional.ofNullable(row.get("applied_at")).map(OperationRepository::instant),
+        ((Number) row.get("row_version")).longValue());
   }
 
   private static Instant instant(Object value) {

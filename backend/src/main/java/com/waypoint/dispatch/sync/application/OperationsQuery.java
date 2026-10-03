@@ -61,13 +61,7 @@ public class OperationsQuery implements SyncQuery {
   public record Page(List<OperationView> operations, String nextCursor) {}
 
   public Page since(Actor actor, Cursor cursor) {
-    String denial =
-        authorizer.isPresent()
-            ? authorizer.get().denyReason(actor, SyncCommands.READ, null, null).orElse(null)
-            : "Authorization is not configured";
-    if (denial != null) {
-      throw new DomainException(ErrorCode.FORBIDDEN, denial);
-    }
+    authorize(actor);
     List<OperationView> rows =
         database.asModule(
             ModuleRole.SYNC,
@@ -79,6 +73,27 @@ public class OperationsQuery implements SyncQuery {
             : new Cursor(rows.get(rows.size() - 1).receivedAt(), rows.get(rows.size() - 1).operationId())
                 .toString();
     return new Page(rows, next);
+  }
+
+  /**
+   * One of the actor's own operations, with its version: what a device needs to discard or resolve
+   * a write it held before answers carried the version. Another account's reads as not found.
+   */
+  public OperationView one(Actor actor, UUID operationId) {
+    authorize(actor);
+    return database
+        .asModule(ModuleRole.SYNC, actor.userId(), () -> operations.find(operationId))
+        .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No such operation"));
+  }
+
+  private void authorize(Actor actor) {
+    String denial =
+        authorizer.isPresent()
+            ? authorizer.get().denyReason(actor, SyncCommands.READ, null, null).orElse(null)
+            : "Authorization is not configured";
+    if (denial != null) {
+      throw new DomainException(ErrorCode.FORBIDDEN, denial);
+    }
   }
 
   @Override

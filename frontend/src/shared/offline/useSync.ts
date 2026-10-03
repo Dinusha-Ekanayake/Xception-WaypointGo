@@ -97,7 +97,10 @@ export function useSync(accountId: string | null): SyncState {
       await discard(accountId, commandId, reason);
       await read();
     },
-    canRedo: (entry) => entry.problemCode === "VERSION_CONFLICT" && resolverFor(entry.kind) !== null,
+    // A write held before answers carried a problem code is offered too; the
+    // server is asked what it holds before anything is sent (queue.redo).
+    canRedo: (entry) =>
+      (entry.problemCode === undefined || entry.problemCode === "VERSION_CONFLICT") && resolverFor(entry.kind) !== null,
     redo: async (entry) => {
       if (!accountId) return;
       const resolver = resolverFor(entry.kind);
