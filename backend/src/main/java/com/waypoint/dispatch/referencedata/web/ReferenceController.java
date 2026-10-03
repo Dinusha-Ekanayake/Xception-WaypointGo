@@ -5,6 +5,7 @@ import com.waypoint.dispatch.platform.web.RequestValues;
 import com.waypoint.dispatch.referencedata.application.OutletDetailsQuery;
 import com.waypoint.dispatch.referencedata.application.ReferenceScope;
 import com.waypoint.dispatch.referencedata.contract.ReferenceQuery;
+import com.waypoint.dispatch.referencedata.contract.ReferenceViews;
 import com.waypoint.dispatch.referencedata.contract.ReferenceViews.CalendarDayView;
 import com.waypoint.dispatch.referencedata.contract.ReferenceViews.OutletView;
 import com.waypoint.dispatch.referencedata.contract.ReferenceViews.VehicleView;
@@ -83,6 +84,16 @@ public class ReferenceController {
         after,
         limit,
         OutletView::outletId);
+  }
+
+  /** A depot and its location, for the live map (issue #161). Depot scope applies. */
+  @GetMapping("/depots/{depotCode}")
+  public ReferenceViews.DepotView depot(@PathVariable String depotCode, HttpServletRequest request) {
+    String resource = "wpt:ref:depot:" + depotCode;
+    scope.requireDepot(authorizer.require(request, READ, resource), READ, resource, depotCode);
+    return reference
+        .depot(depotCode, null)
+        .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No depot " + depotCode));
   }
 
   @GetMapping("/outlets/{outletId}")

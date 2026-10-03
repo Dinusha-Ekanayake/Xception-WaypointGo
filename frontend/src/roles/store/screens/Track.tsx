@@ -8,14 +8,13 @@ import type { StoreGateway } from "../data/gateway.ts";
 import { ORDER_STATUS, cases, clock, depotToday, hhmm, longDay, onTheWay, temperatureLabel } from "../data/format.ts";
 import { ISSUE_TYPE, isOpenIssue } from "../data/issues.ts";
 import { BackButton, Button, Card, Chip, Muted } from "../ui.tsx";
+import LiveMapCard from "./LiveMapCard.tsx";
 import NextStop from "./NextStop.tsx";
 import { Progress } from "./Home.tsx";
 
 // Figma "05 Delivery tracking": one vehicle at a time, what it carries for this
-// outlet, and how far it has got. The live map, the driver's name and ETA, and
-// the call buttons are not here: nothing serves a vehicle's position, a phone
-// number or a predicted arrival yet, and the screen says so rather than guess.
-// Until then the time shown is the outlet's own delivery window.
+// outlet, how far it has got and, on the live map card (issue #161), where it
+// is. The call buttons are not here: nothing serves a phone number.
 
 export default function Track({
   gateway,
@@ -101,6 +100,8 @@ export default function Track({
               {first && <NextStop stop={stops[0] ?? null} order={first} outlet={outlet} />}
               {first && <Progress status={first.status} />}
             </Card>
+
+            {stops[0] && <LiveMapCard outlet={outlet} stop={stops[0]} />}
 
             <Card label="Timeline">
               <h2 className="text-[18px] font-medium text-black">Timeline</h2>

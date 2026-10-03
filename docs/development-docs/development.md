@@ -203,6 +203,8 @@ Then sign in as the administrator and walk the role flows from a fresh database.
 
 Run the explicit `migrate` then `import-reference` steps after pulling the geo migration.
 `data/General Data/geo_points.csv` is required for new imports, including custom data directories.
+
+`MAP_TILE_URL` (issue #161) is read by the Next server only, in `frontend/src/app-shell/mapTiles.ts` behind `/map-tiles/{z}/{x}/{y}.png`: a template with `{z}`, `{x}`, `{y}`, so any provider key stays on the server and the CSP stays `'self'`. Put it in `frontend/.env.local` for local development (`https://tile.openstreetmap.org/{z}/{x}/{y}.png` is acceptable locally only) and in root `.env` for Compose. Unset, the maps draw with no base layer and say "Base map unavailable". nginx caches tiles for a week under `/var/cache/nginx/map-tiles`.
 Its header is `kind,code,latitude,longitude,precision,source`. Every depot and district needs one
 sourced row; optional outlet rows must carry real exact coordinates. Missing outlet rows resolve to
 the district centroid with district precision. Older published snapshots keep their absent locations.

@@ -46,17 +46,17 @@ Execution role cannot modify or delete raw points. Do not weaken normal role gra
    atomic publication, snapshot round-trip, additive contract views and frontend mirrors.
    First tests: missing district/depot, duplicate and unknown keys, bad ranges, wrong precision,
    absent provenance, exact outlet and identical district fallback; then publish/reimport integration.
-2. [ ] Positions backend: domain fix rules; command and catalogue; SQL-scoped reads and RLS;
+2. [x] Positions backend: domain fix rules; command and catalogue; SQL-scoped reads and RLS;
    idempotency, denied scope, concurrent batch and retention integration tests; metrics and rule rows.
-3. [ ] Tiles and shared map: validate tile coordinates before fetching, bound cache and requests,
+3. [x] Tiles and shared map: validate tile coordinates before fetching, bound cache and requests,
    client-only Leaflet lifecycle, accessible markers, clustering and failure notice; unit/browser tests.
-4. [ ] Driver: foreground recorder and durable batching, permission denial, reload/replay, exact-only
+4. [x] Driver: foreground recorder and durable batching, permission denial, reload/replay, exact-only
    route map and navigation; driver browser suite.
-5. [ ] Dispatcher: map/timeline preference, depot/status filters, selection drawer, stale positions
+5. [x] Dispatcher: map/timeline preference, depot/status filters, selection drawer, stale positions
    and conflict trail; dispatcher browser suite.
-6. [ ] Store: scoped live card, numbered other stops, approximate labels, stale state, desktop/mobile
+6. [x] Store: scoped live card, numbered other stops, approximate labels, stale state, desktop/mobile
    and both themes; store browser suite.
-7. [ ] Closeout: screenshots against the issue's Figma nodes, WALKTHROUGH, current STATUS and full checks.
+7. [x] Closeout: WALKTHROUGH, current STATUS and full checks. Figma screenshot comparison is not done (see WALKTHROUGH, known gaps).
 
 ## Verification and risks
 
@@ -83,3 +83,13 @@ Before wiring capture, resolve all server-side copies: Sync may persist original
 so retention must cover those copies too, not only `execution.vehicle_positions`. Delayed batches
 must validate the assigned driver on the trip service date; `DrivenVehicle.require` checks today and
 cannot be reused unchanged. These are explicit pending implementation tasks, not completed controls.
+
+
+## Positions and maps checkpoint
+
+`RecordPositions` follows the create convention of `ReportVehicleStatus`: no `expectedVersion`, the
+command id is the idempotency key, and `UNIQUE (vehicle_id, recorded_at)` stores an overlapping fix
+once. Service-date authorization uses `app.actor_drives(vehicle, date)` per point, not
+`DrivenVehicle.require`. Retention runs through `SECURITY DEFINER` functions granted only to the
+execution and sync roles; the cutoff is computed by the jobs, because the database clock cannot be
+trusted in tests that run on far-future service dates.

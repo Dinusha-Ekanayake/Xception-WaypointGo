@@ -193,4 +193,23 @@ public final class ExecutionViews {
       Optional<Integer> lateMinutes,
       DeliveryOutcome outcome,
       boolean timingUncertain) {}
+
+  /**
+   * A vehicle's last good fix (R-EXE-19). {@code offline} is true when its trip
+   * is in progress and no good fix arrived for ten minutes; the position is then
+   * where it was last seen, never an estimate.
+   */
+  public record VehiclePositionView(
+      String vehicleId,
+      Optional<UUID> tripId,
+      java.math.BigDecimal latitude,
+      java.math.BigDecimal longitude,
+      Optional<java.math.BigDecimal> headingDeg,
+      Optional<java.math.BigDecimal> accuracyM,
+      Instant recordedAt,
+      boolean offline) {}
+
+  /** One point of a trip's recorded trail, oldest first. */
+  public record TrailPointView(
+      Instant recordedAt, java.math.BigDecimal latitude, java.math.BigDecimal longitude, boolean lowQuality) {}
 }

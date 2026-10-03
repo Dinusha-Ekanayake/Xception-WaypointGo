@@ -200,4 +200,12 @@ public class OperationRepository {
     }
     return (Instant) value;
   }
+
+  /** R-EXE-21 for Sync's copy: drop the points of old position batches, keep the envelope. */
+  public int redactPositionPayloads(Instant before, int limit) {
+    Map<String, Object> row =
+        database.queryOne(
+            "SELECT sync.redact_position_payloads(?, ?) AS redacted", Timestamp.from(before), limit);
+    return ((Number) row.get("redacted")).intValue();
+  }
 }

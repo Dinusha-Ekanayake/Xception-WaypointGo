@@ -114,3 +114,25 @@ export function punctuality(sheets: RunSheetView[]): Punctuality {
   const served = sheets.flatMap((sheet) => sheet.stops).filter((stop) => stop.outcome === "DELIVERED" || stop.outcome === "PARTIAL");
   return { served: served.length, onTime: served.filter((stop) => (stop.lateMinutes ?? 0) === 0).length };
 }
+
+export type MapStatus = "on-time" | "at-risk" | "late" | "returning" | "offline";
+
+/**
+ * The colour of a vehicle on the live map (issue #161). Offline wins, because
+ * the dispatcher must not read a stale point as live. A finished run is
+ * returning: there is no record of reaching the depot. Late is recorded (a stop
+ * late or not delivered); at risk is a reading of the stop ahead, whose window
+ * has closed or whose expected arrival is past it.
+ */
+export function mapStatus(serviceDate: string, day: VehicleDay, position: { offline: boolean } | null, now: Date): MapStatus {
+  if (position?.offline) return "offline";
+  if (day.state === "finished") return "returning";
+  if (day.failed > 0 || day.stops.some((stop) => (stop.lateMinutes ?? 0) > 0)) return "late";
+  const ahead = day.current;
+  if (ahead && ahead.outcome === "PENDING") {
+    const close = closes(serviceDate, ahead);
+    const expected = ahead.expectedArrival ? new Date(ahead.expectedArrival).getTime() : null;
+    if (now.getTime() > close || (expected !== null && expected > close)) return "at-risk";
+  }
+  return "on-time";
+}
