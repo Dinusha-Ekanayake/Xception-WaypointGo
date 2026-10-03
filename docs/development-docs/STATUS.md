@@ -62,7 +62,7 @@ State words: **built** (merged to `dev` with tests), **partial** (merged, with n
 | Gap | Why it matters | Owner |
 | --- | --- | --- |
 | The only database backups are the dumps a deploy takes before it migrates | They are on the server's own disk: enough to undo a bad migration, not to survive a lost disk. Nothing takes one between deploys, and the restore steps in [deployment.md](../deployment.md#backup-and-recovery) have not been exercised on the server | no issue yet |
-| No seed that walks a fresh install from an order to a receipt | Every role's browser suite runs against a mocked API. The same flows against the real backend have been run module by module in integration tests, not as one journey in a browser | no issue yet |
+| A fresh install is seeded with confirmed orders only (#114), not a published plan or a delivered stop | `seed-delivery-day` gives the judge a peak day to plan, so planning, loading, delivery and receipt are walked live from there. The role browser suites still run against a mocked API | #114 |
 | The role browser suites are not in CI | A screen can break without a failed check. Run the affected suite by hand: see [development.md](development.md#tests) | no issue yet |
 | The full `docker compose up --build` judge path has not been re-walked since the modules landed | It is the path the brief requires and the one nobody runs daily | before the submission |
 

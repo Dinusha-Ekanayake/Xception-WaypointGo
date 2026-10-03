@@ -3,11 +3,14 @@ package com.waypoint.dispatch;
 import com.waypoint.dispatch.identity.application.AccountAdminUseCase;
 import com.waypoint.dispatch.identity.application.OperatorRegistry;
 import com.waypoint.dispatch.loading.application.LoadingFixture;
+import com.waypoint.dispatch.ordering.application.DeliveryDaySeed;
 import com.waypoint.dispatch.platform.config.AppProperties;
 import com.waypoint.dispatch.platform.config.LoadingProperties;
 import com.waypoint.dispatch.platform.db.Migrator;
+import com.waypoint.dispatch.referencedata.application.FleetDaySeed;
 import com.waypoint.dispatch.referencedata.application.ImportReferenceDataHandler;
 import com.waypoint.dispatch.referencedata.application.ReferenceBootstrap;
+import com.waypoint.dispatch.referencedata.contract.ReferenceQuery;
 import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
 import java.nio.file.Path;
@@ -39,6 +42,11 @@ import org.springframework.core.env.Environment;
  *   <li>{@code operator-pin} provisions a loader PIN from a trusted host
  *   <li>{@code loading-fixture} builds a depot-day's loading manifests from its
  *       confirmed orders, for a development demo without a published plan
+ *   <li>{@code seed-delivery-day} places the Task 2B peak day as confirmed orders on
+ *       the first open operating day, marks its workshop vehicles, and grants
+ *       {@code store_manager@waypoint.local} the outlet {@code DEMO_OUTLET}, gives
+ *       {@code loader@waypoint.local} the PIN {@code DEMO_LOADER_PIN} and
+ *       {@code driver@waypoint.local} the depot's vehicles for that day; orders once per database
  * </ul>
  *
  * <p>Commands can be combined: {@code migrate import-reference demo-accounts}.
@@ -50,7 +58,7 @@ public class WaypointApplication implements ApplicationRunner {
   private static final List<String> COMMANDS =
       List.of(
           "migrate", "import-reference", "account-create", "account-grant-depot", "demo-accounts",
-          "operator-pin", "loading-fixture");
+          "operator-pin", "loading-fixture", "seed-delivery-day");
   private static final List<String> DEMO_ROLES =
       List.of("dispatcher", "loader", "driver", "store_manager", "admin", "auditor");
   private static final List<String> DEMO_DEPOT_ROLES = List.of("dispatcher", "loader", "driver");
@@ -64,6 +72,9 @@ public class WaypointApplication implements ApplicationRunner {
   private final LoadingProperties loadingProperties;
   private final Environment environment;
   private final ReferenceBootstrap referenceBootstrap;
+  private final DeliveryDaySeed deliveryDaySeed;
+  private final FleetDaySeed fleetDaySeed;
+  private final ReferenceQuery reference;
 
   public WaypointApplication(
       Migrator migrator,
@@ -74,7 +85,10 @@ public class WaypointApplication implements ApplicationRunner {
       LoadingFixture loadingFixture,
       LoadingProperties loadingProperties,
       Environment environment,
-      ReferenceBootstrap referenceBootstrap) {
+      ReferenceBootstrap referenceBootstrap,
+      DeliveryDaySeed deliveryDaySeed,
+      FleetDaySeed fleetDaySeed,
+      ReferenceQuery reference) {
     this.migrator = migrator;
     this.referenceImport = referenceImport;
     this.accounts = accounts;
@@ -84,6 +98,9 @@ public class WaypointApplication implements ApplicationRunner {
     this.loadingProperties = loadingProperties;
     this.environment = environment;
     this.referenceBootstrap = referenceBootstrap;
+    this.deliveryDaySeed = deliveryDaySeed;
+    this.fleetDaySeed = fleetDaySeed;
+    this.reference = reference;
   }
 
   public static void main(String[] args) {
@@ -173,7 +190,38 @@ public class WaypointApplication implements ApplicationRunner {
         log.info("Built {} loading manifest(s) for {} on {}.", trips, depot, date);
       }
     }
+    if (commands.contains("seed-delivery-day")) {
+      var env = System.getenv();
+      seedDeliveryDay(env.getOrDefault("DEMO_OUTLET", "OUT001"), env.getOrDefault("DEMO_LOADER_PIN", "2468"));
+    }
     System.exit(0);
+  }
+
+  void seedDeliveryDay(String outlet, String loaderPin) {
+    referenceBootstrap.loadCurrentVersion();
+    Path data = Path.of(properties.dataDir());
+    DeliveryDaySeed.Outcome outcome = deliveryDaySeed.seed(data);
+    if (outcome.placed() == 0) {
+      log.info("Delivery day already seeded for {} on {}; left unchanged.", outcome.depotCode(), outcome.serviceDate());
+    } else {
+      int marked = fleetDaySeed.seed(data, outcome.serviceDate());
+      log.info(
+          "Seeded {} confirmed orders and {} workshop vehicles for {} on {}.",
+          outcome.placed(), marked, outcome.depotCode(), outcome.serviceDate());
+    }
+    // The walkthrough's store manager sees one of the seeded outlets.
+    accounts.grantOutlet("store_manager@waypoint.local", outlet);
+    log.info("Granted outlet {}.", outlet);
+    // The shared dock screen asks for a PIN before any loading.
+    operators.setPin("loader@waypoint.local", loaderPin, null);
+    log.info("Set the demo loader's PIN.");
+    // Run sheets exist only for released trips, so the driver sees the trip the loader released.
+    List<String> vehicles =
+        reference.availableVehicles(outcome.depotCode(), outcome.serviceDate(), null).stream()
+            .map(v -> v.vehicleId())
+            .toList();
+    int driven = accounts.assignDriverForDay("driver@waypoint.local", vehicles, outcome.serviceDate());
+    log.info("Assigned the demo driver to {} vehicles on {}.", driven, outcome.serviceDate());
   }
 
   int buildLoadingFixture(String depot, java.time.LocalDate date) {
