@@ -125,13 +125,6 @@ export default function Forecast({
               ) : (
                 <ForecastChart weeks={weeks} />
               )}
-              <p className="m-0 text-[11px] text-go-secondary">
-                {forecast?.modelLabel
-                  ? forecast.degraded
-                    ? "Recent weekday averages · the demand model did not answer"
-                    : `${forecast.modelLabel} · weekly demand model, refreshed every Monday`
-                  : " "}
-              </p>
             </section>
             <div className="flex min-w-[300px] flex-col gap-5 lg:max-w-[380px]">
               <DayNeeds rows={dayNeeds(weeks)} />
