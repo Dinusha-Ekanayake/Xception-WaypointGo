@@ -91,3 +91,44 @@ export type RegisterModel = {
 /** expectedVersion is the model's rowVersion. */
 export type ActivateModel = { name: string; version: string };
 export type RetireModel = { name: string; version: string; reason: string };
+
+/** GET /api/ml/forecast/overview: NONE until the first run (the job catches up hourly). */
+export type OverviewStatus = "READY" | "NONE";
+
+/** One brand's demand in a week; chilled is zero for Style and Tech. */
+export type BrandVolumeView = { brandCode: string; totalM3: Decimal; chilledM3: Decimal };
+
+/** The depot's reference fleet, two trips a day on each operating day (A-40). An upper bound. */
+export type WeekCapacityView = {
+  vehicles: number;
+  refrigeratedVehicles: number;
+  fleetM3: Decimal;
+  refrigeratedM3: Decimal;
+};
+
+export type ForecastWeekView = {
+  isoYear: number;
+  isoWeek: number;
+  weekStart: IsoDate;
+  operatingDays: number;
+  holidayDays: number;
+  paydays: number;
+  /** The festival the week ramps towards. */
+  festival: string | null;
+  /** Days past the supplied calendar (R-CAL-03). */
+  generatedDays: number;
+  brands: BrandVolumeView[];
+  totalM3: Decimal;
+  chilledM3: Decimal;
+  capacity: WeekCapacityView;
+};
+
+export type ForecastOverviewView = {
+  depotCode: string;
+  status: OverviewStatus;
+  /** "name@version", "deterministic", "mixed", or null with no run. */
+  modelLabel: string | null;
+  degraded: boolean;
+  generatedAt: IsoInstant | null;
+  weeks: ForecastWeekView[];
+};

@@ -169,6 +169,23 @@ class IntelligenceDomainTest {
     assertEquals(d("1.0000"), SupplyPolicy.estimate(new Inputs(State.DELIVERED, false, false, 0, 0, 0, 0)).probability());
   }
 
+  // ---- fleet capacity -----------------------------------------------------------------------------
+
+  @Test
+  void aWeeksCapacityIsEveryVehicleTwiceADayOnEachOperatingDay() {
+    var w = FleetCapacity.weekly(
+        List.of(new FleetCapacity.Vehicle(d("10"), true), new FleetCapacity.Vehicle(d("30"), false)), 6);
+    assertEquals(2, w.vehicles());
+    assertEquals(1, w.refrigeratedVehicles());
+    assertEquals(d("480.00"), w.fleetM3(), "(10 + 30) x 2 trips x 6 days");
+    assertEquals(d("120.00"), w.refrigeratedM3(), "chilled goods ride only in reefers");
+  }
+
+  @Test
+  void aClosedWeekCarriesNothing() {
+    assertEquals(d("0.00"), FleetCapacity.weekly(List.of(new FleetCapacity.Vehicle(d("10"), true)), 0).fleetM3());
+  }
+
   // ---- routes ---------------------------------------------------------------------------------
 
   private static TripFacts trip(List<StopFacts> stops) {
