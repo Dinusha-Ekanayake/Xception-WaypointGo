@@ -30,12 +30,13 @@ export const RULES: Record<string, RegExp> = {
   "retired: route for a trip (say trip)": /(?<![-\w])routes?(?![-\w])/i,
   "raw code on screen": /\b(rear_dock|mall_bay|van_only|mall_dock)\b/,
   "12-hour clock": /\b\d{1,2}(:\d{2})?\s?(AM|PM)\b/,
-  "em or en dash": /[\u2013\u2014]/,
 };
 
 /** Formatting that bypasses shared/wording: a 12-hour or device-zone clock. */
 const CODE_RULES: Record<string, RegExp> = {
   "time formatted outside shared/wording": /hour12:\s*true|toLocaleTimeString\(|"en-US",\s*\{\s*hour/,
+  // AGENTS.md: no em or en dash anywhere, comments and multi-line strings included.
+  "em or en dash": /[\u2013\u2014]/,
 };
 
 /** The strings and JSX text on a line that a person could read; class names and imports are not. */
@@ -107,6 +108,7 @@ test("the guardrail recognises each rule it enforces", () => {
   assert.deepEqual(countRules(`window.location.hash = \`#\${route}\`;`), {}, "an interpolated variable is not text");
   assert.deepEqual(countRules(`const pill = "flex rounded-full drop-shadow-[0_5px]";`), {}, "a class list is styling");
   assert.deepEqual(countRules("detail: `ETA ${clock(at)}`,"), { "retired: ETA (say expected arrival)": 1 }, "text around an interpolation");
+  assert.deepEqual(countRules("  ? `Having trouble.\\nDon't worry\u2014${n} ${"), { "em or en dash": 1 }, "a dash in a string that spans lines");
   assert.deepEqual(countRules(`            How many cases?`), { "retired: cases or packages (say units)": 1 }, "JSX text on its own line");
   assert.deepEqual(countRules(`label: "Today 4:00 PM",`), { "12-hour clock": 1 });
   assert.deepEqual(countRules(`x.toLocaleTimeString("en-US")`), { "time formatted outside shared/wording": 1 });
