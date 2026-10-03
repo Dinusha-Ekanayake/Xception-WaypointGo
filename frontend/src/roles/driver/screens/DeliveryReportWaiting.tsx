@@ -17,8 +17,12 @@ export type LiveReport = {
   onProblem: (description: string) => void;
 };
 
-/** The design confirms the handover with the store manager's PIN, not a photo or a signature. */
-export const PIN_HANDOVER = "Handed over in person; the store manager confirmed it with their PIN on the driver's phone.";
+/**
+ * The design confirms the handover with the store manager's PIN, not a photo or
+ * a signature. That PIN is not yet checked against the one the store's screen
+ * shows, so the proof says only what is true.
+ */
+export const PIN_HANDOVER = "Handed over in person and confirmed on the driver's phone; no photo or signature taken.";
 
 export type DeliveryReportWaitingProps = {
   /** "Synced HH:MM" from the live run; the design's sample time when absent. */

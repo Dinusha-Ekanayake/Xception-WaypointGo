@@ -54,3 +54,28 @@ export default function LiveStatus({
     </div>
   );
 }
+
+/**
+ * Asked once, when the driver has a run (issue #161 on the live run, #114): the
+ * dispatcher's live map follows the vehicle only while a run is open. Declining
+ * never blocks the run; the dispatcher then sees the stops only.
+ */
+export function LocationPrompt({ onAllow, onDecline }: { onAllow: () => void; onDecline: () => void }): React.JSX.Element {
+  return (
+    <section
+      aria-label="Share your location"
+      className="absolute inset-x-4 bottom-6 z-40 flex flex-col gap-3 rounded-[24px] bg-white p-5 text-black shadow-[0_8px_30px_rgba(0,0,0,0.18)]"
+    >
+      <h2 className="text-[18px] font-medium">Share your location while the run is open?</h2>
+      <p className="text-[14px] text-[#6B6B6B]">The dispatcher sees where the vehicle is until the last stop. Nothing is shared after the run.</p>
+      <div className="flex gap-3">
+        <button type="button" onClick={onDecline} className="h-12 flex-1 rounded-[16px] bg-[#E7F3F2] text-[16px] font-medium">
+          Not now
+        </button>
+        <button type="button" onClick={onAllow} className="h-12 flex-1 rounded-[16px] bg-[#031B08] text-[16px] font-medium text-white">
+          Share location
+        </button>
+      </div>
+    </section>
+  );
+}

@@ -8,6 +8,7 @@ import GetVehicleCameraAccess from "./screens/GetVehicleCameraAccess.tsx";
 import EnterVehicleId from "./screens/EnterVehicleId.tsx";
 import RouteNextStop from "./screens/RouteNextStop.tsx";
 import RouteMapScreen from "./screens/RouteMapScreen.tsx";
+import RouteMap from "./screens/RouteMap.tsx";
 import DeliveryReportWaiting from "./screens/DeliveryReportWaiting.tsx";
 import RunCompleteScreen from "./screens/RunCompleteScreen.tsx";
 import NoTripPlanScreen from "./screens/NoTripPlanScreen.tsx";
@@ -20,7 +21,7 @@ import { ExecutionCommandKind } from "@shared/domain/types";
 import { useDriver } from "./useDriver.ts";
 import { clock, isFinished, summarize } from "./data/run.ts";
 import { currentIndex, toRouteStops, tripStatus as runStatus } from "./data/routeStops.ts";
-import LiveStatus from "./LiveStatus.tsx";
+import LiveStatus, { LocationPrompt } from "./LiveStatus.tsx";
 
 export type DriverProps = {
   userId?: string;
@@ -66,6 +67,26 @@ export default function Driver({
       done ? `finished ${clock(done)}` : "",
     ];
     return parts.filter(Boolean).join(" • ");
+  })();
+  const runStats = (() => {
+    if (!live) return undefined;
+    const sum = summarize(d.run.stops);
+    const ordered = d.run.stops.reduce((n, stop) => n + stop.itemCount, 0);
+    // A partial delivery is recorded as a stop total the run sheet does not carry, so it is named, not guessed.
+    const known = (stop: (typeof d.run.stops)[number]) => stop.outcome === "DELIVERED" || stop.lines.every((line) => line.deliveredUnits !== null);
+    const handed = d.run.stops
+      .filter(known)
+      .reduce((n, stop) => n + stop.lines.reduce((m, line) => m + (line.deliveredUnits ?? (stop.outcome === "DELIVERED" ? line.orderedUnits : 0)), 0), 0);
+    const uncounted = d.run.stops.filter((stop) => stop.outcome === "PARTIAL" && !known(stop)).length;
+    const proofs = d.run.stops.filter((stop) => stop.proofCaptured).length;
+    const issues = [sum.partial > 0 ? `${sum.partial} partly delivered` : "", sum.failed > 0 ? `${sum.failed} not delivered` : ""].filter(Boolean).join(" • ");
+    return {
+      stops: `${sum.delivered + sum.partial} of ${sum.total}`,
+      units: `${handed} of ${ordered}${uncounted > 0 ? ` + ${uncounted} partial` : ""}`,
+      issues: issues || "None",
+      proof: `${proofs} saved${d.waiting > 0 ? " • syncing" : ""}`,
+      next: d.run.vehicle ? `Next: return ${d.run.vehicle.vehicleId} to ${scope[0] ?? "the"} depot.` : "",
+    };
   })();
   // The route, report and driving screens draw a stop; a live run without one has nothing to draw.
   const hasStops = stops.length > 0;
@@ -438,12 +459,27 @@ export default function Driver({
               : "translate-x-full opacity-0 pointer-events-none z-0"
           )}
         >
-          <RouteMapScreen
-            onBack={() => setCurrentScreen("route-next-stop")}
-            isNight={isNight}
-            onToggleTheme={() => setIsNight((prev) => !prev)}
-            hideHeader={isPersistentHeader}
-          />
+          {live ? (
+            // The live map: the next stop's exact location and the vehicle's track (issue #161),
+            // under the persistent header's back button. The design's drawn map is sample only.
+            currentScreen === "route-map" && ordered[currentStopIndex] && (
+              <div className="flex h-full flex-col overflow-y-auto px-4 pt-[110px] pb-6">
+                <RouteMap
+                  next={ordered[currentStopIndex]}
+                  outlet={d.run.outlets[ordered[currentStopIndex].outletId]}
+                  recorder={d.location}
+                  syncedAt={d.run.syncedAt}
+                />
+              </div>
+            )
+          ) : (
+            <RouteMapScreen
+              onBack={() => setCurrentScreen("route-next-stop")}
+              isNight={isNight}
+              onToggleTheme={() => setIsNight((prev) => !prev)}
+              hideHeader={isPersistentHeader}
+            />
+          )}
         </div>
 
         {/* Screen 6: Delivery report Waiting for store - opens when I've arrived is clicked */}
@@ -502,6 +538,7 @@ export default function Driver({
           <RunCompleteScreen
             syncedLabel={syncedLabel}
             summary={runSummary}
+            stats={runStats}
             onBack={() => {
               if (tripStatus === "completed") {
                 setCurrentScreen("home");
@@ -559,6 +596,10 @@ export default function Driver({
             loading={d.run.loading}
             message={toast}
           />
+        )}
+
+        {live && hasStops && d.location.needsConsent && (currentScreen === "route-next-stop" || currentScreen === "route-map") && (
+          <LocationPrompt onAllow={d.location.allow} onDecline={d.location.decline} />
         )}
 
         {/* Sign Out Confirmation Modal */}

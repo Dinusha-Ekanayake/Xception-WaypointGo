@@ -2,7 +2,13 @@
 
 import { cx } from "@shared/ui";
 
+export type RunStats = { stops: string; units: string; issues: string; proof: string; next: string };
+
+const SAMPLE_STATS: RunStats = { stops: "7 of 7", units: "55 of 56", issues: "2 damaged • 1 missing", proof: "3 saved • syncing", next: "" };
+
 export type RunCompleteScreenProps = {
+  /** The run's figures; the design's sample when absent. */
+  stats?: RunStats;
   /** "Synced HH:MM" from the live run; the design's sample time when absent. */
   syncedLabel?: string;
   /** The run's outcome line; the design's sample when absent. */
@@ -16,6 +22,7 @@ export type RunCompleteScreenProps = {
 };
 
 export default function RunCompleteScreen({
+  stats = SAMPLE_STATS,
   syncedLabel = "Synced 05:31",
   summary = "All 7 stops delivered • finished 07:45",
   onBack,
@@ -184,7 +191,7 @@ export default function RunCompleteScreen({
                 isNight ? "text-white" : "text-black"
               )}
             >
-              7 of 7
+              {stats.stops}
             </span>
           </div>
 
@@ -204,7 +211,7 @@ export default function RunCompleteScreen({
                 isNight ? "text-white" : "text-black"
               )}
             >
-              55 of 56
+              {stats.units}
             </span>
           </div>
 
@@ -224,7 +231,7 @@ export default function RunCompleteScreen({
                 isNight ? "text-white" : "text-black"
               )}
             >
-              2 damaged • 1 missing
+              {stats.issues}
             </span>
           </div>
 
@@ -244,7 +251,7 @@ export default function RunCompleteScreen({
                 isNight ? "text-white" : "text-black"
               )}
             >
-              3 saved • syncing
+              {stats.proof}
             </span>
           </div>
         </div>
@@ -257,7 +264,7 @@ export default function RunCompleteScreen({
             isNight ? "text-white" : "text-black"
           )}
         >
-          Next: return {vehicleId} to {depotName}, Dock 2.
+          {stats.next || `Next: return ${vehicleId} to ${depotName}, Dock 2.`}
         </p>
       </div>
 

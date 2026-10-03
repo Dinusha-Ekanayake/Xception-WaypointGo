@@ -191,3 +191,19 @@ export async function sign(page: Page): Promise<void> {
   await page.mouse.move(box.x + 220, box.y + 50, { steps: 6 });
   await page.mouse.up();
 }
+
+/** Takes the vehicle by typing its ID (issue #114). */
+export async function takeVehicle(page: Page, id = "VEH043"): Promise<void> {
+  await page.getByRole("button", { name: "Get vehicle" }).first().click();
+  await page.getByRole("button", { name: "Enter vehicle ID" }).click();
+  await page.getByPlaceholder("e.g. VEH003").fill(id);
+  await page.getByRole("button", { name: "Continue with entered vehicle ID" }).click();
+}
+
+/** Starts the trip and answers the location question it asks once; declining never blocks the run. */
+export async function startTrip(page: Page, share = false): Promise<void> {
+  await page.getByRole("button", { name: "Start trip" }).click();
+  const prompt = page.getByRole("region", { name: "Share your location" });
+  await prompt.getByRole("button", { name: share ? "Share location" : "Not now" }).click();
+  await prompt.waitFor({ state: "hidden" });
+}
