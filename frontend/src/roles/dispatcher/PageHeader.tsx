@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ConnectionStatus, CountBadge, Icon, McpButton, Notice, useShell } from "@shared/ui";
+import { ConnectionStatus, CountBadge, Icon, Notice } from "@shared/ui";
 import { useDispatcherInbox } from "./inbox.tsx";
 import { clock } from "@shared/wording";
 
@@ -30,10 +30,9 @@ export default function PageHeader({
   /** Reads this screen again; the pill becomes a button. */
   onSync?: () => void;
   syncing?: boolean;
-  /** Leave out the sync pill, the MCP button and the bell, as the Plan screen is drawn. Offline still says so. */
+  /** Leave out the sync pill and the bell, as the Plan screen is drawn. Offline still says so. */
   quiet?: boolean;
 }): React.JSX.Element {
-  const shell = useShell();
   const inbox = useDispatcherInbox();
   const unread = inbox?.inbox.unread ?? 0;
   return (
@@ -47,7 +46,6 @@ export default function PageHeader({
         {!quiet && (
           <>
             <ConnectionStatus online={online} lastSyncedAt={lastSyncedAt} offlineNote="read only" onSync={onSync} syncing={syncing} />
-            <McpButton url={shell?.mcpUrl ?? null} className="flex min-h-[42px] items-center gap-2 rounded-[21px] bg-white px-3.5 text-sm font-medium text-go-ink" />
             <button
               type="button"
               disabled={!inbox}

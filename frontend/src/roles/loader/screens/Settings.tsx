@@ -4,13 +4,13 @@ import { McpButton, cx, useShell } from "@shared/ui";
 import { usePush, type PushState } from "@shared/notifications/push";
 import { LANGS } from "../data/strings.ts";
 import { useLang, useT } from "../i18n.tsx";
-import { ChevronLeftIcon, MoonIcon, SunIcon } from "../icons.tsx";
-import { useTheme, type Theme } from "../theme.tsx";
+import { ChevronLeftIcon } from "../icons.tsx";
 import { BigButton } from "../ui.tsx";
 
-// Figma "08 Loader · Phone", Settings (rationale 24): Appearance (Light or
-// Dark) and Language (සිං / த / EN), and one clear way back to work. Both are
-// kept per device, so the next loader on a shared tablet finds them as left.
+// Figma "08 Loader · Phone", Settings (rationale 24): Language (සිං / த / EN)
+// and the assistant connection (MCP, issue #177), and one clear way back to
+// work. The theme is the sun and moon in the top bar. Choices are kept per
+// device, so the next loader on a shared tablet finds them as left.
 // Notifications (issue #118) turns this device's alerts on or off, and says
 // plainly when it cannot: not supported, not set up on the server, or blocked.
 //
@@ -29,14 +29,9 @@ export default function Settings({
   onClose: () => void;
 }): React.JSX.Element {
   const tr = useT();
-  const { theme, setTheme } = useTheme();
   const { lang, setLang } = useLang();
   const shell = useShell();
   const push = usePush();
-  const themes: Array<{ value: Theme; label: string; icon: React.JSX.Element }> = [
-    { value: "light", label: tr("Light"), icon: <SunIcon size={18} /> },
-    { value: "dark", label: tr("Dark"), icon: <MoonIcon size={18} /> },
-  ];
 
   return (
     <main className="flex w-full flex-col gap-6 px-4 pt-2 pb-8 md:mx-auto md:max-w-[480px]">
@@ -46,27 +41,6 @@ export default function Settings({
       <section aria-labelledby="loader-settings" className="flex flex-col gap-4 rounded-go-panel bg-go-card p-5 shadow-go-card">
         <h1 id="loader-settings" className="text-[24px] font-medium text-go-ink">{tr("Settings")}</h1>
         <div className="flex flex-col gap-4 rounded-go-card-l bg-go-canvas p-4">
-          <fieldset className="flex flex-col gap-3">
-            <legend className="flex flex-col">
-              <span className="text-[16px] text-go-ink">{tr("Appearance")}</span>
-              <span className="text-[13px] text-go-muted">{tr("Light or dark theme")}</span>
-            </legend>
-            <div className="flex gap-1">
-              {themes.map((t) => (
-                <button
-                  key={t.value}
-                  type="button"
-                  aria-pressed={theme === t.value}
-                  onClick={() => setTheme(t.value)}
-                  className={cx(segment, theme === t.value ? "bg-go-card text-go-ink shadow-go-float" : "text-go-muted")}
-                >
-                  {t.icon}
-                  {t.label}
-                </button>
-              ))}
-            </div>
-          </fieldset>
-          <hr className="border-go-rule" />
           <fieldset className="flex flex-col gap-3">
             <legend className="flex flex-col">
               <span className="text-[16px] text-go-ink">{tr("Language")}</span>
@@ -88,6 +62,9 @@ export default function Settings({
               ))}
             </div>
           </fieldset>
+          {shell && (
+            <McpButton url={shell.mcpUrl} className="flex min-h-14 w-full items-center justify-center gap-2 rounded-[18px] bg-go-card text-[16px] font-medium text-go-ink" />
+          )}
           <hr className="border-go-rule" />
           <fieldset className="flex flex-col gap-3">
             <legend className="flex flex-col">
@@ -137,7 +114,6 @@ export default function Settings({
               ))}
             </div>
           )}
-          <McpButton url={shell.mcpUrl} className="flex min-h-14 w-full items-center justify-center gap-2 rounded-[18px] bg-go-surface text-[16px] font-medium text-go-ink" />
           <BigButton tone="plain" onClick={shell.onSignOut}>
             {tr("Sign out this device")}
           </BigButton>

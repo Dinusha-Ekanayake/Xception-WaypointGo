@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { NotificationView } from "@shared/domain/notification";
 import { ago } from "@shared/notifications/inbox";
 import { useInbox } from "@shared/notifications/useInbox";
-import { cx, McpButton, useShell } from "@shared/ui";
+import { cx, useDeviceLang, useShell } from "@shared/ui";
 import { nextStop, type Stop } from "./data/run.ts";
 import { activeIndex, syncLabel, toRouteStops, tripStatus, type RouteStop } from "./data/stopView.ts";
 import DeliveryPinConfirmModal from "./screens/DeliveryPinConfirmModal.tsx";
@@ -20,7 +20,7 @@ import RunCompleteScreen from "./screens/RunCompleteScreen.tsx";
 import { ProblemSheet, SavedSheet } from "./screens/Sheets.tsx";
 import SignOutConfirmBottomSheet from "./screens/SignOutConfirmBottomSheet.tsx";
 import StopDetail from "./screens/StopDetail.tsx";
-import { BackIcon, Banner, DriverMorphHeader, OutlineButton, type SupportedLang } from "./ui.tsx";
+import { BackIcon, Banner, DriverMorphHeader, OutlineButton } from "./ui.tsx";
 import { useDriver } from "./useDriver.ts";
 
 /**
@@ -40,7 +40,7 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
   const depot = scope[0] ?? "";
   const sync = syncLabel(online, run.uploadsWaiting.length, run.syncedAt, run.keptAt);
 
-  const [lang, setLang] = useState<SupportedLang>("en");
+  const [lang, setLang] = useDeviceLang();
   const [driving, setDriving] = useState(false);
   const [formFor, setFormFor] = useState<string | null>(null);
   const [pinFor, setPinFor] = useState<Stop | null>(null);
@@ -113,6 +113,7 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
               onBack={() => (screen === "map" ? d.go({ name: "route", deliveryId: null }) : d.go({ name: "home" }))}
               lang={lang}
               onToggleLang={setLang}
+              displayName={displayName}
               onSignOut={d.askSignOut}
               onToggleTheme={d.theme}
               isNight={d.dark}
@@ -227,10 +228,9 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
 
         {/* What is degraded, said on screen (rule 9): an expired session, a saved copy, location, a refused file. */}
         <div className={cx("absolute inset-x-0 z-40 flex flex-col gap-2 px-5 pointer-events-none", header ? "top-[78px]" : "top-[84px]")}>
-          {/* The shell's sync badge opens writes the server refused, for review; MCP on Home (#177). */}
+          {/* The shell's sync badge opens writes the server refused, for review; MCP is in Settings (#177). */}
           <div className="pointer-events-auto flex items-center justify-end gap-2 empty:hidden">
             {shell?.sync}
-            {screen === "home" && <McpButton url={shell?.mcpUrl ?? null} compact className="flex shrink-0 items-center justify-center rounded-full bg-go-card text-go-ink shadow-go-float" />}
           </div>
           {run.expired && !run.loading ? (
             <div className="pointer-events-auto flex flex-col gap-2">

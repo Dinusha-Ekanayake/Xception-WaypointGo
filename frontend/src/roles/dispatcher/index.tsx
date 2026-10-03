@@ -68,7 +68,7 @@ export default function Dispatcher({
     <InboxProvider userId={userId}>
     <NotificationsPanel onNavigate={navigate} />
     <div className="flex min-h-dvh w-full flex-col bg-go-canvas font-go text-go-ink lg:h-dvh lg:flex-row">
-      <CompactNav view={view} onNavigate={navigate} depots={scope} depotFilter={depotFilter} onDepotFilter={setDepotFilter} badges={badges} />
+      <CompactNav view={view} onNavigate={navigate} depots={scope} depotFilter={depotFilter} onDepotFilter={setDepotFilter} badges={badges} displayName={displayName} />
       <Sidebar
         view={view}
         onNavigate={navigate}
