@@ -33,6 +33,8 @@ export default function Dispatcher({
   const [view, navigate] = useView();
   const [depotFilter, setDepotFilter] = useState<DepotFilter>("all");
   const [date, setDate] = useState(depotToday);
+  // An issue Live asked to open; the Issues screen selects it.
+  const [issueFocus, setIssueFocus] = useState<string | null>(null);
   const online = useOnline();
 
   const depots = depotsFor(depotFilter, scope);
@@ -74,9 +76,19 @@ export default function Dispatcher({
         ) : view === "plan" ? (
           <Plan depots={depots} date={date} onDate={setDate} online={online} />
         ) : view === "live" ? (
-          <Live depots={depots} scopeLabel={label} date={date} onDate={setDate} online={online} />
+          <Live
+            depots={depots}
+            scopeLabel={label}
+            date={date}
+            onDate={setDate}
+            online={online}
+            onOpenIssue={(issueId) => {
+              setIssueFocus(issueId);
+              navigate("issues");
+            }}
+          />
         ) : view === "issues" ? (
-          <Issues depots={depots} scopeLabel={label} userId={userId} online={online} />
+          <Issues depots={depots} scopeLabel={label} userId={userId} online={online} focusIssueId={issueFocus} />
         ) : (
           <Forecast depots={depots} scopeLabel={label} online={online} />
         )}
