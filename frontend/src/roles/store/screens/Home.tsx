@@ -22,7 +22,7 @@ export function Progress({ status }: { status: OrderStatus }): React.JSX.Element
     <ol className="flex w-full" aria-label="Delivery progress">
       {STEPS.map((step, i) => (
         <li key={step} className="relative flex flex-1 flex-col items-center gap-1" aria-current={i === done ? "step" : undefined}>
-          {i > 0 && <span aria-hidden className={cx("absolute top-3 -left-1/2 h-0.5 w-full", i <= done ? "bg-go-success" : "bg-[#dfe7e6]")} />}
+          {i > 0 && <span aria-hidden className={cx("absolute top-3 left-[calc(-50%+13px)] h-0.5 w-[calc(100%-26px)]", i <= done ? "bg-go-success" : "bg-[#dfe7e6]")} />}
           <span
             className={cx(
               "relative flex size-[26px] items-center justify-center rounded-full",
