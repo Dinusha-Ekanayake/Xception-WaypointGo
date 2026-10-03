@@ -126,8 +126,8 @@ export default function Orders({
             value={status}
             onChange={setStatus}
             options={[
-              { value: "all", label: `All ${all.length}` },
-              { value: "attention", label: `Need attention ${f.attention}` },
+              { value: "all", label: `All (${all.length})` },
+              { value: "attention", label: `Need attention (${f.attention})` },
               { value: "to-plan", label: "To plan" },
               { value: "planned", label: "Planned" },
               { value: "road", label: "On the road" },

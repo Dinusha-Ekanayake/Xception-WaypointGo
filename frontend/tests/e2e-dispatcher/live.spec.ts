@@ -42,7 +42,7 @@ test("the timeline lists each run with its trip, and a status filter narrows it"
   await expect(timeline).toContainText("No signal · last seen 16:00");
   await expect(timeline).toContainText("Now 16:12");
 
-  await page.getByRole("button", { name: "Offline 1" }).click();
+  await page.getByRole("button", { name: "Offline (1)" }).click();
   const road = page.getByRole("complementary", { name: "Vehicles on the road" });
   await expect(road.getByRole("button")).toHaveCount(1);
   await expect(road.getByRole("button").first()).toContainText("VEH029 · Tech · Kurunegala");

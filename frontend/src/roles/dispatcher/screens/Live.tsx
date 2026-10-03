@@ -107,14 +107,14 @@ export default function Live({
         }}
         syncing={live.loading}
         tools={
-          <span className="flex items-center gap-2.5">
+          <span className="flex flex-wrap items-center gap-2.5">
           {!rowShown && <DayPicker date={date} onDate={onDate} />}
           <Toggle
             label="View"
             value={view}
             onChange={setView}
             options={[
-              { value: "needs", label: `Needs you ${cards.length}` },
+              { value: "needs", label: `Needs you (${cards.length})` },
               { value: "map", label: "Map" },
               { value: "timeline", label: "Timeline" },
             ]}
@@ -134,9 +134,9 @@ export default function Live({
             value={filter}
             onChange={setFilter}
             options={[
-              { value: "all", label: `All ${shown.inDepot}` },
-              { value: "at-risk", label: `At risk ${shown.atRisk}` },
-              { value: "offline", label: `Offline ${shown.offline}` },
+              { value: "all", label: `All (${shown.inDepot})` },
+              { value: "at-risk", label: `At risk (${shown.atRisk})` },
+              { value: "offline", label: `Offline (${shown.offline})` },
             ]}
           />
         )}
