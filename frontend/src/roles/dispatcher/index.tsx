@@ -2,12 +2,15 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useOnline } from "@shared/api/useResource";
-import Sidebar, { CompactNav } from "./Sidebar.tsx";
+import Sidebar, { CompactNav, type Badges } from "./Sidebar.tsx";
 import { InboxProvider } from "./inbox.tsx";
 import NotificationsPanel from "./NotificationsPanel.tsx";
 import { useView } from "./navigation.ts";
 import { depotToday, depotsFor, scopeLabel, type DepotFilter } from "./data/scope.ts";
 import { useFleet } from "./data/fleet.ts";
+import { attention } from "./data/live.ts";
+import { flow } from "./data/orders.ts";
+import { useLive, useOrders } from "./data/useDay.ts";
 import Overview from "./screens/Overview.tsx";
 import Vehicles from "./screens/Vehicles.tsx";
 import Live from "./screens/Live.tsx";
@@ -41,6 +44,16 @@ export default function Dispatcher({
   const fleetDate = view === "vehicles" ? date : depotToday();
   const fleet = useFleet(depots, fleetDate);
 
+  // The sidebar's counts: orders that need a person, and stops that do. Only a
+  // read that arrived is counted, so a failed read shows no badge, not a zero.
+  const today = depotToday();
+  const dayOrders = useOrders(depots, today);
+  const dayLive = useLive(depots, today);
+  const badges: Badges = {
+    orders: dayOrders.data ? flow(dayOrders.data).attention : 0,
+    live: dayLive.data ? attention(dayLive.data.sheets, new Date()).length : 0,
+  };
+
   // Catch up as soon as the connection returns rather than at the next poll.
   const wasOnline = useRef(online);
   const { refresh } = fleet;
@@ -53,7 +66,7 @@ export default function Dispatcher({
     <InboxProvider userId={userId}>
     <NotificationsPanel onNavigate={navigate} />
     <div className="flex min-h-dvh w-full flex-col bg-go-canvas font-go text-go-ink lg:h-dvh lg:flex-row">
-      <CompactNav view={view} onNavigate={navigate} depots={scope} depotFilter={depotFilter} onDepotFilter={setDepotFilter} />
+      <CompactNav view={view} onNavigate={navigate} depots={scope} depotFilter={depotFilter} onDepotFilter={setDepotFilter} badges={badges} />
       <Sidebar
         view={view}
         onNavigate={navigate}
@@ -61,6 +74,8 @@ export default function Dispatcher({
         depots={scope}
         depotFilter={depotFilter}
         onDepotFilter={setDepotFilter}
+        badges={badges}
+        rail={view === "plan"}
       />
       <div className="flex min-w-0 flex-1 flex-col gap-5 px-4 py-5 md:px-9 md:py-7 lg:overflow-y-auto">
         {scope.length === 0 ? (

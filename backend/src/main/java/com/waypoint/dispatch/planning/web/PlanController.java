@@ -8,7 +8,11 @@ import com.waypoint.dispatch.planning.contract.PlanViews.DeferralView;
 import com.waypoint.dispatch.planning.contract.PlanViews.FuelView;
 import com.waypoint.dispatch.planning.contract.PlanViews.InterchangePreview;
 import com.waypoint.dispatch.planning.contract.PlanViews.PlacementView;
+import com.waypoint.dispatch.planning.contract.PlanViews.ComparisonView;
 import com.waypoint.dispatch.planning.contract.PlanViews.PlanView;
+import com.waypoint.dispatch.planning.contract.PlanViews.SnapshotDetailView;
+import com.waypoint.dispatch.planning.contract.PlanViews.SnapshotView;
+import com.waypoint.dispatch.planning.contract.PlanViews.TripPreview;
 import com.waypoint.dispatch.platform.web.RequestAuthorizer;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.LocalDate;
@@ -129,6 +133,43 @@ public class PlanController {
       @RequestParam UUID trip, @RequestParam String vehicle, HttpServletRequest request) {
     var actor = authorizer.require(request, READ, "wpt:plan:trip:" + trip);
     return plans.previewInterchange(actor, trip, vehicle);
+  }
+
+  /** The trip a swap would leave, and every rule's verdict on the vehicle's day. */
+  @GetMapping("/preview/swap")
+  public TripPreview previewSwap(@RequestParam UUID out, @RequestParam("in") UUID in, HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:plan:order:" + out);
+    return plans.previewSwap(actor, out, in);
+  }
+
+  /** A trip with its stops in the order given (every order of it, comma separated), timed and checked. */
+  @GetMapping("/preview/sequence")
+  public TripPreview previewSequence(
+      @RequestParam UUID trip, @RequestParam List<UUID> orders, HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:plan:trip:" + trip);
+    return plans.previewSequence(actor, trip, orders);
+  }
+
+  /** The saved plans of a depot and day, newest first. */
+  @GetMapping("/snapshots")
+  public List<SnapshotView> snapshots(
+      @RequestParam String depot, @RequestParam LocalDate date, HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:plan:depot:" + depot);
+    return plans.snapshots(actor, depot, date);
+  }
+
+  /** One saved plan with the plan itself, read only. */
+  @GetMapping("/snapshots/{snapshotId}")
+  public SnapshotDetailView snapshot(@PathVariable UUID snapshotId, HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:plan:snapshot:" + snapshotId);
+    return plans.snapshot(actor, snapshotId);
+  }
+
+  /** Two plans of one depot and day side by side; each id is a saved plan or a plan version. */
+  @GetMapping("/compare")
+  public ComparisonView compare(@RequestParam UUID a, @RequestParam UUID b, HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:plan:plan:" + a);
+    return plans.compare(actor, a, b);
   }
 
   /** Weekly fuel for the ISO week containing {@code date}, published plans only (D-K). */

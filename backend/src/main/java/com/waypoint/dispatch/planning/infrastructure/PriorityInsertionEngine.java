@@ -10,6 +10,8 @@ import com.waypoint.dispatch.planning.domain.FleetVehicle;
 import com.waypoint.dispatch.planning.domain.PlanContext;
 import com.waypoint.dispatch.planning.domain.PlanOrder;
 import com.waypoint.dispatch.planning.domain.VehicleDay;
+import com.waypoint.dispatch.shared.error.DomainException;
+import com.waypoint.dispatch.shared.error.ErrorCode;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -38,6 +40,8 @@ import java.util.function.LongSupplier;
 public final class PriorityInsertionEngine implements AllocationEngine {
   public static final String NAME = "priority-insertion-v1";
   public static final String TIMEOUT_RULE = "R-PLN-ENGINE-TIMEOUT";
+  /** A deferral a dispatcher decided to keep (R-PLN-19); the run overlays the earlier explanation. */
+  public static final String HELD_RULE = "R-PLN-19";
 
   private final ConstraintRegistry registry;
   private final CheapestInsertion insertion;
@@ -72,6 +76,11 @@ public final class PriorityInsertionEngine implements AllocationEngine {
     List<OrderDecision> decisions = new ArrayList<>();
     List<PlanOrder> servable = new ArrayList<>();
     for (PlanOrder o : problem.orders()) {
+      if (problem.held().contains(o.orderId())) {
+        decisions.add(
+            CheapestInsertion.deferred(o, HELD_RULE, "kept deferred by the dispatcher; not offered a place", List.of()));
+        continue;
+      }
       Optional<OrderDecision> unservable = screen(o, problem, ctx);
       if (unservable.isPresent()) {
         decisions.add(unservable.get());
@@ -82,6 +91,20 @@ public final class PriorityInsertionEngine implements AllocationEngine {
 
     boolean partial = false;
     List<PlanOrder> placed = new ArrayList<>();
+    // What a dispatcher placed or locked goes back first, where it was, or the plan is refused.
+    List<PlanOrder> pinned =
+        servable.stream()
+            .filter(o -> problem.pins().containsKey(o.orderId()))
+            .sorted(
+                Comparator.comparing((PlanOrder o) -> problem.pins().get(o.orderId()).vehicleId())
+                    .thenComparingInt(o -> problem.pins().get(o.orderId()).tripNumber())
+                    .thenComparing(PlanOrder::orderRef))
+            .toList();
+    servable.removeAll(pinned);
+    for (PlanOrder o : pinned) {
+      pin(days, o, problem.pins().get(o.orderId()), ctx);
+      placed.add(o);
+    }
     for (PlanOrder o : problem.policy().rank(servable, ctx)) {
       if (nanoTime.getAsLong() > deadline) {
         partial = true;
@@ -102,6 +125,29 @@ public final class PriorityInsertionEngine implements AllocationEngine {
     }
     decisions.sort(Comparator.comparing(OrderDecision::orderId));
     return new AllocationResult(List.copyOf(days.values()), decisions, partial, NAME);
+  }
+
+  /** Puts a kept decision back, judged by the whole registry like any other placement. */
+  private void pin(Map<String, VehicleDay> days, PlanOrder o, Pin pin, PlanContext ctx) {
+    VehicleDay day = days.get(pin.vehicleId());
+    if (day == null) {
+      throw new DomainException(
+          ErrorCode.CONSTRAINT_VIOLATED,
+          o.orderRef() + " cannot stay on " + pin.vehicleId() + ": the vehicle is not available that day",
+          List.of("R-FLT-03"));
+    }
+    int trips = day.trips().size();
+    VehicleDay placed = pin.tripNumber() <= trips ? day.withJoined(pin.tripNumber(), o) : day.withNewTrip(o);
+    List<ConstraintResult> failed =
+        registry.evaluate(new Candidate(placed, ctx, Set.of())).stream().filter(r -> !r.passed()).toList();
+    if (!failed.isEmpty()) {
+      throw new DomainException(
+          ErrorCode.CONSTRAINT_VIOLATED,
+          o.orderRef() + " cannot stay on " + pin.vehicleId() + " trip " + pin.tripNumber() + ": "
+              + String.join("; ", failed.stream().map(r -> r.ruleId() + " " + r.reason()).toList()),
+          failed.stream().map(ConstraintResult::ruleId).distinct().toList());
+    }
+    days.put(pin.vehicleId(), placed);
   }
 
   private Optional<OrderDecision> screen(PlanOrder o, Problem problem, PlanContext ctx) {

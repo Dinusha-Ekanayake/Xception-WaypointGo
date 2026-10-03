@@ -95,6 +95,7 @@ public class OverrideAllocationHandler implements CommandHandler {
                   vehicle,
                   tripNumber,
                   reason,
+                  actor.userId(),
                   registry,
                   opened.built().problem().context());
     } catch (DomainException e) {

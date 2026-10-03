@@ -55,7 +55,7 @@ All nine are in [PLAN.md](PLAN.md). Added while building:
 ## Known gaps
 
 - Still open on #19: assigning an issue to someone other than yourself (no read lists a depot's staff), interchange approval (waits on #10), the sync conflict queue, late risk on the plan (backend built, #16). Forecast is built (see the third slice).
-- No backend for these parts of the design, so they are left out: snapshots and compare, regenerate with locked orders, late-risk percentages, contact store manager, global search, the map.
+- Left out of the design for want of a source: global search, the notification bell's Reply, the dock on a draft trip, the Plan "Due" time, and "AI order" in the swap window. Snapshots, compare, locks, swap, contact store manager and late risk on a published plan are built (see the last section). Overview (7 day chart, workshop list) and Orders (tabs, ETA, order details) still differ from the design, see FIGMA-GAP.
 - A stale draft is shown as the server's message, not as a side by side diff.
 - The browser tests run against a mocked API and are not in CI, like the loader's and the driver's. The flows against the real backend need the fresh-install seed.
 - Order ETA on the order board waits on a per-order ETA read; Live shows window and plan times.
@@ -99,3 +99,22 @@ Runs: `screens/ForecastRuns.tsx` shows the last run (with its model, or "Recent 
 Verify: `npm test` (9 in `dispatcher-forecast.test.ts`), `npx playwright test -c playwright.dispatcher.config.ts forecast.spec.ts` (4: the screen, a brand filter, the fallback notice, no forecast yet), `mvn test -Dtest=IntelligenceDomainTest`, and `IntelligenceIntegrationTest` on PostgreSQL (overview shape and capacity, out of scope, the job runs once a week).
 
 Gaps: the models must be registered and activated on each deployment (`ml:RegisterModel`, `ml:ActivateModel`) before the forecast is the model's; until then it says it is the fallback. Late risk on the plan is still to build.
+
+## The Plan screen against the design (2026-10-03)
+
+Figma "05 Dispatcher Desktop", Plan: the gap list is in [FIGMA-GAP.md](FIGMA-GAP.md). Decisions 9 to 15 of the [plan](PLAN.md) are what changed.
+
+Backend (`planning`, `notification`):
+- Migrations `20261004T0900` (who decided an allocation, and whether it is held), `0910` (a trip's fixed stop order, six actions), `1000` (saved plans, two actions), `1100` (notification routing version 3).
+- Commands: `plan:Swap`, `plan:KeepDeferred`, `plan:Lock`, `plan:Unlock`, `plan:ReorderStops`, `plan:ContactStore`, `plan:SaveSnapshot`, `plan:RestoreSnapshot`, and `keepDecisions` on `plan:Generate`. Reads: `preview/swap`, `preview/sequence`, `snapshots`, `snapshots/{id}`, `compare`; `PlanView.savedAt` and each allocation's `source`, `locked`, `decidedBy`, `decidedAt` and `lastServedOn`.
+- Domain: `PlanningRun.swap/keepDeferred/lock/reorderStops` and marks carried through every edit; `Trip.sequence` and `TripTimeline` (a fixed order is timed as given); engine pins in `PriorityInsertionEngine`; `PlanDiff`.
+- Events: `plan.store_contacted`; `plan.revised` carries `changedTripIds` and `affectedOutletIds`, and `NotificationConsumers` tells only those.
+
+Frontend (`roles/dispatcher`):
+- `screens/Plan.tsx` (container and commands), `PlanTools` (plan switcher, Save snapshot, Regenerate, Compare), `PlanSteps`, `PlanDecide` with `DecisionPanel`, `SwapWindow`, `TooBigCard`, `PlanBoard` with `DeferredColumn` and `BoardFilter`, `PlanTrip` with `EditTrip`, `PlanPublish`, `PlanCompare`; the sidebar folds to an icon rail on Plan and shows the Orders and Live counts.
+- `data/planViews.ts` (pure: decision rows, counts, low-load, filter, late risk), `data/usePlanReads.ts`; shared `Menu`, `Switch` and `ruleLabel`.
+
+Verify: `mvn test -Dtest=PlanningRunTest,PinnedDecisionsTest,PlanDiffTest` and, with `TEST_DATABASE_URL` set, `PlanningDecisionsIntegrationTest`, `PlanningSnapshotsIntegrationTest`, `PlanningRevisionIntegrationTest`, `NotificationConsumersIntegrationTest`; `npm test` (12 in `dispatcher-plan-views.test.ts`); `npx playwright test -c playwright.dispatcher.config.ts plan.spec.ts plan-decisions.spec.ts` (13).
+
+Gaps: Overview and Orders still differ from the design (FIGMA-GAP sections 1 and 2). The frames for the swap window, Compare, Edit trip and the publish states were not seen when this was built; their layouts follow the workflow map and the frame names.
+

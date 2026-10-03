@@ -76,6 +76,7 @@ abstract class PlanningIntegrationSupport {
   OutletView outlet;
   LocalDate serviceDate;
   Cookie dispatcher;
+  String dispatcherEmail;
   Cookie elsewhere;
   String elsewhereEmail;
 
@@ -126,6 +127,7 @@ abstract class PlanningIntegrationSupport {
     accounts.grantDepot(here, depot);
     accounts.createAccount(elsewhereEmail, "Elsewhere", PASSWORD, "dispatcher");
     accounts.grantDepot(elsewhereEmail, otherDepot);
+    dispatcherEmail = here;
     dispatcher = session(here);
     elsewhere = session(elsewhereEmail);
   }

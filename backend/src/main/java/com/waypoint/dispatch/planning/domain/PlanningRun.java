@@ -34,6 +34,8 @@ import java.util.UUID;
  *     dispatcher (rule 8)
  * @param improvement what the engine's second pass achieved over its first,
  *     kept through every version of the draft (issue #92)
+ * @param marks the decisions a dispatcher took on an order, and whether it is
+ *     held in place; an order with no entry is the engine's and free (rule 8)
  */
 public record PlanningRun(
     UUID planId,
@@ -52,6 +54,7 @@ public record PlanningRun(
     List<VehicleDay> days,
     List<OrderDecision> decisions,
     Map<UUID, UUID> deferredBy,
+    Map<UUID, Mark> marks,
     long rowVersion) {
 
   /** R-PLN-19: the dispatcher decides what defers and records why. */
@@ -63,10 +66,34 @@ public record PlanningRun(
   /** The versions a run was built under, so it can be replayed and gated (POL-03). */
   public record Stamps(UUID referenceVersionId, UUID ruleSetId, UUID policyVersionId) {}
 
+  /** Who decided an order's place, or {@code ENGINE} when nobody did. */
+  public enum Source {
+    ENGINE,
+    OVERRIDE,
+    SWAP,
+    KEPT,
+    MANUAL_DEFER,
+    RESTORED;
+
+    /** A served order can only have been decided by these; a deferred one only by the others. */
+    boolean placesAnOrder() {
+      return this == ENGINE || this == OVERRIDE || this == SWAP || this == RESTORED;
+    }
+  }
+
+  /**
+   * A dispatcher's hand on an order.
+   *
+   * @param actor who decided or locked it (rule 8)
+   * @param locked held on its trip; a regenerate keeps it there
+   */
+  public record Mark(Source source, UUID actor, boolean locked) {}
+
   public PlanningRun {
     days = days.stream().filter(d -> !d.trips().isEmpty()).sorted(Comparator.comparing(VehicleDay::vehicleId)).toList();
     decisions = decisions.stream().sorted(Comparator.comparing(OrderDecision::orderId)).toList();
     deferredBy = Map.copyOf(deferredBy);
+    marks = Map.copyOf(marks);
   }
 
   /** A first draft from an engine result. Every engine deferral is the engine actor's. */
@@ -87,11 +114,37 @@ public record PlanningRun(
     return new PlanningRun(
         planId, depotCode, serviceDate, planVersion, PlanStatus.DRAFT, stamps, supersedes, Optional.empty(),
         demandFingerprint, false, result.partial(), result.engine(), result.improvement(), result.days(),
-        result.decisions(), by, 1);
+        result.decisions(), by, Map.of(), 1);
   }
 
   public AllocationResult result() {
     return new AllocationResult(days, decisions, partial, engine, improvement);
+  }
+
+  /**
+   * This first draft of a regenerate, with the hand a dispatcher had on its
+   * orders put back: their marks, and for the orders they kept deferred the
+   * explanation they were kept with. An order no longer in the plan is skipped.
+   */
+  public PlanningRun withCarried(Map<UUID, Mark> carried, Map<UUID, OrderDecision> heldDecisions) {
+    List<OrderDecision> next =
+        decisions.stream()
+            .map(d -> d.decision() == AllocationDecision.DEFERRED ? heldDecisions.getOrDefault(d.orderId(), d) : d)
+            .toList();
+    Map<UUID, UUID> by = new HashMap<>(deferredBy);
+    for (OrderDecision d : next) {
+      Mark mark = carried.get(d.orderId());
+      if (mark != null && heldDecisions.containsKey(d.orderId())) {
+        by.put(d.orderId(), mark.actor());
+      }
+    }
+    return new PlanningRun(
+        planId, depotCode, serviceDate, planVersion, status, stamps, supersedes, revisionReason, demandFingerprint,
+        stale, partial, engine, improvement, days, next, by, kept(carried, next), rowVersion);
+  }
+
+  public Optional<Mark> markOf(UUID orderId) {
+    return Optional.ofNullable(marks.get(orderId));
   }
 
   public Optional<OrderDecision> decisionFor(UUID orderId) {
@@ -130,6 +183,7 @@ public record PlanningRun(
       FleetVehicle vehicle,
       int tripNumber,
       String reason,
+      UUID actor,
       ConstraintRegistry registry,
       PlanContext context) {
     requireOpenDraft();
@@ -162,7 +216,9 @@ public record PlanningRun(
     List<OrderDecision> changed = replace(order.orderId(), served(order.orderId(), reasons.get(order.orderId())));
     Map<UUID, UUID> by = new HashMap<>(deferredBy);
     by.remove(order.orderId());
-    return successor(nextPlanId, nextVersion, next, changed, by, reasons.keySet(), registry, context);
+    Map<UUID, Mark> hand = new HashMap<>(marks);
+    hand.put(order.orderId(), new Mark(Source.OVERRIDE, actor, false));
+    return successor(nextPlanId, nextVersion, next, changed, by, hand, reasons.keySet(), registry, context);
   }
 
   /** Takes a served order off its trip with the dispatcher's reason (R-PLN-19). */
@@ -187,7 +243,9 @@ public record PlanningRun(
             Optional.of(MANUAL_DEFERRAL_RULE), "deferred by dispatcher: " + reason, List.of());
     Map<UUID, UUID> by = new HashMap<>(deferredBy);
     by.put(orderId, actor);
-    return successor(nextPlanId, nextVersion, next, replace(orderId, deferred), by, Set.of(), registry, context);
+    Map<UUID, Mark> hand = new HashMap<>(marks);
+    hand.put(orderId, new Mark(Source.MANUAL_DEFER, actor, false));
+    return successor(nextPlanId, nextVersion, next, replace(orderId, deferred), by, hand, Set.of(), registry, context);
   }
 
   /**
@@ -238,7 +296,7 @@ public record PlanningRun(
     }
     return successor(
         nextPlanId, nextVersion, nextStamps, Optional.of(planId), Optional.of(reason), nextFingerprint,
-        nextDays, nextDecisions, by, Set.of(), registry, context);
+        nextDays, nextDecisions, by, marks, Set.of(), registry, context);
   }
 
   /**
@@ -320,7 +378,7 @@ public record PlanningRun(
             decisions.stream()
                 .map(d -> moved.contains(d.orderId()) ? served(d.orderId(), "replanned onto " + candidate.vehicleId() + ": " + reason) : d)
                 .toList();
-        PlanningRun run = successor(nextPlanId, nextVersion, next, changed, deferredBy, moved, registry, context);
+        PlanningRun run = successor(nextPlanId, nextVersion, next, changed, deferredBy, marks, moved, registry, context);
         return new Replanned(run, Optional.of(candidate.vehicleId()), move.checks());
       }
       if (closest == null || ConstraintRegistry.failures(move.checks()) < ConstraintRegistry.failures(closest.checks())) {
@@ -355,8 +413,209 @@ public record PlanningRun(
                             Optional.of(rule), explanation, evidence)
                         : d)
             .toList();
-    PlanningRun run = successor(nextPlanId, nextVersion, next, changed, by, Set.of(), registry, context);
+    PlanningRun run = successor(nextPlanId, nextVersion, next, changed, by, marks, Set.of(), registry, context);
     return new Replanned(run, Optional.empty(), evidence);
+  }
+
+  /** A whole vehicle day a change would leave, with every rule's verdict on it. Read only. */
+  public record Proposed(VehicleDay day, int tripNumber, List<ConstraintResult> checks) {
+    public Proposed {
+      checks = List.copyOf(checks);
+    }
+
+    public boolean feasible() {
+      return ConstraintRegistry.allPass(checks);
+    }
+  }
+
+  /**
+   * What swapping {@code out}, served, for {@code in}, deferred, would leave: {@code in}
+   * takes the trip {@code out} leaves, on the same vehicle (the whole day is checked).
+   */
+  public Proposed proposeSwap(PlanOrder out, PlanOrder in, ConstraintRegistry registry, PlanContext context) {
+    OrderDecision leaving = decisionOrThrow(out.orderId());
+    OrderDecision entering = decisionOrThrow(in.orderId());
+    if (leaving.decision() != AllocationDecision.SERVED || leaving.vehicleId().isEmpty()) {
+      throw new DomainException(
+          ErrorCode.VALIDATION_FAILED,
+          "order " + out.orderId() + " is " + leaving.decision() + "; only a served order is swapped out");
+    }
+    if (entering.decision() != AllocationDecision.DEFERRED) {
+      throw new DomainException(
+          ErrorCode.VALIDATION_FAILED,
+          "order " + in.orderId() + " is " + entering.decision() + "; only a deferred order is swapped in");
+    }
+    VehicleDay base = dayOf(leaving.vehicleId().get()).without(out.orderId());
+    int trip = leaving.tripNumber().orElseThrow();
+    int trips = base.trips().size();
+    VehicleDay placed = trip <= trips ? base.withJoined(trip, in) : base.withNewTrip(in);
+    return new Proposed(
+        placed,
+        placed.tripNumberOf(in.orderId()).orElseThrow(),
+        registry.evaluate(new Candidate(placed, context, Set.of())));
+  }
+
+  /**
+   * Swaps a served order for a deferred one, atomically: {@code out} is deferred with the
+   * dispatcher's name on it and {@code in} takes its place, or nothing changes. Refused,
+   * with every failing rule, unless the vehicle's whole day still passes the registry.
+   */
+  public PlanningRun swap(
+      UUID nextPlanId,
+      int nextVersion,
+      PlanOrder out,
+      PlanOrder in,
+      String reason,
+      UUID actor,
+      ConstraintRegistry registry,
+      PlanContext context) {
+    requireOpenDraft();
+    Proposed proposed = proposeSwap(out, in, registry, context);
+    refuseFailures("swap", proposed.checks());
+    List<VehicleDay> next = new ArrayList<>(days);
+    next.removeIf(d -> d.vehicleId().equals(proposed.day().vehicleId()));
+    next.add(proposed.day());
+
+    OrderDecision deferred =
+        new OrderDecision(
+            out.orderId(), AllocationDecision.DEFERRED, Optional.empty(), Optional.empty(),
+            Optional.of(MANUAL_DEFERRAL_RULE), "deferred by dispatcher: swapped out for a deferred order: " + reason, List.of());
+    List<OrderDecision> changed = new ArrayList<>(decisions);
+    changed.replaceAll(
+        d ->
+            d.orderId().equals(out.orderId())
+                ? deferred
+                : d.orderId().equals(in.orderId()) ? served(in.orderId(), "swap: " + reason) : d);
+    Map<UUID, UUID> by = new HashMap<>(deferredBy);
+    by.put(out.orderId(), actor);
+    by.remove(in.orderId());
+    Map<UUID, Mark> hand = new HashMap<>(marks);
+    hand.put(out.orderId(), new Mark(Source.MANUAL_DEFER, actor, false));
+    hand.put(in.orderId(), new Mark(Source.SWAP, actor, false));
+    return successor(nextPlanId, nextVersion, next, changed, by, hand, Set.of(in.orderId()), registry, context);
+  }
+
+  /**
+   * Records that deferred orders stay deferred, by a dispatcher's decision. The
+   * orders do not move; what changes is that someone decided, and said why (rule 8).
+   */
+  public PlanningRun keepDeferred(
+      UUID nextPlanId,
+      int nextVersion,
+      List<UUID> orderIds,
+      String reason,
+      UUID actor,
+      ConstraintRegistry registry,
+      PlanContext context) {
+    requireOpenDraft();
+    if (orderIds.isEmpty()) {
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, "name at least one order to keep deferred");
+    }
+    List<OrderDecision> changed = new ArrayList<>(decisions);
+    Map<UUID, UUID> by = new HashMap<>(deferredBy);
+    Map<UUID, Mark> hand = new HashMap<>(marks);
+    for (UUID orderId : new java.util.LinkedHashSet<>(orderIds)) {
+      OrderDecision d = decisionOrThrow(orderId);
+      if (d.decision() != AllocationDecision.DEFERRED) {
+        throw new DomainException(
+            ErrorCode.VALIDATION_FAILED,
+            "order " + orderId + " is " + d.decision() + "; only a deferred order is kept deferred");
+      }
+      changed.replaceAll(
+          x ->
+              x.orderId().equals(orderId)
+                  ? new OrderDecision(
+                      orderId, AllocationDecision.DEFERRED, Optional.empty(), Optional.empty(), x.bindingRule(),
+                      x.reason() + " Kept deferred by the dispatcher: " + reason, x.checks())
+                  : x);
+      by.put(orderId, actor);
+      hand.put(orderId, new Mark(Source.KEPT, actor, false));
+    }
+    return successor(nextPlanId, nextVersion, days, changed, by, hand, Set.of(), registry, context);
+  }
+
+  /** Holds a served order on its trip, or lets it go: a regenerate keeps what is locked. */
+  public PlanningRun lock(
+      UUID nextPlanId,
+      int nextVersion,
+      UUID orderId,
+      boolean locked,
+      UUID actor,
+      ConstraintRegistry registry,
+      PlanContext context) {
+    requireOpenDraft();
+    OrderDecision d = decisionOrThrow(orderId);
+    if (d.decision() != AllocationDecision.SERVED) {
+      throw new DomainException(
+          ErrorCode.VALIDATION_FAILED,
+          "order " + orderId + " is " + d.decision() + "; only an order on a trip is locked");
+    }
+    Mark current = marks.getOrDefault(orderId, new Mark(Source.ENGINE, actor, false));
+    if (current.locked() == locked) {
+      throw new DomainException(
+          ErrorCode.VALIDATION_FAILED, "order " + orderId + " is already " + (locked ? "locked" : "unlocked"));
+    }
+    Map<UUID, Mark> hand = new HashMap<>(marks);
+    hand.put(orderId, new Mark(current.source(), locked ? actor : current.actor(), locked));
+    Set<UUID> everyOrder = decisions.stream().map(OrderDecision::orderId).collect(java.util.stream.Collectors.toSet());
+    return successor(nextPlanId, nextVersion, days, decisions, deferredBy, hand, everyOrder, registry, context);
+  }
+
+  /** What a trip would be with its stops in the order a dispatcher gave, and what every rule says. */
+  public Proposed proposeSequence(
+      String vehicleId, int tripNumber, List<UUID> orderIds, ConstraintRegistry registry, PlanContext context) {
+    VehicleDay day = dayOf(vehicleId);
+    if (tripNumber < 1 || tripNumber > day.trips().size()) {
+      throw new DomainException(ErrorCode.NOT_FOUND, vehicleId + " has no trip " + tripNumber + " in plan " + planId);
+    }
+    Trip trip = day.trip(tripNumber);
+    Set<UUID> onTrip = trip.orders().stream().map(PlanOrder::orderId).collect(java.util.stream.Collectors.toSet());
+    if (orderIds.size() != onTrip.size() || !onTrip.equals(new java.util.HashSet<>(orderIds))) {
+      throw new DomainException(
+          ErrorCode.VALIDATION_FAILED, "name every order of " + vehicleId + " trip " + tripNumber + " exactly once");
+    }
+    List<Trip> next = new ArrayList<>(day.trips());
+    next.set(tripNumber - 1, trip.withSequence(orderIds));
+    VehicleDay placed = new VehicleDay(day.vehicle(), next);
+    return new Proposed(placed, tripNumber, registry.evaluate(new Candidate(placed, context, Set.of())));
+  }
+
+  /**
+   * Fixes the order of one trip's stops. The timeline then times them in that
+   * order and the registry judges the result, so a sequence that breaks a window
+   * or a budget is refused with the rule (R-PLN-13, R-PLN-09, R-PLN-10).
+   */
+  public PlanningRun reorderStops(
+      UUID nextPlanId,
+      int nextVersion,
+      String vehicleId,
+      int tripNumber,
+      List<UUID> orderIds,
+      String reason,
+      ConstraintRegistry registry,
+      PlanContext context) {
+    requireOpenDraft();
+    Proposed proposed = proposeSequence(vehicleId, tripNumber, orderIds, registry, context);
+    refuseFailures("reorder", proposed.checks());
+    List<VehicleDay> next = new ArrayList<>(days);
+    next.removeIf(d -> d.vehicleId().equals(vehicleId));
+    next.add(proposed.day());
+    Set<UUID> moved = new java.util.HashSet<>(orderIds);
+    List<OrderDecision> changed =
+        decisions.stream()
+            .map(d -> moved.contains(d.orderId()) ? served(d.orderId(), "stops reordered by dispatcher: " + reason) : d)
+            .toList();
+    return successor(nextPlanId, nextVersion, next, changed, deferredBy, marks, moved, registry, context);
+  }
+
+  private static void refuseFailures(String what, List<ConstraintResult> checks) {
+    List<ConstraintResult> failed = checks.stream().filter(r -> !r.passed()).toList();
+    if (!failed.isEmpty()) {
+      throw new DomainException(
+          ErrorCode.CONSTRAINT_VIOLATED,
+          what + " refused: " + String.join("; ", failed.stream().map(r -> r.ruleId() + " " + r.reason()).toList()),
+          failed.stream().map(ConstraintResult::ruleId).distinct().toList());
+    }
   }
 
   /** Where an order could go: every trip it could join and a new trip on every vehicle, each with its checks. */
@@ -426,12 +685,13 @@ public record PlanningRun(
       List<VehicleDay> nextDays,
       List<OrderDecision> nextDecisions,
       Map<UUID, UUID> nextDeferredBy,
+      Map<UUID, Mark> nextMarks,
       Set<UUID> keepReason,
       ConstraintRegistry registry,
       PlanContext context) {
     return successor(
         nextPlanId, nextVersion, stamps, supersedes, revisionReason, demandFingerprint, nextDays, nextDecisions,
-        nextDeferredBy, keepReason, registry, context);
+        nextDeferredBy, nextMarks, keepReason, registry, context);
   }
 
   private PlanningRun successor(
@@ -444,6 +704,7 @@ public record PlanningRun(
       List<VehicleDay> nextDays,
       List<OrderDecision> nextDecisions,
       Map<UUID, UUID> nextDeferredBy,
+      Map<UUID, Mark> nextMarks,
       Set<UUID> keepReason,
       ConstraintRegistry registry,
       PlanContext context) {
@@ -474,6 +735,29 @@ public record PlanningRun(
     }
     return new PlanningRun(
         nextPlanId, depotCode, serviceDate, nextVersion, PlanStatus.DRAFT, nextStamps, nextSupersedes,
-        nextReason, nextFingerprint, false, partial, engine, improvement, nextDays, refreshed, nextDeferredBy, 1);
+        nextReason, nextFingerprint, false, partial, engine, improvement, nextDays, refreshed, nextDeferredBy,
+        kept(nextMarks, refreshed), 1);
+  }
+
+  /**
+   * The marks that still describe their order. A hand that placed an order means
+   * nothing once it is deferred, and one that deferred it means nothing once it
+   * is placed, so those fall away; a lock holds only a served order.
+   */
+  private static Map<UUID, Mark> kept(Map<UUID, Mark> candidate, List<OrderDecision> decisions) {
+    Map<UUID, Mark> out = new HashMap<>();
+    for (OrderDecision d : decisions) {
+      Mark mark = candidate.get(d.orderId());
+      if (mark == null) {
+        continue;
+      }
+      boolean served = d.decision() == AllocationDecision.SERVED;
+      boolean fits = served ? mark.source().placesAnOrder() : !mark.source().placesAnOrder() && !mark.locked();
+      boolean idle = mark.source() == Source.ENGINE && !mark.locked();
+      if (fits && !idle) {
+        out.put(d.orderId(), mark);
+      }
+    }
+    return out;
   }
 }

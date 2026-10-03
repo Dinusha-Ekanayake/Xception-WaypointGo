@@ -42,6 +42,10 @@ public final class ImprovingEngine implements AllocationEngine {
     if (greedy.partial()) {
       return greedy;
     }
+    if (problem.hasDecisions()) {
+      // The second pass plans the reefers again as a whole, which could move what a dispatcher kept.
+      return new AllocationResult(greedy.days(), greedy.decisions(), greedy.partial(), name(), Optional.empty());
+    }
     ScarceFleetReplan.Result result = replan.improve(problem, greedy, nanoTime, deadline, name());
     AllocationResult out = result.allocation();
     // The engine that ran is this one, whether or not it changed the first plan.

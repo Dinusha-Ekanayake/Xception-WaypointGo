@@ -103,7 +103,8 @@ public class JdbcPlanRepository {
       BigDecimal volumeM3,
       BigDecimal plannedMinutes,
       LocalTime plannedDeparture,
-      BigDecimal litres) {}
+      BigDecimal litres,
+      boolean manualSequence) {}
 
   /** One order's decision. A served order carries its trip, stop and arrival; nothing else does. */
   public record AllocationRow(
@@ -118,7 +119,11 @@ public class JdbcPlanRepository {
       BigDecimal serviceMinutes,
       Optional<String> bindingRule,
       String reason,
-      List<ConstraintResult> checks) {
+      List<ConstraintResult> checks,
+      String source,
+      boolean locked,
+      Optional<UUID> decidedBy,
+      Optional<Instant> decidedAt) {
 
     public AllocationRow {
       checks = List.copyOf(checks);
@@ -160,6 +165,102 @@ public class JdbcPlanRepository {
             + " WHERE depot_code = ? AND service_date = ? AND status = 'published'",
         depotCode,
         Date.valueOf(serviceDate));
+  }
+
+  // ---- snapshots -------------------------------------------------------------
+
+  /**
+   * A saved plan. {@code payload} is the plan as the dispatcher saw it, as JSON;
+   * a list read leaves it empty so a screen listing saved plans does not carry them all.
+   */
+  public record SnapshotRow(
+      UUID snapshotId,
+      String depotCode,
+      LocalDate serviceDate,
+      int number,
+      String label,
+      String kind,
+      UUID sourcePlanId,
+      int planVersion,
+      String payload,
+      UUID createdBy,
+      Instant createdAt) {}
+
+  /** The next number for the depot and day, so saved plans read "Snapshot 1", "Snapshot 2". */
+  public int nextSnapshotNumber(String depotCode, LocalDate serviceDate) {
+    Map<String, Object> row =
+        database.queryOne(
+            "SELECT coalesce(max(number), 0) + 1 AS n FROM planning.snapshots"
+                + " WHERE depot_code = ? AND service_date = ?",
+            depotCode,
+            Date.valueOf(serviceDate));
+    return ((Number) row.get("n")).intValue();
+  }
+
+  public void insertSnapshot(SnapshotRow s) {
+    database.update(
+        """
+        INSERT INTO planning.snapshots
+            (snapshot_id, depot_code, service_date, number, label, kind, source_plan_id, plan_version,
+             payload, created_by, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?)
+        """,
+        s.snapshotId(),
+        s.depotCode(),
+        Date.valueOf(s.serviceDate()),
+        s.number(),
+        s.label(),
+        s.kind(),
+        s.sourcePlanId(),
+        s.planVersion(),
+        s.payload(),
+        s.createdBy(),
+        Timestamp.from(s.createdAt()));
+  }
+
+  /** The saved plans of a depot and day, newest first, without their plans. */
+  public List<SnapshotRow> snapshots(String depotCode, LocalDate serviceDate) {
+    return database
+        .query(
+            """
+            SELECT snapshot_id, depot_code, service_date, number, label, kind, source_plan_id, plan_version,
+                   created_by, created_at
+              FROM planning.snapshots WHERE depot_code = ? AND service_date = ? ORDER BY number DESC
+            """,
+            depotCode,
+            Date.valueOf(serviceDate))
+        .stream()
+        .map(row -> snapshot(row, ""))
+        .toList();
+  }
+
+  public Optional<SnapshotRow> findSnapshot(UUID snapshotId) {
+    return database
+        .query(
+            """
+            SELECT snapshot_id, depot_code, service_date, number, label, kind, source_plan_id, plan_version,
+                   payload::text AS payload, created_by, created_at
+              FROM planning.snapshots WHERE snapshot_id = ?
+            """,
+            snapshotId)
+        .stream()
+        .findFirst()
+        .map(row -> snapshot(row, (String) row.get("payload")));
+  }
+
+  private SnapshotRow snapshot(Map<String, Object> row, String payload) {
+    return new SnapshotRow(
+        (UUID) row.get("snapshot_id"),
+        (String) row.get("depot_code"),
+        ((Date) row.get("service_date")).toLocalDate(),
+        ((Number) row.get("number")).intValue(),
+        (String) row.get("label"),
+        (String) row.get("kind"),
+        (UUID) row.get("source_plan_id"),
+        ((Number) row.get("plan_version")).intValue(),
+        payload,
+        (UUID) row.get("created_by"),
+        ((Timestamp) row.get("created_at")).toInstant());
   }
 
   /** The newest draft for the depot and day, if one is open. */
@@ -237,7 +338,7 @@ public class JdbcPlanRepository {
         database.query(
             """
             SELECT trip_id, vehicle_id, trip_number, brand_code, district_name, temperature,
-                   weight_kg, volume_m3, planned_minutes, planned_departure, litres
+                   weight_kg, volume_m3, planned_minutes, planned_departure, litres, manual_sequence
               FROM planning.trips WHERE plan_id = ? ORDER BY vehicle_id, trip_number
             """,
             planId)) {
@@ -253,7 +354,8 @@ public class JdbcPlanRepository {
               (BigDecimal) row.get("volume_m3"),
               (BigDecimal) row.get("planned_minutes"),
               time(row.get("planned_departure")).orElseThrow(),
-              (BigDecimal) row.get("litres")));
+              (BigDecimal) row.get("litres"),
+              (Boolean) row.get("manual_sequence")));
     }
     return trips;
   }
@@ -264,7 +366,8 @@ public class JdbcPlanRepository {
         .query(
             """
             SELECT order_id, outlet_id, decision, trip_id, stop_sequence, planned_arrival,
-                   window_open, window_close, service_minutes, binding_rule, reason, checks::text AS checks
+                   window_open, window_close, service_minutes, binding_rule, reason, checks::text AS checks,
+                   source, locked, decided_by, decided_at
               FROM planning.allocations WHERE plan_id = ?
              ORDER BY trip_id NULLS LAST, stop_sequence, order_id
             """,
@@ -285,7 +388,8 @@ public class JdbcPlanRepository {
         .query(
             """
             SELECT order_id, outlet_id, decision, trip_id, stop_sequence, planned_arrival,
-                   window_open, window_close, service_minutes, binding_rule, reason, checks::text AS checks
+                   window_open, window_close, service_minutes, binding_rule, reason, checks::text AS checks,
+                   source, locked, decided_by, decided_at
               FROM planning.allocations
              WHERE plan_id = ? AND (?::uuid IS NULL OR order_id > ?::uuid)
              ORDER BY order_id
@@ -313,7 +417,11 @@ public class JdbcPlanRepository {
         (BigDecimal) row.get("service_minutes"),
         Optional.ofNullable((String) row.get("binding_rule")),
         (String) row.get("reason"),
-        readChecks((String) row.get("checks")));
+        readChecks((String) row.get("checks")),
+        (String) row.get("source"),
+        (Boolean) row.get("locked"),
+        Optional.ofNullable((UUID) row.get("decided_by")),
+        Optional.ofNullable((Timestamp) row.get("decided_at")).map(Timestamp::toInstant));
   }
 
   public List<DeferralRow> deferrals(UUID planId) {
@@ -514,8 +622,8 @@ public class JdbcPlanRepository {
           """
           INSERT INTO planning.trips
               (trip_id, plan_id, depot_code, vehicle_id, trip_number, brand_code, district_name,
-               temperature, weight_kg, volume_m3, planned_minutes, planned_departure, litres)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               temperature, weight_kg, volume_m3, planned_minutes, planned_departure, litres, manual_sequence)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           """,
           t.tripId(),
           planId,
@@ -529,7 +637,8 @@ public class JdbcPlanRepository {
           t.volumeM3(),
           t.plannedMinutes(),
           Time.valueOf(t.plannedDeparture()),
-          t.litres());
+          t.litres(),
+          t.manualSequence());
     }
   }
 
@@ -539,8 +648,9 @@ public class JdbcPlanRepository {
           """
           INSERT INTO planning.allocations
               (plan_id, order_id, depot_code, outlet_id, decision, trip_id, stop_sequence,
-               planned_arrival, window_open, window_close, service_minutes, binding_rule, reason, checks)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb)
+               planned_arrival, window_open, window_close, service_minutes, binding_rule, reason, checks,
+               source, locked, decided_by, decided_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?)
           """,
           planId,
           a.orderId(),
@@ -555,7 +665,11 @@ public class JdbcPlanRepository {
           a.serviceMinutes(),
           a.bindingRule().orElse(null),
           a.reason(),
-          writeChecks(a.checks()));
+          writeChecks(a.checks()),
+          a.source(),
+          a.locked(),
+          a.decidedBy().orElse(null),
+          a.decidedAt().map(Timestamp::from).orElse(null));
     }
   }
 
