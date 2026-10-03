@@ -3,6 +3,12 @@
 @kavindamihiran's entries, newest first. Only @kavindamihiran adds to this file; how to write an entry is in the [log's index](../development-log.md).
 
 ---
+## 2026-10-03 - fix: one sign-in for every role, admin workspace on the shared shell
+
+`fix/single-sign-in` · @kavindamihiran
+
+The admin console's demo sign-in is removed: the shell `SignIn` is the only sign-in (the driver's own login went with the driver rewrite in #186), and the admin signs out through the shell. The admin workspace gets the dispatcher's sidebar with every screen and AI assistants in one nav, and `go-*` tokens in place of its own greens; status colours in the operations screens stay.
+Verified: typecheck, `npm test`, build, `e2e/mcp-admin.spec.ts`.
 ## 2026-10-03 - feat: dispatcher live screen matching Figma 05 Live
 
 `feat/live-timeline-figma` · @kavindamihiran

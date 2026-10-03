@@ -49,14 +49,14 @@ export function RolesScreen({
               {liveConnected ? "Live API: GET /api/admin/roles" : "Sample catalogue"}
             </Badge>
           </div>
-          <p className="mt-1 text-sm text-[#58685f]">
+          <p className="mt-1 text-sm text-go-secondary">
             Identity role definitions from <code>iam.roles</code>.
           </p>
         </div>
       </div>
 
-      <div className="rounded-2xl border border-[#cbe5db] bg-[#eff9f3] p-4 text-sm text-[#143d32]">
-        <p className="font-semibold text-[#0a6b63]">Role catalogue notice</p>
+      <div className="rounded-2xl border border-go-rule bg-go-subtle p-4 text-sm text-go-ink">
+        <p className="font-semibold text-go-teal">Role catalogue notice</p>
         <p className="mt-1 text-[#486357]">
           This view provides registered role labels and catalogue descriptions from <code>GET /api/admin/roles</code>. Neither this list nor role detail includes account membership or an effective access decision. User scope and dynamic policies are evaluated separately by the policy engine.
         </p>
@@ -75,7 +75,7 @@ export function RolesScreen({
         </label>
       </div>
 
-      <p className="text-sm text-[#58685f]">{filtered.length} of {roles.length} roles</p>
+      <p className="text-sm text-go-secondary">{filtered.length} of {roles.length} roles</p>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {filtered.map((role) => {
@@ -92,7 +92,7 @@ export function RolesScreen({
                     className={`grid size-11 place-items-center rounded-xl ${
                       role.roleCode === "super_admin"
                         ? "bg-[#fef3d6] text-[#b45309]"
-                        : "bg-[#d8f5ee] text-[#006b57]"
+                        : "bg-go-mint text-go-teal"
                     }`}
                   >
                     {isPersona(role.roleCode) ? (
@@ -103,14 +103,14 @@ export function RolesScreen({
                   </span>
                   <Badge tone={tone}>{roleCategory(role.roleCode)}</Badge>
                 </div>
-                <h3 className="mt-3 font-mono text-base font-semibold text-[#10251e]">
+                <h3 className="mt-3 font-mono text-base font-semibold text-go-ink">
                   {role.roleCode}
                 </h3>
-                <p className="mt-1 text-sm text-[#58685f] line-clamp-3">
+                <p className="mt-1 text-sm text-go-secondary line-clamp-3">
                   {role.description}
                 </p>
               </div>
-              <div className="mt-5 border-t border-[#eef4f1] pt-3">
+              <div className="mt-5 border-t border-go-subtle pt-3">
                 <button
                   type="button"
                   className={`${secondary} w-full min-h-9 text-xs`}
@@ -128,15 +128,15 @@ export function RolesScreen({
         <Modal title={`Role: ${selectedRole.roleCode}`} onClose={() => setSelectedRole(null)}>
           <dl className="grid gap-3 text-sm">
             <div>
-              <dt className="font-semibold text-[#58685f]">Role code</dt>
-              <dd className="font-mono text-sm font-bold text-[#10251e]">{selectedRole.roleCode}</dd>
+              <dt className="font-semibold text-go-secondary">Role code</dt>
+              <dd className="font-mono text-sm font-bold text-go-ink">{selectedRole.roleCode}</dd>
             </div>
             <div>
-              <dt className="font-semibold text-[#58685f]">Resource URI</dt>
-              <dd className="font-mono text-xs text-[#0a6b63]">wpt:iam:role:{selectedRole.roleCode}</dd>
+              <dt className="font-semibold text-go-secondary">Resource URI</dt>
+              <dd className="font-mono text-xs text-go-teal">wpt:iam:role:{selectedRole.roleCode}</dd>
             </div>
             <div>
-              <dt className="font-semibold text-[#58685f]">Classification</dt>
+              <dt className="font-semibold text-go-secondary">Classification</dt>
               <dd>
                 <Badge tone={roleBadgeTone(selectedRole.roleCode)}>
                   {roleCategory(selectedRole.roleCode)}
@@ -144,14 +144,14 @@ export function RolesScreen({
               </dd>
             </div>
             <div>
-              <dt className="font-semibold text-[#58685f]">Catalogue description</dt>
-              <dd className="mt-1 rounded-xl bg-[#f3faf6] p-3 text-[#143d32]">
+              <dt className="font-semibold text-go-secondary">Catalogue description</dt>
+              <dd className="mt-1 rounded-xl bg-[#f3faf6] p-3 text-go-ink">
                 {selectedRole.description}
               </dd>
             </div>
             <div>
-              <dt className="font-semibold text-[#58685f]">Identity semantics</dt>
-              <dd className="text-xs text-[#58685f]">
+              <dt className="font-semibold text-go-secondary">Identity semantics</dt>
+              <dd className="text-xs text-go-secondary">
                 Assigned to users via <code>iam.user_roles</code>. Attached to policy documents via <code>iam.policy_attachments</code>. Access evaluation requires matching policy effect AND user place scope (depot / outlet).
               </dd>
             </div>
@@ -208,14 +208,14 @@ export function ActionsScreen({
               {liveConnected ? "Live API: GET /api/admin/actions" : "Sample catalogue"}
             </Badge>
           </div>
-          <p className="mt-1 text-sm text-[#58685f]">
+          <p className="mt-1 text-sm text-go-secondary">
             Registered IAM actions from <code>iam.action_catalogue</code>.
           </p>
         </div>
       </div>
 
-      <div className="rounded-2xl border border-[#cbe5db] bg-[#eff9f3] p-4 text-sm text-[#143d32]">
-        <p className="font-semibold text-[#0a6b63]">Action catalogue notice</p>
+      <div className="rounded-2xl border border-go-rule bg-go-subtle p-4 text-sm text-go-ink">
+        <p className="font-semibold text-go-teal">Action catalogue notice</p>
         <p className="mt-1 text-[#486357]">
           Every permission evaluated in policy documents must be registered in <code>iam.action_catalogue</code>. Unregistered actions fail closed. Note that this catalogue provides action definitions only and does not compute account membership or runtime authorization decisions.
         </p>
@@ -261,9 +261,9 @@ export function ActionsScreen({
         </label>
       </div>
 
-      <p className="text-sm text-[#58685f]">{filtered.length} of {actions.length} action verbs</p>
+      <p className="text-sm text-go-secondary">{filtered.length} of {actions.length} action verbs</p>
 
-      <div className={`${card} divide-y divide-[#edf1ed]`}>
+      <div className={`${card} divide-y divide-go-rule`}>
         {filtered.map((item) => (
           <div
             key={item.action}
@@ -272,14 +272,14 @@ export function ActionsScreen({
             <span
               aria-hidden="true"
               className={`grid size-9 shrink-0 place-items-center rounded-xl text-sm font-bold ${
-                item.implemented ? "bg-[#d8f5ee] text-[#006b57]" : "bg-[#fef3d6] text-[#b45309]"
+                item.implemented ? "bg-go-mint text-go-teal" : "bg-[#fef3d6] text-[#b45309]"
               }`}
             >
               {item.implemented ? "✓" : "◷"}
             </span>
             <div className="min-w-44 flex-1">
-              <p className="font-mono text-sm font-bold text-[#10251e]">{item.action}</p>
-              <p className="text-xs text-[#58685f]">{item.description}</p>
+              <p className="font-mono text-sm font-bold text-go-ink">{item.action}</p>
+              <p className="text-xs text-go-secondary">{item.description}</p>
             </div>
             <Badge tone="blue">{item.module}</Badge>
             <Badge tone={item.implemented ? "green" : "amber"}>
@@ -287,7 +287,7 @@ export function ActionsScreen({
             </Badge>
             <button
               type="button"
-              className="min-h-11 px-2 text-sm font-semibold text-[#006b57] hover:underline"
+              className="min-h-11 px-2 text-sm font-semibold text-go-teal hover:underline"
               onClick={() => setSelectedAction(item)}
             >
               Details
@@ -300,17 +300,17 @@ export function ActionsScreen({
         <Modal title={`Action: ${selectedAction.action}`} onClose={() => setSelectedAction(null)}>
           <dl className="grid gap-3 text-sm">
             <div>
-              <dt className="font-semibold text-[#58685f]">Action verb</dt>
-              <dd className="font-mono text-sm font-bold text-[#10251e]">{selectedAction.action}</dd>
+              <dt className="font-semibold text-go-secondary">Action verb</dt>
+              <dd className="font-mono text-sm font-bold text-go-ink">{selectedAction.action}</dd>
             </div>
             <div>
-              <dt className="font-semibold text-[#58685f]">Owning module</dt>
+              <dt className="font-semibold text-go-secondary">Owning module</dt>
               <dd>
                 <Badge tone="blue">{selectedAction.module}</Badge>
               </dd>
             </div>
             <div>
-              <dt className="font-semibold text-[#58685f]">Implementation status</dt>
+              <dt className="font-semibold text-go-secondary">Implementation status</dt>
               <dd>
                 <Badge tone={selectedAction.implemented ? "green" : "amber"}>
                   {selectedAction.implemented ? "Implemented & Ready" : "Unavailable (Planned)"}
@@ -318,14 +318,14 @@ export function ActionsScreen({
               </dd>
             </div>
             <div>
-              <dt className="font-semibold text-[#58685f]">Description</dt>
-              <dd className="mt-1 rounded-xl bg-[#f3faf6] p-3 text-[#143d32]">
+              <dt className="font-semibold text-go-secondary">Description</dt>
+              <dd className="mt-1 rounded-xl bg-[#f3faf6] p-3 text-go-ink">
                 {selectedAction.description}
               </dd>
             </div>
             <div>
-              <dt className="font-semibold text-[#58685f]">Authorization note</dt>
-              <dd className="text-xs text-[#58685f]">
+              <dt className="font-semibold text-go-secondary">Authorization note</dt>
+              <dd className="text-xs text-go-secondary">
                 Policies matching <code>Action: &quot;{selectedAction.action}&quot;</code> are evaluated against requests on <code>wpt:{selectedAction.action.split(":")[0]}:*</code>. Unregistered actions fail closed.
               </dd>
             </div>

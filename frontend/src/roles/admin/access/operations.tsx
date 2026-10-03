@@ -379,7 +379,7 @@ export function VehiclesScreen() {
 
       {/* Filter Bar with Capacity, Fuel Quota, & Driver Sorting */}
       <div className={`${card} grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6`}>
-        <label className="text-sm font-medium text-[#10251e]">
+        <label className="text-sm font-medium text-go-ink">
           Search vehicle / driver
           <input
             className={`${field} mt-1`}
@@ -389,7 +389,7 @@ export function VehiclesScreen() {
             placeholder="Vehicle ID or driver..."
           />
         </label>
-        <label className="text-sm font-medium text-[#10251e]">
+        <label className="text-sm font-medium text-go-ink">
           Depot
           <select className={`${field} mt-1`} value={depot} onChange={(event) => setDepot(event.target.value)}>
             <option value="all">All depots</option>
@@ -400,7 +400,7 @@ export function VehiclesScreen() {
             ))}
           </select>
         </label>
-        <label className="text-sm font-medium text-[#10251e]">
+        <label className="text-sm font-medium text-go-ink">
           Payload capacity
           <select
             className={`${field} mt-1`}
@@ -413,7 +413,7 @@ export function VehiclesScreen() {
             <option value="heavy">Over 5,000 kg (Heavy / Truck)</option>
           </select>
         </label>
-        <label className="text-sm font-medium text-[#10251e]">
+        <label className="text-sm font-medium text-go-ink">
           Weekly fuel quota
           <select
             className={`${field} mt-1`}
@@ -426,7 +426,7 @@ export function VehiclesScreen() {
             <option value="high">Over 500 L / week</option>
           </select>
         </label>
-        <label className="text-sm font-medium text-[#10251e]">
+        <label className="text-sm font-medium text-go-ink">
           Status
           <select className={`${field} mt-1`} value={status} onChange={(event) => setStatus(event.target.value)}>
             <option value="all">All statuses</option>
@@ -437,7 +437,7 @@ export function VehiclesScreen() {
             ))}
           </select>
         </label>
-        <label className="text-sm font-medium text-[#10251e]">
+        <label className="text-sm font-medium text-go-ink">
           Sort by
           <select className={`${field} mt-1`} value={sortBy} onChange={(event) => setSortBy(event.target.value as "id" | "driver_name" | "driver_name_desc" | "driver_id")}>
             <option value="id">Vehicle ID (Default)</option>
@@ -448,19 +448,19 @@ export function VehiclesScreen() {
         </label>
       </div>
 
-      <p className="text-sm text-[#58685f]">
+      <p className="text-sm text-go-secondary">
         {rows.length} of {VEHICLES.length} vehicles match filters
       </p>
 
       {/* Output rows showing capacity, fuel quota, and structured details */}
       {rows.length ? (
-        <div className={`${card} divide-y divide-[#edf3ef]`}>
+        <div className={`${card} divide-y divide-go-subtle`}>
           {rows.map((item) => {
             const isSelected = selected === item.id;
             return (
               <article
                 key={item.id}
-                className="p-4 sm:p-5 transition-colors hover:bg-[#fafcfb]"
+                className="p-4 sm:p-5 transition-colors hover:bg-go-subtle"
               >
                 <div className="flex flex-wrap items-center justify-between gap-4">
                   {/* Vehicle Identity & Assigned Driver */}
@@ -468,33 +468,33 @@ export function VehiclesScreen() {
                     <div
                       className={`grid size-12 shrink-0 place-items-center rounded-2xl shadow-2xs ${
                         item.status === "Workshop"
-                          ? "bg-[#fff2d8] text-[#835500]"
+                          ? "bg-go-warning-tint text-go-warning-text"
                           : item.status === "On trip"
-                          ? "bg-[#d8f5ee] text-[#006b57]"
-                          : "bg-[#e5f4ef] text-[#006b57]"
+                          ? "bg-go-mint text-go-teal"
+                          : "bg-go-subtle text-go-teal"
                       }`}
                     >
                       <VehicleTypeIcon type={item.type} className="size-6.5" />
                     </div>
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-base font-semibold text-[#10251e]">
+                        <span className="text-base font-semibold text-go-ink">
                           {item.id}
                         </span>
-                        <span className="rounded-md bg-[#eef5f1] px-2 py-0.5 text-xs font-semibold text-[#2c4c3e]">
+                        <span className="rounded-md bg-go-subtle px-2 py-0.5 text-xs font-semibold text-go-ink">
                           {item.type}
                         </span>
                         <span
                           className={`rounded-md px-2 py-0.5 text-xs font-semibold ${
                             item.temp.startsWith("Chilled")
                               ? "bg-[#e0f2fe] text-[#0369a1]"
-                              : "bg-[#edf4f0] text-[#486356]"
+                              : "bg-go-subtle text-[#486356]"
                           }`}
                         >
                           {item.temp}
                         </span>
                       </div>
-                      <p className="mt-0.5 text-xs text-[#58685f]">
+                      <p className="mt-0.5 text-xs text-go-secondary">
                         <span>{item.depot} depot</span>
                       </p>
                     </div>
@@ -518,27 +518,27 @@ export function VehiclesScreen() {
 
                 {/* Expanded Details Panel: Last Driver & Structured Specification */}
                 {isSelected && (
-                  <div className="mt-4 rounded-2xl border border-[#d6ebe0] bg-gradient-to-br from-[#f8fbf9] to-[#edf6f2] p-5 shadow-xs">
+                  <div className="mt-4 rounded-2xl border border-go-rule bg-gradient-to-br from-[#f8fbf9] to-[#edf6f2] p-5 shadow-xs">
                     {/* Replaced Fleet specification record with Last Driver information */}
-                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e1eee6] pb-3.5">
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-go-rule pb-3.5">
                       <div className="flex items-center gap-3">
-                        <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#ddefec] font-semibold text-xs text-[#0a6b63] shadow-2xs">
+                        <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-go-mint font-semibold text-xs text-go-teal shadow-2xs">
                           {item.lastDriver ? item.lastDriver.name.split(" ").map((p) => p[0]).slice(0, 2).join("") : "NA"}
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="text-xs text-[#58685f]">Last driver:</span>
-                            <span className="text-sm font-semibold text-[#10251e]">
+                            <span className="text-xs text-go-secondary">Last driver:</span>
+                            <span className="text-sm font-semibold text-go-ink">
                               {item.lastDriver?.name || "Unassigned"}
                             </span>
                             {item.lastDriver && (
-                              <span className="rounded-md bg-white px-2 py-0.5 font-mono text-xs text-[#0a6b63] border border-[#d8ebe1]">
+                              <span className="rounded-md bg-white px-2 py-0.5 font-mono text-xs text-go-teal border border-[#d8ebe1]">
                                 {item.lastDriver.id}
                               </span>
                             )}
                           </div>
                           {item.lastDriver && (
-                            <p className="mt-0.5 text-xs text-[#58685f]">
+                            <p className="mt-0.5 text-xs text-go-secondary">
                               <span>{item.lastDriver.phone}</span>
                               <span className="mx-1.5">·</span>
                               <span>Last run: {item.lastDriver.lastRunDate}</span>
@@ -546,46 +546,46 @@ export function VehiclesScreen() {
                           )}
                         </div>
                       </div>
-                      <span className="text-xs text-[#58685f]">
-                        Depot base: <strong className="font-semibold text-[#10251e]">{item.depot}</strong>
+                      <span className="text-xs text-go-secondary">
+                        Depot base: <strong className="font-semibold text-go-ink">{item.depot}</strong>
                       </span>
                     </div>
 
                     <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                       {/* Metric 1: Certified payload weight */}
-                      <div className="rounded-xl border border-[#e1eee6] bg-white p-3.5 shadow-2xs">
-                        <span className="text-xs font-medium uppercase tracking-wider text-[#58685f]">Certified weight payload</span>
-                        <p className="mt-1 text-2xl font-semibold text-[#10251e]">
-                          {item.weightCapKg.toLocaleString()} <span className="text-sm font-normal text-[#58685f]">kg</span>
+                      <div className="rounded-xl border border-go-rule bg-white p-3.5 shadow-2xs">
+                        <span className="text-xs font-medium uppercase tracking-wider text-go-secondary">Certified weight payload</span>
+                        <p className="mt-1 text-2xl font-semibold text-go-ink">
+                          {item.weightCapKg.toLocaleString()} <span className="text-sm font-normal text-go-secondary">kg</span>
                         </p>
-                        <div className="mt-2 w-full bg-[#eef4f1] rounded-full h-1.5 overflow-hidden">
+                        <div className="mt-2 w-full bg-go-subtle rounded-full h-1.5 overflow-hidden">
                           <div
-                            className="bg-[#00896d] h-1.5 rounded-full"
+                            className="bg-go-teal h-1.5 rounded-full"
                             style={{ width: `${Math.min(100, Math.round((item.weightCapKg / 7200) * 100))}%` }}
                           />
                         </div>
-                        <p className="mt-1.5 text-xs text-[#58685f]">Checked at dispatch publication gate</p>
+                        <p className="mt-1.5 text-xs text-go-secondary">Checked at dispatch publication gate</p>
                       </div>
 
                       {/* Metric 2: Cargo volume */}
-                      <div className="rounded-xl border border-[#e1eee6] bg-white p-3.5 shadow-2xs">
-                        <span className="text-xs font-medium uppercase tracking-wider text-[#58685f]">Cargo volume capacity</span>
-                        <p className="mt-1 text-2xl font-semibold text-[#10251e]">
-                          {item.volumeCapM3} <span className="text-sm font-normal text-[#58685f]">m³</span>
+                      <div className="rounded-xl border border-go-rule bg-white p-3.5 shadow-2xs">
+                        <span className="text-xs font-medium uppercase tracking-wider text-go-secondary">Cargo volume capacity</span>
+                        <p className="mt-1 text-2xl font-semibold text-go-ink">
+                          {item.volumeCapM3} <span className="text-sm font-normal text-go-secondary">m³</span>
                         </p>
-                        <div className="mt-2 w-full bg-[#eef4f1] rounded-full h-1.5 overflow-hidden">
+                        <div className="mt-2 w-full bg-go-subtle rounded-full h-1.5 overflow-hidden">
                           <div
                             className="bg-[#0284c7] h-1.5 rounded-full"
                             style={{ width: `${Math.min(100, Math.round((item.volumeCapM3 / 38) * 100))}%` }}
                           />
                         </div>
-                        <p className="mt-1.5 text-xs text-[#58685f]">Max volumetric load capacity</p>
+                        <p className="mt-1.5 text-xs text-go-secondary">Max volumetric load capacity</p>
                       </div>
 
                       {/* Metric 3: Weekly fuel quota */}
                       <div className="rounded-xl border border-[#f5e7cc] bg-white p-3.5 shadow-2xs">
                         <span className="text-xs font-medium uppercase tracking-wider text-[#8a5d00]">Weekly fuel allocation</span>
-                        <p className="mt-1 text-2xl font-semibold text-[#10251e]">
+                        <p className="mt-1 text-2xl font-semibold text-go-ink">
                           {item.weeklyFuelQuotaL} <span className="text-sm font-normal text-[#8a5d00]">liters / wk</span>
                         </p>
                         <div className="mt-2 w-full bg-[#fbeed4] rounded-full h-1.5 overflow-hidden">
@@ -598,21 +598,21 @@ export function VehiclesScreen() {
                       </div>
 
                       {/* Metric 4: Efficiency & temp zone */}
-                      <div className="rounded-xl border border-[#e1eee6] bg-white p-3.5 shadow-2xs">
-                        <span className="text-xs font-medium uppercase tracking-wider text-[#58685f]">Fuel efficiency & cargo</span>
-                        <p className="mt-1 text-2xl font-semibold text-[#10251e]">
-                          {item.fuelEfficiencyKmPerL} <span className="text-sm font-normal text-[#58685f]">km/L</span>
+                      <div className="rounded-xl border border-go-rule bg-white p-3.5 shadow-2xs">
+                        <span className="text-xs font-medium uppercase tracking-wider text-go-secondary">Fuel efficiency & cargo</span>
+                        <p className="mt-1 text-2xl font-semibold text-go-ink">
+                          {item.fuelEfficiencyKmPerL} <span className="text-sm font-normal text-go-secondary">km/L</span>
                         </p>
-                        <p className="mt-2 text-xs font-medium text-[#006b57]">
+                        <p className="mt-2 text-xs font-medium text-go-teal">
                           {item.temp}
                         </p>
-                        <p className="mt-1 text-xs text-[#58685f]">Cold-chain compliant</p>
+                        <p className="mt-1 text-xs text-go-secondary">Cold-chain compliant</p>
                       </div>
                     </div>
 
-                    <div className="mt-3.5 flex flex-wrap items-center justify-between gap-3 text-xs text-[#58685f] rounded-xl bg-white p-3 border border-[#e4efe8]">
+                    <div className="mt-3.5 flex flex-wrap items-center justify-between gap-3 text-xs text-go-secondary rounded-xl bg-white p-3 border border-[#e4efe8]">
                       <div>
-                        <span className="font-semibold text-[#10251e]">System capacity constraint:</span> Capacity verification reads aggregate order weight and volume directly. 1% product reconstruction tolerance is not used for vehicle fit.
+                        <span className="font-semibold text-go-ink">System capacity constraint:</span> Capacity verification reads aggregate order weight and volume directly. 1% product reconstruction tolerance is not used for vehicle fit.
                       </div>
                       <div className="flex items-center gap-2 font-medium">
                         <span>Day dispatch status:</span>
@@ -639,15 +639,15 @@ export function VehiclesScreen() {
           aria-labelledby="add-vehicle-ops-title"
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs"
         >
-          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl bg-white p-6 sm:p-7 shadow-2xl border border-[#d6e7df] animate-in fade-in duration-200">
-            <div className="flex items-center justify-between border-b border-[#edf4f0] pb-4">
+          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl bg-white p-6 sm:p-7 shadow-2xl border border-go-rule animate-in fade-in duration-200">
+            <div className="flex items-center justify-between border-b border-go-subtle pb-4">
               <div>
-                <h3 id="add-vehicle-ops-title" className="text-xl font-bold text-[#10251e]">Add New Vehicle</h3>
-                <p className="text-xs text-[#58685f]">Register a new vehicle with payload limits, certified temperature zone, and fuel quota.</p>
+                <h3 id="add-vehicle-ops-title" className="text-xl font-bold text-go-ink">Add New Vehicle</h3>
+                <p className="text-xs text-go-secondary">Register a new vehicle with payload limits, certified temperature zone, and fuel quota.</p>
               </div>
               <button
                 type="button"
-                className="grid size-9 place-items-center rounded-full text-[#58685f] hover:bg-[#f0f4f2] text-lg"
+                className="grid size-9 place-items-center rounded-full text-go-secondary hover:bg-go-subtle text-lg"
                 onClick={() => setIsAddVehicleModalOpen(false)}
                 aria-label="Close"
               >
@@ -658,7 +658,7 @@ export function VehiclesScreen() {
             <div className="mt-5 space-y-4 text-sm">
               {/* Vehicle ID & Stationed Depot */}
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="block font-medium text-[#10251e]">
+                <label className="block font-medium text-go-ink">
                   Vehicle ID / Plate *
                   <input
                     type="text"
@@ -669,7 +669,7 @@ export function VehiclesScreen() {
                   />
                 </label>
 
-                <label className="block font-medium text-[#10251e]">
+                <label className="block font-medium text-go-ink">
                   Stationed Depot *
                   <select
                     className={`${field} mt-1`}
@@ -686,12 +686,12 @@ export function VehiclesScreen() {
               </div>
 
               {/* Brand & Category Configuration (Asks brand first, then conditional sub-options for Fresh) */}
-              <div className="rounded-2xl border border-[#d6ebe0] bg-[#f8fbf9] p-4 space-y-3">
-                <span className="block text-xs font-bold uppercase tracking-wider text-[#006b57]">
+              <div className="rounded-2xl border border-go-rule bg-go-subtle p-4 space-y-3">
+                <span className="block text-xs font-bold uppercase tracking-wider text-go-teal">
                   Brand &amp; Merchandise Category
                 </span>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="block font-medium text-[#10251e]">
+                  <label className="block font-medium text-go-ink">
                     Which Brand is this vehicle for? *
                     <select
                       className={`${field} mt-1`}
@@ -706,7 +706,7 @@ export function VehiclesScreen() {
                   </label>
 
                   {newVehicleTargetBrand === "Fresh" ? (
-                    <label className="block font-medium text-[#10251e]">
+                    <label className="block font-medium text-go-ink">
                       Fresh Sub-Category / Temperature *
                       <select
                         className={`${field} mt-1`}
@@ -719,11 +719,11 @@ export function VehiclesScreen() {
                     </label>
                   ) : (
                     <div>
-                      <span className="block text-xs font-medium text-[#58685f]">
+                      <span className="block text-xs font-medium text-go-secondary">
                         Temperature Zone Requirement
                       </span>
                       <div className="mt-1 flex items-center gap-2 rounded-xl border border-[#e1ece5] bg-white px-3 py-2 text-sm text-[#3b5246]">
-                        <span className="size-2 rounded-full bg-[#00896d]"></span>
+                        <span className="size-2 rounded-full bg-go-teal"></span>
                         <span>Standard Ambient ({newVehicleTargetBrand} does not require refrigerated)</span>
                       </div>
                     </div>
@@ -733,7 +733,7 @@ export function VehiclesScreen() {
 
               {/* Vehicle Type & Initial Status */}
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="block font-medium text-[#10251e]">
+                <label className="block font-medium text-go-ink">
                   Vehicle Type *
                   <select
                     className={`${field} mt-1`}
@@ -745,7 +745,7 @@ export function VehiclesScreen() {
                   </select>
                 </label>
 
-                <label className="block font-medium text-[#10251e]">
+                <label className="block font-medium text-go-ink">
                   Initial Status *
                   <select
                     className={`${field} mt-1`}
@@ -760,12 +760,12 @@ export function VehiclesScreen() {
               </div>
 
               {/* Capacity Specs */}
-              <div className="rounded-2xl border border-[#d6ebe0] bg-[#f8fbf9] p-4 space-y-3">
-                <span className="block text-xs font-bold uppercase tracking-wider text-[#006b57]">
+              <div className="rounded-2xl border border-go-rule bg-go-subtle p-4 space-y-3">
+                <span className="block text-xs font-bold uppercase tracking-wider text-go-teal">
                   Payload &amp; Capacity Specifications
                 </span>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="block font-medium text-[#10251e]">
+                  <label className="block font-medium text-go-ink">
                     Max Weight Capacity (kg) *
                     <input
                       type="number"
@@ -775,7 +775,7 @@ export function VehiclesScreen() {
                       onChange={(e) => setNewVehicleWeightCap(e.target.value)}
                     />
                   </label>
-                  <label className="block font-medium text-[#10251e]">
+                  <label className="block font-medium text-go-ink">
                     Max Volume Capacity (m³) *
                     <input
                       type="number"
@@ -789,12 +789,12 @@ export function VehiclesScreen() {
               </div>
 
               {/* Fuel Specs */}
-              <div className="rounded-2xl border border-[#d6ebe0] bg-[#f8fbf9] p-4 space-y-3">
-                <span className="block text-xs font-bold uppercase tracking-wider text-[#006b57]">
+              <div className="rounded-2xl border border-go-rule bg-go-subtle p-4 space-y-3">
+                <span className="block text-xs font-bold uppercase tracking-wider text-go-teal">
                   Fuel &amp; Efficiency Configuration
                 </span>
                 <div className="grid gap-3 sm:grid-cols-3">
-                  <label className="block font-medium text-[#10251e]">
+                  <label className="block font-medium text-go-ink">
                     Fuel Type *
                     <select
                       className={`${field} mt-1`}
@@ -805,7 +805,7 @@ export function VehiclesScreen() {
                       <option value="Petrol">Petrol</option>
                     </select>
                   </label>
-                  <label className="block font-medium text-[#10251e]">
+                  <label className="block font-medium text-go-ink">
                     Weekly Quota (L) *
                     <input
                       type="number"
@@ -815,7 +815,7 @@ export function VehiclesScreen() {
                       onChange={(e) => setNewVehicleFuelQuota(e.target.value)}
                     />
                   </label>
-                  <label className="block font-medium text-[#10251e]">
+                  <label className="block font-medium text-go-ink">
                     Efficiency (km/L) *
                     <input
                       type="number"
@@ -830,7 +830,7 @@ export function VehiclesScreen() {
 
               {/* Assigned Driver (Optional) */}
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="block font-medium text-[#10251e]">
+                <label className="block font-medium text-go-ink">
                   Assigned Driver Name (Optional)
                   <input
                     type="text"
@@ -840,7 +840,7 @@ export function VehiclesScreen() {
                     onChange={(e) => setNewVehicleDriverName(e.target.value)}
                   />
                 </label>
-                <label className="block font-medium text-[#10251e]">
+                <label className="block font-medium text-go-ink">
                   Driver Phone (Optional)
                   <input
                     type="text"
@@ -853,7 +853,7 @@ export function VehiclesScreen() {
               </div>
             </div>
 
-            <div className="mt-6 flex flex-wrap justify-end gap-3 border-t border-[#edf4f0] pt-4">
+            <div className="mt-6 flex flex-wrap justify-end gap-3 border-t border-go-subtle pt-4">
               <button
                 type="button"
                 className={secondary}
@@ -883,11 +883,11 @@ export function ForecastsScreen() {
   const totalOrders = rows.reduce((sum, item) => sum + item.orders, 0);
   const totalVehicles = rows.reduce((sum, item) => sum + item.vans + item.trucks, 0);
   const vehiclesInView = VEHICLES.filter((vehicle) => depot === "all" || vehicle.depot === depot);
-  return <div className="space-y-5"><div><h2 className="text-2xl font-semibold">Forecasts</h2><p className="mt-1 text-sm text-[#58685f]">Illustrative order demand and vehicle needs for the next operating day.</p></div>
+  return <div className="space-y-5"><div><h2 className="text-2xl font-semibold">Forecasts</h2><p className="mt-1 text-sm text-go-secondary">Illustrative order demand and vehicle needs for the next operating day.</p></div>
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Summary value={totalOrders} label="Forecast orders"/><Summary value={totalVehicles} label="Suggested vehicles"/><Summary value={vehiclesInView.filter((vehicle) => vehicle.status === "Available").length} label="Available vehicles"/><Summary value={vehiclesInView.filter((vehicle) => vehicle.status === "Workshop").length} label="Workshop vehicles"/></div>
     <label className={`${card} block max-w-sm p-4 text-sm font-medium`}>Depot<select className={`${field} mt-1`} value={depot} onChange={(event) => setDepot(event.target.value)}><option value="all">All depots</option>{FORECASTS.map((item) => <option key={item.depot}>{item.depot}</option>)}</select></label>
-    <div className="grid gap-4 lg:grid-cols-3">{rows.map((item) => { const change = Math.round((item.orders - item.previous) / item.previous * 100); return <article key={item.depot} className={`${card} p-5`}><p className="text-xs font-bold uppercase tracking-wider text-[#64776b]">{item.depot}</p><div className="mt-4 flex items-end gap-2"><strong className="text-4xl text-[#075c4b]">{item.orders}</strong><span className="pb-1 text-sm text-[#58685f]">orders</span></div><p className="mt-2 text-sm text-[#58685f]">{change >= 0 ? "+" : ""}{change}% against the comparison day</p><div className="mt-5 border-t border-[#e8efea] pt-4 text-sm"><p>Suggested: <strong>{item.vans} vans</strong> · <strong>{item.trucks} trucks</strong></p></div></article>; })}</div>
+    <div className="grid gap-4 lg:grid-cols-3">{rows.map((item) => { const change = Math.round((item.orders - item.previous) / item.previous * 100); return <article key={item.depot} className={`${card} p-5`}><p className="text-xs font-bold uppercase tracking-wider text-go-secondary">{item.depot}</p><div className="mt-4 flex items-end gap-2"><strong className="text-4xl text-go-teal">{item.orders}</strong><span className="pb-1 text-sm text-go-secondary">orders</span></div><p className="mt-2 text-sm text-go-secondary">{change >= 0 ? "+" : ""}{change}% against the comparison day</p><div className="mt-5 border-t border-go-rule pt-4 text-sm"><p>Suggested: <strong>{item.vans} vans</strong> · <strong>{item.trucks} trucks</strong></p></div></article>; })}</div>
   </div>;
 }
 
-function Summary({ value, label }: { value: number; label: string }) { return <div className={`${card} p-5`}><p className="text-3xl font-semibold text-[#0a6b63]">{value}</p><p className="mt-1 text-sm text-[#58685f]">{label}</p></div>; }
+function Summary({ value, label }: { value: number; label: string }) { return <div className={`${card} p-5`}><p className="text-3xl font-semibold text-go-teal">{value}</p><p className="mt-1 text-sm text-go-secondary">{label}</p></div>; }

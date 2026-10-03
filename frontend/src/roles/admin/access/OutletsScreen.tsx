@@ -766,9 +766,9 @@ export function OutletsScreen({
   const getDockBadgeColor = (dockType: "rear_dock" | "street" | "mall_bay") => {
     switch (dockType) {
       case "rear_dock":
-        return "bg-[#d8f5ee] text-[#006b57] border border-[#a0e9d6]";
+        return "bg-go-mint text-go-teal border border-go-mint";
       case "street":
-        return "bg-[#fff7e6] text-[#b45309] border border-[#fed7aa]";
+        return "bg-go-warning-tint text-[#b45309] border border-[#fed7aa]";
       case "mall_bay":
         return "bg-[#e0e7ff] text-[#4338ca] border border-[#c7d2fe]";
     }
@@ -777,7 +777,7 @@ export function OutletsScreen({
   const getBrandBadgeColor = (brand: "Fresh" | "Style" | "Tech") => {
     switch (brand) {
       case "Fresh":
-        return "bg-[#e5f4ef] text-[#006b57] border border-[#a7d9ca]";
+        return "bg-go-subtle text-go-teal border border-[#a7d9ca]";
       case "Style":
         return "bg-[#f5e8ff] text-[#7e22ce] border border-[#e9d5ff]";
       case "Tech":
@@ -822,8 +822,8 @@ export function OutletsScreen({
           onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setBrandFilter(brandFilter === "Fresh" ? "all" : "Fresh"); }}
           className={`${card} flex flex-col justify-between p-5 cursor-pointer transition-all ${
             brandFilter === "Fresh" || brandFilter === "Fresh-Ambient" || brandFilter === "Fresh-Chilled"
-              ? "border-2 border-[#006b57] bg-gradient-to-b from-[#e8f7f2] to-[#f5fbf8] shadow-md ring-2 ring-[#a0e9d6]"
-              : "hover:border-[#a0e9d6] hover:bg-[#fafcfb]"
+              ? "border-2 border-go-teal bg-gradient-to-b from-[#e8f7f2] to-[#f5fbf8] shadow-md ring-2 ring-go-mint"
+              : "hover:border-go-mint hover:bg-go-subtle"
           }`}
         >
           <div className="flex items-start justify-between gap-3">
@@ -837,7 +837,7 @@ export function OutletsScreen({
               </span>
               <div>
                 <span className="text-[11px] font-bold uppercase tracking-wider text-[#15803d]">Retail Brand</span>
-                <h3 className="text-base font-bold text-[#10251e]">Waypoint Fresh</h3>
+                <h3 className="text-base font-bold text-go-ink">Waypoint Fresh</h3>
               </div>
             </div>
             <span className="rounded-xl bg-[#dcfce7] px-2.5 py-1 text-sm font-extrabold text-[#15803d]">
@@ -845,12 +845,12 @@ export function OutletsScreen({
             </span>
           </div>
 
-          <div className="mt-4 space-y-1.5 border-t border-[#edf4f0] pt-3 text-xs text-[#58685f]">
+          <div className="mt-4 space-y-1.5 border-t border-go-subtle pt-3 text-xs text-go-secondary">
             <p className="line-clamp-1">
-              <strong className="font-semibold text-[#1e3a30]">Goods:</strong> Groceries, chilled &amp; frozen items
+              <strong className="font-semibold text-go-ink">Goods:</strong> Groceries, chilled &amp; frozen items
             </p>
             <p className="line-clamp-1">
-              <strong className="font-semibold text-[#1e3a30]">Schedule:</strong> Daily before 8:00 AM
+              <strong className="font-semibold text-go-ink">Schedule:</strong> Daily before 8:00 AM
             </p>
           </div>
         </div>
@@ -864,7 +864,7 @@ export function OutletsScreen({
           className={`${card} flex flex-col justify-between p-5 cursor-pointer transition-all ${
             brandFilter === "Style"
               ? "border-2 border-[#7e22ce] bg-gradient-to-b from-[#f9f5ff] to-[#fdfcff] shadow-md ring-2 ring-[#d8b4fe]"
-              : "hover:border-[#d8b4fe] hover:bg-[#fafcfb]"
+              : "hover:border-[#d8b4fe] hover:bg-go-subtle"
           }`}
         >
           <div className="flex items-start justify-between gap-3">
@@ -876,7 +876,7 @@ export function OutletsScreen({
               </span>
               <div>
                 <span className="text-[11px] font-bold uppercase tracking-wider text-[#7e22ce]">Retail Brand</span>
-                <h3 className="text-base font-bold text-[#10251e]">Waypoint Style</h3>
+                <h3 className="text-base font-bold text-go-ink">Waypoint Style</h3>
               </div>
             </div>
             <span className="rounded-xl bg-[#f3e8ff] px-2.5 py-1 text-sm font-extrabold text-[#7e22ce]">
@@ -884,12 +884,12 @@ export function OutletsScreen({
             </span>
           </div>
 
-          <div className="mt-4 space-y-1.5 border-t border-[#edf4f0] pt-3 text-xs text-[#58685f]">
+          <div className="mt-4 space-y-1.5 border-t border-go-subtle pt-3 text-xs text-go-secondary">
             <p className="line-clamp-1">
-              <strong className="font-semibold text-[#1e3a30]">Goods:</strong> Hanging garments &amp; apparel cartons
+              <strong className="font-semibold text-go-ink">Goods:</strong> Hanging garments &amp; apparel cartons
             </p>
             <p className="line-clamp-1">
-              <strong className="font-semibold text-[#1e3a30]">Schedule:</strong> Weekly, with seasonal peaks
+              <strong className="font-semibold text-go-ink">Schedule:</strong> Weekly, with seasonal peaks
             </p>
           </div>
         </div>
@@ -903,7 +903,7 @@ export function OutletsScreen({
           className={`${card} flex flex-col justify-between p-5 cursor-pointer transition-all ${
             brandFilter === "Tech"
               ? "border-2 border-[#0284c7] bg-gradient-to-b from-[#f0f9ff] to-[#f8fcff] shadow-md ring-2 ring-[#7dd3fc]"
-              : "hover:border-[#7dd3fc] hover:bg-[#fafcfb]"
+              : "hover:border-[#7dd3fc] hover:bg-go-subtle"
           }`}
         >
           <div className="flex items-start justify-between gap-3">
@@ -917,7 +917,7 @@ export function OutletsScreen({
               </span>
               <div>
                 <span className="text-[11px] font-bold uppercase tracking-wider text-[#0284c7]">Retail Brand</span>
-                <h3 className="text-base font-bold text-[#10251e]">Waypoint Tech</h3>
+                <h3 className="text-base font-bold text-go-ink">Waypoint Tech</h3>
               </div>
             </div>
             <span className="rounded-xl bg-[#e0f2fe] px-2.5 py-1 text-sm font-extrabold text-[#0284c7]">
@@ -925,12 +925,12 @@ export function OutletsScreen({
             </span>
           </div>
 
-          <div className="mt-4 space-y-1.5 border-t border-[#edf4f0] pt-3 text-xs text-[#58685f]">
+          <div className="mt-4 space-y-1.5 border-t border-go-subtle pt-3 text-xs text-go-secondary">
             <p className="line-clamp-1">
-              <strong className="font-semibold text-[#1e3a30]">Goods:</strong> Appliances &amp; consumer electronics
+              <strong className="font-semibold text-go-ink">Goods:</strong> Appliances &amp; consumer electronics
             </p>
             <p className="line-clamp-1">
-              <strong className="font-semibold text-[#1e3a30]">Schedule:</strong> As needed; fragile high-value
+              <strong className="font-semibold text-go-ink">Schedule:</strong> As needed; fragile high-value
             </p>
           </div>
         </div>
@@ -939,13 +939,13 @@ export function OutletsScreen({
       {/* Structured Filter Bar: Brand/Zone, District, Depot, Dock Type, Search */}
       <div className={`${card} space-y-4 p-5 sm:p-6`}>
         <div className="flex items-center justify-between">
-          <span className="text-xs font-bold uppercase tracking-wider text-[#006b57]">
+          <span className="text-xs font-bold uppercase tracking-wider text-go-teal">
             Filters &amp; Search
           </span>
           {(brandFilter !== "all" || districtFilter !== "all" || depotFilter !== "all" || dockFilter !== "all" || searchQuery) && (
             <button
               type="button"
-              className="text-xs font-semibold text-[#006b57] hover:underline"
+              className="text-xs font-semibold text-go-teal hover:underline"
               onClick={() => {
                 setBrandFilter("all");
                 setDistrictFilter("all");
@@ -961,7 +961,7 @@ export function OutletsScreen({
 
         <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-5">
           {/* Search */}
-          <label className="text-xs font-medium text-[#10251e] lg:col-span-1">
+          <label className="text-xs font-medium text-go-ink lg:col-span-1">
             Search
             <input
               type="search"
@@ -973,7 +973,7 @@ export function OutletsScreen({
           </label>
 
           {/* Filter 1: Brand & Ambient/Chilled Requirement */}
-          <label className="text-xs font-medium text-[#10251e]">
+          <label className="text-xs font-medium text-go-ink">
             Brand &amp; Temp Zone
             <select
               className={`${field} mt-1`}
@@ -990,7 +990,7 @@ export function OutletsScreen({
           </label>
 
           {/* Filter 2: District */}
-          <label className="text-xs font-medium text-[#10251e]">
+          <label className="text-xs font-medium text-go-ink">
             District
             <select
               className={`${field} mt-1`}
@@ -1007,7 +1007,7 @@ export function OutletsScreen({
           </label>
 
           {/* Filter 3: Assigned Depot */}
-          <label className="text-xs font-medium text-[#10251e]">
+          <label className="text-xs font-medium text-go-ink">
             Assigned Depot
             <select
               className={`${field} mt-1`}
@@ -1024,7 +1024,7 @@ export function OutletsScreen({
           </label>
 
           {/* Filter 4: Dock Type */}
-          <label className="text-xs font-medium text-[#10251e]">
+          <label className="text-xs font-medium text-go-ink">
             Dock Availability
             <select
               className={`${field} mt-1`}
@@ -1039,7 +1039,7 @@ export function OutletsScreen({
           </label>
         </div>
 
-        <div className="flex items-center justify-between border-t border-[#edf3ef] pt-3 text-xs text-[#58685f]">
+        <div className="flex items-center justify-between border-t border-go-subtle pt-3 text-xs text-go-secondary">
           <span>
             Showing <strong>{filteredOutlets.length}</strong> of {outletsList.length} registered retail outlets
           </span>
@@ -1055,10 +1055,10 @@ export function OutletsScreen({
           {filteredOutlets.map((outlet) => (
             <article
               key={outlet.id}
-              className={`${card} flex items-center justify-between gap-3 p-4 transition-all hover:border-[#a0e9d6] hover:shadow-md sm:p-5`}
+              className={`${card} flex items-center justify-between gap-3 p-4 transition-all hover:border-go-mint hover:shadow-md sm:p-5`}
             >
               <div className="flex items-center gap-3.5 min-w-0">
-                <div className="grid size-11 shrink-0 place-items-center rounded-2xl bg-[#e5f4ef] text-[#006b57]">
+                <div className="grid size-11 shrink-0 place-items-center rounded-2xl bg-go-subtle text-go-teal">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-5" aria-hidden="true">
                     <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
                     <polyline points="9 22 9 12 15 12 15 22" />
@@ -1066,15 +1066,15 @@ export function OutletsScreen({
                 </div>
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-base font-bold text-[#10251e]">{outlet.id}</span>
+                    <span className="text-base font-bold text-go-ink">{outlet.id}</span>
                     <span className={`rounded-md px-2 py-0.5 text-xs font-bold ${getBrandBadgeColor(outlet.brand)}`}>
                       {outlet.brand}
                     </span>
-                    <span className="rounded-md bg-[#f0f4f2] px-2 py-0.5 text-xs font-medium text-[#4d6356]">
+                    <span className="rounded-md bg-go-subtle px-2 py-0.5 text-xs font-medium text-go-secondary">
                       {outlet.district}
                     </span>
                   </div>
-                  <h3 className="mt-1 text-xs font-medium text-[#526a60] truncate">
+                  <h3 className="mt-1 text-xs font-medium text-go-secondary truncate">
                     {outlet.name || `${outlet.district} ${outlet.brand} Store`}
                   </h3>
                 </div>
@@ -1083,7 +1083,7 @@ export function OutletsScreen({
               <button
                 type="button"
                 onClick={() => setSelectedOutlet(outlet)}
-                className="shrink-0 flex items-center gap-1 rounded-xl border border-[#b8e5d9] bg-[#f0fbf7] px-3 py-1.5 text-xs font-bold text-[#006b57] transition-colors hover:bg-[#d8f5ee] hover:border-[#8adfcb]"
+                className="shrink-0 flex items-center gap-1 rounded-xl border border-go-mint bg-go-subtle px-3 py-1.5 text-xs font-bold text-go-teal transition-colors hover:bg-go-mint hover:border-go-mint"
               >
                 <span>More info</span>
                 <span aria-hidden="true">›</span>
@@ -1093,14 +1093,14 @@ export function OutletsScreen({
         </div>
       ) : (
         <div className={`${card} flex flex-col items-center justify-center p-10 text-center`}>
-          <span className="grid size-14 place-items-center rounded-2xl bg-[#edf3ef] text-[#58685f]">
+          <span className="grid size-14 place-items-center rounded-2xl bg-go-subtle text-go-secondary">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-7" aria-hidden="true">
               <circle cx="11" cy="11" r="8" />
               <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
           </span>
-          <h3 className="mt-3 text-base font-semibold text-[#10251e]">No matching outlets found</h3>
-          <p className="mt-1 max-w-sm text-xs text-[#58685f]">
+          <h3 className="mt-3 text-base font-semibold text-go-ink">No matching outlets found</h3>
+          <p className="mt-1 max-w-sm text-xs text-go-secondary">
             Try adjusting your brand, district, depot, or dock availability filters.
           </p>
           <button
@@ -1127,24 +1127,24 @@ export function OutletsScreen({
           aria-labelledby="outlet-details-title"
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs"
         >
-          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl bg-white p-6 sm:p-7 shadow-2xl border border-[#d6e7df] animate-in fade-in duration-200">
+          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl bg-white p-6 sm:p-7 shadow-2xl border border-go-rule animate-in fade-in duration-200">
             {/* Header */}
-            <div className="flex items-start justify-between border-b border-[#edf4f0] pb-4">
+            <div className="flex items-start justify-between border-b border-go-subtle pb-4">
               <div>
                 <div className="flex items-center gap-2.5">
-                  <span className="text-xl font-bold text-[#10251e]">{selectedOutlet.id}</span>
+                  <span className="text-xl font-bold text-go-ink">{selectedOutlet.id}</span>
                   <span className={`rounded-md px-2.5 py-0.5 text-xs font-bold ${getBrandBadgeColor(selectedOutlet.brand)}`}>
                     {selectedOutlet.brand}
                   </span>
                 </div>
-                <h3 id="outlet-details-title" className="mt-1 text-base font-semibold text-[#10251e]">
+                <h3 id="outlet-details-title" className="mt-1 text-base font-semibold text-go-ink">
                   {selectedOutlet.name || `${selectedOutlet.district} ${selectedOutlet.brand} Outlet`}
                 </h3>
               </div>
 
               <button
                 type="button"
-                className="grid size-9 place-items-center rounded-full text-[#58685f] hover:bg-[#f0f4f2] text-lg"
+                className="grid size-9 place-items-center rounded-full text-go-secondary hover:bg-go-subtle text-lg"
                 onClick={() => setSelectedOutlet(null)}
                 aria-label="Close"
               >
@@ -1155,17 +1155,17 @@ export function OutletsScreen({
             {/* Exactly the 3 requested details */}
             <div className="mt-5 space-y-3.5 text-sm">
               {/* 1. Store Manager */}
-              <div className="flex items-center justify-between rounded-2xl border border-[#d6ebe0] bg-[#f8fbf9] p-4">
+              <div className="flex items-center justify-between rounded-2xl border border-go-rule bg-go-subtle p-4">
                 <div className="flex items-center gap-3">
-                  <span className="grid size-10 place-items-center rounded-xl bg-[#d8f5ee] text-[#006b57]">
+                  <span className="grid size-10 place-items-center rounded-xl bg-go-mint text-go-teal">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-5" aria-hidden="true">
                       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                       <circle cx="12" cy="7" r="4" />
                     </svg>
                   </span>
                   <div>
-                    <span className="text-xs font-bold uppercase tracking-wider text-[#006b57]">Store Manager</span>
-                    <p className="text-base font-semibold text-[#10251e]">
+                    <span className="text-xs font-bold uppercase tracking-wider text-go-teal">Store Manager</span>
+                    <p className="text-base font-semibold text-go-ink">
                       {selectedOutlet.storeManager || "Unassigned"}
                     </p>
                   </div>
@@ -1173,16 +1173,16 @@ export function OutletsScreen({
               </div>
 
               {/* 2. Dock Type */}
-              <div className="flex items-center justify-between rounded-2xl border border-[#d6ebe0] bg-[#f8fbf9] p-4">
+              <div className="flex items-center justify-between rounded-2xl border border-go-rule bg-go-subtle p-4">
                 <div className="flex items-center gap-3">
-                  <span className="grid size-10 place-items-center rounded-xl bg-[#d8f5ee] text-[#006b57]">
+                  <span className="grid size-10 place-items-center rounded-xl bg-go-mint text-go-teal">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-5" aria-hidden="true">
                       <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
                       <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
                     </svg>
                   </span>
                   <div>
-                    <span className="text-xs font-bold uppercase tracking-wider text-[#006b57]">Dock Type</span>
+                    <span className="text-xs font-bold uppercase tracking-wider text-go-teal">Dock Type</span>
                     <div className="mt-0.5">
                       <span className={`inline-block rounded-md px-2.5 py-0.5 text-xs font-bold ${getDockBadgeColor(selectedOutlet.dockType)}`}>
                         {getDockLabel(selectedOutlet.dockType)}
@@ -1193,17 +1193,17 @@ export function OutletsScreen({
               </div>
 
               {/* 3. Open Window */}
-              <div className="flex items-center justify-between rounded-2xl border border-[#d6ebe0] bg-[#f8fbf9] p-4">
+              <div className="flex items-center justify-between rounded-2xl border border-go-rule bg-go-subtle p-4">
                 <div className="flex items-center gap-3">
-                  <span className="grid size-10 place-items-center rounded-xl bg-[#d8f5ee] text-[#006b57]">
+                  <span className="grid size-10 place-items-center rounded-xl bg-go-mint text-go-teal">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-5" aria-hidden="true">
                       <circle cx="12" cy="12" r="10" />
                       <polyline points="12 6 12 12 16 14" />
                     </svg>
                   </span>
                   <div>
-                    <span className="text-xs font-bold uppercase tracking-wider text-[#006b57]">Open Window</span>
-                    <p className="text-base font-bold text-[#10251e]">
+                    <span className="text-xs font-bold uppercase tracking-wider text-go-teal">Open Window</span>
+                    <p className="text-base font-bold text-go-ink">
                       {selectedOutlet.windowOpen} - {selectedOutlet.windowClose}
                     </p>
                   </div>
@@ -1212,7 +1212,7 @@ export function OutletsScreen({
             </div>
 
             {/* Footer */}
-            <div className="mt-6 flex justify-end border-t border-[#edf4f0] pt-4">
+            <div className="mt-6 flex justify-end border-t border-go-subtle pt-4">
               <button
                 type="button"
                 className={secondary}
@@ -1233,18 +1233,18 @@ export function OutletsScreen({
           aria-labelledby="add-outlet-title"
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs"
         >
-          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl bg-white p-6 sm:p-7 shadow-2xl border border-[#d6e7df] animate-in fade-in duration-200">
+          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl bg-white p-6 sm:p-7 shadow-2xl border border-go-rule animate-in fade-in duration-200">
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-[#edf4f0] pb-4">
+            <div className="flex items-center justify-between border-b border-go-subtle pb-4">
               <div>
-                <h3 id="add-outlet-title" className="text-xl font-bold text-[#10251e]">Add New Retail Outlet</h3>
-                <p className="text-xs text-[#58685f]">
+                <h3 id="add-outlet-title" className="text-xl font-bold text-go-ink">Add New Retail Outlet</h3>
+                <p className="text-xs text-go-secondary">
                   Register a new receiving store location, brand merchandise zone, dock type, and receiving window.
                 </p>
               </div>
               <button
                 type="button"
-                className="grid size-9 place-items-center rounded-full text-[#58685f] hover:bg-[#f0f4f2] text-lg"
+                className="grid size-9 place-items-center rounded-full text-go-secondary hover:bg-go-subtle text-lg"
                 onClick={() => setIsAddModalOpen(false)}
                 aria-label="Close"
               >
@@ -1256,7 +1256,7 @@ export function OutletsScreen({
             <div className="mt-5 space-y-4 text-sm">
               {/* Outlet Code & Store Name */}
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="block font-medium text-[#10251e]">
+                <label className="block font-medium text-go-ink">
                   Outlet Code / ID *
                   <input
                     type="text"
@@ -1267,7 +1267,7 @@ export function OutletsScreen({
                   />
                 </label>
 
-                <label className="block font-medium text-[#10251e]">
+                <label className="block font-medium text-go-ink">
                   Store Facility Name
                   <input
                     type="text"
@@ -1280,13 +1280,13 @@ export function OutletsScreen({
               </div>
 
               {/* Brand & Temperature Zone Requirement (Brand asked first, conditional sub-options for Fresh) */}
-              <div className="rounded-2xl border border-[#d6ebe0] bg-[#f8fbf9] p-4 space-y-3">
-                <span className="block text-xs font-bold uppercase tracking-wider text-[#006b57]">
+              <div className="rounded-2xl border border-go-rule bg-go-subtle p-4 space-y-3">
+                <span className="block text-xs font-bold uppercase tracking-wider text-go-teal">
                   Brand &amp; Temperature Profile
                 </span>
 
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="block font-medium text-[#10251e]">
+                  <label className="block font-medium text-go-ink">
                     Which Brand is this Outlet for? *
                     <select
                       className={`${field} mt-1`}
@@ -1300,7 +1300,7 @@ export function OutletsScreen({
                   </label>
 
                   {newOutletBrand === "Fresh" ? (
-                    <label className="block font-medium text-[#10251e]">
+                    <label className="block font-medium text-go-ink">
                       Fresh Sub-Category / Temperature *
                       <select
                         className={`${field} mt-1`}
@@ -1313,11 +1313,11 @@ export function OutletsScreen({
                     </label>
                   ) : (
                     <div>
-                      <span className="block text-xs font-medium text-[#58685f]">
+                      <span className="block text-xs font-medium text-go-secondary">
                         Temperature Zone Requirement
                       </span>
                       <div className="mt-1 flex items-center gap-2 rounded-xl border border-[#e1ece5] bg-white px-3 py-2 text-sm text-[#3b5246]">
-                        <span className="size-2 rounded-full bg-[#00896d]"></span>
+                        <span className="size-2 rounded-full bg-go-teal"></span>
                         <span>Standard Ambient ({newOutletBrand} merchandise)</span>
                       </div>
                     </div>
@@ -1327,7 +1327,7 @@ export function OutletsScreen({
 
               {/* District & Assigned Depot */}
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="block font-medium text-[#10251e]">
+                <label className="block font-medium text-go-ink">
                   District *
                   <select
                     className={`${field} mt-1`}
@@ -1344,7 +1344,7 @@ export function OutletsScreen({
                   </select>
                 </label>
 
-                <label className="block font-medium text-[#10251e]">
+                <label className="block font-medium text-go-ink">
                   Assigned Servicing Depot *
                   <select
                     className={`${field} mt-1`}
@@ -1358,13 +1358,13 @@ export function OutletsScreen({
               </div>
 
               {/* Dock Infrastructure */}
-              <div className="rounded-2xl border border-[#d6ebe0] bg-[#f8fbf9] p-4 space-y-3">
-                <span className="block text-xs font-bold uppercase tracking-wider text-[#006b57]">
+              <div className="rounded-2xl border border-go-rule bg-go-subtle p-4 space-y-3">
+                <span className="block text-xs font-bold uppercase tracking-wider text-go-teal">
                   Dock Availability &amp; Vehicle Access
                 </span>
 
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="block font-medium text-[#10251e]">
+                  <label className="block font-medium text-go-ink">
                     Dock Type *
                     <select
                       className={`${field} mt-1`}
@@ -1385,7 +1385,7 @@ export function OutletsScreen({
                     </select>
                   </label>
 
-                  <label className="block font-medium text-[#10251e]">
+                  <label className="block font-medium text-go-ink">
                     Permitted Transport Vehicle *
                     <select
                       className={`${field} mt-1`}
@@ -1399,7 +1399,7 @@ export function OutletsScreen({
                   </label>
                 </div>
 
-                <label className="block font-medium text-[#10251e]">
+                <label className="block font-medium text-go-ink">
                   Dock &amp; Ramp Facility Description
                   <input
                     type="text"
@@ -1412,13 +1412,13 @@ export function OutletsScreen({
               </div>
 
               {/* Delivery Window Open & Close */}
-              <div className="rounded-2xl border border-[#d6ebe0] bg-[#f8fbf9] p-4 space-y-3">
-                <span className="block text-xs font-bold uppercase tracking-wider text-[#006b57]">
+              <div className="rounded-2xl border border-go-rule bg-go-subtle p-4 space-y-3">
+                <span className="block text-xs font-bold uppercase tracking-wider text-go-teal">
                   Delivery Time Window (Receiving Hours)
                 </span>
 
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="block font-medium text-[#10251e]">
+                  <label className="block font-medium text-go-ink">
                     Window Opening Time *
                     <input
                       type="time"
@@ -1428,7 +1428,7 @@ export function OutletsScreen({
                     />
                   </label>
 
-                  <label className="block font-medium text-[#10251e]">
+                  <label className="block font-medium text-go-ink">
                     Window Closing Time *
                     <input
                       type="time"
@@ -1439,7 +1439,7 @@ export function OutletsScreen({
                   </label>
                 </div>
 
-                <label className="block font-medium text-[#10251e]">
+                <label className="block font-medium text-go-ink">
                   Window Notes / Receiving Gate Instructions
                   <input
                     type="text"
@@ -1452,13 +1452,13 @@ export function OutletsScreen({
               </div>
 
               {/* Store Manager Details */}
-              <div className="rounded-2xl border border-[#d6ebe0] bg-[#f8fbf9] p-4 space-y-3">
-                <span className="block text-xs font-bold uppercase tracking-wider text-[#006b57]">
+              <div className="rounded-2xl border border-go-rule bg-go-subtle p-4 space-y-3">
+                <span className="block text-xs font-bold uppercase tracking-wider text-go-teal">
                   Assigned Store Manager
                 </span>
 
                 <div className="grid gap-3 sm:grid-cols-3">
-                  <label className="block font-medium text-[#10251e]">
+                  <label className="block font-medium text-go-ink">
                     Manager Name
                     <input
                       type="text"
@@ -1469,7 +1469,7 @@ export function OutletsScreen({
                     />
                   </label>
 
-                  <label className="block font-medium text-[#10251e]">
+                  <label className="block font-medium text-go-ink">
                     Manager Phone
                     <input
                       type="text"
@@ -1480,7 +1480,7 @@ export function OutletsScreen({
                     />
                   </label>
 
-                  <label className="block font-medium text-[#10251e]">
+                  <label className="block font-medium text-go-ink">
                     Manager Email
                     <input
                       type="email"
@@ -1494,7 +1494,7 @@ export function OutletsScreen({
               </div>
 
               {/* Address */}
-              <label className="block font-medium text-[#10251e]">
+              <label className="block font-medium text-go-ink">
                 Store Physical Address
                 <input
                   type="text"
@@ -1507,7 +1507,7 @@ export function OutletsScreen({
             </div>
 
             {/* Modal Actions */}
-            <div className="mt-6 flex flex-wrap justify-end gap-3 border-t border-[#edf4f0] pt-4">
+            <div className="mt-6 flex flex-wrap justify-end gap-3 border-t border-go-subtle pt-4">
               <button
                 type="button"
                 className={secondary}

@@ -26,7 +26,7 @@ import {
  */
 /** How often an open tab asks whether a new build was deployed. */
 const UPDATE_CHECK_MS = 30 * 60_000;
-const OWN_HEADER =new Set<ShellRole>(["loader", "store_manager", "dispatcher", "driver"]);
+const OWN_HEADER = new Set<ShellRole>(["loader", "store_manager", "dispatcher", "driver", "admin"]);
 
 /**
  * Session gate and role routing. Signed out, server unreachable and offline are
