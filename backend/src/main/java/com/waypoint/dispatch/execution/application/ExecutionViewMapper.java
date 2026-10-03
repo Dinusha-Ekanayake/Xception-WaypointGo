@@ -27,7 +27,7 @@ final class ExecutionViewMapper {
     return new RunSheetStopView(
         r.deliveryId(), r.tripId(), r.sequence(), r.orderId(), r.outletId(), r.itemCount(), r.mallOutlet(),
         r.plannedArrival(), r.window().open(), r.window().close(), instant(row.get("expected_arrival")),
-        r.startedAt(), r.arrivedAt(), r.completedAt(), r.waitMinutes(), r.lateMinutes(), r.outcome(),
+        r.startedAt(), r.arrivedAt(), r.completedAt(), r.waitMinutes(), r.lateMinutes(), r.outcome(), r.deliveredUnits(),
         r.proofId().isPresent(), r.rowVersion(), lines(row));
   }
 

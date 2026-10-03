@@ -12,7 +12,7 @@ function stop(vehicle: string, seq: number, extra: Partial<RunSheetStopView> = {
   return {
     deliveryId: `d-${vehicle}-${seq}`, tripId: `t-${vehicle}`, sequence: seq, orderId: `o-${seq}`, outletId: `OUT0${60 + seq}`, itemCount: 10,
     mallOutlet: false, plannedArrival: "16:30:00", windowOpen: "09:00:00", windowClose: "17:00:00", expectedArrival: null, startedAt: at("08:50"),
-    arrivedAt: null, completedAt: null, waitMinutes: null, lateMinutes: null, outcome: "PENDING", proofCaptured: false, rowVersion: 1, lines: [], ...extra,
+    arrivedAt: null, completedAt: null, waitMinutes: null, lateMinutes: null, outcome: "PENDING", deliveredUnits: null, proofCaptured: false, rowVersion: 1, lines: [], ...extra,
   };
 }
 

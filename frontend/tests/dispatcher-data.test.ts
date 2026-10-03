@@ -115,7 +115,7 @@ function stop(sequence: number, extra: Partial<RunSheetStopView> = {}): RunSheet
   return {
     deliveryId: `d${sequence}`, tripId: "t", sequence, orderId: `o${sequence}`, outletId: `OUT00${sequence}`, itemCount: 5, mallOutlet: false,
     plannedArrival: "09:00:00", windowOpen: "08:00:00", windowClose: "10:00:00", expectedArrival: null, startedAt: null, arrivedAt: null,
-    completedAt: null, waitMinutes: null, lateMinutes: null, outcome: "PENDING", proofCaptured: false, rowVersion: 1, lines: [], ...extra,
+    completedAt: null, waitMinutes: null, lateMinutes: null, outcome: "PENDING", deliveredUnits: null, proofCaptured: false, rowVersion: 1, lines: [], ...extra,
   };
 }
 

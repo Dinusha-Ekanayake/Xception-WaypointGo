@@ -42,7 +42,7 @@ function stop(id: string, sequence: number, extra: Partial<RunSheetStopView> = {
     waitMinutes: null,
     lateMinutes: null,
     outcome: "PENDING",
-    proofCaptured: false,
+    deliveredUnits: null, proofCaptured: false,
     rowVersion: 1,
     lines: [],
     ...extra,
@@ -100,6 +100,15 @@ test("waiting writes are applied in order and each moves the version on by one",
   assert.equal(a.proofCaptured, true);
   assert.equal(a.waiting, true);
   assert.deepEqual([stops[1]!.outcome, stops[1]!.rowVersion, stops[1]!.waiting], ["PENDING", 1, false]);
+});
+
+test("a partial record still on the phone carries its units", () => {
+  const [a] = project(sheet(stop("a", 1)), [
+    write(DeliveryKind.arrive, { deliveryId: "a" }, colombo("04:50"), 1),
+    write(DeliveryKind.record, { deliveryId: "a", outcome: "PARTIAL", deliveredUnits: 11 }, colombo("05:15"), 2),
+  ]);
+  assert.equal(a!.outcome, "PARTIAL");
+  assert.equal(a!.deliveredUnits, 11);
 });
 
 test("an arrival with no start starts the stop, as the server does", () => {
