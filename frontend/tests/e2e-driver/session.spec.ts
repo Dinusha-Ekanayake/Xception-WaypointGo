@@ -5,7 +5,7 @@ import { arrive, openForm, serve, startTrip } from "./mocks.ts";
 test.fixme("sign-out is refused while work is still only on the phone", async ({ page, context }) => {
   const server = await serve(page);
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Start run" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Start trip" })).toBeVisible();
   await server.goOffline(context);
   await startTrip(page);
   await page.getByRole("button", { name: "Go back to home" }).click();
@@ -29,7 +29,7 @@ test.fixme("sign-out is refused while work is still only on the phone", async ({
 test.fixme("a session that ended while offline keeps the work and sends it after signing in again", async ({ page, context }) => {
   const server = await serve(page);
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Start run" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Start trip" })).toBeVisible();
   await server.goOffline(context);
   await startTrip(page);
   await arrive(page);
@@ -53,7 +53,7 @@ test.fixme("a session that ended while offline keeps the work and sends it after
 test.fixme("a stop replanned while the phone was offline is held for the driver, never merged", async ({ page, context }) => {
   const server = await serve(page);
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Start run" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Start trip" })).toBeVisible();
   await server.goOffline(context);
   await startTrip(page);
   await arrive(page);
@@ -82,7 +82,7 @@ test("a write the server took, with the signal gone before the phone read it bac
   await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
   // Start reaches the server, then the signal goes before the run sheet is read again.
   server.dropReads = true;
-  await page.getByRole("button", { name: "Start run" }).click();
+  await page.getByRole("button", { name: "Start trip" }).click();
   await expect.poll(() => server.commands.map((c) => c.kind)).toEqual(["delivery:Start"]);
   await server.goOffline(context);
   await arrive(page);

@@ -19,6 +19,9 @@ export type Problem =
   | { kind: "not-delivered"; reason: FailureReason };
 
 const VOICE_MS = 15_000;
+/** The slide handle's size and its inset in the row, in px. */
+const HANDLE = 52;
+const INSET = 6;
 
 const CHOICES: Array<{ id: string; label: string; problem: () => Problem; onStop: boolean }> = [
   { id: "late", label: "Running late", onStop: true, problem: () => ({ kind: "report", fault: "road", description: "Running late" }) },
@@ -34,7 +37,7 @@ function SlideRow({ label, disabled, onSend }: { label: string; disabled: boolea
   const [x, setX] = useState(0);
   const dragging = useRef(false);
   const sent = useRef(false);
-  const limit = () => Math.max(0, (track.current?.clientWidth ?? 0) - 56);
+  const limit = () => Math.max(0, (track.current?.clientWidth ?? 0) - HANDLE - INSET * 2);
 
   const release = (at: number) => {
     dragging.current = false;
@@ -85,23 +88,34 @@ function SlideRow({ label, disabled, onSend }: { label: string; disabled: boolea
       onPointerMove={(e) => {
         if (!dragging.current || sent.current || !track.current) return;
         const rect = track.current.getBoundingClientRect();
-        const next = Math.max(0, Math.min(e.clientX - rect.left - 28, limit()));
+        const next = Math.max(0, Math.min(e.clientX - rect.left - INSET - HANDLE / 2, limit()));
         setX(next);
-        if (next >= limit() * 0.72) release(next);
       }}
       onPointerUp={(e) => {
         if (!dragging.current) return;
         const rect = track.current?.getBoundingClientRect();
-        release(rect ? Math.max(0, e.clientX - rect.left - 28) : 0);
+        release(rect ? Math.max(0, e.clientX - rect.left - INSET - HANDLE / 2) : 0);
       }}
       onPointerCancel={() => release(0)}
-      className="relative h-16 touch-none overflow-hidden rounded-[20px] bg-go-surface text-go-ink outline-none focus-visible:ring-2 focus-visible:ring-go-signal"
+      className="relative h-16 touch-none select-none overflow-hidden rounded-full bg-go-surface text-go-ink outline-none focus-visible:ring-2 focus-visible:ring-go-signal"
     >
-      <span className="pointer-events-none absolute inset-y-0 right-0 w-1/3 bg-go-action/30" style={{ opacity: limit() === 0 ? 0 : x / limit() }} />
-      <span className="pointer-events-none absolute inset-0 flex items-center gap-3 px-3">
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-go-card text-[18px]">›</span>
-        <span className="min-w-0 flex-1 text-[17px] font-medium">{label}</span>
-        <span className="text-[13px] text-go-muted">slide ›››</span>
+      <span
+        className="pointer-events-none absolute inset-y-0 left-0 rounded-full bg-go-action/30"
+        style={{ width: x + HANDLE + INSET * 2, opacity: limit() === 0 ? 0 : Math.min(1, x / 24), transition: dragging.current ? "none" : "width 200ms var(--ease-go-out), opacity 200ms" }}
+      />
+      <span className="pointer-events-none absolute inset-0 flex items-center gap-3 px-1.5">
+        <span
+          className="flex size-[52px] shrink-0 items-center justify-center rounded-full bg-go-card shadow-go-float"
+          style={{ transform: `translateX(${x}px)`, transition: dragging.current ? "none" : "transform 200ms var(--ease-go-out)" }}
+        >
+          <svg aria-hidden width="28" height="18" viewBox="0 0 22 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            {/* Brighten one after another, left to right, to say which way to slide. */}
+            <path d="M2.5 2l5 5-5 5" className="animate-chevron motion-reduce:animate-none" />
+            <path d="M8.5 2l5 5-5 5" className="animate-chevron motion-reduce:animate-none" style={{ animationDelay: "0.15s" }} />
+            <path d="M14.5 2l5 5-5 5" className="animate-chevron motion-reduce:animate-none" style={{ animationDelay: "0.3s" }} />
+          </svg>
+        </span>
+        <span className="min-w-0 flex-1 text-[17px] font-medium" style={{ opacity: limit() === 0 ? 1 : 1 - Math.min(1, x / (limit() * 0.6)) }}>{label}</span>
       </span>
       {sent.current && <span className="absolute inset-0 flex items-center justify-center bg-go-action text-[17px] font-medium text-go-on-action">{label}</span>}
     </div>
@@ -198,7 +212,7 @@ export function ProblemSheet({
 
   if (sent) {
     return (
-      <Sheet label="Report sent" onClose={onClose}>
+      <Sheet label="Report sent" onClose={onClose} placement="frame">
         <div role="status" aria-live="polite">
           <h2 className="text-[26px] font-medium text-go-ink">Report sent</h2>
           <p className="mt-1 text-[15px] text-go-muted">
@@ -216,7 +230,7 @@ export function ProblemSheet({
   const mic = recorder.state.status === "unavailable" ? recorder.state.reason : null;
 
   return (
-    <Sheet label="Report a problem" onClose={onClose}>
+    <Sheet label="Report a problem" onClose={onClose} placement="frame">
       <div>
         <h2 className="text-[26px] font-medium text-go-ink">Report a problem</h2>
         <p className="text-[15px] text-go-muted">
@@ -254,7 +268,14 @@ export function ProblemSheet({
       </button>
       {mic && <p className="text-[14px] text-go-muted">{mic}</p>}
       {(error || voiceError) && <Banner tone="bad" title={error ?? voiceError ?? ""} live />}
-      <ActionButton onClick={onClose}>Close</ActionButton>
+      {/* As the sign-out sheet's Cancel (Figma: 295px, 64px, outlined), centred. */}
+      <button
+        type="button"
+        onClick={onClose}
+        className="flex h-[64px] w-full max-w-[295px] items-center justify-center self-center rounded-[22px] border border-go-muted bg-transparent text-[20px] font-medium leading-[25px] text-go-ink transition-all active:scale-[0.99]"
+      >
+        Close
+      </button>
     </Sheet>
   );
 }

@@ -28,8 +28,9 @@ function DriverProfileButton({
   const [open, setOpen] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
   // The header scales its controls, and a transformed ancestor traps a fixed
-  // sheet inside it, so the sheet renders into the themed driver root instead.
-  const host = open ? (button.current?.closest<HTMLElement>("[data-theme]") ?? document.body) : null;
+  // sheet inside it, so the sheet renders into the phone frame instead, where
+  // it rises from the bottom of the phone like the sign-out sheet.
+  const host = open ? (document.getElementById("driver-content") ?? button.current?.closest<HTMLElement>("[data-theme]") ?? document.body) : null;
   return (
     <>
       <button
@@ -48,7 +49,7 @@ function DriverProfileButton({
       </button>
       {host &&
         createPortal(
-          <SettingsPanel displayName={displayName} roleLabel="Driver" lang={lang} onLang={(l) => onLang?.(l)} placement="sheet" onClose={() => setOpen(false)}>
+          <SettingsPanel displayName={displayName} roleLabel="Driver" lang={lang} onLang={(l) => onLang?.(l)} placement="frame" showInstall={false} onClose={() => setOpen(false)}>
             {onSignOut && (
               <button
                 type="button"
@@ -56,7 +57,7 @@ function DriverProfileButton({
                   setOpen(false);
                   onSignOut();
                 }}
-                className="flex min-h-12 w-full items-center gap-2 text-left text-[16px] font-medium text-go-danger-strong"
+                className="flex h-11 shrink-0 items-center gap-2 rounded-full border border-go-danger-strong px-4 text-[15px] font-medium text-go-danger-strong active:scale-95"
               >
                 <svg aria-hidden width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
