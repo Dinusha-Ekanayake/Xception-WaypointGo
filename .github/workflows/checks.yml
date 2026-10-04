@@ -31,7 +31,7 @@ jobs:
       mcp: ${{ steps.areas.outputs.mcp }}
       ml: ${{ steps.areas.outputs.ml }}
       compose: ${{ steps.areas.outputs.compose }}
-      release: ${{ steps.areas.outputs.release }}
+      reuse: ${{ steps.areas.outputs.reuse }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -41,6 +41,24 @@ jobs:
           BASE: ${{ github.event.pull_request.base.sha }}
         run: |
           areas="backend frontend mcp ml compose"
+          reuse() {
+            for a in $areas; do echo "$a=false" >> "$GITHUB_OUTPUT"; done
+            echo "reuse=$1" >> "$GITHUB_OUTPUT"
+            echo "Reusing the dev checks of $1"
+            exit 0
+          }
+          # A production deploy of code dev already checked (the merge of a
+          # release pull request has the same tree as the dev commit it
+          # merged) reuses that result instead of running every job again.
+          if [ "${{ github.event_name }}" != pull_request ] && [ "${{ github.ref }}" = refs/heads/main ]; then
+            tree=$(git rev-parse HEAD^{tree})
+            if git rev-parse -q --verify HEAD^2 >/dev/null && [ "$(git rev-parse HEAD^2^{tree})" = "$tree" ]; then
+              reuse "$(git rev-parse HEAD^2)"
+            fi
+            if [ "$(git rev-parse origin/dev^{tree})" = "$tree" ]; then
+              reuse "$(git rev-parse origin/dev)"
+            fi
+          fi
           if [ "${{ github.event_name }}" != pull_request ]; then
             for a in $areas; do echo "$a=true" >> "$GITHUB_OUTPUT"; done
             exit 0
@@ -49,9 +67,7 @@ jobs:
           # dev push of the same commit already runs every job before the
           # preview deploy, and the release job below waits for that result.
           if [ "${{ github.head_ref }}" = dev ] && [ "${{ github.base_ref }}" = main ]; then
-            for a in $areas; do echo "$a=false" >> "$GITHUB_OUTPUT"; done
-            echo "release=true" >> "$GITHUB_OUTPUT"
-            exit 0
+            reuse "${{ github.event.pull_request.head.sha }}"
           fi
           files=$(git diff --name-only "$BASE"...HEAD)
           echo "$files"
@@ -66,12 +82,12 @@ jobs:
             echo "compose=$(hit '^(compose[^/]*\.yaml|deploy/)|Dockerfile')"
           } | tee -a "$GITHUB_OUTPUT"
 
-  # Passes only when the preview deploy's checks of this exact commit passed.
-  # One runner waiting instead of the whole suite running a second time.
+  # Passes only when the preview deploy's checks of the reused dev commit
+  # passed. One runner waiting instead of the whole suite running again.
   release:
     name: Checks of this commit on dev
     needs: changes
-    if: needs.changes.outputs.release == 'true'
+    if: needs.changes.outputs.reuse != ''
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -79,7 +95,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       REPO: ${{ github.repository }}
-      SHA: ${{ github.event.pull_request.head.sha }}
+      SHA: ${{ needs.changes.outputs.reuse }}
     steps:
       - run: |
           for i in $(seq 1 110); do

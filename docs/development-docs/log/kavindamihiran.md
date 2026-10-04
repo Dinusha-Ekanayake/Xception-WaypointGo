@@ -7,7 +7,7 @@
 
 `ci/release-pr-reuses-dev-checks` · @kavindamihiran
 
-Every push to dev ran Checks twice (preview deploy and the open dev to main pull request), about 26 jobs, and runs queued ~2 minutes for runners. The release pull request now runs one job that waits for the preview deploy's checks of the same commit and takes their result; the deploys gained `actions: read` for it. Verified by the pull request's own checks.
+Every push to dev ran Checks twice (preview deploy and the open dev to main pull request), about 26 jobs, and runs queued ~2 minutes for runners. The release pull request, and the production deploy of a merge whose tree equals the dev commit it merged, now run one job that waits for the preview deploy's checks of the same commit and takes their result; the deploys gained `actions: read` for it. Verified by the pull request's own checks.
 
 ## 2026-10-04 - ci: check only what a change touches
 
