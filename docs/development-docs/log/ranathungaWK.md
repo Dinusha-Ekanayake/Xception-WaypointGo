@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-10-04 - allow immediate driver unassignment
+
+`codex/system-constraints` · @ranathungaWK
+
+Allow an administrator to end a vehicle assignment on its starting day. The empty half-open range revokes driver access immediately while retaining the assignment and audit history.
+Verification was not run because the user requested an urgent direct push.
+
 ## 2026-10-04 - stabilize the forecast countdown assertion
 
 `codex/system-constraints` · @ranathungaWK

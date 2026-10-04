@@ -229,7 +229,7 @@ export function VehiclesScreen({ state }: { state?: DemoState } = {}) {
         on: todayInColombo(),
         expectedVersion: assigningVehicle.lastDriver.assignmentVersion ?? 1,
       });
-      setCreateNotice(`Driver assignment for ${assigningVehicle.id} ended.`);
+      setCreateNotice(`Driver unassigned from ${assigningVehicle.id}.`);
       setAssigningVehicle(null);
       void loadVehicles();
     } catch (err) {
@@ -1010,7 +1010,7 @@ export function VehiclesScreen({ state }: { state?: DemoState } = {}) {
                     disabled={endingAssignment}
                     onClick={() => void handleEndAssignment()}
                   >
-                    {endingAssignment ? "Ending assignment..." : "End current assignment"}
+                    {endingAssignment ? "Unassigning..." : "Unassign driver now"}
                   </button>
                 ) : <span />}
 
