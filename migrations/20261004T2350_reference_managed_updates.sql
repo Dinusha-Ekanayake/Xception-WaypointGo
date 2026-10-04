@@ -8,7 +8,7 @@ CREATE TABLE ref.managed_updates (
     PRIMARY KEY (kind, natural_id)
 );
 
-GRANT SELECT, INSERT, UPDATE ON ref.managed_updates TO waypoint_referencedata;
+GRANT SELECT, INSERT, UPDATE ON ref.managed_updates TO waypoint_ref;
 
 INSERT INTO iam.action_catalogue (action, module, description, implemented) VALUES
     ('reference:UpdateDepot', 'referencedata', 'Update an operating depot', true),
