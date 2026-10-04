@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import type { NotificationView } from "@shared/domain/notification";
 import { ago } from "@shared/notifications/inbox";
@@ -10,7 +10,7 @@ import { nextStop, type Stop } from "./data/run.ts";
 import { activeIndex, syncLabel, toRouteStops, tripStatus, type RouteStop } from "./data/stopView.ts";
 import DeliveryPinConfirmModal from "./screens/DeliveryPinConfirmModal.tsx";
 import DeliveryReport from "./screens/DeliveryReport.tsx";
-import DeliveryReportWaiting from "./screens/DeliveryReportWaiting.tsx";
+import StopHandover from "./screens/StopHandover.tsx";
 import DrivingModeScreen from "./screens/DrivingModeScreen.tsx";
 import HomeNoVehicle from "./screens/HomeNoVehicle.tsx";
 import Messages from "./screens/Messages.tsx";
@@ -48,6 +48,8 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
   const [driving, setDriving] = useState(false);
   const [formFor, setFormFor] = useState<string | null>(null);
   const [pinFor, setPinFor] = useState<Stop | null>(null);
+  // Stable, because the PIN popup closes itself on a timer that restarts whenever this changes.
+  const closePin = useCallback(() => setPinFor(null), []);
   const [revised, setRevised] = useState<NotificationView | null>(null);
   const [talking, setTalking] = useState(false);
   // The stop row last tapped on the route, one shared element with the stop's header (UX polish 4).
@@ -223,19 +225,27 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
             )}
             {screen === "map" && next && (
               <GoLayer dark={d.dark} top>
-                <RouteMap next={next} outlet={run.outlets[next.outletId]} recorder={d.location} syncedAt={run.syncedAt} onBack={() => d.go({ name: "route", deliveryId: null })} className="h-full w-full" />
+                <RouteMap next={next} outlet={run.outlets[next.outletId]} recorder={d.location} syncedAt={null} className="h-full w-full" />
               </GoLayer>
             )}
             {screen === "report" && reporting && view.name === "report" && formFor !== reporting.deliveryId && (
-              <DeliveryReportWaiting
+              // Issue #21: hand over, wait for the store's report, accept it with the store's PIN or say why you move on.
+              <StopHandover
+                key={reporting.deliveryId}
+                stop={reporting}
                 stops={routeStops}
                 stopIndex={stops.indexOf(reporting)}
                 syncLabel={sync}
-                onBack={() => d.go({ name: "route", deliveryId: reporting.deliveryId })}
-                onConfirm={() => setFormFor(reporting.deliveryId)}
-                onProblem={() => d.openProblem(reporting)}
+                online={online}
+                busy={busy}
                 isNight={d.dark}
+                onBack={() => d.go({ name: "route", deliveryId: reporting.deliveryId })}
                 onToggleTheme={d.theme}
+                onHandOver={() => d.handOver(reporting)}
+                onMoveOn={(reason, note) => d.moveOn(reporting, reason, note)}
+                onEnterPin={() => setPinFor(reporting)}
+                onNext={() => void d.toNextStop()}
+                onProblem={() => d.openProblem(reporting)}
               />
             )}
             {screen === "report" && reporting && view.name === "report" && formFor === reporting.deliveryId && (
@@ -383,8 +393,14 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
         )}
         <DeliveryPinConfirmModal
           isOpen={pinFor !== null}
-          onClose={() => setPinFor(null)}
-          onVerify={(pin) => d.verifyHandover(pinFor!, pin)}
+          onClose={closePin}
+          // A correct PIN accepts the store's report: the run moves on behind the
+          // "Handover confirmed" popup, with no extra step (issue #21).
+          onVerify={async (pin) => {
+            const answer = await d.verifyHandover(pinFor!, pin);
+            if ("outcome" in answer && (answer.outcome === "VERIFIED" || answer.outcome === "ALREADY_CONFIRMED")) void d.toNextStop();
+            return answer;
+          }}
           isNight={d.dark}
           stopName={pinFor?.outletId ?? ""}
           online={online}

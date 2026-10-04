@@ -71,20 +71,24 @@ export function byUrgency(days: VehicleDay[]): VehicleDay[] {
 export type Attention = {
   vehicleId: string;
   stop: RunSheetStopView;
-  kind: "failed" | "late" | "proof-owed";
+  kind: "failed" | "late" | "left-unanswered";
 };
 
-/** What needs the dispatcher: a stop not delivered, a stop late, a delivery with no proof yet. */
+/**
+ * What needs the dispatcher: a stop not delivered, a stop late, a stop the
+ * driver left before the store answered (issue #21). A handover the store
+ * checked is its own evidence, so a delivery without a photo is not flagged.
+ */
 export function attention(sheets: RunSheetView[], now: Date): Attention[] {
   const found: Attention[] = [];
   for (const sheet of sheets) {
     for (const stop of sheet.stops) {
       if (stop.outcome === "FAILED") found.push({ vehicleId: sheet.vehicleId, stop, kind: "failed" });
       else if (stop.outcome !== "SKIPPED" && isLate(sheet.serviceDate, stop, now)) found.push({ vehicleId: sheet.vehicleId, stop, kind: "late" });
-      else if ((stop.outcome === "DELIVERED" || stop.outcome === "PARTIAL") && !stop.proofCaptured) found.push({ vehicleId: sheet.vehicleId, stop, kind: "proof-owed" });
+      else if (stop.storeAnswerWaived) found.push({ vehicleId: sheet.vehicleId, stop, kind: "left-unanswered" });
     }
   }
-  const order = { failed: 0, late: 1, "proof-owed": 2 } as const;
+  const order = { failed: 0, late: 1, "left-unanswered": 2 } as const;
   return found.sort((a, b) => order[a.kind] - order[b.kind] || a.vehicleId.localeCompare(b.vehicleId) || a.stop.sequence - b.stop.sequence);
 }
 

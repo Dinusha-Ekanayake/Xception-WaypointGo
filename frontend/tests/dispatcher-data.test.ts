@@ -115,7 +115,7 @@ function stop(sequence: number, extra: Partial<RunSheetStopView> = {}): RunSheet
   return {
     deliveryId: `d${sequence}`, tripId: "t", sequence, orderId: `o${sequence}`, outletId: `OUT00${sequence}`, itemCount: 5, mallOutlet: false,
     plannedArrival: "09:00:00", windowOpen: "08:00:00", windowClose: "10:00:00", expectedArrival: null, startedAt: null, arrivedAt: null,
-    completedAt: null, waitMinutes: null, lateMinutes: null, outcome: "PENDING", deliveredUnits: null, proofCaptured: false, rowVersion: 1, lines: [], ...extra,
+    completedAt: null, waitMinutes: null, lateMinutes: null, outcome: "PENDING", deliveredUnits: null, proofCaptured: false, storeAnswerWaived: null, rowVersion: 1, lines: [], ...extra,
   };
 }
 
@@ -140,15 +140,15 @@ test("a vehicle's day says where it is and how the run is going", () => {
   assert.equal(vehicleDay(sheet("VEH003", [stop(1, { outcome: "FAILED" }), stop(2, { outcome: "SKIPPED" })]), at("12:00")).state, "finished");
 });
 
-test("vehicles are listed most urgent first, and what needs the dispatcher is failed, late, then proof owed", () => {
+test("vehicles are listed most urgent first, and what needs the dispatcher is failed, late, then left before the store answered", () => {
   const sheets = [
     sheet("VEH001", [stop(1, { outcome: "DELIVERED", proofCaptured: true })]),
     sheet("VEH002", [stop(1)]),
-    sheet("VEH003", [stop(1, { outcome: "FAILED" }), stop(2, { outcome: "DELIVERED" })]),
+    sheet("VEH003", [stop(1, { outcome: "FAILED" }), stop(2, { outcome: "DELIVERED", storeAnswerWaived: "store_absent" })]),
   ];
   const now = at("10:30");
   assert.deepEqual(byUrgency(sheets.map((s) => vehicleDay(s, now))).map((d) => d.vehicleId), ["VEH003", "VEH002", "VEH001"]);
-  assert.deepEqual(attention(sheets, now).map((a) => `${a.vehicleId}:${a.kind}`), ["VEH003:failed", "VEH002:late", "VEH003:proof-owed"]);
+  assert.deepEqual(attention(sheets, now).map((a) => `${a.vehicleId}:${a.kind}`), ["VEH003:failed", "VEH002:late", "VEH003:left-unanswered"]);
 });
 
 test("on time counts delivered stops inside their window; a stop not reached counts in neither", () => {

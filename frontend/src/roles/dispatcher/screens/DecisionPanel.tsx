@@ -8,6 +8,7 @@ import { STATUS, size } from "../data/orders.ts";
 import { daysBetween, lastServedText, type DecisionRow } from "../data/planViews.ts";
 import { useNextDelivery } from "../data/usePlanReads.ts";
 import { explainDeferral } from "../data/explain.ts";
+import { useFriendlyText } from "@shared/api/useFriendlyText";
 import CheckList from "./CheckList.tsx";
 import ExplainSheet from "./ExplainSheet.tsx";
 import type { PlanActions } from "./planActions.ts";
@@ -38,7 +39,8 @@ export default function DecisionPanel({
   places: PlacementView[] | null;
   editable: boolean;
   actions: PlanActions;
-  onSwap: () => void;
+  /** Opens the swap window, on this trip when one was clicked. */
+  onSwap: (tripId?: string) => void;
 }): React.JSX.Element {
   const { allocation, order } = row;
   const next = useNextDelivery(plan.serviceDate);
@@ -61,8 +63,16 @@ export default function DecisionPanel({
   const target = fits.find((place) => key(place) === chosen) ?? null;
   const days = allocation.lastServedOn ? daysBetween(allocation.lastServedOn, plan.serviceDate) : null;
   const askReason = open && editable && (target !== null || keeping);
+  const canPlace = open && editable;
+  const explanation = explainDeferral({ orderRef: order?.orderRef ?? null, outletId: order?.outletId ?? null, day: dayLabel(plan.serviceDate), allocation, places, canPlace });
+  // Asked once the places are known, so the wording is not of a half-loaded answer.
+  const friendly = useFriendlyText(explaining && (places !== null || !canPlace) ? `order:${plan.planId}:${plan.rowVersion}:${allocation.orderId}:decide` : null, explanation);
   // A swap needs a trip of the same brand, district and temperature; without one the window would have nothing to offer.
-  const canSwap = swapTrips(plan, order).length > 0;
+  const swappable = swapTrips(plan, order);
+  const canSwap = swappable.length > 0;
+  // A trip the order cannot join, but could take a stop's place on: clicking it opens the swap there.
+  const swapOn = (place: PlacementView) =>
+    !place.feasible && place.tripId && swappable.some((trip) => trip.tripId === place.tripId) ? place.tripId : null;
   const firstFit = fits[0] ?? null;
 
   return (
@@ -118,12 +128,7 @@ export default function DecisionPanel({
         )}
         {open && <CheckList checks={allocation.checks} />}
         {(open || row.state === "kept") && <SecondaryButton onClick={() => setExplaining(true)}>Explain this decision</SecondaryButton>}
-        {explaining && (
-          <ExplainSheet
-            explanation={explainDeferral({ orderRef: order?.orderRef ?? null, outletId: order?.outletId ?? null, day: dayLabel(plan.serviceDate), allocation, places, canPlace: open && editable })}
-            onClose={() => setExplaining(false)}
-          />
-        )}
+        {explaining && <ExplainSheet explanation={explanation} friendly={friendly} onClose={() => setExplaining(false)} />}
 
         {open && editable && (
           <>
@@ -137,11 +142,23 @@ export default function DecisionPanel({
             )}
             <div role="radiogroup" aria-label="Trips this order could take" className="flex flex-col gap-2">
               {shown.map((place) => (
-                <TripChoice key={key(place)} place={place} checked={chosen === key(place)} only={fits.length === 1 && place.feasible} onChoose={() => (setChosen(key(place)), setKeeping(false))} />
+                <TripChoice
+                  key={key(place)}
+                  place={place}
+                  checked={chosen === key(place)}
+                  only={fits.length === 1 && place.feasible}
+                  swap={editable && !actions.busy && swapOn(place) !== null}
+                  onChoose={() => {
+                    const trip = swapOn(place);
+                    if (trip) return onSwap(trip);
+                    setChosen(key(place));
+                    setKeeping(false);
+                  }}
+                />
               ))}
             </div>
             <div className="flex flex-col gap-1">
-              <SecondaryButton disabled={actions.busy || !canSwap} onClick={onSwap}>
+              <SecondaryButton disabled={actions.busy || !canSwap} onClick={() => onSwap()}>
                 Open swap window
               </SecondaryButton>
               {!canSwap && <p className="text-xs text-go-secondary">No trip of the same brand, district and temperature to swap with.</p>}
@@ -189,13 +206,13 @@ export default function DecisionPanel({
   );
 }
 
-function TripChoice({ place, checked, only, onChoose }: { place: PlacementView; checked: boolean; only: boolean; onChoose: () => void }): React.JSX.Element {
+function TripChoice({ place, checked, only, swap, onChoose }: { place: PlacementView; checked: boolean; only: boolean; swap: boolean; onChoose: () => void }): React.JSX.Element {
   return (
     <button
       type="button"
       role="radio"
       aria-checked={checked}
-      disabled={!place.feasible}
+      disabled={!place.feasible && !swap}
       onClick={onChoose}
       className={`rounded-go-card border-2 px-3.5 py-2.5 text-left disabled:cursor-not-allowed disabled:opacity-60 ${checked ? "border-go-teal bg-go-success-tint" : "border-go-rule"}`}
     >
@@ -205,6 +222,7 @@ function TripChoice({ place, checked, only, onChoose }: { place: PlacementView; 
       </span>
       <span className="block text-xs text-go-secondary">
         {place.feasible ? (place.joins ? "Joins the trip already planned" : "Opens a new trip") : `${ruleLabel(place.bindingRule)}: ${place.reason}`}
+        {swap && <span className="block font-medium text-go-teal">Swap a stop on this trip ›</span>}
       </span>
     </button>
   );

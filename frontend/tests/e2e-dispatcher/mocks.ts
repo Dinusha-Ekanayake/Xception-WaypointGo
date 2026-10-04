@@ -228,7 +228,11 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
     const { pathname } = url;
     if (pathname === "/api/session") return route.fulfill(json(SESSION));
     if (pathname === "/api/reference/vehicles") return route.fulfill(json({ items: [vehicle("VEH043"), vehicle("VEH044")], nextCursor: null }));
-    if (pathname === "/api/orders/day") return route.fulfill(json(desk.orders));
+    if (pathname === "/api/orders/day") {
+      // The desk's orders are today's; tomorrow's run (also on Current) has none unless a test adds them.
+      const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Colombo" }).format(new Date());
+      return route.fulfill(json(url.searchParams.get("date") === today ? desk.orders : []));
+    }
     const byId = /^\/api\/orders\/(order-[^/]+)$/.exec(pathname);
     if (byId) {
       const found = [...desk.orders, ...(desk.elsewhere ?? [])].find((o) => o.orderId === byId[1]);
@@ -336,7 +340,7 @@ export function stop(sequence: number, extra: Partial<RunSheetStopView> = {}): R
   return {
     deliveryId: `delivery-${sequence}`, tripId: "trip-VEH043-1", sequence, orderId: `order-${sequence}`, outletId: `OUT0${50 + sequence}`, itemCount: 12,
     mallOutlet: false, plannedArrival: "09:30:00", windowOpen: "00:00:00", windowClose: "23:59:00", expectedArrival: null, startedAt: null, arrivedAt: null,
-    completedAt: null, waitMinutes: null, lateMinutes: null, outcome: "PENDING", deliveredUnits: null, proofCaptured: false, rowVersion: 1, lines: [], ...extra,
+    completedAt: null, waitMinutes: null, lateMinutes: null, outcome: "PENDING", deliveredUnits: null, proofCaptured: false, storeAnswerWaived: null, rowVersion: 1, lines: [], ...extra,
   };
 }
 

@@ -108,6 +108,26 @@ public final class ReceiptViews {
    * @param attemptsLeft wrong entries the driver may still make
    * @param rowVersion the version a reissue is made against
    */
+  /**
+   * The store's answer as the driver sees it (issue #21, store-led handover): what
+   * the store counted per product and its note, and where the PIN stands. Only the
+   * driver of the vehicle on that date reads it, and only once the store answered.
+   *
+   * @param answeredAt when the store answered; the receipt's own confirmation time
+   */
+  public record ReceiptAnswerView(
+      UUID orderId,
+      ReceiptStatus status,
+      List<ReceiptLineView> lines,
+      Optional<String> note,
+      Optional<Instant> answeredAt,
+      HandoverView handover) {
+
+    public ReceiptAnswerView {
+      lines = List.copyOf(lines);
+    }
+  }
+
   public record HandoverView(
       UUID orderId,
       HandoverStatus status,

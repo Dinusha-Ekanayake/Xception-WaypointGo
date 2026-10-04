@@ -89,6 +89,22 @@ export type HandoverView = {
   rowVersion: number;
 };
 
+/**
+ * The store's answer as the driver sees it (issue #21, store-led handover):
+ * GET /api/receipts/{orderId}/answer. What the store counted per product, its
+ * note, and where the PIN stands. Only the driver of the vehicle on that date
+ * reads it, and only once the store answered: before that it is a 404.
+ */
+export type ReceiptAnswerView = {
+  orderId: Uuid;
+  status: ReceiptStatus;
+  lines: ReceiptLineView[];
+  note: string | null;
+  /** When the store answered. */
+  answeredAt: IsoInstant | null;
+  handover: HandoverView;
+};
+
 /** What a receipt answer adds to its result when a PIN was issued; absent when none could be. */
 export type HandoverIssued = { handoverPin?: string; handoverExpiresAt?: string };
 

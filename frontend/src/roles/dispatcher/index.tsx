@@ -10,7 +10,7 @@ import { InboxProvider } from "./inbox.tsx";
 import NotificationsPanel from "./NotificationsPanel.tsx";
 import ThreadSheet from "./ThreadSheet.tsx";
 import { useView } from "./navigation.ts";
-import { depotToday, depotsFor, scopeLabel, type DepotFilter } from "./data/scope.ts";
+import { depotToday, depotsFor, nextRun, scopeLabel, type DepotFilter } from "./data/scope.ts";
 import type { SearchSource } from "./data/search.ts";
 import { useFleet } from "./data/fleet.ts";
 import { attention } from "./data/live.ts";
@@ -50,7 +50,9 @@ export default function Dispatcher({
     navigate("plan");
   };
   const [depotFilter, setDepotFilter] = useState<DepotFilter>("all");
-  const [date, setDate] = useState(depotToday);
+  // Plan opens on the run being planned: tomorrow's, which takes every order
+  // placed before today's 16:00 cutoff and any earlier one never planned.
+  const [date, setDate] = useState(() => nextRun(depotToday()));
   // An issue Live asked to open; the Issues screen selects it.
   const [issueFocus, setIssueFocus] = useState<string | null>(null);
   const online = useOnline();
@@ -62,13 +64,16 @@ export default function Dispatcher({
   // clock moves today, and the plan's day with it while it was still on today.
   useClockOffset();
   const today = depotToday();
-  const wasToday = useRef(today);
+  // When the run moves on (the cutoff passes, or a new day), the plan's day moves
+  // with it, unless the dispatcher chose another day.
+  const run = nextRun(today);
+  const wasRun = useRef(run);
   useEffect(() => {
-    if (wasToday.current === today) return;
-    const before = wasToday.current;
-    wasToday.current = today;
-    setDate((d) => (d === before ? today : d));
-  }, [today]);
+    if (wasRun.current === run) return;
+    const before = wasRun.current;
+    wasRun.current = run;
+    setDate((d) => (d === before ? run : d));
+  }, [run]);
   const fleet = useFleet(depots, today);
 
   // The sidebar's counts: orders that need a person, and stops that do. Only a
