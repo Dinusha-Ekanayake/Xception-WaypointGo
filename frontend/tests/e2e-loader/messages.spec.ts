@@ -70,6 +70,6 @@ test("the thread reads in the loader's language", async ({ page }) => {
   await page.getByRole("button", { name: "පණිවිඩ" }).click();
   const sheet = page.getByRole("dialog");
   await expect(sheet.getByText("පටවන්නන්ට")).toBeVisible();
-  await expect(sheet.getByRole("button", { name: "යවන්න" })).toBeVisible();
+  await expect(sheet.getByRole("button", { name: "හඬ සටහනක් පටිගත කිරීමට ඔබාගෙන සිටින්න" })).toBeVisible();
   await expect(sheet.getByText("යැවීම් භාරකරුට ගැටලුවක් වාර්තා කරන්න")).toBeVisible();
 });
