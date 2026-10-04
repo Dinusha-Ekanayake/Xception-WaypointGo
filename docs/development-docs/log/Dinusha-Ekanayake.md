@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-04 - feat: suggested steps and a ready message on what needs the dispatcher (issue #269, first slice)
+
+`feat/269-suggestions` · @Dinusha-Ekanayake
+
+Each card under Live's "Needs you" opens **Suggested steps**: the playbook for that situation (window closing, driver offline, not delivered, proof owed, an issue) and a message filled with the vehicle, the store, the expected arrival and the window, which opens in the trip's thread for the dispatcher to edit and send. Playbooks are data in `dispatcher/data/playbooks.ts`, matched by scenario, so the same situation gets the same advice; a message with a blank it cannot fill is not offered. Frontend only, no model.
+Left for #269 and #268: playbooks an administrator can edit, the server-side watch with reminders and a heartbeat. Both need backend work.
+Verified: see the PR. `npm test` 275; new `e2e-dispatcher/suggestions.spec.ts`. Not seen on the preview: no trip was on the road there today.
+
+---
+
 ## 2026-10-04 - feat: the whole plan explains itself, and a kept order says it stays deferred
 
 `feat/explain-plan` · @Dinusha-Ekanayake
