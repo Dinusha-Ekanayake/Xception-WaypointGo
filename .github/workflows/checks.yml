@@ -218,7 +218,9 @@ jobs:
       matrix:
         suite:
           - { name: shell, config: playwright.config.ts }
-          - { name: dispatcher, config: playwright.dispatcher.config.ts }
+          # The largest suite, split across two runners.
+          - { name: dispatcher 1/2, config: playwright.dispatcher.config.ts, shard: --shard=1/2 }
+          - { name: dispatcher 2/2, config: playwright.dispatcher.config.ts, shard: --shard=2/2 }
           - { name: driver, config: playwright.driver.config.ts }
           - { name: loader, config: playwright.loader.config.ts }
           - { name: store, config: playwright.store.config.ts }
@@ -251,14 +253,20 @@ jobs:
       - name: Install Chromium's system libraries
         if: steps.browsers.outputs.cache-hit == 'true'
         run: npx playwright install-deps chromium
+      # The webpack cache of earlier builds, so an unchanged module is not compiled again.
+      - uses: actions/cache@v6
+        with:
+          path: frontend/.next/cache
+          key: next-build-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}-${{ github.sha }}
+          restore-keys: next-build-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}-
       - run: npm run build
       - name: Suite
-        run: npx playwright test -c ${{ matrix.suite.config }}
+        run: npx playwright test -c ${{ matrix.suite.config }} ${{ matrix.suite.shard }}
       - name: Keep the reports of a failed run
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: browser-suites-report-${{ matrix.suite.name }}
+          name: browser-suites-report-${{ strategy.job-index }}
           path: |
             frontend/playwright-report/
             frontend/test-results/
