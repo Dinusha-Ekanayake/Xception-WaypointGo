@@ -2,14 +2,13 @@
 
 import { useMemo, useRef, useState } from "react";
 import type { OrderView, PlanView, StopView, VehicleView } from "@shared/domain/types";
-import { Menu } from "@shared/ui";
 import { hhmm } from "@shared/wording";
-import { typeLabel } from "../data/fleet.ts";
 import { size } from "../data/orders.ts";
 import { after, type TripLoad } from "../data/plan.ts";
 import { lastServedText } from "../data/planViews.ts";
 import { checkChips, stopRows, tripTiles } from "../data/tripWindow.ts";
 import { useInterchange, useTripEditPreview } from "../data/usePlanReads.ts";
+import VehiclePicker from "./VehiclePicker.tsx";
 import { tripChecks } from "./PlanTrip.tsx";
 import ReasonPicker, { reasonReady } from "./ReasonPicker.tsx";
 import Refusal from "./Refusal.tsx";
@@ -77,7 +76,6 @@ export default function EditTrip({
     [plan.allocations, orders],
   );
   const waiting = candidates.filter((c) => !ids.includes(c.order.orderId));
-  const others = fleet.filter((v) => v.vehicleId !== trip.vehicleId);
   const canEdit = editable && moveTo === null;
 
   const insert = (orderId: string, index: number) =>
@@ -124,7 +122,7 @@ export default function EditTrip({
               ? `Moving the whole trip to ${moveTo}`
               : editable
                 ? "Drag deferred orders onto the trip, drag stops to reorder, drag a stop right to take it off. Accept when every check passes."
-                : "A published plan changes only by moving the whole trip."}
+                : "A published plan changes only by moving the whole trip, until 16:00 on its day."}
           </span>
           {canEdit && (
             <button
@@ -137,17 +135,7 @@ export default function EditTrip({
             </button>
           )}
           {canReplan && (
-            <Menu
-              label="Move the trip to"
-              align="right"
-              disabled={changed}
-              items={others.map((v) => ({ id: v.vehicleId, label: v.vehicleId, hint: typeLabel(v), selected: moveTo === v.vehicleId }))}
-              onSelect={setMoveTo}
-              className="flex items-center gap-1.5 rounded-full bg-go-card px-3.5 py-1.5 text-[13px] font-medium"
-              chevron
-            >
-              Move trip to
-            </Menu>
+            <VehiclePicker plan={plan} fleet={fleet} current={trip.vehicleId} chosen={moveTo} disabled={changed} onChoose={setMoveTo} />
           )}
           {(changed || moveTo !== null) && (
             <button type="button" onClick={() => (setIds(original), setMoveTo(null))} className="text-[13px] font-medium text-go-teal">

@@ -1,4 +1,5 @@
 import type { AllocationView, CostView, ImprovementView, OrderView, PlanView, TripView, VehicleView } from "@shared/domain/types";
+import { PUBLISHED_EDIT_CLOSES } from "../../../shared/domain/planning.ts";
 export { hhmm } from "../../../shared/wording/index.ts";
 
 // What a plan adds up to on the dispatcher's screen. Pure: the plan, the day's
@@ -120,6 +121,15 @@ export function after(time: string, minutes: string | number): string {
 }
 
 /** The plan the screen works on: the open draft when there is one, else what is published. */
+/**
+ * Whether a published plan for this service day still takes changes: until
+ * 16:00 depot time that day (R-PLN-43). Depot time is Asia/Colombo, which has
+ * no daylight saving, so the offset is fixed.
+ */
+export function publishedEditOpen(serviceDate: string, now: Date = new Date()): boolean {
+  return now.getTime() < Date.parse(`${serviceDate}T${PUBLISHED_EDIT_CLOSES}:00+05:30`);
+}
+
 export type Working =
   | { stage: "none" }
   | { stage: "draft"; plan: PlanView; revises: PlanView | null }

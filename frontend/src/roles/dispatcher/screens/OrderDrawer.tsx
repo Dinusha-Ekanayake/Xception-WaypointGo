@@ -1,8 +1,7 @@
 "use client";
 
-import { useRef } from "react";
 import type { IssueView, OrderStatus } from "@shared/domain/types";
-import { Icon, Pill, SecondaryButton, cx, useDialogFocus } from "@shared/ui";
+import { Drawer, Icon, Pill, SecondaryButton, cx } from "@shared/ui";
 import { clock, dayLabel, hhmm, units } from "@shared/wording";
 import { TYPE } from "../data/issues.ts";
 import { STATUS, size } from "../data/orders.ts";
@@ -34,8 +33,6 @@ export default function OrderDrawer({
 }): React.JSX.Element {
   const { order, ride, stop } = line;
   const state = STATUS[order.status];
-  const panel = useRef<HTMLElement>(null);
-  useDialogFocus(panel, onClose);
   const decidable = order.status === "CONFIRMED" || order.status === "DEFERRED" || order.status === "ALLOCATED" || order.status === "UNSERVABLE";
 
   const steps: Step[] = [
@@ -65,14 +62,7 @@ export default function OrderDrawer({
   ];
 
   return (
-    <aside
-      ref={panel}
-      tabIndex={-1}
-      aria-modal="true"
-      role="dialog"
-      aria-label={`Order ${order.orderRef}`}
-      className="fixed inset-y-0 right-0 z-40 flex w-full max-w-[420px] animate-slide-in-end flex-col gap-4 overflow-y-auto overscroll-contain rounded-l-go-panel bg-go-card p-6 shadow-go-float"
-    >
+    <Drawer label={`Order ${order.orderRef}`} onClose={onClose} className="gap-4 p-6">
       <header className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <h2 className="text-[24px] font-medium text-go-ink">{order.orderRef}</h2>
@@ -126,7 +116,7 @@ export default function OrderDrawer({
           <p className="text-xs text-go-ink">{issue.description}</p>
         </div>
       ))}
-    </aside>
+    </Drawer>
   );
 }
 

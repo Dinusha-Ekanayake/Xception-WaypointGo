@@ -5,7 +5,7 @@ import { PlanCommandKind, type GenerationJobView, type OrderView } from "@shared
 import { Notice, PrimaryButton, SecondaryButton, useToast } from "@shared/ui";
 import { clock, dayLabel } from "@shared/wording";
 import { useFleet } from "../data/fleet.ts";
-import { costNote, improvementNote, summarise } from "../data/plan.ts";
+import { costNote, improvementNote, publishedEditOpen, summarise } from "../data/plan.ts";
 import { depotHolding, depotStates, idsIn, mergeWorking, type DepotWorking } from "../data/planRouting.ts";
 import { decidedCount, decisionRows } from "../data/planViews.ts";
 import { depotToday } from "../data/scope.ts";
@@ -64,6 +64,16 @@ export default function DepotPlan({
   const items: DepotWorking[] = useMemo(() => depotStates(plans.data ?? []), [plans.data]);
   const state = useMemo(() => mergeWorking(items), [items]);
   const live = state.stage === "none" ? null : state.plan;
+  // Once the day's plan is published, it is the only plan: the candidates saved
+  // before it and Compare go away, and it takes changes only until 16:00 that
+  // day (R-PLN-43).
+  const settled = state.stage === "published" || (state.stage === "draft" && state.revises !== null);
+  const final = state.stage === "published" && !publishedEditOpen(date);
+  useEffect(() => {
+    if (!settled) return;
+    setViewing(null);
+    setTab((current) => (current === "compare" ? "view" : current));
+  }, [settled]);
   const plan = viewing && snapshot.data ? snapshot.data.plan : live;
   const byId = useMemo(() => new Map<string, OrderView>((orders.data ?? []).map((order) => [order.orderId, order])), [orders.data]);
   const vehicles = fleet.data ?? [];
@@ -200,7 +210,7 @@ export default function DepotPlan({
       (ok) => ok && (setReviseReason(""), setRevising(false), setTab("decide")),
     );
 
-  const stage = state.stage === "none" ? "No plan yet" : state.stage === "draft" ? (single ? `Draft version ${state.plan.planVersion}${state.revises ? " · revises the published plan" : ""}` : "Draft") : single ? `Published · version ${state.plan.planVersion}` : "Published";
+  const stage = state.stage === "none" ? "No plan yet" : state.stage === "draft" ? (single ? `Draft version ${state.plan.planVersion}${state.revises ? " · revises the published plan" : ""}` : "Draft") : `${single ? `Published · version ${state.plan.planVersion}` : "Published"} · ${final ? "final" : "changes until 16:00"}`;
   const workingLabel = state.stage === "published" ? "Published plan" : "Working draft";
   const error = plans.error ?? orders.error ?? fleet.error;
   const improvement = improvementNote(plan?.improvement ?? null);
@@ -222,7 +232,7 @@ export default function DepotPlan({
     <section aria-label="Plan" className="flex w-full flex-col gap-4">
       <div className="flex w-full flex-wrap items-center gap-3">
         <p className="min-w-[200px] flex-1 text-[13px] text-go-secondary">{toolsLine}</p>
-        {state.stage !== "none" && (
+        {state.stage !== "none" && !settled && (
           <PlanTools
             draft={draft}
             single={single}
@@ -242,7 +252,7 @@ export default function DepotPlan({
 
       {error && <Refusal error={error} what="the plan" action={<Retry onClick={() => (reread(), fleet.refresh())} />} />}
       {planning && <Notice tone="neutral" title={planning} live>The plan is being made in the background; it opens here when it is ready, even after a reload.</Notice>}
-      {cost?.compare && live && tab !== "compare" && (
+      {cost?.compare && live && !settled && tab !== "compare" && (
         <Notice tone="info" title={cost.title} action={<SecondaryButton onClick={() => setTab("compare")}>Compare with the rules plan</SecondaryButton>}>
           {cost.detail}
         </Notice>
@@ -309,7 +319,7 @@ export default function DepotPlan({
 
           {tab === "decide" && <PlanDecide plan={plan} rows={rows} orders={byId} fleet={vehicles} editable={editable} actions={actions} focusId={focusId} />}
           {tab === "view" && (
-            <PlanBoard about={about} plan={plan} fleet={vehicles} orders={byId} editable={editable} canReplan={online && viewing === null} published={single && state.stage === "published" && viewing === null} actions={actions} onOpenDecision={decide} />
+            <PlanBoard about={about} plan={plan} fleet={vehicles} orders={byId} editable={editable} canReplan={online && viewing === null && !final} published={single && state.stage === "published" && viewing === null} actions={actions} onOpenDecision={decide} />
           )}
           {tab === "publish" && (
             <PlanPublish
@@ -326,6 +336,7 @@ export default function DepotPlan({
               onConfirming={setConfirming}
               revising={revising}
               onRevising={setRevising}
+              final={final}
               reviseReason={reviseReason}
               onReviseReason={setReviseReason}
               onPublish={() => void publish()}
@@ -333,7 +344,7 @@ export default function DepotPlan({
               onDecide={decide}
             />
           )}
-          {tab === "compare" && single && (
+          {tab === "compare" && single && !settled && (
             <PlanCompare
               working={{ id: live.planId, version: live.planVersion }}
               snapshots={saved.data ?? []}

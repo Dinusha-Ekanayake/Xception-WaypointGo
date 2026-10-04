@@ -71,7 +71,8 @@ export default function PlanBoard({
   const estimate = predictions.data ? scoredByEstimate(predictions.data) : false;
   const shown = useMemo(() => filterBoard(rows, filter), [rows, filter]);
   const loads = rows.flatMap((row) => row.trips).filter((load): load is TripLoad => load !== null);
-  const open = loads.find((load) => load.trip.tripId === openId) ?? loads[0] ?? null;
+  // A trip's details open in a drawer on a click; the board keeps the full width.
+  const open = loads.find((load) => load.trip.tripId === openId) ?? null;
 
   return (
     <>
@@ -172,7 +173,7 @@ export default function PlanBoard({
         </section>
 
         {open && (
-          <PlanTrip key={open.trip.tripId} plan={plan} load={open} fleet={fleet} orders={orders} editable={editable} canReplan={canReplan} actions={actions} risks={stops} />
+          <PlanTrip key={open.trip.tripId} plan={plan} load={open} fleet={fleet} orders={orders} editable={editable} canReplan={canReplan} actions={actions} risks={stops} onClose={() => setOpenId(null)} />
         )}
       </div>
     </>

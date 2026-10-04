@@ -1,5 +1,6 @@
 package com.waypoint.dispatch.planning.application;
 
+import com.waypoint.dispatch.planning.domain.PublishedEditWindow;
 import com.waypoint.dispatch.planning.application.PlanningDrafts.Opened;
 import com.waypoint.dispatch.planning.application.PlanningRevisions.Place;
 import com.waypoint.dispatch.planning.application.PlanningRevisions.Revision;
@@ -86,6 +87,7 @@ public class ReplanTripHandler implements CommandHandler {
     Replanned replanned;
     if (row.status() == PlanStatus.PUBLISHED) {
       RunRow published = revisions.published(planId, expected);
+      PublishedEditWindow.requireOpen(published.serviceDate(), now);
       Revision revision =
           revisions.revise(
               published, "replan trip " + tripId + ": " + reason, actor.userId(), drafts.newId(now),

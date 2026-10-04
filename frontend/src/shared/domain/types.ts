@@ -23,7 +23,7 @@ export type * from "./events.ts";
 export { OutletCommandKind, VehicleCommandKind } from "./referencedata.ts";
 export { IdentityCommandKind, McpCommandKind, McpSwitchPolicy, PolicyCommandKind } from "./identity.ts";
 export { ORDER_CUTOFF, OrderCommandKind } from "./ordering.ts";
-export { PlanCommandKind } from "./planning.ts";
+export { PUBLISHED_EDIT_CLOSES, PlanCommandKind } from "./planning.ts";
 export { LoadingCommandKind } from "./loading.ts";
 export { ExecutionCommandKind, FailureReasons, VehicleStatuses } from "./execution.ts";
 export { ReceiptCommandKind } from "./receipt.ts";

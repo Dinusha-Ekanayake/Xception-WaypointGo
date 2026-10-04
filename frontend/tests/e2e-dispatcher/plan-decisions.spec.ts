@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { DEPOT, FEASIBLE_PREVIEW, draftPlan, serve, snapshotOf } from "./mocks.ts";
 
 // The decisions beyond placing: keep orders deferred and be allowed to publish,
@@ -151,6 +151,7 @@ test("a stop order that breaks a rule shows the rule in words and cannot be save
   };
   await page.goto("/#/plan");
   await page.getByRole("tab", { name: /View plan/ }).click();
+  await openTrip(page);
   await page.getByRole("button", { name: "Edit this trip" }).click();
   const window = page.getByRole("dialog", { name: "Edit trip" });
 
@@ -177,6 +178,7 @@ test("a trip takes a deferred order by drag and drop, gives one up, and goes as 
   const desk = await serve(page, { draft: draftPlan(1, true) });
   await page.goto("/#/plan");
   await page.getByRole("tab", { name: /View plan/ }).click();
+  await openTrip(page);
   await page.getByRole("button", { name: "Edit this trip" }).click();
   const window = page.getByRole("dialog", { name: "Edit trip" });
   const stops = window.getByRole("list", { name: "Stops in order" });
@@ -202,6 +204,7 @@ test("removing a trip sends it empty, and a refusal comes back as a pop-up with 
   desk.refuse = { kind: "plan:EditTrip", status: 409, code: "CONSTRAINT_VIOLATED", detail: "trip edit refused: R-PLN-07 too many trips", rules: ["R-PLN-07"] };
   await page.goto("/#/plan");
   await page.getByRole("tab", { name: /View plan/ }).click();
+  await openTrip(page);
   await page.getByRole("button", { name: "Edit this trip" }).click();
   const window = page.getByRole("dialog", { name: "Edit trip" });
   await window.getByRole("button", { name: "Remove trip" }).click();
@@ -306,3 +309,8 @@ test("a blocked publish names its blocker beside the button, and Decide warns in
   await expect(page.getByText("1 order needs a decision in Decide")).toBeVisible();
   await expect(page.getByRole("tab", { name: /Decide/ })).toContainText("1 need a decision");
 });
+
+// A trip's detail opens as a side drawer when its card is clicked.
+async function openTrip(page: Page): Promise<void> {
+  await page.getByRole("region", { name: "Trips by vehicle" }).getByRole("button", { name: /trip 1:/ }).first().click();
+}
