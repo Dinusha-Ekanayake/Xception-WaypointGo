@@ -11,6 +11,12 @@
 The language buttons in the store's account menu now switch the screens. Strings are hardcoded in `store/data/strings.ts` (English is the key, a missing one falls back to English), read through `store/i18n.tsx`, as the loader does; the choice stays under the device key Settings already used. Covered: navigation, top bar, account menu, Home, Orders, Deliveries, Issues and placing an order.
 Left in English: Receive, Track, the order sheet, notifications, reporting an issue, the handover PIN, the profile and store dialogs, messages, and sentences built in the data layer (issue card titles, make-up timeline). Dates, times and unit counts come from the shared wording and stay English. The Sinhala and Tamil are drafts awaiting a native speaker.
 Verified: typecheck, `npm test` 284 (new `store-i18n.test.ts` holds every translation to its English placeholders). Not seen in a browser.
+## 2026-10-04 - fix: a loader, driver or store manager no longer keeps a dispatcher's "#/forecast" in the address
+
+`fix/role-hash` · @Dinusha-Ekanayake
+
+The dispatcher and the admin console name their screen after "#" in the address. Since sign-in opens the account's own role on any address, that name stayed when a loader, driver or store manager signed in next, so `loader.waypointgo.live/#/forecast` showed the loader. The shell now drops it for the roles that have no such screens (`StaleRouteCleaner` in `AppShell.tsx`).
+Verified: typecheck, `npm test`. Not seen on the preview.
 ## 2026-10-04 - docs: README for the judges, and the named demo accounts in a fresh copy
 
 `docs/readme-deliverables` · @Dinusha-Ekanayake
