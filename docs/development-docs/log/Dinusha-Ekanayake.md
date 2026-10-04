@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-04 - feat: UX polish 1 of 5, one motion and one overlay behaviour in every role
+
+`feat/ux-polish-motion` · @Dinusha-Ekanayake
+
+From [UX-PLAN.md](../../ux/UX-PLAN.md) section 7: one curve and three lengths (150, 200, 250 ms) in `shared/ui/theme.css`; every sheet, dialog and drawer rises or slides in, closes with Escape, keeps focus inside, gives it back and holds the page still (`useOverlay`); a phone's bottom sheet follows a swipe down and resists a pull up (`useSheetDrag`). The store's dialogs gain the Escape and focus handling they lacked. Toasts share one timing (4 s, 6 s with Undo); the driver's sheets no longer hold an action back for their animation. Reduced motion now stops animations too, and `animate-fade-in` and `animate-in`, used but never defined, work.
+Why: overlays behaved five different ways, and a sheet on a phone could only be closed by its button.
+Verified: see the PR. On the VPS preview data: the store's notifications sheet rises in at 390 px, a 200 px swipe closes it, a 45 px drag springs back; at 1440 px it slides from the side and Escape returns focus to the bell. `npm test` 216; all five browser suites, with a new store overlay spec.
+
+---
+
 ## 2026-10-04 - fix: UX Tier 2 (next working day, departure day, store phone header, counts, empty states)
 
 `fix/ux-tier2` · @Dinusha-Ekanayake

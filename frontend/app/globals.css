@@ -235,5 +235,16 @@ body:has([role="dialog"]:not([aria-hidden="true"]):not([data-state="closed"])) .
 .loader-workspace input.focus-in-box:focus-visible { outline: none; }
 dialog { color: var(--ui-text); }
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
+}
+
+/* An installed driver or loader app: a pull at the top never reloads mid-task. */
+@media (display-mode: standalone) {
+  html, body { overscroll-behavior-y: contain; }
 }

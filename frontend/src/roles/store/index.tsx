@@ -69,7 +69,7 @@ export default function Store({
   const [syncing, setSyncing] = useState(false);
   useEffect(() => {
     if (!note) return;
-    const timer = setTimeout(() => setNote(null), 6000);
+    const timer = setTimeout(() => setNote(null), 4000);
     return () => clearTimeout(timer);
   }, [note]);
   const name = savedName ?? displayName;

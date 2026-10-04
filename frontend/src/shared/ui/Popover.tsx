@@ -69,7 +69,7 @@ export function Popover({
           role="dialog"
           aria-label={label}
           className={cx(
-            "absolute z-40 rounded-go-card p-3",
+            "absolute z-40 animate-fade-in rounded-go-card p-3",
             tone === "dark" ? "bg-go-ink text-white shadow-go-float" : "bg-go-card text-go-ink shadow-go-card ring-1 ring-go-rule",
             place,
             panelClassName,

@@ -37,12 +37,12 @@ export default function ThreadSheet({ online }: { online: boolean }): React.JSX.
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end" role="presentation">
-      <button type="button" tabIndex={-1} aria-label="Close messages" onClick={() => close.current()} className="absolute inset-0 bg-black/20" />
+      <button type="button" tabIndex={-1} aria-label="Close messages" onClick={() => close.current()} className="absolute inset-0 animate-fade-in bg-black/20" />
       <section
         role="dialog"
         aria-modal="true"
         aria-label="Trip messages"
-        className="relative flex h-dvh w-full max-w-[520px] flex-col gap-3 bg-go-card p-5 shadow-go-card md:p-6"
+        className="relative flex h-dvh w-full max-w-[520px] animate-slide-in-end flex-col gap-3 overscroll-contain bg-go-card p-5 shadow-go-card md:p-6"
       >
         <header className="flex items-start justify-between gap-3">
           <div className="flex flex-col gap-0.5">
