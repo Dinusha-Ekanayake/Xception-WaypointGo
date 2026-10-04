@@ -1,25 +1,25 @@
 import { expect, test, type Page } from "@playwright/test";
-import { arrive, openForm, serve, startTrip, stop } from "./mocks.ts";
+import { arrive, handOver, serve, slideReason, startTrip, stop, storeAnswer } from "./mocks.ts";
 
-// Issue #117: the store manager's handover PIN is checked by the server, and is
-// evidence, never a gate. The inbox is the driver's real notifications.
+// Issue #117 and #21: the store answers a handed-over delivery, the driver sees
+// the store's report and accepts it with the store manager's PIN. The PIN is
+// checked by the server, and is evidence, never a gate. The inbox is the
+// driver's real notifications.
 
 async function deliver(page: Page): Promise<void> {
   await startTrip(page);
   await arrive(page);
-  await openForm(page);
-  await page.getByLabel("I can't capture a signature or a photo").check();
-  await page.getByLabel("Why not?").fill("Receiver refused to sign");
-  await page.getByRole("button", { name: "Confirm" }).click();
+  await handOver(page);
 }
 
-test("after a delivery the driver enters the store manager's PIN, and a wrong one says how many tries are left", async ({ page }) => {
+test("the driver accepts the store's report with the store manager's PIN, and a wrong one says how many tries are left", async ({ page }) => {
   const server = await serve(page, [stop(1, "OUT0101")]);
   server.pins[server.stops[0]!.orderId] = "4821";
+  server.answers[server.stops[0]!.orderId] = storeAnswer(server.stops[0]!);
   await page.goto("/");
   await deliver(page);
 
-  await page.getByRole("dialog", { name: "Delivery confirmed" }).getByRole("button", { name: "Enter store manager PIN" }).click();
+  await page.getByRole("button", { name: "Enter PIN to accept" }).click();
   const pin = page.getByRole("dialog", { name: "Store manager PIN" });
   await expect(pin.getByLabel("Store manager PIN")).toHaveValue("");
   await pin.getByLabel("Store manager PIN").fill("1111");
@@ -36,23 +36,24 @@ test("after a delivery the driver enters the store manager's PIN, and a wrong on
     { orderId: server.stops[0]!.orderId, pin: "4821" },
   ]);
 
-  // The delivery was never waiting on it: the saved sheet comes back and the run finishes.
-  await page.getByRole("dialog", { name: "Delivery confirmed" }).getByRole("button", { name: "Finish run" }).click();
+  // A correct PIN moves the run on by itself, behind the confirmation: no Next stop to tap.
   await expect(page.getByRole("heading", { name: "Run complete" })).toBeVisible();
+  await expect(pin).toHaveCount(0);
 });
 
-test("before the store answers there is no PIN to check, and the driver can skip", async ({ page }) => {
+test("before the store answers there is no PIN to enter, and the driver moves on saying why", async ({ page }) => {
   const server = await serve(page, [stop(1, "OUT0101")]);
   await page.goto("/");
   await deliver(page);
-  await page.getByRole("button", { name: "Enter store manager PIN" }).click();
-  const pin = page.getByRole("dialog", { name: "Store manager PIN" });
-  await pin.getByLabel("Store manager PIN").fill("1234");
-  await pin.getByRole("button", { name: "Confirm" }).click();
-  await expect(pin).toContainText("The store manager has not confirmed the receipt yet");
-  await pin.getByRole("button", { name: "Skip" }).click();
-  await expect(page.getByRole("dialog", { name: "Delivery confirmed" })).toBeVisible();
+  await expect(page.getByText("Waiting for store confirmation")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Enter PIN to accept" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Continue to next stop" }).click();
+  await slideReason(page, "Store manager not available");
+  await expect(page.getByRole("heading", { name: "Run complete" })).toBeVisible();
   expect(server.commands.filter((c) => c.kind === "delivery:Record")).toHaveLength(1);
+  expect(server.commands.find((c) => c.kind === "delivery:LeaveWithoutStoreAnswer")!.payload).toMatchObject({ reason: "store_absent" });
+  expect(server.stops[0]!.storeAnswerWaived).toBe("store_absent");
 });
 
 test("Home shows the driver's real notifications and marks them read", async ({ page }) => {
@@ -77,4 +78,22 @@ test("Home shows the driver's real notifications and marks them read", async ({ 
 
   await page.getByRole("button", { name: "1 new. Mark all read" }).click();
   await expect.poll(() => server.commands.some((c) => c.kind.startsWith("notification:"))).toBe(true);
+});
+
+test("Back from a handed-over stop asks why, so the stop is never left without a reason", async ({ page }) => {
+  const server = await serve(page);
+  await page.goto("/");
+  await deliver(page);
+  await expect(page.getByText("Waiting for store confirmation")).toBeVisible();
+
+  await page.getByRole("button", { name: "Go back" }).click();
+  const why = page.getByRole("dialog", { name: "Why are you moving on?" });
+  await why.getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByText("Waiting for store confirmation")).toBeVisible();
+  expect(server.commands.some((c) => c.kind === "delivery:LeaveWithoutStoreAnswer")).toBe(false);
+
+  await page.getByRole("button", { name: "Go back" }).click();
+  await slideReason(page, "Store manager not available");
+  await expect(page.getByRole("heading", { name: "OUT0202" })).toBeVisible();
+  expect(server.stops[0]!.storeAnswerWaived).toBe("store_absent");
 });

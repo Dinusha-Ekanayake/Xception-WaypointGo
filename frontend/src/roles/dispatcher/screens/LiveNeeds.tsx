@@ -47,7 +47,7 @@ export default function LiveNeeds({
     const run = runs.find((r) => r.day.vehicleId === card.vehicleId);
     const stops = run?.day.stops ?? [];
     const stop =
-      (card.kind === "failed" ? stops.find((s) => s.outcome === "FAILED") : card.kind === "proof" ? stops.find((s) => (s.outcome === "DELIVERED" || s.outcome === "PARTIAL") && !s.proofCaptured) : run?.day.current) ?? null;
+      (card.kind === "failed" ? stops.find((s) => s.outcome === "FAILED") : card.kind === "left" ? stops.find((s) => `left-${s.deliveryId}` === card.id) : run?.day.current) ?? null;
     const suggestion = suggestionFor(card.kind, {
       vehicle: card.vehicleId,
       store: stop?.outletId ?? null,
@@ -102,7 +102,7 @@ export default function LiveNeeds({
                     Book make-up
                   </Action>
                 )}
-                {(card.kind === "failed" || card.kind === "proof") && card.vehicleId && (
+                {(card.kind === "failed" || card.kind === "left") && card.vehicleId && (
                   <Action primary className="flex-1" onClick={() => onOpenTrip(card.vehicleId!)}>
                     Open trip
                   </Action>

@@ -8,7 +8,7 @@
 // The playbooks live here until an administrator can edit them (the rest of
 // #269, which needs the backend).
 
-export type Scenario = "window" | "offline" | "failed" | "issue" | "proof";
+export type Scenario = "window" | "offline" | "failed" | "issue" | "left";
 
 export type Playbook = {
   steps: string[];
@@ -41,12 +41,13 @@ export const PLAYBOOKS: Record<Scenario, Playbook> = {
     ],
     message: { to: "outlet", template: "The delivery to {store} on {vehicle} could not be completed today. We are arranging it for the next run and will confirm the day." },
   },
-  proof: {
+  // Issue #21: the driver moved on before the store answered, and said why.
+  left: {
     steps: [
-      "Ask the driver for the photo and signature before the vehicle leaves the stop.",
-      "If the driver has left, open the trip and check whether the store confirmed the receipt.",
+      "Open the trip and check whether the store has answered since the driver left.",
+      "Ask the store to check what arrived and confirm the receipt; if the driver disagreed, open the issue.",
     ],
-    message: { to: "driver", template: "{vehicle}: the delivery at {store} has no proof yet. Please add the photo and the signature before you leave the stop." },
+    message: { to: "outlet", template: "{vehicle} left {store} before your report was in. Please check what arrived and confirm the receipt." },
   },
   issue: {
     steps: ["Open the issue and read what was reported.", "Book the make-up delivery, or resolve the issue with a reason."],

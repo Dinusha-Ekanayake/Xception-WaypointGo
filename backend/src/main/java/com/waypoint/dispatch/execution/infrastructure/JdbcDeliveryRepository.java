@@ -318,6 +318,31 @@ public class JdbcDeliveryRepository {
 
   // ---- reports ---------------------------------------------------------------
 
+  /**
+   * Moves the stop's version on without touching what was recorded on it, for a
+   * decision kept beside the stop: the phone counts one version per command.
+   */
+  public long touch(UUID deliveryId, long expectedVersion) {
+    database.updateExpectingOneRow(
+        "UPDATE execution.delivery_records SET row_version = row_version + 1 WHERE delivery_id = ? AND row_version = ?",
+        deliveryId, expectedVersion);
+    return expectedVersion + 1;
+  }
+
+  /** @return false when the stop already has a decision: one per stop, never rewritten */
+  public boolean insertStoreAnswerWaiver(UUID deliveryId, String reason, UUID commandId, Stamp stamp) {
+    return database.update(
+            """
+            INSERT INTO execution.store_answer_waivers
+                (delivery_id, reason, decided_by, device_id, command_id, decided_at, client_recorded_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT (delivery_id) DO NOTHING
+            """,
+            deliveryId, reason, stamp.actorId(), stamp.deviceId(), commandId, Timestamp.from(stamp.serverAt()),
+            stamp.clientAt() == null ? null : Timestamp.from(stamp.clientAt()))
+        == 1;
+  }
+
   public void insertVehicleReport(
       UUID reportId, String vehicleId, String depotCode, LocalDate serviceDate, String kind, String status,
       String note, UUID deliveryId, UUID commandId, Stamp stamp) {
