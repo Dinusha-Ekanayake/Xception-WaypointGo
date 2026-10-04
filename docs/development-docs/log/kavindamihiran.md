@@ -3,6 +3,13 @@
 @kavindamihiran's entries, newest first. Only @kavindamihiran adds to this file; how to write an entry is in the [log's index](../development-log.md).
 
 ---
+## 2026-10-04 - feat: opt-in demo runtime and day preparation, issue #231
+
+`feat/231-demo-backend-core` · @kavindamihiran · #231, PR 2 of 6
+
+Added administrator-only, versioned runtime controls and a business-clock offset with a real-time security seam. Reset starts a persisted run and prepares a new empty operating day through Reference, Identity and Ordering commands; existing operational rows and credentials remain. The [plan](../../issues/231-demo-mode/PLAN.md), R-DEMO-01 to 03 and DEMO-01 to 03 record the limits. Frontend controls, trucks and scenarios remain for later PRs.
+Verified: demo integration, reference-creation interaction and module-boundary tests on a fresh dedicated PostgreSQL 16 database, no skips; frontend typecheck, Node tests and production build. A full `mvn clean verify` ran 997 tests with one error in `ReferenceCreationIntegrationTest` after other suites had mutated shared reference state; that test passes beside Demo on a fresh database. The full-suite state interaction remains to resolve.
+
 ## 2026-10-04 - plan: runtime demo control room and scenario deck, issue #231
 
 `docs/231-demo-mode-plan` · @kavindamihiran · #231, PR 1 of 6

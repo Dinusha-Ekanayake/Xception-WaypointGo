@@ -62,7 +62,7 @@ public class ScheduledJobRunner implements SmartInitializingSingleton, Disposabl
     this.jobs = jobs;
     this.dataSource = dataSource;
     this.database = database;
-    this.clock = clock;
+    this.clock = clock.realTime();
     this.metrics = metrics;
   }
 

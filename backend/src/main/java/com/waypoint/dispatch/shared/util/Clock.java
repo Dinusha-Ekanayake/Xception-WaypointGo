@@ -13,6 +13,12 @@ public interface Clock {
 
   Instant now();
 
+  default Clock realTime() { return this; }
+
+  static Clock offset(Clock base, java.time.Duration duration) {
+    return () -> base.now().plus(duration);
+  }
+
   static Clock system() {
     return Instant::now;
   }

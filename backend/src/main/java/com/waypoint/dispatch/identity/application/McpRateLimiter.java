@@ -40,7 +40,7 @@ public class McpRateLimiter {
     this.properties = properties;
     this.audit = audit;
     this.metrics = metrics;
-    this.clock = clock;
+    this.clock = clock.realTime();
   }
 
   /** Counts this request against its credential and, for a remote connection, its client. */

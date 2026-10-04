@@ -34,7 +34,7 @@ public class McpConnectionsQuery {
     this.database = database;
     this.sessions = sessions;
     this.audit = audit;
-    this.clock = clock;
+    this.clock = clock.realTime();
   }
 
   /**

@@ -76,7 +76,7 @@ public class McpWriteHandler {
     this.audit = audit;
     this.metrics = metrics;
     this.mapper = mapper;
-    this.clock = clock;
+    this.clock = clock.realTime();
   }
 
   /** What the person is asked to confirm. The confirmation is shown once and never stored. */
