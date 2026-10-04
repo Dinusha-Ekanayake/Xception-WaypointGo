@@ -4,6 +4,28 @@
 
 ---
 
+## 2026-10-04 - feat: suggested steps and a ready message on what needs the dispatcher (issue #269, first slice)
+
+`feat/269-suggestions` · @Dinusha-Ekanayake
+
+Each card under Live's "Needs you" opens **Suggested steps**: the playbook for that situation (window closing, driver offline, not delivered, proof owed, an issue) and a message filled with the vehicle, the store, the expected arrival and the window, which opens in the trip's thread for the dispatcher to edit and send. Playbooks are data in `dispatcher/data/playbooks.ts`, matched by scenario, so the same situation gets the same advice; a message with a blank it cannot fill is not offered. Frontend only, no model.
+Left for #269 and #268: playbooks an administrator can edit, the server-side watch with reminders and a heartbeat. Both need backend work.
+Verified: see the PR. `npm test` 275; new `e2e-dispatcher/suggestions.spec.ts`. Not seen on the preview: no trip was on the road there today.
+
+---
+
+## 2026-10-04 - fix: sign-in opens the account's own role on every address
+
+`fix/signin-opens-own-role` · @Dinusha-Ekanayake
+
+The page for choosing a role is gone, and so is the "All roles" button on sign-in. The shared address (`preview.waypointgo.live`, and the bare name on production) now shows the sign-in itself, and an email and password open the account's own workspace on whatever address they were entered. A role address still opens on its role for an account that holds it; any other account gets its own workspace there instead of the wrong-address page. Removed `RoleLanding.tsx`, `WrongAddress.tsx` and `roleCards.ts`. Frontend only: the session stays on the address it was made on.
+The "Connect AI" button is also gone from every role's settings and the shell strip, with the lookup that fed it and its browser spec (`e2e-dispatcher/mcp.spec.ts`). The MCP service and its consent screen are unchanged; `McpConnect.tsx` stays for `scopeWords`, its button unused.
+Why: a person should not have to pick a role before signing in; the account already says which one it is.
+Left: the helpers in `hostRole.ts` that only those pages used (`sharedHomeFor`, `sharedHostFor`, `hostForRole`, `isPreviewHome`, `ROLE_ADDRESSES`) are still there with their tests, unused by the shell.
+Verified: typecheck, `npm test` 279. Not yet seen on the preview.
+
+---
+
 ## 2026-10-04 - feat: the whole plan explains itself, and a kept order says it stays deferred
 
 `feat/explain-plan` · @Dinusha-Ekanayake

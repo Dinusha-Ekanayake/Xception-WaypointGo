@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { InstallApp } from "./InstallApp.tsx";
-import { McpButton } from "./McpConnect.tsx";
 import { cx } from "./primitives.tsx";
 import { useShell } from "./shell.tsx";
 
@@ -159,10 +158,6 @@ export function SettingsPanel({
         </div>
         {!translated && <span className="w-full text-[12px] text-go-muted">These screens are in English for now; your choice is kept on this device.</span>}
       </fieldset>
-      <McpButton
-        url={shell?.mcpUrl ?? null}
-        className="flex min-h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-go-surface text-[15px] font-medium text-go-ink"
-      />
       {showInstall && (
         <InstallApp className="flex min-h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-go-surface text-[15px] font-medium text-go-ink" />
       )}

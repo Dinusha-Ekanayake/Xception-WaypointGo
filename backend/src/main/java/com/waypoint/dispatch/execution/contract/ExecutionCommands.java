@@ -20,8 +20,12 @@ public final class ExecutionCommands {
   public static final String REPORT_VEHICLE_STATUS = "delivery:ReportVehicleStatus";
   public static final String REPORT_FAULT = "delivery:ReportFault";
   public static final String RECORD_POSITIONS = "delivery:RecordPositions";
+  /** R-EXE-24: the driver is at the depot with the vehicle, ready for it to be loaded. */
+  public static final String ARRIVE_AT_DEPOT = "delivery:ArriveAtDepot";
 
   public record StartStop(UUID deliveryId) {}
+
+  public record ArriveAtDepot(String vehicleId) {}
 
   public record RecordArrival(UUID deliveryId, Optional<Instant> deviceArrivedAt) {}
 

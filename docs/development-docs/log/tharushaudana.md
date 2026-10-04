@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-05 - fix(flow): the main flow runs end to end without anyone filling the gaps by hand
+
+`fix/main-flow-gaps` · @tharushaudana
+
+Walking the main flow (order, plan, defer, publish, load, release, deliver, receive, PIN) found four gaps. The cutoff never closed a day, so no plan was drafted unless the dispatcher pressed Close: the 16:00 job now closes each depot's day and Planning drafts it, unplaceable orders deferred (R-ORD-15). The driver could not see today's trip before release, and had no way to say they were at the depot, so Start trip jumped straight to the first store: Home now shows today's waiting trip with "I'm at the depot" (`delivery:ArriveAtDepot`, R-EXE-24), and the dock board marks that trip "Driver at the dock" and lists it first for the loader to take (R-LOD-12). The store was never told the truck had arrived: an arrival now notifies its store manager to unload and check (R-EXE-25). Edge cases FLOW-01 to FLOW-03.
+Screens also needed a manual reload to see each other's changes (the driver's run was read only after the phone wrote). Every live read now polls every 2 s while on screen (driver run, loader board and manifest, dispatcher day, store orders, receipts and deliveries), re-reads at once on returning to the screen or coming back online, never flashes a loading state for a background read, and never cancels a read still on its way; the driver's week look-ahead stays at about 30 s.
+Verified: `EventCatalogueTest`, `ModuleBoundaryTest`, backend unit tests, `npm test` (281), typecheck, build, the driver check-in on the build.
+Open: the new integration paths (cutoff close, the loader board join) run in CI only; no database here.
+
+---
+
 ## 2026-10-05 - feat(live): vehicles tracked every five seconds, pushed to the map, and drawn as in Figma
 
 `feat/live-vehicle-tracking` · @tharushaudana

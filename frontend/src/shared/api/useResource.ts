@@ -9,6 +9,9 @@ import { businessNow } from "../wording/now.ts";
 // is stale rather than pretend it is live. Polling pauses while the tab is
 // hidden or the browser is offline, and the caller says so on screen.
 
+/** Coming back to a screen re-reads it, but not more often than this. */
+const RETURN_GAP_MS = 3_000;
+
 export type Resource<T> = {
   data: T | null;
   error: ApiError | Error | null;
@@ -52,15 +55,30 @@ export function useResource<T>(
   loadRef.current = load;
 
   const refresh = useCallback(() => setTick((n) => n + 1), []);
+  // A poll or a return to the screen reads quietly: the data on screen stays and
+  // no loading state flashes every few seconds. A new key or a refresh asked for
+  // by the screen shows loading as before.
+  const quiet = useRef(false);
+  // A read still on its way is left to finish: on a slow line a new poll would
+  // otherwise cancel it every time and the screen would never change.
+  const inFlight = useRef(false);
+  const refreshQuietly = useCallback(() => {
+    if (inFlight.current) return;
+    quiet.current = true;
+    setTick((n) => n + 1);
+  }, []);
 
   useEffect(() => {
     const run = loadRef.current;
+    const background = quiet.current;
+    quiet.current = false;
     if (!run) {
       setLoading(false);
       return;
     }
     const controller = new AbortController();
-    setLoading(true);
+    if (!background) setLoading(true);
+    inFlight.current = true;
     run(controller.signal)
       .then((result) => {
         setData(result);
@@ -73,17 +91,44 @@ export function useResource<T>(
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
+        inFlight.current = false;
       });
-    return () => controller.abort();
+    return () => {
+      inFlight.current = false;
+      controller.abort();
+    };
   }, [key, tick]);
 
   useEffect(() => {
     if (!pollMs) return;
     const id = window.setInterval(() => {
-      if (document.visibilityState === "visible" && navigator.onLine) refresh();
+      if (document.visibilityState === "visible" && navigator.onLine) refreshQuietly();
     }, pollMs);
     return () => window.clearInterval(id);
-  }, [pollMs, refresh]);
+  }, [pollMs, refreshQuietly]);
+
+  // Back on screen, back in focus or back online: read again at once. A phone
+  // that slept, or a tab left in the background, otherwise shows old data until
+  // someone reloads by hand. At most once every few seconds, as these events
+  // often fire together.
+  const loadable = load !== null;
+  useEffect(() => {
+    if (!loadable) return;
+    let last = Date.now();
+    const again = () => {
+      if (document.visibilityState !== "visible" || !navigator.onLine || Date.now() - last < RETURN_GAP_MS) return;
+      last = Date.now();
+      refreshQuietly();
+    };
+    document.addEventListener("visibilitychange", again);
+    window.addEventListener("focus", again);
+    window.addEventListener("online", again);
+    return () => {
+      document.removeEventListener("visibilitychange", again);
+      window.removeEventListener("focus", again);
+      window.removeEventListener("online", again);
+    };
+  }, [loadable, refreshQuietly]);
 
   return { data, error, loading, loadedAt, refresh };
 }

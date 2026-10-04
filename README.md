@@ -75,6 +75,7 @@ The Figma file (pages 04 to 17) is the specification. Where the design shows som
   - English only.
 - **Dispatcher:**
   - Global search (the header, `/` or Ctrl+K) looks through what the screens have already loaded for the day and the depots in view: orders, vehicles, trips, issues and depots. It does not search other days.
+  - On Live, each item under "Needs you" has **Suggested steps**: the steps for that situation and a message already written with the vehicle and the store, opened in the trip's messages for the dispatcher to send. The steps are fixed in the app for now; an administrator cannot edit them yet.
   - In Plan, **Explain this plan** and, on a deferred order, **Explain this decision** open a pop-up that sets out what the plan carries, why orders were left off, what was checked and what can be done, from the facts the plan already holds. The design shows the reason on the panel only.
   - Vehicle interchange approval waits on Loading.
   - The Forecast's error chip shows the demand model's measured error over all volume and over chilled volume. The design shows a figure per brand, which the model does not measure.

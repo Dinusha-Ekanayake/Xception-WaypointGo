@@ -50,14 +50,11 @@ export default function SignIn({
   onSignedIn,
   notice,
   role = null,
-  home = null,
 }: {
   onSignedIn: (session: Session) => void;
   notice?: string;
   /** Set on a role address: the workspace this sign-in opens. */
   role?: ShellRole | null;
-  /** Set on a role address: the address every role shares, for the way back. */
-  home?: string | null;
 }): React.JSX.Element {
   const online = useOnline();
   const [email, setEmail] = useState("");
@@ -114,11 +111,6 @@ export default function SignIn({
       </div>
       <header className="flex items-center gap-3">
         <span className="mr-auto text-[40px] leading-none font-extrabold text-go-ink">GO</span>
-        {home && (
-          <a href={`https://${home}/`} className="flex min-h-10 items-center gap-1.5 rounded-full bg-go-card px-4 text-[14px] font-medium text-go-ink outline-none focus-visible:ring-2 focus-visible:ring-go-teal">
-            <span aria-hidden="true">←</span> All roles
-          </a>
-        )}
         {/* The driver sign-in's theme toggle, on tokens. */}
         <button
           type="button"

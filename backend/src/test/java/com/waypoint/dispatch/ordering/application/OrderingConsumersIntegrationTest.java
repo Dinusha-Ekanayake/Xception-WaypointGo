@@ -283,6 +283,18 @@ class OrderingConsumersIntegrationTest {
     long version = deferred.rowVersion();
     cutoff.runAt(justAfter);
     assertEquals(version, current(unknown).rowVersion(), "a rerun of the same cutoff changes nothing");
+
+    // R-ORD-15: the cutoff closes the day itself, so Planning drafts it with nobody pressing Close.
+    String depot = reserved.depotCode();
+    assertTrue(database.asSystem(ModuleRole.ORDERING, () -> orders.isClosed(depot, serviceDate)));
+    assertEquals(1L, closedEventsNaming(reserved), "announced once, the reserved order in it, though the job ran twice");
+    assertEquals(0L, closedEventsNaming(unknown), "the deferred order is not this day's demand");
+  }
+
+  private long closedEventsNaming(Order order) {
+    return ((Number) database.asModule(ModuleRole.INTEGRATION, null, () -> database.queryOne(
+        "SELECT count(*) AS n FROM integration.outbox_events WHERE event_type = 'orders.closed' AND payload::text LIKE ?",
+        "%" + order.orderId() + "%")).get("n")).longValue();
   }
 
   // ---- the relay, as its contract describes it ------------------------------
