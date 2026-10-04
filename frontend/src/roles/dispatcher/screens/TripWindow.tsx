@@ -27,6 +27,28 @@ export type StopRow = {
 
 export type Chip = { ok: boolean | "warn"; text: string; title?: string };
 
+/** What a drag carries: a stop of the trip, or an order from the left column. */
+const STOP = "stop:";
+const ORDER = "order:";
+
+/** Makes a card in the left column draggable onto the trip. */
+export function draggableOrder(orderId: string): { draggable: true; onDragStart: (event: React.DragEvent) => void } {
+  return {
+    draggable: true,
+    onDragStart: (event) => {
+      event.dataTransfer.setData("text/plain", ORDER + orderId);
+      event.dataTransfer.effectAllowed = "move";
+    },
+  };
+}
+
+function dragged(event: React.DragEvent): { kind: "stop" | "order"; id: string } | null {
+  const data = event.dataTransfer.getData("text/plain");
+  if (data.startsWith(STOP)) return { kind: "stop", id: data.slice(STOP.length) };
+  if (data.startsWith(ORDER)) return { kind: "order", id: data.slice(ORDER.length) };
+  return null;
+}
+
 export default function TripWindow({
   label,
   kicker,
@@ -40,6 +62,7 @@ export default function TripWindow({
   stops,
   onReorder,
   onDefer,
+  onInsert,
   right,
   chips,
   footer,
@@ -59,6 +82,8 @@ export default function TripWindow({
   onReorder?: (from: number, to: number) => void;
   /** Present when a stop can be dragged out to be deferred. */
   onDefer?: (orderId: string) => void;
+  /** Present when an order from the left column can be dropped onto the trip, at that place. */
+  onInsert?: (orderId: string, index: number) => void;
   right: { title: string; hint: string; body?: ReactNode };
   chips: Chip[];
   footer: ReactNode;
@@ -66,6 +91,17 @@ export default function TripWindow({
 }): React.JSX.Element {
   const [dragging, setDragging] = useState<number | null>(null);
   const [over, setOver] = useState(false);
+  /** The place a drop would land, for the line drawn above it. */
+  const [target, setTarget] = useState<number | null>(null);
+  const droppable = Boolean(onReorder || onInsert);
+  const drop = (event: React.DragEvent, index: number) => {
+    event.preventDefault();
+    const what = dragged(event);
+    if (what?.kind === "order" && onInsert) onInsert(what.id, index);
+    if (what?.kind === "stop" && onReorder && dragging !== null && dragging !== index) onReorder(dragging, Math.min(index, stops.length - 1));
+    setDragging(null);
+    setTarget(null);
+  };
 
   return (
     <Sheet label={label} onClose={onClose} size="wide">
@@ -107,27 +143,43 @@ export default function TripWindow({
               <span className="flex-1">{depart.place}</span>
               <span className="font-medium text-go-ink tabular-nums">{depart.time}</span>
             </p>
-            <ol aria-label="Stops in order" className="flex flex-col gap-2">
+            <ol
+              aria-label="Stops in order"
+              onDragOver={(event) => {
+                if (!droppable) return;
+                event.preventDefault();
+                if (event.target === event.currentTarget) setTarget(stops.length);
+              }}
+              onDragLeave={(event) => event.target === event.currentTarget && setTarget(null)}
+              onDrop={(event) => drop(event, stops.length)}
+              className={cx("flex min-h-[64px] flex-col gap-2 rounded-go-input", target === stops.length && "pb-3 shadow-[inset_0_-3px_0_0_var(--color-go-teal)]")}
+            >
+              {stops.length === 0 && (
+                <li className="rounded-go-input border border-dashed border-go-rule px-3 py-5 text-center text-[13px] text-go-secondary">
+                  {onInsert ? "No stops: the trip is removed. Drag an order here to keep it." : "No stops."}
+                </li>
+              )}
               {stops.map((stop, index) => (
                 <li
                   key={stop.orderId}
                   draggable={Boolean(onReorder || onDefer)}
                   onDragStart={(event) => {
                     setDragging(index);
-                    event.dataTransfer.setData("text/plain", stop.orderId);
+                    event.dataTransfer.setData("text/plain", STOP + stop.orderId);
                     event.dataTransfer.effectAllowed = "move";
                   }}
-                  onDragEnd={() => setDragging(null)}
-                  onDragOver={(event) => onReorder && dragging !== null && event.preventDefault()}
-                  onDrop={(event) => {
+                  onDragEnd={() => (setDragging(null), setTarget(null))}
+                  onDragOver={(event) => {
+                    if (!droppable) return;
                     event.preventDefault();
-                    if (onReorder && dragging !== null && dragging !== index) onReorder(dragging, index);
-                    setDragging(null);
+                    setTarget(index);
                   }}
+                  onDrop={(event) => (event.stopPropagation(), drop(event, index))}
                   className={cx(
-                    "flex items-center gap-3 rounded-go-input border px-3 py-2",
+                    "flex cursor-grab items-center gap-3 rounded-go-input border bg-go-card px-3 py-2 active:cursor-grabbing",
                     stop.tag ? "border-[1.5px] border-go-teal" : "border-go-rule",
                     dragging === index && "opacity-50",
+                    target === index && dragging !== index && "shadow-[0_-3px_0_0_var(--color-go-teal)]",
                   )}
                 >
                   <span className="w-3 text-[13px] text-go-ink">{index + 1}</span>
@@ -190,9 +242,10 @@ export default function TripWindow({
             onDrop={(event) => {
               event.preventDefault();
               setOver(false);
-              const id = event.dataTransfer.getData("text/plain");
-              if (onDefer && id) onDefer(id);
+              const what = dragged(event);
+              if (onDefer && what?.kind === "stop") onDefer(what.id);
               setDragging(null);
+              setTarget(null);
             }}
             className="flex flex-col gap-1 border-go-rule bg-go-subtle px-5 py-4 md:border-l"
           >

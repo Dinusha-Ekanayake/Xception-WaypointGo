@@ -97,7 +97,7 @@ export default function Dispatcher({
         ) : view === "orders" ? (
           <Orders depots={depots} scopeLabel={label} online={online} onNavigate={navigate} />
         ) : view === "plan" ? (
-          <Plan depots={depots} onDepot={setDepotFilter} date={date} onDate={setDate} online={online} />
+          <Plan depots={depots} date={date} onDate={setDate} online={online} />
         ) : view === "live" ? (
           <Live
             depots={depots}

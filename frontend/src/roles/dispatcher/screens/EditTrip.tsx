@@ -1,36 +1,28 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import type { OrderView, PlanView, VehicleView } from "@shared/domain/types";
+import { useMemo, useRef, useState } from "react";
+import type { OrderView, PlanView, StopView, VehicleView } from "@shared/domain/types";
 import { Menu } from "@shared/ui";
-import { hhmm, ruleLabel } from "@shared/wording";
+import { hhmm } from "@shared/wording";
 import { typeLabel } from "../data/fleet.ts";
 import { size } from "../data/orders.ts";
 import { after, type TripLoad } from "../data/plan.ts";
 import { lastServedText } from "../data/planViews.ts";
 import { checkChips, stopRows, tripTiles } from "../data/tripWindow.ts";
-import { useInterchange, usePlacements, useSequencePreview } from "../data/usePlanReads.ts";
+import { useInterchange, useTripEditPreview } from "../data/usePlanReads.ts";
 import { tripChecks } from "./PlanTrip.tsx";
 import ReasonPicker, { reasonReady } from "./ReasonPicker.tsx";
 import Refusal from "./Refusal.tsx";
-import TripWindow, { moveItem, sameOrder } from "./TripWindow.tsx";
+import TripWindow, { draggableOrder, moveItem, sameOrder } from "./TripWindow.tsx";
 import type { PlanActions } from "./planActions.ts";
 
-// Figma "Plan · Edit trip": the trip's stops in order with the deferred orders
-// beside them. A stop is dragged to a new place, dragged right to defer it, or
-// a deferred order is added; the server times and judges the trip before
-// anything is sent. Each change is one command on the draft, so the window
-// holds one change at a time: accept or undo it before the next. Moving the
-// whole trip to another vehicle also lives here, and is the only change a
-// published plan takes (it starts a revision).
-
-type Change =
-  | { kind: "order"; sequence: string[] }
-  | { kind: "defer"; orderId: string }
-  | { kind: "add"; orderId: string }
-  | { kind: "move"; vehicleId: string };
-
-const MAX_DEFERRED = 8;
+// Figma "Plan · Edit trip": what the trip carries and in what order, changed by
+// hand. Drag a deferred order onto the trip (or click Add), drag stops into a
+// new order, drag a stop to the right to take it off, or remove the whole trip.
+// Any number of changes make one draft: the server times the trip and judges
+// the vehicle's whole day as it stands, and Accept unlocks only when every rule
+// passes (plan:EditTrip, R-PLN-42). Moving the whole trip to another vehicle is
+// its own change (plan:Replan) and the only one a published plan takes.
 
 export default function EditTrip({
   plan,
@@ -46,7 +38,7 @@ export default function EditTrip({
   load: TripLoad;
   orders: Map<string, OrderView>;
   fleet: VehicleView[];
-  /** A draft, online: stops can change. */
+  /** A draft, online: the trip's orders and their order can change. */
   editable: boolean;
   /** Online: the trip can move to another vehicle. */
   canReplan: boolean;
@@ -56,61 +48,62 @@ export default function EditTrip({
   const { trip } = load;
   const vehicle = fleet.find((v) => v.vehicleId === trip.vehicleId);
   const original = useMemo(() => trip.stops.map((stop) => stop.orderId), [trip.stops]);
-  const [change, setChange] = useState<Change | null>(null);
+  /** The orders the trip should carry, in order: the dispatcher's working copy. */
+  const [ids, setIds] = useState<string[]>(original);
+  const [moveTo, setMoveTo] = useState<string | null>(null);
   const [reason, setReason] = useState("");
 
-  const sequence = change?.kind === "order" ? change.sequence : original;
-  const reordered = change?.kind === "order" && !sameOrder(change.sequence, original);
-  const preview = useSequencePreview(reordered ? trip.tripId : null, reordered ? sequence : null, plan.planId);
-  const interchange = useInterchange(plan.planId, trip.tripId, change?.kind === "move" ? change.vehicleId : null);
+  const changed = !sameOrder(ids, original);
+  const preview = useTripEditPreview(changed && moveTo === null ? trip.tripId : null, changed ? ids : null, plan.planId);
+  const interchange = useInterchange(plan.planId, trip.tripId, moveTo);
+  // Every stop a preview has timed, so a change still draws while its own preview is on the way.
+  const timed = useRef(new Map<string, StopView>(trip.stops.map((stop) => [stop.orderId, stop])));
+  for (const stop of preview.data?.stops ?? []) timed.current.set(stop.orderId, stop);
 
-  const deferred = useMemo(
+  const added = ids.filter((id) => !original.includes(id));
+  const removed = original.filter((id) => !ids.includes(id));
+  const stops: StopView[] = ids.map(
+    (id, index) =>
+      timed.current.get(id) ?? {
+        sequence: index + 1, orderId: id, outletId: orders.get(id)?.outletId ?? "", plannedArrival: "", windowOpen: "", windowClose: "", serviceMinutes: "0",
+      },
+  );
+  const candidates = useMemo(
     () =>
       plan.allocations
-        .filter((a) => a.decision === "DEFERRED")
+        .filter((a) => a.decision !== "SERVED")
         .map((a) => ({ allocation: a, order: orders.get(a.orderId) }))
-        .filter((d): d is { allocation: typeof d.allocation; order: OrderView } => d.order !== undefined)
-        .slice(0, MAX_DEFERRED),
+        .filter((c): c is { allocation: (typeof plan.allocations)[number]; order: OrderView } => c.order !== undefined),
     [plan.allocations, orders],
   );
-  const places = usePlacements(editable ? plan.planId : "", editable ? deferred.map((d) => d.allocation.orderId) : []);
-  const placeHere = (orderId: string) =>
-    (places.data?.[orderId] ?? []).find((place) => place.vehicleId === trip.vehicleId && place.tripNumber === trip.tripNumber) ?? null;
+  const waiting = candidates.filter((c) => !ids.includes(c.order.orderId));
+  const others = fleet.filter((v) => v.vehicleId !== trip.vehicleId);
+  const canEdit = editable && moveTo === null;
 
-  // The dispatcher's order, with the server's times for it once the preview has answered.
-  const timed = new Map((reordered && preview.data ? preview.data.stops : []).map((stop) => [stop.orderId, stop]));
-  const stopsNow = sequence.map((id) => timed.get(id) ?? trip.stops.find((s) => s.orderId === id)!).filter(Boolean);
-  const shownStops = change?.kind === "defer" ? stopsNow.filter((s) => s.orderId !== change.orderId) : stopsNow;
-  const chips = reordered && preview.data ? checkChips(preview.data.checks) : change?.kind === "move" && interchange.data ? checkChips(interchange.data.checks) : checkChips(tripChecks(plan, trip.tripId));
+  const insert = (orderId: string, index: number) =>
+    setIds((list) => {
+      const without = list.filter((id) => id !== orderId);
+      return [...without.slice(0, index), orderId, ...without.slice(index)];
+    });
+  const takeOff = (orderId: string) => setIds((list) => list.filter((id) => id !== orderId));
+  const putBack = (orderId: string) => setIds((list) => (list.includes(orderId) ? list : [...list, orderId]));
 
-  const ready =
-    change === null
-      ? false
-      : change.kind === "order"
-        ? reordered && preview.data?.feasible === true
-        : change.kind === "add"
-          ? placeHere(change.orderId)?.feasible === true
-          : change.kind === "move"
-            ? interchange.data?.feasible === true
-            : true;
+  const checks = moveTo !== null ? interchange.data?.checks : changed ? preview.data?.checks : tripChecks(plan, trip.tripId);
+  const ready = moveTo !== null ? interchange.data?.feasible === true : changed && preview.data?.feasible === true && !preview.loading;
+  const summary = [
+    added.length ? `${added.length} added` : null,
+    removed.length ? `${removed.length} taken off` : null,
+    !added.length && !removed.length && changed ? "new stop order" : null,
+    ids.length === 0 ? "the trip is removed" : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   const apply = async () => {
-    if (!change) return;
     const why = reason.trim();
-    const ok =
-      change.kind === "order"
-        ? await actions.reorder(trip.tripId, change.sequence, why)
-        : change.kind === "defer"
-          ? await actions.defer(change.orderId, why)
-          : change.kind === "add"
-            ? await actions.place({ orderId: change.orderId, vehicleId: trip.vehicleId, tripNumber: trip.tripNumber, reason: why })
-            : await actions.moveTrip(trip.tripId, change.vehicleId, why);
+    const ok = moveTo !== null ? await actions.moveTrip(trip.tripId, moveTo, why) : await actions.editTrip(trip.tripId, ids, why);
     if (ok) onClose();
   };
-
-  const busyWithOther = (kind: Change["kind"]) => change !== null && change.kind !== kind;
-  const deferredOrder = change?.kind === "defer" ? orders.get(change.orderId) : undefined;
-  const others = fleet.filter((v) => v.vehicleId !== trip.vehicleId);
 
   return (
     <TripWindow
@@ -119,121 +112,126 @@ export default function EditTrip({
       title={`${trip.vehicleId} Trip ${trip.tripNumber} · ${trip.brandCode} ${trip.districtName} · departs ${hhmm(trip.plannedDeparture)}`}
       onClose={onClose}
       banner={
-        canReplan ? (
-          <div className="flex flex-wrap items-center gap-3 rounded-go-input bg-go-surface px-4 py-2.5 text-[13px] text-go-ink">
-            <span className="min-w-0 flex-1">
-              {change?.kind === "move" ? `Moving the whole trip to ${change.vehicleId}` : "The whole trip can also move to another vehicle."}
-            </span>
+        <div className="flex flex-wrap items-center gap-3 rounded-go-input bg-go-surface px-4 py-2.5 text-[13px] text-go-ink">
+          <span className="min-w-0 flex-1">
+            {moveTo !== null
+              ? `Moving the whole trip to ${moveTo}`
+              : editable
+                ? "Drag deferred orders onto the trip, drag stops to reorder, drag a stop right to take it off. Accept when every check passes."
+                : "A published plan changes only by moving the whole trip."}
+          </span>
+          {canEdit && (
+            <button
+              type="button"
+              disabled={ids.length === 0}
+              onClick={() => setIds([])}
+              className="rounded-full bg-go-danger-tint px-3.5 py-1.5 text-[13px] font-medium text-go-danger-strong disabled:opacity-40"
+            >
+              Remove trip
+            </button>
+          )}
+          {canReplan && (
             <Menu
               label="Move the trip to"
               align="right"
-              disabled={busyWithOther("move")}
-              items={others.map((v) => ({ id: v.vehicleId, label: v.vehicleId, hint: typeLabel(v), selected: change?.kind === "move" && change.vehicleId === v.vehicleId }))}
-              onSelect={(vehicleId) => setChange({ kind: "move", vehicleId })}
-              className="rounded-full bg-go-card px-3.5 py-1.5 text-[13px] font-medium"
+              disabled={changed}
+              items={others.map((v) => ({ id: v.vehicleId, label: v.vehicleId, hint: typeLabel(v), selected: moveTo === v.vehicleId }))}
+              onSelect={setMoveTo}
+              className="flex items-center gap-1.5 rounded-full bg-go-card px-3.5 py-1.5 text-[13px] font-medium"
               chevron
             >
               Move trip to
             </Menu>
-            {change?.kind === "move" && (
-              <button type="button" onClick={() => setChange(null)} className="text-[13px] font-medium text-go-teal">
-                Undo
-              </button>
-            )}
-          </div>
-        ) : undefined
+          )}
+          {(changed || moveTo !== null) && (
+            <button type="button" onClick={() => (setIds(original), setMoveTo(null))} className="text-[13px] font-medium text-go-teal">
+              Undo all
+            </button>
+          )}
+        </div>
       }
       left={{
         title: "Deferred orders",
-        hint: editable ? "Drag onto the trip or click Add" : "A published plan changes only by moving the trip",
+        hint: editable ? "Drag onto the trip or click Add" : "Placing orders needs a draft",
         body: (
           <ul aria-label="Deferred orders" className="flex flex-col gap-2 overflow-y-auto">
-            {deferred.length === 0 && <li className="text-[13px] text-go-secondary">No order is deferred.</li>}
-            {deferred.map(({ allocation, order }) => {
-              const place = placeHere(order.orderId);
-              const fits = place?.feasible === true;
-              const why = place && !place.feasible ? place.bindingRule : null;
-              const adding = change?.kind === "add" && change.orderId === order.orderId;
-              return (
-                <li key={order.orderId} className={`flex flex-col gap-0.5 rounded-go-input border px-3 py-2 ${adding ? "border-go-teal bg-go-success-tint" : "border-go-rule"}`}>
-                  <span className="flex items-center gap-2">
-                    <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-go-ink">{`${order.outletId} ${order.districtName}`}</span>
-                    {editable && (fits || adding) && (
-                      <button
-                        type="button"
-                        disabled={busyWithOther("add")}
-                        onClick={() => setChange(adding ? null : { kind: "add", orderId: order.orderId })}
-                        className="rounded-full bg-go-ink px-2 py-0.5 text-[11px] font-medium text-go-card disabled:opacity-40"
-                      >
-                        {adding ? "Undo" : "+ Add"}
-                      </button>
-                    )}
-                  </span>
-                  <span className="text-xs text-go-secondary">{`${order.orderRef} · ${size(order)}`}</span>
-                  <span className="text-xs text-go-warning-text">{lastServedText(allocation.lastServedOn, plan.serviceDate)}</span>
-                  {editable && places.data && !fits && <span className="text-xs text-go-danger-strong">{`✕ ${why ? ruleLabel(why) : "Does not join this trip"}`}</span>}
-                </li>
-              );
-            })}
+            {waiting.length === 0 && <li className="text-[13px] text-go-secondary">No order is waiting.</li>}
+            {waiting.map(({ allocation, order }) => (
+              <li
+                key={order.orderId}
+                {...(canEdit ? draggableOrder(order.orderId) : {})}
+                className={`flex flex-col gap-0.5 rounded-go-input border border-go-rule bg-go-card px-3 py-2 ${canEdit ? "cursor-grab active:cursor-grabbing" : ""}`}
+              >
+                <span className="flex items-center gap-2">
+                  {canEdit && <span aria-hidden className="text-go-secondary">⠿</span>}
+                  <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-go-ink">{`${order.outletId} ${order.districtName}`}</span>
+                  {canEdit && (
+                    <button
+                      type="button"
+                      aria-label={`Add ${order.outletId} to the trip`}
+                      onClick={() => insert(order.orderId, ids.length)}
+                      className="rounded-full bg-go-ink px-2 py-0.5 text-[11px] font-medium text-go-card"
+                    >
+                      + Add
+                    </button>
+                  )}
+                </span>
+                <span className="text-xs text-go-secondary">{`${order.orderRef} · ${size(order)}`}</span>
+                <span className="text-xs text-go-warning-text">{lastServedText(allocation.lastServedOn, plan.serviceDate)}</span>
+              </li>
+            ))}
           </ul>
         ),
       }}
-      tiles={tripTiles(shownStops, orders, vehicle)}
+      tiles={tripTiles(stops, orders, vehicle)}
       depart={{ place: `${plan.depotCode} depot`, time: hhmm(trip.plannedDeparture) }}
-      back={{ time: after(trip.plannedDeparture, trip.plannedMinutes) }}
-      stops={stopRows(plan, shownStops, orders, vehicle)}
-      onReorder={editable && !busyWithOther("order") ? (from, to) => setChange({ kind: "order", sequence: moveItem(sequence, from, to) }) : undefined}
-      onDefer={editable && change === null ? (orderId) => setChange({ kind: "defer", orderId }) : undefined}
+      back={{ time: changed ? "…" : after(trip.plannedDeparture, trip.plannedMinutes) }}
+      stops={stopRows(plan, stops, orders, vehicle).map((row) => (added.includes(row.orderId) ? { ...row, tag: "NEW · added by you" } : row))}
+      onReorder={canEdit ? (from, to) => setIds((list) => moveItem(list, from, to)) : undefined}
+      onDefer={canEdit ? takeOff : undefined}
+      onInsert={canEdit ? insert : undefined}
       right={{
         title: "Will be deferred",
         hint: "Moves to the next run, first on it. The reason goes to the store.",
         body:
-          change !== null ? (
-            <div className="flex flex-col gap-3">
-              {deferredOrder && (
-                <div className="rounded-go-input border border-go-warning bg-go-warning-tint px-3 py-2.5">
-                  <p className="text-[14px] font-medium text-go-ink">{`${deferredOrder.outletId} ${deferredOrder.districtName}`}</p>
-                  <p className="text-xs text-go-secondary">{`${deferredOrder.orderRef} · ${size(deferredOrder)}`}</p>
-                  <button type="button" onClick={() => setChange(null)} className="mt-1 text-xs font-medium text-go-teal">
-                    Put it back
-                  </button>
-                </div>
+          changed || moveTo !== null ? (
+            <div className="flex flex-col gap-2">
+              {removed.map((id) => {
+                const order = orders.get(id);
+                return (
+                  <div key={id} className="rounded-go-input border border-go-warning bg-go-warning-tint px-3 py-2">
+                    <p className="text-[14px] font-medium text-go-ink">{order ? `${order.outletId} ${order.districtName}` : id}</p>
+                    {order && <p className="text-xs text-go-secondary">{`${order.orderRef} · ${size(order)}`}</p>}
+                    <button type="button" onClick={() => putBack(id)} className="mt-1 text-xs font-medium text-go-teal">
+                      Put it back
+                    </button>
+                  </div>
+                );
+              })}
+              {canEdit && (
+                <p className="rounded-go-input border border-dashed border-go-warning/60 px-3 py-3 text-center text-[13px] text-go-warning-text">Drag a stop here to defer it</p>
               )}
               <ReasonPicker label="Why this change?" value={reason} onChange={setReason} />
             </div>
           ) : undefined,
       }}
-      chips={chips}
+      chips={checkChips(checks ?? [])}
       footer={
         preview.error ? (
-          <Refusal error={preview.error} what="the check of this stop order" />
+          <Refusal error={preview.error} what="the check of this trip" />
         ) : interchange.error ? (
           <Refusal error={interchange.error} what="the check for this vehicle" />
-        ) : change === null ? (
+        ) : !changed && moveTo === null ? (
           "No changes yet"
+        ) : (moveTo !== null ? interchange.loading && !interchange.data : preview.loading) ? (
+          "Checking the trip…"
         ) : ready ? (
-          <span className="text-go-teal">{`1 change · ${describe(change, orders)}`}</span>
-        ) : change.kind === "order" && !reordered ? (
-          "The stop order is back as it was"
+          <span className="text-go-teal">{`✓ Every check passes · ${moveTo !== null ? `trip moves to ${moveTo}` : summary}`}</span>
         ) : (
-          <span className="text-go-danger-strong">{`${describe(change, orders)}: a rule refuses it, see the checks`}</span>
+          <span className="text-go-danger-strong">{`${summary || `trip moves to ${moveTo}`}: a rule refuses it, see the checks`}</span>
         )
       }
       accept={{ label: "Accept changes", disabled: actions.busy || !ready || !reasonReady(reason), onClick: () => void apply() }}
     />
   );
-}
-
-function describe(change: Change, orders: Map<string, OrderView>): string {
-  const name = (id: string) => orders.get(id)?.outletId ?? "the order";
-  switch (change.kind) {
-    case "order":
-      return "new stop order";
-    case "defer":
-      return `${name(change.orderId)} deferred`;
-    case "add":
-      return `${name(change.orderId)} added`;
-    case "move":
-      return `trip moves to ${change.vehicleId}`;
-  }
 }

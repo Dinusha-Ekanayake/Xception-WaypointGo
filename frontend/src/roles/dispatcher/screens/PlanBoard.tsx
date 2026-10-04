@@ -144,7 +144,6 @@ export default function PlanBoard({
                           {load ? (
                             <TripCell
                               load={load}
-                              vehicle={row.vehicle}
                               added={addedByHand(plan, load.trip)}
                               risk={trips?.get(load.trip.tripId)}
                               dim={!tripMatches(load.trip, filter)}
@@ -190,7 +189,6 @@ function Kpi({ label, value, note, tag, tone = "danger" }: { label: string; valu
 
 function TripCell({
   load,
-  vehicle,
   added,
   dim,
   active,
@@ -198,7 +196,6 @@ function TripCell({
   risk,
 }: {
   load: TripLoad;
-  vehicle: VehicleView | undefined;
   added: boolean;
   dim: boolean;
   active: boolean;
@@ -207,63 +204,35 @@ function TripCell({
 }): React.JSX.Element {
   const { trip } = load;
   const chilled = trip.temperature === "chilled";
-  const last = trip.stops[trip.stops.length - 1];
+  const riskShown = risk && riskTone(risk.percent) !== "low";
+  // The trip's details open in the panel beside the board on a click; no hover card covers the board.
   return (
-    <div className="group relative">
-      <button
-        type="button"
-        aria-pressed={active}
-        aria-label={`${trip.vehicleId} trip ${trip.tripNumber}: ${trip.brandCode} ${trip.districtName}, ${trip.stops.length} stops`}
-        onClick={onOpen}
-        className={cx(
-          "flex min-h-[58px] w-full flex-col gap-1 rounded-go-input border px-3 py-2 text-left",
-          dim && "opacity-40",
-          active ? "border-[1.5px] border-go-teal bg-go-card" : "border-go-rule bg-go-subtle hover:border-go-teal/50",
-        )}
-      >
-        <span className="flex items-center gap-2">
-          <Pill tone="success">{trip.brandCode}</Pill>
-          <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-go-ink">{trip.districtName}</span>
-          {added && <Pill tone="success">Added</Pill>}
-          {load.tight && <Pill tone="warning">Tight</Pill>}
-          {risk && riskTone(risk.percent) !== "low" && (
-            <Pill tone={riskTone(risk.percent) === "high" ? "danger" : "warning"}>{riskLabel(risk, "Late risk")}</Pill>
-          )}
+    <button
+      type="button"
+      aria-pressed={active}
+      aria-label={`${trip.vehicleId} trip ${trip.tripNumber}: ${trip.brandCode} ${trip.districtName}, ${trip.stops.length} stops`}
+      onClick={onOpen}
+      className={cx(
+        "flex min-h-[58px] w-full flex-col gap-1 rounded-go-input border px-3 py-2 text-left",
+        dim && "opacity-40",
+        active ? "border-[1.5px] border-go-teal bg-go-card" : "border-go-rule bg-go-subtle hover:border-go-teal/50",
+      )}
+    >
+      <span className="flex min-w-0 items-center gap-2">
+        <Pill tone="success">{trip.brandCode}</Pill>
+        <span title={trip.districtName} className="min-w-0 flex-1 truncate text-[14px] font-medium text-go-ink">
+          {trip.districtName}
         </span>
-        <span className="flex items-center gap-1.5 text-xs text-go-secondary">
-          <span aria-hidden className={`size-2 rounded-full ${chilled ? "bg-go-info" : "bg-go-placeholder"}`} />
-          {chilled ? "Chilled" : "Ambient"} · {trip.stops.length} {trip.stops.length === 1 ? "stop" : "stops"}
-        </span>
-      </button>
-      <div
-        role="tooltip"
-        className="pointer-events-none invisible absolute bottom-full left-1/2 z-30 mb-2 flex w-[180px] -translate-x-1/2 flex-col gap-1 rounded-go-input bg-go-ink p-2.5 text-[10px] text-white opacity-0 shadow-go-float transition-opacity group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100"
-      >
-        <LoadBar label="Vol" value={load.volumePercent} />
-        <LoadBar label="Wt" value={load.weightPercent} />
-        <span>{`Departs ${hhmm(trip.plannedDeparture)}${last ? ` · last stop ${hhmm(last.plannedArrival)}` : ""}`}</span>
-        {vehicle && <span>{`${typeLabel(vehicle)} · ${capacityLabel(vehicle).split(" · ")[0]}`}</span>}
-        {load.tight && <span className="text-go-warning-tint">{`Tight · ${tightWord(load)}`}</span>}
-        <span className="text-white/60">Click for stops</span>
-      </div>
-    </div>
-  );
-}
-
-function LoadBar({ label, value }: { label: string; value: number | null }): React.JSX.Element {
-  return (
-    <span className="flex items-center gap-2">
-      <span className="w-5">{label}</span>
-      <span className="h-1 flex-1 rounded-full bg-white/20">
-        <span className="block h-1 rounded-full bg-go-warning" style={{ width: `${Math.min(100, value ?? 0)}%` }} />
       </span>
-      <span className="w-8 text-right font-medium">{value === null ? "-" : `${value}%`}</span>
-    </span>
+      <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-go-secondary">
+        <span aria-hidden className={`size-2 rounded-full ${chilled ? "bg-go-info" : "bg-go-placeholder"}`} />
+        {chilled ? "Chilled" : "Ambient"} · {trip.stops.length} {trip.stops.length === 1 ? "stop" : "stops"}
+        {added && <Pill tone="success">Added</Pill>}
+        {load.tight && <Pill tone="warning">Tight</Pill>}
+        {riskShown && <Pill tone={riskTone(risk!.percent) === "high" ? "danger" : "warning"}>{riskLabel(risk!, "Late risk")}</Pill>}
+      </span>
+    </button>
   );
 }
 
-function tightWord(load: TripLoad): string {
-  const v = load.volumePercent ?? 0;
-  const w = load.weightPercent ?? 0;
-  return v >= w ? `volume ${v}%` : `weight ${w}%`;
-}
+

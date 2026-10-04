@@ -1,5 +1,5 @@
 import type { ConstraintResultView, OrderView, PlanView, StopView, VehicleView } from "@shared/domain/types";
-import { hhmm, ruleLabel } from "../../../shared/wording/index.ts";
+import { checkLabel, hhmm } from "../../../shared/wording/index.ts";
 import { size } from "./orders.ts";
 import { lastServedText, stopShare } from "./planViews.ts";
 
@@ -79,7 +79,7 @@ export function stopRows(
       note: late(stop) ? `Arrives after its window closes at ${hhmm(stop.windowClose)}` : undefined,
       tag: stop.orderId === tagged ? "NEW · added by you" : undefined,
       window: stop.windowOpen && stop.windowClose ? `${hhmm(stop.windowOpen)}-${hhmm(stop.windowClose)}` : "No window",
-      eta: hhmm(stop.plannedArrival),
+      eta: stop.plannedArrival ? hhmm(stop.plannedArrival) : "…",
       share: stopShare(order, vehicle),
     };
   });
@@ -92,7 +92,7 @@ export function checkChips(checks: ConstraintResultView[]): Chip[] {
   for (const check of checks) {
     if (seen.has(check.ruleId)) continue;
     seen.add(check.ruleId);
-    chips.push({ ok: check.passed, text: ruleLabel(check.ruleId), title: check.reason });
+    chips.push({ ok: check.passed, text: checkLabel(check.ruleId, check.passed), title: check.reason });
   }
   return chips;
 }

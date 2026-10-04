@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { draftPlan, serve } from "./mocks.ts";
+import { SESSION, draftPlan, serve } from "./mocks.ts";
 
 // One sidebar on every screen (Figma "Shell / Sidebar" and its rail): folding
 // it is the dispatcher's choice, kept across screens and reloads, and the rail
@@ -43,4 +43,18 @@ test("a change that went through is confirmed with a toast", async ({ page }) =>
   await list.getByRole("button", { name: "Outlet asked to skip" }).click();
   await list.getByRole("button", { name: "Keep them deferred" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Kept deferred." })).toContainText("The store gets the reason at publish");
+});
+
+test("with both depots in view the plan shows both, without asking which", async ({ page }) => {
+  await serve(page, { draft: draftPlan() });
+  await page.route("**/api/session", (route) => route.fulfill({ json: { ...SESSION, scope: ["depot:Kandy", "depot:Peliyagoda"] } }));
+  await page.goto("/#/plan");
+  await expect(page.getByRole("region", { name: "Plan for Kandy" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Plan for Peliyagoda" })).toBeVisible();
+  await expect(page.getByText("Which depot are you planning?")).toHaveCount(0);
+  // The sidebar narrows it, as on every screen.
+  await page.getByRole("complementary", { name: "Sidebar" }).getByRole("radio", { name: "Kandy" }).click();
+  await expect(page.getByRole("region", { name: "Plan for Peliyagoda" })).toHaveCount(0);
+  // The header is the one every screen has: the bell is there.
+  await expect(page.getByRole("button", { name: /^Notifications/ })).toBeVisible();
 });

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { ComparisonView, OrderView, SnapshotView } from "@shared/domain/types";
-import { Icon, Menu, Pill, PrimaryButton } from "@shared/ui";
+import { Icon, Menu, Pill, PrimaryButton, SecondaryButton } from "@shared/ui";
 import { clock } from "@shared/wording";
 import { useComparison } from "../data/usePlanReads.ts";
 import Refusal from "./Refusal.tsx";
@@ -24,6 +24,8 @@ export default function PlanCompare({
   orders,
   editable,
   busy,
+  onBack,
+  onSave,
   onUse,
 }: {
   /** The plan being worked on, drawn as "Working draft". */
@@ -32,6 +34,10 @@ export default function PlanCompare({
   orders: Map<string, OrderView>;
   editable: boolean;
   busy: boolean;
+  /** Back to the plan, where Compare was opened from. */
+  onBack: () => void;
+  /** Saves the working draft, so there is something to compare it with; absent on a published plan. */
+  onSave?: () => void;
   onUse: (snapshotId: string) => void;
 }): React.JSX.Element {
   const picks: Pick[] = [
@@ -49,14 +55,31 @@ export default function PlanCompare({
   return (
     <div className="flex w-full gap-[18px] max-lg:flex-col">
       <section aria-label="Compare plans" className="flex min-w-0 flex-1 flex-col gap-4 rounded-go-panel bg-go-card p-5">
-        <h2 className="text-[19px] font-medium text-go-ink">Compare plans</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="flex-1 text-[19px] font-medium text-go-ink">Compare plans</h2>
+          <SecondaryButton onClick={onBack}>Back to the plan</SecondaryButton>
+        </div>
         <div className="flex items-center gap-3">
           <Chooser name="Plan A" dot="bg-go-ink" current={a} picks={picks} onPick={setAId} />
           <span className="text-xs text-go-secondary">vs</span>
           <Chooser name="Plan B" dot="bg-go-teal" current={b} picks={picks} onPick={setBId} />
         </div>
 
-        {a.id === b.id && <p className="text-[13px] text-go-secondary">Pick two different plans to compare.</p>}
+        {a.id === b.id &&
+          (snapshots.length === 0 ? (
+            <div className="flex flex-wrap items-center gap-3 rounded-go-card bg-go-surface px-4 py-3">
+              <p className="min-w-[220px] flex-1 text-[13px] text-go-ink">
+                There is only the working draft. Save a snapshot now, change the plan, then compare the two.
+              </p>
+              {onSave && (
+                <SecondaryButton disabled={busy} onClick={onSave}>
+                  Save snapshot
+                </SecondaryButton>
+              )}
+            </div>
+          ) : (
+            <p className="text-[13px] text-go-secondary">Pick two different plans to compare.</p>
+          ))}
         {comparison.error && <Refusal error={comparison.error} what="the comparison" />}
         {comparison.loading && !comparison.data && a.id !== b.id && <p className="text-[13px] text-go-secondary">Comparing…</p>}
         {comparison.data && a.id !== b.id && <Metrics view={comparison.data} a={a} b={b} />}

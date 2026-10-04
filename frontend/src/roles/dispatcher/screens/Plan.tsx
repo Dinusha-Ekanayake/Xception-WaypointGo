@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { PlanCommandKind, type GenerationJobView, type OrderView, type PlanView } from "@shared/domain/types";
-import { Notice, PrimaryButton, SecondaryButton, Segmented, useToast } from "@shared/ui";
+import { Notice, PrimaryButton, SecondaryButton, useToast } from "@shared/ui";
 import { clock, dayLabel } from "@shared/wording";
 import PageHeader from "../PageHeader.tsx";
 import { useFleet } from "../data/fleet.ts";
@@ -18,53 +18,82 @@ import PlanCompare from "./PlanCompare.tsx";
 import PlanDecide from "./PlanDecide.tsx";
 import PlanPublish from "./PlanPublish.tsx";
 import PlanSteps, { type Tab } from "./PlanSteps.tsx";
-import PlanTools from "./PlanTools.tsx";
+import PlanTools, { DayField } from "./PlanTools.tsx";
 import type { Place, PlanActions } from "./planActions.ts";
-import Refusal from "./Refusal.tsx";
+import Refusal, { refusalText } from "./Refusal.tsx";
 
 // Figma "Plan": decide, view plan, publish, and compare. A plan is one depot's
-// day, so the screen works on one depot. It holds no draft id: every edit
-// replaces the draft with its next version, so the draft is read by depot and
-// day and each command names the version it saw (PLAN.md decision 4). A saved
-// plan can be looked at, read only, beside the working one; nothing sent from
-// here ever names it.
+// day, so the screen holds one section per depot in the sidebar's scope: both
+// when the sidebar shows both, one when it shows one; nothing asks. The header
+// is the one every dispatcher screen has (title, day, sync, bell); each
+// section carries its own plan tools, steps and body. No draft id is held:
+// every edit replaces the draft with its next version, so the draft is read by
+// depot and day and each command names the version it saw (PLAN.md decision
+// 4). A saved plan can be looked at, read only, beside the working one.
 
 type Body = { planVersion: number; served: number; deferred: number; unservable: number; partial: boolean };
 
 export default function Plan({
   depots,
-  onDepot,
   date,
   onDate,
   online,
 }: {
-  /** The depots in the sidebar's scope; with more than one the screen asks which to plan. */
+  /** The depots in the sidebar's scope, one section each. */
   depots: string[];
-  /** Narrows the sidebar's scope to one depot. */
-  onDepot: (depot: string) => void;
   date: string;
   onDate: (date: string) => void;
   online: boolean;
 }): React.JSX.Element {
-  if (depots.length > 1) return <PickDepot depots={depots} onDepot={onDepot} date={date} online={online} />;
-  return <DepotPlan depot={depots[0]!} date={date} onDate={onDate} online={online} />;
-}
+  const plans = usePlans(depots, date);
+  const orders = useOrders(depots, date);
+  const totals = useMemo(() => {
+    const all = (plans.data ?? []).flatMap((p) => {
+      const state = working(p.published, p.draft);
+      return state.stage === "none" ? [] : [state.plan];
+    });
+    const served = all.reduce((n, p) => n + p.allocations.filter((a) => a.decision === "SERVED").length, 0);
+    const placed = all.reduce((n, p) => n + p.allocations.length, 0);
+    return { plans: all.length, served, placed };
+  }, [plans.data]);
+  const subtitle = !plans.data
+    ? `${depots.join(" + ")} · Loading`
+    : totals.plans === 0
+      ? `${depots.join(" + ")} · No plan yet`
+      : `${depots.join(" + ")} · ${totals.served} of ${totals.placed} fit`;
 
-/** A plan is one depot's day: with both depots in view, the dispatcher picks one. */
-function PickDepot({ depots, onDepot, date, online }: { depots: string[]; onDepot: (depot: string) => void; date: string; online: boolean }): React.JSX.Element {
   return (
     <>
-      <PageHeader title={`Plan ${dayLabel(date)}`} subtitle="One depot at a time" online={online} lastSyncedAt={null} quiet />
-      <section aria-label="Pick a depot" className="flex w-full max-w-[760px] flex-col items-start gap-3 rounded-go-panel bg-go-card p-6">
-        <h2 className="text-[19px] font-medium text-go-ink">Which depot are you planning?</h2>
-        <p className="text-[13px] text-go-secondary">A plan is one depot&apos;s day. Picking one narrows the sidebar to it; switch back to both there.</p>
-        <Segmented size="md" label="Depot to plan" value="" onChange={onDepot} options={depots.map((code) => ({ value: code, label: code }))} />
-      </section>
+      <PageHeader
+        title={`Plan ${dayLabel(date)}`}
+        subtitle={subtitle}
+        online={online}
+        lastSyncedAt={plans.loadedAt}
+        onSync={() => (plans.refresh(), orders.refresh())}
+        syncing={plans.loading}
+        tools={<DayField date={date} onDate={onDate} />}
+      />
+      {depots.map((depot) => (
+        <DepotPlan key={`${depot}|${date}`} depot={depot} date={date} onDate={onDate} online={online} titled={depots.length > 1} />
+      ))}
     </>
   );
 }
 
-function DepotPlan({ depot, date, onDate, online }: { depot: string; date: string; onDate: (date: string) => void; online: boolean }): React.JSX.Element {
+function DepotPlan({
+  depot,
+  date,
+  onDate,
+  online,
+  titled,
+}: {
+  depot: string;
+  date: string;
+  onDate: (date: string) => void;
+  online: boolean;
+  /** Several depots on screen: the section names its depot. */
+  titled: boolean;
+}): React.JSX.Element {
   const toast = useToast();
   const one = useMemo(() => [depot], [depot]);
   const plans = usePlans(one, date);
@@ -75,7 +104,6 @@ function DepotPlan({ depot, date, onDate, online }: { depot: string; date: strin
   const [tab, setTab] = useState<Tab>("decide");
   const [focusId, setFocusId] = useState<string | null>(null);
   const [viewing, setViewing] = useState<string | null>(null);
-  const [failure, setFailure] = useState<{ error: Error; what: string } | null>(null);
   const [reviseReason, setReviseReason] = useState("");
   const [confirming, setConfirming] = useState(false);
   const [revising, setRevising] = useState(false);
@@ -97,12 +125,14 @@ function DepotPlan({ depot, date, onDate, online }: { depot: string; date: strin
   // Nothing waits today: name the next day that has orders waiting (issue #114).
   const nextDay = useNextOrderDay(one, date, Boolean(plans.data) && state.stage === "none" && Boolean(orders.data) && toPlan === 0);
 
+  /** A refusal or an outage, as a pop-up that stays until it is closed. */
+  const refused = (error: Error, what: string) => toast({ tone: "error", ...refusalText(error, what) });
+
   /** Sends one command, then reads the day again whatever the answer: a refusal often means the plan moved. */
   const send = async (what: string, kind: string, payload: unknown, version: number | null, done: (body: Body) => string) => {
-    setFailure(null);
     const sent = await run<Body>(kind, payload, version);
     if (sent.ok) toast(asToast(done(sent.result)));
-    else setFailure({ error: sent.error, what });
+    else refused(sent.error, what);
     plans.refresh();
     orders.refresh();
     saved.refresh();
@@ -122,8 +152,10 @@ function DepotPlan({ depot, date, onDate, online }: { depot: string; date: strin
     swap: (outOrderId, inOrderId, reason, orderIds) =>
       edit("swapping the orders", PlanCommandKind.swap, { outOrderId, inOrderId, reason, ...(orderIds ? { orderIds } : {}) }, (b) => `Swap approved${orderIds ? " with your stop order" : ""}. ${draftNote(b)}`),
     keepDeferred: (orderIds, reason) => edit("keeping the orders deferred", PlanCommandKind.keepDeferred, { orderIds, reason }, (b) => `Kept deferred. ${orderIds.length === 1 ? "The store gets" : `${orderIds.length} stores get`} the reason at publish. ${draftNote(b)}`),
-    lock: (orderId, locked) => edit(locked ? "locking the order" : "unlocking the order", locked ? PlanCommandKind.lock : PlanCommandKind.unlock, { orderId }, () => (locked ? "Locked: a regenerate keeps it on its trip." : "Unlocked.")),
+    lock: (orderId, locked) => edit(locked ? "locking the order" : "unlocking the order", locked ? PlanCommandKind.lock : PlanCommandKind.unlock, { orderId }, () => (locked ? "Locked. A regenerate keeps it on this vehicle." : "Unlocked.")),
     reorder: (tripId, orderIds, reason) => edit("changing the stop order", PlanCommandKind.reorderStops, { tripId, orderIds, reason }, (b) => `Stop order saved. ${draftNote(b)}`),
+    editTrip: (tripId, orderIds, reason) =>
+      edit("changing the trip", PlanCommandKind.editTrip, { tripId, orderIds, reason }, (b) => `${orderIds.length === 0 ? "Trip removed" : "Trip saved"}. ${draftNote(b)}`),
     moveTrip: (tripId, vehicleId, reason) =>
       edit("moving the trip", PlanCommandKind.replan, { tripId, replacementVehicleId: vehicleId, reason }, (b) => `Trip moved to ${vehicleId}. ${draftNote(b)} Send it to tell the drivers.`),
     contactStore: (orderId, message) => (live ? send("telling the store", PlanCommandKind.contactStore, { planId: live.planId, orderId, message }, null, () => "The store manager has your message.") : Promise.resolve(false)),
@@ -134,9 +166,9 @@ function DepotPlan({ depot, date, onDate, online }: { depot: string; date: strin
     try {
       const done = await generation.follow(job);
       if (done.status === "DONE" && done.result) toast(asToast(`${keepDecisions ? "Planned again, keeping your decisions. " : ""}${draftNote(done.result)}`));
-      else setFailure({ error: new Error(done.error ?? "Planning stopped without a plan."), what: "generating the plan" });
+      else refused(new Error(done.error ?? "Planning stopped without a plan."), "generating the plan");
     } catch (e) {
-      setFailure({ error: e instanceof Error ? e : new Error(String(e)), what: "generating the plan" });
+      refused(e instanceof Error ? e : new Error(String(e)), "generating the plan");
     }
     plans.refresh();
     orders.refresh();
@@ -145,10 +177,9 @@ function DepotPlan({ depot, date, onDate, online }: { depot: string; date: strin
     setTab("decide");
   };
   const generate = async (keepDecisions: boolean) => {
-    setFailure(null);
     const sent = await run<GenerationJobView>(PlanCommandKind.generate, { depotCode: depot, serviceDate: date, keepDecisions }, null);
     if (!sent.ok) {
-      setFailure({ error: sent.error, what: "generating the plan" });
+      refused(sent.error, "generating the plan");
       plans.refresh();
       return;
     }
@@ -167,7 +198,7 @@ function DepotPlan({ depot, date, onDate, online }: { depot: string; date: strin
     edit("returning to the saved plan", PlanCommandKind.restoreSnapshot, { snapshotId }, (b) => `Returned to ${label}. ${draftNote(b)}`).then((ok) => ok && (setViewing(null), setTab("decide")));
 
   const publish = () =>
-    live && send("publishing the plan", PlanCommandKind.publish, { planId: live.planId }, live.rowVersion, () => (state.stage === "draft" && state.revises ? `Update sent for ${depot} on ${dayLabel(date)}. Only the drivers and stores it changes are told.` : `Plan for ${depot} on ${dayLabel(date)} is published. Loaders and drivers now work from it.`)).then((ok) => ok && (setConfirming(false), setTab("view")));
+    live && send("publishing the plan", PlanCommandKind.publish, { planId: live.planId }, live.rowVersion, () => (state.stage === "draft" && state.revises ? `Update sent for ${depot} on ${dayLabel(date)}. Only the drivers and stores it changes are told.` : `Plan for ${depot} on ${dayLabel(date)} is published. Loaders and drivers now work from it.`)).then((ok) => ok && (setConfirming(false), setTab("publish")));
 
   const revise = () =>
     live &&
@@ -192,32 +223,20 @@ function DepotPlan({ depot, date, onDate, online }: { depot: string; date: strin
           plan.plannedWithoutPredictor && live ? "Planned on the booklet's travel and service times: the time predictor is not running." : null,
         ].filter((line): line is string => line !== null)
       : [];
+  const draft = state.stage === "draft";
+  const sectionLine =
+    summary && plan ? `${titled ? `${summary.served} of ${summary.orders} fit · ` : ""}saved ${clock(new Date(plan.savedAt))} · ${stage}` : plans.data ? stage : "Loading";
 
   return (
-    <>
-      {tab === "compare" && (
-        <button type="button" onClick={() => setTab("view")} className="-mb-3 flex w-fit items-center gap-1.5 text-[15px] font-medium text-go-ink">
-          <span aria-hidden>‹</span> Back
-        </button>
-      )}
-      <PageHeader
-        title={`Plan ${dayLabel(date)}`}
-        subtitle={
-          summary && plan
-            ? `${depot} · ${summary.served} of ${summary.orders} fit · saved ${clock(new Date(plan.savedAt))} · ${stage}`
-            : `${depot} · ${plans.data ? stage : "Loading"}`
-        }
-        online={online}
-        lastSyncedAt={plans.loadedAt}
-        onSync={plans.refresh}
-        syncing={plans.loading}
-        quiet
-        tools={
+    <section aria-label={`Plan for ${depot}`} className="flex w-full flex-col gap-4">
+      <div className="flex w-full flex-wrap items-center gap-3">
+        <div className="min-w-[200px] flex-1">
+          {titled && <h2 className="text-[19px] font-medium text-go-ink">{depot}</h2>}
+          <p className="text-[13px] text-go-secondary">{sectionLine}</p>
+        </div>
+        {state.stage !== "none" && (
           <PlanTools
-            date={date}
-            onDate={onDate}
-            hasPlan={state.stage !== "none"}
-            draft={state.stage === "draft"}
+            draft={draft}
             workingLabel={workingLabel}
             snapshots={saved.data ?? []}
             viewing={viewing}
@@ -227,13 +246,12 @@ function DepotPlan({ depot, date, onDate, online }: { depot: string; date: strin
             onSave={() => void saveSnapshot()}
             onRegenerate={(keep) => void generate(keep)}
             comparing={tab === "compare"}
-            onCompare={() => setTab("compare")}
+            onCompare={() => setTab(tab === "compare" ? "view" : "compare")}
           />
-        }
-      />
+        )}
+      </div>
 
       {error && <Refusal error={error} what="the plan" action={<Retry onClick={() => (plans.refresh(), orders.refresh(), fleet.refresh())} />} />}
-      {failure && <Refusal error={failure.error} what={failure.what} />}
       {planning && <Notice tone="neutral" title={planning} live>The plan is being made in the background; it opens here when it is ready, even after a reload.</Notice>}
       {cost?.compare && live && tab !== "compare" && (
         <Notice tone="info" title={cost.title} action={<SecondaryButton onClick={() => setTab("compare")}>Compare with the rules plan</SecondaryButton>}>
@@ -255,8 +273,8 @@ function DepotPlan({ depot, date, onDate, online }: { depot: string; date: strin
         </Notice>
       )}
       {plans.data && state.stage === "none" && (
-        <section aria-label="No plan" className="flex w-full max-w-[760px] flex-col items-start gap-3 rounded-go-panel bg-go-card p-6">
-          <h2 className="text-[19px] font-medium text-go-ink">{`No plan for ${depot} on ${dayLabel(date)}`}</h2>
+        <div className="flex w-full max-w-[760px] flex-col items-start gap-3 rounded-go-panel bg-go-card p-6">
+          <h3 className="text-[19px] font-medium text-go-ink">{`No plan for ${depot} on ${dayLabel(date)}`}</h3>
           <p className="text-[13px] text-go-secondary">
             {orders.data ? `${toPlan} ${toPlan === 1 ? "order is" : "orders are"} confirmed and waiting to be planned.` : "Counting the orders…"} Generating places every order it can and names the rule
             that stopped each one it could not.
@@ -273,12 +291,11 @@ function DepotPlan({ depot, date, onDate, online }: { depot: string; date: strin
               {planning ?? (busy ? "Generating…" : "Generate draft")}
             </PrimaryButton>
           )}
-        </section>
+        </div>
       )}
 
       {state.stage !== "none" && plan && summary && live && (
         <>
-          {tab !== "compare" && (
           <PlanSteps
             tab={tab}
             onTab={setTab}
@@ -287,24 +304,16 @@ function DepotPlan({ depot, date, onDate, online }: { depot: string; date: strin
             publish={state.stage === "published" ? `Published${state.plan.publishedAt ? ` ${clock(new Date(state.plan.publishedAt))}` : ""}` : "Not published yet"}
             decideDone={open === 0}
             published={state.stage === "published"}
-            actions={
-              tab === "publish" ? (
-                state.stage === "draft" ? (
-                  <PrimaryButton disabled={!online || busy || open > 0} onClick={() => setConfirming(true)}>
-                    {state.revises ? "Send update" : "Publish plan"}
-                  </PrimaryButton>
-                ) : (
-                  <span className="flex flex-wrap items-center gap-2">
-                    <SecondaryButton disabled={!online} onClick={() => setRevising(true)}>Edit plan</SecondaryButton>
-                    <span className="rounded-full bg-go-surface px-4 py-3 text-sm font-medium text-go-secondary">Published ✓</span>
-                    <SecondaryButton onClick={() => (window.location.hash = "/live")}>Watch the run</SecondaryButton>
-                  </span>
-                )
-              ) : undefined
+            next={
+              tab === "decide"
+                ? { label: "Next: view plan", onClick: () => setTab("view") }
+                : tab === "view" || tab === "compare"
+                  ? { label: "Next: publish", onClick: () => setTab("publish") }
+                  : draft
+                    ? { label: state.revises ? "Send update" : "Publish plan", onClick: () => setConfirming(true), disabled: !online || busy || open > 0 }
+                    : { label: "Published", onClick: () => undefined, disabled: true }
             }
-            nextLabel={tab === "decide" ? "View plan" : tab === "view" ? (state.stage === "draft" && state.revises ? "Send update" : state.stage === "draft" ? "Publish" : null) : null}
           />
-          )}
 
           {tab === "decide" && <PlanDecide plan={plan} rows={rows} orders={byId} fleet={vehicles} editable={editable} actions={actions} focusId={focusId} />}
           {tab === "view" && (
@@ -339,13 +348,15 @@ function DepotPlan({ depot, date, onDate, online }: { depot: string; date: strin
               orders={byId}
               editable={editable}
               busy={busy}
+              onBack={() => setTab("view")}
+              onSave={draft ? () => void saveSnapshot() : undefined}
               onUse={(snapshotId) => void restore(snapshotId, saved.data?.find((s) => s.snapshotId === snapshotId)?.label ?? "the saved plan")}
             />
           )}
         </>
       )}
       {!plans.data && !plans.error && <p className="py-8 text-center text-[13px] text-go-secondary">Loading the plan…</p>}
-    </>
+    </section>
   );
 }
 

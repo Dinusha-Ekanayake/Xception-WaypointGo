@@ -63,6 +63,7 @@ import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -295,6 +296,11 @@ public class PlanDataQuery implements PlanQuery {
     return read(actor.userId(), () -> swapPreview(outOrderId, inOrderId, sequence));
   }
 
+  /** A trip holding exactly the orders given, in that order, timed, and every rule's verdict on the day (R-PLN-42). */
+  public TripPreview previewTripEdit(Actor actor, UUID tripId, List<UUID> orderIds) {
+    return read(actor.userId(), () -> tripEditPreview(tripId, orderIds));
+  }
+
   /** The trip with its stops in the order given, timed, and every rule's verdict on it. */
   public TripPreview previewSequence(Actor actor, UUID tripId, List<UUID> orderIds) {
     return read(actor.userId(), () -> sequencePreview(tripId, orderIds));
@@ -508,6 +514,29 @@ public class PlanDataQuery implements PlanQuery {
     Place place = revisions.locate(row.planId(), tripId, run);
     PlanContext context = opened.built().problem().context();
     return tripPreview(run.proposeSequence(place.vehicleId(), place.tripNumber(), orderIds, registry, context), context);
+  }
+
+  private TripPreview tripEditPreview(UUID tripId, List<UUID> orderIds) {
+    RunRow row =
+        plans.runsWithTrip(tripId).stream().findFirst()
+            .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No live plan carries trip " + tripId));
+    if (row.status() != PlanStatus.DRAFT) {
+      throw new DomainException(
+          ErrorCode.CONFLICT, "plan " + row.planId() + " is " + row.status() + "; only a draft changes", List.of("R-PLN-28"));
+    }
+    Opened opened = drafts.rebuild(row);
+    PlanningRun run = drafts.run(opened);
+    Place place = revisions.locate(row.planId(), tripId, run);
+    PlanContext context = opened.built().problem().context();
+    List<PlanOrder> orders = new ArrayList<>();
+    for (UUID id : orderIds) {
+      PlanOrder order = opened.built().orders().get(id);
+      if (order == null) {
+        throw new DomainException(ErrorCode.CONSTRAINT_VIOLATED, "order " + id + " is no longer in the demand", List.of("PLN-07"));
+      }
+      orders.add(order);
+    }
+    return tripPreview(run.proposeTripEdit(place.vehicleId(), place.tripNumber(), orders, registry, context), context);
   }
 
   /** The proposed trip as it would run: stops in order with their arrivals, and the registry's checks. */

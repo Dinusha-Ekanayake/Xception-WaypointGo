@@ -176,6 +176,22 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
       );
     }
     if (command.kind === "plan:ReorderStops") return next((a) => a);
+    if (command.kind === "plan:EditTrip") {
+      // The trip holds exactly orderIds (none removes it): orders left out are deferred, orders named join it.
+      const tripId = String(payload.tripId);
+      const ids = payload.orderIds as string[];
+      const before = plan.trips.find((t) => t.tripId === tripId);
+      const kept = ids.length ? [{ ...before!, stops: ids.map((orderId, i) => ({ ...(before!.stops.find((st) => st.orderId === orderId) ?? before!.stops[0]!), sequence: i + 1, orderId })) }] : [];
+      desk.draft = {
+        ...plan, planId: `plan-v${plan.planVersion + 1}`, planVersion: plan.planVersion + 1,
+        trips: [...plan.trips.filter((t) => t.tripId !== tripId), ...kept],
+        allocations: plan.allocations.map((a) =>
+          ids.includes(a.orderId) ? { ...served(a.orderId, tripId), source: a.tripId === tripId ? a.source : ("OVERRIDE" as const), ...hand }
+          : a.tripId === tripId ? { ...deferred(a.orderId), source: "MANUAL_DEFER" as const, ...hand } : a,
+        ),
+      };
+      return body(desk.draft);
+    }
     if (command.kind === "plan:ContactStore") return { orderId: payload.orderId, outletId: "OUT053" };
     if (command.kind === "plan:SaveSnapshot") {
       const saved = snapshotOf(desk.snapshots.length + 1, String(payload.label ?? `Snapshot ${desk.snapshots.length + 1}`));
@@ -217,7 +233,7 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
     }
     if (pathname === "/api/plans/published") return route.fulfill(desk.published ? json(desk.published) : problem(404, "NOT_FOUND", "No published plan"));
     if (pathname === "/api/plans/preview/placements") return route.fulfill(json(PLACES));
-    if (pathname === "/api/plans/preview/swap" || pathname === "/api/plans/preview/sequence") return route.fulfill(json(desk.preview));
+    if (pathname === "/api/plans/preview/swap" || pathname === "/api/plans/preview/sequence" || pathname === "/api/plans/preview/trip") return route.fulfill(json(desk.preview));
     if (pathname === "/api/plans/snapshots") return route.fulfill(json(desk.snapshots));
     const saved = /^\/api\/plans\/snapshots\/([^/]+)$/.exec(pathname);
     if (saved) {

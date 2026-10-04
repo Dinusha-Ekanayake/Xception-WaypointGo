@@ -139,6 +139,18 @@ export function usePredictions(planId: string | null): Resource<PlanPredictionsV
   );
 }
 
+/**
+ * A trip holding exactly these orders in this order (none removes it), timed
+ * and judged on the vehicle's whole day, before plan:EditTrip is sent; null skips the read.
+ */
+export function useTripEditPreview(tripId: string | null, orderIds: string[] | null, planId: string): Resource<TripPreview> {
+  const orders = orderIds && orderIds.length > 0 ? `&orders=${orderIds.map(q).join(",")}` : "";
+  return useResource(
+    tripId === null || orderIds === null ? null : (signal) => request<TripPreview>(`/api/plans/preview/trip?trip=${q(tripId)}${orders}`, { signal }),
+    `trip-edit|${planId}|${tripId ?? ""}|${orderIds?.join(",") ?? ""}`,
+  );
+}
+
 /** What moving a whole trip to another vehicle would do, judged before plan:Replan is sent; null skips the read. */
 export function useInterchange(planId: string, tripId: string, vehicleId: string | null): Resource<InterchangePreview> {
   return useResource(
