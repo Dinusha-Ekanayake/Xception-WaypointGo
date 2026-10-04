@@ -11,7 +11,7 @@ import java.util.Optional;
  * <p>The day's expected load is what is already booked for it, or the
  * forecast's share of the week when that is larger, because most orders for a
  * day weeks away are not placed yet (A-44). It is set against what the
- * vehicles available that day can carry in two trips (R-PLN-07), so a vehicle
+ * vehicles available that day can carry under the effective trip limit (R-PLN-07), so a vehicle
  * booked into the workshop lowers it; chilled load is set against reefers only
  * (D-J), and only for a store whose brand sends chilled goods.
  */
@@ -35,7 +35,7 @@ public final class DateOutlookPolicy {
 
   /**
    * @param forecastM3 the day's share of the depot's weekly forecast, empty when none reaches it
-   * @param capacityM3 every vehicle available that day, two trips each
+   * @param capacityM3 every vehicle available that day under its effective trip limit
    * @param reeferCapacityM3 the same for refrigerated vehicles
    * @param chilled whether the store's brand sends chilled goods
    */

@@ -95,6 +95,15 @@ import org.springframework.stereotype.Component;
 public class PlanDataQuery implements PlanQuery {
   public static final String READ = "plan:Read";
 
+  @Override
+  public int maxTripsFor(LocalDate serviceDate) {
+    return database.readAs(ModuleRole.PLANNING, Actor.SYSTEM_ID, () ->
+        plans.effectiveRuleSet(serviceDate)
+            .orElseThrow(() -> new DomainException(ErrorCode.CONSTRAINT_VIOLATED,
+                "No planning rule set for " + serviceDate, List.of("POL-10")))
+            .maxTrips());
+  }
+
   private final Database database;
   private final JdbcPlanRepository plans;
   private final ReferenceQuery reference;

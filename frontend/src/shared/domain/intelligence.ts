@@ -114,7 +114,7 @@ export type OverviewStatus = "READY" | "NONE";
 /** One brand's demand in a week; chilled is zero for Style and Tech. */
 export type BrandVolumeView = { brandCode: string; totalM3: Decimal; chilledM3: Decimal };
 
-/** The depot's reference fleet, two trips a day on each operating day (A-40). An upper bound. */
+/** The depot's reference fleet under each day's effective trip limit (A-40). An upper bound. */
 export type WeekCapacityView = {
   vehicles: number;
   refrigeratedVehicles: number;

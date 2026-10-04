@@ -220,8 +220,8 @@ export function dayNeeds(weeks: ForecastWeek[], limit = 4): DayNeed[] {
 
 /**
  * Refrigerated vehicles an average operating day of the week needs: its chilled
- * demand per day over what one refrigerated vehicle carries a day (two trips of
- * the mean refrigerated volume, A-40).
+ * demand per day over what one refrigerated vehicle carries a day under the
+ * effective planning limit (A-40).
  */
 export function refrigeratedNeeded(w: ForecastWeek): number {
   if (w.operatingDays <= 0 || w.refrigeratedVehicles <= 0 || w.refrigeratedM3 <= 0) return 0;

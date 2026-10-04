@@ -4,7 +4,7 @@ import com.waypoint.dispatch.intelligence.contract.PredictionViews.DateOutlookVi
 import com.waypoint.dispatch.intelligence.contract.PredictionViews.DayOutlookView;
 import com.waypoint.dispatch.intelligence.contract.PredictionViews.OutlookStatus;
 import com.waypoint.dispatch.intelligence.domain.DateOutlookPolicy;
-import com.waypoint.dispatch.intelligence.domain.FleetCapacity;
+import com.waypoint.dispatch.planning.contract.PlanQuery;
 import com.waypoint.dispatch.intelligence.infrastructure.JdbcIntelligenceRepository;
 import com.waypoint.dispatch.ordering.contract.OrderQuery;
 import com.waypoint.dispatch.ordering.contract.OrderViews.BookedVolumeView;
@@ -53,6 +53,7 @@ public class DateOutlookQuery {
   private final Database database;
   private final JdbcIntelligenceRepository repository;
   private final OrderQuery orders;
+  private final PlanQuery plans;
   private final ReferenceQuery reference;
   private final AuditLog audit;
   private final Metrics metrics;
@@ -61,12 +62,14 @@ public class DateOutlookQuery {
       Database database,
       JdbcIntelligenceRepository repository,
       OrderQuery orders,
+      PlanQuery plans,
       ReferenceQuery reference,
       AuditLog audit,
       Metrics metrics) {
     this.database = database;
     this.repository = repository;
     this.orders = orders;
+    this.plans = plans;
     this.reference = reference;
     this.audit = audit;
     this.metrics = metrics;
@@ -134,7 +137,7 @@ public class DateOutlookQuery {
       BigDecimal coldRoom = BigDecimal.ZERO;
       if (operating) {
         for (VehicleView v : reference.availableVehicles(depot, day, null)) {
-          BigDecimal trips = v.volumeCapM3().multiply(BigDecimal.valueOf(FleetCapacity.TRIPS_PER_DAY));
+          BigDecimal trips = v.volumeCapM3().multiply(BigDecimal.valueOf(plans.maxTripsFor(day)));
           room = room.add(trips);
           coldRoom = v.refrigerated() ? coldRoom.add(trips) : coldRoom;
         }

@@ -154,6 +154,8 @@ Enforced by `check_allocation.py`. These are exact.
 | R-PLN-06 | **Capacity** | Trip volume and weight must not exceed the vehicle caps. The validator allows a tolerance of `1e-6`; we compare with the same epsilon, never with bare floating point |
 | R-PLN-07 | **Trips and time** | At most **2** trips per vehicle per day, fitting the budgets in 3.2 |
 
+The booklet values are upper bounds for a scored submission. An effective-dated operational rule set may set a lower trip or time ceiling for future service dates; it cannot raise those values above the scored baseline. The plan stamps the version it used, and publication rejects a draft whose rule set is no longer in force.
+
 **What a trip actually contains.** R-PLN-01 to R-PLN-05 together fix the composition, and the historical data agrees exactly:
 
 | Dimension | Rule | Observed in 25,198 training routes |
