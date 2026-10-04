@@ -401,6 +401,7 @@ ADR-004: a conversation is a thread anchored to one subject; the first subject i
 | R-MSG-04 | **Posting window.** A trip's thread opens when its plan is published and takes posts until the end of the day after its service date; then it is read only | Our policy | Policy |
 | R-MSG-05 | **Reports from the field arrive once and are not told twice.** Every raised issue about a trip is posted on its thread as a report, once per event, naming the role that reported it. It publishes nothing, because `issue.raised` already notified the dispatcher | Product decision 2026-10-04 | Policy |
 | R-MSG-06 | **Voice notes.** A message or report may be a voice note: WebM, Ogg, MP4/AAC or MP3, at most 2 MB and 120 seconds, uploaded under the phone's id before the message and heard only by who may see that message, and by its author | Product decision 2026-10-04 | Policy |
+| R-MSG-07 | **Resolving a report.** The dispatcher who oversees the trip's depot resolves a report with an optional note of at most 500 characters (`message:Resolve`); a report made from an issue is resolved when that issue is. Its warning sign leaves the timeline; the report stays on the thread with who resolved it, when and why. Resolving again changes nothing; nobody else may resolve, and a refused attempt is 403 plus an audit row | Product decision 2026-10-04 | Policy |
 
 ## 7e. Demo runtime (issue #231)
 
