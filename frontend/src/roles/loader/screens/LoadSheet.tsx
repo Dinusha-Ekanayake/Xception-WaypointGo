@@ -12,6 +12,7 @@ import { HandBack, OutOfSequence, Released, Toast, TripTaken, type ToastMessage 
 import ManifestList from "./ManifestList.tsx";
 import TruckCard from "./TruckCard.tsx";
 import ReleaseSheet from "./ReleaseSheet.tsx";
+import TripMessages from "./TripMessages.tsx";
 import { useT } from "../i18n.tsx";
 
 // Figma "02 Load sheet". Container: the trip hook, the sheets and the notices.
@@ -50,6 +51,7 @@ export default function LoadSheet({
   const [justReleased, setJustReleased] = useState(false);
   const [releasing, setReleasing] = useState(false);
   const [blockedBy, setBlockedBy] = useState<string | null>(null);
+  const [talking, setTalking] = useState(false);
   const m = t.manifest.data;
 
   useEffect(() => onSynced(t.manifest.loadedAt), [t.manifest.loadedAt, onSynced]);
@@ -156,6 +158,12 @@ export default function LoadSheet({
         />
       )}
 
+      <div className="flex justify-end">
+        <button type="button" onClick={() => setTalking(true)} className="min-h-11 rounded-full bg-go-card px-4 text-[14px] font-medium text-go-ink shadow-go-card">
+          {tr("Messages")}
+        </button>
+      </div>
+
       {/* Landscape tablet: truck summary pinned left, load list beside it. */}
       <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[440px_minmax(0,1fr)] lg:items-start">
       <TruckCard
@@ -234,6 +242,7 @@ export default function LoadSheet({
         />
       )}
       {toast && <Toast message={toast} onDone={() => setToast(null)} />}
+      {talking && <TripMessages tripId={trip.tripId} vehicleId={m.vehicleId} online={online} onClose={() => setTalking(false)} />}
       {handingBack && (
         <HandBack
           vehicleId={m.vehicleId}

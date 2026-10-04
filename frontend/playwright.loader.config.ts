@@ -3,7 +3,7 @@ import { deviceProjects } from "./tests/devices.ts";
 
 export default defineConfig({
   testDir: "./tests/e2e-loader",
-  testMatch: ["offline.spec.ts", "release.spec.ts", "language.spec.ts", "offline-pin.spec.ts", "wide.spec.ts", "held.spec.ts", "notifications.spec.ts", "devices.spec.ts"],
+  testMatch: ["offline.spec.ts", "release.spec.ts", "language.spec.ts", "offline-pin.spec.ts", "wide.spec.ts", "held.spec.ts", "notifications.spec.ts", "devices.spec.ts", "messages.spec.ts"],
   timeout: 30_000,
   workers: 1,
   // In CI (#120): one retry, reported as flaky rather than hidden; failures as
