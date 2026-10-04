@@ -32,19 +32,29 @@ export const ROLE_LABEL: Record<MemberRole, string> = {
   store_manager: "Store",
 };
 
+/**
+ * A screen's words in the reader's language: the English text is the key and
+ * `{name}` marks a value (the loader's dictionary, roles/loader/data/strings.ts).
+ * Roles in English pass nothing and get `plain`.
+ */
+export type Translate = (english: string, vars?: Record<string, string | number>) => string;
+
+export const plain: Translate = (english, vars) =>
+  vars ? english.replace(/\{(\w+)\}/g, (whole, key: string) => (key in vars ? String(vars[key]) : whole)) : english;
+
 /** "To the driver", "To OUT063", "To everyone": who a message reached besides the dispatcher. */
-export function audienceLabel(audience: MessageAudience, outlet: string | null): string {
+export function audienceLabel(audience: MessageAudience, outlet: string | null, tr: Translate = plain): string {
   switch (audience) {
     case "dispatch":
-      return "To the dispatcher";
+      return tr("To the dispatcher");
     case "driver":
-      return "To the driver";
+      return tr("To the driver");
     case "loader":
-      return "To the loaders";
+      return tr("To the loaders");
     case "outlet":
-      return `To ${outlet ?? "a store"}`;
+      return outlet ? tr("To {outlet}", { outlet }) : tr("To a store");
     case "all":
-      return "To everyone on the trip";
+      return tr("To everyone on the trip");
   }
 }
 

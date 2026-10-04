@@ -1,16 +1,17 @@
 "use client";
 
-import type { Sender } from "@shared/messaging/useThread";
+import type { Sender } from "@shared/messaging/senders";
 import { useTripThread } from "@shared/messaging/useThread";
 import { TripThread, cx } from "@shared/ui";
 import { BackIcon } from "../ui.tsx";
 
 // The trip's thread on the driver's phone (issue #136): what the dispatcher
 // wrote to the driver or to everyone, the driver's replies to the dispatcher
-// or a store on the trip, and reports, typed or spoken. Typed messages keep on
-// the phone with no signal; a voice note needs a connection.
+// or a store on the trip, and reports, typed or spoken. With no signal both are
+// kept on the phone and sent when it returns.
 
 export default function Messages({
+  accountId,
   tripId,
   vehicleId,
   online,
@@ -18,6 +19,7 @@ export default function Messages({
   sender,
   onBack,
 }: {
+  accountId: string;
   tripId: string | null;
   vehicleId: string | null;
   online: boolean;
@@ -25,7 +27,7 @@ export default function Messages({
   sender: Sender;
   onBack: () => void;
 }): React.JSX.Element {
-  const thread = useTripThread(tripId);
+  const thread = useTripThread(tripId, accountId);
   const threadId = thread.data?.threadId ?? null;
 
   return (
@@ -44,7 +46,7 @@ export default function Messages({
       </header>
       {!online && (
         <p role="status" className="rounded-go-card-s bg-go-warning-tint px-3.5 py-2.5 text-[13px] text-go-warning-text">
-          No signal. What you type is kept on this phone and sent when the connection is back.
+          No signal. What you write or record is kept on this phone and sent when the connection is back.
         </p>
       )}
       <div className="flex min-h-0 flex-1 flex-col rounded-[24px] bg-go-card p-4">
@@ -57,7 +59,7 @@ export default function Messages({
             {thread.error ? "Messages could not be loaded. They load when the connection is back." : "This trip has no messages yet."}
           </p>
         ) : (
-          <TripThread threadId={threadId} online={online} variant="phone" sender={sender} />
+          <TripThread threadId={threadId} online={online} variant="phone" sender={sender} keepsOffline accountId={accountId} />
         )}
       </div>
     </section>
