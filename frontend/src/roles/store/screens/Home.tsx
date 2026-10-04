@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { type ApiError, friendlyError } from "@shared/api/problem";
 import type { DeliveryRecordView, IssueView, OrderStatus, OrderView, OutletView, PendingReceiptView } from "@shared/domain/types";
 import { Icon, Notice, SkeletonRows, cx } from "@shared/ui";
@@ -52,7 +52,6 @@ export default function Home({
   onPlace,
   onReceive,
   onTrack,
-  notifications,
   onRetry,
 }: {
   orders: OrderView[];
@@ -70,8 +69,6 @@ export default function Home({
   onTrack: () => void;
   /** Read the orders again after a failure. */
   onRetry?: () => void;
-  /** Optional notifications node. */
-  notifications?: ReactNode;
 }): React.JSX.Element {
   const [left, setLeft] = useState(() => untilCutoff());
   useEffect(() => {
