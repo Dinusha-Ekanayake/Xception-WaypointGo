@@ -57,11 +57,13 @@ test("with no signal a typed message is kept on the phone and sent when the sign
   await expect(screen.getByText("Take the bypass at Akuressa")).toBeVisible();
 
   await server.goOffline(context);
-  await expect(screen.getByText(/No signal\. What you type is kept on this phone/)).toBeVisible();
-  await expect(screen.getByRole("button", { name: "Voice" })).toBeDisabled();
+  await expect(screen.getByText(/No signal\. What you write or record is kept on this phone/)).toBeVisible();
+  // A voice note is kept with no signal too (voice.spec.ts).
+  await expect(screen.getByRole("button", { name: "Voice" })).toBeEnabled();
   await screen.getByRole("textbox", { name: "Message" }).fill("Signal gone near Deniyaya");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
   await expect(screen.getByText("Saved on this device. It sends when the connection returns.")).toBeVisible();
+  await expect(screen.getByTestId("waiting-message")).toContainText("Signal gone near Deniyaya");
   expect(server.commands.some((c) => c.kind === "message:Post")).toBe(false);
 
   await server.goOnline(context);

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { MessageView } from "../domain/messaging.ts";
-import { audienceLabel, byDay, REPORT_LABEL, ROLE_LABEL, voiceLength } from "../messaging/thread.ts";
+import { audienceLabel, byDay, plain, REPORT_LABEL, ROLE_LABEL, voiceLength, type Translate } from "../messaging/thread.ts";
 import { voiceUrl } from "../messaging/useThread.ts";
 import { clock, dayLabel } from "../wording/time.ts";
 import { cx } from "./primitives.tsx";
@@ -17,6 +17,7 @@ export function ThreadMessages({
   hasOlder,
   onOlder,
   compact,
+  tr = plain,
 }: {
   messages: MessageView[];
   /** Scrolled to and marked, when a warning sign or a notification opened the thread. */
@@ -24,6 +25,7 @@ export function ThreadMessages({
   hasOlder: boolean;
   onOlder: () => void;
   compact: boolean;
+  tr?: Translate;
 }): React.JSX.Element {
   const end = useRef<HTMLDivElement>(null);
   const focused = useRef<string | null>(null);
@@ -43,14 +45,14 @@ export function ThreadMessages({
   }, [focusMessageId, newest]);
 
   if (messages.length === 0) {
-    return <p className="py-8 text-center text-sm text-go-secondary">No messages yet. Anything written here reaches the people it is for.</p>;
+    return <p className="py-8 text-center text-sm text-go-secondary">{tr("No messages yet. Anything written here reaches the people it is for.")}</p>;
   }
 
   return (
     <div className="flex flex-col gap-3">
       {hasOlder && (
         <button type="button" onClick={onOlder} className="min-h-9 self-center rounded-full bg-go-surface px-4 text-[13px] font-medium text-go-teal">
-          Show earlier messages
+          {tr("Show earlier messages")}
         </button>
       )}
       {byDay(messages).map((group) => (
@@ -62,7 +64,7 @@ export function ThreadMessages({
           </h3>
           <ol className="flex flex-col gap-3">
             {group.messages.map((m) => (
-              <Message key={m.messageId} message={m} focused={m.messageId === focusMessageId} compact={compact} />
+              <Message key={m.messageId} message={m} focused={m.messageId === focusMessageId} compact={compact} tr={tr} />
             ))}
           </ol>
         </section>
@@ -72,7 +74,7 @@ export function ThreadMessages({
   );
 }
 
-function Message({ message: m, focused, compact }: { message: MessageView; focused: boolean; compact: boolean }): React.JSX.Element {
+function Message({ message: m, focused, compact, tr }: { message: MessageView; focused: boolean; compact: boolean; tr: Translate }): React.JSX.Element {
   const report = m.kind === "report";
   return (
     <li
@@ -82,8 +84,8 @@ function Message({ message: m, focused, compact }: { message: MessageView; focus
       className={cx("flex max-w-[88%] flex-col gap-1", m.mine ? "self-end items-end" : "self-start items-start")}
     >
       <span className="text-xs text-go-secondary">
-        {m.mine ? "You" : m.authorName}
-        {!m.mine && m.authorName !== ROLE_LABEL[m.authorRole] ? ` · ${ROLE_LABEL[m.authorRole]}` : ""} · {clock(m.createdAt)}
+        {m.mine ? tr("You") : m.authorName === ROLE_LABEL[m.authorRole] ? tr(m.authorName) : m.authorName}
+        {!m.mine && m.authorName !== ROLE_LABEL[m.authorRole] ? ` · ${tr(ROLE_LABEL[m.authorRole])}` : ""} · {clock(m.createdAt)}
       </span>
       <div
         className={cx(
@@ -96,18 +98,18 @@ function Message({ message: m, focused, compact }: { message: MessageView; focus
         {report && (
           <span className="flex items-center gap-1.5 text-xs font-semibold text-go-danger-strong">
             <span aria-hidden className="size-2 rounded-full bg-go-danger" />
-            Report · {m.reportType ? REPORT_LABEL[m.reportType] : "Problem"}
+            {tr("Report")} · {tr(m.reportType ? REPORT_LABEL[m.reportType] : "Problem")}
           </span>
         )}
         {m.voiceNoteId && (
           <span className="flex items-center gap-2">
-            <audio controls preload="none" src={voiceUrl(m.threadId, m.voiceNoteId)} aria-label={`Voice note${m.voiceDurationMs ? `, ${voiceLength(m.voiceDurationMs)}` : ""}`} className="h-9 max-w-[240px]" />
+            <audio controls preload="none" src={voiceUrl(m.threadId, m.voiceNoteId)} aria-label={`${tr("Voice note")}${m.voiceDurationMs ? `, ${voiceLength(m.voiceDurationMs)}` : ""}`} className="h-9 max-w-[240px]" />
             {m.voiceDurationMs ? <span className="text-xs text-go-secondary">{voiceLength(m.voiceDurationMs)}</span> : null}
           </span>
         )}
         {m.body && <p className="whitespace-pre-wrap break-words">{m.body}</p>}
       </div>
-      <span className="text-[11px] text-go-secondary">{audienceLabel(m.audience, m.audienceOutlet)}</span>
+      <span className="text-[11px] text-go-secondary">{audienceLabel(m.audience, m.audienceOutlet, tr)}</span>
     </li>
   );
 }

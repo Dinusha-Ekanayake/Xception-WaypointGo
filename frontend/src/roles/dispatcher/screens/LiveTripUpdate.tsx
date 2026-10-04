@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { ApiError } from "@shared/api/problem";
 import type { MessageAudience } from "@shared/domain/types";
-import { newId, postCommand, sendNow, useTripThread } from "@shared/messaging/useThread";
+import { sendNow } from "@shared/messaging/senders";
+import { newId, postCommand, useTripThread } from "@shared/messaging/useThread";
 import { cx } from "@shared/ui";
 import { clock } from "@shared/wording";
 import { lateBy, tripOf, updateText } from "../data/threads.ts";

@@ -85,3 +85,9 @@ export function redoCommands(
         };
   return { redo, resolve };
 }
+
+/** The writes up to, not including, the first that names an upload still on this device. */
+export function readyToSend(entries: StoredEntry[], waitingUploads: Set<string>): StoredEntry[] {
+  const blocked = entries.findIndex((e) => (e.waitsFor ?? []).some((id) => waitingUploads.has(id)));
+  return blocked === -1 ? entries : entries.slice(0, blocked);
+}
