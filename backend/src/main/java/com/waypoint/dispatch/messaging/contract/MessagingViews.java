@@ -43,6 +43,9 @@ public final class MessagingViews {
    * @param voiceNoteId set for a voice message or report, played from
    *     {@code /api/threads/{threadId}/voice/{voiceNoteId}}
    * @param mine written by the reader
+   * @param voicePeaks the voice note's waveform, 0 to 100 a bar, as the recording
+   *     phone measured it; empty when unknown
+   * @param resolvedAt when the dispatcher resolved this report (R-MSG-07)
    */
   public record MessageView(
       UUID messageId,
@@ -57,7 +60,15 @@ public final class MessagingViews {
       Optional<UUID> voiceNoteId,
       Optional<Integer> voiceDurationMs,
       Instant createdAt,
-      boolean mine) {}
+      boolean mine,
+      List<Integer> voicePeaks,
+      Optional<Instant> resolvedAt,
+      Optional<String> resolvedByName,
+      Optional<String> resolutionNote) {
+    public MessageView {
+      voicePeaks = List.copyOf(voicePeaks);
+    }
+  }
 
   /** A page of messages, newest first; {@code nextCursor} reads older ones. */
   public record MessagePage(List<MessageView> items, Optional<String> nextCursor) {
@@ -66,7 +77,11 @@ public final class MessagingViews {
     }
   }
 
-  /** A report on a trip, for the warning signs on the dispatcher's timeline. */
+  /**
+   * A report on a trip, for the warning signs on the dispatcher's timeline.
+   *
+   * @param outletId the stop the report is about, when known: the sign is drawn on it
+   */
   public record ReportMarkView(
       UUID threadId,
       String tripId,
@@ -76,7 +91,8 @@ public final class MessagingViews {
       String reportType,
       String authorRole,
       String excerpt,
-      boolean voice) {}
+      boolean voice,
+      Optional<String> outletId) {}
 
   /**
    * Someone the reader may write to on this thread.

@@ -52,10 +52,21 @@ public class JdbcThreadRepository {
       String body,
       Optional<UUID> voiceNoteId,
       Optional<Integer> voiceDurationMs,
-      Instant createdAt) {}
+      Instant createdAt,
+      List<Integer> voicePeaks,
+      Optional<Instant> resolvedAt,
+      Optional<UUID> resolvedBy,
+      Optional<String> resolutionNote) {}
 
   /** A stored voice note, without its bytes. */
-  public record VoiceNote(UUID voiceNoteId, UUID threadId, UUID uploadedBy, String contentType, int sizeBytes) {}
+  public record VoiceNote(
+      UUID voiceNoteId,
+      UUID threadId,
+      UUID uploadedBy,
+      String contentType,
+      int sizeBytes,
+      Optional<Integer> durationMs,
+      List<Integer> peaks) {}
 
   // ---- threads ------------------------------------------------------------------
 
@@ -144,18 +155,21 @@ public class JdbcThreadRepository {
   public boolean insert(
       UUID messageId, UUID threadId, UUID authorUserId, String authorRole, String kind, Optional<String> reportType,
       String audience, Optional<String> audienceOutlet, String body, Optional<UUID> voiceNoteId,
-      Optional<UUID> clientMessageId, Optional<UUID> sourceEventId, Optional<UUID> commandId, Instant now) {
+      Optional<UUID> clientMessageId, Optional<UUID> sourceEventId, Optional<UUID> sourceIssueId,
+      Optional<String> aboutOutlet, Optional<UUID> commandId, Instant now) {
     return database.update(
             """
             INSERT INTO messaging.messages
                 (message_id, thread_id, author_user_id, author_role, kind, report_type, audience, audience_outlet,
-                 body, voice_note_id, client_message_id, source_event_id, command_id, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 body, voice_note_id, client_message_id, source_event_id, source_issue_id, about_outlet, command_id,
+                 created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT DO NOTHING
             """,
             messageId, threadId, authorUserId, authorRole, kind, reportType.orElse(null), audience,
             audienceOutlet.orElse(null), body, voiceNoteId.orElse(null), clientMessageId.orElse(null),
-            sourceEventId.orElse(null), commandId.orElse(null), Timestamp.from(now))
+            sourceEventId.orElse(null), sourceIssueId.orElse(null), aboutOutlet.orElse(null), commandId.orElse(null),
+            Timestamp.from(now))
         > 0;
   }
 
@@ -164,17 +178,17 @@ public class JdbcThreadRepository {
   /** @return false when this id was already uploaded: a retry of the same note */
   public boolean insertVoice(
       UUID voiceNoteId, UUID threadId, UUID uploadedBy, String contentType, byte[] content, Optional<Integer> durationMs,
-      String sha256, Instant now, Instant retainUntil) {
+      String sha256, Instant now, Instant retainUntil, List<Integer> peaks) {
     return database.update(
             """
             INSERT INTO messaging.voice_notes
                 (voice_note_id, thread_id, uploaded_by, content_type, size_bytes, duration_ms, sha256, content,
-                 uploaded_at, retain_until)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 uploaded_at, retain_until, peaks)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::smallint[])
             ON CONFLICT (voice_note_id) DO NOTHING
             """,
             voiceNoteId, threadId, uploadedBy, contentType, content.length, durationMs.orElse(null), sha256, content,
-            Timestamp.from(now), Timestamp.from(retainUntil))
+            Timestamp.from(now), Timestamp.from(retainUntil), peaks.isEmpty() ? null : peaks.toArray(Integer[]::new))
         > 0;
   }
 
@@ -182,11 +196,13 @@ public class JdbcThreadRepository {
   public Optional<VoiceNote> voice(UUID voiceNoteId) {
     return Optional.ofNullable(
             database.queryOne(
-                "SELECT voice_note_id, thread_id, uploaded_by, content_type, size_bytes FROM messaging.voice_notes WHERE voice_note_id = ?",
+                "SELECT voice_note_id, thread_id, uploaded_by, content_type, size_bytes, duration_ms, peaks"
+                    + " FROM messaging.voice_notes WHERE voice_note_id = ?",
                 voiceNoteId))
         .map(r -> new VoiceNote(
             (UUID) r.get("voice_note_id"), (UUID) r.get("thread_id"), (UUID) r.get("uploaded_by"),
-            (String) r.get("content_type"), ((Number) r.get("size_bytes")).intValue()));
+            (String) r.get("content_type"), ((Number) r.get("size_bytes")).intValue(),
+            Optional.ofNullable((Number) r.get("duration_ms")).map(Number::intValue), ints(r.get("peaks"))));
   }
 
   /** Empty once the retention job cleared it (MSG-11). */
@@ -243,7 +259,7 @@ public class JdbcThreadRepository {
         beforeAt.isPresent()
             ? database.query(
                 """
-                SELECT m.*, v.duration_ms FROM messaging.messages m
+                SELECT m.*, v.duration_ms, v.peaks FROM messaging.messages m
                   LEFT JOIN messaging.voice_notes v ON v.voice_note_id = m.voice_note_id
                  WHERE m.thread_id = ? AND (m.created_at, m.message_id) < (?, ?)
                  ORDER BY m.created_at DESC, m.message_id DESC LIMIT ?
@@ -251,7 +267,7 @@ public class JdbcThreadRepository {
                 threadId, Timestamp.from(beforeAt.get()), beforeId.orElseThrow(), limit)
             : database.query(
                 """
-                SELECT m.*, v.duration_ms FROM messaging.messages m
+                SELECT m.*, v.duration_ms, v.peaks FROM messaging.messages m
                   LEFT JOIN messaging.voice_notes v ON v.voice_note_id = m.voice_note_id
                  WHERE m.thread_id = ?
                  ORDER BY m.created_at DESC, m.message_id DESC LIMIT ?
@@ -260,15 +276,16 @@ public class JdbcThreadRepository {
     return rows.stream().map(JdbcThreadRepository::message).toList();
   }
 
-  /** Every report on a depot's trips that day, oldest first, for the timeline's warning signs. */
+  /** Every open report on a depot's trips that day, oldest first: the timeline's warning signs (R-MSG-07). */
   public List<Map<String, Object>> reports(String depotCode, LocalDate serviceDate) {
     return database.query(
         """
         SELECT m.message_id, m.thread_id, m.report_type, m.author_role, m.body, m.voice_note_id, m.created_at,
-               t.subject_id, t.vehicle_id
+               m.about_outlet, t.subject_id, t.vehicle_id
           FROM messaging.messages m
           JOIN messaging.threads t ON t.thread_id = m.thread_id
          WHERE t.subject_type = 'trip' AND t.depot_code = ? AND t.service_date = ? AND m.kind = 'report'
+           AND m.resolved_at IS NULL
          ORDER BY m.created_at, m.message_id
         """,
         depotCode, serviceDate);
@@ -298,7 +315,61 @@ public class JdbcThreadRepository {
         (String) row.get("body"),
         Optional.ofNullable((UUID) row.get("voice_note_id")),
         Optional.ofNullable((Number) row.get("duration_ms")).map(Number::intValue),
-        ((Timestamp) row.get("created_at")).toInstant());
+        ((Timestamp) row.get("created_at")).toInstant(),
+        ints(row.get("peaks")),
+        Optional.ofNullable((Timestamp) row.get("resolved_at")).map(Timestamp::toInstant),
+        Optional.ofNullable((UUID) row.get("resolved_by")),
+        Optional.ofNullable((String) row.get("resolution_note")));
+  }
+
+  // ---- reports ------------------------------------------------------------------
+
+  /** One message, as the reader may see it. */
+  public Optional<Message> message(UUID messageId) {
+    return Optional.ofNullable(
+            database.queryOne(
+                "SELECT m.*, v.duration_ms, v.peaks FROM messaging.messages m"
+                    + " LEFT JOIN messaging.voice_notes v ON v.voice_note_id = m.voice_note_id WHERE m.message_id = ?",
+                messageId))
+        .map(JdbcThreadRepository::message);
+  }
+
+  /**
+   * Resolves an open report. Row-level security lets only a dispatcher who
+   * oversees the trip's depot, or the system, do it.
+   *
+   * @return false when it was already resolved, or the reader may not resolve it
+   */
+  public boolean resolve(UUID messageId, UUID by, Optional<String> note, Instant now) {
+    return database.update(
+            "UPDATE messaging.messages SET resolved_at = ?, resolved_by = ?, resolution_note = ?"
+                + " WHERE message_id = ? AND kind = 'report' AND resolved_at IS NULL",
+            Timestamp.from(now), by, note.orElse(null), messageId)
+        > 0;
+  }
+
+  /** Resolves every open report made from this issue, when the issue is resolved. */
+  public int resolveFromIssue(UUID issueId, UUID by, String note, Instant now) {
+    return database.update(
+        "UPDATE messaging.messages SET resolved_at = ?, resolved_by = ?, resolution_note = ?"
+            + " WHERE source_issue_id = ? AND kind = 'report' AND resolved_at IS NULL",
+        Timestamp.from(now), by, note, issueId);
+  }
+
+  static List<Integer> ints(Object value) {
+    if (value == null) {
+      return List.of();
+    }
+    try {
+      Object[] raw = (Object[]) ((Array) value).getArray();
+      List<Integer> out = new java.util.ArrayList<>(raw.length);
+      for (Object o : raw) {
+        out.add(o == null ? 0 : ((Number) o).intValue());
+      }
+      return List.copyOf(out);
+    } catch (SQLException e) {
+      throw new IllegalStateException("unreadable number array", e);
+    }
   }
 
   static List<String> strings(Object value) {

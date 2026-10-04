@@ -184,6 +184,38 @@ public final class MessagePolicy {
     return body;
   }
 
+  /** Longest note a dispatcher may give when resolving a report (R-MSG-07). */
+  public static final int RESOLUTION_MAX = 500;
+
+  /** The note on a resolved report: optional, trimmed, at most {@link #RESOLUTION_MAX}. */
+  public static Optional<String> resolutionNote(String raw) {
+    String note = raw == null ? "" : raw.strip();
+    if (note.length() > RESOLUTION_MAX) {
+      throw rule("note is longer than " + RESOLUTION_MAX + " characters", "R-MSG-07");
+    }
+    return note.isEmpty() ? Optional.empty() : Optional.of(note);
+  }
+
+  /** A voice note's waveform from the phone: at most 64 bars, each 0 to 100. Anything else is dropped. */
+  public static List<Integer> peaks(String raw) {
+    if (raw == null || raw.isBlank()) {
+      return List.of();
+    }
+    String[] parts = raw.split(",");
+    if (parts.length > 64) {
+      return List.of();
+    }
+    List<Integer> out = new java.util.ArrayList<>(parts.length);
+    for (String p : parts) {
+      try {
+        out.add(Math.max(0, Math.min(100, Integer.parseInt(p.strip()))));
+      } catch (NumberFormatException e) {
+        return List.of();
+      }
+    }
+    return List.copyOf(out);
+  }
+
   /** The first line, cut at a word, for a notification. Never the whole message. */
   public static String excerpt(String body) {
     String line = body.strip().lines().findFirst().orElse("");
@@ -195,7 +227,7 @@ public final class MessagePolicy {
   }
 
   /** U+2026, written as an escape so no file encoding can change it. */
-  public static final String ELLIPSIS = "…";
+  public static final String ELLIPSIS = "\u2026";
 
   /** What a raised issue becomes on the trip's thread: its report type and who reported it. */
   public record ReportOf(String reportType, Role reporter) {}

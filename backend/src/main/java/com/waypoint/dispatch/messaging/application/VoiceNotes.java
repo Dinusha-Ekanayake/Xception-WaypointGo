@@ -54,7 +54,8 @@ public class VoiceNotes {
 
   /** Policy has already allowed {@code message:Post} on the thread; this decides scope. */
   public Stored store(
-      Actor actor, UUID threadId, UUID voiceNoteId, String contentType, byte[] content, Optional<Integer> durationMs) {
+      Actor actor, UUID threadId, UUID voiceNoteId, String contentType, byte[] content, Optional<Integer> durationMs,
+      List<Integer> peaks) {
     String type = MessagePolicy.voiceType(contentType, content == null ? 0 : content.length, durationMs);
     String resource = "wpt:message:thread:" + threadId;
     Optional<Stored> stored =
@@ -71,7 +72,7 @@ public class VoiceNotes {
           }
           threads.insertVoice(
               voiceNoteId, threadId, actor.userId(), type, content, durationMs, sha256(content), clock.now(),
-              clock.now().plus(properties.voiceRetention()));
+              clock.now().plus(properties.voiceRetention()), peaks);
           return Optional.of(new Stored(voiceNoteId, false));
         });
     if (stored.isEmpty()) {

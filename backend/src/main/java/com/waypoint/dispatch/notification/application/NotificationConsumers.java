@@ -790,6 +790,10 @@ final class NotificationConsumers {
           new Routed()
               .fact("audience", e.audience()).fact("heading", heading).fact("excerpt", e.excerpt())
               .fact("vehicleId", e.vehicleId()).fact("depotCode", e.depotCode())
+              // A voice message plays its own audio in the inbox, never read aloud by text to speech.
+              .fact("voiceNoteId", e.voiceNoteId()).fact("voiceDurationMs", e.voiceDurationMs())
+              .fact("voicePeaks", e.voicePeaks().isEmpty() ? null : e.voicePeaks().stream().map(String::valueOf)
+                  .collect(java.util.stream.Collectors.joining(",")))
               .on(e.serviceDate().orElse(null))
               .to(ScopeKind.DEPOT, e.depotCode(), "thread", e.threadId());
       e.vehicleId().ifPresent(v -> r.to(ScopeKind.VEHICLE, v, "thread", e.threadId()));

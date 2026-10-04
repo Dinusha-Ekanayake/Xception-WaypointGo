@@ -160,4 +160,21 @@ class MessagePolicyTest {
     assertEquals(Optional.of(Role.STORE_MANAGER), new Membership(false, false, false, List.of("OUT061")).role());
     assertEquals(Optional.empty(), new Membership(false, false, false, List.of()).role());
   }
+
+  @Test
+  void aResolutionNoteIsOptionalAndShort() {
+    assertEquals(Optional.empty(), MessagePolicy.resolutionNote(null));
+    assertEquals(Optional.empty(), MessagePolicy.resolutionNote("   "));
+    assertEquals(Optional.of("Spare fitted"), MessagePolicy.resolutionNote("  Spare fitted "));
+    org.junit.jupiter.api.Assertions.assertThrows(
+        com.waypoint.dispatch.shared.error.DomainException.class, () -> MessagePolicy.resolutionNote("x".repeat(501)));
+  }
+
+  @Test
+  void aWaveformFromThePhoneIsClampedAndAnythingOddIsDropped() {
+    assertEquals(List.of(0, 50, 100), MessagePolicy.peaks("-4, 50,250"));
+    assertEquals(List.of(), MessagePolicy.peaks(null));
+    assertEquals(List.of(), MessagePolicy.peaks("1,two,3"));
+    assertEquals(List.of(), MessagePolicy.peaks(String.join(",", java.util.Collections.nCopies(65, "1"))));
+  }
 }
