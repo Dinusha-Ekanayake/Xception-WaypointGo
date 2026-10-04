@@ -17,13 +17,10 @@ export type DeliveryReportWaitingProps = {
   /** False when this phone cannot ask whether the store has answered. */
   reachable?: boolean;
   busy?: boolean;
-  /** The stop has no photo or signature yet. */
-  proofOwed?: boolean;
   /** Why the driver moved on, in words, once they did. */
   leftBecause?: string | null;
   /** Records the handover: the goods are with the store. */
   onHandOver?: () => void;
-  onAddProof?: () => void;
   /** Asks why, then moves on before the store answered. */
   onContinue?: () => void;
   onEnterPin?: () => void;
@@ -44,10 +41,8 @@ export default function DeliveryReportWaiting({
   answer = null,
   reachable = true,
   busy = false,
-  proofOwed = false,
   leftBecause = null,
   onHandOver,
-  onAddProof,
   onContinue,
   onEnterPin,
   onDisagree,
@@ -295,18 +290,6 @@ export default function DeliveryReportWaiting({
               {phase === "arrived" && (
                 <SlideToConfirm label="Hand over" doneLabel="Handed over" done={busy} isNight={isNight} onConfirm={() => onHandOver?.()} />
               )}
-              {phase === "waiting" && proofOwed && (
-                <button
-                  type="button"
-                  onClick={() => onAddProof?.()}
-                  className={cx(
-                    "w-full h-[56px] rounded-full text-[17px] font-medium flex items-center justify-center transition-all active:scale-[0.99]",
-                    isNight ? "bg-[#3A3A3A] text-white" : "bg-[#B7F2ED] text-black"
-                  )}
-                >
-                  Add photo or signature
-                </button>
-              )}
               {phase === "waiting" && (
                 <button
                   type="button"
@@ -362,7 +345,7 @@ export default function DeliveryReportWaiting({
                   "flex items-center gap-[9px] text-[20px] font-medium leading-[25px] h-[30px] transition-opacity active:opacity-70",
                   isNight ? "text-white" : "text-black"
                 )}
-                aria-label="Back to waiting"
+                aria-label="Go back"
               >
                 <svg width="9" height="14" viewBox="0 0 9 14" fill="none">
                   <path

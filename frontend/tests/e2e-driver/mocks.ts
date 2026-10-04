@@ -310,6 +310,19 @@ export async function handOver(page: Page): Promise<void> {
   await page.mouse.up();
 }
 
+/** Slide a reason across in "Why are you moving on?": a tap does not choose it. */
+export async function slideReason(page: Page, label: string): Promise<void> {
+  const row = page.getByRole("slider", { name: label });
+  await row.click({ trial: true });
+  const box = await row.boundingBox();
+  if (!box) throw new Error(`${label} is not on screen`);
+  const y = box.y + box.height / 2;
+  await page.mouse.move(box.x + 32, y);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width - 16, y, { steps: 18 });
+  await page.mouse.up();
+}
+
 /** The store's answer for a stop: every product received unless `short` units are missing from the first. */
 export function storeAnswer(at: RunSheetStopView, short = 0): ReceiptAnswerView {
   return {

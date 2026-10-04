@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import type { NotificationView } from "@shared/domain/notification";
 import { ago } from "@shared/notifications/inbox";
@@ -48,6 +48,8 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
   const [driving, setDriving] = useState(false);
   const [formFor, setFormFor] = useState<string | null>(null);
   const [pinFor, setPinFor] = useState<Stop | null>(null);
+  // Stable, because the PIN popup closes itself on a timer that restarts whenever this changes.
+  const closePin = useCallback(() => setPinFor(null), []);
   const [revised, setRevised] = useState<NotificationView | null>(null);
   const [talking, setTalking] = useState(false);
   // The stop row last tapped on the route, one shared element with the stop's header (UX polish 4).
@@ -241,8 +243,7 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
                 onToggleTheme={d.theme}
                 onHandOver={() => d.handOver(reporting)}
                 onMoveOn={(reason, note) => d.moveOn(reporting, reason, note)}
-                onVerifyPin={(pin) => d.verifyHandover(reporting, pin)}
-                onAddProof={() => d.go({ name: "stop", deliveryId: reporting.deliveryId })}
+                onEnterPin={() => setPinFor(reporting)}
                 onNext={() => void d.toNextStop()}
                 onProblem={() => d.openProblem(reporting)}
               />
@@ -392,8 +393,14 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
         )}
         <DeliveryPinConfirmModal
           isOpen={pinFor !== null}
-          onClose={() => setPinFor(null)}
-          onVerify={(pin) => d.verifyHandover(pinFor!, pin)}
+          onClose={closePin}
+          // A correct PIN accepts the store's report: the run moves on behind the
+          // "Handover confirmed" popup, with no extra step (issue #21).
+          onVerify={async (pin) => {
+            const answer = await d.verifyHandover(pinFor!, pin);
+            if ("outcome" in answer && (answer.outcome === "VERIFIED" || answer.outcome === "ALREADY_CONFIRMED")) void d.toNextStop();
+            return answer;
+          }}
           isNight={d.dark}
           stopName={pinFor?.outletId ?? ""}
           online={online}

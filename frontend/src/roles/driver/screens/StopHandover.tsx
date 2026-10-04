@@ -1,14 +1,14 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { Sheet } from "@shared/ui";
 import type { StoreAnswerWaiverReason } from "@shared/domain/types";
 import type { Stop } from "../data/run.ts";
 import type { RouteStop } from "../data/stopView.ts";
 import { useStoreAnswer } from "../data/storeAnswer.ts";
-import DeliveryPinConfirmModal, { type HandoverAnswer } from "./DeliveryPinConfirmModal.tsx";
 import { LEAVE_REASONS, handoverPhase, leftBecause } from "../data/handover.ts";
 import DeliveryReportWaiting from "./DeliveryReportWaiting.tsx";
+import { SlideRow } from "./Sheets.tsx";
 
 // Issue #21, store-led handover. At the door the driver hands over; the store
 // checks the load and answers; the driver sees the store's report and accepts it
@@ -28,8 +28,7 @@ export default function StopHandover({
   onToggleTheme,
   onHandOver,
   onMoveOn,
-  onVerifyPin,
-  onAddProof,
+  onEnterPin,
   onNext,
   onProblem,
 }: {
@@ -44,39 +43,28 @@ export default function StopHandover({
   onToggleTheme: () => void;
   onHandOver: () => Promise<boolean>;
   onMoveOn: (reason: StoreAnswerWaiverReason, detail: string) => Promise<boolean>;
-  onVerifyPin: (pin: string) => Promise<HandoverAnswer>;
-  onAddProof: () => void;
+  /** Opens the store manager's PIN; a correct one moves the run on from here. */
+  onEnterPin: () => void;
   onNext: () => void;
   onProblem: () => void;
 }): React.JSX.Element {
   const handedOver = stop.outcome === "DELIVERED" || stop.outcome === "PARTIAL";
-  const [acceptedHere, setAcceptedHere] = useState(false);
   const store = useStoreAnswer(stop.orderId, handedOver && !stop.storeAnswerWaived, online);
   const answer = store.state === "answered" ? store.answer : null;
-  const accepted = acceptedHere || answer?.handover.status === "CONFIRMED";
+  // Accepted on an earlier visit: a correct PIN entered now moves straight on, so it is never seen here.
+  const accepted = answer?.handover.status === "CONFIRMED";
   const phase = handoverPhase(stop, answer !== null, accepted);
 
-  const [pinOpen, setPinOpen] = useState(false);
-  // Stable, because the PIN dialog closes itself on a timer that restarts whenever this changes.
-  const closePin = useCallback(() => setPinOpen(false), []);
   const [asking, setAsking] = useState<"continue" | "disagree" | null>(null);
   const [detail, setDetail] = useState("");
 
-  const verify = async (pin: string): Promise<HandoverAnswer> => {
-    const result = await onVerifyPin(pin);
-    if ("outcome" in result && (result.outcome === "VERIFIED" || result.outcome === "ALREADY_CONFIRMED")) {
-      setAcceptedHere(true);
-      store.refresh();
-    }
-    return result;
-  };
-
-  const leave = async (reason: StoreAnswerWaiverReason) => {
+  const leave = async (reason: StoreAnswerWaiverReason): Promise<boolean> => {
     const ok = await onMoveOn(reason, detail);
     if (ok) {
       setAsking(null);
       setDetail("");
     }
+    return ok;
   };
 
   return (
@@ -85,30 +73,22 @@ export default function StopHandover({
         stops={stops}
         stopIndex={stopIndex}
         syncLabel={syncLabel}
-        onBack={onBack}
+        // Leaving a handed-over stop is a decision (R-EXE-26): Back asks why, the same as Continue.
+        // At the door, once accepted or once the reason is given, Back just goes back.
+        onBack={phase === "waiting" || phase === "answered" ? () => setAsking("continue") : onBack}
         phase={phase}
         answer={answer}
         reachable={store.state !== "unreachable"}
         busy={busy}
-        proofOwed={handedOver && !stop.proofCaptured}
         leftBecause={leftBecause(stop.storeAnswerWaived)}
         onHandOver={() => void onHandOver()}
-        onAddProof={onAddProof}
         onContinue={() => setAsking("continue")}
-        onEnterPin={() => setPinOpen(true)}
+        onEnterPin={onEnterPin}
         onDisagree={() => setAsking("disagree")}
         onNext={onNext}
         onProblem={onProblem}
         isNight={isNight}
         onToggleTheme={onToggleTheme}
-      />
-      <DeliveryPinConfirmModal
-        isOpen={pinOpen}
-        onClose={closePin}
-        onVerify={verify}
-        isNight={isNight}
-        stopName={stop.outletId}
-        online={online}
       />
       {asking !== null && (
         <Sheet
@@ -125,7 +105,7 @@ export default function StopHandover({
             <p className="mt-1 text-[15px] text-go-muted">
               {asking === "disagree"
                 ? "Dispatch gets an issue to sort it out. The stop stays delivered and you carry on."
-                : "The store can still answer after you leave. Dispatch sees why you moved on."}
+                : "The store can still answer after you leave. Dispatch sees why you moved on. Slide a row right to choose it."}
             </p>
           </div>
           {asking === "disagree" ? (
@@ -150,17 +130,19 @@ export default function StopHandover({
               </button>
             </>
           ) : (
+            // As Report a problem: a reason is slid across, so a stray tap never sends one.
             <div className="flex flex-col gap-2.5">
               {LEAVE_REASONS.map((option) => (
-                <button
+                <SlideRow
                   key={option.reason}
-                  type="button"
+                  label={option.label}
                   disabled={busy}
-                  onClick={() => (option.reason === "disagree" ? setAsking("disagree") : void leave(option.reason))}
-                  className="flex min-h-[60px] w-full items-center rounded-full bg-go-surface px-5 text-left text-[17px] font-medium text-go-ink active:scale-[0.99] disabled:opacity-60"
-                >
-                  {option.label}
-                </button>
+                  onSend={async () => {
+                    if (option.reason !== "disagree") return leave(option.reason);
+                    setAsking("disagree");
+                    return true;
+                  }}
+                />
               ))}
             </div>
           )}

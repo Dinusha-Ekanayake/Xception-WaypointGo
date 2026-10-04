@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { arrive, handOver, serve, startTrip, stop, storeAnswer } from "./mocks.ts";
+import { arrive, handOver, serve, slideReason, startTrip, stop, storeAnswer } from "./mocks.ts";
 
 // Issue #117 and #21: the store answers a handed-over delivery, the driver sees
 // the store's report and accepts it with the store manager's PIN. The PIN is
@@ -36,9 +36,9 @@ test("the driver accepts the store's report with the store manager's PIN, and a 
     { orderId: server.stops[0]!.orderId, pin: "4821" },
   ]);
 
-  await expect(page.getByText("Accepted with the store's PIN")).toBeVisible();
-  await page.getByRole("button", { name: "Next stop" }).click();
+  // A correct PIN moves the run on by itself, behind the confirmation: no Next stop to tap.
   await expect(page.getByRole("heading", { name: "Run complete" })).toBeVisible();
+  await expect(pin).toHaveCount(0);
 });
 
 test("before the store answers there is no PIN to enter, and the driver moves on saying why", async ({ page }) => {
@@ -49,7 +49,7 @@ test("before the store answers there is no PIN to enter, and the driver moves on
   await expect(page.getByRole("button", { name: "Enter PIN to accept" })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Continue to next stop" }).click();
-  await page.getByRole("button", { name: "Store manager not available" }).click();
+  await slideReason(page, "Store manager not available");
   await expect(page.getByRole("heading", { name: "Run complete" })).toBeVisible();
   expect(server.commands.filter((c) => c.kind === "delivery:Record")).toHaveLength(1);
   expect(server.commands.find((c) => c.kind === "delivery:LeaveWithoutStoreAnswer")!.payload).toMatchObject({ reason: "store_absent" });
@@ -78,4 +78,22 @@ test("Home shows the driver's real notifications and marks them read", async ({ 
 
   await page.getByRole("button", { name: "1 new. Mark all read" }).click();
   await expect.poll(() => server.commands.some((c) => c.kind.startsWith("notification:"))).toBe(true);
+});
+
+test("Back from a handed-over stop asks why, so the stop is never left without a reason", async ({ page }) => {
+  const server = await serve(page);
+  await page.goto("/");
+  await deliver(page);
+  await expect(page.getByText("Waiting for store confirmation")).toBeVisible();
+
+  await page.getByRole("button", { name: "Go back" }).click();
+  const why = page.getByRole("dialog", { name: "Why are you moving on?" });
+  await why.getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByText("Waiting for store confirmation")).toBeVisible();
+  expect(server.commands.some((c) => c.kind === "delivery:LeaveWithoutStoreAnswer")).toBe(false);
+
+  await page.getByRole("button", { name: "Go back" }).click();
+  await slideReason(page, "Store manager not available");
+  await expect(page.getByRole("heading", { name: "OUT0202" })).toBeVisible();
+  expect(server.stops[0]!.storeAnswerWaived).toBe("store_absent");
 });

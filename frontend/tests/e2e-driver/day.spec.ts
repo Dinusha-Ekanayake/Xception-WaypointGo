@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { arrive, handOver, serve, startTrip, stop, storeAnswer } from "./mocks.ts";
+import { arrive, handOver, serve, slideReason, startTrip, stop, storeAnswer } from "./mocks.ts";
 
 test("a stop worked with no signal survives a reload and is sent once, in order, when the signal returns", async ({ page, context }) => {
   const server = await serve(page);
@@ -17,7 +17,7 @@ test("a stop worked with no signal survives a reload and is sent once, in order,
   await expect(page.getByText("Waiting for store confirmation")).toBeVisible();
   await expect(page.getByText(/cannot reach Waypoint/)).toBeVisible();
   await page.getByRole("button", { name: "Continue to next stop" }).click();
-  await page.getByRole("button", { name: "No signal to see the store's report" }).click();
+  await slideReason(page, "No signal to see the store's report");
   await expect(page.getByRole("heading", { name: "OUT0202" })).toBeVisible();
   expect(server.commands).toHaveLength(0);
 
@@ -65,14 +65,13 @@ test("with a signal, the store's report reaches the driver, who accepts it with 
   await pin.getByLabel("Store manager PIN").fill("4821");
   await pin.getByRole("button", { name: "Confirm" }).click();
   await expect(pin).toContainText("Handover confirmed");
-  await expect(page.getByText("Accepted with the store's PIN")).toBeVisible();
-
   expect(server.batches).toBe(0);
   expect(server.commands.map((c) => c.kind)).toEqual(["delivery:Start", "delivery:RecordArrival", "delivery:Record", "receipt:VerifyHandover"]);
   expect(server.commands[2]!.payload).toMatchObject({ outcome: "DELIVERED", deliveredUnits: null });
 
-  await page.getByRole("button", { name: "Next stop" }).click();
+  // A correct PIN moves the run on by itself, behind the confirmation: no Next stop to tap.
   await expect(page.getByRole("heading", { name: "Run complete" })).toBeVisible();
+  await expect(pin).toHaveCount(0);
   await expect(page.getByText("1 of 1")).toBeVisible();
 });
 

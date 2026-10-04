@@ -4,21 +4,24 @@ import { useEffect, useRef, useState } from "react";
 import type { FailureReason } from "@shared/domain/types";
 import type { Sender } from "@shared/messaging/senders";
 import { newId, postCommand, useTripThread } from "@shared/messaging/useThread";
-import { useRecorder } from "@shared/messaging/recorder";
+import { VOICE_MAX_MS, useRecorder } from "@shared/messaging/recorder";
+import { countdown } from "@shared/wording";
 import { Sheet } from "@shared/ui";
 import type { Stop } from "../data/run.ts";
 import { ActionButton, Banner, OutlineButton, SoftButton } from "../ui.tsx";
 
 // The driver's sheets: Figma "Driver: Report a problem", "Sign out: confirm"
 // and the confirmed popup. A row sends when it is slid across, so a tap does
-// not. A voice note starts on a tap and sends itself at 15 seconds. The sent
+// not. A voice note starts on a tap; a second tap sends it, and it sends itself
+// at the longest a voice note may be (two minutes, R-MSG-06). The sent
 // card closes on Okay, or on its own after a few seconds.
 
 export type Problem =
   | { kind: "report"; fault: "road" | "vehicle"; description: string }
   | { kind: "not-delivered"; reason: FailureReason };
 
-const VOICE_MS = 15_000;
+/** The longest report: the limit every voice note has, on the phone and on the server. */
+const VOICE_MS = VOICE_MAX_MS;
 /** The slide handle's size and its inset in the row, in px. */
 const HANDLE = 52;
 const INSET = 6;
@@ -32,7 +35,7 @@ const CHOICES: Array<{ id: string; label: string; problem: () => Problem; onStop
 ];
 
 /** A row that sends only when slid across. Arrow right or Enter does the same for a keyboard. */
-function SlideRow({ label, disabled, onSend }: { label: string; disabled: boolean; onSend: () => Promise<boolean> }): React.JSX.Element {
+export function SlideRow({ label, disabled, onSend }: { label: string; disabled: boolean; onSend: () => Promise<boolean> }): React.JSX.Element {
   const track = useRef<HTMLDivElement>(null);
   const [x, setX] = useState(0);
   const dragging = useRef(false);
@@ -175,7 +178,7 @@ export function ProblemSheet({
     const note = recorder.state.status === "recording" ? await recorder.stop() : recorder.state.status === "ready" ? recorder.state.recording : null;
     if (!note) {
       sending.current = false;
-      setVoiceError("That was too short to send. Tap and speak, and it sends at 15 seconds.");
+      setVoiceError("That was too short to send. Tap and speak, then tap again to send it.");
       return;
     }
     const threadId = thread.data?.threadId ?? null;
@@ -263,7 +266,7 @@ export function ProblemSheet({
           </span>
         </span>
         <span className="text-[18px] font-medium text-go-ink">
-          {recording ? `Recording · ${Math.ceil((VOICE_MS - elapsed) / 1000)}s` : "Tap to record"}
+          {recording ? `Recording · ${countdown(Math.ceil((VOICE_MS - elapsed) / 1000))} left · tap to send` : "Tap to record"}
         </span>
       </button>
       {mic && <p className="text-[14px] text-go-muted">{mic}</p>}

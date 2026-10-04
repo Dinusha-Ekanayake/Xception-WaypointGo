@@ -49,7 +49,7 @@ The team's delivery flow, as planned with the Figma screens (`0106d70`) and lost
 | Step | Driver | Store manager | Backend (exists unless marked new) |
 | --- | --- | --- | --- |
 | 1 | Slides **I've arrived** | Told the truck is at the door | `delivery:RecordArrival`, `delivery.started` routed to the outlet |
-| 2 | Taps **Hand over** (the order's units, prefilled; proof optional) | Told the delivery is ready to check | `delivery:Record` DELIVERED, `delivery.completed` routed to the outlet, receipt opens `pending` |
+| 2 | Taps **Hand over** (the order's units, prefilled; no photo or signature step: the store's report and PIN are the evidence) | Told the delivery is ready to check | `delivery:Record` DELIVERED, `delivery.completed` routed to the outlet, receipt opens `pending` |
 | 3 | Sees **Waiting for store confirmation**; may **Continue to next stop** at any time | Fills the checklist per product: received, short, damaged; sends | `receipt:Confirm` or `receipt:Dispute`; a short answer raises the shortage investigation (R-RCP-07) |
 | 4 | Sees **the store's report**: per product, ordered and received, and the store's note | Is shown the four-digit PIN once | PIN issued with the answer (R-RCP-09) |
 | 5 | Enters the PIN to **accept**, or skips | | `receipt:VerifyHandover` |

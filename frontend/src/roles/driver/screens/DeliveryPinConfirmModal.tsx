@@ -6,7 +6,8 @@ import { cx } from "@shared/ui";
 // The store's one-time handover PIN (R-RCP-09, issue #117). The store manager
 // reads it from their screen and the driver types it here; the server checks
 // it. It is evidence that the two met, never a gate: the delivery is already
-// recorded, so Skip is always there and no answer holds the driver up.
+// recorded. There is no Skip here: tapping outside closes it, back on the
+// store's report, where the driver accepts, disagrees or moves on with a reason.
 
 export type HandoverAnswer =
   | { outcome: "VERIFIED" | "ALREADY_CONFIRMED" | "WRONG" | "LOCKED" | "EXPIRED"; attemptsLeft: number }
@@ -14,7 +15,7 @@ export type HandoverAnswer =
 
 export type DeliveryPinConfirmModalProps = {
   isOpen: boolean;
-  /** Skip, or done: the driver moves on either way. */
+  /** Closed, or done: back to the store's report. */
   onClose: () => void;
   onVerify: (pin: string) => Promise<HandoverAnswer>;
   isNight?: boolean;
@@ -152,9 +153,12 @@ export default function DeliveryPinConfirmModal({
               {checking ? "Checking…" : "Confirm"}
             </button>
           )}
-          <button type="button" onClick={onClose} className="text-[16px] underline">
-            {finished || !online ? "Continue" : "Skip"}
-          </button>
+          {/* Only when the PIN can no longer be entered here: locked, expired, or no signal. */}
+          {(finished || !online) && (
+            <button type="button" onClick={onClose} className="text-[16px] underline">
+              Close
+            </button>
+          )}
         </div>
       )}
 
