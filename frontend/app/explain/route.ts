@@ -30,7 +30,7 @@ const SYSTEM = [
 ].join(" ");
 
 // The long dashes a model likes to write, built from their codes so this file holds none.
-const DASHES = new RegExp("\s*[" + String.fromCharCode(0x2013, 0x2014) + "]\s*", "g");
+const DASHES = new RegExp(" *[" + String.fromCharCode(0x2013, 0x2014) + "] *", "g");
 
 const numbers = (text: string) => text.match(/\d+(?:[.:]\d+)?/g) ?? [];
 
