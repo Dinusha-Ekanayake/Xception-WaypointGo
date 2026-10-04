@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-10-04 - keep scheduled jobs off during integration tests
+
+`dev` · @ranathungaWK
+
+Disable scheduled jobs in the shared Spring test configuration.
+Why: a job tried to open the application pool before migrations created `waypoint_app`, causing SyncIntegrationTest bootstrap and its later login checks to fail.
+Verified: the CI log identified the startup race; the next dev run will verify the change.
+
 ## 2026-10-04 - restore direct MCP admin route
 
 `dev` · @ranathungaWK
