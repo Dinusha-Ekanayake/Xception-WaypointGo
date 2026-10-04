@@ -51,6 +51,7 @@ export default function ExplainSheet({ explanation, onClose }: { explanation: Ex
         </Part>
       )}
 
+      {explanation.canPlace && (
       <Part title="Where it could go">
         {fits === null ? (
           <p className="text-[13px] text-go-secondary">Checking every vehicle…</p>
@@ -74,6 +75,7 @@ export default function ExplainSheet({ explanation, onClose }: { explanation: Ex
           </ul>
         )}
       </Part>
+      )}
 
       <Part title="What you can do">
         <p className="text-[13px] text-go-ink">{explanation.next}</p>

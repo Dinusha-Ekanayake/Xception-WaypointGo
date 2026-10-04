@@ -44,3 +44,38 @@ test("the same facts always give the same explanation", () => {
   const places = [place("VEH001", true)];
   assert.deepEqual(explainDeferral({ ...input, places }), explainDeferral({ ...input, places }));
 });
+
+// The whole plan, explained from its own allocations.
+import { explainPlan } from "../src/roles/dispatcher/data/explain.ts";
+
+const a = (decision: string, bindingRule: string | null, source = "ENGINE") => ({ decision, bindingRule, reason: "the planner's reason", source }) as never;
+const plan = (status: string, allocations: never[]) => ({ depotCode: "PELIYAGODA", status, trips: [{ vehicleId: "VEH001" }, { vehicleId: "VEH001" }, { vehicleId: "VEH002" }], allocations });
+
+test("a plan says what it carries and groups the orders left off by reason, most first", () => {
+  const e = explainPlan({
+    plan: plan("DRAFT", [a("SERVED", null), a("SERVED", null), a("DEFERRED", "R-PLN-06"), a("DEFERRED", "R-PLN-06"), a("DEFERRED", "R-PLN-13"), a("UNSERVABLE", "R-PLN-22"), a("SERVED", null, "OVERRIDE")]),
+    day: "Mon 5 Oct",
+    notes: ["The second pass placed two more orders."],
+  });
+  assert.equal(e.carries, "3 orders are placed on 3 trips across 2 vehicles.");
+  assert.equal(e.leftOff[0]?.count, 2);
+  assert.ok(!e.leftOff[0]!.label.startsWith("R-"));
+  assert.equal(e.cannotBeServed, 1);
+  assert.match(e.byHand ?? "", /1 order was decided by hand/);
+  assert.deepEqual(e.notes, ["The second pass placed two more orders."]);
+  assert.match(e.next, /3 orders still need a decision/);
+});
+
+test("a plan with nothing left off can be published, and a published one says who works from it", () => {
+  assert.match(explainPlan({ plan: plan("DRAFT", [a("SERVED", null)]), day: "Mon 5 Oct", notes: [] }).next, /can be published/);
+  const published = explainPlan({ plan: plan("PUBLISHED", [a("SERVED", null)]), day: "Mon 5 Oct", notes: [] });
+  assert.match(published.headline, /published plan/);
+  assert.match(published.next, /Loaders and drivers/);
+});
+
+test("an order that can no longer be placed says it stays deferred, and never 'still checking'", () => {
+  const e = explainDeferral({ ...input, allocation: { ...allocation, reason: "arrived after the plan was published" }, places: null, canPlace: false });
+  assert.equal(e.canPlace, false);
+  assert.match(e.next, /stays deferred/);
+  assert.equal(e.reason, "Arrived after the plan was published");
+});

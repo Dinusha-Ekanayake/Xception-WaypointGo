@@ -21,3 +21,16 @@ test("Explain this decision says why the order was not placed and what can be do
   await page.keyboard.press("Escape");
   await expect(sheet).toHaveCount(0);
 });
+
+test("Explain this plan says what the plan carries and why orders were left off", async ({ page }) => {
+  await serve(page, { draft: draftPlan() });
+  await page.goto("/#/plan");
+  await page.getByRole("button", { name: "Explain this plan" }).click();
+
+  const sheet = page.getByRole("dialog", { name: "This plan explained" });
+  await expect(sheet).toContainText("placed on");
+  await expect(sheet.getByRole("heading", { name: "Orders left off, and why" })).toBeVisible();
+  await expect(sheet.getByRole("heading", { name: "What comes next" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(sheet).toHaveCount(0);
+});
