@@ -271,7 +271,8 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
-      # No build here: every browser suite runner builds the same commit.
+      # The browser runners build too, but they can be paused (below).
+      - run: npm run build
 
   # Every role's screens in a real browser (#120), each suite against the
   # production build with its API mocked, so no backend is needed. One runner
@@ -281,7 +282,9 @@ jobs:
   browser:
     name: Browser suite (${{ matrix.suite.name }})
     needs: changes
-    if: needs.changes.outputs.frontend == 'true'
+    # Paused while the repository variable BROWSER_SUITES is "off"; delete the
+    # variable (or set it to anything else) to run them again.
+    if: needs.changes.outputs.frontend == 'true' && vars.BROWSER_SUITES != 'off'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
