@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-10-04 - restore direct MCP admin route
+
+`dev` · @ranathungaWK
+
+Keep `#assistants` directly addressable for the live MCP administration screen without adding it to the admin sidebar.
+Why: the existing Playwright flow and MCP controls still use this route after the navigation tab was removed.
+Verified: frontend typecheck and production build passed. The local browser test could not start because Playwright Chromium is not installed; CI will exercise it.
+
 ## 2026-10-04 - group trips and remove admin endpoint labels
 
 `dev` · @ranathungaWK

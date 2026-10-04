@@ -14,12 +14,13 @@ import { TripsScreen, type TripsSubTab } from "./TripsScreen";
 import { CatalogueScreen, PeopleScreen, PersonasScreen } from "./screens";
 import { ActionsScreen } from "./RoleActionScreens";
 import { AuditConsole } from "./audit/AuditConsole";
+import AssistantsConsole from "../assistants/AssistantsConsole";
 import { fetchRoles, fetchActions } from "../data/access";
 import { fetchAccounts, fetchAccount, accountToMember, submitCreateUser, submitGrantScope } from "../data/accounts";
 import type { RoleView, ActionView } from "@shared/domain/identity";
 import "./access-demo.css";
 
-type Tab = "people" | "personas" | "actions" | "catalogue" | "history" | "audit" | "forecasts" | "vehicles" | "depots" | "outlets" | "orders" | "trips" | "trips_planned" | "trips_live";
+type Tab = "people" | "personas" | "actions" | "catalogue" | "history" | "audit" | "assistants" | "forecasts" | "vehicles" | "depots" | "outlets" | "orders" | "trips" | "trips_planned" | "trips_live";
 type Route = { tab: Tab; member: string | null; persona: Persona | null };
 type Draft = { target: "member" | "persona"; id: string; action: string; choice: Decision; reason: string; place: string; expires: string; stage: "edit" | "review" };
 type Details = { capability: Capability; member?: Member; persona?: Persona };
@@ -37,7 +38,7 @@ const DEFAULT_ADMIN: Member = {
 function routeFromHash(): Route {
   if (typeof window === "undefined") return { tab: "people", member: null, persona: null };
   const [rawTab, id] = window.location.hash.replace(/^#\/?/, "").split("/");
-  const tab: Tab = rawTab === "roles" ? "personas" : (rawTab === "personas" || rawTab === "actions" || rawTab === "catalogue" || rawTab === "history" || rawTab === "audit" || rawTab === "forecasts" || rawTab === "vehicles" || rawTab === "depots" || rawTab === "outlets" || rawTab === "orders" || rawTab === "trips" || rawTab === "trips_planned" || rawTab === "trips_live" ? rawTab : "people");
+  const tab: Tab = rawTab === "roles" ? "personas" : (rawTab === "personas" || rawTab === "actions" || rawTab === "catalogue" || rawTab === "history" || rawTab === "audit" || rawTab === "assistants" || rawTab === "forecasts" || rawTab === "vehicles" || rawTab === "depots" || rawTab === "outlets" || rawTab === "orders" || rawTab === "trips" || rawTab === "trips_planned" || rawTab === "trips_live" ? rawTab : "people");
   return { tab, member: tab === "people" && id || null, persona: tab === "personas" && PERSONAS.some((item) => item.id === id && item.id !== "super_admin") ? id as Persona : null };
 }
 
@@ -71,6 +72,7 @@ const TITLES: Record<Tab, [string, string]> = {
   people: PEOPLE, personas: PEOPLE, catalogue: PEOPLE, history: PEOPLE,
   actions: ["Actions", "Action catalogue entries."],
   audit: ["Audit console", "Review access changes across the operation."],
+  assistants: ["AI assistants", "Review connected assistant apps, their activity, and access."],
   forecasts: ["Forecasts", "See order demand and fleet needs."],
   vehicles: ["Vehicles", "Review fleet by depot and day status."],
   depots: ["Operating depots", "Operational hub assignments connecting people, vehicle fleet capacity, and served retail outlets."],
@@ -288,6 +290,7 @@ export default function AccessDemo({ displayName = "Administrator" }: { displayN
       {route.tab === "catalogue" && <CatalogueScreen state={state} actions={{ onDetails: showDetails, onEdit: openEditor }} />}
       {route.tab === "history" && <AuditConsole key="permission-history" changes={state.history} viewer={viewer} focused />}
       {route.tab === "audit" && <AuditConsole key="audit-console" changes={state.history} viewer={viewer} />}
+      {route.tab === "assistants" && <AssistantsConsole />}
       {route.tab === "depots" && <DepotsScreen state={state} onNavigateTab={(target) => navigate(target)} onSelectMember={(id) => navigate("people", id)} />}
       {route.tab === "outlets" && <OutletsScreen state={state} onNavigateTab={(target) => navigate(target)} />}
       {route.tab === "orders" && <OrdersScreen state={state} onNavigateTab={(target) => navigate(target)} />}
