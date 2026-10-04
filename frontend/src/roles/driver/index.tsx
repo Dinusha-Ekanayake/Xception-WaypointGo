@@ -141,6 +141,7 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
               onSignOut={d.askSignOut}
               onToggleTheme={d.theme}
               isNight={d.dark}
+              {...(d.tripId ? { onMessages: openMessages, unreadMessages: unread.length } : {})}
             />
           </div>
         )}
@@ -154,6 +155,7 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
           <div key={screen} className="absolute inset-0 animate-fade-in supports-[view-transition-name:none]:animate-none short:overflow-y-auto">
             {screen === "home" && (
               <HomeNoVehicle
+                {...(d.tripId ? { onOpenMessages: openMessages } : {})}
                 driverName={displayName}
                 depotName={depot}
                 vehicle={run.vehicle}
@@ -275,17 +277,6 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
         <div className={cx("absolute inset-x-0 z-40 flex flex-col gap-2 px-5 pointer-events-none", header ? "top-[78px]" : "top-[84px]")}>
           {/* The shell's sync badge opens writes the server refused, for review; MCP is in Settings (#177). */}
           <div className="pointer-events-auto flex items-center justify-end gap-2 empty:hidden">
-            {(screen === "home" || screen === "route") && d.tripId && (
-              <button
-                type="button"
-                onClick={openMessages}
-                aria-label={unread.length > 0 ? `Messages, ${unread.length} new` : "Messages"}
-                className="flex min-h-10 items-center gap-2 rounded-full bg-go-card px-4 text-[14px] font-medium text-go-ink shadow-go-card"
-              >
-                Messages
-                {unread.length > 0 && <span className="min-w-5 rounded-full bg-go-danger px-1.5 text-center text-[12px] text-white">{unread.length > 99 ? "99+" : unread.length}</span>}
-              </button>
-            )}
             {shell?.sync}
           </div>
           {run.expired && !run.loading ? (

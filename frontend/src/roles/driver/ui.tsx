@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { PRESS, SettingsPanel, Spinner, cx, initialsOf } from "@shared/ui";
+import { ChatIcon, PRESS, SettingsPanel, Spinner, cx, initialsOf } from "@shared/ui";
 
 /** Waveform bar heights exactly copied from the Figma specification */
 export const WAVEFORM_HEIGHTS = [
@@ -167,6 +167,8 @@ export function DriverMorphHeader({
   onSignOut,
   onToggleTheme,
   isNight = false,
+  onMessages,
+  unreadMessages = 0,
 }: {
   activeScreen: "home" | "route-next-stop" | "route-map";
   /** Whether this phone is in step with the server, in words. */
@@ -179,6 +181,9 @@ export function DriverMorphHeader({
   onSignOut?: () => void;
   onToggleTheme?: () => void;
   isNight?: boolean;
+  /** The trip's thread (issue #136): an icon beside the theme, on every screen with a trip. */
+  onMessages?: () => void;
+  unreadMessages?: number;
 }): React.JSX.Element {
   const isHome = activeScreen === "home";
   const isRoute = activeScreen === "route-next-stop";
@@ -290,6 +295,27 @@ export function DriverMorphHeader({
             </span>
           </div>
         </div>
+
+        {/* Messages on the trip's thread, with the count of new ones (issue #136). */}
+        {onMessages && (
+          <button
+            type="button"
+            onClick={onMessages}
+            className={cx(
+              "relative w-[43px] h-[43px] rounded-full flex items-center justify-center border shadow-[0_5px_20px_rgba(0,0,0,0.09)] active:scale-95 transition-all shrink-0",
+              isNight ? "bg-[#292929] border-[#383838] text-white hover:bg-[#333333]" : "bg-white border-[#dfe7e6] text-black hover:bg-slate-50"
+            )}
+            title="Messages"
+            aria-label={unreadMessages > 0 ? `Messages, ${unreadMessages} new` : "Messages"}
+          >
+            <ChatIcon className="size-[21px]" />
+            {unreadMessages > 0 && (
+              <span aria-hidden className="absolute -top-1 -right-1 min-w-[19px] h-[19px] rounded-full bg-[#E5484D] px-1 text-[11px] font-semibold leading-[19px] text-white text-center ring-2 ring-[#E7F3F2]">
+                {unreadMessages > 99 ? "99+" : unreadMessages}
+              </span>
+            )}
+          </button>
+        )}
 
         {/* 3. Theme toggle button - strictly stationary, NO slide, NO scale */}
         <button

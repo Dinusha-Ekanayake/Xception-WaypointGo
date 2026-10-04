@@ -69,3 +69,42 @@ test("with no signal a typed message is kept on the phone and sent when the sign
   await server.goOnline(context);
   await expect.poll(() => server.commands.find((c) => c.kind === "message:Post")?.payload.body).toBe("Signal gone near Deniyaya");
 });
+
+/** Half a second of a quiet tone, as a WAV file the browser can play and decode. */
+function wav(): Buffer {
+  const rate = 8000, n = 4000, data = Buffer.alloc(n * 2);
+  for (let i = 0; i < n; i++) data.writeInt16LE(Math.round(Math.sin(i / 6) * 8000 * (i / n)), i * 2);
+  const head = Buffer.alloc(44);
+  head.write("RIFF", 0); head.writeUInt32LE(36 + data.length, 4); head.write("WAVE", 8); head.write("fmt ", 12);
+  head.writeUInt32LE(16, 16); head.writeUInt16LE(1, 20); head.writeUInt16LE(1, 22); head.writeUInt32LE(rate, 24);
+  head.writeUInt32LE(rate * 2, 28); head.writeUInt16LE(2, 32); head.writeUInt16LE(16, 34); head.write("data", 36);
+  head.writeUInt32LE(data.length, 40);
+  return Buffer.concat([head, data]);
+}
+
+test("a voice message under the driver's notifications plays the voice itself, never text to speech", async ({ page }) => {
+  const server = await serve(page);
+  server.threads = [tripThread(TRIP, "VEH043", ["OUT0101"], "driver")];
+  server.notifications = [
+    {
+      notificationId: "n-voice", eventType: "message.posted", title: "Dinusha Bawantha · VEH043", body: "Voice message",
+      subjectType: "thread", subjectId: `thread-${TRIP}`, createdAt: new Date().toISOString(), readAt: null,
+      facts: { voiceNoteId: "voice-1", voiceDurationMs: "500", voicePeaks: "20,60,100,40" },
+    } as never,
+  ];
+  await page.route(`**/api/threads/thread-${TRIP}/voice/voice-1`, (route) => route.fulfill({ status: 200, contentType: "audio/wav", body: wav() }));
+  await page.goto("/");
+
+  // The top bar carries Messages as an icon, with the count of new ones.
+  await expect(page.getByRole("button", { name: "Messages, 1 new" })).toBeVisible();
+
+  const note = page.getByRole("group", { name: /^Voice message from/ });
+  await expect(note).toBeVisible();
+  await expect(note.locator("[role=slider] > span")).toHaveCount(4);
+  await note.getByRole("button", { name: "Play", exact: true }).click();
+  await expect(note.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
+  // The position moves with the audio, then rests at the start when it ends.
+  await expect(note.getByRole("button", { name: "Play", exact: true })).toBeVisible({ timeout: 4000 });
+  const spoke = await page.evaluate(() => (window.speechSynthesis ? window.speechSynthesis.speaking : false));
+  expect(spoke).toBe(false);
+});
