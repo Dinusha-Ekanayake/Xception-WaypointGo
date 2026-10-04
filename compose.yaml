@@ -47,13 +47,27 @@ services:
     environment:
       DATABASE_URL: postgresql://waypoint_app:${APP_DB_PASSWORD:-local-testing-only-app}@db:5432/waypoint
       MIGRATION_DATABASE_URL: postgresql://waypoint:${POSTGRES_PASSWORD:-local-testing-only}@db:5432/waypoint
-      SEED_PASSWORD: ${SEED_PASSWORD:-Waypoint2026!}
+      SEED_PASSWORD: ${SEED_PASSWORD:-123456789123}
     command: ["sh", "/app/compose-init.sh"]
     volumes:
       - ./scripts/compose-init.sh:/app/compose-init.sh:ro
+      - ./scripts/seed-demo-accounts.sh:/app/seed-demo-accounts.sh:ro
+      - ./scripts/demo-accounts.csv:/app/demo-accounts.csv:ro
     depends_on:
       db:
         condition: service_healthy
+    restart: "no"
+  # Local demo data the init commands do not cover: see scripts/seed-demo.sql.
+  seed:
+    image: postgres:16-bookworm
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:-local-testing-only}
+    command: ["psql", "-h", "db", "-U", "waypoint", "-d", "waypoint", "-v", "ON_ERROR_STOP=1", "-f", "/seed/seed-demo.sql"]
+    volumes:
+      - ./scripts/seed-demo.sql:/seed/seed-demo.sql:ro
+    depends_on:
+      init:
+        condition: service_completed_successfully
     restart: "no"
   backend:
     labels:
@@ -99,6 +113,8 @@ services:
       - waypoint-proofs:/var/lib/waypoint/proofs
     depends_on:
       init:
+        condition: service_completed_successfully
+      seed:
         condition: service_completed_successfully
     restart: unless-stopped
     healthcheck:
