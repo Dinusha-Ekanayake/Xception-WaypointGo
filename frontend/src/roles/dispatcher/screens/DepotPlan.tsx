@@ -171,6 +171,8 @@ export default function DepotPlan({
     reread();
     setViewing(null);
     setTab("decide");
+    // The new plan explains itself as soon as it is made.
+    setExplaining(true);
   };
   /** Generates for the depots with no plan yet, or plans again those with a draft. */
   const generate = async (keepDecisions: boolean, only?: string[]) => {
