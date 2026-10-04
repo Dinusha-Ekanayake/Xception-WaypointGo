@@ -2,7 +2,7 @@
 
 import type { Resource } from "@shared/api/useResource";
 import type { VehicleView } from "@shared/domain/types";
-import { Card, CardHead, LinkAction, Pending, cx } from "@shared/ui";
+import { Card, CardHead, LinkAction, Notice, Pending, PrimaryButton, cx } from "@shared/ui";
 import PageHeader from "../PageHeader.tsx";
 import FleetError from "./FleetError.tsx";
 import { NotificationRows } from "../NotificationsPanel.tsx";
@@ -10,8 +10,8 @@ import { useDispatcherInbox } from "../inbox.tsx";
 import Refusal from "./Refusal.tsx";
 import { OrdersCard, SummaryCard } from "./OverviewCards.tsx";
 import { summarise } from "../data/fleet.ts";
-import { depotStamp, depotToday, greeting } from "../data/scope.ts";
-import { useIssues, useOrders } from "../data/useDay.ts";
+import { dayLabel, depotStamp, depotToday, greeting } from "../data/scope.ts";
+import { useIssues, useNextOrderDay, useOrders } from "../data/useDay.ts";
 import type { ViewId } from "../navigation.ts";
 
 // Figma "02 Overview": today's depot at a glance, every tile from the module
@@ -29,6 +29,7 @@ export default function Overview({
   fleet,
   online,
   onNavigate,
+  onPlanDay,
 }: {
   displayName: string;
   depots: string[];
@@ -40,10 +41,16 @@ export default function Overview({
   fleet: Resource<VehicleView[]>;
   online: boolean;
   onNavigate: (view: ViewId) => void;
+  /** Opens Plan on a given day. */
+  onPlanDay?: (date: string) => void;
 }): React.JSX.Element {
   const summary = fleet.data ? summarise(fleet.data) : null;
   const today = depotToday();
   const orders = useOrders(depots, today);
+  // Nothing due today (a Sunday, a holiday): point at the next day with orders
+  // waiting, as the Plan screen does (UX plan U7).
+  const nothingToday = orders.data !== null && orders.data.length === 0;
+  const nextDay = useNextOrderDay(depots, today, nothingToday);
   const issues = useIssues(depots);
 
   return (
@@ -59,6 +66,15 @@ export default function Overview({
 
       <div className="flex min-h-0 w-full flex-1 gap-5 max-lg:flex-col">
         <div className="flex min-w-0 flex-1 flex-col gap-5">
+          {nothingToday && nextDay.data && (
+            <Notice
+              tone="info"
+              title="Nothing is due today"
+              action={onPlanDay && <PrimaryButton onClick={() => onPlanDay(nextDay.data!.date)}>Plan {dayLabel(nextDay.data.date)}</PrimaryButton>}
+            >
+              {nextDay.data.waiting} {nextDay.data.waiting === 1 ? "order waits" : "orders wait"} for {dayLabel(nextDay.data.date)}.
+            </Notice>
+          )}
           <OrdersCard depots={depots} orders={orders.data} error={orders.error} scopeLabel={scopeLabel} onNavigate={onNavigate} />
           <SummaryCard depots={depots} scope={scope} depotFilter={depotFilter} onDepotFilter={onDepotFilter} issues={issues.data} onNavigate={onNavigate} />
         </div>
@@ -114,7 +130,7 @@ function RecentNotifications({ onNavigate }: { onNavigate: (view: ViewId) => voi
         action={ctx && <LinkAction onClick={() => ctx.setOpen(true)}>View all</LinkAction>}
       />
       {items.length === 0 ? (
-        <p className="text-sm text-go-secondary">{ctx?.inbox.loading ? "Loading…" : "No notifications yet."}</p>
+        <p className="text-sm text-go-secondary">{ctx?.inbox.loading ? "Loading…" : "No notifications yet. Deferrals, releases, issues and store messages appear here as they happen."}</p>
       ) : (
         <NotificationRows items={items} onNavigate={onNavigate} limit={3} />
       )}

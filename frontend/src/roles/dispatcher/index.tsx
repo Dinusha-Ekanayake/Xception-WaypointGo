@@ -91,7 +91,7 @@ export default function Dispatcher({
         {scope.length === 0 ? (
           <p className="text-sm text-go-secondary">Your account has no depot in scope. Ask an administrator to grant one.</p>
         ) : view === "overview" ? (
-          <Overview displayName={displayName} depots={depots} scope={scope} depotFilter={depotFilter} onDepotFilter={setDepotFilter} scopeLabel={label} fleet={fleet} online={online} onNavigate={navigate} />
+          <Overview displayName={displayName} depots={depots} scope={scope} depotFilter={depotFilter} onDepotFilter={setDepotFilter} scopeLabel={label} fleet={fleet} online={online} onNavigate={navigate} onPlanDay={(day) => { setDate(day); navigate("plan"); }} />
         ) : view === "vehicles" ? (
           <Vehicles depots={depots} scopeLabel={label} date={today} fleet={fleet} online={online} />
         ) : view === "orders" ? (
