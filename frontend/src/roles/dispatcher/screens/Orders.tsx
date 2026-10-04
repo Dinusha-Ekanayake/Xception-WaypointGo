@@ -39,11 +39,13 @@ export default function Orders({
   scopeLabel,
   online,
   onNavigate,
+  onOpenPlan,
 }: {
   depots: string[];
   scopeLabel: string;
   online: boolean;
   onNavigate: (view: ViewId) => void;
+  onOpenPlan: (date: string) => void;
 }): React.JSX.Element {
   const today = depotToday();
   const [tab, setTab] = useState<Tab>("current");
@@ -138,7 +140,7 @@ export default function Orders({
             type="search"
             value={text}
             onChange={(event) => setText(event.target.value)}
-            placeholder="Search order, outlet or district"
+            placeholder="Search orders"
             aria-label="Search orders"
             className="w-48 bg-transparent text-[14px] text-go-ink outline-none placeholder:text-go-placeholder"
           />
@@ -205,7 +207,7 @@ export default function Orders({
         {loading && <p className="py-8 text-center text-[13px] text-go-secondary">Loading the orders…</p>}
       </section>
 
-      {chosen && <OrderDrawer line={line(chosen)} issues={issuesByOrder.get(chosen.orderId) ?? []} onClose={() => setSelected(null)} />}
+      {chosen && <OrderDrawer line={line(chosen)} issues={issuesByOrder.get(chosen.orderId) ?? []} onClose={() => setSelected(null)} onOpenPlan={onOpenPlan} />}
     </>
   );
 }

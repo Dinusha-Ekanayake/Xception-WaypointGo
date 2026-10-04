@@ -21,6 +21,7 @@ export default function PlanSteps({
   decideDone,
   next,
   published = false,
+  decideBlocks = false,
 }: {
   tab: Tab;
   onTab: (tab: Tab) => void;
@@ -30,7 +31,9 @@ export default function PlanSteps({
   /** Every order that needed a decision has one. */
   decideDone: boolean;
   /** The one button on the right. */
-  next: { label: string; onClick: () => void; disabled?: boolean };
+  next: { label: string; onClick: () => void; disabled?: boolean; hint?: string };
+  /** Decide still holds orders that block Publish: its step shows a warning. */
+  decideBlocks?: boolean;
   /** The plan is out: every step shows done. */
   published?: boolean;
 }): React.JSX.Element {
@@ -46,7 +49,8 @@ export default function PlanSteps({
       <div className="flex w-full flex-wrap items-center gap-2">
         <div role="tablist" aria-label="Plan steps" className="flex flex-1 flex-wrap gap-1">
           {ORDER.map((id, index) => {
-            const selected = id === tab;
+            const selected = id === tab || (tab === "compare" && id === "view");
+            const warn = id === "decide" && decideBlocks && tab !== "decide";
             const done = (id === "decide" ? decideDone && tab !== "decide" : index < current) || (published && !selected);
             return (
               <button
@@ -59,21 +63,24 @@ export default function PlanSteps({
               >
                 <span
                   aria-hidden
-                  className={`flex size-7 shrink-0 items-center justify-center rounded-full text-[13px] font-medium ${done ? "bg-go-teal text-go-card" : selected ? "bg-go-ink text-go-card" : "bg-go-surface text-go-secondary"}`}
+                  className={`flex size-7 shrink-0 items-center justify-center rounded-full text-[13px] font-medium ${warn ? "bg-go-warning-tint text-go-warning-text" : done ? "bg-go-teal text-go-card" : selected ? "bg-go-ink text-go-card" : "bg-go-surface text-go-secondary"}`}
                 >
-                  {done ? <Icon name="check-white" /> : index + 1}
+                  {warn ? "!" : done ? <Icon name="check-white" /> : index + 1}
                 </span>
                 <span className="flex flex-col">
                   <span className="text-[15px] font-medium text-go-ink">{notes[id][0]}</span>
-                  <span className="text-xs text-go-secondary">{notes[id][1]}</span>
+                  <span className={`text-xs ${warn ? "font-medium text-go-warning-text" : "text-go-secondary"}`}>{notes[id][1]}</span>
                 </span>
               </button>
             );
           })}
         </div>
-        <PrimaryButton disabled={next.disabled} onClick={next.onClick}>
-          {next.label}
-        </PrimaryButton>
+        <span className="flex items-center gap-3">
+          {next.disabled && next.hint && <span className="max-w-[200px] text-right text-xs text-go-warning-text">{next.hint}</span>}
+          <PrimaryButton disabled={next.disabled} onClick={next.onClick}>
+            {next.label}
+          </PrimaryButton>
+        </span>
       </div>
       <span aria-hidden className="absolute bottom-0 left-0 h-[3px] bg-go-teal transition-[width]" style={{ width: `${((current + 1) / ORDER.length) * 100}%` }} />
     </div>

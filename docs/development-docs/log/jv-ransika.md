@@ -4,6 +4,31 @@
 
 ---
 
+## 2026-10-04 - fix: dispatcher UX review fixes (must and should fix)
+
+`feat/dispatcher-figma-screens` · @jv-ransika
+
+From a critic and defender review of the dispatcher screens:
+- **Trip window:** stops with no window or no time are no longer counted as met, and the tiles say "Not checked yet" until the server answers.
+- **Required reasons:** marked, and the footer says what Accept waits for.
+- **Swap:** no dead swap dialog; "Open swap window" is disabled with the reason.
+- **Day picker:** one shared field in depot words on Plan, Live and the redelivery date; Live marks a day that is not today.
+- **Charts:** labelled refrigerated chart; whole-number trips chart with an empty state; "The 1 check".
+- **One leftover wording:** "6 not on a trip · 5 deferred · 1 too big", the same on the board and Publish.
+- **Step bar:** warns on Decide and names a blocked Publish's blocker.
+- **Decide:** moves to the next open order, and notes when an order now fits. "Keep the rest deferred" is quiet until one order is decided, and lists its outlets and when stores are told.
+- **Names and terms:** names in "Also sent to"; truck and van as in the glossary.
+- **Order drawer:** focus trap and return, plus a link to the order's day in Plan.
+- **Overview:** a "Tomorrow's plan" card.
+- **Other:** badge tooltips; a confirm before an edited trip or swap is closed; Compare pickers disabled with one plan; saved time with its day; a flag when the return is before the last stop; Orders placeholder and header fixed; Issues fits its content.
+- **Refactors:** `Plan.tsx` and `Sidebar.tsx` split under 300 lines.
+
+Why: findings of the UX review, reranked by both sides.
+Verified: `npm run typecheck`, `npm test` (213), `npm run build`; dispatcher browser suite 57 of 57.
+Open: a pass on real data to confirm the mock-only items; the both-depot header switch (FIGMA-GAP decision); Orders brand legend.
+
+---
+
 ## 2026-10-04 - feat: plan screen edits trips by drag and drop, shows both depots, refusals pop up
 
 `feat/dispatcher-figma-screens` · @jv-ransika

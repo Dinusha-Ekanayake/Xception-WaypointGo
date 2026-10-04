@@ -90,6 +90,10 @@ export default function SwapWindow({
   }
 
   const order = sequence ?? (outId && preview.data ? preview.data.stops.map((stop) => stop.orderId) : null);
+  const leave = () => {
+    if ((outId !== null || sequence !== null) && !window.confirm("Discard this swap?")) return;
+    onClose();
+  };
   const showing: StopView[] = outId && order ? order.map((id) => timed.current.get(id)).filter((stop): stop is StopView => stop !== undefined) : trip.stops;
   const feasible = Boolean(outId && preview.data?.feasible);
   const chips = outId && preview.data ? checkChips(preview.data.checks) : [];
@@ -107,7 +111,7 @@ export default function SwapWindow({
       label="Swap window"
       kicker={`Swap ${incoming.orderRef} · ${incoming.brandCode} ${incoming.outletId} ${incoming.districtName}`}
       title={`${trip.vehicleId} Trip ${trip.tripNumber} · ${trip.brandCode} ${trip.districtName} · departs ${hhmm(trip.plannedDeparture)}`}
-      onClose={onClose}
+      onClose={leave}
       banner={
         <div className="flex flex-wrap items-center gap-4 rounded-go-input border border-go-teal/30 bg-go-success-tint px-4 py-3">
           <span className="text-[11px] font-semibold tracking-[0.12em] text-go-teal uppercase">{outId ? "Your swap" : "Suggested"}</span>
@@ -177,7 +181,7 @@ export default function SwapWindow({
           <Incoming order={incoming} lastServed={allocation ? lastServedText(allocation.lastServedOn, plan.serviceDate) : null} />
         ),
       }}
-      tiles={tripTiles(showing, orders, vehicle)}
+      tiles={tripTiles(showing, orders, vehicle, !outId || (Boolean(preview.data) && !preview.loading))}
       depart={{ place: `${plan.depotCode} depot`, time: hhmm(trip.plannedDeparture) }}
       back={{ time: after(trip.plannedDeparture, trip.plannedMinutes) }}
       stops={stopRows(plan, showing, orders, vehicle, outId ? incoming.orderId : null)}
@@ -192,7 +196,7 @@ export default function SwapWindow({
               <p className="text-[14px] font-medium text-go-ink">{`${out.brandCode} ${out.outletId} ${out.districtName}`}</p>
               <p className="text-xs text-go-secondary">{`${out.orderRef} · ${size(out)}`}</p>
             </div>
-            <ReasonPicker label="Reason for the store" value={reason} onChange={setReason} />
+            <ReasonPicker required label="Reason for the store" value={reason} onChange={setReason} />
           </div>
         ) : undefined,
       }}
@@ -204,6 +208,8 @@ export default function SwapWindow({
           "Accept unlocks when every check passes"
         ) : preview.loading && !preview.data ? (
           "Checking the trip…"
+        ) : feasible && !reasonReady(reason) ? (
+          <span className="text-go-warning-text">✓ Every check passes · add a reason to accept</span>
         ) : feasible ? (
           <span className="text-go-teal">{`✓ Every check passes${sequence ? " · your stop order goes with the swap" : ""} · stores are told at publish`}</span>
         ) : (

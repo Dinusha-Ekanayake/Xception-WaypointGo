@@ -128,6 +128,8 @@ function Timeline({
 }): React.JSX.Element {
   const { trip } = load;
   const locked = new Set(plan.allocations.filter((a) => a.locked).map((a) => a.orderId));
+  const back = after(trip.plannedDeparture, trip.plannedMinutes);
+  const lastStop = trip.stops[trip.stops.length - 1];
   return (
     <ol aria-label="Stops in order" className="flex flex-col">
       <Row first time={hhmm(trip.plannedDeparture)} dot="hollow" title={`Depart ${plan.depotCode}`} />
@@ -148,7 +150,13 @@ function Timeline({
           />
         );
       })}
-      <Row last time={after(trip.plannedDeparture, trip.plannedMinutes)} dot="hollow" title={`Back at ${plan.depotCode}`} />
+      <Row
+        last
+        time={back}
+        dot="hollow"
+        title={`Back at ${plan.depotCode}`}
+        note={lastStop && back < hhmm(lastStop.plannedArrival) ? "Earlier than the last stop: these times need a fresh check" : undefined}
+      />
     </ol>
   );
 }

@@ -9,21 +9,8 @@ import { clock } from "@shared/wording";
 // Regenerate with its two ways, and Compare, in each depot's section bar. The
 // depot is the sidebar's scope; the day is the page header's DayField.
 
-/** The day being planned, drawn like the plan picker; it sits in the page header. */
-export function DayField({ date, onDate }: { date: string; onDate: (date: string) => void }): React.JSX.Element {
-  return (
-    <label className="flex min-w-[150px] flex-col rounded-go-card bg-go-card px-4 py-1.5 shadow-go-card">
-      <span className="text-[10px] font-medium tracking-wide text-go-secondary uppercase">Day</span>
-      <input
-        type="date"
-        aria-label="Day to plan"
-        value={date}
-        onChange={(event) => event.target.value && onDate(event.target.value)}
-        className="bg-transparent text-sm font-medium text-go-ink outline-none"
-      />
-    </label>
-  );
-}
+/** The day being planned: the one day control every dated dispatcher screen uses. */
+export { default as DayField } from "./DayTools.tsx";
 
 export default function PlanTools({
   draft,

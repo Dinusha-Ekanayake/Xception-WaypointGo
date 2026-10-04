@@ -36,6 +36,11 @@ export default function Dispatcher({
   scope: string[];
 }): React.JSX.Element {
   const [view, navigate] = useView();
+  /** Opens the Plan screen on a day: from the Overview's plan card and from an order. */
+  const openPlan = (day: string) => {
+    setDate(day);
+    navigate("plan");
+  };
   const [depotFilter, setDepotFilter] = useState<DepotFilter>("all");
   const [date, setDate] = useState(depotToday);
   // An issue Live asked to open; the Issues screen selects it.
@@ -86,16 +91,17 @@ export default function Dispatcher({
         badges={badges}
         folded={folded}
         onFold={setFolded}
+        scopeLabel={label}
       />
       <div className="flex min-w-0 flex-1 flex-col gap-5 px-4 py-5 md:px-9 md:py-7 lg:overflow-y-auto">
         {scope.length === 0 ? (
           <p className="text-sm text-go-secondary">Your account has no depot in scope. Ask an administrator to grant one.</p>
         ) : view === "overview" ? (
-          <Overview displayName={displayName} depots={depots} scope={scope} depotFilter={depotFilter} onDepotFilter={setDepotFilter} scopeLabel={label} fleet={fleet} online={online} onNavigate={navigate} />
+          <Overview displayName={displayName} depots={depots} scope={scope} depotFilter={depotFilter} onDepotFilter={setDepotFilter} scopeLabel={label} fleet={fleet} online={online} onNavigate={navigate} onOpenPlan={openPlan} />
         ) : view === "vehicles" ? (
           <Vehicles depots={depots} scopeLabel={label} date={today} fleet={fleet} online={online} />
         ) : view === "orders" ? (
-          <Orders depots={depots} scopeLabel={label} online={online} onNavigate={navigate} />
+          <Orders depots={depots} scopeLabel={label} online={online} onNavigate={navigate} onOpenPlan={openPlan} />
         ) : view === "plan" ? (
           <Plan depots={depots} date={date} onDate={setDate} online={online} />
         ) : view === "live" ? (

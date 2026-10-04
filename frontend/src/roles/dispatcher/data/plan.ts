@@ -86,6 +86,15 @@ export type PlanSummary = {
   vehiclesIdle: number;
 };
 
+/** "6 not on a trip · 5 deferred · 1 too big", the same everywhere the plan's leftovers are counted. */
+export function leftOutLine(summary: Pick<PlanSummary, "deferred" | "unservable">): string {
+  const notOnTrip = summary.deferred + summary.unservable;
+  if (notOnTrip === 0) return "every order on a trip";
+  return [`${notOnTrip} not on a trip`, summary.deferred ? `${summary.deferred} deferred` : null, summary.unservable ? `${summary.unservable} too big` : null]
+    .filter(Boolean)
+    .join(" · ");
+}
+
 export function summarise(plan: PlanView, fleet: VehicleView[]): PlanSummary {
   const count = (decision: AllocationView["decision"]) => plan.allocations.filter((a) => a.decision === decision).length;
   const rows = board(plan, fleet);

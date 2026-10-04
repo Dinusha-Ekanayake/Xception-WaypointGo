@@ -40,7 +40,7 @@ export default function OrdersTable({
       <div role="table" aria-label="Orders due" className="min-w-[900px]">
         <div role="row" className={`${COLUMNS} border-b border-go-rule pb-2 text-[13px] text-go-secondary`}>
           {["Order", "Outlet", "Type", "Size", "Vehicle · trip", "Status", heading].map((label) => (
-            <span key={label} role="columnheader">
+            <span key={label} role="columnheader" className="whitespace-nowrap">
               {label}
             </span>
           ))}

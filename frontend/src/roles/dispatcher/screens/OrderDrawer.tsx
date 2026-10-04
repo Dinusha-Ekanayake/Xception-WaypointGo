@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
+import { useRef } from "react";
 import type { IssueView, OrderStatus } from "@shared/domain/types";
-import { Icon, Pill, cx } from "@shared/ui";
+import { Icon, Pill, SecondaryButton, cx, useDialogFocus } from "@shared/ui";
 import { clock, dayLabel, hhmm, units } from "@shared/wording";
 import { TYPE } from "../data/issues.ts";
 import { STATUS, size } from "../data/orders.ts";
@@ -20,15 +20,23 @@ const DELIVERED: OrderStatus[] = ["DELIVERED", "PARTIALLY_DELIVERED", "RECEIVED"
 
 type Step = { title: string; note: string; state: "done" | "warn" | "fail" | "todo" };
 
-export default function OrderDrawer({ line, issues, onClose }: { line: OrderLine; issues: IssueView[]; onClose: () => void }): React.JSX.Element {
+export default function OrderDrawer({
+  line,
+  issues,
+  onClose,
+  onOpenPlan,
+}: {
+  line: OrderLine;
+  issues: IssueView[];
+  onClose: () => void;
+  /** Opens the plan of the order's day, where an order that waits for a decision is decided. */
+  onOpenPlan?: (date: string) => void;
+}): React.JSX.Element {
   const { order, ride, stop } = line;
   const state = STATUS[order.status];
-
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => event.key === "Escape" && onClose();
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  const panel = useRef<HTMLElement>(null);
+  useDialogFocus(panel, onClose);
+  const decidable = order.status === "CONFIRMED" || order.status === "DEFERRED" || order.status === "ALLOCATED" || order.status === "UNSERVABLE";
 
   const steps: Step[] = [
     { title: "Placed", note: `${dayLabel(order.placedAt.slice(0, 10))} ${clock(order.placedAt)}`, state: "done" },
@@ -58,6 +66,9 @@ export default function OrderDrawer({ line, issues, onClose }: { line: OrderLine
 
   return (
     <aside
+      ref={panel}
+      tabIndex={-1}
+      aria-modal="true"
       role="dialog"
       aria-label={`Order ${order.orderRef}`}
       className="fixed inset-y-0 right-0 z-40 flex w-full max-w-[420px] flex-col gap-4 overflow-y-auto rounded-l-go-panel bg-go-card p-6 shadow-go-float"
@@ -102,6 +113,12 @@ export default function OrderDrawer({ line, issues, onClose }: { line: OrderLine
           ))}
         </ol>
       </div>
+
+      {onOpenPlan && decidable && (
+        <SecondaryButton onClick={() => onOpenPlan(order.deliveryDate)}>
+          {order.status === "ALLOCATED" ? "See it on the plan" : "Decide it in Plan"}
+        </SecondaryButton>
+      )}
 
       {issues.map((issue) => (
         <div key={issue.issueId} className="rounded-go-card bg-go-danger-tint px-4 py-3">

@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { OrderView, PlanView } from "@shared/domain/types";
 import { PrimaryButton, SecondaryButton, cx } from "@shared/ui";
 import { clock, dayLabel, ruleLabel } from "@shared/wording";
-import type { PlanSummary, Working } from "../data/plan.ts";
+import { leftOutLine, type PlanSummary, type Working } from "../data/plan.ts";
 import { daysBetween, publishBlocker, type DecisionRow } from "../data/planViews.ts";
 import { useComparison } from "../data/usePlanReads.ts";
 import PublishAudience from "./PublishAudience.tsx";
@@ -110,14 +110,14 @@ export default function PlanPublish({
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
           <Stat value={`${summary.served} of ${summary.orders}`} note="orders planned" />
           <Stat value={`${summary.trips} ${summary.trips === 1 ? "trip" : "trips"}`} note={`on ${summary.vehiclesUsed} ${summary.vehiclesUsed === 1 ? "vehicle" : "vehicles"}`} />
-          <Stat value={`${deferred.length}`} note={deferred.length === 1 ? "order deferred, first on the next run" : "orders deferred, first on the next run"} />
+          <Stat value={`${left.length}`} note={left.length ? `${leftOutLine(summary).split(" · ").slice(1).join(" · ")} · first on the next run` : "every order on a trip"} />
         </div>
 
         <ul className="flex flex-col">
           <Row
             tone={blocked ? "danger" : "ok"}
             title={blocked ? `${blocker.open} ${blocker.open === 1 ? "order needs" : "orders need"} a decision` : "Every order has a decision"}
-            note={`${left.length} not on a trip · ${deferred.length} with a reason · ${byHand} your ${byHand === 1 ? "change" : "changes"}`}
+            note={`${leftOutLine(summary)} · ${byHand} your ${byHand === 1 ? "change" : "changes"}`}
             action={
               blocked && blocker.first
                 ? { label: "Decide now", onClick: () => onDecide(blocker.first!.allocation.orderId) }
