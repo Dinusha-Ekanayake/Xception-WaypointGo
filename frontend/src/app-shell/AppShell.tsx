@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useOnline } from "@shared/api/useResource";
 import { queuesWrites, useSync, type Role } from "@shared/offline";
 import { keepStorage, watchInstall } from "@shared/pwa";
-import { McpButton, Notice, ShellProvider, StructuredError, cx, type ShellControls } from "@shared/ui";
+import { McpButton, Notice, ShellProvider, StructuredError, cx, setStateScope, type ShellControls } from "@shared/ui";
 import { ROLE_ADDRESSES, roleForHost, sharedHomeFor, sharedHostFor } from "./hostRole.ts";
 import RoleLanding from "./RoleLanding.tsx";
 import RoleRouter from "./RoleRouter.tsx";
@@ -71,6 +71,8 @@ export default function AppShell(): React.JSX.Element {
   const [pending, setPending] = useState<number | null>(null);
   const [signOutError, setSignOutError] = useState<string | null>(null);
   const sync = useSync(state?.kind === "signed-in" ? state.session.userId : null);
+  // Kept screen choices (tabs, filters, scroll) belong to the account signed in.
+  setStateScope(state?.kind === "signed-in" ? state.session.userId : null);
 
   const check = useCallback(() => {
     setState(null);

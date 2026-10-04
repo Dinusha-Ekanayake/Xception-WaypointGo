@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { cx } from "@shared/ui";
+import { cx, useScrollMemory } from "@shared/ui";
 import type { RouteStop } from "../data/stopView.ts";
 
 export type RouteNextStopProps = {
@@ -353,6 +353,8 @@ export default function RouteNextStop({
 
   // Dynamic top fade on scroll & rubber band bounce (matching HomeNoVehicle message feed)
   const { scrollRef, pullY, isPulling, maskStyle, handlers } = useRubberBandScroll();
+  // Back from a stop, the list is where it was (UX polish 2).
+  useScrollMemory("driver:route", scrollRef, { page: false });
 
   // Active stop, completed stops, upcoming stops
   const safeIndex = Math.min(Math.max(0, stopIndex), Math.max(0, stops.length - 1));

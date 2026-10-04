@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-04 - feat: UX polish 2 of 5, every screen keeps its place
+
+`feat/ux-polish-state` · @Dinusha-Ekanayake
+
+From [UX-PLAN.md](../../ux/UX-PLAN.md) section 7: tabs, filters and searches that were lost when a screen unmounted are kept for the browser tab and the signed-in account (`usePersistentState`), in dispatcher Orders, Live, Issues, the plan board filter and the fleet table, the loader's board filter and the store's Orders and Deliveries. Scroll position comes back on return (`useScrollMemory`): dispatcher screens and its fleet table, store tabs, the loader's board, the driver's home and route lists; a form or detail opens at the top. The store's top-level tab is not kept across a reload, so a reload still opens Home.
+Why: going to Overview and back reset the dispatcher's filters and scroll; the store kept the last tab's offset on a new tab.
+Verified: see the PR. On the VPS preview data: the store's Orders list comes back at 500 px with its filter, Home opens at the top; the dispatcher's fleet table comes back at 700 px at 1440 and 390 px. `npm test` 227; all five browser suites, with new kept-state specs for dispatcher and store.
+
+---
+
 ## 2026-10-04 - feat: UX polish 1 of 5, one motion and one overlay behaviour in every role
 
 `feat/ux-polish-motion` · @Dinusha-Ekanayake

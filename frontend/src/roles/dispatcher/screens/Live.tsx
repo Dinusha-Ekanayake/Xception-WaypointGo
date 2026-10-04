@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Notice } from "@shared/ui";
+import { Notice, usePersistentState } from "@shared/ui";
 import PageHeader from "../PageHeader.tsx";
 import { byUrgency, punctuality, vehicleDay } from "../data/live.ts";
 import { closedOnTheirOwn, depotSummaries, filterRuns, needCards, runsOf, summaryText, type RunFilter } from "../data/liveDesk.ts";
@@ -51,11 +51,11 @@ export default function Live({
   const reports = useReports(depots, date);
   const inbox = useDispatcherInbox();
   const [now, setNow] = useState(() => new Date());
-  const [view, setView] = useState<View>("needs");
-  const [localDepot, setLocalDepot] = useState("all");
+  const [view, setView] = usePersistentState<View>("dispatcher:live:view", "needs");
+  const [localDepot, setLocalDepot] = usePersistentState("dispatcher:live:depot", "all");
   const depot = depotFilter ?? localDepot;
   const setDepot = onDepotFilter ?? setLocalDepot;
-  const [filter, setFilter] = useState<RunFilter>("all");
+  const [filter, setFilter] = usePersistentState<RunFilter>("dispatcher:live:filter", "all");
   const [trip, setTrip] = useState<string | null>(null);
 
   // "At risk" compares a window with the time now, so the time moves.

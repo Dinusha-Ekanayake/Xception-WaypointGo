@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Pending, Pill, Segmented, cx } from "@shared/ui";
+import { Pending, Pill, Segmented, cx, usePersistentState } from "@shared/ui";
 import { clock } from "@shared/wording";
 import PageHeader from "../PageHeader.tsx";
 import { SEVERITY, TYPE, byUrgency, shortId } from "../data/issues.ts";
@@ -37,7 +37,7 @@ export default function Issues({
   focusIssueId?: string | null;
 }): React.JSX.Element {
   const issues = useIssues(depots);
-  const [tab, setTab] = useState<Tab>("open");
+  const [tab, setTab] = usePersistentState<Tab>("dispatcher:issues:tab", "open");
   const [selectedId, setSelectedId] = useState<string | null>(focusIssueId);
   useEffect(() => {
     if (focusIssueId) setSelectedId(focusIssueId);

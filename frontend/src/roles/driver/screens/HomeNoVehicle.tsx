@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { VehicleStatuses, type ReportedVehicleStatus, type VehicleView } from "@shared/domain/types";
 import { isUnread, kindOf } from "@shared/notifications/inbox";
 import type { Inbox } from "@shared/notifications/useInbox";
-import { cx, useDeviceLang } from "@shared/ui";
+import { cx, useDeviceLang, useScrollMemory } from "@shared/ui";
 import { clock, countdown, dayLabel, hhmm, stops as stopsText } from "../../../shared/wording/index.ts";
 import type { TripStatus } from "../data/stopView.ts";
 import type { NextRun } from "../data/run.ts";
@@ -429,6 +429,7 @@ export default function HomeNoVehicle({
   const [lang, setLang] = useDeviceLang();
   const [activeAudioId, setActiveAudioId] = useState<string | null>(null);
   const { scrollRef, pullY, isPulling, maskStyle, handlers } = useRubberBandScroll();
+  useScrollMemory("driver:home", scrollRef, { page: false });
 
   useEffect(() => {
     return () => {
