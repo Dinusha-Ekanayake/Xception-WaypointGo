@@ -55,6 +55,8 @@ export function VoiceNote({
   seed,
   tone,
   label,
+  caption,
+  heading,
   tr = plain,
 }: {
   src: string;
@@ -68,6 +70,10 @@ export function VoiceNote({
   seed: string;
   tone: VoiceTone;
   label: string;
+  /** Shown in place of the waveform: the words the note is about. */
+  caption?: string;
+  /** Sits on the same row as the play button. The caption then starts at the left. */
+  heading?: string;
   tr?: Translate;
 }): React.JSX.Element {
   const audio = useRef<HTMLAudioElement>(null);
@@ -166,17 +172,30 @@ export function VoiceNote({
   };
 
   return (
-    <div role="group" aria-label={label} data-testid="voice-note" className="flex w-[248px] max-w-full items-center gap-2.5 py-0.5">
+    <div role="group" aria-label={label} data-testid="voice-note" className={cx("flex max-w-full gap-2.5 py-0.5", heading ? "w-full flex-col" : "w-[248px] items-center")}>
       <audio ref={audio} src={src} preload="metadata" data-voice-note aria-label={label} className="hidden" />
+      <div className={cx("flex min-w-0 items-center gap-3", heading && "w-full")}>
       <button
         type="button"
         onClick={toggle}
         disabled={failed}
         aria-label={playing ? tr("Pause") : tr("Play")}
-        className={cx("flex size-10 shrink-0 items-center justify-center rounded-full shadow-sm transition-transform active:scale-95 disabled:opacity-40", look.button)}
+        className={cx("relative flex size-11 shrink-0 items-center justify-center text-current active:scale-95 disabled:opacity-40", tone === "report" ? "text-go-danger" : "text-go-ink")}
       >
-        {playing ? <PauseIcon className="size-[18px]" /> : <PlayIcon className="ml-0.5 size-[18px]" />}
+        <span
+          aria-hidden
+          className="absolute inset-0 rounded-full"
+          style={{ background: `conic-gradient(currentColor ${Math.round(progress * 360)}deg, transparent 0deg)` }}
+        />
+        <span className={cx("relative flex size-8 items-center justify-center rounded-full shadow-sm", look.button)}>
+          {playing ? <PauseIcon className="size-[18px]" /> : <PlayIcon className="ml-0.5 size-[18px]" />}
+        </span>
       </button>
+      {heading && <span className="min-w-0 flex-1 text-left text-[15px] font-medium leading-5 text-inherit">{heading}</span>}
+      </div>
+      {caption && heading ? null : caption ? (
+        <p className={cx("min-w-0 flex-1 line-clamp-2 text-[13px] leading-4", look.text)}>{caption}</p>
+      ) : (
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div
           ref={bars}
@@ -215,6 +234,8 @@ export function VoiceNote({
           </button>
         </span>
       </div>
+      )}
+      {caption && heading && <p className={cx("text-left text-[13px] font-light leading-4", look.text)}>{caption}</p>}
     </div>
   );
 }

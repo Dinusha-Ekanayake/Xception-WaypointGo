@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { cx, useScrollMemory } from "@shared/ui";
 import type { RouteStop } from "../data/stopView.ts";
+import { SlideToConfirm } from "../ui.tsx";
 
 export type RouteNextStopProps = {
   /** Whether this phone is in step with the server, in words. */
@@ -644,26 +645,17 @@ export default function RouteNextStop({
                   <span className="text-[18px] font-medium leading-[23px]">Open map</span>
                 </button>
 
-                <button
-                  type="button"
+                <SlideToConfirm
                   id="arrived-btn"
-                  onClick={() => {
+                  label="I've arrived"
+                  doneLabel="Arrived · Unloading"
+                  done={hasArrived}
+                  isNight={isNight}
+                  onConfirm={() => {
                     setHasArrived(true);
-                    if (onArrived && activeStop) {
-                      onArrived(activeStop);
-                    }
+                    if (onArrived && activeStop) onArrived(activeStop);
                   }}
-                  className={cx(
-                    "w-full h-[64px] rounded-[22px] text-[20px] font-medium flex items-center justify-center transition-all active:scale-[0.99] shadow-sm",
-                    hasArrived
-                      ? "bg-[#0E766D] text-white"
-                      : isNight
-                        ? "bg-[#00BF6A] text-black hover:bg-[#00d878]"
-                        : "bg-[#031B08] text-white hover:bg-[#062613]"
-                  )}
-                >
-                  {hasArrived ? "Arrived · Unloading" : "I've arrived"}
-                </button>
+                />
               </div>
             ) : (
               /* Stop 01 & 02 Layout: Map + Report problem split buttons, then I've arrived */
@@ -703,27 +695,19 @@ export default function RouteNextStop({
                   </button>
                 </div>
 
-                {/* Primary Action Button: "I've arrived" */}
-                <button
-                  type="button"
-                  id="arrived-btn"
-                  onClick={() => {
-                    setHasArrived(true);
-                    if (onArrived && activeStop) {
-                      onArrived(activeStop);
-                    }
-                  }}
-                  className={cx(
-                    "w-full h-[64px] rounded-[22px] text-[20px] font-medium flex items-center justify-center mt-3.5 transition-all active:scale-[0.99] shadow-sm",
-                    hasArrived
-                      ? "bg-[#0E766D] text-white"
-                      : isNight
-                        ? "bg-[#00BF6A] text-black hover:bg-[#00d878]"
-                        : "bg-[#031B08] text-white hover:bg-[#062613]"
-                  )}
-                >
-                  {hasArrived ? "Arrived · Unloading" : "I've arrived"}
-                </button>
+                <div className="mt-3.5">
+                  <SlideToConfirm
+                    id="arrived-btn"
+                    label="I've arrived"
+                    doneLabel="Arrived · Unloading"
+                    done={hasArrived}
+                    isNight={isNight}
+                    onConfirm={() => {
+                      setHasArrived(true);
+                      if (onArrived && activeStop) onArrived(activeStop);
+                    }}
+                  />
+                </div>
               </>
             )}
 

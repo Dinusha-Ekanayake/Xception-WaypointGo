@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { openForm, serve, startTrip } from "./mocks.ts";
+import { arrive, openForm, serve, startTrip } from "./mocks.ts";
 
 // Issue #161: positions while a run is open, through the offline queue, and a
 // map that hands off to the phone's maps app only for an exact store location.
@@ -60,7 +60,7 @@ test("a store with only a district location gets no map, and declining location 
   await expect(page.getByText("No exact location for this store yet")).toBeVisible();
   await expect(page.getByRole("link", { name: /Navigate to/ })).toHaveCount(0);
   await page.getByRole("button", { name: "Back to run sheet" }).click();
-  await page.getByRole("button", { name: "I've arrived" }).click();
+  await arrive(page);
   await openForm(page);
   await expect(page.getByText(/Delivery report/)).toBeVisible();
 });

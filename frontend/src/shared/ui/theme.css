@@ -126,6 +126,8 @@
   --animate-slide-in-end: go-slide-in-end 250ms var(--ease-go-out) backwards;
   /* A report's sign on the timeline (issue #136): a small wave, then a rest, so it is seen without nagging. */
   --animate-wave: go-wave 2.4s ease-in-out infinite;
+  /* A wrong PIN: the boxes shake, then the digits are already cleared. */
+  --animate-pin-shake: go-pin-shake 420ms ease-in-out;
 
   @keyframes go-fade-in { from { opacity: 0; } }
   @keyframes go-fade-out { to { opacity: 0; } }
@@ -143,6 +145,14 @@
     30% { transform: rotate(-9deg); }
     40% { transform: rotate(6deg); }
     50% { transform: rotate(-2deg); }
+  }
+  @keyframes go-pin-shake {
+    0%, 100% { transform: translateX(0); }
+    15% { transform: translateX(-8px); }
+    30% { transform: translateX(7px); }
+    45% { transform: translateX(-5px); }
+    60% { transform: translateX(4px); }
+    75% { transform: translateX(-2px); }
   }
 }
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { ChatIcon, PRESS, SettingsPanel, Spinner, cx, initialsOf } from "@shared/ui";
+import { PRESS, SettingsPanel, Spinner, cx, initialsOf } from "@shared/ui";
 
 /** Waveform bar heights exactly copied from the Figma specification */
 export const WAVEFORM_HEIGHTS = [
@@ -11,16 +11,18 @@ export const WAVEFORM_HEIGHTS = [
 
 export type SupportedLang = "en" | "si" | "ta";
 
-/** The driver's initials; tapping them opens Settings as a bottom sheet. */
+/** The driver's initials; tapping them opens Settings as a bottom sheet. Sign out is the last row, in red. */
 function DriverProfileButton({
   displayName,
   lang,
   onLang,
+  onSignOut,
   isNight,
 }: {
   displayName: string;
   lang: SupportedLang;
   onLang?: (l: SupportedLang) => void;
+  onSignOut?: () => void;
   isNight: boolean;
 }): React.JSX.Element {
   const [open, setOpen] = useState(false);
@@ -46,14 +48,32 @@ function DriverProfileButton({
       </button>
       {host &&
         createPortal(
-          <SettingsPanel displayName={displayName} roleLabel="Driver" lang={lang} onLang={(l) => onLang?.(l)} placement="sheet" onClose={() => setOpen(false)} />,
+          <SettingsPanel displayName={displayName} roleLabel="Driver" lang={lang} onLang={(l) => onLang?.(l)} placement="sheet" onClose={() => setOpen(false)}>
+            {onSignOut && (
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  onSignOut();
+                }}
+                className="flex min-h-12 w-full items-center gap-2 text-left text-[16px] font-medium text-go-danger-strong"
+              >
+                <svg aria-hidden width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <polyline points="16 17 21 12 16 7" />
+                  <line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
+                Sign out
+              </button>
+            )}
+          </SettingsPanel>,
           host,
         )}
     </>
   );
 }
 
-/** Driver Header with GO logo, Settings (picture), Sign out, and Theme toggle */
+/** Driver Header with GO logo, Settings (picture, with Sign out inside), and Theme toggle */
 export function DriverHeader({
   lang = "en",
   onToggleLang,
@@ -87,30 +107,7 @@ export function DriverHeader({
       {/* Right controls */}
       <div className="flex items-center gap-2">
         {/* The driver's picture opens Settings: language and the assistant connection. */}
-        {displayName && <DriverProfileButton displayName={displayName} lang={lang} onLang={onToggleLang} isNight={isNight} />}
-
-        {/* Sign out button */}
-        {onSignOut && (
-          <button
-            type="button"
-            onClick={onSignOut}
-            className={cx(
-              "w-[42px] h-[42px] rounded-full flex items-center justify-center border shadow-[0_5px_20px_rgba(0,0,0,0.05)] active:scale-95 transition-all",
-              isNight
-                ? "bg-[#292929] border-[#383838] text-white hover:bg-[#333333]"
-                : "bg-white border-[#dfe7e6] text-black hover:bg-slate-50"
-            )}
-            title="Sign out"
-            aria-label="Sign out"
-          >
-            {/* Door / right-from-bracket icon */}
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
-          </button>
-        )}
+        {displayName && <DriverProfileButton displayName={displayName} lang={lang} onLang={onToggleLang} onSignOut={onSignOut} isNight={isNight} />}
 
         {/* Theme toggle button */}
         <button
@@ -154,7 +151,7 @@ export function DriverHeader({
  * Driver morphing header shared across Driver Home and Route Next Stop.
  * - The Dark/Light theme toggle stays strictly stationary in place (no slide or scale).
  * - Left slot: GO logo zooms out while < Back button pops up in its place.
- * - Middle-right slot: the Settings picture + Sign out zoom out while the Synced pill pops up.
+ * - Middle-right slot: the Settings picture zooms out while the Synced pill pops up. Sign out lives in Settings.
  * - No slide effect is applied to any of these controls.
  */
 export function DriverMorphHeader({
@@ -167,8 +164,6 @@ export function DriverMorphHeader({
   onSignOut,
   onToggleTheme,
   isNight = false,
-  onMessages,
-  unreadMessages = 0,
 }: {
   activeScreen: "home" | "route-next-stop" | "route-map";
   /** Whether this phone is in step with the server, in words. */
@@ -213,18 +208,15 @@ export function DriverMorphHeader({
           onClick={onBack}
           className={cx(
             "absolute left-0 flex items-center gap-2 h-[43px] px-3.5 rounded-full text-[17px] font-medium leading-none transition-all duration-300 transform-gpu origin-left active:scale-95 pointer-events-auto",
-            isRouteOrMap
+            // The enlarged map draws its own Back on the map, above the tiles.
+            isRoute
               ? "scale-100 opacity-100"
               : "scale-0 opacity-0 pointer-events-none",
-            isMap
-              ? isNight
-                ? "bg-[#292929] text-white shadow-md hover:bg-[#333333]"
-                : "bg-white text-black shadow-md hover:bg-slate-50"
-              : isNight
-                ? "text-white bg-transparent hover:opacity-80"
-                : "text-black bg-transparent hover:opacity-80"
+            isNight
+              ? "text-white bg-transparent hover:opacity-80"
+              : "text-black bg-transparent hover:opacity-80"
           )}
-          aria-label={isMap ? "Back to run sheet" : "Go back to home"}
+          aria-label="Go back to home"
         >
           <svg width="9" height="14" viewBox="0 0 9 14" fill="none">
             <path
@@ -253,29 +245,7 @@ export function DriverMorphHeader({
             )}
           >
             {/* The driver's picture opens Settings: language and the assistant connection. */}
-            {displayName && <DriverProfileButton displayName={displayName} lang={lang} onLang={onToggleLang} isNight={isNight} />}
-
-            {/* Sign out button */}
-            {onSignOut && (
-              <button
-                type="button"
-                onClick={onSignOut}
-                className={cx(
-                  "w-[42px] h-[42px] rounded-full flex items-center justify-center border shadow-[0_5px_20px_rgba(0,0,0,0.05)] active:scale-95 transition-all",
-                  isNight
-                    ? "bg-[#292929] border-[#383838] text-white hover:bg-[#333333]"
-                    : "bg-white border-[#dfe7e6] text-black hover:bg-slate-50"
-                )}
-                title="Sign out"
-                aria-label="Sign out"
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                  <polyline points="16 17 21 12 16 7" />
-                  <line x1="21" y1="12" x2="9" y2="12" />
-                </svg>
-              </button>
-            )}
+            {displayName && <DriverProfileButton displayName={displayName} lang={lang} onLang={onToggleLang} onSignOut={onSignOut} isNight={isNight} />}
           </div>
 
           {/* Route & Map Controls: sync pill */}
@@ -297,26 +267,6 @@ export function DriverMorphHeader({
         </div>
 
         {/* Messages on the trip's thread, with the count of new ones (issue #136). */}
-        {onMessages && (
-          <button
-            type="button"
-            onClick={onMessages}
-            className={cx(
-              "relative w-[43px] h-[43px] rounded-full flex items-center justify-center border shadow-[0_5px_20px_rgba(0,0,0,0.09)] active:scale-95 transition-all shrink-0",
-              isNight ? "bg-[#292929] border-[#383838] text-white hover:bg-[#333333]" : "bg-white border-[#dfe7e6] text-black hover:bg-slate-50"
-            )}
-            title="Messages"
-            aria-label={unreadMessages > 0 ? `Messages, ${unreadMessages} new` : "Messages"}
-          >
-            <ChatIcon className="size-[21px]" />
-            {unreadMessages > 0 && (
-              <span aria-hidden className="absolute -top-1 -right-1 min-w-[19px] h-[19px] rounded-full bg-[#E5484D] px-1 text-[11px] font-semibold leading-[19px] text-white text-center ring-2 ring-[#E7F3F2]">
-                {unreadMessages > 99 ? "99+" : unreadMessages}
-              </span>
-            )}
-          </button>
-        )}
-
         {/* 3. Theme toggle button - strictly stationary, NO slide, NO scale */}
         <button
           type="button"
@@ -353,6 +303,110 @@ export function DriverMorphHeader({
   );
 }
 
+/**
+ * "I've arrived" is a slide, not a tap: a touch that does not cross the track
+ * springs back, so a bump in the cab does not record an arrival.
+ */
+export function SlideToConfirm({
+  label,
+  doneLabel,
+  done,
+  isNight,
+  onConfirm,
+  id,
+}: {
+  label: string;
+  doneLabel: string;
+  done: boolean;
+  isNight: boolean;
+  onConfirm: () => void;
+  id?: string;
+}): React.JSX.Element {
+  const track = useRef<HTMLDivElement>(null);
+  const [x, setX] = useState(0);
+  const dragging = useRef(false);
+  const sent = useRef(false);
+  const limit = () => Math.max(0, (track.current?.clientWidth ?? 0) - 64);
+
+  const release = (at: number) => {
+    dragging.current = false;
+    const max = limit();
+    if (!sent.current && max > 0 && at >= max * 0.8) {
+      sent.current = true;
+      setX(max);
+      onConfirm();
+    } else if (!sent.current) {
+      setX(0);
+    }
+  };
+
+  if (done) {
+    return (
+      <div id={id} className="flex h-[64px] w-full items-center justify-center rounded-[22px] bg-[#0E766D] text-[20px] font-medium text-white">
+        {doneLabel}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      id={id}
+      ref={track}
+      role="slider"
+      aria-label={label}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={limit() === 0 ? 0 : Math.round((x / limit()) * 100)}
+      aria-valuetext="Slide across to confirm"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if ((e.key === "ArrowRight" || e.key === "Enter") && !sent.current) {
+          e.preventDefault();
+          sent.current = true;
+          onConfirm();
+        }
+      }}
+      onPointerDown={(e) => {
+        if (sent.current) return;
+        dragging.current = true;
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      }}
+      onPointerMove={(e) => {
+        if (!dragging.current || sent.current || !track.current) return;
+        const rect = track.current.getBoundingClientRect();
+        const next = Math.max(0, Math.min(e.clientX - rect.left - 32, limit()));
+        setX(next);
+        if (next >= limit() * 0.8) release(next);
+      }}
+      onPointerUp={(e) => {
+        if (!dragging.current) return;
+        const rect = track.current?.getBoundingClientRect();
+        const at = rect ? Math.max(0, Math.min(e.clientX - rect.left - 32, limit())) : x;
+        release(at);
+      }}
+      onPointerCancel={() => release(0)}
+      className={cx(
+        "relative h-[64px] w-full touch-none overflow-hidden rounded-[22px] select-none outline-none focus-visible:ring-2 focus-visible:ring-go-signal",
+        isNight ? "bg-[#00BF6A]" : "bg-[#031B08]",
+      )}
+    >
+      <span className={cx("pointer-events-none absolute inset-0 flex items-center justify-center pl-10 text-[18px] font-medium", isNight ? "text-black" : "text-white")}>
+        {label}
+      </span>
+      <span
+        aria-hidden
+        className="absolute top-1 left-1 flex size-14 items-center justify-center rounded-[18px] bg-white text-black shadow"
+        style={{ transform: `translateX(${x}px)` }}
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M5 12h14" />
+          <path d="m13 6 6 6-6 6" />
+        </svg>
+      </span>
+    </div>
+  );
+}
+
 /** Interactive Voice Message audio player with waveform */
 export type VoiceMessagePlayerProps = {
   id?: string;
@@ -360,6 +414,15 @@ export type VoiceMessagePlayerProps = {
   initialBars?: readonly number[];
   isNight?: boolean;
   text?: string;
+  /** Sits on the same row as the play button, under the status. */
+  heading?: string;
+  /** The short status, such as "Vehicle loaded", on the right of the play button. */
+  status?: string;
+  statusColor?: string;
+  /** The time of the notice, opposite the status. */
+  statusTime?: string;
+  /** The words under that row, starting at the left edge. */
+  message?: string;
   activeAudioId?: string | null;
   onPlayChange?: (id: string | null) => void;
   className?: string;
@@ -369,9 +432,13 @@ export type VoiceMessagePlayerProps = {
 export function VoiceMessagePlayer({
   id,
   duration = "0:18",
-  initialBars = WAVEFORM_HEIGHTS,
   isNight = false,
   text,
+  heading,
+  status,
+  statusColor,
+  statusTime,
+  message,
   activeAudioId,
   onPlayChange,
   className,
@@ -382,9 +449,10 @@ export function VoiceMessagePlayer({
       ? activeAudioId === id
       : internalIsPlaying;
 
-  const [activeStep, setActiveStep] = useState(0);
+  const [progress, setProgress] = useState(0);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const startedAt = useRef(0);
 
   // Sync internal state when external activeAudioId changes
   useEffect(() => {
@@ -427,7 +495,7 @@ export function VoiceMessagePlayer({
       utteranceRef.current = null;
     }
     setInternalIsPlaying(false);
-    setActiveStep(0);
+    setProgress(0);
     if (id && onPlayChange && activeAudioId === id) {
       onPlayChange(null);
     }
@@ -444,7 +512,8 @@ export function VoiceMessagePlayer({
     }
 
     setInternalIsPlaying(true);
-    setActiveStep(0);
+    setProgress(0);
+    startedAt.current = Date.now();
     if (id && onPlayChange) {
       onPlayChange(id);
     }
@@ -478,7 +547,7 @@ export function VoiceMessagePlayer({
         utterance.onend = () => {
           utteranceRef.current = null;
           setInternalIsPlaying(false);
-          setActiveStep(0);
+          setProgress(0);
           if (id && onPlayChange) {
             onPlayChange(null);
           }
@@ -488,7 +557,7 @@ export function VoiceMessagePlayer({
           console.warn("Speech synthesis notice:", e);
           utteranceRef.current = null;
           setInternalIsPlaying(false);
-          setActiveStep(0);
+          setProgress(0);
           if (id && onPlayChange) {
             onPlayChange(null);
           }
@@ -509,17 +578,18 @@ export function VoiceMessagePlayer({
     }
   }, [id, duration, text, onPlayChange, stopPlayback]);
 
-  // Waveform progress animation while playing
+  // The ring around play fills with the message, so the old waveform row can show the words.
   useEffect(() => {
-    if (!isPlaying) {
-      setActiveStep(0);
-      return;
-    }
-    const interval = setInterval(() => {
-      setActiveStep((prev) => (prev + 1) % initialBars.length);
-    }, 120);
-    return () => clearInterval(interval);
-  }, [isPlaying, initialBars.length]);
+    if (!isPlaying) return;
+    const ms = parseDurationSec(duration) * 1000;
+    let frame = 0;
+    const tick = () => {
+      setProgress(Math.min(1, (Date.now() - startedAt.current) / ms));
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [isPlaying, duration]);
 
   const handleToggle = () => {
     if (isPlaying) {
@@ -529,62 +599,53 @@ export function VoiceMessagePlayer({
     }
   };
 
+  const ring = isNight ? "#00BF6A" : "#031A0C";
+  const words = message ?? (!heading ? text : undefined);
   return (
-    <div className={cx("flex items-center gap-3 pt-1 w-full", className)}>
-      {/* Play/Pause Button */}
-      <button
-        type="button"
-        onClick={handleToggle}
-        className={cx(
-          "size-9 rounded-full active:scale-95 flex items-center justify-center shrink-0 transition-all shadow-xs cursor-pointer",
-          isNight
-            ? "bg-[#00BF6A] hover:bg-[#00d878] text-black"
-            : "bg-[#031A0C] hover:bg-[#062613] text-white"
-        )}
-        aria-label={isPlaying ? "Pause message audio" : "Listen to message"}
-        title={isPlaying ? "Pause message" : "Listen to message"}
-      >
-        {isPlaying ? (
-          /* Pause bars */
-          <div className="flex items-center gap-1">
-            <span className="w-1 h-3.5 bg-current rounded-full" />
-            <span className="w-1 h-3.5 bg-current rounded-full" />
-          </div>
-        ) : (
-          /* Play triangle */
-          <svg width="12" height="15" viewBox="0 0 12 15" fill="none" className="translate-x-[1px]">
-            <path d="M11 7.5L1 1.7V13.3L11 7.5Z" fill="currentColor" />
-          </svg>
-        )}
-      </button>
-
-      {/* Waveform bars */}
-      <div className="flex items-center gap-[3px] flex-1 h-6 overflow-hidden">
-        {initialBars.map((height, idx) => {
-          const isActive = isPlaying && idx <= activeStep;
-          return (
-            <span
-              key={idx}
-              style={{ height: `${height}px` }}
-              className={cx(
-                "w-[3px] rounded-full transition-colors duration-150 shrink-0",
-                isActive
-                  ? isNight
-                    ? "bg-[#00BF6A]"
-                    : "bg-[#0E766D]"
-                  : isNight
-                  ? "bg-white/35"
-                  : "bg-black/35"
-              )}
-            />
-          );
-        })}
+    <div className={cx("flex w-full flex-col gap-1 pt-1", className)}>
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={handleToggle}
+          className="relative flex size-11 shrink-0 items-center justify-center active:scale-95"
+          aria-label={isPlaying ? "Pause message audio" : "Listen to message"}
+          title={isPlaying ? "Pause message" : "Listen to message"}
+        >
+          <span
+            aria-hidden
+            className="absolute inset-0 rounded-full"
+            style={{ background: `conic-gradient(${ring} ${Math.round(progress * 360)}deg, ${isNight ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.12)"} 0deg)` }}
+          />
+          <span className={cx("relative flex size-8 items-center justify-center rounded-full", isNight ? "bg-[#00BF6A] text-black" : "bg-[#031A0C] text-white")}>
+            {isPlaying ? (
+              <span className="flex items-center gap-1">
+                <span className="h-3.5 w-1 rounded-full bg-current" />
+                <span className="h-3.5 w-1 rounded-full bg-current" />
+              </span>
+            ) : (
+              <svg width="12" height="15" viewBox="0 0 12 15" fill="none" className="translate-x-[1px]">
+                <path d="M11 7.5L1 1.7V13.3L11 7.5Z" fill="currentColor" />
+              </svg>
+            )}
+          </span>
+        </button>
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          {status && (
+            <span className="flex items-center justify-between gap-2">
+              <span className="truncate text-[12px] font-medium" style={{ color: statusColor ?? (isNight ? "#fff" : "#000") }}>{status}</span>
+              {statusTime && <span className="shrink-0 text-[12px] font-light text-[#A9A9A9]">{statusTime}</span>}
+            </span>
+          )}
+          {heading && (
+            <span className="flex items-center justify-between gap-2">
+              <span className={cx("min-w-0 flex-1 text-left text-[15px] font-medium leading-5", isNight ? "text-white" : "text-black")}>{heading}</span>
+              <span className="shrink-0 font-go text-[13px] font-normal text-[#A9A9A9]">{duration}</span>
+            </span>
+          )}
+        </span>
+        {!heading && <span className="shrink-0 font-go text-[13px] font-normal text-[#A9A9A9]">{duration}</span>}
       </div>
-
-      {/* Duration */}
-      <span className="text-[13px] font-normal text-[#A9A9A9] shrink-0 font-go">
-        {duration}
-      </span>
+      {words && <p className={cx("text-left text-[13px] font-light leading-4", isNight ? "text-white" : "text-black")}>{words}</p>}
     </div>
   );
 }

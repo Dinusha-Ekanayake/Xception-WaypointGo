@@ -4,6 +4,24 @@
 
 ---
 
+## 2026-10-04 - fix: driver arrival and problem reports are a slide, not a tap
+
+`fix/field-ui-polish` · @Oxshadha
+
+On the driver phone, Report problem on the trip card is a button. I've arrived sends only when the control is slid across. A problem row does the same, and sends that row. From the trip card the only row is Vehicle problem; a stop still has the delivery rows. A voice note starts on a tap and sends itself at 15 seconds. Report sent stays until Okay, or closes after a few seconds. A voice message's play button fills as it plays, and the words sit where the waveform was.
+Why: a tap in the cab was recording arrivals and reports by mistake, and the home card's report looked like a link.
+Verified: frontend typecheck and production build. Playwright driver handover, which slides I've arrived and then delivers.
+Open: nothing.
+
+## 2026-10-04 - fix: field phone layout for voices, sign-out, PIN and the map
+
+`fix/field-ui-polish` · @Oxshadha
+
+On the driver phone, scrolling the voice notifications folds the driver card up so the voices get the screen. Sign out is the last row in Settings, in red, opened from the profile picture. A wrong PIN shakes and the digits clear, on the loader phone and keypad and on the driver's store-manager PIN. The store manager's floating bar shrinks while the page is scrolled. The enlarged trip map has Back on the map itself.
+Why: the voice list was stuck under a card that never moved, sign-out sat in the header, a wrong PIN left its dots filled, the store bar stayed full size over the page, and the enlarged map had no way back.
+Verified: frontend typecheck and production build. Playwright: driver handover PIN clears, map Back, voice list folds the driver card; loader offline PIN clears; store phone bar shrinks on scroll.
+Open: nothing.
+
 ## 2026-10-04 - feat(ordering): the shared-trip hint offers a day only when the order fits the trip (issue #199)
 
 `feat/199-trip-room` · @Oxshadha

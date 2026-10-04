@@ -152,7 +152,7 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
           </p>
         ) : (
           // Where the browser crossfades screens itself (shared/ui/transition.ts), this fade would play twice.
-          <div key={screen} className="absolute inset-0 animate-fade-in supports-[view-transition-name:none]:animate-none short:overflow-y-auto">
+          <div key={screen} className="absolute inset-0 z-0 animate-fade-in supports-[view-transition-name:none]:animate-none short:overflow-y-auto">
             {screen === "home" && (
               <HomeNoVehicle
                 {...(d.tripId ? { onOpenMessages: openMessages } : {})}
@@ -199,7 +199,7 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
             )}
             {screen === "map" && next && (
               <GoLayer dark={d.dark} top>
-                <RouteMap next={next} outlet={run.outlets[next.outletId]} recorder={d.location} syncedAt={run.syncedAt} />
+                <RouteMap next={next} outlet={run.outlets[next.outletId]} recorder={d.location} syncedAt={run.syncedAt} onBack={() => d.go({ name: "route", deliveryId: null })} className="h-full w-full" />
               </GoLayer>
             )}
             {screen === "report" && reporting && view.name === "report" && formFor !== reporting.deliveryId && (
@@ -335,7 +335,16 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
         )}
 
         {d.problemFor !== null && (
-          <ProblemSheet stop={d.problemFor === "run" ? null : d.problemFor} busy={busy} error={error} onSend={(problem) => void d.report(problem)} onClose={d.closeProblem} />
+          <ProblemSheet
+            stop={d.problemFor === "run" ? null : d.problemFor}
+            tripId={d.tripId}
+            accountId={userId}
+            sender={d.postMessage}
+            busy={busy}
+            error={error}
+            onSend={(problem) => d.report(problem)}
+            onClose={d.closeProblem}
+          />
         )}
         {d.saved && !pinFor && (
           <SavedSheet
@@ -411,7 +420,7 @@ function GoLayer({
   children: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <div className={cx(dark && "go-dark", "absolute inset-0 overflow-y-auto bg-go-canvas font-go text-go-ink", top && "pt-[74px]")}>
+    <div className={cx(dark && "go-dark", "absolute inset-0 bg-go-canvas font-go text-go-ink", top && !onBack ? "overflow-hidden pt-[74px]" : "overflow-y-auto", top && onBack && "pt-[74px]")}>
       {onBack && (
         <div className="flex items-center justify-between px-5 pt-5">
           <button type="button" onClick={onBack} className="-ml-2 flex min-h-12 items-center gap-2 rounded-full px-2 text-[19px] font-medium text-go-ink">
