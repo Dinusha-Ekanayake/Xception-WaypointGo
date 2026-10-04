@@ -52,6 +52,11 @@ test("with both depots in view the plan shows both, without asking which", async
   await expect(page.getByRole("region", { name: "Plan for Kandy" })).toBeVisible();
   await expect(page.getByRole("region", { name: "Plan for Peliyagoda" })).toBeVisible();
   await expect(page.getByText("Which depot are you planning?")).toHaveCount(0);
+  // The page header's depot switch is the same scope: picking one narrows the plan and the sidebar alike.
+  await page.getByRole("radiogroup", { name: "Depots in the plan" }).getByRole("radio", { name: "Peliyagoda" }).click();
+  await expect(page.getByRole("region", { name: "Plan for Kandy" })).toHaveCount(0);
+  await expect(page.getByRole("complementary", { name: "Sidebar" }).getByRole("radio", { name: "Peliyagoda" })).toHaveAttribute("aria-checked", "true");
+  await page.getByRole("radiogroup", { name: "Depots in the plan" }).getByRole("radio", { name: "Both" }).click();
   // The sidebar narrows it, as on every screen.
   await page.getByRole("complementary", { name: "Sidebar" }).getByRole("radio", { name: "Kandy" }).click();
   await expect(page.getByRole("region", { name: "Plan for Peliyagoda" })).toHaveCount(0);

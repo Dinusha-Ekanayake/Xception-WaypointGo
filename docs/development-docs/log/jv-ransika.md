@@ -25,7 +25,8 @@ From a critic and defender review of the dispatcher screens:
 
 Why: findings of the UX review, reranked by both sides.
 Verified: `npm run typecheck`, `npm test` (213), `npm run build`; dispatcher browser suite 57 of 57.
-Open: a pass on real data to confirm the mock-only items; the both-depot header switch (FIGMA-GAP decision); Orders brand legend.
+Also: the Plan header has a depot switch (Both, Kandy, Peliyagoda) on the same shared scope as the sidebar (FIGMA-GAP updated); Orders has a brand legend that also filters.
+Open: a pass on real data to confirm the mock-only items.
 
 ---
 

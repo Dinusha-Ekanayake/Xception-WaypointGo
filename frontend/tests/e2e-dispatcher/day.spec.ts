@@ -22,6 +22,13 @@ test("the order board follows each order from due to confirmed, and says where i
   await expect(third).toContainText("Deferred");
   await expect(third).toContainText("deferred 2×");
 
+  // The brand legend names the dots and filters to one brand.
+  const legend = page.getByRole("group", { name: "Brands" });
+  await legend.getByRole("button", { name: "Style" }).click();
+  await expect(table.getByRole("row").filter({ hasText: "ORD0092301" })).toHaveCount(0);
+  await legend.getByRole("button", { name: "Style" }).click();
+  await expect(table.getByRole("row").filter({ hasText: "ORD0092301" })).toHaveCount(1);
+
   // A row opens the order with its day as a timeline (Figma 03d).
   await first.click();
   const drawer = page.getByRole("dialog", { name: "Order ORD0092301" });
