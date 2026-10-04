@@ -10,6 +10,7 @@ import type { StoreGateway } from "../data/gateway.ts";
 import { clock, minutesLabel } from "../data/format.ts";
 import { conflictMessage } from "../data/useCommands.ts";
 import { Badge, Button, Modal } from "../ui.tsx";
+import { businessNow } from "@shared/wording";
 
 // Figma "06b Enter PIN on driver's phone". The store's count is already on
 // record; the PIN is evidence that the handover happened here, never a gate
@@ -37,12 +38,12 @@ export default function HandoverModal({
   const [pin, setPin] = useState(issued);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [now, setNow] = useState(() => new Date());
+  const [now, setNow] = useState(() => businessNow());
   const handover = useResource((s) => gateway.handover(orderId, s), `${orderId}|${pin.pin}`, 5_000);
   const h = handover.data;
 
   useEffect(() => {
-    const t = window.setInterval(() => setNow(new Date()), 15_000);
+    const t = window.setInterval(() => setNow(businessNow()), 15_000);
     return () => window.clearInterval(t);
   }, []);
 

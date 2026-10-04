@@ -27,6 +27,7 @@ import PhotoDialog from "./PhotoDialog.tsx";
 import ReportCard from "./ReportCard.tsx";
 import ReportedList from "./ReportedList.tsx";
 import SummaryCard from "./SummaryCard.tsx";
+import { businessNow } from "@shared/wording";
 
 // Figma "06 Receive delivery", "06-1" to "06-7", "06b" and "07". The store
 // reports what is wrong, item by item, with photos, then submits its count once.
@@ -183,7 +184,7 @@ export default function Receive({
       queued: outcome.queued,
       disputed: answer.kind === "dispute",
       units: received,
-      at: new Date().toISOString(),
+      at: businessNow().toISOString(),
       sent: sends,
       pin: issued?.handoverPin && issued.handoverExpiresAt ? { pin: issued.handoverPin, expiresAt: issued.handoverExpiresAt } : null,
       confirmedAt: null,
@@ -304,7 +305,7 @@ export default function Receive({
           gateway={gateway}
           orderId={orderId}
           issued={done.pin}
-          onConfirmed={(h) => setDone((d) => (d ? { ...d, confirmedAt: h.confirmedAt ?? new Date().toISOString() } : d))}
+          onConfirmed={(h) => setDone((d) => (d ? { ...d, confirmedAt: h.confirmedAt ?? businessNow().toISOString() } : d))}
           onClose={onBack}
         />
       )}

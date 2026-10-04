@@ -58,10 +58,12 @@ public class CatalogueSyncJob implements ScheduledJob {
     this.client = client;
     this.events = events;
     this.metrics = metrics;
-    this.clock = clock;
+    // A sync is stamped on real time: freshness is how old the copy really is, and a
+    // demo clock moved forward must not make a fresh catalogue look stale.
+    this.clock = clock.realTime();
     metrics.gauge("waypoint.warehouse.catalogue_age_seconds", () -> {
       Instant at = lastGood.get();
-      return at == null ? -1 : Duration.between(at, clock.now()).toSeconds();
+      return at == null ? -1 : Duration.between(at, this.clock.now()).toSeconds();
     });
   }
 
@@ -82,7 +84,7 @@ public class CatalogueSyncJob implements ScheduledJob {
 
   @Override
   public void run(Instant now) {
-    sync(now);
+    sync(clock.now());
   }
 
   /** @return the outcome: {@code changed}, {@code unchanged} or {@code failed} */

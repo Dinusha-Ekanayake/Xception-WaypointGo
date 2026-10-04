@@ -48,7 +48,8 @@ public class WarehouseCatalogueQuery implements CatalogueQuery {
     this.client = client;
     this.properties = properties;
     this.sync = sync;
-    this.clock = clock;
+    // Freshness is how old the copy really is, never measured on the demo clock.
+    this.clock = clock.realTime();
   }
 
   @Override

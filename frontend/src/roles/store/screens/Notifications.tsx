@@ -6,7 +6,7 @@ import type { Inbox } from "@shared/notifications/useInbox";
 import { isUnread, kindOf, toneOf, TONE_STYLE } from "@shared/notifications/inbox";
 import { Icon, SkeletonRows, cx } from "@shared/ui";
 import { Drawer } from "../ui.tsx";
-import { clock, dayLabel, depotToday } from "@shared/wording";
+import { clock, dayLabel, depotToday, businessNow } from "@shared/wording";
 
 // The store manager's notifications (issue #118), Figma "14 Store Manager ·
 // Desktop" and "15 · Mobile", 10 Notifications (11:117503 drawer, 11:125924
@@ -17,7 +17,7 @@ import { clock, dayLabel, depotToday } from "@shared/wording";
 
 
 /** "03:12" today, "Sat 19:10" before: depot time, whatever the phone's own zone. */
-export function when(createdAt: string, now: Date = new Date()): string {
+export function when(createdAt: string, now: Date = businessNow()): string {
   const at = new Date(createdAt);
   const day = depotToday(at);
   if (day === depotToday(now)) return clock(at);
@@ -79,7 +79,7 @@ export function NotificationsDrawer({
   onClose: () => void;
 }): React.JSX.Element {
   const [readIds, setReadIds] = useState<Set<string>>(() => new Set());
-  const [lookedAt] = useState(() => new Date());
+  const [lookedAt] = useState(() => businessNow());
   const [actionError, setActionError] = useState<string | null>(null);
 
   const { open, error: openError } = useOpen(inbox, (n) => {

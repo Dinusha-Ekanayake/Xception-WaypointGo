@@ -18,6 +18,7 @@ import type { HandoverAnswer } from "./screens/DeliveryPinConfirmModal.tsx";
 import type { Report } from "./screens/DeliveryReport.tsx";
 import type { ProofDraft } from "./screens/ProofCapture.tsx";
 import type { Problem } from "./screens/Sheets.tsx";
+import { businessNow } from "@shared/wording";
 
 // What the driver's screens do, as commands. Every write goes through useRun,
 // which keeps it on the phone when it cannot be sent, so a day with no signal
@@ -107,13 +108,13 @@ export function useDriver(userId: string, depot: string | null = null) {
   const [leaving, setLeaving] = useState(false);
   const [working, setWorking] = useState(false);
   const [vehicleStatus, setVehicleStatus] = useState<ReportedVehicleStatus | null>(null);
-  const [now, setNow] = useState(() => new Date());
+  const [now, setNow] = useState(() => businessNow());
 
   useEffect(() => setDark(storedTheme()), []);
 
   // The route screen says how late the next stop is running, by this phone's clock.
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date()), 30_000);
+    const timer = window.setInterval(() => setNow(businessNow()), 30_000);
     return () => window.clearInterval(timer);
   }, []);
 
@@ -173,7 +174,7 @@ export function useDriver(userId: string, depot: string | null = null) {
   /** True once the arrival is recorded, sent or kept on this phone. */
   const arrived = async (stop: Stop): Promise<boolean> => {
     setError(null);
-    const outcome = await act(DeliveryKind.arrive, { deliveryId: stop.deliveryId, deviceArrivedAt: new Date().toISOString() }, stop);
+    const outcome = await act(DeliveryKind.arrive, { deliveryId: stop.deliveryId, deviceArrivedAt: businessNow().toISOString() }, stop);
     if (!outcome.ok) {
       setError(words(outcome));
       return false;
