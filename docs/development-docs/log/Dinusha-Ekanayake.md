@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-04 - feat: the attention watch, increment 2a (issue #268): acknowledge, reminders counted, a scorer seam
+
+`feat/268-attention-ack` · @Dinusha-Ekanayake
+
+`ml:AcknowledgeAttention` (handler, action catalogue row, dispatcher policy statement `AttentionWatch`): the dispatcher acknowledges an item with a reason of three characters or more and its `expectedVersion`; who, when and why are kept, the item leaves the list and is never deleted; another depot is 403. The watch now marks a critical, unacknowledged item as reminded when `ReminderPolicy` says it is due, up to the depot's cap. `AttentionScorer` is the one place another way of ranking would plug in; the built-in scorer is the rules, which stay the fallback.
+Left: reminders reaching the dispatcher (events through the outbox, the MODULES.md catalogue rows, the notification subscriber), the EDGE-CASES row for a stalled watch, and the Live screen reading from the endpoint. No external model is connected: JEV's API is not public, and trip data would leave the system.
+Verified: compiles; the unit and architecture tests pass. The new integration tests (acknowledge, stale version, short reason, out-of-scope) run first in this PR's CI; no database was available locally.
+
+---
+
 ## 2026-10-04 - feat: the attention watch, increment 1 (issue #268): the rule, the tables, the job and the read
 
 `feat/268-attention-watch` · @Dinusha-Ekanayake
