@@ -7,7 +7,9 @@ import { dayLabel, ruleLabel, temperatureLabel } from "@shared/wording";
 import { STATUS, size } from "../data/orders.ts";
 import { daysBetween, lastServedText, type DecisionRow } from "../data/planViews.ts";
 import { useNextDelivery } from "../data/usePlanReads.ts";
+import { explainDeferral } from "../data/explain.ts";
 import CheckList from "./CheckList.tsx";
+import ExplainSheet from "./ExplainSheet.tsx";
 import type { PlanActions } from "./planActions.ts";
 import ReasonPicker, { reasonReady } from "./ReasonPicker.tsx";
 
@@ -46,6 +48,7 @@ export default function DecisionPanel({
   const [keeping, setKeeping] = useState(false);
   // The panel's own command in flight, so the spinner shows on the button pressed, not for a command sent elsewhere.
   const [sending, setSending] = useState(false);
+  const [explaining, setExplaining] = useState(false);
   const send = (command: Promise<boolean>) => {
     setSending(true);
     void command.finally(() => setSending(false));
@@ -114,6 +117,13 @@ export default function DecisionPanel({
           </div>
         )}
         {open && <CheckList checks={allocation.checks} />}
+        {(open || row.state === "kept") && <SecondaryButton onClick={() => setExplaining(true)}>Explain this decision</SecondaryButton>}
+        {explaining && (
+          <ExplainSheet
+            explanation={explainDeferral({ orderRef: order?.orderRef ?? null, outletId: order?.outletId ?? null, day: dayLabel(plan.serviceDate), allocation, places })}
+            onClose={() => setExplaining(false)}
+          />
+        )}
 
         {open && editable && (
           <>

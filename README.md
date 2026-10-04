@@ -75,6 +75,7 @@ The Figma file (pages 04 to 17) is the specification. Where the design shows som
   - English only.
 - **Dispatcher:**
   - Global search (the header, `/` or Ctrl+K) looks through what the screens have already loaded for the day and the depots in view: orders, vehicles, trips, issues and depots. It does not search other days.
+  - In Plan, a deferred order has **Explain this decision**: a pop-up that sets out why it was not placed, what was checked and what can be done, from the facts the plan already holds. The design shows the reason on the panel only.
   - Vehicle interchange approval waits on Loading.
   - The Forecast's error chip shows the demand model's measured error over all volume and over chilled volume. The design shows a figure per brand, which the model does not measure.
   - Late risk is shown only on a published plan, once the time predictor has scored it. A draft says it is scored once published, and an estimate says so.
