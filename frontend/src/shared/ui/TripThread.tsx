@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ApiError } from "../api/problem.ts";
-import { useThread, useWaiting } from "../messaging/useThread.ts";
+import { resolveReport, useThread, useWaiting } from "../messaging/useThread.ts";
 import { audienceLabel, plain, type Translate } from "../messaging/thread.ts";
 import type { Sender } from "../messaging/senders.ts";
 import { clock } from "../wording/time.ts";
@@ -70,6 +70,14 @@ export function TripThread({
             onOlder={t.loadOlder}
             compact={variant === "phone"}
             tr={tr}
+            {...(thread?.memberRole === "dispatcher"
+              ? {
+                  onResolve: async (messageId: string, note: string) => {
+                    await resolveReport(messageId, note);
+                    t.refresh();
+                  },
+                }
+              : {})}
           />
         )}
         {waiting.length > 0 && (

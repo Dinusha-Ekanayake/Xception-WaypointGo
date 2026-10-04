@@ -108,7 +108,8 @@ public class MessagingQuery {
           new MessageView(
               m.messageId(), m.threadId(), name(m, names), m.authorRole(), m.kind(), m.reportType(), m.audience(),
               m.audienceOutlet(), m.body(), m.voiceNoteId(), m.voiceDurationMs(), m.createdAt(),
-              m.authorUserId().equals(actor.userId())));
+              m.authorUserId().equals(actor.userId()), m.voicePeaks(), m.resolvedAt(),
+              m.resolvedBy().map(by -> resolver(by, names)), m.resolutionNote()));
     }
     return new MessagePage(items, page.nextCursor());
   }
@@ -162,7 +163,8 @@ public class MessagingQuery {
                     r.get("voice_note_id") != null
                         ? MessagePolicy.voiceExcerpt((String) r.get("body"), true)
                         : MessagePolicy.excerpt((String) r.get("body")),
-                    r.get("voice_note_id") != null));
+                    r.get("voice_note_id") != null,
+                    Optional.ofNullable((String) r.get("about_outlet"))));
           }
           return Optional.of(marks);
         })
@@ -194,6 +196,14 @@ public class MessagingQuery {
   }
 
   /** A report made from an event names the role; a person's message names the person. */
+  /** Who resolved a report: a person, or the system when the issue behind it was resolved. */
+  private String resolver(UUID by, Map<UUID, String> cache) {
+    if (Actor.SYSTEM_ID.equals(by)) {
+      return "Issue resolved";
+    }
+    return cache.computeIfAbsent(by, id -> people.person(id).map(PersonQuery.PersonView::displayName).orElse("Dispatcher"));
+  }
+
   private String name(Message m, Map<UUID, String> cache) {
     if (Actor.SYSTEM_ID.equals(m.authorUserId())) {
       return switch (m.authorRole()) {

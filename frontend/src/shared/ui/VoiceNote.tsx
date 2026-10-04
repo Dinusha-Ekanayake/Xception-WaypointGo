@@ -59,7 +59,10 @@ export function VoiceNote({
 }: {
   src: string;
   durationMs: number | null;
-  /** Known bars, such as a note just recorded; otherwise worked out from the audio. */
+  /**
+   * Known bars, 0 to 1: a note just recorded, or the waveform the recording
+   * phone sent with the audio. Otherwise worked out from the audio.
+   */
   peaks?: number[];
   /** Keeps the placeholder bars the same for one note. */
   seed: string;
@@ -77,14 +80,16 @@ export function VoiceNote({
   const look = TONE[tone];
   const total = (durationMs ?? 0) / 1000;
 
+  // A new array each render is the same waveform: follow its values, not its identity.
+  const givenKey = given && given.length > 0 ? given.join(",") : null;
   useEffect(() => {
-    if (given) return setPeaks(given);
+    if (given && given.length > 0) return setPeaks(given);
     let live = true;
     void decode(src).then((p) => live && p && setPeaks(p));
     return () => {
       live = false;
     };
-  }, [src, given]);
+  }, [src, givenKey]);
 
   useEffect(() => {
     const el = audio.current;
@@ -94,6 +99,9 @@ export function VoiceNote({
       setAt(el.currentTime);
       if (!el.paused) frame = requestAnimationFrame(tick);
     };
+    // The position the audio is really at: frames while playing, timeupdate as a backstop.
+    const onTime = () => setAt(el.currentTime);
+    const onMeta = () => setAt(el.currentTime);
     const onPlay = () => {
       setPlaying(true);
       frame = requestAnimationFrame(tick);
@@ -109,12 +117,16 @@ export function VoiceNote({
       setAt(0);
     };
     const onError = () => setFailed(true);
+    el.addEventListener("timeupdate", onTime);
+    el.addEventListener("loadedmetadata", onMeta);
     el.addEventListener("play", onPlay);
     el.addEventListener("pause", onStop);
     el.addEventListener("ended", onEnd);
     el.addEventListener("error", onError);
     return () => {
       cancelAnimationFrame(frame);
+      el.removeEventListener("timeupdate", onTime);
+      el.removeEventListener("loadedmetadata", onMeta);
       el.removeEventListener("play", onPlay);
       el.removeEventListener("pause", onStop);
       el.removeEventListener("ended", onEnd);
@@ -122,7 +134,10 @@ export function VoiceNote({
     };
   }, []);
 
-  const length = total > 0 ? total : audio.current && Number.isFinite(audio.current.duration) ? audio.current.duration : 0;
+  // The audio's own length when the browser knows it; a fresh WebM recording reports
+  // Infinity until played through, so the length recorded with the note stands in.
+  const known = audio.current && Number.isFinite(audio.current.duration) && audio.current.duration > 0 ? audio.current.duration : 0;
+  const length = known || total;
   const progress = length > 0 ? Math.min(1, at / length) : 0;
 
   const toggle = () => {

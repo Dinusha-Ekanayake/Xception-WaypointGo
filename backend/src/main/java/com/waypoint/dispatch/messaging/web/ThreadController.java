@@ -100,11 +100,14 @@ public class ThreadController {
       @PathVariable UUID threadId,
       @PathVariable UUID voiceNoteId,
       @RequestParam(required = false) Integer durationMs,
+      @RequestParam(required = false) String peaks,
       @RequestHeader("Content-Type") String contentType,
       @RequestBody byte[] content,
       HttpServletRequest request) {
     var actor = authorizer.require(request, MessagingCommands.POST, "wpt:message:thread:" + threadId);
-    return voice.store(actor, threadId, voiceNoteId, contentType, content, Optional.ofNullable(durationMs));
+    return voice.store(
+        actor, threadId, voiceNoteId, contentType, content, Optional.ofNullable(durationMs),
+        com.waypoint.dispatch.messaging.domain.MessagePolicy.peaks(peaks));
   }
 
   @GetMapping("/{threadId}/voice/{voiceNoteId}")

@@ -8,6 +8,7 @@ import { closedOnTheirOwn, depotSummaries, filterRuns, needCards, runsOf, summar
 import { dayLabel } from "../data/scope.ts";
 import { useIssues, useLive, usePositions, useReports } from "../data/useDay.ts";
 import { useDispatcherInbox } from "../inbox.tsx";
+import { tripOf, useOpenTripThread } from "../data/threads.ts";
 import DayPicker from "./DayTools.tsx";
 import { Retry } from "./Orders.tsx";
 import LiveMapView from "./LiveMap.tsx";
@@ -50,6 +51,8 @@ export default function Live({
   const issues = useIssues(depots);
   const reports = useReports(depots, date);
   const inbox = useDispatcherInbox();
+  const openTripThread = useOpenTripThread();
+  const [threadNote, setThreadNote] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
   const [view, setView] = usePersistentState<View>("dispatcher:live:view", "needs");
   const [localDepot, setLocalDepot] = usePersistentState("dispatcher:live:depot", "all");
@@ -153,6 +156,7 @@ export default function Live({
 
       {live.error && <Refusal error={live.error} what="the live view" action={<Retry onClick={live.refresh} />} />}
       {!online && <Notice tone="warning" title="Live updates are paused" />}
+      {threadNote && <Notice tone="info" title={threadNote} />}
 
       {view === "needs" && (
         <LiveNeeds cards={cards} runs={inDepot} date={date} closedOnTheirOwn={closedOnTheirOwn(inDepot)} online={online} onOpenTrip={setTrip} onOpenIssue={onOpenIssue} onViewAll={() => setView("timeline")} />
@@ -168,6 +172,7 @@ export default function Live({
             onOpen={setTrip}
             reports={reports.data ?? []}
             onReport={(mark) => inbox?.openThread({ threadId: mark.threadId, messageId: mark.messageId })}
+            onMessages={(run) => void openTripThread(tripOf(run)).then(setThreadNote)}
           />
           <aside aria-label="Vehicles on the road" className="flex w-full flex-col gap-2.5 rounded-[24px] bg-white p-[18px] shadow-go-card lg:max-w-[360px]">
             <div className="flex items-baseline justify-between">

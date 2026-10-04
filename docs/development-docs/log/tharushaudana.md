@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-05 - feat(messaging): resolve reports, real voice in the inbox, signs on the line
+
+`feat/136-voice-fixes` · @tharushaudana
+
+The dispatcher resolves a report from the thread with a note (`message:Resolve`, R-MSG-07); resolving its issue resolves it too. Its warning sign then leaves the timeline; the report stays, marked. The sign waves gently, sits centred on the run's line, and replaces the stop's dot when the report is about a store on the trip. Every timeline run has a messages icon. A voice note's waveform travels with the audio and is stored, so every phone draws the real bars; the driver's inbox plays a voice message's own audio instead of reading the notification aloud. The report bubble lost its border artifact. The driver's Messages button is an icon in the top bar.
+Why: user review of preview on 2026-10-05.
+Verified: `MessagePolicyTest`, `ModuleBoundaryTest`, `EventCatalogueTest`; `MessagingIntegrationTest` adds resolving, issue resolution, waveform and outlet cases (CI); `npm test`; the four role suites.
+Open: a resolved report does not notify its reporter.
+
+---
+
 ## 2026-10-04 - feat(frontend): voice notes recorded and played as in a messaging app
 
 `feat/136-voice-ui` · @tharushaudana

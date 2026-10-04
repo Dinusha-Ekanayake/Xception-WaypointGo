@@ -444,7 +444,7 @@ People write to each other there, and every field report about the trip lands on
 
 | Layer | Contents |
 | --- | --- |
-| contract | `MessagingCommands` (`message:Post`, `message:Read`), `MessagingEvents` (`MessagePosted`), `MessagingViews` (`ThreadView`, `MessageView`, `MessagePage`, `ReportMarkView`, `MemberView`) |
+| contract | `MessagingCommands` (`message:Post`, `message:Read`, `message:Resolve`), `MessagingEvents` (`MessagePosted`), `MessagingViews` (`ThreadView`, `MessageView`, `MessagePage`, `ReportMarkView`, `MemberView`) |
 | domain | `MessagePolicy`: who belongs how, who may write to whom, reports, the posting window, voice notes (R-MSG-01 to R-MSG-06) |
 | application | `PostMessageHandler`, `MessagingConsumers` (`OnPlanPublished`, `OnPlanRevised`, `OnIssueRaised`), `MessagingQuery`, `VoiceNotes` |
 | infrastructure | `JdbcThreadRepository` |
@@ -473,9 +473,12 @@ The trip is found through the issue's trip, delivery or order subject (`Executio
 - The phone uploads the audio first under its own id, then posts the message carrying it, so a retry stores it once.
 - The audio must be WebM, Ogg, MP4/AAC or MP3, at most 2 MB and 120 seconds.
 - It is heard by its author and by whoever may see its message.
+- The phone sends the note's waveform with it (`peaks`), so every reader draws the same bars; `message.posted` carries the note's id, length and waveform for the inbox to play it.
+
+**Resolving a report (R-MSG-07).** `message:Resolve` by a dispatcher who oversees the depot, with a note; or `issue.resolved` for a report made from that issue. A resolved report leaves `/api/threads/reports` and stays on the thread. A report names the stop it is about (`outletId`: a store's own outlet, or the issue's), and the timeline draws its sign on that stop.
 
 **Publishes:** `message.posted` (never the body; an excerpt for the notification).
-**Consumes:** `plan.published`, `plan.revised` (open or widen each trip's thread; never narrowed), `issue.raised`.
+**Consumes:** `plan.published`, `plan.revised` (open or widen each trip's thread; never narrowed), `issue.raised`, `issue.resolved` (resolves the report made from the issue).
 **Queries used:** `IssueQuery.issue`, `ExecutionQuery.deliveryRecord`, `ExecutionQuery.deliveryForOrder`, `IdentityQuery` (`driverOn`, `scopeOf`), `PersonQuery`.
 
 **Invariants.**
@@ -599,7 +602,7 @@ Modules connect three ways: a contract query (synchronous, read only), an event 
 | `vehicle.fault_reported`, `road.disruption_reported` | Execution | Issues, Notification |
 | `receipt.confirmed`, `receipt.disputed`, `receipt.auto_closed` | Receipt | Ordering, Issues, Notification |
 | `receipt.handover_confirmed` | Receipt | Notification |
-| `issue.raised`, `issue.resolved`, `issue.escalated` | Issues | Notification, Messaging (`issue.raised`) |
+| `issue.raised`, `issue.resolved`, `issue.escalated` | Issues | Notification, Messaging (`issue.raised`, `issue.resolved`) |
 | `shortfall.resolved` | Issues | Loading |
 | `redelivery.requested` | Issues | Ordering |
 | `warehouse.order_status_changed` | Warehouse | Ordering, Notification |

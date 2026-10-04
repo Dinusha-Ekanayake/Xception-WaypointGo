@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.waypoint.dispatch.identity.application.AccountAdminUseCase;
 import com.waypoint.dispatch.identity.application.LoginHandler;
 import com.waypoint.dispatch.identity.web.AuthController;
+import com.waypoint.dispatch.issues.contract.IssueEvents.IssueResolved;
 import com.waypoint.dispatch.loading.contract.LoadingEvents.LoadingShortfall;
 import com.waypoint.dispatch.loading.contract.LoadingViews.CheckStatus;
 import com.waypoint.dispatch.messaging.MessagingTestConfig.MovableClock;
@@ -285,6 +286,7 @@ class MessagingIntegrationTest {
     JsonNode marks = json(read(dispatcher, "/api/threads/reports?depot=" + depot + "&date=" + day, 200));
     assertEquals(1, marks.size(), marks.toString());
     assertEquals("loading_shortfall", marks.get(0).get("reportType").asText());
+    assertTrue(marks.get(0).get("outletId").isNull() || marks.get(0).get("outletId").isTextual(), "about a stop when the issue names one");
     assertEquals("loader", marks.get(0).get("authorRole").asText());
     assertEquals(tripId.toString(), marks.get(0).get("tripId").asText());
     assertTrue(bodies(manager).isEmpty(), "a report is not the store's to read");
@@ -375,6 +377,102 @@ class MessagingIntegrationTest {
         .replaceFirst("\"commandId\":\"[^\"]+\"", "\"commandId\":\"" + UUID.randomUUID() + "\"");
     assertEquals(403, http.perform(post("/api/commands").cookie(device).contentType(MediaType.APPLICATION_JSON)
         .content(stranger)).andReturn().getResponse().getStatus());
+  }
+
+  @Test
+  void theDispatcherResolvesAReportAndItsWarningSignLeavesTheTimeline() throws Exception {
+    JsonNode posted = json(say(driver, "{\"to\":\"dispatch\",\"report\":\"vehicle_fault\",\"body\":\"Tyre warning\"}", 200));
+    UUID reportId = UUID.fromString(posted.get("result").get("messageId").asText());
+    JsonNode chat = json(say(driver, "{\"to\":\"dispatch\",\"body\":\"Just a note\"}", 200));
+    String path = "/api/threads/reports?depot=" + depot + "&date=" + day;
+    assertEquals(1, json(read(dispatcher, path, 200)).size());
+
+    // Not a report, not theirs to resolve, not a dispatcher of the depot: refused (R-MSG-07).
+    resolve(dispatcher, UUID.fromString(chat.get("result").get("messageId").asText()), "", 422);
+    resolve(driver, reportId, "", 403);
+    resolve(farDispatcher, reportId, "", 403);
+
+    JsonNode done = json(resolve(dispatcher, reportId, "Spare fitted at OUT001", 200));
+    assertEquals(false, done.get("result").get("alreadyResolved").asBoolean());
+    assertEquals(0, json(read(dispatcher, path, 200)).size(), "the sign leaves the timeline");
+    assertTrue(json(resolve(dispatcher, reportId, "again", 200)).get("result").get("alreadyResolved").asBoolean());
+
+    JsonNode report = null;
+    for (JsonNode m : json(read(dispatcher, "/api/threads/" + threadId + "/messages", 200)).get("items")) {
+      if (m.get("messageId").asText().equals(reportId.toString())) report = m;
+    }
+    assertTrue(report != null && report.hasNonNull("resolvedAt"), "the report stays, resolved");
+    assertEquals("Spare fitted at OUT001", report.get("resolutionNote").asText());
+    assertEquals("Priya Dispatch", report.get("resolvedByName").asText());
+  }
+
+  @Test
+  void aReportFromAnIssueIsResolvedWhenTheIssueIs() throws Exception {
+    publish(
+        ModuleRole.LOADING,
+        new LoadingShortfall(UUID.randomUUID(), tripId, UUID.randomUUID(), depot, CheckStatus.MISSING, 1, "Crate short"));
+    drain();
+    String path = "/api/threads/reports?depot=" + depot + "&date=" + day;
+    assertEquals(1, json(read(dispatcher, path, 200)).size());
+    UUID issueId = (UUID) database.asSystem(ModuleRole.MESSAGING, () -> database.queryOne(
+        "SELECT source_issue_id FROM messaging.messages WHERE thread_id = ? AND kind = 'report'", threadId))
+        .get("source_issue_id");
+    assertTrue(issueId != null, "the report remembers its issue");
+
+    publish(ModuleRole.ISSUES, new IssueResolved(issueId, depot, Optional.empty(), "REDELIVERY_BOOKED", clock.now()));
+    drain();
+    assertEquals(0, json(read(dispatcher, path, 200)).size());
+    // Delivered twice, nothing changes.
+    publish(ModuleRole.ISSUES, new IssueResolved(issueId, depot, Optional.empty(), "REDELIVERY_BOOKED", clock.now()));
+    drain();
+    JsonNode report = json(read(dispatcher, "/api/threads/" + threadId + "/messages", 200)).get("items").get(0);
+    assertEquals("Issue resolved", report.get("resolvedByName").asText());
+  }
+
+  @Test
+  void aVoiceNoteKeepsItsWaveformAndItsNotificationNamesTheAudio() throws Exception {
+    UUID voiceId = UUID.randomUUID();
+    byte[] audio = new byte[] {0x1a, 0x45, (byte) 0xdf, (byte) 0xa3, 5, 6};
+    MvcResult up = http.perform(
+            put("/api/threads/" + threadId + "/voice/" + voiceId + "?durationMs=3000&peaks=10,55,100,250")
+                .cookie(session(driver)).contentType("audio/webm").content(audio))
+        .andReturn();
+    assertEquals(200, up.getResponse().getStatus(), up.getResponse().getContentAsString());
+    say(driver, "{\"to\":\"dispatch\",\"body\":\"\",\"voiceNoteId\":\"" + voiceId + "\"}", 200);
+    drain();
+
+    JsonNode m = json(read(dispatcher, "/api/threads/" + threadId + "/messages", 200)).get("items").get(0);
+    assertEquals(List.of("10", "55", "100", "100"), strings(m.get("voicePeaks")), "clamped to 0 to 100");
+    Map<String, Object> facts = database.asSystemSeparately(ModuleRole.NOTIFICATION, () -> database.queryOne(
+        "SELECT facts->>'voiceNoteId' AS v, facts->>'voiceDurationMs' AS d, facts->>'voicePeaks' AS p"
+            + " FROM notification.notifications WHERE recipient_user_id = ? AND event_type = 'message.posted'"
+            + " ORDER BY created_at DESC LIMIT 1", dispatcherId));
+    assertEquals(voiceId.toString(), facts.get("v"));
+    assertEquals("3000", facts.get("d"));
+    assertEquals("10,55,100,100", facts.get("p"));
+  }
+
+  @Test
+  void aStoresReportIsDrawnOnItsOwnStop() throws Exception {
+    say(manager, "{\"to\":\"dispatch\",\"report\":\"stock_discrepancy\",\"body\":\"Two units short\"}", 200);
+    say(driver, "{\"to\":\"dispatch\",\"report\":\"vehicle_fault\",\"body\":\"Tyre warning\"}", 200);
+    JsonNode marks = json(read(dispatcher, "/api/threads/reports?depot=" + depot + "&date=" + day, 200));
+    assertEquals(2, marks.size());
+    for (JsonNode m : marks) {
+      if ("store_manager".equals(m.get("authorRole").asText())) assertEquals(OUTLET, m.get("outletId").asText());
+      else assertTrue(m.get("outletId").isNull(), "a driver's report is about the whole trip");
+    }
+  }
+
+  private String resolve(String who, UUID messageId, String note, int expected) throws Exception {
+    String envelope =
+        "{\"commandId\":\"" + UUID.randomUUID() + "\",\"kind\":\"message:Resolve\",\"expectedVersion\":null,"
+            + "\"payload\":{\"messageId\":\"" + messageId + "\",\"note\":\"" + note + "\"},"
+            + "\"clientRecordedAt\":\"" + clock.now() + "\"}";
+    MvcResult r = http.perform(post("/api/commands").cookie(session(who)).contentType(MediaType.APPLICATION_JSON)
+        .content(envelope)).andReturn();
+    assertEquals(expected, r.getResponse().getStatus(), r.getResponse().getContentAsString());
+    return r.getResponse().getContentAsString();
   }
 
   // ---- helpers ----
