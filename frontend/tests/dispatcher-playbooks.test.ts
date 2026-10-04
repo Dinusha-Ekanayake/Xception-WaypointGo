@@ -28,6 +28,6 @@ test("a message with a blank it cannot fill is not offered, and the steps still 
 
 test("the same situation always gets the same advice", () => {
   const facts = { vehicle: "VEH001", store: "OUT001", expected: "09:00", "window close": "10:00" };
-  assert.deepEqual(suggestionFor("proof", facts), suggestionFor("proof", facts));
+  assert.deepEqual(suggestionFor("left", facts), suggestionFor("left", facts));
   assert.equal(suggestionFor("issue", facts).message, null);
 });
