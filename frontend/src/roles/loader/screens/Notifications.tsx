@@ -7,6 +7,7 @@ import { ago, isUnread, kindOf, toneOf, TONE_STYLE } from "@shared/notifications
 import type { NotificationView } from "@shared/domain/types";
 import { useT } from "../i18n.tsx";
 import { localized } from "../data/messages.ts";
+import { SkeletonRows } from "@shared/ui";
 import { BigButton, Sheet } from "../ui.tsx";
 import { clock } from "@shared/wording";
 
@@ -61,7 +62,11 @@ export default function Notifications({
       )}
 
       {inbox.items.length === 0 ? (
-        <p className="py-8 text-center text-[15px] text-go-muted">{inbox.loading ? tr("Loading…") : tr("No notifications yet")}</p>
+        inbox.loading ? (
+          <SkeletonRows rows={3} label={tr("Loading…")} />
+        ) : (
+          <p className="py-8 text-center text-[15px] text-go-muted">{tr("No notifications yet")}</p>
+        )
       ) : (
         <ul className="flex max-h-[55dvh] flex-col gap-2.5 overflow-y-auto">
           {inbox.items.map((n) => {

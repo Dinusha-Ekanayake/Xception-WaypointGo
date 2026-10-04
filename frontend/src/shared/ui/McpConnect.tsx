@@ -65,7 +65,8 @@ function Connections(): React.JSX.Element {
             type="button"
             onClick={() => void disconnect(c.connectionId)}
             disabled={ending !== null}
-            className="min-h-11 shrink-0 rounded-full bg-go-card px-4 text-[14px] font-medium text-go-teal disabled:opacity-60"
+            aria-busy={ending === c.connectionId || undefined}
+            className="min-h-11 shrink-0 rounded-full bg-go-card px-4 text-[14px] font-medium text-go-teal disabled:cursor-wait disabled:opacity-60"
           >
             {ending === c.connectionId ? "Disconnecting..." : "Disconnect"}
           </button>

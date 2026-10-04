@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ApiError } from "@shared/api/problem";
+import { ApiError, friendlyError } from "@shared/api/problem";
 import { useResource } from "@shared/api/useResource";
 import { OrderCommandKind, type LineAvailability, type OrderView, type PlacedOrder, type OutletView, type Temperature } from "@shared/domain/types";
 import { Notice, cx } from "@shared/ui";
@@ -206,7 +206,7 @@ export default function PlaceOrder({
           {error && <Notice tone="danger" live title={error} />}
           {catalogue.error && (
             <Notice tone="warning" title="Could not load the catalogue">
-              Your usual items are listed; new items can be added once it loads. {catalogue.error.message}
+              Your usual items are listed; new items can be added once it loads. {friendlyError(catalogue.error)}
             </Notice>
           )}
 

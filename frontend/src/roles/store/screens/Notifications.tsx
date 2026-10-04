@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { NotificationView } from "@shared/domain/types";
 import type { Inbox } from "@shared/notifications/useInbox";
 import { isUnread, kindOf, toneOf, TONE_STYLE } from "@shared/notifications/inbox";
-import { Icon, cx } from "@shared/ui";
+import { Icon, SkeletonRows, cx } from "@shared/ui";
 import { Drawer } from "../ui.tsx";
 import { clock, dayLabel, depotToday } from "@shared/wording";
 
@@ -106,7 +106,11 @@ export function NotificationsDrawer({
       )}
       {(error ?? inbox.error) && <p role="alert" className="text-[14px] text-go-danger-strong">{error ?? inbox.error}</p>}
       {inbox.items.length === 0 ? (
-        <p className="py-8 text-center text-[15px] text-go-muted">{inbox.loading ? "Loading…" : "No notifications yet. Order confirmations, deferrals and deliveries on the way appear here."}</p>
+        inbox.loading ? (
+          <SkeletonRows rows={3} label="Loading…" />
+        ) : (
+          <p className="py-8 text-center text-[15px] text-go-muted">No notifications yet. Order confirmations, deferrals and deliveries on the way appear here.</p>
+        )
       ) : (
         <ul className="flex flex-col gap-3">
           {inbox.items.map((n) => (
@@ -147,7 +151,11 @@ export function NotificationsCard({ inbox, onSubject, onAll }: { inbox: Inbox; o
       </div>
       {error && <p role="alert" className="text-[13px] text-go-danger-strong">{error}</p>}
       {inbox.items.length === 0 ? (
-        <p className="text-[14px] text-go-muted">{inbox.loading ? "Loading…" : "No notifications yet. Order confirmations, deferrals and deliveries on the way appear here."}</p>
+        inbox.loading ? (
+          <SkeletonRows rows={2} label="Loading…" />
+        ) : (
+          <p className="text-[14px] text-go-muted">No notifications yet. Order confirmations, deferrals and deliveries on the way appear here.</p>
+        )
       ) : (
         <ul className="flex flex-col gap-3">
           {inbox.items.slice(0, 4).map((n) => (

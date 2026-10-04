@@ -85,6 +85,36 @@ export function Muted({ children }: { children: ReactNode }): React.JSX.Element 
   return <p className="text-[13px] font-light text-go-muted">{children}</p>;
 }
 
+/** A labelled field with an optional error shown in red underneath. Pair `errorId` with the input's own `aria-describedby`. */
+export function Field({
+  label,
+  hint,
+  error,
+  errorId,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  /** Shown in red under the field; pair with `errorId` and the input's own `aria-describedby`. */
+  error?: string;
+  /** The id the error text is given, so the input can point `aria-describedby` at it. */
+  errorId?: string;
+  children: ReactNode;
+}): React.JSX.Element {
+  return (
+    <label className="flex flex-col gap-1.5 text-[13px] text-go-muted">
+      {label}
+      {children}
+      {hint && <span className="text-[12px]">{hint}</span>}
+      {error && (
+        <span id={errorId} role="alert" className="text-[13px] text-go-danger-strong">
+          {error}
+        </span>
+      )}
+    </label>
+  );
+}
+
 /** Minus, count, plus. The count turns teal when it differs from the usual. */
 export function Stepper({ value, onChange, label, highlight }: { value: number; onChange: (n: number) => void; label: string; highlight?: boolean }): React.JSX.Element {
   const round = "flex size-12 shrink-0 items-center justify-center rounded-full bg-go-canvas text-[22px] leading-none disabled:opacity-40";

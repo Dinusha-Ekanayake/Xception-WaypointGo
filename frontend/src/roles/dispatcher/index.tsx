@@ -5,15 +5,17 @@ import { useOnline } from "@shared/api/useResource";
 import { ToastProvider, useScrollMemory } from "@shared/ui";
 import Sidebar, { CompactNav, useFolded, type Badges } from "./Sidebar.tsx";
 import { DepotScopeProvider } from "./depotScope.tsx";
+import { GlobalSearchProvider } from "./GlobalSearch.tsx";
 import { InboxProvider } from "./inbox.tsx";
 import NotificationsPanel from "./NotificationsPanel.tsx";
 import ThreadSheet from "./ThreadSheet.tsx";
 import { useView } from "./navigation.ts";
 import { depotToday, depotsFor, scopeLabel, type DepotFilter } from "./data/scope.ts";
+import type { SearchSource } from "./data/search.ts";
 import { useFleet } from "./data/fleet.ts";
 import { attention } from "./data/live.ts";
 import { flow } from "./data/orders.ts";
-import { useLive, useOrders, usePlans, type DepotPlans } from "./data/useDay.ts";
+import { useIssues, useLive, useOrders, usePlans, type DepotPlans } from "./data/useDay.ts";
 import Overview from "./screens/Overview.tsx";
 import Vehicles from "./screens/Vehicles.tsx";
 import Live from "./screens/Live.tsx";
@@ -70,6 +72,18 @@ export default function Dispatcher({
     live: dayLive.data ? attention(dayLive.data.sheets, new Date()).length : 0,
   };
 
+  // The search box's own read of open issues (issue #usability): every other
+  // kind it searches is already held above for the sidebar's badges.
+  const dayIssues = useIssues(depots);
+  const searchSource: SearchSource = {
+    orders: dayOrders.data ?? [],
+    vehicles: fleet.data ?? [],
+    sheets: dayLive.data?.sheets ?? [],
+    dock: dayLive.data?.dock ?? [],
+    issues: dayIssues.data ?? [],
+    depots: scope,
+  };
+
   // Catch up as soon as the connection returns rather than at the next poll.
   const wasOnline = useRef(online);
   const { refresh } = fleet;
@@ -81,6 +95,12 @@ export default function Dispatcher({
   return (
     <DepotScopeProvider value={{ scope, filter: depotFilter, onFilter: setDepotFilter }}>
     <InboxProvider userId={userId}>
+    <GlobalSearchProvider
+      source={searchSource}
+      onNavigate={navigate}
+      onFocusIssue={(issueId) => setIssueFocus(issueId)}
+      onDepotFilter={setDepotFilter}
+    >
     <ToastProvider>
     <NotificationsPanel onNavigate={navigate} />
     <ThreadSheet online={online} />
@@ -131,6 +151,7 @@ export default function Dispatcher({
       </div>
     </div>
     </ToastProvider>
+    </GlobalSearchProvider>
     </InboxProvider>
     </DepotScopeProvider>
   );

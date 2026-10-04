@@ -63,6 +63,8 @@ export default function IssueActions({
   const [outcome, setOutcome] = useState<{ action: IssueAction; error: Error | null } | null>(null);
   // Which action is on its way, so only its button turns busy.
   const [sending, setSending] = useState<IssueAction | null>(null);
+  // Only shown once the reason has been touched, so the field does not nag before it's typed into.
+  const [noteTouched, setNoteTouched] = useState(false);
 
   const actions = actionsFor(issue, userId);
   if (actions.length === 0) return outcome && !outcome.error ? <Notice tone="info" title={DONE[outcome.action]} live /> : null;
@@ -88,6 +90,7 @@ export default function IssueActions({
     if (sent.ok) {
       setOpen(null);
       setNote("");
+      setNoteTouched(false);
     }
     // Whatever the answer: a refusal usually means the issue moved.
     onDone();
@@ -103,11 +106,21 @@ export default function IssueActions({
       <div role="group" aria-label="Act on this issue" className="flex flex-wrap gap-2">
         {actions.map((action) =>
           action === actions[0] && action !== "cancel" ? (
-            <PrimaryButton key={action} disabled={disabled} busy={inFlight(action) && immediate(action)} onClick={() => (immediate(action) ? void send(action) : setOpen(action))}>
+            <PrimaryButton
+              key={action}
+              disabled={disabled}
+              busy={inFlight(action) && immediate(action)}
+              onClick={() => (immediate(action) ? void send(action) : (setOpen(action), setNoteTouched(false)))}
+            >
               {inFlight(action) && immediate(action) ? "Sending…" : LABEL[action]}
             </PrimaryButton>
           ) : (
-            <SecondaryButton key={action} disabled={disabled} busy={inFlight(action) && immediate(action)} onClick={() => (immediate(action) ? void send(action) : setOpen(action))}>
+            <SecondaryButton
+              key={action}
+              disabled={disabled}
+              busy={inFlight(action) && immediate(action)}
+              onClick={() => (immediate(action) ? void send(action) : (setOpen(action), setNoteTouched(false)))}
+            >
               {inFlight(action) && immediate(action) ? "Sending…" : LABEL[action]}
             </SecondaryButton>
           ),
@@ -144,8 +157,21 @@ export default function IssueActions({
           )}
           <label className="flex flex-col gap-1 text-xs font-medium text-go-secondary">
             {open === "cancel" ? "Why it was raised in error" : "Reason"}
-            <input value={note} maxLength={500} onChange={(event) => setNote(event.target.value)} className={input} />
+            <input
+              value={note}
+              maxLength={500}
+              onChange={(event) => setNote(event.target.value)}
+              onBlur={() => setNoteTouched(true)}
+              aria-invalid={noteTouched && note.trim().length < 3 ? true : undefined}
+              aria-describedby={noteTouched && note.trim().length < 3 ? "issue-action-reason-error" : undefined}
+              className={input}
+            />
           </label>
+          {noteTouched && note.trim().length < 3 && (
+            <span id="issue-action-reason-error" role="alert" className="text-xs font-normal text-go-danger-strong">
+              Say a little more: at least 3 characters.
+            </span>
+          )}
           <div className="flex gap-2">
             <PrimaryButton type="submit" disabled={disabled || note.trim().length < 3 || (open === "redelivery" && !date)} busy={inFlight(open)}>
               {inFlight(open) ? "Sending…" : LABEL[open]}

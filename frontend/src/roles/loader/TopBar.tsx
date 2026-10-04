@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { CountBadge, Icon, cx, useShell } from "@shared/ui";
+import { CountBadge, Icon, cx, useShell, useStateAnnouncement } from "@shared/ui";
 import { useT } from "./i18n.tsx";
 import { GearIcon, LockIcon, MoonIcon, SunIcon, SwapIcon } from "./icons.tsx";
 import { useTheme } from "./theme.tsx";
@@ -84,8 +84,12 @@ export default function TopBar({
   );
   const brand = <span className="w-[68px] shrink-0 text-[40px] leading-none font-extrabold text-go-ink">GO</span>;
   const label = syncing && online ? tr("Syncing…") : sync;
+  // Only the connection STATE is announced to screen readers, not the clock inside
+  // the visible text, so it does not re-announce on every poll (issue #118 follow-up).
+  const state = !online ? (waiting > 0 ? tr("Offline, {n} saved on this device", { n: waiting }) : tr("Offline")) : since ? tr("Server unreachable") : waiting > 0 ? tr("Sending") : syncing ? tr("Syncing") : tr("Synced");
+  const announcement = useStateAnnouncement(state);
   const status = (
-    <span role="status" className={cx("truncate", online ? "text-go-ink/85" : "font-medium text-go-warning-text")}>
+    <span className={cx("truncate", online ? "text-go-ink/85" : "font-medium text-go-warning-text")}>
       {!online && <span aria-hidden className="mr-1.5 inline-block size-2 rounded-full bg-go-warning" />}
       {label}
     </span>
@@ -100,6 +104,7 @@ export default function TopBar({
       className={cx("text-left disabled:cursor-wait", className)}
     >
       {status}
+      {announcement}
     </button>
   );
   const hasUnread = (unread ?? 0) > 0;

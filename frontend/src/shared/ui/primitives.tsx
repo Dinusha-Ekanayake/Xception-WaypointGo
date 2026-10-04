@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Icon, type IconName } from "./Icon.tsx";
 import { PRESS, Spinner } from "./Spinner.tsx";
 import { clock } from "../wording/index.ts";
@@ -49,10 +49,10 @@ export function CardHead({
   );
 }
 
-/** "Open orders ›": a teal text link with the design's chevron. */
+/** "Open orders ›": a teal text link with the design's chevron. The hit area reaches 44px tall without growing the visible text. */
 export function LinkAction({ children, onClick }: { children: ReactNode; onClick: () => void }): React.JSX.Element {
   return (
-    <button type="button" onClick={onClick} className="flex shrink-0 items-center gap-0.5 text-[13px] font-medium text-go-teal">
+    <button type="button" onClick={onClick} className="relative flex shrink-0 items-center gap-0.5 text-[13px] font-medium text-go-teal before:absolute before:-inset-x-2 before:-inset-y-3">
       {children}
       <Icon name="chevron-right" />
     </button>
@@ -270,8 +270,31 @@ export function Segmented<T extends string>({
 }
 
 /**
+ * Announces `text` to screen readers only when it actually changes, not on
+ * every render: a visually-hidden companion that a polling clock does not
+ * retrigger. Returns the live region to render beside the visible text.
+ */
+export function useStateAnnouncement(text: string): ReactNode {
+  const [announced, setAnnounced] = useState(text);
+  const last = useRef(text);
+  useEffect(() => {
+    if (last.current === text) return;
+    last.current = text;
+    setAnnounced(text);
+  }, [text]);
+  return (
+    <span role="status" aria-live="polite" className="sr-only">
+      {announced}
+    </span>
+  );
+}
+
+/**
  * The sync pill. Online shows when data last arrived; offline turns amber and
  * says what still works, because silent degradation is worse than failure.
+ * Only the connection STATE (offline / sending / synced / connecting) is
+ * announced to screen readers; the clock inside the visible text is not in a
+ * live region, so it does not re-announce on every poll (issue #118 follow-up).
  */
 export function ConnectionStatus({
   online,
@@ -288,12 +311,15 @@ export function ConnectionStatus({
   syncing?: boolean;
 }): React.JSX.Element {
   const time = lastSyncedAt ? clock(lastSyncedAt) : null;
+  const state = !online ? `Offline. ${offlineNote}` : syncing ? "Sending your changes" : time ? "Synced" : "Connecting…";
+  const announcement = useStateAnnouncement(state);
   if (!online) {
     return (
-      <div role="status" className="flex h-12 shrink-0 items-center gap-2 rounded-full border-[1.5px] border-go-warning bg-go-warning-tint pr-3.5 pl-3 drop-shadow-[0_5px_10px_rgba(0,0,0,0.09)]">
+      <div className="flex h-12 shrink-0 items-center gap-2 rounded-full border-[1.5px] border-go-warning bg-go-warning-tint pr-3.5 pl-3 drop-shadow-[0_5px_10px_rgba(0,0,0,0.09)]">
         <span aria-hidden className="size-2 rounded-full bg-go-warning" />
         <span className="text-[15px] font-semibold text-go-warning-text">Offline</span>
         <span className="text-sm text-go-warning-text">{time ? `Last synced ${time} · ` : ""}{offlineNote}</span>
+        {announcement}
       </div>
     );
   }
@@ -304,14 +330,16 @@ export function ConnectionStatus({
     return (
       <button type="button" onClick={onSync} disabled={syncing} aria-label={`${text}. Sync now`} className={cx(pill, "disabled:cursor-wait")}>
         <Icon name="dot-online" />
-        <span role="status" className="text-sm text-go-muted">{text}</span>
+        <span className="text-sm text-go-muted">{text}</span>
+        {announcement}
       </button>
     );
   }
   return (
-    <div role="status" className={pill}>
+    <div className={pill}>
       <Icon name="dot-online" />
       <span className="text-sm text-go-muted">{text}</span>
+      {announcement}
     </div>
   );
 }

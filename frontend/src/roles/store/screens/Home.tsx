@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import type { ApiError } from "@shared/api/problem";
+import { type ApiError, friendlyError } from "@shared/api/problem";
 import type { DeliveryRecordView, IssueView, OrderStatus, OrderView, OutletView, PendingReceiptView } from "@shared/domain/types";
 import { Icon, Notice, SkeletonRows, cx } from "@shared/ui";
 import { units, addDays, clock, cutoffLabel, dayLabel, depotToday, editable, greeting, hhmm, onTheWay, temperatureLabel, untilCutoff } from "../data/format.ts";
@@ -102,7 +102,7 @@ export default function Home({
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
         <div className="flex min-w-0 flex-col gap-5">
-          {error && <Notice tone="danger" title="Could not load your orders" onRetry={onRetry}>{error.message}</Notice>}
+          {error && <Notice tone="danger" title="Could not load your orders" onRetry={onRetry}>{friendlyError(error)}</Notice>}
 
           {/* Moves into Track's first card when the delivery is tracked (shared element, UX polish 4). */}
           <Card label="Next delivery" style={{ viewTransitionName: "vt-delivery" }}>

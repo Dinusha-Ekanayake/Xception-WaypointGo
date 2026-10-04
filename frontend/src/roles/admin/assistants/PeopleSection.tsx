@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useResource } from "@shared/api/useResource";
 import { McpSwitchPolicy, type McpPrincipalAccessView, type McpSwitchPolicyName } from "@shared/domain/types";
+import { SkeletonRows } from "@shared/ui";
 import { codeLabel } from "@shared/wording/labels";
 import { Badge, Empty, Modal, card, field, primary, secondary } from "../access/components";
 import { ROLE_LABELS, endConnections, loadPeople, loadRoles, loadSwitchVersions, refusal, setSwitch } from "./data";
@@ -92,7 +93,7 @@ export default function PeopleSection({ selfId, onChanged }: { selfId?: string; 
 
       <h3 className="px-5 pt-5 text-sm font-semibold text-go-secondary">Roles</h3>
       {roles.error ? <p className="px-5 py-4 text-sm text-go-danger">The roles could not be loaded: {refusal(roles.error)}</p>
-        : !roles.data ? <p className="px-5 py-4 text-sm text-go-secondary">Loading...</p>
+        : !roles.data ? <div className="px-5 py-4"><SkeletonRows rows={2} label="Loading..." /></div>
         : roles.data.map(row)}
 
       <h3 className="px-5 pt-5 text-sm font-semibold text-go-secondary">People</h3>
@@ -105,7 +106,7 @@ export default function PeopleSection({ selfId, onChanged }: { selfId?: string; 
         {search && <button className={secondary} type="button" onClick={() => { setQuery(""); setSearch(""); }}>Clear</button>}
       </form>
       {people.error ? <p className="px-5 py-4 text-sm text-go-danger">People could not be loaded: {refusal(people.error)}</p>
-        : !people.data ? <p className="px-5 py-4 text-sm text-go-secondary">Loading...</p>
+        : !people.data ? <div className="px-5 py-4"><SkeletonRows rows={3} label="Loading..." /></div>
         : people.data.items.length === 0
           ? <div className="p-5"><Empty>{search ? "Nobody matches that name or email." : "Nobody is connected or switched individually. Find a person to change their switches."}</Empty></div>
           : <div className="pt-2">{people.data.items.map(row)}</div>}
