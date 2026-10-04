@@ -14,8 +14,8 @@ async function openTrip(page: Page): Promise<void> {
 }
 
 test("a published plan hides the candidate plans and moves a trip through the vehicle pop-up", async ({ page }) => {
-  // 09:30 in Colombo on the plan's service day: the window is still open.
-  await page.clock.install({ time: new Date("2027-03-01T04:00:00Z") });
+  // The morning of the plan's day: before 16:00 it can still change, whatever the hour the suite runs.
+  await page.clock.install({ time: new Date("2027-03-01T03:00:00Z") });
   await serve(page, { published: published() });
   await openTrip(page);
 
