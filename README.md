@@ -1,8 +1,48 @@
+<p align="center"><img src="docs/architecture/waypoint-go-logo.png" alt="Waypoint GO" width="220"></p>
+
 # Waypoint Dispatch
 
 **One delivery. Every handoff accounted for.**
 
-A working Designathon/Hackathon solution for Waypoint Group's four roles: store manager, dispatcher, loader and driver. It connects confirmed demand, explainable allocation, loading checks, offline delivery proof and independent store receipt. The team's trained Datathon models are served read-only by the model service (`ml-server/`); training them and the Datathon submission are outside this build.
+Team Xception's Hackathon solution for Waypoint Group's four roles: store manager, dispatcher, loader and driver. It connects confirmed demand, explainable allocation, loading checks, offline delivery proof and independent store receipt. The team's trained Datathon models are served read-only by the model service (`ml-server/`); training them and the Datathon submission are outside this build.
+
+## Deliverables
+
+| Deliverable | Where |
+| --- | --- |
+| Deployed system and the four seeded accounts | [Deployed system](#deployed-system) |
+| Setup and configuration | [Run with Docker Compose](#run-with-docker-compose), [Run locally](#run-locally), [Configuration](#configuration) |
+| Seeded account details | [Deployed system](#deployed-system), [Seeded accounts](#seeded-accounts) for a fresh copy |
+| Judge walkthrough | [Judge walkthrough](#judge-walkthrough) |
+| Departures from the Designathon submission | [Departures from the Designathon design](#departures-from-the-designathon-design), detail in [docs/design-mapping.md](docs/design-mapping.md) |
+| Docker Compose file and `.env.example` | [compose.yaml](compose.yaml), [.env.example](.env.example) |
+| Architecture diagram | [docs/architecture.md](docs/architecture.md), images in [docs/diagrams/](docs/diagrams/) |
+| Data model | [docs/data-model.md](docs/data-model.md) |
+| AI tool disclosure | [docs/ai-disclosure.md](docs/ai-disclosure.md) |
+
+## Deployed system
+
+**https://waypointgo.live**
+
+Sign in with the email and password; each account opens its own role's workspace.
+
+| Role | Email | Password | Device |
+| --- | --- | --- | --- |
+| Dispatcher | `dinushabawantha@waypoint.local` | `123456789123` | desktop, 1440 px |
+| Driver | `rashmikadilshan@waypoint.local` | `123456789123` | phone |
+| Store manager | `ransikaj@waypoint.local` | `123456789123` | desktop or phone |
+| Loader | `peliyagoda@waypoint.local` | `123456789123` | phone or tablet |
+
+The loader account is the Peliyagoda warehouse's shared dock device. After signing in, choose a loader and enter that loader's PIN:
+
+| Loader | PIN |
+| --- | --- |
+| Isuru Sudarshana | `2468` |
+| Kalindu Ranathunga | `2468` |
+| Tharusha Udana | `2468` |
+| Manodya Sasmini | `2468` |
+
+Each role also has an address of its own: `dispatcher.`, `loader.`, `driver.` and `store.` in front of `waypointgo.live`. The [judge walkthrough](#judge-walkthrough) names the accounts of a fresh local copy; on the deployed system use the accounts above for the same roles.
 
 ## Repository and runtime
 
@@ -17,9 +57,9 @@ A working Designathon/Hackathon solution for Waypoint Group's four roles: store 
 
 Maven `target/` directories and compiled Java classes are ignored and are rebuilt locally.
 
-## Run a fresh copy
+## Run with Docker Compose
 
-Everything in Docker (Docker Engine 24+ with Compose v2):
+The complete stack (PostgreSQL, the backend, the model service, the frontend and the seed data) starts with one command. It needs Docker Engine 24+ with Compose v2 and nothing else installed:
 
 ```sh
 cp .env.example .env        # then set SEED_PASSWORD: the password of every seeded account
@@ -30,11 +70,29 @@ The one-shot `init` service runs `migrate`, `import-reference`, `demo-accounts` 
 
 `.env.example` holds a placeholder, `SEED_PASSWORD=REPLACE_WITH_A_PRIVATE_PASSWORD`, and the accounts are created with whatever it says on the first start. Set it before the first `docker compose up`; changing it later does not change existing accounts. With no `SEED_PASSWORD` at all, Compose falls back to `Waypoint2026!`.
 
-For day-to-day work run PostgreSQL in Docker and the application natively: `scripts/dev.sh setup` once, then `scripts/dev.sh`. The steps behind those two commands are in [development.md](docs/development-docs/development.md). Production deployment is in [deployment.md](docs/deployment.md).
+## Run locally
+
+For day-to-day work PostgreSQL runs in Docker and the application runs natively. It needs Node.js 22.13+, Java 17+ with Maven, and Docker for the database.
+
+```sh
+cp .env.example .env        # then set SEED_PASSWORD
+scripts/dev.sh setup        # once: database, migrations, reference data, demo accounts, npm ci
+scripts/dev.sh              # every time: database, backend on 8080, frontend on 3000
+```
+
+Then open http://localhost:3000. `scripts/dev.sh` always uses the local Docker database, never the `DATABASE_URL` in `.env`. The same steps by hand:
+
+```sh
+docker compose up -d db                 # PostgreSQL on 127.0.0.1:5432
+cd backend && mvn spring-boot:run       # needs DATABASE_URL exported; Spring does not read .env
+cd frontend && npm ci && npm run dev    # reads BACKEND_URL from frontend/.env.local
+```
+
+The details, and which process reads which configuration file, are in [development.md](docs/development-docs/development.md). Production deployment is in [deployment.md](docs/deployment.md).
 
 ## Seeded accounts
 
-`docker compose up` creates one account per role, all with the password in `SEED_PASSWORD` (see above; `Waypoint2026!` when it is unset). The deployed system uses a private `SEED_PASSWORD`, given in the submission form.
+`docker compose up` creates one account per role, all with the password in `SEED_PASSWORD` (see above; `Waypoint2026!` when it is unset). These are the accounts of a fresh copy; the deployed system's accounts are under [Deployed system](#deployed-system).
 
 | Role | Email | Scope after the seed | Device |
 | --- | --- | --- | --- |
@@ -43,7 +101,7 @@ For day-to-day work run PostgreSQL in Docker and the application natively: `scri
 | Driver | `driver@waypoint.local` | Peliyagoda depot; every Peliyagoda vehicle on the seeded day | phone |
 | Store manager | `store_manager@waypoint.local` | outlet `DEMO_OUTLET` (default `OUT001`, Waypoint Fresh, Colombo) | desktop or phone |
 
-`admin@waypoint.local` and `auditor@waypoint.local` exist too, with the same password, but are not part of the walkthrough. Locally every role is on http://localhost:3000. On the deployed system each role has its own address: `dispatcher.`, `loader.`, `driver.` and `store.` in front of `waypointgo.live`.
+`admin@waypoint.local` and `auditor@waypoint.local` exist too, with the same password, but are not part of the walkthrough. Locally every role is on http://localhost:3000.
 
 ## Judge walkthrough
 
