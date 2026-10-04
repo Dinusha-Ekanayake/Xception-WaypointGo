@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-05 - feat: smarter planning help for the store and the dispatcher, and seeded-day fixes
+
+`claude/role-ui-intelligence` · @jv-ransika
+
+Two suggestions, both advice only and judged by the same rules as anything a person does:
+- **Dispatcher, Edit trip (R-PLN-43).** The trip window shows the stop order that fits the delivery windows best, beside the dispatcher's own: late stops before and after, back-at-depot time, and how many orders were compared. `GET /api/plans/preview/suggested-sequence` times every order of a trip of up to six stops (a local search of swaps and moves on a longer one) with the plan's own timeline (`StopOrderSearch` in planning `domain`). Apply puts it in the working copy, previewed and accepted like a hand edit; when the order on screen is already the best, it says so in one line.
+- **Store, Place order (R-ORD-15).** A Fresh *chilled* order, as well as a Tech order (R-ORD-13), is offered the nearby day a refrigerated trip already serves its district, matched on temperature and sized by R-ORD-14. The card shows the picked day beside the better one and why, with Move, Keep and Undo. A day the date outlook calls busy or at risk is never offered, so the card and the date strip agree.
+
+Fixed on a seeded day: the Plan screen's placement reads exhausted the database pool with a dozen deferred orders (500s); they now go two at a time with one retry, and a request with no free connection answers 503 with Retry-After. The delivery-day seed asks for its delivery day, so orders no longer read "moved from Mon". The store sees its planned arrival and stop once a plan is published, its progress no longer looks loaded while it waits for the plan, seeded lines read "Dry goods (mixed)", every sheet has a Close button, and View order stays on Deliveries. Notifications write "Tue 6 Oct", times to the minute and "1 stop".
+Verified: `StopOrderSearchTest`, `RideAlongTest`, `PlanningRunTest`, `PinnedDecisionsTest`, `NotificationPolicyTest` green; typecheck; store browser suite 59 of 59; dispatcher suite 66 of 73, the same 7 failing on the base commit when run after 03:00 depot time (the mocks build windows from the clock). Walked live on a local stack: generate, decide, edit with the suggestion, publish.
+
 ## 2026-10-04 - feat(store): delivery day picker reads as a calendar strip
 
 `feat/store-plan-date-strip` · @jv-ransika
