@@ -65,13 +65,30 @@ To start again from an empty database: `docker compose down -v && docker compose
 
 ## Departures from the Designathon design
 
-The Figma file (pages 04 to 17) is the specification. Where the design shows something no backend module provides yet, it is left out rather than faked:
+The Figma file (pages 04 to 17) is the specification. Where the design shows something no backend module provides yet, it is left out rather than faked. Updated 2026-10-04:
 
-- **Driver:** vehicle pick-up by QR code (dispatch assigns the vehicle), the fuel pass QR and fuel logging, call and voice notes: none has a backend. The map is the run's own trail and next stop, handing off to the phone's maps app only for an exact store location. Notifications can be read aloud by the phone; there are no recorded voice notes. English only.
-- **Dispatcher:** late risk on the plan (its backend exists; the Forecast tab is built), snapshots and compare, regenerate with locked orders, contact store manager, global search and the map. Vehicle interchange approval waits on Loading.
-- **Loader:** vehicle interchange and dispatcher handover. Sinhala and Tamil are drafts awaiting a native speaker.
-- **Store manager:** call options, the live map and draft orders.
-- **All roles:** notifications arrive in every role's screens with a live count; push to a closed phone is not switched on.
+- **Driver:**
+  - Vehicle pick-up by QR code is not built (dispatch assigns the vehicle).
+  - The fuel pass QR, fuel logging and calls have no backend.
+  - The map is the run's own trail and next stop. It hands off to the phone's maps app only for an exact store location.
+  - With no released trip today, Home names the next trip ahead and says it is waiting for the loader. The design shows only a released run.
+  - English only.
+- **Dispatcher:**
+  - Global search is not built.
+  - Vehicle interchange approval waits on Loading.
+  - The Forecast's error chip shows the demand model's measured error over all volume and over chilled volume. The design shows a figure per brand, which the model does not measure.
+  - Late risk is shown only on a published plan, once the time predictor has scored it. A draft says it is scored once published, and an estimate says so.
+- **Loader:**
+  - Vehicle interchange and dispatcher handover are not built.
+  - Sinhala and Tamil are drafts awaiting a native speaker.
+- **Store manager:**
+  - Call options are not built (no contact numbers on record); a delivery's Message is used instead.
+  - Draft orders are not built.
+  - The Next delivery card shows the driver and a predicted arrival once the trip leaves. Before that, it shows the next planned or confirmed delivery and the outlet's window.
+- **All roles:**
+  - Notifications arrive in every role's screens with a live count.
+  - Push to a closed phone works only where the server has VAPID keys, and says so otherwise.
+  - Messages (with voice notes) are per trip; threads for issues and orders are not built.
 
 Role by role detail is in [design-mapping.md](docs/design-mapping.md).
 
