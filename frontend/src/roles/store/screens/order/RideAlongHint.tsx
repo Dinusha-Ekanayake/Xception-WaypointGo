@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useResource } from "@shared/api/useResource";
 import type { StoreGateway } from "../../data/gateway.ts";
 import { dayLabel } from "../../data/format.ts";
+import { outlookChip } from "../../data/outlook.ts";
 import { useT } from "../../i18n.tsx";
 
 // "A better day for this order" (R-ORD-13, R-ORD-15, issue #199). When a nearby
@@ -13,8 +14,10 @@ import { useT } from "../../i18n.tsx";
 // they are more likely to arrive in the window, and a vehicle is freed. Tech is
 // offered this for any order and Fresh for a chilled order; a Fresh dry order
 // is daily and Style is held to its scheduled day, so neither is asked.
-// Advice only: the order goes for whatever day the manager keeps, and Planning
-// still decides the load.
+// A day the date outlook (R-ML-07) calls busy or at risk is never offered, so
+// the card and the date strip can never disagree; when the outlook cannot be
+// read the days stand on bookings alone. Advice only: the order goes for
+// whatever day the manager keeps, and Planning still decides the load.
 
 export default function RideAlongHint({
   gateway,
@@ -45,9 +48,20 @@ export default function RideAlongHint({
     asked ? (s) => gateway.rideAlong(outletId, date, s, chilled ? "chilled" : undefined) : null,
     `${outletId}|${date}|${chilled ? "chilled" : "any"}`,
   );
+  const raw = hint.data?.offered ? hint.data.days : [];
+  const span = raw.map((d) => d.date).concat(date).sort();
+  const outlook = useResource(
+    asked && raw.length > 0 ? (s) => gateway.outlook(outletId, span[0]!, span[span.length - 1]!, s) : null,
+    `${outletId}|${span.join(",")}`,
+  );
+  const statusOf = (d: string) => outlook.data?.days.find((x) => x.date === d)?.status;
+  const usable = raw.filter((d) => {
+    const st = statusOf(d.date);
+    return st !== "BUSY" && st !== "AT_RISK" && st !== "CLOSED";
+  });
   const [kept, setKept] = useState<string | null>(null);
   const [moved, setMoved] = useState<{ from: string; to: string } | null>(null);
-  const offered = (hint.data?.offered ? hint.data.days : []).map((d) => d.date).join(",");
+  const offered = (outlook.loading ? [] : usable).map((d) => d.date).join(",");
   useEffect(() => onDays?.(offered ? offered.split(",") : []), [offered, onDays]);
 
   if (!asked) return null;
@@ -70,8 +84,10 @@ export default function RideAlongHint({
       </p>
     );
   }
-  const days = hint.data?.offered ? hint.data.days : [];
+  const days = outlook.loading ? [] : usable;
   if (days.length === 0 || kept === date) return null;
+  const chosenStatus = statusOf(date);
+  const bestStatus = statusOf(days[0]!.date);
   const best = days[0]!;
   const others = hint.data?.stopsOnChosen ?? 0;
   const trip = chilled ? t("a refrigerated trip") : t("a trip");
@@ -99,13 +115,19 @@ export default function RideAlongHint({
 
       <dl className="grid grid-cols-2 gap-2 text-[13px]">
         <div className="rounded-[14px] bg-white/80 p-3">
-          <dt className="text-go-muted">{t("You picked {day}", { day: dayLabel(date) })}</dt>
+          <dt className="text-go-muted">
+            {t("You picked {day}", { day: dayLabel(date) })}
+            {chosenStatus && chosenStatus !== "TOO_EARLY" ? ` · ${t(outlookChip(chosenStatus).label)}` : ""}
+          </dt>
           <dd className="mt-0.5 font-medium text-black">
             {others === 0 ? t("No other store booked yet") : t(others === 1 ? "1 other store booked" : "{n} other stores booked", { n: others })}
           </dd>
         </div>
         <div className="rounded-[14px] bg-go-mint/60 p-3">
-          <dt className="text-go-ink/70">{dayLabel(best.date)}</dt>
+          <dt className="text-go-ink/70">
+            {dayLabel(best.date)}
+            {bestStatus === "ON_TRACK" ? ` · ${t("On track")}` : ""}
+          </dt>
           <dd className="mt-0.5 font-medium text-black">
             {t(best.stopsBooked === 1 ? "1 other store booked" : "{n} other stores booked", { n: best.stopsBooked })}
             {hint.data?.roomChecked ? t(" · room on the vehicle") : ""}
