@@ -6,7 +6,10 @@ import { useResource } from "@shared/api/useResource";
 import type { DemoView } from "@shared/domain/types";
 import { clock, dayLabel } from "@shared/wording/time";
 import { Badge, Empty, card, field, primary, secondary } from "../access/components";
-import { depotInstant, loadDemo, loadRuns, resetDay, setClock, setEnabled, updateSettings } from "./data";
+import { depotInstant, loadDemo, loadRuns, resetDay, setClock, setEnabled, startSimulation, updateSettings } from "./data";
+import ScenarioDeck from "./ScenarioDeck";
+import type { SetupAction } from "./scenarios";
+import SimulationsPanel from "./SimulationsPanel";
 import PresenterGuide from "./PresenterGuide";
 
 // Issue #231, the demo control room. Off by default; one switch turns it on or
@@ -52,6 +55,14 @@ export default function DemoControlRoom(): React.JSX.Element {
       runs.refresh();
     }
   }
+
+  const setup = (action: SetupAction) => {
+    if (action === "start-vehicles") void run("Start vehicles", () => startSimulation(reason.trim()));
+    else {
+      const hhmm = action === "before-cutoff" ? "15:30" : action === "after-cutoff" ? "16:05" : "05:00";
+      void run(`Clock ${hhmm}`, (v) => setClock(v, depotInstant(v, hhmm), reason.trim()));
+    }
+  };
 
   if (demo.error && !view) {
     return <Empty>Demo settings could not be read: {problemText(demo.error)}. Waypoint keeps running on real time.</Empty>;
@@ -140,6 +151,8 @@ export default function DemoControlRoom(): React.JSX.Element {
               </button>
             </div>
           </section>
+          <SimulationsPanel busy={busy} run={(label, action) => run(label, () => action())} />
+          <ScenarioDeck busy={busy} onSetup={setup} />
         </>
       )}
 

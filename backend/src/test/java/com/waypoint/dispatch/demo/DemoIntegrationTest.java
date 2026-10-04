@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.waypoint.dispatch.demo.application.DemoSettingsQuery;
 import com.waypoint.dispatch.demo.application.ResetDayJob;
+import com.waypoint.dispatch.demo.application.SimulationJob;
 import com.waypoint.dispatch.identity.application.AccountAdminUseCase;
 import com.waypoint.dispatch.referencedata.application.ImportReferenceDataHandler;
 import com.waypoint.dispatch.referencedata.contract.ReferenceQuery;
@@ -130,7 +131,55 @@ class DemoIntegrationTest {
         Map.of("reason", "End isolated demo test")));
   }
 
-  private Command command(String verb, long version, Map<String, Object> payload) {
+  @Autowired SimulationJob simulationJob;
+
+  @Test
+  void simulationsAreAdminOnlyRefusedWhileOffAndStopWhenDemoModeEnds() {
+    migrator.migrate();
+    String suffix = UUID.randomUUID().toString();
+    Actor admin = Actor.user(accounts.createAccount(
+        "sim-admin-" + suffix + "@test.local", "Sim admin", "DemoPassword2026!", "admin"));
+    Actor driver = Actor.user(accounts.createAccount(
+        "sim-driver-" + suffix + "@test.local", "Sim driver", "DemoPassword2026!", "driver"));
+    if (settings.view().enabled()) {
+      bus.dispatch(admin, command("Disable", settings.view().rowVersion(), Map.of("reason", "Start from off")));
+    }
+    assertThrows(DomainException.class, () -> bus.dispatch(admin,
+        command("StartSimulation", null, Map.of("reason", "Refused while off"))));
+    bus.dispatch(admin, command("Enable", settings.view().rowVersion(), Map.of("reason", "Simulation test")));
+    assertThrows(DomainException.class, () -> bus.dispatch(driver,
+        command("StartSimulation", null, Map.of("reason", "Drivers cannot start this"))));
+    assertThrows(DomainException.class, () -> bus.dispatch(admin,
+        command("StartSimulation", null, Map.of("reason", "Nothing released", "serviceDate", "2030-01-02"))));
+
+    // A route whose driver is not assigned: the real position command refuses it and the run says why.
+    UUID refused = UUID.randomUUID();
+    UUID running = UUID.randomUUID();
+    db.asSystem(ModuleRole.DEMO, () -> {
+      for (UUID id : new UUID[]{refused, running}) {
+        db.update("INSERT INTO demo.simulations(id,vehicle_id,service_date,driver_user_id,waypoints,status,reason,started_by)"
+                + " VALUES (?,?,?,?,?::jsonb,'running','test',?)",
+            id, "TEST-" + id, java.sql.Date.valueOf("2030-01-02"), driver.userId(),
+            "[{\"latitude\":6.9665,\"longitude\":79.8862},{\"latitude\":6.9271,\"longitude\":79.8612}]", admin.userId());
+      }
+      return null;
+    });
+    bus.dispatch(admin, command("ControlSimulations", null, Map.of("reason", "Hold one", "action", "pause", "simulationId", running.toString())));
+    simulationJob.run(Instant.now());
+    Map<String, Object> failed = db.asSystem(ModuleRole.DEMO, () -> db.queryOne(
+        "SELECT status,failure FROM demo.simulations WHERE id = ?", refused));
+    assertEquals("failed", failed.get("status"));
+    assertTrue(failed.get("failure").toString().startsWith("Position refused"));
+    assertEquals("paused", db.asSystem(ModuleRole.DEMO, () -> db.queryOne(
+        "SELECT status FROM demo.simulations WHERE id = ?", running)).get("status"));
+
+    bus.dispatch(admin, command("Disable", settings.view().rowVersion(), Map.of("reason", "End simulation test")));
+    assertEquals("stopped", db.asSystem(ModuleRole.DEMO, () -> db.queryOne(
+        "SELECT status FROM demo.simulations WHERE id = ?", running)).get("status"));
+    assertTrue(settings.simulations(admin.userId(), null, null).stream().anyMatch(r -> r.get("id").equals(running)));
+  }
+
+  private Command command(String verb, Long version, Map<String, Object> payload) {
     return new Command(UUID.randomUUID(), "demo:" + verb, version,
         json.valueToTree(payload), Instant.now());
   }

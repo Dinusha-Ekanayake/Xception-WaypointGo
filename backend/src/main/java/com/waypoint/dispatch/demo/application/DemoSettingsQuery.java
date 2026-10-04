@@ -47,4 +47,16 @@ public class DemoSettingsQuery implements TimeAdjustment, com.waypoint.dispatch.
             + " ORDER BY started_at DESC,id DESC LIMIT 50",
             java.sql.Timestamp.from(beforeStartedAt), beforeId));
   }
+
+  /** Simulated vehicles, newest first, keyset paginated on (started_at, id). */
+  public java.util.List<Map<String, Object>> simulations(java.util.UUID actor,
+      java.time.Instant beforeStartedAt, java.util.UUID beforeId) {
+    if ((beforeStartedAt == null) != (beforeId == null))
+      throw new IllegalArgumentException("Both simulation cursor fields are required");
+    String columns = "SELECT id,vehicle_id,service_date,trip_id,tick,jsonb_array_length(waypoints) AS waypoints,status,failure,started_at FROM demo.simulations";
+    return database.readAs(ModuleRole.DEMO, actor, () -> beforeStartedAt == null
+        ? database.query(columns + " ORDER BY started_at DESC,id DESC LIMIT 50")
+        : database.query(columns + " WHERE (started_at,id) < (?,?) ORDER BY started_at DESC,id DESC LIMIT 50",
+            java.sql.Timestamp.from(beforeStartedAt), beforeId));
+  }
 }

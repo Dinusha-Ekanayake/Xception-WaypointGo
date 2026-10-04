@@ -3,6 +3,13 @@
 @kavindamihiran's entries, newest first. Only @kavindamihiran adds to this file; how to write an entry is in the [log's index](../development-log.md).
 
 ---
+## 2026-10-05 - feat: simulated vehicles and scenario deck, issue #231 complete
+
+`feat/231-demo-scenarios` · @kavindamihiran · #231, PRs 4 to 6
+
+Added `demo.simulations`, `RouteWalker`, `demo:StartSimulation`/`ControlSimulations` and `SimulationJob`: released trips drive from the depot through each stop, each point a real `delivery:RecordPositions` command as the assigned driver (R-DEMO-04, DEMO-04 to 06). Disable stops every simulation. The control room gained the vehicles panel, a nine-scenario deck and faster map refresh in demo mode. [Walkthrough](../../issues/231-demo-mode/WALKTHROUGH.md) holds the runbook and gaps.
+Verified: full `mvn verify` on a fresh PostgreSQL 16 database, 1015 tests, no skips, one error in `ReferenceCreationIntegrationTest` (the shared-state interaction logged below; it passes beside Demo on a fresh database). Frontend typecheck, Node tests, build and all five browser suites, including the two new control room specs.
+
 ## 2026-10-05 - feat: demo control room, banner and simulated drive, issue #231
 
 `feat/231-demo-control-room` · @kavindamihiran · #231, PRs 3 and 4 (frontend part)

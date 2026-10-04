@@ -488,7 +488,7 @@ The trip is found through the issue's trip, delivery or order subject (`Executio
 
 ## 14. Demo runtime (`demo`, issue #231)
 
-**Purpose.** Opt-in runtime control for a dedicated demo deployment. The first backend slice owns settings, an adjusted business clock and a persisted day-preparation run. Simulated vehicles and the scenario deck are later slices.
+**Purpose.** Opt-in runtime control for a dedicated demo deployment. The first backend slice owns settings, an adjusted business clock and a persisted day-preparation run. Simulated vehicles drive released trips through the real position command; the scenario deck is presenter guidance over the real screens.
 
 | Layer | Contents |
 | --- | --- |
@@ -498,9 +498,9 @@ The trip is found through the issue's trip, delivery or order subject (`Executio
 | infrastructure | Demo-owned tables in `demo` schema; the neutral Platform time port is implemented by the application query |
 | web | Authenticated runtime read and administrator run read |
 
-**Owns:** `demo.settings`, `demo.scenario_runs`. **Commands:** `demo:Enable`, `demo:Disable`, `demo:SetClock`, `demo:UpdateSettings`, `demo:ResetDay`. **Queries:** `GET /api/demo`, `GET /api/demo/scenario-runs`.
+**Owns:** `demo.settings`, `demo.scenario_runs`, `demo.simulations`. **Commands:** `demo:Enable`, `demo:Disable`, `demo:SetClock`, `demo:UpdateSettings`, `demo:ResetDay`, `demo:StartSimulation`, `demo:ControlSimulations`. **Queries:** `GET /api/demo`, `GET /api/demo/scenario-runs`, `GET /api/demo/simulations`.
 
-**Connections.** Demo asks Ordering's `DemoDayQuery` about empty days and last close, and Reference's `ReferenceQuery` about the operating calendar. Its reset job sends `reference:PrepareDemoDay`, `iam:PrepareDemoDay` and `order:PrepareDemoDay` through the command bus, each in its owner's transaction. Platform sees only the neutral `TimeAdjustment` port. Real-time security and audit use `Clock.realTime()`.
+**Connections.** Demo asks Ordering's `DemoDayQuery` about empty days and last close, and Reference's `ReferenceQuery` about the operating calendar. Its reset job sends `reference:PrepareDemoDay`, `iam:PrepareDemoDay` and `order:PrepareDemoDay` through the command bus, each in its owner's transaction. Starting a simulation reads Execution's `ExecutionQuery.runSheet`, Identity's `IdentityQuery.driverOn` and Reference locations; `SimulationJob` then sends `delivery:RecordPositions` as the assigned driver. Platform sees only the neutral `TimeAdjustment` port. Real-time security and audit use `Clock.realTime()`.
 
 **Failure modes.** A missing database makes the business clock fall back to real time. A failed reset step stays recorded in `scenario_runs`; the coordinator retries a step with its stable command id up to three times and never deletes existing orders. See R-DEMO-01 to 03 and the [issue plan](../issues/231-demo-mode/PLAN.md).
 

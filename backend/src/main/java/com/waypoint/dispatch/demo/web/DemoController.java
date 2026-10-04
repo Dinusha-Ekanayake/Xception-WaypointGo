@@ -36,4 +36,12 @@ public class DemoController {
     UUID actor = auth.require(request, "demo:Manage", "wpt:demo:runs:all").userId();
     return settings.runs(actor, beforeStartedAt, beforeId);
   }
+
+  @GetMapping("/simulations")
+  public List<Map<String, Object>> simulations(HttpServletRequest request,
+      @RequestParam(required = false) java.time.Instant beforeStartedAt,
+      @RequestParam(required = false) UUID beforeId) {
+    UUID actor = auth.require(request, "demo:Manage", "wpt:demo:runs:all").userId();
+    return settings.simulations(actor, beforeStartedAt, beforeId);
+  }
 }
