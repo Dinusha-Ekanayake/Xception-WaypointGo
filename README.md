@@ -103,6 +103,8 @@ The details, and which process reads which configuration file, are in [developme
 
 `admin@waypoint.local` and `auditor@waypoint.local` exist too, with the same password, but are not part of the walkthrough. Locally every role is on http://localhost:3000.
 
+`docker compose up` also creates the deployed system's named accounts from [scripts/demo-accounts.csv](scripts/demo-accounts.csv), with the same `SEED_PASSWORD`: the dispatcher, driver, store manager and `peliyagoda@waypoint.local` listed under [Deployed system](#deployed-system), and the four loaders with PIN `2468` ([scripts/seed-demo-accounts.sh](scripts/seed-demo-accounts.sh)). The seeded delivery day (its outlet and vehicles) belongs to `store_manager@waypoint.local` and `driver@waypoint.local`, so in a local copy follow the walkthrough with the accounts in the table above.
+
 ## Judge walkthrough
 
 The seed places the Task 2B peak day: 85 confirmed Peliyagoda orders across all three brands on the first operating day still open for ordering, with the scenario's 10 workshop vehicles out. That is more than the fleet can carry, so the plan has to defer orders. Open the driver and loader at phone width (for example 393 px in the browser's device toolbar).

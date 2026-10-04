@@ -51,6 +51,8 @@ services:
     command: ["sh", "/app/compose-init.sh"]
     volumes:
       - ./scripts/compose-init.sh:/app/compose-init.sh:ro
+      - ./scripts/seed-demo-accounts.sh:/app/seed-demo-accounts.sh:ro
+      - ./scripts/demo-accounts.csv:/app/demo-accounts.csv:ro
     depends_on:
       db:
         condition: service_healthy

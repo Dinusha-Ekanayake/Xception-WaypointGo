@@ -1,0 +1,13 @@
+# The named accounts of the deployed system, for a local copy.
+# role,email,name,depot,pin
+# depot: blank for a role that holds no depot. pin: a loader's four digits for
+# the shared dock device; blank for everyone else. Every account gets
+# SEED_PASSWORD. Read by scripts/seed-demo-accounts.sh.
+dispatcher,dinushabawantha@waypoint.local,Dinusha Bawantha,Peliyagoda,
+driver,rashmikadilshan@waypoint.local,Rashmika Dilshan,Peliyagoda,
+store_manager,ransikaj@waypoint.local,Ransika J,,
+loader,peliyagoda@waypoint.local,Peliyagoda warehouse,Peliyagoda,
+loader,isurusudarshana@waypoint.local,Isuru Sudarshana,Peliyagoda,2468
+loader,kalinduranathunga@waypoint.local,Kalindu Ranathunga,Peliyagoda,2468
+loader,tharushaudana@waypoint.local,Tharusha Udana,Peliyagoda,2468
+loader,manodyasasmini@waypoint.local,Manodya Sasmini,Peliyagoda,2468
