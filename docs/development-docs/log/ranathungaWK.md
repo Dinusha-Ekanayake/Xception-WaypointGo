@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-10-04 - use the published plan date for its edit cutoff
+
+`codex/system-constraints` · @ranathungaWK
+
+Evaluate the 16:00 published-plan cutoff against the plan's service date. This prevents a screen opened on a different selected day or after today's cutoff from marking a future plan final.
+Verified from the failing Dispatcher browser assertion and the matching backend rule. No local tests were run at the user's request.
+
 ## 2026-10-04 - edit admin directory records
 
 `codex/system-constraints` · @ranathungaWK
