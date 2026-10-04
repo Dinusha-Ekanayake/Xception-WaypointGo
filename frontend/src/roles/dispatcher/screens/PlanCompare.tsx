@@ -60,20 +60,20 @@ export default function PlanCompare({
           <SecondaryButton onClick={onBack}>Back to the plan</SecondaryButton>
         </div>
         <div className="flex items-center gap-3">
-          <Chooser name="Plan A" dot="bg-go-ink" current={a} picks={picks} onPick={setAId} />
+          <Chooser name="Plan A" dot="bg-go-ink" current={a} picks={picks} onPick={setAId} disabled={picks.length < 2} />
           <span className="text-xs text-go-secondary">vs</span>
-          <Chooser name="Plan B" dot="bg-go-teal" current={b} picks={picks} onPick={setBId} />
+          <Chooser name="Plan B" dot="bg-go-teal" current={b} picks={picks} onPick={setBId} disabled={picks.length < 2} />
         </div>
 
         {a.id === b.id &&
           (snapshots.length === 0 ? (
             <div className="flex flex-wrap items-center gap-3 rounded-go-card bg-go-surface px-4 py-3">
               <p className="min-w-[220px] flex-1 text-[13px] text-go-ink">
-                There is only the working draft. Save a snapshot now, change the plan, then compare the two.
+                There is only the working draft. Save a snapshot, change the plan, then compare the two.
               </p>
               {onSave && (
                 <SecondaryButton disabled={busy} onClick={onSave}>
-                  Save snapshot
+                  Save snapshot now
                 </SecondaryButton>
               )}
             </div>
@@ -106,11 +106,27 @@ export default function PlanCompare({
   );
 }
 
-function Chooser({ name, dot, current, picks, onPick }: { name: string; dot: string; current: Pick; picks: Pick[]; onPick: (id: string) => void }): React.JSX.Element {
+function Chooser({
+  name,
+  dot,
+  current,
+  picks,
+  onPick,
+  disabled = false,
+}: {
+  name: string;
+  dot: string;
+  current: Pick;
+  picks: Pick[];
+  onPick: (id: string) => void;
+  /** Only one plan to pick from. */
+  disabled?: boolean;
+}): React.JSX.Element {
   return (
     <div className="min-w-0 flex-1">
       <Menu
         label={`${name}: choose a plan`}
+        disabled={disabled}
         className="flex w-full items-center gap-3 rounded-go-input border border-go-rule bg-go-card px-3.5 py-2 text-left"
         items={picks.map((p) => ({ id: p.id, label: p.label, selected: p.id === current.id }))}
         onSelect={onPick}

@@ -157,9 +157,15 @@ export function SummaryCard({
         <span className="flex items-center gap-1.5 text-go-secondary">
           <span aria-hidden className="h-0.5 w-3 bg-go-teal" /> On time %
         </span>
-        {sum && avgTrips !== null && <span className="font-medium text-go-ink">{`avg ${avgTrips} trips${sum.onTime === null ? "" : ` · ${sum.onTime}% on time`}`}</span>}
+        {sum && avgTrips !== null && avgTrips > 0 && <span className="font-medium text-go-ink">{`avg ${avgTrips} trips${sum.onTime === null ? "" : ` · ${sum.onTime}% on time`}`}</span>}
       </div>
-      {sum ? <TripsChart points={sum.points} /> : <p className="py-10 text-center text-[13px] text-go-secondary">{history.loading ? "Reading the days…" : ""}</p>}
+      {sum && sum.points.some((p) => p.trips > 0) ? (
+        <TripsChart points={sum.points} />
+      ) : (
+        <p className="py-10 text-center text-[13px] text-go-secondary">
+          {!sum ? (history.loading ? "Reading the days…" : "") : `No trips in ${rangeText === "Today" ? "today's run" : `the ${rangeText.toLowerCase()}`}.`}
+        </p>
+      )}
     </Card>
   );
 }

@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import type { OrderView, PlanView, VehicleView } from "@shared/domain/types";
 import { Pill, Popover, cx } from "@shared/ui";
 import { capacityLabel, typeLabel } from "../data/fleet.ts";
-import { board, hhmm, summarise, type TripLoad } from "../data/plan.ts";
+import { board, hhmm, leftOutLine, summarise, type TripLoad } from "../data/plan.ts";
 import {
   NO_FILTER,
   addedByHand,
@@ -76,7 +76,13 @@ export default function PlanBoard({
   return (
     <>
       <div className="flex w-full gap-3.5 max-lg:flex-wrap">
-        <Kpi label="Orders" tag={summary.deferred > 0 ? `${summary.deferred} deferred` : undefined} tone="danger" value={summary.served} note={`planned of ${summary.orders}${summary.unservable ? ` · ${summary.unservable} cannot be served` : ""}`} />
+        <Kpi
+          label="Orders"
+          tag={summary.deferred + summary.unservable > 0 ? `${summary.deferred + summary.unservable} not on a trip` : undefined}
+          tone="danger"
+          value={summary.served}
+          note={`planned of ${summary.orders}${summary.deferred + summary.unservable ? ` · ${leftOutLine(summary).split(" · ").slice(1).join(" · ")}` : ""}`}
+        />
         <Kpi label="Vehicles" value={summary.vehiclesUsed} note={`in use · ${summary.vehiclesIdle} idle`} />
         <Kpi
           label="Low-load trips"

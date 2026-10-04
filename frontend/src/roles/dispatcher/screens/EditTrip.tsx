@@ -99,6 +99,12 @@ export default function EditTrip({
     .filter(Boolean)
     .join(" · ");
 
+  /** Closing with changes not sent asks first: a drag-and-drop session is easy to lose to Escape. */
+  const leave = () => {
+    if ((changed || moveTo !== null) && !window.confirm("Discard your changes to this trip?")) return;
+    onClose();
+  };
+
   const apply = async () => {
     const why = reason.trim();
     const ok = moveTo !== null ? await actions.moveTrip(trip.tripId, moveTo, why) : await actions.editTrip(trip.tripId, ids, why);
@@ -110,7 +116,7 @@ export default function EditTrip({
       label="Edit trip"
       kicker={`Edit trip · ${plan.depotCode}`}
       title={`${trip.vehicleId} Trip ${trip.tripNumber} · ${trip.brandCode} ${trip.districtName} · departs ${hhmm(trip.plannedDeparture)}`}
-      onClose={onClose}
+      onClose={leave}
       banner={
         <div className="flex flex-wrap items-center gap-3 rounded-go-input bg-go-surface px-4 py-2.5 text-[13px] text-go-ink">
           <span className="min-w-0 flex-1">
@@ -183,7 +189,7 @@ export default function EditTrip({
           </ul>
         ),
       }}
-      tiles={tripTiles(stops, orders, vehicle)}
+      tiles={tripTiles(stops, orders, vehicle, !changed || (Boolean(preview.data) && !preview.loading))}
       depart={{ place: `${plan.depotCode} depot`, time: hhmm(trip.plannedDeparture) }}
       back={{ time: changed ? "…" : after(trip.plannedDeparture, trip.plannedMinutes) }}
       stops={stopRows(plan, stops, orders, vehicle).map((row) => (added.includes(row.orderId) ? { ...row, tag: "NEW · added by you" } : row))}
@@ -211,7 +217,7 @@ export default function EditTrip({
               {canEdit && (
                 <p className="rounded-go-input border border-dashed border-go-warning/60 px-3 py-3 text-center text-[13px] text-go-warning-text">Drag a stop here to defer it</p>
               )}
-              <ReasonPicker label="Why this change?" value={reason} onChange={setReason} />
+              <ReasonPicker required label="Why this change?" value={reason} onChange={setReason} />
             </div>
           ) : undefined,
       }}
@@ -225,6 +231,8 @@ export default function EditTrip({
           "No changes yet"
         ) : (moveTo !== null ? interchange.loading && !interchange.data : preview.loading) ? (
           "Checking the trip…"
+        ) : ready && !reasonReady(reason) ? (
+          <span className="text-go-warning-text">{`✓ Every check passes · add a reason to accept`}</span>
         ) : ready ? (
           <span className="text-go-teal">{`✓ Every check passes · ${moveTo !== null ? `trip moves to ${moveTo}` : summary}`}</span>
         ) : (

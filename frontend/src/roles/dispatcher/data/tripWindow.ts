@@ -25,16 +25,24 @@ function pct(used: number, cap: number | string | undefined): number | null {
 }
 
 function late(stop: StopView): boolean {
-  return Boolean(stop.windowClose) && stop.plannedArrival.slice(0, 5) > stop.windowClose.slice(0, 5);
+  return Boolean(stop.windowClose) && Boolean(stop.plannedArrival) && stop.plannedArrival.slice(0, 5) > stop.windowClose.slice(0, 5);
 }
 
-export function tripTiles(stops: StopView[], orders: Map<string, OrderView>, vehicle: VehicleView | undefined): Tile[] {
+/**
+ * The trip's load and windows. `checked` false means the trip changed and the
+ * server has not timed it yet: the windows tile says so rather than judging
+ * times from before the change. A stop with no window, or no time yet, is
+ * counted apart, never as met.
+ */
+export function tripTiles(stops: StopView[], orders: Map<string, OrderView>, vehicle: VehicleView | undefined, checked = true): Tile[] {
   const ids = stops.map((stop) => stop.orderId);
   const volume = sum(ids, orders, "volumeM3");
   const weight = sum(ids, orders, "weightKg");
   const v = pct(volume, vehicle?.volumeCapM3);
   const w = pct(weight, vehicle?.weightCapKg);
   const lateCount = stops.filter(late).length;
+  const unknown = stops.filter((stop) => !stop.windowClose || !stop.plannedArrival).length;
+  const judged = stops.length - unknown;
   return [
     {
       label: "Volume",
@@ -51,13 +59,15 @@ export function tripTiles(stops: StopView[], orders: Map<string, OrderView>, veh
       warn: (w ?? 0) >= TIGHT,
     },
     { label: "Stops", value: `${stops.length}`, note: "on this trip", percent: null },
-    {
-      label: "Delivery windows",
-      value: lateCount === 0 ? "All met" : `${lateCount} late`,
-      note: stops.length ? `last stop ${hhmm(stops[stops.length - 1]!.plannedArrival)}` : "no stop",
-      percent: stops.length ? Math.round(((stops.length - lateCount) / stops.length) * 100) : null,
-      warn: lateCount > 0,
-    },
+    !checked
+      ? { label: "Delivery windows", value: "Not checked yet", note: "the server is timing the trip", percent: null, warn: true }
+      : {
+          label: "Delivery windows",
+          value: stops.length === 0 ? "No stops" : lateCount > 0 ? `${lateCount} late` : unknown > 0 ? `${judged} of ${stops.length} met` : "All met",
+          note: unknown > 0 ? `${unknown} without a window or a time` : stops.length ? `last stop ${hhmm(stops[stops.length - 1]!.plannedArrival)}` : "no stop",
+          percent: judged ? Math.round(((judged - lateCount) / stops.length) * 100) : null,
+          warn: lateCount > 0 || unknown > 0,
+        },
   ];
 }
 
