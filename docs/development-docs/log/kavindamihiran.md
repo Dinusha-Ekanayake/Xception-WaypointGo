@@ -3,6 +3,12 @@
 @kavindamihiran's entries, newest first. Only @kavindamihiran adds to this file; how to write an entry is in the [log's index](../development-log.md).
 
 ---
+## 2026-10-04 - ci: check only what a change touches
+
+`ci/checks-only-what-changed` · @kavindamihiran
+
+Checks ran every job on every pull request (~4.5 min even for a frontend change). A first job now lists the changed areas and each job is skipped when its area is untouched; deploys and workflow changes still run everything, and the two aggregate statuses accept skipped. The backend's slowest shard is split (planning and messaging apart), and "Frontend checks" no longer builds, since every browser runner builds. Verified by this pull request's own checks.
+
 ## 2026-10-04 - ci: run the browser suites side by side
 
 `ci/parallel-browser-suites` · @kavindamihiran
