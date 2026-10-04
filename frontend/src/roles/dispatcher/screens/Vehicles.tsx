@@ -118,7 +118,7 @@ export default function Vehicles({
         <div className="flex min-w-[280px] flex-col gap-[18px] lg:max-w-[300px]">
           <Card label="Back in service">
             <CardHead title="Back in service" meta="Vehicles in the workshop" />
-            <Pending what="The workshop list" waitingOn="a fleet status read in reference data" />
+            <Pending what="The workshop list" waitingOn="Vehicles in the workshop are left out of the counts on this screen; they are not listed yet." />
           </Card>
           <Card label="Refrigerated vehicles">
             <CardHead title="Refrigerated vehicles" meta="Available today against an average day next week" />

@@ -122,8 +122,7 @@ export default function Overview({
               </div>
             )}
             <Notice tone="neutral" title="Workshop vehicles">
-              Reference data serves only the vehicles available on a day, so the workshop list waits on a fleet
-              status read.
+              The counts are vehicles available today. Vehicles in the workshop are left out and not listed yet.
             </Notice>
           </Card>
 
