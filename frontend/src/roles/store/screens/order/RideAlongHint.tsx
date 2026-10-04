@@ -70,7 +70,7 @@ export default function RideAlongHint({
       <p role="status" className="flex items-center gap-2 rounded-[14px] bg-go-success-tint px-3.5 py-2.5 text-[13px] text-go-success">
         <Tick />
         {t("Moved to {day} to share the trip already going to {district}.", { day: dayLabel(moved.to), district: districtName })}
-        <button type="button" onClick={() => (onPick(moved.from), setMoved(null))} className="ml-auto font-medium text-go-teal">
+        <button type="button" onClick={() => (onPick(moved.from), setMoved(null))} className="ml-auto shrink-0 font-medium whitespace-nowrap text-go-teal">
           {t("Undo")}
         </button>
       </p>
