@@ -57,7 +57,7 @@ public class OutboxRelayWorker implements SmartLifecycle {
     this.relay = relay;
     this.signal = signal;
     this.settings = settings;
-    this.clock = clock;
+    this.clock = clock.realTime();
     this.serving = arguments.getNonOptionArgs().isEmpty();
     // PLT-02 and PLT-03: the age of the oldest undelivered event, and the dead letters.
     metrics.gauge("waypoint.outbox.lag_seconds", lagSeconds::get);

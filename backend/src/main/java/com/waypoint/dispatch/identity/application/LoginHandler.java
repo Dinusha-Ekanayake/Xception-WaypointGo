@@ -58,7 +58,7 @@ public class LoginHandler {
     this.sessions = sessions;
     this.audit = audit;
     this.metrics = metrics;
-    this.clock = clock;
+    this.clock = clock.realTime();
   }
 
   /** @return an opaque session token */

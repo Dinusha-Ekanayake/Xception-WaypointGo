@@ -402,6 +402,14 @@ ADR-004: a conversation is a thread anchored to one subject; the first subject i
 | R-MSG-05 | **Reports from the field arrive once and are not told twice.** Every raised issue about a trip is posted on its thread as a report, once per event, naming the role that reported it. It publishes nothing, because `issue.raised` already notified the dispatcher | Product decision 2026-10-04 | Policy |
 | R-MSG-06 | **Voice notes.** A message or report may be a voice note: WebM, Ogg, MP4/AAC or MP3, at most 2 MB and 120 seconds, uploaded under the phone's id before the message and heard only by who may see that message, and by its author | Product decision 2026-10-04 | Policy |
 
+## 7e. Demo runtime (issue #231)
+
+| ID | Rule | Source | Status |
+| --- | --- | --- | --- |
+| R-DEMO-01 | Demo starts OFF. Only an administrator can enable it or change settings, with a reason and the current row version. Disabling clears the business-clock offset | Product decision 2026-10-04 | Policy |
+| R-DEMO-02 | Business time may move by at most seven days. Authentication, sessions, command receipts, audits and scheduler leases use real time; a database outage falls back to real time | Product decision 2026-10-04 | Policy |
+| R-DEMO-03 | A day reset records its run and delegates preparation to Reference, Identity and Ordering commands. It accepts only an empty operating date within seven days and never deletes operational rows or changes account credentials | Product decision 2026-10-04 | Policy |
+
 ## 8. Conflicts found
 
 Seven places where the sources disagree. C-1, C-2, C-3, C-5, C-6 and C-7 are settled; C-4 remains open.

@@ -417,3 +417,11 @@ Two rules keep this honest:
 | EXE-LOC-09 | `MAP_TILE_URL` unset or the tile provider is down | Plain background, markers and lines still drawn, "Base map unavailable" | Tile proxy, shared map | Proxy `404`/`502`/`504` on `/map-tiles/` | `tests/live-map.test.ts` (tile bounds); all three browser suites |
 | EXE-LOC-10 | A store has only a district location | Labelled "Approximate · <district>"; the driver's map says so and offers no Navigate | Driver Route, store map card | n/a | `e2e-driver/location.spec.ts`, `e2e-store/track-map.spec.ts` |
 | SEC-LOC-01 | A command audit snapshot contains GPS points | Redact whole points arrays and nested latitude/longitude fields | AuditRedactor | n/a | `AuditRedactorTest.locationTrailsAndNestedCoordinatesNeverReachAuditSnapshots` |
+
+### Demo runtime (#231)
+
+| ID | Trigger | Required behaviour | Enforced in | Detection | Test |
+| --- | --- | --- | --- | --- | --- |
+| DEMO-01 | A non-admin or a stale settings command tries to change Demo | Refuse without changing settings; command bus records the denial or conflict | DemoAccess, DemoSettingsHandler | Command audit for `demo:*` | `DemoIntegrationTest.runtimeControlsAreVersionedAuditedAndAdminOnly` |
+| DEMO-02 | Demo is disabled or its state cannot be read | Business clock uses real time and disable clears the offset | AdjustedClock, DemoSettings | Demo state read and readiness | `DemoClockTest`, `DemoIntegrationTest.runtimeControlsAreVersionedAuditedAndAdminOnly` |
+| DEMO-03 | Reset targets a date already containing orders | Refuse rather than replacing operational data | ResetDayHandler, Ordering | Rejected `demo:ResetDay` command audit | `DemoIntegrationTest.resetPreparesOnlyAnEmptyOperatingDayThroughOwnerCommands` |

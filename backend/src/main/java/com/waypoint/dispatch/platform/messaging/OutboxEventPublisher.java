@@ -42,7 +42,7 @@ public class OutboxEventPublisher implements EventPublisher {
       Database database, ObjectMapper mapper, Clock clock, Metrics metrics, RelaySignal relay) {
     this.database = database;
     this.mapper = mapper;
-    this.clock = clock;
+    this.clock = clock.realTime();
     this.metrics = metrics;
     this.relay = relay;
   }
