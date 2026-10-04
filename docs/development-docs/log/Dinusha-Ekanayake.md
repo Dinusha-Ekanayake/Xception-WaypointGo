@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-04 - feat: an optional language model rewords the plan explanations
+
+`feat/explain-groq` · @Dinusha-Ekanayake
+
+With `GROQ_API_KEY` set, the frontend's own server route (`app/explain/route.ts`) asks Groq to say an explanation more naturally. It is shown above the rule-based facts in the three pop-ups and marked as AI-worded. The route checks the session, sends only the facts of the one plan or order, keeps one answer per plan version (server memory, then the browser), and refuses an answer that names a figure the facts do not hold or that fails in any way: the rule-based text is always there. Blank key (the default) sends nothing. No backend change.
+Why: the user asked for friendlier wording; the decision to send plan facts to an outside model is theirs and is opt-in per deployment.
+Verified: see the PR. `npm test` 281; the explain and plan specs pass with no key. The live call to Groq was not exercised here.
+
+---
+
 ## 2026-10-04 - feat: a generated plan explains itself at once, and each deferred order has a question mark
 
 `feat/explain-auto` · @Dinusha-Ekanayake
