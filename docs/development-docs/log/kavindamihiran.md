@@ -3,6 +3,12 @@
 @kavindamihiran's entries, newest first. Only @kavindamihiran adds to this file; how to write an entry is in the [log's index](../development-log.md).
 
 ---
+## 2026-10-04 - ci: run the browser suites side by side
+
+`ci/parallel-browser-suites` · @kavindamihiran
+
+The "Browser suites" job ran five Playwright suites one after another with one worker, about 7 minutes. Each suite now has its own runner (a matrix in `checks.yml`) and two workers in CI; a single "Browser suites" status still gates, like "Backend tests". Target 3-5 minutes. Not run locally; verified by the pull request's own checks.
+
 ## 2026-10-05 - fix: driver map trail, re-centring, dark mode and tile prefetch
 
 `feat/231-demo-scenarios` · @kavindamihiran · #161, #201, #231
