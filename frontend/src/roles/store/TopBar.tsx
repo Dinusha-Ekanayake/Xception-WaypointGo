@@ -121,7 +121,7 @@ export default function TopBar({
         </button>
       )}
       <span className="lg:hidden max-[439px]:[&_button]:size-10 max-[439px]:[&_button]:min-h-10">
-        <ShellActions compact />
+        <ShellActions compact switchUser={false} />
       </span>
       <button
         type="button"

@@ -395,7 +395,7 @@ export function SideNav({
             <span className="text-[13px] text-go-muted">Store manager</span>
           </span>
         </button>
-        <ShellActions compact />
+        <ShellActions compact switchUser={false} />
       </div>
       {account && (
         <AccountMenu

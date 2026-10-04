@@ -14,6 +14,15 @@ Verified: see the PR. `npm test` 281; `explain.spec.ts` and the generate spec in
 
 ---
 
+## 2026-10-04 - fix: the store manager has no "Switch user" button
+
+`fix/store-no-switch-user` · @Dinusha-Ekanayake
+
+The store's top bar and sidebar no longer show "Switch user": Sign out is already in the account menu behind the profile picture. `ShellActions` takes `switchUser` (default on), so the other roles keep the button; the sync badge and the role switcher of an account with several roles still show for the store.
+Verified: typecheck, `npm test`. Browser suites in CI.
+
+---
+
 ## 2026-10-04 - fix: sign-in opens the account's own role on every address
 
 `fix/signin-opens-own-role` · @Dinusha-Ekanayake
