@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-04 - feat(frontend): voice notes recorded and played as in a messaging app
+
+`feat/136-voice-ui` · @tharushaudana
+
+The thread's "Voice" button is a mic: hold to record and let go to send, slide up to lock and talk hands free (then stop, listen, send), slide left to cancel; a tap says how. A keyboard press starts a locked recording. A sent voice note is a card in the bubble's colours (teal for your own, ink for others, red for a report): a play button, a waveform that fills as it plays (tap to seek), the time and 1x/1.5x/2x, instead of the browser's black player. Bars come from the levels heard while recording, or from decoding the audio; audio the browser cannot decode keeps steady placeholder bars. One note plays at a time. Labels are in the loader's Sinhala and Tamil too.
+Why: the user asked for WhatsApp-like voice and a card that matches the UI.
+Verified: `npm run typecheck`, `npm test` (229, adds `messaging-waveform.test.ts`), driver suite (26, `voice.spec.ts` holds, slides, locks, cancels and plays real audio from the fake microphone), dispatcher (57), loader (31), store (55; one receipt flake passed on rerun).
+Open: try it on a real phone once the microphone header (`microphone=(self)`) reaches the edge with the next production deploy.
+
+---
+
 ## 2026-10-04 - feat(messaging): voice notes offline, on a shared loader device, and kept for 400 days
 
 `feat/136-messaging` · @tharushaudana
