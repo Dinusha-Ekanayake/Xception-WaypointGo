@@ -75,6 +75,16 @@ export async function submitGrantScope(userId: string, place: string, kind: "dep
   }, expectedVersion));
 }
 
+export async function submitUpdateUser(payload: {
+  userId: string; displayName: string; email: string; expectedVersion: number;
+}): Promise<void> {
+  await send(newCommand("iam:UpdateUser", {
+    userId: payload.userId,
+    displayName: payload.displayName,
+    email: payload.email,
+  }, payload.expectedVersion));
+}
+
 /**
  * Convert an Identity AccountView to the Member model used in Admin People screens.
  */

@@ -18,7 +18,7 @@ import { SystemConstraintsScreen } from "./SystemConstraintsScreen";
 import AssistantsConsole from "../assistants/AssistantsConsole";
 import DemoControlRoom from "../demo/DemoControlRoom";
 import { fetchRoles, fetchActions } from "../data/access";
-import { fetchAccounts, fetchAccount, accountToMember, submitCreateUser, submitGrantScope } from "../data/accounts";
+import { fetchAccounts, fetchAccount, accountToMember, submitCreateUser, submitGrantScope, submitUpdateUser } from "../data/accounts";
 import type { RoleView, ActionView } from "@shared/domain/identity";
 import "./access-demo.css";
 
@@ -104,6 +104,11 @@ export default function AccessDemo({ userId, displayName = "Administrator" }: { 
   const [draft, setDraft] = useState<Draft | null>(null);
   const [toast, setToast] = useState("");
   const [pendingCreation, setPendingCreation] = useState<{ email: string; userId: string } | null>(null);
+  const [editingMember, setEditingMember] = useState<Member | null>(null);
+  const [memberName, setMemberName] = useState("");
+  const [memberEmail, setMemberEmail] = useState("");
+  const [memberError, setMemberError] = useState("");
+  const [memberSaving, setMemberSaving] = useState(false);
   const viewer = "admin" as "admin" | "super_admin";
   useEffect(() => { const sync = () => { const next = routeFromHash(); setRoute(next); setPeopleOpen(PEOPLE_TABS.includes(next.tab)); setTripsOpen(TRIPS_TABS.includes(next.tab)); }; sync(); window.addEventListener("hashchange", sync); return () => window.removeEventListener("hashchange", sync); }, []);
 
@@ -146,8 +151,23 @@ export default function AccessDemo({ userId, displayName = "Administrator" }: { 
   const navigate = (tab: Tab, id?: string | null) => { window.location.hash = `${tab}${id ? `/${id}` : ""}`; setRoute({ tab, member: tab === "people" ? id ?? null : null, persona: tab === "personas" ? id as Persona ?? null : null }); setPeopleOpen(PEOPLE_TABS.includes(tab)); setTripsOpen(TRIPS_TABS.includes(tab)); };
   const showDetails = (capability: Capability, member?: Member, persona?: Persona) => setDetails({ capability, member, persona });
 
-  function openEditor() {
+  function openEditor(_capability?: Capability, member?: Member) {
+    if (member?.source === "live" && member.rowVersion !== undefined) {
+      setEditingMember(member); setMemberName(member.name); setMemberEmail(member.email); setMemberError(""); return;
+    }
     setToast("Permission editing is unavailable until policy attachments and versioned commands are exposed by the server.");
+  }
+
+  async function saveMember() {
+    if (!editingMember || editingMember.rowVersion === undefined) return;
+    setMemberSaving(true); setMemberError("");
+    try {
+      await submitUpdateUser({ userId: editingMember.id, displayName: memberName.trim(), email: memberEmail.trim(), expectedVersion: editingMember.rowVersion });
+      const refreshed = accountToMember(await fetchAccount(editingMember.id));
+      setState((current) => ({ ...current, members: current.members.map((member) => member.id === refreshed.id ? refreshed : member) }));
+      setEditingMember(null); setToast("Member details updated.");
+    } catch (failure) { setMemberError(failure instanceof Error ? failure.message : "Could not update member."); }
+    finally { setMemberSaving(false); }
   }
 
   const draftMember = draft?.target === "member" ? state.members.find((item) => item.id === draft.id) : undefined;
@@ -314,6 +334,13 @@ export default function AccessDemo({ userId, displayName = "Administrator" }: { 
     </div></div>
   {details && <Modal title={details.capability.label} onClose={() => setDetails(null)}><div className="space-y-4 text-sm"><p>{details.capability.description}</p><div className="flex flex-wrap gap-2"><Badge tone={details.capability.implemented ? "green" : "amber"}>{details.capability.implemented ? "Catalogue entry" : "Unavailable"}</Badge><Badge>{details.capability.module}</Badge></div><p className="text-go-secondary">This catalogue entry does not establish effective access for a member or role.</p><details className="text-go-secondary"><summary className="cursor-pointer font-medium">Technical details</summary><code className="mt-2 block rounded-xl bg-go-subtle p-3">{details.capability.action}</code></details><button className={secondary} onClick={() => setDetails(null)}>Close</button></div></Modal>}
   {newMemberPersona && <CreateMemberModal members={state.members} viewer={viewer} initialPersona={newMemberPersona} onClose={() => setNewMemberPersona(null)} onCreate={createMember} />}
+  {editingMember && <Modal title={`Edit ${editingMember.name}`} onClose={() => setEditingMember(null)}><div className="space-y-4">
+    <label className="block text-sm font-semibold">Full name<input className={`${field} mt-2`} value={memberName} maxLength={80} onChange={(event) => setMemberName(event.target.value)} /></label>
+    <label className="block text-sm font-semibold">Email<input className={`${field} mt-2`} type="email" value={memberEmail} onChange={(event) => setMemberEmail(event.target.value)} /></label>
+    <p className="text-xs text-go-secondary">Persona and assigned places are managed separately so a profile edit cannot grant access.</p>
+    {memberError && <p role="alert" className="text-sm text-go-danger">{memberError}</p>}
+    <div className="flex justify-end gap-2"><button className={secondary} onClick={() => setEditingMember(null)}>Cancel</button><button className={primary} disabled={memberSaving || !memberName.trim() || !memberEmail.trim() || (memberName.trim() === editingMember.name && memberEmail.trim() === editingMember.email)} onClick={() => void saveMember()}>{memberSaving ? "Saving..." : "Save changes"}</button></div>
+  </div></Modal>}
   {draft && <Modal title={draft.stage === "review" ? "Review access change" : draft.target === "member" ? "Member exception" : "Persona capability"} onClose={() => setDraft(null)} wide>
     {draft.stage === "edit" ? <div className="space-y-5"><div className="rounded-xl bg-go-subtle p-4 text-sm"><strong>{draftMember?.name ?? (draftPersona && labelFor(draftPersona))}</strong><p className="mt-1 text-go-secondary">{draft.target === "persona" ? `This shared choice applies to all ${assigned} assigned members, within their existing places.` : "This choice applies to one member within existing assigned places."}</p></div>
       <label className="block text-sm font-semibold">Capability<select className={`${field} mt-2`} value={draft.action} onChange={(event) => { const action = event.target.value; const ex = draftMember && activeException(state, draftMember.id, action); setDraft({ ...draft, action, choice: draftMember ? ex?.decision ?? "inherit" : personaChoice(state, draftPersona!, action), place: ex?.place ?? "", expires: ex?.expires ?? "" }); }}><option value="">Select a capability</option>{(draftMember ? editOptions : CAPABILITIES.filter((item) => item.implemented && item.relevant.includes(draftPersona!))).map((item) => <option key={item.action} value={item.action}>{item.module} · {item.label}</option>)}</select></label>

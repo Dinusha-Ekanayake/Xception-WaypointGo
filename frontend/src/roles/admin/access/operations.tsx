@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Badge, Empty, VehicleTypeIcon, card, field, primary, secondary } from "./components";
 import { todayInColombo } from "./model";
-import { createAdminVehicle, fetchAdminVehicles, fetchAdminDepots } from "../data/reference";
+import { createAdminVehicle, fetchAdminVehicles, fetchAdminDepots, updateAdminVehicle } from "../data/reference";
 import { request } from "@shared/api/client";
 import type { ForecastOverviewView } from "@shared/domain/intelligence";
 
@@ -28,12 +28,14 @@ export type Vehicle = {
   temp: "Ambient" | "Chilled (Refrigerated)";
   status: "Available" | "On trip" | "Workshop" | "Unavailable";
   lastDriver?: LastDriver;
+  rowVersion?: number;
 };
 
 export function VehiclesScreen() {
   const [vehiclesList, setVehiclesList] = useState<Vehicle[]>([]);
   const [liveConnected, setLiveConnected] = useState<boolean | null>(null);
   const [isAddVehicleModalOpen, setIsAddVehicleModalOpen] = useState(false);
+  const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
   const [createError, setCreateError] = useState("");
   const [createNotice, setCreateNotice] = useState("");
   const [creating, setCreating] = useState(false);
@@ -95,6 +97,7 @@ export function VehiclesScreen() {
               fuelEfficiencyKmPerL: Number(v.kmPerL),
               temp: tempVal,
               status: statusVal,
+              rowVersion: v.rowVersion,
             };
           });
           setVehiclesList(records);
@@ -129,14 +132,16 @@ export function VehiclesScreen() {
     setCreating(true);
     let saved = false;
     try {
-      await createAdminVehicle({
+      const payload = {
         vehicleId: newVehicleId.trim().toUpperCase(), depotCode: newVehicleDepot,
         type: newVehicleType.toLowerCase(),
         temperature: newVehicleTemp === "Chilled (Refrigerated)" ? "reefer" : "ambient",
         weightCapKg: newVehicleWeightCap, volumeCapM3: newVehicleVolumeCap,
         fuelType: newVehicleFuelType.toLowerCase(), kmPerL: newVehicleEfficiency,
         weeklyFuelQuotaL: newVehicleFuelQuota,
-      });
+      };
+      if (editingVehicle) await updateAdminVehicle(payload, editingVehicle.rowVersion ?? 0);
+      else await createAdminVehicle(payload);
       saved = true;
       const page = await fetchAdminVehicles({ limit: 100 });
       setVehiclesList(page.items.map((v) => ({
@@ -147,8 +152,9 @@ export function VehiclesScreen() {
         fuelEfficiencyKmPerL: Number(v.kmPerL),
         temp: v.temperature === "reefer" ? "Chilled (Refrigerated)" : "Ambient",
         status: "Available",
+        rowVersion: v.rowVersion,
       })));
-      setIsAddVehicleModalOpen(false);
+      setIsAddVehicleModalOpen(false); setEditingVehicle(null);
     } catch (error) {
       if (saved) {
         setCreateNotice("Vehicle saved, but the directory could not refresh. Reload to see it.");
@@ -171,6 +177,15 @@ export function VehiclesScreen() {
     setNewVehicleFuelQuota("280");
     setNewVehicleEfficiency("11.2");
   };
+
+  function openVehicleEditor(vehicle: Vehicle) {
+    setEditingVehicle(vehicle); setNewVehicleId(vehicle.id); setNewVehicleType(vehicle.type);
+    setNewVehicleDepot(vehicle.depot); setNewVehicleTemp(vehicle.temp);
+    setNewVehicleWeightCap(String(vehicle.weightCapKg)); setNewVehicleVolumeCap(String(vehicle.volumeCapM3));
+    setNewVehicleFuelType(vehicle.fuelType.toLowerCase() === "petrol" ? "Petrol" : "Diesel");
+    setNewVehicleFuelQuota(String(vehicle.weeklyFuelQuotaL)); setNewVehicleEfficiency(String(vehicle.fuelEfficiencyKmPerL));
+    setCreateError(""); setIsAddVehicleModalOpen(true);
+  }
 
   const rows = useMemo(() => {
     const filtered = vehiclesList.filter((vehicle) => {
@@ -493,6 +508,7 @@ export function VehiclesScreen() {
                         </Badge>
                       </div>
                     </div>
+                    <div className="mt-3 flex justify-end"><button type="button" className={primary} onClick={() => openVehicleEditor(item)}>Edit vehicle</button></div>
                   </div>
                 )}
               </article>
@@ -514,13 +530,13 @@ export function VehiclesScreen() {
           <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl bg-white p-6 sm:p-7 shadow-2xl border border-go-rule animate-in fade-in duration-200">
             <div className="flex items-center justify-between border-b border-go-subtle pb-4">
               <div>
-                <h3 id="add-vehicle-ops-title" className="text-xl font-bold text-go-ink">Add New Vehicle</h3>
-                <p className="text-xs text-go-secondary">Register a new vehicle with payload limits, certified temperature zone, and fuel quota.</p>
+                <h3 id="add-vehicle-ops-title" className="text-xl font-bold text-go-ink">{editingVehicle ? `Edit ${editingVehicle.id}` : "Add New Vehicle"}</h3>
+                <p className="text-xs text-go-secondary">{editingVehicle ? "Update fleet details used by planning and capacity checks." : "Register a new vehicle with payload limits, certified temperature zone, and fuel quota."}</p>
               </div>
               <button
                 type="button"
                 className="grid size-9 place-items-center rounded-full text-go-secondary hover:bg-go-subtle text-lg"
-                onClick={() => setIsAddVehicleModalOpen(false)}
+                onClick={() => { setIsAddVehicleModalOpen(false); setEditingVehicle(null); }}
                 aria-label="Close"
               >
                 ✕
@@ -537,6 +553,7 @@ export function VehiclesScreen() {
                     className={`${field} mt-1 uppercase`}
                     placeholder="e.g. WP-3590"
                     value={newVehicleId}
+                    disabled={!!editingVehicle}
                     onChange={(e) => setNewVehicleId(e.target.value)}
                   />
                 </label>
@@ -658,7 +675,7 @@ export function VehiclesScreen() {
               <button
                 type="button"
                 className={secondary}
-                onClick={() => setIsAddVehicleModalOpen(false)}
+                onClick={() => { setIsAddVehicleModalOpen(false); setEditingVehicle(null); }}
               >
                 Cancel
               </button>
@@ -668,7 +685,7 @@ export function VehiclesScreen() {
                 disabled={creating || !newVehicleId.trim() || !newVehicleDepot}
                 onClick={handleCreateVehicle}
               >
-                {creating ? "Creating..." : "Create vehicle"}
+                {creating ? "Saving..." : editingVehicle ? "Save changes" : "Create vehicle"}
               </button>
             </div>
           </div>
