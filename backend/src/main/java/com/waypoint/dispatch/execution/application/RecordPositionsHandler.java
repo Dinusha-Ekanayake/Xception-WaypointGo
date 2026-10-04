@@ -6,6 +6,7 @@ import com.waypoint.dispatch.execution.domain.PositionFix;
 import com.waypoint.dispatch.execution.domain.PositionPolicy;
 import com.waypoint.dispatch.execution.infrastructure.JdbcDeliveryRepository;
 import com.waypoint.dispatch.execution.infrastructure.JdbcPositions;
+import com.waypoint.dispatch.platform.db.Database;
 import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.platform.messaging.Command;
 import com.waypoint.dispatch.platform.messaging.CommandHandler;
@@ -24,8 +25,10 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
 
@@ -45,16 +48,20 @@ public class RecordPositionsHandler implements CommandHandler {
   private final ReferenceQuery reference;
   private final Metrics metrics;
   private final Clock clock;
+  private final Database database;
+  private final PositionSignals signals;
   private final SecureRandom random = new SecureRandom();
 
   public RecordPositionsHandler(
       JdbcDeliveryRepository deliveries, JdbcPositions positions, ReferenceQuery reference, Metrics metrics,
-      Clock clock) {
+      Clock clock, Database database, PositionSignals signals) {
     this.deliveries = deliveries;
     this.positions = positions;
     this.reference = reference;
     this.metrics = metrics;
     this.clock = clock;
+    this.database = database;
+    this.signals = signals;
   }
 
   @Override
@@ -103,16 +110,23 @@ public class RecordPositionsHandler implements CommandHandler {
     }
 
     int stored = 0;
+    String depotCode = vehicle.get().depotCode();
+    Set<LocalDate> storedDays = new HashSet<>();
     for (PositionFix fix : accepted) {
       LocalDate day = fix.recordedAt().atZone(Clock.OPERATING_ZONE).toLocalDate();
       if (!deliveries.mayRecordFor(vehicleId, day)) {
         throw new DomainException(ErrorCode.FORBIDDEN, "You are not assigned to this vehicle on that day");
       }
       UUID trip = day.equals(tripDate) ? tripId : null;
-      if (positions.insert(UuidV7.generate(now, random), vehicleId, vehicle.get().depotCode(), day, trip,
+      if (positions.insert(UuidV7.generate(now, random), vehicleId, depotCode, day, trip,
           actor.userId(), fix, PositionPolicy.lowQuality(fix), now, command.commandId())) {
         stored++;
+        storedDays.add(day);
       }
+    }
+    // The live map hears of it once the fixes are committed, never before (R-EXE-23).
+    if (!storedDays.isEmpty()) {
+      database.afterCommit(() -> storedDays.forEach(day -> signals.changed(depotCode, day)));
     }
     metrics.count("waypoint.execution.positions_accepted", stored);
     metrics.count("waypoint.execution.positions_duplicate", accepted.size() - stored);
