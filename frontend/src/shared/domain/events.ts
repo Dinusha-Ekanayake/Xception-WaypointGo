@@ -117,6 +117,10 @@ export type EventPayloads = {
     stops: PlannedStop[];
   };
   "delivery.started": { deliveryId: Uuid; orderId: Uuid; tripId: Uuid; outletId: string };
+  /** R-EXE-25: the vehicle is at the outlet. */
+  "delivery.arrived": { deliveryId: Uuid; orderId: Uuid; tripId: Uuid; outletId: string; vehicleId: string; arrivedAt: IsoInstant };
+  /** R-EXE-24: the driver is at the depot with the vehicle, before release. */
+  "vehicle.at_depot": { vehicleId: string; depotCode: string; serviceDate: IsoDate; driverId: Uuid; arrivedAt: IsoInstant };
   "delivery.completed": {
     deliveryId: Uuid;
     orderId: Uuid;

@@ -242,23 +242,27 @@ export type DayProbe = { released: boolean; waiting: { vehicleId: string; depart
 export type NextRun = { date: string; released: boolean; vehicleId: string | null; departure: string | null };
 
 /**
- * The first day after `today`, within a week, with a trip for this driver
- * (issues #114 and the deadline-day UX plan): a released run, which the phone
- * switches to, or a published trip the loader has not released yet, which Home
- * names. Every day is asked at once, so the answer takes one round trip rather
- * than seven, and a day that cannot be read is skipped.
+ * The driver's next trip when today has no released run (issues #114 and the
+ * deadline-day UX plan): first today's own trip if it is published and waiting
+ * for the loader, so the driver sees it and can report at the depot to have it
+ * loaded (R-EXE-24); then the first day after `today`, within a week, with a
+ * released run, which the phone switches to, or a published trip the loader
+ * has not released yet, which Home names. Every day is asked at once, so the
+ * answer takes one round trip rather than eight, and a day that cannot be read
+ * is skipped.
  */
 export async function lookAhead(today: string, probe: (date: string) => Promise<DayProbe>): Promise<NextRun | null> {
   const start = new Date(`${today}T00:00:00Z`);
-  const days = Array.from({ length: RUN_LOOK_AHEAD_DAYS }, (_, i) => {
+  const days = Array.from({ length: RUN_LOOK_AHEAD_DAYS + 1 }, (_, i) => {
     const d = new Date(start);
-    d.setUTCDate(d.getUTCDate() + i + 1);
+    d.setUTCDate(d.getUTCDate() + i);
     return d.toISOString().slice(0, 10);
   });
   const answers = await Promise.all(days.map((day) => probe(day).catch(() => null)));
   for (const [i, answer] of answers.entries()) {
     if (!answer) continue;
-    if (answer.released) return { date: days[i]!, released: true, vehicleId: null, departure: null };
+    // Today released is already the run on screen; only today's waiting trip is news.
+    if (answer.released && i > 0) return { date: days[i]!, released: true, vehicleId: null, departure: null };
     if (answer.waiting) return { date: days[i]!, released: false, ...answer.waiting };
   }
   return null;

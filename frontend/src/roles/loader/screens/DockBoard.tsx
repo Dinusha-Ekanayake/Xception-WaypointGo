@@ -10,7 +10,7 @@ import { addDays, dayLabel } from "../../../shared/wording/index.ts";
 import { BigButton } from "../ui.tsx";
 import { TruckIcon } from "../icons.tsx";
 import DockPicker, { DOCK_KEY } from "./DockPicker.tsx";
-import { TripCard, TripTable, type Who } from "./TripRows.tsx";
+import { TripCard, TripTable, waiting, type Who } from "./TripRows.tsx";
 import { useT } from "../i18n.tsx";
 
 // Figma "01 Dock board", "06 Change dock", "E3 offline" and "E4 no trips here":
@@ -69,7 +69,8 @@ export default function DockBoard({
   };
   const [picking, setPicking] = useState(false);
   const [query, setQuery] = useState("");
-  const all = [...(trips.data ?? [])].sort((a, b) => a.plannedDeparture.localeCompare(b.plannedDeparture));
+  // A vehicle whose driver is waiting at the dock is taken first (R-LOD-12), then by departure.
+  const all = [...(trips.data ?? [])].sort((a, b) => Number(waiting(b)) - Number(waiting(a)) || a.plannedDeparture.localeCompare(b.plannedDeparture));
   const docks = [...new Set(all.map((t) => t.dockCode))].sort();
   const who: WhoOf = (t) =>
     t.holder === null ? "free" : t.holder.userId === meId ? "mine" : holdLapsed(t.holder) ? "free" : "other";

@@ -40,6 +40,8 @@ class EventCatalogueTest {
           "loading.interchange_requested",
           "trip.released",
           "delivery.started",
+          "delivery.arrived",
+          "vehicle.at_depot",
           "delivery.completed",
           "delivery.failed",
           "eta.changed",

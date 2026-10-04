@@ -13,8 +13,8 @@ import { createGateway } from "./data/gateway.ts";
 import { queuedSender } from "@shared/messaging/senders";
 import { usePositionRecorder } from "./data/position.ts";
 import { backAtDepot, recordingTrip, returning } from "./data/recording.ts";
-import { useDepotPoint, useEndedTrips } from "./data/useRecording.ts";
-import { isFinished, nextStop, type Stop } from "./data/run.ts";
+import { useAtDepot, useDepotPoint, useEndedTrips } from "./data/useRecording.ts";
+import { isFinished, nextStop, operatingDate, type Stop } from "./data/run.ts";
 import { DeliveryKind, useRun, type Outcome } from "./data/useRun.ts";
 import type { HandoverAnswer } from "./screens/DeliveryPinConfirmModal.tsx";
 import type { Report } from "./screens/DeliveryReport.tsx";
@@ -314,6 +314,22 @@ export function useDriver(userId: string, depot: string | null = null) {
     setNotice(outcome.queued ? "Vehicle status saved on this phone." : "Vehicle status sent to dispatch.");
   };
 
+  // R-EXE-24: today's trip is published and waiting for the loader; the driver
+  // collects the vehicle and says they are at the depot, so a loader takes the
+  // trip to load it. Kept on the phone per vehicle and day, so a reload does not
+  // ask again; sent through the queue, so it lands even with no signal at the dock.
+  const today = operatingDate(now);
+  const waitingToday = run.nextRun && !run.nextRun.released && run.nextRun.date === today && run.nextRun.vehicleId ? run.nextRun.vehicleId : null;
+  const [atDepot, setAtDepot] = useAtDepot(waitingToday, today);
+  const reportAtDepot = async () => {
+    if (!waitingToday) return;
+    setError(null);
+    const outcome = await act(ExecutionCommandKind.arriveAtDepot, { vehicleId: waitingToday });
+    if (!outcome.ok) return setError(words(outcome));
+    setAtDepot();
+    setNotice(outcome.queued ? "Saved on this phone. The loader is told when the connection is back." : "The loader knows you are here.");
+  };
+
   /**
    * The store manager's handover PIN (R-RCP-09). Online only: the PIN is checked
    * by the server and expires, so a queued guess would mean nothing. Never a
@@ -356,6 +372,8 @@ export function useDriver(userId: string, depot: string | null = null) {
   return {
     online,
     location,
+    /** Today's trip waits for the loader: the driver can say they are at the depot (R-EXE-24). */
+    depotCheckIn: waitingToday ? { vehicleId: waitingToday, done: atDepot, report: reportAtDepot } : null,
     run,
     sync,
     view,

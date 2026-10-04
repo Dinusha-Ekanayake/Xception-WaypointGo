@@ -89,6 +89,7 @@ export const CAPABILITIES: Capability[] = [
   c("delivery:Record", "Record delivery outcome", "Record what happened at a stop.", "Delivery", false, ["driver"]),
   c("delivery:CaptureProof", "Capture delivery proof", "Save proof of delivery.", "Delivery", false, ["driver"]),
   c("delivery:ReportFault", "Report road fault", "Report a road or vehicle fault.", "Delivery", false, ["driver"]),
+  c("delivery:ArriveAtDepot", "Report at the depot", "Say the vehicle is at the depot, ready to be loaded.", "Delivery", false, ["driver"]),
   c("delivery:ReportVehicleStatus", "Report vehicle status", "Update the vehicle's status from the road.", "Delivery", false, ["driver"]),
   c("receipt:Read", "View receipts", "See pending and recorded receipts.", "Receipts", false, ["store_manager"]),
   c("receipt:Confirm", "Confirm full receipt", "Confirm everything arrived.", "Receipts", false, ["store_manager"]),

@@ -1,6 +1,7 @@
 package com.waypoint.dispatch.execution.application;
 
 import com.waypoint.dispatch.execution.contract.ExecutionCommands;
+import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryArrived;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.EtaChanged;
 import com.waypoint.dispatch.execution.domain.DeliveryRecord;
 import com.waypoint.dispatch.execution.domain.EtaPolicy;
@@ -56,6 +57,12 @@ public class RecordArrivalHandler extends DeliveryCommandHandler {
     DeliveryRecord arrived = before.arrive(now, deviceAt);
     long version = deliveries.save(arrived, expected, ExecutionMessages.stamp(actor, command, now));
     deviceAt.ifPresent(at -> deliveries.rememberDeviceArrival(deliveryId, at));
+    // R-EXE-25: the store is told the vehicle is at its door, to unload and check.
+    events.publish(
+        actor,
+        new DeliveryArrived(
+            arrived.deliveryId(), arrived.orderId(), arrived.tripId(), arrived.outletId(), arrived.vehicleId(),
+            arrived.arrivedAt().orElse(now)));
 
     if (!arrived.timingUncertain()) {
       announceDelay(actor, arrived, now);

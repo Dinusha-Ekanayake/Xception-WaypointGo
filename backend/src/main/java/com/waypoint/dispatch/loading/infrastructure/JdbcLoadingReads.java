@@ -40,9 +40,11 @@ public class JdbcLoadingReads {
                s.status AS phase, s.holder_user_id, s.holder_name, s.holder_code, s.held_since, s.holder_active_at,
                s.released_at, s.row_version,
                agg.order_count, agg.stop_count, agg.weight_kg, agg.volume_m3,
-               lines.pending, lines.flagged
+               lines.pending, lines.flagged, va.arrived_at AS driver_at_depot_at
         FROM loading.trips t
         JOIN loading.sessions s ON s.trip_id = t.trip_id
+        LEFT JOIN loading.vehicle_arrivals va
+               ON va.vehicle_id = t.vehicle_id AND va.service_date = t.service_date
         JOIN LATERAL (
             SELECT count(*) AS order_count, count(DISTINCT st.stop_sequence) AS stop_count,
                    coalesce(sum(st.weight_kg), 0) AS weight_kg, coalesce(sum(st.volume_m3), 0) AS volume_m3
@@ -57,7 +59,9 @@ public class JdbcLoadingReads {
             + """
             WHERE i.trip_id = t.trip_id AND i.plan_version = t.plan_version) lines ON true
         WHERE t.depot_code = ? AND t.service_date = ? AND t.superseded_at IS NULL
-        ORDER BY t.planned_departure, t.vehicle_id, t.trip_number
+        -- R-LOD-12: a vehicle whose driver is waiting at the dock is taken first.
+        ORDER BY (va.arrived_at IS NOT NULL AND s.released_at IS NULL) DESC,
+                 t.planned_departure, t.vehicle_id, t.trip_number
         """,
         depotCode,
         Date.valueOf(serviceDate));

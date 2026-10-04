@@ -139,7 +139,11 @@ export const ExecutionCommandKind = {
   reportVehicleStatus: "delivery:ReportVehicleStatus",
   reportFault: "delivery:ReportFault",
   recordPositions: "delivery:RecordPositions",
+  /** R-EXE-24: the driver is at the depot with the vehicle, ready for it to be loaded. */
+  arriveAtDepot: "delivery:ArriveAtDepot",
 } as const;
+
+export type ArriveAtDepot = { vehicleId: string };
 
 export type StartStop = { deliveryId: Uuid };
 export type RecordArrival = { deliveryId: Uuid; deviceArrivedAt: IsoInstant | null };

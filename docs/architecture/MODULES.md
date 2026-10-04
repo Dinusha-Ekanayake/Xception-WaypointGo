@@ -248,7 +248,7 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 
 **Commands:** `StartStop`, `RecordArrival`, `RecordDelivery`, `RecordFailedDelivery`, `CaptureProof`, `ReportVehicleStatus`, `ReportRoadFault`, `RecordPositions` (`delivery:RecordPositions`, no event: R-EXE-18 to R-EXE-21).
 **Queries:** `runSheet(vehicle, day)`, `deliveryRecord(allocationId)`, `proof(deliveryRecordId)`. Live map reads (`PositionsQuery`, web only): `GET /api/execution/positions?date=&depot=|outlet=` (last good fix per vehicle, with `offline`) and `GET /api/execution/trips/{tripId}/trail` (keyset on `recordedAt`).
-**Publishes:** `delivery.started`, `delivery.completed`, `delivery.failed`, `vehicle.fault_reported`, `road.disruption_reported`.
+**Publishes:** `delivery.started`, `delivery.arrived`, `delivery.completed`, `delivery.failed`, `vehicle.at_depot`, `vehicle.fault_reported`, `road.disruption_reported`.
 **Consumes:** `trip.released`.
 
 **Ports:** `ProofStore`.
@@ -345,6 +345,8 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 | `trip.released` | Driver; dispatcher when the vehicle has no driver (LOD-05); the depot's other loaders (R-NOT-10); each outlet on the trip with its stop number and expected arrival (R-NOT-11) | yes | Vehicle ready; the dock is free; the store can staff the arrival |
 | `loading.shortfall` | Dispatcher | yes | Departure is blocked now (R-NOT-02) |
 | `delivery.started`, `delivery.completed` | Store manager | no | Arriving; proof is available to review |
+| `delivery.arrived` | Store manager | yes | The vehicle is at the store: unload and check |
+| `vehicle.at_depot` | Loader | yes | The driver is at the dock: take the trip and load it |
 | `delivery.failed` | Dispatcher, store manager | yes | Requires a decision |
 | `eta.changed` | Store manager, dispatcher | yes | Staffing at the outlet, lateness at the depot (R-RCP-02, R-EXE-15) |
 | `issue.raised` | Dispatcher; store manager when an outlet is named | yes | Fault, delay, damage, access problem (R-NOT-03) |
@@ -599,6 +601,8 @@ Modules connect three ways: a contract query (synchronous, read only), an event 
 | `loading.interchange_requested` | Loading | Planning |
 | `trip.released` | Loading | Execution, Ordering, Warehouse (shipped), Notification |
 | `delivery.started`, `delivery.completed`, `delivery.failed`, `eta.changed` | Execution | Ordering, Receipt, Warehouse (delivered), Issues, Notification |
+| `delivery.arrived` | Execution | Notification (store: unload and check, R-EXE-25) |
+| `vehicle.at_depot` | Execution | Loading (dock board, R-LOD-12), Notification (loaders, R-EXE-24) |
 | `vehicle.fault_reported`, `road.disruption_reported` | Execution | Issues, Notification |
 | `receipt.confirmed`, `receipt.disputed`, `receipt.auto_closed` | Receipt | Ordering, Issues, Notification |
 | `receipt.handover_confirmed` | Receipt | Notification |

@@ -20,6 +20,7 @@ const KIND_LABEL: Record<string, string> = {
   "delivery:Record": "Delivery recorded",
   "delivery:CaptureProof": "Proof of delivery saved",
   "delivery:ReportVehicleStatus": "Vehicle status reported",
+  "delivery:ArriveAtDepot": "At the depot",
   "delivery:ReportFault": "Vehicle fault reported",
   "delivery:RecordPositions": "Position recorded",
   "issue:Raise": "Issue reported",
