@@ -51,7 +51,8 @@ test("before the first run the screen says there is no forecast yet", async ({ p
 });
 
 test("the last and next run read in depot time, with a countdown to the next", async ({ page }) => {
-  await page.clock.install({ time: new Date("2027-02-28T18:06:19Z") });
+  // The time is held still: a running clock made the countdown depend on how fast the page loaded.
+  await page.clock.setFixedTime(new Date("2027-02-28T18:06:19Z"));
   await serve(page);
   await page.goto("/#/forecast");
 
