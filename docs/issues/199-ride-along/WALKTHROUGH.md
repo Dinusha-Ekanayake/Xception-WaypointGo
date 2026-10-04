@@ -26,6 +26,20 @@ Plan and reasoning: [PLAN.md](PLAN.md). Rule: R-ORD-13 in [RULES-AND-POLICIES](.
 - `npx playwright test -c playwright.store.config.ts ride-along` from `frontend/`.
 - By hand: sign in as a manager of a Tech outlet (for example OUT023, Colombo) after another Colombo Tech store has ordered for a nearby day.
 
+## Room on the trip (second part)
+
+- **Planning:**
+  - [`TripRoom`](../../../backend/src/main/java/com/waypoint/dispatch/planning/domain/TripRoom.java) packs other outlets' booked, measured orders of the brand and district onto the day's available vehicles, largest first. It then asks whether the store's order still passes the registry's load rules on any of those trips.
+  - `PlanQuery.joinsTrip` in [`PlanDataQuery`](../../../backend/src/main/java/com/waypoint/dispatch/planning/application/PlanDataQuery.java) feeds it the effective rule set (epsilon) and the fleet.
+- **Ordering:**
+  - [`RideAlongQuery`](../../../backend/src/main/java/com/waypoint/dispatch/ordering/application/RideAlongQuery.java) reads the booked loads and the store's usual order (`JdbcOrderRepository.bookedLoads`, `usualLoad`, as the system, after the scope check).
+  - It passes a room predicate to `RideAlong.suggest`, which drops days with no room before taking the best two.
+  - `RideAlongView.roomChecked` says whether the check ran.
+- **Store:** the card adds "room on the vehicle" and says the room is estimated from the usual order.
+
+**Verify:** `mvn test -Dtest='TripRoomTest,TripRoomIntegrationTest,RideAlongTest'` and `e2e-store/ride-along.spec.ts`. Recorded as R-ORD-14, A-45, ORD-22 to ORD-24.
+
 ## Known gaps
-- No capacity check: a busy day may still be full, so the dispatcher decides at planning. The card says so.
+- Other stores' unreserved orders add no load, so the room is optimistic (ORD-24); the screen says it is estimated.
 - Planning is not told that an order came in through a hint.
+- Style is not offered another day by decision (R-ORD-11, R-ORD-13).

@@ -1,5 +1,9 @@
 package com.waypoint.dispatch.ordering.application;
 
+import com.waypoint.dispatch.planning.contract.PlanQuery;
+import com.waypoint.dispatch.planning.contract.PlanViews.LoadView;
+import com.waypoint.dispatch.platform.observability.Metrics;
+import com.waypoint.dispatch.referencedata.contract.ReferenceQuery;
 import com.waypoint.dispatch.ordering.contract.OrderViews.RideAlongDay;
 import com.waypoint.dispatch.ordering.contract.OrderViews.RideAlongView;
 import com.waypoint.dispatch.ordering.domain.DeliveryDate;
@@ -14,6 +18,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.springframework.stereotype.Component;
 
 /**
@@ -32,16 +37,25 @@ public class RideAlongQuery {
   private final OrderDataQuery orders;
   private final JdbcOrderRepository repository;
   private final DeliveryDateResolver dates;
+  private final PlanQuery plans;
+  private final ReferenceQuery reference;
+  private final Metrics metrics;
 
   public RideAlongQuery(
       Database database,
       OrderDataQuery orders,
       JdbcOrderRepository repository,
-      DeliveryDateResolver dates) {
+      DeliveryDateResolver dates,
+      PlanQuery plans,
+      ReferenceQuery reference,
+      Metrics metrics) {
     this.database = database;
     this.orders = orders;
     this.repository = repository;
     this.dates = dates;
+    this.plans = plans;
+    this.reference = reference;
+    this.metrics = metrics;
   }
 
   public RideAlongView suggest(Actor actor, OutletView outlet, LocalDate requested, Instant now) {
@@ -78,10 +92,42 @@ public class RideAlongQuery {
                     outlet.outletId(),
                     from,
                     to));
+    // R-ORD-14: a day is offered only when the store's usual order would join the
+    // trip already going there, by Planning's load rules. With no usual order yet,
+    // or Planning unable to answer, the days stand on bookings alone and say so.
+    Optional<JdbcOrderRepository.BookedLoad> usual = database.readAs(
+        ModuleRole.ORDERING, Actor.SYSTEM_ID, () -> repository.usualLoad(outlet.outletId()));
+    Map<LocalDate, List<LoadView>> booked = new java.util.HashMap<>();
+    if (usual.isPresent()) {
+      Map<String, Boolean> vanOnly = new java.util.HashMap<>();
+      database.readAs(ModuleRole.ORDERING, Actor.SYSTEM_ID, () -> repository.bookedLoads(
+              outlet.depotCode(), outlet.brandCode(), outlet.districtName(), outlet.outletId(), from, to))
+          .forEach(b -> booked.computeIfAbsent(b.date(), d -> new ArrayList<>()).add(new LoadView(
+              b.temperature(),
+              vanOnly.computeIfAbsent(b.outletId(),
+                  id -> reference.outlet(id, null).map(OutletView::vanOnly).orElse(false)),
+              b.weightKg(), b.volumeM3())));
+    }
+    boolean[] checked = {usual.isPresent()};
+    java.util.function.Predicate<LocalDate> roomOn = d -> {
+      if (!checked[0]) {
+        return true;
+      }
+      try {
+        LoadView extra = new LoadView(
+            usual.get().temperature(), outlet.vanOnly(), usual.get().weightKg(), usual.get().volumeM3());
+        return plans.joinsTrip(outlet.depotCode(), d, outlet.brandCode(), outlet.districtName(),
+            booked.getOrDefault(d, List.of()), extra);
+      } catch (RuntimeException e) {
+        metrics.increment("waypoint.order.ride_along_room_unknown");
+        checked[0] = false;
+        return true;
+      }
+    };
     List<RideAlongDay> days =
-        RideAlong.suggest(outlet.brandCode(), day, open, stops).stream()
+        RideAlong.suggest(outlet.brandCode(), day, open, stops, roomOn).stream()
             .map(s -> new RideAlongDay(s.date(), s.stopsBooked()))
             .toList();
-    return new RideAlongView(requested, day, true, days);
+    return new RideAlongView(requested, day, true, days, checked[0]);
   }
 }

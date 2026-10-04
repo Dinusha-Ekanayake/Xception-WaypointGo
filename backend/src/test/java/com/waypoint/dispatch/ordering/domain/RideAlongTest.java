@@ -59,4 +59,15 @@ class RideAlongTest {
     LocalDate far = MON.plusDays(RideAlong.REACH_DAYS + 1);
     assertTrue(RideAlong.suggest("Tech", MON, List.of(MON, far), Map.of(far, 9)).isEmpty());
   }
+
+  @Test
+  void aDayWhoseTripHasNoRoomIsNotOfferedAndTheNextBestTakesItsPlace() {
+    LocalDate chosen = LocalDate.of(2026, 10, 7);
+    LocalDate full = chosen.plusDays(1);
+    LocalDate roomy = chosen.minusDays(1);
+    var days = RideAlong.suggest("Tech", chosen, java.util.List.of(roomy, chosen, full),
+        java.util.Map.of(full, 3, roomy, 1), d -> !d.equals(full));
+    org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(roomy),
+        days.stream().map(RideAlong.Suggestion::date).toList(), "R-ORD-14");
+  }
 }

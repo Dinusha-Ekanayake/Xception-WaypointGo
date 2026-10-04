@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-10-04 - feat(ordering): the shared-trip hint offers a day only when the order fits the trip (issue #199)
+
+`feat/199-trip-room` · @Oxshadha
+
+The Tech hint from #211 offered any nearby day with other bookings, even a trip already full. Now:
+- **Planning** answers `PlanQuery.joinsTrip`. `TripRoom` (pure) packs the booked measured orders of the brand and district onto the day's available vehicles. It asks only the registry's own load rules (temperature, van access, weight and volume with the epsilon), so capacity keeps one definition (rule 5).
+- **Ordering** passes the store's usual order (the median of its latest twenty, A-45) and drops days with no room (R-ORD-14).
+- **Store:** the card says "room on the vehicle", estimated.
+- **Degrading:** with no history, or Planning unable to answer, it falls back to bookings alone and claims nothing (ORD-22, ORD-23).
+- **Style within its weekly run:** rejected, because R-ORD-11 holds it to its date.
+
+Why: a shared-trip hint that points at a full trip moves the order for nothing.
+Verified: `mvn verify` 1001 on a real test database, 1000 pass (the same local-only `SET ROLE k.e.oshada` identity failure), new `TripRoomTest` 6 and `TripRoomIntegrationTest` 3; `npm test` 225, typecheck, build; Playwright store 55.
+
 ## 2026-10-04 - feat: a store hears when a day it booked turns busy (issue #224, slice 3)
 
 `feat/224-outlook-warning` · @Oxshadha

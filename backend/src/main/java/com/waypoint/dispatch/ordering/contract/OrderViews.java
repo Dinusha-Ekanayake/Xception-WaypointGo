@@ -131,8 +131,17 @@ public final class OrderViews {
    *
    * @param deliveryDate where the chosen day lands after any roll
    */
+  /**
+   * @param roomChecked whether each day offered was checked for room on the trip
+   *     (issue #199), from the store's usual order; false when the store has no
+   *     measured order yet, and the days are offered on bookings alone
+   */
   public record RideAlongView(
-      LocalDate requestedDate, LocalDate deliveryDate, boolean offered, List<RideAlongDay> days) {}
+      LocalDate requestedDate, LocalDate deliveryDate, boolean offered, List<RideAlongDay> days, boolean roomChecked) {
+    public RideAlongView(LocalDate requestedDate, LocalDate deliveryDate, boolean offered, List<RideAlongDay> days) {
+      this(requestedDate, deliveryDate, offered, days, false);
+    }
+  }
 
   /** A day and how many other outlets of the same brand and district are booked for it. */
   public record RideAlongDay(LocalDate date, int stopsBooked) {}

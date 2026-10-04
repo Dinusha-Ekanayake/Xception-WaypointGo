@@ -149,7 +149,7 @@ Revised 2026-09-30. `OrderStatus` in `ordering/contract` is the one vocabulary; 
 
 | Layer | Contents |
 | --- | --- |
-| contract | `PlanViews` (`PlanView`, `TripView`, `AllocationView`, `ConstraintResultView`, `DeferralView`, `FuelView`, `InterchangePreview`), `PlanQuery`, `PlanCommands`, `PlanEvents` |
+| contract | `PlanViews` (`PlanView`, `TripView`, `AllocationView`, `ConstraintResultView`, `DeferralView`, `FuelView`, `InterchangePreview`, `LoadView`), `PlanQuery` (incl. `joinsTrip`, whether one more order joins a district's trip by the load rules, for the store's shared-trip hint), `PlanCommands`, `PlanEvents` |
 | domain | `PlanningRun` (the aggregate: draft, override, defer, revision, trip move and replan, options), `VehicleDay`, `Trip`, `PlanOrder`, `FleetVehicle`, `DistrictTravel`, `PlanContext`, `RuleSet`, `CheapestInsertion`, `CostReplan` (the ALNS cost stage), `StopTravel` and `Coordinates` (GPS stop order, R-PLN-40) and `ScarceFleetReplan` (placement, deferral explanation and the reefer re-plan, issue #92), `PriorityPolicy` (versioned decision table), `ConstraintRegistry`, `Constraint`, `Constraints`, `ConstraintResult`, `PlanVerification`, `PublicationGate`, `DemandFingerprint`, `TripTimeline`, `FuelLedger`, `TemperatureClass`, `AllocationEngine` (port, with `Problem` and `AllocationResult`) |
 | application | `GeneratePlanHandler` (queues a generation, R-PLN-41), `PlanGenerationWorker` (runs it outside any transaction), `ReferenceSnapshotCache` (reference data by immutable version), `OverrideAllocationHandler`, `DeferOrderHandler`, `PublishPlanHandler`, `RevisePlanHandler`, `ReplanTripHandler`, `PlanDataQuery` (implements `PlanQuery`, previews included), `PlanningProblems`, `PlanningDrafts`, `PlanningRevisions`, `PlanPublication` (the gate), `PlanRecords` (translation only), `PlanningConsumers` |
 | infrastructure | `PriorityInsertionEngine`, `ImprovingEngine` (decorator running `ScarceFleetReplan` after it, issue #92), `CostImprovingEngine` (decorator running the cost stage `CostReplan` after that, planning v2, R-PLN-38), `ValidatingEngine` (decorator, always outermost), `PlanningEngineConfiguration`, `JdbcPlanRepository`, `PeakDayScenario` (the Task 2B fixture and CSV export) |
@@ -558,6 +558,7 @@ Modules connect three ways: a contract query (synchronous, read only), an event 
 | `OrderQuery.confirmedDemand` | Planning | Ordering |
 | `PlanQuery.previewInterchange` | Loading | Planning |
 | `PredictionQuery` (plan scoring, degradable) | Planning | Intelligence |
+| `PlanQuery.joinsTrip` (room on a trip, advice) | Ordering | Planning |
 | `CatalogueQuery` | store UI, admin | Warehouse |
 | `IssueQuery.issue`, `ExecutionQuery.deliveryRecord`, `deliveryForOrder` | Messaging | Issues, Execution |
 | audit row, written in the same transaction | all | platform |
