@@ -11,6 +11,7 @@ import { countStatus, issueBehind, pastWeek, runStatus, runsOf, upcomingDays, ty
 import { Muted } from "../../ui.tsx";
 import MakeUpDrawer from "./MakeUpDrawer.tsx";
 import Row from "./Row.tsx";
+import { useT } from "../../i18n.tsx";
 
 // Figma "05a Deliveries" and "05b make-up delivery". A row is one vehicle's
 // visit: the outlet's orders on one trip, with the time it is expected, its
@@ -20,7 +21,6 @@ import Row from "./Row.tsx";
 
 type Range = "today" | "upcoming" | "past";
 
-const orderCount = (n: number) => `${n} ${n === 1 ? "order" : "orders"}`;
 const shortDay = (date: string) => dayLabel(date).split(" ").slice(0, 2).join(" ");
 
 export default function Deliveries({
@@ -50,6 +50,9 @@ export default function Deliveries({
   /** The trip's thread (issue #136). */
   onMessage?: (tripId: string, vehicleId: string) => void;
 }): React.JSX.Element {
+  const t = useT();
+  const orderCount = (n: number) => t(n === 1 ? "{n} order" : "{n} orders", { n });
+  const deliveryCount = (n: number) => t(n === 1 ? "{n} delivery" : "{n} deliveries", { n });
   const [range, setRange] = usePersistentState<Range>("store:deliveries:range", "today");
   const [makeUp, setMakeUp] = useState<string | null>(null);
   const today = depotToday();
@@ -77,7 +80,7 @@ export default function Deliveries({
   const runRow = (run: Run) => {
     const receivable = run.records.find((r) => pending.has(r.orderId));
     const moving = !run.arrivedAt && !run.completedAt;
-    const stop = run.stop.of ? `Stop ${run.stop.sequence} of ${run.stop.of}` : `Stop ${run.stop.sequence}`;
+    const stop = run.stop.of ? t("Stop {n} of {total}", { n: run.stop.sequence, total: run.stop.of }) : t("Stop {n}", { n: run.stop.sequence });
     const firstMakeUp = run.orders.find((o) => o.redeliveryOf !== null);
     return (
       <Row
@@ -85,8 +88,8 @@ export default function Deliveries({
         time={run.arrivedAt ? { label: "Arrived", value: clock(run.arrivedAt), tone: "mint" } : { label: "Expected", value: clock(run.eta), tone: "warm" }}
         title={run.vehicleId}
         tag={run.refrigerated ? "Refrigerated vehicle" : undefined}
-        line={`${run.makeUp ? "Make-up delivery" : "Regular delivery"} · ${orderCount(run.records.length)} · ${units(run.units)}`}
-        sub={run.short > 0 ? `${stop} · ${units(run.short)} short at loading` : stop}
+        line={`${t(run.makeUp ? "Make-up delivery" : "Regular delivery")} · ${orderCount(run.records.length)} · ${units(run.units)}`}
+        sub={run.short > 0 ? `${stop} · ${t("{units} short at loading", { units: units(run.short) })}` : stop}
         status={runStatus(run, pending, outlet?.windowClose ?? null)}
         highlight={receivable !== undefined}
         actions={[
@@ -115,8 +118,8 @@ export default function Deliveries({
         time={{ label: o.deliveryDate === today ? "Window" : shortDay(o.deliveryDate), value: windowOpen, tone: waiting ? "mint" : "plain" }}
         title={o.orderRef}
         tag={temperatureLabel(o.temperature)}
-        line={`${o.redeliveryOf ? "Make-up delivery" : "Regular order"} · ${units(o.itemCount)}`}
-        sub={waiting ? "Delivered, waiting for your count" : o.status === "ALLOCATED" ? "Planned · the vehicle shows once it leaves the depot" : undefined}
+        line={`${t(o.redeliveryOf ? "Make-up delivery" : "Regular order")} · ${units(o.itemCount)}`}
+        sub={waiting ? t("Delivered, waiting for your count") : o.status === "ALLOCATED" ? t("Planned · the vehicle shows once it leaves the depot") : undefined}
         status={status}
         highlight={waiting}
         actions={[
@@ -132,15 +135,15 @@ export default function Deliveries({
 
   const pastRow = (run: Run) => {
     const count = countStatus(run.records.map((r) => past.data?.receipts.get(r.orderId) ?? null));
-    const done = run.completedAt ? ` · ${run.signed ? "signed" : "handed over"} ${clock(run.completedAt)}` : "";
+    const done = run.completedAt ? ` · ${t(run.signed ? "signed" : "handed over")} ${clock(run.completedAt)}` : "";
     return (
       <Row
         key={`${run.serviceDate}|${run.tripId}`}
         time={{ label: shortDay(run.serviceDate), value: clock(run.arrivedAt ?? run.completedAt ?? run.eta) }}
         title={run.vehicleId}
         tag={run.refrigerated ? "Refrigerated vehicle" : undefined}
-        line={`${run.records.some((r) => r.outcome === "FAILED") ? "Not delivered" : "Delivered"} · ${orderCount(run.records.length)} · ${units(run.units)}${done}`}
-        sub={!count.known ? "The count could not be read" : count.short > 0 ? `${units(count.short)} short on your count` : "All received in full"}
+        line={`${t(run.records.some((r) => r.outcome === "FAILED") ? "Not delivered" : "Delivered")} · ${orderCount(run.records.length)} · ${units(run.units)}${done}`}
+        sub={!count.known ? t("The count could not be read") : count.short > 0 ? t("{units} short on your count", { units: units(count.short) }) : t("All received in full")}
         status={count}
         actions={[{ label: "View", onClick: () => onOpen(run.records[0]!.orderId) }]}
       />
@@ -159,10 +162,10 @@ export default function Deliveries({
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-1">
-        <h1 className="text-[32px] leading-tight font-medium text-black">Deliveries</h1>
+        <h1 className="text-[32px] leading-tight font-medium text-black">{t("Deliveries")}</h1>
         <Muted>{outlet ? `${outlet.districtName} · ${outlet.outletId}` : "…"}</Muted>
       </div>
-      <div role="tablist" aria-label="When" className="flex gap-1 rounded-full bg-white p-1">
+      <div role="tablist" aria-label={t("When")} className="flex gap-1 rounded-full bg-white p-1">
         {(["today", "upcoming", "past"] as const).map((r) => (
           <button
             key={r}
@@ -172,24 +175,24 @@ export default function Deliveries({
             onClick={() => setRange(r)}
             className={cx("min-h-12 flex-1 rounded-full px-2 text-[15px] font-medium lg:flex-none lg:px-5", r === range ? "bg-[#031a0c] text-white" : "text-black")}
           >
-            {r === "today" ? "Today" : r === "upcoming" ? "Upcoming" : "Past 7 days"}
+            {t(r === "today" ? "Today" : r === "upcoming" ? "Upcoming" : "Past 7 days")}
             {counts[r] !== null && <span className="ml-1.5 opacity-60">({counts[r]})</span>}
           </button>
         ))}
       </div>
 
       {range === "today" && (
-        <section aria-label="Today" className="flex flex-col gap-3">
-          {heading(`Today · ${dayLabel(today)}`, `${counts.today} ${counts.today === 1 ? "delivery" : "deliveries"}`)}
+        <section aria-label={t("Today")} className="flex flex-col gap-3">
+          {heading(`${t("Today")} · ${dayLabel(today)}`, deliveryCount(counts.today ?? 0))}
           {runs.map(runRow)}
           {loose.map(looseRow)}
-          {counts.today === 0 && <Muted>Nothing is coming today. Upcoming shows what is planned next.</Muted>}
+          {counts.today === 0 && <Muted>{t("Nothing is coming today. Upcoming shows what is planned next.")}</Muted>}
         </section>
       )}
 
       {range === "upcoming" && (
-        <section aria-label="Upcoming" className="flex flex-col gap-3">
-          {heading("Upcoming", "planned after 16:00")}
+        <section aria-label={t("Upcoming")} className="flex flex-col gap-3">
+          {heading(t("Upcoming"), t("planned after 16:00"))}
           {days.map((d) => {
             const first = d.orders[0];
             const handleViewOrder = () => {
@@ -213,17 +216,17 @@ export default function Deliveries({
               />
             );
           })}
-          {days.length === 0 && <Muted>No orders after today yet. An order you place appears here, with its delivery once it is planned.</Muted>}
+          {days.length === 0 && <Muted>{t("No orders after today yet. An order you place appears here, with its delivery once it is planned.")}</Muted>}
         </section>
       )}
 
       {range === "past" && (
-        <section aria-label="Past 7 days" className="flex flex-col gap-3">
-          {heading("Past 7 days", past.data ? `${pastRuns.length} ${pastRuns.length === 1 ? "delivery" : "deliveries"} · ${pastOpen} open ${pastOpen === 1 ? "issue" : "issues"}` : "")}
-          {past.error && <Notice tone="danger" title="Could not load the past week" onRetry={past.refresh}>{past.error.message}</Notice>}
+        <section aria-label={t("Past 7 days")} className="flex flex-col gap-3">
+          {heading(t("Past 7 days"), past.data ? `${deliveryCount(pastRuns.length)} · ${t(pastOpen === 1 ? "{n} open issue" : "{n} open issues", { n: pastOpen })}` : "")}
+          {past.error && <Notice tone="danger" title={t("Could not load the past week")} onRetry={past.refresh}>{past.error.message}</Notice>}
           {pastRuns.map(pastRow)}
-          {past.loading && !past.data && <SkeletonRows label="Loading the past week…" />}
-          {past.data && pastRuns.length === 0 && <Muted>Nothing was delivered in the past week.</Muted>}
+          {past.loading && !past.data && <SkeletonRows label={t("Loading the past week…")} />}
+          {past.data && pastRuns.length === 0 && <Muted>{t("Nothing was delivered in the past week.")}</Muted>}
         </section>
       )}
 

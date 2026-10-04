@@ -5,6 +5,7 @@ import type { OrderView } from "@shared/domain/types";
 import { Notice, SkeletonRows, cx, usePersistentState } from "@shared/ui";
 import { units, ORDER_STATUS, dayLabel, depotToday, planNote, temperatureLabel } from "../data/format.ts";
 import { Chip, Muted } from "../ui.tsx";
+import { useT } from "../i18n.tsx";
 
 // Every order for this outlet, newest delivery day first. Tapping one opens its
 // timeline, where it can be changed or cancelled until it is planned. By
@@ -43,6 +44,7 @@ export default function Orders({
   /** Read the orders again after a failure. */
   onRetry?: () => void;
 }): React.JSX.Element {
+  const t = useT();
   const [filter, setFilter] = usePersistentState<Filter>("store:orders:filter", "open");
   const today = depotToday();
   const keep = FILTERS.find((f) => f.id === filter)!.keep;
@@ -53,13 +55,13 @@ export default function Orders({
     <div className="flex flex-col gap-5">
       {/* From lg the sync pill and the bell sit top right over the page (TopBar); keep New order clear of them. */}
       <div className="flex items-end gap-3 lg:mr-[260px]">
-        <h1 className="flex-1 text-[32px] leading-tight font-medium text-black">Orders</h1>
+        <h1 className="flex-1 text-[32px] leading-tight font-medium text-black">{t("Orders")}</h1>
         <button type="button" onClick={onPlace} className="min-h-12 rounded-[22px] bg-go-mint px-5 text-[15px] font-medium text-black">
-          + New order
+          {t("+ New order")}
         </button>
       </div>
 
-      <div role="group" aria-label="Show" className="flex gap-1 rounded-full bg-white p-1 lg:w-fit">
+      <div role="group" aria-label={t("Show")} className="flex gap-1 rounded-full bg-white p-1 lg:w-fit">
         {FILTERS.map((f) => (
           <button
             key={f.id}
@@ -68,18 +70,18 @@ export default function Orders({
             onClick={() => setFilter(f.id)}
             className={cx("min-h-12 flex-1 rounded-full px-3 text-[15px] font-medium lg:flex-none lg:px-5", f.id === filter ? "bg-[#031a0c] text-white" : "text-black")}
           >
-            {f.label} <span className="opacity-60">({orders.filter(f.keep).length})</span>
+            {t(f.label)} <span className="opacity-60">({orders.filter(f.keep).length})</span>
           </button>
         ))}
       </div>
 
-      {error && <Notice tone="danger" title="Could not load your orders" onRetry={onRetry}>{friendlyError(error)}</Notice>}
-      {loading && orders.length === 0 && <SkeletonRows label="Loading…" />}
-      {!loading && shown.length === 0 && <Muted>{EMPTY[filter]}</Muted>}
+      {error && <Notice tone="danger" title={t("Could not load your orders")} onRetry={onRetry}>{friendlyError(error)}</Notice>}
+      {loading && orders.length === 0 && <SkeletonRows label={t("Loading…")} />}
+      {!loading && shown.length === 0 && <Muted>{t(EMPTY[filter])}</Muted>}
       {days.map((d) => (
         <section key={d} aria-label={dayLabel(d)} className="flex flex-col gap-2.5">
           <h2 className="text-[17px] font-medium text-black">
-            {d === today ? "Today · " : ""}
+            {d === today ? `${t("Today")} · ` : ""}
             {dayLabel(d)}
           </h2>
           {shown
@@ -95,12 +97,12 @@ export default function Orders({
                 >
                   <span className="flex w-full items-center gap-2">
                     <span className="flex-1 text-[16px] font-medium text-black">{o.orderRef}</span>
-                    <Chip tone={s.tone}>{s.label}</Chip>
+                    <Chip tone={s.tone}>{t(s.label)}</Chip>
                   </span>
                   <span className="text-[13px] text-go-muted">
-                    {temperatureLabel(o.temperature)} · {units(o.itemCount)}
-                    {o.dateRolled ? ` · moved from ${dayLabel(o.requestedDate)}` : ""}
-                    {o.deferralCount > 0 ? ` · deferred ${o.deferralCount}×` : ""}
+                    {t(temperatureLabel(o.temperature))} · {units(o.itemCount)}
+                    {o.dateRolled ? t(" · moved from {day}", { day: dayLabel(o.requestedDate) }) : ""}
+                    {o.deferralCount > 0 ? t(" · deferred {n}×", { n: o.deferralCount }) : ""}
                   </span>
                   {planNote(o) && <span className="text-[13px] font-medium text-go-teal">{planNote(o)}</span>}
                 </button>
