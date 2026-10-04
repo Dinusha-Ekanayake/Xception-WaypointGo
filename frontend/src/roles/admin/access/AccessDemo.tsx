@@ -54,14 +54,14 @@ const NAV: Array<{ tab: Tab; label: string; icon: IconName; also?: Tab[] }> = [
 ];
 
 const PEOPLE_NAV: Array<{ tab: Tab; label: string; icon: IconName }> = [
-  { tab: "personas", label: "Personas", icon: "switch-user" },
-  { tab: "actions", label: "Actions", icon: "check" },
+  { tab: "personas", label: "Personas", icon: "persona" },
+  { tab: "actions", label: "Actions", icon: "bolt" },
   { tab: "catalogue", label: "Permission catalogue", icon: "permission-list" },
   { tab: "history", label: "Change history", icon: "history" },
 ];
 const PEOPLE_TABS: Tab[] = ["people", "personas", "actions", "catalogue", "history"];
 const TRIPS_NAV: Array<{ tab: Tab; label: string; icon: IconName }> = [
-  { tab: "trips_planned", label: "Planned trips", icon: "plan" },
+  { tab: "trips_planned", label: "Planned trips", icon: "calendar" },
   { tab: "trips_live", label: "Live trips", icon: "live" },
 ];
 const TRIPS_TABS: Tab[] = ["trips", "trips_planned", "trips_live"];
