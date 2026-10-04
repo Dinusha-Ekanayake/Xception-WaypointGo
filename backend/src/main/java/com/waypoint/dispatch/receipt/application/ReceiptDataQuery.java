@@ -14,6 +14,7 @@ import com.waypoint.dispatch.receipt.contract.ReceiptViews.DeliveryFacts;
 import com.waypoint.dispatch.receipt.contract.ReceiptViews.HandoverStatus;
 import com.waypoint.dispatch.receipt.contract.ReceiptViews.HandoverView;
 import com.waypoint.dispatch.receipt.contract.ReceiptViews.PendingReceiptView;
+import com.waypoint.dispatch.receipt.contract.ReceiptViews.ReceiptAnswerView;
 import com.waypoint.dispatch.receipt.contract.ReceiptViews.ReceiptLineView;
 import com.waypoint.dispatch.receipt.contract.ReceiptViews.ReceiptView;
 import com.waypoint.dispatch.receipt.domain.Handover;
@@ -113,6 +114,31 @@ public class ReceiptDataQuery implements ReceiptQuery {
   public HandoverView handover(Actor actor, UUID orderId) {
     return read(actor.userId(), () -> handovers.findByOrder(orderId).map(this::handoverView))
         .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No handover PIN for order " + orderId));
+  }
+
+  /** The action that reads the store's answer on the driver's phone. */
+  public static final String READ_ANSWER = "receipt:ReadAnswer";
+
+  /**
+   * The store's answer for the driver who handed it over. Read through the
+   * handover: it exists only once the store answered, and row-level security
+   * gives it only to the driver of that vehicle on that date (or the outlet and
+   * the depot). Before the answer, or outside scope, it is a {@code 404}: the
+   * phone keeps waiting either way, and a stranger learns nothing.
+   */
+  public ReceiptAnswerView answer(Actor actor, UUID orderId) {
+    return read(
+            actor.userId(),
+            () ->
+                handovers.findByOrder(orderId)
+                    .flatMap(h -> receipts.findByOrder(orderId).map(stored -> answerView(stored, h))))
+        .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "The store has not answered order " + orderId + " yet"));
+  }
+
+  private ReceiptAnswerView answerView(Stored stored, Handover h) {
+    ReceiptView receipt = toView(stored);
+    return new ReceiptAnswerView(
+        receipt.orderId(), receipt.status(), receipt.lines(), receipt.note(), receipt.confirmedAt(), handoverView(h));
   }
 
   private HandoverView handoverView(Handover h) {

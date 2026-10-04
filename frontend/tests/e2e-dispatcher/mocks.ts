@@ -336,7 +336,7 @@ export function stop(sequence: number, extra: Partial<RunSheetStopView> = {}): R
   return {
     deliveryId: `delivery-${sequence}`, tripId: "trip-VEH043-1", sequence, orderId: `order-${sequence}`, outletId: `OUT0${50 + sequence}`, itemCount: 12,
     mallOutlet: false, plannedArrival: "09:30:00", windowOpen: "00:00:00", windowClose: "23:59:00", expectedArrival: null, startedAt: null, arrivedAt: null,
-    completedAt: null, waitMinutes: null, lateMinutes: null, outcome: "PENDING", deliveredUnits: null, proofCaptured: false, rowVersion: 1, lines: [], ...extra,
+    completedAt: null, waitMinutes: null, lateMinutes: null, outcome: "PENDING", deliveredUnits: null, proofCaptured: false, storeAnswerWaived: null, rowVersion: 1, lines: [], ...extra,
   };
 }
 

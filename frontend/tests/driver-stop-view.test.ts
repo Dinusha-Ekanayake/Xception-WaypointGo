@@ -28,7 +28,7 @@ function stop(id: string, sequence: number, extra: Partial<RunSheetStopView> = {
     waitMinutes: null,
     lateMinutes: null,
     outcome: "PENDING",
-    deliveredUnits: null, proofCaptured: false,
+    deliveredUnits: null, proofCaptured: false, storeAnswerWaived: null,
     rowVersion: 1,
     lines: [{ productId: "P-17", orderedUnits: 40, deliveredUnits: null }],
     waiting: false,

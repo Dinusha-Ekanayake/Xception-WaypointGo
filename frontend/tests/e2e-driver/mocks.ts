@@ -1,6 +1,7 @@
 import type { BrowserContext, Page, Route } from "@playwright/test";
 import type { RunSheetStopView } from "../../src/shared/domain/execution.ts";
 import type { NotificationView } from "../../src/shared/domain/notification.ts";
+import type { ReceiptAnswerView } from "../../src/shared/domain/receipt.ts";
 import type { PostMessagePayload } from "../../src/shared/domain/messaging.ts";
 import { postToThread, threadRead, type ThreadMock } from "../thread-mocks.ts";
 
@@ -43,7 +44,7 @@ function stop(sequence: number, outletId: string, over: Partial<RunSheetStopView
     waitMinutes: null,
     lateMinutes: null,
     outcome: "PENDING",
-    deliveredUnits: null, proofCaptured: false,
+    deliveredUnits: null, proofCaptured: false, storeAnswerWaived: null,
     rowVersion: 1,
     lines: [],
     ...over,
@@ -73,6 +74,8 @@ export type Server = {
   pins: Record<string, string>;
   /** Trip threads (issue #136). */
   threads: ThreadMock[];
+  /** The store's answer by order (issue #21); absent until the store answers, which reads as a 404. */
+  answers: Record<string, ReceiptAnswerView>;
   /** Voice notes uploaded, in arrival order. */
   voices: Array<{ path: string; contentType: string; bytes: number }>;
   goOffline: (context: BrowserContext) => Promise<void>;
@@ -85,7 +88,24 @@ const problem = (status: number, code: string, detail: string) => ({
   body: JSON.stringify({ type: "about:blank", title: code, status, detail, code, correlationId: "test", violations: [] }),
 });
 
-export async function serve(page: Page, stops: RunSheetStopView[] = [stop(1, "OUT0101"), stop(2, "OUT0202")]): Promise<Server> {
+/**
+ * @param options.askLocation leave the location question unanswered, so the phone asks it; otherwise
+ *     the driver answered "Not now" on an earlier day and the question's sheet never covers the run
+ */
+export async function serve(
+  page: Page,
+  stops: RunSheetStopView[] = [stop(1, "OUT0101"), stop(2, "OUT0202")],
+  options: { askLocation?: boolean } = {},
+): Promise<Server> {
+  if (!options.askLocation) {
+    await page.addInitScript(() => {
+      try {
+        if (window.localStorage.getItem("waypoint.driver.location") === null) window.localStorage.setItem("waypoint.driver.location", "no");
+      } catch {
+        // No storage: the question is asked, as on a real phone.
+      }
+    });
+  }
   const server: Server = {
     stops,
     commands: [],
@@ -100,6 +120,7 @@ export async function serve(page: Page, stops: RunSheetStopView[] = [stop(1, "OU
     notifications: [],
     pins: {},
     threads: [],
+    answers: {},
     voices: [],
     goOffline: async (context) => {
       server.offline = true;
@@ -126,6 +147,7 @@ export async function serve(page: Page, stops: RunSheetStopView[] = [stop(1, "OU
     if (command.kind === "delivery:RecordArrival") Object.assign(target, { outcome: "ARRIVED", arrivedAt: now, waitMinutes: 0, lateMinutes: 0 });
     if (command.kind === "delivery:Record") Object.assign(target, { outcome: command.payload.outcome, completedAt: now });
     if (command.kind === "delivery:CaptureProof") target.proofCaptured = true;
+    if (command.kind === "delivery:LeaveWithoutStoreAnswer") target.storeAnswerWaived = command.payload.reason as RunSheetStopView["storeAnswerWaived"];
     target.rowVersion += 1;
     return target.rowVersion;
   };
@@ -172,6 +194,8 @@ export async function serve(page: Page, stops: RunSheetStopView[] = [stop(1, "OU
         const pin = server.pins[orderId];
         if (!pin) return route.fulfill(problem(403, "FORBIDDEN", `no handover PIN for order ${orderId} is within the actor's scope`));
         const right = command.payload.pin === pin;
+        const known = server.answers[orderId];
+        if (known && right) Object.assign(known.handover, { status: "CONFIRMED", confirmedAt: new Date().toISOString() });
         const result = { orderId, verified: right, outcome: right ? "VERIFIED" : "WRONG", attemptsLeft: right ? 0 : 4, rowVersion: 2 };
         return route.fulfill(json({ commandId: command.commandId, kind: command.kind, replayed: false, result }));
       }
@@ -211,6 +235,11 @@ export async function serve(page: Page, stops: RunSheetStopView[] = [stop(1, "OU
           }),
         }),
       );
+    }
+    const answered = pathname.match(/^\/api\/receipts\/([^/]+)\/answer$/);
+    if (answered) {
+      const found = server.answers[decodeURIComponent(answered[1]!)];
+      return route.fulfill(found ? json(found) : problem(404, "NOT_FOUND", "The store has not answered yet"));
     }
     if (method === "PUT" && /^\/api\/execution\/deliveries\/[^/]+\/attachments\/[^/]+$/.test(pathname)) {
       if (server.refuseUploads) return route.fulfill(problem(415, "VALIDATION_FAILED", "The file is not a JPEG, PNG or WebP image"));
@@ -256,6 +285,8 @@ export async function sign(page: Page): Promise<void> {
 /** Slide across "I've arrived". A tap does not record the arrival. */
 export async function arrive(page: Page): Promise<void> {
   const slider = page.getByRole("slider", { name: "I've arrived" });
+  // Wait until a touch would land on it: a screen change may still be crossfading over it.
+  await slider.click({ trial: true });
   const box = await slider.boundingBox();
   if (!box) throw new Error("I've arrived is not on screen");
   const y = box.y + box.height / 2;
@@ -263,6 +294,32 @@ export async function arrive(page: Page): Promise<void> {
   await page.mouse.down();
   await page.mouse.move(box.x + box.width - 16, y, { steps: 18 });
   await page.mouse.up();
+}
+
+/** Slide across "Hand over" at the stop: the goods are with the store (issue #21). */
+export async function handOver(page: Page): Promise<void> {
+  const slider = page.getByRole("slider", { name: "Hand over" });
+  // Wait until a touch would land on it: a screen change may still be crossfading over it.
+  await slider.click({ trial: true });
+  const box = await slider.boundingBox();
+  if (!box) throw new Error("Hand over is not on screen");
+  const y = box.y + box.height / 2;
+  await page.mouse.move(box.x + 36, y);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width - 16, y, { steps: 18 });
+  await page.mouse.up();
+}
+
+/** The store's answer for a stop: every product received unless `short` units are missing from the first. */
+export function storeAnswer(at: RunSheetStopView, short = 0): ReceiptAnswerView {
+  return {
+    orderId: at.orderId,
+    status: short > 0 ? "PARTIAL" : "CONFIRMED",
+    lines: [{ productId: "P-1", expectedQuantity: at.itemCount, receivedQuantity: at.itemCount - short }],
+    note: short > 0 ? "One crate crushed" : null,
+    answeredAt: new Date().toISOString(),
+    handover: { orderId: at.orderId, status: "AWAITING", expiresAt: new Date(Date.now() + 3_600_000).toISOString(), attemptsLeft: 5, confirmedAt: null, rowVersion: 1 },
+  };
 }
 
 /** Starts or continues the trip from Home. */

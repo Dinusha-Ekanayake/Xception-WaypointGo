@@ -19,6 +19,8 @@ public final class ExecutionCommands {
   public static final String CAPTURE_PROOF = "delivery:CaptureProof";
   public static final String REPORT_VEHICLE_STATUS = "delivery:ReportVehicleStatus";
   public static final String REPORT_FAULT = "delivery:ReportFault";
+  /** The driver moves on before the store answered, with the reason (issue #21). */
+  public static final String LEAVE_WITHOUT_STORE_ANSWER = "delivery:LeaveWithoutStoreAnswer";
   public static final String RECORD_POSITIONS = "delivery:RecordPositions";
 
   public record StartStop(UUID deliveryId) {}

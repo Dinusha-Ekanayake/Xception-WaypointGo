@@ -10,7 +10,7 @@ import { nextStop, type Stop } from "./data/run.ts";
 import { activeIndex, syncLabel, toRouteStops, tripStatus, type RouteStop } from "./data/stopView.ts";
 import DeliveryPinConfirmModal from "./screens/DeliveryPinConfirmModal.tsx";
 import DeliveryReport from "./screens/DeliveryReport.tsx";
-import DeliveryReportWaiting from "./screens/DeliveryReportWaiting.tsx";
+import StopHandover from "./screens/StopHandover.tsx";
 import DrivingModeScreen from "./screens/DrivingModeScreen.tsx";
 import HomeNoVehicle from "./screens/HomeNoVehicle.tsx";
 import Messages from "./screens/Messages.tsx";
@@ -226,15 +226,24 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
               </GoLayer>
             )}
             {screen === "report" && reporting && view.name === "report" && formFor !== reporting.deliveryId && (
-              <DeliveryReportWaiting
+              // Issue #21: hand over, wait for the store's report, accept it with the store's PIN or say why you move on.
+              <StopHandover
+                key={reporting.deliveryId}
+                stop={reporting}
                 stops={routeStops}
                 stopIndex={stops.indexOf(reporting)}
                 syncLabel={sync}
-                onBack={() => d.go({ name: "route", deliveryId: reporting.deliveryId })}
-                onConfirm={() => setFormFor(reporting.deliveryId)}
-                onProblem={() => d.openProblem(reporting)}
+                online={online}
+                busy={busy}
                 isNight={d.dark}
+                onBack={() => d.go({ name: "route", deliveryId: reporting.deliveryId })}
                 onToggleTheme={d.theme}
+                onHandOver={() => d.handOver(reporting)}
+                onMoveOn={(reason, note) => d.moveOn(reporting, reason, note)}
+                onVerifyPin={(pin) => d.verifyHandover(reporting, pin)}
+                onAddProof={() => d.go({ name: "stop", deliveryId: reporting.deliveryId })}
+                onNext={() => void d.toNextStop()}
+                onProblem={() => d.openProblem(reporting)}
               />
             )}
             {screen === "report" && reporting && view.name === "report" && formFor === reporting.deliveryId && (

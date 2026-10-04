@@ -1,5 +1,5 @@
 import type { Command } from "@shared/api/commands";
-import type { DeliveryOutcome, RunSheetStopView, RunSheetView } from "@shared/domain/types";
+import type { DeliveryOutcome, RunSheetStopView, RunSheetView, StoreAnswerWaiverReason } from "@shared/domain/types";
 export { clock } from "../../../shared/wording/index.ts";
 
 // The driver's run as the phone believes it is: what the server last said, with
@@ -25,6 +25,8 @@ export const DeliveryKind = {
   arrive: "delivery:RecordArrival",
   record: "delivery:Record",
   proof: "delivery:CaptureProof",
+  /** Moving on from a handed-over stop before the store answered (issue #21). */
+  leave: "delivery:LeaveWithoutStoreAnswer",
 } as const;
 
 /** A time of day on the service date, as an instant. */
@@ -84,6 +86,9 @@ export function project(sheet: RunSheetView, writes: WaitingWrite[]): Stop[] {
         break;
       case DeliveryKind.proof:
         stop.proofCaptured = true;
+        break;
+      case DeliveryKind.leave:
+        stop.storeAnswerWaived = payload.reason as StoreAnswerWaiverReason;
         break;
       default:
         continue;

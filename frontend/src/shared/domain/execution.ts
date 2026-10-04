@@ -42,6 +42,8 @@ export type RunSheetStopView = {
   rowVersion: number;
   /** The order's products, to record a delivery product by product. */
   lines: DeliveryLineView[];
+  /** Why the driver moved on before the store answered, when they did (issue #21). */
+  storeAnswerWaived: StoreAnswerWaiverReason | null;
 };
 
 export type RunSheetView = {
@@ -139,7 +141,14 @@ export const ExecutionCommandKind = {
   reportVehicleStatus: "delivery:ReportVehicleStatus",
   reportFault: "delivery:ReportFault",
   recordPositions: "delivery:RecordPositions",
+  /** Move on from a handed-over stop before the store answered, with the reason (issue #21). */
+  leaveWithoutStoreAnswer: "delivery:LeaveWithoutStoreAnswer",
 } as const;
+
+/** Why the driver moved on before the store answered: the closed list the server keeps. */
+export type StoreAnswerWaiverReason = "store_absent" | "no_signal" | "disagree";
+
+export type LeaveWithoutStoreAnswer = { deliveryId: Uuid; reason: StoreAnswerWaiverReason };
 
 export type StartStop = { deliveryId: Uuid };
 export type RecordArrival = { deliveryId: Uuid; deviceArrivedAt: IsoInstant | null };

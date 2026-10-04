@@ -5,7 +5,7 @@ import { newCommand } from "@shared/api/commands";
 import { ApiError } from "@shared/api/problem";
 import { useOnline } from "@shared/api/useResource";
 import type { HandoverEntryResult } from "@shared/domain/receipt";
-import { ExecutionCommandKind, ReceiptCommandKind, type FailureReason, type ReportedVehicleStatus } from "@shared/domain/types";
+import { ExecutionCommandKind, IssueCommandKind, ReceiptCommandKind, type FailureReason, type ReportedVehicleStatus, type StoreAnswerWaiverReason } from "@shared/domain/types";
 import { discardUpload, useSync } from "@shared/offline";
 import { useShell, withTransition } from "@shared/ui";
 import { keepTiles, num, tilesFor, type LatLon } from "@shared/ui/map";
@@ -224,6 +224,85 @@ export function useDriver(userId: string, depot: string | null = null) {
     );
   };
 
+  /**
+   * The goods are off the vehicle and with the store (issue #21, store-led
+   * handover): the driver's record, in one step, of the order as it was loaded.
+   * The store counts what arrived and answers; a shortage is the store's to
+   * report, and the driver stays on this stop to see the answer.
+   */
+  const handOver = async (stop: Stop): Promise<boolean> => {
+    setError(null);
+    setWorking(true);
+    try {
+      const recorded = await act(
+        DeliveryKind.record,
+        { deliveryId: stop.deliveryId, outcome: "DELIVERED", deliveredUnits: null, reason: null, dispositionNote: null },
+        stop,
+      );
+      if (!recorded.ok) {
+        setError(words(recorded));
+        return false;
+      }
+      if (recorded.queued) setNotice("Handover saved on this phone. The store is told when the connection is back.");
+      return true;
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  /**
+   * Moves on before the store answered, saying why (never a gate, R-RCP-09; a
+   * decision on record, rule 8). A disagreement also raises an issue for the
+   * dispatcher, so the difference is worked on without holding the run up.
+   */
+  const moveOn = async (stop: Stop, reason: StoreAnswerWaiverReason, detail = ""): Promise<boolean> => {
+    setError(null);
+    setWorking(true);
+    try {
+      const left = await act(DeliveryKind.leave, { deliveryId: stop.deliveryId, reason }, stop);
+      if (!left.ok) {
+        setError(words(left));
+        return false;
+      }
+      if (reason === "disagree" && run.vehicle) {
+        const description = `Driver disagrees with the store's report at ${stop.outletId}.${detail.trim() ? ` ${detail.trim()}` : ""}`;
+        try {
+          await gateway.send(
+            newCommand(IssueCommandKind.raise, {
+              type: "OTHER",
+              severity: "MEDIUM",
+              depotCode: run.vehicle.depotCode,
+              outletId: stop.outletId,
+              subjects: [
+                { type: "order", id: stop.orderId },
+                { type: "delivery", id: stop.deliveryId },
+              ],
+              description,
+            }),
+          );
+        } catch (failure) {
+          setError(
+            failure instanceof ApiError
+              ? `You moved on, but the issue was not raised: ${failure.message}`
+              : "You moved on, but the issue could not be raised with no connection. Use Report problem when the signal is back.",
+          );
+        }
+      }
+      await toNextStop();
+      return true;
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  /** From a stop that is done to the next one, or to the end of the run. */
+  const toNextStop = async () => {
+    const next = nextStop(stops);
+    if (!next) return go({ name: "complete" });
+    go({ name: "route", deliveryId: null });
+    await start(next);
+  };
+
   /** True once the record is kept, sent or on this phone; its proof may still have failed (see `saved`). */
   const confirm = async (stop: Stop, report: Report): Promise<boolean> => {
     setError(null);
@@ -347,7 +426,9 @@ export function useDriver(userId: string, depot: string | null = null) {
   const reported = view.name === "report" ? byId(view.deliveryId) : null;
   // A report whose stop already has its outcome, recorded here or replanned by
   // dispatch while the phone was away, shows what was recorded instead (EXE-22).
-  const settled = reported !== null && isFinished(reported);
+  // A handed-over stop stays on its screen while the store checks it (issue #21):
+  // only a stop that did not happen goes straight to what was recorded.
+  const settled = reported !== null && isFinished(reported) && reported.outcome !== "DELIVERED" && reported.outcome !== "PARTIAL";
   const reporting = settled ? null : reported;
   const detail = view.name === "stop" ? byId(view.deliveryId) : settled ? reported : null;
   // A screen whose stop is no longer on the run falls back to Home.
@@ -380,6 +461,9 @@ export function useDriver(userId: string, depot: string | null = null) {
     openStop,
     arrived,
     confirm,
+    handOver,
+    moveOn,
+    toNextStop,
     addProof,
     afterSaved,
     report,

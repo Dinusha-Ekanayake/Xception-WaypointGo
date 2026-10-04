@@ -501,6 +501,51 @@ class ExecutionIntegrationTest {
     assertEquals("mall_window_closed", payload("delivery.failed", mallStop).get("reason").asText());
   }
 
+  // ---- moving on before the store answers (issue #21) ----
+
+  @Test
+  void theDriverMayMoveOnBeforeTheStoreAnswersButSaysWhyAndTheDispatcherSeesIt() throws Exception {
+    at("05:10");
+    send(driver, "delivery:RecordArrival", 1L, stop(stopA), 200);
+    // Nothing handed over yet, so there is no answer to wait for.
+    send(driver, "delivery:LeaveWithoutStoreAnswer", 2L, leave(stopA, "store_absent"), 409);
+    send(driver, "delivery:Record", 2L, record(stopA, "DELIVERED", null, null, null), 200);
+
+    send(driver, "delivery:LeaveWithoutStoreAnswer", 3L, leave(stopA, "bored"), 422);
+    JsonNode left = json(send(driver, "delivery:LeaveWithoutStoreAnswer", 3L, leave(stopA, "store_absent"), 200))
+        .get("result");
+    assertEquals(4, left.get("rowVersion").asLong(), "one version per command, as the phone counts them");
+    assertEquals("DELIVERED", left.get("outcome").asText(), "never a gate: the delivery stands as recorded");
+
+    JsonNode live = json(read(dispatcher, "/api/execution/run-sheets?date=" + day + "&depot=" + depot, 200));
+    JsonNode seen = null;
+    for (JsonNode sheet : live) {
+      for (JsonNode s : sheet.get("stops")) {
+        if (s.get("deliveryId").asText().equals(stopA.toString())) seen = s;
+      }
+    }
+    assertEquals("store_absent", seen.get("storeAnswerWaived").asText(), "the dispatcher sees why the driver left");
+    JsonNode stopB0 = runSheet(driver).get("stops").get(1);
+    assertTrue(stopB0.get("storeAnswerWaived").isNull(), "a stop nobody left has no reason");
+
+    // One decision per stop, never rewritten.
+    send(driver, "delivery:LeaveWithoutStoreAnswer", 4L, leave(stopA, "disagree"), 409);
+    assertEquals(4, json(read(driver, "/api/execution/deliveries/" + stopA, 200)).get("rowVersion").asLong());
+  }
+
+  @Test
+  void onlyTheStopsDriverMovesOnAndARefusalIsAudited() throws Exception {
+    at("05:10");
+    send(driver, "delivery:RecordArrival", 1L, stop(stopA), 200);
+    send(driver, "delivery:Record", 2L, record(stopA, "DELIVERED", null, null, null), 200);
+
+    send(otherDriver, "delivery:LeaveWithoutStoreAnswer", 3L, leave(stopA, "store_absent"), 403);
+    send(dispatcher, "delivery:LeaveWithoutStoreAnswer", 3L, leave(stopA, "store_absent"), 403);
+
+    assertTrue(audited("delivery:LeaveWithoutStoreAnswer", "DENY", "wpt:execution:delivery:" + stopA));
+    assertEquals(3, json(read(driver, "/api/execution/deliveries/" + stopA, 200)).get("rowVersion").asLong());
+  }
+
   // ---- versions, replays and clocks ----
 
   @Test
@@ -1093,6 +1138,10 @@ class ExecutionIntegrationTest {
 
   private static String stop(UUID deliveryId) {
     return "{\"deliveryId\":\"" + deliveryId + "\"}";
+  }
+
+  private static String leave(UUID deliveryId, String reason) {
+    return "{\"deliveryId\":\"" + deliveryId + "\",\"reason\":\"" + reason + "\"}";
   }
 
   private static String record(UUID deliveryId, String outcome, Integer units, String reason, String note) {

@@ -82,7 +82,7 @@ export default function LiveNeeds({
                     Book make-up
                   </Action>
                 )}
-                {(card.kind === "failed" || card.kind === "proof") && card.vehicleId && (
+                {(card.kind === "failed" || card.kind === "left") && card.vehicleId && (
                   <Action primary className="flex-1" onClick={() => onOpenTrip(card.vehicleId!)}>
                     Open trip
                   </Action>

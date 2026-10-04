@@ -62,7 +62,9 @@ public final class ExecutionViews {
       Optional<Integer> deliveredUnits,
       boolean proofCaptured,
       long rowVersion,
-      List<DeliveryLineView> lines) {
+      List<DeliveryLineView> lines,
+      /** Why the driver moved on before the store answered, when they did (issue #21): store_absent, no_signal, disagree. */
+      Optional<String> storeAnswerWaived) {
 
     public RunSheetStopView {
       lines = List.copyOf(lines);
