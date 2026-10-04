@@ -164,16 +164,17 @@ public class JdbcThreadRepository {
   /** @return false when this id was already uploaded: a retry of the same note */
   public boolean insertVoice(
       UUID voiceNoteId, UUID threadId, UUID uploadedBy, String contentType, byte[] content, Optional<Integer> durationMs,
-      String sha256, Instant now) {
+      String sha256, Instant now, Instant retainUntil) {
     return database.update(
             """
             INSERT INTO messaging.voice_notes
-                (voice_note_id, thread_id, uploaded_by, content_type, size_bytes, duration_ms, sha256, content, uploaded_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (voice_note_id, thread_id, uploaded_by, content_type, size_bytes, duration_ms, sha256, content,
+                 uploaded_at, retain_until)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (voice_note_id) DO NOTHING
             """,
             voiceNoteId, threadId, uploadedBy, contentType, content.length, durationMs.orElse(null), sha256, content,
-            Timestamp.from(now))
+            Timestamp.from(now), Timestamp.from(retainUntil))
         > 0;
   }
 
@@ -188,10 +189,40 @@ public class JdbcThreadRepository {
             (String) r.get("content_type"), ((Number) r.get("size_bytes")).intValue()));
   }
 
+  /** Empty once the retention job cleared it (MSG-11). */
   public Optional<byte[]> voiceContent(UUID voiceNoteId) {
     return Optional.ofNullable(
-            database.queryOne("SELECT content FROM messaging.voice_notes WHERE voice_note_id = ?", voiceNoteId))
+            database.queryOne(
+                "SELECT content FROM messaging.voice_notes WHERE voice_note_id = ? AND purged_at IS NULL", voiceNoteId))
         .map(r -> (byte[]) r.get("content"));
+  }
+
+  /** Voice notes past their retention, oldest first. */
+  public List<UUID> voiceDue(Instant now, int limit) {
+    return database
+        .query(
+            "SELECT voice_note_id FROM messaging.voice_notes WHERE retain_until < ? AND purged_at IS NULL"
+                + " ORDER BY retain_until LIMIT ?",
+            Timestamp.from(now), limit)
+        .stream()
+        .map(r -> (UUID) r.get("voice_note_id"))
+        .toList();
+  }
+
+  /** Clears the audio; the row, its size and its SHA-256 stay. Running twice changes nothing. */
+  public boolean purgeVoice(UUID voiceNoteId, Instant now) {
+    return database.update(
+            "UPDATE messaging.voice_notes SET content = NULL, purged_at = ?"
+                + " WHERE voice_note_id = ? AND purged_at IS NULL",
+            Timestamp.from(now), voiceNoteId)
+        > 0;
+  }
+
+  /** Bytes of audio still held, for the gauge. */
+  public long voiceBytesHeld() {
+    Map<String, Object> row =
+        database.queryOne("SELECT coalesce(sum(size_bytes), 0) AS n FROM messaging.voice_notes WHERE purged_at IS NULL");
+    return row == null ? 0 : ((Number) row.get("n")).longValue();
   }
 
   /** The message this author already sent with this client id, for an idempotent resend. */

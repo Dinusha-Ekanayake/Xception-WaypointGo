@@ -109,17 +109,22 @@ CREATE TABLE messaging.voice_notes (
     size_bytes    integer     NOT NULL,
     duration_ms   integer,
     sha256        text        NOT NULL,
-    content       bytea       NOT NULL,
+    -- Cleared once retain_until passes (MSG-11); the row, size and SHA-256 stay.
+    content       bytea,
     uploaded_at   timestamptz NOT NULL,
+    retain_until  timestamptz NOT NULL,
+    purged_at     timestamptz,
     CONSTRAINT ck_voice_notes_type CHECK (content_type IN ('audio/webm','audio/ogg','audio/mp4','audio/aac','audio/mpeg')),
     CONSTRAINT ck_voice_notes_size CHECK (size_bytes BETWEEN 1 AND 2097152),
-    CONSTRAINT ck_voice_notes_duration CHECK (duration_ms IS NULL OR duration_ms BETWEEN 1 AND 120000)
+    CONSTRAINT ck_voice_notes_duration CHECK (duration_ms IS NULL OR duration_ms BETWEEN 1 AND 120000),
+    CONSTRAINT ck_voice_notes_purge CHECK ((content IS NULL) = (purged_at IS NOT NULL))
 );
 
 COMMENT ON TABLE messaging.voice_notes IS
   'The audio of a voice message or report. Personal communication: never logged, served only to who may see its message.';
 
 CREATE INDEX ix_voice_notes_thread ON messaging.voice_notes (thread_id);
+CREATE INDEX ix_voice_notes_due ON messaging.voice_notes (retain_until) WHERE purged_at IS NULL;
 
 -- ---- messages ----------------------------------------------------------------
 
@@ -170,8 +175,10 @@ COMMENT ON TABLE messaging.messages IS
 CREATE INDEX ix_messages_thread ON messaging.messages (thread_id, created_at, message_id);
 CREATE INDEX ix_messages_reports ON messaging.messages (thread_id, created_at) WHERE kind = 'report';
 
--- Messages and voice notes are append only. A thread is opened and widened by the system alone.
+-- Messages and voice notes are append only. A thread is opened and widened by the system alone;
+-- the retention job alone clears a voice note's bytes (UPDATE, system only).
 GRANT SELECT, INSERT ON messaging.messages, messaging.voice_notes TO waypoint_messaging;
+GRANT UPDATE (content, purged_at) ON messaging.voice_notes TO waypoint_messaging;
 GRANT SELECT, INSERT, UPDATE ON messaging.threads TO waypoint_messaging;
 
 -- ---- row-level security (R-MSG-01) ---------------------------------------------
@@ -243,3 +250,8 @@ CREATE POLICY voice_notes_upload ON messaging.voice_notes
     FOR INSERT TO waypoint_messaging
     WITH CHECK (uploaded_by = app.current_actor()
                 AND EXISTS (SELECT 1 FROM messaging.threads t WHERE t.thread_id = voice_notes.thread_id));
+
+CREATE POLICY voice_notes_purge ON messaging.voice_notes
+    FOR UPDATE TO waypoint_messaging
+    USING (app.actor_is_system())
+    WITH CHECK (app.actor_is_system());
