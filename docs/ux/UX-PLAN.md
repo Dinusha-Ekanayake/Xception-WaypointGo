@@ -102,3 +102,16 @@ Show one degradation per role: shortfall at loading, driver offline, a deferred 
 - **Figma:** compared with the named frame, read only. The Figma file is never edited.
 - **CI:** the role browser suites run in CI and must stay green; a new behaviour gets a spec in its role's suite.
 - **Departures:** any departure from Figma is written into the README in the same PR.
+
+## 7. Tier 3: polish (after the deadline)
+
+One behaviour per kind of interaction, built once in `frontend/src/shared/ui/` and used by every role, without changing a Figma screen. Motion is 150 to 250 ms, never holds an action back, and stops under reduced motion.
+
+| PR | Scope | State |
+| --- | --- | --- |
+| 1 | Motion tokens; one overlay behaviour (enter and exit, Escape, focus, page lock, swipe to close on phones); toast timing and Undo | Done (`feat/ux-polish-motion`) |
+| 2 | Keep filters, tabs and scroll position when leaving and returning to a screen | Planned |
+| 3 | Pressed state on every button, a spinner while sending, skeletons instead of bare "Loading…", "Try again" on every error | Planned |
+| 4 | Screen transitions (View Transitions API, with an instant fallback) and three shared-element moves | Planned |
+| 5 | Primary actions pinned on phones, local Undo (signature, voice note), dispatcher sidebar folded by default on narrow desktops | Planned |
+

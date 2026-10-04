@@ -102,7 +102,7 @@ export function SettingsPanel({
         aria-label="Close settings"
         tabIndex={-1}
         onClick={onClose}
-        className={cx("fixed inset-0 z-40 cursor-default", placement === "sheet" && "bg-black/20 backdrop-blur-[6px]")}
+        className={cx("fixed inset-0 z-40 cursor-default", placement === "sheet" && "animate-fade-in bg-black/20 backdrop-blur-[6px]")}
       />
       <div
         ref={panel}
@@ -112,8 +112,8 @@ export function SettingsPanel({
         className={cx(
           "z-50 flex flex-col gap-4 bg-go-card p-4 text-go-ink shadow-[0_10px_30px_rgba(0,0,0,0.18)] outline-none",
           placement === "sheet"
-            ? "fixed inset-x-0 bottom-0 rounded-t-[28px] pb-[max(2rem,env(safe-area-inset-bottom))] md:inset-x-auto md:left-1/2 md:w-[420px] md:-translate-x-1/2"
-            : "fixed bottom-5 left-5 w-[300px] rounded-[20px]",
+            ? "fixed inset-x-0 bottom-0 animate-sheet-up rounded-t-[28px] pb-[max(2rem,env(safe-area-inset-bottom))] md:inset-x-auto md:left-1/2 md:w-[420px] md:-translate-x-1/2"
+            : "fixed bottom-5 left-5 w-[300px] animate-rise-in rounded-[20px]",
         )}
       >
         <div className="flex items-center gap-3">

@@ -79,7 +79,7 @@ export function Menu({
           role="menu"
           aria-label={label}
           className={cx(
-            "absolute top-full z-30 mt-1.5 flex min-w-[220px] flex-col gap-0.5 rounded-go-card bg-go-card p-1.5 shadow-go-card ring-1 ring-go-rule",
+            "absolute top-full z-30 mt-1.5 flex min-w-[220px] animate-fade-in flex-col gap-0.5 rounded-go-card bg-go-card p-1.5 shadow-go-card ring-1 ring-go-rule",
             align === "right" ? "right-0" : "left-0",
           )}
         >

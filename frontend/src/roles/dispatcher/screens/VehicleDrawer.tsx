@@ -43,12 +43,12 @@ export default function VehicleDrawer({
 
   return (
     <div className="fixed inset-0 z-40 flex justify-end">
-      <button type="button" aria-label="Close vehicle details" onClick={onClose} className="absolute inset-0 bg-black/30" />
+      <button type="button" aria-label="Close vehicle details" onClick={onClose} className="absolute inset-0 animate-fade-in bg-black/30" />
       <aside
         role="dialog"
         aria-modal="true"
         aria-label={`Vehicle ${vehicle.vehicleId}`}
-        className="relative flex h-full w-full max-w-[460px] flex-col gap-4 overflow-y-auto rounded-l-[32px] bg-white p-7 shadow-[-10px_0_40px_0_rgba(0,0,0,0.12)]"
+        className="relative flex h-full w-full max-w-[460px] animate-slide-in-end flex-col gap-4 overflow-y-auto overscroll-contain rounded-l-[32px] bg-white p-7 shadow-[-10px_0_40px_0_rgba(0,0,0,0.12)]"
       >
         <div className="flex items-start gap-2.5">
           <div className="flex min-w-0 flex-1 flex-col gap-1">

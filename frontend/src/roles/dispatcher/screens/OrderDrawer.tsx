@@ -60,7 +60,7 @@ export default function OrderDrawer({ line, issues, onClose }: { line: OrderLine
     <aside
       role="dialog"
       aria-label={`Order ${order.orderRef}`}
-      className="fixed inset-y-0 right-0 z-40 flex w-full max-w-[420px] flex-col gap-4 overflow-y-auto rounded-l-go-panel bg-go-card p-6 shadow-go-float"
+      className="fixed inset-y-0 right-0 z-40 flex w-full max-w-[420px] animate-slide-in-end flex-col gap-4 overflow-y-auto overscroll-contain rounded-l-go-panel bg-go-card p-6 shadow-go-float"
     >
       <header className="flex items-start gap-3">
         <div className="min-w-0 flex-1">

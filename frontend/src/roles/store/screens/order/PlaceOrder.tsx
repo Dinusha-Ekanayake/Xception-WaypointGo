@@ -65,7 +65,7 @@ export default function PlaceOrder({
 
   useEffect(() => {
     if (!note) return;
-    const timer = setTimeout(() => setNote(null), 6000);
+    const timer = setTimeout(() => setNote(null), 4000);
     return () => clearTimeout(timer);
   }, [note]);
 

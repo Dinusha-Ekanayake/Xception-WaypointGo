@@ -19,13 +19,17 @@ export type ToastMessage = {
   lines?: string[];
   /** Rule ids the server named, for whoever needs them. */
   rules?: string[];
+  /** One step back, such as "Undo"; the toast then stays a little longer. */
+  action?: { label: string; onAction: () => void };
 };
 
 type ToastApi = { show: (message: ToastMessage) => void };
 
 const ToastContext = createContext<ToastApi | null>(null);
 
+// One timing in every role: 4 s to read a confirmation, 6 s when it offers a step back.
 const SHOWN_MS = 4000;
+const WITH_ACTION_MS = 6000;
 
 export function ToastProvider({ children }: { children: ReactNode }): React.JSX.Element {
   const [message, setMessage] = useState<(ToastMessage & { id: number }) | null>(null);
@@ -38,7 +42,7 @@ export function ToastProvider({ children }: { children: ReactNode }): React.JSX.
 
   useEffect(() => {
     if (!message || message.tone === "error") return;
-    const timer = window.setTimeout(() => setMessage(null), SHOWN_MS);
+    const timer = window.setTimeout(() => setMessage(null), message.action ? WITH_ACTION_MS : SHOWN_MS);
     return () => window.clearTimeout(timer);
   }, [message]);
 
@@ -52,7 +56,7 @@ export function ToastProvider({ children }: { children: ReactNode }): React.JSX.
           <div
             key={message.id}
             className={cx(
-              "pointer-events-auto flex max-w-[640px] gap-3 rounded-go-input px-4 py-3 text-[13px] shadow-go-float",
+              "pointer-events-auto flex max-w-[640px] animate-rise-in gap-3 rounded-go-input px-4 py-3 text-[13px] shadow-go-float",
               error ? "items-start bg-go-card text-go-ink ring-1 ring-go-danger/40" : "items-center bg-go-ink text-white",
             )}
           >
@@ -80,6 +84,18 @@ export function ToastProvider({ children }: { children: ReactNode }): React.JSX.
                 </p>
               )}
             </div>
+            {message.action && !error && (
+              <button
+                type="button"
+                onClick={() => {
+                  message.action?.onAction();
+                  setMessage(null);
+                }}
+                className="ml-1 shrink-0 rounded-full px-2 py-1 font-semibold text-go-mint active:opacity-70"
+              >
+                {message.action.label}
+              </button>
+            )}
             {error && (
               <button type="button" onClick={() => setMessage(null)} aria-label="Close" className="ml-1 shrink-0 rounded-full px-1.5 text-[15px] leading-none text-go-secondary hover:text-go-ink">
                 ×

@@ -79,7 +79,7 @@ export default function AccountMenu({
         aria-label="Account"
         className={cx(
           "z-50 flex flex-col gap-1 bg-white p-[7px] shadow-[0_10px_30px_rgba(0,0,0,0.18)] outline-none",
-          placement === "sheet" ? "fixed inset-x-0 bottom-0 rounded-t-[28px] px-4 pt-4 pb-[max(2rem,env(safe-area-inset-bottom))]" : "absolute bottom-[84px] left-5 w-[280px] rounded-[20px]",
+          placement === "sheet" ? "fixed inset-x-0 bottom-0 animate-sheet-up rounded-t-[28px] px-4 pt-4 pb-[max(2rem,env(safe-area-inset-bottom))]" : "absolute bottom-[84px] left-5 w-[280px] animate-rise-in rounded-[20px]",
         )}
       >
         <div className="flex items-center gap-3 p-2.5">

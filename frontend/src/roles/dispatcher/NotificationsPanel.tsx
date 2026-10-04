@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { cx } from "@shared/ui";
+import { cx, useEscape } from "@shared/ui";
 import { ago, isUnread, kindOf, toneOf, TONE_STYLE } from "@shared/notifications/inbox";
 import type { NotificationView } from "@shared/domain/types";
 import { useDispatcherInbox } from "./inbox.tsx";
@@ -105,18 +105,19 @@ export function NotificationRows({
 
 export default function NotificationsPanel({ onNavigate }: { onNavigate: (view: ViewId) => void }): React.JSX.Element | null {
   const ctx = useDispatcherInbox();
+  useEscape(ctx?.open ? () => ctx.setOpen(false) : undefined);
   if (!ctx?.open) return null;
   const { inbox, setOpen } = ctx;
   const unread = inbox.items.filter(isUnread).length;
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-end p-4 md:pt-24 md:pr-9" role="presentation">
-      <button type="button" aria-label="Close notifications" onClick={() => setOpen(false)} className="absolute inset-0 bg-black/20" />
+      <button type="button" aria-label="Close notifications" onClick={() => setOpen(false)} className="absolute inset-0 animate-fade-in bg-black/20" />
       <section
         role="dialog"
         aria-modal="true"
         aria-label="Notifications"
-        className="relative flex max-h-[80dvh] w-full max-w-[520px] flex-col gap-3 overflow-y-auto rounded-go-panel bg-go-card p-6 shadow-go-card"
+        className="relative flex max-h-[80dvh] w-full max-w-[520px] animate-rise-in flex-col gap-3 overflow-y-auto overscroll-contain rounded-go-panel bg-go-card p-6 shadow-go-card"
       >
         <header className="flex items-center justify-between gap-3">
           <h2 className="text-[22px] font-medium text-go-ink">Notifications</h2>
