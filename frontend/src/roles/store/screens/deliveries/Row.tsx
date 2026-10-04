@@ -17,6 +17,7 @@ export default function Row({
   status,
   actions,
   highlight,
+  onClick,
 }: {
   /** "ETA 05:44", "Window 05:00", "Sat 26 05:48". */
   time: { label: string; value: string; tone?: "warm" | "mint" | "plain" };
@@ -25,19 +26,22 @@ export default function Row({
   tag?: string;
   /** "2 orders". */
   badge?: string;
-  line: string;
+  line?: string;
   sub?: string;
   status: Status;
   actions: RowAction[];
   /** Waiting for the store: outlined, as the row to act on. */
   highlight?: boolean;
+  onClick?: () => void;
 }): React.JSX.Element {
   return (
     <article
       aria-label={title}
+      onClick={onClick}
       className={cx(
         "flex flex-col gap-3 rounded-[20px] bg-white p-3 lg:flex-row lg:items-center lg:gap-4 lg:pr-4",
         highlight && "outline-2 outline-[#0f766e]",
+        onClick && "cursor-pointer transition-colors hover:bg-go-surface/60",
       )}
     >
       <div className="flex min-w-0 flex-1 items-center gap-4">
@@ -56,11 +60,11 @@ export default function Row({
             {tag && <Chip outline>{tag}</Chip>}
             {badge && <Chip tone="muted">{badge}</Chip>}
           </span>
-          <span className="text-[14px] text-black">{line}</span>
+          {line && <span className="text-[14px] text-black">{line}</span>}
           {sub && <span className="text-[13px] text-go-muted">{sub}</span>}
         </span>
       </div>
-      <div className="flex flex-wrap items-center gap-2 lg:flex-nowrap">
+      <div className="flex flex-wrap items-center gap-2 lg:flex-nowrap" onClick={(e) => e.stopPropagation()}>
         <Chip tone={status.tone}>{status.label}</Chip>
         {actions.map((a) => (
           <span key={a.label} className="min-w-[112px] flex-1 lg:flex-none">

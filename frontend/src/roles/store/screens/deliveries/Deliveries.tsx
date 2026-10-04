@@ -190,17 +190,29 @@ export default function Deliveries({
       {range === "upcoming" && (
         <section aria-label="Upcoming" className="flex flex-col gap-3">
           {heading("Upcoming", "planned after 16:00")}
-          {days.map((d) => (
-            <Row
-              key={d.date}
-              time={{ label: "Window", value: windowOpen }}
-              title={dayLabel(d.date)}
-              badge={orderCount(d.orders.length)}
-              line={d.orders.map((o) => `${o.orderRef} ${temperatureLabel(o.temperature)}${o.redeliveryOf ? " (make-up)" : ""}`).join(" · ")}
-              status={d.status}
-              actions={[d.orders.length === 1 ? { label: "View order", onClick: () => onOpen(d.orders[0]!.orderId) } : { label: "View orders", onClick: onOrders }]}
-            />
-          ))}
+          {days.map((d) => {
+            const first = d.orders[0];
+            const handleViewOrder = () => {
+              onOrders();
+              if (first) onOpen(first.orderId);
+            };
+            return (
+              <Row
+                key={d.date}
+                time={{ label: "Window", value: windowOpen }}
+                title={dayLabel(d.date)}
+                badge={orderCount(d.orders.length)}
+                status={d.status}
+                onClick={handleViewOrder}
+                actions={[
+                  {
+                    label: d.orders.length === 1 ? "View order" : "View orders",
+                    onClick: handleViewOrder,
+                  },
+                ]}
+              />
+            );
+          })}
           {days.length === 0 && <Muted>No orders after today yet. An order you place appears here, with its delivery once it is planned.</Muted>}
         </section>
       )}
