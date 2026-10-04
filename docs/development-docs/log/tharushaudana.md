@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-04 - feat(frontend): the trip's thread on every role's screen
+
+`feat/136-messaging` · @tharushaudana
+
+One shared thread view (`shared/ui/TripThread.tsx`) with @mentions, reports and voice notes. Dispatcher: report signs on the Live timeline open the thread at the report, the bell's Reply opens it, and the trip page's "Send an update", "Notify store" and voice now write on it. Driver: Messages with a count of new ones; typed messages keep on the phone with no signal (MSG-10). Loader: Messages on the load sheet. Store: a message notification or a delivery's Message opens the thread. Detail in the [walkthrough](../../issues/136-messaging/WALKTHROUGH.md).
+Why: "Exception · click to open" opened nothing, and Notify store, Send an update and Voice were drawn but disabled.
+Verified: `npm run typecheck`, `npm test` (201), `npm run build`, browser suites: dispatcher 47, driver 22, loader 30, store 43, all passed.
+Open: calls; what each outlet was told per stop; the loader and the store write online only; threads for issues, orders and deliveries.
+
+---
+
 ## 2026-10-04 - feat(messaging): a thread per trip for the dispatcher, loaders, driver and stores
 
 `feat/136-messaging` · @tharushaudana

@@ -255,6 +255,7 @@ Most of the cases below are instances of nine patterns. Learn the patterns and t
 | MSG-07 | A revision adds a stop to a trip | The thread is widened to the new outlet and never narrowed, so nobody loses what they were told | `JdbcThreadRepository.openTrip` | `waypoint.message.thread_opened` | `MessagingIntegrationTest.aPublishedPlanOpensTheTripsThreadForEveryoneOnIt` |
 | MSG-08 | Someone posts two days after the trip | Refused with 409; the thread is read only (R-MSG-04) | `MessagePolicy.check` | none needed | `MessagePolicyTest.theThreadTakesPostsUntilTheEndOfTheNextDay` |
 | MSG-09 | A voice note is posted by someone who did not record it, or is not audio, or is longer than two minutes | Refused (422, or 415 for the media type); the audio of a message is served only to who may see it | `PostMessageHandler`, `MessagePolicy.voiceType`, `voice_notes_read` | `waypoint.message.voice_uploaded` | `MessagingIntegrationTest.aVoiceReportIsHeardByTheDispatcherAndNobodyItWasNotFor` |
+| MSG-10 | A driver with no signal writes on the trip's thread, or tries to record a voice note | The typed message is kept on the phone and sent under the same ids when the signal returns; recording is disabled and says a voice note needs a connection | `driver/data/messages.ts` `messageSender`, `ThreadComposer` | the sync badge's waiting count | `e2e-driver/messages.spec.ts` "with no signal a typed message is kept on the phone" |
 
 ## 8. Fleet and vehicles
 
