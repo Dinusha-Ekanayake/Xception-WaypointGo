@@ -6,7 +6,7 @@ import { ApiError } from "@shared/api/problem";
 import { drainUploads, pendingEntries, pendingUploads, UPLOADS_EVENT, type StoredEntry, type StoredUpload } from "@shared/offline";
 import type { OutletView, VehicleView } from "@shared/domain/types";
 import type { DriverGateway, RunData } from "./gateway.ts";
-import { DeliveryKind, acknowledged, hasRun, isStopAck, keepRunDay, keptRunDay, nextRunDay, operatingDate, project, todaysSheet, type Stop } from "./run.ts";
+import { DeliveryKind, acknowledged, hasRun, isStopAck, keepRunDay, keptRunDay, lookAhead, operatingDate, project, todaysSheet, type NextRun, type Stop } from "./run.ts";
 
 // The driver's day: read from the server when it answers, from the phone when it
 // does not, and shown with the writes still waiting applied on top.
@@ -41,6 +41,8 @@ export type Run = {
   refresh: () => void;
   act: (kind: string, payload: Record<string, unknown>, stop?: Stop) => Promise<Outcome>;
   saveArtifact: DriverGateway["saveArtifact"];
+  /** With nothing released today: the next trip ahead, released or still at the dock (U2). */
+  nextRun: NextRun | null;
 };
 
 /**
@@ -49,7 +51,7 @@ export type Run = {
  *     the server's copy too. A refusal changes no count, so a count alone
  *     would leave a refused write drawn as if it had happened (EXE-03).
  */
-export function useRun(gateway: DriverGateway, accountId: string, online: boolean, queueState: string, onQueued: () => void): Run {
+export function useRun(gateway: DriverGateway, accountId: string, online: boolean, queueState: string, onQueued: () => void, depot: string | null = null): Run {
   const today = useMemo(() => operatingDate(new Date()), []);
   // The run's day: today, or the first day ahead with a released trip (issue #114).
   const [date, setDate] = useState(() => keptRunDay(accountId, today));
@@ -91,15 +93,6 @@ export function useRun(gateway: DriverGateway, accountId: string, online: boolea
         try {
           const fresh = await gateway.run(date, controller.signal);
           if (cancelled) return;
-          if (!hasRun(fresh.sheets) && date === today) {
-            const ahead = await nextRunDay(today, (day) => gateway.run(day, controller.signal));
-            if (cancelled) return;
-            if (ahead) {
-              keepRunDay(accountId, ahead);
-              setDate(ahead);
-              return;
-            }
-          }
           dataRef.current = fresh;
           setData(fresh);
           setKeptAt(null);
@@ -124,7 +117,30 @@ export function useRun(gateway: DriverGateway, accountId: string, online: boolea
       cancelled = true;
       controller.abort();
     };
-  }, [gateway, accountId, today, date, online, tick, readDevice]);
+  }, [gateway, date, online, tick, readDevice]);
+
+  // Nothing released today: look ahead for the next trip in the background, every
+  // day at once, so Home is drawn first and never waits on it (U1). A released run
+  // becomes the phone's day; a trip still at the dock is named on Home (U2).
+  const [nextRun, setNextRun] = useState<NextRun | null>(null);
+  const nothingToday = data !== null && !hasRun(data.sheets);
+  useEffect(() => {
+    if (!online || date !== today || !nothingToday) return;
+    const controller = new AbortController();
+    lookAhead(today, (day) => gateway.probeDay(day, depot, controller.signal))
+      .then((found) => {
+        if (controller.signal.aborted) return;
+        setNextRun(found);
+        if (found?.released) {
+          keepRunDay(accountId, found.date);
+          setDate(found.date);
+        }
+      })
+      .catch(() => {
+        // Unreachable: Home keeps today's state; the next pass tries again.
+      });
+    return () => controller.abort();
+  }, [online, date, today, nothingToday, tick, gateway, depot, accountId]);
 
   // The shell's engine sent, or kept, something: read the queue again, and the
   // server's copy once nothing of ours is in flight.
@@ -242,6 +258,7 @@ export function useRun(gateway: DriverGateway, accountId: string, online: boolea
     refresh,
     act,
     saveArtifact: gateway.saveArtifact,
+    nextRun: date === today && nothingToday ? nextRun : null,
   };
 }
 
