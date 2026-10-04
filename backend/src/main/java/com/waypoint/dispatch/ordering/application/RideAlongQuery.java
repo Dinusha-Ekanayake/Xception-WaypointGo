@@ -59,11 +59,17 @@ public class RideAlongQuery {
   }
 
   public RideAlongView suggest(Actor actor, OutletView outlet, LocalDate requested, Instant now) {
+    return suggest(actor, outlet, requested, now, null);
+  }
+
+  /** As above for an order of one temperature: a Fresh chilled order is offered a shared refrigerated trip (R-ORD-15). */
+  public RideAlongView suggest(Actor actor, OutletView outlet, LocalDate requested, Instant now, String temperature) {
     orders.requireOutletScope(actor, outlet.outletId());
     DeliveryDate chosen =
         orders.asActor(actor, () -> dates.resolve(outlet.depotCode(), requested, now));
     LocalDate day = chosen.delivery();
-    if (!RideAlong.offeredTo(outlet.brandCode())) {
+    String matched = RideAlong.matchedTemperature(outlet.brandCode(), temperature);
+    if (!RideAlong.offeredTo(outlet.brandCode(), temperature)) {
       return new RideAlongView(requested, day, false, List.of());
     }
     LocalDate from = day.minusDays(RideAlong.REACH_DAYS);
@@ -91,7 +97,8 @@ public class RideAlongQuery {
                     outlet.districtName(),
                     outlet.outletId(),
                     from,
-                    to));
+                    to,
+                    matched));
     // R-ORD-14: a day is offered only when the store's usual order would join the
     // trip already going there, by Planning's load rules. With no usual order yet,
     // or Planning unable to answer, the days stand on bookings alone and say so.
@@ -101,7 +108,7 @@ public class RideAlongQuery {
     if (usual.isPresent()) {
       Map<String, Boolean> vanOnly = new java.util.HashMap<>();
       database.readAs(ModuleRole.ORDERING, Actor.SYSTEM_ID, () -> repository.bookedLoads(
-              outlet.depotCode(), outlet.brandCode(), outlet.districtName(), outlet.outletId(), from, to))
+              outlet.depotCode(), outlet.brandCode(), outlet.districtName(), outlet.outletId(), from, to, matched))
           .forEach(b -> booked.computeIfAbsent(b.date(), d -> new ArrayList<>()).add(new LoadView(
               b.temperature(),
               vanOnly.computeIfAbsent(b.outletId(),
@@ -109,15 +116,15 @@ public class RideAlongQuery {
               b.weightKg(), b.volumeM3())));
     }
     Optional<java.util.function.Predicate<LocalDate>> joins = usual.map(u -> {
-      LoadView extra = new LoadView(u.temperature(), outlet.vanOnly(), u.weightKg(), u.volumeM3());
+      LoadView extra = new LoadView(matched != null ? matched : u.temperature(), outlet.vanOnly(), u.weightKg(), u.volumeM3());
       return d -> plans.joinsTrip(outlet.depotCode(), d, outlet.brandCode(), outlet.districtName(),
           booked.getOrDefault(d, List.of()), extra);
     });
-    RideAlong.Checked checked = RideAlong.suggestChecked(outlet.brandCode(), day, open, stops, joins,
+    RideAlong.Checked checked = RideAlong.suggestChecked(outlet.brandCode(), temperature, day, open, stops, joins,
         () -> metrics.increment("waypoint.order.ride_along_room_unknown"));
     List<RideAlongDay> days = checked.days().stream()
         .map(s -> new RideAlongDay(s.date(), s.stopsBooked()))
         .toList();
-    return new RideAlongView(requested, day, true, days, checked.roomChecked());
+    return new RideAlongView(requested, day, true, days, checked.roomChecked(), stops.getOrDefault(day, 0), matched);
   }
 }

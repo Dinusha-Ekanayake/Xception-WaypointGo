@@ -211,7 +211,7 @@ export default function PlaceOrder({
               {tr("You can still order now; it goes on the next run.")}
             </Notice>
           )}
-          {!amend && <RideAlongHint gateway={gateway} outletId={outletId} brandCode={brand} date={date} onPick={setDate} onDays={setShared} />}
+          {!amend && <RideAlongHint gateway={gateway} outletId={outletId} brandCode={brand} districtName={outlet?.districtName ?? ""} temperature={temp} date={date} onPick={setDate} onDays={setShared} />}
           {warehouseDown && (
             <Notice tone="warning" title={tr("Stock can't be checked right now")}>
               {tr("The order is kept as “stock not checked” until the warehouse answers. It is not confirmed yet.")}

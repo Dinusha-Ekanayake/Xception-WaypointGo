@@ -107,6 +107,10 @@ export type RideAlongView = {
   days: { date: IsoDate; stopsBooked: number }[];
   /** Each day was checked for room on its trip from the store's usual order (R-ORD-14); false when it could not be. */
   roomChecked?: boolean;
+  /** Other stores of the brand and district already booked on the day asked for (matching temperature for chilled). */
+  stopsOnChosen?: number;
+  /** "chilled" when the days were matched on chilled orders (R-ORD-15), else null. */
+  temperature?: string | null;
 };
 
 export type StatusChangeView = {

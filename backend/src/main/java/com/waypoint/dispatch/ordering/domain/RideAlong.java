@@ -14,9 +14,11 @@ import java.util.Map;
  * <p>Advice only. It never moves an order. Whether the order fits the trip is
  * Planning's to say (R-ORD-14): the caller passes that answer in, built from
  * the store's usual order, because this order's measures are not known until
- * the warehouse reserves it (R-ORD-12). Only
- * Tech is offered a different day, because Fresh is daily and perishable and
- * Style is held to its scheduled day (R-ORD-03, R-ORD-11).
+ * the warehouse reserves it (R-ORD-12). Tech is offered a different day,
+ * and so is a Fresh <em>chilled</em> order, which a store places on days it
+ * chooses: a refrigerated trip already going to its district is the one most
+ * likely to reach it in its window (R-ORD-15). A Fresh dry order is daily and
+ * Style is held to its scheduled day (R-ORD-03, R-ORD-11), so neither is.
  */
 public final class RideAlong {
   /** How many days either side of the chosen day are looked at. */
@@ -30,7 +32,18 @@ public final class RideAlong {
   private RideAlong() {}
 
   public static boolean offeredTo(String brandCode) {
-    return "Tech".equalsIgnoreCase(brandCode);
+    return offeredTo(brandCode, null);
+  }
+
+  /** Tech for any order; Fresh only for a chilled one (R-ORD-13, R-ORD-15). */
+  public static boolean offeredTo(String brandCode, String temperature) {
+    return "Tech".equalsIgnoreCase(brandCode)
+        || ("Fresh".equalsIgnoreCase(brandCode) && "chilled".equalsIgnoreCase(temperature));
+  }
+
+  /** The temperature to match bookings on: chilled orders share a refrigerated trip; others any trip. */
+  public static String matchedTemperature(String brandCode, String temperature) {
+    return "chilled".equalsIgnoreCase(temperature) ? "chilled" : null;
   }
 
   /**
@@ -57,7 +70,17 @@ public final class RideAlong {
       List<LocalDate> openDays,
       Map<LocalDate, Integer> stopsByDay,
       java.util.function.Predicate<LocalDate> roomOn) {
-    if (!offeredTo(brandCode)) {
+    return suggest(brandCode, null, chosen, openDays, stopsByDay, roomOn);
+  }
+
+  public static List<Suggestion> suggest(
+      String brandCode,
+      String temperature,
+      LocalDate chosen,
+      List<LocalDate> openDays,
+      Map<LocalDate, Integer> stopsByDay,
+      java.util.function.Predicate<LocalDate> roomOn) {
+    if (!offeredTo(brandCode, temperature)) {
       return List.of();
     }
     int alreadyOnChosen = stopsByDay.getOrDefault(chosen, 0);
@@ -96,14 +119,25 @@ public final class RideAlong {
       Map<LocalDate, Integer> stopsByDay,
       java.util.Optional<java.util.function.Predicate<LocalDate>> joins,
       Runnable onFailure) {
+    return suggestChecked(brandCode, null, chosen, openDays, stopsByDay, joins, onFailure);
+  }
+
+  public static Checked suggestChecked(
+      String brandCode,
+      String temperature,
+      LocalDate chosen,
+      List<LocalDate> openDays,
+      Map<LocalDate, Integer> stopsByDay,
+      java.util.Optional<java.util.function.Predicate<LocalDate>> joins,
+      Runnable onFailure) {
     if (joins.isEmpty()) {
-      return new Checked(suggest(brandCode, chosen, openDays, stopsByDay), false);
+      return new Checked(suggest(brandCode, temperature, chosen, openDays, stopsByDay, d -> true), false);
     }
     try {
-      return new Checked(suggest(brandCode, chosen, openDays, stopsByDay, joins.get()), true);
+      return new Checked(suggest(brandCode, temperature, chosen, openDays, stopsByDay, joins.get()), true);
     } catch (RuntimeException e) {
       onFailure.run();
-      return new Checked(suggest(brandCode, chosen, openDays, stopsByDay), false);
+      return new Checked(suggest(brandCode, temperature, chosen, openDays, stopsByDay, d -> true), false);
     }
   }
 }
