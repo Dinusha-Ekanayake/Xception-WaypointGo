@@ -12,3 +12,13 @@ SELECT u.user_id, 'OUT001'
 FROM iam.users u
 WHERE u.email = 'ransikaj@waypoint.local'
 ON CONFLICT DO NOTHING;
+
+-- The named driver drives the seeded day's vehicles. A vehicle has one driver a
+-- day, so the assignments move from driver@waypoint.local, who keeps none.
+UPDATE iam.vehicle_driver_assignments a
+SET driver_user_id = named.user_id,
+    row_version = a.row_version + 1
+FROM iam.users named, iam.users demo
+WHERE named.email = 'rashmikadilshan@waypoint.local'
+  AND demo.email = 'driver@waypoint.local'
+  AND a.driver_user_id = demo.user_id;
