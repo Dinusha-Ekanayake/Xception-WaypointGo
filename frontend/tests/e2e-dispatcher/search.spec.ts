@@ -1,9 +1,22 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { issue, order, serve } from "./mocks.ts";
 
 // The dispatcher's global search (issue #usability): Ctrl+K from anywhere,
 // grouped results over what the shell already read, Enter to land on the
 // right screen already filtered or focused where that screen supports it.
+
+const SEARCH = "Search orders, vehicles, trips, issues and depots";
+
+// The header can draw before its key listener attaches, so a press that lands
+// first is lost: press again until the search opens.
+async function openSearch(page: Page, key: string) {
+  const combobox = page.getByRole("combobox", { name: SEARCH });
+  await expect(async () => {
+    await page.keyboard.press(key);
+    await expect(combobox).toBeVisible({ timeout: 1_000 });
+  }).toPass();
+  return combobox;
+}
 
 test("Ctrl+K opens the search, shows grouped results, and Enter opens the matching issue", async ({ page }) => {
   await serve(page, {
@@ -14,8 +27,7 @@ test("Ctrl+K opens the search, shows grouped results, and Enter opens the matchi
 
   // The shortcut is live once the header has drawn.
   await expect(page.getByRole("button", { name: "Search", exact: true })).toBeVisible();
-  await page.keyboard.press("Control+k");
-  const combobox = page.getByRole("combobox", { name: "Search orders, vehicles, trips, issues and depots" });
+  const combobox = await openSearch(page, "Control+k");
   await expect(combobox).toBeFocused();
 
   await combobox.fill("crack");
@@ -38,8 +50,7 @@ test("Escape closes the search with no navigation", async ({ page }) => {
 
   // The shortcut is live once the header has drawn.
   await expect(page.getByRole("button", { name: "Search", exact: true })).toBeVisible();
-  await page.keyboard.press("Control+k");
-  const combobox = page.getByRole("combobox", { name: "Search orders, vehicles, trips, issues and depots" });
+  const combobox = await openSearch(page, "Control+k");
   await combobox.fill("ord");
   await expect(page.getByRole("listbox", { name: "Search results" })).toBeVisible();
 
@@ -59,8 +70,7 @@ test("the slash shortcut opens search from outside a text field, and a touch use
   await ownSearch.fill("");
   await ownSearch.blur();
 
-  await page.keyboard.press("/");
-  const combobox = page.getByRole("combobox", { name: "Search orders, vehicles, trips, issues and depots" });
+  const combobox = await openSearch(page, "/");
   await expect(combobox).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(combobox).toHaveCount(0);
@@ -74,14 +84,8 @@ test("choosing an order lands on Orders with its ref already in the kept search 
   await serve(page, { orders: [order(1, "CONFIRMED", { orderRef: "ORD-8800", outletId: "OUT099" })] });
   await page.goto("/#/overview");
 
-  // The header can draw before its key listener attaches, so a press that
-  // lands first is lost: press again until the search opens.
   await expect(page.getByRole("button", { name: "Search", exact: true })).toBeVisible();
-  const combobox = page.getByRole("combobox", { name: "Search orders, vehicles, trips, issues and depots" });
-  await expect(async () => {
-    await page.keyboard.press("Control+k");
-    await expect(combobox).toBeVisible({ timeout: 1_000 });
-  }).toPass();
+  const combobox = await openSearch(page, "Control+k");
   await combobox.fill("8800");
   await page.getByRole("option", { name: /ORD-8800/ }).click();
 
