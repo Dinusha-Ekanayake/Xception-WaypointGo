@@ -45,21 +45,22 @@ test("a change that went through is confirmed with a toast", async ({ page }) =>
   await expect(page.getByRole("status").filter({ hasText: "Kept deferred." })).toContainText("The store gets the reason at publish");
 });
 
-test("with both depots in view the plan shows both, without asking which", async ({ page }) => {
+test("with both depots in view the plan is one view, narrowed by the header's depot switch", async ({ page }) => {
   await serve(page, { draft: draftPlan() });
   await page.route("**/api/session", (route) => route.fulfill({ json: { ...SESSION, scope: ["depot:Kandy", "depot:Peliyagoda"] } }));
+  // Peliyagoda has no plan yet; Kandy has the draft.
+  await page.route(/\/api\/plans\/(draft|published)\?depot=Peliyagoda/, (route) => route.fulfill({ status: 404, json: { status: 404, title: "Not found" } }));
   await page.goto("/#/plan");
-  await expect(page.getByRole("region", { name: "Plan for Kandy" })).toBeVisible();
-  await expect(page.getByRole("region", { name: "Plan for Peliyagoda" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Plan" })).toHaveCount(1);
   await expect(page.getByText("Which depot are you planning?")).toHaveCount(0);
-  // The page header's depot switch is the same scope: picking one narrows the plan and the sidebar alike.
-  await page.getByRole("radiogroup", { name: "Depots in the plan" }).getByRole("radio", { name: "Peliyagoda" }).click();
-  await expect(page.getByRole("region", { name: "Plan for Kandy" })).toHaveCount(0);
-  await expect(page.getByRole("complementary", { name: "Sidebar" }).getByRole("radio", { name: "Peliyagoda" })).toHaveAttribute("aria-checked", "true");
-  await page.getByRole("radiogroup", { name: "Depots in the plan" }).getByRole("radio", { name: "Both" }).click();
-  // The sidebar narrows it, as on every screen.
-  await page.getByRole("complementary", { name: "Sidebar" }).getByRole("radio", { name: "Kandy" }).click();
-  await expect(page.getByRole("region", { name: "Plan for Peliyagoda" })).toHaveCount(0);
-  // The header is the one every screen has: the bell is there.
+  await expect(page.getByRole("heading", { name: /^No plan yet for Peliyagoda on / })).toBeVisible();
+  await expect(page.getByRole("tablist", { name: "Plan steps" })).toHaveCount(1);
+  // The depot switch is in the page header, not the sidebar.
+  await expect(page.getByRole("complementary", { name: "Sidebar" }).getByRole("radio")).toHaveCount(0);
+  await page.getByRole("radiogroup", { name: "Depots" }).getByRole("radio", { name: "Kandy" }).click();
+  await expect(page.getByRole("heading", { name: /^No plan yet for Peliyagoda/ })).toHaveCount(0);
+  // The same switch, in the same place, on every screen.
+  await page.goto("/#/orders");
+  await expect(page.getByRole("radiogroup", { name: "Depots" }).getByRole("radio", { name: "Kandy" })).toHaveAttribute("aria-checked", "true");
   await expect(page.getByRole("button", { name: /^Notifications/ })).toBeVisible();
 });

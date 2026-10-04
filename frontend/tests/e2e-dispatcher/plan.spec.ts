@@ -4,8 +4,8 @@ import { DEPOT, draftPlan, serve } from "./mocks.ts";
 test("generate, see why an order was deferred, place it by hand, publish", async ({ page }) => {
   const desk = await serve(page);
   await page.goto("/#/plan");
-  await expect(page.getByRole("heading", { name: `No plan for ${DEPOT}` })).toBeVisible();
-  await expect(page.getByText("3 orders are confirmed and waiting to be planned.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: new RegExp(`^No plan yet for ${DEPOT} on `) })).toBeVisible();
+  await expect(page.getByText(`${DEPOT}: 3 orders wait`)).toBeVisible();
 
   await page.getByRole("button", { name: "Generate draft" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Draft version 1: 2 placed, 1 deferred." })).toBeVisible();
@@ -128,12 +128,11 @@ test("with nothing waiting today, the plan points to the next day that has order
   });
 
   await page.goto("/#/plan");
-  await expect(page.getByText("0 orders are confirmed and waiting to be planned.")).toBeVisible();
-  await expect(page.getByText(/^3 orders wait for \w{3} \d{1,2} \w{3}\.$/)).toBeVisible();
+  await expect(page.getByText(`${DEPOT}: 0 orders wait`)).toBeVisible();
   await expect(page.getByRole("button", { name: "Generate draft" })).toHaveCount(0);
 
-  await page.getByRole("button", { name: /^Plan \w{3} \d{1,2} \w{3}$/ }).click();
-  await expect(page.getByText("3 orders are confirmed and waiting to be planned.")).toBeVisible();
+  await page.getByRole("button", { name: /^Plan \w{3} \d{1,2} \w{3} · 3 waiting$/ }).click();
+  await expect(page.getByText(`${DEPOT}: 3 orders wait`)).toBeVisible();
   await expect(page.getByRole("button", { name: "Generate draft" })).toBeVisible();
   expect(asked).toContain(seeded);
 });

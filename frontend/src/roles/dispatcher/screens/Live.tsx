@@ -95,7 +95,7 @@ export default function Live({
   }
 
   // The filter row shows only when it has a choice to offer; the day picker joins the header otherwise.
-  const rowShown = depotNames.length > 1 || view !== "needs";
+  const rowShown = view !== "needs";
   const subtitle = !live.data
     ? "Loading"
     : view === "needs"
@@ -119,7 +119,7 @@ export default function Live({
         syncing={live.loading}
         tools={
           <span className="flex flex-wrap items-center gap-2.5">
-          {!rowShown && <DayPicker warnNotToday date={date} onDate={onDate} />}
+          <DayPicker warnNotToday date={date} onDate={onDate} />
           <Toggle
             label="View"
             value={view}
@@ -136,10 +136,7 @@ export default function Live({
 
       {rowShown && (
       <div className="flex w-full flex-wrap items-center gap-2.5">
-        {depotNames.length > 1 && (
-          <Toggle label="Depot" value={depot} onChange={setDepot} options={[{ value: "all", label: "Both" }, ...depotNames.map((d) => ({ value: d, label: d }))]} />
-        )}
-        {view !== "needs" && (
+        {(
           <Toggle
             label="Status"
             value={filter}
@@ -151,9 +148,6 @@ export default function Live({
             ]}
           />
         )}
-        <span className="ml-auto">
-          <DayPicker warnNotToday date={date} onDate={onDate} />
-        </span>
       </div>
       )}
 

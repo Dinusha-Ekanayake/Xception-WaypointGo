@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { ConnectionStatus, CountBadge, Icon, Notice } from "@shared/ui";
+import { DepotSwitch } from "./depotScope.tsx";
 import { useDispatcherInbox } from "./inbox.tsx";
 import { clock } from "@shared/wording";
 
@@ -21,6 +22,7 @@ export default function PageHeader({
   onSync,
   syncing,
   quiet = false,
+  hideDepots = false,
 }: {
   title: string;
   subtitle: string;
@@ -32,6 +34,8 @@ export default function PageHeader({
   syncing?: boolean;
   /** Leave out the sync pill and the bell, as the Plan screen is drawn. Offline still says so. */
   quiet?: boolean;
+  /** A screen that is not by depot (Forecast reads every depot's model) leaves the switch out. */
+  hideDepots?: boolean;
 }): React.JSX.Element {
   const inbox = useDispatcherInbox();
   const unread = inbox?.inbox.unread ?? 0;
@@ -43,6 +47,7 @@ export default function PageHeader({
           <p className="truncate text-sm text-go-secondary">{subtitle}</p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-3">
+          {!hideDepots && <DepotSwitch />}
           {tools}
           {!quiet && (
             // The status cluster stays together: the bell never wraps away from the sync pill.

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useOnline } from "@shared/api/useResource";
 import { ToastProvider, useScrollMemory } from "@shared/ui";
 import Sidebar, { CompactNav, useFolded, type Badges } from "./Sidebar.tsx";
+import { DepotScopeProvider } from "./depotScope.tsx";
 import { InboxProvider } from "./inbox.tsx";
 import NotificationsPanel from "./NotificationsPanel.tsx";
 import ThreadSheet from "./ThreadSheet.tsx";
@@ -78,6 +79,7 @@ export default function Dispatcher({
   }, [online, refresh]);
 
   return (
+    <DepotScopeProvider value={{ scope, filter: depotFilter, onFilter: setDepotFilter }}>
     <InboxProvider userId={userId}>
     <ToastProvider>
     <NotificationsPanel onNavigate={navigate} />
@@ -130,6 +132,7 @@ export default function Dispatcher({
     </div>
     </ToastProvider>
     </InboxProvider>
+    </DepotScopeProvider>
   );
 }
 

@@ -14,6 +14,7 @@ export { default as DayField } from "./DayTools.tsx";
 
 export default function PlanTools({
   draft,
+  single = true,
   workingLabel,
   snapshots,
   viewing,
@@ -27,6 +28,8 @@ export default function PlanTools({
 }: {
   /** The working plan is an open draft, so it can be saved, regenerated and returned to a saved plan. */
   draft: boolean;
+  /** One depot in view: saved plans and Compare are one depot's, so they need it. */
+  single?: boolean;
   workingLabel: string;
   snapshots: SnapshotView[];
   /** The saved plan being looked at; null is the working plan. */
@@ -55,6 +58,7 @@ export default function PlanTools({
   return (
     <>
       <span className="flex flex-wrap items-center gap-2.5">
+          {single && (
           <Menu
             label="Plan"
             align="right"
@@ -68,6 +72,7 @@ export default function PlanTools({
             </span>
             <Icon name="chevron-down" />
           </Menu>
+          )}
           <button type="button" disabled={!online || busy || !draft || viewing !== null} onClick={onSave} className={cx(pill, "disabled:cursor-not-allowed disabled:opacity-40")}>
             Save snapshot
           </button>
@@ -85,10 +90,10 @@ export default function PlanTools({
           >
             Regenerate
           </Menu>
-          <button type="button" aria-pressed={comparing} onClick={onCompare} className={
+          <button type="button" aria-pressed={comparing} disabled={!single} title={single ? undefined : "Pick one depot above to compare its plans"} onClick={onCompare} className={
               comparing
                 ? "flex items-center gap-1.5 rounded-full bg-go-ink px-4 py-2 text-sm font-medium text-go-card"
-                : cx(pill, "shadow-none ring-1 ring-go-ink")
+                : cx(pill, "shadow-none ring-1 ring-go-ink disabled:cursor-not-allowed disabled:opacity-40")
             }>
             Compare
           </button>
