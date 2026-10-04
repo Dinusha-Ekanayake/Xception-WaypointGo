@@ -13,6 +13,8 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.Resource;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
@@ -111,7 +113,13 @@ public class ThreadController {
   }
 
   @GetMapping("/{threadId}/voice/{voiceNoteId}")
-  public ResponseEntity<byte[]> audio(
+  /**
+   * The audio, with byte ranges: Safari plays and seeks media only through
+   * {@code Range} requests answered {@code 206}, so without them a note plays
+   * once and then cannot be replayed (MSG-15). Returning a {@link Resource} lets
+   * Spring answer a range with the part asked for and {@code Accept-Ranges}.
+   */
+  public ResponseEntity<Resource> audio(
       @PathVariable UUID threadId, @PathVariable UUID voiceNoteId, HttpServletRequest request) {
     var actor = authorizer.require(request, READ, "wpt:message:thread:" + threadId);
     VoiceNotes.Audio audio = voice.audio(actor, threadId, voiceNoteId);
@@ -119,6 +127,7 @@ public class ThreadController {
         .contentType(MediaType.parseMediaType(audio.contentType()))
         .cacheControl(CacheControl.noStore())
         .header("X-Content-Type-Options", "nosniff")
-        .body(audio.content());
+        .header("Accept-Ranges", "bytes")
+        .body(new ByteArrayResource(audio.content()));
   }
 }
