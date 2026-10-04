@@ -6,7 +6,7 @@ import { ExecutionCommandKind, type DemoView, type PositionPoint, type RecordPos
 import { keepFix, type LatLon } from "@shared/ui/map/geo";
 import { batches, toPoint } from "./points.ts";
 import type { DriverGateway } from "./gateway.ts";
-import type { TrailPoint } from "@shared/ui/map/trail";
+import type { TrailPoint } from "./trail.ts";
 
 // The phone's position while a run is open (issue #161, D2). Foreground only:
 // a closed or backgrounded app records nothing, and the dispatcher sees "Last

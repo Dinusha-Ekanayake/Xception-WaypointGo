@@ -4,11 +4,11 @@
 
 ---
 
-## 2026-10-04 - follow the shared driver trail utility
+## 2026-10-04 - follow the restored driver trail utility
 
 `codex/system-constraints` · @ranathungaWK
 
-Update the driver recorder, route map and trail test imports after the CI refactor moved the trail utility into shared map code.
+Keep the driver recorder, route map and trail test imports on the restored driver data utility after the parallel-CI merge briefly moved it.
 Verified from the TypeScript errors in the latest `dev` Actions run. No local tests were run at the user's request.
 
 ## 2026-10-04 - use the published plan date for its edit cutoff
