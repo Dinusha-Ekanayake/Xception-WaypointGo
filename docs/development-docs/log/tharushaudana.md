@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-05 - fix(messaging): voice notes replay on an iPhone
+
+`fix/136-voice-iphone` · @tharushaudana
+
+On preview an iPhone (iOS 18.7) played a voice note once, then showed "Could not play". Safari plays and rewinds media through byte ranges; the audio was always answered `200` in full and the proxy dropped `Range`, so the rewind at the end failed. Now the audio answers ranges with `206`, the proxy forwards `Range`, `Accept-Ranges` and `Content-Range`, a replay whose rewind is refused reloads the note, and an interrupted start (pressing another note) is no longer a failure. Phones record MP4/AAC where they can, which every phone plays (MSG-15).
+Verified: `npm test` (243), driver suite replay spec, dispatcher 63, store 56, loader 31; the range case in `MessagingIntegrationTest` runs in CI.
+Open: notes already recorded as WebM on Firefox depend on Safari's WebM support; to be checked on the iPhone after deploy.
+
+---
+
 ## 2026-10-05 - feat(messaging): resolve reports, real voice in the inbox, signs on the line
 
 `feat/136-voice-fixes` · @tharushaudana
