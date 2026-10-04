@@ -70,7 +70,7 @@ export default function FleetTable({
       </div>
 
       {tab === "workshop" ? (
-        <Pending what="the vehicles in the workshop" waitingOn="a fleet status read in reference data" />
+        <Pending what="the vehicles in the workshop" waitingOn="This list shows vehicles available today; vehicles in the workshop are not listed yet." />
       ) : (
         <div role="table" aria-label="Available vehicles" className="min-w-[690px]">
           <div role="row" className={`${COLUMNS} border-b border-go-rule py-2 text-[13px] text-go-secondary`}>
