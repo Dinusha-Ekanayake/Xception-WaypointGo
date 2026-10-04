@@ -8,7 +8,7 @@ import { cx } from "@shared/ui";
 import { LiveMap, metres, num, type LatLon, type MapLine, type MapMarker } from "@shared/ui/map";
 import type { Stop } from "../data/run.ts";
 import type { PositionRecorder } from "../data/position.ts";
-import { drivenLine, readTrail, type TrailPoint } from "../data/trail.ts";
+import { drivenLine, readTrail, type TrailPoint } from "@shared/ui/map/trail";
 
 const TRAIL_POLL_MS = 15_000;
 

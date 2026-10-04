@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { drivenLine, readTrail, trailPoints } from "../src/roles/driver/data/trail.ts";
+import { drivenLine, readTrail, trailPoints } from "../src/shared/ui/map/trail.ts";
 
 // The trail the driver's map draws: every page, no 0,0 points, no point twice.
 
