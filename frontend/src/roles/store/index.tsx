@@ -79,13 +79,13 @@ export default function Store({
 
   const forOutlet = <T,>(fn: (id: string, s: AbortSignal) => Promise<T>) => (outletId ? (s: AbortSignal) => fn(outletId, s) : null);
   const outlet = useResource(forOutlet(gateway.outlet), outletId);
-  const orders = useResource(forOutlet(gateway.orders), outletId, 20_000);
-  const pending = useResource(forOutlet(gateway.pendingReceipts), outletId, 20_000);
+  const orders = useResource(forOutlet(gateway.orders), outletId, 2_000);
+  const pending = useResource(forOutlet(gateway.pendingReceipts), outletId, 2_000);
   const warehouse = useResource((s) => gateway.catalogueStatus(s), "catalogue", 60_000);
   // Today on the business clock, which demo mode can move.
   useClockOffset();
   const today = depotToday();
-  const deliveries = useResource(outletId ? (s) => gateway.deliveries(outletId, today, s) : null, `${outletId}|${today}`, 20_000);
+  const deliveries = useResource(outletId ? (s) => gateway.deliveries(outletId, today, s) : null, `${outletId}|${today}`, 2_000);
   const orderIds = recentOrderIds(orders.data ?? [], today);
   const issues = useResource(orderIds.length ? (s) => issuesForOrders(gateway, orderIds, s) : null, orderIds.join(","), 60_000);
 

@@ -14,7 +14,7 @@ import type { ReportMarkView, DepotView, DeferralView, FuelView, IssueHistoryVie
 // other dispatcher; useResource keeps the last answer and its time when a poll
 // fails, and the screen says how old it is.
 
-const POLL_MS = 30_000;
+const POLL_MS = 2_000;
 const q = encodeURIComponent;
 
 /** A read that answers 404 for "none yet", which is a state, not a failure. */

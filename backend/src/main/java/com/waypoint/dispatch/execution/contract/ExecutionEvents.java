@@ -31,6 +31,55 @@ public final class ExecutionEvents {
     }
   }
 
+  /**
+   * R-EXE-25: the vehicle is at the outlet, so the store can come out to unload
+   * and check the goods. Published on every arrival, whatever its timing.
+   */
+  public record DeliveryArrived(
+      UUID deliveryId, UUID orderId, UUID tripId, String outletId, String vehicleId, Instant arrivedAt)
+      implements DomainEvent {
+    public static final String TYPE = "delivery.arrived";
+
+    @Override
+    public String type() {
+      return TYPE;
+    }
+
+    @Override
+    public String aggregateType() {
+      return "delivery";
+    }
+
+    @Override
+    public String aggregateId() {
+      return deliveryId.toString();
+    }
+  }
+
+  /**
+   * R-EXE-24: the driver has collected the vehicle and is at the depot, so the
+   * loader can take the trip and load it. Before the trip is released.
+   */
+  public record VehicleAtDepot(String vehicleId, String depotCode, LocalDate serviceDate, UUID driverId, Instant arrivedAt)
+      implements DomainEvent {
+    public static final String TYPE = "vehicle.at_depot";
+
+    @Override
+    public String type() {
+      return TYPE;
+    }
+
+    @Override
+    public String aggregateType() {
+      return "vehicle";
+    }
+
+    @Override
+    public String aggregateId() {
+      return vehicleId + "/" + serviceDate;
+    }
+  }
+
   /** @param outcome {@code DELIVERED} or {@code PARTIAL} */
   public record DeliveryCompleted(
       UUID deliveryId,

@@ -48,7 +48,8 @@ final class LoadingViewMapper {
         (BigDecimal) r.get("volume_cap_m3"),
         holder(r),
         instant(r.get("released_at")),
-        ((Number) r.get("row_version")).longValue());
+        ((Number) r.get("row_version")).longValue(),
+        instant(r.get("driver_at_depot_at")));
   }
 
   static ManifestView manifest(

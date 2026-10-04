@@ -24,6 +24,9 @@ import { useClockOffset } from "@shared/demo/useDemo";
 
 export type Outcome = { ok: true; queued: boolean } | { ok: false; error: Error };
 
+/** How often the day is read again while the app is on screen, so changes reach the phone by themselves. */
+const RUN_POLL_MS = 2_000;
+
 export type Run = {
   date: string;
   loading: boolean;
@@ -90,9 +93,11 @@ export function useRun(gateway: DriverGateway, accountId: string, online: boolea
   }, [accountId]);
 
   // The day: the server's copy when it answers, otherwise the one kept here.
+  const reading = useRef(false);
   useEffect(() => {
     const controller = new AbortController();
     let cancelled = false;
+    reading.current = true;
     (async () => {
       await readDevice();
       if (online) {
@@ -118,9 +123,11 @@ export function useRun(gateway: DriverGateway, accountId: string, online: boolea
       }
     })().finally(() => {
       if (!cancelled) setLoading(false);
+      reading.current = false;
     });
     return () => {
       cancelled = true;
+      reading.current = false;
       controller.abort();
     };
   }, [gateway, date, online, tick, readDevice]);
@@ -146,7 +153,32 @@ export function useRun(gateway: DriverGateway, accountId: string, online: boolea
         // Unreachable: Home keeps today's state; the next pass tries again.
       });
     return () => controller.abort();
-  }, [online, date, today, nothingToday, tick, gateway, depot, accountId]);
+    // Every fifteenth read of the day (about every 30 s): it asks a week of days at once.
+  }, [online, date, today, nothingToday, Math.floor(tick / 15), gateway, depot, accountId]);
+
+  // Keep the day current without a manual reload: every 2 s while the app is on
+  // screen and online, and at once when it comes back to the front or back
+  // online. A release by the loader, a change by dispatch or the store's receipt
+  // then reach the phone by themselves. Writes waiting on the phone are kept
+  // and drawn over the fresh copy as before.
+  useEffect(() => {
+    let last = Date.now();
+    const again = (force: boolean) => {
+      if (document.visibilityState !== "visible" || !navigator.onLine || reading.current) return;
+      if (!force && Date.now() - last < 3_000) return;
+      last = Date.now();
+      refresh();
+    };
+    const timer = window.setInterval(() => again(true), RUN_POLL_MS);
+    const back = () => again(false);
+    document.addEventListener("visibilitychange", back);
+    window.addEventListener("focus", back);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", back);
+      window.removeEventListener("focus", back);
+    };
+  }, [refresh]);
 
   // The shell's engine sent, or kept, something: read the queue again, and the
   // server's copy once nothing of ours is in flight.

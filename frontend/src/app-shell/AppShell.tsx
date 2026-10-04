@@ -4,14 +4,12 @@ import { useCallback, useEffect, useState } from "react";
 import { useOnline } from "@shared/api/useResource";
 import { queuesWrites, useSync, type Role } from "@shared/offline";
 import { keepStorage, watchInstall } from "@shared/pwa";
-import { McpButton, Notice, ShellProvider, SkipLink, StructuredError, cx, setStateScope, type ShellControls } from "@shared/ui";
-import { ROLE_ADDRESSES, roleForHost, sharedHomeFor, sharedHostFor } from "./hostRole.ts";
-import RoleLanding from "./RoleLanding.tsx";
+import { Notice, ShellProvider, SkipLink, StructuredError, cx, setStateScope, type ShellControls } from "@shared/ui";
+import { roleForHost } from "./hostRole.ts";
 import RoleRouter from "./RoleRouter.tsx";
 import SignIn from "./SignIn.tsx";
 import SyncStatus from "./SyncStatus.tsx";
 import DemoBanner from "./DemoBanner.tsx";
-import WrongAddress from "./WrongAddress.tsx";
 import {
   ROLE_LABEL,
   currentSession,
@@ -96,31 +94,14 @@ export default function AppShell(): React.JSX.Element {
     void currentSession().then(setState);
   }, [unverified, online]);
 
-  // A role address such as loader.waypointgo.live shows that role and no other.
-  // Read only once the session is known, so the first paint matches the server's.
+  // A role address such as loader.waypointgo.live opens on that role. Read only
+  // once the session is known, so the first paint matches the server's.
   const host = state ? window.location.hostname : "";
   const pinned = roleForHost(host);
-
-  // The address every role shares has no workspace or sign-in where the role
-  // addresses are served: it offers them, whatever the session on this one says.
-  const landing = sharedHomeFor(host, "dispatcher", ROLE_ADDRESSES) !== null;
 
   useEffect(() => {
     if (state?.kind === "signed-in") setRole(rememberedRole(state.session));
   }, [state]);
-
-  // The read-only MCP address for "Connect AI assistant", taken from the
-  // server's own metadata: it is the configured shared host, never a role
-  // address, and the button stays hidden where MCP is off (404) or unreachable.
-  const [mcpUrl, setMcpUrl] = useState<string | null>(null);
-  const signedIn = state?.kind === "signed-in";
-  useEffect(() => {
-    if (!signedIn) return;
-    fetch("/.well-known/oauth-protected-resource/mcp", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((m: { resource?: unknown } | null) => setMcpUrl(typeof m?.resource === "string" ? m.resource : null))
-      .catch(() => setMcpUrl(null));
-  }, [signedIn]);
 
   // The browser offers to install once, early; hold the offer for settings.
   useEffect(() => watchInstall(), []);
@@ -163,8 +144,6 @@ export default function AppShell(): React.JSX.Element {
 
 
   if (!state) return <main className="flex min-h-dvh items-center justify-center bg-go-canvas font-go text-go-muted">Checking your session…</main>;
-
-  if (landing) return <RoleLanding host={host} />;
 
   if (state.kind === "unreachable") {
     const code = state.status ?? (online ? 503 : "OFFLINE");
@@ -220,7 +199,6 @@ export default function AppShell(): React.JSX.Element {
     return (
       <SignIn
         role={pinned}
-        home={sharedHostFor(host)}
         notice={notice}
         onSignedIn={(session) => {
           setNotice(undefined);
@@ -231,12 +209,13 @@ export default function AppShell(): React.JSX.Element {
   }
 
   const { session } = state;
-  // Signed in on another role's address: say so and point at their own,
-  // rather than show a surface the account does not hold.
-  const misplaced = pinned !== null && !session.roles.includes(pinned);
-  const roles = pinned ? (misplaced ? [] : [pinned]) : session.roles;
-  const active = pinned && !misplaced ? pinned : role ?? rememberedRole(session);
-  const adminPreview = !misplaced && active === "admin" && host.startsWith("admin-preview.");
+  // Signing in opens the account's own workspace on any address. A role
+  // address shows only its role to an account that holds it; any other account
+  // gets the roles it does hold, as on the address every role shares.
+  const own = pinned !== null && session.roles.includes(pinned) ? pinned : null;
+  const roles = own ? [own] : session.roles;
+  const active = own ?? role ?? rememberedRole(session);
+  const adminPreview = active === "admin" && host.startsWith("admin-preview.");
 
   const leave = async (force: boolean) => {
     // Writes still on this device belong to this account; signing out would
@@ -268,7 +247,6 @@ export default function AppShell(): React.JSX.Element {
     },
     onSignOut: () => void leave(false),
     sync: <SyncStatus sync={sync} online={online} />,
-    mcpUrl,
   };
 
   return (
@@ -276,10 +254,9 @@ export default function AppShell(): React.JSX.Element {
       <SkipLink />
       <main id="main-content" className={cx("shell", adminPreview && "relative")}>
         <DemoBanner />
-        {!misplaced && !OWN_HEADER.has(active) && !adminPreview && (
+        {!OWN_HEADER.has(active) && !adminPreview && (
           <div className={cx("mx-auto flex w-full max-w-[1440px] flex-wrap items-center justify-end gap-2 bg-go-canvas px-4 pt-2 font-go", adminPreview && "lg:absolute lg:inset-x-0 lg:top-0 lg:z-10 lg:max-w-none lg:bg-transparent lg:pr-8")}>
             <SyncStatus sync={sync} online={online} />
-            <McpButton url={mcpUrl} className="flex min-h-10 items-center gap-2 rounded-full border border-[#dfe7e6] bg-white px-3.5 text-[13px] font-medium text-[#031b08]" />
             {roles.length > 1 && (
               <div role="tablist" aria-label="Role" className="flex gap-1 rounded-full bg-white p-1">
                 {roles.map((r) => (
@@ -341,11 +318,7 @@ export default function AppShell(): React.JSX.Element {
             )}
           </div>
         )}
-        {misplaced ? (
-          <WrongAddress host={host} pinned={pinned} displayName={session.displayName} roles={session.roles.filter((r) => r !== pinned)} onSwitchAccount={() => void leave(false)} />
-        ) : (
-          <RoleRouter key={active} session={session} role={active} />
-        )}
+        <RoleRouter key={active} session={session} role={active} />
       </main>
     </ShellProvider>
   );

@@ -62,7 +62,7 @@ export function useTrip(
   onQueued: () => void,
   actingUserId: string,
 ): Trip {
-  const manifest = useResource((signal) => gateway.manifest(tripId, signal), `${tripId}`, 15_000);
+  const manifest = useResource((signal) => gateway.manifest(tripId, signal), `${tripId}`, 2_000);
   const [baseline, setBaseline] = useState<number | null>(null);
   const [local, setLocal] = useState<Record<string, Pick<ItemView, "status" | "loadedUnits">>>({});
   const [busy, setBusy] = useState(false);
