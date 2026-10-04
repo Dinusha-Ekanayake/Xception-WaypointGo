@@ -1,14 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { PlanCommandKind, type OrderView, type PlanView } from "@shared/domain/types";
+import { useEffect, useMemo, useState } from "react";
+import { PlanCommandKind, type GenerationJobView, type OrderView, type PlanView } from "@shared/domain/types";
 import { Notice, PrimaryButton, SecondaryButton } from "@shared/ui";
 import { clock, dayLabel } from "@shared/wording";
 import PageHeader from "../PageHeader.tsx";
 import { useFleet } from "../data/fleet.ts";
-import { improvementNote, summarise, working } from "../data/plan.ts";
+import { costNote, improvementNote, summarise, working } from "../data/plan.ts";
 import { decidedCount, decisionRows } from "../data/planViews.ts";
 import { useCommand } from "../data/useCommand.ts";
+import { progressLabel, useGeneration } from "../data/useGeneration.ts";
 import { useNextOrderDay, useOrders, usePlans, waitingToPlan } from "../data/useDay.ts";
 import { useSnapshot, useSnapshots } from "../data/usePlanReads.ts";
 import { Retry } from "./Orders.tsx";
@@ -57,6 +58,8 @@ export default function Plan({
   const [failure, setFailure] = useState<{ error: Error; what: string } | null>(null);
   const [reviseReason, setReviseReason] = useState("");
   const snapshot = useSnapshot(viewing);
+  const generation = useGeneration(depot, date);
+  const planning = progressLabel(generation.following);
 
   const current = plans.data?.[0] ?? null;
   const state = working(current?.published ?? null, current?.draft ?? null);
@@ -104,8 +107,39 @@ export default function Plan({
     contactStore: (orderId, message) => (live ? send("telling the store", PlanCommandKind.contactStore, { planId: live.planId, orderId, message }, null, () => "The store manager has your message.") : Promise.resolve(false)),
   };
 
-  const generate = (keepDecisions: boolean) =>
-    send("generating the plan", PlanCommandKind.generate, { depotCode: depot, serviceDate: date, keepDecisions }, null, (b) => `${keepDecisions ? "Planned again, keeping your decisions. " : ""}${draftNote(b)}`).then((ok) => ok && (setViewing(null), setTab("decide")));
+  /** Follows a queued generation to its end (R-PLN-41), then reads the day again. */
+  const finish = async (job: GenerationJobView, keepDecisions: boolean) => {
+    try {
+      const done = await generation.follow(job);
+      if (done.status === "DONE" && done.result) setNotice(`${keepDecisions ? "Planned again, keeping your decisions. " : ""}${draftNote(done.result)}`);
+      else setFailure({ error: new Error(done.error ?? "Planning stopped without a plan."), what: "generating the plan" });
+    } catch (e) {
+      setFailure({ error: e instanceof Error ? e : new Error(String(e)), what: "generating the plan" });
+    }
+    plans.refresh();
+    orders.refresh();
+    saved.refresh();
+    setViewing(null);
+    setTab("decide");
+  };
+  const generate = async (keepDecisions: boolean) => {
+    setNotice(null);
+    setFailure(null);
+    const sent = await run<GenerationJobView>(PlanCommandKind.generate, { depotCode: depot, serviceDate: date, keepDecisions }, null);
+    if (!sent.ok) {
+      setFailure({ error: sent.error, what: "generating the plan" });
+      plans.refresh();
+      return;
+    }
+    await finish(sent.result, keepDecisions);
+  };
+  // A generation already running for this day, from a reload or another dispatcher: follow it.
+  const { resumed, clearResumed } = generation;
+  useEffect(() => {
+    if (!resumed) return;
+    clearResumed();
+    void finish(resumed, false);
+  }, [resumed]);
 
   const saveSnapshot = () => edit("saving the plan", PlanCommandKind.saveSnapshot, {}, () => "Snapshot saved.");
   const restore = (snapshotId: string, label: string) =>
@@ -123,6 +157,7 @@ export default function Plan({
   const workingLabel = state.stage === "published" ? "Published plan" : "Working draft";
   const error = plans.error ?? orders.error ?? fleet.error;
   const improvement = improvementNote(plan?.improvement ?? null);
+  const cost = viewing ? null : costNote(plan?.cost);
   const viewingSaved = viewing !== null ? saved.data?.find((s) => s.snapshotId === viewing) : undefined;
   const decide = (orderId: string) => (setFocusId(orderId), setTab("decide"));
 
@@ -154,7 +189,7 @@ export default function Plan({
             viewing={viewing}
             onView={setViewing}
             online={online}
-            busy={busy}
+            busy={busy || planning !== null}
             onSave={() => void saveSnapshot()}
             onRegenerate={(keep) => void generate(keep)}
             onCompare={() => setTab("compare")}
@@ -165,6 +200,12 @@ export default function Plan({
       {error && <Refusal error={error} what="the plan" action={<Retry onClick={() => (plans.refresh(), orders.refresh(), fleet.refresh())} />} />}
       {failure && <Refusal error={failure.error} what={failure.what} />}
       {notice && <Notice tone="info" title={notice} live />}
+      {planning && <Notice tone="neutral" title={planning} live>The plan is being made in the background; it opens here when it is ready, even after a reload.</Notice>}
+      {cost?.compare && live && tab !== "compare" && (
+        <Notice tone="info" title={cost.title} action={<SecondaryButton onClick={() => setTab("compare")}>Compare with the rules plan</SecondaryButton>}>
+          {cost.detail}
+        </Notice>
+      )}
       {viewing && (
         <Notice
           tone="neutral"
@@ -183,6 +224,7 @@ export default function Plan({
         <p className="text-xs text-go-secondary">
           {[
             improvement ? `${improvement.title}. ${improvement.detail}` : null,
+            cost && !cost.compare ? `${cost.title}. ${cost.detail}` : null,
             !plan.improvement && plan.engine.includes("scarce") && plan.allocations.some((a) => a.source !== "ENGINE")
               ? "Refrigerated vehicles were not planned again: your decisions were kept, so the second pass that could move them did not run."
               : null,
@@ -208,8 +250,8 @@ export default function Plan({
               <PrimaryButton onClick={() => onDate(nextDay.data!.date)}>Plan {dayLabel(nextDay.data.date)}</PrimaryButton>
             </>
           ) : (
-            <PrimaryButton disabled={!online || busy} onClick={() => void generate(false)}>
-              {busy ? "Generating…" : "Generate draft"}
+            <PrimaryButton disabled={!online || busy || planning !== null} onClick={() => void generate(false)}>
+              {planning ?? (busy ? "Generating…" : "Generate draft")}
             </PrimaryButton>
           )}
         </section>

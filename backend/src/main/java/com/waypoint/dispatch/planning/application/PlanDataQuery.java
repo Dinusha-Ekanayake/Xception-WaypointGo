@@ -16,6 +16,8 @@ import com.waypoint.dispatch.planning.contract.PlanViews.TripPreview;
 import com.waypoint.dispatch.planning.contract.PlanViews.AllocationView;
 import com.waypoint.dispatch.planning.contract.PlanViews.PlanSummaryView;
 import com.waypoint.dispatch.planning.contract.PlanViews.TripSummaryView;
+import com.waypoint.dispatch.planning.contract.PlanViews.CostView;
+import com.waypoint.dispatch.planning.contract.PlanViews.GenerationJobView;
 import com.waypoint.dispatch.planning.contract.PlanViews.ImprovementView;
 import com.waypoint.dispatch.planning.contract.PlanViews.ConstraintResultView;
 import com.waypoint.dispatch.planning.contract.PlanViews.DeferralView;
@@ -41,6 +43,7 @@ import com.waypoint.dispatch.planning.domain.PlanningRun.Placement;
 import com.waypoint.dispatch.planning.domain.PlanningRun.Proposed;
 import com.waypoint.dispatch.planning.domain.PlanningRun.TripMove;
 import com.waypoint.dispatch.planning.domain.TripTimeline;
+import com.waypoint.dispatch.planning.infrastructure.JdbcGenerationJobs;
 import com.waypoint.dispatch.planning.infrastructure.JdbcPlanRepository;
 import com.waypoint.dispatch.planning.infrastructure.JdbcPlanRepository.AllocationRow;
 import com.waypoint.dispatch.planning.infrastructure.JdbcPlanRepository.DeferralRow;
@@ -100,6 +103,7 @@ public class PlanDataQuery implements PlanQuery {
   private final ConstraintRegistry registry;
   private final ObjectProvider<PredictionQuery> predictions;
   private final ObjectMapper json;
+  private final JdbcGenerationJobs jobs;
 
   PlanDataQuery(
       Database database,
@@ -110,7 +114,8 @@ public class PlanDataQuery implements PlanQuery {
       PlanningRevisions revisions,
       ConstraintRegistry registry,
       ObjectProvider<PredictionQuery> predictions,
-      ObjectMapper json) {
+      ObjectMapper json,
+      JdbcGenerationJobs jobs) {
     this.database = database;
     this.plans = plans;
     this.reference = reference;
@@ -120,6 +125,37 @@ public class PlanDataQuery implements PlanQuery {
     this.registry = registry;
     this.predictions = predictions;
     this.json = json;
+    this.jobs = jobs;
+  }
+
+  // ---- queued generations (R-PLN-41) ----------------------------------------------
+
+  /** One job; row-level security hides a job outside the actor's depots, which reads as not found. */
+  public GenerationJobView job(Actor actor, String depotCode, UUID jobId) {
+    requireDepot(actor, depotCode);
+    return read(actor.userId(), () -> jobs.find(jobId).filter(j -> j.depotCode().equals(depotCode)).map(this::jobView))
+        .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No plan generation " + jobId));
+  }
+
+  /** The latest job for a depot and day, so a screen opened mid-generation can follow it. */
+  public GenerationJobView latestJob(Actor actor, String depotCode, LocalDate serviceDate) {
+    requireDepot(actor, depotCode);
+    return read(actor.userId(), () -> jobs.latest(depotCode, serviceDate).map(this::jobView))
+        .orElseThrow(() -> new DomainException(
+            ErrorCode.NOT_FOUND, "No plan generation for " + depotCode + " on " + serviceDate));
+  }
+
+  private GenerationJobView jobView(JdbcGenerationJobs.JobRow j) {
+    Optional<Map<String, Object>> result = j.result().map(text -> {
+      try {
+        return json.readValue(text, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+      } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+        throw new IllegalStateException("unreadable job result", e);
+      }
+    });
+    return new GenerationJobView(j.jobId(), j.depotCode(), j.serviceDate(),
+        j.status().toUpperCase(java.util.Locale.ROOT), j.attempts(), j.planId(), j.error(), j.createdAt(),
+        j.startedAt(), j.finishedAt(), result);
   }
 
   // ---- contract: as the ambient actor --------------------------------------
@@ -574,7 +610,16 @@ public class PlanDataQuery implements PlanQuery {
   }
 
   private PlanView assemble(RunRow run, boolean withoutPredictor) {
-    List<AllocationRow> allocations = plans.allocations(run.planId());
+    return assemble(run, plans.trips(run.planId()), plans.allocations(run.planId()), withoutPredictor);
+  }
+
+  /** A plan that exists only in memory, such as the rules plan beside a draft (planning v2). */
+  PlanView viewOf(PlanRecords.Rows rows) {
+    return assemble(rows.run(), rows.trips(), rows.allocations(), true);
+  }
+
+  private PlanView assemble(
+      RunRow run, List<JdbcPlanRepository.TripRow> tripRows, List<AllocationRow> allocations, boolean withoutPredictor) {
     Map<String, LocalDate> lastServed = plans.lastServed(run.depotCode(), run.serviceDate());
     Map<UUID, List<StopView>> stops =
         allocations.stream()
@@ -584,7 +629,7 @@ public class PlanDataQuery implements PlanQuery {
                     a -> a.tripId().orElseThrow(),
                     Collectors.mapping(PlanDataQuery::toStop, Collectors.toList())));
     List<TripView> trips =
-        plans.trips(run.planId()).stream()
+        tripRows.stream()
             .map(t -> toView(t, stops.getOrDefault(t.tripId(), List.of())))
             .toList();
     return new PlanView(
@@ -606,7 +651,10 @@ public class PlanDataQuery implements PlanQuery {
         run.engine(),
         run.improvement()
             .map(i -> new ImprovementView(i.greedyServed(), i.greedyDeferred(), i.served(), i.deferred(), i.improved(),
-                i.chilledVolumeGainedM3(), i.stoppedBy().name(), i.chilledCandidates(), i.chilledSearched())));
+                i.chilledVolumeGainedM3(), i.stoppedBy().name(), i.chilledCandidates(), i.chilledSearched())),
+        run.cost()
+            .map(c -> new CostView(c.trigger().name(), c.improved(), c.rulesVehicles(), c.rulesTrips(), c.rulesLitres(),
+                c.vehicles(), c.trips(), c.litres(), c.iterations(), c.stoppedBy().name())));
   }
 
   /** Called inside a read, like {@link #assemble}. */

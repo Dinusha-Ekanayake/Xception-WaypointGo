@@ -8,6 +8,7 @@ import com.waypoint.dispatch.planning.contract.PlanViews.PlanStatus;
 import com.waypoint.dispatch.planning.domain.ConstraintResult;
 import com.waypoint.dispatch.planning.domain.PriorityPolicy;
 import com.waypoint.dispatch.planning.domain.RuleSet;
+import com.waypoint.dispatch.planning.domain.CostReplan;
 import com.waypoint.dispatch.planning.domain.ScarceFleetReplan;
 import com.waypoint.dispatch.platform.db.Database;
 import java.math.BigDecimal;
@@ -45,7 +46,7 @@ public class JdbcPlanRepository {
       """
       plan_id, depot_code, service_date, plan_version, row_version, status, reference_version_id,
       rule_set_id, priority_policy_version_id, supersedes, revision_reason, demand_fingerprint, stale,
-      partial, engine, improvement::text AS improvement, planned_without_predictor, generated_at, generated_by,
+      partial, engine, improvement::text AS improvement, cost_summary::text AS cost_summary, planned_without_predictor, generated_at, generated_by,
       published_at, published_by
       """;
 
@@ -84,6 +85,7 @@ public class JdbcPlanRepository {
       boolean partial,
       String engine,
       Optional<ScarceFleetReplan.Summary> improvement,
+      Optional<CostReplan.Summary> cost,
       boolean plannedWithoutPredictor,
       Instant generatedAt,
       UUID generatedBy,
@@ -588,9 +590,9 @@ public class JdbcPlanRepository {
         INSERT INTO planning.runs
             (plan_id, depot_code, service_date, plan_version, row_version, status,
              reference_version_id, rule_set_id, priority_policy_version_id, supersedes, revision_reason,
-             demand_fingerprint, stale, partial, engine, improvement, planned_without_predictor,
+             demand_fingerprint, stale, partial, engine, improvement, cost_summary, planned_without_predictor,
              generated_at, generated_by, command_id, published_at, published_by, updated_at)
-        VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?, ?, ?, ?, ?, ?, ?)
         """,
         run.planId(),
         run.depotCode(),
@@ -607,6 +609,7 @@ public class JdbcPlanRepository {
         run.partial(),
         run.engine(),
         run.improvement().map(this::write).orElse(null),
+        run.cost().map(this::write).orElse(null),
         run.plannedWithoutPredictor(),
         Timestamp.from(run.generatedAt()),
         run.generatedBy(),
@@ -855,7 +858,15 @@ public class JdbcPlanRepository {
     }
   }
 
-  private String write(ScarceFleetReplan.Summary summary) {
+  private CostReplan.Summary cost(String text) {
+    try {
+      return json.readValue(text, CostReplan.Summary.class);
+    } catch (JsonProcessingException e) {
+      throw new IllegalStateException("cannot read the cost summary", e);
+    }
+  }
+
+  private String write(Object summary) {
     try {
       return json.writeValueAsString(summary);
     } catch (JsonProcessingException e) {
@@ -897,6 +908,7 @@ public class JdbcPlanRepository {
         (Boolean) row.get("partial"),
         (String) row.get("engine"),
         Optional.ofNullable((String) row.get("improvement")).map(this::improvement),
+        Optional.ofNullable((String) row.get("cost_summary")).map(this::cost),
         (Boolean) row.get("planned_without_predictor"),
         ((Timestamp) row.get("generated_at")).toInstant(),
         (UUID) row.get("generated_by"),

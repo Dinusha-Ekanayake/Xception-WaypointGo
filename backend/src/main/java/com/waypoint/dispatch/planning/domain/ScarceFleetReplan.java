@@ -53,6 +53,12 @@ public final class ScarceFleetReplan {
   /** The search budget of this engine version. Changing it is a new engine name. */
   public static final long MAX_NODES = 2_000_000L;
 
+  /**
+   * The most days kept per reefer. Dropping covered days compares each with
+   * those kept, so without a cap a large day's listing would cost its square.
+   */
+  static final int MAX_DAYS = 4096;
+
   /** The most chilled orders the search ranks at once (one bit each); the rest go to insertion. */
   public static final int MAX_POOL = 62;
 
@@ -166,11 +172,15 @@ public final class ScarceFleetReplan {
     }
 
     // List each reefer's days, then search one per reefer.
+    // Listing counts against the same node budget and clock as the search: on a large day the pairs of
+    // trips alone run to billions, and an unbounded listing would hold a planning worker forever.
+    // Listing may use at most half the nodes, so the search always has the other half.
+    Listing listing = new Listing(maxNodes / 2, nanoTime, deadlineNanos);
     List<List<DayPlan>> plans = new ArrayList<>();
     for (FleetVehicle v : reefers) {
-      plans.add(dayPlans(v, chilled, bit, ctx));
+      plans.add(dayPlans(v, chilled, bit, ctx, listing));
     }
-    Search search = new Search(plans, maxNodes, nanoTime, deadlineNanos);
+    Search search = new Search(plans, maxNodes - listing.nodes, nanoTime, deadlineNanos);
     long greedyMask = 0;
     for (PlanOrder o : chilled) {
       if (greedyServed.contains(o.orderId())) {
@@ -182,6 +192,11 @@ public final class ScarceFleetReplan {
       bits.add(1L << bit.get(o.orderId()));
     }
     search.run(bits, greedyMask);
+    // The summary counts both, and says so when listing was cut short: the days searched were not all of them.
+    search.nodes += listing.nodes;
+    if (search.stoppedBy == Stop.NONE) {
+      search.stoppedBy = listing.stop;
+    }
     if (search.choice == null) {
       return new Result(greedy, summary(unchanged, search));
     }
@@ -267,14 +282,15 @@ public final class ScarceFleetReplan {
   record DayPlan(VehicleDay day, long mask) {}
 
   /** Every feasible day of one or two chilled trips, without the days another day covers. */
-  private List<DayPlan> dayPlans(FleetVehicle v, List<PlanOrder> chilled, Map<UUID, Integer> bit, PlanContext ctx) {
+  private List<DayPlan> dayPlans(
+      FleetVehicle v, List<PlanOrder> chilled, Map<UUID, Integer> bit, PlanContext ctx, Listing listing) {
     Map<String, List<PlanOrder>> groups = new LinkedHashMap<>();
     for (PlanOrder o : chilled) {
       groups.computeIfAbsent(o.brand() + "|" + o.district() + "|" + o.temperatureClass(), k -> new ArrayList<>()).add(o);
     }
     List<TripOption> trips = new ArrayList<>();
     for (List<PlanOrder> group : groups.values()) {
-      subsets(v, group, 0, null, 0L, bit, ctx, trips);
+      subsets(v, group, 0, null, 0L, bit, ctx, trips, listing);
     }
 
     List<DayPlan> days = new ArrayList<>();
@@ -282,13 +298,14 @@ public final class ScarceFleetReplan {
       days.add(new DayPlan(new VehicleDay(v, List.of(t.trip())), t.mask()));
     }
     if (ctx.rules().maxTrips() >= 2) {
-      for (int i = 0; i < trips.size(); i++) {
-        for (int j = i + 1; j < trips.size(); j++) {
+      for (int i = 0; i < trips.size() && !listing.spent(); i++) {
+        for (int j = i + 1; j < trips.size() && !listing.spent(); j++) {
           TripOption a = trips.get(i);
           TripOption b = trips.get(j);
           if ((a.mask() & b.mask()) != 0) {
             continue;
           }
+          listing.count();
           // Two Fresh trips run in the order given, so try both.
           VehicleDay ab = new VehicleDay(v, List.of(a.trip(), b.trip()));
           VehicleDay ba = new VehicleDay(v, List.of(b.trip(), a.trip()));
@@ -308,8 +325,9 @@ public final class ScarceFleetReplan {
    */
   private void subsets(
       FleetVehicle v, List<PlanOrder> group, int from, Trip current, long mask, Map<UUID, Integer> bit,
-      PlanContext ctx, List<TripOption> out) {
-    for (int i = from; i < group.size(); i++) {
+      PlanContext ctx, List<TripOption> out, Listing listing) {
+    for (int i = from; i < group.size() && !listing.spent(); i++) {
+      listing.count();
       PlanOrder o = group.get(i);
       Trip next = current == null ? Trip.of(o) : current.with(o);
       if (!feasible(new VehicleDay(v, List.of(next)), ctx)) {
@@ -317,7 +335,7 @@ public final class ScarceFleetReplan {
       }
       long nextMask = mask | (1L << bit.get(o.orderId()));
       out.add(new TripOption(next, nextMask));
-      subsets(v, group, i + 1, next, nextMask, bit, ctx, out);
+      subsets(v, group, i + 1, next, nextMask, bit, ctx, out, listing);
     }
   }
 
@@ -337,6 +355,10 @@ public final class ScarceFleetReplan {
       if (!seen.add(d.mask())) {
         continue;
       }
+      if (kept.size() >= MAX_DAYS) {
+        // Best first, so the days left out serve fewer or lower ranked orders than every one kept.
+        break;
+      }
       boolean covered = false;
       for (DayPlan k : kept) {
         if ((d.mask() & k.mask()) == d.mask()) {
@@ -350,6 +372,37 @@ public final class ScarceFleetReplan {
     }
     kept.sort(Comparator.comparing(DayPlan::mask, Comparator.reverseOrder()));
     return kept;
+  }
+
+  /** The node budget and clock while listing days, shared with the search after it. */
+  private static final class Listing {
+    private final long max;
+    private final LongSupplier nanoTime;
+    private final long deadline;
+    long nodes;
+    Stop stop = Stop.NONE;
+
+    Listing(long max, LongSupplier nanoTime, long deadline) {
+      this.max = max;
+      this.nanoTime = nanoTime;
+      this.deadline = deadline;
+    }
+
+    void count() {
+      nodes++;
+    }
+
+    boolean spent() {
+      if (stop != Stop.NONE) {
+        return true;
+      }
+      if (nodes >= max) {
+        stop = Stop.NODES;
+      } else if ((nodes & 1023) == 0 && nanoTime.getAsLong() > deadline) {
+        stop = Stop.CLOCK;
+      }
+      return stop != Stop.NONE;
+    }
   }
 
   // ---- the search ------------------------------------------------------------

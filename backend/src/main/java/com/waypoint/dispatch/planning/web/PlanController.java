@@ -9,6 +9,7 @@ import com.waypoint.dispatch.planning.contract.PlanViews.FuelView;
 import com.waypoint.dispatch.planning.contract.PlanViews.InterchangePreview;
 import com.waypoint.dispatch.planning.contract.PlanViews.PlacementView;
 import com.waypoint.dispatch.planning.contract.PlanViews.ComparisonView;
+import com.waypoint.dispatch.planning.contract.PlanViews.GenerationJobView;
 import com.waypoint.dispatch.planning.contract.PlanViews.PlanView;
 import com.waypoint.dispatch.planning.contract.PlanViews.SnapshotDetailView;
 import com.waypoint.dispatch.planning.contract.PlanViews.SnapshotView;
@@ -42,6 +43,21 @@ public class PlanController {
   public PlanController(PlanDataQuery plans, RequestAuthorizer authorizer) {
     this.plans = plans;
     this.authorizer = authorizer;
+  }
+
+  /** A queued plan generation (R-PLN-41), which the screen follows after Generate. */
+  @GetMapping("/jobs/{jobId}")
+  public GenerationJobView job(@PathVariable UUID jobId, @RequestParam String depot, HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:plan:depot:" + depot);
+    return plans.job(actor, depot, jobId);
+  }
+
+  /** The latest generation for a depot and day; 404 while there has been none. */
+  @GetMapping("/jobs")
+  public GenerationJobView latestJob(
+      @RequestParam String depot, @RequestParam LocalDate date, HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:plan:depot:" + depot);
+    return plans.latestJob(actor, depot, date);
   }
 
   /** The current published plan for a depot and day; 404 while none is published. */

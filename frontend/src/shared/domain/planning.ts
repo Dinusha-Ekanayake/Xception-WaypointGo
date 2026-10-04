@@ -92,6 +92,41 @@ export type PlanView = {
   engine: string;
   /** What the engine's second pass achieved over its first; null when no second pass ran. */
   improvement: ImprovementView | null;
+  /** Planning v2: the cost stage against the rules plan, or why it did not run; absent on older runs. */
+  cost?: CostView | null;
+};
+
+/**
+ * Planning v2 (R-PLN-38, R-PLN-39): the same orders on fewer vehicles and less
+ * fuel. The rules plan's figures against the plan kept, or why the search was skipped.
+ */
+export type CostView = {
+  trigger: "DEFERRALS" | "LOW_UTILISATION" | "SKIPPED_SIMPLE_DAY" | "SKIPPED_KEPT_DECISIONS" | "SKIPPED_DISABLED";
+  improved: boolean;
+  rulesVehicles: number;
+  rulesTrips: number;
+  rulesLitres: Decimal;
+  vehicles: number;
+  trips: number;
+  litres: Decimal;
+  iterations: number;
+  stoppedBy: "NONE" | "CLOCK";
+};
+
+/** A queued plan generation (R-PLN-41): Generate answers with one, and the screen follows it. */
+export type GenerationJobView = {
+  jobId: Uuid;
+  depotCode: string;
+  serviceDate: IsoDate;
+  status: "QUEUED" | "RUNNING" | "DONE" | "FAILED";
+  attempts: number;
+  planId: Uuid | null;
+  error: string | null;
+  createdAt: IsoInstant;
+  startedAt: IsoInstant | null;
+  finishedAt: IsoInstant | null;
+  /** When done: the draft's id, version and counts, as Generate used to answer. */
+  result: { planId: Uuid; planVersion: number; status: string; rowVersion: number; served: number; deferred: number; unservable: number; partial: boolean } | null;
 };
 
 /** GET /api/plans/{published|draft}/summary (issue #177): a plan without its allocations. */
@@ -228,7 +263,8 @@ export type TripPreview = {
   checks: ConstraintResultView[];
 };
 
-export type SnapshotKind = "AUTO" | "MANUAL" | "REGENERATED";
+/** RULES: the plan the rules made, kept beside an optimised draft for comparison (planning v2). */
+export type SnapshotKind = "AUTO" | "MANUAL" | "REGENERATED" | "RULES";
 
 /** A saved plan's header. */
 export type SnapshotView = {

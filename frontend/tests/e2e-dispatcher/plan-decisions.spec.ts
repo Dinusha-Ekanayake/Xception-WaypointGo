@@ -179,3 +179,23 @@ test("the board marks a tight trip, filters by temperature and labels a free tri
   await page.getByRole("button", { name: "Clear" }).click();
   await expect(page.getByRole("button", { name: /VEH043 trip 1/ })).toBeVisible();
 });
+
+test("an optimised draft says what it saved and opens Compare on the rules plan made beside it", async ({ page }) => {
+  // Planning v2 (R-PLN-38, PLN-37): the cost stage replaced the rules plan; the rules plan is a RULES snapshot.
+  const draft = {
+    ...draftPlan(),
+    engine: "priority-insertion-v1+scarce-replan-v1+cost-alns-v1",
+    cost: {
+      trigger: "DEFERRALS" as const, improved: true, rulesVehicles: 16, rulesTrips: 32, rulesLitres: "724.8",
+      vehicles: 13, trips: 25, litres: "610.6", iterations: 2000, stoppedBy: "NONE" as const,
+    },
+  };
+  await serve(page, { draft, snapshots: [snapshotOf(1, "Auto plan", "AUTO"), snapshotOf(2, "Rules plan", "RULES")] });
+  await page.goto("/#/plan");
+  const note = page.getByText("Optimised: 13 vehicles, 25 trips, 611 L");
+  await expect(note).toBeVisible();
+  await expect(page.getByText("Rules plan: 16 vehicles, 32 trips, 725 L. The same orders are served with 3 fewer vehicles and 114 L less fuel.")).toBeVisible();
+  await page.getByRole("button", { name: "Compare with the rules plan" }).click();
+  const compare = page.getByRole("region", { name: "Compare plans" });
+  await expect(compare).toContainText("Rules plan");
+});

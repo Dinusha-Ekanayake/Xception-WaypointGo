@@ -1,11 +1,13 @@
 package com.waypoint.dispatch.planning.application;
 
+import com.waypoint.dispatch.referencedata.contract.ReferenceViews;
 import com.waypoint.dispatch.ordering.contract.OrderQuery;
 import com.waypoint.dispatch.ordering.contract.OrderStatus;
 import com.waypoint.dispatch.ordering.contract.OrderViews.DemandView;
 import com.waypoint.dispatch.ordering.contract.OrderViews.OrderView;
 import com.waypoint.dispatch.planning.domain.AllocationEngine.Problem;
 import com.waypoint.dispatch.planning.domain.DemandFingerprint;
+import com.waypoint.dispatch.planning.domain.Coordinates;
 import com.waypoint.dispatch.planning.domain.DistrictTravel;
 import com.waypoint.dispatch.planning.domain.FleetVehicle;
 import com.waypoint.dispatch.planning.domain.PlanOrder;
@@ -45,9 +47,12 @@ import org.springframework.stereotype.Component;
 public class PlanningProblems {
   private final OrderQuery orders;
   private final ReferenceQuery reference;
+  private final ReferenceSnapshotCache cache;
   private final JdbcPlanRepository plans;
 
-  public PlanningProblems(OrderQuery orders, ReferenceQuery reference, JdbcPlanRepository plans) {
+  public PlanningProblems(
+      OrderQuery orders, ReferenceQuery reference, JdbcPlanRepository plans, ReferenceSnapshotCache cache) {
+    this.cache = cache;
     this.orders = orders;
     this.reference = reference;
     this.plans = plans;
@@ -103,7 +108,7 @@ public class PlanningProblems {
     Map<String, DistrictTravel> travel = new HashMap<>();
     Set<String> districts = demand.stream().map(DemandView::districtName).collect(Collectors.toSet());
     for (String district : districts) {
-      reference.travelProfile(district, referenceVersionId).map(PlanningProblems::toTravel)
+      cache.travelProfile(district, referenceVersionId).map(PlanningProblems::toTravel)
           .ifPresent(t -> travel.put(district, t));
     }
 
@@ -112,7 +117,7 @@ public class PlanningProblems {
             .map(VehicleView::vehicleId)
             .collect(Collectors.toSet());
     Map<String, FleetVehicle> fleet = new LinkedHashMap<>();
-    for (VehicleView v : reference.vehiclesOfDepot(depotCode, referenceVersionId)) {
+    for (VehicleView v : cache.vehiclesOfDepot(depotCode, referenceVersionId)) {
       fleet.put(
           v.vehicleId(),
           new FleetVehicle(
@@ -149,7 +154,7 @@ public class PlanningProblems {
   private PlanOrder toPlanOrder(
       DemandView d, String depotCode, LocalDate serviceDate, UUID version, Map<String, LocalDate> lastServed) {
     OutletView outlet =
-        reference
+        cache
             .outlet(d.outletId(), version)
             .orElseThrow(
                 () ->
@@ -158,7 +163,7 @@ public class PlanningProblems {
                         "outlet " + d.outletId() + " is not in reference version " + version,
                         List.of("PLN-14")));
     BigDecimal allowance =
-        reference
+        cache
             .serviceAllowance(d.brandCode(), outlet.dockType(), version)
             .orElseThrow(
                 () ->
@@ -192,7 +197,15 @@ public class PlanningProblems {
         allowance,
         d.deferralCount(),
         daysSince,
-        d.originalRequestedDate());
+        d.originalRequestedDate(),
+        exactPoint(outlet.location()));
+  }
+
+  /** Only an exact point orders stops by distance; a district centre says nothing about where the outlet is (R-PLN-40). */
+  private static Optional<Coordinates> exactPoint(Optional<ReferenceViews.GeoPoint> location) {
+    return location
+        .filter(p -> "exact".equals(p.precision()))
+        .map(p -> new Coordinates(p.latitude().doubleValue(), p.longitude().doubleValue()));
   }
 
   private static DistrictTravel toTravel(TravelView t) {

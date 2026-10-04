@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -62,7 +63,8 @@ public final class PlanViews {
       List<AllocationView> allocations,
       long rowVersion,
       String engine,
-      Optional<ImprovementView> improvement) {
+      Optional<ImprovementView> improvement,
+      Optional<CostView> cost) {
 
     public PlanView {
       trips = List.copyOf(trips);
@@ -247,6 +249,41 @@ public final class PlanViews {
    * @param chilledSearched of {@code chilledCandidates}, how many the search
    *     ranked; the rest were placed by insertion (rule 9)
    */
+  /**
+   * The cost stage (planning v2): the rules plan's vehicles, trips and litres
+   * against the plan kept, or why the stage did not run (R-PLN-38, R-PLN-39).
+   *
+   * @param trigger DEFERRALS, LOW_UTILISATION, or SKIPPED_SIMPLE_DAY, SKIPPED_KEPT_DECISIONS, SKIPPED_DISABLED
+   */
+  public record CostView(
+      String trigger,
+      boolean improved,
+      int rulesVehicles,
+      int rulesTrips,
+      BigDecimal rulesLitres,
+      int vehicles,
+      int trips,
+      BigDecimal litres,
+      int iterations,
+      String stoppedBy) {}
+
+  /**
+   * A queued plan generation (R-PLN-41): QUEUED, RUNNING, DONE or FAILED. When
+   * done, {@code planId} is the draft it wrote; when failed, {@code error} says why.
+   */
+  public record GenerationJobView(
+      UUID jobId,
+      String depotCode,
+      LocalDate serviceDate,
+      String status,
+      int attempts,
+      Optional<UUID> planId,
+      Optional<String> error,
+      Instant createdAt,
+      Optional<Instant> startedAt,
+      Optional<Instant> finishedAt,
+      Optional<Map<String, Object>> result) {}
+
   public record ImprovementView(
       int firstPassServed,
       int firstPassDeferred,
@@ -289,7 +326,9 @@ public final class PlanViews {
     /** Saved by a dispatcher. */
     MANUAL,
     /** The draft a regenerate replaced. */
-    REGENERATED
+    REGENERATED,
+    /** The plan the rules made, when the cost stage replaced it (planning v2): offered for comparison. */
+    RULES
   }
 
   /** A saved plan's header: enough to list it. */
