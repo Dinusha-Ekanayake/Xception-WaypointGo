@@ -264,7 +264,12 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
     if (pathname.startsWith("/api/execution/deliveries/")) {
       return route.fulfill(json({ deliveryId: pathname.split("/").pop(), driver: { displayName: "Dilan R.", employeeCode: "DRV-00133" } }));
     }
-    if (pathname.startsWith("/api/execution/trips/")) return route.fulfill(json({ items: desk.trail ?? [], nextCursor: null }));
+    if (pathname.startsWith("/api/execution/trips/")) {
+      // Two pages, as the keyset API answers a long trip: the map must read past the first.
+      const trail = desk.trail ?? [];
+      if (url.searchParams.get("cursor")) return route.fulfill(json({ items: trail.slice(1), nextCursor: null }));
+      return route.fulfill(json({ items: trail.slice(0, 1), nextCursor: trail.length > 1 ? "page-2" : null }));
+    }
     if (pathname.startsWith("/api/reference/depots/")) {
       const code = decodeURIComponent(pathname.split("/").pop() ?? "");
       return route.fulfill(json({ depotCode: code, displayName: code, location: { latitude: "6.960000", longitude: "79.880000", precision: "approximate" } }));

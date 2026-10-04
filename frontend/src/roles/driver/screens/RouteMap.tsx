@@ -1,14 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { request } from "@shared/api/client";
-import type { OutletView, TrailPointView } from "@shared/domain/types";
+import type { OutletView } from "@shared/domain/types";
 import { clock, hhmm } from "@shared/wording";
 import { cx } from "@shared/ui";
-import { LiveMap, metres, num, type LatLon, type MapLine, type MapMarker } from "@shared/ui/map";
+import { drivenLine, LiveMap, metres, num, readTripTrail, type LatLon, type MapLine, type MapMarker, type TrailPoint } from "@shared/ui/map";
 import type { Stop } from "../data/run.ts";
 import type { PositionRecorder } from "../data/position.ts";
-import { drivenLine, readTrail, type TrailPoint } from "../data/trail.ts";
 
 const TRAIL_POLL_MS = 15_000;
 
@@ -63,11 +61,8 @@ export default function RouteMap({
   useEffect(() => {
     setServer([]);
     const ctrl = new AbortController();
-    const path = `/api/execution/trips/${encodeURIComponent(next.tripId)}/trail?limit=500`;
     const load = () =>
-      readTrail((cursor) =>
-        request<{ items: TrailPointView[]; nextCursor?: string | null }>(cursor ? `${path}&cursor=${encodeURIComponent(cursor)}` : path, { signal: ctrl.signal }),
-      )
+      readTripTrail(next.tripId, ctrl.signal)
         .then((points) => { if (!ctrl.signal.aborted) setServer(points); })
         .catch(() => undefined);
     void load();

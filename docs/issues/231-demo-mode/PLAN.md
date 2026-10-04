@@ -170,7 +170,7 @@ Required OFF proof: existing test files remain unchanged, new tests are additive
 
 - [ ] Add `RouteWalkerTest` before `RouteWalker`: zero-length legs, missing/approximate coordinates, bounded speed, service wait, strictly ordered points, hero stop and route end.
 - [ ] Add persisted simulations and start/pause/resume/stop handlers, fleet coordinator and `SimulationJob`; scheduler uses real ticks and supplies business time. Test duplicate tick, crash after dispatch, revocation, cancelled/superseded trip, concurrent disable and two replicas.
-- [ ] Add demo-only server-position input to driver `RouteMap`, 5-second position polling for store/dispatcher and configurable flush. Restore GPS/normal intervals immediately on OFF; prevent simultaneous real GPS and simulator writes for the simulated vehicle while showing why GPS recording is paused.
+- [x] Add demo-only server-position input to driver `RouteMap`, 5-second position polling (built as 4 s via `livePoll`, trails included; GPS pauses during a simulated drive without an on-screen note) for store/dispatcher and configurable flush. Restore GPS/normal intervals immediately on OFF; prevent simultaneous real GPS and simulator writes for the simulated vehicle while showing why GPS recording is paused.
 - [ ] New driver/store/dispatcher browser cases demonstrate the same server point on all maps. Actual offline queue test remains separate from telemetry withholding.
 
 ### PR 5: scenario deck and presenter guide

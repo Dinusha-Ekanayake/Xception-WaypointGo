@@ -2,7 +2,7 @@
 
 import "leaflet/dist/leaflet.css";
 import type * as Leaflet from "leaflet";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { cluster, compass, MAX_ZOOM, MIN_ZOOM, SRI_LANKA, type LatLon } from "./geo.ts";
 import type { LiveMapProps, MapMarker } from "./types.ts";
 
@@ -117,10 +117,19 @@ export default function MapCanvas(props: LiveMapProps): React.JSX.Element {
     else m.fitBounds(lf.latLngBounds(fit.map((p) => [p.lat, p.lon] as [number, number])), { padding: [48, 48], maxZoom: 14 });
   }, [ready, props.fit]);
 
+  // Redraw only when what is drawn changed, not on every parent render or poll
+  // that returns the same positions: a redraw replaces each marker's element,
+  // which drops keyboard focus from a vehicle the user is on.
+  const drawn = useMemo(
+    () => JSON.stringify([props.markers, props.lines ?? [], props.selectedId ?? null, Boolean(props.clusterVehicles)]),
+    [props.markers, props.lines, props.selectedId, props.clusterVehicles],
+  );
+
   useEffect(() => {
     const m = map.current;
     const lf = L.current;
     const group = layer.current;
+    const props = latest.current;
     if (!ready || !m || !lf || !group) return;
     group.clearLayers();
     for (const line of props.lines ?? []) {
@@ -169,7 +178,7 @@ export default function MapCanvas(props: LiveMapProps): React.JSX.Element {
         marker.on("mouseout", () => latest.current.onHover?.(null));
       }
     }
-  }, [ready, props.markers, props.lines, props.selectedId, props.clusterVehicles, zoom]);
+  }, [ready, drawn, zoom]);
 
   const zoomBy = (d: number) => map.current?.setZoom(map.current.getZoom() + d);
 
