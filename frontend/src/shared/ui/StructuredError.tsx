@@ -87,7 +87,7 @@ export function getErrorDefaults(code?: string | number | null): {
 
   if (norm === 502 || norm === "502" || norm === 504 || norm === "504" || norm === "GATEWAY_TIMEOUT") {
     return {
-      title: "Dispatch is unreachable",
+      title: "We can't reach the server",
       message: "The server took too long to answer or could not be reached.\nDon't worry: your work is saved safely on this phone.",
       actionLabel: "Try again",
       defaultAction: () => {
@@ -98,8 +98,30 @@ export function getErrorDefaults(code?: string | number | null): {
 
   if (norm === "OFFLINE") {
     return {
-      title: "This device is offline",
+      title: "You're offline",
       message: "You are currently offline.\nDon't worry: your work is saved safely on this phone.",
+      actionLabel: "Try again",
+      defaultAction: () => {
+        if (typeof window !== "undefined") window.location.reload();
+      },
+    };
+  }
+
+  if (norm === 503 || norm === "503") {
+    return {
+      title: "We can't reach the server",
+      message: "The server took too long to answer or could not be reached.\nDon't worry: your work is saved safely on this phone.",
+      actionLabel: "Try again",
+      defaultAction: () => {
+        if (typeof window !== "undefined") window.location.reload();
+      },
+    };
+  }
+
+  if (typeof norm === "number" && norm >= 500) {
+    return {
+      title: "The server had a problem",
+      message: "An unexpected server error occurred while loading this view.\nDon't worry: your work is saved safely on this phone.",
       actionLabel: "Try again",
       defaultAction: () => {
         if (typeof window !== "undefined") window.location.reload();

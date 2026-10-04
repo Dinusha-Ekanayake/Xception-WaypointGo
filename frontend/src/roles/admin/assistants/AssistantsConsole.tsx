@@ -5,6 +5,7 @@ import { useResource } from "@shared/api/useResource";
 import type { McpClientView, McpUsageView } from "@shared/domain/types";
 import { codeLabel } from "@shared/wording/labels";
 import { clock, dayLabel, depotToday } from "@shared/wording/time";
+import { SkeletonRows } from "@shared/ui";
 import { Badge, Empty, Modal, card, field, primary, secondary } from "../access/components";
 import { TOOL_LABELS, blockClient, loadClients, loadUsage, refusal, unblockClient } from "./data";
 import PeopleSection from "./PeopleSection";
@@ -20,16 +21,19 @@ export default function AssistantsConsole({ userId }: { userId?: string }): Reac
   const usage = useResource(loadUsage, "mcp-usage", 60_000);
   const [blocking, setBlocking] = useState<McpClientView | null>(null);
   const [message, setMessage] = useState("");
+  const [unblocking, setUnblocking] = useState<string | null>(null);
 
   const refresh = () => { clients.refresh(); usage.refresh(); };
   const unblock = async (client: McpClientView) => {
     setMessage("");
+    setUnblocking(client.clientId);
     try {
       await unblockClient(client);
       setMessage(`${client.clientName} is unblocked. People can connect it again.`);
     } catch (error) {
       setMessage(refusal(error));
     } finally {
+      setUnblocking(null);
       refresh();
     }
   };
@@ -46,7 +50,7 @@ export default function AssistantsConsole({ userId }: { userId?: string }): Reac
       <section aria-label="Assistant apps" className={card}>
         <h2 className="border-b border-go-rule px-5 py-4 text-lg font-semibold">Apps</h2>
         {clients.error ? <p className="px-5 py-4 text-sm text-go-danger">The apps could not be loaded: {refusal(clients.error)}</p>
-          : !clients.data ? <p className="px-5 py-4 text-sm text-go-secondary">Loading...</p>
+          : !clients.data ? <div className="px-5 py-4"><SkeletonRows rows={3} label="Loading..." /></div>
           : clients.data.length === 0 ? <div className="p-5"><Empty>No assistant app has been connected yet.</Empty></div>
           : clients.data.map((client) => (
             <div key={client.clientId} className="flex flex-wrap items-center gap-3 border-b border-go-rule px-5 py-4 last:border-0">
@@ -59,7 +63,7 @@ export default function AssistantsConsole({ userId }: { userId?: string }): Reac
               </div>
               {client.blockedAt ? <Badge tone="red">Blocked</Badge> : <Badge tone="green">Allowed</Badge>}
               {client.blockedAt
-                ? <button className={secondary} onClick={() => void unblock(client)}>Unblock</button>
+                ? <button className={secondary} disabled={unblocking === client.clientId} onClick={() => void unblock(client)}>{unblocking === client.clientId ? "Unblocking…" : "Unblock"}</button>
                 : <button className={secondary} onClick={() => setBlocking(client)}>Block</button>}
             </div>
           ))}
@@ -80,7 +84,7 @@ function Usage({ usage, error, clients }: { usage: McpUsageView[] | null; error:
     <section aria-label="Last 24 hours" className={card}>
       <h2 className="border-b border-go-rule px-5 py-4 text-lg font-semibold">Last 24 hours</h2>
       {error ? <p className="px-5 py-4 text-sm text-go-danger">Usage could not be loaded: {refusal(error)}</p>
-        : !usage ? <p className="px-5 py-4 text-sm text-go-secondary">Loading...</p>
+        : !usage ? <div className="px-5 py-4"><SkeletonRows rows={3} label="Loading..." /></div>
         : usage.length === 0 ? <div className="p-5"><Empty>No assistant used Waypoint in the last 24 hours.</Empty></div>
         : (
           <div className="overflow-x-auto">

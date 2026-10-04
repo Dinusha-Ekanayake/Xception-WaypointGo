@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { IssueCommandKind, type OrderView, type RaiseIssue } from "@shared/domain/types";
+import { friendlyError } from "@shared/api/problem";
 import { Icon, Notice, cx } from "@shared/ui";
 import type { StoreGateway } from "../../data/gateway.ts";
 import { units as unitsText, dayLabel, temperatureLabel } from "../../data/format.ts";
@@ -9,7 +10,7 @@ import { REPORT_KINDS, type ReportKind } from "../../data/issues.ts";
 import { shrinkPhoto } from "../../data/photo.ts";
 import { LOWERS_COUNT, noteOf } from "../../data/receive.ts";
 import type { useCommands } from "../../data/useCommands.ts";
-import { Badge, Button, Modal, Stepper } from "../../ui.tsx";
+import { Badge, Button, Field, Modal, Stepper } from "../../ui.tsx";
 import PhotoDialog from "../receive/PhotoDialog.tsx";
 
 // "08b Report an issue" and "08c Issue sent": a problem found after unpacking.
@@ -48,6 +49,8 @@ export default function ReportIssue({
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [viewing, setViewing] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [orderError, setOrderError] = useState<string | null>(null);
+  const [itemError, setItemError] = useState<string | null>(null);
   const [sent, setSent] = useState<"sent" | "queued" | null>(null);
   const camera = useRef<HTMLInputElement>(null);
 
@@ -65,7 +68,10 @@ export default function ReportIssue({
   };
 
   const send = async () => {
-    if (!order || !line) return setError("Choose the order and the item.");
+    setOrderError(null);
+    setItemError(null);
+    if (!order) return setOrderError("Choose the order.");
+    if (!line) return setItemError("Choose the item.");
     if (!kind) return setError("Choose what is wrong.");
     setError(null);
     for (const p of photos) {
@@ -85,7 +91,7 @@ export default function ReportIssue({
       attachmentIds: photos.map((p) => p.id),
     };
     const outcome = await commands.run(IssueCommandKind.raise, raise, null);
-    if (!outcome.ok) return setError(outcome.error.message);
+    if (!outcome.ok) return setError(friendlyError(outcome.error));
     setSent(outcome.queued ? "queued" : "sent");
   };
 
@@ -125,14 +131,16 @@ export default function ReportIssue({
         <Notice tone="info" title="No delivery in the last 48 hours to report on." />
       ) : (
         <>
-          <label className="flex flex-col gap-1.5 text-[13px] text-go-muted">
-            Order
+          <Field label="Order" error={orderError ?? undefined} errorId="report-issue-order-error">
             <select
               value={orderId}
+              aria-invalid={orderError ? true : undefined}
+              aria-describedby={orderError ? "report-issue-order-error" : undefined}
               onChange={(e) => {
                 setOrderId(e.target.value);
                 setProductId(orders.find((o) => o.orderId === e.target.value)?.lines[0]?.productId ?? "");
                 setUnits(1);
+                setOrderError(null);
               }}
               className="min-h-14 rounded-[16px] border border-[#dfe7e6] bg-go-canvas px-4 text-[15px] font-medium text-black"
             >
@@ -142,14 +150,16 @@ export default function ReportIssue({
                 </option>
               ))}
             </select>
-          </label>
-          <label className="flex flex-col gap-1.5 text-[13px] text-go-muted">
-            Product line
+          </Field>
+          <Field label="Product line" error={itemError ?? undefined} errorId="report-issue-item-error">
             <select
               value={productId}
+              aria-invalid={itemError ? true : undefined}
+              aria-describedby={itemError ? "report-issue-item-error" : undefined}
               onChange={(e) => {
                 setProductId(e.target.value);
                 setUnits(1);
+                setItemError(null);
               }}
               className="min-h-14 rounded-[16px] border border-[#dfe7e6] bg-go-canvas px-4 text-[15px] font-medium text-black"
             >
@@ -159,7 +169,7 @@ export default function ReportIssue({
                 </option>
               ))}
             </select>
-          </label>
+          </Field>
           <p className="text-[13px] text-go-muted">What&rsquo;s wrong?</p>
           <div role="radiogroup" aria-label="What's wrong?" className="flex flex-wrap gap-2">
             {REPORT_KINDS.map((k) => (

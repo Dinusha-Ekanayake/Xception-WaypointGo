@@ -154,7 +154,7 @@ export default function SwapWindow({
                     : "Not available yet: no service proposes a stop order. Drag the stops to set your own."}
               </span>
               {sequence !== null && (
-                <button type="button" onClick={() => setSequence(null)} className="rounded-full bg-go-card px-3.5 py-1.5 text-[13px] font-medium text-go-ink">
+                <button type="button" onClick={() => setSequence(null)} className="relative rounded-full bg-go-card px-3.5 py-1.5 text-[13px] font-medium text-go-ink before:absolute before:-inset-y-1.5">
                   {usingProposal ? "Undo order" : "Default order"}
                 </button>
               )}
@@ -163,7 +163,7 @@ export default function SwapWindow({
                   type="button"
                   disabled={!proposed}
                   onClick={() => proposed && setSequence(proposed.orderIds)}
-                  className="rounded-full bg-go-card px-3.5 py-1.5 text-[13px] font-medium text-go-ink disabled:opacity-40"
+                  className="relative rounded-full bg-go-card px-3.5 py-1.5 text-[13px] font-medium text-go-ink before:absolute before:-inset-y-1.5 disabled:opacity-40"
                 >
                   Use AI order
                 </button>

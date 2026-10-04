@@ -4,6 +4,21 @@
 
 ---
 
+## 2026-10-04 - feat: usability round 2, plain words, field errors, accessibility and dispatcher search
+
+`feat/usability-round2` · @Dinusha-Ekanayake
+
+From [UX-PLAN.md](../../ux/UX-PLAN.md) section 8, frontend only (no backend or API change):
+- Words: one `friendlyError` for network and server failures instead of raw messages; a refusal shows the rule's name (`ruleLabel`), the id behind Details; the error page says what happened, not a status code; pending changes are named; the admin screens show no raw dates, codes or ids.
+- Forms: an error sits under its field and is announced with it (store issue report, profile, store details; driver delivery report; dispatcher issue reason; loader PIN).
+- Access: small dispatcher controls reach 40 px without looking bigger; the sync pill announces a change of state, not the clock; pending and held counts are announced; the review dialog and the trip thread trap focus and close with Escape; a skip link; the last buttons show busy; notification lists and the driver's first screen show placeholder rows.
+- Search: the dispatcher's header search (`/`, Ctrl+K) over the day's loaded orders, vehicles, trips, issues and depots (Figma has a search; the README departure is updated).
+Why: people saw codes and server text, a form did not say which field was wrong, and small targets were hard to hit.
+Not done: the console's 404s for "nothing yet" need the endpoints to answer 204, a backend change left to the module owners.
+Verified: see the PR.
+
+---
+
 ## 2026-10-04 - feat: UX polish 3 to 5 of 5, feedback, screen transitions, pinned actions and undo
 
 `feat/ux-polish-feedback` · @Dinusha-Ekanayake

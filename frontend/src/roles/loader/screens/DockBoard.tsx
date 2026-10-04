@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Resource } from "@shared/api/useResource";
+import { friendlyError } from "@shared/api/problem";
 import type { ReadyTripView } from "@shared/domain/types";
 import { Icon, Notice, SkeletonRows, cx, usePersistentState } from "@shared/ui";
 import { depotToday, holdLapsed } from "../data/manifest.ts";
@@ -149,7 +150,7 @@ export default function DockBoard({
             </button>
           }
         >
-          {trips.error.message}
+          {friendlyError(trips.error)}
         </Notice>
       )}
       {!trips.data && !trips.error && <SkeletonRows label={tr("Loading trips…")} />}

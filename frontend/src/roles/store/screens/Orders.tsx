@@ -1,6 +1,6 @@
 "use client";
 
-import type { ApiError } from "@shared/api/problem";
+import { type ApiError, friendlyError } from "@shared/api/problem";
 import type { OrderView } from "@shared/domain/types";
 import { Notice, SkeletonRows, cx, usePersistentState } from "@shared/ui";
 import { units, ORDER_STATUS, dayLabel, depotToday, planNote, temperatureLabel } from "../data/format.ts";
@@ -73,7 +73,7 @@ export default function Orders({
         ))}
       </div>
 
-      {error && <Notice tone="danger" title="Could not load your orders" onRetry={onRetry}>{error.message}</Notice>}
+      {error && <Notice tone="danger" title="Could not load your orders" onRetry={onRetry}>{friendlyError(error)}</Notice>}
       {loading && orders.length === 0 && <SkeletonRows label="Loading…" />}
       {!loading && shown.length === 0 && <Muted>{EMPTY[filter]}</Muted>}
       {days.map((d) => (

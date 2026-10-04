@@ -99,11 +99,13 @@ export default function PinEntry({
             disabled={paused}
             value={paused ? "" : pin}
             onChange={(e) => onPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
+            aria-invalid={wrong ? true : undefined}
+            aria-describedby={wrong ? "loader-pin-error" : undefined}
             className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
           />
         </label>
         {wrong && (
-          <p role="alert" className="text-[15px] text-go-danger-strong">
+          <p id="loader-pin-error" role="alert" className="text-[15px] text-go-danger-strong">
             {tr(state.triesLeft === 1 ? "Incorrect PIN. {n} try left." : "Incorrect PIN. {n} tries left.", { n: state.triesLeft })}
           </p>
         )}

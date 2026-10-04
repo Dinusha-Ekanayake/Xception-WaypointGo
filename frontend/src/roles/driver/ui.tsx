@@ -682,12 +682,31 @@ export function Banner({ tone, title, children, live = false }: { tone: keyof ty
   );
 }
 
-export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }): React.JSX.Element {
+export function Field({
+  label,
+  hint,
+  error,
+  errorId,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  /** Shown in red under the field; pair with `errorId` and the input's own `aria-describedby`. */
+  error?: string;
+  /** The id the error text is given, so the input can point `aria-describedby` at it. */
+  errorId?: string;
+  children: ReactNode;
+}): React.JSX.Element {
   return (
     <label className="flex flex-col gap-1.5 text-[15px] text-go-ink">
       <span className="font-medium">{label}</span>
       {children}
       {hint && <span className="text-[13px] text-go-muted">{hint}</span>}
+      {error && (
+        <span id={errorId} role="alert" className="text-[13px] text-go-danger-strong">
+          {error}
+        </span>
+      )}
     </label>
   );
 }

@@ -5,6 +5,7 @@ import { VOICE_MAX_MS, type Recorder, type Recording } from "../messaging/record
 import { plain, voiceLength, type Translate } from "../messaging/thread.ts";
 import { liveHeight } from "../messaging/waveform.ts";
 import { cx } from "./primitives.tsx";
+import { Spinner } from "./Spinner.tsx";
 import { ChevronLeftIcon, ChevronUpIcon, LockIcon, MicIcon, SendIcon, StopIcon, TrashIcon } from "./thread-icons.tsx";
 import { VoiceNote } from "./VoiceNote.tsx";
 
@@ -41,6 +42,9 @@ export function VoiceCapture({
   const [mode, setMode] = useState<Mode>("idle");
   const [drag, setDrag] = useState({ x: 0, y: 0 });
   const [hint, setHint] = useState<string | null>(null);
+  // Stopping the recorder is async; disables both buttons so a second tap
+  // mid-stop cannot race the first, and shows a spinner in place of the icon.
+  const [stopping, setStopping] = useState(false);
   const origin = useRef<{ x: number; y: number } | null>(null);
   const modeRef = useRef<Mode>("idle");
   const released = useRef(false);
@@ -238,19 +242,35 @@ export function VoiceCapture({
         <>
           <button
             type="button"
-            onClick={() => void recorder.stop().then((r) => (r ? set("review") : void send(null)))}
+            disabled={stopping}
+            aria-busy={stopping || undefined}
+            onClick={() => {
+              setStopping(true);
+              void recorder
+                .stop()
+                .then((r) => (r ? set("review") : void send(null)))
+                .finally(() => setStopping(false));
+            }}
             aria-label={tr("Stop and listen")}
-            className="flex size-11 shrink-0 items-center justify-center rounded-full bg-go-surface text-go-danger-strong"
+            className="flex size-11 shrink-0 items-center justify-center rounded-full bg-go-surface text-go-danger-strong disabled:cursor-wait disabled:opacity-60"
           >
-            <StopIcon />
+            {stopping ? <Spinner /> : <StopIcon />}
           </button>
           <button
             type="button"
-            onClick={() => void recorder.stop().then(send)}
+            disabled={stopping}
+            aria-busy={stopping || undefined}
+            onClick={() => {
+              setStopping(true);
+              void recorder
+                .stop()
+                .then(send)
+                .finally(() => setStopping(false));
+            }}
             aria-label={tr("Send voice note")}
-            className="flex size-11 shrink-0 items-center justify-center rounded-full bg-go-teal text-white shadow-sm active:scale-95"
+            className="flex size-11 shrink-0 items-center justify-center rounded-full bg-go-teal text-white shadow-sm active:scale-95 disabled:cursor-wait disabled:opacity-60"
           >
-            <SendIcon />
+            {stopping ? <Spinner className="size-4 text-white" /> : <SendIcon />}
           </button>
         </>
       )}

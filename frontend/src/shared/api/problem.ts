@@ -53,6 +53,24 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * What a person reads for a failed read or command, in place of `error.message`.
+ * A network drop and an HTML gateway page both arrive as a bare `Error`, never
+ * as a `Problem`, so the detail a server did send (RFC 9457, AGENTS.md) is the
+ * only message trusted as user-facing; anything else is reworded here.
+ */
+export function friendlyError(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.status >= 500) return "The server had a problem. Try again.";
+    if (error.problem.detail) return error.problem.detail;
+    return "Something went wrong. Try again.";
+  }
+  if (error instanceof TypeError || (error instanceof Error && /network|fetch/i.test(error.message))) {
+    return "No connection. Try again.";
+  }
+  return "Something went wrong. Try again.";
+}
+
 function violationOf(value: unknown): Violation | null {
   // Before structured violations the backend sent bare rule ids. Accept both.
   if (typeof value === "string") return { rule: value, message: "" };

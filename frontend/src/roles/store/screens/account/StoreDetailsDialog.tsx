@@ -38,6 +38,7 @@ export default function StoreDetailsDialog({
   const [contactName, setContactName] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [notes, setNotes] = useState("");
+  const [windowError, setWindowError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -51,8 +52,9 @@ export default function StoreDetailsDialog({
 
   const send = async (useDepots: boolean) => {
     if (!details.data) return;
-    if (!useDepots && (!open || !close)) return setError("Give both ends of the delivery window.");
-    if (!useDepots && open >= close) return setError("The window has to open before it closes.");
+    setWindowError(null);
+    if (!useDepots && (!open || !close)) return setWindowError("Give both ends of the delivery window.");
+    if (!useDepots && open >= close) return setWindowError("The window has to open before it closes.");
     setError(null);
     const payload: UpdateOutletDetails = {
       outletId: outlet.outletId,
@@ -86,11 +88,42 @@ export default function StoreDetailsDialog({
       <fieldset className="flex flex-col gap-2">
         <legend className="mb-1.5 text-[13px] text-go-secondary">Delivery window</legend>
         <div className="flex items-center gap-2">
-          <input type="time" aria-label="Opens at" value={open} onChange={(e) => setOpen(e.target.value)} className={`${field} flex-1`} />
-          <span className="text-go-secondary">to</span>
-          <input type="time" aria-label="Closes at" value={close} onChange={(e) => setClose(e.target.value)} className={`${field} flex-1`} />
+          <label className="flex flex-1 flex-col gap-1.5 text-[12px] text-go-secondary">
+            Opens at
+            <input
+              type="time"
+              value={open}
+              onChange={(e) => {
+                setOpen(e.target.value);
+                setWindowError(null);
+              }}
+              aria-invalid={windowError ? true : undefined}
+              aria-describedby={windowError ? "store-window-error" : undefined}
+              className={field}
+            />
+          </label>
+          <span className="pt-5 text-go-secondary">to</span>
+          <label className="flex flex-1 flex-col gap-1.5 text-[12px] text-go-secondary">
+            Closes at
+            <input
+              type="time"
+              value={close}
+              onChange={(e) => {
+                setClose(e.target.value);
+                setWindowError(null);
+              }}
+              aria-invalid={windowError ? true : undefined}
+              aria-describedby={windowError ? "store-window-error" : undefined}
+              className={field}
+            />
+          </label>
         </div>
         {mall && <p className="text-[12px] text-go-secondary">The mall lets vehicles in only at its own hours; the window must overlap them.</p>}
+        {windowError && (
+          <span id="store-window-error" role="alert" className="text-[13px] text-go-danger-strong">
+            {windowError}
+          </span>
+        )}
       </fieldset>
 
       <label className="flex flex-col gap-1.5 text-[13px] text-go-secondary">
@@ -112,11 +145,19 @@ export default function StoreDetailsDialog({
       <div className="grid gap-2 sm:grid-cols-2">
         <label className="flex flex-col gap-1.5 text-[13px] text-go-secondary">
           Contact person
-          <input value={contactName} onChange={(e) => setContactName(e.target.value)} maxLength={80} className={field} />
+          <input name="contactName" value={contactName} onChange={(e) => setContactName(e.target.value)} maxLength={80} className={field} />
         </label>
         <label className="flex flex-col gap-1.5 text-[13px] text-go-secondary">
           Store phone
-          <input type="tel" inputMode="tel" value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} placeholder="+94 81 234 5678" className={field} />
+          <input
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            value={contactPhone}
+            onChange={(e) => setContactPhone(e.target.value)}
+            placeholder="+94 81 234 5678"
+            className={field}
+          />
         </label>
       </div>
       <label className="flex flex-col gap-1.5 text-[13px] text-go-secondary">
@@ -129,8 +170,8 @@ export default function StoreDetailsDialog({
       </p>
       {error && <Notice tone="danger" live title={error} />}
       {changedFromDepot && (
-        <button type="button" onClick={() => void send(true)} className="min-h-12 self-start text-[14px] font-medium text-go-teal">
-          Use the depot&rsquo;s window and dock again
+        <button type="button" disabled={commands.busy} onClick={() => void send(true)} className="min-h-12 self-start text-[14px] font-medium text-go-teal disabled:cursor-wait disabled:opacity-60">
+          {commands.busy ? "Saving…" : "Use the depot’s window and dock again"}
         </button>
       )}
       <div className="flex gap-2.5">

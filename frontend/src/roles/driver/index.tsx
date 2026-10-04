@@ -5,7 +5,7 @@ import { flushSync } from "react-dom";
 import type { NotificationView } from "@shared/domain/notification";
 import { ago } from "@shared/notifications/inbox";
 import { useInbox } from "@shared/notifications/useInbox";
-import { cx, useDeviceLang, useMedia, useShell } from "@shared/ui";
+import { cx, useDeviceLang, useMedia, useShell, SkeletonRows, SkipLink } from "@shared/ui";
 import { nextStop, type Stop } from "./data/run.ts";
 import { activeIndex, syncLabel, toRouteStops, tripStatus, type RouteStop } from "./data/stopView.ts";
 import DeliveryPinConfirmModal from "./screens/DeliveryPinConfirmModal.tsx";
@@ -117,12 +117,15 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
         d.dark ? "go-dark bg-[#161616] md:bg-[#0a0a0a]" : "bg-[#E7F3F2] md:bg-[#d6e7e5]"
       )}
     >
+      <SkipLink targetId="driver-content" />
       {sideMap && next && (
         <aside aria-label="Trip map" className="relative min-w-0 flex-1 overflow-hidden">
           <RouteMap next={next} outlet={run.outlets[next.outletId]} recorder={d.location} syncedAt={run.syncedAt} className="h-full w-full" />
         </aside>
       )}
       <div
+        id="driver-content"
+        tabIndex={-1}
         className={cx(
           "relative h-dvh w-full overflow-hidden transition-colors md:max-w-[600px] md:shadow-2xl",
           sideMap && "lg:max-w-[480px]",
@@ -147,9 +150,14 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
         )}
 
         {run.loading ? (
-          <p role="status" className="absolute inset-x-0 top-[96px] px-8 text-[17px] text-go-muted">
-            Loading today's run…
-          </p>
+          // A card-shaped skeleton in the Home layout's own shape, not a full-screen
+          // spinner: the driver UX plan prioritises a fast-feeling load. The label
+          // keeps the exact words the screen used to show, so a screen reader hears
+          // the same thing it always did.
+          <div className="absolute inset-x-0 top-[96px] flex flex-col gap-3 px-5">
+            <div className="h-24 w-full animate-pulse rounded-go-card-l bg-go-card" aria-hidden />
+            <SkeletonRows rows={4} label="Loading today's run…" />
+          </div>
         ) : (
           // Where the browser crossfades screens itself (shared/ui/transition.ts), this fade would play twice.
           <div key={screen} className="absolute inset-0 animate-fade-in supports-[view-transition-name:none]:animate-none short:overflow-y-auto">
