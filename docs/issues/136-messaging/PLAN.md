@@ -29,11 +29,11 @@ The Figma timeline (189:21127) puts a red "Exception · click to open" sign on a
 | A report's trip | contract query | `ExecutionQuery.deliveryRecord`, `deliveryForOrder`; or the vehicle's thread that day |
 | A person's name, a vehicle's driver | contract query | `PersonQuery`, `IdentityQuery.driverOn`, `scopeOf` |
 | Membership and visibility | SQL | row-level security through `app.actor_oversees_depot`, `actor_has_depot` with the loader role, `actor_drives`, `actor_has_outlet` |
-| Telling people | event | `message.posted` to Notification, routing version 3 |
+| Telling people | event | `message.posted` to Notification, routing version 4 |
 
 ## Pull requests
 
-1. **Backend:** the migrations (`messaging` schema and role, IAM actions, routing v3), the module, `IssueQuery.issue`, the Notification consumer, tests, registers.
+1. **Backend:** the migrations (`messaging` schema and role, IAM actions, routing v4), the module, `IssueQuery.issue`, the Notification consumer, tests, registers.
 2. **Frontend:**
    - the mirror and the shared thread view;
    - **dispatcher:** timeline warning signs, the thread sheet, the trip page's "Send an update", "Notify store", every message under the bell;

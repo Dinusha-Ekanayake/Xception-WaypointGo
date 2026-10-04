@@ -6,7 +6,7 @@ Issue #136 (epic #150), branch `feat/136-messaging`. The [plan](PLAN.md) has the
 
 | Layer | Files |
 | --- | --- |
-| Migrations | `migrations/20261004T0100_messaging_threads.sql` (schema, role, row-level security), `20261004T0101_iam_messaging_actions.sql` (`message:Read`, `message:Post`), `20261004T0102_notification_routing_v3.sql` |
+| Migrations | `migrations/20261004T0100_messaging_threads.sql` (schema, role, row-level security), `20261004T0101_iam_messaging_actions.sql` (`message:Read`, `message:Post`), `20261004T1700_notification_routing_v4.sql` |
 | Contract | `messaging/contract/MessagingCommands.java`, `MessagingEvents.java` (`message.posted`), `MessagingViews.java` |
 | Domain | `messaging/domain/MessagePolicy.java`: who writes to whom, reports, the posting window, voice limits, excerpts, the report a raised issue becomes |
 | Application | `PostMessageHandler` (the command), `MessagingConsumers` (threads from `plan.published` and `plan.revised`, reports from `issue.raised`), `MessagingQuery` (reads), `VoiceNotes` |
@@ -31,7 +31,7 @@ Issue #136 (epic #150), branch `feat/136-messaging`. The [plan](PLAN.md) has the
    - asks `MessagePolicy.check` whom they may write to (R-MSG-02) and whether the thread still takes posts (R-MSG-04);
    - inserts the message and publishes `message.posted` in the same transaction.
 3. A resend under a new command id is the same message (MSG-04).
-4. `NotificationConsumers.OnMessagePosted` names the depot, the vehicle and the outlets reached. Routing version 3 tells the dispatcher of every message, and the loaders, the driver and the stores only of theirs (R-NOT-14). The author is never told (R-NOT-07).
+4. `NotificationConsumers.OnMessagePosted` names the depot, the vehicle and the outlets reached. Routing version 4 tells the dispatcher of every message, and the loaders, the driver and the stores only of theirs (R-NOT-14). The author is never told (R-NOT-07).
 
 **A report arrives from an event.** Issues raises an issue from a shortfall, a fault, a road disruption, a failed delivery or a receipt dispute.
 - `OnIssueRaised` finds the trip through the issue's subjects: the trip, then the delivery, the order, then the vehicle's thread that day.

@@ -19,7 +19,7 @@ Open: calls; what each outlet was told per stop; the loader and the store write 
 
 `feat/136-messaging` · @tharushaudana
 
-New module `messaging` (ADR-004, #135 decided): a trip's thread opens with its published plan. The dispatcher reads everything; the loaders, the driver and the stores read broadcasts, what is for them and their own (R-MSG-01). The dispatcher writes to any of them; everyone else writes to the dispatcher, and the driver also to its stops (R-MSG-02). Every raised issue about the trip lands on it as a report for the dispatcher alone, once (R-MSG-03, R-MSG-05). Messages and reports may be voice notes (R-MSG-06). `message.posted` reaches the dispatcher's bell for every message, and the others only for what is theirs (routing v3, R-NOT-14).
+New module `messaging` (ADR-004, #135 decided): a trip's thread opens with its published plan. The dispatcher reads everything; the loaders, the driver and the stores read broadcasts, what is for them and their own (R-MSG-01). The dispatcher writes to any of them; everyone else writes to the dispatcher, and the driver also to its stops (R-MSG-02). Every raised issue about the trip lands on it as a report for the dispatcher alone, once (R-MSG-03, R-MSG-05). Messages and reports may be voice notes (R-MSG-06). `message.posted` reaches the dispatcher's bell for every message, and the others only for what is theirs (routing v4, R-NOT-14).
 Why: the timeline's warning signs opened nothing, and nobody could write to anyone; decisions of 2026-10-04 on #136.
 Verified: `MessagePolicyTest` (13), `ModuleBoundaryTest`, `EventCatalogueTest`; `MessagingIntegrationTest` runs in CI on PostgreSQL.
 Open: the role screens (next PR); threads for issues, orders and deliveries; how long voice notes are kept.
