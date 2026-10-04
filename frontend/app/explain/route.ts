@@ -29,6 +29,9 @@ const SYSTEM = [
   "Never use an em dash or an en dash. Under 130 words.",
 ].join(" ");
 
+// The long dashes a model likes to write, built from their codes so this file holds none.
+const DASHES = new RegExp("\s*[" + String.fromCharCode(0x2013, 0x2014) + "]\s*", "g");
+
 const numbers = (text: string) => text.match(/\d+(?:[.:]\d+)?/g) ?? [];
 
 /** The answer is used only when every figure in it is one the facts hold. */
@@ -82,7 +85,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     });
     if (!answer.ok) return none;
     const data = (await answer.json()) as { choices?: Array<{ message?: { content?: string } }> };
-    const text = (data.choices?.[0]?.message?.content ?? "").replace(/\s*[–—]\s*/g, ", ").trim();
+    const text = (data.choices?.[0]?.message?.content ?? "").replace(DASHES, ", ").trim();
     if (!text || text.length > 1_500 || !faithful(text, facts)) return none;
     if (kept.size >= MAX_KEPT) kept.delete(kept.keys().next().value as string);
     kept.set(key, text);
