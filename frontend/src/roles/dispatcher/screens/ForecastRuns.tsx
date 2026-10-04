@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Pill } from "@shared/ui";
 import { countdown } from "../data/forecast.ts";
 import { depotStamp } from "../data/scope.ts";
+import { nowMs } from "@shared/wording";
 
 // The forecast job's last and next run (P-29), in depot time, with a countdown
 // to the next. Once the time comes the screen reads again until the run shows.
@@ -24,9 +25,9 @@ export default function ForecastRuns({
   /** Reads the forecast again; called every 20 seconds while a run is due. */
   onDue: () => void;
 }): React.JSX.Element {
-  const [now, setNow] = useState(() => Date.now());
+  const [now, setNow] = useState(() => nowMs());
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    const timer = window.setInterval(() => setNow(nowMs()), 1000);
     return () => window.clearInterval(timer);
   }, []);
 

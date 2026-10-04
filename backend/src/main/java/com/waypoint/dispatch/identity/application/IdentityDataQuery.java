@@ -4,6 +4,7 @@ import com.waypoint.dispatch.identity.contract.IdentityQuery;
 import com.waypoint.dispatch.platform.db.Database;
 import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.shared.domain.Actor;
+import com.waypoint.dispatch.shared.util.Clock;
 import java.sql.Date;
 import java.time.LocalDate;
 import java.util.List;
@@ -28,10 +29,12 @@ import org.springframework.stereotype.Component;
 public class IdentityDataQuery implements IdentityQuery {
   private final Database database;
   private final PolicyDecisionPoint decisions;
+  private final Clock clock;
 
-  public IdentityDataQuery(Database database, PolicyDecisionPoint decisions) {
+  public IdentityDataQuery(Database database, PolicyDecisionPoint decisions, Clock clock) {
     this.database = database;
     this.decisions = decisions;
+    this.clock = clock;
   }
 
   /** The policy half of {@code policy AND scope}. Answers without auditing: it is a question. */
@@ -98,7 +101,7 @@ public class IdentityDataQuery implements IdentityQuery {
     return recipientsFor(roleCode, scopeType, scopeId, null);
   }
 
-  /** A null date is today in the operating zone, read from the database clock. */
+  /** A null date is today in the operating zone, on the business clock, which demo mode can move. */
   @Override
   public List<UUID> recipientsFor(String roleCode, String scopeType, String scopeId, LocalDate on) {
     String scoped =
@@ -112,14 +115,17 @@ public class IdentityDataQuery implements IdentityQuery {
           case "vehicle" ->
               "EXISTS (SELECT 1 FROM iam.vehicle_driver_assignments s"
                   + " WHERE s.driver_user_id = u.user_id AND s.vehicle_id = ?"
-                  + " AND s.validity @> coalesce(?::date, (now() AT TIME ZONE 'Asia/Colombo')::date))";
+                  + " AND s.validity @> ?::date)";
           default ->
               throw new IllegalArgumentException(
                   "scopeType is depot, outlet or vehicle, not " + scopeType);
         };
     Object[] params =
         "vehicle".equals(scopeType)
-            ? new Object[] {roleCode, scopeId, on == null ? null : Date.valueOf(on)}
+            ? new Object[] {
+              roleCode, scopeId,
+              Date.valueOf(on == null ? clock.now().atZone(Clock.OPERATING_ZONE).toLocalDate() : on)
+            }
             : new Object[] {roleCode, scopeId};
     return read(
         () ->

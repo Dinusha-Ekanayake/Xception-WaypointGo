@@ -1,4 +1,5 @@
 import type { IsoDate } from "../domain/common.ts";
+import { businessNow } from "./now.ts";
 
 // Every time and date a person reads, in one place (docs/architecture/GLOSSARY.md,
 // "Time"). Depot time, Asia/Colombo, on a 24-hour clock, whatever the device's own
@@ -41,12 +42,12 @@ export function longDay(date: IsoDate): string {
 }
 
 /** "Thu 1 Oct · 16:12": the depot's date and time now, for a page header. */
-export function depotStamp(now: Date = new Date()): string {
+export function depotStamp(now: Date = businessNow()): string {
   return `${dayLabel(depotToday(now))} · ${clock(now)}`;
 }
 
 /** Today's date in depot time, as yyyy-mm-dd. */
-export function depotToday(now: Date = new Date()): IsoDate {
+export function depotToday(now: Date = businessNow()): IsoDate {
   return TODAY.format(now);
 }
 
@@ -58,11 +59,11 @@ export function addDays(date: IsoDate, days: number): IsoDate {
 }
 
 /** The hour of the day in depot time, 0 to 23. */
-export function depotHour(now: Date = new Date()): number {
+export function depotHour(now: Date = businessNow()): number {
   return Number(HOUR.format(now));
 }
 
-export function greeting(now: Date = new Date()): string {
+export function greeting(now: Date = businessNow()): string {
   const hour = depotHour(now);
   return hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 }

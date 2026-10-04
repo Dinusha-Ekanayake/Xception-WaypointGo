@@ -7,6 +7,8 @@ import { drainUploads, pendingEntries, pendingUploads, UPLOADS_EVENT, type Store
 import type { OutletView, VehicleView } from "@shared/domain/types";
 import type { DriverGateway, RunData } from "./gateway.ts";
 import { DeliveryKind, acknowledged, hasRun, isStopAck, keepRunDay, keptRunDay, lookAhead, operatingDate, project, todaysSheet, type NextRun, type Stop } from "./run.ts";
+import { businessNow } from "@shared/wording";
+import { useClockOffset } from "@shared/demo/useDemo";
 
 // The driver's day: read from the server when it answers, from the phone when it
 // does not, and shown with the writes still waiting applied on top.
@@ -52,9 +54,13 @@ export type Run = {
  *     would leave a refused write drawn as if it had happened (EXE-03).
  */
 export function useRun(gateway: DriverGateway, accountId: string, online: boolean, queueState: string, onQueued: () => void, depot: string | null = null): Run {
-  const today = useMemo(() => operatingDate(new Date()), []);
+  // Today on the business clock: a moved demo clock moves the run's day with it.
+  const offset = useClockOffset();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const today = useMemo(() => operatingDate(businessNow()), [offset]);
   // The run's day: today, or the first day ahead with a released trip (issue #114).
   const [date, setDate] = useState(() => keptRunDay(accountId, today));
+  useEffect(() => setDate(keptRunDay(accountId, today)), [accountId, today]);
   const [data, setData] = useState<RunData | null>(null);
   const [keptAt, setKeptAt] = useState<Date | null>(null);
   const [syncedAt, setSyncedAt] = useState<Date | null>(null);
@@ -96,7 +102,7 @@ export function useRun(gateway: DriverGateway, accountId: string, online: boolea
           dataRef.current = fresh;
           setData(fresh);
           setKeptAt(null);
-          setSyncedAt(new Date());
+          setSyncedAt(businessNow());
           setExpired(false);
           return;
         } catch (failure) {
@@ -222,7 +228,7 @@ export function useRun(gateway: DriverGateway, accountId: string, online: boolea
             dataRef.current = fresh;
             setData(fresh);
             setKeptAt(null);
-            setSyncedAt(new Date());
+            setSyncedAt(businessNow());
           } catch {
             refresh();
           }

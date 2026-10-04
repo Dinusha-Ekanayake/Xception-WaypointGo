@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Pending, Pill, Segmented, cx, usePersistentState } from "@shared/ui";
-import { clock } from "@shared/wording";
+import { clock, businessNow } from "@shared/wording";
 import PageHeader from "../PageHeader.tsx";
 import { SEVERITY, TYPE, byUrgency, shortId } from "../data/issues.ts";
 import { useIssues } from "../data/useDay.ts";
@@ -42,10 +42,10 @@ export default function Issues({
   useEffect(() => {
     if (focusIssueId) setSelectedId(focusIssueId);
   }, [focusIssueId]);
-  const [now, setNow] = useState(() => new Date());
+  const [now, setNow] = useState(() => businessNow());
 
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date()), 60_000);
+    const timer = window.setInterval(() => setNow(businessNow()), 60_000);
     return () => window.clearInterval(timer);
   }, []);
 

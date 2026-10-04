@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { request } from "./client.ts";
 import { ApiError } from "./problem.ts";
+import { businessNow } from "../wording/now.ts";
 
 // One read, its freshness and its failure, for screens that must show when data
 // is stale rather than pretend it is live. Polling pauses while the tab is
@@ -64,7 +65,7 @@ export function useResource<T>(
       .then((result) => {
         setData(result);
         setError(null);
-        setLoadedAt(new Date());
+        setLoadedAt(businessNow());
       })
       .catch((failure: unknown) => {
         if (controller.signal.aborted) return;
