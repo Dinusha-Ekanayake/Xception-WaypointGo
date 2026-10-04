@@ -307,6 +307,8 @@ export function DriverMorphHeader({
 /**
  * "I've arrived" is a slide, not a tap: a touch that does not cross the track
  * springs back, so a bump in the cab does not record an arrival.
+ * It records on release, not as the circle passes the mark, so the driver can
+ * still slide back.
  */
 export function SlideToConfirm({
   label,
@@ -343,7 +345,7 @@ export function SlideToConfirm({
 
   if (done) {
     return (
-      <div id={id} className="flex h-[64px] w-full items-center justify-center rounded-[22px] bg-[#0E766D] text-[20px] font-medium text-white">
+      <div id={id} className="flex h-[64px] w-full items-center justify-center rounded-full bg-[#0E766D] text-[20px] font-medium text-white">
         {doneLabel}
       </div>
     );
@@ -377,7 +379,6 @@ export function SlideToConfirm({
         const rect = track.current.getBoundingClientRect();
         const next = Math.max(0, Math.min(e.clientX - rect.left - 32, limit()));
         setX(next);
-        if (next >= limit() * 0.8) release(next);
       }}
       onPointerUp={(e) => {
         if (!dragging.current) return;
@@ -387,7 +388,7 @@ export function SlideToConfirm({
       }}
       onPointerCancel={() => release(0)}
       className={cx(
-        "relative h-[64px] w-full touch-none overflow-hidden rounded-[22px] select-none outline-none focus-visible:ring-2 focus-visible:ring-go-signal",
+        "relative h-[64px] w-full touch-none overflow-hidden rounded-full select-none outline-none focus-visible:ring-2 focus-visible:ring-go-signal",
         isNight ? "bg-[#00BF6A]" : "bg-[#031B08]",
       )}
     >
@@ -396,12 +397,14 @@ export function SlideToConfirm({
       </span>
       <span
         aria-hidden
-        className="absolute top-1 left-1 flex size-14 items-center justify-center rounded-[18px] bg-white text-black shadow"
-        style={{ transform: `translateX(${x}px)` }}
+        className="absolute top-1 left-1 flex size-14 items-center justify-center rounded-full bg-white text-black shadow"
+        style={{ transform: `translateX(${x}px)`, transition: dragging.current ? "none" : "transform 200ms var(--ease-go-out)" }}
       >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M5 12h14" />
-          <path d="m13 6 6 6-6 6" />
+        {/* As the problem sheet's rows: three chevrons brighten in turn, to say which way to slide. */}
+        <svg width="28" height="18" viewBox="0 0 22 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M2.5 2l5 5-5 5" className="animate-chevron motion-reduce:animate-none" />
+          <path d="M8.5 2l5 5-5 5" className="animate-chevron motion-reduce:animate-none" style={{ animationDelay: "0.15s" }} />
+          <path d="M14.5 2l5 5-5 5" className="animate-chevron motion-reduce:animate-none" style={{ animationDelay: "0.3s" }} />
         </svg>
       </span>
     </div>
@@ -427,7 +430,23 @@ export type VoiceMessagePlayerProps = {
   activeAudioId?: string | null;
   onPlayChange?: (id: string | null) => void;
   className?: string;
+  /** Bars between play and the length, filling as it plays. Off where a heading takes that row. */
+  waveform?: boolean;
 };
+
+const WAVE_BARS = 32;
+
+/** Bar heights (0.2-1) drawn from the words, so one message always shows the same shape. */
+function waveShape(seed: string): number[] {
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i += 1) h = Math.imul(h ^ seed.charCodeAt(i), 16777619);
+  return Array.from({ length: WAVE_BARS }, (_, i) => {
+    h = Math.imul(h ^ (h >>> 15), 2246822507) ^ i;
+    const noise = ((h >>> 0) % 1000) / 1000;
+    const swell = Math.sin((i / (WAVE_BARS - 1)) * Math.PI);
+    return 0.2 + 0.8 * Math.max(0, Math.min(1, 0.35 * swell + 0.65 * noise));
+  });
+}
 
 /** Interactive Voice Message audio player with waveform and text-to-speech support */
 export function VoiceMessagePlayer({
@@ -443,6 +462,8 @@ export function VoiceMessagePlayer({
   activeAudioId,
   onPlayChange,
   className,
+  waveform = false,
+  initialBars,
 }: VoiceMessagePlayerProps): React.JSX.Element {
   const [internalIsPlaying, setInternalIsPlaying] = useState(false);
   const isPlaying =
@@ -602,6 +623,7 @@ export function VoiceMessagePlayer({
 
   const ring = isNight ? "#00BF6A" : "#031A0C";
   const words = message ?? (!heading ? text : undefined);
+  const bars = waveform && !heading && !status ? (initialBars ? [...initialBars] : waveShape(text ?? duration)) : null;
   return (
     <div className={cx("flex w-full flex-col gap-1 pt-1", className)}>
       <div className="flex items-center gap-3">
@@ -630,7 +652,21 @@ export function VoiceMessagePlayer({
             )}
           </span>
         </button>
-        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        {bars && (
+          <span aria-hidden className="flex h-7 min-w-0 flex-1 items-center justify-between px-1">
+            {bars.map((height, i) => (
+              <span
+                key={i}
+                className="w-[3px] shrink-0 rounded-full transition-colors duration-150"
+                style={{
+                  height: `${Math.round(height * 100)}%`,
+                  background: (i + 0.5) / bars.length <= progress ? ring : isNight ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.18)",
+                }}
+              />
+            ))}
+          </span>
+        )}
+        <span className={cx("flex min-w-0 flex-col gap-0.5", bars ? "hidden" : "flex-1")}>
           {status && (
             <span className="flex items-center justify-between gap-2">
               <span className="truncate text-[12px] font-medium" style={{ color: statusColor ?? (isNight ? "#fff" : "#000") }}>{status}</span>

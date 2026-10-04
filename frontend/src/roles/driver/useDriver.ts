@@ -286,8 +286,9 @@ export function useDriver(userId: string, depot: string | null = null) {
       setError(words(outcome));
       return false;
     }
-    // The sheet stays up long enough to show Report sent, then closes itself.
-    setNotice(outcome.queued ? "Report saved on this phone. Dispatch gets it when the connection is back." : "Dispatch has your report.");
+    // The sheet stays up long enough to show Report sent, then closes itself; that
+    // is the confirmation. Only a report still on the phone says so afterwards.
+    if (outcome.queued) setNotice("Report saved on this phone. Dispatch gets it when the connection is back.");
     return true;
   };
 
