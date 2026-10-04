@@ -9,6 +9,8 @@ on:
 
 permissions:
   contents: read
+  # checks.yml asks for it in its release job, which a deploy never runs.
+  actions: read
 
 jobs:
   checks:
