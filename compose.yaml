@@ -47,7 +47,7 @@ services:
     environment:
       DATABASE_URL: postgresql://waypoint_app:${APP_DB_PASSWORD:-local-testing-only-app}@db:5432/waypoint
       MIGRATION_DATABASE_URL: postgresql://waypoint:${POSTGRES_PASSWORD:-local-testing-only}@db:5432/waypoint
-      SEED_PASSWORD: ${SEED_PASSWORD:-Waypoint2026!}
+      SEED_PASSWORD: ${SEED_PASSWORD:-123456789123}
     command: ["sh", "/app/compose-init.sh"]
     volumes:
       - ./scripts/compose-init.sh:/app/compose-init.sh:ro

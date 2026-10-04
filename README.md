@@ -32,6 +32,7 @@ Sign in with the email and password; each account opens its own role's workspace
 | Driver | `rashmikadilshan@waypoint.local` | `123456789123` | phone |
 | Store manager | `ransikaj@waypoint.local` | `123456789123` | desktop or phone |
 | Loader | `peliyagoda@waypoint.local` | `123456789123` | phone or tablet |
+| Administrator | `admin@waypoint.local` | `123456789123` | desktop |
 
 The loader account is the Peliyagoda warehouse's shared dock device. After signing in, choose a loader and enter that loader's PIN:
 
@@ -62,20 +63,23 @@ Maven `target/` directories and compiled Java classes are ignored and are rebuil
 The complete stack (PostgreSQL, the backend, the model service, the frontend and the seed data) starts with one command. It needs Docker Engine 24+ with Compose v2 and nothing else installed:
 
 ```sh
-cp .env.example .env        # then set SEED_PASSWORD: the password of every seeded account
+git clone https://github.com/Dinusha-Ekanayake/Xception-WaypointGo.git
+cd Xception-WaypointGo
+git lfs pull                # the trained model files
+cp .env.example .env        # SEED_PASSWORD in it is the password of every seeded account
 docker compose up --build
 ```
 
 The one-shot `init` service runs `migrate`, `import-reference`, `demo-accounts` and `seed-delivery-day` against the fresh database. Each step is idempotent, so a restart changes nothing that is already there. Then open http://localhost:3000 and sign in with any account under [Seeded accounts](#seeded-accounts). Health is at http://localhost:8080/health/readiness and metrics at http://localhost:8080/prometheus.
 
-`.env.example` holds a placeholder, `SEED_PASSWORD=REPLACE_WITH_A_PRIVATE_PASSWORD`, and the accounts are created with whatever it says on the first start. Set it before the first `docker compose up`; changing it later does not change existing accounts. With no `SEED_PASSWORD` at all, Compose falls back to `Waypoint2026!`.
+`.env.example` sets `SEED_PASSWORD=123456789123`, and every seeded account is created with it on the first start, so a fresh copy signs in with the same emails and password as the [deployed system](#deployed-system). Compose uses the same value when there is no `.env` at all. Changing it later does not change existing accounts; set a private value before exposing an instance.
 
 ## Run locally
 
 For day-to-day work PostgreSQL runs in Docker and the application runs natively. It needs Node.js 22.13+, Java 17+ with Maven, and Docker for the database.
 
 ```sh
-cp .env.example .env        # then set SEED_PASSWORD
+cp .env.example .env
 scripts/dev.sh setup        # once: database, migrations, reference data, demo accounts, npm ci
 scripts/dev.sh              # every time: database, backend on 8080, frontend on 3000
 ```
@@ -92,7 +96,7 @@ The details, and which process reads which configuration file, are in [developme
 
 ## Seeded accounts
 
-`docker compose up` creates one account per role, all with the password in `SEED_PASSWORD` (see above; `Waypoint2026!` when it is unset). These are the accounts of a fresh copy; the deployed system's accounts are under [Deployed system](#deployed-system).
+`docker compose up` creates one account per role, all with the password in `SEED_PASSWORD` (`123456789123` unless you change it). These are the accounts of a fresh copy; the deployed system's accounts are under [Deployed system](#deployed-system).
 
 | Role | Email | Scope after the seed | Device |
 | --- | --- | --- | --- |
