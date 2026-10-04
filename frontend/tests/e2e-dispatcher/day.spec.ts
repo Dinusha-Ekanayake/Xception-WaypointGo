@@ -22,12 +22,22 @@ test("the order board follows each order from due to confirmed, and says where i
   await expect(third).toContainText("Deferred");
   await expect(third).toContainText("deferred 2×");
 
+  // The brand legend names the dots and filters to one brand.
+  const legend = page.getByRole("group", { name: "Brands" });
+  await legend.getByRole("button", { name: "Style" }).click();
+  await expect(table.getByRole("row").filter({ hasText: "ORD0092301" })).toHaveCount(0);
+  await legend.getByRole("button", { name: "Style" }).click();
+  await expect(table.getByRole("row").filter({ hasText: "ORD0092301" })).toHaveCount(1);
+
   // A row opens the order with its day as a timeline (Figma 03d).
   await first.click();
   const drawer = page.getByRole("dialog", { name: "Order ORD0092301" });
   await expect(drawer).toContainText("Timeline");
   await expect(drawer).toContainText("Planned");
+  // Focus moves into the drawer, and Escape gives it back.
+  await expect(drawer.getByRole("button", { name: "Close" })).toBeFocused();
   await page.keyboard.press("Escape");
+  await expect(drawer).toHaveCount(0);
 
   await page.getByRole("button", { name: "All statuses" }).click();
   await page.getByRole("menuitem", { name: "Need attention" }).click();
@@ -75,4 +85,20 @@ test("live lists vehicles most urgent first and what needs the dispatcher", asyn
   await needs.getByRole("listitem").nth(0).getByRole("button", { name: "Open trip" }).click();
   await expect(page.getByRole("heading", { name: "VEH044" })).toBeVisible();
   await expect(page.getByRole("row", { name: /OUT053/ })).toContainText("Not delivered");
+});
+
+
+test("the overview leads into tomorrow's plan, and an order opens its day in Plan", async ({ page }) => {
+  await serve(page, { draft: draftPlan() });
+  await page.goto("/#/overview");
+  const card = page.getByRole("region", { name: "Tomorrow's plan" });
+  await expect(card).toContainText("Kandy");
+  await expect(card).toContainText("1 needs a decision");
+  await card.getByRole("button", { name: "Open plan" }).click();
+  await expect(page).toHaveURL(/#\/plan/);
+
+  await page.goto("/#/orders");
+  await page.getByRole("table", { name: "Orders due" }).getByRole("row").filter({ hasText: "ORD0092303" }).click();
+  await page.getByRole("dialog", { name: "Order ORD0092303" }).getByRole("button", { name: /in Plan|on the plan/ }).click();
+  await expect(page).toHaveURL(/#\/plan/);
 });

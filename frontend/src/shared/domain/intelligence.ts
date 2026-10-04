@@ -74,6 +74,22 @@ export type SupplyProbabilityView = {
   degraded: boolean;
 };
 
+/** How likely a delivery day is to be kept (issue #224, R-ML-07). */
+export type OutlookStatus = "ON_TRACK" | "BUSY" | "AT_RISK" | "TOO_EARLY" | "CLOSED";
+
+export type DayOutlookView = { date: IsoDate; status: OutlookStatus; load: Decimal | null; reason: string };
+
+/** GET /api/ml/outlook?outlet=&from=&to= : advice from the depot's totals, never a promise. */
+export type DateOutlookView = {
+  outletId: string;
+  from: IsoDate;
+  to: IsoDate;
+  days: DayOutlookView[];
+  forecast: boolean;
+  modelLabel: string;
+  degraded: boolean;
+};
+
 export const ModelCommandKind = {
   register: "ml:RegisterModel",
   activate: "ml:ActivateModel",

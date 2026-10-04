@@ -16,17 +16,25 @@ export default function ReasonPicker({
   value,
   onChange,
   placeholder = "Recorded with the plan",
+  required = false,
 }: {
   label: string;
   value: string;
   onChange: (reason: string) => void;
   placeholder?: string;
+  /** The action waits for it: marked, and announced as required. */
+  required?: boolean;
 }): React.JSX.Element {
   return (
     <div className="flex flex-col gap-1.5">
       <label className="flex flex-col gap-1 text-[13px] font-medium text-go-ink">
-        {label}
+        <span className="flex items-center gap-2">
+          {label}
+          {required && <span className={`text-[11px] font-medium ${reasonReady(value) ? "text-go-secondary" : "text-go-danger-strong"}`}>Required</span>}
+        </span>
         <input
+          required={required}
+          aria-required={required}
           value={value}
           maxLength={300}
           onChange={(event) => onChange(event.target.value)}

@@ -209,6 +209,42 @@ public class JdbcOrderRepository {
 
   // ---- writes --------------------------------------------------------------
 
+  /** The order's stop on a published plan (issue #224); a revision overwrites it, an older plan never does. */
+  public void recordStop(
+      UUID orderId, UUID tripId, int sequence, java.time.LocalTime plannedArrival, LocalDate serviceDate,
+      int planVersion, Instant at) {
+    database.update(
+        """
+        INSERT INTO ordering.order_stops
+            (order_id, trip_id, stop_sequence, planned_arrival, service_date, plan_version, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT (order_id) DO UPDATE
+           SET trip_id = EXCLUDED.trip_id, stop_sequence = EXCLUDED.stop_sequence,
+               planned_arrival = EXCLUDED.planned_arrival, service_date = EXCLUDED.service_date,
+               plan_version = EXCLUDED.plan_version, updated_at = EXCLUDED.updated_at
+         WHERE ordering.order_stops.service_date <> EXCLUDED.service_date
+            OR ordering.order_stops.plan_version <= EXCLUDED.plan_version
+        """,
+        orderId, tripId, sequence, plannedArrival == null ? null : java.sql.Time.valueOf(plannedArrival),
+        Date.valueOf(serviceDate), planVersion, Timestamp.from(at));
+  }
+
+  /** Stop and planned arrival per order, for the orders given. */
+  public java.util.Map<UUID, Map<String, Object>> stops(java.util.Collection<UUID> orderIds) {
+    if (orderIds.isEmpty()) {
+      return java.util.Map.of();
+    }
+    java.util.Map<UUID, Map<String, Object>> out = new java.util.HashMap<>();
+    String marks = String.join(", ", java.util.Collections.nCopies(orderIds.size(), "?"));
+    for (Map<String, Object> r : database.query(
+        "SELECT order_id, stop_sequence, planned_arrival, service_date FROM ordering.order_stops WHERE order_id IN ("
+            + marks + ")",
+        orderIds.toArray())) {
+      out.put((UUID) r.get("order_id"), r);
+    }
+    return out;
+  }
+
   public void insert(
       Order order, UUID placedBy, Instant at, UUID commandId, Optional<UUID> sourceIssueId) {
     insert(order, placedBy, at, commandId, sourceIssueId, Optional.empty());

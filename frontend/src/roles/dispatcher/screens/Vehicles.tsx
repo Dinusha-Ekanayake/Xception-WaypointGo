@@ -94,7 +94,7 @@ export default function Vehicles({
       <div className="flex w-full gap-3.5 max-md:flex-col">
         <KpiCard label="Available today" value={fleet.data ? summary.total : "…"} note={onRoad === null ? "for planning today" : `${onRoad} on the road · ${summary.total - onRoad} at depot`} />
         <KpiCard label="In workshop" value="-" valueClassName="text-go-warning-text" note="Not listed yet" />
-        <KpiCard label="Refrigerated available" value={fleet.data ? `${summary.refrigerated} / ${summary.total}` : "…"} note="vehicles and vans" />
+        <KpiCard label="Refrigerated available" value={fleet.data ? `${summary.refrigerated} / ${summary.total}` : "…"} note="of all vehicles available today" />
         <KpiCard
           label="Fuel quota used"
           value={fuelAvg === null ? "…" : `${fuelAvg}%`}

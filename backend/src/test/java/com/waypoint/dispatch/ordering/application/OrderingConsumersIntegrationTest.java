@@ -172,6 +172,24 @@ class OrderingConsumersIntegrationTest {
   }
 
   @Test
+  void aPublishedPlanGivesTheOrderItsStopAndAnOlderPlanNeverOverwritesIt() {
+    Order order = saved(true);
+    deliver("ordering.on-plan-published", published(UUID.randomUUID(), order));
+    Map<String, Object> stop = stopOf(order);
+    assertEquals(1, ((Number) stop.get("stop_sequence")).intValue());
+    assertEquals(LocalTime.of(8, 0), ((java.sql.Time) stop.get("planned_arrival")).toLocalTime());
+
+    deliver("ordering.on-plan-revised",
+        new PlanRevised(UUID.randomUUID(), order.depotCode(), serviceDate, 2, UUID.randomUUID(), "vehicle fault",
+            List.of(new PlannedTrip(UUID.randomUUID(), "VEH002", 1, order.brandCode(), order.districtName(), "ambient",
+                LocalTime.of(5, 0), List.of(new PlannedStop(4, order.orderId(), OUTLET, LocalTime.of(9, 30)))))));
+    assertEquals(4, ((Number) stopOf(order).get("stop_sequence")).intValue(), "a revision re-points the stop");
+
+    deliver("ordering.on-plan-published", published(UUID.randomUUID(), order));
+    assertEquals(4, ((Number) stopOf(order).get("stop_sequence")).intValue(), "version 1 arriving late changes nothing");
+  }
+
+  @Test
   void aDeferralKeepsTheReservationAndMovesToTheNextOperatingDay() {
     Order order = saved(true);
     OrderDeferred deferred =
@@ -311,6 +329,10 @@ class OrderingConsumersIntegrationTest {
   private DeliveryCompleted completed(UUID tripId, Order order, DeliveryOutcome outcome) {
     return new DeliveryCompleted(UUID.randomUUID(), order.orderId(), tripId, OUTLET, outcome,
         Optional.of(10), Instant.now(), Optional.empty());
+  }
+
+  private Map<String, Object> stopOf(Order order) {
+    return database.asSystem(ModuleRole.ORDERING, () -> orders.stops(List.of(order.orderId()))).get(order.orderId());
   }
 
   private Order current(Order order) {

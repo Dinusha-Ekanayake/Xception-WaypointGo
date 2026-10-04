@@ -68,7 +68,7 @@ Each item names its Figma frame or booklet line, the role owner, and how it is c
 
 ### Tier 2: friction and consistency (by 19:00, only if Tier 1 is done)
 
-Done 2026-10-04 (`fix/ux-tier2`). U9 keeps "Synced" with its time on phones; the bottom bar stays icon-only as in Figma, and every icon already has a screen-reader name. U10 covers the dispatcher's Issues and publish audience and the store's Orders and Deliveries.
+Done 2026-10-04 (`fix/ux-tier2`). U7 is met by the Overview's "Tomorrow's plan" card already on `dev`. U9 keeps "Synced" with its time on phones; the bottom bar stays icon-only as in Figma, and every icon already has a screen-reader name. U10 covers the dispatcher's Issues and publish audience and the store's Orders and Deliveries.
 
 | Item | Role | Change | Figma or booklet | Check |
 | --- | --- | --- | --- | --- |

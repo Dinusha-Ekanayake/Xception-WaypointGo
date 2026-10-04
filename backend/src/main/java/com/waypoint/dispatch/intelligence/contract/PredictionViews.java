@@ -70,6 +70,40 @@ public final class PredictionViews {
     }
   }
 
+  /** How likely a delivery day is to be kept (issue #224, R-ML-07). */
+  public enum OutlookStatus {
+    ON_TRACK,
+    BUSY,
+    AT_RISK,
+    /** Little is booked and no forecast reaches the day. */
+    TOO_EARLY,
+    /** The network does not run that day. */
+    CLOSED
+  }
+
+  /** One day of a store's date outlook: advice, never a promise; the plan made the day before decides. */
+  public record DayOutlookView(LocalDate date, OutlookStatus status, Optional<BigDecimal> load, String reason) {}
+
+  /**
+   * A store's outlook for the days it may choose. Built from the depot's totals
+   * only, never another outlet's orders.
+   *
+   * @param forecast whether a demand forecast reached any of the days
+   * @param modelLabel what made that forecast, or {@code none}
+   */
+  public record DateOutlookView(
+      String outletId,
+      LocalDate from,
+      LocalDate to,
+      List<DayOutlookView> days,
+      boolean forecast,
+      String modelLabel,
+      boolean degraded) {
+    public DateOutlookView {
+      days = List.copyOf(days);
+    }
+  }
+
   /**
    * R-RCP-06: the probability that an order is supplied on its scheduled day.
    *

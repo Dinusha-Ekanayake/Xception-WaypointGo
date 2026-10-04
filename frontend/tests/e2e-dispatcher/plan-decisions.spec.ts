@@ -187,9 +187,11 @@ test("a trip takes a deferred order by drag and drop, gives one up, and goes as 
   // A stop is dragged out to "Will be deferred".
   await stops.getByRole("listitem").filter({ hasText: "OUT052" }).dragTo(window.getByText("Drag a stop here to defer it"));
   await expect(window.getByRole("region", { name: "Will be deferred" })).toContainText("OUT052");
-  await expect(window).toContainText("1 added · 1 taken off");
-
+  // Every rule passes, and the button says what it still waits for: the reason.
+  await expect(window).toContainText("Every check passes · add a reason to accept");
+  await expect(window.getByRole("button", { name: "Accept changes" })).toBeDisabled();
   await window.getByLabel("Why this change?").fill("The outlet waited two days");
+  await expect(window).toContainText("1 added · 1 taken off");
   await window.getByRole("button", { name: "Accept changes" }).click();
   expect(desk.commands[0]).toMatchObject({ kind: "plan:EditTrip", payload: { tripId: "trip-VEH043-1", orderIds: ["order-3", "order-1"] } });
   await expect(page.getByRole("status").filter({ hasText: "Trip saved." })).toBeVisible();
@@ -293,4 +295,14 @@ test("an optimised draft says what it saved and opens Compare on the rules plan 
   await page.getByRole("button", { name: "Compare with the rules plan" }).click();
   const compare = page.getByRole("region", { name: "Compare plans" });
   await expect(compare).toContainText("Rules plan");
+});
+
+
+test("a blocked publish names its blocker beside the button, and Decide warns in the step bar", async ({ page }) => {
+  await serve(page, { draft: draftPlan() });
+  await page.goto("/#/plan");
+  await page.getByRole("tab", { name: /Publish/ }).click();
+  await expect(page.getByRole("button", { name: "Publish plan" })).toBeDisabled();
+  await expect(page.getByText("1 order needs a decision in Decide")).toBeVisible();
+  await expect(page.getByRole("tab", { name: /Decide/ })).toContainText("1 need a decision");
 });

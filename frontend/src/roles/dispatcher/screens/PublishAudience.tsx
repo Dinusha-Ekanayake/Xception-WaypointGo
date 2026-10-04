@@ -31,6 +31,8 @@ export default function PublishAudience({
   const outlets = changes
     ? changes.affectedOutlets
     : [...new Set(deferred.map((a) => orders.get(a.orderId)?.outletId).filter((id): id is string => Boolean(id)))];
+  // Outlets are named as everywhere else: the id with its district.
+  const districtOf = new Map([...orders.values()].map((order) => [order.outletId, order.districtName] as const));
   const trips = changes ? plan.trips.filter((t) => changes.changedTrips.includes(t.tripId)) : plan.trips;
   const vehicles = [...new Set(trips.map((t) => t.vehicleId))];
   const first = deferred[0];
@@ -70,7 +72,7 @@ export default function PublishAudience({
               <p className="pb-1 text-[13px] font-medium text-go-ink">{changes ? "Sent to" : "Also sent to"}</p>
               <ul className="flex flex-col gap-1 text-[13px] text-go-ink">
                 {(changes ? outlets : outlets.slice(1)).map((outlet) => (
-                  <li key={outlet}>{`· ${outlet}`}</li>
+                  <li key={outlet}>{`· ${outlet}${districtOf.get(outlet) ? ` ${districtOf.get(outlet)}` : ""}`}</li>
                 ))}
               </ul>
             </div>

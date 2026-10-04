@@ -1,7 +1,9 @@
 package com.waypoint.dispatch.intelligence.web;
 
+import com.waypoint.dispatch.intelligence.application.DateOutlookQuery;
 import com.waypoint.dispatch.intelligence.application.IntelligenceDataQuery;
 import com.waypoint.dispatch.intelligence.contract.ModelViews.ModelVersionView;
+import com.waypoint.dispatch.intelligence.contract.PredictionViews.DateOutlookView;
 import com.waypoint.dispatch.intelligence.contract.PredictionViews.ForecastOverviewView;
 import com.waypoint.dispatch.intelligence.contract.PredictionViews.PlanPredictionsView;
 import com.waypoint.dispatch.intelligence.contract.PredictionViews.SupplyProbabilityView;
@@ -35,10 +37,13 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/ml")
 public class IntelligenceController {
   private final IntelligenceDataQuery intelligence;
+  private final DateOutlookQuery outlook;
   private final RequestAuthorizer authorizer;
 
-  public IntelligenceController(IntelligenceDataQuery intelligence, RequestAuthorizer authorizer) {
+  public IntelligenceController(
+      IntelligenceDataQuery intelligence, DateOutlookQuery outlook, RequestAuthorizer authorizer) {
     this.intelligence = intelligence;
+    this.outlook = outlook;
     this.authorizer = authorizer;
   }
 
@@ -75,6 +80,20 @@ public class IntelligenceController {
       @RequestParam(required = false, defaultValue = "10") int weeks,
       HttpServletRequest request) {
     return intelligence.forecastOverview(read(request, "wpt:ml:forecast:" + depot), depot, weeks);
+  }
+
+  /**
+   * How likely each day is to be kept, for a store choosing one ahead (issue #224,
+   * R-ML-07). Advice from the depot's totals; another outlet is 403.
+   */
+  @GetMapping("/outlook")
+  public DateOutlookView outlook(
+      @RequestParam String outlet,
+      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+      HttpServletRequest request) {
+    Actor actor = authorizer.require(request, DateOutlookQuery.READ, "wpt:ml:outlet:" + outlet);
+    return outlook.outlook(actor, outlet, from, to);
   }
 
   /** R-RCP-06. */

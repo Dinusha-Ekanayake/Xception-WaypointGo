@@ -78,7 +78,6 @@ The Figma file (pages 04 to 17) is the specification. Where the design shows som
   - Vehicle interchange approval waits on Loading.
   - The Forecast's error chip shows the demand model's measured error over all volume and over chilled volume. The design shows a figure per brand, which the model does not measure.
   - Late risk is shown only on a published plan, once the time predictor has scored it. A draft says it is scored once published, and an estimate says so.
-  - On a day with no orders, Overview points to the next day with orders and opens Plan on it.
 - **Loader:**
   - Vehicle interchange and dispatcher handover are not built.
   - When the trips on the board leave after tomorrow (a weekend), "Tonight's departures" names the day they leave.

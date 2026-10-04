@@ -35,14 +35,28 @@ export default function ReeferNeed({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-end gap-3" style={{ height: H + 34 }}>
+        <div aria-hidden className="relative w-5 shrink-0 text-[10px] text-go-secondary" style={{ height: H, marginBottom: 20 }}>
+          {[0, Math.round(top / 2), top].map((tick) => (
+            <span key={tick} className="absolute right-0 translate-y-1/2" style={{ bottom: `${(tick / top) * 100}%` }}>
+              {tick}
+            </span>
+          ))}
+        </div>
         {needs.map((n) => {
           const over = n.refrigeratedNeeded > available;
           return (
-            <div key={n.week.key} className="flex flex-1 flex-col items-center gap-1">
-              <span className={cx("text-xs font-medium", over ? "text-go-danger-strong" : "text-go-teal")}>{n.refrigeratedNeeded}</span>
+            <div
+              key={n.week.key}
+              aria-label={`${weekLabel(n.week)}: ${available} available, ${n.refrigeratedNeeded} needed a day`}
+              className="flex flex-1 flex-col items-center gap-1"
+            >
               <div className="relative w-full max-w-9" style={{ height: H }}>
-                <span className={cx("absolute inset-x-0 bottom-0 rounded-t-[4px]", over ? "bg-go-danger" : "bg-go-teal/80")} style={{ height: `${(available / top) * 100}%` }} />
-                <span aria-hidden className="absolute -inset-x-1 h-0.5 bg-go-ink" style={{ bottom: `${(n.refrigeratedNeeded / top) * 100}%` }} />
+                <span className={cx("absolute inset-x-0 bottom-0 flex justify-center rounded-t-[4px] pt-0.5 text-[10px] font-semibold text-white", over ? "bg-go-danger" : "bg-go-teal/80")} style={{ height: `${(available / top) * 100}%` }}>
+                  {available}
+                </span>
+                <span aria-hidden className="absolute -inset-x-1 h-0.5 bg-go-ink" style={{ bottom: `${(n.refrigeratedNeeded / top) * 100}%` }}>
+                  <span className={cx("absolute -top-4 right-0 text-[10px] font-semibold", over ? "text-go-danger-strong" : "text-go-ink")}>{n.refrigeratedNeeded}</span>
+                </span>
               </div>
               <span className="text-xs text-go-secondary">{weekLabel(n.week)}</span>
             </div>

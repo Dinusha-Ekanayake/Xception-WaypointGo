@@ -8,9 +8,9 @@
 
 `fix/ux-tier2` · @Dinusha-Ekanayake
 
-From [UX-PLAN.md](../../ux/UX-PLAN.md) U7 to U11: the dispatcher's Overview on a day with no orders points to the next day with orders and opens Plan on it; the loader's board names the departure day when it is after tomorrow; the store's phone header keeps "Synced HH:MM" whole below 440 px (Store chip hidden, 40 px buttons); counts read "(n)" in dispatcher Issues and publish audience and store Orders and Deliveries; empty states say what happens next.
+From [UX-PLAN.md](../../ux/UX-PLAN.md) U8 to U11 (U7 is covered by the Overview's "Tomorrow's plan" card already on `dev`, which was kept): the loader's board names the departure day when it is after tomorrow; the store's phone header keeps "Synced HH:MM" whole below 440 px (Store chip hidden, 40 px buttons); counts read "(n)" in dispatcher Issues and publish audience and store Orders and Deliveries; empty states say what happens next.
 Why: on a Sunday every role read "0" with no pointer forward, and the store's sync time was cut to "Sync…" on a phone.
-Verified: see the PR. On the VPS preview data: "Nothing is due today · 2 orders wait for Mon 5 Oct"; the store pill unclipped at 360, 390, 440 and 1440 px. `npm test` 213; all five browser suites.
+Verified: see the PR. On the VPS preview data: the store pill unclipped at 360, 390, 440 and 1440 px. `npm test` 213; all five browser suites.
 
 ---
 

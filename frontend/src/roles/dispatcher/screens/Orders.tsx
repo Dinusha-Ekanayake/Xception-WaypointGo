@@ -12,6 +12,7 @@ import { useHistory, useIssues, useLive, useOrders, usePlans, type HistoryDay } 
 import type { ViewId } from "../navigation.ts";
 import OrderDrawer from "./OrderDrawer.tsx";
 import OrdersTable, { type LastColumn, type OrderLine } from "./OrdersTable.tsx";
+import { seriesColour } from "./ForecastChart.tsx";
 import Refusal, { refusalText } from "./Refusal.tsx";
 
 // Figma "03 Orders" (current, upcoming, past, order details): what became of
@@ -39,11 +40,13 @@ export default function Orders({
   scopeLabel,
   online,
   onNavigate,
+  onOpenPlan,
 }: {
   depots: string[];
   scopeLabel: string;
   online: boolean;
   onNavigate: (view: ViewId) => void;
+  onOpenPlan: (date: string) => void;
 }): React.JSX.Element {
   const today = depotToday();
   const [tab, setTab] = useState<Tab>("current");
@@ -138,7 +141,7 @@ export default function Orders({
             type="search"
             value={text}
             onChange={(event) => setText(event.target.value)}
-            placeholder="Search order, outlet or district"
+            placeholder="Search orders"
             aria-label="Search orders"
             className="w-48 bg-transparent text-[14px] text-go-ink outline-none placeholder:text-go-placeholder"
           />
@@ -191,6 +194,24 @@ export default function Orders({
       {tab === "upcoming" && <UpcomingDays depots={depots} days={upcoming.data ?? []} online={online} onNavigate={onNavigate} onClosed={upcoming.refresh} />}
 
       <section aria-label="Orders" className="flex min-w-0 flex-1 flex-col rounded-go-panel bg-go-card px-5 pt-4 pb-3">
+        {brands.length > 0 && (
+          // The dots in the outlet column are brands: the legend names them, and a click filters to one.
+          <div role="group" aria-label="Brands" className="flex flex-wrap items-center gap-1.5 pb-3 text-xs text-go-secondary">
+            <span className="pr-1">Brands</span>
+            {brands.map((code) => (
+              <button
+                key={code}
+                type="button"
+                aria-pressed={brand === code}
+                onClick={() => setBrand(brand === code ? "all" : code)}
+                className={cx("flex items-center gap-1.5 rounded-full px-2.5 py-1 font-medium", brand === code ? "bg-go-ink text-go-card" : "bg-go-surface text-go-ink hover:bg-go-subtle")}
+              >
+                <span aria-hidden className="size-2 rounded-full" style={{ background: seriesColour(`${code}-ambient`) }} />
+                {code}
+              </button>
+            ))}
+          </div>
+        )}
         <OrdersTable groups={groups} last={last} selected={selected} onSelect={setSelected} />
         {!loading && shown === 0 && (
           <div className="flex flex-col items-center gap-2 py-8 text-center text-[13px] text-go-secondary">
@@ -205,7 +226,7 @@ export default function Orders({
         {loading && <p className="py-8 text-center text-[13px] text-go-secondary">Loading the orders…</p>}
       </section>
 
-      {chosen && <OrderDrawer line={line(chosen)} issues={issuesByOrder.get(chosen.orderId) ?? []} onClose={() => setSelected(null)} />}
+      {chosen && <OrderDrawer line={line(chosen)} issues={issuesByOrder.get(chosen.orderId) ?? []} onClose={() => setSelected(null)} onOpenPlan={onOpenPlan} />}
     </>
   );
 }

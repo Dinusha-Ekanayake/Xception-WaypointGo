@@ -20,7 +20,7 @@ export type OrderLine = {
   issues: number;
 };
 
-const COLUMNS = "grid grid-cols-[120px_minmax(170px,1.4fr)_84px_140px_110px_minmax(170px,1fr)_84px] items-center gap-3 px-1";
+const COLUMNS = "grid grid-cols-[120px_minmax(170px,1.4fr)_84px_140px_110px_minmax(170px,1fr)_112px] items-center gap-3 px-1";
 
 export default function OrdersTable({
   groups,
@@ -40,7 +40,7 @@ export default function OrdersTable({
       <div role="table" aria-label="Orders due" className="min-w-[900px]">
         <div role="row" className={`${COLUMNS} border-b border-go-rule pb-2 text-[13px] text-go-secondary`}>
           {["Order", "Outlet", "Type", "Size", "Vehicle · trip", "Status", heading].map((label) => (
-            <span key={label} role="columnheader">
+            <span key={label} role="columnheader" className="whitespace-nowrap">
               {label}
             </span>
           ))}
