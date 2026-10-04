@@ -30,12 +30,12 @@ Each module has the same five internal layers. The spec lists what belongs in ea
 | Layer | Contents |
 | --- | --- |
 | contract | `ReferenceQuery`, and the views it returns: `OutletView`, `VehicleView`, `TravelView`, `AllowanceView`, `CalendarDayView` |
-| domain | `Outlet`, `OutletDetails`, `Vehicle`, `District`, `Depot`, `CalendarDay`, `DeliveryWindow`, `TravelProfile`, `ServiceAllowance`, `OperatingCalendarPolicy`, `ReferenceSnapshot`, `ReferenceValidator` |
-| application | `ImportReferenceDataHandler`, `ReferenceDataQuery`, `SetVehicleDayStatusHandler`, `UpdateOutletDetailsHandler`, `OutletDetailsQuery`, `ReferenceBootstrap`, `ReferenceScope` |
+| domain | `Outlet`, `OutletDetails`, `Vehicle`, `VehicleFuelPass`, `District`, `Depot`, `CalendarDay`, `DeliveryWindow`, `TravelProfile`, `ServiceAllowance`, `OperatingCalendarPolicy`, `ReferenceSnapshot`, `ReferenceValidator` |
+| application | `ImportReferenceDataHandler`, `ReferenceDataQuery`, `SetVehicleDayStatusHandler`, `UpdateOutletDetailsHandler`, `OutletDetailsQuery`, `UpdateVehicleFuelPassHandler`, `VehicleFuelPassQuery`, `ReferenceBootstrap`, `ReferenceScope` |
 | infrastructure | `CsvReferenceImporter`, `ReferenceVersionWriter`, `ReferenceVersionReader`, `ReferenceCache` |
 | web | admin read endpoints |
 
-**Owns:** `ref.brands`, `ref.depots`, `ref.districts`, `ref.outlets`, `ref.vehicles`, `ref.vehicle_day_status`, `ref.calendar_days`, `ref.district_travel`, `ref.service_allowances`, `ref.traffic_speed`, `ref.road_conditions`, `ref.calendar_overrides`, `ref.outlet_details`.
+**Owns:** `ref.brands`, `ref.depots`, `ref.districts`, `ref.outlets`, `ref.vehicles`, `ref.vehicle_day_status`, `ref.calendar_days`, `ref.district_travel`, `ref.service_allowances`, `ref.traffic_speed`, `ref.road_conditions`, `ref.calendar_overrides`, `ref.vehicle_fuel_passes`, `ref.outlet_details`.
 
 **Geographic reference (R-REF-02, #161).** `GeoCsvReader` parses the required `geo_points.csv`;
 `GeoReference` validates kind/code coverage, provenance and precision, and resolves district fallback
@@ -47,11 +47,13 @@ allocation distances or capacity rules. See [the plan](../issues/161-live-map/PL
 
 **A store's own details (R-REF-01).** A store manager changes their outlet's delivery window, dock type and contacts with `reference:UpdateOutletDetails` (`expectedVersion` is the details' `rowVersion`, 0 before the first save) and reads them at `GET /api/reference/outlets/{outletId}/details`. The window and dock are laid over the current version when a snapshot loads, as calendar overrides are, so the next plan, the run sheet and the loading manifest read them and an import cannot discard them; they are not versioned. A mall bay cannot be chosen or left, and a mall outlet's window must still overlap the mall's (R-PLN-29). Scope is the outlet or its depot, checked through `IdentityQuery` (R-IAM-28).
 
+**A vehicle's fuel pass (R-REF-04).** The National Fuel Pass belongs to the vehicle, not to a driver. An administrator scoped to the vehicle's depot sets, changes or clears it with `reference:UpdateVehicleFuelPass` (`expectedVersion` is the pass's `rowVersion`, 0 before the first save); it is read at `GET /api/reference/vehicles/{id}/fuel-pass` by the vehicle's depot and by the driver assigned to it today (`ReferenceScope.requireVehicle`). It sits in `ref.vehicle_fuel_passes`, outside reference versions, so it never marks a plan stale. The QR code can release fuel and is never audited or logged.
+
 `district_travel` is keyed by **district alone**: depot is a function of district in the supplied data, and the official validator indexes it that way.
 
 **Caches, does not own:** `ref.products`. The catalogue belongs to the external warehouse and arrives by scheduled bulk sync with a catalogue version. It is a projection: never edited here, and always able to report that it is stale.
 
-**Commands:** `SetVehicleDayStatus`, `ImportReferenceData`, `OverrideCalendarDay`, `UpdateOutletDetails`.
+**Commands:** `SetVehicleDayStatus`, `ImportReferenceData`, `OverrideCalendarDay`, `UpdateOutletDetails`, `UpdateVehicleFuelPass`.
 **Queries:** `snapshotFor(day)`, `outlet(id)`, `vehicle(id)`, `availableVehicles(depot, date)`, `vehiclesOfDepot(depot)` (the whole fleet, so Planning can tell unservable from deferred), `isOperating(date)`, `nextOperatingDay(date)`, `travelProfile(district)`.
 **Publishes:** `vehicle.status_changed`, `reference.version_published`.
 **Consumes:** nothing.

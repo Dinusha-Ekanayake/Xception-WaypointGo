@@ -6,18 +6,33 @@
 
 Team Xception's Hackathon solution for Waypoint Group's four roles: store manager, dispatcher, loader and driver. It connects confirmed demand, explainable allocation, loading checks, offline delivery proof and independent store receipt. The team's trained Datathon models are served read-only by the model service (`ml-server/`); training them and the Datathon submission are outside this build.
 
+<p align="center">
+  <a href="https://waypointgo.live"><strong>Live demo: waypointgo.live</strong></a>
+  <br>
+  <a href="https://dispatcher.waypointgo.live">dispatcher</a> ·
+  <a href="https://loader.waypointgo.live">loader</a> ·
+  <a href="https://driver.waypointgo.live">driver</a> ·
+  <a href="https://store.waypointgo.live">store</a>
+  <br>
+  <sub>Sign-in details for every role: <a href="#deployed-system">Deployed system</a> · see it first: <a href="#screenshots">Screenshots</a></sub>
+</p>
+
+> [!TIP]
+> **Judges: start at [https://waypointgo.live](https://waypointgo.live)** with the accounts in [Deployed system](#deployed-system), then follow the [Judge walkthrough](#judge-walkthrough). Nothing needs to be installed.
+
 ## Deliverables
 
 | Deliverable | Where |
 | --- | --- |
-| Deployed system and the four seeded accounts | [Deployed system](#deployed-system) |
+| Deployed system and the seeded accounts | [Deployed system](#deployed-system) |
 | Setup and configuration | [Run with Docker Compose](#run-with-docker-compose), [Run locally](#run-locally), [Configuration](#configuration) |
 | Seeded account details | [Deployed system](#deployed-system), [Seeded accounts](#seeded-accounts) for a fresh copy |
 | Judge walkthrough | [Judge walkthrough](#judge-walkthrough) |
+| UI screenshots | [Screenshots](#screenshots), more in [docs/screenshots/](docs/screenshots/) |
 | Departures from the Designathon submission | [Departures from the Designathon design](#departures-from-the-designathon-design), detail in [docs/design-mapping.md](docs/design-mapping.md) |
 | Docker Compose file and `.env.example` | [compose.yaml](compose.yaml), [.env.example](.env.example) |
-| Architecture diagram | [docs/architecture.md](docs/architecture.md), images in [docs/diagrams/](docs/diagrams/) |
-| Data model | [docs/data-model.md](docs/data-model.md) |
+| Architecture diagram | [Architecture](#architecture) in this README: [system](docs/architecture-diagram.jpeg) and [backend modules](docs/backend-modules-diagram.jpeg); Mermaid sources in [docs/architecture.md](docs/architecture.md) |
+| Data model | [Data model](#data-model) in this README: [UML data model](docs/data-model-diagram.jpeg); every table in [docs/data-model.md](docs/data-model.md) |
 | AI tool disclosure | [docs/ai-disclosure.md](docs/ai-disclosure.md) |
 
 ## Deployed system
@@ -43,7 +58,58 @@ The loader account is the Peliyagoda warehouse's shared dock device. After signi
 | Tharusha Udana | `2468` |
 | Manodya Sasmini | `2468` |
 
-Each role also has an address of its own: `dispatcher.`, `loader.`, `driver.` and `store.` in front of `waypointgo.live`.
+Each role also has an address of its own: [dispatcher.waypointgo.live](https://dispatcher.waypointgo.live), [loader.waypointgo.live](https://loader.waypointgo.live), [driver.waypointgo.live](https://driver.waypointgo.live) and [store.waypointgo.live](https://store.waypointgo.live).
+
+## Screenshots
+
+From the live deployment. Every role works in one responsive web app, offline-capable for the field roles.
+
+**Sign in.** One page for every role; after the first sign-in the app keeps working offline and syncs when the connection returns.
+
+<img src="docs/screenshots/live-sign-in.png" alt="Sign-in page" width="100%">
+
+**Dispatcher.** Overview across both depots: tomorrow's plan per depot (published or draft), today's orders with deferrals, vehicles available, the last seven days, and escalated issues. Forecast: the next ten weeks of demand by brand against fleet capacity, and what the busiest days need in vehicles, reefers and drivers.
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/live-dispatcher-overview.png" alt="Dispatcher overview"></td>
+    <td width="50%"><img src="docs/screenshots/live-dispatcher-forecast.png" alt="Dispatcher forecast"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Overview</sub></td>
+    <td align="center"><sub>Forecast</sub></td>
+  </tr>
+</table>
+
+**Field roles.** The driver's phone app (vehicle, availability, published runs and notifications), the loader's shared dock tablet (pick your name, enter your PIN) and the store manager's phone (next delivery with planned arrival and progress, tomorrow's order before the 16:00 cutoff).
+
+<table>
+  <tr>
+    <td width="30%" valign="top"><img src="docs/screenshots/live-driver-home.png" alt="Driver phone app"></td>
+    <td width="45%" valign="top"><img src="docs/screenshots/live-loader-sign-in.png" alt="Loader dock tablet"></td>
+    <td width="25%" valign="top"><img src="docs/screenshots/live-store-home.png" alt="Store manager phone"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Driver</sub></td>
+    <td align="center"><sub>Loader</sub></td>
+    <td align="center"><sub>Store manager</sub></td>
+  </tr>
+</table>
+
+**Administrator.** People and access: every member with their persona and scope (depot or outlet), and the personas and system roles behind them, with their permission catalogue and change history.
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/live-admin-people.png" alt="Admin people directory"></td>
+    <td width="50%"><img src="docs/screenshots/live-admin-personas.png" alt="Admin personas and roles"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>People</sub></td>
+    <td align="center"><sub>Personas and roles</sub></td>
+  </tr>
+</table>
+
+More screens at each device width are in [docs/screenshots/](docs/screenshots/).
 
 ## Repository and runtime
 
@@ -58,9 +124,164 @@ Each role also has an address of its own: `dispatcher.`, `loader.`, `driver.` an
 
 Maven `target/` directories and compiled Java classes are ignored and are rebuilt locally.
 
+## Tech stack
+
+| Layer | Technology |
+| --- | --- |
+| Frontend | Next.js 16, React 19, TypeScript; service worker and IndexedDB write queue for offline use; Playwright browser suites |
+| Backend | Java 17, Spring Boot 3.4 modular monolith (JDBC, no ORM); Argon2id passwords; ArchUnit module boundary tests |
+| Planning engine | Pure Java in `planning/domain`: priority insertion, an exact refrigerated re-plan and an adaptive large neighbourhood search (ALNS) cost stage, all checked by one constraint registry |
+| Database | PostgreSQL 16, one schema per module, row-level security, versioned SQL migrations |
+| Model service | Python, FastAPI; the team's trained Datathon models (scikit-learn, LightGBM, XGBoost, CatBoost, statsmodels), read only |
+| MCP adapter | Node, `@modelcontextprotocol/sdk`, fixed read-only calls to the backend |
+| Operations | Docker Compose, nginx, Grafana, Loki, Alloy, Prometheus, OpenTelemetry tracing; GitHub Actions CI |
+
+## Architecture
+
+Waypoint Dispatch is a **modular monolith**: one Spring Boot process and one PostgreSQL database, split into business modules that each own one schema and are only reached through their published contract. Module boundaries are checked by the build (`ModuleBoundaryTest`, `EventCatalogueTest`), so any module can be extracted later without a rewrite. The Mermaid sources and more detail are in [docs/architecture.md](docs/architecture.md); the reasoning is in [SYSTEM-ARCHITECTURE.md](SYSTEM-ARCHITECTURE.md).
+
+### System architecture
+
+![Waypoint GO high-level UML component diagram](docs/architecture-diagram.jpeg)
+
+### Who uses it
+
+```text
+ Store manager ─┐
+ Dispatcher ────┤  one responsive web app   ┌──────────────────────┐  StockPort, circuit breaker  ┌───────────────┐
+ Loader ────────┼──────────────────────────►│   Waypoint Dispatch  │─────────────────────────────►│ Warehouse API │
+ Driver ────────┤        HTTPS              │                      │                              └───────────────┘
+ Admin ─────────┘                           │  web app · backend · │  Web Push, VAPID             ┌───────────────┐
+ AI assistant ── MCP, read only, OAuth ────►│  PostgreSQL          │─────────────────────────────►│ Push services │
+                                            └──────────────────────┘                              └───────────────┘
+```
+
+### What runs
+
+```text
+ Browser                         Docker Compose
+ ┌────────────────────────┐      ┌────────────────────────────┐     ┌──────────────────────────────┐
+ │ Role screens (Next.js) │HTTPS │ waypoint                   │/api │ backend                      │
+ │ Service worker         ├─────►│ Next.js, same-origin proxy ├────►│ Spring Boot modular monolith │
+ │ Offline queue (IDB)    │      └─────────────┬──────────────┘     └──┬──────────────┬────────────┘
+ └────────────────────────┘                    │ /mcp                  │ JDBC         │ forecasts, plan scoring
+                                 ┌─────────────▼──────────────┐     ┌──▼───────────┐ ┌▼──────────────────────┐
+                                 │ mcp (Node, read only GETs) │     │ db           │ │ ml (FastAPI, trained  │
+                                 └────────────────────────────┘     │ PostgreSQL 16│ │ Datathon models)      │
+                                 init: migrate, import-reference    └──────────────┘ └───────────────────────┘
+                                 observability: alloy, loki, prometheus, grafana
+```
+
+### Modules and how they connect
+
+![Waypoint GO backend modules](docs/backend-modules-diagram.jpeg)
+
+The delivery day flows left to right through events; everything else supports it.
+
+```text
+                 reads: Reference data (ref) · Identity and access (iam)
+                                      │
+ Ordering ──orders.closed──► Planning ──plan.published──► Loading ──trip.released──► Execution ──delivery.completed──► Receipt
+    ▲    ◄──order.deferred──    │                           │                           │                              │
+    │                           │ PredictionQuery           └──shortfall──► Issues ◄────┴──failed, fault───────────────┤
+    │                           ▼                                             │                                        │
+    │                      Intelligence                                       │ redelivery.requested                   │
+    └─────────────────────────────────────────────────────────────────────────┴──────────── receipt.confirmed ─────────┘
+
+ Supporting: Warehouse (StockPort) · Notification (all events) · Messaging (trip threads) · Sync (offline replay) · Demo
+ Platform (integration schema): command bus · idempotency receipts · audit log · outbox and relay · scheduler
+```
+
+| Module | Schema | What it owns |
+| --- | --- | --- |
+| Reference data | `ref` | Outlets, vehicles, districts, depots, calendar, travel and service allowances, versioned |
+| Identity and access | `iam` | Sign-in, sessions, versioned policies, depot and outlet scope, MCP OAuth |
+| Ordering | `ordering` | Order capture, the 16:00 cutoff, the order lifecycle |
+| Warehouse | `warehouse` | The anti-corruption layer to the external stock API |
+| Planning | `planning` | Allocation, deferrals, the engine chain, publication and revisions ([How planning works](#how-planning-works)) |
+| Loading | `loading` | Dock checks against the stop order, shortfalls, vehicle interchange |
+| Execution | `execution` | Stops, arrivals, proof of delivery, positions, offline from the driver's phone |
+| Receipt | `receipt` | The store's independent confirmation or dispute |
+| Issues | `issues` | One lifecycle for every problem, with escalation |
+| Notification | `notification` | In-app and Web Push messages from events, tracked per channel |
+| Messaging | `messaging` | One thread per trip, with voice notes |
+| Sync | `sync` | Offline commands replayed exactly once, conflicts shown |
+| Intelligence | `ml` | Forecasts, late risk and attention, outside the transactional core |
+| Demo | `demo` | Opt-in judge scenarios and simulated vehicles |
+
+Modules talk in three ways only: a **domain event** through the outbox, a **read** of another module's contract, or a **port** to anything outside the process.
+
+### Inside a module
+
+Every module has the same five packages, and dependencies point inward:
+
+```text
+ ┌───────────────────────────────────────────────────────────────────────────┐
+ │ contract        views · queries · commands · events                       │ ◄── the only package
+ │                                                                           │     other modules import
+ ├───────────────────────────────────────────────────────────────────────────┤
+ │ web             thin controllers and reads                                │
+ ├───────────────────────────────────────────────────────────────────────────┤
+ │ application     handlers · queries · consumers · jobs                     │
+ │                 the only layer that opens a transaction or authorizes     │
+ ├──────────────────────────────────────┬────────────────────────────────────┤
+ │ domain                               │ infrastructure                     │
+ │ pure rules and state machines        │ JDBC repositories · ports          │
+ │ no Spring · no SQL · no clock        │ depends on domain                  │
+ └──────────────────────────────────────┴────────────────────────────────────┘
+```
+
+### One command, end to end
+
+```text
+ client or offline queue ──POST /api/commands (command id, expectedVersion)──► CommandBus
+   CommandBus: policy AND scope, else 403 and audit
+   ┌─ one transaction ───────────────────────────────────────────────────────────────┐
+   │ idempotency receipt (seen before? answer from it) → handler → row_version check │
+   │ → change + outbox event + audit row + receipt                                   │
+   └─────────────────────────────────────────────────────────────────────────────────┘
+   ◄── ack, or RFC 9457 problem naming every failed rule (stale version is 409)
+ afterwards, at least once: outbox relay (SKIP LOCKED) → each subscriber in its own transaction
+```
+
+### Data model
+
+![Waypoint GO UML data model](docs/data-model-diagram.jpeg)
+
+A logical view of the delivery workflow, grouped by owning module: demand and planning (depot, outlet, vehicle, order, plan run, trip, allocation, deferral), then loading, delivery, receipt and issues. Modules link by id and by event; foreign keys point only into `ref` and `iam`. Every table, key and foreign key is in [docs/data-model.md](docs/data-model.md), generated from the live migrations.
+
+## How planning works
+
+The dispatcher presses **Generate draft** and a queued job runs the engine outside any database transaction. The engine is a chain, wired in [PlanningEngineConfiguration.java](backend/src/main/java/com/waypoint/dispatch/planning/infrastructure/PlanningEngineConfiguration.java):
+
+```mermaid
+flowchart LR
+  A[Priority insertion<br/>orders in rank order,<br/>each where every rule passes] --> B[Refrigerated re-plan<br/>exact search over the reefers,<br/>kept only if better by priority]
+  B --> C[ALNS cost stage<br/>same or better orders on<br/>fewer vehicles and less fuel]
+  C --> D[Validation<br/>whole plan checked again;<br/>an invalid plan never leaves]
+```
+
+1. **Priority insertion** (`PriorityInsertionEngine`) ranks orders by the versioned priority table (outlets skipped yesterday, Fresh, chilled, strict access, earliest closing window) and places each one where weight, volume, temperature, `van_only` access, delivery and mall windows, weekly fuel and the two-trip limit all pass.
+2. **Refrigerated re-plan** (`ScarceFleetReplan`) plans the scarce reefers again as a whole and keeps the result only when it serves a better set by priority.
+3. **ALNS cost stage** (`CostReplan`) runs on a day that deferred something or has trips under 85% full on average. Each of 2,000 iterations removes orders (random, a whole vehicle, part of a district or the emptiest trip) and puts them back in rank order through the same constraint registry. A plan wins by priority first, then fewer vehicles, then fewer litres, so cost never trades priority. It is seeded from the orders, so the same day always gives the same plan, and the rules plan is kept beside it in **Compare**.
+4. **Validation** (`ValidatingEngine`) re-checks every trip of both plans. Every order ends served, deferred with the rule that stopped it, or unservable.
+
+The dispatcher can then place, swap, lock, keep deferred, edit a trip or reorder stops, and each change is checked against the same rules.
+
+**Why this engine.** It was chosen by measurement: 8 engine variants, including an exact MIP as the proof, on 62 days (the official peak day, the 8 historic depot-days with 0, 25 and 40% of the fleet out, and generated days up to 300 orders), 435 runs, every plan judged by the production checker. See the [benchmark notebook](docs/issues/219-planning-v2/benchmark/planning-benchmark.ipynb), its [results](docs/issues/219-planning-v2/benchmark/results-all.csv) and the [issue #219 walkthrough](docs/issues/219-planning-v2/WALKTHROUGH.md).
+
+| Result | Before (stages 1 and 2) | Production (all stages) |
+| --- | --- | --- |
+| Days best by priority (of 62) | 30 | 58 |
+| Orders served, all days | 5,103 | 5,464 |
+| Vehicles, all days | 1,137 | 954 |
+| Peak day: served, vehicles, litres | 73, 16, 725 | 73, 13, 611 |
+
+On the 34 days where the MIP proved the best set of orders, production serves exactly that set. Against stages 1 and 2 alone it uses a median 23% less fuel. The peak-day output passes the official `check_allocation.py` in CI.
+
 ## Run with Docker Compose
 
-The complete stack (PostgreSQL, the backend, the model service, the frontend and the seed data) starts with one command. It needs Docker Engine 24+ with Compose v2 and nothing else installed:
+The complete stack (PostgreSQL, the backend, the model service, the frontend and the seed data) starts with one command. It needs Docker Engine 24+ with Compose v2, and Git LFS for the trained model files:
 
 ```sh
 git clone https://github.com/Dinusha-Ekanayake/Xception-WaypointGo.git
@@ -88,8 +309,8 @@ Then open http://localhost:3000. `scripts/dev.sh` always uses the local Docker d
 
 ```sh
 docker compose up -d db                 # PostgreSQL on 127.0.0.1:5432
-cd backend && mvn spring-boot:run       # needs DATABASE_URL exported; Spring does not read .env
-cd frontend && npm ci && npm run dev    # reads BACKEND_URL from frontend/.env.local
+cd backend && mvn spring-boot:run       # second terminal; needs DATABASE_URL exported, Spring does not read .env
+cd frontend && npm ci && npm run dev    # third terminal; reads BACKEND_URL from frontend/.env.local
 ```
 
 The details, and which process reads which configuration file, are in [development.md](docs/development-docs/development.md). Production deployment is in [deployment.md](docs/deployment.md).
@@ -115,7 +336,7 @@ The seed places the Task 2B peak day: 85 confirmed Peliyagoda orders across all 
 
 1. **Store manager: see the order.** Sign in as `ransikaj@waypoint.local`. Home and Orders show OUT001's two orders for the seeded day (one ambient, one chilled), confirmed and waiting to be planned.
 2. **Dispatcher: one queue.** Sign in as `dinushabawantha@waypoint.local` and open **Orders**. Every order due at Peliyagoda that day is in one table with its brand, temperature and status. **Close orders** is accepted only after the 16:00 cutoff the day before (R-ORD-01); before then the screen shows the refusal and its rule, and planning still works.
-3. **Dispatcher: plan the peak day.** Open **Plan**. It opens on today; when nothing waits today it names the seeded day, so choose **Plan** for that day, then **Generate draft**. The engine allocates against weight and volume limits, refrigerated vehicles for chilled goods, vans for `van_only` outlets, delivery and mall windows, weekly fuel and at most two trips per vehicle, then plans the refrigerated vehicles again as a whole and keeps the result only if it is better by priority; the plan says what that second pass changed. On the seeded day most orders are placed, about a dozen are deferred, and one order is larger than any vehicle and cannot be served.
+3. **Dispatcher: plan the peak day.** Open **Plan**. It opens on today; when nothing waits today it names the seeded day, so choose **Plan** for that day, then **Generate draft**. The engine allocates against weight and volume limits, refrigerated vehicles for chilled goods, vans for `van_only` outlets, delivery and mall windows, weekly fuel and at most two trips per vehicle, then plans the refrigerated vehicles again as a whole and keeps the result only if it is better by priority, then runs the ALNS cost stage to carry the same orders on fewer vehicles and less fuel ([How planning works](#how-planning-works)); the plan says what each pass changed, and **Compare** opens the rules-only plan beside it. On the seeded day 73 of 85 orders are placed on 13 vehicles (16 without the cost stage), 11 are deferred, and one order is larger than any vehicle and cannot be served.
 4. **Dispatcher: explain the deferrals.** In **Decide**, each order the plan could not place shows the rule that stopped it. Open one to see where it could go; only feasible places can be chosen, and a manual placement needs a reason. In **View plan**, open a trip to see its load against capacity, departure and stop order; **Take off** defers an order with a reason.
 5. **Dispatcher: publish.** **Publish** lists what the plan leaves undelivered, then **Publish plan**. **Vehicles** shows each vehicle's planned fuel against its weekly quota, and Overview lists outlets skipped on earlier runs.
 6. **Loader: load in stop order.** Sign in as `peliyagoda@waypoint.local`, choose a loader and enter PIN `2468` on the dock screen. The dock board lists the published trips: it shows the first day, from today, with a trip still to load, so on the evening before (or a weekend before Monday's run) it is the seeded day's. Open the trip that carries OUT001: items are listed in reverse stop order, so the first stop is loaded last. Check items off one by one.
@@ -129,11 +350,11 @@ To start again from an empty database: `docker compose down -v && docker compose
 
 ## Departures from the Designathon design
 
-The Figma file (pages 04 to 17) is the specification. Where the design shows something no backend module provides yet, it is left out rather than faked. Updated 2026-10-04:
+The Figma file (pages 04 to 17) is the specification. Where the design shows something no backend module provides yet, it is left out rather than faked. Updated 2026-10-05:
 
 - **Driver:**
   - Vehicle pick-up by QR code is not built (dispatch assigns the vehicle).
-  - The fuel pass QR, fuel logging and calls have no backend.
+  - Fuel QR shows the vehicle's fuel pass, which an administrator sets on the vehicle (admin console, Vehicles, Fuel pass) and the driver assigned to the vehicle that day sees, also with no signal. Fuel logging and calls have no backend.
   - The map is the run's own trail and next stop. It hands off to the phone's maps app only for an exact store location.
   - With no released trip today, Home names the next trip ahead and says it is waiting for the loader. The design shows only a released run.
   - English only.
@@ -151,7 +372,7 @@ The Figma file (pages 04 to 17) is the specification. Where the design shows som
   - When the trips on the board leave after tomorrow (a weekend), "Tonight's departures" names the day they leave.
   - Sinhala and Tamil are drafts awaiting a native speaker.
 - **Store manager:**
-  - Call options are not built (no contact numbers on record); a delivery's Message is used instead.
+  - Call options are not built; a delivery's Message is used instead.
   - Draft orders are not built.
   - The Next delivery card shows the driver and a predicted arrival once the trip leaves. Before that, it shows the next planned or confirmed delivery and the outlet's window.
   - Below 440 px the header hides the Store chip and uses smaller round buttons so the sync time fits. The bottom bar stays icon-only, as designed.
@@ -214,9 +435,10 @@ cd frontend && npm run verify        # all of the above except e2e
 cd frontend && npx playwright test -c playwright.dispatcher.config.ts
 cd frontend && npx playwright test -c playwright.driver.config.ts
 cd frontend && npx playwright test -c playwright.loader.config.ts
+cd frontend && npx playwright test -c playwright.store.config.ts
 ```
 
-Integration tests use `TEST_DATABASE_URL` when it is set, a throwaway PostgreSQL 16 container when Docker is available, and are skipped with a stated reason otherwise. `TEST_DATABASE_URL` must name a dedicated database, never the application one. CI (`.github/workflows/checks.yml`) runs the backend tests, the typecheck, `npm test`, the build and the browser suites (the shell and every role) on every pull request to `dev` and `main`, and before every deploy.
+Integration tests use `TEST_DATABASE_URL` when it is set, a throwaway PostgreSQL 16 container when Docker is available, and are skipped with a stated reason otherwise. The bundled Testcontainers cannot talk to Docker Engine 29, so there set `TEST_DATABASE_URL` to a PostgreSQL 16 container started by hand. `TEST_DATABASE_URL` must name a dedicated database, never the application one. CI (`.github/workflows/checks.yml`) runs the backend tests, the typecheck, `npm test`, the build and the browser suites (the shell and every role) on every pull request to `dev` and `main`, and before every deploy.
 
 ## Documentation
 
@@ -233,7 +455,7 @@ Integration tests use `TEST_DATABASE_URL` when it is set, a throwaway PostgreSQL
 
 **The picture first:**
 
-- [docs/architecture.md](docs/architecture.md), the diagrams: who uses the system, what runs, how the twelve modules connect, and one command end to end
+- [docs/architecture.md](docs/architecture.md), the diagrams: who uses the system, what runs, how the thirteen modules connect, and one command end to end
 - [docs/data-model.md](docs/data-model.md), every table, key and foreign key by schema, generated from the live migrations by `scripts/data-model.py`
 
 **The design, in `docs/architecture/`:**

@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-10-05 - feat: vehicle fuel pass set by the administrator
+
+`a036120` · @ranathungaWK
+
+The driver's Fuel QR showed a code of the vehicle id only. A vehicle's National Fuel Pass (pass number and QR code) is now kept in `ref.vehicle_fuel_passes`, set, changed or cleared by an administrator of the vehicle's depot with `reference:UpdateVehicleFuelPass` (Fuel pass on the admin vehicle panel, with a preview), and shown to the driver assigned to the vehicle today, kept on the phone for a pump with no signal. Outside reference versions, so a change never marks a plan stale; the code is never audited. Rule R-REF-04, cases REF-08 and REF-09.
+Verified here: `VehicleFuelPassTest`, `ModuleBoundaryTest`, `SeededPolicyTest`, `npm run typecheck`, `npm test`, `npm run build`. The six `VehicleFuelPassIntegrationTest` cases were skipped because Docker was unavailable. The message and voice driver specs failed locally on paths this change does not touch.
+
 ## 2026-10-04 - expose scheduled vehicle drivers
 
 `codex/system-constraints` · @ranathungaWK

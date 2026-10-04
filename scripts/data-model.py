@@ -118,7 +118,7 @@ def main(url):
         "",
         "## The day's data in one picture",
         "",
-        "![How an order travels through the data](diagrams/06-data-lifecycle.png)",
+        "![Waypoint GO UML data model](data-model-diagram.jpeg)",
         "",
         "One order is carried from schema to schema by id and by event, never by a foreign key: "
         "`ordering.orders` is allocated to a stop on a `planning.trips` row, copied into `loading.stops` when the plan "
@@ -127,8 +127,6 @@ def main(url):
         "row and outbox events in `integration`.",
         "",
         "## How the schemas connect",
-        "",
-        "![Schemas and foreign keys](diagrams/07-schema-map.png)",
         "",
         "Each module owns one schema and is the only writer to it. Foreign keys point only into `ref` and `iam`; "
         "every other reference between modules is by id with no foreign key, so one module's migration never waits "

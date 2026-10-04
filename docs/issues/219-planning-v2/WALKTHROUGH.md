@@ -15,7 +15,7 @@ Why and the decisions: [PLAN.md](PLAN.md). Rules R-PLN-38 to R-PLN-41 in [RULES-
 | **E5 production** | **58** | **5,464** | **954** | **38,730** |
 
 - On all 34 days where the MIP proved the best set by rank, production serves exactly that set; the rules alone fell one or two short on 6.
-- Against the rules plan: a median 16% less fuel (up to 35%), up to 7 fewer vehicles a day. S1: the same 73 orders, 16 to 13 vehicles, 725 to 611 L.
+- Production against the rules plan: a median 23% less fuel (up to 39%), up to 8 fewer vehicles a day. S1: the same 73 orders, 16 to 13 vehicles, 725 to 611 L. (The benchmark's first ALNS, E3, saved a median 16%, up to 35% and 7 vehicles.)
 - HiGHS through OR-Tools 9.14 crashes when given a hint and ignores its time limit: S1 only.
 - Found and fixed: the reefer pass's day listing was unbounded and its covered-day pruning quadratic, so a 200-order day held a worker for over an hour; now under 10 s (PLN-39).
 

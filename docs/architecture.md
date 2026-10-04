@@ -1,10 +1,10 @@
 # Architecture
 
-Waypoint Dispatch is one web application for four field roles, served by a modular monolith over one PostgreSQL database. This page draws what is built and deployed today. Each section has a rendered image in [diagrams/](diagrams/) and, below it, the Mermaid source that the image follows; the reasoning and the target design are in [SYSTEM-ARCHITECTURE.md](../SYSTEM-ARCHITECTURE.md), each module's contract in [MODULES.md](architecture/MODULES.md), and every table in [data-model.md](data-model.md).
+Waypoint Dispatch is one web application for four field roles, served by a modular monolith over one PostgreSQL database. This page draws what is built and deployed today. The system and backend module diagrams are [architecture-diagram.jpeg](architecture-diagram.jpeg) and [backend-modules-diagram.jpeg](backend-modules-diagram.jpeg); each section below has its Mermaid source; the reasoning and the target design are in [SYSTEM-ARCHITECTURE.md](../SYSTEM-ARCHITECTURE.md), each module's contract in [MODULES.md](architecture/MODULES.md), and every table in [data-model.md](data-model.md).
 
 ## Who uses it and what it talks to
 
-![System context](diagrams/01-system-context.png)
+![Waypoint GO high-level UML component diagram](architecture-diagram.jpeg)
 
 ```mermaid
 flowchart LR
@@ -28,8 +28,6 @@ flowchart LR
 Each role sees its own screens; the server decides what each person may do (policy) and which rows they may see (scope). An AI assistant connects as a person, with that person's policy and scope and nothing more ([R-IAM-30](architecture/RULES-AND-POLICIES.md)).
 
 ## What runs
-
-![Runtime containers](diagrams/02-runtime-containers.png)
 
 The judge path, `docker compose up` with [compose.yaml](../compose.yaml):
 
@@ -68,7 +66,7 @@ flowchart LR
 
 ## Modules and how they connect
 
-![Modules and events](diagrams/03-modules-and-events.png)
+![Waypoint GO backend modules](backend-modules-diagram.jpeg)
 
 Thirteen business modules in one process, each owning one schema, plus the platform (command bus, outbox, audit, scheduler in `integration`) and an opt-in `demo` module that drives the judge scenarios. They connect in three ways only: a domain event through the outbox, a read through another module's published contract, or a port for anything outside the process.
 
@@ -114,8 +112,6 @@ Solid arrows are events (asynchronous, at least once, consumers idempotent); dot
 
 ## Inside a module
 
-![Inside a module](diagrams/04-module-layers.png)
-
 ```mermaid
 flowchart LR
   WEB[web<br/>thin controllers, reads] --> APP
@@ -127,9 +123,39 @@ flowchart LR
   APP --> CON
 ```
 
-## One command, end to end
+## The planning engine
 
-![One command, end to end](diagrams/05-command-path.png)
+Planning shows the layers at work. The engines are pure domain code; the infrastructure layer chains them as decorators behind the `AllocationEngine` port, and the application layer runs the chain as a queued job outside any transaction.
+
+```mermaid
+flowchart LR
+  subgraph application
+    GEN[GeneratePlanHandler<br/>queues one job per depot and day]
+    WRK[PlanGenerationWorker<br/>runs the engine, no transaction open,<br/>re-checks demand before writing]
+  end
+  subgraph infrastructure
+    VAL[ValidatingEngine<br/>outermost, re-checks both plans]
+    COST[CostImprovingEngine]
+    IMP[ImprovingEngine]
+    PRI[PriorityInsertionEngine]
+  end
+  subgraph domain
+    REG[ConstraintRegistry<br/>one definition of every rule]
+    SFR[ScarceFleetReplan<br/>exact refrigerated re-plan]
+    ALNS[CostReplan<br/>ALNS cost stage]
+    POL[PriorityPolicy<br/>versioned rank table]
+  end
+  GEN --> WRK --> VAL --> COST --> IMP --> PRI
+  PRI --> POL
+  PRI --> REG
+  IMP --> SFR --> REG
+  COST --> ALNS --> REG
+  VAL --> REG
+```
+
+The same `ConstraintRegistry` is read by the dispatcher's manual edits and the publication gate, so no path can break a rule the engine keeps. Why this chain, measured against an exact MIP on 62 days: [benchmark notebook](issues/219-planning-v2/benchmark/planning-benchmark.ipynb) and [issue #219 walkthrough](issues/219-planning-v2/WALKTHROUGH.md).
+
+## One command, end to end
 
 Every write goes through one path, whether it was sent online or replayed from the offline queue.
 
@@ -164,7 +190,6 @@ A refused rule comes back as `application/problem+json` naming every rule that f
 | Why these choices | [SYSTEM-ARCHITECTURE.md](../SYSTEM-ARCHITECTURE.md) |
 | What each module owns, its commands and events | [architecture/MODULES.md](architecture/MODULES.md) |
 | Every table and key | [data-model.md](data-model.md) |
-| How the diagrams were made | [diagrams/README.md](diagrams/README.md) |
 | Every rule and where it is enforced | [architecture/RULES-AND-POLICIES.md](architecture/RULES-AND-POLICIES.md) |
 | Every edge case and its test | [architecture/EDGE-CASES.md](architecture/EDGE-CASES.md) |
 | What is built and what is left | [development-docs/STATUS.md](development-docs/STATUS.md) |

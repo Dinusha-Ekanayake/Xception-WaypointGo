@@ -154,6 +154,7 @@ Seven layers. A request enters at the top; rules live in the middle; four concer
 ├──────────────────────────────────────────────────────────────────────────────┤
 │ 5  DOMAIN        aggregates · invariants · constraint registry · engines     │
 │    does: the rules. Pure functions and value objects.                        │
+│    engines: priority insertion → reefer re-plan → ALNS cost stage            │
 │    never: Spring, SQL, Jackson, System.currentTimeMillis                     │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │ 6  DATA          repositories · projections · outbox · RLS policies          │
@@ -177,7 +178,7 @@ Seven layers. A request enters at the top; rules live in the middle; four concer
 
 ## 5. Module map
 
-Twelve modules. Full specifications, including the layers inside each and its service connections, are in [MODULES.md](docs/architecture/MODULES.md).
+Thirteen business modules, plus the platform's audit log and an opt-in demo module. Full specifications, including the layers inside each and its service connections, are in [MODULES.md](docs/architecture/MODULES.md).
 
 ```
                   ┌──────────────────────────────────────────┐
@@ -228,6 +229,8 @@ Twelve modules. Full specifications, including the layers inside each and its se
 | Warehouse | Anti-corruption layer to the external warehouse: stock, catalogue cache, inbound events | `warehouse.*` | yes, standard boundary |
 | Audit | Immutable record of who did what from where | `integration.audit_log` (platform) | no |
 | Intelligence | Predictions and forecasts | `ml.*` | yes, on runtime trigger |
+| Messaging | One conversation per trip between the people working it, with voice notes | `messaging.*` | no |
+| Demo | Opt-in judge scenarios, adjusted clock and simulated vehicles | `demo.*` | no, demo deployments only |
 
 Every module's contract (views, query interfaces, command payloads, events) lives in `<module>/contract/` and is mirrored for the frontend in `frontend/src/shared/domain/`. The full event catalogue, with producer and consumers, is in [MODULES.md](docs/architecture/MODULES.md#module-connection-summary).
 
