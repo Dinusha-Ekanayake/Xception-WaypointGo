@@ -106,6 +106,7 @@ Values that are correct today and will change. **None of them is a literal in co
 | **P-30** | MCP request rate | 120 requests a minute per credential (about 60 tool calls, since each call first refreshes the context), 1200 a minute per OAuth client (`MCP_RATE_PER_CREDENTIAL`, `MCP_RATE_PER_CLIENT`) | Our policy, issue #139; the MCP specification requires a limit, not its size | How fast one assistant, or every user of one assistant, can read. Too low refuses ordinary use; too high lets one client load the backend |
 | **P-31** | Full GPS trail retention | Service day plus 30 days, then one point per stop event (`PositionRetentionJob.RETAIN_DAYS`) | Product decision 2026-10-03, issue #161 D7 | Longer keeps more personal data; shorter loses the trail behind a delivery dispute | Approved |
 | **P-32** | MCP write rate | 30 write requests an hour per connection; preparing and confirming each count, so about 15 confirmed changes (`MCP_WRITES_PER_HOUR`) | Our policy, issue #177 | How much a looping assistant can change before a person notices. Too low refuses a busy shift's reports; too high lets one connection flood the issue queue |
+| **P-33** | Voice note retention | 400 days from upload (`VOICE_RETENTION`), recorded per note as `retain_until` | Our policy, issue #136, as P-14; legal to confirm | A voice note is personal communication and may be evidence in a dispute. `messaging.voice-retention` clears the audio nightly at 02:50 past `retain_until`; the message, the note's length and SHA-256 stay |
 
 ### How a parameter changes
 
