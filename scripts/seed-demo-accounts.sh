@@ -16,7 +16,7 @@ JAR="${BACKEND_JAR:-/app/backend.jar}"
 ROSTER="${DEMO_ACCOUNTS_FILE:-$(dirname "$0")/demo-accounts.csv}"
 
 # A Windows checkout may hand the roster over with CRLF line ends.
-grep -v '^#' "$ROSTER" | tr -d '' | while IFS=, read -r role email name depot pin; do
+grep -v '^#' "$ROSTER" | tr -d '\r' | while IFS=, read -r role email name depot pin; do
   [ -n "$role" ] || continue
   commands="account-create"
   [ -z "$depot" ] || commands="$commands account-grant-depot"
