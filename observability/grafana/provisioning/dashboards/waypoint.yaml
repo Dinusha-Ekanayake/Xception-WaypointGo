@@ -1,0 +1,13 @@
+apiVersion: 1
+
+# Dashboards are versioned here, not built by hand in the UI: a dashboard edited
+# only in Grafana is lost with the grafana-data volume.
+providers:
+  - name: Waypoint
+    folder: Waypoint
+    type: file
+    disableDeletion: true
+    allowUiUpdates: true
+    updateIntervalSeconds: 60
+    options:
+      path: /etc/grafana/provisioning/dashboards/json

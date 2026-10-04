@@ -1,0 +1,147 @@
+import type { CheckStatus, HolderView, IssueKind, ItemView, ManifestLineView, OutletView, SessionStatus, Temperature } from "@shared/domain/types";
+import { businessNow, clock, durationText } from "../../../shared/wording/index.ts";
+export { clock, depotToday, durationText, hhmm } from "../../../shared/wording/index.ts";
+
+// Pure helpers over a manifest. Capacity reads order totals only (AGENTS.md,
+// External Product Catalogue): weight and volume never come from product lines.
+
+export type StopGroup<L extends ManifestLineView> = {
+  stopSequence: number;
+  outletId: string;
+  lines: L[];
+};
+
+/** Stops in loading order: the last stop is loaded first (D-L). */
+export function byStop<L extends ManifestLineView>(lines: L[]): StopGroup<L>[] {
+  const groups: StopGroup<L>[] = [];
+  for (const line of [...lines].sort((a, b) => a.loadSequence - b.loadSequence)) {
+    const last = groups[groups.length - 1];
+    if (last && last.stopSequence === line.stopSequence) last.lines.push(line);
+    else groups.push({ stopSequence: line.stopSequence, outletId: line.outletId, lines: [line] });
+  }
+  return groups;
+}
+
+export const isChecked = (status: CheckStatus) => status !== "PENDING";
+export const isFlagged = (status: CheckStatus) => status === "SHORT" || status === "MISSING" || status === "DAMAGED" || status === "DOES_NOT_FIT";
+
+/** The issues a loader may report, in the order of Figma 03. */
+export const ISSUE_KIND_LABEL: Record<IssueKind, string> = {
+  SHORT: "Short",
+  DAMAGED: "Damaged",
+  DOES_NOT_FIT: "Doesn't fit",
+  MISSING: "Missing",
+};
+
+export function progress(lines: ManifestLineView[]): { checked: number; total: number; flagged: number; percent: number } {
+  const checked = lines.filter((l) => isChecked(l.status)).length;
+  const flagged = lines.filter((l) => isFlagged(l.status)).length;
+  return { checked, total: lines.length, flagged, percent: lines.length ? Math.round((checked / lines.length) * 100) : 0 };
+}
+
+/** Loaded share of the manifest's own totals, by order-level weight and volume. */
+export function loadedTotals(lines: ManifestLineView[]) {
+  let weight = 0;
+  let volume = 0;
+  let weightAll = 0;
+  let volumeAll = 0;
+  for (const l of lines) {
+    const share = l.itemCount ? l.loadedUnits / l.itemCount : 0;
+    weightAll += Number(l.weightKg);
+    volumeAll += Number(l.volumeM3);
+    weight += Number(l.weightKg) * share;
+    volume += Number(l.volumeM3) * share;
+  }
+  return { weight, weightAll, volume, volumeAll };
+}
+
+export function tripTemperature(lines: ManifestLineView[]): Temperature {
+  return lines.some((l) => l.temperature === "chilled") ? "chilled" : "ambient";
+}
+
+export function placeName(outletId: string, outlets: Map<string, OutletView>): string {
+  return outlets.get(outletId)?.districtName ?? outletId;
+}
+
+/** The order's business reference, as printed on the pick label (for example ORD0092336). */
+export function orderLabel(line: Pick<ManifestLineView, "orderRef" | "orderId">): string {
+  return line.orderRef || line.orderId.slice(-6).toUpperCase();
+}
+
+/** Stable key for one item line of one order. */
+export const itemKey = (orderId: string, lineNo: number) => `${orderId}:${lineNo}`;
+
+/**
+ * An order's status from its items, the same rule the server applies: pending
+ * while any item is unchecked, loaded when every item is, otherwise the first flag.
+ */
+export function orderStatusOf(items: ItemView[]): CheckStatus {
+  if (items.some((i) => i.status === "PENDING")) return "PENDING";
+  return items.find((i) => isFlagged(i.status))?.status ?? "LOADED";
+}
+
+/** Minutes until a depot wall-clock time today, read in Asia/Colombo whatever the device's timezone. */
+export function minutesUntil(time: string, now: Date = businessNow()): number {
+  const [h, m] = time.split(":").map(Number);
+  const [nh, nm] = clock(now.toISOString()).split(":").map(Number);
+  return (h ?? 0) * 60 + (m ?? 0) - ((nh ?? 0) * 60 + (nm ?? 0));
+}
+
+export const STATUS_LABEL: Record<SessionStatus, string> = {
+  NOT_STARTED: "Not started",
+  IN_PROGRESS: "Loading",
+  BLOCKED: "Flagged",
+  READY: "Ready to release",
+  COMPLETED: "Released",
+};
+
+export const CHECK_LABEL: Record<CheckStatus, string> = {
+  PENDING: "To load",
+  LOADED: "Loaded",
+  SHORT: "Short",
+  MISSING: "Missing",
+  DAMAGED: "Damaged",
+  DOES_NOT_FIT: "Doesn't fit",
+};
+
+export const kg = (n: number) => `${Math.round(n).toLocaleString("en-US")} kg`;
+export const m3 = (n: number) => `${n.toFixed(1)} m³`;
+
+/** Minutes until the planned departure, read in Asia/Colombo; nothing once it has passed. */
+/** LoadingSession.IDLE_RELEASE: a hold with no activity for this long lapses. */
+export const IDLE_RELEASE_MINUTES = 30;
+
+/** Whether a holder has been idle long enough that anyone may take the trip over. */
+export function holdLapsed(holder: HolderView, now: Date = businessNow()): boolean {
+  return now.getTime() - Date.parse(holder.lastActiveAt) >= IDLE_RELEASE_MINUTES * 60_000;
+}
+
+/** "14 min" or "1 h 20 min" until a depot-time departure; empty when past or not today. */
+export function timeToDeparture(time: string, now: Date = businessNow()): string {
+  const minutes = minutesUntil(time, now);
+  if (minutes <= 0 || minutes >= 12 * 60) return "";
+  return durationText(minutes);
+}
+
+export function untilDeparture(time: string, now: Date = businessNow()): string {
+  const minutes = minutesUntil(time, now);
+  if (minutes <= 0 || minutes >= 12 * 60) return "";
+  return minutes < 60 ? `${minutes} min to departure` : `${Math.floor(minutes / 60)} h ${minutes % 60} min to departure`;
+}
+
+/**
+ * Figma 05 "on pace": the share of orders checked against the share of the time
+ * from taking the trip to departure that has passed. Behind by more than a
+ * tenth of the load is "behind pace". Null when there is no time left to judge.
+ */
+export function paceOf(checked: number, total: number, since: string, departure: string, now: Date = businessNow()): "on" | "behind" | null {
+  const start = Date.parse(since);
+  // Departure is depot time (Asia/Colombo), so it is measured from now in that zone.
+  const minutesLeft = minutesUntil(departure, now);
+  if (!total || minutesLeft <= 0 || minutesLeft >= 12 * 60 || Number.isNaN(start)) return null;
+  const leave = now.getTime() + minutesLeft * 60_000;
+  const span = leave - start;
+  if (!(span > 0)) return null;
+  const elapsed = Math.max(0, Math.min(1, (now.getTime() - start) / span));
+  return checked / total + 0.1 < elapsed ? "behind" : "on";
+}

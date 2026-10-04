@@ -1,0 +1,13 @@
+node_modules
+.next
+.git
+var
+.env
+.env.*
+!.env.example
+test-results
+playwright-report
+
+Tech-Triathlon 2026
+.playwright-mcp
+artifacts

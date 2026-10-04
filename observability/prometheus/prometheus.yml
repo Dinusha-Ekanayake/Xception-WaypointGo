@@ -1,0 +1,24 @@
+# Prometheus: scrapes the backend's /prometheus endpoint (Spring Actuator,
+# exposed in application.properties). Not routed through nginx, so it is
+# reachable only from inside the compose network.
+#
+# Local: the backend runs either in Docker (backend:8080) or natively on the
+# host (host.docker.internal:8080). Both are listed; the one not running shows
+# as down on the Targets page, which is expected.
+# The VPS overlay replaces this file with vps.yml, which scrapes production and
+# preview over the shared waypoint-edge network.
+
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+
+scrape_configs:
+  - job_name: backend
+    metrics_path: /prometheus
+    static_configs:
+      - targets: ["backend:8080"]
+        labels:
+          stack: local
+      - targets: ["host.docker.internal:8080"]
+        labels:
+          stack: native

@@ -1,0 +1,25 @@
+{
+  "name": "@waypoint/readonly-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "npm run build && node --experimental-strip-types --test tests/*.test.ts",
+    "start": "node dist/stdio.js",
+    "connect": "node dist/connect.js",
+    "disconnect": "node dist/connect.js --disconnect",
+    "start:http": "node dist/http-main.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.31.0",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "22.18.0",
+    "typescript": "5.9.3"
+  }
+}

@@ -1,0 +1,15 @@
+kind,code,latitude,longitude,precision,source
+depot,Peliyagoda,6.968500,79.883600,approximate,https://www.geodatos.net/en/coordinates/sri-lanka/peliyagoda
+depot,Kandy,7.290600,80.633600,approximate,https://www.geodatos.net/en/coordinates/sri-lanka/kandy
+district,Colombo,6.869357,80.019837,centroid,https://media.githubusercontent.com/media/wmgeolab/geoBoundaries/9469f09/releaseData/gbOpen/LKA/ADM2/geoBoundaries-LKA-ADM2.geojson#Colombo
+district,Gampaha,7.123335,80.018403,centroid,https://media.githubusercontent.com/media/wmgeolab/geoBoundaries/9469f09/releaseData/gbOpen/LKA/ADM2/geoBoundaries-LKA-ADM2.geojson#Gampaha
+district,Kalutara,6.576956,80.127481,centroid,https://media.githubusercontent.com/media/wmgeolab/geoBoundaries/9469f09/releaseData/gbOpen/LKA/ADM2/geoBoundaries-LKA-ADM2.geojson#Kalutara
+district,Galle,6.222732,80.252337,centroid,https://media.githubusercontent.com/media/wmgeolab/geoBoundaries/9469f09/releaseData/gbOpen/LKA/ADM2/geoBoundaries-LKA-ADM2.geojson#Galle
+district,Matara,6.142080,80.540269,centroid,https://media.githubusercontent.com/media/wmgeolab/geoBoundaries/9469f09/releaseData/gbOpen/LKA/ADM2/geoBoundaries-LKA-ADM2.geojson#Matara
+district,Kurunegala,7.664458,80.236904,centroid,https://media.githubusercontent.com/media/wmgeolab/geoBoundaries/9469f09/releaseData/gbOpen/LKA/ADM2/geoBoundaries-LKA-ADM2.geojson#Kurunegala
+district,Puttalam,7.973172,79.913934,centroid,https://media.githubusercontent.com/media/wmgeolab/geoBoundaries/9469f09/releaseData/gbOpen/LKA/ADM2/geoBoundaries-LKA-ADM2.geojson#Puttalam
+district,Kandy,7.272865,80.709730,centroid,https://media.githubusercontent.com/media/wmgeolab/geoBoundaries/9469f09/releaseData/gbOpen/LKA/ADM2/geoBoundaries-LKA-ADM2.geojson#Kandy
+district,Matale,7.668440,80.730995,centroid,https://media.githubusercontent.com/media/wmgeolab/geoBoundaries/9469f09/releaseData/gbOpen/LKA/ADM2/geoBoundaries-LKA-ADM2.geojson#Matale
+district,Nuwara Eliya,6.973959,80.711189,centroid,https://media.githubusercontent.com/media/wmgeolab/geoBoundaries/9469f09/releaseData/gbOpen/LKA/ADM2/geoBoundaries-LKA-ADM2.geojson#Nuwara%20Eliya
+district,Badulla,7.075375,81.044911,centroid,https://media.githubusercontent.com/media/wmgeolab/geoBoundaries/9469f09/releaseData/gbOpen/LKA/ADM2/geoBoundaries-LKA-ADM2.geojson#Badulla
+district,Kegalle,7.104245,80.342854,centroid,https://media.githubusercontent.com/media/wmgeolab/geoBoundaries/9469f09/releaseData/gbOpen/LKA/ADM2/geoBoundaries-LKA-ADM2.geojson#Kegalle

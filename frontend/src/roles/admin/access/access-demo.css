@@ -1,0 +1,16 @@
+.access-demo button,
+.access-demo a,
+.access-demo input,
+.access-demo select,
+.access-demo textarea {
+  transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.access-demo :is(button, a, input, select, textarea, summary):focus-visible {
+  outline: 3px solid var(--color-go-teal);
+  outline-offset: 2px;
+}
+
+.access-demo button:disabled {
+  cursor: not-allowed;
+}

@@ -1,0 +1,222 @@
+@font-face {
+  font-family: 'UN-Malithi';
+  src: url('/fonts/UN-Malithi-4.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+/*
+ * GO design tokens, from the Figma style guide (page 17, "Foundations").
+ * Prefixed `go-` so they sit beside the prototype palette in app/globals.css
+ * without changing any screen that still uses it.
+ */
+@theme {
+  --font-go: 'Google Sans Flex Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-sinhala: 'UN-Malithi', sans-serif;
+
+  /* Brand and action */
+  --color-go-ink: #031b08;
+  --color-go-night: #0b1413;
+  --color-go-teal: #0e766d;
+  --color-go-signal: #00bf6a;
+  --color-go-success: #0b8a3a;
+  --color-go-mint: #b7f2ed;
+
+  /* Light surfaces */
+  --color-go-canvas: #e7f3f2;
+  --color-go-surface: #f1f6f5;
+  --color-go-subtle: #f7faf9;
+  --color-go-success-tint: #e6f8ef;
+  --color-go-divider: #e5e7eb;
+  --color-go-rule: #dfe7e6;
+
+  /* Text */
+  --color-go-secondary: #6b7280;
+  --color-go-muted: #6b6b6b;
+  --color-go-placeholder: #a9a9a9;
+
+  /* Status: a strong colour for text and icons, a tint for backgrounds */
+  --color-go-danger: #e5484d;
+  --color-go-danger-strong: #c62828;
+  --color-go-danger-tint: #fdecec;
+  --color-go-warning: #b7791f;
+  --color-go-warning-text: #8a5a0b;
+  --color-go-warning-tint: #fdf3e1;
+  --color-go-info: #3b82c4;
+  /* A vehicle with no recent position on the live map (issue #161). */
+  --color-go-offline: #9ca3af;
+  --color-go-info-tint: #e8f1fb;
+
+  /* Radius */
+  --radius-go-chip: 8px;
+  --radius-go-input: 12px;
+  --radius-go-tile: 14px;
+  --radius-go-card-s: 16px;
+  --radius-go-card: 18px;
+  --radius-go-card-l: 22px;
+  --radius-go-panel: 28px;
+
+  /* Surfaces and actions that change with the theme (Figma "12 Driver · Mobile") */
+  --color-go-card: #ffffff;
+  --color-go-action: #031a0c;
+  --color-go-on-action: #ffffff;
+  --color-go-soft: #b7f2ed;
+  --color-go-on-soft: #031b08;
+
+  --shadow-go-card: 0 6px 24px 0 rgba(0, 0, 0, 0.06);
+  --shadow-go-float: 0 5px 10px rgba(0, 0, 0, 0.09);
+}
+
+/*
+ * The dark theme of the driver's phone, for early starts. The same tokens with
+ * night values, scoped to a subtree, so a screen built on tokens needs no
+ * second set of classes. Contrast is kept at 4.5:1 or better for text.
+ */
+.go-dark {
+  color-scheme: dark;
+  --color-go-ink: #f4f7f6;
+  --color-go-canvas: #101312;
+  --color-go-card: #1f2423;
+  --color-go-surface: #2a302f;
+  --color-go-subtle: #181c1b;
+  --color-go-divider: #39403e;
+  --color-go-rule: #39403e;
+  --color-go-secondary: #aab3b1;
+  --color-go-muted: #aab3b1;
+  --color-go-placeholder: #7d8785;
+  --color-go-teal: #63d6ca;
+  --color-go-action: #00bf6a;
+  --color-go-on-action: #031b08;
+  --color-go-soft: #1e4b46;
+  --color-go-on-soft: #e9fffc;
+  --color-go-success: #4ade80;
+  --color-go-success-tint: #143524;
+  --color-go-danger-strong: #ff8a8e;
+  --color-go-danger-tint: #48191c;
+  --color-go-warning-text: #f2c26b;
+  --color-go-warning-tint: #40300f;
+  --color-go-info-tint: #172e45;
+  --shadow-go-card: 0 6px 24px 0 rgba(0, 0, 0, 0.4);
+}
+
+/*
+ * Installed apps (issue #201): `short:` is a phone held sideways, with little
+ * height, so bars compact and actions sit beside the content, not below it.
+ * Bars at the bottom pad with max(their own padding, env(safe-area-inset-
+ * bottom)) so the home bar never covers them once the app draws edge to edge
+ * (`viewportFit: cover` in app/layout.tsx); in a browser tab the inset is zero.
+ */
+@custom-variant short (@media (orientation: landscape) and (max-height: 500px));
+
+/*
+ * Motion (UX plan, Tier 3). One curve and three lengths for the whole app:
+ * 150 ms for presses and exits, 200 ms for fades, 250 ms for sheets and
+ * drawers. Nothing waits on an animation, and reduced motion removes them
+ * (app/globals.css). Entrances fill backwards only: a transform left on a
+ * finished panel would trap any fixed sheet opened from inside it.
+ */
+@theme {
+  --ease-go-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-go-in: cubic-bezier(0.4, 0, 1, 1);
+  --animate-fade-in: go-fade-in 200ms var(--ease-go-out) backwards;
+  --animate-rise-in: go-rise-in 200ms var(--ease-go-out) backwards;
+  --animate-pop: go-pop 200ms var(--ease-go-out);
+  /* An action that appears where there was none: grows from nothing, overshoots a little, settles. */
+  --animate-pop-in: go-pop-in 320ms var(--ease-go-out) backwards;
+  /* The way out of pop-in and of its scrim: shrink and fade, then the owner unmounts it. */
+  --animate-pop-out: go-pop-out 200ms var(--ease-go-in) forwards;
+  --animate-fade-out: go-fade-out 200ms var(--ease-go-out) forwards;
+  --animate-sheet-up: go-sheet-up 250ms var(--ease-go-out) backwards;
+  --animate-sheet-down: go-sheet-down 200ms var(--ease-go-in) forwards;
+  --animate-slide-in-end: go-slide-in-end 250ms var(--ease-go-out) backwards;
+  /* A report's sign on the timeline (issue #136): a small wave, then a rest, so it is seen without nagging. */
+  --animate-wave: go-wave 2.4s ease-in-out infinite;
+  /* A wrong PIN: the boxes shake, then the digits are already cleared. */
+  --animate-pin-shake: go-pin-shake 420ms ease-in-out;
+  /* A slide cue: each chevron brightens in turn, left to right, and the set repeats. Delay each one. */
+  --animate-chevron: go-chevron 1.2s ease-in-out infinite;
+
+  @keyframes go-fade-in { from { opacity: 0; } }
+  @keyframes go-fade-out { to { opacity: 0; } }
+  @keyframes go-rise-in { from { opacity: 0; transform: translateY(8px) scale(0.98); } }
+  @keyframes go-rise-out { to { opacity: 0; transform: translateY(8px) scale(0.98); } }
+  @keyframes go-sheet-up { from { transform: translateY(100%); } }
+  @keyframes go-sheet-down { to { transform: translateY(100%); } }
+  @keyframes go-slide-in-end { from { transform: translateX(100%); } }
+  @keyframes go-slide-out-end { to { transform: translateX(100%); } }
+  @keyframes go-pop { 50% { transform: scale(1.12); } }
+  @keyframes go-chevron { 0%, 70%, 100% { opacity: 0.2; } 25% { opacity: 1; } }
+  @keyframes go-pop-out { to { transform: scale(0.7); opacity: 0; } }
+  @keyframes go-pop-in { from { transform: scale(0); opacity: 0; } 60% { transform: scale(1.15); opacity: 1; } }
+  @keyframes go-wave {
+    0%, 60%, 100% { transform: rotate(0deg); }
+    10% { transform: rotate(-16deg); }
+    20% { transform: rotate(13deg); }
+    30% { transform: rotate(-9deg); }
+    40% { transform: rotate(6deg); }
+    50% { transform: rotate(-2deg); }
+  }
+  @keyframes go-pin-shake {
+    0%, 100% { transform: translateX(0); }
+    15% { transform: translateX(-8px); }
+    30% { transform: translateX(7px); }
+    45% { transform: translateX(-5px); }
+    60% { transform: translateX(4px); }
+    75% { transform: translateX(-2px); }
+  }
+}
+
+/* Admin's screens were written with `animate-in fade-in`; this makes them fade as meant. */
+@utility animate-in {
+  animation: go-fade-in 200ms var(--ease-go-out) backwards;
+}
+
+/*
+ * Overlays: the backdrop fades, a phone's sheet rises from the bottom edge, a
+ * dialog rises a little, a drawer slides from the side. `data-closing` plays
+ * the same in reverse before the overlay unmounts.
+ */
+.go-backdrop { animation: go-fade-in 200ms var(--ease-go-out) backwards; }
+.go-overlay[data-closing] .go-backdrop { animation: go-fade-out 150ms var(--ease-go-in) both; }
+.go-panel { overscroll-behavior: contain; }
+.go-panel-sheet { animation: go-sheet-up 250ms var(--ease-go-out) backwards; }
+.go-overlay[data-closing] .go-panel-sheet { animation: go-sheet-down 150ms var(--ease-go-in) both; }
+.go-panel-dialog { animation: go-rise-in 200ms var(--ease-go-out) backwards; }
+.go-overlay[data-closing] .go-panel-dialog { animation: go-rise-out 150ms var(--ease-go-in) both; }
+@media (min-width: 768px) {
+  .go-panel-sheet { animation-name: go-rise-in; animation-duration: 200ms; }
+  .go-overlay[data-closing] .go-panel-sheet { animation-name: go-rise-out; }
+}
+/* In a phone frame the sheet rises from the bottom at every window size. */
+.go-panel-sheet.go-panel-frame { animation-name: go-sheet-up; animation-duration: 250ms; }
+.go-overlay[data-closing] .go-panel-sheet.go-panel-frame { animation-name: go-sheet-down; animation-duration: 150ms; }
+.go-panel-drawer { animation: go-sheet-up 250ms var(--ease-go-out) backwards; }
+.go-overlay[data-closing] .go-panel-drawer { animation: go-sheet-down 150ms var(--ease-go-in) both; }
+@media (min-width: 1024px) {
+  .go-panel-drawer { animation-name: go-slide-in-end; }
+  .go-overlay[data-closing] .go-panel-drawer { animation-name: go-slide-out-end; }
+}
+
+/*
+ * Screen changes (shared/ui/transition.ts). The old and new screen crossfade
+ * in 200 ms; drilling into a detail (`data-vt="forward"`) also slides them
+ * 12 px towards the start, coming back slides them the other way. Three shared
+ * elements (a trip, a stop, the next delivery) move from the list to the
+ * detail header in 250 ms. Reduced motion turns it all off (app/globals.css).
+ */
+@keyframes go-vt-fade-out { to { opacity: 0; } }
+@keyframes go-vt-fade-in { from { opacity: 0; } }
+@keyframes go-vt-out-start { to { opacity: 0; transform: translateX(-12px); } }
+@keyframes go-vt-in-end { from { opacity: 0; transform: translateX(12px); } }
+@keyframes go-vt-out-end { to { opacity: 0; transform: translateX(12px); } }
+@keyframes go-vt-in-start { from { opacity: 0; transform: translateX(-12px); } }
+::view-transition-old(root) { animation: go-vt-fade-out 200ms var(--ease-go-out) both; }
+::view-transition-new(root) { animation: go-vt-fade-in 200ms var(--ease-go-out) both; }
+html[data-vt="forward"]::view-transition-old(root) { animation-name: go-vt-out-start; }
+html[data-vt="forward"]::view-transition-new(root) { animation-name: go-vt-in-end; }
+html[data-vt="back"]::view-transition-old(root) { animation-name: go-vt-out-end; }
+html[data-vt="back"]::view-transition-new(root) { animation-name: go-vt-in-start; }
+::view-transition-group(vt-trip),
+::view-transition-group(vt-stop),
+::view-transition-group(vt-delivery) { animation-duration: 250ms; animation-timing-function: var(--ease-go-out); }

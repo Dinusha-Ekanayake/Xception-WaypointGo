@@ -1,0 +1,27 @@
+-- 017 High-volume tables: partitioning
+--     route_legs, delivery_records, audit_log, outbox_events and
+--     sync_operations grow without bound; vacuum, index bloat and backup
+--     windows degrade together.
+--
+--     Converting a populated table requires a rebuild, so this is a
+--     migration step rather than an ALTER. Recipe per table:
+--
+--       1. CREATE TABLE <t>_new (LIKE <t> INCLUDING ALL) PARTITION BY RANGE (occurred_at);
+--       2. create monthly partitions, plus one ahead
+--       3. copy in batches, verify counts and checksums
+--       4. swap names inside one transaction
+--       5. schedule partition creation ahead and detach past retention
+--
+--     Do this before the tables are large, not after.
+-- ---------------------------------------------------------
+
+-- =========================================================
+-- PUBLISH-TIME VALIDATION, restated
+-- =========================================================
+-- The 13 rules listed at the end of Part 1 remain the contract, with two
+-- additions from the architecture:
+--
+--  14. A published plan must carry reference_version_id and policy_version_id
+--      so its decisions can be replayed against the rules in force.
+--  15. Capacity uses ops.orders.order_weight_kg / order_volume_m3.
+--      Never SUM(ops.order_items).

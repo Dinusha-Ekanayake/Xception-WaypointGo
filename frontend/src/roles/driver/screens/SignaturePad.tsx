@@ -1,0 +1,150 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { useUndo } from "@shared/ui";
+import { toBlob } from "../data/image.ts";
+
+/**
+ * The receiver signs with a finger. Pointer events, so a finger, a stylus and a
+ * mouse all work; the page does not scroll while signing. The ink is always
+ * dark on white, whatever the theme, because the image is evidence and must
+ * read the same wherever it is shown. Clear keeps what was signed for a few
+ * seconds, and the same button reads Undo and puts it back.
+ */
+export default function SignaturePad({ onChange }: { onChange: (signature: Blob | null) => void }): React.JSX.Element {
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const drawing = useRef(false);
+  const [signed, setSigned] = useState(false);
+  const cleared = useUndo<HTMLCanvasElement>();
+  const changed = useRef(onChange);
+  changed.current = onChange;
+
+  useEffect(() => {
+    const el = canvas.current;
+    if (!el) return;
+    // Match the backing store to the display size, so strokes are crisp and
+    // land under the finger. Again when the box changes size, as when the
+    // phone or tablet is turned (issue #201): what was signed is carried over
+    // at its own scale, never stretched, since the image is evidence.
+    const fit = () => {
+      const ratio = Math.min(window.devicePixelRatio || 1, 2);
+      const width = Math.round(el.clientWidth * ratio);
+      const height = Math.round(el.clientHeight * ratio);
+      if (width === 0 || height === 0 || (el.width === width && el.height === height)) return;
+      let before: HTMLCanvasElement | null = null;
+      if (el.width > 0 && el.height > 0) {
+        before = document.createElement("canvas");
+        before.width = el.width;
+        before.height = el.height;
+        before.getContext("2d")?.drawImage(el, 0, 0);
+      }
+      el.width = width;
+      el.height = height;
+      const context = el.getContext("2d");
+      if (!context) return;
+      context.scale(ratio, ratio);
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, el.clientWidth, el.clientHeight);
+      if (before) context.drawImage(before, 0, 0, before.width / ratio, before.height / ratio);
+      context.strokeStyle = "#031b08";
+      context.lineWidth = 2.5;
+      context.lineCap = "round";
+      context.lineJoin = "round";
+    };
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const point = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const box = event.currentTarget.getBoundingClientRect();
+    return { x: event.clientX - box.left, y: event.clientY - box.top };
+  };
+
+  const down = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const context = canvas.current?.getContext("2d");
+    if (!context) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    // A new stroke starts a new signature: what was cleared is gone.
+    cleared.drop();
+    drawing.current = true;
+    const { x, y } = point(event);
+    context.beginPath();
+    context.moveTo(x, y);
+    // A tap leaves a dot.
+    context.lineTo(x + 0.1, y + 0.1);
+    context.stroke();
+  };
+
+  const move = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!drawing.current) return;
+    const context = canvas.current?.getContext("2d");
+    if (!context) return;
+    const { x, y } = point(event);
+    context.lineTo(x, y);
+    context.stroke();
+  };
+
+  const up = () => {
+    if (!drawing.current || !canvas.current) return;
+    drawing.current = false;
+    setSigned(true);
+    void toBlob(canvas.current, "image/png").then((blob) => changed.current(blob)).catch(() => changed.current(null));
+  };
+
+  const clear = () => {
+    const el = canvas.current;
+    const context = el?.getContext("2d");
+    if (!el || !context) return;
+    const copy = document.createElement("canvas");
+    copy.width = el.width;
+    copy.height = el.height;
+    copy.getContext("2d")?.drawImage(el, 0, 0);
+    cleared.hold(copy);
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, el.clientWidth, el.clientHeight);
+    setSigned(false);
+    changed.current(null);
+  };
+
+  const undo = () => {
+    const el = canvas.current;
+    const context = el?.getContext("2d");
+    const copy = cleared.take();
+    if (!el || !context || !copy) return;
+    // The copy is in backing-store pixels, so it is drawn without the display scale.
+    context.save();
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    context.drawImage(copy, 0, 0);
+    context.restore();
+    setSigned(true);
+    void toBlob(el, "image/png").then((blob) => changed.current(blob)).catch(() => changed.current(null));
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <canvas
+        ref={canvas}
+        aria-label="Signature of the person receiving the goods"
+        role="img"
+        onPointerDown={down}
+        onPointerMove={move}
+        onPointerUp={up}
+        onPointerCancel={up}
+        className="h-36 w-full touch-none rounded-[14px] border border-go-rule bg-white"
+      />
+      <div className="flex items-center justify-between text-[13px] text-go-muted">
+        <span>{signed ? "Signed" : "Sign inside the box"}</span>
+        <button
+          type="button"
+          onClick={cleared.held ? undo : clear}
+          disabled={!signed && !cleared.held}
+          className="min-h-12 px-3 text-[15px] font-medium text-go-teal disabled:opacity-40"
+        >
+          {cleared.held ? "Undo" : "Clear"}
+        </button>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,234 @@
+services:
+  mcp:
+    build: ./mcp
+    expose: ["8081"]
+    environment:
+      MCP_ENABLED: ${MCP_ENABLED:-false}
+      MCP_PUBLIC_URL: ${MCP_PUBLIC_URL:-}
+      MCP_BACKEND_URL: http://backend:8080
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8081/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+  db:
+    labels:
+      com.waypoint.logs: "true"
+    image: postgres:16-bookworm
+    environment:
+      POSTGRES_USER: waypoint
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-testing-only}
+      POSTGRES_DB: waypoint
+    ports:
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
+    volumes:
+      - waypoint-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U waypoint -d waypoint"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  init:
+    labels:
+      com.waypoint.logs: "true"
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    # Schema, reference data and the demo accounts, explicitly and once per start.
+    # Each step is idempotent: re-running changes nothing that is already there.
+    # Only this service holds the database's own account. `migrate` logs in with
+    # it on a connection of its own, applies every file as waypoint_migrator (the
+    # owner of the schema, not a superuser) and gives waypoint_app the password in
+    # DATABASE_URL.
+    environment:
+      DATABASE_URL: postgresql://waypoint_app:${APP_DB_PASSWORD:-local-testing-only-app}@db:5432/waypoint
+      MIGRATION_DATABASE_URL: postgresql://waypoint:${POSTGRES_PASSWORD:-local-testing-only}@db:5432/waypoint
+      SEED_PASSWORD: ${SEED_PASSWORD:-123456789123}
+    command: ["sh", "/app/compose-init.sh"]
+    volumes:
+      - ./scripts/compose-init.sh:/app/compose-init.sh:ro
+      - ./scripts/seed-demo-accounts.sh:/app/seed-demo-accounts.sh:ro
+      - ./scripts/demo-accounts.csv:/app/demo-accounts.csv:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+  # Local demo data the init commands do not cover: see scripts/seed-demo.sql.
+  seed:
+    image: postgres:16-bookworm
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:-local-testing-only}
+    command: ["psql", "-h", "db", "-U", "waypoint", "-d", "waypoint", "-v", "ON_ERROR_STOP=1", "-f", "/seed/seed-demo.sql"]
+    volumes:
+      - ./scripts/seed-demo.sql:/seed/seed-demo.sql:ro
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    restart: "no"
+  backend:
+    labels:
+      com.waypoint.logs: "true"
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-8080}:8080"
+    # Logs in as waypoint_app, which owns nothing and can touch a table only by
+    # adopting a module role inside a transaction. The owner's password is not here.
+    environment:
+      DATABASE_URL: postgresql://waypoint_app:${APP_DB_PASSWORD:-local-testing-only-app}@db:5432/waypoint
+      # Off by default here because this file is also the local Docker stack on
+      # plain HTTP. The VPS overlay and compose.prod.yaml force it on.
+      COOKIE_SECURE: ${COOKIE_SECURE:-0}
+      MCP_ENABLED: ${MCP_ENABLED:-false}
+      MCP_PUBLIC_URL: ${MCP_PUBLIC_URL:-}
+      MCP_RATE_PER_CREDENTIAL: ${MCP_RATE_PER_CREDENTIAL:-120}
+      MCP_RATE_PER_CLIENT: ${MCP_RATE_PER_CLIENT:-1200}
+      MCP_WRITES_PER_HOUR: ${MCP_WRITES_PER_HOUR:-30}
+      WAREHOUSE_BASE_URL: ${WAREHOUSE_BASE_URL:-https://triathon-warehouse-simple.vercel.app/api/v1}
+      WAREHOUSE_API_KEY: ${WAREHOUSE_API_KEY:-}
+      WAREHOUSE_TIMEOUT_MS: ${WAREHOUSE_TIMEOUT_MS:-2000}
+      WAREHOUSE_CATALOGUE_STALE_AFTER: ${WAREHOUSE_CATALOGUE_STALE_AFTER:-2h}
+      WAREHOUSE_WEBHOOK_SECRET: ${WAREHOUSE_WEBHOOK_SECRET:-}
+      # Signs proof-of-delivery links. Unset, links stop working at a restart.
+      PROOF_STORE: ${PROOF_STORE:-database}
+      PROOF_URL_SECRET: ${PROOF_URL_SECRET:-}
+      # Web push for notifications. Both VAPID keys blank turns push off, visibly.
+      PUSH_VAPID_PUBLIC_KEY: ${PUSH_VAPID_PUBLIC_KEY:-}
+      PUSH_VAPID_PRIVATE_KEY: ${PUSH_VAPID_PRIVATE_KEY:-}
+      PUSH_SUBJECT: ${PUSH_SUBJECT:-mailto:operations@waypoint.invalid}
+      # The model service (issue #16). Not a dependency: with it down the
+      # backend uses its deterministic estimates and says so on every plan.
+      ML_BASE_URL: ${ML_BASE_URL:-http://ml:8000}
+      LOG_FORMAT: ecs
+    volumes:
+      - ./data:/app/data:ro
+      - ./migrations:/app/migrations:ro
+      - ./frontend/public:/app/frontend/public:ro
+      # Proof photos and signatures. Evidence: keep it with the database volume.
+      - waypoint-proofs:/var/lib/waypoint/proofs
+    depends_on:
+      init:
+        condition: service_completed_successfully
+      seed:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health/readiness | grep -q UP"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      # Checked every two seconds while starting, so a deploy does not wait a
+      # full interval to learn the service is already up.
+      start_period: 60s
+      start_interval: 2s
+  # Serves the trained models to the backend (issue #16, ADR-001). Reached only
+  # from inside the compose network; it publishes no port. Its model files come
+  # from Git LFS, so a checkout needs `git lfs pull` before building.
+  ml:
+    labels:
+      com.waypoint.logs: "true"
+    build:
+      context: ./ml-server
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+  waypoint:
+    labels:
+      com.waypoint.logs: "true"
+    build:
+      context: ./frontend
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      BACKEND_URL: http://backend:8080
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-}
+      MAP_TILE_URL: ${MAP_TILE_URL:-}
+      MCP_INTERNAL_URL: http://mcp:8081
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      # Checked every two seconds while starting, so a deploy does not wait a
+      # full interval to learn the service is already up.
+      start_period: 60s
+      start_interval: 2s
+  # ── Log store, opt-in: docker compose --profile observability up -d ──
+  # Alloy collects every container labelled com.waypoint.logs=true, plus the
+  # natively run backend's var/log/*.log, and ships them to Loki. Grafana is the
+  # search page, on 127.0.0.1 only. See docs/development-docs/development.md.
+  loki:
+    image: grafana/loki:3.4.2
+    profiles: ["observability"]
+    command: ["-config.file=/etc/loki/config.yaml"]
+    volumes:
+      - ./observability/loki/config.yaml:/etc/loki/config.yaml:ro
+      - loki-data:/loki
+    restart: unless-stopped
+  alloy:
+    image: grafana/alloy:v1.7.1
+    profiles: ["observability"]
+    command: ["run", "--server.http.listen-addr=0.0.0.0:12345", "--storage.path=/var/lib/alloy/data", "/etc/alloy/config.alloy"]
+    ports:
+      - "127.0.0.1:12345:12345"
+    volumes:
+      - ./observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./var/log:/var/log/waypoint:ro
+      - alloy-data:/var/lib/alloy/data
+    depends_on:
+      - loki
+    restart: unless-stopped
+  grafana:
+    image: grafana/grafana:11.5.2
+    profiles: ["observability"]
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:-3001}:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-local-testing-only}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - loki
+      - prometheus
+    restart: unless-stopped
+  # Metrics: scrapes the backend's /prometheus every 15 s and keeps 15 days.
+  # Grafana reads it as the Prometheus datasource; it publishes no port.
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    profiles: ["observability"]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    restart: unless-stopped
+volumes:
+  waypoint-postgres:
+  waypoint-proofs:
+  loki-data:
+  alloy-data:
+  grafana-data:
+  prometheus-data:

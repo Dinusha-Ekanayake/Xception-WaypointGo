@@ -1,0 +1,28 @@
+# Prometheus on the VPS. It runs in the preview stack, like the log store, and
+# scrapes both backends over the shared waypoint-edge network, where each joins
+# under an alias named after its environment (deploy/vps/compose.vps.yaml).
+#
+# `stack` matches the compose project and the container name prefix (app-*,
+# preview-*), so one dashboard variable filters logs and metrics alike.
+
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+
+scrape_configs:
+  - job_name: backend
+    metrics_path: /prometheus
+    static_configs:
+      - targets: ["production-backend:8080"]
+        labels:
+          stack: app
+      - targets: ["preview-backend:8080"]
+        labels:
+          stack: preview
+
+  # Host CPU, memory, disk and network of the server itself.
+  - job_name: node
+    static_configs:
+      - targets: ["node-exporter:9100"]
+        labels:
+          stack: host

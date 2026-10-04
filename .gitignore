@@ -1,0 +1,169 @@
+# ─── Dependencies ───
+node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# ─── Next.js ───
+.next/
+out/
+build/
+dist/
+next-env.d.ts
+*.tsbuildinfo
+
+# Generated service worker (built by frontend/scripts/build-sw.mjs)
+**/public/sw.js
+
+# ─── TypeScript / Build cache ───
+.turbo
+
+# ─── Environment / Secrets ───
+.env
+.env.*
+!.env.example
+!.env.local.example
+*.pem
+*.key
+
+# ─── Database / Runtime data ───
+var/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+
+# ─── Logs ───
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ─── Testing / Coverage ───
+test-results/
+playwright-report/
+playwright/.cache/
+coverage/
+.nyc_output/
+junit.xml
+test-results.xml
+
+# ─── Vercel / Deployment ───
+.vercel
+
+# ─── OS ───
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# ─── Editors / IDEs ───
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.swp
+*~
+.project
+.classpath
+.c9/
+*.launch
+*.sublime-workspace
+.atom/
+
+# ─── Python (Tech-Triathlon helper scripts) ───
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+.venv/
+venv/
+ENV/
+env/
+.env-venv
+.python-version
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ─── Jupyter / Data science ───
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+outputs/
+*.parquet.part-*
+*.csv.tmp
+
+# ─── Misc ───
+*.tgz
+*.tar.gz
+.cache/
+*.local
+
+# ─── Competition files  ───
+Tech-Triathlon 2026/
+.playwright-mcp/
+artifacts/
+
+# ─── Markdown ───
+# Agent sessions scatter scratch .md files (plans, notes, summaries). Markdown is
+# ignored by default and the maintained documents are allow-listed below. To add a
+# new document, add its exception here in the same commit, or `git add -f` once.
+# Note: files already tracked are unaffected by these rules.
+*.md
+!README.md
+!AGENTS.md
+!SYSTEM-ARCHITECTURE.md
+!docs/architecture/MODULES.md
+!docs/architecture/FOUNDATION-PLAN.md
+!docs/architecture/RULES-AND-POLICIES.md
+!docs/architecture/ASSUMPTIONS.md
+!docs/architecture/DATA-MODEL-REVIEW.md
+!docs/architecture/EDGE-CASES.md
+!docs/architecture/GLOSSARY.md
+!docs/ux/UX-PLAN.md
+!docs/architecture/schema/README.md
+!.agent/rules/*.md
+!docs/ai-disclosure.md
+!docs/architecture.md
+!docs/data-model.md
+!docs/diagrams/README.md
+!docs/deployment.md
+!docs/design-mapping.md
+!docs/design-rationale.md
+!docs/development-docs/development.md
+!docs/development-docs/development-log.md
+!docs/development-docs/log/*.md
+!docs/issues/022-admin-console/CAPABILITY-UI-PLAN.md
+!docs/development-docs/enterprise-architecture-plan.md
+!docs/development-docs/STATUS.md
+!docs/submission-checklist.md
+!docs/verification.md
+!docs/issues/**/*.md
+
+# Java / Maven build output (including nested modules)
+target/
+*.class
+
+/competition-docs

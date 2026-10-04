@@ -1,0 +1,136 @@
+package com.waypoint.dispatch.platform.config;
+
+import com.zaxxer.hikari.HikariDataSource;
+import java.net.URI;
+import javax.sql.DataSource;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+
+/**
+ * The connection pool. Every connection runs as waypoint_app, which is NOINHERIT,
+ * owns no tables and holds no BYPASSRLS, so a transaction that forgets SET LOCAL
+ * ROLE fails with a permission error instead of running with full access.
+ *
+ * <p>A deployment logs in as waypoint_app, with a password {@code migrate} sets
+ * from this URL, so the running process never holds the owner's credentials.
+ * Local development and CI log in as the owner; there the {@code SET ROLE} each
+ * connection opens with is what drops them to waypoint_app, so a forgotten role
+ * fails on a laptop and in CI exactly as it would in production.
+ *
+ * <p>Startup never blocks on the database: initializationFailTimeout is negative,
+ * so the process comes up and reports liveness even when PostgreSQL is down.
+ * Readiness is what tells you the database is reachable.
+ */
+@Configuration
+public class DataConfig {
+
+  /** The only role the pool ever runs as before a transaction adopts a module role. */
+  public static final String RUNTIME_ROLE = "waypoint_app";
+
+  @Bean(destroyMethod = "close")
+  public DataSource dataSource(
+      AppProperties properties,
+      @Value("${spring.datasource.hikari.maximum-pool-size:8}") int maxPool,
+      @Value("${spring.datasource.hikari.minimum-idle:-1}") int minIdle) {
+    HikariDataSource ds = new HikariDataSource();
+    // Validated as non-blank by AppProperties, so reaching here means it is set.
+    // It may still point at a database that is down: that is an outage, reported
+    // by readiness, not a misconfiguration.
+    String raw = properties.databaseUrl().trim();
+    ds.setJdbcUrl(toJdbcUrl(raw));
+    String username = username(raw);
+    String password = password(raw);
+    if (username != null) {
+      ds.setUsername(username);
+    }
+    if (password != null) {
+      ds.setPassword(password);
+    }
+    ds.setMaximumPoolSize(maxPool);
+    if (minIdle >= 0 && minIdle < maxPool) {
+      // Unset, the pool stays full, which is what a serving instance wants. The
+      // test suite sets it to zero: it keeps one pool per cached application
+      // context, and a dozen full pools is more than PostgreSQL's connection limit.
+      ds.setMinimumIdle(minIdle);
+      ds.setIdleTimeout(10_000);
+    }
+    ds.setInitializationFailTimeout(-1);
+    // Fail fast when PostgreSQL is unreachable so readiness answers 503 instead of hanging.
+    ds.setConnectionTimeout(3000);
+    ds.setValidationTimeout(2000);
+    ds.setPoolName("waypoint");
+    // A no-op when the login already is waypoint_app. Before the first migrate
+    // the role does not exist and no connection opens: readiness reports it, and
+    // migrate, which has a connection of its own, is what fixes it.
+    ds.setConnectionInitSql("SET ROLE " + RUNTIME_ROLE);
+    return ds;
+  }
+
+  @Bean
+  public JdbcTemplate jdbcTemplate(DataSource dataSource) {
+    JdbcTemplate template = new JdbcTemplate(dataSource);
+    template.setQueryTimeout(15);
+    return template;
+  }
+
+  @Bean
+  public PlatformTransactionManager transactionManager(DataSource dataSource) {
+    return new DataSourceTransactionManager(dataSource);
+  }
+
+  /** Serializable by default. Anything weaker is a deliberate, argued exception. */
+  @Bean
+  public TransactionTemplate serializableTransactions(PlatformTransactionManager manager) {
+    TransactionTemplate template = new TransactionTemplate(manager);
+    template.setIsolationLevel(TransactionTemplate.ISOLATION_SERIALIZABLE);
+    template.setTimeout(15);
+    return template;
+  }
+
+  public static String toJdbcUrl(String raw) {
+    if (raw.startsWith("jdbc:")) {
+      return raw;
+    }
+    URI uri = URI.create(raw.startsWith("postgres://") ? "postgresql://" + raw.substring(11) : raw);
+    StringBuilder sb = new StringBuilder("jdbc:postgresql://").append(uri.getHost());
+    if (uri.getPort() > 0) {
+      sb.append(':').append(uri.getPort());
+    }
+    sb.append(uri.getPath() == null || uri.getPath().isBlank() ? "/waypoint" : uri.getPath());
+    if (uri.getQuery() != null) {
+      sb.append('?').append(uri.getQuery());
+    }
+    return sb.toString();
+  }
+
+  public static String username(String raw) {
+    String info = userInfo(raw);
+    if (info == null) {
+      return null;
+    }
+    int colon = info.indexOf(':');
+    return colon < 0 ? info : info.substring(0, colon);
+  }
+
+  public static String password(String raw) {
+    String info = userInfo(raw);
+    if (info == null) {
+      return null;
+    }
+    int colon = info.indexOf(':');
+    return colon < 0 ? null : info.substring(colon + 1);
+  }
+
+  private static String userInfo(String raw) {
+    if (raw.isBlank() || raw.startsWith("jdbc:")) {
+      return null;
+    }
+    return URI.create(raw.startsWith("postgres://") ? "postgresql://" + raw.substring(11) : raw)
+        .getUserInfo();
+  }
+}

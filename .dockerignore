@@ -1,0 +1,10 @@
+**/node_modules
+**/target
+**/.next
+.git
+.env*
+**/.env*
+Tech-Triathlon 2026
+var
+artifacts
+.vscode
