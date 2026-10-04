@@ -316,6 +316,13 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
             </div>
           )}
         </div>
+        {d.location.simulate && d.nextPoint && screen === "route" && (
+          <div className="absolute inset-x-0 bottom-10 z-40 flex justify-center">
+            <OutlineButton onClick={() => d.nextPoint && d.location.simulate?.(d.nextPoint)}>
+              {d.location.simulating ? "Driving… (demo)" : "Simulate drive to the next stop (demo)"}
+            </OutlineButton>
+          </div>
+        )}
         {d.location.state === "denied" && next && screen === "route" && (
           <p role="status" className="absolute inset-x-0 bottom-2 z-40 flex justify-center gap-2 text-[13px] text-go-muted">
             Location off · the dispatcher sees your stops only

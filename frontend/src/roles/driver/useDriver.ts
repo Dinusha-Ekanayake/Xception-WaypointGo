@@ -91,6 +91,10 @@ export function useDriver(userId: string, depot: string | null = null) {
     () => queuedSender({ accountId: userId, role: "driver", online, onQueued: sync.syncNow }),
     [userId, online, sync.syncNow],
   );
+  const nextOutlet = stillToDo ? run.outlets[stillToDo.outletId] : undefined;
+  const nextLat = num(nextOutlet?.location?.latitude);
+  const nextLon = num(nextOutlet?.location?.longitude);
+  const nextPoint: LatLon | null = nextLat !== null && nextLon !== null ? { lat: nextLat, lon: nextLon } : null;
   const location = usePositionRecorder(gateway, run.vehicle?.vehicleId ?? null, stillToDo?.tripId ?? null, stillToDo !== null);
   const [dark, setDark] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -352,6 +356,7 @@ export function useDriver(userId: string, depot: string | null = null) {
     reportStatus,
     postMessage,
     tripId: (stillToDo ?? run.stops[run.stops.length - 1])?.tripId ?? null,
+    nextPoint,
     verifyHandover,
     dropUpload,
     openProblem: (target: Stop | "run") => setProblemFor(target),
