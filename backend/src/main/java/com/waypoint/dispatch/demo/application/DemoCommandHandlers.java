@@ -65,6 +65,7 @@ public class DemoCommandHandlers {
       int changed=db.update("UPDATE demo.settings SET enabled=?,clock_offset_seconds=?,sim_point_interval_ms=?,position_flush_ms=?,banner=?,speed=?,row_version=row_version+1,updated_by=?,updated_at=now() WHERE id AND row_version=?",
           next.enabled(),next.offsetSeconds(),next.simPointIntervalMs(),next.positionFlushMs(),next.banner(),next.speed(),actor.userId(),version);
       if(changed!=1) throw new DomainException(ErrorCode.VERSION_CONFLICT,"Demo settings changed");
+      if(!enabled) db.update("UPDATE demo.simulations SET status='stopped',row_version=row_version+1 WHERE status IN ('running','paused')");
 
       var result=Map.of("enabled",enabled,"offsetSeconds",offset,"rowVersion",version+1,"reason",reason);
       db.update("INSERT INTO demo.scenario_runs(id,scenario_key,actor,reason,outcome,details) VALUES (?,?,?,?,?,?::jsonb)",

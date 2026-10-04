@@ -1,6 +1,6 @@
 import { request } from "@shared/api/client";
 import { newCommand, send } from "@shared/api/commands";
-import { DemoCommandKind, type DemoRunView, type DemoView } from "@shared/domain/types";
+import { DemoCommandKind, type DemoRunView, type DemoSimulationView, type DemoView } from "@shared/domain/types";
 
 // Reads and commands of the demo control room (issue #231). Every change is a
 // demo:* command through the command bus, admin only, versioned on the settings
@@ -34,4 +34,17 @@ export function resetDay(view: DemoView, reason: string) {
 export function depotInstant(view: DemoView, hhmm: string): Date {
   const day = new Date(new Date(view.now).getTime() + 5.5 * 3_600_000).toISOString().slice(0, 10);
   return new Date(`${day}T${hhmm}:00+05:30`);
+}
+
+export function loadSimulations(signal: AbortSignal): Promise<DemoSimulationView[]> {
+  return request<DemoSimulationView[]>("/api/demo/simulations", { signal });
+}
+
+/** Every released trip of the demo day, or one vehicle's. */
+export function startSimulation(reason: string, vehicleId?: string) {
+  return send(newCommand(DemoCommandKind.StartSimulation, { reason, ...(vehicleId ? { vehicleId } : {}) }));
+}
+
+export function controlSimulations(reason: string, action: "pause" | "resume" | "stop", simulationId?: string) {
+  return send(newCommand(DemoCommandKind.ControlSimulations, { reason, action, ...(simulationId ? { simulationId } : {}) }));
 }

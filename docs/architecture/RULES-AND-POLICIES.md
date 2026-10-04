@@ -409,6 +409,7 @@ ADR-004: a conversation is a thread anchored to one subject; the first subject i
 | R-DEMO-01 | Demo starts OFF. Only an administrator can enable it or change settings, with a reason and the current row version. Disabling clears the business-clock offset | Product decision 2026-10-04 | Policy |
 | R-DEMO-02 | Business time may move by at most seven days. Authentication, sessions, command receipts, audits and scheduler leases use real time; a database outage falls back to real time | Product decision 2026-10-04 | Policy |
 | R-DEMO-03 | A day reset records its run and delegates preparation to Reference, Identity and Ordering commands. It accepts only an empty operating date within seven days and never deletes operational rows or changes account credentials | Product decision 2026-10-04 | Policy |
+| R-DEMO-04 | A simulated vehicle drives only a released trip of an assigned driver, and each point is a real `delivery:RecordPositions` command sent as that driver, so Execution's own checks apply. The simulator never records an arrival, a delivery, proof or receipt: people do. Straight legs between known locations are shown as such, never as road navigation | Product decision 2026-10-04 | Policy |
 
 ## 8. Conflicts found
 

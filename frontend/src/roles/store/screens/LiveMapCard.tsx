@@ -5,6 +5,7 @@ import { useResource } from "@shared/api/useResource";
 import type { DeliveryRecordView, OutletView, TrailPointView, VehiclePositionView } from "@shared/domain/types";
 import { LiveMap, num, type MapLine, type MapMarker } from "@shared/ui/map";
 import { clock } from "@shared/wording";
+import { livePoll, useDemo } from "@shared/demo/useDemo";
 import { Card, Chip, Muted } from "../ui.tsx";
 
 // Figma "05 Delivery tracking" map card (11:113478): this vehicle only, the
@@ -16,15 +17,16 @@ import { Card, Chip, Muted } from "../ui.tsx";
 const q = encodeURIComponent;
 
 export default function LiveMapCard({ outlet, stop }: { outlet: OutletView | null; stop: DeliveryRecordView }): React.JSX.Element | null {
+  const demo = useDemo();
   const positions = useResource(
     outlet ? (signal: AbortSignal) => request<VehiclePositionView[]>(`/api/execution/positions?outlet=${q(outlet.outletId)}&date=${q(stop.serviceDate)}`, { signal }) : null,
     `store-positions|${outlet?.outletId ?? ""}|${stop.serviceDate}`,
-    15_000,
+    livePoll(demo, 15_000),
   );
   const trail = useResource(
     (signal: AbortSignal) => request<{ items: TrailPointView[] }>(`/api/execution/trips/${q(stop.tripId)}/trail?limit=200`, { signal }),
     `store-trail|${stop.tripId}`,
-    15_000,
+    livePoll(demo, 15_000),
   );
   const position = positions.data?.find((p) => p.vehicleId === stop.vehicleId) ?? null;
   const lat = num(position?.latitude);

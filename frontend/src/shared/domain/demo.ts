@@ -28,4 +28,19 @@ export const DemoCommandKind = {
   SetClock: "demo:SetClock",
   UpdateSettings: "demo:UpdateSettings",
   ResetDay: "demo:ResetDay",
+  StartSimulation: "demo:StartSimulation",
+  ControlSimulations: "demo:ControlSimulations",
 } as const;
+
+/** A simulated vehicle; the server returns its column names. */
+export type DemoSimulationView = {
+  id: string;
+  vehicle_id: string;
+  service_date: string;
+  trip_id: string | null;
+  tick: number;
+  waypoints: number;
+  status: "running" | "paused" | "stopped" | "finished" | "failed";
+  failure: string | null;
+  started_at: string;
+};
