@@ -18,6 +18,9 @@ import java.util.UUID;
  * feature (MODULES §4).
  */
 public final class PlanViews {
+  /** An order's load as a trip sees it, for {@link PlanQuery#joinsTrip} (issue #199). */
+  public record LoadView(String temperature, boolean vanOnly, BigDecimal weightKg, BigDecimal volumeM3) {}
+
   private PlanViews() {}
 
   public enum PlanStatus {

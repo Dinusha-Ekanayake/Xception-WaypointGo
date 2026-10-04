@@ -36,4 +36,16 @@ public interface PlanQuery {
   List<DeferralView> deferralsFor(String depotCode, LocalDate serviceDate);
 
   Optional<FuelView> fuelRemaining(String vehicleId, LocalDate anyDayOfWeek);
+
+  /**
+   * Whether one more order joins a trip already going to a district that day,
+   * by Planning's own load rules on the vehicles available then (issue #199,
+   * R-ORD-14). Advice for a store choosing a day; the plan still decides.
+   *
+   * @param booked other outlets' measured orders of the brand and district that day
+   * @param extra the store's order, measured or estimated
+   */
+  boolean joinsTrip(
+      String depotCode, LocalDate date, String brandCode, String districtName, List<PlanViews.LoadView> booked,
+      PlanViews.LoadView extra);
 }

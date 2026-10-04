@@ -26,3 +26,20 @@ The hint is built from **demand already booked**, not from plans. A trip carries
 
 ## PR breakdown
 One PR: backend, store UI, tests and docs.
+
+## Second part: room on the trip (decided 2026-10-04)
+
+The first part offered a day on bookings alone, with no capacity claim. This part checks room without copying the capacity rule.
+
+| Concern | Owner | How it connects |
+| --- | --- | --- |
+| Whether one more order joins a trip already going there | Planning: `TripRoom` (pure), `PlanQuery.joinsTrip` | Packs the booked loads as trips on the vehicles available that day, and asks only the registry's own load constraints (rule 5) |
+| The booked loads and the store's usual order | Ordering: `bookedLoads`, `usualLoad` | Measured orders only (R-ORD-12) |
+| Offering only days with room | Ordering: `RideAlong.suggest` with a room predicate, `RideAlongQuery` | Contract query into Planning |
+| Saying it | Store: `RideAlongHint` | "room on the vehicle", with "estimated" in the note |
+
+Decisions:
+- **The new order's size:** it is not known before the warehouse reserves it, so it is the median of the store's latest twenty measured orders (A-45). The screen says "estimated".
+- **Which rules are asked:** load rules only. Time budgets, windows and fuel need a route that a day weeks ahead does not have.
+- **Degrading:** with no usual order, or Planning unable to answer, the hint falls back to bookings alone and makes no room claim (ORD-22, ORD-23).
+- **Style within its weekly run: not built.** R-ORD-11 holds a scheduled order to its date, so offering Style another day would break a rule rather than add a feature.

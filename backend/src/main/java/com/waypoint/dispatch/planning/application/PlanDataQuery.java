@@ -38,6 +38,9 @@ import com.waypoint.dispatch.planning.domain.FleetVehicle;
 import com.waypoint.dispatch.planning.domain.PlanContext;
 import com.waypoint.dispatch.planning.domain.PlanDiff;
 import com.waypoint.dispatch.planning.domain.PlanOrder;
+import com.waypoint.dispatch.planning.contract.PlanViews;
+import com.waypoint.dispatch.planning.domain.RuleSet;
+import com.waypoint.dispatch.planning.domain.TripRoom;
 import com.waypoint.dispatch.planning.domain.PlanningRun;
 import com.waypoint.dispatch.planning.domain.PlanningRun.Placement;
 import com.waypoint.dispatch.planning.domain.PlanningRun.Proposed;
@@ -102,6 +105,27 @@ public class PlanDataQuery implements PlanQuery {
             .orElseThrow(() -> new DomainException(ErrorCode.CONSTRAINT_VIOLATED,
                 "No planning rule set for " + serviceDate, List.of("POL-10")))
             .maxTrips());
+  }
+
+  /** Issue #199: packs the booked loads as trips and asks the registry's load rules (rule 5). */
+  @Override
+  public boolean joinsTrip(
+      String depotCode, LocalDate date, String brandCode, String districtName, List<PlanViews.LoadView> booked,
+      PlanViews.LoadView extra) {
+    RuleSet rules = database.readAs(ModuleRole.PLANNING, Actor.SYSTEM_ID, () -> plans.effectiveRuleSet(date))
+        .orElseThrow(() -> new DomainException(ErrorCode.CONSTRAINT_VIOLATED,
+            "No planning rule set for " + date, List.of("POL-10")));
+    java.util.Set<String> available = reference.availableVehicles(depotCode, date, null).stream()
+        .map(VehicleView::vehicleId).collect(java.util.stream.Collectors.toSet());
+    List<FleetVehicle> fleet = reference.vehiclesOfDepot(depotCode, null).stream()
+        .map(v -> new FleetVehicle(v.vehicleId(), v.depotCode(), v.van(), v.refrigerated(), v.weightCapKg(),
+            v.volumeCapM3(), v.kmPerL(), v.weeklyFuelQuotaL(), available.contains(v.vehicleId()), BigDecimal.ZERO))
+        .toList();
+    java.util.function.Function<PlanViews.LoadView, PlanOrder> asOrder = l -> new PlanOrder(
+        UUID.randomUUID(), "load", "", depotCode, brandCode, districtName, l.temperature(), l.weightKg(),
+        l.volumeM3(), "", l.vanOnly(), false, Optional.empty(), Optional.empty(), BigDecimal.ZERO, 0, 0, date);
+    return TripRoom.joins(fleet, booked.stream().map(asOrder).toList(), asOrder.apply(extra),
+        new PlanContext(depotCode, Map.of(), rules), registry);
   }
 
   private final Database database;
