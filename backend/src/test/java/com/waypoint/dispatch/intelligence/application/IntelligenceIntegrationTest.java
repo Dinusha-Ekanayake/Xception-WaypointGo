@@ -610,7 +610,7 @@ class IntelligenceIntegrationTest {
 
     // A stale version is refused, and a reason is required.
     send(dispatcher, envelope("ml:AcknowledgeAttention", 9L, payload), 409);
-    send(dispatcher, envelope("ml:AcknowledgeAttention", 1L, payload.replace("The store agreed to receive late", "ok")), 400);
+    send(dispatcher, envelope("ml:AcknowledgeAttention", 1L, payload.replace("The store agreed to receive late", "ok")), 422);
 
     send(dispatcher, envelope("ml:AcknowledgeAttention", 1L, payload), 200);
     assertEquals(0, read(dispatcher, "/api/ml/attention?depot=" + depot + "&date=" + day, 200).get("items").size());
