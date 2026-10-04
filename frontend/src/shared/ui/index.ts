@@ -24,6 +24,7 @@ export {
 } from "./primitives.tsx";
 export { ShellActions, ShellProvider, useShell, type ShellControls, type ShellRoleOption } from "./shell.tsx";
 export { Sheet } from "./Sheet.tsx";
+export { RichText } from "./RichText.tsx";
 export { SkeletonRows } from "./Skeleton.tsx";
 export { SkipLink } from "./SkipLink.tsx";
 export { PRESS, Spinner } from "./Spinner.tsx";

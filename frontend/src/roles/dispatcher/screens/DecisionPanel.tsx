@@ -8,6 +8,7 @@ import { STATUS, size } from "../data/orders.ts";
 import { daysBetween, lastServedText, type DecisionRow } from "../data/planViews.ts";
 import { useNextDelivery } from "../data/usePlanReads.ts";
 import { explainDeferral } from "../data/explain.ts";
+import { useFriendlyText } from "@shared/api/useFriendlyText";
 import CheckList from "./CheckList.tsx";
 import ExplainSheet from "./ExplainSheet.tsx";
 import type { PlanActions } from "./planActions.ts";
@@ -61,6 +62,10 @@ export default function DecisionPanel({
   const target = fits.find((place) => key(place) === chosen) ?? null;
   const days = allocation.lastServedOn ? daysBetween(allocation.lastServedOn, plan.serviceDate) : null;
   const askReason = open && editable && (target !== null || keeping);
+  const canPlace = open && editable;
+  const explanation = explainDeferral({ orderRef: order?.orderRef ?? null, outletId: order?.outletId ?? null, day: dayLabel(plan.serviceDate), allocation, places, canPlace });
+  // Asked once the places are known, so the wording is not of a half-loaded answer.
+  const friendly = useFriendlyText(explaining && (places !== null || !canPlace) ? `order:${plan.planId}:${plan.rowVersion}:${allocation.orderId}:decide` : null, explanation);
   // A swap needs a trip of the same brand, district and temperature; without one the window would have nothing to offer.
   const canSwap = swapTrips(plan, order).length > 0;
   const firstFit = fits[0] ?? null;
@@ -118,12 +123,7 @@ export default function DecisionPanel({
         )}
         {open && <CheckList checks={allocation.checks} />}
         {(open || row.state === "kept") && <SecondaryButton onClick={() => setExplaining(true)}>Explain this decision</SecondaryButton>}
-        {explaining && (
-          <ExplainSheet
-            explanation={explainDeferral({ orderRef: order?.orderRef ?? null, outletId: order?.outletId ?? null, day: dayLabel(plan.serviceDate), allocation, places, canPlace: open && editable })}
-            onClose={() => setExplaining(false)}
-          />
-        )}
+        {explaining && <ExplainSheet explanation={explanation} friendly={friendly} onClose={() => setExplaining(false)} />}
 
         {open && editable && (
           <>

@@ -127,7 +127,8 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
       // mock-up it sat in before was cut off on a phone held sideways and on a
       // landscape tablet.
       className={cx(
-        "flex h-dvh max-h-dvh w-full justify-center overflow-hidden font-go transition-colors",
+        // The screen less the demo bar above it, and clear of the home bar when installed edge to edge.
+        "flex h-[calc(100dvh-var(--demo-banner-h,0px))] w-full justify-center overflow-hidden pb-[env(safe-area-inset-bottom)] font-go transition-colors",
         framed && "items-center",
         d.dark ? "go-dark bg-[#161616] md:bg-[#0a0a0a]" : "bg-[#E7F3F2] md:bg-[#d6e7e5]"
       )}
@@ -138,7 +139,7 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
         tabIndex={-1}
         className={cx(
           "relative w-full overflow-hidden transition-colors md:shadow-2xl",
-          framed ? "h-[min(852px,calc(100dvh-48px))] max-w-[393px] rounded-[44px]" : "h-dvh md:max-w-[600px]",
+          framed ? "h-[min(852px,calc(100dvh-48px-var(--demo-banner-h,0px)))] max-w-[393px] rounded-[44px]" : "h-full md:max-w-[600px]",
           d.dark ? "bg-[#161616]" : "bg-[#E7F3F2]"
         )}
       >
@@ -340,12 +341,22 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
           </div>
         )}
         {d.location.state === "denied" && next && screen === "route" && (
-          <p role="status" className="absolute inset-x-0 bottom-2 z-40 flex justify-center gap-2 text-[13px] text-go-muted">
-            Location off · the dispatcher sees your stops only
-            <button type="button" onClick={d.location.allow} className="underline">
-              Turn on
-            </button>
-          </p>
+          // A floating pill over the run, so it reads as a state and not as part of the page.
+          <div className="pointer-events-none absolute inset-x-0 bottom-5 z-40 flex justify-center px-4">
+            <p
+              role="status"
+              className="pointer-events-auto flex animate-rise-in items-center gap-3 rounded-full bg-go-card py-1.5 pr-1.5 pl-4 text-[13px] text-go-ink shadow-[0_8px_24px_rgba(0,0,0,0.18)] motion-reduce:animate-none"
+            >
+              <span>Location off · the dispatcher sees your stops only</span>
+              <button
+                type="button"
+                onClick={d.location.allow}
+                className="h-8 shrink-0 rounded-full bg-go-action px-3.5 text-[13px] font-medium text-go-on-action active:scale-95"
+              >
+                Turn on
+              </button>
+            </p>
+          </div>
         )}
 
         {d.problemFor !== null && (
