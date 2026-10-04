@@ -15,8 +15,11 @@ The Tech hint from #211 offered any nearby day with other bookings, even a trip 
 - **Degrading:** with no history, or Planning unable to answer, it falls back to bookings alone and claims nothing (ORD-22, ORD-23).
 - **Style within its weekly run:** rejected, because R-ORD-11 holds it to its date.
 
+Also fixed while proving the edge cases:
+- A room check that failed partway left earlier days filtered while the card said no check ran. `RideAlong.suggestChecked` now drops the check for every day (ORD-23).
+- #224's stop showed on the store's reads but not through the `OrderQuery.order` contract or the dispatcher's day board. All three now attach it (ORD-21).
 Why: a shared-trip hint that points at a full trip moves the order for nothing.
-Verified: `mvn verify` 1001 on a real test database, 1000 pass (the same local-only `SET ROLE k.e.oshada` identity failure), new `TripRoomTest` 6 and `TripRoomIntegrationTest` 3; `npm test` 225, typecheck, build; Playwright store 55.
+Verified: `mvn verify` 1005 on a real test database, all pass but the local-only `SET ROLE k.e.oshada` identity test, and three that reuse fixed emails and codes, which pass on a fresh database; new `TripRoomTest` 6, `TripRoomIntegrationTest` 3, `RideAlongTest` 11; `npm test` 225, typecheck, build; Playwright store 55.
 
 ## 2026-10-04 - feat: a store hears when a day it booked turns busy (issue #224, slice 3)
 
