@@ -228,7 +228,11 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
     const { pathname } = url;
     if (pathname === "/api/session") return route.fulfill(json(SESSION));
     if (pathname === "/api/reference/vehicles") return route.fulfill(json({ items: [vehicle("VEH043"), vehicle("VEH044")], nextCursor: null }));
-    if (pathname === "/api/orders/day") return route.fulfill(json(desk.orders));
+    if (pathname === "/api/orders/day") {
+      // The desk's orders are today's; tomorrow's run (also on Current) has none unless a test adds them.
+      const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Colombo" }).format(new Date());
+      return route.fulfill(json(url.searchParams.get("date") === today ? desk.orders : []));
+    }
     const byId = /^\/api\/orders\/(order-[^/]+)$/.exec(pathname);
     if (byId) {
       const found = [...desk.orders, ...(desk.elsewhere ?? [])].find((o) => o.orderId === byId[1]);
