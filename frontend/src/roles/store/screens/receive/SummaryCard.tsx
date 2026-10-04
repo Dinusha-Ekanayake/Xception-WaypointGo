@@ -64,9 +64,14 @@ export default function SummaryCard({
       {children}
       {!closed && (
         <>
-          <Button large disabled={busy || (dispute && !note.trim())} onClick={onSubmit}>
-            {busy ? "Sending…" : dispute ? "Send dispute" : "Submit count"}
-          </Button>
+          {/* On a phone the submit is pinned to the bottom of the screen, the page scrolling under it; from lg the card itself stays in view. */}
+          <div className="max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-30 max-lg:flex max-lg:justify-center max-lg:bg-go-canvas max-lg:pt-3 max-lg:pb-[max(1rem,env(safe-area-inset-bottom))] max-lg:shadow-[0_-8px_16px_rgba(0,0,0,0.04)]">
+            <div className="w-full max-lg:max-w-[720px] max-lg:px-4 sm:max-lg:px-[25px]">
+              <Button large busy={busy} disabled={dispute && !note.trim()} onClick={onSubmit}>
+                {busy ? "Sending…" : dispute ? "Send dispute" : "Submit count"}
+              </Button>
+            </div>
+          </div>
           <Button tone="plain" onClick={onToggleDispute}>
             {dispute ? "Back to the count" : "Something else is wrong"}
           </Button>
