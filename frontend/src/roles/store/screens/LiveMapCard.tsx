@@ -1,10 +1,10 @@
 "use client";
 
 import { useMemo } from "react";
-import { request } from "@shared/api/client";
-import { useResource } from "@shared/api/useResource";
-import type { DeliveryRecordView, OutletView, VehiclePositionView } from "@shared/domain/types";
-import { LiveMap, num, readTripTrail, type MapLine, type MapMarker } from "@shared/ui/map";
+import type { DeliveryRecordView, OutletView } from "@shared/domain/types";
+import { usePositionStream } from "@shared/live/usePositionStream";
+import { useTripTrail } from "@shared/live/useTripTrail";
+import { LiveMap, num, withLive, type MapLine, type MapMarker } from "@shared/ui/map";
 import { clock } from "@shared/wording";
 import { livePoll, useDemo } from "@shared/demo/useDemo";
 import { Card, Chip, Muted } from "../ui.tsx";
@@ -15,22 +15,13 @@ import { Card, Chip, Muted } from "../ui.tsx";
 // see (issue #161 PLAN). The server stops answering once this store's stop is
 // done (R-EXE-20), and the card then says so.
 
-const q = encodeURIComponent;
-
 export default function LiveMapCard({ outlet, stop }: { outlet: OutletView | null; stop: DeliveryRecordView }): React.JSX.Element | null {
   const demo = useDemo();
-  const positions = useResource(
-    outlet ? (signal: AbortSignal) => request<VehiclePositionView[]>(`/api/execution/positions?outlet=${q(outlet.outletId)}&date=${q(stop.serviceDate)}`, { signal }) : null,
-    `store-positions|${outlet?.outletId ?? ""}|${stop.serviceDate}`,
-    livePoll(demo, 15_000),
-  );
+  // Pushed as each fix lands (R-EXE-23), polled when the push goes quiet.
+  const positions = usePositionStream({ kind: "outlet", codes: outlet ? [outlet.outletId] : [] }, stop.serviceDate);
   const done = stop.completedAt !== null;
   // Once this store's stop is done the server stops answering (R-EXE-20), so the trail is not asked for again.
-  const trail = useResource(
-    done ? null : (signal: AbortSignal) => readTripTrail(stop.tripId, signal),
-    `store-trail|${stop.tripId}|${done}`,
-    livePoll(demo, 15_000),
-  );
+  const trail = useTripTrail(done ? null : stop.tripId, livePoll(demo, 15_000));
   const position = positions.data?.find((p) => p.vehicleId === stop.vehicleId) ?? null;
   const lat = num(position?.latitude);
   const lon = num(position?.longitude);
@@ -55,7 +46,7 @@ export default function LiveMapCard({ outlet, stop }: { outlet: OutletView | nul
     });
   }
   const lines: MapLine[] = [];
-  const driven = trail.data ?? [];
+  const driven = withLive(trail.points ?? [], here && position ? { ...here, at: Date.parse(position.recordedAt) } : null);
   if (driven.length > 1) lines.push({ id: "driven", points: driven, style: "driven" });
   if (here && store && !done) lines.push({ id: "leg", points: [here, store], style: "planned" });
   // Fit once to the store and the vehicle's first position, not on every move:

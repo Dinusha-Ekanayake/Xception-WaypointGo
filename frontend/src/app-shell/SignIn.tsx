@@ -103,13 +103,14 @@ export default function SignIn({
 
   return (
     <div className={`${dark ? "go-dark " : ""}relative isolate flex min-h-dvh flex-col overflow-hidden bg-go-canvas px-4 pt-6 pb-10 font-go text-go-ink transition-colors md:px-16 md:pt-12`}>
-      {/* The Colombo skyline for the theme, washed with the canvas from the top so the words stay readable. */}
+      {/* The Colombo skyline for the theme. On a phone it runs across the top and fades into
+          the canvas behind the form; on a wider screen it sits at the bottom, washed from the top. */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 -z-10 bg-cover bg-bottom"
+        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[480px] bg-cover bg-[position:72%_top] md:bottom-0 md:h-auto md:bg-bottom"
         style={{ backgroundImage: `url(/assets/signin_skyline_${dark ? "dark" : "light"}.png)` }}
       >
-        <div className="absolute inset-0 bg-linear-to-b from-go-canvas via-go-canvas/75 to-transparent" />
+        <div className="absolute inset-0 bg-linear-to-b from-go-canvas/25 via-go-canvas/45 via-45% to-go-canvas to-92% md:from-go-canvas md:from-0% md:via-go-canvas/75 md:via-50% md:to-transparent md:to-100%" />
       </div>
       <header className="flex items-center gap-3">
         <span className="mr-auto text-[40px] leading-none font-extrabold text-go-ink">GO</span>

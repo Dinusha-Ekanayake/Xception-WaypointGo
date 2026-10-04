@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.waypoint.dispatch.execution.ExecutionTestConfig.MovableClock;
+import com.waypoint.dispatch.execution.application.ExecutionDataQuery;
 import com.waypoint.dispatch.execution.application.PositionRetentionJob;
 import com.waypoint.dispatch.execution.application.ProofRetentionJob;
 import com.waypoint.dispatch.support.TestDates;
@@ -940,6 +941,56 @@ class ExecutionIntegrationTest {
       pool.shutdown();
     }
     assertEquals(3, count("SELECT count(*) AS n FROM execution.vehicle_positions WHERE trip_id = ?", tripId));
+  }
+
+  @Test
+  void theLatestPositionFacesTheWayTheVehicleMoved() throws Exception {
+    // R-EXE-22: from the fix before, not the phone's compass; the phone sent none here.
+    at("05:10");
+    send(driver, "delivery:RecordPositions", null,
+        positions(tripId, fix("05:00", "6.960000", "79.880000", 8), fix("05:01", "6.960000", "79.880600", 8)), 200);
+    JsonNode east = json(read(dispatcher, "/api/execution/positions?date=" + day + "&depot=" + depot, 200)).get(0);
+    assertEquals(90.0, east.get("headingDeg").asDouble(), 0.5);
+    // Standing still at the stop: a few metres of jitter does not turn the truck around.
+    send(driver, "delivery:RecordPositions", null, positions(tripId, fix("05:02", "6.960010", "79.880590", 8)), 200);
+    JsonNode parked = json(read(dispatcher, "/api/execution/positions?date=" + day + "&depot=" + depot, 200)).get(0);
+    assertEquals(90.0, parked.get("headingDeg").asDouble(), 1.5);
+  }
+
+  @Test
+  void theDepotStreamCarriesNewFixesAndRefusesOtherDepots() throws Exception {
+    // R-EXE-23: the map hears a stored fix without polling; scope is checked before the stream opens.
+    at("05:10");
+    MvcResult stream = http.perform(
+            get("/api/execution/positions/stream?date=" + day + "&depot=" + depot).cookie(session(dispatcher)))
+        .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.request().asyncStarted())
+        .andReturn();
+    String first = awaitPositions(stream, 1);
+    assertTrue(first.contains("event:positions"), first);
+    assertFalse(first.contains(vehicleId), "nothing recorded yet");
+
+    send(driver, "delivery:RecordPositions", null,
+        positions(tripId, fix("05:05", "6.960000", "79.880000", 8), fix("05:06", "6.961000", "79.880000", 8)), 200);
+    String both = awaitPositions(stream, 2);
+    String latest = both.lines().filter(l -> l.startsWith("data:")).reduce((a, b) -> b).orElseThrow();
+    assertTrue(latest.contains(vehicleId), latest);
+    assertTrue(latest.contains("6.961"), "the newest fix, not the first");
+
+    // EXE-LOC-14: another depot's dispatcher and another outlet's store are refused and audited.
+    read(farDispatcher, "/api/execution/positions/stream?date=" + day + "&depot=" + depot, 403);
+    read(manager, "/api/execution/positions/stream?date=" + day + "&outlet=" + OTHER_DEPOT_OUTLET, 403);
+    assertTrue(audited(ExecutionDataQuery.READ, "DENY", "wpt:execution:depot:" + depot)
+        || audited(ExecutionDataQuery.READ, "DENY", "wpt:execution:outlet:" + OTHER_DEPOT_OUTLET));
+  }
+
+  /** Waits for the stream to carry {@code events} complete events; sends run on their own thread. */
+  private static String awaitPositions(MvcResult stream, int events) throws Exception {
+    for (int i = 0; i < 200; i++) {
+      String body = stream.getResponse().getContentAsString();
+      if (body.lines().filter(l -> l.startsWith("data:[")).count() >= events) return body;
+      Thread.sleep(50);
+    }
+    return stream.getResponse().getContentAsString();
   }
 
   private String fix(String time, String lat, String lon, int accuracy) {

@@ -64,13 +64,42 @@ export function metres(a: LatLon, b: LatLon): number {
   return 2 * 6_371_000 * Math.asin(Math.sqrt(h));
 }
 
+/** R-EXE-23: the driver's phone keeps one fix every five seconds while the trip is open. */
+export const SAMPLE_MS = 5_000;
+
 /**
- * The recorder keeps a fix when 30 seconds have passed or the phone moved
- * 150 metres since the last kept one (issue #161, 4.3).
+ * R-EXE-23: on each five-second tick the recorder keeps the newest fix the
+ * phone has, unless it was already kept or is too old to say where the vehicle
+ * is now (the phone lost its signal): a repeat would only be a duplicate.
  */
-export function keepFix(last: { at: number; where: LatLon } | null, at: number, here: LatLon): boolean {
-  if (!last) return true;
-  return at - last.at >= 30_000 || metres(last.where, here) >= 150;
+export function takeSample(lastKeptAt: number | null, fixAt: number, now: number, maxAgeMs = 3 * SAMPLE_MS): boolean {
+  if (now - fixAt > maxAgeMs) return false;
+  return lastKeptAt === null || fixAt > lastKeptAt;
+}
+
+/** Initial bearing from one point to the next, degrees clockwise from north, 0 to under 360. */
+export function bearing(from: LatLon, to: LatLon): number {
+  const rad = Math.PI / 180;
+  const lat1 = from.lat * rad;
+  const lat2 = to.lat * rad;
+  const dLon = (to.lon - from.lon) * rad;
+  const y = Math.sin(dLon) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+}
+
+/**
+ * R-EXE-22, the same rule the server applies to the latest position: the
+ * direction from the newest point to the most recent earlier one at least
+ * `minMetres` away, or null while standing still. Points oldest first.
+ */
+export function travelBearing(points: LatLon[], minMetres = 15): number | null {
+  const last = points.at(-1);
+  if (!last) return null;
+  for (let i = points.length - 2; i >= 0; i--) {
+    if (metres(points[i]!, last) >= minMetres) return bearing(points[i]!, last);
+  }
+  return null;
 }
 
 /** Six decimals at most, as the server accepts (R-EXE-18). */
@@ -95,7 +124,7 @@ export function cluster<T extends Clusterable>(points: T[], radius = 48): T[][] 
   return [...cells.values()];
 }
 
-/** Eight compass headings, as the Figma truck marker set draws them. */
+/** Eight compass headings, for words ("heading NE"); the map turns the truck by the exact heading. */
 export function compass(headingDeg: number | null): "N" | "NE" | "E" | "SE" | "S" | "SW" | "W" | "NW" {
   const names = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"] as const;
   if (headingDeg === null || !Number.isFinite(headingDeg)) return "N";
