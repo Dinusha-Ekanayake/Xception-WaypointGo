@@ -2,13 +2,14 @@
 
 import type { Resource } from "@shared/api/useResource";
 import type { VehicleView } from "@shared/domain/types";
-import { Card, CardHead, LinkAction, Pending, cx } from "@shared/ui";
+import { Card, CardHead, LinkAction, cx } from "@shared/ui";
 import PageHeader from "../PageHeader.tsx";
 import FleetError from "./FleetError.tsx";
 import { NotificationRows } from "../NotificationsPanel.tsx";
 import { useDispatcherInbox } from "../inbox.tsx";
 import Refusal from "./Refusal.tsx";
 import { OrdersCard, SummaryCard } from "./OverviewCards.tsx";
+import PlanDayCard from "./PlanDayCard.tsx";
 import { summarise } from "../data/fleet.ts";
 import { depotStamp, depotToday, greeting } from "../data/scope.ts";
 import { useIssues, useOrders } from "../data/useDay.ts";
@@ -29,6 +30,7 @@ export default function Overview({
   fleet,
   online,
   onNavigate,
+  onOpenPlan,
 }: {
   displayName: string;
   depots: string[];
@@ -40,6 +42,8 @@ export default function Overview({
   fleet: Resource<VehicleView[]>;
   online: boolean;
   onNavigate: (view: ViewId) => void;
+  /** Opens Plan on a day. */
+  onOpenPlan: (date: string) => void;
 }): React.JSX.Element {
   const summary = fleet.data ? summarise(fleet.data) : null;
   const today = depotToday();
@@ -59,6 +63,7 @@ export default function Overview({
 
       <div className="flex min-h-0 w-full flex-1 gap-5 max-lg:flex-col">
         <div className="flex min-w-0 flex-1 flex-col gap-5">
+          <PlanDayCard depots={depots} onOpenPlan={onOpenPlan} />
           <OrdersCard depots={depots} orders={orders.data} error={orders.error} scopeLabel={scopeLabel} onNavigate={onNavigate} />
           <SummaryCard depots={depots} scope={scope} depotFilter={depotFilter} onDepotFilter={onDepotFilter} issues={issues.data} onNavigate={onNavigate} />
         </div>
@@ -74,13 +79,12 @@ export default function Overview({
               <FleetError error={fleet.error} onRetry={fleet.refresh} />
             ) : (
               <div className="flex gap-2">
-                <FleetTile value={summary?.vans} label="Available vans" />
-                <FleetTile value={summary?.nonVans} label="Available vehicles" />
-                <FleetTile value={null} label="Workshop vehicles" warning />
+                <FleetTile value={summary?.nonVans} label="Trucks available" />
+                <FleetTile value={summary?.vans} label="Vans available" />
+                <FleetTile value={null} label="In the workshop" warning />
               </div>
             )}
-            <h3 className="text-[14px] font-medium text-go-ink">Workshop vehicles</h3>
-            <Pending what="which vehicles are in the workshop and when they come back" waitingOn="The counts above are vehicles available today. Vehicles in the workshop are not listed yet." />
+            <p className="text-xs text-go-secondary">Counts are vehicles available today; vehicles in the workshop are not listed yet.</p>
           </Card>
 
           <RecentNotifications onNavigate={onNavigate} />

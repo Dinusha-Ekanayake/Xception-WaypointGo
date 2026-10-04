@@ -107,7 +107,11 @@ export default function Home({
                 {next_
                   ? next_.when === "today"
                     ? `Next delivery · ${next_.position} of ${next_.ofDay} today`
-                    : `Next delivery · ${dayLabel(next_.order.deliveryDate)}${next_.ofDay > 1 ? ` · 1 of ${next_.ofDay}` : ""}`
+                    : <>
+                        Next delivery · {dayLabel(next_.order.deliveryDate)}
+                        {/* Kept together on a narrow phone, never "1 of / 3". */}
+                        {next_.ofDay > 1 && <span className="whitespace-nowrap"> · 1 of {next_.ofDay}</span>}
+                      </>
                   : "No delivery planned"}
               </p>
               {coming && <Chip>{next_?.when === "ahead" ? aheadLabel(coming.status) : onTheWay(coming.status) ? "On the way" : "Arrived"}</Chip>}

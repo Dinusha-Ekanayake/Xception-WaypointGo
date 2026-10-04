@@ -234,7 +234,7 @@ public final class Constraints {
     return ConstraintResult.pass("R-PLN-06", name, "within " + n(cap) + unit, minSlack == null ? cap : minSlack);
   }
 
-  /** R-PLN-07: at most two trips per vehicle per day (P-03). */
+  /** R-PLN-07: the effective rule set caps trips per vehicle and day (P-03). */
   public static final class TripCount implements Constraint {
     public String ruleId() {
       return "R-PLN-07";

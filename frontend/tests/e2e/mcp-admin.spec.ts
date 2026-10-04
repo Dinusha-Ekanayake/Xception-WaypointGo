@@ -4,9 +4,12 @@ import { expect, test, type Page } from "@playwright/test";
 // blocking an app as a versioned command with a reason.
 
 const CLIENT = "0198a000-0000-7000-8000-0000000000c1";
+const PERSON = "0198a000-0000-7000-8000-0000000000d1";
 
 async function signedInAdmin(page: Page, commands: unknown[]) {
   let blocked = false;
+  let personBlocked = false;
+  let personConnections = 2;
   await page.route("**/api/**", (route) => {
     const { pathname } = new URL(route.request().url());
     const json = (body: unknown, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
@@ -24,10 +27,30 @@ async function signedInAdmin(page: Page, commands: unknown[]) {
         { tool: "list_pending_receipts", clientId: CLIENT, calls: 12, ok: 0, denied: 12, rateLimited: 0, notFound: 0, errors: 0, p95Ms: 9, attention: true },
       ]);
     }
+    if (pathname === "/api/mcp/access/roles") {
+      return json([
+        { principalType: "role", principalId: "admin", label: "Accounts", policies: [], liveConnections: 0 },
+        { principalType: "role", principalId: "driver", label: "Executes stops", policies: [], liveConnections: 0 },
+        { principalType: "role", principalId: "store_manager", label: "Places orders", policies: ["WaypointMcpNoWrites"], liveConnections: 0 },
+      ]);
+    }
+    if (pathname === "/api/mcp/access/people") {
+      return json({ items: [{ principalType: "user", principalId: PERSON, label: "Dana Driver",
+        policies: personBlocked ? ["WaypointMcpBlocked"] : [], liveConnections: personConnections }], nextCursor: null });
+    }
+    if (pathname === "/api/policies") {
+      return json({ items: [
+        { policyId: "p1", name: "WaypointMcpBlocked", versionNumber: 1, rowVersion: 4 },
+        { policyId: "p2", name: "WaypointMcpNoWrites", versionNumber: 1, rowVersion: 2 },
+        { policyId: "p3", name: "WaypointMcpPersonalReader", versionNumber: 1, rowVersion: 1 },
+      ], nextCursor: null });
+    }
     if (pathname === "/api/commands") {
       const command = route.request().postDataJSON();
       commands.push(command);
-      blocked = command.kind === "mcp:BlockClient";
+      if (command.kind === "mcp:BlockClient" || command.kind === "mcp:UnblockClient") blocked = command.kind === "mcp:BlockClient";
+      if (command.kind === "iam:AttachPolicy") personBlocked = true;
+      if (command.kind === "mcp:RevokeUserConnections") personConnections = 0;
       return json({ commandId: command.commandId, kind: command.kind, replayed: false, result: {} });
     }
     return json({ items: [], nextCursor: null });
@@ -64,4 +87,36 @@ test("an administrator sees assistant apps and their usage and blocks one with a
 
   await page.getByRole("button", { name: "People" }).click();
   await expect(page.getByRole("heading", { name: "People & access" })).toBeVisible();
+});
+
+test("an administrator switches assistants off for one person and ends their connections with a reason", async ({ page }) => {
+  const commands: { kind: string; expectedVersion: number | null; payload: Record<string, string> }[] = [];
+  await signedInAdmin(page, commands);
+  await page.goto("/#assistants");
+
+  const people = page.getByRole("region", { name: "People and roles" });
+  await expect(people.getByText("Store managers", { exact: true })).toBeVisible();
+  await expect(people.getByText("store_manager")).toHaveCount(0);
+  await expect(people.getByText("Dana Driver", { exact: true })).toBeVisible();
+  await expect(people.getByText("2 connections now")).toBeVisible();
+  const admins = people.locator("div.border-b", { hasText: "Administrators" });
+  await expect(admins.getByRole("checkbox", { name: "Assistants" })).toBeDisabled();
+
+  const dana = people.locator("div.border-b", { hasText: "Dana Driver" });
+  const assistants = dana.getByRole("checkbox", { name: "Assistants" });
+  await expect(assistants).toBeChecked();
+  await assistants.click();
+  await expect(people.getByRole("status")).toContainText("Assistants off for Dana Driver");
+  expect(commands[0]).toMatchObject({ kind: "iam:AttachPolicy", expectedVersion: 4,
+    payload: { name: "WaypointMcpBlocked", principalType: "user", principalId: PERSON } });
+  await expect(assistants).not.toBeChecked();
+
+  await dana.getByRole("button", { name: "End connections" }).click();
+  const dialog = page.getByRole("dialog", { name: "End connections of Dana Driver" });
+  await expect(dialog.getByRole("button", { name: "End connections" })).toBeDisabled();
+  await dialog.getByLabel(/Reason/).fill("lost phone");
+  await dialog.getByRole("button", { name: "End connections" }).click();
+  await expect(people.getByRole("status")).toContainText("Dana Driver is disconnected");
+  expect(commands[1]).toMatchObject({ kind: "mcp:RevokeUserConnections", expectedVersion: null, payload: { userId: PERSON, reason: "lost phone" } });
+  await expect(dana.getByRole("button", { name: "End connections" })).toBeDisabled();
 });

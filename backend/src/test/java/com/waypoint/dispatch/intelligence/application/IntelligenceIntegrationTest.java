@@ -417,6 +417,45 @@ class IntelligenceIntegrationTest {
     assertEquals(0.5, supply.get("probability").asDouble(), 1e-9, "no outlet history yet: an honest half");
   }
 
+  // ---- the date outlook a store reads (issue #224, R-ML-07) ----------------------------------
+
+  @Test
+  void aStoreReadsItsDaysOutlookFromTheDepotsTotalsWithoutAForecastItIsTooEarly() throws Exception {
+    demand();
+    demand();
+    Cookie store = storeManager("mlo-" + run, outlet.outletId());
+    LocalDate to = serviceDate.plusDays(6);
+
+    JsonNode o = read(store, "/api/ml/outlook?outlet=" + outlet.outletId() + "&from=" + serviceDate + "&to=" + to, 200);
+
+    assertEquals(7, o.get("days").size());
+    assertFalse(o.get("forecast").asBoolean(), "no forecast reaches a day this far out");
+    JsonNode first = o.get("days").get(0);
+    assertEquals(serviceDate.toString(), first.get("date").asText());
+    assertEquals("TOO_EARLY", first.get("status").asText(), "1.2 m3 booked is too little to call");
+    assertTrue(first.get("load").asDouble() > 0, "the two booked orders count against the day");
+    for (JsonNode d : o.get("days")) {
+      boolean operating = reference.isOperating(LocalDate.parse(d.get("date").asText()));
+      assertEquals(!operating, "CLOSED".equals(d.get("status").asText()), d.toString());
+    }
+    assertFalse(o.toString().contains("orderId"), "totals only, never another outlet's order");
+  }
+
+  @Test
+  void anotherOutletsOutlookIsRefusedAndRecorded() throws Exception {
+    String other = reference.outletsOfDepot(depot, null).stream().map(OutletView::outletId)
+        .filter(id -> !id.equals(outlet.outletId())).findFirst().orElseThrow();
+    UUID storeId = accounts.createAccount("mlq-" + run + "@intelligence.test", "mlq", PASSWORD, "store_manager");
+    accounts.grantOutlet("mlq-" + run + "@intelligence.test", other);
+    Cookie store = session("mlq-" + run);
+    long before = denials(storeId, "ml:ReadOutlook");
+
+    read(store, "/api/ml/outlook?outlet=" + outlet.outletId() + "&from=" + serviceDate + "&to=" + serviceDate, 403);
+
+    assertEquals(before + 1, denials(storeId, "ml:ReadOutlook"));
+    read(store, "/api/ml/outlook?outlet=" + other + "&from=" + serviceDate + "&to=" + serviceDate.plusDays(40), 422);
+  }
+
   // ---- helpers --------------------------------------------------------------------------------
 
   private UUID publishedPlan() throws Exception {
@@ -500,6 +539,13 @@ class IntelligenceIntegrationTest {
       accounts.grantDepot(email, depot);
     }
     return id;
+  }
+
+  private Cookie storeManager(String prefix, String outletId) {
+    String email = prefix + "@intelligence.test";
+    accounts.createAccount(email, prefix, PASSWORD, "store_manager");
+    accounts.grantOutlet(email, outletId);
+    return session(prefix);
   }
 
   private Cookie session(String prefix) {

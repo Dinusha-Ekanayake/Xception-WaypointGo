@@ -1,5 +1,11 @@
 # Issue 22: Admin and super-admin console plan
 
+## 2026-10-04 system constraints configuration
+
+The admin console groups planning thresholds, priority policy, ordering, loading, execution, receipt, issues, notifications, intelligence, integration, security and fixed planning rules. Only values with a working runtime write path are editable. Safety and validator invariants remain read-only. A control is chosen from the value type: a number or time for thresholds, an ordered list for priority, a choice for enumerations, and a toggle only for an independently defined boolean policy. No toggle disables a planning constraint predicate.
+
+First delivery: Planning owns a read of effective rule sets and a versioned `planning:CreateRuleSet` command. The command copies every existing parameter into a successor, replaces validated numeric/time values, closes the previous range on the selected date, requires a reason, and leaves old rule sets stamped on existing plans. The UI reviews changed values and submits an effective date and expected version. The existing engine, override checks and publication gate keep reading `RuleSet`; forecast capacity and the store's date outlook read the same effective trip ceiling through the planning contract. The frontend does not duplicate their thresholds. The reference category uses the existing `calendar:Override` command for a dated on/off decision. Its current cache propagation gap between replicas remains visible in the UI. Remaining categories show their documented baseline source and availability until each owning module gets an equivalent command and a single runtime read path.
+
 ## 2026-10-04 reference creation and navigation follow-up
 
 The admin sidebar owns the Planned trips and Live trips choice, so the Trips screen drops its duplicate switch. People and Trips parents show a chevron and can collapse their child links. Persona cards and role details omit internal resource URIs.

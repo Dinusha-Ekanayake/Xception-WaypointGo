@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-10-04 - author effective planning constraints from admin
+
+`codex/system-constraints` · @ranathungaWK
+
+Add a categorized System constraints screen and an audited planning rule-set command with effective dates, reason and version checks. Planning, forecast capacity and the store's date outlook read the same trip ceiling; scored upper bounds and fixed checks remain enforced. Use the existing calendar override for a dated operating-day toggle. Other surveyed settings stay visible as unavailable until their owning modules expose runtime commands.
+Verification was intentionally not run at the user's request.
+
 ## 2026-10-04 - persist admin reference additions and simplify navigation
 
 `dev` · @ranathungaWK

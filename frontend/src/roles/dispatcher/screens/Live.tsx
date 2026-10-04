@@ -119,7 +119,7 @@ export default function Live({
         syncing={live.loading}
         tools={
           <span className="flex flex-wrap items-center gap-2.5">
-          {!rowShown && <DayPicker date={date} onDate={onDate} />}
+          {!rowShown && <DayPicker warnNotToday date={date} onDate={onDate} />}
           <Toggle
             label="View"
             value={view}
@@ -152,7 +152,7 @@ export default function Live({
           />
         )}
         <span className="ml-auto">
-          <DayPicker date={date} onDate={onDate} />
+          <DayPicker warnNotToday date={date} onDate={onDate} />
         </span>
       </div>
       )}

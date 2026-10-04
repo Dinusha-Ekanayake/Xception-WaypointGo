@@ -12,8 +12,9 @@ const H = 230;
 const PAD = { left: 34, right: 44, top: 14, bottom: 30 };
 
 export default function TripsChart({ points }: { points: DayPoint[] }): React.JSX.Element {
-  const maxTrips = Math.max(4, ...points.map((p) => p.trips));
-  const top = Math.ceil(maxTrips / 10) * 10 || 10;
+  const maxTrips = Math.max(3, ...points.map((p) => p.trips));
+  const unit = [1, 2, 5, 10, 20, 25, 50, 100].find((u) => u * 3 >= maxTrips) ?? Math.ceil(maxTrips / 3);
+  const top = unit * 3;
   const lows = points.map((p) => p.onTime).filter((v): v is number => v !== null);
   const floor = Math.min(80, ...lows.map((v) => Math.floor(v / 10) * 10));
   const innerW = W - PAD.left - PAD.right;
@@ -23,7 +24,7 @@ export default function TripsChart({ points }: { points: DayPoint[] }): React.JS
   const x = (i: number) => PAD.left + step * i + step / 2;
   const yTrips = (v: number) => PAD.top + innerH - (v / top) * innerH;
   const yPct = (v: number) => PAD.top + innerH - ((v - floor) / (100 - floor)) * innerH;
-  const ticks = [0, top / 3, (2 * top) / 3, top].map((v) => Math.round(v));
+  const ticks = [0, unit, unit * 2, unit * 3];
   const pctTicks = [floor, Math.round((floor + 100) / 2), 100];
   const line = points
     .map((p, i) => (p.onTime === null ? null : `${x(i)},${yPct(p.onTime)}`))

@@ -49,7 +49,7 @@ export function DayNeeds({ rows }: { rows: DayNeed[] }): React.JSX.Element {
         </div>
       )}
       <p className="m-0 text-[11px] text-go-secondary">
-        Needed against the depot&apos;s fleet, two trips a day. Estimates from the weekly forecast, not a plan.
+        Needed against the depot&apos;s fleet under the planning rule for each day. Estimates from the weekly forecast, not a plan.
       </p>
     </Card>
   );

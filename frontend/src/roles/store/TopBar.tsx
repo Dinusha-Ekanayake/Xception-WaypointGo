@@ -58,13 +58,31 @@ export default function TopBar({
         : syncedAt
           ? `Synced ${clock(syncedAt)}`
           : "Connecting…";
+  // On a narrow phone the pill keeps "Synced 10:49" but drops the longer words
+  // of the other states; the full sentence stays its accessible name. The round
+  // buttons step down to 40 px there to make room (UX plan U9).
+  const short = !online
+    ? waiting > 0
+      ? `Offline · ${waiting}`
+      : "Offline"
+    : since
+      ? "Unreachable"
+      : waiting > 0
+        ? `Sending ${waiting}`
+        : syncing
+          ? "Syncing…"
+          : syncedAt
+            ? `Synced ${clock(syncedAt)}`
+            : "…";
+  const synced = online && !since && waiting === 0 && !syncing && syncedAt !== null;
   const hasUnread = (unread ?? 0) > 0;
 
   return (
     <header className="flex w-full items-center gap-2.5 lg:absolute lg:top-8 lg:right-10 lg:w-auto">
       {/* On desktops the brand is in the sidebar; the sync pill stays top right, as in "02 Home". */}
       <span className="text-[40px] leading-none font-extrabold text-black lg:hidden">GO</span>
-      <span className="rounded-full bg-go-mint px-2.5 py-[5px] text-[13px] font-medium text-black lg:hidden">Store</span>
+      {/* Below 440 px the bar cannot hold the chip and a readable sync time; GO stays (UX plan U9). */}
+      <span className="rounded-full bg-go-mint px-2.5 py-[5px] text-[13px] font-medium text-black max-[439px]:hidden lg:hidden">Store</span>
       <span className="flex-1" />
       {sample && <span className="shrink-0 rounded-full bg-go-warning-tint px-3 py-1.5 text-xs font-medium text-go-warning-text">Sample data</span>}
       <button
@@ -73,13 +91,17 @@ export default function TopBar({
         disabled={syncing}
         aria-label={`${sync}. Sync now`}
         className={cx(
-          "min-h-12 min-w-0 truncate text-right text-[13px] disabled:cursor-wait lg:flex lg:items-center lg:rounded-full lg:bg-white lg:px-4 lg:text-[14px] lg:shadow-[0_5px_20px_rgba(0,0,0,0.09)]",
+          "min-h-12 min-w-0 truncate text-right text-[13px] max-[439px]:shrink-0 disabled:cursor-wait lg:flex lg:items-center lg:rounded-full lg:bg-white lg:px-4 lg:text-[14px] lg:shadow-[0_5px_20px_rgba(0,0,0,0.09)]",
           online ? "text-go-muted lg:text-black" : "font-medium text-go-warning-text",
         )}
       >
         <span role="status">
           {!online && <span aria-hidden className="mr-1.5 inline-block size-2 rounded-full bg-go-warning" />}
-          {sync}
+          <span className="max-[439px]:hidden">{sync}</span>
+          <span aria-hidden className="min-[440px]:hidden">
+            {synced && <span className="mr-1.5 inline-block size-2 rounded-full bg-go-success" />}
+            {short}
+          </span>
         </span>
       </button>
       {onNotifications && (
@@ -87,13 +109,13 @@ export default function TopBar({
           type="button"
           onClick={onNotifications}
           aria-label={hasUnread ? `Notifications, ${unread} unread` : "Notifications"}
-          className="relative flex size-12 shrink-0 items-center justify-center rounded-full bg-white text-black shadow-[0_5px_20px_rgba(0,0,0,0.09)]"
+          className="relative flex size-12 shrink-0 items-center justify-center rounded-full bg-white text-black shadow-[0_5px_20px_rgba(0,0,0,0.09)] max-[439px]:size-10"
         >
           <Icon name="bell" />
           <CountBadge count={unread} />
         </button>
       )}
-      <span className="lg:hidden">
+      <span className="lg:hidden max-[439px]:[&_button]:size-10 max-[439px]:[&_button]:min-h-10">
         <ShellActions compact />
       </span>
       <button
@@ -102,7 +124,7 @@ export default function TopBar({
         aria-expanded={account}
         aria-label={`Account: ${displayName}`}
         onClick={() => setAccount(true)}
-        className="flex size-12 shrink-0 items-center justify-center rounded-full bg-go-mint text-[14px] font-semibold text-black lg:hidden"
+        className="flex size-12 shrink-0 items-center justify-center rounded-full bg-go-mint text-[14px] font-semibold text-black lg:hidden max-[439px]:size-10 max-[439px]:text-[13px]"
       >
         {initials(displayName)}
       </button>

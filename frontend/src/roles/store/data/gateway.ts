@@ -5,6 +5,7 @@ import type {
   CalendarAnswer,
   CatalogueStatusView,
   CustodyChainView,
+  DateOutlookView,
   DeliveryDateAnswer,
   DeliveryRecordView,
   RideAlongView,
@@ -41,6 +42,8 @@ export type StoreGateway = {
   deliveryDate: (outletId: string, requestedDate: string, signal: AbortSignal) => Promise<DeliveryDateAnswer>;
   /** Nearby days a trip already serves the district (R-ORD-13); advice only. */
   rideAlong: (outletId: string, requestedDate: string, signal: AbortSignal) => Promise<RideAlongView>;
+  /** How likely each day is to be kept (R-ML-07); advice from the depot's totals. */
+  outlook: (outletId: string, from: string, to: string, signal: AbortSignal) => Promise<DateOutlookView>;
   pendingReceipts: (outletId: string, signal: AbortSignal) => Promise<PendingReceiptView[]>;
   receipt: (orderId: string, signal: AbortSignal) => Promise<ReceiptView>;
   /** The receipt beside the loading check of the same order, which shows what the loader kept back. */
@@ -96,6 +99,9 @@ function liveGateway(accountId: string): StoreGateway {
       request(`/api/orders/delivery-date?outlet=${q(outletId)}&requestedDate=${q(requestedDate)}`, { signal }),
     rideAlong: (outletId, requestedDate, signal) =>
       request(`/api/orders/ride-along?outlet=${q(outletId)}&requestedDate=${q(requestedDate)}`, { signal }),
+    // Not kept: an outlook from yesterday would mislead; offline, the strip says it is unavailable.
+    outlook: (outletId, from, to, signal) =>
+      request(`/api/ml/outlook?outlet=${q(outletId)}&from=${q(from)}&to=${q(to)}`, { signal }),
     pendingReceipts: (outletId, signal) => kept(`pending:${outletId}`, () => request(`/api/receipts/pending?outlet=${q(outletId)}`, { signal })),
     receipt: (orderId, signal) => kept(`receipt:${orderId}`, () => request(`/api/receipts/${q(orderId)}`, { signal })),
     handover: (orderId, signal) => request(`/api/receipts/${q(orderId)}/handover`, { signal }),

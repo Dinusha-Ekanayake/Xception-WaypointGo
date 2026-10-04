@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { ApiError } from "@shared/api/problem";
 import { useResource } from "@shared/api/useResource";
 import type { McpClientView, McpUsageView } from "@shared/domain/types";
 import { codeLabel } from "@shared/wording/labels";
 import { clock, dayLabel, depotToday } from "@shared/wording/time";
 import { Badge, Empty, Modal, card, field, primary, secondary } from "../access/components";
-import { TOOL_LABELS, blockClient, loadClients, loadUsage, unblockClient } from "./data";
+import { TOOL_LABELS, blockClient, loadClients, loadUsage, refusal, unblockClient } from "./data";
+import PeopleSection from "./PeopleSection";
 
 // Live AI assistants console (issue #177): which assistant apps are connected,
 // what they did in the last 24 hours, and blocking an app. Unlike the access
@@ -15,7 +15,7 @@ import { TOOL_LABELS, blockClient, loadClients, loadUsage, unblockClient } from 
 
 const when = (instant: string | null) => (instant ? `${dayLabel(depotToday(new Date(instant)))} ${clock(instant)}` : "never");
 
-export default function AssistantsConsole(): React.JSX.Element {
+export default function AssistantsConsole({ userId }: { userId?: string }): React.JSX.Element {
   const clients = useResource(loadClients, "mcp-clients");
   const usage = useResource(loadUsage, "mcp-usage", 60_000);
   const [blocking, setBlocking] = useState<McpClientView | null>(null);
@@ -38,7 +38,8 @@ export default function AssistantsConsole(): React.JSX.Element {
     <div className="flex flex-col gap-6 text-go-ink">
       <p className="text-sm text-go-secondary">
           Assistant apps people have connected to Waypoint. Each one only ever acts as the person who connected it, within their own
-          permissions, and every change it proposes waits for that person to confirm. Blocking an app disconnects everyone using it.
+          permissions, and every change it proposes waits for that person to confirm. Blocking an app disconnects everyone using it;
+          turning assistants off for one person or role is under People and roles.
       </p>
       {message && <p role="status" className="rounded-xl bg-go-subtle px-4 py-3 text-sm">{message}</p>}
 
@@ -63,6 +64,8 @@ export default function AssistantsConsole(): React.JSX.Element {
             </div>
           ))}
       </section>
+
+      <PeopleSection selfId={userId} onChanged={refresh} />
 
       <Usage usage={usage.data} error={usage.error} clients={clients.data ?? []} />
 
@@ -137,15 +140,4 @@ function BlockDialog({ client, onClose, onDone }: { client: McpClientView; onClo
       </div>
     </Modal>
   );
-}
-
-/** Branches on the problem code, never on its title. */
-function refusal(error: unknown): string {
-  if (!(error instanceof ApiError)) return "Waypoint could not be reached. Try again.";
-  switch (error.problem.code) {
-    case "FORBIDDEN": return "your account is not allowed to do this.";
-    case "VERSION_CONFLICT": return "someone else changed this app first. The list is refreshed; try again.";
-    case "CONFLICT": return "this app was already changed. The list is refreshed.";
-    default: return "Waypoint could not do this. Try again.";
-  }
 }

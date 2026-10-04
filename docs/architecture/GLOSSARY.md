@@ -61,6 +61,7 @@ Status: **decided** on issue #126 (2026-10-03). The shared labels and formatters
 | **not delivered** | The delivery failed, with a reason | `DeliveryOutcome.FAILED`, `delivery.failed` | failed, undelivered | Screen label; the outcome keeps its name |
 | **replanned** | The stop was taken off this run sheet by a plan change | `DeliveryOutcome.SKIPPED` | skipped | |
 | **proof** | The photo or signature recorded at delivery | `proofCaptured` | POD, evidence (on screen) | "Proof owed" when missing |
+| **on track**, **busy**, **at risk**, **too early** | How likely a delivery day is to be kept, from the date outlook a store sees while choosing one (R-ML-07) | `OutlookStatus` | likely, safe, guaranteed, confirmed | Advice, never a promise; "Too early" when little is booked and no forecast reaches the day |
 
 ## Loading checks
 

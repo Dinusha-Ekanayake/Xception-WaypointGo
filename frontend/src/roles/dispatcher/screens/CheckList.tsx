@@ -14,7 +14,7 @@ export default function CheckList({ checks, title }: { checks: ConstraintResultV
   return (
     <details className="rounded-go-card bg-go-subtle px-3.5 py-2.5 text-[13px] text-go-ink">
       <summary className="cursor-pointer font-medium">
-        {title ?? `All ${checks.length} checks`}
+        {title ?? (checks.length === 1 ? "The 1 check" : `All ${checks.length} checks`)}
         {failed > 0 ? ` · ${failed} failed` : ""}
       </summary>
       <ul className="mt-2 flex flex-col gap-1.5">

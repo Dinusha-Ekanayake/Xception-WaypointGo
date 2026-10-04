@@ -50,6 +50,7 @@ const STRINGS: Record<string, [string, string]> = {
 
   // Dock board
   "Tonight's departures": ["අද රාත්‍රී පිටත්වීම්", "இன்றிரவு புறப்பாடுகள்"],
+  "Departing {day}": ["{day} පිටත් වේ", "{day} அன்று புறப்படும்"],
   "Dock": ["පැටවුම් ස්ථානය", "ஏற்றுமிடம்"],
   "All docks · {depot}": ["සියලු පැටවුම් ස්ථාන · {depot}", "அனைத்து ஏற்றுமிடங்கள் · {depot}"],
   "Search vehicle, trip or loader": ["වාහනය, ගමන හෝ පටවන්නා සොයන්න", "வாகனம், பயணம் அல்லது ஏற்றுபவரைத் தேடு"],

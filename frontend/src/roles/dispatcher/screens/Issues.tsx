@@ -79,14 +79,14 @@ export default function Issues({
         value={tab}
         onChange={(next) => (setTab(next), setSelectedId(null))}
         options={[
-          { value: "open", label: `Open ${issues.data ? open.length : "…"}` },
-          { value: "progress", label: `In progress ${issues.data ? progress.length : "…"}` },
+          { value: "open", label: `Open (${issues.data ? open.length : "…"})` },
+          { value: "progress", label: `In progress (${issues.data ? progress.length : "…"})` },
           { value: "resolved", label: "Resolved" },
         ]}
       />
 
       <div className="flex min-h-0 w-full flex-1 gap-[18px] max-lg:flex-col">
-        <section aria-label="Open issues" className="flex min-w-0 flex-1 flex-col gap-1 rounded-go-panel bg-go-card p-2">
+        <section aria-label="Open issues" className="flex min-w-0 flex-1 flex-col gap-1 self-start rounded-go-panel bg-go-card p-2">
           {tab === "resolved" && (
             <div className="p-3">
               <Pending what="the resolved issues" waitingOn="a read of resolved and closed issues in the Issues module" />
@@ -134,7 +134,7 @@ export default function Issues({
         <div className="flex w-full flex-col gap-[18px] lg:w-[380px] lg:shrink-0">
           {selected ? (
             <IssueDetail key={selected} issueId={selected} userId={userId} online={online} now={now} onChanged={issues.refresh} />
-          ) : (
+          ) : shown.length === 0 ? null : (
             <section aria-label="Selected issue" className="rounded-go-panel bg-go-card px-6 py-8 text-center text-[13px] text-go-secondary">
               Choose an issue to see its history and act on it.
             </section>

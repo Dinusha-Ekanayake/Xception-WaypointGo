@@ -174,7 +174,7 @@ class IntelligenceDomainTest {
   @Test
   void aWeeksCapacityIsEveryVehicleTwiceADayOnEachOperatingDay() {
     var w = FleetCapacity.weekly(
-        List.of(new FleetCapacity.Vehicle(d("10"), true), new FleetCapacity.Vehicle(d("30"), false)), 6);
+        List.of(new FleetCapacity.Vehicle(d("10"), true), new FleetCapacity.Vehicle(d("30"), false)), List.of(2, 2, 2, 2, 2, 2));
     assertEquals(2, w.vehicles());
     assertEquals(1, w.refrigeratedVehicles());
     assertEquals(d("480.00"), w.fleetM3(), "(10 + 30) x 2 trips x 6 days");
@@ -183,7 +183,7 @@ class IntelligenceDomainTest {
 
   @Test
   void aClosedWeekCarriesNothing() {
-    assertEquals(d("0.00"), FleetCapacity.weekly(List.of(new FleetCapacity.Vehicle(d("10"), true)), 0).fleetM3());
+    assertEquals(d("0.00"), FleetCapacity.weekly(List.of(new FleetCapacity.Vehicle(d("10"), true)), List.of()).fleetM3());
   }
 
   // ---- forecast schedule ----------------------------------------------------------------------

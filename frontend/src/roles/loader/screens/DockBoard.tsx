@@ -4,7 +4,8 @@ import { useState } from "react";
 import type { Resource } from "@shared/api/useResource";
 import type { ReadyTripView } from "@shared/domain/types";
 import { Icon, Notice, cx } from "@shared/ui";
-import { holdLapsed } from "../data/manifest.ts";
+import { depotToday, holdLapsed } from "../data/manifest.ts";
+import { addDays, dayLabel } from "../../../shared/wording/index.ts";
 import { BigButton } from "../ui.tsx";
 import { TruckIcon } from "../icons.tsx";
 import DockPicker, { DOCK_KEY } from "./DockPicker.tsx";
@@ -32,6 +33,7 @@ export default function DockBoard({
   trips,
   online,
   onOpen,
+  date,
 }: {
   depot: string;
   /** The loader operating this device; a trip they hold is "Mine". */
@@ -39,8 +41,12 @@ export default function DockBoard({
   trips: Resource<ReadyTripView[]>;
   online: boolean;
   onOpen: (tripId: string) => void;
+  /** The day these trips leave; named under the title when it is not today or tomorrow (UX plan U8). */
+  date?: string;
 }): React.JSX.Element {
   const tr = useT();
+  const today = depotToday();
+  const leavesLater = date !== undefined && date !== today && date !== addDays(today, 1);
   const [filter, setFilter] = useState<Filter>("all");
   const [dock, setDockState] = useState<string>(() => {
     try {
@@ -80,7 +86,10 @@ export default function DockBoard({
       {/* A phone stacks the controls (Figma 08). A landscape tablet, desk or terminal puts the
           search and filters beside the title and dock (Figma 07, 10). */}
       <div className="flex flex-col gap-3.5 pt-2 lg:grid lg:grid-cols-[auto_1fr] lg:items-center lg:gap-x-6">
-        <h1 className="text-[30px] font-semibold text-go-ink lg:col-start-1 lg:row-start-1">{tr("Tonight's departures")}</h1>
+        <div className="flex flex-col gap-0.5 lg:col-start-1 lg:row-start-1">
+          <h1 className="text-[30px] font-semibold text-go-ink">{tr("Tonight's departures")}</h1>
+          {leavesLater && date && <p className="text-[15px] text-go-muted">{tr("Departing {day}", { day: dayLabel(date) })}</p>}
+        </div>
         <div className="lg:col-start-1 lg:row-start-2">
           <DockPicker
             docks={docks}

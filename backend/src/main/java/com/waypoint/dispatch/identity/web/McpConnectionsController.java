@@ -4,7 +4,9 @@ import com.waypoint.dispatch.identity.application.McpAccessHandler;
 import com.waypoint.dispatch.identity.application.McpConnectionsQuery;
 import com.waypoint.dispatch.identity.application.McpConnectionsQuery.ClientView;
 import com.waypoint.dispatch.identity.application.McpConnectionsQuery.ConnectionView;
+import com.waypoint.dispatch.identity.application.McpConnectionsQuery.PrincipalAccess;
 import com.waypoint.dispatch.platform.web.RequestAuthorizer;
+import com.waypoint.dispatch.shared.domain.Page;
 import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -56,5 +59,24 @@ public class McpConnectionsController {
   @GetMapping("/clients")
   public List<ClientView> clients(HttpServletRequest request) {
     return connections.clients(authorizer.require(request, MANAGE_CLIENTS, "wpt:mcp:client:*"));
+  }
+
+  /** Every role with the MCP switches attached to it (R-IAM-38). */
+  @GetMapping("/access/roles")
+  public List<PrincipalAccess> roles(HttpServletRequest request) {
+    return connections.roles(authorizer.require(request, MANAGE_CLIENTS, "wpt:mcp:client:*"));
+  }
+
+  /** People with a switch or a live connection, or those matching {@code q} (R-IAM-38). */
+  @GetMapping("/access/people")
+  public Page<PrincipalAccess> people(
+      @RequestParam(required = false) String q,
+      @RequestParam(required = false) String after,
+      @RequestParam(required = false) Integer limit,
+      HttpServletRequest request) {
+    if (q != null && q.length() > 100) {
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, "q must be at most 100 characters");
+    }
+    return connections.people(authorizer.require(request, MANAGE_CLIENTS, "wpt:mcp:client:*"), q, after, limit);
   }
 }

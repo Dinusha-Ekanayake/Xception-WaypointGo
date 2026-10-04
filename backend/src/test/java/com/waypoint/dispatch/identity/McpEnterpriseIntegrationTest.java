@@ -266,6 +266,61 @@ class McpEnterpriseIntegrationTest {
   }
 
   @Test
+  void anAdministratorSwitchesOnePersonOffAndEndsTheirConnectionsWithAReason() throws Exception {
+    String email = "mcp-ent-person-" + UUID.randomUUID() + "@waypoint.test";
+    UUID id = accounts.createAccount(email, "Mcp Person Switched", PASSWORD, "store_manager");
+    String first = connect(email, null);
+    String second = connect(email, "orders.read");
+    Cookie administrator = browser(admin);
+
+    JsonNode found = json(http.perform(get("/api/mcp/access/people").param("q", "MCP PERSON SW")
+        .cookie(administrator)).andReturn(), 200);
+    assertEquals(1, found.get("items").size(), found.toString());
+    assertEquals(id.toString(), found.get("items").get(0).get("principalId").asText());
+    assertEquals(2, found.get("items").get(0).get("liveConnections").asInt());
+    assertTrue(found.get("items").get(0).get("policies").isEmpty());
+    JsonNode roles = json(http.perform(get("/api/mcp/access/roles").cookie(administrator)).andReturn(), 200);
+    assertTrue(roles.toString().contains("store_manager"), roles.toString());
+
+    // The switch is the existing attach command, guarded by the policy's version.
+    long version = -1;
+    for (JsonNode policy : json(http.perform(get("/api/policies").param("limit", "200").cookie(administrator))
+        .andReturn(), 200).get("items")) {
+      if (policy.get("name").asText().equals("WaypointMcpBlocked")) {
+        version = policy.get("rowVersion").asLong();
+      }
+    }
+    Map<String, Object> target = Map.of("name", "WaypointMcpBlocked", "principalType", "user", "principalId", id.toString());
+    status(http.perform(post("/api/commands").cookie(administrator).contentType(MediaType.APPLICATION_JSON)
+        .content(command("iam:AttachPolicy", version + 5, target))).andReturn(), 409);
+    status(http.perform(post("/api/commands").cookie(administrator).contentType(MediaType.APPLICATION_JSON)
+        .content(command("iam:AttachPolicy", version, target))).andReturn(), 200);
+    status(mcp(get("/api/mcp/context"), first), 403);
+    JsonNode listed = json(http.perform(get("/api/mcp/access/people").cookie(administrator)).andReturn(), 200);
+    assertTrue(listed.toString().contains("WaypointMcpBlocked") && listed.toString().contains(id.toString()), listed.toString());
+
+    String revoke = command("mcp:RevokeUserConnections", null, Map.of("userId", id.toString(), "reason", "lost laptop"));
+    status(http.perform(post("/api/commands").cookie(browser(store)).contentType(MediaType.APPLICATION_JSON)
+        .content(revoke)).andReturn(), 403);
+    JsonNode ended = json(http.perform(post("/api/commands").cookie(administrator).contentType(MediaType.APPLICATION_JSON)
+        .content(revoke)).andReturn(), 200);
+    assertEquals(2, ended.get("result").get("connectionsRevoked").asInt());
+    status(mcp(get("/api/mcp/context"), second), 401);
+    JsonNode again = json(http.perform(post("/api/commands").cookie(administrator).contentType(MediaType.APPLICATION_JSON)
+        .content(command("mcp:RevokeUserConnections", null, Map.of("userId", id.toString(), "reason", "again"))))
+        .andReturn(), 200);
+    assertEquals(0, again.get("result").get("connectionsRevoked").asInt(), "nothing left to end is still a success");
+    status(http.perform(post("/api/commands").cookie(administrator).contentType(MediaType.APPLICATION_JSON)
+        .content(command("mcp:RevokeUserConnections", null, Map.of("userId", id.toString(), "reason", " "))))
+        .andReturn(), 422);
+
+    String assistant = connect(store, null);
+    status(mcp(get("/api/mcp/access/people"), assistant), 403);
+    status(mcp(get("/api/mcp/access/roles"), assistant), 403);
+    status(http.perform(get("/api/mcp/access/people").cookie(browser(store))).andReturn(), 403);
+  }
+
+  @Test
   void theUsageViewCountsCallsPerToolAndMarksRepeatedRefusals() throws Exception {
     String token = connect(store, "orders.read");
     status(mcp(get("/api/orders").param("outlet", "OUT001"), token), 200);
