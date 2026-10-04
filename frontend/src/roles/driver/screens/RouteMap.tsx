@@ -8,6 +8,9 @@ import { cx } from "@shared/ui";
 import { LiveMap, metres, num, type LatLon, type MapLine, type MapMarker } from "@shared/ui/map";
 import type { Stop } from "../data/run.ts";
 import type { PositionRecorder } from "../data/position.ts";
+import { drivenLine, readTrail, type TrailPoint } from "../data/trail.ts";
+
+const TRAIL_POLL_MS = 15_000;
 
 // Figma "Route: Map" (83:2164): own position with heading, the trail driven so
 // far, a dashed leg to the next stop and its pin. Turn by turn is the phone's
@@ -52,25 +55,53 @@ export default function RouteMap({
   className?: string;
 }): React.JSX.Element {
   const dest = exactPoint(outlet);
-  const [server, setServer] = useState<LatLon[]>([]);
+  const [server, setServer] = useState<TrailPoint[]>([]);
 
-  // The trail the server already holds for this trip, then what this phone adds.
+  // The trail the server holds for this trip, every page of it, read again on
+  // a poll so points the server records (a demo simulation) reach this map too.
+  // A failed read keeps the last trail rather than wiping it with no signal.
   useEffect(() => {
+    setServer([]);
     const ctrl = new AbortController();
-    request<{ items: TrailPointView[] }>(`/api/execution/trips/${encodeURIComponent(next.tripId)}/trail?limit=200`, { signal: ctrl.signal })
-      .then((page) => setServer(page.items.filter((p) => !p.lowQuality).map((p) => ({ lat: num(p.latitude) ?? 0, lon: num(p.longitude) ?? 0 }))))
-      .catch(() => setServer([]));
-    return () => ctrl.abort();
+    const path = `/api/execution/trips/${encodeURIComponent(next.tripId)}/trail?limit=500`;
+    const load = () =>
+      readTrail((cursor) =>
+        request<{ items: TrailPointView[]; nextCursor?: string | null }>(cursor ? `${path}&cursor=${encodeURIComponent(cursor)}` : path, { signal: ctrl.signal }),
+      )
+        .then((points) => { if (!ctrl.signal.aborted) setServer(points); })
+        .catch(() => undefined);
+    void load();
+    const timer = window.setInterval(() => void load(), TRAIL_POLL_MS);
+    return () => {
+      window.clearInterval(timer);
+      ctrl.abort();
+    };
   }, [next.tripId]);
 
   const here = recorder.here;
-  const driven = useMemo(() => [...server, ...recorder.trail], [server, recorder.trail]);
-  const markers: MapMarker[] = [];
-  if (dest) markers.push({ id: "dest", kind: "store", ...dest, label: next.outletId, badge: String(next.sequence).padStart(2, "0"), ariaLabel: `Next stop ${next.outletId}`, selectable: false });
-  if (here) markers.push({ id: "me", kind: "vehicle", lat: here.lat, lon: here.lon, heading: here.heading, status: "on-time", label: "You", ariaLabel: "Your position", selectable: false });
-  const lines: MapLine[] = [{ id: "driven", points: driven, style: "driven" }];
-  if (here && dest) lines.push({ id: "leg", points: [here, dest], style: "planned" });
-  const fit = [here, dest].filter((p): p is NonNullable<typeof p> => p !== null).map((p) => ({ lat: p.lat, lon: p.lon }));
+  const driven = useMemo(() => drivenLine(server, recorder.trail), [server, recorder.trail]);
+  // With no position from this phone, the newest server point stands in for it.
+  const last = server.length > 0 ? server[server.length - 1]! : null;
+  const me = here ?? (last ? { lat: last.lat, lon: last.lon, heading: null } : null);
+  const markers = useMemo(() => {
+    const out: MapMarker[] = [];
+    if (dest) out.push({ id: "dest", kind: "store", ...dest, label: next.outletId, badge: String(next.sequence).padStart(2, "0"), ariaLabel: `Next stop ${next.outletId}`, selectable: false });
+    if (me) out.push({ id: "me", kind: "vehicle", lat: me.lat, lon: me.lon, heading: me.heading, status: "on-time", label: "You", ariaLabel: "Your position", selectable: false });
+    return out;
+  }, [dest?.lat, dest?.lon, next.outletId, next.sequence, me?.lat, me?.lon, me?.heading]);
+  const lines = useMemo(() => {
+    const out: MapLine[] = [{ id: "driven", points: driven, style: "driven" }];
+    if (me && dest) out.push({ id: "leg", points: [me, dest], style: "planned" });
+    return out;
+  }, [driven, me?.lat, me?.lon, dest?.lat, dest?.lon]);
+  // Fit once per stop (and once a first position arrives), not on every move:
+  // a re-fit each fix would undo the driver's own pan and zoom.
+  const hasMe = me !== null;
+  const fit = useMemo(
+    () => [me, dest].filter((p): p is NonNullable<typeof p> => p !== null).map((p) => ({ lat: p.lat, lon: p.lon })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [next.outletId, hasMe, dest !== null],
+  );
 
   return (
     <div className={cx("relative", className)}>
@@ -96,7 +127,7 @@ export default function RouteMap({
                 {[outlet?.districtName, windowText(outlet)].filter(Boolean).join(" · ")}
               </span>
             </span>
-            {here && dest && <span className="shrink-0 text-[15px] font-medium tabular-nums">{distanceText(metres(here, dest))}</span>}
+            {me && dest && <span className="shrink-0 text-[15px] font-medium tabular-nums">{distanceText(metres(me, dest))}</span>}
           </div>
           {dest ? (
             <a href={navigateUrl(dest)} target="_blank" rel="noreferrer" className="flex h-14 items-center justify-center rounded-full bg-go-ink text-[17px] font-medium text-go-canvas active:scale-[0.98]">
