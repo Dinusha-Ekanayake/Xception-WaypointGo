@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-04 - feat: a generated plan explains itself at once, and each deferred order has a question mark
+
+`feat/explain-auto` · @Dinusha-Ekanayake
+
+The plan's explanation opens by itself when a plan is generated (the button stays, to open it again). Each order in the plan view's Deferred list has a question mark that opens why it was not placed. Both pop-ups sit in the middle of the screen from a tablet up (`Sheet` `centered`). Rule-based, frontend only.
+Not built: wording by an outside language model (Groq). It was stopped before any plan data left the system; the explanations stay rule-based.
+Verified: see the PR. `npm test` 281; `explain.spec.ts` and the generate spec in `plan.spec.ts` cover the new behaviour.
+
+---
+
 ## 2026-10-04 - fix: the store manager has no "Switch user" button
 
 `fix/store-no-switch-user` · @Dinusha-Ekanayake

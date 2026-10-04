@@ -11,6 +11,12 @@ test("generate, see why an order was deferred, place it by hand, publish", async
   await expect(page.getByRole("status").filter({ hasText: "Draft version 1: 2 placed, 1 deferred." })).toBeVisible();
   expect(desk.commands[0]).toMatchObject({ kind: "plan:Generate", expectedVersion: null, payload: { depotCode: DEPOT } });
 
+  // The new plan explains itself: what it carries and what it left off. Closing it leaves the plan.
+  const explained = page.getByRole("dialog", { name: "This plan explained" });
+  await expect(explained).toContainText("2 orders are placed");
+  await explained.getByRole("button", { name: "Close" }).click();
+  await expect(explained).toHaveCount(0);
+
   // The deferral names its rule and its reason, never a generic message; every check is one click away.
   const decision = page.getByRole("region", { name: "Decision", exact: true });
   await expect(decision.getByRole("heading", { name: "ORD0092303" })).toBeVisible();

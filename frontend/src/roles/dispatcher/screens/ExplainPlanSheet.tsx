@@ -12,7 +12,7 @@ const list = "flex list-disc flex-col gap-1 pl-5 text-[13px] text-go-ink";
 export default function ExplainPlanSheet({ explanation, onClose }: { explanation: PlanExplanation; onClose: () => void }): React.JSX.Element {
   const { leftOff, notes } = explanation;
   return (
-    <Sheet label="This plan explained" onClose={onClose}>
+    <Sheet label="This plan explained" onClose={onClose} centered>
       <h2 className="text-[20px] font-medium text-go-ink">This plan explained</h2>
       <p className="text-[14px] text-go-ink">
         {explanation.headline} <strong className="font-semibold">{explanation.carries}</strong>
