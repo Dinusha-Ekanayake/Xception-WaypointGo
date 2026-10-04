@@ -34,6 +34,7 @@ export default function Deliveries({
   onOrders,
   onReceive,
   onTrack,
+  onMessage,
 }: {
   gateway: StoreGateway;
   orders: OrderView[];
@@ -46,6 +47,8 @@ export default function Deliveries({
   onOrders: () => void;
   onReceive: (orderId: string) => void;
   onTrack: (vehicleId: string) => void;
+  /** The trip's thread (issue #136). */
+  onMessage?: (tripId: string, vehicleId: string) => void;
 }): React.JSX.Element {
   const [range, setRange] = useState<Range>("today");
   const [makeUp, setMakeUp] = useState<string | null>(null);
@@ -88,6 +91,7 @@ export default function Deliveries({
         highlight={receivable !== undefined}
         actions={[
           ...(moving ? [{ label: "Track", onClick: () => onTrack(run.vehicleId) }] : []),
+          ...(onMessage ? [{ label: "Message", onClick: () => onMessage(run.tripId, run.vehicleId) }] : []),
           receivable
             ? { label: "Receive", tone: "ink" as const, onClick: () => onReceive(receivable.orderId) }
             : firstMakeUp
