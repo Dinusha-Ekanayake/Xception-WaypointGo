@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useOnline, useResource } from "@shared/api/useResource";
 import type { OrderView } from "@shared/domain/types";
-import { Notice } from "@shared/ui";
+import { Notice, useScrollMemory } from "@shared/ui";
 import TopBar from "./TopBar.tsx";
 import { depotToday } from "./data/format.ts";
 import { createGateway } from "./data/gateway.ts";
@@ -54,6 +54,8 @@ export default function Store({
   const outletId = scope[0] ?? (gateway.sample ? "OUT085" : "");
   const [tab, setTab] = useState<Tab>("home");
   const [view, setView] = useState<View>({ kind: "tabs" });
+  // A tab comes back where it was scrolled; a form or detail opens at the top (UX polish 2).
+  useScrollMemory(view.kind === "tabs" ? `store:${tab}` : null);
   const [openOrder, setOpenOrder] = useState<string | null>(null);
   const [waiting, setWaiting] = useState(0);
   const [flushError, setFlushError] = useState<string | null>(null);

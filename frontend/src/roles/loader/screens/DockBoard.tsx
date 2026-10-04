@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { Resource } from "@shared/api/useResource";
 import type { ReadyTripView } from "@shared/domain/types";
-import { Icon, Notice, cx } from "@shared/ui";
+import { Icon, Notice, cx, usePersistentState } from "@shared/ui";
 import { depotToday, holdLapsed } from "../data/manifest.ts";
 import { addDays, dayLabel } from "../../../shared/wording/index.ts";
 import { BigButton } from "../ui.tsx";
@@ -47,7 +47,7 @@ export default function DockBoard({
   const tr = useT();
   const today = depotToday();
   const leavesLater = date !== undefined && date !== today && date !== addDays(today, 1);
-  const [filter, setFilter] = useState<Filter>("all");
+  const [filter, setFilter] = usePersistentState<Filter>("loader:board:filter", "all");
   const [dock, setDockState] = useState<string>(() => {
     try {
       return window.localStorage.getItem(DOCK_KEY) ?? "";

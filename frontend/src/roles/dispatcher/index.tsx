@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useOnline } from "@shared/api/useResource";
-import { ToastProvider } from "@shared/ui";
+import { ToastProvider, useScrollMemory } from "@shared/ui";
 import Sidebar, { CompactNav, useFolded, type Badges } from "./Sidebar.tsx";
 import { InboxProvider } from "./inbox.tsx";
 import NotificationsPanel from "./NotificationsPanel.tsx";
@@ -36,6 +36,9 @@ export default function Dispatcher({
   scope: string[];
 }): React.JSX.Element {
   const [view, navigate] = useView();
+  // Each screen comes back where it was scrolled (UX polish 2).
+  const main = useRef<HTMLDivElement>(null);
+  useScrollMemory(`dispatcher:${view}`, main);
   /** Opens the Plan screen on a day: from the Overview's plan card and from an order. */
   const openPlan = (day: string) => {
     setDate(day);
@@ -93,7 +96,7 @@ export default function Dispatcher({
         onFold={setFolded}
         scopeLabel={label}
       />
-      <div className="flex min-w-0 flex-1 flex-col gap-5 px-4 py-5 md:px-9 md:py-7 lg:overflow-y-auto">
+      <div ref={main} className="flex min-w-0 flex-1 flex-col gap-5 px-4 py-5 md:px-9 md:py-7 lg:overflow-y-auto">
         {scope.length === 0 ? (
           <p className="text-sm text-go-secondary">Your account has no depot in scope. Ask an administrator to grant one.</p>
         ) : view === "overview" ? (

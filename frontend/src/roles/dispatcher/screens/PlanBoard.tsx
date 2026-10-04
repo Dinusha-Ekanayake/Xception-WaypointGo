@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { OrderView, PlanView, VehicleView } from "@shared/domain/types";
-import { Pill, Popover, cx } from "@shared/ui";
+import { Pill, Popover, cx, usePersistentState } from "@shared/ui";
 import { capacityLabel, typeLabel } from "../data/fleet.ts";
 import { board, hhmm, leftOutLine, summarise, type TripLoad } from "../data/plan.ts";
 import {
@@ -61,7 +61,7 @@ export default function PlanBoard({
   const rows = board(plan, fleet);
   const summary = summarise(plan, fleet);
   const low = lowLoad(rows);
-  const [filter, setFilter] = useState<Filter>(NO_FILTER);
+  const [filter, setFilter] = usePersistentState<Filter>("dispatcher:plan:filter", NO_FILTER);
   const [openId, setOpenId] = useState<string | null>(null);
   const predictions = usePredictions(published ? plan.planId : null);
   const risk = predictions.data ? lateRisk(plan, predictions.data) : null;

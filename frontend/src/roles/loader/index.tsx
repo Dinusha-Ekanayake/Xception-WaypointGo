@@ -4,7 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "reac
 import { useOnline, useResource } from "@shared/api/useResource";
 import { registerResolver, useSync } from "@shared/offline";
 import { useInbox } from "@shared/notifications/useInbox";
-import { Notice } from "@shared/ui";
+import { Notice, useScrollMemory } from "@shared/ui";
 import { crew, lockOperator, replayBeforeSync } from "@app-shell/operators";
 import { keptCrew, logOfflineSwitch } from "@app-shell/offlinePin";
 import type { CrewMember } from "@app-shell/operators";
@@ -117,6 +117,8 @@ function LoaderWorkspace({
   const outletList = useResource(depot ? (signal) => gateway.outlets(depot, signal) : null, depot);
   const outlets = useMemo(() => new Map((outletList.data ?? []).map((o) => [o.outletId, o])), [outletList.data]);
   const open = trips.data?.find((t) => t.tripId === openId) ?? null;
+  // Back from a load sheet, the board is where it was; a load sheet opens at the top (UX polish 2).
+  useScrollMemory(operator && !open && !settings ? "loader:board" : null);
 
   const { refresh } = trips;
   const back = useCallback(() => {

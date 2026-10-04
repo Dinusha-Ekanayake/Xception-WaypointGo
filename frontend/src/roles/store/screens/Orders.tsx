@@ -1,9 +1,8 @@
 "use client";
 
-import { useState } from "react";
 import type { ApiError } from "@shared/api/problem";
 import type { OrderView } from "@shared/domain/types";
-import { Notice, cx } from "@shared/ui";
+import { Notice, cx, usePersistentState } from "@shared/ui";
 import { units, ORDER_STATUS, dayLabel, depotToday, planNote, temperatureLabel } from "../data/format.ts";
 import { Chip, Muted } from "../ui.tsx";
 
@@ -41,7 +40,7 @@ export default function Orders({
   onOpen: (orderId: string) => void;
   onPlace: () => void;
 }): React.JSX.Element {
-  const [filter, setFilter] = useState<Filter>("open");
+  const [filter, setFilter] = usePersistentState<Filter>("store:orders:filter", "open");
   const today = depotToday();
   const keep = FILTERS.find((f) => f.id === filter)!.keep;
   const shown = orders.filter(keep);

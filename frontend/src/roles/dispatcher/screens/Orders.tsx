@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { ORDER_CUTOFF, OrderCommandKind, type IssueView, type OrderStatus, type OrderView, type RunSheetStopView } from "@shared/domain/types";
-import { Icon, Menu, Notice, Segmented, cx, useToast } from "@shared/ui";
+import { Icon, Menu, Notice, Segmented, cx, usePersistentState, useToast } from "@shared/ui";
 import { addDays, clock, dayLabel } from "@shared/wording";
 import PageHeader from "../PageHeader.tsx";
 import { flow } from "../data/orders.ts";
@@ -49,10 +49,10 @@ export default function Orders({
   onOpenPlan: (date: string) => void;
 }): React.JSX.Element {
   const today = depotToday();
-  const [tab, setTab] = useState<Tab>("current");
-  const [brand, setBrand] = useState("all");
-  const [statusId, setStatusId] = useState("all");
-  const [text, setText] = useState("");
+  const [tab, setTab] = usePersistentState<Tab>("dispatcher:orders:tab", "current");
+  const [brand, setBrand] = usePersistentState("dispatcher:orders:brand", "all");
+  const [statusId, setStatusId] = usePersistentState("dispatcher:orders:status", "all");
+  const [text, setText] = usePersistentState("dispatcher:orders:text", "");
   const [selected, setSelected] = useState<string | null>(null);
 
   const current = useOrders(depots, today);

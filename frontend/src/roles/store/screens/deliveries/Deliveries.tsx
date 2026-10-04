@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useResource } from "@shared/api/useResource";
 import type { DeliveryRecordView, IssueView, OrderView, OutletView, PendingReceiptView } from "@shared/domain/types";
-import { Notice, cx } from "@shared/ui";
+import { Notice, cx, usePersistentState } from "@shared/ui";
 import type { StoreGateway } from "../../data/gateway.ts";
 import { ORDER_STATUS, units, clock, dayLabel, depotToday, hhmm, temperatureLabel } from "../../data/format.ts";
 import { isOpenIssue } from "../../data/issues.ts";
@@ -50,7 +50,7 @@ export default function Deliveries({
   /** The trip's thread (issue #136). */
   onMessage?: (tripId: string, vehicleId: string) => void;
 }): React.JSX.Element {
-  const [range, setRange] = useState<Range>("today");
+  const [range, setRange] = usePersistentState<Range>("store:deliveries:range", "today");
   const [makeUp, setMakeUp] = useState<string | null>(null);
   const today = depotToday();
   const outletId = outlet?.outletId ?? "";
