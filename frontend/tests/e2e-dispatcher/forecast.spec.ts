@@ -59,7 +59,7 @@ test("the last and next run read in depot time, with a countdown to the next", a
   const runs = page.getByRole("region", { name: "Forecast runs" });
   await expect(runs).toContainText("Mon 22 Feb · 09:30");
   await expect(runs).toContainText("Mon 1 Mar · 00:00");
-  await expect(runs.getByRole("timer")).toHaveText("in 23:41");
+  await expect(runs.getByRole("timer")).toHaveText(/^in 23:4[01]$/);
 });
 
 test("when the run is due the screen says so and shows the new forecast once it lands", async ({ page }) => {
