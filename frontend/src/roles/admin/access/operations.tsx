@@ -42,6 +42,7 @@ export type Vehicle = {
   temp: "Ambient" | "Chilled (Refrigerated)";
   status: "Available" | "On trip" | "Workshop" | "Unavailable";
   lastDriver?: LastDriver;
+  nextDriver?: LastDriver;
   rowVersion?: number;
 };
 
@@ -102,7 +103,7 @@ export function VehiclesScreen({ state }: { state?: DemoState } = {}) {
           search: query.trim() || undefined,
           limit: 100,
         }),
-        fetchDriverAssignments({ on: todayInColombo() }).catch(() => [] as DriverAssignmentView[]),
+        fetchDriverAssignments({ limit: 100 }).catch(() => [] as DriverAssignmentView[]),
         fetchAccounts({ limit: 100 }).catch(() => ({ items: [] as AccountView[], nextCursor: null })),
       ]);
 
@@ -121,9 +122,17 @@ export function VehiclesScreen({ state }: { state?: DemoState } = {}) {
             ? "Workshop"
             : v.dayStatus === "unavailable" ? "Unavailable" : "Available";
 
-        const activeAssign = assignmentsList.find((a) => a.vehicleId === v.vehicleId);
+        const today = todayInColombo();
+        const vehicleAssignments = assignmentsList.filter((a) => a.vehicleId === v.vehicleId);
+        const activeAssign = vehicleAssignments.find((a) => a.from <= today && (!a.until || today < a.until));
+        const nextAssign = vehicleAssignments
+          .filter((a) => a.from > today)
+          .sort((a, b) => a.from.localeCompare(b.from))[0];
         const driverAcc = activeAssign
           ? drivers.find((d) => d.userId === activeAssign.driverUserId)
+          : undefined;
+        const nextDriverAcc = nextAssign
+          ? drivers.find((d) => d.userId === nextAssign.driverUserId)
           : undefined;
 
         const lastDriver: LastDriver | undefined = activeAssign
@@ -137,6 +146,19 @@ export function VehiclesScreen({ state }: { state?: DemoState } = {}) {
               assignmentId: activeAssign.assignmentId,
               assignmentVersion: activeAssign.rowVersion,
               driverVersion: driverAcc?.rowVersion,
+            }
+          : undefined;
+        const nextDriver: LastDriver | undefined = nextAssign
+          ? {
+              id: nextAssign.driverUserId,
+              name: nextAssign.driverName,
+              phone: nextDriverAcc?.email || "",
+              lastRunDate: nextAssign.from,
+              from: nextAssign.from,
+              until: nextAssign.until,
+              assignmentId: nextAssign.assignmentId,
+              assignmentVersion: nextAssign.rowVersion,
+              driverVersion: nextDriverAcc?.rowVersion,
             }
           : undefined;
 
@@ -153,6 +175,7 @@ export function VehiclesScreen({ state }: { state?: DemoState } = {}) {
           temp: tempVal,
           status: statusVal,
           lastDriver,
+          nextDriver,
           rowVersion: v.rowVersion,
         };
       });
@@ -191,9 +214,9 @@ export function VehiclesScreen({ state }: { state?: DemoState } = {}) {
 
   function openAssignDriverModal(vehicle: Vehicle) {
     setAssigningVehicle(vehicle);
-    setAssignDriverId(vehicle.lastDriver?.id || "");
+    setAssignDriverId(vehicle.lastDriver?.id || vehicle.nextDriver?.id || "");
     setAssignFrom(todayInColombo());
-    setAssignUntil(vehicle.lastDriver?.until || "");
+    setAssignUntil(vehicle.lastDriver?.until || vehicle.nextDriver?.until || "");
     setAssignError("");
   }
 
@@ -225,16 +248,19 @@ export function VehiclesScreen({ state }: { state?: DemoState } = {}) {
   };
 
   const handleEndAssignment = async () => {
-    if (!assigningVehicle?.lastDriver?.assignmentId) return;
+    const target = assigningVehicle?.lastDriver ?? assigningVehicle?.nextDriver;
+    if (!assigningVehicle || !target?.assignmentId) return;
     setEndingAssignment(true);
     setAssignError("");
     try {
       await submitEndDriverAssignment({
-        assignmentId: assigningVehicle.lastDriver.assignmentId,
-        on: todayInColombo(),
-        expectedVersion: assigningVehicle.lastDriver.assignmentVersion ?? 1,
+        assignmentId: target.assignmentId,
+        on: assigningVehicle.lastDriver ? todayInColombo() : (target.from ?? todayInColombo()),
+        expectedVersion: target.assignmentVersion ?? 1,
       });
-      setCreateNotice(`Driver unassigned from ${assigningVehicle.id}.`);
+      setCreateNotice(assigningVehicle.lastDriver
+        ? `Driver unassigned from ${assigningVehicle.id}.`
+        : `Scheduled driver assignment cancelled for ${assigningVehicle.id}.`);
       setAssigningVehicle(null);
       void loadVehicles();
     } catch (err) {
@@ -994,6 +1020,8 @@ export function VehiclesScreen({ state }: { state?: DemoState } = {}) {
                 </div>
                 {assigningVehicle.lastDriver ? (
                   <Badge tone="blue">Current: {assigningVehicle.lastDriver.name}</Badge>
+                ) : assigningVehicle.nextDriver ? (
+                  <Badge tone="amber">Scheduled: {assigningVehicle.nextDriver.name} · {dayLabel(assigningVehicle.nextDriver.from ?? "")}</Badge>
                 ) : (
                   <Badge tone="neutral">Unassigned</Badge>
                 )}
@@ -1054,14 +1082,18 @@ export function VehiclesScreen({ state }: { state?: DemoState } = {}) {
               </p>
 
               <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-go-subtle">
-                {assigningVehicle.lastDriver?.assignmentId ? (
+                {(assigningVehicle.lastDriver?.assignmentId || assigningVehicle.nextDriver?.assignmentId) ? (
                   <button
                     type="button"
                     className="text-xs font-semibold text-red-600 hover:underline"
                     disabled={endingAssignment}
                     onClick={() => void handleEndAssignment()}
                   >
-                    {endingAssignment ? "Unassigning..." : "Unassign driver now"}
+                    {endingAssignment
+                      ? "Updating assignment..."
+                      : assigningVehicle.lastDriver
+                        ? "Unassign driver now"
+                        : "Cancel scheduled assignment"}
                   </button>
                 ) : <span />}
 

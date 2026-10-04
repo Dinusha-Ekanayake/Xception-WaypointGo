@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-10-04 - expose scheduled vehicle drivers
+
+`codex/system-constraints` · @ranathungaWK
+
+Load scheduled driver assignments in the admin vehicle directory, show the next booking in the assignment dialog and allow it to be cancelled before assigning an overlapping period.
+Verified against the preview database entry that blocked VEH036 from 2026-10-05 to 2026-10-06. Tests were not run.
+
 ## 2026-10-04 - allow immediate driver unassignment
 
 `codex/system-constraints` · @ranathungaWK
