@@ -110,6 +110,7 @@ Values that are correct today and will change. **None of them is a literal in co
 | **P-33** | Voice note retention | 400 days from upload (`VOICE_RETENTION`), recorded per note as `retain_until` | Our policy, issue #136, as P-14; legal to confirm | A voice note is personal communication and may be evidence in a dispute. `messaging.voice-retention` clears the audio nightly at 02:50 past `retain_until`; the message, the note's length and SHA-256 stay |
 | **P-34** | How far ahead a store chooses a delivery day | 28 days (`BOOKING_DAYS` in `store/data/outlook.ts`; an outlook request covers at most 31, `DateOutlookQuery.MAX_DAYS`) | Product decision 2026-10-04, issue #224 | The store's date strip. Not a server refusal: an order for a later day is still accepted |
 | **P-35** | Date outlook thresholds | Busy from 80% of the day's room, at risk above 100% (`DateOutlookPolicy.BUSY_AT`, `AT_RISK_ABOVE`) | Our policy, issue #224 | Which days warn a store (R-ML-07) |
+| **P-36** | Date outlook watch | Tomorrow to 14 days ahead, hourly 06:00-15:00 depot time, Monday to Saturday (`OutlookWatchJob.WINDOW_DAYS`, its cron) | Our policy, issue #224 | How early a store hears its booked day turned busy; after the 16:00 cutoff the plan decides |
 
 ### How a parameter changes
 

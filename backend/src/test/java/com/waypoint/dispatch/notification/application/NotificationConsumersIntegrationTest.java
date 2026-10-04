@@ -11,6 +11,8 @@ import com.waypoint.dispatch.notification.NotificationSupport;
 import com.waypoint.dispatch.notification.domain.Delivery.PushResult;
 import com.waypoint.dispatch.ordering.domain.Order;
 import com.waypoint.dispatch.planning.contract.PlanEvents.OrderDeferred;
+import com.waypoint.dispatch.intelligence.contract.OutlookEvents.OrderOutlookChanged;
+import com.waypoint.dispatch.intelligence.contract.PredictionViews.OutlookStatus;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlanPublished;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlanRevised;
 import com.waypoint.dispatch.planning.contract.PlanEvents.StoreContacted;
@@ -188,13 +190,33 @@ class NotificationConsumersIntegrationTest extends NotificationSupport {
     UUID eventId = deliver("notification.on-plan-published", published);
 
     Map<String, Object> toManager = notificationFor(eventId, manager);
-    assertTrue(((String) toManager.get("title")).startsWith("Delivery planned for "), "R-NOT-15");
+    assertEquals("Delivery planned for " + day(date), toManager.get("title"), "R-NOT-15, the glossary's date");
     assertEquals("Your order is stop 3, planned arrival 06:10.", toManager.get("body"));
     assertEquals("stop:" + tripId + ":3", toManager.get("target_key"));
     assertEquals("Your order is stop 1, planned arrival 05:40.", notificationFor(eventId, stranger).get("body"),
         "each outlet hears its own stop");
     assertEquals(1, notificationsOf(eventId).stream().filter(n -> n.get("recipient_user_id").equals(manager.id())).count(),
         "one notice per store");
+  }
+
+  @Test
+  void aBookedDayThatTurnsAtRiskTellsThatStoreOnlyInPlainWords() {
+    LocalDate date = someFarDate();
+    UUID orderId = UUID.randomUUID();
+
+    UUID eventId = deliver("notification.on-order-outlook-changed",
+        new OrderOutlookChanged(orderId, outlet.outletId(), depot, date, OutlookStatus.AT_RISK,
+            "More is expected than the vehicles can carry"));
+
+    Map<String, Object> toManager = notificationFor(eventId, manager);
+    assertEquals(day(date) + " is at risk", toManager.get("title"), "R-NOT-16");
+    assertEquals("More is expected than the vehicles can carry. Your order may move a day; dispatch plans it the"
+        + " afternoon before.", toManager.get("body"));
+    assertFalse(recipientsOf(eventId).contains(stranger.id()), "another outlet's manager is not told");
+  }
+
+  private static String day(LocalDate date) {
+    return java.time.format.DateTimeFormatter.ofPattern("EEE d MMM", java.util.Locale.ENGLISH).format(date);
   }
 
   // ---- a revision tells only what it changed (R-NOT-12) ----------------------------

@@ -69,8 +69,26 @@ A store manager ordering ahead sees four weeks of days, each with how likely it 
 | The outlook words | [GLOSSARY](../../architecture/GLOSSARY.md) |
 | `bookedVolumes` | [MODULES](../../architecture/MODULES.md) |
 
+## Slice 3: the early warning
+
+- **Ordering:** `OrderQuery.openOrders` lists orders booked and not yet planned (stock unknown, partially reserved, confirmed, deferred). It returns ids, outlet, brand and day only.
+- **Intelligence:**
+  - [`OutlookWatchJob`](../../../backend/src/main/java/com/waypoint/dispatch/intelligence/application/OutlookWatchJob.java) runs hourly 06:00-15:00. For each depot and brand it computes the outlook once with `DateOutlookQuery.assess`, the same computation as the strip, then checks each order.
+  - [`OutlookChangePolicy`](../../../backend/src/main/java/com/waypoint/dispatch/intelligence/domain/OutlookChangePolicy.java) warns only when the day is busy or at risk and worse than any warning already given (R-ML-08).
+  - The warning is recorded in `ml.order_outlooks` ([migration](../../../migrations/20261004T2310_ml_order_outlooks.sql)) and published as [`order.outlook_changed`](../../../backend/src/main/java/com/waypoint/dispatch/intelligence/contract/OutlookEvents.java) in one transaction.
+- **Notification:** [routing version 6](../../../migrations/20261004T2320_notification_routing_v6.sql) and `OnOrderOutlookChanged` tell the outlet's store manager "Fri 9 Oct is at risk", with the reason (R-NOT-16).
+- **Store:** the order sheet of an unplanned later order shows the same warning, from the existing `outlook` read.
+
+**Flow:**
+1. A vehicle goes into the workshop for Friday.
+2. At the next hour, the job finds Friday at risk for the depot.
+3. Each order booked for Friday that was never warned is recorded and its event goes to the outbox.
+4. The relay delivers the event to Notification, and the store's bell and push show it.
+5. The next hour finds the warning recorded and sends nothing.
+
+**Verify:** `mvn test -Dtest='OutlookChangePolicyTest,IntelligenceIntegrationTest,NotificationConsumersIntegrationTest,EventCatalogueTest'` and `e2e-store/outlook.spec.ts`. Recorded as R-ML-08, R-NOT-16, P-36, NOT-15, ML-13 and ML-14.
+
 ## Known gaps
 
-- **The early warning when a booked day turns busy:** an Intelligence job, an `order.outlook_changed` event and a routing rule. Owned by #224.
-- **Supply probability on the outlook basis:** #224.
+- **Supply probability on the outlook basis:** not built by decision. A probability per status would be invented; the outlook chip says the same thing honestly.
 - **The #199 remainder:** room on the truck from reserved orders, and Style within its weekly run. Owned by #199.

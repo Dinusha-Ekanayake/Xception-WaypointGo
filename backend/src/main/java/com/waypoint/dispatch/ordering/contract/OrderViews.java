@@ -117,6 +117,9 @@ public final class OrderViews {
   public record DailyVolumeView(
       LocalDate date, int orders, java.math.BigDecimal totalM3, java.math.BigDecimal chilledM3) {}
 
+  /** An order booked for a day and not yet planned (issue #224, slice 3). */
+  public record OpenOrderView(java.util.UUID orderId, String outletId, String brandCode, LocalDate deliveryDate) {}
+
   /** One brand's orders due on one day at a depot, by delivery date (issue #224). */
   public record BookedVolumeView(
       LocalDate date, String brandCode, int orders, java.math.BigDecimal totalM3, java.math.BigDecimal chilledM3) {}

@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-10-04 - feat: a store hears when a day it booked turns busy (issue #224, slice 3)
+
+`feat/224-outlook-warning` · @Oxshadha
+
+`OutlookWatchJob` (Intelligence) runs hourly 06:00-15:00. It watches orders booked from tomorrow to 14 days ahead and not yet planned (`OrderQuery.openOrders`), using the same `DateOutlookQuery.assess` the store's date strip uses. When a day turns busy or at risk, and is worse than any warning already given for that order and day (`OutlookChangePolicy`, `ml.order_outlooks`), it records the warning and publishes `order.outlook_changed` in one transaction (R-ML-08, P-36). Notification routing version 6 tells the outlet "Fri 9 Oct is at risk" with the reason (R-NOT-16). It also fixes slice 1's store title, which showed an ISO date. The order sheet of an unplanned later order shows the same warning.
+Why: the promise made at booking can break before the plan (workshop vehicles, more orders than forecast), and the store should hear it early, once.
+Verified: `mvn verify` 991 on a real test database, 990 pass (the same local-only `SET ROLE k.e.oshada` identity failure as before); `npm test`, typecheck, build; Playwright store 52.
+Open: the other routing templates still show ISO dates (`{serviceDate}`), as before this work.
+
 ## 2026-10-04 - feat: the delivery promise for a day a store orders ahead (issue #224)
 
 `feat/224-delivery-promise` · @Oxshadha

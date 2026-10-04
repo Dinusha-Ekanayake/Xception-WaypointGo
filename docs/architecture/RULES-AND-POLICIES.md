@@ -327,6 +327,7 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-NOT-13 | A dispatcher's message about an order the plan could not serve goes to the store managers of its outlet, in the dispatcher's own words | `plan.store_contacted` routes to the outlet; the message and who sent it are on the event (rule 8). Routing version 3 |
 | R-NOT-14 | A message on a trip's thread is told to the depot's dispatcher whoever it is for, so every message appears under the dispatcher's bell, and to the loaders, the driver or the outlets only when it is for them. The author is never told (R-NOT-07). A report made from an issue is not told again (R-MSG-05). Routing version 4 | Product decision 2026-10-04 | Policy |
 | R-NOT-15 | A published plan tells each outlet on it its own stop and planned arrival for the day, once per stop: "Delivery planned for {day}", "Your order is stop {n}, planned arrival {time}". The order shows the same stop and time while it is planned, loading or on the road, and an older plan version never overwrites a newer one's (issue #224). Routing version 5 | Product decision 2026-10-04 | Policy |
+| R-NOT-16 | When a day a store already booked worsens to busy or at risk before its plan, the outlet's store manager is told: "{day} is busy" or "is at risk", with the reason, once per order, day and status (R-ML-08). The day itself reads as the glossary writes it, and from routing version 6 so does R-NOT-15's title | Product decision 2026-10-04 | Policy |
 
 ---
 
@@ -425,6 +426,7 @@ Seven places where the sources disagree. C-1, C-2, C-3, C-5, C-6 and C-7 are set
 | R-ML-05 | Predictions are advice. Allocation keeps the booklet's service allowances and travel times, which the validator checks (R-PLN-08); learned times never change a plan | Booklet, Policy | Policy |
 | R-ML-06 | The training export keeps waiting for the window apart from service time, so an early arrival never teaches a long service (EXE-18) | R-EXE-04, Policy | Policy |
 | R-ML-07 | The date outlook is advice for a store choosing a delivery day, never a promise or a block: any day can still be ordered, and the plan made the afternoon before decides. It is built from the depot's totals (booked volume, the forecast share, the vehicles available that day) and returns a status per day, never another outlet's orders. The outlet is checked against the asker's scope first; outside it is `403` plus an audit row (issue #224) | Rule 7, Policy | Policy |
+| R-ML-08 | A booked, unplanned order's day is watched from tomorrow to two weeks ahead, hourly from 06:00 to 15:00, with the same outlook the store saw when booking. A warning is given only when the day is busy or at risk and worse than any warning already given for that order and day, recorded and published in one transaction, so a day that eases and worsens again, a rerun or a second replica never tells the store twice. A deferral to another day is watched afresh; a planned order is no longer watched (issue #224) | Rule 8, Policy | Policy |
 
 ---
 

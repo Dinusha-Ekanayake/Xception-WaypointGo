@@ -103,7 +103,7 @@ allocation distances or capacity rules. See [the plan](../issues/161-live-map/PL
 
 | Layer | Contents |
 | --- | --- |
-| contract | `OrderViews`, `OrderStatus`, `OrderQuery` (incl. `confirmedDemand`, and `bookedVolumes`, depot totals by delivery day for the date outlook), `OrderCommands`, `OrderEvents` |
+| contract | `OrderViews`, `OrderStatus`, `OrderQuery` (incl. `confirmedDemand`, and `bookedVolumes` and `openOrders`, depot totals and unplanned orders by delivery day for the date outlook), `OrderCommands`, `OrderEvents` |
 | domain | `Order`, `OrderLine`, `OrderStatus` state machine, `Cutoff`, `TemperatureRequirement`, `OrderVersion` |
 | application | `PlaceOrderHandler`, `AmendOrderHandler`, `CancelOrderHandler`, `CloseOrdersHandler`, `OrderDataQuery` |
 | infrastructure | `JdbcOrderRepository`, `OrderProjection`. The warehouse adapter lives in the Warehouse module, behind `StockPort` |
@@ -340,6 +340,7 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 | `order.deferred` | Store manager | yes | With the binding reason (R-RCP-03, R-NOT-04) |
 | `plan.store_contacted` | Store managers of the outlet | yes | The dispatcher's message about an order the plan did not serve |
 | `order.auto_deferred` | Store manager | yes | The warehouse never confirmed stock before the cutoff (STK-03) |
+| `order.outlook_changed` | Store manager | yes | A booked day worsened to busy or at risk, once per order and status (R-NOT-16) |
 | `plan.published`, `plan.revised` | Loader; driver of each trip's vehicle on the service date; for a revision, only the drivers of trips that changed and the outlets reached differently (R-NOT-12) | yes | Work is available, or changed |
 | `trip.released` | Driver; dispatcher when the vehicle has no driver (LOD-05); the depot's other loaders (R-NOT-10); each outlet on the trip with its stop number and expected arrival (R-NOT-11) | yes | Vehicle ready; the dock is free; the store can staff the arrival |
 | `loading.shortfall` | Dispatcher | yes | Departure is blocked now (R-NOT-02) |
@@ -423,7 +424,8 @@ A driver is pushed only trip-level events (R-NOT-08), and whoever caused an even
 
 **Connections.**
 - Consumes `plan.published` and `plan.revised`.
-- Reads Planning (`PlanQuery.plan`), Ordering (`order`, `dailyVolumes`, `bookedVolumes`), Execution (`actuals`) and Reference (outlets, vehicles, travel, calendar, traffic speed, road conditions) through their contracts.
+- Publishes `order.outlook_changed` when a day an order is booked for worsens to busy or at risk (`OutlookWatchJob`, R-ML-08).
+- Reads Planning (`PlanQuery.plan`), Ordering (`order`, `dailyVolumes`, `bookedVolumes`, `openOrders`), Execution (`actuals`) and Reference (outlets, vehicles, travel, calendar, traffic speed, road conditions) through their contracts.
 - Planning reads `PredictionQuery.planScoring` for `plannedWithoutPredictor`, lazily, so it still works without this module.
 
 ---
@@ -586,3 +588,4 @@ Modules connect three ways: a contract query (synchronous, read only), an event 
 | `catalogue.synced` | Warehouse | Ordering |
 | `reference.version_published`, `vehicle.status_changed`, `calendar.overridden` | Reference | Planning, Notification |
 | `message.posted` | Messaging | Notification |
+| `order.outlook_changed` | Intelligence | Notification |
