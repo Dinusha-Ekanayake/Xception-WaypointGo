@@ -4,6 +4,19 @@
 
 ---
 
+## 2026-10-04 - feat: UX polish 3 to 5 of 5, feedback, screen transitions, pinned actions and undo
+
+`feat/ux-polish-feedback` · @Dinusha-Ekanayake
+
+From [UX-PLAN.md](../../ux/UX-PLAN.md) section 7, the last three parts:
+- Feedback: every button gives under a press; a command in flight shows a spinner and "Sending…" (`busy` on each role's buttons); a loader line cannot be ticked twice while its tick is sending; loading lists show placeholder rows (`SkeletonRows`); errors offer "Try again" (`Notice` `onRetry`); a count badge pops when it rises; no transition is longer than 250 ms.
+- Transitions: screen changes crossfade, and a detail slides in and back out (`withTransition`, the View Transitions API, instant without it or under reduced motion). The trip, the stop and the next delivery move from list to detail.
+- Actions: the driver's Confirm and Save proof and the store's receipt submit stay pinned on phones (README departure); a cleared signature and a removed voice note can be undone for 5 s (`useUndo`); the dispatcher's sidebar starts as the rail below 1280 px until the dispatcher chooses.
+Why: taps gave no sign of work, loading and errors left no next step, and long phone forms hid their button.
+Verified: see the PR. On the VPS preview data: the sidebar is 84 px at 1100 and 260 px at 1440; store tabs crossfade and Track slides forward; no horizontal scroll in any role. `npm test` 231; all five browser suites (the forecast countdown is the known flaky test, 28 of 28 on repeat).
+
+---
+
 ## 2026-10-04 - feat: UX polish 2 of 5, every screen keeps its place
 
 `feat/ux-polish-state` · @Dinusha-Ekanayake
