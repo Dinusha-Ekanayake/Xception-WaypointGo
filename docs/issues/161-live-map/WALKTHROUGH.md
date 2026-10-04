@@ -99,5 +99,36 @@ A-11, A-42 and P-31 in [ASSUMPTIONS](../../architecture/ASSUMPTIONS.md); module 
 - The road conditions chip (Figma 05) and the 05c "Notify store" confirmation are not on the map:
   no source is wired for either. The 05e conflict modal does not exist yet; the selected vehicle's
   trail and point count stand in for "Review on map".
-- Push updates replace polling when #147 lands.
+- ~~Push updates replace polling when #147 lands.~~ Done by the live tracking addendum below.
 - Exact outlet coordinates need real data from Waypoint; until then Navigate is never offered.
+
+## Addendum 2026-10-05: live tracking (R-EXE-22, R-EXE-23)
+
+What changed, end to end: phone → queue → sync → handler → signals → stream → map.
+
+1. **Phone** (`frontend/src/roles/driver/data/position.ts`, `recording.ts`, `useRecording.ts`). The
+   watch keeps the newest fix; a five-second tick keeps it when it is new (`takeSample` in
+   `shared/ui/map/geo.ts`) and asks the phone outright when the watch has gone quiet. Points are queued
+   and sent every five seconds. `recordingTrip` decides when: from the first started stop (Start run)
+   to within 200 m of the depot after the last stop, or four hours after it; a trip back at the depot
+   is remembered on the phone so a reload does not restart it. The screen is kept awake while
+   recording. No driver screen changed.
+2. **Server** (`execution/application/RecordPositionsHandler.java`, `PositionSignals.java`). After the
+   batch commits, the depot and day are signalled; within a second each watcher is re-read as itself
+   through `PositionsQuery` (scope and RLS as on the GET) and sent a `positions` event. Every 20 s
+   every watcher is re-sent regardless. `GET /api/execution/positions/stream` checks scope before it
+   opens (`403` and audit otherwise). The Next proxy and both nginx configurations pass it unbuffered.
+3. **Heading** (`execution/domain/PositionPolicy.travelHeading`). The latest view reads the last eight
+   good fixes per vehicle (`JdbcPositions`, window function) and faces the truck the way it moved;
+   jitter under 15 m keeps the previous direction.
+4. **Map** (`shared/live/usePositionStream.ts`, `useTripTrail.ts`, `shared/ui/map/MapCanvas.tsx`).
+   Positions arrive on the stream, polled every minute as a net, every 15 s after 45 s of silence with
+   "Live updates paused" on the map. Markers are kept by id and glide to each new fix. A chosen
+   vehicle's run path is read once and then only `since` its newest point (an additive parameter of the
+   trail endpoint), reaches the truck between reads, starts at a marked trip start, and is fitted into
+   view. Trucks are the Figma top-down symbols in the status colour, turned by the exact heading; the
+   depot is a small GO pill with its name beside it, grey outside the depot filter.
+
+Verify: `PositionPolicyTest`, `ExecutionIntegrationTest` (heading, stream, scope), `tests/live-map.test.ts`,
+`tests/driver-recording.test.ts`, `e2e-dispatcher/live-map.spec.ts` (symbols, path on select, paused).
+Cases EXE-LOC-11 to EXE-LOC-14 in [EDGE-CASES](../../architecture/EDGE-CASES.md).

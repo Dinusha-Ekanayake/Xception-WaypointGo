@@ -20,8 +20,9 @@ import Refusal from "./Refusal.tsx";
 import { businessNow } from "@shared/wording";
 
 // Figma "05 Live" (189:20983 needs you, 189:21127 timeline, 189:21358 map,
-// 189:21943 trip). Run sheets are read every 30 seconds and positions every 15
-// while the tab is visible and online; the header says when. The views share
+// 189:21943 trip). Run sheets are read every 30 seconds while the tab is
+// visible and online; positions are pushed as each fix lands (R-EXE-23), with a
+// poll when the push goes quiet; the header says when. The views share
 // one join of run sheet, loading trip and position (data/liveDesk.ts), and the
 // depot and status filters under the header choose what each shows.
 
@@ -163,7 +164,7 @@ export default function Live({
         <LiveNeeds cards={cards} runs={inDepot} date={date} closedOnTheirOwn={closedOnTheirOwn(inDepot)} online={online} onOpenTrip={setTrip} onOpenIssue={onOpenIssue} onViewAll={() => setView("timeline")} />
       )}
 
-      {view === "map" && <LiveMapView depots={depots} date={date} runs={shown.runs} positions={positions} depotName={depotName} now={now} onOpenTrip={setTrip} />}
+      {view === "map" && <LiveMapView depots={depots} depotFilter={depot} date={date} runs={shown.runs} positions={positions} depotName={depotName} now={now} onOpenTrip={setTrip} />}
 
       {view === "timeline" && (
         <div className="flex w-full items-start gap-[18px] max-lg:flex-col">

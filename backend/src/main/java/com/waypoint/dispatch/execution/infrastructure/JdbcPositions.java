@@ -18,15 +18,26 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public class JdbcPositions {
-  /** Last good fix per vehicle, and whether its trip still has stops ahead. */
-  private static final String LATEST =
+  /** Fixes kept per vehicle for its direction of travel (R-EXE-22); the first row is the last good fix. */
+  static final int RECENT_FIXES = 8;
+
+  /**
+   * The last {@value #RECENT_FIXES} good fixes per vehicle, newest first, and
+   * whether its trip still has stops ahead. The filter goes in the placeholder.
+   */
+  private static final String RECENT =
       """
-      SELECT DISTINCT ON (p.vehicle_id)
-             p.vehicle_id, p.trip_id, p.latitude, p.longitude, p.heading_deg, p.accuracy_m, p.recorded_at,
+      SELECT r.vehicle_id, r.trip_id, r.latitude, r.longitude, r.heading_deg, r.accuracy_m, r.recorded_at,
              EXISTS (SELECT 1 FROM execution.delivery_records d
-                      WHERE d.vehicle_id = p.vehicle_id AND d.service_date = p.service_date
+                      WHERE d.vehicle_id = r.vehicle_id AND d.service_date = r.service_date
                         AND d.outcome IN ('pending', 'arrived')) AS in_progress
-        FROM execution.vehicle_positions p
+        FROM (SELECT p.vehicle_id, p.trip_id, p.service_date, p.latitude, p.longitude, p.heading_deg,
+                     p.accuracy_m, p.recorded_at,
+                     ROW_NUMBER() OVER (PARTITION BY p.vehicle_id ORDER BY p.recorded_at DESC) AS rn
+                FROM execution.vehicle_positions p
+               WHERE NOT p.low_quality AND %s) r
+       WHERE r.rn <= %d
+       ORDER BY r.vehicle_id, r.recorded_at DESC
       """;
 
   private final Database database;
@@ -61,25 +72,23 @@ public class JdbcPositions {
     return row == null ? null : ((Date) row.get("service_date")).toLocalDate();
   }
 
+  /** Recent good fixes of the depot's vehicles, grouped by vehicle, newest first within each. */
   public List<Map<String, Object>> latestOfDepot(String depotCode, LocalDate serviceDate) {
     return database.query(
-        LATEST
-            + " WHERE p.depot_code = ? AND p.service_date = ? AND NOT p.low_quality"
-            + " ORDER BY p.vehicle_id, p.recorded_at DESC",
+        RECENT.formatted("p.depot_code = ? AND p.service_date = ?", RECENT_FIXES),
         depotCode, Date.valueOf(serviceDate));
   }
 
   /** Vehicles still on their way to the outlet: a trip with a pending or arrived stop there. */
   public List<Map<String, Object>> latestForOutlet(String outletId, LocalDate serviceDate) {
     return database.query(
-        LATEST
-            + """
-               WHERE p.service_date = ? AND NOT p.low_quality
+        RECENT.formatted(
+            """
+            p.service_date = ?
                  AND p.trip_id IN (SELECT d.trip_id FROM execution.delivery_records d
                                     WHERE d.outlet_id = ? AND d.service_date = ?
-                                      AND d.outcome IN ('pending', 'arrived'))
-               ORDER BY p.vehicle_id, p.recorded_at DESC
-              """,
+                                      AND d.outcome IN ('pending', 'arrived'))""",
+            RECENT_FIXES),
         Date.valueOf(serviceDate), outletId, Date.valueOf(serviceDate));
   }
 

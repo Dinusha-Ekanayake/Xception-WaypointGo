@@ -79,6 +79,7 @@ The Figma file (pages 04 to 17) is the specification. Where the design shows som
   - Vehicle interchange approval waits on Loading.
   - The Forecast's error chip shows the demand model's measured error over all volume and over chilled volume. The design shows a figure per brand, which the model does not measure.
   - Late risk is shown only on a published plan, once the time predictor has scored it. A draft says it is scored once published, and an estimate says so.
+  - On the live map, a depot's name reads "Peliyagoda depot" where the design writes "Peliyagoda Warehouse": the glossary keeps "warehouse" for the external stock system. A chosen vehicle's run path, from its trip's start to the truck, is drawn only while it is chosen.
 - **Loader:**
   - Vehicle interchange and dispatcher handover are not built.
   - When the trips on the board leave after tomorrow (a weekend), "Tonight's departures" names the day they leave.

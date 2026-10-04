@@ -86,6 +86,8 @@ export type Desk = {
   /** Live map (issue #161): last fixes and the selected trip's trail. */
   positions?: unknown[];
   trail?: unknown[];
+  /** The position stream answers but never speaks, as when the push is down. */
+  streamSilent?: boolean;
   dock: ReadyTripView[];
   issues: IssueView[];
   history: Record<string, IssueHistoryView[]>;
@@ -270,12 +272,20 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
     if (/^\/api\/ml\/plans\/[^/]+\/predictions$/.test(pathname)) return route.fulfill(desk.predictions ? json(desk.predictions) : problem(404, "NOT_FOUND", "Not scored"));
     if (pathname === "/api/execution/run-sheets") return route.fulfill(json(desk.sheets));
     if (pathname === "/api/execution/positions") return route.fulfill(json(desk.positions ?? []));
+    // The push (R-EXE-23): one event per connection; the browser reconnects and hears the next.
+    if (pathname === "/api/execution/positions/stream") {
+      if (desk.streamSilent) return route.fulfill({ status: 200, contentType: "text/event-stream", body: ": quiet\n\n" });
+      return route.fulfill({ status: 200, contentType: "text/event-stream", body: `retry: 1000\nevent: positions\ndata: ${JSON.stringify(desk.positions ?? [])}\n\n` });
+    }
     if (pathname.startsWith("/api/execution/deliveries/")) {
       return route.fulfill(json({ deliveryId: pathname.split("/").pop(), driver: { displayName: "Dilan R.", employeeCode: "DRV-00133" } }));
     }
     if (pathname.startsWith("/api/execution/trips/")) {
       // Two pages, as the keyset API answers a long trip: the map must read past the first.
       const trail = desk.trail ?? [];
+      // A live map asks only for what came after the newest point it holds.
+      const since = url.searchParams.get("since");
+      if (since) return route.fulfill(json({ items: (trail as { recordedAt: string }[]).filter((p) => p.recordedAt > since), nextCursor: null }));
       if (url.searchParams.get("cursor")) return route.fulfill(json({ items: trail.slice(1), nextCursor: null }));
       return route.fulfill(json({ items: trail.slice(0, 1), nextCursor: trail.length > 1 ? "page-2" : null }));
     }
