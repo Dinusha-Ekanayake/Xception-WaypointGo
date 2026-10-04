@@ -6,6 +6,7 @@ import { ExecutionCommandKind, type DemoView, type PositionPoint, type RecordPos
 import { keepFix, type LatLon } from "@shared/ui/map/geo";
 import { batches, toPoint } from "./points.ts";
 import type { DriverGateway } from "./gateway.ts";
+import type { TrailPoint } from "@shared/ui/map/trail";
 
 // The phone's position while a run is open (issue #161, D2). Foreground only:
 // a closed or backgrounded app records nothing, and the dispatcher sees "Last
@@ -41,7 +42,8 @@ export type PositionRecorder = {
   /** True until the driver has answered once. */
   needsConsent: boolean;
   here: (LatLon & { heading: number | null }) | null;
-  trail: LatLon[];
+  /** What this phone kept for the current trip, stamped as it was sent. */
+  trail: TrailPoint[];
   allow: () => void;
   decline: () => void;
   /**
@@ -57,13 +59,19 @@ export function usePositionRecorder(gateway: DriverGateway, vehicleId: string | 
   const [state, setState] = useState<LocationState>("off");
   const [answer, setAnswer] = useState<boolean | null>(null);
   const [here, setHere] = useState<PositionRecorder["here"]>(null);
-  const [trail, setTrail] = useState<LatLon[]>([]);
+  const [trail, setTrail] = useState<TrailPoint[]>([]);
   const buffer = useRef<PositionPoint[]>([]);
   const last = useRef<{ at: number; where: LatLon } | null>(null);
   const target = useRef({ vehicleId, tripId });
   target.current = { vehicleId, tripId };
 
   useEffect(() => setAnswer(consented()), []);
+
+  // A new trip starts a new trail: the last trip's line is never drawn on this one.
+  useEffect(() => {
+    setTrail([]);
+    setHere(null);
+  }, [tripId]);
 
   const demoRead = useResource((signal: AbortSignal) => request<DemoView>("/api/demo", { signal }), "driver-demo", 30_000);
   const demo = demoRead.data?.enabled ? demoRead.data : null;
@@ -85,6 +93,8 @@ export function usePositionRecorder(gateway: DriverGateway, vehicleId: string | 
   }, [gateway]);
 
   useEffect(() => {
+    // While the demo drives this vehicle, the phone's real fixes would pull it back.
+    if (simulating) return;
     if (!active || answer !== true || !vehicleId) {
       setState(answer === false ? "denied" : "off");
       return;
@@ -101,7 +111,7 @@ export function usePositionRecorder(gateway: DriverGateway, vehicleId: string | 
         if (!keepFix(last.current, pos.timestamp, where)) return;
         last.current = { at: pos.timestamp, where };
         buffer.current.push(toPoint(pos.coords, pos.timestamp));
-        setTrail((t) => [...t, where]);
+        setTrail((t) => [...t, { ...where, at: pos.timestamp }]);
         if (buffer.current.length >= FLUSH_POINTS) flush();
       },
       (err) => {
@@ -121,11 +131,11 @@ export function usePositionRecorder(gateway: DriverGateway, vehicleId: string | 
       flush();
       last.current = null;
     };
-  }, [active, answer, vehicleId, flush, flushMs]);
+  }, [active, answer, vehicleId, flush, flushMs, simulating]);
 
   // The demo drive: straight legs at one point per demo interval, flushed on
   // the demo flush interval below. Ends at the target or when demo mode or the
-  // run ends; a real GPS fix is never mixed in because the driver is not moving.
+  // run ends; the GPS watch above is paused meanwhile, so no real fix is mixed in.
   useEffect(() => {
     if (demo && vehicleId) {
       const timer = window.setInterval(flush, flushMs);
@@ -158,11 +168,13 @@ export function usePositionRecorder(gateway: DriverGateway, vehicleId: string | 
         i += 1;
         const t = Math.min(1, i / steps);
         const where = { lat: from.lat + (to.lat - from.lat) * t, lon: from.lon + (to.lon - from.lon) * t };
-        const heading = ((Math.atan2(to.lon - from.lon, to.lat - from.lat) * 180) / Math.PI + 360) % 360;
+        const east = (to.lon - from.lon) * Math.cos((from.lat * Math.PI) / 180);
+        const heading = ((Math.atan2(east, to.lat - from.lat) * 180) / Math.PI + 360) % 360;
+        const at = Date.now() + demo.offsetSeconds * 1000;
         setState("on");
         setHere({ ...where, heading });
-        setTrail((trail) => [...trail, where]);
-        buffer.current.push(toPoint({ latitude: where.lat, longitude: where.lon, accuracy: 5, heading }, Date.now() + demo.offsetSeconds * 1000));
+        setTrail((trail) => [...trail, { ...where, at }]);
+        buffer.current.push(toPoint({ latitude: where.lat, longitude: where.lon, accuracy: 5, heading }, at));
         if (t >= 1 && sim.current !== null) {
           window.clearInterval(sim.current);
           sim.current = null;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { cx, useEscape } from "@shared/ui";
+import { cx, SkeletonRows, useEscape } from "@shared/ui";
 import { ago, isUnread, kindOf, toneOf, TONE_STYLE } from "@shared/notifications/inbox";
 import type { NotificationView } from "@shared/domain/types";
 import { useDispatcherInbox } from "./inbox.tsx";
@@ -136,7 +136,11 @@ export default function NotificationsPanel({ onNavigate }: { onNavigate: (view: 
         )}
         {inbox.error && <p role="alert" className="text-sm text-go-danger-strong">{inbox.error}</p>}
         {inbox.items.length === 0 ? (
-          <p className="py-6 text-center text-sm text-go-secondary">{inbox.loading ? "Loading…" : "No notifications yet. Deferrals, releases, issues and store messages appear here as they happen."}</p>
+          inbox.loading ? (
+            <SkeletonRows rows={3} label="Loading…" />
+          ) : (
+            <p className="py-6 text-center text-sm text-go-secondary">No notifications yet. Deferrals, releases, issues and store messages appear here as they happen.</p>
+          )
         ) : (
           <NotificationRows items={inbox.items} onNavigate={onNavigate} />
         )}

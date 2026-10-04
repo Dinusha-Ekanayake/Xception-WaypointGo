@@ -44,7 +44,7 @@ export default function BoardFilter({
               : { ...filter, temperatures: toggle(filter.temperatures, value as "chilled" | "ambient") },
           );
         }}
-        className={cx("flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[13px] font-medium", chosen > 0 ? "border-go-ink bg-go-ink text-go-card" : "border-go-rule bg-go-card text-go-ink")}
+        className={cx("relative flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[13px] font-medium before:absolute before:-inset-y-1.5", chosen > 0 ? "border-go-ink bg-go-ink text-go-card" : "border-go-rule bg-go-card text-go-ink")}
       >
         {chosen > 0 ? `Filter · ${chosen}` : "Filter"}
       </Menu>
@@ -57,7 +57,7 @@ export default function BoardFilter({
         className="w-[200px] rounded-full border border-go-rule bg-go-card px-3 py-1.5 text-[13px] text-go-ink outline-none placeholder:text-go-placeholder"
       />
       {filterActive(filter) && (
-        <button type="button" onClick={() => onChange(NO_FILTER)} className="text-[13px] font-medium text-go-teal">
+        <button type="button" onClick={() => onChange(NO_FILTER)} className="relative text-[13px] font-medium text-go-teal before:absolute before:-inset-x-2 before:-inset-y-3">
           Clear
         </button>
       )}

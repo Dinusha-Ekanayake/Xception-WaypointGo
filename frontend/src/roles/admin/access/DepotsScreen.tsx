@@ -7,6 +7,7 @@ import type { Vehicle } from "./operations";
 import type { OutletRecord } from "./OutletsScreen";
 import { createAdminDepot, fetchAdminDepotDetail, fetchAdminDepots, fetchAdminOutlets, fetchAdminVehicles, updateAdminDepot, type AdminDepotDetail } from "../data/reference";
 import { fetchOwnProfile, submitGrantScope } from "../data/accounts";
+import { dayLabel } from "@shared/wording";
 
 export type DepotRecord = {
   id: string;
@@ -1030,7 +1031,7 @@ export function DepotsScreen({
                           <span className="mx-2">·</span>
                           <span>Phone: {selectedVehicle.lastDriver.phone}</span>
                           <span className="mx-2">·</span>
-                          <span>Last run: {selectedVehicle.lastDriver.lastRunDate}</span>
+                          <span>Last run: {dayLabel(selectedVehicle.lastDriver.lastRunDate)}</span>
                         </p>
                       </>
                     ) : (

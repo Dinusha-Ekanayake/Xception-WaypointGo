@@ -437,6 +437,7 @@ export default function HomeNoVehicle({
   const [lang, setLang] = useDeviceLang();
   const [activeAudioId, setActiveAudioId] = useState<string | null>(null);
   const [fuelQr, setFuelQr] = useState(false);
+  const [markingRead, setMarkingRead] = useState(false);
   const { scrollRef, pullY, isPulling, compact, maskStyle, handlers } = useRubberBandScroll();
   useScrollMemory("driver:home", scrollRef, { page: false });
 
@@ -654,14 +655,19 @@ export default function HomeNoVehicle({
           {unread > 0 && (
             <button
               type="button"
-              onClick={() => void inbox.markAllRead(now)}
-              aria-label={`${unread} new. Mark all read`}
+              disabled={markingRead}
+              onClick={() => {
+                setMarkingRead(true);
+                void inbox.markAllRead(now).finally(() => setMarkingRead(false));
+              }}
+              aria-label={markingRead ? "Marking all read" : `${unread} new. Mark all read`}
+              aria-busy={markingRead || undefined}
               className={cx(
-                "text-[12px] font-medium px-2.5 py-0.5 rounded-[34px] transition-colors",
+                "text-[12px] font-medium px-2.5 py-0.5 rounded-[34px] transition-colors disabled:cursor-wait disabled:opacity-70",
                 isNight ? "bg-[#00BF6A] text-black" : "bg-[#B7F2ED] text-black"
               )}
             >
-              {unread > 99 ? "99+" : unread} new
+              {markingRead ? "Marking…" : `${unread > 99 ? "99+" : unread} new`}
             </button>
           )}
         </div>

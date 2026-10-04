@@ -74,7 +74,7 @@ export default function PlanTrip({
           tone="dark"
           align="right"
           trigger="More"
-          className="rounded-full bg-go-surface px-3 py-1 text-xs font-medium text-go-ink"
+          className="relative rounded-full bg-go-surface px-3 py-1 text-xs font-medium text-go-ink before:absolute before:-inset-x-1 before:-inset-y-2.5"
           panelClassName="flex w-[240px] flex-col gap-1 text-xs"
         >
           <p className="pb-0.5 font-semibold">{`Rule checks · ${trip.vehicleId} Trip ${trip.tripNumber}`}</p>
@@ -225,7 +225,7 @@ function Row({
               aria-label={lock.held ? `Unlock ${lock.name}` : `Lock ${lock.name} to this vehicle`}
               title={lock.held ? "Locked: a regenerate keeps it here" : "Lock to this vehicle"}
               onClick={lock.onToggle}
-              className={`flex size-6 items-center justify-center rounded-full ${lock.held ? "bg-go-ink" : "bg-go-surface opacity-60 hover:opacity-100"}`}
+              className={`relative flex size-6 items-center justify-center rounded-full before:absolute before:-inset-2 ${lock.held ? "bg-go-ink" : "bg-go-surface opacity-60 hover:opacity-100"}`}
             >
               <span className={lock.held ? "invert" : ""}>
                 <Icon name="lock" />

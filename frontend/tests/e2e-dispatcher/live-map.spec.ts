@@ -18,6 +18,7 @@ test("the map shows each seen vehicle, filters, selects and greys an offline one
     positions: [fix("VEH043", false, "7.300000"), fix("VEH044", true, "6.500000")],
     trail: [
       { recordedAt: "2027-03-01T00:20:00Z", latitude: "6.400000", longitude: "79.900000", lowQuality: false },
+      { recordedAt: "2027-03-01T00:25:00Z", latitude: null, longitude: "79.900000", lowQuality: false },
       { recordedAt: "2027-03-01T00:30:00Z", latitude: "6.500000", longitude: "79.900000", lowQuality: false },
     ],
   });
@@ -39,5 +40,6 @@ test("the map shows each seen vehicle, filters, selects and greys an offline one
   const panel = page.getByRole("complementary", { name: "Selected vehicle" });
   await expect(panel).toContainText("Offline");
   await expect(panel).toContainText("Last seen");
+  // Both pages are read, and the point with no latitude is skipped rather than drawn at 0,0.
   await expect(panel).toContainText("Location trail · 2 points");
 });

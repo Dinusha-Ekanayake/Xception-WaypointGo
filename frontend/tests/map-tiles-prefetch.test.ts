@@ -29,3 +29,16 @@ test("never more than the cap, which stays well under the worker's tile cache", 
   assert.equal(tilesFor(island, 600).length, 600);
   assert.ok(600 < TILE_LIMIT / 2);
 });
+
+test("a spread-out run keeps the streets around every stop before the overview", () => {
+  const stops = Array.from({ length: 20 }, (_, i) => ({ lat: 6.93 + (i * (7.29 - 6.93)) / 19, lon: 79.86 + (i * (80.63 - 79.86)) / 19 }));
+  const urls = tilesFor(stops);
+  const at = (z: number) => urls.filter((u) => u.startsWith(`/map-tiles/${z}/`)).length;
+  assert.ok(urls.length <= 600);
+  for (const p of stops) {
+    const z = 15;
+    const x = Math.floor(((p.lon + 180) / 360) * 2 ** z);
+    assert.ok(urls.some((u) => u.startsWith(`/map-tiles/${z}/${x}/`)), `stop ${p.lat},${p.lon} at zoom 15`);
+  }
+  assert.ok(at(8) > 0, "the map's opening view is kept");
+});

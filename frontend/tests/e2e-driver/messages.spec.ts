@@ -108,3 +108,46 @@ test("a voice message under the driver's notifications plays the voice itself, n
   const spoke = await page.evaluate(() => (window.speechSynthesis ? window.speechSynthesis.speaking : false));
   expect(spoke).toBe(false);
 });
+
+test("a voice message replays after it ends, and starting another note is not a failure", async ({ page }) => {
+  const server = await serve(page);
+  server.threads = [tripThread(TRIP, "VEH043", ["OUT0101"], "driver")];
+  const note = (id: string) => ({
+    notificationId: `n-${id}`, eventType: "message.posted", title: "Dinusha Bawantha · VEH043", body: "Voice message",
+    subjectType: "thread", subjectId: `thread-${TRIP}`, createdAt: new Date().toISOString(), readAt: null,
+    facts: { voiceNoteId: id, voiceDurationMs: "500" },
+  });
+  server.notifications = [note("voice-1"), note("voice-2")] as never;
+  // Served with byte ranges, as the backend now does.
+  await page.route(`**/api/threads/thread-${TRIP}/voice/*`, (route) => {
+    const body = wav();
+    const range = /bytes=(\d+)-(\d*)/.exec(route.request().headers()["range"] ?? "");
+    if (!range) return route.fulfill({ status: 200, contentType: "audio/wav", headers: { "accept-ranges": "bytes" }, body });
+    const from = Number(range[1]);
+    const to = range[2] ? Number(range[2]) : body.length - 1;
+    return route.fulfill({
+      status: 206, contentType: "audio/wav", body: body.subarray(from, to + 1),
+      headers: { "accept-ranges": "bytes", "content-range": `bytes ${from}-${to}/${body.length}` },
+    });
+  });
+  await page.goto("/");
+  const notes = page.getByRole("group", { name: /^Voice message from/ });
+  await expect(notes).toHaveCount(2);
+  const first = notes.nth(0);
+  const play = first.getByRole("button", { name: "Play", exact: true });
+
+  await play.click();
+  await expect(first.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
+  await expect(play).toBeVisible({ timeout: 4000 });
+  // Played through once; it plays again.
+  await play.click();
+  await expect(first.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
+  await expect(play).toBeVisible({ timeout: 4000 });
+  await expect(first).not.toContainText("Could not play");
+
+  // Starting the second note while the first plays stops the first, without calling it a failure.
+  await play.click();
+  await notes.nth(1).getByRole("button", { name: "Play", exact: true }).click();
+  await expect(notes.nth(1).getByRole("button", { name: "Pause", exact: true })).toBeVisible();
+  await expect(first).not.toContainText("Could not play");
+});

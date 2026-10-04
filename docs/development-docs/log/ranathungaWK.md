@@ -4,6 +4,27 @@
 
 ---
 
+## 2026-10-04 - stabilize the forecast countdown assertion
+
+`codex/system-constraints` · @ranathungaWK
+
+Accept the first valid one-second tick of the forecast countdown so parallel browser execution does not fail while the clock moves from 23:41 to 23:40.
+Verified from both retries in the Dispatcher Actions log. No local tests were run at the user's request.
+
+## 2026-10-04 - follow the restored driver trail utility
+
+`codex/system-constraints` · @ranathungaWK
+
+Keep the driver recorder, route map and trail test imports on the restored driver data utility after the parallel-CI merge briefly moved it.
+Verified from the TypeScript errors in the latest `dev` Actions run. No local tests were run at the user's request.
+
+## 2026-10-04 - use the published plan date for its edit cutoff
+
+`codex/system-constraints` · @ranathungaWK
+
+Evaluate the 16:00 published-plan cutoff against the plan's service date. This prevents a screen opened on a different selected day or after today's cutoff from marking a future plan final.
+Verified from the failing Dispatcher browser assertion and the matching backend rule. No local tests were run at the user's request.
+
 ## 2026-10-04 - edit admin directory records
 
 `codex/system-constraints` · @ranathungaWK

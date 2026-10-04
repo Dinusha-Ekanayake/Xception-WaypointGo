@@ -10,9 +10,124 @@ on:
 permissions:
   contents: read
 
+# A newer push to a pull request cancels its older run, so stale runs do not
+# hold runners while the current one queues. Deploy runs (workflow_call) are
+# never cancelled: each gets its own group.
+concurrency:
+  group: checks-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  # Which areas this change touches. A job whose area is untouched is skipped,
+  # so a frontend change does not wait on the backend and a docs change runs
+  # nothing. Deploys (workflow_call) and changes to the workflows run everything.
+  changes:
+    name: Changed areas
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      backend: ${{ steps.areas.outputs.backend }}
+      frontend: ${{ steps.areas.outputs.frontend }}
+      mcp: ${{ steps.areas.outputs.mcp }}
+      ml: ${{ steps.areas.outputs.ml }}
+      compose: ${{ steps.areas.outputs.compose }}
+      reuse: ${{ steps.areas.outputs.reuse }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - id: areas
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          areas="backend frontend mcp ml compose"
+          reuse() {
+            for a in $areas; do echo "$a=false" >> "$GITHUB_OUTPUT"; done
+            echo "reuse=$1" >> "$GITHUB_OUTPUT"
+            echo "Reusing the dev checks of $1"
+            exit 0
+          }
+          # A production deploy of code dev already checked (the merge of a
+          # release pull request has the same tree as the dev commit it
+          # merged) reuses that result instead of running every job again.
+          if [ "${{ github.event_name }}" != pull_request ] && [ "${{ github.ref }}" = refs/heads/main ]; then
+            tree=$(git rev-parse HEAD^{tree})
+            if git rev-parse -q --verify HEAD^2 >/dev/null && [ "$(git rev-parse HEAD^2^{tree})" = "$tree" ]; then
+              reuse "$(git rev-parse HEAD^2)"
+            fi
+            if [ "$(git rev-parse origin/dev^{tree})" = "$tree" ]; then
+              reuse "$(git rev-parse origin/dev)"
+            fi
+          fi
+          if [ "${{ github.event_name }}" != pull_request ]; then
+            for a in $areas; do echo "$a=true" >> "$GITHUB_OUTPUT"; done
+            exit 0
+          fi
+          # A release pull request (dev into main) runs nothing itself: the
+          # dev push of the same commit already runs every job before the
+          # preview deploy, and the release job below waits for that result.
+          if [ "${{ github.head_ref }}" = dev ] && [ "${{ github.base_ref }}" = main ]; then
+            reuse "${{ github.event.pull_request.head.sha }}"
+          fi
+          files=$(git diff --name-only "$BASE"...HEAD)
+          echo "$files"
+          all=false
+          echo "$files" | grep -q '^\.github/workflows/' && all=true
+          hit() { $all && echo true && return; echo "$files" | grep -qE "$1" && echo true || echo false; }
+          {
+            echo "backend=$(hit '^(backend|migrations|data|tools/check_allocation)/')"
+            echo "frontend=$(hit '^frontend/')"
+            echo "mcp=$(hit '^mcp/')"
+            echo "ml=$(hit '^ml-server/')"
+            echo "compose=$(hit '^(compose[^/]*\.yaml|deploy/)|Dockerfile')"
+          } | tee -a "$GITHUB_OUTPUT"
+
+  # Passes only when the preview deploy's checks of the reused dev commit
+  # passed. One runner waiting instead of the whole suite running again.
+  release:
+    name: Checks of this commit on dev
+    needs: changes
+    if: needs.changes.outputs.reuse != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      SHA: ${{ needs.changes.outputs.reuse }}
+    steps:
+      - run: |
+          for i in $(seq 1 110); do
+            run=$(gh api "repos/$REPO/actions/workflows/preview-deploy.yml/runs?head_sha=$SHA&per_page=1" -q '.workflow_runs[0].id // empty')
+            if [ -z "$run" ]; then
+              if [ "$i" -gt 12 ]; then
+                echo "::error::No preview deploy run for $SHA. Push dev again or run Deploy preview on dev, then re-run this job."
+                exit 1
+              fi
+            else
+              jobs=$(gh api "repos/$REPO/actions/runs/$run/jobs?per_page=100" -q '[.jobs[] | select(.name | startswith("checks / "))]')
+              done_both=$(echo "$jobs" | jq '[.[] | select((.name == "checks / Backend tests" or .name == "checks / Browser suites") and .status == "completed")] | length')
+              open=$(echo "$jobs" | jq '[.[] | select(.status != "completed")] | length')
+              if [ "$done_both" = 2 ] && [ "$open" = 0 ]; then
+                echo "$jobs" | jq -r '.[] | "\(.conclusion)\t\(.name)"'
+                bad=$(echo "$jobs" | jq '[.[] | select(.conclusion != "success" and .conclusion != "skipped")] | length')
+                if [ "$bad" != 0 ]; then
+                  echo "::error::The checks of $SHA failed on dev: https://github.com/$REPO/actions/runs/$run"
+                  exit 1
+                fi
+                exit 0
+              fi
+            fi
+            sleep 15
+          done
+          echo "::error::Timed out waiting for the checks of $SHA on dev."
+          exit 1
+
   mcp:
     name: Read-only MCP checks
+    needs: changes
+    if: needs.changes.outputs.mcp == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
@@ -32,6 +147,8 @@ jobs:
 
   ml-server:
     name: Model service tests
+    needs: changes
+    if: needs.changes.outputs.ml == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -58,6 +175,8 @@ jobs:
   # others do not name, so a new test always runs somewhere.
   backend:
     name: Backend tests (${{ matrix.shard.name }})
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -68,10 +187,12 @@ jobs:
             tests: "com/waypoint/dispatch/execution/**,com/waypoint/dispatch/loading/**,com/waypoint/dispatch/identity/**"
           - name: notification, issues, receipt
             tests: "com/waypoint/dispatch/notification/**,com/waypoint/dispatch/issues/**,com/waypoint/dispatch/receipt/**"
-          - name: everything else
-            tests: "!com/waypoint/dispatch/execution/**,!com/waypoint/dispatch/loading/**,!com/waypoint/dispatch/identity/**,!com/waypoint/dispatch/notification/**,!com/waypoint/dispatch/issues/**,!com/waypoint/dispatch/receipt/**"
+          - name: planning, messaging
+            tests: "com/waypoint/dispatch/planning/**,com/waypoint/dispatch/messaging/**"
             # PeakDayAllocationTest (planning) runs here and writes the Task 2B file.
             validator: true
+          - name: everything else
+            tests: "!com/waypoint/dispatch/execution/**,!com/waypoint/dispatch/loading/**,!com/waypoint/dispatch/identity/**,!com/waypoint/dispatch/notification/**,!com/waypoint/dispatch/issues/**,!com/waypoint/dispatch/receipt/**,!com/waypoint/dispatch/planning/**,!com/waypoint/dispatch/messaging/**"
     services:
       postgres:
         image: postgres:16-bookworm
@@ -119,15 +240,22 @@ jobs:
   # rule or a reader has a single check to look at.
   backend-result:
     name: Backend tests
-    needs: backend
+    needs: [backend, release]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
-      - run: test "${{ needs.backend.result }}" = success
+      # Skipped means the change does not touch the backend, or is a release
+      # pull request whose commit was checked on dev.
+      - run: |
+          for r in "${{ needs.backend.result }}" "${{ needs.release.result }}"; do
+            test "$r" = success || test "$r" = skipped
+          done
 
   frontend:
     name: Frontend checks
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -143,17 +271,33 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+      # The browser runners build too, but they can be paused (below).
       - run: npm run build
 
   # Every role's screens in a real browser (#120), each suite against the
-  # production build with its API mocked, so no backend is needed. One job
-  # builds once and runs the suites in turn: each step runs even when an earlier
-  # one failed, so every role reports and the failing one is named. Driver and
-  # loader are drawn at 393 px, dispatcher and store at 1440 px (the configs).
+  # production build with its API mocked, so no backend is needed. One runner
+  # per suite, side by side, each building for itself: the wall time is the
+  # slowest suite rather than the sum. Driver and loader are drawn at 393 px,
+  # dispatcher and store at 1440 px (the configs).
   browser:
-    name: Browser suites
+    name: Browser suite (${{ matrix.suite.name }})
+    needs: changes
+    # Paused while the repository variable BROWSER_SUITES is "off"; delete the
+    # variable (or set it to anything else) to run them again.
+    if: needs.changes.outputs.frontend == 'true' && vars.BROWSER_SUITES != 'off'
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        suite:
+          - { name: shell, config: playwright.config.ts }
+          # The largest suite, split across two runners.
+          - { name: dispatcher 1/2, config: playwright.dispatcher.config.ts, shard: --shard=1/2 }
+          - { name: dispatcher 2/2, config: playwright.dispatcher.config.ts, shard: --shard=2/2 }
+          - { name: driver, config: playwright.driver.config.ts }
+          - { name: loader, config: playwright.loader.config.ts }
+          - { name: store, config: playwright.store.config.ts }
     defaults:
       run:
         working-directory: frontend
@@ -183,42 +327,51 @@ jobs:
       - name: Install Chromium's system libraries
         if: steps.browsers.outputs.cache-hit == 'true'
         run: npx playwright install-deps chromium
-      - name: Build
-        id: build
-        run: npm run build
-      - name: Shell
-        if: (success() || failure()) && steps.build.outcome == 'success'
-        run: npx playwright test -c playwright.config.ts
-      - name: Dispatcher (1440 px)
-        if: (success() || failure()) && steps.build.outcome == 'success'
-        run: npx playwright test -c playwright.dispatcher.config.ts
-      - name: Driver (393 px)
-        if: (success() || failure()) && steps.build.outcome == 'success'
-        run: npx playwright test -c playwright.driver.config.ts
-      - name: Loader (393 px)
-        if: (success() || failure()) && steps.build.outcome == 'success'
-        run: npx playwright test -c playwright.loader.config.ts
-      - name: Store manager (1440 px)
-        if: (success() || failure()) && steps.build.outcome == 'success'
-        run: npx playwright test -c playwright.store.config.ts
+      # The webpack cache of earlier builds, so an unchanged module is not compiled again.
+      - uses: actions/cache@v6
+        with:
+          path: frontend/.next/cache
+          key: next-build-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}-${{ github.sha }}
+          restore-keys: next-build-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}-
+      - run: npm run build
+      - name: Suite
+        run: npx playwright test -c ${{ matrix.suite.config }} ${{ matrix.suite.shard }}
       - name: Keep the reports of a failed run
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: browser-suites-report
+          name: browser-suites-report-${{ strategy.job-index }}
           path: |
             frontend/playwright-report/
             frontend/test-results/
           retention-days: 7
+      # Several suites may miss the cache at once; the first save wins and the
+      # rest fail to save, which is harmless.
       - name: Keep Chromium for the next run
         if: always() && steps.browsers.outputs.cache-hit != 'true'
+        continue-on-error: true
         uses: actions/cache/save@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-chromium-${{ runner.os }}-${{ steps.playwright.outputs.version }}
 
+  # One status named as before, green only when every suite passed.
+  browser-result:
+    name: Browser suites
+    needs: [browser, release]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - run: |
+          for r in "${{ needs.browser.result }}" "${{ needs.release.result }}"; do
+            test "$r" = success || test "$r" = skipped
+          done
+
   compose:
     name: Compose files parse
+    needs: changes
+    if: needs.changes.outputs.compose == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

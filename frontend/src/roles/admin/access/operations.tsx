@@ -6,6 +6,7 @@ import { todayInColombo } from "./model";
 import { createAdminVehicle, fetchAdminVehicles, fetchAdminDepots, updateAdminVehicle } from "../data/reference";
 import { request } from "@shared/api/client";
 import type { ForecastOverviewView } from "@shared/domain/intelligence";
+import { dayLabel } from "@shared/wording";
 
 
 export type LastDriver = {
@@ -455,7 +456,7 @@ export function VehiclesScreen() {
                             <p className="mt-0.5 text-xs text-go-secondary">
                               <span>{item.lastDriver.phone}</span>
                               <span className="mx-1.5">·</span>
-                              <span>Last run: {item.lastDriver.lastRunDate}</span>
+                              <span>Last run: {dayLabel(item.lastDriver.lastRunDate)}</span>
                             </p>
                           )}
                         </div>

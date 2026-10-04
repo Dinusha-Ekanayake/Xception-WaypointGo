@@ -80,10 +80,10 @@ export default function LivePanel({
   return (
     <div className="flex flex-col gap-3.5">
       <div className="flex items-center justify-between">
-        <button type="button" onClick={onBack} className="flex items-center gap-2 text-[16px] text-go-ink">
+        <button type="button" onClick={onBack} className="relative flex items-center gap-2 text-[16px] text-go-ink before:absolute before:-inset-x-2 before:-inset-y-2.5">
           <span aria-hidden className="text-[20px] leading-none">‹</span> Back
         </button>
-        <button type="button" onClick={onOpenTrip} className="rounded-full bg-go-surface px-3 py-1.5 text-[13px] font-medium text-go-ink">
+        <button type="button" onClick={onOpenTrip} className="relative rounded-full bg-go-surface px-3 py-1.5 text-[13px] font-medium text-go-ink before:absolute before:-inset-y-1.5">
           Open trip
         </button>
       </div>

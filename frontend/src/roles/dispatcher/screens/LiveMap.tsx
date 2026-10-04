@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { request } from "@shared/api/client";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { livePoll, useDemo } from "@shared/demo/useDemo";
 import { useResource, type Resource } from "@shared/api/useResource";
-import type { TrailPointView, VehiclePositionView } from "@shared/domain/types";
+import type { VehiclePositionView } from "@shared/domain/types";
 import { clock } from "@shared/wording";
-import { LiveMap, MapLegend, num, type LatLon, type MapLine, type MapMarker } from "@shared/ui/map";
+import { LiveMap, MapLegend, num, readTripTrail, type LatLon, type MapLine, type MapMarker } from "@shared/ui/map";
 import type { MapStatus } from "../data/live.ts";
 import { hhmm } from "../data/plan.ts";
 import { runTitle, type Run } from "../data/liveDesk.ts";
@@ -40,11 +40,17 @@ export default function LiveMapView({
   const depotViews = useDepots(depots);
   const [selected, setSelected] = useState<string | null>(null);
   const chosen = runs.find((r) => r.day.vehicleId === selected) ?? null;
+  // A filter that hides the chosen vehicle also ends the choice.
+  useEffect(() => {
+    if (selected !== null && chosen === null) setSelected(null);
+  }, [selected, chosen]);
 
+  const demo = useDemo();
+  const tripId = chosen?.position?.tripId ?? null;
   const trail = useResource(
-    chosen?.position?.tripId ? (signal: AbortSignal) => request<{ items: TrailPointView[] }>(`/api/execution/trips/${encodeURIComponent(chosen.position!.tripId!)}/trail?limit=200`, { signal }) : null,
-    `trail|${chosen?.position?.tripId ?? ""}`,
-    15_000,
+    tripId ? (signal: AbortSignal) => readTripTrail(tripId, signal) : null,
+    `trail|${tripId ?? ""}`,
+    livePoll(demo, 15_000),
   );
 
   const shownDepots = new Set(runs.map((r) => r.depot).filter(Boolean));
@@ -73,14 +79,35 @@ export default function LiveMapView({
       ariaLabel: `${r.day.vehicleId}, ${STATUS[r.status].label.toLowerCase()}, stop ${r.day.done + (next ? 1 : 0)} of ${r.day.stops.length}${next ? `, window closes ${hhmm(next.windowClose)}` : ""}`,
     });
   }
-  const lines: MapLine[] = [];
-  if (chosen && trail.data) {
-    const points = trail.data.items.filter((p) => !p.lowQuality).map((p) => ({ lat: num(p.latitude) ?? 0, lon: num(p.longitude) ?? 0 }));
-    lines.push({ id: "trail", points, style: "driven" });
-  }
-  const fit = (depotViews.data ?? [])
-    .map((d) => ({ lat: num(d.location?.latitude), lon: num(d.location?.longitude) }))
-    .filter((p): p is LatLon => p.lat !== null && p.lon !== null);
+  const lines: MapLine[] = chosen && trail.data ? [{ id: "trail", points: trail.data, style: "driven" }] : [];
+  // The depots once they are read; a vehicle when one is chosen, so choosing
+  // from the list brings it into view. Keyed on the choice, not its position:
+  // a re-fit on every poll would undo the dispatcher's own pan and zoom.
+  const chosenAt = chosen ? markers.find((m) => m.id === chosen.day.vehicleId) ?? null : null;
+  const depotCount = depotViews.data?.length ?? 0;
+  const fit = useMemo(
+    () =>
+      chosenAt
+        ? [{ lat: chosenAt.lat, lon: chosenAt.lon }]
+        : (depotViews.data ?? [])
+            .map((d) => ({ lat: num(d.location?.latitude), lon: num(d.location?.longitude) }))
+            .filter((p): p is LatLon => p.lat !== null && p.lon !== null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selected, chosenAt !== null, depotCount],
+  );
+  const clusterVehicles = useCallback(
+    (group: MapMarker[]): MapMarker => ({
+      id: `cluster:${group.map((m) => m.id).join(",")}`,
+      kind: "cluster",
+      lat: group.reduce((s, m) => s + m.lat, 0) / group.length,
+      lon: group.reduce((s, m) => s + m.lon, 0) / group.length,
+      count: group.length,
+      label: `${group.length} vehicles`,
+      sub: summary(group),
+      ariaLabel: `${group.length} vehicles close together, zoom in`,
+    }),
+    [],
+  );
   const unplaced = runs.filter((r) => num(r.position?.latitude) === null);
 
   return (
@@ -93,18 +120,17 @@ export default function LiveMapView({
           fit={fit}
           selectedId={selected}
           onSelect={setSelected}
-          clusterVehicles={(group) => ({
-            id: `cluster:${group.map((m) => m.id).join(",")}`,
-            kind: "cluster",
-            lat: group.reduce((s, m) => s + m.lat, 0) / group.length,
-            lon: group.reduce((s, m) => s + m.lon, 0) / group.length,
-            count: group.length,
-            label: `${group.length} vehicles`,
-            sub: summary(group),
-            ariaLabel: `${group.length} vehicles close together, zoom in`,
-          })}
+          clusterVehicles={clusterVehicles}
           legend={<MapLegend hint={chosen ? undefined : "Select a vehicle"} />}
         />
+        {chosen && trail.error && (
+          <p role="status" className="absolute bottom-24 left-4 z-[600] rounded-full bg-white px-3 py-1 text-[12px] text-go-danger-strong shadow">
+            Trail not available ·{" "}
+            <button type="button" className="underline" onClick={trail.refresh}>
+              Retry
+            </button>
+          </p>
+        )}
         {positions.error && (
           <p role="status" className="absolute bottom-16 left-4 z-[600] rounded-full bg-white px-3 py-1 text-[12px] text-go-danger-strong shadow">
             Positions not updated{positions.loadedAt ? ` since ${clock(positions.loadedAt)}` : ""} ·{" "}
@@ -122,7 +148,7 @@ export default function LiveMapView({
             date={date}
             depotName={depotName(chosen)}
             now={now}
-            trailPoints={trail.data?.items.length ?? null}
+            trailPoints={trail.data?.length ?? null}
             onBack={() => setSelected(null)}
             onOpenTrip={() => onOpenTrip(chosen.day.vehicleId)}
           />
