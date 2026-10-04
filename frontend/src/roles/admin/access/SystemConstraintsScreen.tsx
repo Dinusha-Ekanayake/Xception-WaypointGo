@@ -21,7 +21,7 @@ const OTHER: OtherSetting[] = [
   { category: "Loading", label: "Idle trip hold release", value: "30 min", handling: "Duration", status: "Code and loader screen, not yet editable" },
   { category: "Execution", label: "Proof retention", value: "400 days", handling: "Duration", status: "Deployment setting, requires restart" },
   { category: "Execution", label: "Maximum attachment size", value: "3 MB", handling: "File size", status: "Deployment and device code, not yet editable" },
-  { category: "Execution", label: "ETA re-announce step", value: "10 min", handling: "Duration", status: "Code, not yet editable" },
+  { category: "Execution", label: "Expected arrival update interval", value: "10 min", handling: "Duration", status: "Code, not yet editable" },
   { category: "Execution", label: "GPS accuracy threshold", value: "200 m", handling: "Distance", status: "Code, not yet editable" },
   { category: "Receipt and issues", label: "Receipt auto-close", value: "24 hours", handling: "Duration", status: "Effective-dated data, write command pending" },
   { category: "Receipt and issues", label: "Issue default severity", value: "By issue type", handling: "Severity choice", status: "Effective-dated data, write command pending" },
