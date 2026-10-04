@@ -44,8 +44,8 @@ export default function PublishAudience({
         value={tab}
         onChange={setTab}
         options={[
-          { value: "outlets", label: `Outlets ${outlets.length}` },
-          { value: "drivers", label: `Drivers ${vehicles.length}` },
+          { value: "outlets", label: `Outlets (${outlets.length})` },
+          { value: "drivers", label: `Drivers (${vehicles.length})` },
           { value: "loaders", label: "Loaders" },
         ]}
       />

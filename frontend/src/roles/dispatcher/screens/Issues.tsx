@@ -79,8 +79,8 @@ export default function Issues({
         value={tab}
         onChange={(next) => (setTab(next), setSelectedId(null))}
         options={[
-          { value: "open", label: `Open ${issues.data ? open.length : "…"}` },
-          { value: "progress", label: `In progress ${issues.data ? progress.length : "…"}` },
+          { value: "open", label: `Open (${issues.data ? open.length : "…"})` },
+          { value: "progress", label: `In progress (${issues.data ? progress.length : "…"})` },
           { value: "resolved", label: "Resolved" },
         ]}
       />

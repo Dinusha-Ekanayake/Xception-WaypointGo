@@ -23,9 +23,9 @@ const FILTERS: { id: Filter; label: string; keep: (o: OrderView) => boolean }[] 
 
 const EMPTY: Record<Filter, string> = {
   open: "No open orders. Received and cancelled ones are under their filters.",
-  received: "No received orders yet.",
+  received: "No received orders yet. An order moves here once you confirm its delivery.",
   cancelled: "No cancelled orders.",
-  all: "No orders yet.",
+  all: "No orders yet. Place one from Home before the 16:00 cutoff.",
 };
 
 export default function Orders({
@@ -66,7 +66,7 @@ export default function Orders({
             onClick={() => setFilter(f.id)}
             className={cx("min-h-12 flex-1 rounded-full px-3 text-[15px] font-medium lg:flex-none lg:px-5", f.id === filter ? "bg-[#031a0c] text-white" : "text-black")}
           >
-            {f.label} <span className="opacity-60">{orders.filter(f.keep).length}</span>
+            {f.label} <span className="opacity-60">({orders.filter(f.keep).length})</span>
           </button>
         ))}
       </div>

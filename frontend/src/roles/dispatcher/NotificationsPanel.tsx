@@ -135,7 +135,7 @@ export default function NotificationsPanel({ onNavigate }: { onNavigate: (view: 
         )}
         {inbox.error && <p role="alert" className="text-sm text-go-danger-strong">{inbox.error}</p>}
         {inbox.items.length === 0 ? (
-          <p className="py-6 text-center text-sm text-go-secondary">{inbox.loading ? "Loading…" : "No notifications yet."}</p>
+          <p className="py-6 text-center text-sm text-go-secondary">{inbox.loading ? "Loading…" : "No notifications yet. Deferrals, releases, issues and store messages appear here as they happen."}</p>
         ) : (
           <NotificationRows items={inbox.items} onNavigate={onNavigate} />
         )}

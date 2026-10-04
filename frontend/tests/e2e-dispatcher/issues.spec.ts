@@ -15,7 +15,7 @@ test("the inbox lists the most severe first, and a dispatcher takes an issue and
   await detail.getByRole("button", { name: "Take it" }).click();
   await expect(page.getByRole("status").filter({ hasText: "assigned to you" })).toBeVisible();
   // Taken, it moves from Open to In progress and stays open here.
-  await expect(page.getByRole("radio", { name: "In progress 1" })).toBeVisible();
+  await expect(page.getByRole("radio", { name: "In progress (1)" })).toBeVisible();
   expect(desk.commands.at(-1)).toMatchObject({ kind: "issue:Assign", expectedVersion: 1, payload: { issueId: "issue-2", assigneeUserId: SESSION.userId } });
 
   await detail.getByRole("button", { name: "Resolve" }).click();

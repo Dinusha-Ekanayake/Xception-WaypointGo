@@ -106,7 +106,7 @@ export function NotificationsDrawer({
       )}
       {(error ?? inbox.error) && <p role="alert" className="text-[14px] text-go-danger-strong">{error ?? inbox.error}</p>}
       {inbox.items.length === 0 ? (
-        <p className="py-8 text-center text-[15px] text-go-muted">{inbox.loading ? "Loading…" : "No notifications yet."}</p>
+        <p className="py-8 text-center text-[15px] text-go-muted">{inbox.loading ? "Loading…" : "No notifications yet. Order confirmations, deferrals and deliveries on the way appear here."}</p>
       ) : (
         <ul className="flex flex-col gap-3">
           {inbox.items.map((n) => (
@@ -147,7 +147,7 @@ export function NotificationsCard({ inbox, onSubject, onAll }: { inbox: Inbox; o
       </div>
       {error && <p role="alert" className="text-[13px] text-go-danger-strong">{error}</p>}
       {inbox.items.length === 0 ? (
-        <p className="text-[14px] text-go-muted">{inbox.loading ? "Loading…" : "No notifications yet."}</p>
+        <p className="text-[14px] text-go-muted">{inbox.loading ? "Loading…" : "No notifications yet. Order confirmations, deferrals and deliveries on the way appear here."}</p>
       ) : (
         <ul className="flex flex-col gap-3">
           {inbox.items.slice(0, 4).map((n) => (
