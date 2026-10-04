@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-10-04 - edit admin directory records
+
+`codex/system-constraints` · @ranathungaWK
+
+Join outlet cards with Identity outlet scopes so assigned store managers appear. Add versioned edit flows for member profiles, outlet receiving details, depot names and timezones, and vehicle capacity, temperature and fuel details; reference updates publish a new immutable snapshot and survive later imports.
+Verified: frontend typecheck and backend compile. Tests were not run at the user's request.
+
 ## 2026-10-04 - reorganize the system constraints workspace
 
 `codex/system-constraints` · @ranathungaWK

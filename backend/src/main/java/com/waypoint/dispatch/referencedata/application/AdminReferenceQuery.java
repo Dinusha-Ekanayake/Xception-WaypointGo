@@ -27,13 +27,13 @@ public class AdminReferenceQuery {
 
   public record Depot(String code, String name) {}
   public record DepotDetail(String code, String name, String timezone, UUID referenceVersionId,
-      long outletCount, long vehicleCount, long districtCount) {}
+      long outletCount, long vehicleCount, long districtCount, long rowVersion) {}
   public record Outlet(String outletId, String brand, String district, String depot, String dockType,
       String parking, LocalTime windowOpen, LocalTime windowClose, LocalTime mallOpen,
       LocalTime mallClose, BigDecimal latitude, BigDecimal longitude) {}
   public record Vehicle(String vehicleId, String depot, String type, String temperature,
       BigDecimal weightCapKg, BigDecimal volumeCapM3, String fuelType, BigDecimal kmPerL,
-      BigDecimal weeklyFuelQuotaL, LocalDate statusDate, String dayStatus) {}
+      BigDecimal weeklyFuelQuotaL, LocalDate statusDate, String dayStatus, long rowVersion) {}
 
   public List<Depot> depots(UUID actorId) {
     return database.readAs(ModuleRole.REF, actorId, () -> database.query(
@@ -55,7 +55,8 @@ public class AdminReferenceQuery {
           (SELECT count(*) FROM ref.vehicles f WHERE f.reference_version_id = d.reference_version_id
              AND f.depot_code = d.depot_code) AS vehicle_count,
           (SELECT count(*) FROM ref.districts x WHERE x.reference_version_id = d.reference_version_id
-             AND x.depot_code = d.depot_code) AS district_count
+             AND x.depot_code = d.depot_code) AS district_count,
+          coalesce((SELECT row_version FROM ref.managed_updates u WHERE u.kind = 'depot' AND u.natural_id = d.depot_code), 0) AS row_version
           FROM ref.depots d JOIN ref.reference_versions v ON v.reference_version_id = d.reference_version_id
          WHERE v.is_current AND d.depot_code = ? AND app.actor_has_depot(d.depot_code)
         """, code));
@@ -63,7 +64,7 @@ public class AdminReferenceQuery {
     return new DepotDetail((String) r.get("depot_code"), (String) r.get("display_name"),
         (String) r.get("timezone_name"), (UUID) r.get("reference_version_id"),
         number(r, "outlet_count").longValue(), number(r, "vehicle_count").longValue(),
-        number(r, "district_count").longValue());
+        number(r, "district_count").longValue(), number(r, "row_version").longValue());
   }
 
   public Page<Outlet> outlets(UUID actorId, String depot, String brand, String district,
@@ -121,7 +122,8 @@ public class AdminReferenceQuery {
         """
         SELECT f.vehicle_id, f.depot_code, f.vehicle_type, f.temperature_capability,
                f.weight_cap_kg, f.volume_cap_m3, f.fuel_type, f.km_per_l,
-               f.weekly_fuel_quota_l, s.service_date, coalesce(s.status, 'available') AS day_status
+               f.weekly_fuel_quota_l, s.service_date, coalesce(s.status, 'available') AS day_status,
+               coalesce((SELECT row_version FROM ref.managed_updates u WHERE u.kind = 'vehicle' AND u.natural_id = f.vehicle_id), 0) AS row_version
           FROM ref.vehicles f JOIN ref.reference_versions v ON v.reference_version_id = f.reference_version_id
           LEFT JOIN ref.vehicle_day_status s ON s.vehicle_id = f.vehicle_id AND s.service_date = ?::date
          WHERE v.is_current AND app.actor_has_depot(f.depot_code)
@@ -167,7 +169,7 @@ public class AdminReferenceQuery {
         (BigDecimal) r.get("weight_cap_kg"), (BigDecimal) r.get("volume_cap_m3"),
         (String) r.get("fuel_type"), (BigDecimal) r.get("km_per_l"),
         (BigDecimal) r.get("weekly_fuel_quota_l"), day == null ? null : day.toLocalDate(),
-        (String) r.get("day_status"));
+        (String) r.get("day_status"), number(r, "row_version").longValue());
   }
 
   private static LocalTime time(Object value) {
