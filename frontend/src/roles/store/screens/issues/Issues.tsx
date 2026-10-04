@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { ApiError } from "@shared/api/problem";
 import type { IssueView, OrderView, OutletView } from "@shared/domain/types";
-import { Notice, cx } from "@shared/ui";
+import { Notice, SkeletonRows, cx } from "@shared/ui";
 import type { StoreGateway } from "../../data/gateway.ts";
 import { addDays, clock, depotToday } from "../../data/format.ts";
 import { REPORT_KINDS, isOpenIssue, issueCard, type ReportKind } from "../../data/issues.ts";
@@ -31,6 +31,7 @@ export default function Issues({
   commands,
   onOpenOrder,
   onSent,
+  onRetry,
 }: {
   gateway: StoreGateway;
   issues: IssueView[];
@@ -42,6 +43,8 @@ export default function Issues({
   onOpenOrder: (orderId: string) => void;
   /** An issue was raised: read the list again. */
   onSent: () => void;
+  /** Read the issues again after a failure. */
+  onRetry?: () => void;
 }): React.JSX.Element {
   const [reporting, setReporting] = useState<{ preset: ReportKind | null } | null>(null);
   const [earlier, setEarlier] = useState(false);
@@ -86,11 +89,11 @@ export default function Issues({
         <h1 className="text-[32px] leading-tight font-medium text-black">Issues</h1>
         <Muted>{outlet ? `Deliveries to ${outlet.outletId}` : "…"}</Muted>
       </div>
-      {error && <Notice tone="danger" title="Could not load your issues">{error.message}</Notice>}
+      {error && <Notice tone="danger" title="Could not load your issues" onRetry={onRetry}>{error.message}</Notice>}
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
         <div className="flex min-w-0 flex-col gap-3">
-          {open.length === 0 && <Muted>{loading ? "Loading…" : "Nothing is open. Problems with a delivery show here."}</Muted>}
+          {open.length === 0 && (loading ? <SkeletonRows label="Loading…" /> : <Muted>Nothing is open. Problems with a delivery show here.</Muted>)}
           <ul className="flex flex-col gap-3">{open.map(card)}</ul>
           {closed.length > 0 && (
             <>

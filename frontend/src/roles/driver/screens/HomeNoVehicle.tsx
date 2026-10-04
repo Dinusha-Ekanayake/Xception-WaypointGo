@@ -4,7 +4,8 @@ import { useState, useRef, useEffect } from "react";
 import { VehicleStatuses, type ReportedVehicleStatus, type VehicleView } from "@shared/domain/types";
 import { isUnread, kindOf } from "@shared/notifications/inbox";
 import type { Inbox } from "@shared/notifications/useInbox";
-import { cx, useDeviceLang } from "@shared/ui";
+import { cx, useDeviceLang, useScrollMemory, VoiceNote } from "@shared/ui";
+import { voiceUrl } from "@shared/messaging/useThread";
 import { clock, countdown, dayLabel, hhmm, stops as stopsText } from "../../../shared/wording/index.ts";
 import type { TripStatus } from "../data/stopView.ts";
 import type { NextRun } from "../data/run.ts";
@@ -365,6 +366,8 @@ export type DriverHomeProps = {
   isNight?: boolean;
   onToggleTheme?: () => void;
   hideHeader?: boolean;
+  /** Opens the trip's thread, for a message notification (issue #136). */
+  onOpenMessages?: () => void;
 };
 
 const STATUS_LABEL: Record<ReportedVehicleStatus, string> = {
@@ -425,10 +428,13 @@ export default function HomeNoVehicle({
   isNight = false,
   onToggleTheme,
   hideHeader = false,
+  onOpenMessages,
 }: DriverHomeProps): React.JSX.Element {
   const [lang, setLang] = useDeviceLang();
   const [activeAudioId, setActiveAudioId] = useState<string | null>(null);
+  const [markingRead, setMarkingRead] = useState(false);
   const { scrollRef, pullY, isPulling, maskStyle, handlers } = useRubberBandScroll();
+  useScrollMemory("driver:home", scrollRef, { page: false });
 
   useEffect(() => {
     return () => {
@@ -596,14 +602,19 @@ export default function HomeNoVehicle({
           {unread > 0 && (
             <button
               type="button"
-              onClick={() => void inbox.markAllRead(now)}
-              aria-label={`${unread} new. Mark all read`}
+              disabled={markingRead}
+              onClick={() => {
+                setMarkingRead(true);
+                void inbox.markAllRead(now).finally(() => setMarkingRead(false));
+              }}
+              aria-label={markingRead ? "Marking all read" : `${unread} new. Mark all read`}
+              aria-busy={markingRead || undefined}
               className={cx(
-                "text-[12px] font-medium px-2.5 py-0.5 rounded-[34px] transition-colors",
+                "text-[12px] font-medium px-2.5 py-0.5 rounded-[34px] transition-colors disabled:cursor-wait disabled:opacity-70",
                 isNight ? "bg-[#00BF6A] text-black" : "bg-[#B7F2ED] text-black"
               )}
             >
-              {unread > 99 ? "99+" : unread} new
+              {markingRead ? "Marking…" : `${unread > 99 ? "99+" : unread} new`}
             </button>
           )}
         </div>
@@ -620,7 +631,7 @@ export default function HomeNoVehicle({
           <div
             style={{
               transform: `translate3d(0, ${pullY}px, 0)`,
-              transition: isPulling ? "none" : "transform 500ms cubic-bezier(0.18, 1.12, 0.32, 1.0)",
+              transition: isPulling ? "none" : "transform 250ms cubic-bezier(0.18, 1.12, 0.32, 1.0)",
             }}
             className="flex flex-col gap-2.5 will-change-transform"
           >
@@ -665,7 +676,10 @@ export default function HomeNoVehicle({
                   >
                     <button
                       type="button"
-                      onClick={() => fresh && inbox.online && void inbox.markRead([item.notificationId]).catch(() => undefined)}
+                      onClick={() => {
+                        if (fresh && inbox.online) void inbox.markRead([item.notificationId]).catch(() => undefined);
+                        if (item.eventType === "message.posted") onOpenMessages?.();
+                      }}
                       aria-label={`${fresh ? "Unread. " : ""}${kind.label}. ${item.title}. ${item.body}`}
                       className={cx("flex w-full flex-col gap-1 text-left", !fresh && "opacity-70")}
                     >
@@ -681,14 +695,28 @@ export default function HomeNoVehicle({
                       <span className={cx("text-[15px] font-medium leading-[19px] pt-0.5", ink)}>{item.title}</span>
                       <span className={cx("text-[13px] font-light leading-4 pt-0.5", ink)}>{item.body}</span>
                     </button>
-                    <VoiceMessagePlayer
-                      id={id}
-                      duration={readingTime(`${item.title} ${item.body}`)}
-                      text={`${kind.label}. ${item.title}. ${item.body}`}
-                      isNight={isNight}
-                      activeAudioId={activeAudioId}
-                      onPlayChange={setActiveAudioId}
-                    />
+                    {item.eventType === "message.posted" && item.facts?.voiceNoteId && item.subjectId ? (
+                      // A voice message plays the person's own voice, never text to speech (issue #136).
+                      <div className={cx("mt-1 rounded-[16px] px-2 py-1", isNight ? "bg-[#1f1f1f]" : "bg-[#F1F6F5]")}>
+                        <VoiceNote
+                          src={voiceUrl(item.subjectId, item.facts.voiceNoteId)}
+                          durationMs={item.facts.voiceDurationMs ? Number(item.facts.voiceDurationMs) : null}
+                          {...(item.facts.voicePeaks ? { peaks: item.facts.voicePeaks.split(",").map((p) => Number(p) / 100) } : {})}
+                          seed={item.facts.voiceNoteId}
+                          tone="theirs"
+                          label={`Voice message from ${item.title}`}
+                        />
+                      </div>
+                    ) : (
+                      <VoiceMessagePlayer
+                        id={id}
+                        duration={readingTime(`${item.title} ${item.body}`)}
+                        text={`${kind.label}. ${item.title}. ${item.body}`}
+                        isNight={isNight}
+                        activeAudioId={activeAudioId}
+                        onPlayChange={setActiveAudioId}
+                      />
+                    )}
                   </div>
                 </ScrollRevealCard>
               );

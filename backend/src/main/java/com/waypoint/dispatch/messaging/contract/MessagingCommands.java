@@ -20,6 +20,12 @@ package com.waypoint.dispatch.messaging.contract;
 public final class MessagingCommands {
   public static final String POST = "message:Post";
   public static final String READ = "message:Read";
+  /**
+   * The dispatcher resolves a report (R-MSG-07): {@code {"messageId": uuid,
+   * "note": "up to 500 characters"}}. Its warning sign leaves the timeline; the
+   * report stays on the thread with who resolved it, when and why.
+   */
+  public static final String RESOLVE = "message:Resolve";
 
   private MessagingCommands() {}
 }

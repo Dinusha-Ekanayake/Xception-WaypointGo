@@ -4,8 +4,8 @@ import { DEPOT, draftPlan, serve } from "./mocks.ts";
 test("generate, see why an order was deferred, place it by hand, publish", async ({ page }) => {
   const desk = await serve(page);
   await page.goto("/#/plan");
-  await expect(page.getByRole("heading", { name: `No plan for ${DEPOT}` })).toBeVisible();
-  await expect(page.getByText("3 orders are confirmed and waiting to be planned.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: new RegExp(`^No plan yet for ${DEPOT} on `) })).toBeVisible();
+  await expect(page.getByText(`${DEPOT}: 3 orders wait`)).toBeVisible();
 
   await page.getByRole("button", { name: "Generate draft" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Draft version 1: 2 placed, 1 deferred." })).toBeVisible();
@@ -47,9 +47,10 @@ test("generate, see why an order was deferred, place it by hand, publish", async
   await expect(about).toContainText("Refrigerated vehicles planned again: 1 more order served");
   await expect(about).toContainText("Deferred went from 2 to 1, with 7.9 m³ more chilled delivered");
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("button", { name: /VEH044 trip 1/ })).toBeVisible();
+  await page.getByRole("button", { name: /VEH044 trip 1/ }).click();
   // 31.5 of 33.4 m³: drawn as tight, so the dispatcher sees there is no room left.
   await expect(page.getByRole("meter", { name: "Volume used" })).toHaveAttribute("aria-valuenow", "94");
+  await page.keyboard.press("Escape");
 
   await page.getByRole("tab", { name: /Publish/ }).click();
   await page.getByRole("button", { name: "Publish plan" }).click();
@@ -128,12 +129,11 @@ test("with nothing waiting today, the plan points to the next day that has order
   });
 
   await page.goto("/#/plan");
-  await expect(page.getByText("0 orders are confirmed and waiting to be planned.")).toBeVisible();
-  await expect(page.getByText(/^3 orders wait for \w{3} \d{1,2} \w{3}\.$/)).toBeVisible();
+  await expect(page.getByText(`${DEPOT}: 0 orders wait`)).toBeVisible();
   await expect(page.getByRole("button", { name: "Generate draft" })).toHaveCount(0);
 
-  await page.getByRole("button", { name: /^Plan \w{3} \d{1,2} \w{3}$/ }).click();
-  await expect(page.getByText("3 orders are confirmed and waiting to be planned.")).toBeVisible();
+  await page.getByRole("button", { name: /^Plan \w{3} \d{1,2} \w{3} · 3 waiting$/ }).click();
+  await expect(page.getByText(`${DEPOT}: 3 orders wait`)).toBeVisible();
   await expect(page.getByRole("button", { name: "Generate draft" })).toBeVisible();
   expect(asked).toContain(seeded);
 });

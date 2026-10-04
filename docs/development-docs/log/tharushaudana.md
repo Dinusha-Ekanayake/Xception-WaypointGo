@@ -4,6 +4,38 @@
 
 ---
 
+## 2026-10-05 - fix(messaging): voice notes replay on an iPhone
+
+`fix/136-voice-iphone` · @tharushaudana
+
+On preview an iPhone (iOS 18.7) played a voice note once, then showed "Could not play". Safari plays and rewinds media through byte ranges; the audio was always answered `200` in full and the proxy dropped `Range`, so the rewind at the end failed. Now the audio answers ranges with `206`, the proxy forwards `Range`, `Accept-Ranges` and `Content-Range`, a replay whose rewind is refused reloads the note, and an interrupted start (pressing another note) is no longer a failure. Phones record MP4/AAC where they can, which every phone plays (MSG-15).
+Verified: `npm test` (243), driver suite replay spec, dispatcher 63, store 56, loader 31; the range case in `MessagingIntegrationTest` runs in CI.
+Open: notes already recorded as WebM on Firefox depend on Safari's WebM support; to be checked on the iPhone after deploy.
+
+---
+
+## 2026-10-05 - feat(messaging): resolve reports, real voice in the inbox, signs on the line
+
+`feat/136-voice-fixes` · @tharushaudana
+
+The dispatcher resolves a report from the thread with a note (`message:Resolve`, R-MSG-07); resolving its issue resolves it too. Its warning sign then leaves the timeline; the report stays, marked. The sign waves gently, sits centred on the run's line, and replaces the stop's dot when the report is about a store on the trip. Every timeline run has a messages icon. A voice note's waveform travels with the audio and is stored, so every phone draws the real bars; the driver's inbox plays a voice message's own audio instead of reading the notification aloud. The report bubble lost its border artifact. The driver's Messages button is an icon in the top bar.
+Why: user review of preview on 2026-10-05.
+Verified: `MessagePolicyTest`, `ModuleBoundaryTest`, `EventCatalogueTest`; `MessagingIntegrationTest` adds resolving, issue resolution, waveform and outlet cases (CI); `npm test`; the four role suites.
+Open: a resolved report does not notify its reporter.
+
+---
+
+## 2026-10-04 - feat(frontend): voice notes recorded and played as in a messaging app
+
+`feat/136-voice-ui` · @tharushaudana
+
+The thread's "Voice" button is a mic: hold to record and let go to send, slide up to lock and talk hands free (then stop, listen, send), slide left to cancel; a tap says how. A keyboard press starts a locked recording. A sent voice note is a card in the bubble's colours (teal for your own, ink for others, red for a report): a play button, a waveform that fills as it plays (tap to seek), the time and 1x/1.5x/2x, instead of the browser's black player. Bars come from the levels heard while recording, or from decoding the audio; audio the browser cannot decode keeps steady placeholder bars. One note plays at a time. Labels are in the loader's Sinhala and Tamil too.
+Why: the user asked for WhatsApp-like voice and a card that matches the UI.
+Verified: `npm run typecheck`, `npm test` (229, adds `messaging-waveform.test.ts`), driver suite (26, `voice.spec.ts` holds, slides, locks, cancels and plays real audio from the fake microphone), dispatcher (57), loader (31), store (55; one receipt flake passed on rerun).
+Open: try it on a real phone once the microphone header (`microphone=(self)`) reaches the edge with the next production deploy.
+
+---
+
 ## 2026-10-04 - feat(messaging): voice notes offline, on a shared loader device, and kept for 400 days
 
 `feat/136-messaging` · @tharushaudana

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useOnline, useResource } from "@shared/api/useResource";
 import type { OrderView } from "@shared/domain/types";
-import { Notice } from "@shared/ui";
+import { Notice, useScrollMemory, withTransition } from "@shared/ui";
 import TopBar from "./TopBar.tsx";
 import { depotToday } from "./data/format.ts";
 import { createGateway } from "./data/gateway.ts";
@@ -54,6 +54,8 @@ export default function Store({
   const outletId = scope[0] ?? (gateway.sample ? "OUT085" : "");
   const [tab, setTab] = useState<Tab>("home");
   const [view, setView] = useState<View>({ kind: "tabs" });
+  // A tab comes back where it was scrolled; a form or detail opens at the top (UX polish 2).
+  useScrollMemory(view.kind === "tabs" ? `store:${tab}` : null);
   const [openOrder, setOpenOrder] = useState<string | null>(null);
   const [waiting, setWaiting] = useState(0);
   const [flushError, setFlushError] = useState<string | null>(null);
@@ -152,7 +154,17 @@ export default function Store({
   const all = orders.data ?? [];
   const toReceive = pending.data ?? [];
   const warehouseDown = warehouse.data?.circuitState === "open" || warehouse.data?.stale === true;
-  const backToTabs = () => setView({ kind: "tabs" });
+  // A tab crossfades; a form or detail slides in, and slides back out to the tabs (UX polish 4).
+  const backToTabs = () => withTransition(() => setView({ kind: "tabs" }), "back");
+  const showTab = (next: Tab) =>
+    withTransition(
+      () => {
+        setView({ kind: "tabs" });
+        setTab(next);
+      },
+      view.kind === "tabs" ? "tab" : "back",
+    );
+  const openView = (next: View) => withTransition(() => setView(next), "forward");
   const allIssues = issues.data ?? [];
   const stops = deliveries.data ?? [];
   const badges = {
@@ -161,8 +173,8 @@ export default function Store({
     issues: allIssues.filter(isOpenIssue).length,
   };
   const open = all.find((o) => o.orderId === openOrder) ?? null;
-  const receive = (orderId: string) => setView({ kind: "receive", orderId });
-  const place = () => setView({ kind: "place", amend: null });
+  const receive = (orderId: string) => openView({ kind: "receive", orderId });
+  const place = () => openView({ kind: "place", amend: null });
 
   let body: React.JSX.Element;
   if (!outletId) {
@@ -176,13 +188,9 @@ export default function Store({
         amend={view.amend}
         warehouseDown={warehouseDown}
         commands={commands}
-        onDone={() => {
-          backToTabs();
-          setTab("orders");
-        }}
+        onDone={() => showTab("orders")}
         onEdit={(orderId) => {
-          backToTabs();
-          setTab("orders");
+          showTab("orders");
           setOpenOrder(orderId);
         }}
         onBack={backToTabs}
@@ -206,14 +214,10 @@ export default function Store({
         siblings={siblings}
         onSwitch={receive}
         commands={commands}
-        onBack={() => {
-          backToTabs();
-          setTab("deliveries");
-        }}
+        onBack={() => showTab("deliveries")}
         onViewIssues={() => {
           refresh();
-          backToTabs();
-          setTab("issues");
+          showTab("issues");
         }}
       />
     );
@@ -261,12 +265,13 @@ export default function Store({
         onOpen={setOpenOrder}
         onPlace={place}
         onReceive={receive}
-        onTrack={() => setView({ kind: "track" })}
+        onTrack={() => openView({ kind: "track" })}
+        onRetry={orders.refresh}
         notifications={<NotificationsCard inbox={inbox} onSubject={openSubject} onAll={() => setInboxOpen(true)} />}
       />
     );
   } else if (tab === "orders") {
-    body = <Orders orders={all} loading={orders.loading} error={orders.error} onOpen={setOpenOrder} onPlace={place} />;
+    body = <Orders orders={all} loading={orders.loading} error={orders.error} onOpen={setOpenOrder} onPlace={place} onRetry={orders.refresh} />;
   } else if (tab === "issues") {
     body = (
       <Issues
@@ -279,6 +284,7 @@ export default function Store({
         commands={commands}
         onOpenOrder={setOpenOrder}
         onSent={refresh}
+        onRetry={issues.refresh}
       />
     );
   } else {
@@ -291,11 +297,11 @@ export default function Store({
         outlet={outlet.data}
         toReceive={toReceive}
         onOpen={setOpenOrder}
-        onOrders={() => setTab("orders")}
+        onOrders={() => showTab("orders")}
         onReceive={receive}
         onTrack={(vehicleId) => {
           setVehicle(vehicleId);
-          setView({ kind: "track" });
+          openView({ kind: "track" });
         }}
         onMessage={(tripId, vehicleId) => setThread({ tripId, vehicleId })}
       />
@@ -364,13 +370,10 @@ export default function Store({
           )}
         </div>
       )}
-      {view.kind === "tabs" && <TabBar tab={tab} onTab={setTab} badges={badges} />}
+      {view.kind === "tabs" && <TabBar tab={tab} onTab={showTab} badges={badges} />}
       <SideNav
         tab={view.kind === "place" || view.kind === "deferred" ? "orders" : view.kind === "receive" || view.kind === "track" ? "deliveries" : tab}
-        onTab={(t) => {
-          setView({ kind: "tabs" });
-          setTab(t);
-        }}
+        onTab={showTab}
         badges={badges}
         outlet={outlet.data}
         displayName={name}
@@ -414,7 +417,7 @@ export default function Store({
           commands={commands}
           onAmend={() => {
             setOpenOrder(null);
-            setView({ kind: "place", amend: open });
+            openView({ kind: "place", amend: open });
           }}
           onReceive={() => {
             setOpenOrder(null);
@@ -422,7 +425,7 @@ export default function Store({
           }}
           onDeferred={() => {
             setOpenOrder(null);
-            setView({ kind: "deferred", orderId: open.orderId });
+            openView({ kind: "deferred", orderId: open.orderId });
           }}
           onClose={() => setOpenOrder(null)}
         />

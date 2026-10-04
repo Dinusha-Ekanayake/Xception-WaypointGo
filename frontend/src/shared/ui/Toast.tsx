@@ -7,8 +7,9 @@ import { cx } from "./primitives.tsx";
 // after a change went through ("Kept deferred · The store gets the reason at
 // publish"), or a refusal with the server's reasons and every rule it named.
 // A pop-up does not take the screen's space. A confirmation goes by itself; a
-// refusal stays until it is closed, because a failure that disappears unread
-// is not reported.
+// refusal stays until it is closed (its button, Escape or a click anywhere
+// else, as every pop-up), because a failure that disappears unread is not
+// reported.
 
 export type ToastMessage = {
   title: string;
@@ -34,6 +35,7 @@ const WITH_ACTION_MS = 6000;
 export function ToastProvider({ children }: { children: ReactNode }): React.JSX.Element {
   const [message, setMessage] = useState<(ToastMessage & { id: number }) | null>(null);
   const next = useRef(0);
+  const card = useRef<HTMLDivElement>(null);
 
   const show = useCallback((toast: ToastMessage) => {
     next.current += 1;
@@ -46,6 +48,21 @@ export function ToastProvider({ children }: { children: ReactNode }): React.JSX.
     return () => window.clearTimeout(timer);
   }, [message]);
 
+  // A click outside the pop-up, or Escape, closes it.
+  useEffect(() => {
+    if (!message) return;
+    const outside = (event: PointerEvent) => {
+      if (card.current && !card.current.contains(event.target as Node)) setMessage(null);
+    };
+    const escape = (event: KeyboardEvent) => event.key === "Escape" && setMessage(null);
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("pointerdown", outside);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [message]);
+
   const error = message?.tone === "error";
 
   return (
@@ -55,6 +72,7 @@ export function ToastProvider({ children }: { children: ReactNode }): React.JSX.
         {message && (
           <div
             key={message.id}
+            ref={card}
             className={cx(
               "pointer-events-auto flex max-w-[640px] animate-rise-in gap-3 rounded-go-input px-4 py-3 text-[13px] shadow-go-float",
               error ? "items-start bg-go-card text-go-ink ring-1 ring-go-danger/40" : "items-center bg-go-ink text-white",

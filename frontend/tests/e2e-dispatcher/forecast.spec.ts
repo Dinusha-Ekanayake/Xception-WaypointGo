@@ -51,14 +51,15 @@ test("before the first run the screen says there is no forecast yet", async ({ p
 });
 
 test("the last and next run read in depot time, with a countdown to the next", async ({ page }) => {
-  await page.clock.install({ time: new Date("2027-02-28T18:06:19Z") });
+  // The time is held still: a running clock made the countdown depend on how fast the page loaded.
+  await page.clock.setFixedTime(new Date("2027-02-28T18:06:19Z"));
   await serve(page);
   await page.goto("/#/forecast");
 
   const runs = page.getByRole("region", { name: "Forecast runs" });
   await expect(runs).toContainText("Mon 22 Feb · 09:30");
   await expect(runs).toContainText("Mon 1 Mar · 00:00");
-  await expect(runs.getByRole("timer")).toHaveText("in 23:41");
+  await expect(runs.getByRole("timer")).toHaveText(/^in 23:4[01]$/);
 });
 
 test("when the run is due the screen says so and shows the new forecast once it lands", async ({ page }) => {

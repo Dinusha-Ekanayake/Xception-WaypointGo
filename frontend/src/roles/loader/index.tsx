@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { flushSync } from "react-dom";
 import { useOnline, useResource } from "@shared/api/useResource";
 import { registerResolver, useSync } from "@shared/offline";
 import { useInbox } from "@shared/notifications/useInbox";
-import { Notice } from "@shared/ui";
+import { Notice, useScrollMemory, withTransition } from "@shared/ui";
 import { crew, lockOperator, replayBeforeSync } from "@app-shell/operators";
 import { keptCrew, logOfflineSwitch } from "@app-shell/offlinePin";
 import type { CrewMember } from "@app-shell/operators";
@@ -117,10 +118,20 @@ function LoaderWorkspace({
   const outletList = useResource(depot ? (signal) => gateway.outlets(depot, signal) : null, depot);
   const outlets = useMemo(() => new Map((outletList.data ?? []).map((o) => [o.outletId, o])), [outletList.data]);
   const open = trips.data?.find((t) => t.tripId === openId) ?? null;
+  // Back from a load sheet, the board is where it was; a load sheet opens at the top (UX polish 2).
+  useScrollMemory(operator && !open && !settings ? "loader:board" : null);
 
   const { refresh } = trips;
+  // The trip last opened: its row on the board and the load sheet's truck card are one
+  // shared element, so it moves in and back out (UX polish 4). Named before the
+  // transition starts, so the board's snapshot already carries it.
+  const [moving, setMoving] = useState<string | null>(null);
+  const openTrip = useCallback((tripId: string) => {
+    flushSync(() => setMoving(tripId));
+    withTransition(() => setOpenId(tripId), "forward");
+  }, []);
   const back = useCallback(() => {
-    setOpenId(null);
+    withTransition(() => setOpenId(null), "back");
     refresh();
   }, [refresh]);
   useEffect(() => setOperator(initialOperator), [initialOperator]);
@@ -270,7 +281,7 @@ function LoaderWorkspace({
           refreshKey={syncKey}
         />
       ) : (
-        <DockBoard depot={depot} meId={operator.userId} trips={trips} online={online} onOpen={setOpenId} date={date} />
+        <DockBoard depot={depot} meId={operator.userId} trips={trips} online={online} onOpen={openTrip} moving={moving} date={date} />
       )}
     </div>
     </div>

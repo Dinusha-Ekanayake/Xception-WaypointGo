@@ -226,7 +226,7 @@ export type Handover = { status: "AWAITING" | "CONFIRMED" | "LOCKED" | "EXPIRED"
 /** Routes every call the store makes; a delivered order is waiting to be received. */
 export async function mockStore(
   page: Page,
-  options: { answered?: Handover | null; loadingShort?: boolean; week?: boolean; deferred?: boolean; positions?: unknown[]; threads?: ThreadMock[]; rideAlong?: { date: string; stopsBooked: number }[] | "down"; outlook?: Record<string, "ON_TRACK" | "BUSY" | "AT_RISK" | "TOO_EARLY" | "CLOSED"> | "down" } = {},
+  options: { answered?: Handover | null; loadingShort?: boolean; week?: boolean; deferred?: boolean; positions?: unknown[]; threads?: ThreadMock[]; rideAlong?: { date: string; stopsBooked: number }[] | "down"; roomChecked?: boolean; outlook?: Record<string, "ON_TRACK" | "BUSY" | "AT_RISK" | "TOO_EARLY" | "CLOSED"> | "down" } = {},
 ): Promise<{ sent: Sent; handover: { current: Handover | null }; uploads: string[] }> {
   const threads = options.threads ?? [];
   const sent: Sent = [];
@@ -255,7 +255,7 @@ export async function mockStore(
     if (pathname === "/api/orders/ride-along") {
       if (options.rideAlong === "down") return route.fulfill({ status: 503, contentType: "application/problem+json", body: JSON.stringify({ title: "Unavailable", status: 503 }) });
       const requested = url.searchParams.get("requestedDate");
-      return json({ requestedDate: requested, deliveryDate: requested, offered: options.rideAlong !== undefined, days: Array.isArray(options.rideAlong) ? options.rideAlong.filter((d) => d.date !== requested) : [] });
+      return json({ requestedDate: requested, deliveryDate: requested, offered: options.rideAlong !== undefined, days: Array.isArray(options.rideAlong) ? options.rideAlong.filter((d) => d.date !== requested) : [], roomChecked: options.roomChecked ?? false });
     }
     if (pathname === "/api/ml/outlook") {
       if (options.outlook === "down") return route.fulfill({ status: 503, contentType: "application/problem+json", body: JSON.stringify({ title: "Unavailable", status: 503 }) });

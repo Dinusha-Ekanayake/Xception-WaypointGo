@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { newCommand } from "@shared/api/commands";
-import { ApiError } from "@shared/api/problem";
+import { ApiError, friendlyError } from "@shared/api/problem";
 import { useResource } from "@shared/api/useResource";
 import {
   IssueCommandKind,
@@ -94,7 +94,7 @@ export default function Receive({
     return (
       <div className="flex flex-col gap-4">
         <BackButton onClick={onBack} />
-        {receipt.error ? <Notice tone="danger" title="Could not open this delivery">{receipt.error.message}</Notice> : <Muted>Loading the delivery…</Muted>}
+        {receipt.error ? <Notice tone="danger" title="Could not open this delivery">{friendlyError(receipt.error)}</Notice> : <Muted>Loading the delivery…</Muted>}
       </div>
     );
   }
@@ -176,7 +176,7 @@ export default function Receive({
         attachmentIds: reports.flatMap((x) => x.photoIds),
       };
       const raised = await commands.run(IssueCommandKind.raise, raise, null);
-      if (!raised.ok) setError(`Your count is recorded, but the remark could not be sent: ${raised.error.message}`);
+      if (!raised.ok) setError(`Your count is recorded, but the remark could not be sent: ${friendlyError(raised.error)}`);
     }
     const issued = outcome.queued ? null : (outcome.ack.result as HandoverIssued);
     setDone({

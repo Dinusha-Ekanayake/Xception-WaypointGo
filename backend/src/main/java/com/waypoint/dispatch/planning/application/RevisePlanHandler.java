@@ -1,5 +1,6 @@
 package com.waypoint.dispatch.planning.application;
 
+import com.waypoint.dispatch.planning.domain.PublishedEditWindow;
 import com.waypoint.dispatch.planning.application.PlanningRevisions.Revision;
 import com.waypoint.dispatch.planning.contract.PlanCommands;
 import com.waypoint.dispatch.planning.infrastructure.JdbcPlanRepository.RunRow;
@@ -62,6 +63,7 @@ public class RevisePlanHandler implements CommandHandler {
     Instant now = clock.now();
 
     RunRow published = revisions.published(payload.uuid("planId"), expected);
+    PublishedEditWindow.requireOpen(published.serviceDate(), now);
     Revision revision =
         revisions.revise(
             published, reason, actor.userId(), drafts.newId(now),

@@ -1,6 +1,9 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { request } from "@shared/api/client";
+import type { TrailPointView } from "@shared/domain/types";
+import { readTrail, type TrailPoint } from "./trail.ts";
 import type { MapStatus } from "./types.ts";
 
 // Leaflet reads `window` when imported, so the canvas is loaded on the client
@@ -11,6 +14,7 @@ export const LiveMap = dynamic(() => import("./MapCanvas.tsx"), {
 });
 
 export type { LiveMapProps, MapLine, MapMarker, MapStatus } from "./types.ts";
+export { drivenLine, readTrail, trailPoints, type TrailPoint } from "./trail.ts";
 export { cluster, compass, keepFix, metres, num, round6, keepTiles, tileAllowed, tilesFor, type LatLon } from "./geo.ts";
 
 const LEGEND: { status: MapStatus; label: string }[] = [
@@ -40,5 +44,13 @@ export function MapLegend({ hint }: { hint?: string }): React.JSX.Element {
       ))}
       {hint && <span className="shrink-0 text-go-teal">{hint}</span>}
     </div>
+  );
+}
+
+/** A trip's whole trail, every page, oldest first, as all three maps draw it. */
+export function readTripTrail(tripId: string, signal: AbortSignal): Promise<TrailPoint[]> {
+  const path = `/api/execution/trips/${encodeURIComponent(tripId)}/trail?limit=500`;
+  return readTrail((cursor) =>
+    request<{ items: TrailPointView[]; nextCursor?: string | null }>(cursor ? `${path}&cursor=${encodeURIComponent(cursor)}` : path, { signal }),
   );
 }

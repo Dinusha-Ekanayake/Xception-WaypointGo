@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ApiError } from "@shared/api/problem";
+import { ApiError, friendlyError } from "@shared/api/problem";
 import type { VehicleView } from "@shared/domain/types";
 import { Icon, Notice, Pending, Pill, PrimaryButton, SecondaryButton } from "@shared/ui";
 import { capacityLabel, litres, typeLabel } from "../data/fleet.ts";
@@ -114,7 +114,7 @@ export default function VehicleDrawer({
               It leaves the next planning run for that day. Plans already made stay as they are (R-FLT-04).
             </p>
             <div className="flex gap-2">
-              <PrimaryButton type="submit" disabled={!online || sending || !reason.trim()}>
+              <PrimaryButton type="submit" disabled={!online || !reason.trim()} busy={sending}>
                 {sending ? "Sending…" : `Send ${vehicle.vehicleId} to workshop`}
               </PrimaryButton>
               <SecondaryButton onClick={() => setConfirming(false)} disabled={sending}>
@@ -157,7 +157,7 @@ function SubmitError({ error }: { error: Error }): React.JSX.Element {
     const rules = error.problem.violations.map((v) => v.rule);
     return (
       <Notice tone="danger" title={error.status === 403 ? "You are not allowed to change this vehicle" : "The change was refused"} live>
-        {error.message}
+        {friendlyError(error)}
         {rules.length > 0 && ` Rule ${rules.join(", ")}.`}
       </Notice>
     );

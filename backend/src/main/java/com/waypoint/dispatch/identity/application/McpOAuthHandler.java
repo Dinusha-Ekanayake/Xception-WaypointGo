@@ -96,7 +96,7 @@ public class McpOAuthHandler {
     this.audit = audit;
     this.mapper = mapper;
     this.metrics = metrics;
-    this.clock = clock;
+    this.clock = clock.realTime();
     this.properties = properties;
   }
 

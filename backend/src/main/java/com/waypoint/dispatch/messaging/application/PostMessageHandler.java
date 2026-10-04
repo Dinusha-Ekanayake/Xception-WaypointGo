@@ -97,16 +97,17 @@ public class PostMessageHandler implements CommandHandler {
             .orElseThrow(() -> outside(threadId));
 
     Optional<UUID> voiceNoteId = Optional.ofNullable(payload.optionalUuid("voiceNoteId"));
-    voiceNoteId.ifPresent(id -> {
+    Optional<JdbcThreadRepository.VoiceNote> note = voiceNoteId.map(id -> {
       // The note must be this author's, on this thread: nobody posts another's recording.
-      JdbcThreadRepository.VoiceNote note =
+      JdbcThreadRepository.VoiceNote found =
           threads.voice(id).orElseThrow(() -> new DomainException(
               ErrorCode.VALIDATION_FAILED, "voice note " + id + " has not been uploaded", List.of("R-MSG-06")));
-      if (!note.uploadedBy().equals(actor.userId()) || !note.threadId().equals(threadId)) {
+      if (!found.uploadedBy().equals(actor.userId()) || !found.threadId().equals(threadId)) {
         throw new DomainException(
             ErrorCode.VALIDATION_FAILED, "voice note " + id + " was not recorded by you on this thread",
             List.of("R-MSG-06"));
       }
+      return found;
     });
     Post post =
         new Post(
@@ -126,7 +127,8 @@ public class PostMessageHandler implements CommandHandler {
     String kind = post.reportType().isPresent() ? "report" : "message";
     threads.insert(
         messageId, threadId, actor.userId(), role.code(), kind, post.reportType(), post.to().code(), post.outletId(),
-        body, voiceNoteId, clientId, Optional.empty(), Optional.of(command.commandId()), now);
+        body, voiceNoteId, clientId, Optional.empty(), Optional.empty(), aboutOutlet(role, kind, post, b),
+        Optional.of(command.commandId()), now);
 
     List<String> reaches =
         switch (post.to()) {
@@ -141,9 +143,22 @@ public class PostMessageHandler implements CommandHandler {
             threadId, messageId, thread.subjectType(), thread.subjectId(), thread.depotCode(), thread.vehicleId(),
             thread.serviceDate(), author, role.code(), kind, post.reportType(), post.to().code(), reaches,
             voiceNoteId.isPresent() ? MessagePolicy.voiceExcerpt(body, post.reportType().isPresent())
-                : MessagePolicy.excerpt(body), now));
+                : MessagePolicy.excerpt(body), now,
+            voiceNoteId, note.flatMap(JdbcThreadRepository.VoiceNote::durationMs),
+            note.map(JdbcThreadRepository.VoiceNote::peaks).orElse(List.of())));
     metrics.increment("waypoint.message.posted", "role", role.code(), "to", post.to().code(), "kind", kind);
     return result(messageId, threadId, false);
+  }
+
+  /**
+   * The stop a report is about: a store's own outlet on this trip, when it has
+   * exactly one. A driver's or a loader's report is about the trip as a whole.
+   */
+  private static Optional<String> aboutOutlet(Role role, String kind, Post post, JdbcThreadRepository.Belonging b) {
+    if (!"report".equals(kind) || role != Role.STORE_MANAGER) {
+      return Optional.empty();
+    }
+    return b.outlets().size() == 1 ? Optional.of(b.outlets().get(0)) : post.outletId();
   }
 
   private static Map<String, Object> result(UUID messageId, UUID threadId, boolean replayed) {

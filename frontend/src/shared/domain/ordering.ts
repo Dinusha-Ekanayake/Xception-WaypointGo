@@ -105,6 +105,8 @@ export type RideAlongView = {
   deliveryDate: IsoDate;
   offered: boolean;
   days: { date: IsoDate; stopsBooked: number }[];
+  /** Each day was checked for room on its trip from the store's usual order (R-ORD-14); false when it could not be. */
+  roomChecked?: boolean;
 };
 
 export type StatusChangeView = {

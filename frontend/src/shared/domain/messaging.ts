@@ -5,6 +5,8 @@ import type { IsoDate, IsoInstant, Uuid } from "./common.ts";
 
 export const MessageCommandKind = {
   post: "message:Post",
+  /** The dispatcher resolves a report (R-MSG-07). */
+  resolve: "message:Resolve",
 } as const;
 
 /** Who a message is for, besides the dispatcher, who reads everything (R-MSG-01). */
@@ -56,6 +58,12 @@ export type MessageView = {
   voiceDurationMs: number | null;
   createdAt: IsoInstant;
   mine: boolean;
+  /** The voice note's waveform, 0 to 100 a bar, as the recording phone measured it; empty when unknown. */
+  voicePeaks: number[];
+  /** A report the dispatcher resolved: when, by whom and why (R-MSG-07). */
+  resolvedAt: IsoInstant | null;
+  resolvedByName: string | null;
+  resolutionNote: string | null;
 };
 
 /** Newest first; nextCursor reads older messages. */
@@ -72,6 +80,8 @@ export type ReportMarkView = {
   authorRole: MemberRole;
   excerpt: string;
   voice: boolean;
+  /** The stop the report is about, when known: its sign is drawn on that stop. */
+  outletId: string | null;
 };
 
 /** GET /api/threads/{id}/members: who the reader may write to. */
@@ -87,3 +97,6 @@ export type PostMessagePayload = {
   voiceNoteId?: Uuid;
   clientMessageId?: Uuid;
 };
+
+/** message:Resolve: the dispatcher marks a report resolved; its sign leaves the timeline. */
+export type ResolveReportPayload = { messageId: Uuid; note?: string };

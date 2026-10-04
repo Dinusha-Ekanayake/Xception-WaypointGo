@@ -4,6 +4,28 @@
 
 ---
 
+## 2026-10-04 - feat: trip drawer, vehicle picker, published plan final at 16:00
+
+`feat/plan-trip-drawer` · @jv-ransika
+
+The trip detail on View plan opens as a side drawer like the order drawer (shared `Drawer`); nothing opens by default. "Move trip to" is a pop-up with a search, filters (All, Free, Refrigerated, Ambient, Van) and each vehicle's trips in the plan (`VehiclePicker.tsx`). Once a day is published the screen shows only that plan: saved candidates, Save snapshot, Regenerate and Compare go. A published plan takes a revision or a trip move until 16:00 depot time on its day, then it is final (R-PLN-43, `PublishedEditWindow`, mirrored as `PUBLISHED_EDIT_CLOSES`). The error pop-up closes on a click outside or Escape, like every other pop-up.
+Why: user review: one detail pattern, no candidates after publish, a findable vehicle list, and the day's plan settles at the cutoff.
+Verified: `PublishedEditWindowTest`, `PlanningDecisionsIntegrationTest`, `PlanningRevisionIntegrationTest`; `npm test` (235), typecheck, build; dispatcher browser suite 59 of 60 (`live-map.spec.ts` flaky as before).
+Open: none new.
+
+---
+
+## 2026-10-04 - feat: one plan view across depots, depot switch in every page header
+
+`feat/dispatcher-figma-screens` · @jv-ransika
+
+The depot scope left the sidebar. It is one switch in the page header of every screen, in the same place, from a shared context (`depotScope.tsx`). Plan is one plan view: "Both" shows both depots' trips and orders together. Each depot keeps its own plan, and each command goes to the plan that holds its order or trip (`data/planRouting.ts`, unit-tested). Plan-wide commands (generate, save, publish, revise) go to each depot's plan in turn. Live's day field stays in the header on every view.
+Why: user review: no second plan window stacked below the first; one switch in one place; Live's day field moved when the view changed.
+Verified: `npm test` (216), `npm run typecheck`, `npm run build`; dispatcher browser suite 56 of 57 (`live-map.spec.ts` flaky on a marker click, as before).
+Open: none new.
+
+---
+
 ## 2026-10-04 - fix: dispatcher UX review fixes (must and should fix)
 
 `feat/dispatcher-figma-screens` · @jv-ransika

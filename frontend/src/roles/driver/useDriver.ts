@@ -1,13 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { newCommand } from "@shared/api/commands";
 import { ApiError } from "@shared/api/problem";
 import { useOnline } from "@shared/api/useResource";
 import type { HandoverEntryResult } from "@shared/domain/receipt";
 import { ExecutionCommandKind, ReceiptCommandKind, type FailureReason, type ReportedVehicleStatus } from "@shared/domain/types";
 import { discardUpload, useSync } from "@shared/offline";
-import { useShell } from "@shared/ui";
+import { useShell, withTransition } from "@shared/ui";
 import { keepTiles, num, tilesFor, type LatLon } from "@shared/ui/map";
 import { createGateway } from "./data/gateway.ts";
 import { queuedSender } from "@shared/messaging/senders";
@@ -65,15 +65,18 @@ export function useDriver(userId: string, depot: string | null = null) {
   // The run's map is kept on the phone while there is a signal, so it still
   // draws in a valley with none (issue #201). Once per run and connection; a
   // tile already kept is answered by the worker without the network.
+  // In stop order, so if the cap cuts, it is the last stops that lose their streets.
   const stopPoints = useMemo(() => {
     const points: LatLon[] = [];
-    for (const outlet of Object.values(run.outlets)) {
+    const ordered = [...run.stops].sort((x, y) => x.sequence - y.sequence).map((stop) => stop.outletId);
+    const ids = [...new Set([...ordered, ...Object.keys(run.outlets)])];
+    for (const outlet of ids.map((id) => run.outlets[id]).filter((o) => o !== undefined)) {
       const lat = num(outlet.location?.latitude);
       const lon = num(outlet.location?.longitude);
       if (lat !== null && lon !== null) points.push({ lat, lon });
     }
     return points;
-  }, [run.outlets]);
+  }, [run.outlets, run.stops]);
   const tileKey = stopPoints.map((p) => `${p.lat},${p.lon}`).join(";");
   useEffect(() => {
     if (!online || tileKey === "") return;
@@ -91,6 +94,10 @@ export function useDriver(userId: string, depot: string | null = null) {
     () => queuedSender({ accountId: userId, role: "driver", online, onQueued: sync.syncNow }),
     [userId, online, sync.syncNow],
   );
+  const nextOutlet = stillToDo ? run.outlets[stillToDo.outletId] : undefined;
+  const nextLat = num(nextOutlet?.location?.latitude);
+  const nextLon = num(nextOutlet?.location?.longitude);
+  const nextPoint: LatLon | null = nextLat !== null && nextLon !== null ? { lat: nextLat, lon: nextLon } : null;
   const location = usePositionRecorder(gateway, run.vehicle?.vehicleId ?? null, stillToDo?.tripId ?? null, stillToDo !== null);
   const [dark, setDark] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -121,11 +128,18 @@ export function useDriver(userId: string, depot: string | null = null) {
     });
   };
 
+  // A stop, its report or the map slides in; Home or the route slides back from them (UX polish 4).
+  const current = useRef(view.name);
+  current.current = view.name;
   const go = useCallback((next: View) => {
-    setError(null);
-    setNotice(null);
-    setView(next);
-    window.scrollTo({ top: 0 });
+    const detail = (name: View["name"]) => name === "stop" || name === "report" || name === "map";
+    const direction = detail(next.name) ? "forward" : (next.name === "home" || next.name === "route") && detail(current.current) ? "back" : "tab";
+    withTransition(() => {
+      setError(null);
+      setNotice(null);
+      setView(next);
+      window.scrollTo({ top: 0 });
+    }, direction);
   }, []);
 
   const { stops, act } = run;
@@ -352,6 +366,7 @@ export function useDriver(userId: string, depot: string | null = null) {
     reportStatus,
     postMessage,
     tripId: (stillToDo ?? run.stops[run.stops.length - 1])?.tripId ?? null,
+    nextPoint,
     verifyHandover,
     dropUpload,
     openProblem: (target: Stop | "run") => setProblemFor(target),

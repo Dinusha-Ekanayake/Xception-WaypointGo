@@ -4,6 +4,44 @@
 
 ---
 
+## 2026-10-04 - feat: usability round 2, plain words, field errors, accessibility and dispatcher search
+
+`feat/usability-round2` · @Dinusha-Ekanayake
+
+From [UX-PLAN.md](../../ux/UX-PLAN.md) section 8, frontend only (no backend or API change):
+- Words: one `friendlyError` for network and server failures instead of raw messages; a refusal shows the rule's name (`ruleLabel`), the id behind Details; the error page says what happened, not a status code; pending changes are named; the admin screens show no raw dates, codes or ids.
+- Forms: an error sits under its field and is announced with it (store issue report, profile, store details; driver delivery report; dispatcher issue reason; loader PIN).
+- Access: small dispatcher controls reach 40 px without looking bigger; the sync pill announces a change of state, not the clock; pending and held counts are announced; the review dialog and the trip thread trap focus and close with Escape; a skip link; the last buttons show busy; notification lists and the driver's first screen show placeholder rows.
+- Search: the dispatcher's header search (`/`, Ctrl+K) over the day's loaded orders, vehicles, trips, issues and depots (Figma has a search; the README departure is updated).
+Why: people saw codes and server text, a form did not say which field was wrong, and small targets were hard to hit.
+Not done: the console's 404s for "nothing yet" need the endpoints to answer 204, a backend change left to the module owners.
+Verified: see the PR.
+
+---
+
+## 2026-10-04 - feat: UX polish 3 to 5 of 5, feedback, screen transitions, pinned actions and undo
+
+`feat/ux-polish-feedback` · @Dinusha-Ekanayake
+
+From [UX-PLAN.md](../../ux/UX-PLAN.md) section 7, the last three parts:
+- Feedback: every button gives under a press; a command in flight shows a spinner and "Sending…" (`busy` on each role's buttons); a loader line cannot be ticked twice while its tick is sending; loading lists show placeholder rows (`SkeletonRows`); errors offer "Try again" (`Notice` `onRetry`); a count badge pops when it rises; no transition is longer than 250 ms.
+- Transitions: screen changes crossfade, and a detail slides in and back out (`withTransition`, the View Transitions API, instant without it or under reduced motion). The trip, the stop and the next delivery move from list to detail.
+- Actions: the driver's Confirm and Save proof and the store's receipt submit stay pinned on phones (README departure); a cleared signature can be undone for 5 s (`useUndo`; the voice-note undo was dropped in favour of the new voice UI on `dev`); the dispatcher's sidebar starts as the rail below 1280 px until the dispatcher chooses.
+Why: taps gave no sign of work, loading and errors left no next step, and long phone forms hid their button.
+Verified: see the PR. On the VPS preview data: the sidebar is 84 px at 1100 and 260 px at 1440; store tabs crossfade and Track slides forward; no horizontal scroll in any role. `npm test` 231; all five browser suites (the forecast countdown is the known flaky test, 28 of 28 on repeat).
+
+---
+
+## 2026-10-04 - feat: UX polish 2 of 5, every screen keeps its place
+
+`feat/ux-polish-state` · @Dinusha-Ekanayake
+
+From [UX-PLAN.md](../../ux/UX-PLAN.md) section 7: tabs, filters and searches that were lost when a screen unmounted are kept for the browser tab and the signed-in account (`usePersistentState`), in dispatcher Orders, Live, Issues, the plan board filter and the fleet table, the loader's board filter and the store's Orders and Deliveries. Scroll position comes back on return (`useScrollMemory`): dispatcher screens and its fleet table, store tabs, the loader's board, the driver's home and route lists; a form or detail opens at the top. The store's top-level tab is not kept across a reload, so a reload still opens Home.
+Why: going to Overview and back reset the dispatcher's filters and scroll; the store kept the last tab's offset on a new tab.
+Verified: see the PR. On the VPS preview data: the store's Orders list comes back at 500 px with its filter, Home opens at the top; the dispatcher's fleet table comes back at 700 px at 1440 and 390 px. `npm test` 227; all five browser suites, with new kept-state specs for dispatcher and store.
+
+---
+
 ## 2026-10-04 - feat: UX polish 1 of 5, one motion and one overlay behaviour in every role
 
 `feat/ux-polish-motion` · @Dinusha-Ekanayake

@@ -59,7 +59,7 @@ test("with no signal a typed message is kept on the phone and sent when the sign
   await server.goOffline(context);
   await expect(screen.getByText(/No signal\. What you write or record is kept on this phone/)).toBeVisible();
   // A voice note is kept with no signal too (voice.spec.ts).
-  await expect(screen.getByRole("button", { name: "Voice" })).toBeEnabled();
+  await expect(screen.getByRole("button", { name: "Hold to record a voice note" })).toBeEnabled();
   await screen.getByRole("textbox", { name: "Message" }).fill("Signal gone near Deniyaya");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
   await expect(screen.getByText("Saved on this device. It sends when the connection returns.")).toBeVisible();
@@ -68,4 +68,86 @@ test("with no signal a typed message is kept on the phone and sent when the sign
 
   await server.goOnline(context);
   await expect.poll(() => server.commands.find((c) => c.kind === "message:Post")?.payload.body).toBe("Signal gone near Deniyaya");
+});
+
+/** Half a second of a quiet tone, as a WAV file the browser can play and decode. */
+function wav(): Buffer {
+  const rate = 8000, n = 4000, data = Buffer.alloc(n * 2);
+  for (let i = 0; i < n; i++) data.writeInt16LE(Math.round(Math.sin(i / 6) * 8000 * (i / n)), i * 2);
+  const head = Buffer.alloc(44);
+  head.write("RIFF", 0); head.writeUInt32LE(36 + data.length, 4); head.write("WAVE", 8); head.write("fmt ", 12);
+  head.writeUInt32LE(16, 16); head.writeUInt16LE(1, 20); head.writeUInt16LE(1, 22); head.writeUInt32LE(rate, 24);
+  head.writeUInt32LE(rate * 2, 28); head.writeUInt16LE(2, 32); head.writeUInt16LE(16, 34); head.write("data", 36);
+  head.writeUInt32LE(data.length, 40);
+  return Buffer.concat([head, data]);
+}
+
+test("a voice message under the driver's notifications plays the voice itself, never text to speech", async ({ page }) => {
+  const server = await serve(page);
+  server.threads = [tripThread(TRIP, "VEH043", ["OUT0101"], "driver")];
+  server.notifications = [
+    {
+      notificationId: "n-voice", eventType: "message.posted", title: "Dinusha Bawantha · VEH043", body: "Voice message",
+      subjectType: "thread", subjectId: `thread-${TRIP}`, createdAt: new Date().toISOString(), readAt: null,
+      facts: { voiceNoteId: "voice-1", voiceDurationMs: "500", voicePeaks: "20,60,100,40" },
+    } as never,
+  ];
+  await page.route(`**/api/threads/thread-${TRIP}/voice/voice-1`, (route) => route.fulfill({ status: 200, contentType: "audio/wav", body: wav() }));
+  await page.goto("/");
+
+  // The top bar carries Messages as an icon, with the count of new ones.
+  await expect(page.getByRole("button", { name: "Messages, 1 new" })).toBeVisible();
+
+  const note = page.getByRole("group", { name: /^Voice message from/ });
+  await expect(note).toBeVisible();
+  await expect(note.locator("[role=slider] > span")).toHaveCount(4);
+  await note.getByRole("button", { name: "Play", exact: true }).click();
+  await expect(note.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
+  // The position moves with the audio, then rests at the start when it ends.
+  await expect(note.getByRole("button", { name: "Play", exact: true })).toBeVisible({ timeout: 4000 });
+  const spoke = await page.evaluate(() => (window.speechSynthesis ? window.speechSynthesis.speaking : false));
+  expect(spoke).toBe(false);
+});
+
+test("a voice message replays after it ends, and starting another note is not a failure", async ({ page }) => {
+  const server = await serve(page);
+  server.threads = [tripThread(TRIP, "VEH043", ["OUT0101"], "driver")];
+  const note = (id: string) => ({
+    notificationId: `n-${id}`, eventType: "message.posted", title: "Dinusha Bawantha · VEH043", body: "Voice message",
+    subjectType: "thread", subjectId: `thread-${TRIP}`, createdAt: new Date().toISOString(), readAt: null,
+    facts: { voiceNoteId: id, voiceDurationMs: "500" },
+  });
+  server.notifications = [note("voice-1"), note("voice-2")] as never;
+  // Served with byte ranges, as the backend now does.
+  await page.route(`**/api/threads/thread-${TRIP}/voice/*`, (route) => {
+    const body = wav();
+    const range = /bytes=(\d+)-(\d*)/.exec(route.request().headers()["range"] ?? "");
+    if (!range) return route.fulfill({ status: 200, contentType: "audio/wav", headers: { "accept-ranges": "bytes" }, body });
+    const from = Number(range[1]);
+    const to = range[2] ? Number(range[2]) : body.length - 1;
+    return route.fulfill({
+      status: 206, contentType: "audio/wav", body: body.subarray(from, to + 1),
+      headers: { "accept-ranges": "bytes", "content-range": `bytes ${from}-${to}/${body.length}` },
+    });
+  });
+  await page.goto("/");
+  const notes = page.getByRole("group", { name: /^Voice message from/ });
+  await expect(notes).toHaveCount(2);
+  const first = notes.nth(0);
+  const play = first.getByRole("button", { name: "Play", exact: true });
+
+  await play.click();
+  await expect(first.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
+  await expect(play).toBeVisible({ timeout: 4000 });
+  // Played through once; it plays again.
+  await play.click();
+  await expect(first.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
+  await expect(play).toBeVisible({ timeout: 4000 });
+  await expect(first).not.toContainText("Could not play");
+
+  // Starting the second note while the first plays stops the first, without calling it a failure.
+  await play.click();
+  await notes.nth(1).getByRole("button", { name: "Play", exact: true }).click();
+  await expect(notes.nth(1).getByRole("button", { name: "Pause", exact: true })).toBeVisible();
+  await expect(first).not.toContainText("Could not play");
 });

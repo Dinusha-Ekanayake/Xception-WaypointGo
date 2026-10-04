@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { ApiError } from "@shared/api/problem";
 import { Notice } from "@shared/ui";
+import { ruleLabel } from "@shared/wording";
 
 /**
  * Why a read or a command failed, in the server's own words, with every rule it
@@ -66,7 +67,7 @@ export default function Refusal({ error, what, action }: { error: Error; what: s
         <span className="mt-1.5 flex flex-col gap-1">
           {explained.map((violation, index) => (
             <span key={`${violation.rule}-${index}`} className="flex gap-2">
-              <code className="shrink-0 text-[11px] font-medium">{violation.rule}</code>
+              <span className="shrink-0 text-[11px] font-medium">{ruleLabel(violation.rule)}</span>
               <span>{violation.message}</span>
             </span>
           ))}
@@ -75,11 +76,23 @@ export default function Refusal({ error, what, action }: { error: Error; what: s
       {rules.length > 0 && (
         <span className="mt-1.5 flex flex-wrap gap-1.5">
           {rules.map((rule) => (
-            <code key={rule} className="rounded-go-chip bg-white px-1.5 py-0.5 text-[11px] font-medium">
-              {rule}
-            </code>
+            <span key={rule} className="rounded-go-chip bg-white px-1.5 py-0.5 text-[11px] font-medium">
+              {ruleLabel(rule)}
+            </span>
           ))}
         </span>
+      )}
+      {rules.length > 0 && (
+        <details className="mt-1.5 text-[11px]">
+          <summary className="cursor-pointer text-go-secondary">Details for support</summary>
+          <span className="mt-1 flex flex-wrap gap-1.5">
+            {rules.map((rule) => (
+              <code key={rule} className="rounded-go-chip bg-white px-1.5 py-0.5 font-medium">
+                {rule}
+              </code>
+            ))}
+          </span>
+        </details>
       )}
     </Notice>
   );

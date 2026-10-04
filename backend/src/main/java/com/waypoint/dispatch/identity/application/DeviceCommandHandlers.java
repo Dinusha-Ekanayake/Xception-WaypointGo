@@ -55,7 +55,7 @@ public class DeviceCommandHandlers {
       @Override
       public Object handle(Actor actor, Command command) {
         UUID deviceId = CommandPayload.of(command).uuid("deviceId");
-        int revoked = devices.applyRetire(actor, deviceId, command.expectedVersion(), clock.now());
+        int revoked = devices.applyRetire(actor, deviceId, command.expectedVersion(), clock.realTime().now());
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("deviceId", deviceId.toString());
         result.put("sessionsRevoked", revoked);

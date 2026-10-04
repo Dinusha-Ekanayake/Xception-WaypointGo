@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Icon, ShellActions, cx, type IconName } from "@shared/ui";
+import { Icon, Popover, ShellActions, cx, type IconName } from "@shared/ui";
 import { CreateMemberModal, type NewMember } from "./AdminAccessFlows";
 import { Badge, Modal, card, field, primary, secondary } from "./components";
 import { freshState } from "./fixtures";
@@ -16,12 +16,13 @@ import { ActionsScreen } from "./RoleActionScreens";
 import { AuditConsole } from "./audit/AuditConsole";
 import { SystemConstraintsScreen } from "./SystemConstraintsScreen";
 import AssistantsConsole from "../assistants/AssistantsConsole";
+import DemoControlRoom from "../demo/DemoControlRoom";
 import { fetchRoles, fetchActions } from "../data/access";
-import { fetchAccounts, fetchAccount, accountToMember, submitCreateUser, submitGrantScope } from "../data/accounts";
+import { fetchAccounts, fetchAccount, accountToMember, submitCreateUser, submitGrantScope, submitUpdateUser } from "../data/accounts";
 import type { RoleView, ActionView } from "@shared/domain/identity";
 import "./access-demo.css";
 
-type Tab = "people" | "personas" | "actions" | "catalogue" | "history" | "audit" | "assistants" | "forecasts" | "vehicles" | "depots" | "outlets" | "orders" | "trips" | "trips_planned" | "trips_live" | "constraints";
+type Tab = "people" | "personas" | "actions" | "catalogue" | "history" | "audit" | "assistants" | "forecasts" | "vehicles" | "depots" | "outlets" | "orders" | "trips" | "trips_planned" | "trips_live" | "constraints" | "demo";
 type Route = { tab: Tab; member: string | null; persona: Persona | null };
 type Draft = { target: "member" | "persona"; id: string; action: string; choice: Decision; reason: string; place: string; expires: string; stage: "edit" | "review" };
 type Details = { capability: Capability; member?: Member; persona?: Persona };
@@ -39,7 +40,7 @@ const DEFAULT_ADMIN: Member = {
 function routeFromHash(): Route {
   if (typeof window === "undefined") return { tab: "people", member: null, persona: null };
   const [rawTab, id] = window.location.hash.replace(/^#\/?/, "").split("/");
-  const tab: Tab = rawTab === "roles" ? "personas" : (rawTab === "personas" || rawTab === "actions" || rawTab === "catalogue" || rawTab === "history" || rawTab === "audit" || rawTab === "assistants" || rawTab === "forecasts" || rawTab === "vehicles" || rawTab === "depots" || rawTab === "outlets" || rawTab === "orders" || rawTab === "trips" || rawTab === "trips_planned" || rawTab === "trips_live" || rawTab === "constraints" ? rawTab : "people");
+  const tab: Tab = rawTab === "roles" ? "personas" : (rawTab === "personas" || rawTab === "actions" || rawTab === "catalogue" || rawTab === "history" || rawTab === "audit" || rawTab === "assistants" || rawTab === "forecasts" || rawTab === "vehicles" || rawTab === "depots" || rawTab === "outlets" || rawTab === "orders" || rawTab === "trips" || rawTab === "trips_planned" || rawTab === "trips_live" || rawTab === "constraints" || rawTab === "demo" ? rawTab : "people");
   return { tab, member: tab === "people" && id || null, persona: tab === "personas" && PERSONAS.some((item) => item.id === id && item.id !== "super_admin") ? id as Persona : null };
 }
 
@@ -53,17 +54,18 @@ const NAV: Array<{ tab: Tab; label: string; icon: IconName; also?: Tab[] }> = [
   { tab: "forecasts", label: "Forecasts", icon: "chart-line" },
   { tab: "audit", label: "Audit console", icon: "grid" },
   { tab: "constraints", label: "System constraints", icon: "permission-list" },
+  { tab: "demo", label: "Demo control room", icon: "live" },
 ];
 
 const PEOPLE_NAV: Array<{ tab: Tab; label: string; icon: IconName }> = [
-  { tab: "personas", label: "Personas", icon: "switch-user" },
-  { tab: "actions", label: "Actions", icon: "check" },
+  { tab: "personas", label: "Personas", icon: "persona" },
+  { tab: "actions", label: "Actions", icon: "bolt" },
   { tab: "catalogue", label: "Permission catalogue", icon: "permission-list" },
   { tab: "history", label: "Change history", icon: "history" },
 ];
 const PEOPLE_TABS: Tab[] = ["people", "personas", "actions", "catalogue", "history"];
 const TRIPS_NAV: Array<{ tab: Tab; label: string; icon: IconName }> = [
-  { tab: "trips_planned", label: "Planned trips", icon: "plan" },
+  { tab: "trips_planned", label: "Planned trips", icon: "calendar" },
   { tab: "trips_live", label: "Live trips", icon: "live" },
 ];
 const TRIPS_TABS: Tab[] = ["trips", "trips_planned", "trips_live"];
@@ -76,6 +78,7 @@ const TITLES: Record<Tab, [string, string]> = {
   audit: ["Audit console", "Review access changes across the operation."],
   constraints: ["System constraints", "Review and schedule operational rules."],
   assistants: ["AI assistants", "Review connected assistant apps, their activity, and access."],
+  demo: ["Demo control room", "Run the live demo: demo clock, demo day, accounts and the path through every role."],
   forecasts: ["Forecasts", "See order demand and fleet needs."],
   vehicles: ["Vehicles", "Review fleet by depot and day status."],
   depots: ["Operating depots", "Operational hub assignments connecting people, vehicle fleet capacity, and served retail outlets."],
@@ -85,8 +88,32 @@ const TITLES: Record<Tab, [string, string]> = {
 };
 
 const initials = (name: string) => name.trim().split(/\s+/).filter(Boolean).map((part) => part[0]).slice(0, 2).join("").toUpperCase() || "?";
+const FOLDED_KEY = "wp.admin.sidebar.folded";
+
+/** Whether the sidebar is folded to the rail, remembered on this device only. */
+export function useFolded(): [boolean, (folded: boolean) => void] {
+  const [folded, setFolded] = useState(false);
+  useEffect(() => {
+    try {
+      setFolded(window.localStorage.getItem(FOLDED_KEY) === "1");
+    } catch {
+      // Storage refused (private window): the sidebar starts open.
+    }
+  }, []);
+  const set = (next: boolean) => {
+    setFolded(next);
+    try {
+      window.localStorage.setItem(FOLDED_KEY, next ? "1" : "0");
+    } catch {
+      // Not remembered, still applied.
+    }
+  };
+  return [folded, set];
+}
 
 export default function AccessDemo({ userId, displayName = "Administrator" }: { userId?: string; displayName?: string }) {
+  const [folded, setFolded] = useFolded();
+  const rail = folded;
   const [state, setState] = useState<DemoState>(freshState);
   const [route, setRoute] = useState<Route>({ tab: "people", member: null, persona: null });
   const [peopleOpen, setPeopleOpen] = useState(false);
@@ -101,6 +128,11 @@ export default function AccessDemo({ userId, displayName = "Administrator" }: { 
   const [draft, setDraft] = useState<Draft | null>(null);
   const [toast, setToast] = useState("");
   const [pendingCreation, setPendingCreation] = useState<{ email: string; userId: string } | null>(null);
+  const [editingMember, setEditingMember] = useState<Member | null>(null);
+  const [memberName, setMemberName] = useState("");
+  const [memberEmail, setMemberEmail] = useState("");
+  const [memberError, setMemberError] = useState("");
+  const [memberSaving, setMemberSaving] = useState(false);
   const viewer = "admin" as "admin" | "super_admin";
   useEffect(() => { const sync = () => { const next = routeFromHash(); setRoute(next); setPeopleOpen(PEOPLE_TABS.includes(next.tab)); setTripsOpen(TRIPS_TABS.includes(next.tab)); }; sync(); window.addEventListener("hashchange", sync); return () => window.removeEventListener("hashchange", sync); }, []);
 
@@ -143,8 +175,23 @@ export default function AccessDemo({ userId, displayName = "Administrator" }: { 
   const navigate = (tab: Tab, id?: string | null) => { window.location.hash = `${tab}${id ? `/${id}` : ""}`; setRoute({ tab, member: tab === "people" ? id ?? null : null, persona: tab === "personas" ? id as Persona ?? null : null }); setPeopleOpen(PEOPLE_TABS.includes(tab)); setTripsOpen(TRIPS_TABS.includes(tab)); };
   const showDetails = (capability: Capability, member?: Member, persona?: Persona) => setDetails({ capability, member, persona });
 
-  function openEditor() {
+  function openEditor(_capability?: Capability, member?: Member) {
+    if (member?.source === "live" && member.rowVersion !== undefined) {
+      setEditingMember(member); setMemberName(member.name); setMemberEmail(member.email); setMemberError(""); return;
+    }
     setToast("Permission editing is unavailable until policy attachments and versioned commands are exposed by the server.");
+  }
+
+  async function saveMember() {
+    if (!editingMember || editingMember.rowVersion === undefined) return;
+    setMemberSaving(true); setMemberError("");
+    try {
+      await submitUpdateUser({ userId: editingMember.id, displayName: memberName.trim(), email: memberEmail.trim(), expectedVersion: editingMember.rowVersion });
+      const refreshed = accountToMember(await fetchAccount(editingMember.id));
+      setState((current) => ({ ...current, members: current.members.map((member) => member.id === refreshed.id ? refreshed : member) }));
+      setEditingMember(null); setToast("Member details updated.");
+    } catch (failure) { setMemberError(failure instanceof Error ? failure.message : "Could not update member."); }
+    finally { setMemberSaving(false); }
   }
 
   const draftMember = draft?.target === "member" ? state.members.find((item) => item.id === draft.id) : undefined;
@@ -214,66 +261,231 @@ export default function AccessDemo({ userId, displayName = "Administrator" }: { 
     return null;
   }
 
-  const navItem = (item: (typeof NAV)[number], compact: boolean) => {
+  const navItem = (item: (typeof NAV)[number], compact: boolean, rail: boolean) => {
     const active = route.tab === item.tab || !!item.also?.includes(route.tab);
-    return <a key={item.tab} href={`#${item.tab}`} aria-current={active ? "page" : undefined}
-      onClick={(event) => { event.preventDefault(); navigate(item.tab); }}
-      className={compact
-        ? cx("flex min-h-11 shrink-0 items-center gap-2 rounded-full px-3.5 text-[15px] text-go-ink", active ? "bg-go-mint font-medium" : "bg-go-subtle")
-        : cx("flex w-full items-center gap-3 rounded-go-card-l px-3.5 py-2.5 text-[15px] text-go-ink", active ? "bg-go-mint font-medium" : "hover:bg-go-subtle")}>
-      <Icon name={item.icon} /><span className="min-w-0 flex-1">{item.label}</span>
-    </a>;
+    if (compact) {
+      return (
+        <a key={item.tab} href={`#${item.tab}`} aria-current={active ? "page" : undefined}
+          onClick={(event) => { event.preventDefault(); navigate(item.tab); }}
+          className={cx("flex min-h-11 shrink-0 items-center gap-2 rounded-full px-3.5 text-[15px] text-go-ink", active ? "bg-go-mint font-medium" : "bg-go-subtle")}>
+          <Icon name={item.icon} /><span className="min-w-0 flex-1">{item.label}</span>
+        </a>
+      );
+    }
+    if (rail) {
+      return (
+        <a
+          key={item.tab}
+          href={`#${item.tab}`}
+          aria-current={active ? "page" : undefined}
+          aria-label={item.label}
+          title={item.label}
+          onClick={(event) => { event.preventDefault(); navigate(item.tab); }}
+          className={cx(
+            "relative flex size-12 items-center justify-center rounded-go-card text-base text-go-ink",
+            active ? "bg-go-mint font-medium" : "hover:bg-go-subtle",
+          )}
+        >
+          <Icon name={item.icon} />
+        </a>
+      );
+    }
+    return (
+      <a key={item.tab} href={`#${item.tab}`} aria-current={active ? "page" : undefined}
+        onClick={(event) => { event.preventDefault(); navigate(item.tab); }}
+        className={cx("flex w-full items-center gap-3 rounded-go-card-l px-3.5 py-2.5 text-[15px] text-go-ink", active ? "bg-go-mint font-medium" : "hover:bg-go-subtle")}>
+        <Icon name={item.icon} /><span className="min-w-0 flex-1">{item.label}</span>
+      </a>
+    );
   };
 
-  const peopleNav = (compact: boolean) => <>
-    <button type="button" aria-expanded={peopleOpen} onClick={() => { if (peopleOpen) setPeopleOpen(false); else navigate("people"); }}
-      className={compact
-        ? cx("flex min-h-11 shrink-0 items-center gap-2 rounded-full px-3.5 text-[15px] text-go-ink", PEOPLE_TABS.includes(route.tab) ? "bg-go-mint font-medium" : "bg-go-subtle")
-        : cx("flex w-full items-center gap-3 rounded-go-card-l px-3.5 py-2.5 text-[15px] text-go-ink", PEOPLE_TABS.includes(route.tab) ? "bg-go-mint font-medium" : "hover:bg-go-subtle")}>
-      <Icon name="users" /><span className="min-w-0 flex-1 text-left">People</span><span className={cx("inline-flex size-3.5 transition-transform", !peopleOpen && "-rotate-90")}><Icon name="chevron-down" /></span>
-    </button>
-    {peopleOpen && <div className={compact ? "flex gap-1.5" : "ml-5 flex flex-col gap-1 border-l border-go-rule pl-3"}>
-      {PEOPLE_NAV.map((item) => <a key={item.tab} href={`#${item.tab}`} aria-current={route.tab === item.tab ? "page" : undefined}
-        onClick={(event) => { event.preventDefault(); navigate(item.tab); }}
-        className={compact
-          ? cx("flex min-h-11 shrink-0 items-center gap-2 rounded-full px-3.5 text-sm text-go-ink", route.tab === item.tab ? "bg-go-mint font-medium" : "bg-go-subtle")
-          : cx("flex w-full items-center gap-3 rounded-go-card-l px-3 py-2 text-sm text-go-ink", route.tab === item.tab ? "bg-go-mint font-medium" : "hover:bg-go-subtle")}>
-        <Icon name={item.icon} /><span className="min-w-0 flex-1">{item.label}</span>
-      </a>)}
-    </div>}
-  </>;
+  const peopleNav = (compact: boolean, rail: boolean) => {
+    if (compact) {
+      return <>
+        <button type="button" aria-expanded={peopleOpen} onClick={() => { if (peopleOpen) setPeopleOpen(false); else navigate("people"); }}
+          className={cx("flex min-h-11 shrink-0 items-center gap-2 rounded-full px-3.5 text-[15px] text-go-ink", PEOPLE_TABS.includes(route.tab) ? "bg-go-mint font-medium" : "bg-go-subtle")}>
+          <Icon name="users" /><span className="min-w-0 flex-1 text-left">People</span><span className={cx("inline-flex size-3.5 transition-transform", !peopleOpen && "-rotate-90")}><Icon name="chevron-down" /></span>
+        </button>
+        {peopleOpen && <div className="flex gap-1.5">
+          {PEOPLE_NAV.map((item) => <a key={item.tab} href={`#${item.tab}`} aria-current={route.tab === item.tab ? "page" : undefined}
+            onClick={(event) => { event.preventDefault(); navigate(item.tab); }}
+            className={cx("flex min-h-11 shrink-0 items-center gap-2 rounded-full px-3.5 text-sm text-go-ink", route.tab === item.tab ? "bg-go-mint font-medium" : "bg-go-subtle")}>
+            <Icon name={item.icon} /><span className="min-w-0 flex-1">{item.label}</span>
+          </a>)}
+        </div>}
+      </>;
+    }
+    if (rail) {
+      return (
+        <Popover
+          label="People & access"
+          side="right"
+          className={cx(
+            "relative flex size-12 items-center justify-center rounded-go-card text-base text-go-ink",
+            PEOPLE_TABS.includes(route.tab) ? "bg-go-mint font-medium" : "hover:bg-go-subtle",
+          )}
+          trigger={<Icon name="users" />}
+          panelClassName="flex w-52 flex-col gap-1 p-2"
+        >
+          {(close) => (
+            <>
+              <p className="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-go-secondary">People & access</p>
+              <a
+                href="#people"
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigate("people");
+                  close();
+                }}
+                className={cx("flex items-center gap-2.5 rounded-go-card-s px-3 py-2 text-sm text-go-ink", route.tab === "people" ? "bg-go-mint font-medium" : "hover:bg-go-subtle")}
+              >
+                <Icon name="users" /> <span className="min-w-0 flex-1">People</span>
+              </a>
+              {PEOPLE_NAV.map((sub) => (
+                <a
+                  key={sub.tab}
+                  href={`#${sub.tab}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    navigate(sub.tab);
+                    close();
+                  }}
+                  className={cx("flex items-center gap-2.5 rounded-go-card-s px-3 py-2 text-sm text-go-ink", route.tab === sub.tab ? "bg-go-mint font-medium" : "hover:bg-go-subtle")}
+                >
+                  <Icon name={sub.icon} /> <span className="min-w-0 flex-1">{sub.label}</span>
+                </a>
+              ))}
+            </>
+          )}
+        </Popover>
+      );
+    }
+    return <>
+      <button type="button" aria-expanded={peopleOpen} onClick={() => { if (peopleOpen) setPeopleOpen(false); else navigate("people"); }}
+        className={cx("flex w-full items-center gap-3 rounded-go-card-l px-3.5 py-2.5 text-[15px] text-go-ink", PEOPLE_TABS.includes(route.tab) ? "bg-go-mint font-medium" : "hover:bg-go-subtle")}>
+        <Icon name="users" /><span className="min-w-0 flex-1 text-left">People</span><span className={cx("inline-flex size-3.5 transition-transform", !peopleOpen && "-rotate-90")}><Icon name="chevron-down" /></span>
+      </button>
+      {peopleOpen && <div className="ml-5 flex flex-col gap-1 border-l border-go-rule pl-3">
+        {PEOPLE_NAV.map((item) => <a key={item.tab} href={`#${item.tab}`} aria-current={route.tab === item.tab ? "page" : undefined}
+          onClick={(event) => { event.preventDefault(); navigate(item.tab); }}
+          className={cx("flex w-full items-center gap-3 rounded-go-card-l px-3 py-2 text-sm text-go-ink", route.tab === item.tab ? "bg-go-mint font-medium" : "hover:bg-go-subtle")}>
+          <Icon name={item.icon} /><span className="min-w-0 flex-1">{item.label}</span>
+        </a>)}
+      </div>}
+    </>;
+  };
 
-  const tripsNav = (compact: boolean) => <>
-    <button type="button" aria-expanded={tripsOpen} onClick={() => { if (tripsOpen) setTripsOpen(false); else navigate("trips_planned"); }}
-      className={compact
-        ? cx("flex min-h-11 shrink-0 items-center gap-2 rounded-full px-3.5 text-[15px] text-go-ink", TRIPS_TABS.includes(route.tab) ? "bg-go-mint font-medium" : "bg-go-subtle")
-        : cx("flex w-full items-center gap-3 rounded-go-card-l px-3.5 py-2.5 text-[15px] text-go-ink", TRIPS_TABS.includes(route.tab) ? "bg-go-mint font-medium" : "hover:bg-go-subtle")}>
-      <Icon name="plan" /><span className="min-w-0 flex-1 text-left">Trips</span><span className={cx("inline-flex size-3.5 transition-transform", !tripsOpen && "-rotate-90")}><Icon name="chevron-down" /></span>
-    </button>
-    {tripsOpen && <div className={compact ? "flex gap-1.5" : "ml-5 flex flex-col gap-1 border-l border-go-rule pl-3"}>
-      {TRIPS_NAV.map((item) => <a key={item.tab} href={`#${item.tab}`} aria-current={route.tab === item.tab ? "page" : undefined}
-        onClick={(event) => { event.preventDefault(); navigate(item.tab); }}
-        className={compact
-          ? cx("flex min-h-11 shrink-0 items-center gap-2 rounded-full px-3.5 text-sm text-go-ink", route.tab === item.tab ? "bg-go-mint font-medium" : "bg-go-subtle")
-          : cx("flex w-full items-center gap-3 rounded-go-card-l px-3 py-2 text-sm text-go-ink", route.tab === item.tab ? "bg-go-mint font-medium" : "hover:bg-go-subtle")}>
-        <Icon name={item.icon} /><span className="min-w-0 flex-1">{item.label}</span>
-      </a>)}
-    </div>}
-  </>;
+  const tripsNav = (compact: boolean, rail: boolean) => {
+    if (compact) {
+      return <>
+        <button type="button" aria-expanded={tripsOpen} onClick={() => { if (tripsOpen) setTripsOpen(false); else navigate("trips_planned"); }}
+          className={cx("flex min-h-11 shrink-0 items-center gap-2 rounded-full px-3.5 text-[15px] text-go-ink", TRIPS_TABS.includes(route.tab) ? "bg-go-mint font-medium" : "bg-go-subtle")}>
+          <Icon name="plan" /><span className="min-w-0 flex-1 text-left">Trips</span><span className={cx("inline-flex size-3.5 transition-transform", !tripsOpen && "-rotate-90")}><Icon name="chevron-down" /></span>
+        </button>
+        {tripsOpen && <div className="flex gap-1.5">
+          {TRIPS_NAV.map((item) => <a key={item.tab} href={`#${item.tab}`} aria-current={route.tab === item.tab ? "page" : undefined}
+            onClick={(event) => { event.preventDefault(); navigate(item.tab); }}
+            className={cx("flex min-h-11 shrink-0 items-center gap-2 rounded-full px-3.5 text-sm text-go-ink", route.tab === item.tab ? "bg-go-mint font-medium" : "bg-go-subtle")}>
+            <Icon name={item.icon} /><span className="min-w-0 flex-1">{item.label}</span>
+          </a>)}
+        </div>}
+      </>;
+    }
+    if (rail) {
+      return (
+        <Popover
+          label="Trips & execution"
+          side="right"
+          className={cx(
+            "relative flex size-12 items-center justify-center rounded-go-card text-base text-go-ink",
+            TRIPS_TABS.includes(route.tab) ? "bg-go-mint font-medium" : "hover:bg-go-subtle",
+          )}
+          trigger={<Icon name="plan" />}
+          panelClassName="flex w-48 flex-col gap-1 p-2"
+        >
+          {(close) => (
+            <>
+              <p className="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-go-secondary">Trips & execution</p>
+              {TRIPS_NAV.map((sub) => (
+                <a
+                  key={sub.tab}
+                  href={`#${sub.tab}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    navigate(sub.tab);
+                    close();
+                  }}
+                  className={cx("flex items-center gap-2.5 rounded-go-card-s px-3 py-2 text-sm text-go-ink", route.tab === sub.tab ? "bg-go-mint font-medium" : "hover:bg-go-subtle")}
+                >
+                  <Icon name={sub.icon} /> <span className="min-w-0 flex-1">{sub.label}</span>
+                </a>
+              ))}
+            </>
+          )}
+        </Popover>
+      );
+    }
+    return <>
+      <button type="button" aria-expanded={tripsOpen} onClick={() => { if (tripsOpen) setTripsOpen(false); else navigate("trips_planned"); }}
+        className={cx("flex w-full items-center gap-3 rounded-go-card-l px-3.5 py-2.5 text-[15px] text-go-ink", TRIPS_TABS.includes(route.tab) ? "bg-go-mint font-medium" : "hover:bg-go-subtle")}>
+        <Icon name="plan" /><span className="min-w-0 flex-1 text-left">Trips</span><span className={cx("inline-flex size-3.5 transition-transform", !tripsOpen && "-rotate-90")}><Icon name="chevron-down" /></span>
+      </button>
+      {tripsOpen && <div className="ml-5 flex flex-col gap-1 border-l border-go-rule pl-3">
+        {TRIPS_NAV.map((item) => <a key={item.tab} href={`#${item.tab}`} aria-current={route.tab === item.tab ? "page" : undefined}
+          onClick={(event) => { event.preventDefault(); navigate(item.tab); }}
+          className={cx("flex w-full items-center gap-3 rounded-go-card-l px-3 py-2 text-sm text-go-ink", route.tab === item.tab ? "bg-go-mint font-medium" : "hover:bg-go-subtle")}>
+          <Icon name={item.icon} /><span className="min-w-0 flex-1">{item.label}</span>
+        </a>)}
+      </div>}
+    </>;
+  };
 
   return <main aria-label="Admin workspace" className="access-demo flex min-h-dvh w-full flex-col bg-go-canvas font-go text-go-ink lg:h-dvh lg:flex-row">
-    <aside className="hidden h-full w-[260px] shrink-0 flex-col gap-1 overflow-y-auto bg-white px-5 pt-7 pb-6 lg:flex">
-      <div className="flex items-center gap-2.5 px-2 pb-5">
-        <span className="text-[34px] font-extrabold text-go-ink">GO</span>
-        <span className="rounded-full bg-go-mint px-2.5 py-1 text-[13px] font-medium text-go-ink">Admin</span>
+    <aside className={cx("hidden h-full shrink-0 flex-col bg-white pt-7 pb-6 lg:flex", rail ? "w-[84px] items-center gap-[5px] px-3 overflow-y-auto" : "w-[260px] gap-1 overflow-y-auto px-5")}>
+      <div className={cx("flex items-center gap-2.5", rail ? "justify-center pb-[13px]" : "px-2 pb-5")}>
+        <span className="text-[34px] leading-none font-extrabold text-go-ink">GO</span>
+        {!rail && <span className="rounded-full bg-go-mint px-2.5 py-1 text-[13px] font-medium text-go-ink">Admin</span>}
       </div>
-      <nav aria-label="Admin" className="flex flex-col gap-1">{peopleNav(false)}{NAV.slice(0, 3).map((item) => navItem(item, false))}{tripsNav(false)}{NAV.slice(3).map((item) => navItem(item, false))}</nav>
+      <nav aria-label="Admin" className={cx("flex flex-col", rail ? "items-center gap-[5px]" : "w-full gap-1")}>
+        {peopleNav(false, rail)}
+        {NAV.slice(0, 3).map((item) => navItem(item, false, rail))}
+        {tripsNav(false, rail)}
+        {NAV.slice(3).map((item) => navItem(item, false, rail))}
+      </nav>
       <div className="flex-1" />
-      <div className="flex items-center gap-2.5 pt-3.5">
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-[20px] bg-go-mint text-sm font-medium text-go-ink">{initials(displayName)}</span>
-        <div className="flex min-w-0 flex-1 flex-col gap-0.5"><p className="truncate text-[15px] font-medium text-go-ink">{displayName}</p><p className="text-xs text-go-secondary">Administrator</p></div>
-        <ShellActions compact />
-      </div>
+      <button
+        type="button"
+        onClick={() => setFolded(!folded)}
+        aria-label={folded ? "Expand the sidebar" : "Fold the sidebar"}
+        title={folded ? "Expand the sidebar" : "Fold the sidebar"}
+        className={cx(
+          "flex items-center justify-center rounded-go-card-s bg-go-surface p-3 text-[13px] text-go-secondary hover:bg-go-subtle",
+          rail ? "mb-1" : "mb-2 w-fit",
+        )}
+      >
+        <Icon name="table-columns" />
+      </button>
+      {rail ? (
+        <Popover
+          label="User profile and settings"
+          side="right"
+          className="flex size-10 shrink-0 items-center justify-center rounded-[20px] bg-go-mint text-sm font-medium text-go-ink"
+          trigger={<span>{initials(displayName)}</span>}
+          panelClassName="flex min-w-[200px] flex-col gap-3 p-3"
+        >
+          <div className="flex flex-col gap-0.5">
+            <p className="truncate text-[15px] font-medium text-go-ink">{displayName}</p>
+            <p className="text-xs text-go-secondary">Administrator</p>
+          </div>
+          <ShellActions compact />
+        </Popover>
+      ) : (
+        <div className="flex items-center gap-2.5 pt-3.5 w-full">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-[20px] bg-go-mint text-sm font-medium text-go-ink">{initials(displayName)}</span>
+          <div className="flex min-w-0 flex-1 flex-col gap-0.5"><p className="truncate text-[15px] font-medium text-go-ink">{displayName}</p><p className="text-xs text-go-secondary">Administrator</p></div>
+          <ShellActions compact />
+        </div>
+      )}
     </aside>
     <div className="flex flex-col gap-3 bg-white px-4 pt-4 pb-3 lg:hidden">
       <div className="flex items-center gap-2.5">
@@ -282,7 +494,7 @@ export default function AccessDemo({ userId, displayName = "Administrator" }: { 
         <span className="flex-1" />
         <ShellActions compact />
       </div>
-      <nav aria-label="Admin" className="-mx-4 flex gap-1.5 overflow-x-auto px-4">{peopleNav(true)}{NAV.slice(0, 3).map((item) => navItem(item, true))}{tripsNav(true)}{NAV.slice(3).map((item) => navItem(item, true))}</nav>
+      <nav aria-label="Admin" className="-mx-4 flex gap-1.5 overflow-x-auto px-4">{peopleNav(true, false)}{NAV.slice(0, 3).map((item) => navItem(item, true, false))}{tripsNav(true, false)}{NAV.slice(3).map((item) => navItem(item, true, false))}</nav>
     </div>
     <div className="flex min-w-0 flex-1 flex-col px-4 py-5 md:px-9 md:py-7 lg:overflow-y-auto"><div className="mx-auto w-full max-w-[1180px]">
       <header className="mb-6 flex flex-col gap-0.5"><h1 className="text-[26px] font-medium text-go-ink md:text-[30px]">{TITLES[route.tab][0]}</h1><p className="text-sm text-go-secondary">{TITLES[route.tab][1]}</p></header>
@@ -295,6 +507,7 @@ export default function AccessDemo({ userId, displayName = "Administrator" }: { 
       {route.tab === "audit" && <AuditConsole key="audit-console" changes={state.history} viewer={viewer} />}
       {route.tab === "constraints" && <SystemConstraintsScreen />}
       {route.tab === "assistants" && <AssistantsConsole userId={userId} />}
+      {route.tab === "demo" && <DemoControlRoom />}
       {route.tab === "depots" && <DepotsScreen state={state} onNavigateTab={(target) => navigate(target)} onSelectMember={(id) => navigate("people", id)} />}
       {route.tab === "outlets" && <OutletsScreen state={state} onNavigateTab={(target) => navigate(target)} />}
       {route.tab === "orders" && <OrdersScreen state={state} onNavigateTab={(target) => navigate(target)} />}
@@ -310,6 +523,13 @@ export default function AccessDemo({ userId, displayName = "Administrator" }: { 
     </div></div>
   {details && <Modal title={details.capability.label} onClose={() => setDetails(null)}><div className="space-y-4 text-sm"><p>{details.capability.description}</p><div className="flex flex-wrap gap-2"><Badge tone={details.capability.implemented ? "green" : "amber"}>{details.capability.implemented ? "Catalogue entry" : "Unavailable"}</Badge><Badge>{details.capability.module}</Badge></div><p className="text-go-secondary">This catalogue entry does not establish effective access for a member or role.</p><details className="text-go-secondary"><summary className="cursor-pointer font-medium">Technical details</summary><code className="mt-2 block rounded-xl bg-go-subtle p-3">{details.capability.action}</code></details><button className={secondary} onClick={() => setDetails(null)}>Close</button></div></Modal>}
   {newMemberPersona && <CreateMemberModal members={state.members} viewer={viewer} initialPersona={newMemberPersona} onClose={() => setNewMemberPersona(null)} onCreate={createMember} />}
+  {editingMember && <Modal title={`Edit ${editingMember.name}`} onClose={() => setEditingMember(null)}><div className="space-y-4">
+    <label className="block text-sm font-semibold">Full name<input className={`${field} mt-2`} value={memberName} maxLength={80} onChange={(event) => setMemberName(event.target.value)} /></label>
+    <label className="block text-sm font-semibold">Email<input className={`${field} mt-2`} type="email" value={memberEmail} onChange={(event) => setMemberEmail(event.target.value)} /></label>
+    <p className="text-xs text-go-secondary">Persona and assigned places are managed separately so a profile edit cannot grant access.</p>
+    {memberError && <p role="alert" className="text-sm text-go-danger">{memberError}</p>}
+    <div className="flex justify-end gap-2"><button className={secondary} onClick={() => setEditingMember(null)}>Cancel</button><button className={primary} disabled={memberSaving || !memberName.trim() || !memberEmail.trim() || (memberName.trim() === editingMember.name && memberEmail.trim() === editingMember.email)} onClick={() => void saveMember()}>{memberSaving ? "Saving..." : "Save changes"}</button></div>
+  </div></Modal>}
   {draft && <Modal title={draft.stage === "review" ? "Review access change" : draft.target === "member" ? "Member exception" : "Persona capability"} onClose={() => setDraft(null)} wide>
     {draft.stage === "edit" ? <div className="space-y-5"><div className="rounded-xl bg-go-subtle p-4 text-sm"><strong>{draftMember?.name ?? (draftPersona && labelFor(draftPersona))}</strong><p className="mt-1 text-go-secondary">{draft.target === "persona" ? `This shared choice applies to all ${assigned} assigned members, within their existing places.` : "This choice applies to one member within existing assigned places."}</p></div>
       <label className="block text-sm font-semibold">Capability<select className={`${field} mt-2`} value={draft.action} onChange={(event) => { const action = event.target.value; const ex = draftMember && activeException(state, draftMember.id, action); setDraft({ ...draft, action, choice: draftMember ? ex?.decision ?? "inherit" : personaChoice(state, draftPersona!, action), place: ex?.place ?? "", expires: ex?.expires ?? "" }); }}><option value="">Select a capability</option>{(draftMember ? editOptions : CAPABILITIES.filter((item) => item.implemented && item.relevant.includes(draftPersona!))).map((item) => <option key={item.action} value={item.action}>{item.module} · {item.label}</option>)}</select></label>

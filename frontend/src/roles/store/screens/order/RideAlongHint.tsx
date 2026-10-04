@@ -47,6 +47,7 @@ export default function RideAlongHint({
         <div key={d.date} className="flex items-center justify-between gap-3">
           <p className="text-[13px] text-go-muted">
             {dayLabel(d.date)} · {d.stopsBooked === 1 ? "1 other store" : `${d.stopsBooked} other stores`} booked
+            {hint.data?.roomChecked && " · room on the vehicle"}
           </p>
           <button
             type="button"
@@ -57,7 +58,11 @@ export default function RideAlongHint({
           </button>
         </div>
       ))}
-      <p className="text-[12px] text-go-muted">Sharing a trip frees a vehicle. The dispatcher still confirms the load.</p>
+      <p className="text-[12px] text-go-muted">
+        {hint.data?.roomChecked
+          ? "Room is estimated from your usual order. Sharing a trip frees a vehicle; the dispatcher still confirms the load."
+          : "Sharing a trip frees a vehicle. The dispatcher still confirms the load."}
+      </p>
     </section>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { SettingsPanel, cx, initialsOf } from "@shared/ui";
+import { ChatIcon, PRESS, SettingsPanel, Spinner, cx, initialsOf } from "@shared/ui";
 
 /** Waveform bar heights exactly copied from the Figma specification */
 export const WAVEFORM_HEIGHTS = [
@@ -167,6 +167,8 @@ export function DriverMorphHeader({
   onSignOut,
   onToggleTheme,
   isNight = false,
+  onMessages,
+  unreadMessages = 0,
 }: {
   activeScreen: "home" | "route-next-stop" | "route-map";
   /** Whether this phone is in step with the server, in words. */
@@ -179,6 +181,9 @@ export function DriverMorphHeader({
   onSignOut?: () => void;
   onToggleTheme?: () => void;
   isNight?: boolean;
+  /** The trip's thread (issue #136): an icon beside the theme, on every screen with a trip. */
+  onMessages?: () => void;
+  unreadMessages?: number;
 }): React.JSX.Element {
   const isHome = activeScreen === "home";
   const isRoute = activeScreen === "route-next-stop";
@@ -290,6 +295,27 @@ export function DriverMorphHeader({
             </span>
           </div>
         </div>
+
+        {/* Messages on the trip's thread, with the count of new ones (issue #136). */}
+        {onMessages && (
+          <button
+            type="button"
+            onClick={onMessages}
+            className={cx(
+              "relative w-[43px] h-[43px] rounded-full flex items-center justify-center border shadow-[0_5px_20px_rgba(0,0,0,0.09)] active:scale-95 transition-all shrink-0",
+              isNight ? "bg-[#292929] border-[#383838] text-white hover:bg-[#333333]" : "bg-white border-[#dfe7e6] text-black hover:bg-slate-50"
+            )}
+            title="Messages"
+            aria-label={unreadMessages > 0 ? `Messages, ${unreadMessages} new` : "Messages"}
+          >
+            <ChatIcon className="size-[21px]" />
+            {unreadMessages > 0 && (
+              <span aria-hidden className="absolute -top-1 -right-1 min-w-[19px] h-[19px] rounded-full bg-[#E5484D] px-1 text-[11px] font-semibold leading-[19px] text-white text-center ring-2 ring-[#E7F3F2]">
+                {unreadMessages > 99 ? "99+" : unreadMessages}
+              </span>
+            )}
+          </button>
+        )}
 
         {/* 3. Theme toggle button - strictly stationary, NO slide, NO scale */}
         <button
@@ -568,31 +594,49 @@ export function VoiceMessagePlayer({
 // drawn from theme tokens, so the dark theme is the same markup. Touch targets
 // are at least 56px: the phone is used one-handed, when safely stopped.
 
-type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & { children: ReactNode };
+/** `busy`: the command is on its way, so the button is disabled with a spinner before the label. */
+type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & { children: ReactNode; busy?: boolean };
 
-const big = "flex min-h-16 w-full items-center justify-center gap-2 rounded-[22px] px-5 text-[19px] font-medium disabled:opacity-50";
+const big = cx("flex min-h-16 w-full items-center justify-center gap-2 rounded-[22px] px-5 text-[19px] font-medium disabled:opacity-50", PRESS);
 
-export function ActionButton({ children, className, type = "button", ...rest }: ButtonProps): React.JSX.Element {
+function DriverButton({ children, className, type = "button", busy = false, disabled, look, ...rest }: ButtonProps & { look: string }): React.JSX.Element {
   return (
-    <button type={type} {...rest} className={cx(big, "bg-go-action text-go-on-action", className)}>
+    <button type={type} {...rest} disabled={disabled || busy} aria-busy={busy || undefined} className={cx(big, look, busy && "disabled:opacity-70", className)}>
+      {busy && <Spinner />}
       {children}
     </button>
   );
 }
 
-export function SoftButton({ children, className, type = "button", ...rest }: ButtonProps): React.JSX.Element {
-  return (
-    <button type={type} {...rest} className={cx(big, "bg-go-soft text-go-on-soft", className)}>
-      {children}
-    </button>
-  );
+export function ActionButton(props: ButtonProps): React.JSX.Element {
+  return <DriverButton {...props} look="bg-go-action text-go-on-action" />;
 }
 
-export function OutlineButton({ children, className, type = "button", ...rest }: ButtonProps): React.JSX.Element {
+export function SoftButton(props: ButtonProps): React.JSX.Element {
+  return <DriverButton {...props} look="bg-go-soft text-go-on-soft" />;
+}
+
+export function OutlineButton(props: ButtonProps): React.JSX.Element {
+  return <DriverButton {...props} look="border border-go-ink bg-transparent text-go-ink" />;
+}
+
+/**
+ * The primary action of a long form, pinned to the bottom of the scrolling
+ * layer on a phone so it is always in reach; the form scrolls under it. From
+ * the tablet column up it sits in the flow as drawn. `on` is the surface it
+ * sits on, the page or a panel, so the content passing under it is hidden.
+ */
+export function PinnedAction({ on, className, children }: { on: "canvas" | "card"; className?: string; children: ReactNode }): React.JSX.Element {
   return (
-    <button type={type} {...rest} className={cx(big, "border border-go-ink bg-transparent text-go-ink", className)}>
+    <div
+      className={cx(
+        "max-md:sticky max-md:bottom-0 max-md:z-10 max-md:pt-3 max-md:pb-[max(1rem,env(safe-area-inset-bottom))] max-md:shadow-[0_-8px_16px_rgba(0,0,0,0.04)]",
+        on === "canvas" ? "max-md:-mx-5 max-md:bg-go-canvas max-md:px-5" : "max-md:-mx-6 max-md:bg-go-card max-md:px-6",
+        className,
+      )}
+    >
       {children}
-    </button>
+    </div>
   );
 }
 
@@ -638,12 +682,31 @@ export function Banner({ tone, title, children, live = false }: { tone: keyof ty
   );
 }
 
-export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }): React.JSX.Element {
+export function Field({
+  label,
+  hint,
+  error,
+  errorId,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  /** Shown in red under the field; pair with `errorId` and the input's own `aria-describedby`. */
+  error?: string;
+  /** The id the error text is given, so the input can point `aria-describedby` at it. */
+  errorId?: string;
+  children: ReactNode;
+}): React.JSX.Element {
   return (
     <label className="flex flex-col gap-1.5 text-[15px] text-go-ink">
       <span className="font-medium">{label}</span>
       {children}
       {hint && <span className="text-[13px] text-go-muted">{hint}</span>}
+      {error && (
+        <span id={errorId} role="alert" className="text-[13px] text-go-danger-strong">
+          {error}
+        </span>
+      )}
     </label>
   );
 }

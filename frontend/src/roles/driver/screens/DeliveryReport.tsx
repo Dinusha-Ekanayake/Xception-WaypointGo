@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { FailureReasons, type FailureReason, type OutletView } from "@shared/domain/types";
 import { canDeliver, clock, missing, type RecordDraft, type Stop } from "../data/run.ts";
-import { ActionButton, Banner, Field, OutlineButton, Panel, input } from "../ui.tsx";
+import { ActionButton, Banner, Field, OutlineButton, Panel, PinnedAction, input } from "../ui.tsx";
 import ProofCapture, { EMPTY_PROOF, proofMissing, type ProofDraft } from "./ProofCapture.tsx";
 
 // Figma "Delivery report": expected against delivered, then confirm. In the
@@ -68,6 +68,15 @@ export default function DeliveryReport({
     if (gap) return;
     onConfirm({ record: draft, proof: wantsProof && stop.outcome === "ARRIVED" ? proof : null });
   };
+
+  // Which visible field a gap belongs to, so it is shown there instead of only in
+  // the banner; a gap about the stop as a whole (arrival, the mall's window, the
+  // partial range) has no single field and stays in the banner below.
+  const REASON_GAPS = ["Choose why the delivery could not be made.", "Say why the delivery was partial.", "This stop is late. Say why."];
+  const NOTE_GAPS = ["Say what happened to the goods.", "Say what happened to the units not delivered."];
+  const reasonError = problem && REASON_GAPS.includes(problem) ? problem : undefined;
+  const noteError = problem && NOTE_GAPS.includes(problem) ? problem : undefined;
+  const bannerProblem = problem && !reasonError && !noteError ? problem : null;
 
   return (
     <div className="flex flex-col gap-4 px-5 pb-8 pt-2">
@@ -136,8 +145,14 @@ export default function DeliveryReport({
 
       {failed && (
         <Panel label="Not delivered">
-          <Field label="Why could it not be delivered?">
-            <select className={input} value={reason} onChange={(event) => setReason(event.target.value)}>
+          <Field label="Why could it not be delivered?" error={reasonError} errorId="reason-error">
+            <select
+              className={input}
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              aria-invalid={reasonError ? true : undefined}
+              aria-describedby={reasonError ? "reason-error" : undefined}
+            >
               <option value="" disabled>
                 Choose a reason
               </option>
@@ -155,18 +170,27 @@ export default function DeliveryReport({
         <Panel label="Details">
           <div className="flex flex-col gap-4">
             {!failed && (
-              <Field label={outcome === "PARTIAL" ? "Why were some units not delivered?" : "Why was the stop late?"}>
-                <input className={input} value={reason} maxLength={500} onChange={(event) => setReason(event.target.value)} />
+              <Field label={outcome === "PARTIAL" ? "Why were some units not delivered?" : "Why was the stop late?"} error={reasonError} errorId="reason-error">
+                <input
+                  className={input}
+                  value={reason}
+                  maxLength={500}
+                  onChange={(event) => setReason(event.target.value)}
+                  aria-invalid={reasonError ? true : undefined}
+                  aria-describedby={reasonError ? "reason-error" : undefined}
+                />
               </Field>
             )}
             {(failed || outcome === "PARTIAL") && (
-              <Field label="What happened to the goods not delivered?" hint="There is no returns process. This note is the record.">
+              <Field label="What happened to the goods not delivered?" hint="There is no returns process. This note is the record." error={noteError} errorId="note-error">
                 <input
                   className={input}
                   value={note}
                   maxLength={500}
                   placeholder="For example: kept on the vehicle, returning to the depot"
                   onChange={(event) => setNote(event.target.value)}
+                  aria-invalid={noteError ? true : undefined}
+                  aria-describedby={noteError ? "note-error" : undefined}
                 />
               </Field>
             )}
@@ -181,11 +205,13 @@ export default function DeliveryReport({
         </Panel>
       )}
 
-      {(problem || error) && <Banner tone="bad" title={problem ?? error ?? ""} live />}
+      {(bannerProblem || error) && <Banner tone="bad" title={bannerProblem ?? error ?? ""} live />}
 
-      <ActionButton disabled={busy} onClick={confirm}>
-        {failed ? "Record as not delivered" : "Confirm"}
-      </ActionButton>
+      <PinnedAction on="canvas">
+        <ActionButton busy={busy} onClick={confirm}>
+          {busy ? "Sending…" : failed ? "Record as not delivered" : "Confirm"}
+        </ActionButton>
+      </PinnedAction>
       {deliverable && (
         <OutlineButton
           onClick={() => {

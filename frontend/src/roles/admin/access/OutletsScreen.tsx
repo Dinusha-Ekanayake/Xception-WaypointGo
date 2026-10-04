@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Badge, card, field, primary, secondary } from "./components";
 import type { DemoState } from "./model";
-import { createAdminOutlet, fetchAdminOutlets } from "../data/reference";
+import { createAdminOutlet, fetchAdminOutletDetails, fetchAdminOutlets, updateAdminOutletDetails } from "../data/reference";
+import type { OutletDetailsView } from "@shared/domain/types";
 
 export type OutletRecord = {
   id: string;
@@ -41,6 +42,15 @@ export function OutletsScreen({
 
   // Detail modal state
   const [selectedOutlet, setSelectedOutlet] = useState<OutletRecord | null>(null);
+  const [editingOutlet, setEditingOutlet] = useState<OutletRecord | null>(null);
+  const [outletDetails, setOutletDetails] = useState<OutletDetailsView | null>(null);
+  const [editOpen, setEditOpen] = useState("");
+  const [editClose, setEditClose] = useState("");
+  const [editDock, setEditDock] = useState("street");
+  const [editContact, setEditContact] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+  const [editError, setEditError] = useState("");
 
   // Add Outlet modal state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -88,6 +98,8 @@ export function OutletsScreen({
             const brand = (o.brand === "Fresh" || o.brand === "Style" || o.brand === "Tech" ? o.brand : "Fresh") as "Fresh" | "Style" | "Tech";
             const dockType = (o.dockType === "rear_dock" || o.dockType === "street" || o.dockType === "mall_bay" ? o.dockType : "street") as "rear_dock" | "street" | "mall_bay";
             const maxVehicleType = o.parking === "van_only" ? "Van Only" : "Van & Truck";
+            const manager = state?.members.find((member) => member.active && member.personas.includes("store_manager") &&
+              [...(member.outlets ?? []), ...member.places].includes(o.outletId));
             return {
               id: o.outletId,
               name: `Outlet ${o.outletId}`,
@@ -100,6 +112,8 @@ export function OutletsScreen({
               windowClose: o.windowClose,
               windowNotes: `Operational window: ${o.windowOpen} - ${o.windowClose}`,
               maxVehicleType,
+              storeManager: manager?.name,
+              managerEmail: manager?.email,
             };
           });
           setOutletsList(records);
@@ -112,7 +126,33 @@ export function OutletsScreen({
     return () => {
       cancelled = true;
     };
-  }, [depotFilter, brandFilter, districtFilter, dockFilter, searchQuery]);
+  }, [depotFilter, brandFilter, districtFilter, dockFilter, searchQuery, state?.members]);
+
+  async function openOutletEditor(outlet: OutletRecord) {
+    setSelectedOutlet(null); setEditingOutlet(outlet); setEditError("");
+    setEditOpen(outlet.windowOpen.slice(0, 5)); setEditClose(outlet.windowClose.slice(0, 5)); setEditDock(outlet.dockType);
+    try {
+      const details = await fetchAdminOutletDetails(outlet.id); setOutletDetails(details);
+      setEditContact(details.contactName ?? ""); setEditPhone(details.contactPhone ?? ""); setEditNotes(details.receivingNotes ?? "");
+    } catch (failure) { setEditError(failure instanceof Error ? failure.message : "Could not load outlet details."); }
+  }
+
+  async function saveOutlet() {
+    if (!editingOutlet || !outletDetails) return;
+    if (!editOpen || !editClose || editOpen >= editClose) return setEditError("The opening time must be before the closing time.");
+    setCreating(true); setEditError("");
+    try {
+      await updateAdminOutletDetails({ outletId: editingOutlet.id, windowOpen: editOpen, windowClose: editClose,
+        dockType: editingOutlet.dockType === "mall_bay" ? null : editDock,
+        contactName: editContact.trim() || null, contactPhone: editPhone.trim() || null,
+        receivingNotes: editNotes.trim() || null }, outletDetails.rowVersion);
+      setOutletsList((items) => items.map((item) => item.id === editingOutlet.id ? { ...item,
+        windowOpen: editOpen, windowClose: editClose,
+        dockType: (editingOutlet.dockType === "mall_bay" ? "mall_bay" : editDock) as OutletRecord["dockType"] } : item));
+      setEditingOutlet(null); setOutletDetails(null); setCreateNotice(`${editingOutlet.id} was updated.`);
+    } catch (failure) { setEditError(failure instanceof Error ? failure.message : "Could not update outlet."); }
+    finally { setCreating(false); }
+  }
 
   // Filtered outlets
   const filteredOutlets = useMemo(() => {
@@ -517,8 +557,11 @@ export function OutletsScreen({
               <div className="flex items-center gap-3.5 min-w-0">
                 <div className="grid size-11 shrink-0 place-items-center rounded-2xl bg-go-subtle text-go-teal">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-5" aria-hidden="true">
-                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                    <polyline points="9 22 9 12 15 12 15 22" />
+                    <path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7" />
+                    <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+                    <path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4" />
+                    <path d="M2 7h20" />
+                    <path d="M22 7v3a2 2 0 0 1-2 2 2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 16 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 12 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 8 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 4 12v0a2 2 0 0 1-2-2V7" />
                   </svg>
                 </div>
                 <div className="min-w-0">
@@ -669,7 +712,7 @@ export function OutletsScreen({
             </div>
 
             {/* Footer */}
-            <div className="mt-6 flex justify-end border-t border-go-subtle pt-4">
+            <div className="mt-6 flex justify-end gap-3 border-t border-go-subtle pt-4">
               <button
                 type="button"
                 className={secondary}
@@ -677,7 +720,24 @@ export function OutletsScreen({
               >
                 Close
               </button>
+              <button type="button" className={primary} onClick={() => void openOutletEditor(selectedOutlet)}>Edit outlet</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {editingOutlet && (
+        <div role="dialog" aria-modal="true" aria-labelledby="edit-outlet-title" className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-2xl rounded-3xl border border-go-rule bg-white p-6 shadow-2xl sm:p-7">
+            <div className="flex items-start justify-between border-b border-go-subtle pb-4"><div><h3 id="edit-outlet-title" className="text-xl font-bold">Edit {editingOutlet.id}</h3><p className="text-sm text-go-secondary">Update receiving details used by the next plan.</p></div><button type="button" aria-label="Close" className="grid size-9 place-items-center rounded-full hover:bg-go-subtle" onClick={() => setEditingOutlet(null)}>✕</button></div>
+            {!outletDetails ? <p className="py-6 text-sm text-go-secondary">Loading current details...</p> : <div className="mt-5 space-y-4 text-sm">
+              <div className="grid gap-3 sm:grid-cols-2"><label className="font-medium">Window opens<input type="time" className={`${field} mt-1`} value={editOpen} onChange={(e) => setEditOpen(e.target.value)} /></label><label className="font-medium">Window closes<input type="time" className={`${field} mt-1`} value={editClose} onChange={(e) => setEditClose(e.target.value)} /></label></div>
+              <label className="block font-medium">Dock type<select className={`${field} mt-1`} value={editDock} disabled={editingOutlet.dockType === "mall_bay"} onChange={(e) => setEditDock(e.target.value)}><option value="rear_dock">Rear loading dock</option><option value="street">Street kerbside</option>{editingOutlet.dockType === "mall_bay" && <option value="mall_bay">Mall enclosed bay</option>}</select></label>
+              <div className="grid gap-3 sm:grid-cols-2"><label className="font-medium">Contact person<input className={`${field} mt-1`} value={editContact} maxLength={80} onChange={(e) => setEditContact(e.target.value)} /></label><label className="font-medium">Contact phone<input className={`${field} mt-1`} type="tel" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} /></label></div>
+              <label className="block font-medium">Driver notes<textarea className={`${field} mt-1 min-h-24`} value={editNotes} maxLength={300} onChange={(e) => setEditNotes(e.target.value)} /></label>
+            </div>}
+            {editError && <p role="alert" className="mt-4 text-sm text-go-danger">{editError}</p>}
+            <div className="mt-6 flex justify-end gap-3 border-t border-go-subtle pt-4"><button type="button" className={secondary} onClick={() => setEditingOutlet(null)}>Cancel</button><button type="button" className={primary} disabled={!outletDetails || creating} onClick={() => void saveOutlet()}>{creating ? "Saving..." : "Save changes"}</button></div>
           </div>
         </div>
       )}

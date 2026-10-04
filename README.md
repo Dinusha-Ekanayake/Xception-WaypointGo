@@ -74,7 +74,7 @@ The Figma file (pages 04 to 17) is the specification. Where the design shows som
   - With no released trip today, Home names the next trip ahead and says it is waiting for the loader. The design shows only a released run.
   - English only.
 - **Dispatcher:**
-  - Global search is not built.
+  - Global search (the header, `/` or Ctrl+K) looks through what the screens have already loaded for the day and the depots in view: orders, vehicles, trips, issues and depots. It does not search other days.
   - Vehicle interchange approval waits on Loading.
   - The Forecast's error chip shows the demand model's measured error over all volume and over chilled volume. The design shows a figure per brand, which the model does not measure.
   - Late risk is shown only on a published plan, once the time predictor has scored it. A draft says it is scored once published, and an estimate says so.
@@ -88,6 +88,7 @@ The Figma file (pages 04 to 17) is the specification. Where the design shows som
   - The Next delivery card shows the driver and a predicted arrival once the trip leaves. Before that, it shows the next planned or confirmed delivery and the outlet's window.
   - Below 440 px the header hides the Store chip and uses smaller round buttons so the sync time fits. The bottom bar stays icon-only, as designed.
 - **All roles:**
+  - On a phone, the main action of a long form (the driver's Confirm and Save proof, the store's receipt) stays pinned at the bottom of the screen while the form scrolls under it.
   - Notifications arrive in every role's screens with a live count.
   - Push to a closed phone works only where the server has VAPID keys, and says so otherwise.
   - Messages (with voice notes) are per trip; threads for issues and orders are not built.

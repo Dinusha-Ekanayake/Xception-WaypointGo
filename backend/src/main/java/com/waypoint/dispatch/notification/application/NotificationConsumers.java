@@ -24,6 +24,7 @@ import com.waypoint.dispatch.planning.contract.PlanEvents.OrderUnservable;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlanPublished;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlanRevised;
 import com.waypoint.dispatch.planning.contract.PlanEvents.StoreContacted;
+import com.waypoint.dispatch.intelligence.contract.OutlookEvents.OrderOutlookChanged;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlannedStop;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlannedTrip;
 import com.waypoint.dispatch.platform.db.ModuleRole;
@@ -66,6 +67,8 @@ import org.springframework.stereotype.Component;
  */
 final class NotificationConsumers {
   private static final DateTimeFormatter CLOCK = DateTimeFormatter.ofPattern("HH:mm");
+  /** The glossary's date: "Thu 1 Oct". */
+  private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("EEE d MMM", Locale.ENGLISH);
 
   private NotificationConsumers() {}
 
@@ -146,6 +149,10 @@ final class NotificationConsumers {
     return at == null ? null : CLOCK.format(at);
   }
 
+  private static String day(LocalDate date) {
+    return date == null ? null : DAY.format(date);
+  }
+
   /** Lookups for events that do not carry the scope a rule routes by. */
   @Component
   static class Scopes {
@@ -194,6 +201,34 @@ final class NotificationConsumers {
       return new Routed()
           .fact("serviceDate", e.serviceDate()).fact("reason", e.reason()).fact("ruleId", e.ruleId())
           .fact("skipCount", e.skipCount()).fact("outletId", e.outletId())
+          .to(ScopeKind.OUTLET, e.outletId(), "order", e.orderId());
+    }
+  }
+
+  /** R-NOT-16: a day the store booked has worsened to busy or at risk (issue #224). */
+  @Component
+  static class OnOrderOutlookChanged extends NotificationConsumer<OrderOutlookChanged> {
+    OnOrderOutlookChanged(Notifier notifier) {
+      super(notifier);
+    }
+
+    @Override
+    public String consumerName() {
+      return "notification.on-order-outlook-changed";
+    }
+
+    @Override
+    public Class<OrderOutlookChanged> eventType() {
+      return OrderOutlookChanged.class;
+    }
+
+    @Override
+    Routed route(OrderOutlookChanged e) {
+      return new Routed()
+          .on(e.deliveryDate())
+          .fact("deliveryDate", e.deliveryDate()).fact("deliveryDay", day(e.deliveryDate()))
+          .fact("status", e.status()).fact("statusWords", words(e.status())).fact("reason", e.reason())
+          .fact("outletId", e.outletId())
           .to(ScopeKind.OUTLET, e.outletId(), "order", e.orderId());
     }
   }
@@ -381,7 +416,7 @@ final class NotificationConsumers {
     Routed r =
         new Routed()
             .on(serviceDate)
-            .fact("serviceDate", serviceDate).fact("planVersion", planVersion).fact("tripCount", trips.size())
+            .fact("serviceDate", serviceDate).fact("serviceDay", day(serviceDate)).fact("planVersion", planVersion).fact("tripCount", trips.size())
             .fact("depotCode", depotCode).fact("reason", reason);
     if (depotHears) {
       r.to(ScopeKind.DEPOT, depotCode, "plan", planId);
@@ -755,6 +790,10 @@ final class NotificationConsumers {
           new Routed()
               .fact("audience", e.audience()).fact("heading", heading).fact("excerpt", e.excerpt())
               .fact("vehicleId", e.vehicleId()).fact("depotCode", e.depotCode())
+              // A voice message plays its own audio in the inbox, never read aloud by text to speech.
+              .fact("voiceNoteId", e.voiceNoteId()).fact("voiceDurationMs", e.voiceDurationMs())
+              .fact("voicePeaks", e.voicePeaks().isEmpty() ? null : e.voicePeaks().stream().map(String::valueOf)
+                  .collect(java.util.stream.Collectors.joining(",")))
               .on(e.serviceDate().orElse(null))
               .to(ScopeKind.DEPOT, e.depotCode(), "thread", e.threadId());
       e.vehicleId().ifPresent(v -> r.to(ScopeKind.VEHICLE, v, "thread", e.threadId()));

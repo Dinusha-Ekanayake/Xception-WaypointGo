@@ -5,8 +5,9 @@ import { Badge, PersonaIcon, VehicleTypeIcon, card, field, primary, secondary } 
 import type { DemoState, Member, Persona } from "./model";
 import type { Vehicle } from "./operations";
 import type { OutletRecord } from "./OutletsScreen";
-import { createAdminDepot, fetchAdminDepots, fetchAdminOutlets, fetchAdminVehicles } from "../data/reference";
+import { createAdminDepot, fetchAdminDepotDetail, fetchAdminDepots, fetchAdminOutlets, fetchAdminVehicles, updateAdminDepot, type AdminDepotDetail } from "../data/reference";
 import { fetchOwnProfile, submitGrantScope } from "../data/accounts";
+import { dayLabel } from "@shared/wording";
 
 export type DepotRecord = {
   id: string;
@@ -39,10 +40,30 @@ export function DepotsScreen({
   const [creating, setCreating] = useState(false);
   const [selectedOutlet, setSelectedOutlet] = useState<OutletRecord | null>(null);
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
+  const [editingDepot, setEditingDepot] = useState<AdminDepotDetail | null>(null);
+  const [editDepotName, setEditDepotName] = useState("");
+  const [editDepotTimezone, setEditDepotTimezone] = useState("Asia/Colombo");
 
   // Dynamic vehicles & outlets lists
   const [vehiclesList, setVehiclesList] = useState<Vehicle[]>([]);
   const [outletsList, setOutletsList] = useState<OutletRecord[]>([]);
+
+  async function openDepotEditor() {
+    setCreateError("");
+    try { const detail = await fetchAdminDepotDetail(selectedDepotId); setEditingDepot(detail); setEditDepotName(detail.name); setEditDepotTimezone(detail.timezone); }
+    catch (failure) { setCreateNotice(failure instanceof Error ? failure.message : "Could not load depot details."); }
+  }
+
+  async function saveDepot() {
+    if (!editingDepot) return;
+    setCreating(true); setCreateError("");
+    try {
+      await updateAdminDepot({ code: editingDepot.code, name: editDepotName.trim(), timezone: editDepotTimezone }, editingDepot.rowVersion);
+      setDepots((items) => items.map((item) => item.id === editingDepot.code ? { ...item, name: editDepotName.trim() } : item));
+      setEditingDepot(null); setCreateNotice(`${editingDepot.code} was updated.`);
+    } catch (failure) { setCreateError(failure instanceof Error ? failure.message : "Could not update depot."); }
+    finally { setCreating(false); }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -83,6 +104,7 @@ export function DepotsScreen({
               fuelEfficiencyKmPerL: Number(v.kmPerL),
               temp: v.temperature?.toLowerCase().includes("chilled") ? "Chilled (Refrigerated)" : "Ambient",
               status: v.dayStatus === "in_workshop" ? "Workshop" : v.dayStatus === "unavailable" ? "Unavailable" : "Available",
+              rowVersion: v.rowVersion,
             }))
           );
         }
@@ -94,7 +116,10 @@ export function DepotsScreen({
         if (cancelled) return;
         if (page.items) {
           setOutletsList(
-            page.items.map((o) => ({
+            page.items.map((o) => {
+              const manager = state.members.find((member) => member.active && member.personas.includes("store_manager") &&
+                [...(member.outlets ?? []), ...member.places].includes(o.outletId));
+              return {
               id: o.outletId,
               name: `Outlet ${o.outletId}`,
               brand: (o.brand === "Style" || o.brand === "Tech" ? o.brand : "Fresh") as "Fresh" | "Style" | "Tech",
@@ -106,7 +131,9 @@ export function DepotsScreen({
               windowClose: o.windowClose,
               windowNotes: `Time window: ${o.windowOpen} - ${o.windowClose}`,
               maxVehicleType: o.parking === "van_only" ? "Van Only" : "Van & Truck",
-            }))
+              storeManager: manager?.name,
+              managerEmail: manager?.email,
+            }; })
           );
         }
       })
@@ -115,7 +142,7 @@ export function DepotsScreen({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [state.members]);
 
   // Filters inside People component
   const [peopleSearch, setPeopleSearch] = useState("");
@@ -340,6 +367,7 @@ export function DepotsScreen({
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          <button type="button" className={secondary} onClick={() => void openDepotEditor()}>Edit depot</button>
           <button
             type="button"
             className={`${primary} flex items-center gap-2`}
@@ -350,6 +378,12 @@ export function DepotsScreen({
           </button>
         </div>
       </div>
+
+      {editingDepot && <div role="dialog" aria-modal="true" aria-labelledby="edit-depot-title" className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-xs"><div className="w-full max-w-lg rounded-3xl border border-go-rule bg-white p-6 shadow-2xl">
+        <div className="flex items-start justify-between border-b border-go-subtle pb-4"><div><h3 id="edit-depot-title" className="text-xl font-bold">Edit {editingDepot.code}</h3><p className="text-sm text-go-secondary">Update the depot name and operating timezone.</p></div><button type="button" aria-label="Close" className="grid size-9 place-items-center rounded-full hover:bg-go-subtle" onClick={() => setEditingDepot(null)}>✕</button></div>
+        <div className="mt-5 space-y-4"><label className="block text-sm font-medium">Depot name<input className={`${field} mt-1`} value={editDepotName} onChange={(event) => setEditDepotName(event.target.value)} /></label><label className="block text-sm font-medium">Timezone<input className={`${field} mt-1`} value={editDepotTimezone} onChange={(event) => setEditDepotTimezone(event.target.value)} /></label>{createError && <p role="alert" className="text-sm text-go-danger">{createError}</p>}</div>
+        <div className="mt-6 flex justify-end gap-3 border-t border-go-subtle pt-4"><button className={secondary} onClick={() => setEditingDepot(null)}>Cancel</button><button className={primary} disabled={creating || !editDepotName.trim() || !editDepotTimezone.trim()} onClick={() => void saveDepot()}>{creating ? "Saving..." : "Save changes"}</button></div>
+      </div></div>}
 
       {/* The 3 Main Component Selector Buttons */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -997,7 +1031,7 @@ export function DepotsScreen({
                           <span className="mx-2">·</span>
                           <span>Phone: {selectedVehicle.lastDriver.phone}</span>
                           <span className="mx-2">·</span>
-                          <span>Last run: {selectedVehicle.lastDriver.lastRunDate}</span>
+                          <span>Last run: {dayLabel(selectedVehicle.lastDriver.lastRunDate)}</span>
                         </p>
                       </>
                     ) : (

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
 import type { FuelView, VehicleView } from "@shared/domain/types";
-import { FilterTabs, Icon, Pending, Pill, cx } from "@shared/ui";
+import { useRef } from "react";
+import { FilterTabs, Icon, Pending, Pill, cx, usePersistentState, useScrollMemory } from "@shared/ui";
 import { capacityLabel, typeLabel } from "../data/fleet.ts";
 
 // The fleet table from Figma "06 Vehicles": All, On the road, At depot and
@@ -32,8 +32,11 @@ export default function FleetTable({
   fuel: Record<string, FuelView> | null;
   onOpen: (vehicleId: string) => void;
 }): React.JSX.Element {
-  const [tab, setTab] = useState<Tab>("all");
-  const [query, setQuery] = useState("");
+  const [tab, setTab] = usePersistentState<Tab>("dispatcher:fleet:tab", "all");
+  const [query, setQuery] = usePersistentState("dispatcher:fleet:query", "");
+  // The table scrolls on its own on desktops; back from a vehicle or another screen, it is where it was.
+  const table = useRef<HTMLDivElement>(null);
+  useScrollMemory("dispatcher:fleet:table", table, { page: false });
   const where = (v: VehicleView): RoadStatus => status?.[v.vehicleId] ?? "depot";
 
   const needle = query.trim().toUpperCase();
@@ -42,7 +45,7 @@ export default function FleetTable({
   const count = (t: RoadStatus) => fleet.filter((v) => where(v) === t).length;
 
   return (
-    <div className="flex min-w-0 flex-col overflow-x-auto">
+    <div ref={table} className="flex min-w-0 flex-col overflow-x-auto">
       <div className="flex min-w-[690px] items-center gap-2 pb-2.5">
         <FilterTabs
           label="Filter vehicles"

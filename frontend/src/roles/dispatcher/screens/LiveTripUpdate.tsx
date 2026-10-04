@@ -90,7 +90,7 @@ export default function LiveTripUpdate({ run, date, online }: { run: Run; date: 
           Voice
         </Action>
         <Action primary disabled={unavailable || state.sending || !body.trim()} className="flex-1" onClick={() => void send()}>
-          {state.sending ? "Sending" : `Send to ${target.label === "everyone on the trip" ? "everyone" : target.label}`}
+          {state.sending ? "Sending…" : `Send to ${target.label === "everyone on the trip" ? "everyone" : target.label}`}
         </Action>
       </div>
       {state.sent && <p role="status" className="text-[11px] text-go-teal">{state.sent}</p>}

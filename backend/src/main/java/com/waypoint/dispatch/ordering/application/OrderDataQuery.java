@@ -70,7 +70,7 @@ public class OrderDataQuery implements OrderQuery {
 
   @Override
   public Optional<OrderView> order(UUID orderId) {
-    return read(ambient(), () -> orders.findStored(orderId).map(OrderDataQuery::toView));
+    return read(ambient(), () -> orders.findStored(orderId).map(OrderDataQuery::toView).map(v -> withStops(List.of(v)).get(0)));
   }
 
   @Override
@@ -143,7 +143,7 @@ public class OrderDataQuery implements OrderQuery {
     requireScope(actor, "wpt:order:depot:" + depotCode, "SELECT app.actor_has_depot(?) AS ok", depotCode);
     return read(
         actor.userId(),
-        () -> orders.forDay(depotCode, serviceDate).stream().map(OrderDataQuery::toView).toList());
+        () -> withStops(orders.forDay(depotCode, serviceDate).stream().map(OrderDataQuery::toView).toList()));
   }
 
   /** Keyset directory of orders visible through the actor's SQL scope. */
@@ -256,6 +256,35 @@ public class OrderDataQuery implements OrderQuery {
                             ((Number) r.get("n")).intValue(),
                             (java.math.BigDecimal) r.get("total"),
                             (java.math.BigDecimal) r.get("chilled")))
+                .toList());
+  }
+
+  @Override
+  public List<com.waypoint.dispatch.ordering.contract.OrderViews.OpenOrderView> openOrders(
+      String depotCode, LocalDate from, LocalDate to) {
+    return read(
+        Actor.SYSTEM_ID,
+        () ->
+            database
+                .query(
+                    """
+                    SELECT order_id, outlet_id, brand_code, delivery_date
+                      FROM ordering.orders
+                     WHERE depot_code = ? AND delivery_date BETWEEN ? AND ?
+                       AND status IN ('stock_unknown', 'partially_reserved', 'confirmed', 'deferred')
+                     ORDER BY delivery_date, order_id
+                    """,
+                    depotCode,
+                    java.sql.Date.valueOf(from),
+                    java.sql.Date.valueOf(to))
+                .stream()
+                .map(
+                    r ->
+                        new com.waypoint.dispatch.ordering.contract.OrderViews.OpenOrderView(
+                            (UUID) r.get("order_id"),
+                            (String) r.get("outlet_id"),
+                            (String) r.get("brand_code"),
+                            ((java.sql.Date) r.get("delivery_date")).toLocalDate()))
                 .toList());
   }
 

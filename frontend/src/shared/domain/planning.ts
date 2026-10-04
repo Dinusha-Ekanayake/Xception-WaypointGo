@@ -205,6 +205,13 @@ export type InterchangePreview = {
   checks: ConstraintResultView[];
 };
 
+/**
+ * A published plan takes changes (a revision, a whole trip moved) until 16:00
+ * depot time on its own service day; after that it is final (R-PLN-43). For
+ * display only; the server decides on its own clock.
+ */
+export const PUBLISHED_EDIT_CLOSES = "16:00";
+
 export const PlanCommandKind = {
   generate: "plan:Generate",
   override: "plan:Override",

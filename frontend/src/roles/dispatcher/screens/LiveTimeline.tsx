@@ -2,7 +2,7 @@
 
 import type { ReportMarkView, RunSheetStopView } from "@shared/domain/types";
 import { REPORT_LABEL, ROLE_LABEL } from "@shared/messaging/thread";
-import { cx } from "@shared/ui";
+import { ChatIcon, cx } from "@shared/ui";
 import { hhmm } from "../data/plan.ts";
 import { etaOf, progress, routeLabel, runTitle, type Run } from "../data/liveDesk.ts";
 import { Bar, Chip, STATUS as LOOK } from "./LiveParts.tsx";
@@ -80,12 +80,15 @@ export default function LiveTimeline({
   onOpen,
   reports = [],
   onReport,
+  onMessages,
 }: {
   runs: Run[];
   now: Date;
   onOpen: (vehicleId: string) => void;
   reports?: ReportMarkView[];
   onReport?: (report: ReportMarkView) => void;
+  /** Opens the run's trip thread, whether or not anyone has reported (issue #136). */
+  onMessages?: (run: Run) => void;
 }): React.JSX.Element {
   const nowMinute = minutesOfInstant(now.toISOString());
   const marks = new Map(runs.map((r) => [r.day.vehicleId, reportsOf(r, reports)]));
@@ -106,6 +109,39 @@ export default function LiveTimeline({
   const hours = Array.from({ length: Math.floor(span / step) + 1 }, (_, i) => start + i * step);
   const edge = (minute: number): string => (minute - start < span * 0.04 ? "translate-x-0" : end - minute < span * 0.04 ? "-translate-x-full" : "-translate-x-1/2");
   const showNow = nowMinute >= start && nowMinute <= end;
+
+  /** The waving "Exception · click to open" sign, centred on the run's line; it opens the newest report. */
+  const sign = (list: ReportMarkView[], minute: number, key: string, outlet?: string): React.JSX.Element => {
+    const mark = list[list.length - 1]!;
+    const time = clockLabel(minutesOfInstant(mark.at));
+    const where = outlet ? ` at ${outlet}` : "";
+    return (
+      <button
+        key={key}
+        type="button"
+        data-testid="report-sign"
+        data-outlet={outlet}
+        onClick={() => onReport?.(mark)}
+        title={`Exception · click to open · ${REPORT_LABEL[mark.reportType]}${where} · ${ROLE_LABEL[mark.authorRole]} · ${time}`}
+        aria-label={`${REPORT_LABEL[mark.reportType]}${where} reported by the ${ROLE_LABEL[mark.authorRole].toLowerCase()} at ${time}${list.length > 1 ? `, and ${list.length - 1} more` : ""}, open the messages`}
+        className="absolute top-1/2 z-30 flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full before:absolute before:-inset-1.5"
+        style={{ left: at(minute) }}
+      >
+        <span aria-hidden className="absolute inset-0 rounded-full bg-go-danger/20" />
+        <span
+          aria-hidden
+          className="relative flex h-5 w-5 origin-[50%_85%] animate-wave items-center justify-center rounded-full bg-go-danger text-[11px] font-bold leading-none text-white ring-2 ring-white motion-reduce:animate-none"
+        >
+          !
+        </span>
+        {list.length > 1 && (
+          <span aria-hidden className="absolute -top-1.5 -right-1.5 min-w-4 rounded-full bg-go-ink px-1 text-[9px] font-semibold leading-4 text-white">
+            {list.length}
+          </span>
+        )}
+      </button>
+    );
+  };
 
   return (
     <section aria-label="Timeline" className="[--lab:180px] xl:[--lab:210px] flex min-w-0 flex-1 flex-col gap-3 rounded-[24px] bg-white p-4 shadow-go-card">
@@ -142,8 +178,31 @@ export default function LiveTimeline({
           const minutes = day.stops.map(stopMinute);
           const lead = run.trip?.releasedAt ? minutesOfInstant(run.trip.releasedAt) : Math.min(...minutes) - 30;
           const sorted = [...day.stops].sort((a, b) => a.sequence - b.sequence);
+          // Reports about a stop on this run sit on that stop; the rest at the time they were made.
+          const rowMarks = marks.get(day.vehicleId) ?? [];
+          const stopOutlets = new Set(sorted.map((st) => st.outletId));
+          const onStop = new Map<string, ReportMarkView[]>();
+          for (const m of rowMarks) {
+            if (m.outletId && stopOutlets.has(m.outletId)) onStop.set(m.outletId, [...(onStop.get(m.outletId) ?? []), m]);
+          }
+          const loose = rowMarks.filter((m) => !m.outletId || !stopOutlets.has(m.outletId));
           return (
             <div key={day.vehicleId} className="relative flex min-h-[86px] items-center border-t border-go-rule py-3">
+              {onMessages && (
+                <button
+                  type="button"
+                  data-testid="run-messages"
+                  onClick={() => onMessages(run)}
+                  aria-label={`Messages for ${day.vehicleId}`}
+                  title={`Messages for ${day.vehicleId}`}
+                  className="absolute top-2.5 left-[calc(var(--lab)-36px)] z-30 flex size-8 items-center justify-center rounded-full bg-go-surface text-go-teal transition-colors before:absolute before:-inset-1 hover:bg-go-soft"
+                >
+                  <ChatIcon className="size-[17px]" />
+                  {(marks.get(day.vehicleId) ?? []).length > 0 && (
+                    <span aria-hidden className="absolute -top-0.5 -right-0.5 size-2.5 rounded-full bg-go-danger ring-2 ring-white" />
+                  )}
+                </button>
+              )}
               <button type="button" onClick={() => onOpen(day.vehicleId)} className="relative z-20 flex w-[var(--lab)] shrink-0 flex-col gap-0.5 px-1 text-left text-[12.5px] text-go-ink">
                 <span className="flex items-center gap-2">
                   <span className="text-[14px] font-medium">{day.vehicleId}</span>
@@ -166,6 +225,9 @@ export default function LiveTimeline({
                 <span aria-hidden className="absolute left-0 right-0 top-1/2 h-px bg-go-divider" />
                 <span title="Departed depot" className="absolute top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 bg-go-ink" style={{ left: at(lead) }} />
                 {sorted.map((stop) => {
+                  // A report about this stop takes the stop's place on the line.
+                  const reported = onStop.get(stop.outletId);
+                  if (reported) return sign(reported, stopMinute(stop), stop.deliveryId, stop.outletId);
                   const exception = stop.outcome === "FAILED" || (stop.lateMinutes ?? 0) > 0;
                   const delivered = stop.outcome === "DELIVERED" || stop.outcome === "PARTIAL";
                   const delayed = !delivered && (run.status === "at-risk" || run.status === "late") && stop.outcome === "PENDING";
@@ -189,21 +251,7 @@ export default function LiveTimeline({
                     </span>
                   );
                 })}
-                {(marks.get(day.vehicleId) ?? []).map((mark) => (
-                  <button
-                    key={mark.messageId}
-                    type="button"
-                    data-testid="report-sign"
-                    onClick={() => onReport?.(mark)}
-                    title={`Exception · click to open · ${REPORT_LABEL[mark.reportType]} · ${ROLE_LABEL[mark.authorRole]} · ${clockLabel(minutesOfInstant(mark.at))}`}
-                    aria-label={`${REPORT_LABEL[mark.reportType]} reported by the ${ROLE_LABEL[mark.authorRole].toLowerCase()} at ${clockLabel(minutesOfInstant(mark.at))}, open the messages`}
-                    className="absolute -top-3 z-30 flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full"
-                    style={{ left: at(minutesOfInstant(mark.at)) }}
-                  >
-                    <span aria-hidden className="absolute inset-0 animate-ping rounded-full bg-go-danger/30" />
-                    <span aria-hidden className="relative flex h-5 w-5 items-center justify-center rounded-full bg-go-danger text-[11px] font-bold leading-none text-white ring-2 ring-white">!</span>
-                  </button>
-                ))}
+                {loose.map((mark) => sign([mark], minutesOfInstant(mark.at), mark.messageId))}
                 {run.status === "returning" && (
                   <span title="Back at depot" className="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 border-2 border-go-info bg-white" style={{ left: at(Math.max(...minutes) + 45) }} />
                 )}

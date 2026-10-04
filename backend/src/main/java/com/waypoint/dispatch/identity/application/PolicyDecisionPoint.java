@@ -59,7 +59,7 @@ public class PolicyDecisionPoint implements CommandAuthorizer {
     this.database = database;
     this.audit = audit;
     this.metrics = metrics;
-    this.clock = clock;
+    this.clock = clock.realTime();
   }
 
   /** Answers the question, without recording anything. */

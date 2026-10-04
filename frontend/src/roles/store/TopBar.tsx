@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { OutletView } from "@shared/domain/types";
-import { CountBadge, Icon, ShellActions, cx } from "@shared/ui";
+import { CountBadge, Icon, ShellActions, cx, useStateAnnouncement } from "@shared/ui";
 import AccountMenu from "./AccountMenu.tsx";
 import { initials } from "./ui.tsx";
 import { clock } from "@shared/wording";
@@ -76,6 +76,10 @@ export default function TopBar({
             : "…";
   const synced = online && !since && waiting === 0 && !syncing && syncedAt !== null;
   const hasUnread = (unread ?? 0) > 0;
+  // Only the connection STATE is announced to screen readers, not the clock inside
+  // the visible text, so it does not re-announce on every poll (issue #118 follow-up).
+  const state = !online ? (waiting > 0 ? `Offline, ${waiting} saved on this phone` : "Offline") : since ? "Server unreachable" : waiting > 0 ? "Sending" : syncing ? "Syncing" : "Synced";
+  const announcement = useStateAnnouncement(state);
 
   return (
     <header className="flex w-full items-center gap-2.5 lg:absolute lg:top-8 lg:right-10 lg:w-auto">
@@ -95,7 +99,7 @@ export default function TopBar({
           online ? "text-go-muted lg:text-black" : "font-medium text-go-warning-text",
         )}
       >
-        <span role="status">
+        <span>
           {!online && <span aria-hidden className="mr-1.5 inline-block size-2 rounded-full bg-go-warning" />}
           <span className="max-[439px]:hidden">{sync}</span>
           <span aria-hidden className="min-[440px]:hidden">
@@ -103,6 +107,7 @@ export default function TopBar({
             {short}
           </span>
         </span>
+        {announcement}
       </button>
       {onNotifications && (
         <button

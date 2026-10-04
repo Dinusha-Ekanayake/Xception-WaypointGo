@@ -1,6 +1,7 @@
 import { request, requestAll } from "@shared/api/client";
 import type { Page } from "@shared/domain/common";
 import { newCommand, send } from "@shared/api/commands";
+import type { OutletDetailsView, UpdateOutletDetails } from "@shared/domain/types";
 
 export async function createAdminDepot(payload: { code: string; name: string; timezone: string;
   latitude: string; longitude: string; locationPrecision: "exact" | "approximate" }) {
@@ -36,6 +37,7 @@ export type AdminDepotDetail = {
   outletCount: number;
   vehicleCount: number;
   districtCount: number;
+  rowVersion: number;
 };
 
 export type AdminOutlet = {
@@ -65,7 +67,19 @@ export type AdminVehicle = {
   weeklyFuelQuotaL: number;
   statusDate?: string;
   dayStatus?: string;
+  rowVersion: number;
 };
+
+export async function updateAdminDepot(payload: { code: string; name: string; timezone: string }, expectedVersion: number) {
+  return send<{ id: string; rowVersion: number }>(newCommand("reference:UpdateDepot", payload, expectedVersion));
+}
+
+export async function updateAdminVehicle(payload: {
+  vehicleId: string; depotCode: string; type: string; temperature: string;
+  weightCapKg: string; volumeCapM3: string; fuelType: string; kmPerL: string; weeklyFuelQuotaL: string;
+}, expectedVersion: number) {
+  return send<{ id: string; rowVersion: number }>(newCommand("reference:UpdateVehicle", payload, expectedVersion));
+}
 
 export async function fetchAdminDepots(options?: {
   signal?: AbortSignal;
@@ -116,6 +130,14 @@ export async function fetchAdminOutlet(
   return request<AdminOutlet>(`/api/admin/outlets/${encodeURIComponent(id)}`, {
     signal: options?.signal,
   });
+}
+
+export function fetchAdminOutletDetails(id: string): Promise<OutletDetailsView> {
+  return request<OutletDetailsView>(`/api/reference/outlets/${encodeURIComponent(id)}/details`);
+}
+
+export async function updateAdminOutletDetails(payload: UpdateOutletDetails, expectedVersion: number): Promise<void> {
+  await send(newCommand("reference:UpdateOutletDetails", payload, expectedVersion));
 }
 
 export async function fetchAdminVehicles(options: {

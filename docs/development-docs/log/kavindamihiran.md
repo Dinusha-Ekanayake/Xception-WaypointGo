@@ -3,6 +3,67 @@
 @kavindamihiran's entries, newest first. Only @kavindamihiran adds to this file; how to write an entry is in the [log's index](../development-log.md).
 
 ---
+## 2026-10-05 - fix: dispatcher and store maps read the whole trail and keep the view
+
+`fix/role-maps` · @kavindamihiran · #161, #231
+
+The trail reader moved to `shared/ui/map/trail.ts` with `readTripTrail` beside the map, and all three maps use it: every page is read (the dispatcher and store stopped at 200 points) and missing coordinates are skipped. The dispatcher trail follows the demo refresh, choosing a vehicle from the list brings it into view, a filter that hides it ends the choice, and a failed trail read says so with Retry. The store map fits once instead of following the truck, stops asking for the trail once its stop is done, and its "not updated" note has Retry. `MapCanvas` redraws only when what is drawn changed, so a focused marker keeps focus across polls.
+Verified: typecheck, Node tests (243 pass), production build, dispatcher (63), store (56) and driver (27) browser suites; the dispatcher mock now pages the trail. Left: position age check and marker colours ([walkthrough](../../issues/161-live-map/WALKTHROUGH.md) gaps).
+
+## 2026-10-04 - ci: release pull request reuses the dev checks
+
+`ci/release-pr-reuses-dev-checks` · @kavindamihiran
+
+Every push to dev ran Checks twice (preview deploy and the open dev to main pull request), about 26 jobs, and runs queued ~2 minutes for runners. The release pull request, and the production deploy of a merge whose tree equals the dev commit it merged, now run one job that waits for the preview deploy's checks of the same commit and takes their result; the deploys gained `actions: read` for it. Verified by the pull request's own checks.
+
+## 2026-10-04 - ci: check only what a change touches
+
+`ci/checks-only-what-changed` · @kavindamihiran
+
+Checks ran every job on every pull request (~4.5 min even for a frontend change). A first job now lists the changed areas and each job is skipped when its area is untouched; deploys and workflow changes still run everything, and the two aggregate statuses accept skipped. The backend's slowest shard is split (planning and messaging apart), and "Frontend checks" no longer builds, since every browser runner builds. Verified by this pull request's own checks.
+
+## 2026-10-04 - ci: run the browser suites side by side
+
+`ci/parallel-browser-suites` · @kavindamihiran
+
+The "Browser suites" job ran five Playwright suites one after another with one worker, about 7 minutes. Each suite now has its own runner (a matrix in `checks.yml`) and two workers in CI; a single "Browser suites" status still gates, like "Backend tests". Target 3-5 minutes. Not run locally; verified by the pull request's own checks.
+
+## 2026-10-05 - fix: driver map trail, re-centring, dark mode and tile prefetch
+
+`feat/231-demo-scenarios` · @kavindamihiran · #161, #201, #231
+
+The driver map now reads every page of the trip's trail (it stopped at the oldest 200 points), polls it every 15 s so server simulation points reach it, and skips null coordinates instead of drawing them at 0,0. The phone's trail resets with the trip and points already on the server are drawn once. The map fits once per stop instead of every ~100 m, so the driver's pan and zoom stay. GPS pauses during a simulated drive. Zoom buttons, notice and attribution follow the dark theme. Tile prefetch keeps each stop's street tiles first, in stop order, plus the opening zoom 8.
+Verified: typecheck, Node tests (229 pass, new `driver-trail.test.ts` and a prefetch case), production build, driver browser suite (24 pass). Left: 5 s polling on store and dispatcher maps and the "GPS paused" note ([plan](../../issues/231-demo-mode/PLAN.md) PR 4 item).
+
+## 2026-10-05 - feat: simulated vehicles and scenario deck, issue #231 complete
+
+`feat/231-demo-scenarios` · @kavindamihiran · #231, PRs 4 to 6
+
+Added `demo.simulations`, `RouteWalker`, `demo:StartSimulation`/`ControlSimulations` and `SimulationJob`: released trips drive from the depot through each stop, each point a real `delivery:RecordPositions` command as the assigned driver (R-DEMO-04, DEMO-04 to 06). Disable stops every simulation. The control room gained the vehicles panel, a nine-scenario deck and faster map refresh in demo mode. [Walkthrough](../../issues/231-demo-mode/WALKTHROUGH.md) holds the runbook and gaps.
+Verified: full `mvn verify` on a fresh PostgreSQL 16 database, 1015 tests, no skips, one error in `ReferenceCreationIntegrationTest` (the shared-state interaction logged below; it passes beside Demo on a fresh database). Frontend typecheck, Node tests, build and all five browser suites, including the two new control room specs.
+
+## 2026-10-05 - feat: demo control room, banner and simulated drive, issue #231
+
+`feat/231-demo-control-room` · @kavindamihiran · #231, PRs 3 and 4 (frontend part)
+
+Added the admin "Demo control room" tab: on/off switch with an audited reason, demo clock presets (15:30, 16:05, 05:00, real time, custom), prepare demo day, position update interval and banner, demo accounts with copy, the 12-step demo path checklist and the demo log. Every role shows a demo banner while demo mode is on. In demo mode the driver's route screen offers "Simulate drive to the next stop", which sends real `delivery:RecordPositions` commands stamped with the demo clock, so the store and dispatcher maps move. With demo mode off or unreadable nothing renders and the driver flush stays at 60 s.
+Verified: typecheck, Node tests (225 pass), production build, and every browser suite unchanged (shell 14, driver 24, store 55, dispatcher 57, loader 31). Left: browser specs for the control room, the server-side fleet simulator and the scenario deck (PR 5).
+
+## 2026-10-04 - feat: opt-in demo runtime and day preparation, issue #231
+
+`feat/231-demo-backend-core` · @kavindamihiran · #231, PR 2 of 6
+
+Added administrator-only, versioned runtime controls and a business-clock offset with a real-time security seam. Reset starts a persisted run and prepares a new empty operating day through Reference, Identity and Ordering commands; existing operational rows and credentials remain. The [plan](../../issues/231-demo-mode/PLAN.md), R-DEMO-01 to 03 and DEMO-01 to 03 record the limits. Frontend controls, trucks and scenarios remain for later PRs.
+Verified: demo integration, reference-creation interaction and module-boundary tests on a fresh dedicated PostgreSQL 16 database, no skips; frontend typecheck, Node tests and production build. A full `mvn clean verify` ran 997 tests with one error in `ReferenceCreationIntegrationTest` after other suites had mutated shared reference state; that test passes beside Demo on a fresh database. The full-suite state interaction remains to resolve.
+
+## 2026-10-04 - plan: runtime demo control room and scenario deck, issue #231
+
+`docs/231-demo-mode-plan` · @kavindamihiran · #231, PR 1 of 6
+
+Mapped the booklet and all 17 scenario cards to current commands in the [plan](../../issues/231-demo-mode/PLAN.md). Recorded the real gaps: one-time seed with ordinary order references, cron unaffected by clock offset, sessions sharing the business clock, driver map using phone GPS, and admin-only actions conflicting with driver start. Proposed safe new-date preparation, separate security time, owner-module commands and admin-started simulations; snapshot restore and frozen time remain explicit review decisions.
+Why: the issue asks for a docs-first PR before runtime changes; its sketch needs these corrections to preserve module boundaries and operational records.
+Verified: source/contract review and documentation checks only. No application code changed; runtime acceptance and preview rehearsal remain open.
+
 ## 2026-10-04 - feat: Admins switch assistants per person and role
 
 `feat/admin-mcp-people` · @kavindamihiran · #177

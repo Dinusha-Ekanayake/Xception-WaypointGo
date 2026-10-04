@@ -2,14 +2,13 @@
 
 import { useMemo, useRef, useState } from "react";
 import type { OrderView, PlanView, StopView, VehicleView } from "@shared/domain/types";
-import { Menu } from "@shared/ui";
 import { hhmm } from "@shared/wording";
-import { typeLabel } from "../data/fleet.ts";
 import { size } from "../data/orders.ts";
 import { after, type TripLoad } from "../data/plan.ts";
 import { lastServedText } from "../data/planViews.ts";
 import { checkChips, stopRows, tripTiles } from "../data/tripWindow.ts";
 import { useInterchange, useTripEditPreview } from "../data/usePlanReads.ts";
+import VehiclePicker from "./VehiclePicker.tsx";
 import { tripChecks } from "./PlanTrip.tsx";
 import ReasonPicker, { reasonReady } from "./ReasonPicker.tsx";
 import Refusal from "./Refusal.tsx";
@@ -77,7 +76,6 @@ export default function EditTrip({
     [plan.allocations, orders],
   );
   const waiting = candidates.filter((c) => !ids.includes(c.order.orderId));
-  const others = fleet.filter((v) => v.vehicleId !== trip.vehicleId);
   const canEdit = editable && moveTo === null;
 
   const insert = (orderId: string, index: number) =>
@@ -114,7 +112,7 @@ export default function EditTrip({
   return (
     <TripWindow
       label="Edit trip"
-      kicker={`Edit trip · ${plan.depotCode}`}
+      kicker={`Edit trip · ${(vehicle?.depotCode ?? plan.depotCode)}`}
       title={`${trip.vehicleId} Trip ${trip.tripNumber} · ${trip.brandCode} ${trip.districtName} · departs ${hhmm(trip.plannedDeparture)}`}
       onClose={leave}
       banner={
@@ -124,33 +122,23 @@ export default function EditTrip({
               ? `Moving the whole trip to ${moveTo}`
               : editable
                 ? "Drag deferred orders onto the trip, drag stops to reorder, drag a stop right to take it off. Accept when every check passes."
-                : "A published plan changes only by moving the whole trip."}
+                : "A published plan changes only by moving the whole trip, until 16:00 on its day."}
           </span>
           {canEdit && (
             <button
               type="button"
               disabled={ids.length === 0}
               onClick={() => setIds([])}
-              className="rounded-full bg-go-danger-tint px-3.5 py-1.5 text-[13px] font-medium text-go-danger-strong disabled:opacity-40"
+              className="relative rounded-full bg-go-danger-tint px-3.5 py-1.5 text-[13px] font-medium text-go-danger-strong before:absolute before:-inset-y-1.5 disabled:opacity-40"
             >
               Remove trip
             </button>
           )}
           {canReplan && (
-            <Menu
-              label="Move the trip to"
-              align="right"
-              disabled={changed}
-              items={others.map((v) => ({ id: v.vehicleId, label: v.vehicleId, hint: typeLabel(v), selected: moveTo === v.vehicleId }))}
-              onSelect={setMoveTo}
-              className="flex items-center gap-1.5 rounded-full bg-go-card px-3.5 py-1.5 text-[13px] font-medium"
-              chevron
-            >
-              Move trip to
-            </Menu>
+            <VehiclePicker plan={plan} fleet={fleet} current={trip.vehicleId} chosen={moveTo} disabled={changed} onChoose={setMoveTo} />
           )}
           {(changed || moveTo !== null) && (
-            <button type="button" onClick={() => (setIds(original), setMoveTo(null))} className="text-[13px] font-medium text-go-teal">
+            <button type="button" onClick={() => (setIds(original), setMoveTo(null))} className="relative text-[13px] font-medium text-go-teal before:absolute before:-inset-x-2 before:-inset-y-3.5">
               Undo all
             </button>
           )}
@@ -176,7 +164,7 @@ export default function EditTrip({
                       type="button"
                       aria-label={`Add ${order.outletId} to the trip`}
                       onClick={() => insert(order.orderId, ids.length)}
-                      className="rounded-full bg-go-ink px-2 py-0.5 text-[11px] font-medium text-go-card"
+                      className="relative rounded-full bg-go-ink px-2 py-0.5 text-[11px] font-medium text-go-card before:absolute before:-inset-x-1.5 before:-inset-y-2.5"
                     >
                       + Add
                     </button>
@@ -190,7 +178,7 @@ export default function EditTrip({
         ),
       }}
       tiles={tripTiles(stops, orders, vehicle, !changed || (Boolean(preview.data) && !preview.loading))}
-      depart={{ place: `${plan.depotCode} depot`, time: hhmm(trip.plannedDeparture) }}
+      depart={{ place: `${(vehicle?.depotCode ?? plan.depotCode)} depot`, time: hhmm(trip.plannedDeparture) }}
       back={{ time: changed ? "…" : after(trip.plannedDeparture, trip.plannedMinutes) }}
       stops={stopRows(plan, stops, orders, vehicle).map((row) => (added.includes(row.orderId) ? { ...row, tag: "NEW · added by you" } : row))}
       onReorder={canEdit ? (from, to) => setIds((list) => moveItem(list, from, to)) : undefined}
@@ -239,7 +227,7 @@ export default function EditTrip({
           <span className="text-go-danger-strong">{`${summary || `trip moves to ${moveTo}`}: a rule refuses it, see the checks`}</span>
         )
       }
-      accept={{ label: "Accept changes", disabled: actions.busy || !ready || !reasonReady(reason), onClick: () => void apply() }}
+      accept={{ label: "Accept changes", disabled: !ready || !reasonReady(reason), busy: actions.busy, onClick: () => void apply() }}
     />
   );
 }

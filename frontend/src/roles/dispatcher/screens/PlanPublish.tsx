@@ -35,6 +35,7 @@ export default function PlanPublish({
   onConfirming,
   revising,
   onRevising,
+  final,
   reviseReason,
   onReviseReason,
   onPublish,
@@ -56,6 +57,8 @@ export default function PlanPublish({
   /** The step bar's Edit plan was pressed on a published plan. */
   revising: boolean;
   onRevising: (revising: boolean) => void;
+  /** Past 16:00 on the service day: the published plan is final (R-PLN-43). */
+  final: boolean;
   reviseReason: string;
   onReviseReason: (reason: string) => void;
   onPublish: () => void;
@@ -178,7 +181,7 @@ export default function PlanPublish({
             <p className="min-w-[220px] flex-1 text-[13px] font-medium text-go-ink">
               {revises ? "Send this change to the loaders and drivers?" : `Publish for ${depot} on ${dayLabel(date)}? It cannot be edited afterwards, only revised.`}
             </p>
-            <PrimaryButton disabled={!online || busy || blocked} onClick={onPublish}>
+            <PrimaryButton disabled={!online || blocked} busy={busy} onClick={onPublish}>
               {busy ? "Sending…" : revises ? "Send update" : "Confirm publish"}
             </PrimaryButton>
             <SecondaryButton onClick={() => onConfirming(false)}>Cancel</SecondaryButton>
@@ -187,23 +190,27 @@ export default function PlanPublish({
 
         {published && !revising && (
           <div className="flex flex-wrap items-center gap-2 border-t border-go-rule pt-4">
-            <SecondaryButton disabled={!online} onClick={() => onRevising(true)}>
+            <SecondaryButton disabled={!online || final} onClick={() => onRevising(true)}>
               Edit plan
             </SecondaryButton>
             <SecondaryButton onClick={() => (window.location.hash = "/live")}>Watch the run</SecondaryButton>
-            <p className="text-xs text-go-secondary">Editing starts a revision; drivers and stores keep this plan until the update is sent.</p>
+            <p className="text-xs text-go-secondary">
+              {final
+                ? "This plan is final: changes closed at 16:00 on its day."
+                : "Editing starts a revision until 16:00 on the plan's day; drivers and stores keep this plan until the update is sent."}
+            </p>
           </div>
         )}
 
-        {published && revising && (
+        {published && revising && !final && (
           <div className="flex flex-col gap-2 rounded-go-card bg-go-surface p-3">
             <p className="text-[13px] text-go-ink">
               A published plan is not edited. A revision becomes a draft, and nothing changes on the dock or the road until it is sent.
             </p>
             <ReasonPicker label="Why is the plan being revised?" value={reviseReason} onChange={onReviseReason} placeholder="For example: a vehicle broke down, new orders were confirmed" />
             <div className="flex gap-2">
-              <PrimaryButton disabled={!online || busy || !reasonReady(reviseReason)} onClick={onRevise}>
-                Start a revision
+              <PrimaryButton disabled={!online || !reasonReady(reviseReason)} busy={busy} onClick={onRevise}>
+                {busy ? "Sending…" : "Start a revision"}
               </PrimaryButton>
               <SecondaryButton onClick={() => onRevising(false)}>Cancel</SecondaryButton>
             </div>

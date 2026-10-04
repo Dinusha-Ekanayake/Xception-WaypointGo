@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import type { ApiError } from "@shared/api/problem";
+import { type ApiError, friendlyError } from "@shared/api/problem";
 import type { DeliveryRecordView, IssueView, OrderStatus, OrderView, OutletView, PendingReceiptView } from "@shared/domain/types";
-import { Icon, Notice, cx } from "@shared/ui";
+import { Icon, Notice, SkeletonRows, cx } from "@shared/ui";
 import { units, addDays, clock, cutoffLabel, dayLabel, depotToday, editable, greeting, hhmm, onTheWay, temperatureLabel, untilCutoff } from "../data/format.ts";
 import { isOpenIssue, issueCard, loaderShortUnits } from "../data/issues.ts";
 import { aheadLabel, nextDelivery } from "../data/nextDelivery.ts";
@@ -23,10 +23,10 @@ export function Progress({ status }: { status: OrderStatus }): React.JSX.Element
     <ol className="flex w-full" aria-label="Delivery progress">
       {STEPS.map((step, i) => (
         <li key={step} className="relative flex flex-1 flex-col items-center gap-1" aria-current={i === done ? "step" : undefined}>
-          {i > 0 && <span aria-hidden className={cx("absolute top-3 left-[calc(-50%+13px)] h-0.5 w-[calc(100%-26px)]", i <= done ? "bg-go-success" : "bg-[#dfe7e6]")} />}
+          {i > 0 && <span aria-hidden className={cx("absolute top-3 left-[calc(-50%+13px)] h-0.5 w-[calc(100%-26px)] transition-colors duration-[250ms]", i <= done ? "bg-go-success" : "bg-[#dfe7e6]")} />}
           <span
             className={cx(
-              "relative flex size-[26px] items-center justify-center rounded-full",
+              "relative flex size-[26px] items-center justify-center rounded-full transition-colors duration-[250ms]",
               i < done ? "bg-go-success" : i === done ? "border-[3px] border-go-success bg-white" : "bg-[#f1f6f5]",
             )}
           >
@@ -53,6 +53,7 @@ export default function Home({
   onReceive,
   onTrack,
   notifications,
+  onRetry,
 }: {
   orders: OrderView[];
   loading: boolean;
@@ -67,6 +68,8 @@ export default function Home({
   onPlace: () => void;
   onReceive: (orderId: string) => void;
   onTrack: () => void;
+  /** Read the orders again after a failure. */
+  onRetry?: () => void;
   /** The notifications column on desktops (issue #118). */
   notifications: ReactNode;
 }): React.JSX.Element {
@@ -99,9 +102,10 @@ export default function Home({
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
         <div className="flex min-w-0 flex-col gap-5">
-          {error && <Notice tone="danger" title="Could not load your orders">{error.message}</Notice>}
+          {error && <Notice tone="danger" title="Could not load your orders" onRetry={onRetry}>{friendlyError(error)}</Notice>}
 
-          <Card label="Next delivery">
+          {/* Moves into Track's first card when the delivery is tracked (shared element, UX polish 4). */}
+          <Card label="Next delivery" style={{ viewTransitionName: "vt-delivery" }}>
             <div className="flex items-center gap-1.5">
               <p className="flex-1 text-[13px] font-light text-go-muted">
                 {next_
@@ -147,7 +151,7 @@ export default function Home({
                 </div>
               </>
             ) : (
-              <Muted>{loading ? "Loading…" : "No delivery is planned for you yet. Your next order shows here once it is confirmed."}</Muted>
+              loading ? <SkeletonRows label="Loading…" /> : <Muted>No delivery is planned for you yet. Your next order shows here once it is confirmed.</Muted>
             )}
           </Card>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { ApiError } from "@shared/api/problem";
+import { ApiError, friendlyError } from "@shared/api/problem";
 import { Notice } from "@shared/ui";
 
 /** Why the fleet read failed, in words a dispatcher can act on, with a retry. */
@@ -21,13 +21,13 @@ export default function FleetError({ error, onRetry }: { error: Error; onRetry: 
       live
       action={
         status === 403 ? undefined : (
-          <button type="button" onClick={onRetry} className="shrink-0 rounded-go-chip bg-white px-2.5 py-[5px] text-[11px] font-medium text-go-teal">
+          <button type="button" onClick={onRetry} className="relative shrink-0 rounded-go-chip bg-white px-2.5 py-[5px] text-[11px] font-medium text-go-teal before:absolute before:-inset-x-1 before:-inset-y-2.5">
             Try again
           </button>
         )
       }
     >
-      {error.message}
+      {friendlyError(error)}
     </Notice>
   );
 }

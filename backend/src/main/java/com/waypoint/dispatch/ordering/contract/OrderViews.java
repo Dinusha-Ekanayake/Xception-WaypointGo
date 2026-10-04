@@ -117,6 +117,9 @@ public final class OrderViews {
   public record DailyVolumeView(
       LocalDate date, int orders, java.math.BigDecimal totalM3, java.math.BigDecimal chilledM3) {}
 
+  /** An order booked for a day and not yet planned (issue #224, slice 3). */
+  public record OpenOrderView(java.util.UUID orderId, String outletId, String brandCode, LocalDate deliveryDate) {}
+
   /** One brand's orders due on one day at a depot, by delivery date (issue #224). */
   public record BookedVolumeView(
       LocalDate date, String brandCode, int orders, java.math.BigDecimal totalM3, java.math.BigDecimal chilledM3) {}
@@ -128,8 +131,17 @@ public final class OrderViews {
    *
    * @param deliveryDate where the chosen day lands after any roll
    */
+  /**
+   * @param roomChecked whether each day offered was checked for room on the trip
+   *     (issue #199), from the store's usual order; false when the store has no
+   *     measured order yet, and the days are offered on bookings alone
+   */
   public record RideAlongView(
-      LocalDate requestedDate, LocalDate deliveryDate, boolean offered, List<RideAlongDay> days) {}
+      LocalDate requestedDate, LocalDate deliveryDate, boolean offered, List<RideAlongDay> days, boolean roomChecked) {
+    public RideAlongView(LocalDate requestedDate, LocalDate deliveryDate, boolean offered, List<RideAlongDay> days) {
+      this(requestedDate, deliveryDate, offered, days, false);
+    }
+  }
 
   /** A day and how many other outlets of the same brand and district are booked for it. */
   public record RideAlongDay(LocalDate date, int stopsBooked) {}

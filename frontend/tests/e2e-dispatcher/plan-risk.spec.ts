@@ -27,6 +27,7 @@ test("a scored published plan tags its risky trip on the board and every stop on
   const board = page.getByRole("region", { name: "Trips by vehicle" });
   await expect(board.getByText("Late risk 41%", { exact: true })).toBeVisible();
 
+  await board.getByRole("button", { name: /trip 1:/ }).first().click();
   const stops = page.getByRole("list", { name: "Stops in order" });
   await expect(stops.getByText("Late 12%", { exact: true })).toBeVisible();
   await expect(stops.getByText("Late 41%", { exact: true })).toBeVisible();
@@ -38,6 +39,7 @@ test("when the time predictor was not running the risk reads as an estimate", as
 
   await expect(page.getByText("0 low · estimated")).toBeVisible();
   await expect(page.getByRole("region", { name: "Trips by vehicle" }).getByText("Late risk 41% · estimate")).toBeVisible();
+  await page.getByRole("region", { name: "Trips by vehicle" }).getByRole("button", { name: /trip 1:/ }).first().click();
   await expect(page.getByRole("list", { name: "Stops in order" }).getByText("Late 12% · estimate")).toBeVisible();
 });
 

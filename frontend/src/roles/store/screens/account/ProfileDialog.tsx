@@ -6,7 +6,7 @@ import { IdentityCommandKind, type UpdateOwnProfile } from "@shared/domain/types
 import { Icon, Notice } from "@shared/ui";
 import type { StoreGateway } from "../../data/gateway.ts";
 import { conflictMessage, type useCommands } from "../../data/useCommands.ts";
-import { Button, Modal } from "../../ui.tsx";
+import { Button, Field, Modal } from "../../ui.tsx";
 
 // The manager's own name and phone number (R-IAM-32). The email is the sign-in
 // name and the password stays with the administrator, so neither is here.
@@ -28,6 +28,7 @@ export default function ProfileDialog({
   const profile = useResource((s) => gateway.profile(s), "profile");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [nameError, setNameError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -38,7 +39,8 @@ export default function ProfileDialog({
 
   const save = async () => {
     if (!profile.data) return;
-    if (!name.trim()) return setError("A name is required.");
+    setNameError(null);
+    if (!name.trim()) return setNameError("A name is required.");
     setError(null);
     const payload: UpdateOwnProfile = { displayName: name, phone: phone.trim() ? phone : null };
     const outcome = await commands.run(IdentityCommandKind.updateOwnProfile, payload, profile.data.rowVersion);
@@ -58,10 +60,20 @@ export default function ProfileDialog({
         </button>
       </div>
       {profile.error && <Notice tone="danger" title="Could not load your profile">{profile.error.message}</Notice>}
-      <label className="flex flex-col gap-1.5 text-[13px] text-go-secondary">
-        Name
-        <input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} autoComplete="name" className={field} />
-      </label>
+      <Field label="Name" error={nameError ?? undefined} errorId="profile-name-error">
+        <input
+          value={name}
+          onChange={(e) => {
+            setName(e.target.value);
+            setNameError(null);
+          }}
+          maxLength={80}
+          autoComplete="name"
+          aria-invalid={nameError ? true : undefined}
+          aria-describedby={nameError ? "profile-name-error" : undefined}
+          className={field}
+        />
+      </Field>
       <label className="flex flex-col gap-1.5 text-[13px] text-go-secondary">
         Phone number
         <input
@@ -84,7 +96,7 @@ export default function ProfileDialog({
         <Button tone="plain" onClick={onClose}>
           Cancel
         </Button>
-        <Button disabled={!profile.data || commands.busy} onClick={() => void save()}>
+        <Button disabled={!profile.data} busy={commands.busy} onClick={() => void save()}>
           {commands.busy ? "Saving…" : "Save"}
         </Button>
       </div>

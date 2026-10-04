@@ -38,7 +38,8 @@ export function tripThread(
 export function said(id: string, at: string, over: Partial<MessageView> = {}): MessageView {
   return {
     messageId: id, threadId: "", authorName: "Dinusha Bawantha", authorRole: "dispatcher", kind: "message", reportType: null,
-    audience: "all", audienceOutlet: null, body: id, voiceNoteId: null, voiceDurationMs: null, createdAt: at, mine: false, ...over,
+    audience: "all", audienceOutlet: null, body: id, voiceNoteId: null, voiceDurationMs: null, createdAt: at, mine: false,
+    voicePeaks: [], resolvedAt: null, resolvedByName: null, resolutionNote: null, ...over,
   };
 }
 
@@ -46,10 +47,11 @@ export function said(id: string, at: string, over: Partial<MessageView> = {}): M
 export function marks(threads: ThreadMock[]): ReportMarkView[] {
   return threads.flatMap((t) =>
     t.messages
-      .filter((m) => m.kind === "report")
+      .filter((m) => m.kind === "report" && m.resolvedAt === null)
       .map((m) => ({
         threadId: t.thread.threadId, tripId: t.thread.subjectId, vehicleId: t.thread.vehicleId, messageId: m.messageId, at: m.createdAt,
         reportType: m.reportType ?? "other", authorRole: m.authorRole, excerpt: m.body, voice: m.voiceNoteId !== null,
+        outletId: m.authorRole === "store_manager" ? t.thread.myOutlets[0] ?? t.thread.outletIds[0] ?? null : null,
       })),
   );
 }
@@ -80,6 +82,19 @@ export function postToThread(threads: ThreadMock[], payload: PostMessagePayload,
     messageId, threadId: payload.threadId, authorName: author.name, authorRole: author.role, kind: payload.report ? "report" : "message",
     reportType: payload.report ?? null, audience: payload.to, audienceOutlet: payload.outletId ?? null, body: payload.body,
     voiceNoteId: payload.voiceNoteId ?? null, voiceDurationMs: null, createdAt: at, mine: true,
+    voicePeaks: [], resolvedAt: null, resolvedByName: null, resolutionNote: null,
   });
   return { messageId, threadId: payload.threadId, alreadySent: false };
+}
+
+/** Applies message:Resolve as the server would: an open report, once. */
+export function resolveInThread(threads: ThreadMock[], payload: { messageId: string; note?: string }, by: string, at: string): unknown {
+  for (const t of threads) {
+    const m = t.messages.find((x) => x.messageId === payload.messageId);
+    if (!m) continue;
+    const already = m.resolvedAt !== null;
+    if (!already) Object.assign(m, { resolvedAt: at, resolvedByName: by, resolutionNote: payload.note ?? null });
+    return { messageId: m.messageId, threadId: t.thread.threadId, alreadyResolved: already };
+  }
+  return {};
 }

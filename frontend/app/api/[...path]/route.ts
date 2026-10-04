@@ -16,6 +16,9 @@ const FORWARD_REQUEST = [
   "content-type",
   "cookie",
   "origin",
+  // Media plays and seeks through byte ranges (Safari needs them to replay a voice note).
+  "range",
+  "if-range",
   "user-agent",
   "traceparent",
   "tracestate",
@@ -28,6 +31,8 @@ const STREAMS = new Set(["/api/notifications/stream"]);
 
 const FORWARD_RESPONSE = [
   "content-type",
+  "accept-ranges",
+  "content-range",
   // The notification stream asks nginx in front of this proxy not to buffer it.
   "x-accel-buffering",
   "content-disposition",
@@ -160,6 +165,10 @@ async function proxy(request: NextRequest): Promise<Response> {
     const value = response.headers.get(name);
     if (value) outgoing.set(name, value);
   }
+  // A part of a file (206) needs its length for the browser to play and seek it.
+  // fetch hands over the body decoded, so a compressed length would be wrong.
+  const length = response.headers.get("content-length");
+  if (length && !response.headers.get("content-encoding")) outgoing.set("content-length", length);
   // get("set-cookie") joins several cookies into one comma-separated header,
   // which the browser then reads as one broken cookie. Forward each one.
   for (const cookie of response.headers.getSetCookie()) outgoing.append("set-cookie", cookie);

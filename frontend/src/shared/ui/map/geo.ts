@@ -28,17 +28,23 @@ export function tileAllowed(z: number, x: number, y: number): boolean {
 
 /**
  * The tiles a run's map will need, so a phone can keep them while it has a
- * signal (issue #201): the whole area of the stops at the overview zooms, and
- * the streets around each stop at the close ones. Overview first, then by
- * stop, and never more than `cap`, which stays under the worker's tile cache
- * (scripts/sw-cache.mjs TILE_LIMIT) so prefetching never evicts the map in use.
+ * signal (issue #201): the streets around each stop at the close zooms, in the
+ * order given (stop order), then the whole area of the stops at the overview
+ * zooms, widest first, from the map's opening view down. Close tiles come first
+ * because they are what a driver at a stop needs; on a spread-out run the cap
+ * cuts the most numerous overview zoom, not a stop's streets. Never more than
+ * `cap`, which stays under the worker's tile cache (scripts/sw-cache.mjs
+ * TILE_LIMIT) so prefetching never evicts the map in use.
  */
-export function tilesFor(points: LatLon[], cap = 600, overview = [9, 10, 11, 12, 13], close = [14, 15]): string[] {
+export function tilesFor(points: LatLon[], cap = 600, overview = [8, 9, 10, 11, 12, 13], close = [14, 15]): string[] {
   if (points.length === 0) return [];
   const out = new Set<string>();
   const add = (z: number, x: number, y: number) => {
     if (out.size < cap && tileAllowed(z, x, y)) out.add(`/map-tiles/${z}/${x}/${y}.png`);
   };
+  for (const p of points)
+    for (const z of close)
+      for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) add(z, tileX(p.lon, z) + dx, tileY(p.lat, z) + dy);
   const lats = points.map((p) => p.lat);
   const lons = points.map((p) => p.lon);
   for (const z of overview) {
@@ -46,9 +52,6 @@ export function tilesFor(points: LatLon[], cap = 600, overview = [9, 10, 11, 12,
     for (let x = tileX(Math.min(...lons), z) - 1; x <= tileX(Math.max(...lons), z) + 1; x++)
       for (let y = tileY(Math.max(...lats), z) - 1; y <= tileY(Math.min(...lats), z) + 1; y++) add(z, x, y);
   }
-  for (const z of close)
-    for (const p of points)
-      for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) add(z, tileX(p.lon, z) + dx, tileY(p.lat, z) + dy);
   return [...out];
 }
 

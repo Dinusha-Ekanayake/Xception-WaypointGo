@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { request } from "@shared/api/client";
-import { newCommand, type Command } from "@shared/api/commands";
+import { newCommand, send, type Command } from "@shared/api/commands";
 import { parseProblem, ApiError } from "@shared/api/problem";
 import { useResource, type Resource } from "@shared/api/useResource";
 import { pendingEntries, QUEUED_EVENT, readThrough } from "@shared/offline";
@@ -134,9 +134,9 @@ export function newId(): string {
 }
 
 /** Uploads a voice note before the message that carries it. Needs a connection (R-MSG-06). */
-export async function uploadVoice(threadId: string, voiceNoteId: string, audio: Blob, durationMs: number): Promise<void> {
+export async function uploadVoice(threadId: string, voiceNoteId: string, audio: Blob, durationMs: number, peaks: number[] = []): Promise<void> {
   const type = (audio.type || "audio/webm").split(";")[0]!;
-  const response = await fetch(voicePath(threadId, voiceNoteId, durationMs), {
+  const response = await fetch(voicePath(threadId, voiceNoteId, durationMs, peaks), {
     method: "PUT",
     headers: { "content-type": type },
     body: audio,
@@ -154,9 +154,10 @@ export async function uploadVoice(threadId: string, voiceNoteId: string, audio: 
   }
 }
 
-/** Where a voice note's audio is uploaded, with its length. */
-export function voicePath(threadId: string, voiceNoteId: string, durationMs: number): string {
-  return `/api/threads/${q(threadId)}/voice/${q(voiceNoteId)}?durationMs=${Math.round(durationMs)}`;
+/** Where a voice note's audio is uploaded, with its length and its waveform (0 to 100 a bar). */
+export function voicePath(threadId: string, voiceNoteId: string, durationMs: number, peaks: number[] = []): string {
+  const bars = peaks.length > 0 ? `&peaks=${peaks.map((p) => Math.round(Math.max(0, Math.min(1, p)) * 100)).join(",")}` : "";
+  return `/api/threads/${q(threadId)}/voice/${q(voiceNoteId)}?durationMs=${Math.round(durationMs)}${bars}`;
 }
 
 export function voiceUrl(threadId: string, voiceNoteId: string): string {
@@ -203,4 +204,18 @@ export function useWaiting(threadId: string | null, accountId: string | undefine
     };
   }, [threadId, accountId, tick]);
   return waiting;
+}
+
+/** Said on the page when a report is resolved, so the timeline drops its sign at once. */
+export const REPORT_RESOLVED_EVENT = "waypoint:report-resolved";
+
+/** The dispatcher resolves a report (R-MSG-07). Online only, as the dispatcher works. */
+export async function resolveReport(messageId: string, note: string): Promise<void> {
+  try {
+    await send(newCommand(MessageCommandKind.resolve, { messageId, ...(note ? { note } : {}) }));
+  } catch (failure) {
+    if (failure instanceof ApiError) throw new Error(failure.problem.violations[0]?.message ?? failure.message);
+    throw failure;
+  }
+  globalThis.dispatchEvent?.(new CustomEvent(REPORT_RESOLVED_EVENT, { detail: { messageId } }));
 }

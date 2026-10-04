@@ -111,3 +111,64 @@ test("every message is under the bell, and Reply opens its thread", async ({ pag
   await row.getByRole("button", { name: "Reply" }).click();
   await expect(page.getByRole("dialog", { name: "Trip messages" }).getByText("Road closed at Akuressa, taking the bypass")).toBeVisible();
 });
+
+test("the dispatcher resolves a report: it stays on the thread, marked, and its sign leaves the timeline", async ({ page }) => {
+  const desk = await open(page);
+  await page.getByRole("button", { name: "Timeline", exact: true }).click();
+  const timeline = page.getByRole("region", { name: "Timeline" });
+  await expect(timeline.getByTestId("report-sign")).toHaveCount(2);
+  await page.screenshot({ path: "test-results/voice-look/d1-timeline.png" });
+  await timeline.getByRole("button", { name: /Road disruption reported by the driver/ }).click();
+
+  const sheet = page.getByRole("dialog", { name: "Trip messages" });
+  const report = sheet.locator("#message-r1");
+  await page.screenshot({ path: "test-results/voice-look/d2-report-focused.png" });
+  await report.getByRole("button", { name: "Mark resolved" }).click();
+  await report.getByRole("textbox", { name: "What was done" }).fill("Bypass agreed, OUT063 told");
+  await report.getByRole("button", { name: "Resolve", exact: true }).click();
+
+  await expect(report.getByTestId("resolution")).toContainText("Resolved · Dinusha Bawantha");
+  await expect(report.getByTestId("resolution")).toContainText("Bypass agreed, OUT063 told");
+  await expect(report.getByRole("button", { name: "Mark resolved" })).toHaveCount(0);
+  await page.screenshot({ path: "test-results/voice-look/d3-resolved.png" });
+  expect(desk.commands.find((c) => c.kind === "message:Resolve")?.payload).toEqual({ messageId: "r1", note: "Bypass agreed, OUT063 told" });
+
+  await sheet.getByRole("button", { name: "Close" }).click();
+  await expect(timeline.getByTestId("report-sign")).toHaveCount(1);
+});
+
+test("every run on the timeline opens its thread from a messages icon, reports or not", async ({ page }) => {
+  await open(page);
+  await page.getByRole("button", { name: "Timeline", exact: true }).click();
+  const timeline = page.getByRole("region", { name: "Timeline" });
+  await expect(timeline.getByTestId("run-messages")).toHaveCount(6);
+  await timeline.getByRole("button", { name: "Messages for VEH020" }).click();
+  await expect(page.getByRole("dialog", { name: "Trip messages" }).getByRole("heading", { name: "Messages · VEH020" })).toBeVisible();
+  await page.getByRole("dialog", { name: "Trip messages" }).getByRole("button", { name: "Close" }).click();
+
+  // A run whose trip has no thread yet says so rather than doing nothing.
+  await timeline.getByRole("button", { name: "Messages for VEH019" }).click();
+  await expect(page.getByText("This trip has no messages yet. Its thread opens when the plan is published.")).toBeVisible();
+});
+
+test("a store's report takes the place of its stop on the run's line", async ({ page }) => {
+  await page.clock.install({ time: new Date(LIVE_NOW) });
+  const thread = tripThread("t-VEH020", "VEH020", ["OUT061", "OUT063"], "dispatcher", [
+    said("s1", at("10:10"), { kind: "report", reportType: "stock_discrepancy", authorName: "Store OUT061", authorRole: "store_manager", audience: "dispatch", body: "Two units short" }),
+    said("d1", at("10:15"), { kind: "report", reportType: "vehicle_fault", authorName: "Dilan R.", authorRole: "driver", audience: "dispatch", body: "Tyre warning" }),
+  ]);
+  await serve(page, { ...liveDay(), threads: [thread] });
+  await page.goto("/#/live");
+  await page.getByRole("button", { name: "Timeline", exact: true }).click();
+  const timeline = page.getByRole("region", { name: "Timeline" });
+  const onStop = timeline.locator('[data-testid="report-sign"][data-outlet="OUT061"]');
+  await expect(onStop).toHaveCount(1);
+  await expect(timeline.locator('[title^="Stop 1 · OUT061"]')).toHaveCount(0);
+  await expect(timeline.getByTestId("report-sign")).toHaveCount(2);
+
+  // Both sit on the line, not above it.
+  const line = (await timeline.getByRole("button", { name: /Tyre warning|Vehicle fault/ }).boundingBox())!;
+  const stopSign = (await onStop.boundingBox())!;
+  expect(Math.abs(line.y + line.height / 2 - (stopSign.y + stopSign.height / 2))).toBeLessThan(2);
+  await page.screenshot({ path: "test-results/voice-look/d4-signs-on-the-line.png" });
+});

@@ -1,9 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import type { ApiError } from "@shared/api/problem";
+import { type ApiError, friendlyError } from "@shared/api/problem";
 import type { OrderView } from "@shared/domain/types";
-import { Notice, cx } from "@shared/ui";
+import { Notice, SkeletonRows, cx, usePersistentState } from "@shared/ui";
 import { units, ORDER_STATUS, dayLabel, depotToday, planNote, temperatureLabel } from "../data/format.ts";
 import { Chip, Muted } from "../ui.tsx";
 
@@ -34,14 +33,17 @@ export default function Orders({
   error,
   onOpen,
   onPlace,
+  onRetry,
 }: {
   orders: OrderView[];
   loading: boolean;
   error: ApiError | Error | null;
   onOpen: (orderId: string) => void;
   onPlace: () => void;
+  /** Read the orders again after a failure. */
+  onRetry?: () => void;
 }): React.JSX.Element {
-  const [filter, setFilter] = useState<Filter>("open");
+  const [filter, setFilter] = usePersistentState<Filter>("store:orders:filter", "open");
   const today = depotToday();
   const keep = FILTERS.find((f) => f.id === filter)!.keep;
   const shown = orders.filter(keep);
@@ -71,8 +73,8 @@ export default function Orders({
         ))}
       </div>
 
-      {error && <Notice tone="danger" title="Could not load your orders">{error.message}</Notice>}
-      {loading && orders.length === 0 && <Muted>Loading…</Muted>}
+      {error && <Notice tone="danger" title="Could not load your orders" onRetry={onRetry}>{friendlyError(error)}</Notice>}
+      {loading && orders.length === 0 && <SkeletonRows label="Loading…" />}
       {!loading && shown.length === 0 && <Muted>{EMPTY[filter]}</Muted>}
       {days.map((d) => (
         <section key={d} aria-label={dayLabel(d)} className="flex flex-col gap-2.5">

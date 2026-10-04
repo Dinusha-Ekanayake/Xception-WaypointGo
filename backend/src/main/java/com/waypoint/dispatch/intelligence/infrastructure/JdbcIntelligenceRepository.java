@@ -258,6 +258,29 @@ public class JdbcIntelligenceRepository {
         depot, fromKey, toKey);
   }
 
+  /** The warning already given for an order's day, if any (R-ML-08). */
+  public Optional<String> warnedOutlook(UUID orderId, LocalDate deliveryDate) {
+    return database.query(
+            "SELECT status FROM ml.order_outlooks WHERE order_id = ? AND delivery_date = ?",
+            orderId, java.sql.Date.valueOf(deliveryDate))
+        .stream().findFirst().map(r -> (String) r.get("status"));
+  }
+
+  /** Records the warning now given; a worse one replaces a milder one. */
+  public void recordWarning(
+      UUID orderId, LocalDate deliveryDate, String outletId, String depotCode, String status, String reason,
+      Instant at) {
+    database.update(
+        """
+        INSERT INTO ml.order_outlooks (order_id, delivery_date, outlet_id, depot_code, status, reason, notified_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT (order_id, delivery_date) DO UPDATE
+           SET status = EXCLUDED.status, reason = EXCLUDED.reason, notified_at = EXCLUDED.notified_at
+        """,
+        orderId, java.sql.Date.valueOf(deliveryDate), outletId, depotCode, status, reason,
+        java.sql.Timestamp.from(at));
+  }
+
   public record RunMark(Instant at, boolean degraded) {}
 
   /** The newest forecast run, as the process sees every depot: when, and whether a model answered. */

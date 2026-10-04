@@ -43,7 +43,7 @@ No new module. Each piece lives with the module that owns the fact, connected th
   - A refusal would add a rule the booklet does not ask for.
   - It would also break every integration test that books orders far ahead.
 - **Supply probability: kept on its existing bases.** The outlook is a separate read, and inventing probabilities per status was rejected.
-- **The early-warning job (an order's day turning busy after booking): deferred.** It needs an event and hysteresis. It is recorded as a gap.
+- **The early-warning job (slice 3): built in a second pull request.** See below.
 
 ## Pull requests
 
@@ -51,3 +51,22 @@ One pull request into `dev`:
 
 - the stop and its notice (slice 1);
 - the outlook and the date strip (slice 2).
+
+## Slice 3: the early warning
+
+Decided 2026-10-04, after slices 1 and 2 merged (#227).
+
+| Concern | Owner | How it connects |
+| --- | --- | --- |
+| Which orders are booked and not yet planned | Ordering contract (`OrderQuery.openOrders`) | Ids, outlet, brand and day only, read as the system |
+| Whether a day worsened, and whether that is news | Intelligence: `OutlookWatchJob`, `OutlookChangePolicy` (pure), `ml.order_outlooks` | The same `DateOutlookQuery.assess` the strip uses (rule 5) |
+| Telling the store | Notification: routing version 6, `OnOrderOutlookChanged` | Event `order.outlook_changed`, in the MODULES catalogue |
+| Showing it | Store order sheet | The day's outlook for an unplanned order, via the existing `outlook` read |
+
+Decisions:
+- **When the store is warned:** only busy or at risk, and only when worse than any warning already given for that order and day (R-ML-08).
+  - There is no "all clear" message. An easing day is not news, and two messages for one borderline day would teach the store to ignore both.
+- **When the job runs:** hourly 06:00-15:00, Monday to Saturday, watching from tomorrow to 14 days ahead (P-36).
+  - After the 16:00 cutoff the plan decides, and `order.deferred` already tells the store.
+- **Push for both busy and at risk:** routing rules choose push per rule, not per status, and a store hears this at most twice per order.
+- **The day reads "Fri 9 Oct":** the slice 1 title "Delivery planned for {serviceDate}" showed an ISO date. Routing version 6 fixes it with a new fact, `serviceDay`, because version 5 cannot be edited.

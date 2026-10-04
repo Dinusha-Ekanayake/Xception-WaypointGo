@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { ConstraintResultView, OrderView, PlanView, VehicleView } from "@shared/domain/types";
-import { Icon, Pill, Popover, PrimaryButton } from "@shared/ui";
+import { Drawer, Icon, Pill, Popover, PrimaryButton } from "@shared/ui";
 import { checkLabel, hhmm, temperatureLabel } from "@shared/wording";
 import { typeLabel } from "../data/fleet.ts";
 import { after, type TripLoad } from "../data/plan.ts";
@@ -26,6 +26,7 @@ export default function PlanTrip({
   canReplan,
   actions,
   risks = null,
+  onClose,
 }: {
   plan: PlanView;
   load: TripLoad;
@@ -35,6 +36,8 @@ export default function PlanTrip({
   canReplan: boolean;
   /** Each stop's late risk, keyed by order, once the published plan is scored (#119). */
   risks?: Map<string, StopRisk> | null;
+  /** Closes the drawer: a click outside, Escape or its close button. */
+  onClose: () => void;
   actions: PlanActions;
 }): React.JSX.Element {
   const { trip } = load;
@@ -44,14 +47,21 @@ export default function PlanTrip({
   const checks = useMemo(() => tripChecks(plan, trip.tripId), [plan, trip.tripId]);
 
   return (
-    <section aria-label={`${trip.vehicleId} trip ${trip.tripNumber}`} className="flex w-full flex-col rounded-go-panel bg-go-card lg:max-h-[calc(100dvh-330px)] lg:max-w-[340px]">
-      <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-5 pb-3">
-      <div>
-        <h2 className="flex flex-wrap items-center gap-2 text-[19px] font-medium text-go-ink">
+    <>
+    {!editing && (
+    <Drawer label={`${trip.vehicleId} trip ${trip.tripNumber}`} onClose={onClose}>
+      <div className="flex flex-1 flex-col gap-3 p-6 pb-3">
+      <div className="flex items-start gap-2">
+        <h2 className="flex min-w-0 flex-1 flex-wrap items-center gap-2 text-[19px] font-medium text-go-ink">
           {`${trip.vehicleId} Trip ${trip.tripNumber}`} <Pill tone="success">{trip.brandCode}</Pill> {trip.districtName}
         </h2>
+        <button type="button" onClick={onClose} aria-label="Close" className="rounded-full bg-go-surface p-2.5">
+          <Icon name="close" />
+        </button>
+      </div>
+      <div>
         <p className="text-xs text-go-secondary">
-          {`${vehicle ? `${typeLabel(vehicle)} · ` : ""}Depart ${plan.depotCode} ${hhmm(trip.plannedDeparture)} · back ${after(trip.plannedDeparture, trip.plannedMinutes)} · ${temperatureLabel(trip.temperature).toLowerCase()}`}
+          {`${vehicle ? `${typeLabel(vehicle)} · ` : ""}Depart ${(vehicle?.depotCode ?? plan.depotCode)} ${hhmm(trip.plannedDeparture)} · back ${after(trip.plannedDeparture, trip.plannedMinutes)} · ${temperatureLabel(trip.temperature).toLowerCase()}`}
         </p>
       </div>
 
@@ -64,7 +74,7 @@ export default function PlanTrip({
           tone="dark"
           align="right"
           trigger="More"
-          className="rounded-full bg-go-surface px-3 py-1 text-xs font-medium text-go-ink"
+          className="relative rounded-full bg-go-surface px-3 py-1 text-xs font-medium text-go-ink before:absolute before:-inset-x-1 before:-inset-y-2.5"
           panelClassName="flex w-[240px] flex-col gap-1 text-xs"
         >
           <p className="pb-0.5 font-semibold">{`Rule checks · ${trip.vehicleId} Trip ${trip.tripNumber}`}</p>
@@ -80,14 +90,17 @@ export default function PlanTrip({
       <Timeline plan={plan} load={load} orders={orders} vehicle={vehicle} risks={risks} onLock={editable ? (orderId, held) => void actions.lock(orderId, held) : undefined} />
       </div>
       {(editable || canReplan) && (
-        <div className="flex flex-col px-5 pt-2 pb-5">
+        <div className="sticky bottom-0 flex flex-col bg-go-card px-6 pt-2 pb-6">
           <PrimaryButton onClick={() => setEditing(true)}>Edit this trip</PrimaryButton>
         </div>
       )}
+    </Drawer>
+    )}
+      {/* The trip window opens in place of the drawer, outside it, so it is a full window of its own. */}
       {editing && (
         <EditTrip plan={plan} load={load} orders={orders} fleet={fleet} editable={editable} canReplan={canReplan} actions={actions} onClose={() => setEditing(false)} />
       )}
-    </section>
+    </>
   );
 }
 
@@ -132,7 +145,7 @@ function Timeline({
   const lastStop = trip.stops[trip.stops.length - 1];
   return (
     <ol aria-label="Stops in order" className="flex flex-col">
-      <Row first time={hhmm(trip.plannedDeparture)} dot="hollow" title={`Depart ${plan.depotCode}`} />
+      <Row first time={hhmm(trip.plannedDeparture)} dot="hollow" title={`Depart ${(vehicle?.depotCode ?? plan.depotCode)}`} />
       {trip.stops.map((stop) => {
         const order = orders.get(stop.orderId);
         const share = stopShare(order, vehicle);
@@ -154,7 +167,7 @@ function Timeline({
         last
         time={back}
         dot="hollow"
-        title={`Back at ${plan.depotCode}`}
+        title={`Back at ${(vehicle?.depotCode ?? plan.depotCode)}`}
         note={lastStop && back < hhmm(lastStop.plannedArrival) ? "Earlier than the last stop: these times need a fresh check" : undefined}
       />
     </ol>
@@ -212,7 +225,7 @@ function Row({
               aria-label={lock.held ? `Unlock ${lock.name}` : `Lock ${lock.name} to this vehicle`}
               title={lock.held ? "Locked: a regenerate keeps it here" : "Lock to this vehicle"}
               onClick={lock.onToggle}
-              className={`flex size-6 items-center justify-center rounded-full ${lock.held ? "bg-go-ink" : "bg-go-surface opacity-60 hover:opacity-100"}`}
+              className={`relative flex size-6 items-center justify-center rounded-full before:absolute before:-inset-2 ${lock.held ? "bg-go-ink" : "bg-go-surface opacity-60 hover:opacity-100"}`}
             >
               <span className={lock.held ? "invert" : ""}>
                 <Icon name="lock" />

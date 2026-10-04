@@ -14,6 +14,7 @@ import {
   type AdminOrderLine,
   type AdminStatusTimeline,
 } from "../data/orders";
+import { dayLabel } from "@shared/wording";
 
 type SubTab = "today" | "deferred" | "all";
 
@@ -677,7 +678,7 @@ export function OrdersScreen({
               {/* Delivery Date & Time Window */}
               <div className="md:col-span-2">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-medium text-go-ink">{order.deliveryDate}</span>
+                  <span className="text-xs font-medium text-go-ink">{dayLabel(order.deliveryDate)}</span>
                   {order.deliveryDate === TODAY_DATE && (
                     <span className="rounded-md bg-go-subtle px-1.5 py-0.2 text-[10px] font-bold text-go-teal">
                       TODAY
@@ -765,7 +766,7 @@ export function OrdersScreen({
                   {getStatusBadge(selectedOrder.status)}
                 </div>
                 <p id="order-detail-title" className="mt-1 text-xs text-go-secondary">
-                  Order UUID: <code className="font-mono text-[11px] text-go-ink">{selectedOrder.orderId}</code> · Version: {selectedOrder.rowVersion}
+                  Order #{selectedOrder.orderId.slice(-8)} · Version: {selectedOrder.rowVersion}
                 </p>
               </div>
 
@@ -792,7 +793,7 @@ export function OrdersScreen({
                 </div>
                 <div>
                   <span className="text-go-secondary">Delivery Date</span>
-                  <p className="font-bold text-go-ink text-sm mt-0.5">{selectedOrder.deliveryDate}</p>
+                  <p className="font-bold text-go-ink text-sm mt-0.5">{dayLabel(selectedOrder.deliveryDate)}</p>
                 </div>
                 <div>
                   <span className="text-go-secondary">Receiving Window</span>

@@ -1,5 +1,5 @@
-import { useRef, useState, type ReactNode } from "react";
-import { Icon, ShellActions, cx, useOverlay, useSheetDrag, type IconName } from "@shared/ui";
+import { useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Icon, PRESS, ShellActions, Spinner, cx, useOverlay, useSheetDrag, type IconName } from "@shared/ui";
 import type { OutletView } from "@shared/domain/types";
 import AccountMenu from "./AccountMenu.tsx";
 import { dockLabel, type StatusTone } from "./data/format.ts";
@@ -43,32 +43,39 @@ export function Button({
   onClick,
   disabled,
   large,
+  busy = false,
 }: {
   children: ReactNode;
   tone?: ButtonTone;
   onClick?: () => void;
   disabled?: boolean;
   large?: boolean;
+  /** The command is on its way: disabled, with a spinner before the label. */
+  busy?: boolean;
 }): React.JSX.Element {
   return (
     <button
       type="button"
       onClick={onClick}
-      disabled={disabled}
+      disabled={disabled || busy}
+      aria-busy={busy || undefined}
       className={cx(
-        "flex w-full min-w-0 items-center justify-center rounded-[22px] px-4 font-medium disabled:cursor-not-allowed disabled:opacity-50",
+        "flex w-full min-w-0 items-center justify-center gap-2 rounded-[22px] px-4 font-medium disabled:cursor-not-allowed disabled:opacity-50",
+        busy && "disabled:cursor-wait disabled:opacity-70",
         large ? "min-h-16 text-[20px]" : "min-h-12 text-[15px]",
         BUTTON[tone],
+        PRESS,
       )}
     >
+      {busy && <Spinner />}
       {children}
     </button>
   );
 }
 
-export function Card({ children, label, className }: { children: ReactNode; label?: string; className?: string }): React.JSX.Element {
+export function Card({ children, label, className, style }: { children: ReactNode; label?: string; className?: string; style?: CSSProperties }): React.JSX.Element {
   return (
-    <section aria-label={label} className={cx("flex w-full flex-col gap-3.5 rounded-[26px] bg-white p-[18px]", className)}>
+    <section aria-label={label} className={cx("flex w-full flex-col gap-3.5 rounded-[26px] bg-white p-[18px]", className)} style={style}>
       {children}
     </section>
   );
@@ -76,6 +83,36 @@ export function Card({ children, label, className }: { children: ReactNode; labe
 
 export function Muted({ children }: { children: ReactNode }): React.JSX.Element {
   return <p className="text-[13px] font-light text-go-muted">{children}</p>;
+}
+
+/** A labelled field with an optional error shown in red underneath. Pair `errorId` with the input's own `aria-describedby`. */
+export function Field({
+  label,
+  hint,
+  error,
+  errorId,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  /** Shown in red under the field; pair with `errorId` and the input's own `aria-describedby`. */
+  error?: string;
+  /** The id the error text is given, so the input can point `aria-describedby` at it. */
+  errorId?: string;
+  children: ReactNode;
+}): React.JSX.Element {
+  return (
+    <label className="flex flex-col gap-1.5 text-[13px] text-go-muted">
+      {label}
+      {children}
+      {hint && <span className="text-[12px]">{hint}</span>}
+      {error && (
+        <span id={errorId} role="alert" className="text-[13px] text-go-danger-strong">
+          {error}
+        </span>
+      )}
+    </label>
+  );
 }
 
 /** Minus, count, plus. The count turns teal when it differs from the usual. */

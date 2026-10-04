@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { cx } from "@shared/ui";
+import { cx, useScrollMemory } from "@shared/ui";
 import type { RouteStop } from "../data/stopView.ts";
 
 export type RouteNextStopProps = {
@@ -18,8 +18,12 @@ export type RouteNextStopProps = {
   onToggleTheme?: () => void;
   stopIndex?: number;
   onSelectStop?: (index: number) => void;
+  /** The stop row last tapped: it alone moves into the stop's header (shared element, UX polish 4). */
+  movingStop?: string | null;
   hideHeader?: boolean;
 };
+
+const MOVING = { viewTransitionName: "vt-stop" };
 
 /**
  * Apple UIScrollView rubber-band resistance formula:
@@ -347,12 +351,15 @@ export default function RouteNextStop({
   onToggleTheme,
   stopIndex = 0,
   onSelectStop,
+  movingStop = null,
   hideHeader = false,
 }: RouteNextStopProps): React.JSX.Element {
   const [hasArrived, setHasArrived] = useState(false);
 
   // Dynamic top fade on scroll & rubber band bounce (matching HomeNoVehicle message feed)
   const { scrollRef, pullY, isPulling, maskStyle, handlers } = useRubberBandScroll();
+  // Back from a stop, the list is where it was (UX polish 2).
+  useScrollMemory("driver:route", scrollRef, { page: false });
 
   // Active stop, completed stops, upcoming stops
   const safeIndex = Math.min(Math.max(0, stopIndex), Math.max(0, stops.length - 1));
@@ -479,7 +486,7 @@ export default function RouteNextStop({
           <div
             style={{
               transform: `translate3d(0, ${pullY}px, 0)`,
-              transition: isPulling ? "none" : "transform 500ms cubic-bezier(0.18, 1.12, 0.32, 1.0)",
+              transition: isPulling ? "none" : "transform 250ms cubic-bezier(0.18, 1.12, 0.32, 1.0)",
             }}
             className="flex flex-col will-change-transform"
           >
@@ -494,7 +501,7 @@ export default function RouteNextStop({
                       aria-label={`Stop ${stop.stopNumber} ${stop.name} · ${stopState(stop)}`}
                       className="w-full flex items-center justify-between text-left text-[14px] font-light leading-[18px] cursor-pointer active:opacity-70 transition-opacity"
                     >
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3" style={stop.id === movingStop ? MOVING : undefined}>
                         <span className={cx(isNight ? "text-white" : "text-black")}>{stop.stopNumber}</span>
                         <span className={cx(isNight ? "text-white" : "text-black")}>{stop.name}</span>
                       </div>
@@ -738,7 +745,7 @@ export default function RouteNextStop({
                     className="w-full text-left flex flex-col gap-3 cursor-pointer active:opacity-70 transition-opacity"
                   >
                     <div className="flex items-center justify-between text-[14px] font-light leading-[18px]">
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3" style={stop.id === movingStop ? MOVING : undefined}>
                         <span className={cx(isNight ? "text-white" : "text-black")}>{stop.stopNumber}</span>
                         <span className={cx(isNight ? "text-white" : "text-black")}>{stop.name}</span>
                       </div>

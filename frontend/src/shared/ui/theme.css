@@ -124,6 +124,8 @@
   --animate-pop: go-pop 200ms var(--ease-go-out);
   --animate-sheet-up: go-sheet-up 250ms var(--ease-go-out) backwards;
   --animate-slide-in-end: go-slide-in-end 250ms var(--ease-go-out) backwards;
+  /* A report's sign on the timeline (issue #136): a small wave, then a rest, so it is seen without nagging. */
+  --animate-wave: go-wave 2.4s ease-in-out infinite;
 
   @keyframes go-fade-in { from { opacity: 0; } }
   @keyframes go-fade-out { to { opacity: 0; } }
@@ -134,6 +136,14 @@
   @keyframes go-slide-in-end { from { transform: translateX(100%); } }
   @keyframes go-slide-out-end { to { transform: translateX(100%); } }
   @keyframes go-pop { 50% { transform: scale(1.12); } }
+  @keyframes go-wave {
+    0%, 60%, 100% { transform: rotate(0deg); }
+    10% { transform: rotate(-16deg); }
+    20% { transform: rotate(13deg); }
+    30% { transform: rotate(-9deg); }
+    40% { transform: rotate(6deg); }
+    50% { transform: rotate(-2deg); }
+  }
 }
 
 /* Admin's screens were written with `animate-in fade-in`; this makes them fade as meant. */
@@ -163,3 +173,26 @@
   .go-panel-drawer { animation-name: go-slide-in-end; }
   .go-overlay[data-closing] .go-panel-drawer { animation-name: go-slide-out-end; }
 }
+
+/*
+ * Screen changes (shared/ui/transition.ts). The old and new screen crossfade
+ * in 200 ms; drilling into a detail (`data-vt="forward"`) also slides them
+ * 12 px towards the start, coming back slides them the other way. Three shared
+ * elements (a trip, a stop, the next delivery) move from the list to the
+ * detail header in 250 ms. Reduced motion turns it all off (app/globals.css).
+ */
+@keyframes go-vt-fade-out { to { opacity: 0; } }
+@keyframes go-vt-fade-in { from { opacity: 0; } }
+@keyframes go-vt-out-start { to { opacity: 0; transform: translateX(-12px); } }
+@keyframes go-vt-in-end { from { opacity: 0; transform: translateX(12px); } }
+@keyframes go-vt-out-end { to { opacity: 0; transform: translateX(12px); } }
+@keyframes go-vt-in-start { from { opacity: 0; transform: translateX(-12px); } }
+::view-transition-old(root) { animation: go-vt-fade-out 200ms var(--ease-go-out) both; }
+::view-transition-new(root) { animation: go-vt-fade-in 200ms var(--ease-go-out) both; }
+html[data-vt="forward"]::view-transition-old(root) { animation-name: go-vt-out-start; }
+html[data-vt="forward"]::view-transition-new(root) { animation-name: go-vt-in-end; }
+html[data-vt="back"]::view-transition-old(root) { animation-name: go-vt-out-end; }
+html[data-vt="back"]::view-transition-new(root) { animation-name: go-vt-in-start; }
+::view-transition-group(vt-trip),
+::view-transition-group(vt-stop),
+::view-transition-group(vt-delivery) { animation-duration: 250ms; animation-timing-function: var(--ease-go-out); }

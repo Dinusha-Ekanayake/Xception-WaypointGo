@@ -1,6 +1,6 @@
 import type { Page, Route } from "@playwright/test";
 import type { PostMessagePayload } from "../../src/shared/domain/messaging.ts";
-import { postToThread, threadRead, type ThreadMock } from "../thread-mocks.ts";
+import { postToThread, resolveInThread, threadRead, type ThreadMock } from "../thread-mocks.ts";
 import type { RunSheetStopView, RunSheetView } from "../../src/shared/domain/execution.ts";
 import type { ReadyTripView } from "../../src/shared/domain/loading.ts";
 import type { OrderStatus, OrderView } from "../../src/shared/domain/ordering.ts";
@@ -137,6 +137,9 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
   const apply = (command: Sent) => {
     const { payload } = command;
     if (command.kind.startsWith("issue:")) return applyIssue(desk, command);
+    if (command.kind === "message:Resolve") {
+      return resolveInThread(desk.threads ?? [], payload as unknown as { messageId: string; note?: string }, SESSION.displayName, new Date().toISOString());
+    }
     if (command.kind === "message:Post") {
       return postToThread(desk.threads ?? [], payload as unknown as PostMessagePayload, { name: SESSION.displayName, role: "dispatcher" }, new Date().toISOString());
     }
@@ -261,7 +264,12 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
     if (pathname.startsWith("/api/execution/deliveries/")) {
       return route.fulfill(json({ deliveryId: pathname.split("/").pop(), driver: { displayName: "Dilan R.", employeeCode: "DRV-00133" } }));
     }
-    if (pathname.startsWith("/api/execution/trips/")) return route.fulfill(json({ items: desk.trail ?? [], nextCursor: null }));
+    if (pathname.startsWith("/api/execution/trips/")) {
+      // Two pages, as the keyset API answers a long trip: the map must read past the first.
+      const trail = desk.trail ?? [];
+      if (url.searchParams.get("cursor")) return route.fulfill(json({ items: trail.slice(1), nextCursor: null }));
+      return route.fulfill(json({ items: trail.slice(0, 1), nextCursor: trail.length > 1 ? "page-2" : null }));
+    }
     if (pathname.startsWith("/api/reference/depots/")) {
       const code = decodeURIComponent(pathname.split("/").pop() ?? "");
       return route.fulfill(json({ depotCode: code, displayName: code, location: { latitude: "6.960000", longitude: "79.880000", precision: "approximate" } }));

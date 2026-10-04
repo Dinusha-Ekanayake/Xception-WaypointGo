@@ -4,6 +4,32 @@
 
 ---
 
+## 2026-10-04 - feat(ordering): the shared-trip hint offers a day only when the order fits the trip (issue #199)
+
+`feat/199-trip-room` · @Oxshadha
+
+The Tech hint from #211 offered any nearby day with other bookings, even a trip already full. Now:
+- **Planning** answers `PlanQuery.joinsTrip`. `TripRoom` (pure) packs the booked measured orders of the brand and district onto the day's available vehicles. It asks only the registry's own load rules (temperature, van access, weight and volume with the epsilon), so capacity keeps one definition (rule 5).
+- **Ordering** passes the store's usual order (the median of its latest twenty, A-45) and drops days with no room (R-ORD-14).
+- **Store:** the card says "room on the vehicle", estimated.
+- **Degrading:** with no history, or Planning unable to answer, it falls back to bookings alone and claims nothing (ORD-22, ORD-23).
+- **Style within its weekly run:** rejected, because R-ORD-11 holds it to its date.
+
+Also fixed while proving the edge cases:
+- A room check that failed partway left earlier days filtered while the card said no check ran. `RideAlong.suggestChecked` now drops the check for every day (ORD-23).
+- #224's stop showed on the store's reads but not through the `OrderQuery.order` contract or the dispatcher's day board. All three now attach it (ORD-21).
+Why: a shared-trip hint that points at a full trip moves the order for nothing.
+Verified: `mvn verify` 1005 on a real test database, all pass but the local-only `SET ROLE k.e.oshada` identity test, and three that reuse fixed emails and codes, which pass on a fresh database; new `TripRoomTest` 6, `TripRoomIntegrationTest` 3, `RideAlongTest` 11; `npm test` 225, typecheck, build; Playwright store 55.
+
+## 2026-10-04 - feat: a store hears when a day it booked turns busy (issue #224, slice 3)
+
+`feat/224-outlook-warning` · @Oxshadha
+
+`OutlookWatchJob` (Intelligence) runs hourly 06:00-15:00. It watches orders booked from tomorrow to 14 days ahead and not yet planned (`OrderQuery.openOrders`), using the same `DateOutlookQuery.assess` the store's date strip uses. When a day turns busy or at risk, and is worse than any warning already given for that order and day (`OutlookChangePolicy`, `ml.order_outlooks`), it records the warning and publishes `order.outlook_changed` in one transaction (R-ML-08, P-36). Notification routing version 6 tells the outlet "Fri 9 Oct is at risk" with the reason (R-NOT-16). It also fixes slice 1's store title, which showed an ISO date. The order sheet of an unplanned later order shows the same warning.
+Why: the promise made at booking can break before the plan (workshop vehicles, more orders than forecast), and the store should hear it early, once.
+Verified: `mvn verify` 991 on a real test database, 990 pass (the same local-only `SET ROLE k.e.oshada` identity failure as before); `npm test`, typecheck, build; Playwright store 52.
+Open: the other routing templates still show ISO dates (`{serviceDate}`), as before this work.
+
 ## 2026-10-04 - feat: the delivery promise for a day a store orders ahead (issue #224)
 
 `feat/224-delivery-promise` · @Oxshadha

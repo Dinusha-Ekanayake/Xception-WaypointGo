@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Notice } from "@shared/ui";
+import { Notice, usePersistentState } from "@shared/ui";
 import PageHeader from "../PageHeader.tsx";
 import { byUrgency, punctuality, vehicleDay } from "../data/live.ts";
 import { closedOnTheirOwn, depotSummaries, filterRuns, needCards, runsOf, summaryText, type RunFilter } from "../data/liveDesk.ts";
 import { dayLabel } from "../data/scope.ts";
 import { useIssues, useLive, usePositions, useReports } from "../data/useDay.ts";
 import { useDispatcherInbox } from "../inbox.tsx";
+import { tripOf, useOpenTripThread } from "../data/threads.ts";
 import DayPicker from "./DayTools.tsx";
 import { Retry } from "./Orders.tsx";
 import LiveMapView from "./LiveMap.tsx";
@@ -50,12 +51,14 @@ export default function Live({
   const issues = useIssues(depots);
   const reports = useReports(depots, date);
   const inbox = useDispatcherInbox();
+  const openTripThread = useOpenTripThread();
+  const [threadNote, setThreadNote] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
-  const [view, setView] = useState<View>("needs");
-  const [localDepot, setLocalDepot] = useState("all");
+  const [view, setView] = usePersistentState<View>("dispatcher:live:view", "needs");
+  const [localDepot, setLocalDepot] = usePersistentState("dispatcher:live:depot", "all");
   const depot = depotFilter ?? localDepot;
   const setDepot = onDepotFilter ?? setLocalDepot;
-  const [filter, setFilter] = useState<RunFilter>("all");
+  const [filter, setFilter] = usePersistentState<RunFilter>("dispatcher:live:filter", "all");
   const [trip, setTrip] = useState<string | null>(null);
 
   // "At risk" compares a window with the time now, so the time moves.
@@ -95,7 +98,7 @@ export default function Live({
   }
 
   // The filter row shows only when it has a choice to offer; the day picker joins the header otherwise.
-  const rowShown = depotNames.length > 1 || view !== "needs";
+  const rowShown = view !== "needs";
   const subtitle = !live.data
     ? "Loading"
     : view === "needs"
@@ -119,7 +122,7 @@ export default function Live({
         syncing={live.loading}
         tools={
           <span className="flex flex-wrap items-center gap-2.5">
-          {!rowShown && <DayPicker warnNotToday date={date} onDate={onDate} />}
+          <DayPicker warnNotToday date={date} onDate={onDate} />
           <Toggle
             label="View"
             value={view}
@@ -136,10 +139,7 @@ export default function Live({
 
       {rowShown && (
       <div className="flex w-full flex-wrap items-center gap-2.5">
-        {depotNames.length > 1 && (
-          <Toggle label="Depot" value={depot} onChange={setDepot} options={[{ value: "all", label: "Both" }, ...depotNames.map((d) => ({ value: d, label: d }))]} />
-        )}
-        {view !== "needs" && (
+        {(
           <Toggle
             label="Status"
             value={filter}
@@ -151,14 +151,12 @@ export default function Live({
             ]}
           />
         )}
-        <span className="ml-auto">
-          <DayPicker warnNotToday date={date} onDate={onDate} />
-        </span>
       </div>
       )}
 
       {live.error && <Refusal error={live.error} what="the live view" action={<Retry onClick={live.refresh} />} />}
       {!online && <Notice tone="warning" title="Live updates are paused" />}
+      {threadNote && <Notice tone="info" title={threadNote} />}
 
       {view === "needs" && (
         <LiveNeeds cards={cards} runs={inDepot} date={date} closedOnTheirOwn={closedOnTheirOwn(inDepot)} online={online} onOpenTrip={setTrip} onOpenIssue={onOpenIssue} onViewAll={() => setView("timeline")} />
@@ -174,6 +172,7 @@ export default function Live({
             onOpen={setTrip}
             reports={reports.data ?? []}
             onReport={(mark) => inbox?.openThread({ threadId: mark.threadId, messageId: mark.messageId })}
+            onMessages={(run) => void openTripThread(tripOf(run)).then(setThreadNote)}
           />
           <aside aria-label="Vehicles on the road" className="flex w-full flex-col gap-2.5 rounded-[24px] bg-white p-[18px] shadow-go-card lg:max-w-[360px]">
             <div className="flex items-baseline justify-between">

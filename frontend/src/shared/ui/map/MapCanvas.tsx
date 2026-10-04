@@ -2,7 +2,7 @@
 
 import "leaflet/dist/leaflet.css";
 import type * as Leaflet from "leaflet";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { cluster, compass, MAX_ZOOM, MIN_ZOOM, SRI_LANKA, type LatLon } from "./geo.ts";
 import type { LiveMapProps, MapMarker } from "./types.ts";
 
@@ -117,10 +117,19 @@ export default function MapCanvas(props: LiveMapProps): React.JSX.Element {
     else m.fitBounds(lf.latLngBounds(fit.map((p) => [p.lat, p.lon] as [number, number])), { padding: [48, 48], maxZoom: 14 });
   }, [ready, props.fit]);
 
+  // Redraw only when what is drawn changed, not on every parent render or poll
+  // that returns the same positions: a redraw replaces each marker's element,
+  // which drops keyboard focus from a vehicle the user is on.
+  const drawn = useMemo(
+    () => JSON.stringify([props.markers, props.lines ?? [], props.selectedId ?? null, Boolean(props.clusterVehicles)]),
+    [props.markers, props.lines, props.selectedId, props.clusterVehicles],
+  );
+
   useEffect(() => {
     const m = map.current;
     const lf = L.current;
     const group = layer.current;
+    const props = latest.current;
     if (!ready || !m || !lf || !group) return;
     group.clearLayers();
     for (const line of props.lines ?? []) {
@@ -169,7 +178,7 @@ export default function MapCanvas(props: LiveMapProps): React.JSX.Element {
         marker.on("mouseout", () => latest.current.onHover?.(null));
       }
     }
-  }, [ready, props.markers, props.lines, props.selectedId, props.clusterVehicles, zoom]);
+  }, [ready, drawn, zoom]);
 
   const zoomBy = (d: number) => map.current?.setZoom(map.current.getZoom() + d);
 
@@ -178,14 +187,14 @@ export default function MapCanvas(props: LiveMapProps): React.JSX.Element {
       <div ref={host} role="group" aria-label="Map" className="absolute inset-0 z-0" style={{ background: "transparent" }} />
       {props.overlay && <div className="pointer-events-none absolute left-4 top-4 z-[500] flex flex-col items-start gap-2 [&>*]:pointer-events-auto">{props.overlay}</div>}
       {base === "failed" && (
-        <p role="status" className="pointer-events-none absolute bottom-14 left-1/2 z-[500] -translate-x-1/2 rounded-full bg-white px-3 py-1 text-[12px] text-go-ink shadow">Base map unavailable · positions and trails still shown</p>
+        <p role="status" className="pointer-events-none absolute bottom-14 left-1/2 z-[500] -translate-x-1/2 rounded-full bg-go-card px-3 py-1 text-[12px] text-go-ink shadow">Base map unavailable · positions and trails still shown</p>
       )}
-      <div className="absolute right-4 top-4 z-[500] flex flex-col overflow-hidden rounded-[10px] bg-white text-go-ink shadow">
+      <div className="absolute right-4 top-4 z-[500] flex flex-col overflow-hidden rounded-[10px] bg-go-card text-go-ink shadow">
         <button type="button" aria-label="Zoom in" onClick={() => zoomBy(1)} className="h-[26px] w-[30px] text-[16px] leading-none">+</button>
         <button type="button" aria-label="Zoom out" onClick={() => zoomBy(-1)} className="h-[26px] w-[30px] border-t border-go-rule text-[16px] leading-none">−</button>
       </div>
       {props.legend && <div className="absolute bottom-4 left-4 z-[500]">{props.legend}</div>}
-      <p className="absolute bottom-1 right-1 z-[500] rounded-full bg-white/90 px-2 text-[10px] leading-[17px] text-go-secondary">© OpenStreetMap contributors</p>
+      <p className="absolute bottom-1 right-1 z-[500] rounded-full bg-go-card/90 px-2 text-[10px] leading-[17px] text-go-ink">© OpenStreetMap contributors</p>
     </div>
   );
 }

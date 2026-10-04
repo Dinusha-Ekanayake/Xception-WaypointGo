@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { queuedSender } from "@shared/messaging/senders";
 import { useTripThread } from "@shared/messaging/useThread";
-import { Sheet, TripThread } from "@shared/ui";
+import { SecondaryButton, Sheet, SkeletonRows, TripThread } from "@shared/ui";
 
 // A trip's thread for the store (issue #136): what the dispatcher or the driver
 // wrote to this store or to everyone on the trip, and the store's own replies
@@ -44,10 +44,15 @@ export default function TripMessages({
       <div className="flex h-[62dvh] min-h-0 flex-col">
         {threadId ? (
           <TripThread threadId={threadId} online={online} variant="phone" sender={sender} keepsOffline accountId={accountId} />
+        ) : byTrip.loading ? (
+          <SkeletonRows label="Loading messages…" />
+        ) : byTrip.error ? (
+          <div className="flex flex-col items-center gap-3 py-8">
+            <p className="text-center text-sm text-go-secondary">Messages could not be loaded. Try again when the connection is back.</p>
+            <SecondaryButton onClick={byTrip.refresh}>Try again</SecondaryButton>
+          </div>
         ) : (
-          <p className="py-8 text-center text-sm text-go-secondary">
-            {byTrip.loading ? "Loading messages…" : byTrip.error ? "Messages could not be loaded. Try again when the connection is back." : "This trip has no messages yet."}
-          </p>
+          <p className="py-8 text-center text-sm text-go-secondary">This trip has no messages yet.</p>
         )}
       </div>
     </Sheet>

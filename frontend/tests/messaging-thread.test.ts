@@ -29,6 +29,10 @@ function message(id: string, at: string, over: Partial<MessageView> = {}): Messa
     voiceDurationMs: null,
     createdAt: at,
     mine: false,
+    voicePeaks: [],
+    resolvedAt: null,
+    resolvedByName: null,
+    resolutionNote: null,
     ...over,
   };
 }

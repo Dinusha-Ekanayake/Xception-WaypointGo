@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import type { NotificationView } from "@shared/domain/notification";
 import { ago } from "@shared/notifications/inbox";
 import { useInbox } from "@shared/notifications/useInbox";
-import { cx, useDeviceLang, useMedia, useShell } from "@shared/ui";
+import { cx, useDeviceLang, useMedia, useShell, SkeletonRows, SkipLink } from "@shared/ui";
 import { nextStop, type Stop } from "./data/run.ts";
 import { activeIndex, syncLabel, toRouteStops, tripStatus, type RouteStop } from "./data/stopView.ts";
 import DeliveryPinConfirmModal from "./screens/DeliveryPinConfirmModal.tsx";
@@ -48,6 +49,8 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
   const [pinFor, setPinFor] = useState<Stop | null>(null);
   const [revised, setRevised] = useState<NotificationView | null>(null);
   const [talking, setTalking] = useState(false);
+  // The stop row last tapped on the route, one shared element with the stop's header (UX polish 4).
+  const [movingStop, setMovingStop] = useState<string | null>(null);
   const unread = unreadMessages(inbox.items);
   const openMessages = () => {
     setTalking(true);
@@ -114,12 +117,15 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
         d.dark ? "go-dark bg-[#161616] md:bg-[#0a0a0a]" : "bg-[#E7F3F2] md:bg-[#d6e7e5]"
       )}
     >
+      <SkipLink targetId="driver-content" />
       {sideMap && next && (
         <aside aria-label="Trip map" className="relative min-w-0 flex-1 overflow-hidden">
           <RouteMap next={next} outlet={run.outlets[next.outletId]} recorder={d.location} syncedAt={run.syncedAt} className="h-full w-full" />
         </aside>
       )}
       <div
+        id="driver-content"
+        tabIndex={-1}
         className={cx(
           "relative h-dvh w-full overflow-hidden transition-colors md:max-w-[600px] md:shadow-2xl",
           sideMap && "lg:max-w-[480px]",
@@ -138,18 +144,26 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
               onSignOut={d.askSignOut}
               onToggleTheme={d.theme}
               isNight={d.dark}
+              {...(d.tripId ? { onMessages: openMessages, unreadMessages: unread.length } : {})}
             />
           </div>
         )}
 
         {run.loading ? (
-          <p role="status" className="absolute inset-x-0 top-[96px] px-8 text-[17px] text-go-muted">
-            Loading today's run…
-          </p>
+          // A card-shaped skeleton in the Home layout's own shape, not a full-screen
+          // spinner: the driver UX plan prioritises a fast-feeling load. The label
+          // keeps the exact words the screen used to show, so a screen reader hears
+          // the same thing it always did.
+          <div className="absolute inset-x-0 top-[96px] flex flex-col gap-3 px-5">
+            <div className="h-24 w-full animate-pulse rounded-go-card-l bg-go-card" aria-hidden />
+            <SkeletonRows rows={4} label="Loading today's run…" />
+          </div>
         ) : (
-          <div key={screen} className="absolute inset-0 animate-fade-in short:overflow-y-auto">
+          // Where the browser crossfades screens itself (shared/ui/transition.ts), this fade would play twice.
+          <div key={screen} className="absolute inset-0 animate-fade-in supports-[view-transition-name:none]:animate-none short:overflow-y-auto">
             {screen === "home" && (
               <HomeNoVehicle
+                {...(d.tripId ? { onOpenMessages: openMessages } : {})}
                 driverName={displayName}
                 depotName={depot}
                 vehicle={run.vehicle}
@@ -174,7 +188,14 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
                 stops={routeStops}
                 stopIndex={stops.indexOf(shown)}
                 syncLabel={sync}
-                onSelectStop={(index) => stops[index] && void d.openStop(stops[index])}
+                onSelectStop={(index) => {
+                  const stop = stops[index];
+                  if (!stop) return;
+                  // The tapped row is named before the transition starts, so it moves into the stop's header.
+                  flushSync(() => setMovingStop(stop.deliveryId));
+                  void d.openStop(stop);
+                }}
+                movingStop={movingStop}
                 onBack={() => d.go({ name: "home" })}
                 onOpenMap={() => d.go({ name: "map" })}
                 onArrived={arrivedAt}
@@ -264,17 +285,6 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
         <div className={cx("absolute inset-x-0 z-40 flex flex-col gap-2 px-5 pointer-events-none", header ? "top-[78px]" : "top-[84px]")}>
           {/* The shell's sync badge opens writes the server refused, for review; MCP is in Settings (#177). */}
           <div className="pointer-events-auto flex items-center justify-end gap-2 empty:hidden">
-            {(screen === "home" || screen === "route") && d.tripId && (
-              <button
-                type="button"
-                onClick={openMessages}
-                aria-label={unread.length > 0 ? `Messages, ${unread.length} new` : "Messages"}
-                className="flex min-h-10 items-center gap-2 rounded-full bg-go-card px-4 text-[14px] font-medium text-go-ink shadow-go-card"
-              >
-                Messages
-                {unread.length > 0 && <span className="min-w-5 rounded-full bg-go-danger px-1.5 text-center text-[12px] text-white">{unread.length > 99 ? "99+" : unread.length}</span>}
-              </button>
-            )}
             {shell?.sync}
           </div>
           {run.expired && !run.loading ? (
@@ -316,6 +326,13 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
             </div>
           )}
         </div>
+        {d.location.simulate && d.nextPoint && screen === "route" && (
+          <div className="absolute inset-x-0 bottom-10 z-40 flex justify-center">
+            <OutlineButton onClick={() => d.nextPoint && d.location.simulate?.(d.nextPoint)}>
+              {d.location.simulating ? "Driving… (demo)" : "Simulate drive to the next stop (demo)"}
+            </OutlineButton>
+          </div>
+        )}
         {d.location.state === "denied" && next && screen === "route" && (
           <p role="status" className="absolute inset-x-0 bottom-2 z-40 flex justify-center gap-2 text-[13px] text-go-muted">
             Location off · the dispatcher sees your stops only

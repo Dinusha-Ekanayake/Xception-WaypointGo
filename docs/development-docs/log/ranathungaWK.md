@@ -4,6 +4,42 @@
 
 ---
 
+## 2026-10-04 - stabilize the forecast countdown assertion
+
+`codex/system-constraints` · @ranathungaWK
+
+Accept the first valid one-second tick of the forecast countdown so parallel browser execution does not fail while the clock moves from 23:41 to 23:40.
+Verified from both retries in the Dispatcher Actions log. No local tests were run at the user's request.
+
+## 2026-10-04 - follow the restored driver trail utility
+
+`codex/system-constraints` · @ranathungaWK
+
+Keep the driver recorder, route map and trail test imports on the restored driver data utility after the parallel-CI merge briefly moved it.
+Verified from the TypeScript errors in the latest `dev` Actions run. No local tests were run at the user's request.
+
+## 2026-10-04 - use the published plan date for its edit cutoff
+
+`codex/system-constraints` · @ranathungaWK
+
+Evaluate the 16:00 published-plan cutoff against the plan's service date. This prevents a screen opened on a different selected day or after today's cutoff from marking a future plan final.
+Verified from the failing Dispatcher browser assertion and the matching backend rule. No local tests were run at the user's request.
+
+## 2026-10-04 - edit admin directory records
+
+`codex/system-constraints` · @ranathungaWK
+
+Join outlet cards with Identity outlet scopes so assigned store managers appear. Add versioned edit flows for member profiles, outlet receiving details, depot names and timezones, and vehicle capacity, temperature and fuel details; reference updates publish a new immutable snapshot and survive later imports.
+Correct the managed-update table grant to the existing `waypoint_ref` module role so integration databases can apply the migration.
+Verified: frontend typecheck and backend compile. Tests were not run at the user's request; the failed Actions log identified the incorrect role name.
+
+## 2026-10-04 - reorganize the system constraints workspace
+
+`codex/system-constraints` · @ranathungaWK
+
+Replace category chips and inline planning forms with category navigation, a searchable constraint list and a focused side panel. Match each value to a time, number, duration, choice or on/off control, and distinguish live changes from deployment, related-record and locked settings.
+Verified: frontend typecheck.
+
 ## 2026-10-04 - author effective planning constraints from admin
 
 `codex/system-constraints` · @ranathungaWK

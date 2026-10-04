@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { ORDER_CUTOFF, OrderCommandKind, type IssueView, type OrderStatus, type OrderView, type RunSheetStopView } from "@shared/domain/types";
-import { Icon, Menu, Notice, Segmented, cx, useToast } from "@shared/ui";
+import { Icon, Menu, Notice, Segmented, SkeletonRows, cx, usePersistentState, useToast } from "@shared/ui";
 import { addDays, clock, dayLabel } from "@shared/wording";
 import PageHeader from "../PageHeader.tsx";
 import { flow } from "../data/orders.ts";
@@ -49,10 +49,10 @@ export default function Orders({
   onOpenPlan: (date: string) => void;
 }): React.JSX.Element {
   const today = depotToday();
-  const [tab, setTab] = useState<Tab>("current");
-  const [brand, setBrand] = useState("all");
-  const [statusId, setStatusId] = useState("all");
-  const [text, setText] = useState("");
+  const [tab, setTab] = usePersistentState<Tab>("dispatcher:orders:tab", "current");
+  const [brand, setBrand] = usePersistentState("dispatcher:orders:brand", "all");
+  const [statusId, setStatusId] = usePersistentState("dispatcher:orders:status", "all");
+  const [text, setText] = usePersistentState("dispatcher:orders:text", "");
   const [selected, setSelected] = useState<string | null>(null);
 
   const current = useOrders(depots, today);
@@ -204,7 +204,7 @@ export default function Orders({
                 type="button"
                 aria-pressed={brand === code}
                 onClick={() => setBrand(brand === code ? "all" : code)}
-                className={cx("flex items-center gap-1.5 rounded-full px-2.5 py-1 font-medium", brand === code ? "bg-go-ink text-go-card" : "bg-go-surface text-go-ink hover:bg-go-subtle")}
+                className={cx("relative flex items-center gap-1.5 rounded-full px-2.5 py-1 font-medium before:absolute before:-inset-x-1 before:-inset-y-2.5", brand === code ? "bg-go-ink text-go-card" : "bg-go-surface text-go-ink hover:bg-go-subtle")}
               >
                 <span aria-hidden className="size-2 rounded-full" style={{ background: seriesColour(`${code}-ambient`) }} />
                 {code}
@@ -223,7 +223,7 @@ export default function Orders({
             )}
           </div>
         )}
-        {loading && <p className="py-8 text-center text-[13px] text-go-secondary">Loading the orders…</p>}
+        {loading && <SkeletonRows label="Loading the orders…" />}
       </section>
 
       {chosen && <OrderDrawer line={line(chosen)} issues={issuesByOrder.get(chosen.orderId) ?? []} onClose={() => setSelected(null)} onOpenPlan={onOpenPlan} />}
@@ -284,12 +284,12 @@ function UpcomingDays({
                 disabled={!online || busy}
                 items={depots.map((depot) => ({ id: depot, label: `Close ${depot}`, hint: "Refused before the cutoff" }))}
                 onSelect={(depot) => void close(depot, day.date)}
-                className="rounded-full bg-go-card px-3 py-1.5 text-[13px] font-medium text-go-ink"
+                className="relative rounded-full bg-go-card px-3 py-1.5 text-[13px] font-medium text-go-ink before:absolute before:-inset-y-1.5"
                 chevron
               >
                 Close orders
               </Menu>
-              <button type="button" onClick={() => onNavigate("plan")} className="flex items-center gap-0.5 text-[13px] font-medium text-go-teal">
+              <button type="button" onClick={() => onNavigate("plan")} className="relative flex items-center gap-0.5 text-[13px] font-medium text-go-teal before:absolute before:-inset-x-2 before:-inset-y-3">
                 Open plan <Icon name="chevron-right" />
               </button>
             </div>
@@ -314,7 +314,7 @@ function Tile({ tone, value, label, onClick }: { tone: string; value: number | n
 
 export function Retry({ onClick }: { onClick: () => void }): React.JSX.Element {
   return (
-    <button type="button" onClick={onClick} className="shrink-0 rounded-go-chip bg-white px-2.5 py-[5px] text-[11px] font-medium text-go-teal">
+    <button type="button" onClick={onClick} className="relative shrink-0 rounded-go-chip bg-white px-2.5 py-[5px] text-[11px] font-medium text-go-teal before:absolute before:-inset-x-1 before:-inset-y-2.5">
       Try again
     </button>
   );

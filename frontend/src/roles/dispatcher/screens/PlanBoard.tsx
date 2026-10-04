@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { OrderView, PlanView, VehicleView } from "@shared/domain/types";
-import { Pill, Popover, cx } from "@shared/ui";
+import { Pill, Popover, cx, usePersistentState } from "@shared/ui";
 import { capacityLabel, typeLabel } from "../data/fleet.ts";
 import { board, hhmm, leftOutLine, summarise, type TripLoad } from "../data/plan.ts";
 import {
@@ -61,7 +61,7 @@ export default function PlanBoard({
   const rows = board(plan, fleet);
   const summary = summarise(plan, fleet);
   const low = lowLoad(rows);
-  const [filter, setFilter] = useState<Filter>(NO_FILTER);
+  const [filter, setFilter] = usePersistentState<Filter>("dispatcher:plan:filter", NO_FILTER);
   const [openId, setOpenId] = useState<string | null>(null);
   const predictions = usePredictions(published ? plan.planId : null);
   const risk = predictions.data ? lateRisk(plan, predictions.data) : null;
@@ -71,7 +71,8 @@ export default function PlanBoard({
   const estimate = predictions.data ? scoredByEstimate(predictions.data) : false;
   const shown = useMemo(() => filterBoard(rows, filter), [rows, filter]);
   const loads = rows.flatMap((row) => row.trips).filter((load): load is TripLoad => load !== null);
-  const open = loads.find((load) => load.trip.tripId === openId) ?? loads[0] ?? null;
+  // A trip's details open in a drawer on a click; the board keeps the full width.
+  const open = loads.find((load) => load.trip.tripId === openId) ?? null;
 
   return (
     <>
@@ -172,7 +173,7 @@ export default function PlanBoard({
         </section>
 
         {open && (
-          <PlanTrip key={open.trip.tripId} plan={plan} load={open} fleet={fleet} orders={orders} editable={editable} canReplan={canReplan} actions={actions} risks={stops} />
+          <PlanTrip key={open.trip.tripId} plan={plan} load={open} fleet={fleet} orders={orders} editable={editable} canReplan={canReplan} actions={actions} risks={stops} onClose={() => setOpenId(null)} />
         )}
       </div>
     </>

@@ -1,8 +1,11 @@
 "use client";
 
+import { useEffect } from "react";
 import { request, requestAll } from "@shared/api/client";
+import { REPORT_RESOLVED_EVENT } from "@shared/messaging/useThread";
 import { ApiError } from "@shared/api/problem";
 import { useResource, type Resource } from "@shared/api/useResource";
+import { livePoll, useDemo } from "@shared/demo/useDemo";
 import { addDays } from "@shared/wording";
 import type { ReportMarkView, DepotView, VehiclePositionView, DeferralView, FuelView, IssueHistoryView, IssueView, OrderView, PlanView, ReadyTripView, RunSheetView } from "@shared/domain/types";
 
@@ -167,12 +170,13 @@ export function useFuel(vehicleId: string, date: string): Resource<FuelView> {
 
 /** Each vehicle's last good fix in these depots, every 15 seconds while visible (issue #161, D5). */
 export function usePositions(depots: string[], date: string): Resource<VehiclePositionView[]> {
+  const demo = useDemo();
   const load =
     depots.length === 0
       ? null
       : async (signal: AbortSignal) =>
           (await Promise.all(depots.map((depot) => request<VehiclePositionView[]>(`/api/execution/positions?depot=${q(depot)}&date=${q(date)}`, { signal })))).flat();
-  return useResource(load, `positions|${depots.join(",")}|${date}`, 15_000);
+  return useResource(load, `positions|${depots.join(",")}|${date}`, livePoll(demo, 15_000));
 }
 
 /** The depots and their locations, read once. */
@@ -196,7 +200,14 @@ export function useReports(depots: string[], date: string): Resource<ReportMarkV
               depots.map((depot) => request<ReportMarkView[]>(`/api/threads/reports?depot=${q(depot)}&date=${q(date)}`, { signal })),
             )
           ).flat();
-  return useResource(load, `reports|${depots.join(",")}|${date}`, POLL_MS);
+  const reports = useResource(load, `reports|${depots.join(",")}|${date}`, POLL_MS);
+  // A report resolved in the thread leaves the timeline now, not at the next poll.
+  const { refresh } = reports;
+  useEffect(() => {
+    window.addEventListener(REPORT_RESOLVED_EVENT, refresh);
+    return () => window.removeEventListener(REPORT_RESOLVED_EVENT, refresh);
+  }, [refresh]);
+  return reports;
 }
 
 export type HistoryDay = { date: string; orders: OrderView[]; sheets: RunSheetView[] };

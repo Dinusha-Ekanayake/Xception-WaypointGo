@@ -78,7 +78,7 @@ export default function SwapWindow({
         onClose={onClose}
         left={{ title: "Incoming", hint: "Deferred order to swap in", body: <Incoming order={incoming} lastServed={allocation ? lastServedText(allocation.lastServedOn, plan.serviceDate) : null} /> }}
         tiles={[]}
-        depart={{ place: plan.depotCode, time: "-" }}
+        depart={{ place: (vehicle?.depotCode ?? plan.depotCode), time: "-" }}
         back={{ time: "-" }}
         stops={[]}
         right={{ title: "Will be deferred", hint: "No trip of this plan carries the same brand, district and temperature, so there is nothing to trade with." }}
@@ -154,7 +154,7 @@ export default function SwapWindow({
                     : "Not available yet: no service proposes a stop order. Drag the stops to set your own."}
               </span>
               {sequence !== null && (
-                <button type="button" onClick={() => setSequence(null)} className="rounded-full bg-go-card px-3.5 py-1.5 text-[13px] font-medium text-go-ink">
+                <button type="button" onClick={() => setSequence(null)} className="relative rounded-full bg-go-card px-3.5 py-1.5 text-[13px] font-medium text-go-ink before:absolute before:-inset-y-1.5">
                   {usingProposal ? "Undo order" : "Default order"}
                 </button>
               )}
@@ -163,7 +163,7 @@ export default function SwapWindow({
                   type="button"
                   disabled={!proposed}
                   onClick={() => proposed && setSequence(proposed.orderIds)}
-                  className="rounded-full bg-go-card px-3.5 py-1.5 text-[13px] font-medium text-go-ink disabled:opacity-40"
+                  className="relative rounded-full bg-go-card px-3.5 py-1.5 text-[13px] font-medium text-go-ink before:absolute before:-inset-y-1.5 disabled:opacity-40"
                 >
                   Use AI order
                 </button>
@@ -182,7 +182,7 @@ export default function SwapWindow({
         ),
       }}
       tiles={tripTiles(showing, orders, vehicle, !outId || (Boolean(preview.data) && !preview.loading))}
-      depart={{ place: `${plan.depotCode} depot`, time: hhmm(trip.plannedDeparture) }}
+      depart={{ place: `${(vehicle?.depotCode ?? plan.depotCode)} depot`, time: hhmm(trip.plannedDeparture) }}
       back={{ time: after(trip.plannedDeparture, trip.plannedMinutes) }}
       stops={stopRows(plan, showing, orders, vehicle, outId ? incoming.orderId : null)}
       onDefer={outId ? undefined : choose}
@@ -218,7 +218,8 @@ export default function SwapWindow({
       }
       accept={{
         label: "Accept changes",
-        disabled: actions.busy || !feasible || !reasonReady(reason),
+        disabled: !feasible || !reasonReady(reason),
+        busy: actions.busy,
         onClick: () =>
           outId &&
           void actions.swap(outId, incoming.orderId, reason.trim(), sequence ?? undefined).then((ok) => ok && onClose()),

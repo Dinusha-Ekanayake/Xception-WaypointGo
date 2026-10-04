@@ -9,11 +9,11 @@ Issue #136 (epic #150), branch `feat/136-messaging`. The [plan](PLAN.md) has the
 | Migrations | `migrations/20261004T0100_messaging_threads.sql` (schema, role, row-level security), `20261004T0101_iam_messaging_actions.sql` (`message:Read`, `message:Post`), `20261004T1700_notification_routing_v4.sql`, `20261004T1800_messaging_voice_retention.sql` (P-33) |
 | Contract | `messaging/contract/MessagingCommands.java`, `MessagingEvents.java` (`message.posted`), `MessagingViews.java` |
 | Domain | `messaging/domain/MessagePolicy.java`: who writes to whom, reports, the posting window, voice limits, excerpts, the report a raised issue becomes |
-| Application | `PostMessageHandler` (the command), `MessagingConsumers` (threads from `plan.published` and `plan.revised`, reports from `issue.raised`), `MessagingQuery` (reads), `VoiceNotes`, `VoiceRetentionJob` (P-33) |
+| Application | `PostMessageHandler` (the command), `ResolveReportHandler` (`message:Resolve`, R-MSG-07), `MessagingConsumers` (threads from `plan.published` and `plan.revised`, reports from `issue.raised`), `MessagingQuery` (reads), `VoiceNotes`, `VoiceRetentionJob` (P-33) |
 | Infrastructure | `messaging/infrastructure/JdbcThreadRepository.java` |
 | Web | `messaging/web/ThreadController.java` under `/api/threads` |
 | Other modules | `issues/contract/IssueQuery.issue`; `notification/application/NotificationConsumers.OnMessagePosted`; `NotificationPolicy.DRIVER_PUSH_EVENTS`; `platform/db/ModuleRole.MESSAGING`; `platform/config/MessagingProperties`; `identity/web/SessionActorResolver` and `sync/application/SubmitBatchHandler` (a command naming `actingUserId` acts as the PIN operator) |
-| Frontend, shared | `shared/domain/messaging.ts` (the mirror); `shared/messaging/thread.ts` (labels, mentions, order, `Translate`), `useThread.ts` (reads, kept on the device for offline roles, messages waiting to send), `senders.ts` (`sendNow`, `queuedSender`), `recorder.ts` (the microphone); `shared/offline` (`waitsFor`: a write waits for the uploads it names), `scripts/sw-drain.mjs`; `shared/ui/TripThread.tsx`, `ThreadMessages.tsx`, `ThreadComposer.tsx`; `shared/notifications/inbox.ts` (the "Message" kind, a report reads urgent) |
+| Frontend, shared | `shared/domain/messaging.ts` (the mirror); `shared/messaging/thread.ts` (labels, mentions, order, `Translate`), `useThread.ts` (reads, kept on the device for offline roles, messages waiting to send), `senders.ts` (`sendNow`, `queuedSender`), `recorder.ts` (the microphone, with live levels), `waveform.ts` (the bars); `shared/ui/VoiceCapture.tsx` (hold to record, slide up to lock, slide left to cancel), `VoiceNote.tsx` (the voice card: play, waveform that fills as it plays, tap to seek, 1x/1.5x/2x); `shared/offline` (`waitsFor`: a write waits for the uploads it names), `scripts/sw-drain.mjs`; `shared/ui/TripThread.tsx`, `ThreadMessages.tsx`, `ThreadComposer.tsx`; `shared/notifications/inbox.ts` (the "Message" kind, a report reads urgent) |
 | Dispatcher | `roles/dispatcher/inbox.tsx` (the open thread), `ThreadSheet.tsx`, `NotificationsPanel.tsx` (Reply), `data/threads.ts`, `data/useDay.ts` `useReports`, `screens/LiveTimeline.tsx` (report signs), `LiveTripUpdate.tsx`, `LiveNeeds.tsx` and `LivePanel.tsx` (Notify store, voice) |
 | Driver | `roles/driver/screens/Messages.tsx`, `data/messages.ts` (the durable sender), `useDriver.ts`, `index.tsx` (Messages with a count of new ones) |
 | Loader | `roles/loader/screens/TripMessages.tsx` (written as the PIN operator), `LoadSheet.tsx` (Messages), `data/strings.ts` (the thread in Sinhala and Tamil) |
@@ -62,6 +62,16 @@ Issue #136 (epic #150), branch `feat/136-messaging`. The [plan](PLAN.md) has the
 - The loader's load sheet opens the thread in a sheet. The store opens it from a message notification or from a delivery's Message.
 - Both write to the dispatcher alone, may make it a report, and keep what they write with no signal, as the driver does.
 - On a shared loader device a message names the loader who entered their PIN, and the server writes it as them (MSG-12). The thread reads in the loader's language.
+
+**Resolving a report.**
+- The dispatcher's thread shows "Mark resolved" on an open report; a note is optional. The report stays, marked "Resolved · who · when" with the note, and its sign leaves the timeline at once.
+- Resolving the issue behind a report resolves the report too (`issue.resolved`).
+
+**The timeline.**
+- Each report is a small waving sign centred on its run's line. A report about a stop (a store's, or an issue naming an outlet) replaces that stop's dot; others sit at the time they were made. Several on one stop show a count.
+- Every run has a messages icon beside its name that opens its thread, reports or not; a red dot marks a run with an open report.
+
+**The driver's inbox.** A voice message notification plays the voice itself with the waveform card, never text to speech; tapping a message notification opens Messages. Messages is an icon in the top bar, with the count of new ones.
 
 ## Run and verify locally
 

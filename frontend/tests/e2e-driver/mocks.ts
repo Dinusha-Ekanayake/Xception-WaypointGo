@@ -110,6 +110,7 @@ export async function serve(page: Page, stops: RunSheetStopView[] = [stop(1, "OU
       await context.setOffline(false);
     },
   };
+  const audio = new Map<string, { contentType: string; body: Buffer }>();
   const json = (body: unknown) => ({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
 
   const apply = (command: SentCommand): number | null => {
@@ -221,8 +222,15 @@ export async function serve(page: Page, stops: RunSheetStopView[] = [stop(1, "OU
       return route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({ attachmentId: pathname.split("/").pop(), stored: true }) });
     }
     if (method === "PUT" && /^\/api\/threads\/[^/]+\/voice\/[^/]+$/.test(pathname)) {
-      server.voices.push({ path: pathname, contentType: request.headers()["content-type"] ?? "", bytes: request.postDataBuffer()?.length ?? 0 });
+      const body = request.postDataBuffer() ?? Buffer.alloc(0);
+      const contentType = request.headers()["content-type"] ?? "";
+      server.voices.push({ path: pathname, contentType, bytes: body.length });
+      audio.set(pathname, { contentType, body });
       return route.fulfill(json({ voiceNoteId: pathname.split("/").pop(), alreadyStored: false }));
+    }
+    if (method === "GET" && audio.has(pathname)) {
+      const kept = audio.get(pathname)!;
+      return route.fulfill({ status: 200, contentType: kept.contentType, body: kept.body });
     }
     const thread = method === "GET" ? threadRead(server.threads, new URL(request.url())) : undefined;
     if (thread) return route.fulfill({ status: thread.status, contentType: "application/json", body: JSON.stringify(thread.body) });

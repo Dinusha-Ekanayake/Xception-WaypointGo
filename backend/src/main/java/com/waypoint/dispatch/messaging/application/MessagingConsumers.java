@@ -4,6 +4,7 @@ import com.waypoint.dispatch.execution.contract.ExecutionQuery;
 import com.waypoint.dispatch.execution.contract.ExecutionViews.DeliveryRecordView;
 import com.waypoint.dispatch.identity.contract.IdentityQuery;
 import com.waypoint.dispatch.issues.contract.IssueEvents.IssueRaised;
+import com.waypoint.dispatch.issues.contract.IssueEvents.IssueResolved;
 import com.waypoint.dispatch.issues.contract.IssueQuery;
 import com.waypoint.dispatch.issues.contract.IssueViews.IssueView;
 import com.waypoint.dispatch.issues.contract.IssueViews.SubjectRef;
@@ -133,6 +134,49 @@ final class MessagingConsumers {
   }
 
   /** R-MSG-03, R-MSG-05: a raised issue becomes a report on its trip's thread, for the dispatcher. */
+  /**
+   * R-MSG-07: a report made from an issue is resolved when the issue is, so its
+   * warning sign leaves the timeline whichever screen settled it. Applying the
+   * event twice changes nothing: only open reports are updated.
+   */
+  @Component
+  static class OnIssueResolved implements EventSubscriber<IssueResolved> {
+    private final JdbcThreadRepository threads;
+    private final Clock clock;
+    private final Metrics metrics;
+
+    OnIssueResolved(JdbcThreadRepository threads, Clock clock, Metrics metrics) {
+      this.threads = threads;
+      this.clock = clock;
+      this.metrics = metrics;
+    }
+
+    @Override
+    public String consumerName() {
+      return "messaging.on-issue-resolved";
+    }
+
+    @Override
+    public Class<IssueResolved> eventType() {
+      return IssueResolved.class;
+    }
+
+    @Override
+    public ModuleRole moduleRole() {
+      return ModuleRole.MESSAGING;
+    }
+
+    @Override
+    public void on(EventEnvelope<IssueResolved> envelope) {
+      IssueResolved e = envelope.payload();
+      String note = MessagePolicy.excerpt("Issue resolved: " + e.action().toLowerCase(java.util.Locale.ROOT).replace('_', ' '));
+      int resolved = threads.resolveFromIssue(e.issueId(), Actor.SYSTEM_ID, note, clock.now());
+      if (resolved > 0) {
+        metrics.count("waypoint.message.report_resolved", resolved, "by", "issue");
+      }
+    }
+  }
+
   @Component
   static class OnIssueRaised implements EventSubscriber<IssueRaised> {
     private final JdbcThreadRepository threads;
@@ -191,7 +235,8 @@ final class MessagingConsumers {
           threads.insert(
               UuidV7.generate(now, random), thread.get().threadId(), raisedBy, report.get().reporter().code(), "report",
               Optional.of(report.get().reportType()), "dispatch", Optional.empty(), body, Optional.empty(),
-              Optional.empty(), Optional.of(envelope.eventId()), Optional.empty(), now);
+              Optional.empty(), Optional.of(envelope.eventId()), Optional.of(e.issueId()), issue.get().outletId(),
+              Optional.empty(), now);
       if (posted) {
         metrics.increment("waypoint.message.reported", "type", report.get().reportType(), "role",
             report.get().reporter().code());

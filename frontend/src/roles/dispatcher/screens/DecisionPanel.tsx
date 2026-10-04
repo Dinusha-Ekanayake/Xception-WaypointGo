@@ -44,6 +44,12 @@ export default function DecisionPanel({
   const [reason, setReason] = useState("");
   const [onlyFits, setOnlyFits] = useState(true);
   const [keeping, setKeeping] = useState(false);
+  // The panel's own command in flight, so the spinner shows on the button pressed, not for a command sent elsewhere.
+  const [sending, setSending] = useState(false);
+  const send = (command: Promise<boolean>) => {
+    setSending(true);
+    void command.finally(() => setSending(false));
+  };
 
   const open = row.state === "open";
   const all = places ?? [];
@@ -136,7 +142,8 @@ export default function DecisionPanel({
         {!editable && open && <p className="text-[13px] text-go-secondary">This plan is read only. Revise it to decide this order.</p>}
       </div>
 
-      <div className="flex flex-col gap-1 border-t border-go-rule px-5 pt-3 pb-5 text-[13px]">
+      {/* Below lg the page scrolls instead of the body, so the footer is pinned while the panel is in view. */}
+      <div className="flex flex-col gap-1 border-t border-go-rule px-5 pt-3 pb-5 text-[13px] max-lg:sticky max-lg:bottom-0 max-lg:rounded-b-[24px] max-lg:bg-go-card max-lg:pb-[max(1.25rem,env(safe-area-inset-bottom))] max-lg:shadow-[0_-8px_16px_rgba(0,0,0,0.04)]">
         <p className="flex justify-between text-go-secondary">
           If deferred · next delivery
           <span className="font-medium text-go-ink">{next.data ? `${dayLabel(next.data)} · first` : "…"}</span>
@@ -149,18 +156,20 @@ export default function DecisionPanel({
           <div className="mt-2 flex flex-col gap-2">
             {target && (
               <PrimaryButton
+                busy={sending}
                 disabled={actions.busy || !reasonReady(reason)}
-                onClick={() => void actions.place({ orderId: allocation.orderId, vehicleId: target.vehicleId, tripNumber: target.tripNumber as 1 | 2, reason: reason.trim() })}
+                onClick={() => send(actions.place({ orderId: allocation.orderId, vehicleId: target.vehicleId, tripNumber: target.tripNumber as 1 | 2, reason: reason.trim() }))}
               >
-                {`Place on ${target.vehicleId} trip ${target.tripNumber}`}
+                {sending ? "Sending…" : `Place on ${target.vehicleId} trip ${target.tripNumber}`}
               </PrimaryButton>
             )}
             {!target && (
               <PrimaryButton
+                busy={sending}
                 disabled={actions.busy || (keeping && !reasonReady(reason))}
-                onClick={() => (keeping ? void actions.keepDeferred([allocation.orderId], reason.trim()) : setKeeping(true))}
+                onClick={() => (keeping ? send(actions.keepDeferred([allocation.orderId], reason.trim())) : setKeeping(true))}
               >
-                Keep deferred
+                {sending ? "Sending…" : "Keep deferred"}
               </PrimaryButton>
             )}
           </div>

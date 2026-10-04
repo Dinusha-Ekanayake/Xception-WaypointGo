@@ -33,12 +33,19 @@ public final class MessagingEvents {
       String audience,
       List<String> outletIds,
       String excerpt,
-      Instant at)
+      Instant at,
+      Optional<UUID> voiceNoteId,
+      Optional<Integer> voiceDurationMs,
+      List<Integer> voicePeaks)
       implements DomainEvent {
     public static final String TYPE = "message.posted";
 
     public MessagePosted {
       outletIds = List.copyOf(outletIds);
+      // Events written before a voice note was carried have none of these.
+      voiceNoteId = voiceNoteId == null ? Optional.empty() : voiceNoteId;
+      voiceDurationMs = voiceDurationMs == null ? Optional.empty() : voiceDurationMs;
+      voicePeaks = voicePeaks == null ? List.of() : List.copyOf(voicePeaks);
     }
 
     @Override

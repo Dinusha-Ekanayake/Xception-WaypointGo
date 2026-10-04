@@ -4,12 +4,13 @@ import { useCallback, useEffect, useState } from "react";
 import { useOnline } from "@shared/api/useResource";
 import { queuesWrites, useSync, type Role } from "@shared/offline";
 import { keepStorage, watchInstall } from "@shared/pwa";
-import { McpButton, Notice, ShellProvider, StructuredError, cx, type ShellControls } from "@shared/ui";
+import { McpButton, Notice, ShellProvider, SkipLink, StructuredError, cx, setStateScope, type ShellControls } from "@shared/ui";
 import { ROLE_ADDRESSES, roleForHost, sharedHomeFor, sharedHostFor } from "./hostRole.ts";
 import RoleLanding from "./RoleLanding.tsx";
 import RoleRouter from "./RoleRouter.tsx";
 import SignIn from "./SignIn.tsx";
 import SyncStatus from "./SyncStatus.tsx";
+import DemoBanner from "./DemoBanner.tsx";
 import WrongAddress from "./WrongAddress.tsx";
 import {
   ROLE_LABEL,
@@ -70,7 +71,10 @@ export default function AppShell(): React.JSX.Element {
   const [notice, setNotice] = useState<string | undefined>();
   const [pending, setPending] = useState<number | null>(null);
   const [signOutError, setSignOutError] = useState<string | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
   const sync = useSync(state?.kind === "signed-in" ? state.session.userId : null);
+  // Kept screen choices (tabs, filters, scroll) belong to the account signed in.
+  setStateScope(state?.kind === "signed-in" ? state.session.userId : null);
 
   const check = useCallback(() => {
     setState(null);
@@ -242,6 +246,7 @@ export default function AppShell(): React.JSX.Element {
       setPending(waiting);
       return;
     }
+    setSigningOut(true);
     try {
       await signOut();
       setPending(null);
@@ -249,6 +254,8 @@ export default function AppShell(): React.JSX.Element {
       setState({ kind: "signed-out" });
     } catch {
       setSignOutError("Could not sign out: Waypoint did not answer. Try again when the connection is back.");
+    } finally {
+      setSigningOut(false);
     }
   };
 
@@ -266,7 +273,9 @@ export default function AppShell(): React.JSX.Element {
 
   return (
     <ShellProvider value={controls}>
-      <main className={cx("shell", adminPreview && "relative")}>
+      <SkipLink />
+      <main id="main-content" className={cx("shell", adminPreview && "relative")}>
+        <DemoBanner />
         {!misplaced && !OWN_HEADER.has(active) && !adminPreview && (
           <div className={cx("mx-auto flex w-full max-w-[1440px] flex-wrap items-center justify-end gap-2 bg-go-canvas px-4 pt-2 font-go", adminPreview && "lg:absolute lg:inset-x-0 lg:top-0 lg:z-10 lg:max-w-none lg:bg-transparent lg:pr-8")}>
             <SyncStatus sync={sync} online={online} />
@@ -290,8 +299,14 @@ export default function AppShell(): React.JSX.Element {
                 ))}
               </div>
             )}
-            <button type="button" onClick={() => void leave(false)} className="min-h-10 rounded-full border border-[#dfe7e6] bg-white px-3.5 text-[13px] font-medium text-[#031b08]">
-              Sign out
+            <button
+              type="button"
+              disabled={signingOut}
+              aria-busy={signingOut || undefined}
+              onClick={() => void leave(false)}
+              className="min-h-10 rounded-full border border-[#dfe7e6] bg-white px-3.5 text-[13px] font-medium text-[#031b08] disabled:cursor-wait disabled:opacity-60"
+            >
+              {signingOut ? "Signing out…" : "Sign out"}
             </button>
           </div>
         )}
@@ -309,8 +324,14 @@ export default function AppShell(): React.JSX.Element {
                     <button type="button" className="min-h-12 px-2 text-[13px] font-medium text-go-teal" onClick={() => setPending(null)}>
                       Stay
                     </button>
-                    <button type="button" className="min-h-12 px-2 text-[13px] font-medium text-go-danger-strong" onClick={() => void leave(true)}>
-                      Sign out anyway
+                    <button
+                      type="button"
+                      disabled={signingOut}
+                      aria-busy={signingOut || undefined}
+                      className="min-h-12 px-2 text-[13px] font-medium text-go-danger-strong disabled:cursor-wait disabled:opacity-60"
+                      onClick={() => void leave(true)}
+                    >
+                      {signingOut ? "Signing out…" : "Sign out anyway"}
                     </button>
                   </span>
                 }
