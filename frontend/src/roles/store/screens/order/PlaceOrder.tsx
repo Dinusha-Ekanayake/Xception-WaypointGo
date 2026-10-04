@@ -104,7 +104,11 @@ export default function PlaceOrder({
   const count = (t: Temperature) => Object.entries(qty).filter(([id, n]) => n > 0 && tempOf(id) === t);
   const lines = (t: Temperature) => ({ items: count(t).length, units: count(t).reduce((s, [, n]) => s + n, 0) });
   const classes: Temperature[] = amend ? [amend.temperature] : ["ambient", "chilled"];
-  const rows = rowsOf(temp, products, usual, qty, added);
+  // An empty catalogue lists every usual item (the warehouse-down fallback), so
+  // until the catalogue has answered, either way, no rows are drawn: otherwise
+  // the usual items show and then vanish when it arrives without them.
+  const catalogueAnswered = catalogue.data !== null || catalogue.error !== null;
+  const rows = catalogueAnswered ? rowsOf(temp, products, usual, qty, added) : [];
   const rolled = amend
     ? amend.dateRolled
       ? amend.deliveryDate
@@ -221,7 +225,7 @@ export default function PlaceOrder({
             quantities={qty}
             short={short}
             fresh={fresh}
-            loading={catalogue.loading}
+            loading={!catalogueAnswered || catalogue.loading}
             onLine={setLine}
             onAdd={add}
           />
