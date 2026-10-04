@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-10-05 - feat(admin): the demo clock takes a date, and steps by the hour and the day
+
+`feat/demo-clock-date-shift` · @tharushaudana
+
+The demo control room set only a time on the demo day. It now shows the demo date and time and how far it is from real time, steps it by -1 day, -1 h, -15 min, +15 min, +1 h and +1 day, adds "Next day 05:00", and sets any depot date and time. Each is one `demo:SetClock` with the reason, as before. The clock still stays within 7 days of real time (`DemoSettings`): the screen offers only that window and the server now says so in words instead of "Invalid demo clock, interval or speed".
+Verified: `DemoDomainTest`, `npm test` (with `admin-demo-clock.test.ts`), `tests/e2e/demo-control-room.spec.ts` (3).
+
+---
+
 ## 2026-10-05 - fix(messaging): voice notes replay on an iPhone
 
 `fix/136-voice-iphone` · @tharushaudana
