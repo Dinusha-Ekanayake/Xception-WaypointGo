@@ -79,6 +79,11 @@ public class OutlookWatchJob implements ScheduledJob {
   }
 
   @Override
+  public boolean onBusinessClock() {
+    return true;
+  }
+
+  @Override
   public ModuleRole moduleRole() {
     return ModuleRole.ML;
   }

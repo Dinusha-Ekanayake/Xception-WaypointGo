@@ -12,7 +12,7 @@ async function fits(page: Page) {
 test("a stop is delivered from start to saved", async ({ page }) => {
   await serve(page);
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Start run" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Start trip" })).toBeVisible();
   await fits(page);
 
   await startTrip(page);

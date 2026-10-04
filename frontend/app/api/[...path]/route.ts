@@ -27,13 +27,13 @@ const FORWARD_REQUEST = [
 
 // Response headers a client acts on. Everything else stays on this side.
 /** Long-lived responses: tied to the browser's connection instead of the 25 second limit. */
-const STREAMS = new Set(["/api/notifications/stream"]);
+const STREAMS = new Set(["/api/notifications/stream", "/api/execution/positions/stream"]);
 
 const FORWARD_RESPONSE = [
   "content-type",
   "accept-ranges",
   "content-range",
-  // The notification stream asks nginx in front of this proxy not to buffer it.
+  // The notification and position streams ask nginx in front of this proxy not to buffer them.
   "x-accel-buffering",
   "content-disposition",
   "x-content-type-options",

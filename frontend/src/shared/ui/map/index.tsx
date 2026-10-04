@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { request } from "@shared/api/client";
 import type { TrailPointView } from "@shared/domain/types";
-import { readTrail, type TrailPoint } from "./trail.ts";
+import { readTrail, readTrailPages, type TrailPoint } from "./trail.ts";
 import type { MapStatus } from "./types.ts";
 
 // Leaflet reads `window` when imported, so the canvas is loaded on the client
@@ -14,8 +14,8 @@ export const LiveMap = dynamic(() => import("./MapCanvas.tsx"), {
 });
 
 export type { LiveMapProps, MapLine, MapMarker, MapStatus } from "./types.ts";
-export { drivenLine, readTrail, trailPoints, type TrailPoint } from "./trail.ts";
-export { cluster, compass, keepFix, metres, num, round6, keepTiles, tileAllowed, tilesFor, type LatLon } from "./geo.ts";
+export { drivenLine, readTrail, readTrailPages, trailPoints, withLive, type TrailPoint } from "./trail.ts";
+export { bearing, cluster, compass, metres, num, round6, keepTiles, SAMPLE_MS, takeSample, tileAllowed, tilesFor, travelBearing, type LatLon } from "./geo.ts";
 
 const LEGEND: { status: MapStatus; label: string }[] = [
   { status: "on-time", label: "On time" },
@@ -44,6 +44,17 @@ export function MapLegend({ hint }: { hint?: string }): React.JSX.Element {
       ))}
       {hint && <span className="shrink-0 text-go-teal">{hint}</span>}
     </div>
+  );
+}
+
+/**
+ * A trip's trail after `since` (exclusive; null for all of it), every page,
+ * oldest first, with the raw time of its newest point for the next read.
+ */
+export function readTripTrailSince(tripId: string, since: string | null, signal: AbortSignal): Promise<{ points: TrailPoint[]; last: string | null }> {
+  const path = `/api/execution/trips/${encodeURIComponent(tripId)}/trail?limit=500${since ? `&since=${encodeURIComponent(since)}` : ""}`;
+  return readTrailPages((cursor) =>
+    request<{ items: TrailPointView[]; nextCursor?: string | null }>(cursor ? `${path}&cursor=${encodeURIComponent(cursor)}` : path, { signal }),
   );
 }
 

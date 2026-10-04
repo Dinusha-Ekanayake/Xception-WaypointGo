@@ -69,7 +69,9 @@ export function useOverlay(
     const focusable = () =>
       Array.from(panel.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []).filter((el) => !el.hasAttribute("disabled"));
     // An input that focused itself (autoFocus) keeps it.
-    if (!panel.current?.contains(document.activeElement)) (focusable()[0] ?? panel.current)?.focus();
+    // Without preventScroll, focusing a panel that is still sliding in from below
+    // scrolls the frame that clips it, and everything behind flies up and back.
+    if (!panel.current?.contains(document.activeElement)) (focusable()[0] ?? panel.current)?.focus({ preventScroll: true });
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape" && close.current) {
         event.preventDefault();
@@ -94,7 +96,7 @@ export function useOverlay(
     return () => {
       document.removeEventListener("keydown", onKey);
       unlock();
-      if (opener?.isConnected) opener.focus();
+      if (opener?.isConnected) opener.focus({ preventScroll: true });
     };
     // Mount and unmount only: the panel ref and requestClose are stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -54,6 +54,8 @@ public class WarehouseHttpClient {
   private final ObjectMapper mapper;
   private final Metrics metrics;
   private final Clock clock;
+  /** The circuit's timing: the process's own, never the demo clock, which can jump. */
+  private final Clock realClock;
   private final CircuitBreaker circuit;
   private final HttpClient http;
 
@@ -63,6 +65,7 @@ public class WarehouseHttpClient {
     this.mapper = mapper;
     this.metrics = metrics;
     this.clock = clock;
+    this.realClock = clock.realTime();
     this.circuit = new CircuitBreaker(properties.circuitFailures(), properties.circuitOpenFor());
     this.http =
         HttpClient.newBuilder()
@@ -71,7 +74,7 @@ public class WarehouseHttpClient {
             .build();
     metrics.gauge(
         "waypoint.warehouse.circuit_open",
-        () -> circuit.state(clock.now()) == CircuitBreaker.State.CLOSED ? 0 : 1);
+        () -> circuit.state(realClock.now()) == CircuitBreaker.State.CLOSED ? 0 : 1);
   }
 
   public boolean configured() {
@@ -79,7 +82,7 @@ public class WarehouseHttpClient {
   }
 
   public CircuitBreaker.State circuitState() {
-    return circuit.state(clock.now());
+    return circuit.state(realClock.now());
   }
 
   // ---- orders ---------------------------------------------------------------
@@ -201,7 +204,7 @@ public class WarehouseHttpClient {
     if (!properties.isConfigured()) {
       return failed(operation, new Failed("warehouse not configured: app.warehouse.api-key is blank", false), "unconfigured");
     }
-    Instant now = clock.now();
+    Instant now = realClock.now();
     if (!circuit.allow(now)) {
       return failed(operation, new Failed("warehouse circuit open", false), "circuit_open");
     }
@@ -224,7 +227,7 @@ public class WarehouseHttpClient {
       metrics.record("waypoint.warehouse.call", ms, "operation", operation, "status", String.valueOf(response.statusCode()));
       int status = response.statusCode();
       if (status >= 500 || status == 401 || status == 403) {
-        circuit.onFailure(clock.now());
+        circuit.onFailure(realClock.now());
         return failed(operation, new Failed("warehouse answered " + status, true), "http_" + status);
       }
       JsonNode json;
@@ -233,16 +236,16 @@ public class WarehouseHttpClient {
             ? mapper.createObjectNode()
             : mapper.readTree(response.body());
       } catch (IOException e) {
-        circuit.onFailure(clock.now());
+        circuit.onFailure(realClock.now());
         return failed(operation, new Failed("warehouse answered " + status + " with a body that does not parse", true), "unparseable");
       }
       circuit.onSuccess();
       return new Response(status, json, Optional.empty());
     } catch (HttpTimeoutException e) {
-      circuit.onFailure(clock.now());
+      circuit.onFailure(realClock.now());
       return failed(operation, new Failed("warehouse timed out after " + timeoutMs + " ms", true), "timeout");
     } catch (IOException e) {
-      circuit.onFailure(clock.now());
+      circuit.onFailure(realClock.now());
       return failed(operation, new Failed("warehouse unreachable: " + e.getClass().getSimpleName(), true), "io");
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();

@@ -6,7 +6,8 @@ export type MapStatus = "on-time" | "at-risk" | "late" | "returning" | "offline"
 
 export type MapMarker = LatLon & {
   id: string;
-  kind: "vehicle" | "depot" | "stop" | "store" | "cluster";
+  /** `start`: where the chosen vehicle's trip began, the first point of its run path. */
+  kind: "vehicle" | "depot" | "stop" | "store" | "cluster" | "start";
   label: string;
   /** Read by screen readers and shown as the tooltip; the map is never the only way to a vehicle. */
   ariaLabel: string;
@@ -15,7 +16,7 @@ export type MapMarker = LatLon & {
   /** A stop's number, "01". */
   badge?: string;
   done?: boolean;
-  /** Low accuracy or last-seen: drawn faded. */
+  /** Low accuracy or last-seen: drawn faded. A depot outside the depot filter: drawn grey. */
   faded?: boolean;
   sub?: string;
   count?: number;

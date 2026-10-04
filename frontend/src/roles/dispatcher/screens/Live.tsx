@@ -17,10 +17,12 @@ import { Toggle } from "./LiveParts.tsx";
 import LiveTimeline, { RoadCard } from "./LiveTimeline.tsx";
 import LiveTrip from "./LiveTrip.tsx";
 import Refusal from "./Refusal.tsx";
+import { businessNow } from "@shared/wording";
 
 // Figma "05 Live" (189:20983 needs you, 189:21127 timeline, 189:21358 map,
-// 189:21943 trip). Run sheets are read every 30 seconds and positions every 15
-// while the tab is visible and online; the header says when. The views share
+// 189:21943 trip). Run sheets are read every 30 seconds while the tab is
+// visible and online; positions are pushed as each fix lands (R-EXE-23), with a
+// poll when the push goes quiet; the header says when. The views share
 // one join of run sheet, loading trip and position (data/liveDesk.ts), and the
 // depot and status filters under the header choose what each shows.
 
@@ -53,7 +55,7 @@ export default function Live({
   const inbox = useDispatcherInbox();
   const openTripThread = useOpenTripThread();
   const [threadNote, setThreadNote] = useState<string | null>(null);
-  const [now, setNow] = useState(() => new Date());
+  const [now, setNow] = useState(() => businessNow());
   const [view, setView] = usePersistentState<View>("dispatcher:live:view", "needs");
   const [localDepot, setLocalDepot] = usePersistentState("dispatcher:live:depot", "all");
   const depot = depotFilter ?? localDepot;
@@ -63,7 +65,7 @@ export default function Live({
 
   // "At risk" compares a window with the time now, so the time moves.
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date()), 30_000);
+    const timer = window.setInterval(() => setNow(businessNow()), 30_000);
     return () => window.clearInterval(timer);
   }, []);
 
@@ -162,7 +164,7 @@ export default function Live({
         <LiveNeeds cards={cards} runs={inDepot} date={date} closedOnTheirOwn={closedOnTheirOwn(inDepot)} online={online} onOpenTrip={setTrip} onOpenIssue={onOpenIssue} onViewAll={() => setView("timeline")} />
       )}
 
-      {view === "map" && <LiveMapView depots={depots} date={date} runs={shown.runs} positions={positions} depotName={depotName} now={now} onOpenTrip={setTrip} />}
+      {view === "map" && <LiveMapView depots={depots} depotFilter={depot} date={date} runs={shown.runs} positions={positions} depotName={depotName} now={now} onOpenTrip={setTrip} />}
 
       {view === "timeline" && (
         <div className="flex w-full items-start gap-[18px] max-lg:flex-col">

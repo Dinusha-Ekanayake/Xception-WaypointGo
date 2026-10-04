@@ -6,7 +6,7 @@ import type { MessageAudience } from "@shared/domain/types";
 import { sendNow } from "@shared/messaging/senders";
 import { newId, postCommand, useTripThread } from "@shared/messaging/useThread";
 import { cx } from "@shared/ui";
-import { clock } from "@shared/wording";
+import { clock, businessNow } from "@shared/wording";
 import { lateBy, tripOf, updateText } from "../data/threads.ts";
 import type { Run } from "../data/liveDesk.ts";
 import { useDispatcherInbox } from "../inbox.tsx";
@@ -42,7 +42,7 @@ export default function LiveTripUpdate({ run, date, online }: { run: Run; date: 
     setState({ sending: true, sent: null, error: null });
     try {
       await sendNow(postCommand({ threadId, body: body.trim(), to: target.to, ...(target.outletId ? { outletId: target.outletId } : {}), clientMessageId: newId() }));
-      setState({ sending: false, sent: `Sent to ${target.label} at ${clock(new Date())}`, error: null });
+      setState({ sending: false, sent: `Sent to ${target.label} at ${clock(businessNow())}`, error: null });
     } catch (failure) {
       const message = failure instanceof ApiError ? failure.problem.violations[0]?.message ?? failure.message : "Could not send. Try again.";
       setState({ sending: false, sent: null, error: message });

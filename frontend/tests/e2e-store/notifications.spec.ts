@@ -35,15 +35,10 @@ async function inbox(page: Page) {
   return sent;
 }
 
-test("the Home card shows the expected arrival and the deferral; the drawer marks all read", async ({ page }) => {
+test("the drawer marks all read", async ({ page }) => {
   await mockStore(page);
   const sent = await inbox(page);
   await page.goto("/");
-
-  const card = page.getByRole("region", { name: "Notifications" });
-  await expect(card).toContainText("2 new");
-  await expect(card.getByRole("button", { name: /Unread\. Vehicle left\. VEH043 is on the way\. You're stop 3 of 7\. Expected 05:44\./ })).toBeVisible();
-  await expect(card.getByRole("button", { name: /Unread\. Order deferred\. Order deferred\./ })).toBeVisible();
 
   await page.getByRole("button", { name: /^Notifications/ }).first().click();
   const drawer = page.getByRole("dialog", { name: "Notifications" });

@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-05 - feat(live): vehicles tracked every five seconds, pushed to the map, and drawn as in Figma
+
+`feat/live-vehicle-tracking` · @tharushaudana
+
+The live map was a round arrow per vehicle, snapped to eight directions and polled every 15 s, from a phone that kept a fix every 30 s or 150 m, started before the trip and stopped at the last stop. Now the phone records every five seconds from Start run until it is back at the depot (R-EXE-23), each stored fix is pushed to the dispatcher and store maps over a server-sent event stream, the truck faces the way it moved (R-EXE-22), and a chosen vehicle shows its whole run path from the trip's start, growing live. Trucks and depot pills follow Figma 189:21746. No new table: `execution.vehicle_positions` already held the trail. Detail in the [walkthrough addendum](../../issues/161-live-map/WALKTHROUGH.md).
+Verified: `PositionPolicyTest`, `ModuleBoundaryTest`, `npm test`, typecheck, build, dispatcher live map suite.
+Open: on a phone the recording stays foreground only.
+
+---
+
 ## 2026-10-05 - feat(admin): the demo clock takes a date, and steps by the hour and the day
 
 `feat/demo-clock-date-shift` · @tharushaudana

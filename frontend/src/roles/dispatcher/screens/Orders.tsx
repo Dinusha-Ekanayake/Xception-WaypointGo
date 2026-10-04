@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { ORDER_CUTOFF, OrderCommandKind, type IssueView, type OrderStatus, type OrderView, type RunSheetStopView } from "@shared/domain/types";
 import { Icon, Menu, Notice, Segmented, SkeletonRows, cx, usePersistentState, useToast } from "@shared/ui";
-import { addDays, clock, dayLabel } from "@shared/wording";
+import { addDays, clock, dayLabel, businessNow } from "@shared/wording";
 import PageHeader from "../PageHeader.tsx";
 import { flow } from "../data/orders.ts";
 import { depotToday } from "../data/scope.ts";
@@ -266,7 +266,7 @@ function UpcomingDays({
           const inPlan = day.orders.filter((o) => o.status === "ALLOCATED").length;
           const deferred = day.orders.filter((o) => o.status === "DEFERRED").length;
           const closesOn = addDays(day.date, -1);
-          const closed = closesOn < depotToday() || (closesOn === depotToday() && clock(new Date()) >= ORDER_CUTOFF);
+          const closed = closesOn < depotToday() || (closesOn === depotToday() && clock(businessNow()) >= ORDER_CUTOFF);
           const count = `${day.orders.length} ${day.orders.length === 1 ? "order" : "orders"}`;
           return (
             <div key={day.date} className="flex min-w-0 flex-1 flex-wrap items-center gap-2 rounded-go-card bg-go-surface px-4 py-3">

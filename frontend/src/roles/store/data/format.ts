@@ -1,5 +1,5 @@
 import type { IsoDate, OrderStatus } from "@shared/domain/types";
-import { addDays, dayLabel, hhmm } from "../../../shared/wording/index.ts";
+import { addDays, businessNow, dayLabel, hhmm } from "../../../shared/wording/index.ts";
 export { addDays, clock, dayLabel, depotToday, greeting, hhmm, longDay, productLines, units } from "../../../shared/wording/index.ts";
 
 // Dates and labels for the store screens. The depot clock is Asia/Colombo; the
@@ -11,7 +11,7 @@ export const CUTOFF_HOUR = 16;
 
 
 /** Milliseconds until today's 16:00 in Colombo; negative once it has passed. */
-export function untilCutoff(now = new Date()): number {
+export function untilCutoff(now = businessNow()): number {
   const parts = new Intl.DateTimeFormat("en-GB", { hour: "numeric", minute: "numeric", second: "numeric", hour12: false, timeZone: TZ }).formatToParts(now);
   const n = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? 0);
   const seconds = (n("hour") % 24) * 3600 + n("minute") * 60 + n("second");
@@ -79,7 +79,7 @@ export function expectedAt(stop: { expectedArrival: string | null; plannedArriva
 }
 
 /** "13 min", "1 h 5 min"; "now" inside a minute, "late" once past. */
-export function minutesLabel(target: Date, now = new Date()): string {
+export function minutesLabel(target: Date, now = businessNow()): string {
   const m = Math.round((target.getTime() - now.getTime()) / 60_000);
   if (m < 0) return "late";
   if (m < 1) return "now";

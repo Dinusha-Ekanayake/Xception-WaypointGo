@@ -45,7 +45,8 @@ public class ModelServingAdapter {
     this.properties = properties;
     this.json = json;
     this.metrics = metrics;
-    this.clock = clock;
+    // The circuit's timing is the process's own, never the demo clock, which can jump.
+    this.clock = clock.realTime();
     this.circuit = new CircuitBreaker(properties.circuitFailures(), properties.circuitOpenFor());
     this.http =
         HttpClient.newBuilder()
@@ -53,7 +54,7 @@ public class ModelServingAdapter {
             .followRedirects(HttpClient.Redirect.NEVER)
             .build();
     metrics.gauge(
-        "waypoint.ml.circuit_open", () -> circuit.state(clock.now()) == CircuitBreaker.State.CLOSED ? 0 : 1);
+        "waypoint.ml.circuit_open", () -> circuit.state(this.clock.now()) == CircuitBreaker.State.CLOSED ? 0 : 1);
   }
 
   /** A value, or why there is none. */

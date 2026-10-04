@@ -65,6 +65,52 @@ class PositionPolicyTest {
     assertTrue(PositionPolicy.lastGood(List.of(poor)).isEmpty());
   }
 
+  private static PositionFix headed(Instant at, String lat, String lon, String heading) {
+    return new PositionFix(at, new BigDecimal(lat), new BigDecimal(lon), new BigDecimal("8"),
+        heading == null ? null : new BigDecimal(heading), null);
+  }
+
+  private static double heading(PositionFix... newestFirst) {
+    return PositionPolicy.travelHeading(List.of(newestFirst)).orElseThrow().doubleValue();
+  }
+
+  @Test
+  void travelHeadingIsTheBearingFromThePreviousFixToTheLatest() {
+    var start = headed(NOW.minusSeconds(5), "7.000000", "80.000000", null);
+    assertEquals(90.0, heading(headed(NOW, "7.000000", "80.000500", null), start), 0.2);
+    assertEquals(0.0, heading(headed(NOW, "7.000500", "80.000000", null), start), 0.2);
+    assertEquals(180.0, heading(headed(NOW, "6.999500", "80.000000", null), start), 0.2);
+    assertEquals(225.0, heading(headed(NOW, "6.999500", "79.999500", null), start), 0.5);
+    // The phone's compass says north, but the truck moved east: movement wins.
+    assertEquals(90.0, heading(headed(NOW, "7.000000", "80.000500", "0"), start), 0.2);
+  }
+
+  @Test
+  void jitterUnderFifteenMetresKeepsThePhoneHeadingSoAParkedTruckNeverSpins() {
+    var parked = headed(NOW.minusSeconds(5), "7.000000", "80.000000", null);
+    // About 5.5 m north: jitter, not movement.
+    var jitter = headed(NOW, "7.000050", "80.000000", "135.0");
+    assertEquals(135.0, heading(jitter, parked), 0.01);
+    assertTrue(PositionPolicy.travelHeading(List.of(headed(NOW, "7.000050", "80", null), parked)).isEmpty());
+    // Further back the truck was still driving east: the last real movement gives the direction.
+    var before = headed(NOW.minusSeconds(60), "7.000000", "79.999000", null);
+    assertEquals(90.0, heading(headed(NOW, "7.000005", "80.000000", null), parked, before), 1.0);
+  }
+
+  @Test
+  void travelHeadingSkipsPoorFixesAndOldLegs() {
+    var latest = headed(NOW, "7.000000", "80.000500", null);
+    var poor = new PositionFix(NOW.minusSeconds(5), new BigDecimal("7.000500"), new BigDecimal("80.000500"),
+        new BigDecimal("500"), null, null);
+    var good = headed(NOW.minusSeconds(10), "7.000000", "80.000000", null);
+    assertEquals(90.0, heading(latest, poor, good), 0.2);
+    // A fix more than five minutes before is another leg: no direction from it.
+    var stale = headed(NOW.minusSeconds(301), "7.000000", "80.000000", null);
+    assertTrue(PositionPolicy.travelHeading(List.of(latest, stale)).isEmpty());
+    assertTrue(PositionPolicy.travelHeading(List.of()).isEmpty());
+    assertTrue(PositionPolicy.travelHeading(List.of(poor)).isEmpty());
+  }
+
   @Test
   void validatesBatchSizeAndOptionalSensorValuesWithoutSilentlyRounding() {
     assertThrows(DomainException.class, () -> PositionPolicy.accept(List.of(), NOW));

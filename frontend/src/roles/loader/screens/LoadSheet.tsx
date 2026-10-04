@@ -14,6 +14,7 @@ import TruckCard from "./TruckCard.tsx";
 import ReleaseSheet from "./ReleaseSheet.tsx";
 import TripMessages from "./TripMessages.tsx";
 import { useT } from "../i18n.tsx";
+import { businessNow } from "@shared/wording";
 
 // Figma "02 Load sheet". Container: the trip hook, the sheets and the notices.
 
@@ -236,7 +237,7 @@ export default function LoadSheet({
             if (outcome.ok && outcome.queued) {
               setToast({
                 kind: "saved",
-                at: new Date(),
+                at: businessNow(),
                 title: tr("Issue saved on this device"),
                 detail: tr("Sends when you're back online. Keep loading."),
                 note: tr("Sends to the dispatcher and the store manager"),

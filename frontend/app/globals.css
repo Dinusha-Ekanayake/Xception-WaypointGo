@@ -214,20 +214,22 @@ input:-webkit-autofill:active {
   transition: filter 300ms ease-out, opacity 300ms ease-out;
 }
 
+/* A dialog that covers the whole phone, header included, blurs it with its own scrim (data-full-frame):
+   blurring the header here as well made it blur and clear at a different moment from the rest. */
 .modal-active .driver-morph-header,
 .modal-active .driver-header,
-body:has([aria-modal="true"]:not([aria-hidden="true"]):not([data-state="closed"])) .driver-morph-header,
-body:has([aria-modal="true"]:not([aria-hidden="true"]):not([data-state="closed"])) .driver-header,
-body:has([role="dialog"]:not([aria-hidden="true"]):not([data-state="closed"])) .driver-morph-header,
-body:has([role="dialog"]:not([aria-hidden="true"]):not([data-state="closed"])) .driver-header {
+body:has([aria-modal="true"]:not([aria-hidden="true"]):not([data-state="closed"]):not([data-full-frame])) .driver-morph-header,
+body:has([aria-modal="true"]:not([aria-hidden="true"]):not([data-state="closed"]):not([data-full-frame])) .driver-header,
+body:has([role="dialog"]:not([aria-hidden="true"]):not([data-state="closed"]):not([data-full-frame])) .driver-morph-header,
+body:has([role="dialog"]:not([aria-hidden="true"]):not([data-state="closed"]):not([data-full-frame])) .driver-header {
   filter: blur(8px) !important;
   opacity: 0.35 !important;
   pointer-events: none !important;
 }
 
 .modal-active .driver-header-container,
-body:has([aria-modal="true"]:not([aria-hidden="true"]):not([data-state="closed"])) .driver-header-container,
-body:has([role="dialog"]:not([aria-hidden="true"]):not([data-state="closed"])) .driver-header-container {
+body:has([aria-modal="true"]:not([aria-hidden="true"]):not([data-state="closed"]):not([data-full-frame])) .driver-header-container,
+body:has([role="dialog"]:not([aria-hidden="true"]):not([data-state="closed"]):not([data-full-frame])) .driver-header-container {
   pointer-events: none !important;
 }
 

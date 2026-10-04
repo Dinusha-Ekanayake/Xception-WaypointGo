@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { livePoll, useDemo } from "@shared/demo/useDemo";
-import { useResource, type Resource } from "@shared/api/useResource";
+import type { Resource } from "@shared/api/useResource";
 import type { VehiclePositionView } from "@shared/domain/types";
+import type { PositionStream } from "@shared/live/usePositionStream";
+import { useTripTrail } from "@shared/live/useTripTrail";
 import { clock } from "@shared/wording";
-import { LiveMap, MapLegend, num, readTripTrail, type LatLon, type MapLine, type MapMarker } from "@shared/ui/map";
+import { LiveMap, MapLegend, num, withLive, type LatLon, type MapLine, type MapMarker, type TrailPoint } from "@shared/ui/map";
 import type { MapStatus } from "../data/live.ts";
 import { hhmm } from "../data/plan.ts";
 import { runTitle, type Run } from "../data/liveDesk.ts";
@@ -22,6 +24,7 @@ import { RoadCard } from "./LiveTimeline.tsx";
 
 export default function LiveMapView({
   depots,
+  depotFilter = "all",
   date,
   runs,
   positions,
@@ -30,9 +33,11 @@ export default function LiveMapView({
   onOpenTrip,
 }: {
   depots: string[];
+  /** The depot pill chosen in the header; the other depots are drawn grey, as in Figma 189:21746. */
+  depotFilter?: string;
   date: string;
   runs: Run[];
-  positions: Resource<VehiclePositionView[]>;
+  positions: PositionStream | Resource<VehiclePositionView[]>;
   depotName: (run: Run) => string;
   now: Date;
   onOpenTrip: (vehicleId: string) => void;
@@ -45,22 +50,26 @@ export default function LiveMapView({
     if (selected !== null && chosen === null) setSelected(null);
   }, [selected, chosen]);
 
+  // The run path of the chosen vehicle only (R-EXE-23): its trip from the first
+  // point to now, read once and then extended, reaching the truck between reads.
   const demo = useDemo();
   const tripId = chosen?.position?.tripId ?? null;
-  const trail = useResource(
-    tripId ? (signal: AbortSignal) => readTripTrail(tripId, signal) : null,
-    `trail|${tripId ?? ""}`,
-    livePoll(demo, 15_000),
-  );
+  const trail = useTripTrail(tripId, livePoll(demo, 15_000));
+  const liveAt = chosen?.position ? livePoint(chosen.position) : null;
+  const path = trail.points ? withLive(trail.points, liveAt) : null;
 
-  const shownDepots = new Set(runs.map((r) => r.depot).filter(Boolean));
   const markers: MapMarker[] = [];
   for (const d of depotViews.data ?? []) {
     const lat = num(d.location?.latitude);
     const lon = num(d.location?.longitude);
-    if (lat !== null && lon !== null && (shownDepots.size === 0 || shownDepots.has(d.depotCode))) {
-      markers.push({ id: `depot:${d.depotCode}`, kind: "depot", lat, lon, label: d.displayName, ariaLabel: `${d.displayName} depot`, selectable: false });
-    }
+    if (lat === null || lon === null) continue;
+    const muted = depotFilter !== "all" && depotFilter !== d.depotCode && depotFilter !== d.displayName;
+    const name = `${d.displayName} depot`;
+    markers.push({ id: `depot:${d.depotCode}`, kind: "depot", lat, lon, label: name, ariaLabel: name, selectable: false, faded: muted });
+  }
+  if (chosen && path && path.length > 1) {
+    const start = path[0]!;
+    markers.push({ id: "trail-start", kind: "start", lat: start.lat, lon: start.lon, label: "", ariaLabel: `${chosen.day.vehicleId} trip start, ${clock(new Date(start.at))}`, selectable: false });
   }
   for (const r of runs) {
     const lat = num(r.position?.latitude);
@@ -79,21 +88,30 @@ export default function LiveMapView({
       ariaLabel: `${r.day.vehicleId}, ${STATUS[r.status].label.toLowerCase()}, stop ${r.day.done + (next ? 1 : 0)} of ${r.day.stops.length}${next ? `, window closes ${hhmm(next.windowClose)}` : ""}`,
     });
   }
-  const lines: MapLine[] = chosen && trail.data ? [{ id: "trail", points: trail.data, style: "driven" }] : [];
+  const lines: MapLine[] = chosen && path ? [{ id: "trail", points: path, style: "driven" }] : [];
   // The depots once they are read; a vehicle when one is chosen, so choosing
   // from the list brings it into view. Keyed on the choice, not its position:
   // a re-fit on every poll would undo the dispatcher's own pan and zoom.
   const chosenAt = chosen ? markers.find((m) => m.id === chosen.day.vehicleId) ?? null : null;
   const depotCount = depotViews.data?.length ?? 0;
+  // With nothing chosen, the depots and every truck on the map, as in Figma
+  // 189:21746. Keyed on which vehicles are placed, not where: a truck moving
+  // never refits, one appearing or leaving does.
+  const placed = markers.filter((m) => m.kind === "vehicle").map((m) => m.id).join(",");
+  const pathRead = path !== null && path.length > 1;
   const fit = useMemo(
     () =>
       chosenAt
-        ? [{ lat: chosenAt.lat, lon: chosenAt.lon }]
-        : (depotViews.data ?? [])
-            .map((d) => ({ lat: num(d.location?.latitude), lon: num(d.location?.longitude) }))
-            .filter((p): p is LatLon => p.lat !== null && p.lon !== null),
+        ? // The whole run path from the trip's start to the truck, once it is read.
+          pathRead
+          ? path!.map(({ lat, lon }) => ({ lat, lon }))
+          : [{ lat: chosenAt.lat, lon: chosenAt.lon }]
+        : [
+            ...(depotViews.data ?? []).map((d) => ({ lat: num(d.location?.latitude), lon: num(d.location?.longitude) })),
+            ...markers.filter((m) => m.kind === "vehicle").map((m) => ({ lat: m.lat, lon: m.lon })),
+          ].filter((p): p is LatLon => p.lat !== null && p.lon !== null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [selected, chosenAt !== null, depotCount],
+    [selected, chosenAt !== null, pathRead, depotCount, placed],
   );
   const clusterVehicles = useCallback(
     (group: MapMarker[]): MapMarker => ({
@@ -131,13 +149,21 @@ export default function LiveMapView({
             </button>
           </p>
         )}
-        {positions.error && (
+        {positions.error ? (
           <p role="status" className="absolute bottom-16 left-4 z-[600] rounded-full bg-white px-3 py-1 text-[12px] text-go-danger-strong shadow">
             Positions not updated{positions.loadedAt ? ` since ${clock(positions.loadedAt)}` : ""} ·{" "}
             <button type="button" className="underline" onClick={positions.refresh}>
               Retry
             </button>
           </p>
+        ) : (
+          "paused" in positions &&
+          positions.paused && (
+            // Rule 9: the push went quiet, so the map is on a slower poll and says so.
+            <p role="status" className="absolute bottom-16 left-4 z-[600] rounded-full bg-white px-3 py-1 text-[12px] text-go-warning-text shadow">
+              Live updates paused · refreshing every 15 s{positions.loadedAt ? ` · last ${clock(positions.loadedAt)}` : ""}
+            </p>
+          )
         )}
       </div>
 
@@ -148,7 +174,7 @@ export default function LiveMapView({
             date={date}
             depotName={depotName(chosen)}
             now={now}
-            trailPoints={trail.data?.length ?? null}
+            trailPoints={trail.points?.length ?? null}
             onBack={() => setSelected(null)}
             onOpenTrip={() => onOpenTrip(chosen.day.vehicleId)}
           />
@@ -172,6 +198,13 @@ export default function LiveMapView({
       </aside>
     </div>
   );
+}
+
+/** The vehicle's latest fix as the end of its path. */
+function livePoint(position: VehiclePositionView): TrailPoint | null {
+  const lat = num(position.latitude);
+  const lon = num(position.longitude);
+  return lat === null || lon === null ? null : { lat, lon, at: Date.parse(position.recordedAt) };
 }
 
 function summary(group: MapMarker[]): string {
