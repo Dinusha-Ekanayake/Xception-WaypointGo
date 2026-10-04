@@ -71,7 +71,14 @@ public class SessionActorResolver implements ActorResolver {
 
   @Override
   public Optional<Actor> resolveCommand(HttpServletRequest request, Command command) {
-    if (command == null || !command.kind().startsWith("loading:")) {
+    // Loading work always names the loader who entered their PIN; any other
+    // command may, such as a message written on a shared loader device (#136).
+    boolean namesOperator =
+        command != null
+            && (command.kind().startsWith("loading:")
+                || (command.actingUserId() != null
+                    && request.getAttribute(McpCredentialFilter.CREDENTIAL) == null));
+    if (!namesOperator) {
       return resolve(request);
     }
     String token = cookie.read(request);
