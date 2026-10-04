@@ -1,5 +1,5 @@
 import type { CheckStatus, HolderView, IssueKind, ItemView, ManifestLineView, OutletView, SessionStatus, Temperature } from "@shared/domain/types";
-import { clock, durationText } from "../../../shared/wording/index.ts";
+import { businessNow, clock, durationText } from "../../../shared/wording/index.ts";
 export { clock, depotToday, durationText, hhmm } from "../../../shared/wording/index.ts";
 
 // Pure helpers over a manifest. Capacity reads order totals only (AGENTS.md,
@@ -81,7 +81,7 @@ export function orderStatusOf(items: ItemView[]): CheckStatus {
 }
 
 /** Minutes until a depot wall-clock time today, read in Asia/Colombo whatever the device's timezone. */
-export function minutesUntil(time: string, now: Date = new Date()): number {
+export function minutesUntil(time: string, now: Date = businessNow()): number {
   const [h, m] = time.split(":").map(Number);
   const [nh, nm] = clock(now.toISOString()).split(":").map(Number);
   return (h ?? 0) * 60 + (m ?? 0) - ((nh ?? 0) * 60 + (nm ?? 0));
@@ -112,18 +112,18 @@ export const m3 = (n: number) => `${n.toFixed(1)} m³`;
 export const IDLE_RELEASE_MINUTES = 30;
 
 /** Whether a holder has been idle long enough that anyone may take the trip over. */
-export function holdLapsed(holder: HolderView, now: Date = new Date()): boolean {
+export function holdLapsed(holder: HolderView, now: Date = businessNow()): boolean {
   return now.getTime() - Date.parse(holder.lastActiveAt) >= IDLE_RELEASE_MINUTES * 60_000;
 }
 
 /** "14 min" or "1 h 20 min" until a depot-time departure; empty when past or not today. */
-export function timeToDeparture(time: string, now: Date = new Date()): string {
+export function timeToDeparture(time: string, now: Date = businessNow()): string {
   const minutes = minutesUntil(time, now);
   if (minutes <= 0 || minutes >= 12 * 60) return "";
   return durationText(minutes);
 }
 
-export function untilDeparture(time: string, now: Date = new Date()): string {
+export function untilDeparture(time: string, now: Date = businessNow()): string {
   const minutes = minutesUntil(time, now);
   if (minutes <= 0 || minutes >= 12 * 60) return "";
   return minutes < 60 ? `${minutes} min to departure` : `${Math.floor(minutes / 60)} h ${minutes % 60} min to departure`;
@@ -134,7 +134,7 @@ export function untilDeparture(time: string, now: Date = new Date()): string {
  * from taking the trip to departure that has passed. Behind by more than a
  * tenth of the load is "behind pace". Null when there is no time left to judge.
  */
-export function paceOf(checked: number, total: number, since: string, departure: string, now: Date = new Date()): "on" | "behind" | null {
+export function paceOf(checked: number, total: number, since: string, departure: string, now: Date = businessNow()): "on" | "behind" | null {
   const start = Date.parse(since);
   // Departure is depot time (Asia/Colombo), so it is measured from now in that zone.
   const minutesLeft = minutesUntil(departure, now);

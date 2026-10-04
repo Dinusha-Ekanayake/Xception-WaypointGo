@@ -434,10 +434,10 @@ public class AccountAdminUseCase {
     }
     guardVersion("Assignment " + assignmentId, expectedVersion, row);
     LocalDate startsOn = ((java.sql.Date) row.get("starts_on")).toLocalDate();
-    if (!on.isAfter(startsOn)) {
+    if (on.isBefore(startsOn)) {
       throw new DomainException(
           ErrorCode.VALIDATION_FAILED,
-          "An assignment that started on " + startsOn + " cannot end on " + on);
+          "An assignment that started on " + startsOn + " cannot end before it starts");
     }
     database.updateExpectingOneRow(
         "UPDATE iam.vehicle_driver_assignments SET validity = daterange(lower(validity), ?, '[)'),"

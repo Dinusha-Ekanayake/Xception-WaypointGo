@@ -40,6 +40,8 @@ export default function DeliveryPinConfirmModal({
   const [step, setStep] = useState<"pin" | "confirmed">("pin");
   const [checking, setChecking] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [wrong, setWrong] = useState(false);
+  const [shake, setShake] = useState(0);
   const [finished, setFinished] = useState(false);
   const input = useRef<HTMLInputElement>(null);
 
@@ -48,6 +50,7 @@ export default function DeliveryPinConfirmModal({
     setPin("");
     setStep("pin");
     setMessage(null);
+    setWrong(false);
     setFinished(false);
     window.setTimeout(() => input.current?.focus(), 50);
   }, [isOpen]);
@@ -64,12 +67,18 @@ export default function DeliveryPinConfirmModal({
     if (pin.length !== 4 || checking) return;
     setChecking(true);
     setMessage(null);
+    setWrong(false);
     const answer = await onVerify(pin);
     setChecking(false);
     if ("error" in answer) return setMessage(answer.error);
     if (answer.outcome === "VERIFIED" || answer.outcome === "ALREADY_CONFIRMED") return setStep("confirmed");
     setPin("");
-    if (answer.outcome === "WRONG") return setMessage(MESSAGE.WRONG(answer.attemptsLeft));
+    window.setTimeout(() => input.current?.focus(), 30);
+    if (answer.outcome === "WRONG") {
+      setWrong(true);
+      setShake((n) => n + 1);
+      return setMessage(MESSAGE.WRONG(answer.attemptsLeft));
+    }
     setFinished(true);
     setMessage(MESSAGE[answer.outcome]);
   };
@@ -95,22 +104,28 @@ export default function DeliveryPinConfirmModal({
           </p>
 
           <label className="relative flex items-center gap-3" aria-label="PIN">
+            <span key={shake} className={cx("flex items-center gap-3", wrong && "animate-pin-shake")}>
             {[0, 1, 2, 3].map((idx) => (
               <span
                 key={idx}
                 aria-hidden="true"
                 className={cx(
                   "w-[54px] h-[54px] rounded-[18px] flex items-center justify-center border",
-                  isNight ? "bg-[#1f1f1f] border-[#444444]" : "bg-[#E7F3F2] border-[#B7F2ED]",
+                  wrong ? "border-go-danger-strong" : isNight ? "bg-[#1f1f1f] border-[#444444]" : "bg-[#E7F3F2] border-[#B7F2ED]",
+                  wrong && (isNight ? "bg-[#1f1f1f]" : "bg-[#E7F3F2]"),
                 )}
               >
                 {pin.length > idx && <span className={cx("w-3 h-3 rounded-full", isNight ? "bg-white" : "bg-black")} />}
               </span>
             ))}
+            </span>
             <input
               ref={input}
               value={pin}
-              onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
+              onChange={(e) => {
+                setWrong(false);
+                setPin(e.target.value.replace(/\D/g, "").slice(0, 4));
+              }}
               onKeyDown={(e) => e.key === "Enter" && void verify()}
               inputMode="numeric"
               autoComplete="one-time-code"

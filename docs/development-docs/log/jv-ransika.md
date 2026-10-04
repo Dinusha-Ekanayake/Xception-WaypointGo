@@ -4,6 +4,26 @@
 
 ---
 
+## 2026-10-04 - fix: the demo clock reaches scheduled jobs and every role's screens
+
+`fix/demo-clock-reach` · @jv-ransika
+
+Moving the demo clock moved commands only. The scheduler handed jobs real time and fired crons on the real hour, so the 16:00 cutoff, outlook warnings, forecast and calendar check ignored it, and auto-close and escalation compared real time with rows stamped on the demo clock. Jobs now get the business clock; a job whose cron names a business hour opts in with `onBusinessClock()` and is checked every 15 s against it (`BusinessCronTick`, DEMO-07). The other way round, the warehouse catalogue's age and the warehouse and model circuits were on the demo clock, so a clock moved 2 h ahead showed "The warehouse is not answering" until the next sync; they are on real time now (DEMO-08). On screen, today, the 16:00 cutoff, windows, countdowns, notification ages and the driver's arrival stamp read `businessNow()` (`shared/wording/now.ts`), set from `/api/demo` and kept when offline.
+Verified: `BusinessCronTickTest`, `WarehouseCircuitClockTest`, `mvn verify` (1028, one error in `ReferenceCreationIntegrationTest`, admin reference additions, outside this change); `npm test` (267), typecheck, build; store browser suite 57 of 57. The other suites run in CI.
+Open: a business-clock job is up to 15 s late, and with several replicas it can run twice in a row (the jobs are idempotent).
+
+---
+
+## 2026-10-04 - fix: Compare shows an order's ref, never its internal id
+
+`fix/compare-order-refs` · @jv-ransika
+
+"Orders that differ" took refs from the day's order list; a saved plan can still place an order that has since moved to another day, which then showed as a raw id. Missing orders are now read by id (`useOrdersById`); one that cannot be read says "Order not found".
+Verified: `npm test` (259), typecheck, build; dispatcher browser suite 68 of 68.
+Open: Decide, Publish and the decision card still fall back to the id for an order off the day's list; they show the working plan, where that does not happen today.
+
+---
+
 ## 2026-10-04 - feat: trip drawer, vehicle picker, published plan final at 16:00
 
 `feat/plan-trip-drawer` · @jv-ransika

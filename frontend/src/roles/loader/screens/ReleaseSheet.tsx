@@ -7,6 +7,7 @@ import { ISSUE_KIND_LABEL, byStop, durationText, isChecked, isFlagged, kg, m3, o
 import type { Line } from "../data/useTrip.ts";
 import { Bar, BigButton, Sheet, SwipeButton } from "../ui.tsx";
 import { useT } from "../i18n.tsx";
+import { nowMs } from "@shared/wording";
 
 // Figma "04 Confirm & release" and "E9 Release blocked". Release is refused
 // while any item is unchecked (R-LOD-07), and the refusal lists what is left.
@@ -93,7 +94,7 @@ export default function ReleaseSheet({
   const reported = items.filter((i) => isFlagged(i.status));
   const loaders = new Set(items.map((i) => i.checkedBy).filter(Boolean)).size;
   const firstCheck = Math.min(...items.map((i) => (i.checkedAt ? Date.parse(i.checkedAt) : Infinity)));
-  const minutes = Number.isFinite(firstCheck) ? Math.max(1, Math.round((Date.now() - firstCheck) / 60_000)) : null;
+  const minutes = Number.isFinite(firstCheck) ? Math.max(1, Math.round((nowMs() - firstCheck) / 60_000)) : null;
   const summary = [
     reported.length === 0 ? tr("Nothing reported") : tr(reported.length === 1 ? "{n} item reported" : "{n} items reported", { n: reported.length }),
     loaders > 0 && tr(loaders === 1 ? "{n} loader" : "{n} loaders", { n: loaders }),

@@ -3,6 +3,12 @@
 @kavindamihiran's entries, newest first. Only @kavindamihiran adds to this file; how to write an entry is in the [log's index](../development-log.md).
 
 ---
+## 2026-10-04 - docs: architecture diagrams and a current data model
+
+`docs/architecture-diagrams` · @kavindamihiran
+
+The Hackathon deliverable (a docs folder with an architecture diagram and data model): `docs/data-model.md` regenerated from all 91 migrations (110 tables in 15 schemas, was 95 in 13); `scripts/data-model.py` now includes `messaging` and `demo` and embeds two images. `docs/architecture.md` gains the messaging module, Prometheus and an image per section. Seven images and the prompts that produce them are in [docs/diagrams/](../../diagrams/README.md); the Mermaid stays the authority. Verified: every image label checked against the code and the generated model.
+
 ## 2026-10-05 - fix: dispatcher and store maps read the whole trail and keep the view
 
 `fix/role-maps` · @kavindamihiran · #161, #231

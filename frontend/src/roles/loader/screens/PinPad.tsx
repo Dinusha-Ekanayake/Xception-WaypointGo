@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { cx } from "@shared/ui";
 import { useT } from "../i18n.tsx";
 import { BigButton } from "../ui.tsx";
-import { type PinState } from "./PinEntry.tsx";
+import { usePinShake, type PinState } from "./PinEntry.tsx";
 import { countdown } from "@shared/wording";
 
 // The PIN side of the sign-in on a tablet, desk or terminal (Figma 07, 09 and
@@ -37,6 +37,7 @@ export default function PinPad({
   const chosen = title !== null;
   const paused = state.kind === "paused";
   const wrong = state.kind === "wrong";
+  const shake = usePinShake(state);
   const off = !chosen || paused || busy;
 
   useEffect(() => {
@@ -56,6 +57,7 @@ export default function PinPad({
     <section aria-label={tr("4-digit PIN")} className="flex flex-col items-center gap-5 pt-4">
       <label className="relative flex gap-4 p-2" htmlFor="loader-pin-pad">
         <span className="sr-only">{tr("4-digit PIN")}</span>
+        <span key={shake} className={cx("flex gap-4", shake > 0 && wrong && "animate-pin-shake")}>
         {[0, 1, 2, 3].map((i) => (
           <span
             key={i}
@@ -66,6 +68,7 @@ export default function PinPad({
             )}
           />
         ))}
+        </span>
         <input
           ref={input}
           id="loader-pin-pad"

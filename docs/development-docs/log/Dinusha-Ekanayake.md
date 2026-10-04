@@ -4,6 +4,26 @@
 
 ---
 
+## 2026-10-04 - feat: the whole plan explains itself, and a kept order says it stays deferred
+
+`feat/explain-plan` · @Dinusha-Ekanayake
+
+"Explain this plan" on the Plan screen: what the plan carries (orders, trips, vehicles), the orders left off grouped by the rule that decided each, how many were decided by hand, the planner's own notes (second pass, cost stage, estimated times) and what comes next. Counted from the plan itself, frontend only, no model. An order that can no longer be placed (kept deferred, or a final plan) now reads "it stays deferred" instead of "checking every vehicle".
+Why: after generating, the dispatcher wants the plan in a few sentences, not only one order at a time.
+Verified: see the PR. On the VPS preview's published plan for Mon 5 Oct both pop-ups read correctly. `npm test` 271; `e2e-dispatcher/explain.spec.ts` covers both.
+
+---
+
+## 2026-10-04 - feat: a deferred order explains itself (issue #267)
+
+`feat/267-explain-deferral` · @Dinusha-Ekanayake
+
+"Explain this decision" on a deferred order in Plan opens a pop-up: what happened, the rule in words with the planner's reason, what stopped it and what was fine, where it could still go, and what the dispatcher can do. Frontend only: every fact comes from the planning module (the deferral's rule and reason, its checks, and the places from `preview/placements`), so there is one definition of every rule, no model and nothing stored. Issue #266 (record the facts) was closed as already met by planning.
+Why: a dispatcher has to answer "why was my order deferred" in a sentence.
+Verified: see the PR. `npm test` 268 (new `dispatcher-explain.test.ts`); new `e2e-dispatcher/explain.spec.ts`.
+
+---
+
 ## 2026-10-04 - feat: usability round 2, plain words, field errors, accessibility and dispatcher search
 
 `feat/usability-round2` · @Dinusha-Ekanayake

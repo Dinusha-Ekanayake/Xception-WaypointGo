@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { openForm, serve, sign, startTrip } from "./mocks.ts";
+import { arrive, openForm, serve, sign, startTrip } from "./mocks.ts";
 
 // Issue #201: the run works on every phone and tablet, either way up. Every
 // action can be reached and nothing is wider than the screen.
@@ -18,7 +18,7 @@ test("a stop is delivered from start to saved", async ({ page }) => {
   await startTrip(page);
   await expect(page.getByRole("heading", { name: "OUT0101" })).toBeVisible();
   await fits(page);
-  await page.getByRole("button", { name: "I've arrived" }).click();
+  await arrive(page);
   await openForm(page);
   await expect(page.getByText("Stop 01 of 02 · Delivery report")).toBeVisible();
   await fits(page);

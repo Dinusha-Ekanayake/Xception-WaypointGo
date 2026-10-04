@@ -78,3 +78,43 @@ test("a short reason is refused before anything is sent", async ({ page }) => {
   await expect(page.getByText("Write a reason of at least 3 characters first.")).toBeVisible();
   expect(commands).toHaveLength(0);
 });
+
+test("the demo clock steps by the hour and the day, and takes any depot date and time within seven days", async ({ page }) => {
+  const commands: Array<{ kind: string; expectedVersion: number | null; payload: Record<string, unknown> }> = [];
+  await signedInAdmin(page, commands);
+  await page.goto("/#demo");
+  await page.getByRole("button", { name: "Turn demo mode on" }).click();
+  const panel = page.getByRole("region", { name: "Demo clock" });
+  // The mock's clock reads 16:05 on Mon 5 Oct in the depot, an hour ahead of real time.
+  await expect(panel.getByTestId("demo-clock-now")).toHaveText("Mon 5 Oct · 16:05");
+  await expect(panel).toContainText("1 h ahead of real time");
+
+  const target = () => new Date(String(commands.filter((c) => c.kind === "demo:SetClock").at(-1)!.payload.target)).toISOString();
+
+  await panel.getByRole("button", { name: /^Forward 1 day/ }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Clock +1 day: done." })).toBeVisible();
+  expect(target()).toBe("2026-10-06T10:35:00.000Z");
+
+  await panel.getByRole("button", { name: /^Back 1 h/ }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Clock -1 h: done." })).toBeVisible();
+  expect(target()).toBe("2026-10-05T09:35:00.000Z");
+
+  await panel.getByRole("button", { name: "Next day 05:00" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Clock next day 05:00: done." })).toBeVisible();
+  expect(target()).toBe("2026-10-05T23:30:00.000Z");
+
+  // Any depot date and time: 07:15 on the 9th is 01:45 UTC.
+  await panel.getByLabel("Depot date").fill("2026-10-09");
+  await panel.getByLabel("Depot time").fill("07:15");
+  await panel.getByRole("button", { name: "Set date and time" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "done." }).last()).toBeVisible();
+  expect(target()).toBe("2026-10-09T01:45:00.000Z");
+
+  // Beyond seven days of real time (real time is 09:35 UTC on the 5th): refused before sending.
+  const sent = commands.length;
+  await panel.getByLabel("Depot date").fill("2026-10-20");
+  await expect(panel.getByRole("button", { name: "Set date and time" })).toBeDisabled();
+  await expect(panel).toContainText("the demo clock stays within 7 days of real time");
+  expect(commands.length).toBe(sent);
+  await page.screenshot({ path: "test-results/demo-clock.png", fullPage: true });
+});

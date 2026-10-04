@@ -14,6 +14,7 @@ import { vehicleDay } from "../data/live.ts";
 import { dayLabel } from "../data/scope.ts";
 import { useFleetFuel, useLive, usePlans } from "../data/useDay.ts";
 import { useSetDayStatus } from "../data/useSetDayStatus.ts";
+import { businessNow } from "@shared/wording";
 
 // Figma "06 Vehicles": today's fleet, where each vehicle is, its trips and its
 // week's fuel, and sending a vehicle to the workshop. Container only; the
@@ -45,7 +46,7 @@ export default function Vehicles({
   const fuel = useFleetFuel(ids, date);
   const status = useMemo(() => {
     if (!live.data) return null;
-    const now = new Date();
+    const now = businessNow();
     const out: Record<string, RoadStatus> = {};
     for (const sheet of live.data.sheets) {
       const state = vehicleDay(sheet, now).state;

@@ -85,6 +85,82 @@ export async function submitUpdateUser(payload: {
   }, payload.expectedVersion));
 }
 
+export async function submitDisableUser(
+  userId: string,
+  expectedVersion: number
+): Promise<CommandAck<{ userId: string; sessionsRevoked: number }>> {
+  return send(
+    newCommand(
+      "iam:DisableUser",
+      { userId },
+      expectedVersion
+    )
+  );
+}
+
+export type DriverAssignmentView = {
+  assignmentId: string;
+  vehicleId: string;
+  driverUserId: string;
+  driverName: string;
+  from: string;
+  until: string | null;
+  rowVersion: number;
+};
+
+export async function fetchDriverAssignments(options: {
+  on?: string;
+  after?: string;
+  limit?: number;
+  signal?: AbortSignal;
+} = {}): Promise<DriverAssignmentView[]> {
+  const params = new URLSearchParams();
+  if (options.on) params.set("on", options.on);
+  if (options.after) params.set("after", options.after);
+  if (options.limit) params.set("limit", String(options.limit));
+  const qs = params.toString();
+  const path = `/api/accounts/driver-assignments${qs ? `?${qs}` : ""}`;
+  return requestAll<DriverAssignmentView>(path, { signal: options.signal });
+}
+
+export async function submitAssignDriver(payload: {
+  vehicleId: string;
+  driverUserId: string;
+  from: string;
+  until?: string | null;
+  expectedVersion: number;
+}): Promise<CommandAck<{ assignmentId: string; from: string }>> {
+  return send(
+    newCommand(
+      "iam:AssignDriver",
+      {
+        vehicleId: payload.vehicleId,
+        driverUserId: payload.driverUserId,
+        from: payload.from,
+        until: payload.until || null,
+      },
+      payload.expectedVersion
+    )
+  );
+}
+
+export async function submitEndDriverAssignment(payload: {
+  assignmentId: string;
+  on: string;
+  expectedVersion: number;
+}): Promise<CommandAck<{ assignmentId: string; endedOn: string }>> {
+  return send(
+    newCommand(
+      "iam:EndDriverAssignment",
+      {
+        assignmentId: payload.assignmentId,
+        on: payload.on,
+      },
+      payload.expectedVersion
+    )
+  );
+}
+
 /**
  * Convert an Identity AccountView to the Member model used in Admin People screens.
  */

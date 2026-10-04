@@ -1,12 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
-import { openForm, serve, startTrip, stop } from "./mocks.ts";
+import { arrive, openForm, serve, startTrip, stop } from "./mocks.ts";
 
 // Issue #117: the store manager's handover PIN is checked by the server, and is
 // evidence, never a gate. The inbox is the driver's real notifications.
 
 async function deliver(page: Page): Promise<void> {
   await startTrip(page);
-  await page.getByRole("button", { name: "I've arrived" }).click();
+  await arrive(page);
   await openForm(page);
   await page.getByLabel("I can't capture a signature or a photo").check();
   await page.getByLabel("Why not?").fill("Receiver refused to sign");
@@ -25,6 +25,7 @@ test("after a delivery the driver enters the store manager's PIN, and a wrong on
   await pin.getByLabel("Store manager PIN").fill("1111");
   await pin.getByRole("button", { name: "Confirm" }).click();
   await expect(pin).toContainText("That PIN is not right. 4 tries left.");
+  await expect(pin.getByLabel("Store manager PIN")).toHaveValue("");
 
   await pin.getByLabel("Store manager PIN").fill("4821");
   await pin.getByRole("button", { name: "Confirm" }).click();

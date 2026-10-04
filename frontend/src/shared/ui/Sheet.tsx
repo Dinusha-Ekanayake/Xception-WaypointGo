@@ -17,6 +17,7 @@ export function Sheet({
   children,
   size = "default",
   dismissible = true,
+  placement = "viewport",
 }: {
   label: string;
   onClose: () => void;
@@ -25,10 +26,31 @@ export function Sheet({
   size?: "default" | "wide";
   /** False for a sheet holding typed input, so a stray swipe cannot drop it. */
   dismissible?: boolean;
+  /** "frame" sits at the bottom of the nearest positioned ancestor, such as the driver's phone frame on a desk, and blurs everything in it, header included. */
+  placement?: "viewport" | "frame";
 }): React.JSX.Element {
   const panel = useRef<HTMLDivElement>(null);
   const { closing, requestClose } = useOverlay(panel, onClose);
   useSheetDrag(panel, onClose, dismissible);
+
+  if (placement === "frame") {
+    return (
+      <div data-closing={closing || undefined} className="go-overlay absolute inset-0 z-50 flex items-end justify-center" role="presentation">
+        <button type="button" tabIndex={-1} aria-label="Close" onClick={requestClose} className="go-backdrop absolute inset-0 bg-black/35 backdrop-blur-[6px]" />
+        <div
+          ref={panel}
+          tabIndex={-1}
+          role="dialog"
+          aria-modal="true"
+          aria-label={label}
+          data-full-frame
+          className="go-panel go-panel-sheet go-panel-frame relative flex max-h-[92%] w-full flex-col gap-4 overflow-y-auto rounded-t-[40px] bg-go-card px-5 pt-5 pb-9 text-go-ink outline-none"
+        >
+          {children}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div data-closing={closing || undefined} className={`go-overlay fixed inset-0 z-40 flex items-end justify-center md:p-6 ${size === "wide" ? "md:items-center" : "md:items-start md:pt-10"}`} role="presentation">

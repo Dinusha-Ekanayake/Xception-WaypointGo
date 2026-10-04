@@ -35,15 +35,10 @@ async function inbox(page: Page) {
   return sent;
 }
 
-test("the Home card shows the expected arrival and the deferral; the drawer marks all read", async ({ page }) => {
+test("the drawer marks all read", async ({ page }) => {
   await mockStore(page);
   const sent = await inbox(page);
   await page.goto("/");
-
-  const card = page.getByRole("region", { name: "Notifications" });
-  await expect(card).toContainText("2 new");
-  await expect(card.getByRole("button", { name: /Unread\. Vehicle left\. VEH043 is on the way\. You're stop 3 of 7\. Expected 05:44\./ })).toBeVisible();
-  await expect(card.getByRole("button", { name: /Unread\. Order deferred\. Order deferred\./ })).toBeVisible();
 
   await page.getByRole("button", { name: /^Notifications/ }).first().click();
   const drawer = page.getByRole("dialog", { name: "Notifications" });
@@ -62,6 +57,22 @@ test("a deferral notice opens its order", async ({ page }) => {
   await expect.poll(() => sent.map((c) => c.kind)).toEqual(["notification:MarkRead"]);
   expect(sent[0]!.payload).toEqual({ notificationIds: ["n-def"] });
   await expect(page.getByRole("dialog", { name: /ORD/ })).toBeVisible();
+});
+
+test("the drawer header Read all button marks all read and removes items from the list", async ({ page }) => {
+  await mockStore(page);
+  const sent = await inbox(page);
+  await page.goto("/");
+
+  await page.getByRole("button", { name: /^Notifications/ }).first().click();
+  const drawer = page.getByRole("dialog", { name: "Notifications" });
+  await expect(drawer).toContainText("2 new · today");
+  await expect(drawer.getByRole("button", { name: /Order deferred/ })).toBeVisible();
+
+  await drawer.getByRole("button", { name: "Read all" }).click();
+  await expect.poll(() => sent.map((c) => c.kind)).toEqual(["notification:MarkAllRead"]);
+  await expect(drawer).toContainText("All caught up");
+  await expect(drawer.getByRole("button", { name: /Order deferred/ })).toHaveCount(0);
 });
 
 test("on a phone the bell carries a dot and opens the bottom sheet", async ({ page }) => {

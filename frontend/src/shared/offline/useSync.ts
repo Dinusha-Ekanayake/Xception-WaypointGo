@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { DRAIN_MESSAGE, QUEUED_EVENT, discard, drain, heldForReview, pendingCount, pendingEntries, redo } from "./queue.ts";
 import { resolverFor } from "./resolvers.ts";
 import type { StoredEntry } from "./store.ts";
+import { businessNow } from "../wording/now.ts";
 
 // The sync engine's schedule. Queued writes are sent when the connection
 // returns, when the app comes back to the foreground, right after something is
@@ -53,7 +54,7 @@ export function useSync(accountId: string | null): SyncState {
     setSyncing(true);
     drain(accountId)
       .then((report) => {
-        if (report.remaining === report.heldForReview) setLastSyncedAt(new Date());
+        if (report.remaining === report.heldForReview) setLastSyncedAt(businessNow());
       })
       .catch(() => undefined)
       .finally(() => {

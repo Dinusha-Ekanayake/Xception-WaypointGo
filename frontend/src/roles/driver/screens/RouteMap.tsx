@@ -7,6 +7,7 @@ import { cx } from "@shared/ui";
 import { drivenLine, LiveMap, metres, num, readTripTrail, type LatLon, type MapLine, type MapMarker, type TrailPoint } from "@shared/ui/map";
 import type { Stop } from "../data/run.ts";
 import type { PositionRecorder } from "../data/position.ts";
+import { BackIcon } from "../ui.tsx";
 
 const TRAIL_POLL_MS = 15_000;
 
@@ -43,12 +44,15 @@ export default function RouteMap({
   outlet,
   recorder,
   syncedAt,
+  onBack,
   className = "h-[calc(100dvh-64px)] w-full",
 }: {
   next: Stop;
   outlet: OutletView | undefined;
   recorder: PositionRecorder;
   syncedAt: Date | null;
+  /** The enlarged map: Back sits on the map, above the tiles. */
+  onBack?: () => void;
   /** Its size: below the header on the Map screen; the whole pane beside the run on a landscape tablet. */
   className?: string;
 }): React.JSX.Element {
@@ -105,6 +109,17 @@ export default function RouteMap({
           {syncedAt && <span className="rounded-full bg-go-card px-3 py-1 text-[13px] text-go-ink shadow">Synced {clock(syncedAt)}</span>}
         </>
       } />
+      {onBack && (
+        <button
+          type="button"
+          onClick={onBack}
+          aria-label="Back to run sheet"
+          className="absolute top-4 left-4 z-[700] flex h-11 items-center gap-2 rounded-full bg-go-card px-4 text-[17px] font-medium text-go-ink shadow-md active:scale-95"
+        >
+          <BackIcon />
+          Back
+        </button>
+      )}
       <div className="absolute inset-x-3 bottom-[max(1rem,env(safe-area-inset-bottom))] z-[600] flex flex-col gap-2">
         {!here && (
           <p role="status" className="self-start rounded-full bg-go-card px-4 py-2 text-[13px] text-go-ink shadow">

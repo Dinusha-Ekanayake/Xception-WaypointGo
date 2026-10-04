@@ -48,6 +48,7 @@ test("offline, a loader switches with their PIN and the switch reaches the serve
   await page.getByLabel("4-digit PIN").fill("1111");
   await page.getByRole("button", { name: "Confirm" }).click();
   await expect(page.getByText("Incorrect PIN. 4 tries left.")).toBeVisible();
+  await expect(page.getByLabel("4-digit PIN")).toHaveValue("");
 
   await page.getByLabel("4-digit PIN").fill("2468");
   await page.getByRole("button", { name: "Confirm" }).click();

@@ -1,4 +1,4 @@
-import { useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Icon, PRESS, ShellActions, Spinner, cx, useOverlay, useSheetDrag, type IconName } from "@shared/ui";
 import type { OutletView } from "@shared/domain/types";
 import AccountMenu from "./AccountMenu.tsx";
@@ -260,13 +260,26 @@ const TABS: { id: Tab; icon: IconName; label: string }[] = [
   { id: "issues", icon: "alert", label: "Issues" },
 ];
 
-/** "SM / Tab bar": floating, dark, the active tab on a white pill. */
+/** True once the page has moved, so the floating bar can fold smaller. */
+function usePageScrolled(threshold = 24): boolean {
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const read = () => setScrolled((window.scrollY || document.documentElement.scrollTop) > threshold);
+    read();
+    window.addEventListener("scroll", read, { passive: true });
+    return () => window.removeEventListener("scroll", read);
+  }, [threshold]);
+  return scrolled;
+}
+
+/** "SM / Tab bar": floating, dark, the active tab on a white pill. Scrolling folds it smaller. */
 export function TabBar({ tab, onTab, badges }: { tab: Tab; onTab: (t: Tab) => void; badges: Partial<Record<Tab, number>> }): React.JSX.Element {
+  const compact = usePageScrolled();
   // On a phone held sideways (`short:`) the fade and the padding took nearly
   // half the screen; there the bar sits low with no fade (issue #201).
   return (
-    <nav aria-label="Store" className="fixed inset-x-0 bottom-0 z-30 flex justify-center lg:hidden bg-gradient-to-b from-go-canvas/0 via-go-canvas via-45% to-go-canvas px-4 pt-10 pb-[max(1.5rem,env(safe-area-inset-bottom))] short:bg-none short:pt-0 short:pb-[max(0.5rem,env(safe-area-inset-bottom))]">
-      <div className="flex h-16 w-full max-w-[324px] items-center justify-around rounded-[32px] bg-[#031b08] px-2 drop-shadow-[0_8px_12px_rgba(0,0,0,0.18)] short:h-14">
+    <nav aria-label="Store" className={cx("fixed inset-x-0 bottom-0 z-30 flex justify-center lg:hidden bg-gradient-to-b from-go-canvas/0 via-go-canvas via-45% to-go-canvas px-4 transition-all duration-300 short:bg-none short:pt-0 short:pb-[max(0.5rem,env(safe-area-inset-bottom))]", compact ? "pt-4 pb-[max(0.75rem,env(safe-area-inset-bottom))]" : "pt-10 pb-[max(1.5rem,env(safe-area-inset-bottom))]")}>
+      <div className={cx("flex w-full items-center justify-around rounded-[32px] bg-[#031b08] px-2 drop-shadow-[0_8px_12px_rgba(0,0,0,0.18)] transition-all duration-300 short:h-14", compact ? "h-12 max-w-[248px]" : "h-16 max-w-[324px]")}>
         {TABS.map((t) => {
           const active = t.id === tab;
           const badge = badges[t.id] ?? 0;
@@ -277,13 +290,13 @@ export function TabBar({ tab, onTab, badges }: { tab: Tab; onTab: (t: Tab) => vo
               aria-label={t.label}
               aria-current={active ? "page" : undefined}
               onClick={() => onTab(t.id)}
-              className={cx("relative flex h-12 w-[64px] items-center justify-center rounded-[24px]", active && "bg-white")}
+              className={cx("relative flex items-center justify-center rounded-[24px] transition-all duration-300", compact ? "h-9 w-12" : "h-12 w-[64px]", active && "bg-white")}
             >
               <span className={cx(!active && "opacity-75 invert")}>
                 <Icon name={t.icon} />
               </span>
               {badge > 0 && (
-                <span className="absolute top-1.5 left-[38px] rounded-[9px] bg-go-mint px-[5px] py-px text-[11px] font-semibold text-black">{badge}</span>
+                <span className="absolute top-0.5 right-0.5 rounded-[9px] bg-go-mint px-[5px] py-px text-[11px] font-semibold text-black">{badge}</span>
               )}
             </button>
           );

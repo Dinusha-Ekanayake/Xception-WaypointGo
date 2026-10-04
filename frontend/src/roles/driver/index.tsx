@@ -22,6 +22,7 @@ import RouteNextStop from "./screens/RouteNextStop.tsx";
 import RunCompleteScreen from "./screens/RunCompleteScreen.tsx";
 import { ProblemSheet, SavedSheet } from "./screens/Sheets.tsx";
 import SignOutConfirmBottomSheet from "./screens/SignOutConfirmBottomSheet.tsx";
+import LocationConsentBottomSheet from "./screens/LocationConsentBottomSheet.tsx";
 import StopDetail from "./screens/StopDetail.tsx";
 import { BackIcon, Banner, DriverMorphHeader, OutlineButton } from "./ui.tsx";
 import { useDriver } from "./useDriver.ts";
@@ -98,11 +99,24 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
     else void d.arrived(stop);
   };
 
+  // Home makes room for the notices above it: drawn over it, a signed-out
+  // notice and its button covered the driver's name and the trip card.
+  const notices = useRef<HTMLDivElement | null>(null);
+  const [noticeHeight, setNoticeHeight] = useState(0);
+  useEffect(() => {
+    const element = notices.current;
+    if (!element) return;
+    const observer = new ResizeObserver(() => setNoticeHeight(element.offsetHeight));
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
   const header = screen === "home" || screen === "route" || screen === "map";
   const next = nextStop(stops);
-  // A tablet held sideways (an in-cab mount) shows the trip map beside the
-  // run, so the map is always in view; the Map screen itself stays one column.
-  const sideMap = useMedia("(min-width: 1024px) and (orientation: landscape)") && next !== null && screen !== "map";
+  // On a desk (a mouse and a window with room to spare) the run is drawn at a
+  // phone's size and shape, as it is designed; a phone or tablet still fills
+  // its screen, so nothing is cut off sideways (issue #201).
+  const framed = useMedia("(pointer: fine) and (min-width: 768px) and (min-height: 600px)");
 
   return (
     <main
@@ -114,21 +128,17 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
       // landscape tablet.
       className={cx(
         "flex h-dvh max-h-dvh w-full justify-center overflow-hidden font-go transition-colors",
+        framed && "items-center",
         d.dark ? "go-dark bg-[#161616] md:bg-[#0a0a0a]" : "bg-[#E7F3F2] md:bg-[#d6e7e5]"
       )}
     >
       <SkipLink targetId="driver-content" />
-      {sideMap && next && (
-        <aside aria-label="Trip map" className="relative min-w-0 flex-1 overflow-hidden">
-          <RouteMap next={next} outlet={run.outlets[next.outletId]} recorder={d.location} syncedAt={run.syncedAt} className="h-full w-full" />
-        </aside>
-      )}
       <div
         id="driver-content"
         tabIndex={-1}
         className={cx(
-          "relative h-dvh w-full overflow-hidden transition-colors md:max-w-[600px] md:shadow-2xl",
-          sideMap && "lg:max-w-[480px]",
+          "relative w-full overflow-hidden transition-colors md:shadow-2xl",
+          framed ? "h-[min(852px,calc(100dvh-48px))] max-w-[393px] rounded-[44px]" : "h-dvh md:max-w-[600px]",
           d.dark ? "bg-[#161616]" : "bg-[#E7F3F2]"
         )}
       >
@@ -160,7 +170,11 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
           </div>
         ) : (
           // Where the browser crossfades screens itself (shared/ui/transition.ts), this fade would play twice.
-          <div key={screen} className="absolute inset-0 animate-fade-in supports-[view-transition-name:none]:animate-none short:overflow-y-auto">
+          <div
+            key={screen}
+            className="absolute inset-0 z-0 animate-fade-in supports-[view-transition-name:none]:animate-none short:overflow-y-auto"
+            style={screen === "home" && noticeHeight > 0 ? { top: noticeHeight + 8 } : undefined}
+          >
             {screen === "home" && (
               <HomeNoVehicle
                 {...(d.tripId ? { onOpenMessages: openMessages } : {})}
@@ -207,7 +221,7 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
             )}
             {screen === "map" && next && (
               <GoLayer dark={d.dark} top>
-                <RouteMap next={next} outlet={run.outlets[next.outletId]} recorder={d.location} syncedAt={run.syncedAt} />
+                <RouteMap next={next} outlet={run.outlets[next.outletId]} recorder={d.location} syncedAt={run.syncedAt} onBack={() => d.go({ name: "route", deliveryId: null })} className="h-full w-full" />
               </GoLayer>
             )}
             {screen === "report" && reporting && view.name === "report" && formFor !== reporting.deliveryId && (
@@ -287,8 +301,10 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
           <div className="pointer-events-auto flex items-center justify-end gap-2 empty:hidden">
             {shell?.sync}
           </div>
+          <div ref={notices} className="flex flex-col gap-2 empty:hidden">
           {run.expired && !run.loading ? (
-            <div className="pointer-events-auto flex flex-col gap-2">
+            // One solid card, like the location prompt below: the outline button alone let the screen show through.
+            <div className="pointer-events-auto flex flex-col gap-2 rounded-[22px] bg-go-card p-2 shadow-go-card">
               <Banner tone="warn" title="You have been signed out" live>
                 Nothing on this phone is lost. Sign in again and everything you recorded is sent.
               </Banner>
@@ -303,18 +319,6 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
               </Banner>
             )
           )}
-          {d.location.needsConsent && screen === "route" && (
-            // One solid card: on its own the outline buttons were drawn over the stop name.
-            <div className="pointer-events-auto flex flex-col gap-2 rounded-[22px] bg-go-card p-2 shadow-go-card">
-              <Banner tone="warn" title="Share your location while the run is open?">
-                So the dispatcher and the store can see where the truck is. Only while your run is open.
-              </Banner>
-              <div className="grid grid-cols-2 gap-2">
-                <OutlineButton onClick={d.location.decline}>Not now</OutlineButton>
-                <OutlineButton onClick={d.location.allow}>Share location</OutlineButton>
-              </div>
-            </div>
-          )}
           {d.problemFor === null && !d.saved && (error || notice) && formFor === null && screen !== "stop" && (
             <div className="pointer-events-auto">
               <Banner tone={error ? "bad" : "good"} title={error ?? notice ?? ""} live />
@@ -325,6 +329,7 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
               <RefusedUploads uploads={run.uploadsWaiting} stops={stops} onDiscard={(id) => void d.dropUpload(id)} />
             </div>
           )}
+          </div>
         </div>
         {d.location.simulate && d.nextPoint && screen === "route" && (
           <div className="absolute inset-x-0 bottom-10 z-40 flex justify-center">
@@ -343,7 +348,16 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
         )}
 
         {d.problemFor !== null && (
-          <ProblemSheet stop={d.problemFor === "run" ? null : d.problemFor} busy={busy} error={error} onSend={(problem) => void d.report(problem)} onClose={d.closeProblem} />
+          <ProblemSheet
+            stop={d.problemFor === "run" ? null : d.problemFor}
+            tripId={d.tripId}
+            accountId={userId}
+            sender={d.postMessage}
+            busy={busy}
+            error={error}
+            onSend={(problem) => d.report(problem)}
+            onClose={d.closeProblem}
+          />
         )}
         {d.saved && !pinFor && (
           <SavedSheet
@@ -362,6 +376,12 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
           isNight={d.dark}
           stopName={pinFor?.outletId ?? ""}
           online={online}
+        />
+        <LocationConsentBottomSheet
+          isOpen={d.location.needsConsent && screen === "route"}
+          onDecline={d.location.decline}
+          onAllow={d.location.allow}
+          isNight={d.dark}
         />
         <SignOutConfirmBottomSheet
           isOpen={d.leaving}
@@ -419,7 +439,7 @@ function GoLayer({
   children: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <div className={cx(dark && "go-dark", "absolute inset-0 overflow-y-auto bg-go-canvas font-go text-go-ink", top && "pt-[74px]")}>
+    <div className={cx(dark && "go-dark", "absolute inset-0 bg-go-canvas font-go text-go-ink", top && !onBack ? "overflow-hidden pt-[74px]" : "overflow-y-auto", top && onBack && "pt-[74px]")}>
       {onBack && (
         <div className="flex items-center justify-between px-5 pt-5">
           <button type="button" onClick={onBack} className="-ml-2 flex min-h-12 items-center gap-2 rounded-full px-2 text-[19px] font-medium text-go-ink">

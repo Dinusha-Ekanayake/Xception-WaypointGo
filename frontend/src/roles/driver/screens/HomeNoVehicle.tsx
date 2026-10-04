@@ -1,15 +1,17 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { VehicleStatuses, type ReportedVehicleStatus, type VehicleView } from "@shared/domain/types";
+import { type ReportedVehicleStatus, type VehicleView } from "@shared/domain/types";
 import { isUnread, kindOf } from "@shared/notifications/inbox";
 import type { Inbox } from "@shared/notifications/useInbox";
 import { cx, useDeviceLang, useScrollMemory, VoiceNote } from "@shared/ui";
 import { voiceUrl } from "@shared/messaging/useThread";
-import { clock, countdown, dayLabel, hhmm, stops as stopsText } from "../../../shared/wording/index.ts";
+import { clock, countdown, dayLabel, hhmm } from "../../../shared/wording/index.ts";
 import type { TripStatus } from "../data/stopView.ts";
 import type { NextRun } from "../data/run.ts";
 import { DriverHeader, VoiceMessagePlayer } from "../ui.tsx";
+import FuelPassSheet from "./FuelPassSheet.tsx";
+import { useCappedScroll } from "./cappedScroll.ts";
 
 /**
  * Apple UIScrollView rubber-band resistance formula:
@@ -28,12 +30,19 @@ function useRubberBandScroll() {
   const [isPulling, setIsPulling] = useState(false);
   const [topFadeSize, setTopFadeSize] = useState(0);
   const [bottomFadeSize, setBottomFadeSize] = useState(0);
+  // Once the voice list moves, the driver card above it folds up so the voices have the screen.
+  const [compact, setCompact] = useState(false);
 
   // Gesture tracking
   const overshootStartY = useRef<number | null>(null);
   const isMouseDown = useRef(false);
   const rawWheelOvershoot = useRef(0);
   const wheelReleaseTimer = useRef<NodeJS.Timeout | null>(null);
+  // A trackpad flick keeps sending wheel events after the list reaches an edge.
+  // Only a gesture that began at the edge pulls the list; momentum that arrives
+  // there must not, or the list is held pushed down for as long as it lasts.
+  const lastWheelAt = useRef(0);
+  const wheelBeganInside = useRef(false);
 
   const updateMask = (el: HTMLElement) => {
     const FADE_DISTANCE = 40;
@@ -43,25 +52,32 @@ function useRubberBandScroll() {
     const bottom = Math.min(FADE_DISTANCE, Math.max(0, remaining));
     setTopFadeSize((prev) => (prev !== top ? top : prev));
     setBottomFadeSize((prev) => (prev !== bottom ? bottom : prev));
+    const folded = el.scrollTop > 16;
+    setCompact((prev) => (prev !== folded ? folded : prev));
   };
 
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     updateMask(el);
+    const onScroll = () => updateMask(el);
+    el.addEventListener("scroll", onScroll, { passive: true });
 
     const ro = new ResizeObserver(() => {
       updateMask(el);
     });
     ro.observe(el);
     return () => {
+      el.removeEventListener("scroll", onScroll);
       ro.disconnect();
       if (wheelReleaseTimer.current) clearTimeout(wheelReleaseTimer.current);
     };
   }, []);
 
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    updateMask(e.currentTarget);
+  const handleScroll = () => {
+    // The event's current target is not always this list, so read the ref.
+    const el = scrollRef.current;
+    if (el) updateMask(el);
   };
 
   // 1. Touch Gesture Handling
@@ -194,6 +210,20 @@ function useRubberBandScroll() {
       clearTimeout(wheelReleaseTimer.current);
     }
 
+    if (e.timeStamp - lastWheelAt.current > 150) {
+      const atEdge = (el.scrollTop <= 0 && e.deltaY < 0) || (el.scrollTop >= maxScroll - 1 && e.deltaY > 0);
+      wheelBeganInside.current = !atEdge;
+    }
+    lastWheelAt.current = e.timeStamp;
+    if (wheelBeganInside.current) {
+      if (rawWheelOvershoot.current !== 0) {
+        rawWheelOvershoot.current = 0;
+        setIsPulling(false);
+        setPullY(0);
+      }
+      return;
+    }
+
     // Wheeling up at top
     if (el.scrollTop <= 0 && e.deltaY < 0) {
       rawWheelOvershoot.current += -e.deltaY * 0.85;
@@ -241,6 +271,7 @@ function useRubberBandScroll() {
     scrollRef,
     pullY,
     isPulling,
+    compact,
     maskStyle,
     handlers: {
       onScroll: handleScroll,
@@ -276,10 +307,10 @@ function ScrollRevealCard({
     let rafId: number | null = null;
 
     const update = () => {
-      const rootRect = root.getBoundingClientRect();
-      const elRect = el.getBoundingClientRect();
-      const y = elRect.top - rootRect.top;
-      const H = rootRect.height;
+      // Layout position, not the drawn one: the feed is translated while it springs
+      // back from a pull, and a card measured mid-spring kept the wrong scale.
+      const y = el.offsetTop - root.offsetTop - root.scrollTop;
+      const H = root.clientHeight;
 
       // Top Exit Zone: only as card scrolls up past the top edge (y < 0)
       // When resting at the top (y >= 0), it is 100% visible with zero fade
@@ -324,8 +355,14 @@ function ScrollRevealCard({
     update();
     root.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll, { passive: true });
+    // The driver card above folds and unfolds while the feed scrolls, which moves
+    // and resizes this container without a scroll event; a card left in a scroll
+    // zone would stay small and faded until the next scroll.
+    const resizeObserver = new ResizeObserver(onScroll);
+    resizeObserver.observe(root);
 
     return () => {
+      resizeObserver.disconnect();
       root.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
       if (rafId) cancelAnimationFrame(rafId);
@@ -370,12 +407,6 @@ export type DriverHomeProps = {
   onOpenMessages?: () => void;
 };
 
-const STATUS_LABEL: Record<ReportedVehicleStatus, string> = {
-  available: "Available",
-  on_trip: "On trip",
-  at_workshop: "At workshop",
-  fault: "Fault",
-};
 
 /**
  * Figma "Driver: Home" notification cards: the label and its colour by what
@@ -397,11 +428,6 @@ function driverKind(eventType: string, isNight: boolean): { label: string; color
       return { label: kind.tone === "urgent" ? "Action needed" : kind.label, color };
     }
   }
-}
-
-function vehicleKind(vehicle: VehicleView): string {
-  if (vehicle.refrigerated) return "Refrigerated vehicle";
-  return vehicle.van ? "Van" : "Truck";
 }
 
 /** About how long the phone takes to read a notification aloud. */
@@ -432,9 +458,11 @@ export default function HomeNoVehicle({
 }: DriverHomeProps): React.JSX.Element {
   const [lang, setLang] = useDeviceLang();
   const [activeAudioId, setActiveAudioId] = useState<string | null>(null);
+  const [fuelQr, setFuelQr] = useState(false);
   const [markingRead, setMarkingRead] = useState(false);
-  const { scrollRef, pullY, isPulling, maskStyle, handlers } = useRubberBandScroll();
+  const { scrollRef, pullY, isPulling, compact, maskStyle, handlers } = useRubberBandScroll();
   useScrollMemory("driver:home", scrollRef, { page: false });
+  useCappedScroll(scrollRef);
 
   useEffect(() => {
     return () => {
@@ -479,26 +507,57 @@ export default function HomeNoVehicle({
           <DriverHeader displayName={driverName} lang={lang} onToggleLang={setLang} onSignOut={onSignOut} onToggleTheme={onToggleTheme} isNight={isNight} />
         )}
 
-        {/* Driver Identity Card (Figma "Driver card") */}
-        <div className="px-6 pt-1 shrink-0">
-          <div className={cx("w-full rounded-[38px] p-5 sm:p-6 shadow-[0px_5px_20px_rgba(0,0,0,0.05)] flex flex-col gap-3.5 transition-colors", card)}>
+        {/* Driver Identity Card (Figma "Driver card"). Scrolling the voices folds it up. */}
+        <div className="shrink-0 px-6 pt-1">
+          <div className={cx("w-full shadow-[0px_5px_20px_rgba(0,0,0,0.05)] flex flex-col transition-all duration-300", card, "rounded-[38px] p-5 sm:p-6", compact ? "gap-0" : "gap-3.5")}>
             <div className="flex items-center gap-3.5">
               <div
                 className={cx(
-                  "size-[52px] rounded-full flex items-center justify-center shrink-0 transition-colors",
+                  "rounded-full flex items-center justify-center shrink-0 transition-all duration-300",
+                  "size-[52px]",
                   isNight ? "bg-[#00BF6A]" : "bg-[#B7F2ED]"
                 )}
               >
                 <span className="text-[18px] font-medium text-black">{initials}</span>
               </div>
-              <div className="flex flex-col min-w-0">
-                <h1 className={cx("text-[26px] font-medium leading-[33px] truncate tracking-tight transition-colors", ink)}>{driverName}</h1>
-                <p className="text-[13px] font-light text-[#A9A9A9] leading-none pt-0.5">
+              <div className="flex flex-col min-w-0 flex-1">
+                <h1 className={cx("truncate text-[26px] font-medium leading-[33px] tracking-tight", ink)}>{driverName}</h1>
+                <p className="truncate pt-0.5 text-[13px] font-light leading-none text-[#A9A9A9]">
                   Driver{depotName ? ` · ${depotName} depot` : ""}
                 </p>
               </div>
+              {compact && stopCount > 0 && (
+                <button
+                  type="button"
+                  onClick={startTrip}
+                  aria-label={startLabel}
+                  className={cx(
+                    "flex size-11 shrink-0 animate-pop-in items-center justify-center rounded-full active:scale-[0.96] motion-reduce:animate-none",
+                    isNight ? "bg-[#00BF6A] text-black" : "bg-[#031B08] text-white"
+                  )}
+                >
+                  {tripStatus === "completed" ? (
+                    <svg aria-hidden width="20" height="20" viewBox="0 0 20 20" fill="none">
+                      <path d="M4 10h11M11 5l5 5-5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  ) : (
+                    <svg aria-hidden width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M6.5 4.2v11.6a.8.8 0 0 0 1.2.7l9-5.8a.8.8 0 0 0 0-1.4l-9-5.8a.8.8 0 0 0-1.2.7Z" />
+                    </svg>
+                  )}
+                </button>
+              )}
             </div>
 
+            <div
+              aria-hidden={compact}
+              inert={compact}
+              className={cx(
+                "min-h-0 overflow-hidden transition-[max-height,opacity] duration-300",
+                compact ? "max-h-0 opacity-0" : "max-h-[640px] opacity-100"
+              )}
+            >
+            <div className="flex flex-col gap-3.5">
             {unavailable ? (
               <p role="status" className={cx("text-[14px] leading-[18px]", ink)}>
                 {online ? "Waypoint is not answering." : "This phone is offline."} Today's trip has not been downloaded to this phone
@@ -522,35 +581,57 @@ export default function HomeNoVehicle({
                       <span className={cx("text-[12px] font-light leading-[15px]", ink)}>Vehicle</span>
                       <span className={cx("text-[28px] font-semibold leading-[35px] tracking-tight", ink)}>{vehicle.vehicleId}</span>
                     </div>
-                    <div
+                    <button
+                      type="button"
+                      onClick={onProblem}
                       className={cx(
-                        "px-3 py-1.5 rounded-[34px] flex items-center justify-center shrink-0 transition-colors",
-                        isNight ? "bg-[#292929] text-white" : "bg-white text-black"
+                        "flex h-9 shrink-0 items-center justify-center rounded-full px-4 text-[13px] font-medium active:scale-[0.98]",
+                        isNight ? "bg-[#3A3A3A] text-white" : "bg-[#B7F2ED] text-black"
                       )}
                     >
-                      <span className="text-[13px] font-light leading-[16px]">{vehicleKind(vehicle)}</span>
-                    </div>
+                      Report problem
+                    </button>
                   </div>
-                  <label className={cx("flex items-center justify-between gap-3 text-[14px] font-medium", ink)}>
-                    Vehicle status
-                    <select
-                      value={vehicleStatus ?? ""}
-                      onChange={(event) => onVehicleStatus(event.target.value as ReportedVehicleStatus)}
+                  <div className="flex items-center justify-between gap-3">
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={vehicleStatus !== "at_workshop" && vehicleStatus !== "fault"}
+                      aria-label="Available"
+                      onClick={() => onVehicleStatus((vehicleStatus === "at_workshop" || vehicleStatus === "fault" ? "available" : "at_workshop") as ReportedVehicleStatus)}
+                      className="flex items-center gap-2"
+                    >
+                      <span
+                        aria-hidden
+                        className={cx(
+                          "flex h-7 w-12 items-center rounded-full p-0.5 transition-colors",
+                          vehicleStatus === "at_workshop" || vehicleStatus === "fault" ? "justify-start bg-[#d5d5d5]" : "justify-end bg-[#22c55e]",
+                        )}
+                      >
+                        <span className="size-6 rounded-full bg-white shadow" />
+                      </span>
+                      <span className={cx("text-[15px] font-medium", ink)}>Available</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFuelQr(true)}
                       className={cx(
-                        "h-[36px] rounded-[34px] px-3 text-[14px] font-medium",
-                        isNight ? "bg-[#292929] text-white" : "bg-white text-black"
+                        "flex h-10 shrink-0 items-center gap-2 rounded-full px-3 text-[14px] font-medium active:scale-[0.98]",
+                        isNight ? "bg-[#292929] text-white" : "bg-white text-black",
                       )}
                     >
-                      <option value="" disabled>
-                        Choose
-                      </option>
-                      {VehicleStatuses.filter((status) => status !== "fault").map((status) => (
-                        <option key={status} value={status}>
-                          {STATUS_LABEL[status]}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                      <svg aria-hidden width="18" height="18" viewBox="0 0 18 18" fill="currentColor">
+                        <rect x="1" y="1" width="6" height="6" rx="1.2" />
+                        <rect x="11" y="1" width="6" height="6" rx="1.2" />
+                        <rect x="1" y="11" width="6" height="6" rx="1.2" />
+                        <rect x="11" y="11" width="2.4" height="2.4" rx="0.4" />
+                        <rect x="14.6" y="11" width="2.4" height="2.4" rx="0.4" />
+                        <rect x="11" y="14.6" width="2.4" height="2.4" rx="0.4" />
+                        <rect x="14.6" y="14.6" width="2.4" height="2.4" rx="0.4" />
+                      </svg>
+                      Fuel QR
+                    </button>
+                  </div>
                 </div>
 
                 {stopCount > 0 ? (
@@ -572,19 +653,15 @@ export default function HomeNoVehicle({
                       : `No trip planned for ${vehicle.vehicleId} today. Your stops appear here when the loader releases the vehicle.`}
                   </p>
                 )}
-                {stopCount > 0 && tripStatus !== "completed" && (
-                  <p className="text-center text-[13px] font-light text-[#A9A9A9]">{stopsText(stopCount)} on today's run sheet</p>
-                )}
-                <button type="button" onClick={onProblem} className={cx("text-[15px] font-medium underline", ink)}>
-                  Report problem
-                </button>
               </>
             )}
+            </div>
+            </div>
           </div>
         </div>
 
         {/* Notifications Header (Bell icon, "Notifications" text, unread badge) */}
-        <div className="flex items-center justify-between px-8 py-5 shrink-0">
+        <div className={cx("flex items-center justify-between px-8 shrink-0 transition-all duration-300", compact ? "py-2" : "py-5")}>
           <div className="flex items-center gap-2">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" className={ink}>
               <path d="M10 2.1V3.4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
@@ -626,7 +703,7 @@ export default function HomeNoVehicle({
           ref={scrollRef}
           {...handlers}
           aria-label="Notifications"
-          className="h-full overflow-y-auto overscroll-contain pb-6 short:h-auto short:overflow-visible no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden snap-y snap-mandatory scroll-smooth"
+          className="h-full touch-none overflow-y-auto overscroll-contain pb-6 short:h-auto short:touch-auto short:overflow-visible no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           <div
             style={{
@@ -663,38 +740,14 @@ export default function HomeNoVehicle({
             {inbox.items.map((item) => {
               const kind = driverKind(item.eventType, isNight);
               const id = `msg-${item.notificationId}`;
-              const fresh = isUnread(item);
               return (
                 <ScrollRevealCard key={item.notificationId} scrollContainerRef={scrollRef} pullY={pullY}>
                   <div
-                    className={cx(
+                      className={cx(
                       "rounded-[20px] p-[14px_20px] flex flex-col gap-1 transition-all duration-200",
-                      card,
-                      activeAudioId === id &&
-                        (isNight ? "ring-1 ring-[#00BF6A]/60 shadow-[0_0_15px_rgba(0,191,106,0.15)]" : "ring-1 ring-[#0E766D]/50 shadow-[0_0_15px_rgba(14,118,109,0.12)]")
+                      card
                     )}
                   >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (fresh && inbox.online) void inbox.markRead([item.notificationId]).catch(() => undefined);
-                        if (item.eventType === "message.posted") onOpenMessages?.();
-                      }}
-                      aria-label={`${fresh ? "Unread. " : ""}${kind.label}. ${item.title}. ${item.body}`}
-                      className={cx("flex w-full flex-col gap-1 text-left", !fresh && "opacity-70")}
-                    >
-                      <span className="flex items-center justify-between">
-                        <span className="flex items-center gap-1.5">
-                          <span className="size-2 rounded-full" style={{ backgroundColor: kind.color }} />
-                          <span className="text-[12px] font-medium" style={{ color: kind.color }}>
-                            {kind.label}
-                          </span>
-                        </span>
-                        <span className="text-[12px] font-light text-[#A9A9A9]">{clock(item.createdAt)}</span>
-                      </span>
-                      <span className={cx("text-[15px] font-medium leading-[19px] pt-0.5", ink)}>{item.title}</span>
-                      <span className={cx("text-[13px] font-light leading-4 pt-0.5", ink)}>{item.body}</span>
-                    </button>
                     {item.eventType === "message.posted" && item.facts?.voiceNoteId && item.subjectId ? (
                       // A voice message plays the person's own voice, never text to speech (issue #136).
                       <div className={cx("mt-1 rounded-[16px] px-2 py-1", isNight ? "bg-[#1f1f1f]" : "bg-[#F1F6F5]")}>
@@ -705,6 +758,8 @@ export default function HomeNoVehicle({
                           seed={item.facts.voiceNoteId}
                           tone="theirs"
                           label={`Voice message from ${item.title}`}
+                          heading={item.title}
+                          caption={item.body}
                         />
                       </div>
                     ) : (
@@ -712,6 +767,11 @@ export default function HomeNoVehicle({
                         id={id}
                         duration={readingTime(`${item.title} ${item.body}`)}
                         text={`${kind.label}. ${item.title}. ${item.body}`}
+                        heading={item.title}
+                        status={kind.label}
+                        statusColor={kind.color}
+                        statusTime={clock(item.createdAt)}
+                        message={item.body}
                         isNight={isNight}
                         activeAudioId={activeAudioId}
                         onPlayChange={setActiveAudioId}
@@ -729,6 +789,9 @@ export default function HomeNoVehicle({
           </div>
         </div>
       </div>
+      {fuelQr && vehicle && (
+        <FuelPassSheet vehicleId={vehicle.vehicleId} kind={vehicle.van ? "Van" : "Truck"} onClose={() => setFuelQr(false)} />
+      )}
     </div>
   );
 }

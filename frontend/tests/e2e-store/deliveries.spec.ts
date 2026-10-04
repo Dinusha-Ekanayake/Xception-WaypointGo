@@ -39,8 +39,10 @@ test("upcoming days wait for the plan, and the past week shows the store's count
 
   await page.getByRole("tab", { name: /Upcoming/ }).click();
   const next = page.getByRole("region", { name: "Upcoming" }).getByRole("article");
-  await expect(next).toContainText("ORD0092420 Ambient");
   await expect(next).toContainText("Waiting for plan");
+  await next.getByRole("button", { name: /View order/ }).click();
+  await expect(page.getByRole("dialog", { name: /ORD/ })).toBeVisible();
+  await page.getByRole("dialog", { name: /ORD/ }).getByRole("button", { name: "Close" }).click();
 
   await page.getByRole("tab", { name: /Past 7 days/ }).click();
   const past = page.getByRole("region", { name: "Past 7 days" });

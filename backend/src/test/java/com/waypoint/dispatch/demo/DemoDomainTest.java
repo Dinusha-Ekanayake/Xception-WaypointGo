@@ -18,4 +18,10 @@ class DemoDomainTest {
     assertThrows(DomainException.class, () -> new DemoSettings(true, 0, 1, 5000, true, 10));
     assertThrows(DomainException.class, () -> new DemoSettings(true, 0, 2000, 0, true, 10));
   }
+  @Test void aClockTargetBeyondSevenDaysIsRefusedInWords() {
+    assertEquals(604800, DemoSettings.offsetTo(604800));
+    assertEquals(-3600, DemoSettings.offsetTo(-3600));
+    var refused = assertThrows(DomainException.class, () -> DemoSettings.offsetTo(604801));
+    assertTrue(refused.getMessage().contains("7 days"));
+  }
 }

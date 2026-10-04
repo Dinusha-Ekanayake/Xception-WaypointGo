@@ -9,6 +9,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.TimeZone;
@@ -38,6 +39,12 @@ import org.springframework.stereotype.Component;
  * is best effort: a database that cannot take the row would fail the job anyway,
  * and a job must never fail because its own bookkeeping did.
  *
+ * <p>Its own bookkeeping (the lease, {@code job_runs}) is on real time, but a job
+ * is handed the business clock, which demo mode can move, because the rows it
+ * compares against were written on that clock. A job whose cron names a business
+ * hour ({@link ScheduledJob#onBusinessClock}) is checked every
+ * {@link #BUSINESS_TICK} against the business clock instead of a real-time cron.
+ *
  * <p>Off with {@code SCHEDULING_ENABLED=false}, which tests use so a job cannot
  * fire in the middle of a test.
  */
@@ -49,7 +56,11 @@ public class ScheduledJobRunner implements SmartInitializingSingleton, Disposabl
   private final List<ScheduledJob> jobs;
   private final DataSource dataSource;
   private final Database database;
+  /** How often a job on the business clock is checked; its runs are at most this late. */
+  static final Duration BUSINESS_TICK = Duration.ofSeconds(15);
+
   private final Clock clock;
+  private final Clock business;
   private final Metrics metrics;
   private final ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
 
@@ -63,6 +74,7 @@ public class ScheduledJobRunner implements SmartInitializingSingleton, Disposabl
     this.dataSource = dataSource;
     this.database = database;
     this.clock = clock.realTime();
+    this.business = clock;
     this.metrics = metrics;
   }
 
@@ -73,8 +85,20 @@ public class ScheduledJobRunner implements SmartInitializingSingleton, Disposabl
     scheduler.initialize();
     TimeZone zone = TimeZone.getTimeZone(Clock.OPERATING_ZONE);
     for (ScheduledJob job : jobs) {
-      scheduler.schedule(() -> runOnce(job), new CronTrigger(job.cron(), zone));
-      log.info("Scheduled job {} on '{}'", job.name(), job.cron());
+      if (job.onBusinessClock()) {
+        BusinessCronTick tick = new BusinessCronTick(job.cron(), zone.toZoneId());
+        scheduler.scheduleAtFixedRate(
+            () -> {
+              if (tick.due(business.now())) {
+                runOnce(job);
+              }
+            },
+            BUSINESS_TICK);
+        log.info("Scheduled job {} on '{}' by the business clock", job.name(), job.cron());
+      } else {
+        scheduler.schedule(() -> runOnce(job), new CronTrigger(job.cron(), zone));
+        log.info("Scheduled job {} on '{}'", job.name(), job.cron());
+      }
     }
   }
 
@@ -91,7 +115,7 @@ public class ScheduledJobRunner implements SmartInitializingSingleton, Disposabl
         Long runId = startRun(job, started);
         try {
           metrics.time("waypoint.job.duration", () -> {
-            job.run(started);
+            job.run(business.now());
             return null;
           }, "job", job.name());
         } catch (RuntimeException e) {

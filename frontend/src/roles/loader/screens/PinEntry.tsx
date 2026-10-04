@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cx } from "@shared/ui";
 import { useT } from "../i18n.tsx";
 import { ChevronLeftIcon } from "../icons.tsx";
@@ -16,6 +16,15 @@ export type PinState =
   | { kind: "entering" }
   | { kind: "wrong"; triesLeft: number }
   | { kind: "paused"; seconds: number };
+
+/** A new wrong answer shakes the boxes. The digits themselves are cleared by the caller. */
+export function usePinShake(state: PinState): number {
+  const [shake, setShake] = useState(0);
+  useEffect(() => {
+    if (state.kind === "wrong") setShake((n) => n + 1);
+  }, [state]);
+  return shake;
+}
 
 export default function PinEntry({
   title,
@@ -48,6 +57,7 @@ export default function PinEntry({
   const input = useRef<HTMLInputElement>(null);
   const paused = state.kind === "paused";
   const wrong = state.kind === "wrong";
+  const shake = usePinShake(state);
   useEffect(() => {
     if (!paused) input.current?.focus();
   }, [paused, state]);
@@ -70,7 +80,7 @@ export default function PinEntry({
         </p>
         <label className="relative rounded-[14px] p-1 has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-go-signal" htmlFor="loader-pin">
           <span className="sr-only">{tr("4-digit PIN")}</span>
-          <span className="flex gap-3" aria-hidden>
+          <span key={shake} className={cx("flex gap-3", shake > 0 && wrong && "animate-pin-shake")} aria-hidden>
             {[0, 1, 2, 3].map((i) => {
               const filled = !paused && i < pin.length;
               return (
@@ -81,9 +91,7 @@ export default function PinEntry({
                     wrong ? "border-go-danger-strong" : filled ? "border-go-success" : "border-go-rule",
                   )}
                 >
-                  {(filled || wrong) && (
-                    <span className={cx("size-3 rounded-full", wrong ? "bg-go-danger-strong" : "bg-go-success")} />
-                  )}
+                  {filled && <span className="size-3 rounded-full bg-go-success" />}
                 </span>
               );
             })}

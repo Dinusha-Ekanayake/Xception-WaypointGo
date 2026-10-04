@@ -9,7 +9,7 @@ import { useT } from "../i18n.tsx";
 import { localized } from "../data/messages.ts";
 import { SkeletonRows } from "@shared/ui";
 import { BigButton, Sheet } from "../ui.tsx";
-import { clock } from "@shared/wording";
+import { clock, businessNow } from "@shared/wording";
 
 // The loader's notifications (issue #118): plans published or revised for the
 // depot, and trips other loaders released. Figma gives the loader a bell with
@@ -27,10 +27,10 @@ export default function Notifications({
   onClose: () => void;
 }): React.JSX.Element {
   const tr = useT();
-  const [lookedAt] = useState(() => new Date());
+  const [lookedAt] = useState(() => businessNow());
   const [error, setError] = useState<string | null>(null);
   const unread = inbox.items.filter(isUnread).length;
-  const now = new Date();
+  const now = businessNow();
 
   const act = (work: Promise<void>) => {
     setError(null);

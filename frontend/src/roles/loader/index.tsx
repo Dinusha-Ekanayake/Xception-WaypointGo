@@ -24,6 +24,7 @@ import LoadSheet from "./screens/LoadSheet.tsx";
 import Notifications from "./screens/Notifications.tsx";
 import OperatorGate from "./screens/OperatorGate.tsx";
 import Settings from "./screens/Settings.tsx";
+import { useClockOffset } from "@shared/demo/useDemo";
 
 // The loader workspace from Figma "08 Loader · Phone", "07 Loader · Tablet"
 // and "09 Loader · Tablet portrait". Resilient offline tier (src/shared/offline/tiers.ts):
@@ -55,7 +56,9 @@ function LoaderWorkspace({
   const gateway = useMemo(() => createGateway(userId), [userId]);
   const online = useOnline();
   const depot = scope[0] ?? "";
-  // The dock's day: the first from today with a trip still to load (issue #114).
+  // The dock's day: the first from today with a trip still to load (issue #114),
+  // today on the business clock, which demo mode can move.
+  useClockOffset();
   const today = depotToday();
   const [date, setDate] = useState(today);
   const [openId, setOpenId] = useState<string | null>(null);

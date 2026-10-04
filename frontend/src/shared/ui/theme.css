@@ -122,10 +122,20 @@
   --animate-fade-in: go-fade-in 200ms var(--ease-go-out) backwards;
   --animate-rise-in: go-rise-in 200ms var(--ease-go-out) backwards;
   --animate-pop: go-pop 200ms var(--ease-go-out);
+  /* An action that appears where there was none: grows from nothing, overshoots a little, settles. */
+  --animate-pop-in: go-pop-in 320ms var(--ease-go-out) backwards;
+  /* The way out of pop-in and of its scrim: shrink and fade, then the owner unmounts it. */
+  --animate-pop-out: go-pop-out 200ms var(--ease-go-in) forwards;
+  --animate-fade-out: go-fade-out 200ms var(--ease-go-out) forwards;
   --animate-sheet-up: go-sheet-up 250ms var(--ease-go-out) backwards;
+  --animate-sheet-down: go-sheet-down 200ms var(--ease-go-in) forwards;
   --animate-slide-in-end: go-slide-in-end 250ms var(--ease-go-out) backwards;
   /* A report's sign on the timeline (issue #136): a small wave, then a rest, so it is seen without nagging. */
   --animate-wave: go-wave 2.4s ease-in-out infinite;
+  /* A wrong PIN: the boxes shake, then the digits are already cleared. */
+  --animate-pin-shake: go-pin-shake 420ms ease-in-out;
+  /* A slide cue: each chevron brightens in turn, left to right, and the set repeats. Delay each one. */
+  --animate-chevron: go-chevron 1.2s ease-in-out infinite;
 
   @keyframes go-fade-in { from { opacity: 0; } }
   @keyframes go-fade-out { to { opacity: 0; } }
@@ -136,6 +146,9 @@
   @keyframes go-slide-in-end { from { transform: translateX(100%); } }
   @keyframes go-slide-out-end { to { transform: translateX(100%); } }
   @keyframes go-pop { 50% { transform: scale(1.12); } }
+  @keyframes go-chevron { 0%, 70%, 100% { opacity: 0.2; } 25% { opacity: 1; } }
+  @keyframes go-pop-out { to { transform: scale(0.7); opacity: 0; } }
+  @keyframes go-pop-in { from { transform: scale(0); opacity: 0; } 60% { transform: scale(1.15); opacity: 1; } }
   @keyframes go-wave {
     0%, 60%, 100% { transform: rotate(0deg); }
     10% { transform: rotate(-16deg); }
@@ -143,6 +156,14 @@
     30% { transform: rotate(-9deg); }
     40% { transform: rotate(6deg); }
     50% { transform: rotate(-2deg); }
+  }
+  @keyframes go-pin-shake {
+    0%, 100% { transform: translateX(0); }
+    15% { transform: translateX(-8px); }
+    30% { transform: translateX(7px); }
+    45% { transform: translateX(-5px); }
+    60% { transform: translateX(4px); }
+    75% { transform: translateX(-2px); }
   }
 }
 
@@ -167,6 +188,9 @@
   .go-panel-sheet { animation-name: go-rise-in; animation-duration: 200ms; }
   .go-overlay[data-closing] .go-panel-sheet { animation-name: go-rise-out; }
 }
+/* In a phone frame the sheet rises from the bottom at every window size. */
+.go-panel-sheet.go-panel-frame { animation-name: go-sheet-up; animation-duration: 250ms; }
+.go-overlay[data-closing] .go-panel-sheet.go-panel-frame { animation-name: go-sheet-down; animation-duration: 150ms; }
 .go-panel-drawer { animation: go-sheet-up 250ms var(--ease-go-out) backwards; }
 .go-overlay[data-closing] .go-panel-drawer { animation: go-sheet-down 150ms var(--ease-go-in) both; }
 @media (min-width: 1024px) {

@@ -6,7 +6,7 @@ import { ago, isUnread, kindOf, toneOf, TONE_STYLE } from "@shared/notifications
 import type { NotificationView } from "@shared/domain/types";
 import { useDispatcherInbox } from "./inbox.tsx";
 import type { ViewId } from "./navigation.ts";
-import { clock } from "@shared/wording";
+import { clock, businessNow } from "@shared/wording";
 import { usePush, type PushState } from "@shared/notifications/push";
 
 // Figma "05 Dispatcher Desktop": the notifications panel (189:23606) and the
@@ -27,7 +27,7 @@ export function NotificationRows({
   const [error, setError] = useState<string | null>(null);
   if (!ctx) return <></>;
   const { inbox, setOpen, viewOf, openThread } = ctx;
-  const now = new Date();
+  const now = businessNow();
   const shown = limit ? items.slice(0, limit) : items;
   const markRead = (n: NotificationView) => {
     setError(null);

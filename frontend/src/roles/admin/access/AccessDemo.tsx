@@ -18,7 +18,7 @@ import { SystemConstraintsScreen } from "./SystemConstraintsScreen";
 import AssistantsConsole from "../assistants/AssistantsConsole";
 import DemoControlRoom from "../demo/DemoControlRoom";
 import { fetchRoles, fetchActions } from "../data/access";
-import { fetchAccounts, fetchAccount, accountToMember, submitCreateUser, submitGrantScope, submitUpdateUser } from "../data/accounts";
+import { fetchAccounts, fetchAccount, accountToMember, submitCreateUser, submitGrantScope, submitUpdateUser, submitDisableUser } from "../data/accounts";
 import type { RoleView, ActionView } from "@shared/domain/identity";
 import "./access-demo.css";
 
@@ -191,6 +191,18 @@ export default function AccessDemo({ userId, displayName = "Administrator" }: { 
       setState((current) => ({ ...current, members: current.members.map((member) => member.id === refreshed.id ? refreshed : member) }));
       setEditingMember(null); setToast("Member details updated.");
     } catch (failure) { setMemberError(failure instanceof Error ? failure.message : "Could not update member."); }
+    finally { setMemberSaving(false); }
+  }
+
+  async function disableCurrentMember() {
+    if (!editingMember || editingMember.rowVersion === undefined) return;
+    setMemberSaving(true); setMemberError("");
+    try {
+      await submitDisableUser(editingMember.id, editingMember.rowVersion);
+      const refreshed = accountToMember(await fetchAccount(editingMember.id));
+      setState((current) => ({ ...current, members: current.members.map((member) => member.id === refreshed.id ? refreshed : member) }));
+      setEditingMember(null); setToast("Member account disabled and active sessions revoked.");
+    } catch (failure) { setMemberError(failure instanceof Error ? failure.message : "Could not disable member."); }
     finally { setMemberSaving(false); }
   }
 
@@ -519,16 +531,36 @@ export default function AccessDemo({ userId, displayName = "Administrator" }: { 
         />
       )}
       {route.tab === "forecasts" && <ForecastsScreen />}
-      {route.tab === "vehicles" && <VehiclesScreen />}
+      {route.tab === "vehicles" && <VehiclesScreen state={state} />}
     </div></div>
   {details && <Modal title={details.capability.label} onClose={() => setDetails(null)}><div className="space-y-4 text-sm"><p>{details.capability.description}</p><div className="flex flex-wrap gap-2"><Badge tone={details.capability.implemented ? "green" : "amber"}>{details.capability.implemented ? "Catalogue entry" : "Unavailable"}</Badge><Badge>{details.capability.module}</Badge></div><p className="text-go-secondary">This catalogue entry does not establish effective access for a member or role.</p><details className="text-go-secondary"><summary className="cursor-pointer font-medium">Technical details</summary><code className="mt-2 block rounded-xl bg-go-subtle p-3">{details.capability.action}</code></details><button className={secondary} onClick={() => setDetails(null)}>Close</button></div></Modal>}
   {newMemberPersona && <CreateMemberModal members={state.members} viewer={viewer} initialPersona={newMemberPersona} onClose={() => setNewMemberPersona(null)} onCreate={createMember} />}
   {editingMember && <Modal title={`Edit ${editingMember.name}`} onClose={() => setEditingMember(null)}><div className="space-y-4">
     <label className="block text-sm font-semibold">Full name<input className={`${field} mt-2`} value={memberName} maxLength={80} onChange={(event) => setMemberName(event.target.value)} /></label>
     <label className="block text-sm font-semibold">Email<input className={`${field} mt-2`} type="email" value={memberEmail} onChange={(event) => setMemberEmail(event.target.value)} /></label>
-    <p className="text-xs text-go-secondary">Persona and assigned places are managed separately so a profile edit cannot grant access.</p>
     {memberError && <p role="alert" className="text-sm text-go-danger">{memberError}</p>}
-    <div className="flex justify-end gap-2"><button className={secondary} onClick={() => setEditingMember(null)}>Cancel</button><button className={primary} disabled={memberSaving || !memberName.trim() || !memberEmail.trim() || (memberName.trim() === editingMember.name && memberEmail.trim() === editingMember.email)} onClick={() => void saveMember()}>{memberSaving ? "Saving..." : "Save changes"}</button></div>
+    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-go-subtle">
+      {editingMember.active ? (
+        <button
+          type="button"
+          className="text-xs font-semibold text-red-600 hover:underline"
+          disabled={memberSaving}
+          onClick={() => {
+            if (window.confirm(`Disable account for ${editingMember.name}? This will immediately revoke all active sessions.`)) {
+              void disableCurrentMember();
+            }
+          }}
+        >
+          Disable member
+        </button>
+      ) : (
+        <span className="text-xs text-go-secondary">Account is inactive</span>
+      )}
+      <div className="flex gap-2">
+        <button className={secondary} onClick={() => setEditingMember(null)}>Cancel</button>
+        <button className={primary} disabled={memberSaving || !memberName.trim() || !memberEmail.trim() || (memberName.trim() === editingMember.name && memberEmail.trim() === editingMember.email)} onClick={() => void saveMember()}>{memberSaving ? "Saving..." : "Save changes"}</button>
+      </div>
+    </div>
   </div></Modal>}
   {draft && <Modal title={draft.stage === "review" ? "Review access change" : draft.target === "member" ? "Member exception" : "Persona capability"} onClose={() => setDraft(null)} wide>
     {draft.stage === "edit" ? <div className="space-y-5"><div className="rounded-xl bg-go-subtle p-4 text-sm"><strong>{draftMember?.name ?? (draftPersona && labelFor(draftPersona))}</strong><p className="mt-1 text-go-secondary">{draft.target === "persona" ? `This shared choice applies to all ${assigned} assigned members, within their existing places.` : "This choice applies to one member within existing assigned places."}</p></div>
