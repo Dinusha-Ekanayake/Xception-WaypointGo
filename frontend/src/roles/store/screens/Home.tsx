@@ -70,8 +70,8 @@ export default function Home({
   onTrack: () => void;
   /** Read the orders again after a failure. */
   onRetry?: () => void;
-  /** The notifications column on desktops (issue #118). */
-  notifications: ReactNode;
+  /** Optional notifications node. */
+  notifications?: ReactNode;
 }): React.JSX.Element {
   const [left, setLeft] = useState(() => untilCutoff());
   useEffect(() => {
@@ -100,101 +100,94 @@ export default function Home({
         </Muted>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
-        <div className="flex min-w-0 flex-col gap-5">
-          {error && <Notice tone="danger" title="Could not load your orders" onRetry={onRetry}>{friendlyError(error)}</Notice>}
+      <div className="flex min-w-0 flex-col gap-5">
+        {error && <Notice tone="danger" title="Could not load your orders" onRetry={onRetry}>{friendlyError(error)}</Notice>}
 
-          {/* Moves into Track's first card when the delivery is tracked (shared element, UX polish 4). */}
-          <Card label="Next delivery" style={{ viewTransitionName: "vt-delivery" }}>
-            <div className="flex items-center gap-1.5">
-              <p className="flex-1 text-[13px] font-light text-go-muted">
-                {next_
-                  ? next_.when === "today"
-                    ? `Next delivery · ${next_.position} of ${next_.ofDay} today`
-                    : <>
-                        Next delivery · {dayLabel(next_.order.deliveryDate)}
-                        {/* Kept together on a narrow phone, never "1 of / 3". */}
-                        {next_.ofDay > 1 && <span className="whitespace-nowrap"> · 1 of {next_.ofDay}</span>}
-                      </>
-                  : "No delivery planned"}
-              </p>
-              {coming && <Chip>{next_?.when === "ahead" ? aheadLabel(coming.status) : onTheWay(coming.status) ? "On the way" : "Arrived"}</Chip>}
-              {coming && <Chip outline>{temperatureLabel(coming.temperature)}</Chip>}
-              {stop && <Chip outline>{stop.vehicleId}</Chip>}
-            </div>
-            {coming ? (
-              <>
-                <NextStop stop={stop} order={coming} outlet={outlet} />
-                <Progress status={coming.status} />
-                {/* "Shortage notice" of "02 Home": a grey card, not a warning; the loader already told dispatch. */}
-                {shortage && (
-                  <button type="button" onClick={() => onOpen(coming.orderId)} className="flex flex-col gap-1.5 rounded-[18px] bg-go-surface px-4 py-3.5 text-left">
-                    <span className="flex items-center gap-2">
-                      <Chip outline>{coming.orderRef}</Chip>
-                      <span className="text-[15px] font-medium text-black">{temperatureLabel(coming.temperature)}</span>
-                    </span>
-                    <span className="text-[20px] font-medium text-black">
-                      {loaderShortUnits(shortage) > 0
-                        ? `${units(loaderShortUnits(shortage))} short - ${Math.max(0, coming.itemCount - loaderShortUnits(shortage))} of ${coming.itemCount} coming`
-                        : issueCard(shortage, coming, clock).title}
-                    </span>
-                    <span className="text-[13px] text-go-secondary">Reported at loading · comes next delivery</span>
-                  </button>
-                )}
-                <div className="flex gap-2.5">
-                  <Button tone="plain" onClick={onTrack}>
-                    Track delivery
-                  </Button>
-                  <Button disabled={!toReceive.some((r) => r.orderId === coming.orderId)} onClick={() => onReceive(coming.orderId)}>
-                    Receive delivery
-                  </Button>
-                </div>
-              </>
-            ) : (
-              loading ? <SkeletonRows label="Loading…" /> : <Muted>No delivery is planned for you yet. Your next order shows here once it is confirmed.</Muted>
-            )}
-          </Card>
-
-          <Card label={`Order for ${dayLabel(next)}`}>
-            <div className="flex items-start gap-2">
-              <div className="flex flex-1 flex-col gap-[3px]">
-                <h2 className="text-[18px] font-medium text-black">Order for {dayLabel(next)}</h2>
-                <Muted>Closes 16:00 · {cutoffLabel(left)}</Muted>
+        {/* Moves into Track's first card when the delivery is tracked (shared element, UX polish 4). */}
+        <Card label="Next delivery" style={{ viewTransitionName: "vt-delivery" }}>
+          <div className="flex items-center gap-1.5">
+            <p className="flex-1 text-[13px] font-light text-go-muted">
+              {next_
+                ? next_.when === "today"
+                  ? `Next delivery · ${next_.position} of ${next_.ofDay} today`
+                  : <>
+                      Next delivery · {dayLabel(next_.order.deliveryDate)}
+                      {/* Kept together on a narrow phone, never "1 of / 3". */}
+                      {next_.ofDay > 1 && <span className="whitespace-nowrap"> · 1 of {next_.ofDay}</span>}
+                    </>
+                : "No delivery planned"}
+            </p>
+            {coming && <Chip>{next_?.when === "ahead" ? aheadLabel(coming.status) : onTheWay(coming.status) ? "On the way" : "Arrived"}</Chip>}
+            {coming && <Chip outline>{temperatureLabel(coming.temperature)}</Chip>}
+            {stop && <Chip outline>{stop.vehicleId}</Chip>}
+          </div>
+          {coming ? (
+            <>
+              <NextStop stop={stop} order={coming} outlet={outlet} />
+              <Progress status={coming.status} />
+              {/* "Shortage notice" of "02 Home": a grey card, not a warning; the loader already told dispatch. */}
+              {shortage && (
+                <button type="button" onClick={() => onOpen(coming.orderId)} className="flex flex-col gap-1.5 rounded-[18px] bg-go-surface px-4 py-3.5 text-left">
+                  <span className="flex items-center gap-2">
+                    <Chip outline>{coming.orderRef}</Chip>
+                    <span className="text-[15px] font-medium text-black">{temperatureLabel(coming.temperature)}</span>
+                  </span>
+                  <span className="text-[20px] font-medium text-black">
+                    {loaderShortUnits(shortage) > 0
+                      ? `${units(loaderShortUnits(shortage))} short - ${Math.max(0, coming.itemCount - loaderShortUnits(shortage))} of ${coming.itemCount} coming`
+                      : issueCard(shortage, coming, clock).title}
+                  </span>
+                  <span className="text-[13px] text-go-secondary">Reported at loading · comes next delivery</span>
+                </button>
+              )}
+              <div className="flex gap-2.5">
+                <Button tone="plain" onClick={onTrack}>
+                  Track delivery
+                </Button>
+                <Button disabled={!toReceive.some((r) => r.orderId === coming.orderId)} onClick={() => onReceive(coming.orderId)}>
+                  Receive delivery
+                </Button>
               </div>
-              <Chip tone={forNext.length ? "ok" : "muted"}>{forNext.length ? `${forNext.length} placed` : "Not placed yet"}</Chip>
-            </div>
-            <ul className="grid grid-cols-2 gap-2.5">
-              {(["ambient", "chilled"] as const).map((t) => {
-                const placed = forNext.filter((o) => o.temperature === t);
-                const total = placed.reduce((s, o) => s + o.itemCount, 0);
-                const first = placed[0];
-                return (
-                  <li key={t}>
-                    <button
-                      type="button"
-                      disabled={!first}
-                      onClick={() => first && onOpen(first.orderId)}
-                      className="flex min-h-[72px] w-full flex-col gap-0.5 rounded-[16px] bg-go-canvas px-3.5 py-2.5 text-left disabled:cursor-default"
-                    >
-                      <span className="text-[15px] font-medium">{temperatureLabel(t)}</span>
-                      <span className="text-[13px] text-go-muted">
-                        {first ? `${first.orderRef} · ${units(total)}${placed.some((o) => editable(o.status)) ? " · change" : ""}` : "Not placed"}
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-            <button type="button" onClick={onPlace} className="flex min-h-12 w-full items-center justify-center rounded-[22px] bg-go-mint px-4 text-[16px] font-medium text-black">
-              +&nbsp;&nbsp;{forNext.length ? "Place another order" : `Place order for ${dayLabel(next)}`}
-            </button>
-          </Card>
-        </div>
+            </>
+          ) : (
+            loading ? <SkeletonRows label="Loading…" /> : <Muted>No delivery is planned for you yet. Your next order shows here once it is confirmed.</Muted>
+          )}
+        </Card>
 
-        {/* Desktop: the notifications column from "02 Home". */}
-        <aside className="hidden lg:block">
-          <Card label="Notifications">{notifications}</Card>
-        </aside>
+        <Card label={`Order for ${dayLabel(next)}`}>
+          <div className="flex items-start gap-2">
+            <div className="flex flex-1 flex-col gap-[3px]">
+              <h2 className="text-[18px] font-medium text-black">Order for {dayLabel(next)}</h2>
+              <Muted>Closes 16:00 · {cutoffLabel(left)}</Muted>
+            </div>
+            <Chip tone={forNext.length ? "ok" : "muted"}>{forNext.length ? `${forNext.length} placed` : "Not placed yet"}</Chip>
+          </div>
+          <ul className="grid grid-cols-2 gap-2.5">
+            {(["ambient", "chilled"] as const).map((t) => {
+              const placed = forNext.filter((o) => o.temperature === t);
+              const total = placed.reduce((s, o) => s + o.itemCount, 0);
+              const first = placed[0];
+              return (
+                <li key={t}>
+                  <button
+                    type="button"
+                    disabled={!first}
+                    onClick={() => first && onOpen(first.orderId)}
+                    className="flex min-h-[72px] w-full flex-col gap-0.5 rounded-[16px] bg-go-canvas px-3.5 py-2.5 text-left disabled:cursor-default"
+                  >
+                    <span className="text-[15px] font-medium">{temperatureLabel(t)}</span>
+                    <span className="text-[13px] text-go-muted">
+                      {first ? `${first.orderRef} · ${units(total)}${placed.some((o) => editable(o.status)) ? " · change" : ""}` : "Not placed"}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          <button type="button" onClick={onPlace} className="flex min-h-12 w-full items-center justify-center rounded-[22px] bg-go-mint px-4 text-[16px] font-medium text-black">
+            +&nbsp;&nbsp;{forNext.length ? "Place another order" : `Place order for ${dayLabel(next)}`}
+          </button>
+        </Card>
       </div>
     </div>
   );

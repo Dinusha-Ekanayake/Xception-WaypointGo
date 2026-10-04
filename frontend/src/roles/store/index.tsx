@@ -22,7 +22,7 @@ import Track from "./screens/Track.tsx";
 import ProfileDialog from "./screens/account/ProfileDialog.tsx";
 import StoreDetailsDialog from "./screens/account/StoreDetailsDialog.tsx";
 import { SideNav, TabBar, Toast, type Tab } from "./ui.tsx";
-import { NotificationsCard, NotificationsDrawer } from "./screens/Notifications.tsx";
+import { NotificationsDrawer } from "./screens/Notifications.tsx";
 import TripMessages, { type OpenThread } from "./screens/TripMessages.tsx";
 import { useInbox } from "@shared/notifications/useInbox";
 import type { NotificationView } from "@shared/domain/types";
@@ -267,7 +267,6 @@ export default function Store({
         onReceive={receive}
         onTrack={() => openView({ kind: "track" })}
         onRetry={orders.refresh}
-        notifications={<NotificationsCard inbox={inbox} onSubject={openSubject} onAll={() => setInboxOpen(true)} />}
       />
     );
   } else if (tab === "orders") {
