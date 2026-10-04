@@ -29,6 +29,8 @@ export function useRecorder(): {
   start: () => Promise<void>;
   stop: () => void;
   discard: () => void;
+  /** Puts back a recording that was discarded, for undo. */
+  restore: (recording: Recording) => void;
 } {
   const [state, setState] = useState<RecorderState>({ status: "idle" });
   const recorder = useRef<MediaRecorder | null>(null);
@@ -95,5 +97,12 @@ export function useRecorder(): {
     });
   }, [release]);
 
-  return { state, start, stop, discard };
+  const restore = useCallback((recording: Recording) => {
+    setState((s) => {
+      if (s.status === "ready") URL.revokeObjectURL(s.url);
+      return { status: "ready", recording, url: URL.createObjectURL(recording.blob) };
+    });
+  }, []);
+
+  return { state, start, stop, discard, restore };
 }

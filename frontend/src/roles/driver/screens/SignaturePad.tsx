@@ -1,18 +1,21 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useUndo } from "@shared/ui";
 import { toBlob } from "../data/image.ts";
 
 /**
  * The receiver signs with a finger. Pointer events, so a finger, a stylus and a
  * mouse all work; the page does not scroll while signing. The ink is always
  * dark on white, whatever the theme, because the image is evidence and must
- * read the same wherever it is shown.
+ * read the same wherever it is shown. Clear keeps what was signed for a few
+ * seconds, and the same button reads Undo and puts it back.
  */
 export default function SignaturePad({ onChange }: { onChange: (signature: Blob | null) => void }): React.JSX.Element {
   const canvas = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
   const [signed, setSigned] = useState(false);
+  const cleared = useUndo<HTMLCanvasElement>();
   const changed = useRef(onChange);
   changed.current = onChange;
 
@@ -63,6 +66,8 @@ export default function SignaturePad({ onChange }: { onChange: (signature: Blob 
     const context = canvas.current?.getContext("2d");
     if (!context) return;
     event.currentTarget.setPointerCapture(event.pointerId);
+    // A new stroke starts a new signature: what was cleared is gone.
+    cleared.drop();
     drawing.current = true;
     const { x, y } = point(event);
     context.beginPath();
@@ -92,10 +97,29 @@ export default function SignaturePad({ onChange }: { onChange: (signature: Blob 
     const el = canvas.current;
     const context = el?.getContext("2d");
     if (!el || !context) return;
+    const copy = document.createElement("canvas");
+    copy.width = el.width;
+    copy.height = el.height;
+    copy.getContext("2d")?.drawImage(el, 0, 0);
+    cleared.hold(copy);
     context.fillStyle = "#ffffff";
     context.fillRect(0, 0, el.clientWidth, el.clientHeight);
     setSigned(false);
     changed.current(null);
+  };
+
+  const undo = () => {
+    const el = canvas.current;
+    const context = el?.getContext("2d");
+    const copy = cleared.take();
+    if (!el || !context || !copy) return;
+    // The copy is in backing-store pixels, so it is drawn without the display scale.
+    context.save();
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    context.drawImage(copy, 0, 0);
+    context.restore();
+    setSigned(true);
+    void toBlob(el, "image/png").then((blob) => changed.current(blob)).catch(() => changed.current(null));
   };
 
   return (
@@ -112,8 +136,13 @@ export default function SignaturePad({ onChange }: { onChange: (signature: Blob 
       />
       <div className="flex items-center justify-between text-[13px] text-go-muted">
         <span>{signed ? "Signed" : "Sign inside the box"}</span>
-        <button type="button" onClick={clear} disabled={!signed} className="min-h-12 px-3 text-[15px] font-medium text-go-teal disabled:opacity-40">
-          Clear
+        <button
+          type="button"
+          onClick={cleared.held ? undo : clear}
+          disabled={!signed && !cleared.held}
+          className="min-h-12 px-3 text-[15px] font-medium text-go-teal disabled:opacity-40"
+        >
+          {cleared.held ? "Undo" : "Clear"}
         </button>
       </div>
     </div>
