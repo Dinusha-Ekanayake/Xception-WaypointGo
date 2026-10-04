@@ -253,9 +253,21 @@ export async function sign(page: Page): Promise<void> {
   await page.mouse.up();
 }
 
+/** Slide across "I've arrived". A tap does not record the arrival. */
+export async function arrive(page: Page): Promise<void> {
+  const slider = page.getByRole("slider", { name: "I've arrived" });
+  const box = await slider.boundingBox();
+  if (!box) throw new Error("I've arrived is not on screen");
+  const y = box.y + box.height / 2;
+  await page.mouse.move(box.x + 36, y);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width - 16, y, { steps: 18 });
+  await page.mouse.up();
+}
+
 /** Starts or continues the trip from Home. */
 export async function startTrip(page: Page): Promise<void> {
-  await page.getByRole("button", { name: /^(Start|Continue) trip$/ }).click();
+  await page.getByRole("button", { name: /^(Start|Continue) (trip|run)$/ }).click();
 }
 
 /** At the stop: from the Figma report to the delivery form, where counts and proof are entered. */
