@@ -7,7 +7,8 @@ import { VIEWS, type ViewId } from "./navigation.ts";
 import type { DepotFilter } from "./data/scope.ts";
 
 // The Figma "Shell / Sidebar": brand, seven destinations, the depot scope and
-// the signed-in dispatcher. One sidebar on every screen: the dispatcher folds
+// the signed-in dispatcher. The depot scope is not here: it is the page
+// header's switch on every screen (depotScope.tsx). One sidebar on every screen: the dispatcher folds
 // it to the icon rail Figma draws on Plan and Live with the button above the
 // avatar, and the choice is kept, so the page never jumps between screens. The
 // rail keeps everything the full bar has: badges become dots, the depot scope
@@ -44,12 +45,7 @@ export function useFolded(): [boolean, (folded: boolean) => void] {
   return [folded, set];
 }
 
-export function depotOptions(depots: string[]): Array<{ value: string; label: string }> {
-  return [
-    ...(depots.length > 1 ? [{ value: "all", label: depots.length === 2 ? "Both" : "All" }] : []),
-    ...depots.map((depot) => ({ value: depot, label: depot })),
-  ];
-}
+export { depotOptions } from "./depotScope.tsx";
 
 export default function Sidebar({
   view,
@@ -76,8 +72,6 @@ export default function Sidebar({
   /** The depots in view, for the badges' tooltips ("both depots"). */
   scopeLabel?: string;
 }): React.JSX.Element {
-  const options = depotOptions(depots);
-  const scopeShown = options.find((option) => option.value === depotFilter)?.label ?? "All";
   const rail = folded;
 
   return (
@@ -129,24 +123,7 @@ export default function Sidebar({
 
       <div className="flex-1" />
 
-      {options.length > 1 &&
-        (rail ? (
-          <Popover
-            label="Depot scope"
-            side="right"
-            trigger={<span className="text-[11px] font-medium text-go-teal">{scopeShown}</span>}
-            className="mb-1 flex h-9 w-12 items-center justify-center rounded-go-card-s bg-go-surface"
-            panelClassName="flex flex-col gap-2 p-3"
-          >
-            <p className="text-[11px] font-medium text-go-teal">Showing</p>
-            <Segmented label="Depot" options={options} value={depotFilter} onChange={onDepotFilter} />
-          </Popover>
-        ) : (
-          <div className="mb-3 flex flex-col gap-2 rounded-go-card-s bg-go-surface p-3">
-            <p className="text-[11px] font-medium text-go-teal">Showing</p>
-            <Segmented label="Depot" options={options} value={depotFilter} onChange={onDepotFilter} />
-          </div>
-        ))}
+
 
       <button
         type="button"
@@ -215,7 +192,6 @@ export function CompactNav({
   badges?: Badges;
   displayName: string;
 }): React.JSX.Element {
-  const options = depotOptions(depots);
   return (
     <div className="flex flex-col gap-3 bg-go-card px-4 pt-4 pb-3 lg:hidden">
       {/* Wraps on a narrow phone so the depot switch and actions stay on screen. */}
@@ -223,7 +199,6 @@ export function CompactNav({
         <span className="text-[34px] leading-none font-extrabold text-go-ink">GO</span>
         <span className="rounded-full bg-go-mint px-2.5 py-1 text-[13px] font-medium text-go-ink">Dispatch</span>
         <span className="flex-1" />
-        {options.length > 1 && <Segmented label="Depot" options={options} value={depotFilter} onChange={onDepotFilter} />}
         <ShellActions compact />
         <ProfileButton displayName={displayName} depots={depots} placement="sheet" />
       </div>

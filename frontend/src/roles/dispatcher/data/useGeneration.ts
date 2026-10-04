@@ -63,3 +63,52 @@ export function progressLabel(following: Following): string | null {
   if (!following) return null;
   return following.job.status === "QUEUED" ? "Queued…" : `Planning… ${following.elapsed} s`;
 }
+
+/**
+ * The same for every depot in view: one job per depot and day. `following`
+ * is the first job still running; `resumed` lists jobs already running when
+ * the screen opened, each with its depot.
+ */
+export function useGenerations(depots: string[], date: string) {
+  const [following, setFollowing] = useState<Record<string, Following>>({});
+  const live = useRef(true);
+  useEffect(() => () => void (live.current = false), []);
+
+  const follow = useCallback(async (depot: string, first: GenerationJobView): Promise<GenerationJobView> => {
+    const started = Date.now();
+    let job = first;
+    while (job.status === "QUEUED" || job.status === "RUNNING") {
+      if (!live.current) return job;
+      setFollowing((all) => ({ ...all, [depot]: { job, elapsed: Math.floor((Date.now() - started) / 1000) } }));
+      if (Date.now() - started > GIVE_UP_MS) {
+        throw new Error("Planning is taking longer than expected. It carries on in the background; refresh to see the draft when it is ready.");
+      }
+      await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+      job = await request<GenerationJobView>(`/api/plans/jobs/${q(job.jobId)}?depot=${q(depot)}`);
+    }
+    setFollowing((all) => ({ ...all, [depot]: null }));
+    return job;
+  }, []);
+
+  const key = depots.join(",");
+  const [resumed, setResumed] = useState<Array<{ depot: string; job: GenerationJobView }>>([]);
+  useEffect(() => {
+    let cancelled = false;
+    setResumed([]);
+    void Promise.all(
+      key.split(",").filter(Boolean).map((depot) =>
+        request<GenerationJobView>(`/api/plans/jobs?depot=${q(depot)}&date=${q(date)}`)
+          .then((job) => (job.status === "QUEUED" || job.status === "RUNNING" ? { depot, job } : null))
+          .catch((e: unknown) => {
+            // 404: no generation for the day, the usual case.
+            if (!(e instanceof ApiError && e.status === 404)) return null;
+            return null;
+          }),
+      ),
+    ).then((jobs) => !cancelled && setResumed(jobs.filter((j): j is { depot: string; job: GenerationJobView } => j !== null)));
+    return () => void (cancelled = true);
+  }, [key, date]);
+
+  const running = Object.values(following).find((f) => f !== null) ?? null;
+  return { following: running, follow, resumed, clearResumed: () => setResumed([]) };
+}
