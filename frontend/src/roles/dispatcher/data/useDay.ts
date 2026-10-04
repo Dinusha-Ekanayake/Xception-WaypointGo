@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
 import { request, requestAll } from "@shared/api/client";
+import { REPORT_RESOLVED_EVENT } from "@shared/messaging/useThread";
 import { ApiError } from "@shared/api/problem";
 import { useResource, type Resource } from "@shared/api/useResource";
 import { livePoll, useDemo } from "@shared/demo/useDemo";
@@ -198,7 +200,14 @@ export function useReports(depots: string[], date: string): Resource<ReportMarkV
               depots.map((depot) => request<ReportMarkView[]>(`/api/threads/reports?depot=${q(depot)}&date=${q(date)}`, { signal })),
             )
           ).flat();
-  return useResource(load, `reports|${depots.join(",")}|${date}`, POLL_MS);
+  const reports = useResource(load, `reports|${depots.join(",")}|${date}`, POLL_MS);
+  // A report resolved in the thread leaves the timeline now, not at the next poll.
+  const { refresh } = reports;
+  useEffect(() => {
+    window.addEventListener(REPORT_RESOLVED_EVENT, refresh);
+    return () => window.removeEventListener(REPORT_RESOLVED_EVENT, refresh);
+  }, [refresh]);
+  return reports;
 }
 
 export type HistoryDay = { date: string; orders: OrderView[]; sheets: RunSheetView[] };

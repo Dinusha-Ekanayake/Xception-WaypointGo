@@ -1,6 +1,6 @@
 import type { Page, Route } from "@playwright/test";
 import type { PostMessagePayload } from "../../src/shared/domain/messaging.ts";
-import { postToThread, threadRead, type ThreadMock } from "../thread-mocks.ts";
+import { postToThread, resolveInThread, threadRead, type ThreadMock } from "../thread-mocks.ts";
 import type { RunSheetStopView, RunSheetView } from "../../src/shared/domain/execution.ts";
 import type { ReadyTripView } from "../../src/shared/domain/loading.ts";
 import type { OrderStatus, OrderView } from "../../src/shared/domain/ordering.ts";
@@ -137,6 +137,9 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
   const apply = (command: Sent) => {
     const { payload } = command;
     if (command.kind.startsWith("issue:")) return applyIssue(desk, command);
+    if (command.kind === "message:Resolve") {
+      return resolveInThread(desk.threads ?? [], payload as unknown as { messageId: string; note?: string }, SESSION.displayName, new Date().toISOString());
+    }
     if (command.kind === "message:Post") {
       return postToThread(desk.threads ?? [], payload as unknown as PostMessagePayload, { name: SESSION.displayName, role: "dispatcher" }, new Date().toISOString());
     }
