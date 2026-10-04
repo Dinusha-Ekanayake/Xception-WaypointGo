@@ -152,7 +152,7 @@ export default function SignIn({
         </div>
 
         <form onSubmit={(e) => void submit(e)} className="flex w-full flex-col gap-4 rounded-[31px] bg-go-card p-7 shadow-[0_5px_20px_rgba(0,0,0,0.09)]">
-          {notice && <Notice tone="info" title={notice} />}
+          {notice && <p role="status" className="px-1 text-[15px] font-medium text-go-success">{notice}</p>}
           {!online && (
             <Notice tone="warning" live title="This device is offline">
               Signing in needs a connection the first time. Once signed in, your work keeps going offline.

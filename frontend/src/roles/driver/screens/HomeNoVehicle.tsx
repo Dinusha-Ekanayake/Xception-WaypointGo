@@ -10,6 +10,8 @@ import { clock, countdown, dayLabel, hhmm } from "../../../shared/wording/index.
 import type { TripStatus } from "../data/stopView.ts";
 import type { NextRun } from "../data/run.ts";
 import { DriverHeader, VoiceMessagePlayer } from "../ui.tsx";
+import FuelPassSheet from "./FuelPassSheet.tsx";
+import { useCappedScroll } from "./cappedScroll.ts";
 
 /**
  * Apple UIScrollView rubber-band resistance formula:
@@ -36,6 +38,11 @@ function useRubberBandScroll() {
   const isMouseDown = useRef(false);
   const rawWheelOvershoot = useRef(0);
   const wheelReleaseTimer = useRef<NodeJS.Timeout | null>(null);
+  // A trackpad flick keeps sending wheel events after the list reaches an edge.
+  // Only a gesture that began at the edge pulls the list; momentum that arrives
+  // there must not, or the list is held pushed down for as long as it lasts.
+  const lastWheelAt = useRef(0);
+  const wheelBeganInside = useRef(false);
 
   const updateMask = (el: HTMLElement) => {
     const FADE_DISTANCE = 40;
@@ -203,6 +210,20 @@ function useRubberBandScroll() {
       clearTimeout(wheelReleaseTimer.current);
     }
 
+    if (e.timeStamp - lastWheelAt.current > 150) {
+      const atEdge = (el.scrollTop <= 0 && e.deltaY < 0) || (el.scrollTop >= maxScroll - 1 && e.deltaY > 0);
+      wheelBeganInside.current = !atEdge;
+    }
+    lastWheelAt.current = e.timeStamp;
+    if (wheelBeganInside.current) {
+      if (rawWheelOvershoot.current !== 0) {
+        rawWheelOvershoot.current = 0;
+        setIsPulling(false);
+        setPullY(0);
+      }
+      return;
+    }
+
     // Wheeling up at top
     if (el.scrollTop <= 0 && e.deltaY < 0) {
       rawWheelOvershoot.current += -e.deltaY * 0.85;
@@ -286,10 +307,10 @@ function ScrollRevealCard({
     let rafId: number | null = null;
 
     const update = () => {
-      const rootRect = root.getBoundingClientRect();
-      const elRect = el.getBoundingClientRect();
-      const y = elRect.top - rootRect.top;
-      const H = rootRect.height;
+      // Layout position, not the drawn one: the feed is translated while it springs
+      // back from a pull, and a card measured mid-spring kept the wrong scale.
+      const y = el.offsetTop - root.offsetTop - root.scrollTop;
+      const H = root.clientHeight;
 
       // Top Exit Zone: only as card scrolls up past the top edge (y < 0)
       // When resting at the top (y >= 0), it is 100% visible with zero fade
@@ -334,8 +355,14 @@ function ScrollRevealCard({
     update();
     root.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll, { passive: true });
+    // The driver card above folds and unfolds while the feed scrolls, which moves
+    // and resizes this container without a scroll event; a card left in a scroll
+    // zone would stay small and faded until the next scroll.
+    const resizeObserver = new ResizeObserver(onScroll);
+    resizeObserver.observe(root);
 
     return () => {
+      resizeObserver.disconnect();
       root.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
       if (rafId) cancelAnimationFrame(rafId);
@@ -403,11 +430,6 @@ function driverKind(eventType: string, isNight: boolean): { label: string; color
   }
 }
 
-function vehicleKind(vehicle: VehicleView): string {
-  if (vehicle.refrigerated) return "Refrigerated vehicle";
-  return vehicle.van ? "Van" : "Truck";
-}
-
 /** About how long the phone takes to read a notification aloud. */
 function readingTime(text: string): string {
   return countdown(Math.max(2, text.split(/\s+/).length / 2.5));
@@ -440,6 +462,7 @@ export default function HomeNoVehicle({
   const [markingRead, setMarkingRead] = useState(false);
   const { scrollRef, pullY, isPulling, compact, maskStyle, handlers } = useRubberBandScroll();
   useScrollMemory("driver:home", scrollRef, { page: false });
+  useCappedScroll(scrollRef);
 
   useEffect(() => {
     return () => {
@@ -456,7 +479,7 @@ export default function HomeNoVehicle({
     .slice(0, 2)
     .join("") || "D";
 
-  const startLabel = tripStatus === "completed" ? "Trip summary" : tripStatus === "in-progress" ? "Continue run" : "Start run";
+  const startLabel = tripStatus === "completed" ? "Trip summary" : tripStatus === "in-progress" ? "Continue trip" : "Start trip";
   const card = isNight ? "bg-[#292929]" : "bg-white";
   const ink = isNight ? "text-white" : "text-black";
   const unread = inbox.unread ?? inbox.items.filter(isUnread).length;
@@ -485,21 +508,21 @@ export default function HomeNoVehicle({
         )}
 
         {/* Driver Identity Card (Figma "Driver card"). Scrolling the voices folds it up. */}
-        <div className={cx("shrink-0 transition-all duration-300", compact ? "px-6 pt-0" : "px-6 pt-1")}>
-          <div className={cx("w-full shadow-[0px_5px_20px_rgba(0,0,0,0.05)] flex flex-col transition-all duration-300", card, compact ? "gap-0 rounded-[24px] p-3" : "gap-3.5 rounded-[38px] p-5 sm:p-6")}>
+        <div className="shrink-0 px-6 pt-1">
+          <div className={cx("w-full shadow-[0px_5px_20px_rgba(0,0,0,0.05)] flex flex-col transition-all duration-300", card, "rounded-[38px] p-5 sm:p-6", compact ? "gap-0" : "gap-3.5")}>
             <div className="flex items-center gap-3.5">
               <div
                 className={cx(
                   "rounded-full flex items-center justify-center shrink-0 transition-all duration-300",
-                  compact ? "size-9" : "size-[52px]",
+                  "size-[52px]",
                   isNight ? "bg-[#00BF6A]" : "bg-[#B7F2ED]"
                 )}
               >
-                <span className={cx("font-medium text-black transition-all duration-300", compact ? "text-[13px]" : "text-[18px]")}>{initials}</span>
+                <span className="text-[18px] font-medium text-black">{initials}</span>
               </div>
               <div className="flex flex-col min-w-0 flex-1">
-                <h1 className={cx("font-medium truncate tracking-tight transition-all duration-300", ink, compact ? "text-[16px] leading-5" : "text-[26px] leading-[33px]")}>{driverName}</h1>
-                <p className={cx("text-[13px] font-light text-[#A9A9A9] leading-none overflow-hidden transition-all duration-300", compact ? "h-0 pt-0 opacity-0" : "pt-0.5 opacity-100")}>
+                <h1 className={cx("truncate text-[26px] font-medium leading-[33px] tracking-tight", ink)}>{driverName}</h1>
+                <p className="truncate pt-0.5 text-[13px] font-light leading-none text-[#A9A9A9]">
                   Driver{depotName ? ` · ${depotName} depot` : ""}
                 </p>
               </div>
@@ -507,12 +530,21 @@ export default function HomeNoVehicle({
                 <button
                   type="button"
                   onClick={startTrip}
+                  aria-label={startLabel}
                   className={cx(
-                    "h-10 shrink-0 rounded-full px-4 text-[14px] font-medium active:scale-[0.98]",
+                    "flex size-11 shrink-0 animate-pop-in items-center justify-center rounded-full active:scale-[0.96] motion-reduce:animate-none",
                     isNight ? "bg-[#00BF6A] text-black" : "bg-[#031B08] text-white"
                   )}
                 >
-                  {startLabel}
+                  {tripStatus === "completed" ? (
+                    <svg aria-hidden width="20" height="20" viewBox="0 0 20 20" fill="none">
+                      <path d="M4 10h11M11 5l5 5-5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  ) : (
+                    <svg aria-hidden width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M6.5 4.2v11.6a.8.8 0 0 0 1.2.7l9-5.8a.8.8 0 0 0 0-1.4l-9-5.8a.8.8 0 0 0-1.2.7Z" />
+                    </svg>
+                  )}
                 </button>
               )}
             </div>
@@ -549,14 +581,16 @@ export default function HomeNoVehicle({
                       <span className={cx("text-[12px] font-light leading-[15px]", ink)}>Vehicle</span>
                       <span className={cx("text-[28px] font-semibold leading-[35px] tracking-tight", ink)}>{vehicle.vehicleId}</span>
                     </div>
-                    <div
+                    <button
+                      type="button"
+                      onClick={onProblem}
                       className={cx(
-                        "px-3 py-1.5 rounded-[34px] flex items-center justify-center shrink-0 transition-colors",
-                        isNight ? "bg-[#292929] text-white" : "bg-white text-black"
+                        "flex h-9 shrink-0 items-center justify-center rounded-full px-4 text-[13px] font-medium active:scale-[0.98]",
+                        isNight ? "bg-[#3A3A3A] text-white" : "bg-[#B7F2ED] text-black"
                       )}
                     >
-                      <span className="text-[13px] font-light leading-[16px]">{vehicleKind(vehicle)}</span>
-                    </div>
+                      Report problem
+                    </button>
                   </div>
                   <div className="flex items-center justify-between gap-3">
                     <button
@@ -619,16 +653,6 @@ export default function HomeNoVehicle({
                       : `No trip planned for ${vehicle.vehicleId} today. Your stops appear here when the loader releases the vehicle.`}
                   </p>
                 )}
-                <button
-                  type="button"
-                  onClick={onProblem}
-                  className={cx(
-                    "flex h-[52px] w-full items-center justify-center rounded-[22px] text-[18px] font-medium active:scale-[0.98]",
-                    isNight ? "bg-[#3A3A3A] text-white" : "bg-[#B7F2ED] text-black",
-                  )}
-                >
-                  Report problem
-                </button>
               </>
             )}
             </div>
@@ -679,7 +703,7 @@ export default function HomeNoVehicle({
           ref={scrollRef}
           {...handlers}
           aria-label="Notifications"
-          className="h-full overflow-y-auto overscroll-contain pb-6 short:h-auto short:overflow-visible no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="h-full touch-none overflow-y-auto overscroll-contain pb-6 short:h-auto short:touch-auto short:overflow-visible no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           <div
             style={{
@@ -716,16 +740,12 @@ export default function HomeNoVehicle({
             {inbox.items.map((item) => {
               const kind = driverKind(item.eventType, isNight);
               const id = `msg-${item.notificationId}`;
-              const fresh = isUnread(item);
               return (
                 <ScrollRevealCard key={item.notificationId} scrollContainerRef={scrollRef} pullY={pullY}>
                   <div
                       className={cx(
                       "rounded-[20px] p-[14px_20px] flex flex-col gap-1 transition-all duration-200",
-                      !fresh && "opacity-70",
-                      card,
-                      activeAudioId === id &&
-                        (isNight ? "ring-1 ring-[#00BF6A]/60 shadow-[0_0_15px_rgba(0,191,106,0.15)]" : "ring-1 ring-[#0E766D]/50 shadow-[0_0_15px_rgba(14,118,109,0.12)]")
+                      card
                     )}
                   >
                     {item.eventType === "message.posted" && item.facts?.voiceNoteId && item.subjectId ? (
@@ -770,24 +790,7 @@ export default function HomeNoVehicle({
         </div>
       </div>
       {fuelQr && vehicle && (
-        <div role="dialog" aria-modal="true" aria-label="Fuel QR" className="absolute inset-0 z-40 flex items-end justify-center bg-black/35 p-4" onClick={() => setFuelQr(false)}>
-          <div onClick={(event) => event.stopPropagation()} className={cx("mb-4 flex w-full max-w-[360px] flex-col items-center gap-3 rounded-[28px] p-6", card)}>
-            <h2 className={cx("text-[22px] font-medium", ink)}>Fuel QR</h2>
-            <p className="text-[15px] text-[#A9A9A9]">{vehicle.vehicleId}</p>
-            <svg aria-hidden width="120" height="120" viewBox="0 0 18 18" fill="currentColor" className={ink}>
-              <rect x="1" y="1" width="6" height="6" rx="1.2" />
-              <rect x="11" y="1" width="6" height="6" rx="1.2" />
-              <rect x="1" y="11" width="6" height="6" rx="1.2" />
-              <rect x="11" y="11" width="2.4" height="2.4" rx="0.4" />
-              <rect x="14.6" y="11" width="2.4" height="2.4" rx="0.4" />
-              <rect x="11" y="14.6" width="2.4" height="2.4" rx="0.4" />
-              <rect x="14.6" y="14.6" width="2.4" height="2.4" rx="0.4" />
-            </svg>
-            <button type="button" onClick={() => setFuelQr(false)} className={cx("mt-1 flex h-12 w-full items-center justify-center rounded-[18px] text-[17px] font-medium", isNight ? "bg-[#00BF6A] text-black" : "bg-[#031B08] text-white")}>
-              Close
-            </button>
-          </div>
-        </div>
+        <FuelPassSheet vehicleId={vehicle.vehicleId} kind={vehicle.van ? "Van" : "Truck"} onClose={() => setFuelQr(false)} />
       )}
     </div>
   );

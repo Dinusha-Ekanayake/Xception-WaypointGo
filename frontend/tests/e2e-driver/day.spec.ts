@@ -4,7 +4,7 @@ import { arrive, openForm, serve, sign, startTrip, stop } from "./mocks.ts";
 test("a stop worked with no signal survives a reload and is sent once, in order, when the signal returns", async ({ page, context }) => {
   const server = await serve(page);
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Start run" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Start trip" })).toBeVisible();
   // The shell must be on the phone before the signal goes, or a reload has nothing to show.
   await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
 
@@ -111,7 +111,7 @@ test("scrolling the voices folds the driver card so the list has the room", asyn
     el.scrollTop = 240;
   });
   await expect.poll(details).toBe(0);
-  await expect(page.getByRole("button", { name: "Start run" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Start trip" })).toBeVisible();
   await feed.evaluate((el) => {
     el.scrollTop = 0;
   });
