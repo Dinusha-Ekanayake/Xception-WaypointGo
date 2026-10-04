@@ -13,14 +13,14 @@ import { uploadVoice, voicePath } from "./useThread.ts";
 // never sees a message naming audio it does not have (R-MSG-06).
 
 /** A recording to send with the message. */
-export type Voice = { threadId: string; voiceNoteId: string; blob: Blob; durationMs: number };
+export type Voice = { threadId: string; voiceNoteId: string; blob: Blob; durationMs: number; peaks: number[] };
 
 /** Sends a post; answers whether it was kept on the device instead. */
 export type Sender = (command: Command<PostMessagePayload>, voice?: Voice) => Promise<{ queued: boolean }>;
 
 /** Straight to the server, the audio first. Online only. */
 export const sendNow: Sender = async (command, voice) => {
-  if (voice) await uploadVoice(voice.threadId, voice.voiceNoteId, voice.blob, voice.durationMs);
+  if (voice) await uploadVoice(voice.threadId, voice.voiceNoteId, voice.blob, voice.durationMs, voice.peaks);
   await send(command);
   return { queued: false };
 };
@@ -44,7 +44,7 @@ export function queuedSender(options: {
     if (voice) {
       const saved = await saveUpload(accountId, {
         id: voice.voiceNoteId,
-        path: voicePath(voice.threadId, voice.voiceNoteId, voice.durationMs),
+        path: voicePath(voice.threadId, voice.voiceNoteId, voice.durationMs, voice.peaks),
         subject: voice.threadId,
         contentType: (voice.blob.type || "audio/webm").split(";")[0]!,
         blob: voice.blob,
@@ -62,7 +62,7 @@ export function queuedSender(options: {
     let uploaded = false;
     try {
       if (voice) {
-        await uploadVoice(voice.threadId, voice.voiceNoteId, voice.blob, voice.durationMs);
+        await uploadVoice(voice.threadId, voice.voiceNoteId, voice.blob, voice.durationMs, voice.peaks);
         uploaded = true;
       }
       await send(command);

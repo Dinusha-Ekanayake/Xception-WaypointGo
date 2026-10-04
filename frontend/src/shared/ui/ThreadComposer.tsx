@@ -84,7 +84,7 @@ export function ThreadComposer({
           ...(voiceNoteId ? { voiceNoteId } : {}),
           clientMessageId,
         }),
-        voice && voiceNoteId ? { threadId, voiceNoteId, blob: voice.blob, durationMs: voice.durationMs } : undefined,
+        voice && voiceNoteId ? { threadId, voiceNoteId, blob: voice.blob, durationMs: voice.durationMs, peaks: voice.peaks } : undefined,
       );
       if (!voice) setBody("");
       setReport(null);

@@ -256,6 +256,9 @@ export type EventPayloads = {
     outletIds: string[];
     excerpt: string;
     at: IsoInstant;
+    voiceNoteId: Uuid | null;
+    voiceDurationMs: number | null;
+    voicePeaks: number[];
   };
 };
 

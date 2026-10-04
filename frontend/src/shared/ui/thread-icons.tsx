@@ -87,3 +87,12 @@ export function ChevronLeftIcon({ className }: P): React.JSX.Element {
     </svg>
   );
 }
+
+export function ChatIcon({ className }: P): React.JSX.Element {
+  return (
+    <svg {...base(className)}>
+      <path d="M20 12a8 8 0 0 1-11.6 7.14L4 20l.86-4.4A8 8 0 1 1 20 12Z" />
+      <path d="M8.5 11h7M8.5 14.5h4.5" />
+    </svg>
+  );
+}
