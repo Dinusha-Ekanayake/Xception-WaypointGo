@@ -12,7 +12,7 @@ function stop(vehicle: string, seq: number, extra: Partial<RunSheetStopView> = {
   return {
     deliveryId: `d-${vehicle}-${seq}`, tripId: `t-${vehicle}`, sequence: seq, orderId: `o-${seq}`, outletId: `OUT0${60 + seq}`, itemCount: 10,
     mallOutlet: false, plannedArrival: "16:30:00", windowOpen: "09:00:00", windowClose: "17:00:00", expectedArrival: null, startedAt: at("08:50"),
-    arrivedAt: null, completedAt: null, waitMinutes: null, lateMinutes: null, outcome: "PENDING", deliveredUnits: null, proofCaptured: false, rowVersion: 1, lines: [], ...extra,
+    arrivedAt: null, completedAt: null, waitMinutes: null, lateMinutes: null, outcome: "PENDING", deliveredUnits: null, proofCaptured: false, storeAnswerWaived: null, rowVersion: 1, lines: [], ...extra,
   };
 }
 
@@ -35,10 +35,10 @@ test("a run joins its loading trip by the stop's trip, and its position", () => 
   assert.equal(run!.depot, "Kandy");
 });
 
-test("needs you: a failed stop first, then the window closing soonest, then an issue, then a proof owed", () => {
+test("needs you: a failed stop first, then the window closing soonest, then an issue, then a stop left before the store answered", () => {
   const runs = runsOf(
     days([
-      sheet("VEH001", [stop("VEH001", 1, { outcome: "DELIVERED", completedAt: at("09:00"), arrivedAt: at("09:00") }), stop("VEH001", 2, { expectedArrival: at("11:40") })]),
+      sheet("VEH001", [stop("VEH001", 1, { outcome: "DELIVERED", completedAt: at("09:00"), arrivedAt: at("09:00"), storeAnswerWaived: "store_absent" }), stop("VEH001", 2, { expectedArrival: at("11:40") })]),
       sheet("VEH002", [stop("VEH002", 1, { outcome: "FAILED", completedAt: at("09:10") })]),
     ]),
     [trip("VEH001"), trip("VEH002")],
@@ -49,7 +49,9 @@ test("needs you: a failed stop first, then the window closing soonest, then an i
   );
   const issue = { issueId: "i1", type: "STOCK_DISCREPANCY", severity: "HIGH", status: "OPEN", depotCode: "Kandy", outletId: "OUT085", subjects: [], description: "1 unit missing", assignee: null, resolutionAction: null, resolutionNote: null, raisedBy: "u", raisedAt: at("10:32"), resolvedAt: null, rowVersion: 1 } as IssueView;
   const cards = needCards(runs, [issue], DATE, NOW);
-  assert.deepEqual(cards.map((c) => c.kind), ["failed", "window", "issue", "proof"]);
+  assert.deepEqual(cards.map((c) => c.kind), ["failed", "window", "issue", "left"]);
+  assert.equal(cards[3]!.chip.text, "Store manager not available");
+  assert.match(cards[3]!.detail, /no photo or signature/);
   assert.equal(cards[1]!.chip.text, "48 min left", "17:00 less 16:12");
   assert.equal(cards[1]!.title, "OUT062 · may miss its window");
   assert.equal(cards[2]!.meta, "reported 16:02");

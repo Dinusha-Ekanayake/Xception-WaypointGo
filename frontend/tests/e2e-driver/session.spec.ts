@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { arrive, openForm, serve, startTrip } from "./mocks.ts";
+import { arrive, handOver, openForm, serve, startTrip } from "./mocks.ts";
 
 // Written for the earlier driver screens (#114 moved the run onto the Figma flow): the Figma sign-out sheet does not yet hold sign-out while work is only on the phone; issue #21.
 test.fixme("sign-out is refused while work is still only on the phone", async ({ page, context }) => {
@@ -86,20 +86,16 @@ test("a write the server took, with the signal gone before the phone read it bac
   await expect.poll(() => server.commands.map((c) => c.kind)).toEqual(["delivery:Start"]);
   await server.goOffline(context);
   await arrive(page);
-  await openForm(page);
-  await page.getByLabel("I can't capture a signature or a photo").check();
-  await page.getByLabel("Why not?").fill("Receiver refused to sign");
-  await page.getByRole("button", { name: "Confirm" }).click();
-  await expect(page.getByRole("dialog", { name: "Delivery confirmed" })).toContainText("Saved on this phone");
+  await handOver(page);
+  await expect(page.getByText("Waiting for store confirmation")).toBeVisible();
 
   server.dropReads = false;
   await server.goOnline(context);
-  await expect.poll(() => server.commands.length).toBe(4);
+  await expect.poll(() => server.commands.length).toBe(3);
   expect(server.commands.map((c) => [c.kind, c.expectedVersion])).toEqual([
     ["delivery:Start", 1],
     ["delivery:RecordArrival", 2],
     ["delivery:Record", 3],
-    ["delivery:CaptureProof", 4],
   ]);
   await expect(page.getByRole("button", { name: /to review/ })).toHaveCount(0);
 });

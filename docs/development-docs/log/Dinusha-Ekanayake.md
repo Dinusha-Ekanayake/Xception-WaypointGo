@@ -10,6 +10,40 @@
 
 The dispatcher and the admin console name their screen after "#" in the address. Since sign-in opens the account's own role on any address, that name stayed when a loader, driver or store manager signed in next, so `loader.waypointgo.live/#/forecast` showed the loader. The shell now drops it for the roles that have no such screens (`StaleRouteCleaner` in `AppShell.tsx`).
 Verified: typecheck, `npm test`. Not seen on the preview.
+## 2026-10-04 - docs: README for the judges, and the named demo accounts in a fresh copy
+
+`docs/readme-deliverables` · @Dinusha-Ekanayake
+
+The README opens with the deliverables the booklet lists, each linked, the deployed address with its four accounts, and both ways to run. `docker compose up` now also creates those named accounts and the four Peliyagoda loaders with their PIN, from `scripts/demo-accounts.csv` through the backend's own commands (`scripts/seed-demo-accounts.sh`); no backend code changed.
+Left: the seeded day's outlet and vehicles are still granted to `store_manager@` and `driver@waypoint.local` only, so the named store manager and driver sign in with no outlet and no vehicles.
+Verified: a fresh checkout built and started with `docker compose up --build`; init seeded 120 outlets, 60 vehicles and 85 orders, and each named account signed in through the stack.
+## 2026-10-04 - feat: the attention watch, increment 2a (issue #268): acknowledge, reminders counted, a scorer seam
+
+`feat/268-attention-ack` · @Dinusha-Ekanayake
+
+`ml:AcknowledgeAttention` (handler, action catalogue row, dispatcher policy statement `AttentionWatch`): the dispatcher acknowledges an item with a reason of three characters or more and its `expectedVersion`; who, when and why are kept, the item leaves the list and is never deleted; another depot is 403. The watch now marks a critical, unacknowledged item as reminded when `ReminderPolicy` says it is due, up to the depot's cap. `AttentionScorer` is the one place another way of ranking would plug in; the built-in scorer is the rules, which stay the fallback.
+Left: reminders reaching the dispatcher (events through the outbox, the MODULES.md catalogue rows, the notification subscriber), the EDGE-CASES row for a stalled watch, and the Live screen reading from the endpoint. No external model is connected: JEV's API is not public, and trip data would leave the system.
+Verified: compiles; the unit and architecture tests pass. The new integration tests (acknowledge, stale version, short reason, out-of-scope) run first in this PR's CI; no database was available locally.
+
+---
+
+## 2026-10-04 - feat: the attention watch, increment 1 (issue #268): the rule, the tables, the job and the read
+
+`feat/268-attention-watch` · @Dinusha-Ekanayake
+
+A scheduled job in `intelligence` watches every live trip each minute through Planning's and Execution's contracts and records what needs the dispatcher: a failed stop, a stop that will miss its window, a stop running late, a delivery with no proof. `AttentionPolicy` is the one definition of those rules (pure, the time a parameter); thresholds are data per depot with defaults in code; an item is raised once, refreshed, then cleared, never deleted; a heartbeat says when the watch last looked, and the read marks the list stale after three missed runs. `GET /api/ml/attention?depot=&date=` under `ml:Read`, another depot is 403. Plan in [PLAN.md](../../issues/268-attention-watch/PLAN.md).
+Left for increment 2: acknowledge (command, action catalogue row, authorisation test), reminders and their events through the outbox, the notification subscriber, and the Live screen reading from the endpoint.
+Verified: 11 domain and mapping unit tests, `ModuleBoundaryTest` and `EventCatalogueTest` pass. The two integration tests compile but were NOT run: no database was available locally, so the SQL and the migration are unproven until CI runs them.
+
+---
+
+## 2026-10-04 - feat: an optional language model rewords the plan explanations
+
+`feat/explain-groq` · @Dinusha-Ekanayake
+
+With `GROQ_API_KEY` set, the frontend's own server route (`app/explain/route.ts`) asks Groq to say an explanation more naturally. It is shown above the rule-based facts in the three pop-ups and marked as AI-worded. The route checks the session, sends only the facts of the one plan or order, keeps one answer per plan version (server memory, then the browser), and refuses an answer that names a figure the facts do not hold or that fails in any way: the rule-based text is always there. Blank key (the default) sends nothing. No backend change.
+Why: the user asked for friendlier wording; the decision to send plan facts to an outside model is theirs and is opt-in per deployment.
+Verified: see the PR. `npm test` 281; the explain and plan specs pass with no key. The live call to Groq was not exercised here.
 
 ---
 
@@ -29,6 +63,16 @@ Verified: see the PR. `npm test` 281; `explain.spec.ts` and the generate spec in
 
 The store's top bar and sidebar no longer show "Switch user": Sign out is already in the account menu behind the profile picture. `ShellActions` takes `switchUser` (default on), so the other roles keep the button; the sync badge and the role switcher of an account with several roles still show for the store.
 Verified: typecheck, `npm test`. Browser suites in CI.
+
+---
+
+## 2026-10-04 - feat: suggested steps and a ready message on what needs the dispatcher (issue #269, first slice)
+
+`feat/269-suggestions` · @Dinusha-Ekanayake
+
+Each card under Live's "Needs you" opens **Suggested steps**: the playbook for that situation (window closing, driver offline, not delivered, proof owed, an issue) and a message filled with the vehicle, the store, the expected arrival and the window, which opens in the trip's thread for the dispatcher to edit and send. Playbooks are data in `dispatcher/data/playbooks.ts`, matched by scenario, so the same situation gets the same advice; a message with a blank it cannot fill is not offered. Frontend only, no model.
+Left for #269 and #268: playbooks an administrator can edit, the server-side watch with reminders and a heartbeat. Both need backend work.
+Verified: see the PR. `npm test` 275; new `e2e-dispatcher/suggestions.spec.ts`. Not seen on the preview: no trip was on the road there today.
 
 ---
 

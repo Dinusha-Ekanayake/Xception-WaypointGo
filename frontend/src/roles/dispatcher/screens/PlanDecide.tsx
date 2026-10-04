@@ -40,7 +40,8 @@ export default function PlanDecide({
   useEffect(() => {
     if (focusId) setSelectedId(focusId);
   }, [focusId]);
-  const [swapping, setSwapping] = useState(false);
+  /** The swap window is open; on this trip when the dispatcher clicked one. */
+  const [swapping, setSwapping] = useState<{ tripId?: string } | null>(null);
   const [keeping, setKeeping] = useState(false);
   const [reason, setReason] = useState("");
 
@@ -153,10 +154,12 @@ export default function PlanDecide({
           places={placesFor(selected.allocation.orderId)}
           editable={editable}
           actions={actions}
-          onSwap={() => setSwapping(true)}
+          onSwap={(tripId) => setSwapping({ tripId })}
         />
       )}
-      {swapping && selected?.order && <SwapWindow plan={plan} incoming={selected.order} orders={orders} fleet={fleet} actions={actions} onClose={() => setSwapping(false)} />}
+      {swapping && selected?.order && (
+        <SwapWindow plan={plan} incoming={selected.order} tripId={swapping.tripId} orders={orders} fleet={fleet} actions={actions} onClose={() => setSwapping(null)} />
+      )}
     </div>
   );
 }

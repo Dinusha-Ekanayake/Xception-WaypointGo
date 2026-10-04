@@ -39,3 +39,34 @@ Written before code, per AGENTS.md "Issue Documents". What was built is in [WALK
 4. Screens: Home, Route, Delivery report with proof, Report a problem, Run complete, No run.
 5. Playwright at phone width: a day offline with reload, a failed delivery, sign-out blocked with writes waiting, session expiry keeps the queue.
 6. Walkthrough, log.
+
+## Amendment: store-led handover (2026-10-04)
+
+The team's delivery flow, as planned with the Figma screens (`0106d70`) and lost when they were wired to the run sheet (`d86e700`): the store manager checks the load, the driver sees the store's answer and accepts it with the store's PIN, and a problem becomes an issue so neither side is held up. This amendment builds it on the existing backend without changing R-RCP-04, R-RCP-05 or R-RCP-09. It replaces the second half of decision 9 above: the store's PIN is entered on the driver's phone again.
+
+### The flow
+
+| Step | Driver | Store manager | Backend (exists unless marked new) |
+| --- | --- | --- | --- |
+| 1 | Slides **I've arrived** | Told the truck is at the door | `delivery:RecordArrival`, `delivery.started` routed to the outlet |
+| 2 | Taps **Hand over** (the order's units, prefilled; no photo or signature step: the store's report and PIN are the evidence) | Told the delivery is ready to check | `delivery:Record` DELIVERED, `delivery.completed` routed to the outlet, receipt opens `pending` |
+| 3 | Sees **Waiting for store confirmation**; may **Continue to next stop** at any time | Fills the checklist per product: received, short, damaged; sends | `receipt:Confirm` or `receipt:Dispute`; a short answer raises the shortage investigation (R-RCP-07) |
+| 4 | Sees **the store's report**: per product, ordered and received, and the store's note | Is shown the four-digit PIN once | PIN issued with the answer (R-RCP-09) |
+| 5 | Enters the PIN to **accept**, or skips | | `receipt:VerifyHandover` |
+| 6 | Disagrees: **Report problem** raises an issue; the stop stays delivered and the run moves on | Same, from the Receive screen | Issues module; never a gate |
+
+The store answering first and the driver recording nothing is not built: that changes R-RCP-04 (separate records) and R-RCP-09 (never a gate) and needs the team's agreement first.
+
+### Decisions
+
+1. **Hand over is the driver's record, made in one tap.** `delivery:Record` with the order's units; the delivery form stays for a partial or failed delivery. The counting is the store's (step 3), so the driver no longer counts product by product.
+2. **The driver reads the store's answer through the handover, not the receipt list.** New: `GET /api/receipts/{orderId}/answer`, action `receipt:ReadAnswer` (catalogue row, driver policy, auditor deny). It answers only once a handover exists, and only to the driver of that vehicle on that date: the handover row carries `vehicle_id` and `service_date`, and its row policy already uses `app.actor_drives`. The receipt row policy gains the same clause through the handover, so the driver is never given the depot's other receipts (rule 7). `404` means not answered yet.
+3. **Polled while waiting, every 10 s, online only.** Offline, the waiting screen says so and the driver carries on; nothing is queued for a read. A notification to the driver when the store answers is a follow-up (notification routing), not part of this change.
+4. **Never a gate.** Continue to next stop is always offered while waiting; a wrong PIN, a locked PIN or no answer leaves the delivery as recorded (R-RCP-09). An unanswered receipt still auto-closes (R-RCP-05).
+
+### Work breakdown
+
+1. Backend: migration `YYYYMMDDTHHMM_receipt_driver_answer.sql` (action, policy, receipt row clause); `ReceiptDataQuery.answerForDriver`; controller route; integration test (the vehicle's driver reads the answer, a driver of another vehicle is denied and audited, `404` before the answer).
+2. Frontend mirror: `AnswerView` in `shared/domain/receipt.ts`.
+3. Driver: stop screen states arrived, waiting, answered; the store's report view; PIN accept (the existing modal); continue; unit tests of the state rule; driver mocks and a browser test of the whole stop.
+4. EDGE-CASES row (store never answers, driver offline while waiting), walkthrough, log.

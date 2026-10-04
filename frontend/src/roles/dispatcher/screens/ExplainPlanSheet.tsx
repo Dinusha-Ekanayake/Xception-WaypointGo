@@ -1,6 +1,6 @@
 "use client";
 
-import { SecondaryButton, Sheet } from "@shared/ui";
+import { RichText, SecondaryButton, Sheet } from "@shared/ui";
 import type { PlanExplanation } from "../data/explain.ts";
 
 // The plan explained in a pop-up (issue #267): what it carries, why orders were
@@ -9,7 +9,7 @@ import type { PlanExplanation } from "../data/explain.ts";
 const title = "text-[13px] font-semibold text-go-ink";
 const list = "flex list-disc flex-col gap-1 pl-5 text-[13px] text-go-ink";
 
-export default function ExplainPlanSheet({ explanation, onClose }: { explanation: PlanExplanation; onClose: () => void }): React.JSX.Element {
+export default function ExplainPlanSheet({ explanation, friendly, onClose }: { explanation: PlanExplanation; friendly?: string | null; onClose: () => void }): React.JSX.Element {
   const { leftOff, notes } = explanation;
   return (
     <Sheet label="This plan explained" onClose={onClose} centered>
@@ -17,6 +17,12 @@ export default function ExplainPlanSheet({ explanation, onClose }: { explanation
       <p className="text-[14px] text-go-ink">
         {explanation.headline} <strong className="font-semibold">{explanation.carries}</strong>
       </p>
+      {friendly && (
+        <section aria-label="In short" className="flex flex-col gap-1.5 rounded-go-card bg-go-success-tint px-3.5 py-3">
+          <RichText text={friendly} className="text-[13px] text-go-ink" />
+          <p className="text-[11px] text-go-secondary">Worded by an AI model from the facts below.</p>
+        </section>
+      )}
 
       <section className="flex flex-col gap-1.5">
         <h3 className={title}>Orders left off, and why</h3>

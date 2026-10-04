@@ -123,6 +123,8 @@ services:
       - "3000"
     environment:
       BACKEND_URL: http://backend:8080
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-}
       MAP_TILE_URL: ${MAP_TILE_URL:-}
       MCP_INTERNAL_URL: http://mcp:8081
     depends_on:

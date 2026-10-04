@@ -5,6 +5,7 @@ import com.waypoint.dispatch.receipt.application.ReceiptDataQuery;
 import com.waypoint.dispatch.receipt.contract.ReceiptViews.CustodyChainView;
 import com.waypoint.dispatch.receipt.contract.ReceiptViews.HandoverView;
 import com.waypoint.dispatch.receipt.contract.ReceiptViews.PendingReceiptView;
+import com.waypoint.dispatch.receipt.contract.ReceiptViews.ReceiptAnswerView;
 import com.waypoint.dispatch.receipt.contract.ReceiptViews.ReceiptView;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
@@ -54,6 +55,13 @@ public class ReceiptController {
   public HandoverView handover(@PathVariable UUID orderId, HttpServletRequest request) {
     var actor = authorizer.require(request, READ, "wpt:receipt:order:" + orderId);
     return receipts.handover(actor, orderId);
+  }
+
+  /** The store's answer for the driver who handed it over; 404 until the store answers, or outside scope. */
+  @GetMapping("/{orderId}/answer")
+  public ReceiptAnswerView answer(@PathVariable UUID orderId, HttpServletRequest request) {
+    var actor = authorizer.require(request, ReceiptDataQuery.READ_ANSWER, "wpt:receipt:order:" + orderId);
+    return receipts.answer(actor, orderId);
   }
 
   /** The loading check, the proof and the receipt side by side (R-RCP-08), for disputes and audit. */
