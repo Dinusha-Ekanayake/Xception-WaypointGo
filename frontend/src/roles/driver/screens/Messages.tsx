@@ -1,0 +1,65 @@
+"use client";
+
+import type { Sender } from "@shared/messaging/useThread";
+import { useTripThread } from "@shared/messaging/useThread";
+import { TripThread, cx } from "@shared/ui";
+import { BackIcon } from "../ui.tsx";
+
+// The trip's thread on the driver's phone (issue #136): what the dispatcher
+// wrote to the driver or to everyone, the driver's replies to the dispatcher
+// or a store on the trip, and reports, typed or spoken. Typed messages keep on
+// the phone with no signal; a voice note needs a connection.
+
+export default function Messages({
+  tripId,
+  vehicleId,
+  online,
+  dark,
+  sender,
+  onBack,
+}: {
+  tripId: string | null;
+  vehicleId: string | null;
+  online: boolean;
+  dark: boolean;
+  sender: Sender;
+  onBack: () => void;
+}): React.JSX.Element {
+  const thread = useTripThread(tripId);
+  const threadId = thread.data?.threadId ?? null;
+
+  return (
+    <section
+      aria-label="Messages"
+      className={cx("absolute inset-0 z-50 flex flex-col gap-3 px-5 pt-6 pb-5", dark ? "go-dark bg-[#161616] text-white" : "bg-[#E7F3F2] text-go-ink")}
+    >
+      <header className="flex items-center gap-3">
+        <button type="button" onClick={onBack} aria-label="Back" className="flex size-11 items-center justify-center rounded-full bg-go-card">
+          <BackIcon />
+        </button>
+        <div className="flex flex-col">
+          <h1 className="text-[22px] font-medium leading-tight">Messages</h1>
+          <p className="text-[13px] text-go-secondary">{vehicleId ? `${vehicleId} · dispatcher and stores on this trip` : "Your trip"}</p>
+        </div>
+      </header>
+      {!online && (
+        <p role="status" className="rounded-go-card-s bg-go-warning-tint px-3.5 py-2.5 text-[13px] text-go-warning-text">
+          No signal. What you type is kept on this phone and sent when the connection is back.
+        </p>
+      )}
+      <div className="flex min-h-0 flex-1 flex-col rounded-[24px] bg-go-card p-4">
+        {tripId === null ? (
+          <p className="py-8 text-center text-sm text-go-secondary">No trip today, so there is no one to message here.</p>
+        ) : thread.loading && !thread.data ? (
+          <p className="py-8 text-center text-sm text-go-secondary">Loading messages…</p>
+        ) : threadId === null ? (
+          <p className="py-8 text-center text-sm text-go-secondary">
+            {thread.error ? "Messages could not be loaded. They load when the connection is back." : "This trip has no messages yet."}
+          </p>
+        ) : (
+          <TripThread threadId={threadId} online={online} variant="phone" sender={sender} />
+        )}
+      </div>
+    </section>
+  );
+}
