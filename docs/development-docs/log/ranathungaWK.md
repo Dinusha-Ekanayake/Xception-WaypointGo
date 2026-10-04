@@ -9,7 +9,8 @@
 `codex/system-constraints` · @ranathungaWK
 
 Join outlet cards with Identity outlet scopes so assigned store managers appear. Add versioned edit flows for member profiles, outlet receiving details, depot names and timezones, and vehicle capacity, temperature and fuel details; reference updates publish a new immutable snapshot and survive later imports.
-Verified: frontend typecheck and backend compile. Tests were not run at the user's request.
+Correct the managed-update table grant to the existing `waypoint_ref` module role so integration databases can apply the migration.
+Verified: frontend typecheck and backend compile. Tests were not run at the user's request; the failed Actions log identified the incorrect role name.
 
 ## 2026-10-04 - reorganize the system constraints workspace
 
