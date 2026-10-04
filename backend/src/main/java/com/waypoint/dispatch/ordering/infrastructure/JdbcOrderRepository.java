@@ -225,15 +225,25 @@ public class JdbcOrderRepository {
    * actually reserved. A deferred order with no reservation is one the cutoff
    * carried forward while stock was unknown, and stock is never assumed (R-STK-05).
    */
+  /**
+   * The demand a run plans (R-ORD-16): the day's confirmed and deferred orders,
+   * and any earlier ones, up to {@value #CARRY_DAYS} days back, that never made
+   * it onto a published plan. An order on a published plan is allocated and is
+   * not demand again. Oldest requested first.
+   */
   public List<Order> demand(String depotCode, LocalDate serviceDate) {
     return many(
         "SELECT " + COLUMNS + " FROM ordering.orders"
-            + " WHERE depot_code = ? AND delivery_date = ?"
+            + " WHERE depot_code = ? AND delivery_date <= ? AND delivery_date >= ?"
             + " AND status IN ('confirmed','deferred') AND warehouse_order_ref IS NOT NULL"
             + " ORDER BY original_requested_date, order_ref",
         depotCode,
-        Date.valueOf(serviceDate));
+        Date.valueOf(serviceDate),
+        Date.valueOf(serviceDate.minusDays(CARRY_DAYS)));
   }
+
+  /** How far back an order never planned is still carried into the next run. */
+  static final int CARRY_DAYS = 14;
 
   public record StatusChange(
       Optional<OrderStatus> from, OrderStatus to, String reason, Optional<UUID> actorId, Instant at) {}
