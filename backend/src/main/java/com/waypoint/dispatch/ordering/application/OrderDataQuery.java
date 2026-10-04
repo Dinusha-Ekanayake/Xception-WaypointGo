@@ -259,6 +259,35 @@ public class OrderDataQuery implements OrderQuery {
                 .toList());
   }
 
+  @Override
+  public List<com.waypoint.dispatch.ordering.contract.OrderViews.OpenOrderView> openOrders(
+      String depotCode, LocalDate from, LocalDate to) {
+    return read(
+        Actor.SYSTEM_ID,
+        () ->
+            database
+                .query(
+                    """
+                    SELECT order_id, outlet_id, brand_code, delivery_date
+                      FROM ordering.orders
+                     WHERE depot_code = ? AND delivery_date BETWEEN ? AND ?
+                       AND status IN ('stock_unknown', 'partially_reserved', 'confirmed', 'deferred')
+                     ORDER BY delivery_date, order_id
+                    """,
+                    depotCode,
+                    java.sql.Date.valueOf(from),
+                    java.sql.Date.valueOf(to))
+                .stream()
+                .map(
+                    r ->
+                        new com.waypoint.dispatch.ordering.contract.OrderViews.OpenOrderView(
+                            (UUID) r.get("order_id"),
+                            (String) r.get("outlet_id"),
+                            (String) r.get("brand_code"),
+                            ((java.sql.Date) r.get("delivery_date")).toLocalDate()))
+                .toList());
+  }
+
   // ---- internals -----------------------------------------------------------
 
   private UUID ambient() {

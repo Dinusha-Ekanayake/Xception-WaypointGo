@@ -34,3 +34,13 @@ test("a day a trip already serves the district wins over a nearer one", () => {
 test("nothing is suggested when no day is on track", () => {
   assert.equal(suggestDay([day("2026-10-08", "BUSY"), day("2026-10-09", "TOO_EARLY"), day("2026-10-10", "CLOSED")], "2026-10-08"), null);
 });
+
+test("only an order booked for a later day and not yet planned is watched", async () => {
+  const { awaitingPlan, warningWords } = await import("../src/roles/store/data/outlook.ts");
+  assert.equal(awaitingPlan({ status: "CONFIRMED", deliveryDate: "2026-10-09" }, "2026-10-04"), true);
+  assert.equal(awaitingPlan({ status: "DEFERRED", deliveryDate: "2026-10-09" }, "2026-10-04"), true);
+  assert.equal(awaitingPlan({ status: "ALLOCATED", deliveryDate: "2026-10-09" }, "2026-10-04"), false, "the plan decided");
+  assert.equal(awaitingPlan({ status: "CONFIRMED", deliveryDate: "2026-10-04" }, "2026-10-04"), false, "today is past warning");
+  assert.equal(warningWords("AT_RISK"), "at risk");
+  assert.equal(warningWords("BUSY"), "busy");
+});

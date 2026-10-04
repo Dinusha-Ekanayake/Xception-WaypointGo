@@ -48,3 +48,22 @@ test("with the outlook down every day can still be chosen and the strip says so"
   await strip.getByRole("button").nth(10).click();
   await expect(strip.getByRole("button").nth(10)).toHaveAttribute("aria-pressed", "true");
 });
+
+test("an unplanned order on a day that turned busy says so in its sheet (R-ML-08)", async ({ page }) => {
+  await mockStore(page, { week: true, outlook: { [shift(1)]: "BUSY" } });
+  await page.goto("/");
+  await page.getByRole("navigation", { name: "Store" }).getByRole("button", { name: /^Orders/ }).click();
+  await page.getByRole("button", { name: /ORD0092420/ }).click();
+
+  await expect(page.getByText(/ is busy$/)).toBeVisible();
+  await expect(page.getByText("Your order may move a day; dispatch plans it the afternoon before.", { exact: false })).toBeVisible();
+});
+
+test("a planned order shows no outlook warning, whatever the day looks like", async ({ page }) => {
+  await mockStore(page, { week: true, outlook: { [shift(0)]: "AT_RISK" } });
+  await page.goto("/");
+  await page.getByRole("navigation", { name: "Store" }).getByRole("button", { name: /^Orders/ }).click();
+  await page.getByRole("button", { name: /ORD0092418/ }).click();
+  await expect(page.getByText(/Planned for .+ · stop 4/).last()).toBeVisible();
+  await expect(page.getByText(/ is at risk$/)).toHaveCount(0);
+});
