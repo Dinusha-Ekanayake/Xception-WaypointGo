@@ -1,5 +1,6 @@
 import type { AllocationView, CostView, ImprovementView, OrderView, PlanView, TripView, VehicleView } from "@shared/domain/types";
 import { PUBLISHED_EDIT_CLOSES } from "../../../shared/domain/planning.ts";
+import { businessNow } from "../../../shared/wording/index.ts";
 export { hhmm } from "../../../shared/wording/index.ts";
 
 // What a plan adds up to on the dispatcher's screen. Pure: the plan, the day's
@@ -126,7 +127,7 @@ export function after(time: string, minutes: string | number): string {
  * 16:00 depot time that day (R-PLN-43). Depot time is Asia/Colombo, which has
  * no daylight saving, so the offset is fixed.
  */
-export function publishedEditOpen(serviceDate: string, now: Date = new Date()): boolean {
+export function publishedEditOpen(serviceDate: string, now: Date = businessNow()): boolean {
   return now.getTime() < Date.parse(`${serviceDate}T${PUBLISHED_EDIT_CLOSES}:00+05:30`);
 }
 

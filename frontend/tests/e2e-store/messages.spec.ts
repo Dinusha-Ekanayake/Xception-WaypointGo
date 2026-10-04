@@ -25,7 +25,8 @@ test("a message notification opens the trip's thread, and the store replies to t
     return route.fulfill(json({ items: [n], nextCursor: null }));
   });
   await page.goto("/");
-  await page.getByRole("region", { name: "Notifications" }).getByRole("button", { name: /Running 20 min late/ }).click();
+  await page.getByRole("button", { name: /^Notifications/ }).first().click();
+  await page.getByRole("dialog", { name: "Notifications" }).getByRole("button", { name: /Running 20 min late/ }).click();
 
   const sheet = page.getByRole("dialog", { name: "Trip messages" });
   await expect(sheet.getByText("Running 20 min late, now expected 06:05")).toBeVisible();

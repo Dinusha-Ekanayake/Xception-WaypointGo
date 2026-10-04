@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-04 - fix: the demo clock reaches scheduled jobs and every role's screens
+
+`fix/demo-clock-reach` · @jv-ransika
+
+Moving the demo clock moved commands only. The scheduler handed jobs real time and fired crons on the real hour, so the 16:00 cutoff, outlook warnings, forecast and calendar check ignored it, and auto-close and escalation compared real time with rows stamped on the demo clock. Jobs now get the business clock; a job whose cron names a business hour opts in with `onBusinessClock()` and is checked every 15 s against it (`BusinessCronTick`, DEMO-07). The other way round, the warehouse catalogue's age and the warehouse and model circuits were on the demo clock, so a clock moved 2 h ahead showed "The warehouse is not answering" until the next sync; they are on real time now (DEMO-08). On screen, today, the 16:00 cutoff, windows, countdowns, notification ages and the driver's arrival stamp read `businessNow()` (`shared/wording/now.ts`), set from `/api/demo` and kept when offline.
+Verified: `BusinessCronTickTest`, `WarehouseCircuitClockTest`, `mvn verify` (1028, one error in `ReferenceCreationIntegrationTest`, admin reference additions, outside this change); `npm test` (267), typecheck, build; store browser suite 57 of 57. The other suites run in CI.
+Open: a business-clock job is up to 15 s late, and with several replicas it can run twice in a row (the jobs are idempotent).
+
+---
+
 ## 2026-10-04 - fix: Compare shows an order's ref, never its internal id
 
 `fix/compare-order-refs` · @jv-ransika

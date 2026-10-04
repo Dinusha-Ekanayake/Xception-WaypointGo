@@ -57,7 +57,7 @@ public class DemoCommandHandlers {
         catch(java.time.format.DateTimeParseException invalid) { throw new DomainException(ErrorCode.VALIDATION_FAILED,"Choose a valid target time"); }
         if(days.latestClose().filter(target::isBefore).isPresent())
           throw new DomainException(ErrorCode.CONFLICT,"The clock cannot precede the last committed order close");
-        offset=Duration.between(Clock.system().now(),target).getSeconds();
+        offset=DemoSettings.offsetTo(Duration.between(Clock.system().now(),target).getSeconds());
       }
       var next=new DemoSettings(enabled,offset,
           integer(command,"simPointIntervalMs",old.simPointIntervalMs()), integer(command,"positionFlushMs",old.positionFlushMs()),

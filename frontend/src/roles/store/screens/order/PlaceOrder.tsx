@@ -16,6 +16,7 @@ import OrderSent, { type Sent } from "./OrderSent.tsx";
 import OrderSummary from "./OrderSummary.tsx";
 import DateStrip from "./DateStrip.tsx";
 import RideAlongHint from "./RideAlongHint.tsx";
+import { businessNow } from "@shared/wording";
 
 // Figma "03 Place order", "03b chilled", "03c add item", "03d item added" and
 // "03e draft saved". Chilled and ambient are separate orders (R-ORD-06), so one
@@ -94,7 +95,7 @@ export default function PlaceOrder({
   const saveAsDraft = () => {
     setNote(
       saveDraft(outletKey, qty)
-        ? { title: `Draft saved · ${clock(new Date().toISOString())}`, detail: left > 0 ? "Submit before 16:00 to send it" : "Nothing is sent until you submit" }
+        ? { title: `Draft saved · ${clock(businessNow())}`, detail: left > 0 ? "Submit before 16:00 to send it" : "Nothing is sent until you submit" }
         : { title: "This device cannot keep a draft", detail: "Submit the order to keep it", tone: "danger" },
     );
   };

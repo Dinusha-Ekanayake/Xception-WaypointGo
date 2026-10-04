@@ -6,21 +6,17 @@ import { useResource } from "@shared/api/useResource";
 import type { DemoView } from "@shared/domain/types";
 import { clock, dayLabel } from "@shared/wording/time";
 import { Badge, Empty, card, field, primary, secondary } from "../access/components";
+import { depotParts } from "./clock";
 import { depotInstant, loadDemo, loadRuns, resetDay, setClock, setEnabled, startSimulation, updateSettings } from "./data";
 import ScenarioDeck from "./ScenarioDeck";
 import type { SetupAction } from "./scenarios";
 import SimulationsPanel from "./SimulationsPanel";
 import PresenterGuide from "./PresenterGuide";
+import DemoClockPanel from "./DemoClockPanel";
 
 // Issue #231, the demo control room. Off by default; one switch turns it on or
 // off at runtime with a reason, and every control here is a demo:* command
 // through the bus. Off, the rest of Waypoint behaves exactly as without it.
-
-const PRESETS: Array<{ label: string; hhmm: string; hint: string }> = [
-  { label: "Before cutoff 15:30", hhmm: "15:30", hint: "Stores can still order for the next run" },
-  { label: "After cutoff 16:05", hhmm: "16:05", hint: "The dispatcher can close orders and plan" },
-  { label: "Early morning 05:00", hhmm: "05:00", hint: "Loading and departures" },
-];
 
 function problemText(error: unknown): string {
   if (error instanceof ApiError) return error.problem.detail || error.problem.title;
@@ -31,7 +27,6 @@ export default function DemoControlRoom(): React.JSX.Element {
   const demo = useResource(loadDemo, "admin-demo", 5_000);
   const runs = useResource(loadRuns, "admin-demo-runs", 10_000);
   const [reason, setReason] = useState("Live demo");
-  const [custom, setCustom] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ tone: "green" | "red"; text: string } | null>(null);
   const view = demo.data;
@@ -81,7 +76,7 @@ export default function DemoControlRoom(): React.JSX.Element {
             </div>
             <p className="text-sm text-go-secondary">
               {view.enabled
-                ? `Demo clock ${clock(view.now)} · ${dayLabel(depotInstant(view, clock(view.now)).toISOString().slice(0, 10))}. Every role shows a demo banner.`
+                ? `Demo clock ${dayLabel(depotParts(view.now).date)} · ${depotParts(view.now).time}. Every role shows a demo banner.`
                 : "Off: Waypoint runs on real time and no role sees anything of the demo."}
             </p>
           </div>
@@ -103,30 +98,7 @@ export default function DemoControlRoom(): React.JSX.Element {
 
       {view.enabled && (
         <>
-          <section className={`${card} flex flex-col gap-4 p-5`}>
-            <h2 className="text-lg font-medium text-go-ink">Demo clock</h2>
-            <p className="text-sm text-go-secondary">Moves cutoff, closing, ETAs and lateness together. Sign-in and security keep real time.</p>
-            <div className="flex flex-wrap gap-2">
-              {PRESETS.map((p) => (
-                <button key={p.hhmm} type="button" title={p.hint} className={secondary} disabled={busy}
-                  onClick={() => void run(`Clock ${p.hhmm}`, (v) => setClock(v, depotInstant(v, p.hhmm), r))}>
-                  {p.label}
-                </button>
-              ))}
-              <button type="button" className={secondary} disabled={busy} onClick={() => void run("Real time", (v) => setClock(v, new Date(), r))}>
-                Real time
-              </button>
-            </div>
-            <div className="flex flex-wrap items-end gap-2">
-              <label className="flex flex-col gap-1 text-sm text-go-secondary">
-                Custom depot time
-                <input className={field} type="time" value={custom} onChange={(e) => setCustom(e.target.value)} />
-              </label>
-              <button type="button" className={secondary} disabled={busy || !custom} onClick={() => void run(`Clock ${custom}`, (v) => setClock(v, depotInstant(v, custom), r))}>
-                Set time
-              </button>
-            </div>
-          </section>
+          <DemoClockPanel view={view} busy={busy} reason={r} run={(label, action) => void run(label, action)} />
 
           <section className={`${card} flex flex-col gap-4 p-5`}>
             <h2 className="text-lg font-medium text-go-ink">Demo day and settings</h2>

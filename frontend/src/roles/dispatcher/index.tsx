@@ -23,6 +23,8 @@ import Orders from "./screens/Orders.tsx";
 import Plan from "./screens/Plan.tsx";
 import Issues from "./screens/Issues.tsx";
 import Forecast from "./screens/Forecast.tsx";
+import { businessNow } from "@shared/wording";
+import { useClockOffset } from "@shared/demo/useDemo";
 
 // The dispatcher workspace from the Figma "Dispatcher · Desktop" page. It is
 // online only: no write queue, and a read-only state when the connection drops
@@ -56,8 +58,17 @@ export default function Dispatcher({
 
   const depots = depotsFor(depotFilter, scope);
   const label = scopeLabel(depotFilter, scope);
-  // Overview and Vehicles are today's fleet.
+  // Overview and Vehicles are today's fleet, on the business clock: a moved demo
+  // clock moves today, and the plan's day with it while it was still on today.
+  useClockOffset();
   const today = depotToday();
+  const wasToday = useRef(today);
+  useEffect(() => {
+    if (wasToday.current === today) return;
+    const before = wasToday.current;
+    wasToday.current = today;
+    setDate((d) => (d === before ? today : d));
+  }, [today]);
   const fleet = useFleet(depots, today);
 
   // The sidebar's counts: orders that need a person, and stops that do. Only a
@@ -69,7 +80,7 @@ export default function Dispatcher({
   const badges: Badges = {
     orders: dayOrders.data ? flow(dayOrders.data).attention : 0,
     ...(planWord ? { plan: { text: planWord } } : {}),
-    live: dayLive.data ? attention(dayLive.data.sheets, new Date()).length : 0,
+    live: dayLive.data ? attention(dayLive.data.sheets, businessNow()).length : 0,
   };
 
   // The search box's own read of open issues (issue #usability): every other

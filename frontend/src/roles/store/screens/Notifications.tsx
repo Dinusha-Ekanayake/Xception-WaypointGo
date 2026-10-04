@@ -6,7 +6,7 @@ import type { Inbox } from "@shared/notifications/useInbox";
 import { isUnread, kindOf, toneOf, TONE_STYLE } from "@shared/notifications/inbox";
 import { Icon, SkeletonRows, cx } from "@shared/ui";
 import { Drawer } from "../ui.tsx";
-import { clock, dayLabel, depotToday } from "@shared/wording";
+import { clock, dayLabel, depotToday, businessNow } from "@shared/wording";
 
 // The store manager's notifications (issue #118), Figma "14 Store Manager ·
 // Desktop" and "15 · Mobile", 10 Notifications (11:117503 drawer, 11:125924
@@ -17,7 +17,7 @@ import { clock, dayLabel, depotToday } from "@shared/wording";
 
 
 /** "03:12" today, "Sat 19:10" before: depot time, whatever the phone's own zone. */
-export function when(createdAt: string, now: Date = new Date()): string {
+export function when(createdAt: string, now: Date = businessNow()): string {
   const at = new Date(createdAt);
   const day = depotToday(at);
   if (day === depotToday(now)) return clock(at);
@@ -78,12 +78,40 @@ export function NotificationsDrawer({
   onSubject: OpenSubject;
   onClose: () => void;
 }): React.JSX.Element {
-  const [lookedAt] = useState(() => new Date());
-  const { open, error } = useOpen(inbox, (n) => {
+  const [readIds, setReadIds] = useState<Set<string>>(() => new Set());
+  const [lookedAt] = useState(() => businessNow());
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const { open, error: openError } = useOpen(inbox, (n) => {
     onClose();
     onSubject(n);
   });
-  const unread = inbox.items.filter(isUnread).length;
+
+  const visibleItems = inbox.items.filter((n) => isUnread(n) && !readIds.has(n.notificationId));
+  const unread = visibleItems.length;
+
+  const handleOpen = (n: NotificationView) => {
+    setReadIds((prev) => new Set(prev).add(n.notificationId));
+    open(n);
+  };
+
+  const handleReadAll = async () => {
+    setActionError(null);
+    setReadIds((prev) => {
+      const next = new Set(prev);
+      for (const item of inbox.items) {
+        next.add(item.notificationId);
+      }
+      return next;
+    });
+    try {
+      await inbox.markAllRead(lookedAt);
+    } catch (failure: unknown) {
+      setActionError(failure instanceof Error ? failure.message : "Could not mark all as read.");
+    }
+  };
+
+  const error = actionError ?? openError ?? inbox.error;
 
   return (
     <Drawer label="Notifications" onClose={onClose}>
@@ -92,9 +120,24 @@ export function NotificationsDrawer({
           <h2 className="text-[26px] font-medium text-black">Notifications</h2>
           <p className="text-[14px] text-go-muted">{unread > 0 ? `${unread} new · today` : "All caught up"}</p>
         </div>
-        <button type="button" onClick={onClose} aria-label="Close notifications" className="flex size-10 shrink-0 items-center justify-center rounded-full bg-go-canvas text-black">
-          <Icon name="close" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            disabled={unread === 0 || !inbox.online}
+            onClick={() => void handleReadAll()}
+            className="flex h-10 items-center justify-center rounded-full border border-go-rule bg-white px-3.5 text-[14px] font-medium text-black hover:bg-go-canvas disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Read all
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close notifications"
+            className="flex size-10 shrink-0 items-center justify-center rounded-full bg-go-canvas text-black"
+          >
+            <Icon name="close" />
+          </button>
+        </div>
       </div>
       {!inbox.online && (
         <p role="status" className="rounded-[14px] bg-go-warning-tint px-3.5 py-2.5 text-[14px] text-go-warning-text">
@@ -104,8 +147,8 @@ export function NotificationsDrawer({
       {inbox.online && !inbox.live && inbox.unread !== null && (
         <p role="status" className="text-[13px] text-go-muted">Live updates paused. Checking every 30 seconds.</p>
       )}
-      {(error ?? inbox.error) && <p role="alert" className="text-[14px] text-go-danger-strong">{error ?? inbox.error}</p>}
-      {inbox.items.length === 0 ? (
+      {error && <p role="alert" className="text-[14px] text-go-danger-strong">{error}</p>}
+      {visibleItems.length === 0 ? (
         inbox.loading ? (
           <SkeletonRows rows={3} label="Loading…" />
         ) : (
@@ -113,8 +156,8 @@ export function NotificationsDrawer({
         )
       ) : (
         <ul className="flex flex-col gap-3">
-          {inbox.items.map((n) => (
-            <Row key={n.notificationId} n={n} onOpen={open} />
+          {visibleItems.map((n) => (
+            <Row key={n.notificationId} n={n} onOpen={handleOpen} />
           ))}
         </ul>
       )}
@@ -127,7 +170,7 @@ export function NotificationsDrawer({
       <button
         type="button"
         disabled={unread === 0 || !inbox.online}
-        onClick={() => void inbox.markAllRead(lookedAt).catch(() => undefined)}
+        onClick={() => void handleReadAll()}
         className="min-h-[52px] shrink-0 rounded-full border border-go-rule bg-white text-[16px] font-medium text-black disabled:opacity-50"
       >
         Mark all as read
@@ -138,8 +181,16 @@ export function NotificationsDrawer({
 
 /** The Home card (11:117599): the bell, the count of new ones, the four newest. */
 export function NotificationsCard({ inbox, onSubject, onAll }: { inbox: Inbox; onSubject: OpenSubject; onAll: () => void }): React.JSX.Element {
+  const [readIds, setReadIds] = useState<Set<string>>(() => new Set());
   const { open, error } = useOpen(inbox, onSubject);
-  const unread = inbox.items.filter(isUnread).length;
+  const visibleItems = inbox.items.filter((n) => isUnread(n) && !readIds.has(n.notificationId));
+  const unread = visibleItems.length;
+
+  const handleOpen = (n: NotificationView) => {
+    setReadIds((prev) => new Set(prev).add(n.notificationId));
+    open(n);
+  };
+
   return (
     <>
       <div className="flex items-center justify-between gap-2">
@@ -150,7 +201,7 @@ export function NotificationsCard({ inbox, onSubject, onAll }: { inbox: Inbox; o
         {unread > 0 && <span className="rounded-full bg-go-mint px-2.5 py-1 text-[13px] font-medium text-black">{unread} new</span>}
       </div>
       {error && <p role="alert" className="text-[13px] text-go-danger-strong">{error}</p>}
-      {inbox.items.length === 0 ? (
+      {visibleItems.length === 0 ? (
         inbox.loading ? (
           <SkeletonRows rows={2} label="Loading…" />
         ) : (
@@ -158,8 +209,8 @@ export function NotificationsCard({ inbox, onSubject, onAll }: { inbox: Inbox; o
         )
       ) : (
         <ul className="flex flex-col gap-3">
-          {inbox.items.slice(0, 4).map((n) => (
-            <Row key={n.notificationId} n={n} onOpen={open} />
+          {visibleItems.slice(0, 4).map((n) => (
+            <Row key={n.notificationId} n={n} onOpen={handleOpen} />
           ))}
         </ul>
       )}

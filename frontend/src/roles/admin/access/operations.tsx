@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge, Empty, VehicleTypeIcon, card, field, primary, secondary } from "./components";
 import { todayInColombo, type DemoState } from "./model";
-import { createAdminVehicle, fetchAdminVehicles, fetchAdminDepots, updateAdminVehicle } from "../data/reference";
+import { createAdminVehicle, fetchAdminVehicles, fetchAdminDepots, updateAdminVehicle, submitSetVehicleDayStatus } from "../data/reference";
 import {
   fetchAccounts,
   fetchDriverAssignments,
@@ -42,6 +42,7 @@ export type Vehicle = {
   temp: "Ambient" | "Chilled (Refrigerated)";
   status: "Available" | "On trip" | "Workshop" | "Unavailable";
   lastDriver?: LastDriver;
+  nextDriver?: LastDriver;
   rowVersion?: number;
 };
 
@@ -78,6 +79,11 @@ export function VehiclesScreen({ state }: { state?: DemoState } = {}) {
   const [newVehicleFuelQuota, setNewVehicleFuelQuota] = useState("280");
   const [newVehicleEfficiency, setNewVehicleEfficiency] = useState("11.2");
 
+  const [statusModalVehicle, setStatusModalVehicle] = useState<Vehicle | null>(null);
+  const [statusChoice, setStatusChoice] = useState<"available" | "in_workshop" | "unavailable">("available");
+  const [statusUpdating, setStatusUpdating] = useState(false);
+  const [statusError, setStatusError] = useState("");
+
   const [depot, setDepot] = useState("all");
   const [capacityFilter, setCapacityFilter] = useState("all");
   const [fuelQuotaFilter, setFuelQuotaFilter] = useState("all");
@@ -97,7 +103,7 @@ export function VehiclesScreen({ state }: { state?: DemoState } = {}) {
           search: query.trim() || undefined,
           limit: 100,
         }),
-        fetchDriverAssignments({ on: todayInColombo() }).catch(() => [] as DriverAssignmentView[]),
+        fetchDriverAssignments({ limit: 100 }).catch(() => [] as DriverAssignmentView[]),
         fetchAccounts({ limit: 100 }).catch(() => ({ items: [] as AccountView[], nextCursor: null })),
       ]);
 
@@ -116,9 +122,17 @@ export function VehiclesScreen({ state }: { state?: DemoState } = {}) {
             ? "Workshop"
             : v.dayStatus === "unavailable" ? "Unavailable" : "Available";
 
-        const activeAssign = assignmentsList.find((a) => a.vehicleId === v.vehicleId);
+        const today = todayInColombo();
+        const vehicleAssignments = assignmentsList.filter((a) => a.vehicleId === v.vehicleId);
+        const activeAssign = vehicleAssignments.find((a) => a.from <= today && (!a.until || today < a.until));
+        const nextAssign = vehicleAssignments
+          .filter((a) => a.from > today)
+          .sort((a, b) => a.from.localeCompare(b.from))[0];
         const driverAcc = activeAssign
           ? drivers.find((d) => d.userId === activeAssign.driverUserId)
+          : undefined;
+        const nextDriverAcc = nextAssign
+          ? drivers.find((d) => d.userId === nextAssign.driverUserId)
           : undefined;
 
         const lastDriver: LastDriver | undefined = activeAssign
@@ -132,6 +146,19 @@ export function VehiclesScreen({ state }: { state?: DemoState } = {}) {
               assignmentId: activeAssign.assignmentId,
               assignmentVersion: activeAssign.rowVersion,
               driverVersion: driverAcc?.rowVersion,
+            }
+          : undefined;
+        const nextDriver: LastDriver | undefined = nextAssign
+          ? {
+              id: nextAssign.driverUserId,
+              name: nextAssign.driverName,
+              phone: nextDriverAcc?.email || "",
+              lastRunDate: nextAssign.from,
+              from: nextAssign.from,
+              until: nextAssign.until,
+              assignmentId: nextAssign.assignmentId,
+              assignmentVersion: nextAssign.rowVersion,
+              driverVersion: nextDriverAcc?.rowVersion,
             }
           : undefined;
 
@@ -148,6 +175,7 @@ export function VehiclesScreen({ state }: { state?: DemoState } = {}) {
           temp: tempVal,
           status: statusVal,
           lastDriver,
+          nextDriver,
           rowVersion: v.rowVersion,
         };
       });
@@ -186,9 +214,9 @@ export function VehiclesScreen({ state }: { state?: DemoState } = {}) {
 
   function openAssignDriverModal(vehicle: Vehicle) {
     setAssigningVehicle(vehicle);
-    setAssignDriverId(vehicle.lastDriver?.id || "");
+    setAssignDriverId(vehicle.lastDriver?.id || vehicle.nextDriver?.id || "");
     setAssignFrom(todayInColombo());
-    setAssignUntil(vehicle.lastDriver?.until || "");
+    setAssignUntil(vehicle.lastDriver?.until || vehicle.nextDriver?.until || "");
     setAssignError("");
   }
 
@@ -220,22 +248,57 @@ export function VehiclesScreen({ state }: { state?: DemoState } = {}) {
   };
 
   const handleEndAssignment = async () => {
-    if (!assigningVehicle?.lastDriver?.assignmentId) return;
+    const target = assigningVehicle?.lastDriver ?? assigningVehicle?.nextDriver;
+    if (!assigningVehicle || !target?.assignmentId) return;
     setEndingAssignment(true);
     setAssignError("");
     try {
       await submitEndDriverAssignment({
-        assignmentId: assigningVehicle.lastDriver.assignmentId,
-        on: todayInColombo(),
-        expectedVersion: assigningVehicle.lastDriver.assignmentVersion ?? 1,
+        assignmentId: target.assignmentId,
+        on: assigningVehicle.lastDriver ? todayInColombo() : (target.from ?? todayInColombo()),
+        expectedVersion: target.assignmentVersion ?? 1,
       });
-      setCreateNotice(`Driver assignment for ${assigningVehicle.id} ended.`);
+      setCreateNotice(assigningVehicle.lastDriver
+        ? `Driver unassigned from ${assigningVehicle.id}.`
+        : `Scheduled driver assignment cancelled for ${assigningVehicle.id}.`);
       setAssigningVehicle(null);
       void loadVehicles();
     } catch (err) {
       setAssignError(err instanceof Error ? err.message : "Could not end driver assignment.");
     } finally {
       setEndingAssignment(false);
+    }
+  };
+
+  function openStatusModal(vehicle: Vehicle) {
+    setStatusModalVehicle(vehicle);
+    setStatusChoice(
+      vehicle.status === "Workshop"
+        ? "in_workshop"
+        : vehicle.status === "Unavailable"
+        ? "unavailable"
+        : "available"
+    );
+    setStatusError("");
+  }
+
+  const handleUpdateStatus = async () => {
+    if (!statusModalVehicle) return;
+    setStatusUpdating(true);
+    setStatusError("");
+    try {
+      await submitSetVehicleDayStatus({
+        vehicleId: statusModalVehicle.id,
+        status: statusChoice,
+        serviceDate: todayInColombo(),
+      });
+      setCreateNotice(`Vehicle ${statusModalVehicle.id} status updated.`);
+      setStatusModalVehicle(null);
+      void loadVehicles();
+    } catch (err) {
+      setStatusError(err instanceof Error ? err.message : "Could not update vehicle status.");
+    } finally {
+      setStatusUpdating(false);
     }
   };
 
@@ -548,9 +611,16 @@ export function VehiclesScreen({ state }: { state?: DemoState } = {}) {
 
                   {/* Status & Actions */}
                   <div className="flex items-center gap-3">
-                    <Badge tone={item.status === "Available" ? "green" : item.status === "Workshop" ? "amber" : "blue"}>
-                      {item.status}
-                    </Badge>
+                    <button
+                      type="button"
+                      className="cursor-pointer"
+                      onClick={() => openStatusModal(item)}
+                      title="Change vehicle day status"
+                    >
+                      <Badge tone={item.status === "Available" ? "green" : item.status === "Workshop" ? "amber" : "blue"}>
+                        {item.status}
+                      </Badge>
+                    </button>
                     <button
                       type="button"
                       className={`${secondary} min-h-9 px-3 text-xs flex items-center gap-1.5`}
@@ -687,6 +757,13 @@ export function VehiclesScreen({ state }: { state?: DemoState } = {}) {
                         onClick={() => openAssignDriverModal(item)}
                       >
                         {item.lastDriver ? "Change driver" : "Assign driver"}
+                      </button>
+                      <button
+                        type="button"
+                        className={`${secondary} text-xs`}
+                        onClick={() => openStatusModal(item)}
+                      >
+                        Change status
                       </button>
                       <button
                         type="button"
@@ -943,6 +1020,8 @@ export function VehiclesScreen({ state }: { state?: DemoState } = {}) {
                 </div>
                 {assigningVehicle.lastDriver ? (
                   <Badge tone="blue">Current: {assigningVehicle.lastDriver.name}</Badge>
+                ) : assigningVehicle.nextDriver ? (
+                  <Badge tone="amber">Scheduled: {assigningVehicle.nextDriver.name} · {dayLabel(assigningVehicle.nextDriver.from ?? "")}</Badge>
                 ) : (
                   <Badge tone="neutral">Unassigned</Badge>
                 )}
@@ -1003,14 +1082,18 @@ export function VehiclesScreen({ state }: { state?: DemoState } = {}) {
               </p>
 
               <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-go-subtle">
-                {assigningVehicle.lastDriver?.assignmentId ? (
+                {(assigningVehicle.lastDriver?.assignmentId || assigningVehicle.nextDriver?.assignmentId) ? (
                   <button
                     type="button"
                     className="text-xs font-semibold text-red-600 hover:underline"
                     disabled={endingAssignment}
                     onClick={() => void handleEndAssignment()}
                   >
-                    {endingAssignment ? "Ending assignment..." : "End current assignment"}
+                    {endingAssignment
+                      ? "Updating assignment..."
+                      : assigningVehicle.lastDriver
+                        ? "Unassign driver now"
+                        : "Cancel scheduled assignment"}
                   </button>
                 ) : <span />}
 
@@ -1031,6 +1114,96 @@ export function VehiclesScreen({ state }: { state?: DemoState } = {}) {
                     {assigning ? "Assigning..." : "Assign driver"}
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Set Vehicle Day Status Modal */}
+      {statusModalVehicle && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="vehicle-status-modal-title"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs"
+        >
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 sm:p-7 shadow-2xl border border-go-rule animate-in fade-in duration-200">
+            <div className="flex items-center justify-between border-b border-go-subtle pb-4">
+              <div>
+                <h3 id="vehicle-status-modal-title" className="text-xl font-bold text-go-ink">
+                  Vehicle Status · {statusModalVehicle.id}
+                </h3>
+                <p className="text-xs text-go-secondary">
+                  Update operational dispatch availability for today in Colombo.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="grid size-9 place-items-center rounded-full text-go-secondary hover:bg-go-subtle text-lg"
+                onClick={() => setStatusModalVehicle(null)}
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-4 text-sm">
+              {statusError && (
+                <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+                  {statusError}
+                </p>
+              )}
+
+              <fieldset className="space-y-2.5">
+                <legend className="text-xs font-semibold uppercase tracking-wider text-go-secondary">
+                  Dispatch status
+                </legend>
+                {[
+                  { value: "available", label: "Available", desc: "Vehicle is in service and ready for trip allocation." },
+                  { value: "in_workshop", label: "In workshop", desc: "Vehicle is undergoing maintenance or service." },
+                  { value: "unavailable", label: "Unavailable", desc: "Vehicle is out of service or decommissioned for the day." },
+                ].map((opt) => (
+                  <label
+                    key={opt.value}
+                    className={`flex items-start gap-3 rounded-2xl border p-3.5 cursor-pointer transition-all ${
+                      statusChoice === opt.value
+                        ? "border-go-teal bg-go-subtle ring-1 ring-go-teal"
+                        : "border-go-rule bg-white hover:bg-go-subtle"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="vehicle-day-status"
+                      value={opt.value}
+                      checked={statusChoice === opt.value}
+                      onChange={() => setStatusChoice(opt.value as "available" | "in_workshop" | "unavailable")}
+                      className="mt-0.5"
+                    />
+                    <div>
+                      <p className="font-semibold text-go-ink">{opt.label}</p>
+                      <p className="text-xs text-go-secondary">{opt.desc}</p>
+                    </div>
+                  </label>
+                ))}
+              </fieldset>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-go-subtle">
+                <button
+                  type="button"
+                  className={secondary}
+                  onClick={() => setStatusModalVehicle(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className={primary}
+                  disabled={statusUpdating}
+                  onClick={() => void handleUpdateStatus()}
+                >
+                  {statusUpdating ? "Updating..." : "Update status"}
+                </button>
               </div>
             </div>
           </div>

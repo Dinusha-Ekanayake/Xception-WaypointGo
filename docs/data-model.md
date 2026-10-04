@@ -1,27 +1,37 @@
 # Data model
 
-Generated from the live migrations by `scripts/data-model.py`: 95 tables in 13 schemas. Regenerate after any migration; do not edit by hand. The design reasoning, findings and target model are in [DATA-MODEL-REVIEW.md](architecture/DATA-MODEL-REVIEW.md); the components that own each schema are in [architecture.md](architecture.md).
+Generated from the live migrations by `scripts/data-model.py`: 110 tables in 15 schemas. Regenerate after any migration; do not edit by hand. The design reasoning, findings and target model are in [DATA-MODEL-REVIEW.md](architecture/DATA-MODEL-REVIEW.md); the components that own each schema are in [architecture.md](architecture.md).
+
+## The day's data in one picture
+
+![How an order travels through the data](diagrams/06-data-lifecycle.png)
+
+One order is carried from schema to schema by id and by event, never by a foreign key: `ordering.orders` is allocated to a stop on a `planning.trips` row, copied into `loading.stops` when the plan is published, into `execution.delivery_records` when the trip is released, and answered by `receipt.confirmations`; anything that goes wrong is an `issues` row. Every write leaves a receipt, an audit row and outbox events in `integration`.
 
 ## How the schemas connect
+
+![Schemas and foreign keys](diagrams/07-schema-map.png)
 
 Each module owns one schema and is the only writer to it. Foreign keys point only into `ref` and `iam`; every other reference between modules is by id with no foreign key, so one module's migration never waits on another's (AGENTS.md, Data and Migration Rules). Lines below are real foreign keys between schemas.
 
 ```mermaid
 flowchart LR
-  ref["ref<br/>Reference data<br/>16 tables"]
-  iam["iam<br/>Identity and access<br/>18 tables"]
-  ordering["ordering<br/>Ordering<br/>4 tables"]
+  ref["ref<br/>Reference data<br/>18 tables"]
+  iam["iam<br/>Identity and access<br/>20 tables"]
+  ordering["ordering<br/>Ordering<br/>5 tables"]
   warehouse["warehouse<br/>Warehouse<br/>6 tables"]
-  planning["planning<br/>Planning<br/>9 tables"]
+  planning["planning<br/>Planning<br/>11 tables"]
   loading["loading<br/>Loading<br/>6 tables"]
-  execution["execution<br/>Execution<br/>8 tables"]
+  execution["execution<br/>Execution<br/>9 tables"]
   receipt["receipt<br/>Receipt<br/>6 tables"]
   issues["issues<br/>Issues<br/>7 tables"]
+  messaging["messaging<br/>Messaging<br/>3 tables"]
   notification["notification<br/>Notification<br/>5 tables"]
   sync["sync<br/>Sync<br/>1 table"]
-  ml["ml<br/>Intelligence<br/>4 tables"]
+  ml["ml<br/>Intelligence<br/>5 tables"]
+  demo["demo<br/>Demo (opt-in judge scenarios)<br/>3 tables"]
   integration["integration<br/>Platform (outbox, inbox, receipts, audit, jobs)<br/>5 tables"]
-  execution -->|5 FK| ref
+  execution -->|6 FK| ref
   iam -->|2 FK| ref
   issues -->|1 FK| iam
   issues -->|2 FK| ref
@@ -61,6 +71,15 @@ erDiagram
     uuid reference_version_id PK
     text district_name PK
     text depot_code FK
+  }
+  managed_additions {
+    text kind PK
+    text natural_id PK
+  }
+  managed_updates {
+    text kind PK
+    text natural_id PK
+    bigint row_version
   }
   outlet_details {
     text outlet_id PK
@@ -133,12 +152,14 @@ erDiagram
 | `brands` |  | 3 |
 | `calendar_days` |  | 13 |
 | `calendar_overrides` | A person overruling the calendar for one day. Read on top of ref.calendar_days when a snapshot is loaded, so it survives a reference import. | 5 |
-| `depots` |  | 4 |
+| `depots` |  | 7 |
 | `district_travel` |  | 8 |
-| `districts` |  | 3 |
+| `districts` |  | 5 |
+| `managed_additions` |  | 5 |
+| `managed_updates` |  | 6 |
 | `outlet_details` | A store's own delivery window, dock type and contacts, set by its manager. Read on top of the current reference version when a snapshot is loaded, so it survives an import (R-REF-01). | 10 |
 | `outlet_registry` |  | 1 |
-| `outlets` |  | 12 |
+| `outlets` |  | 13 |
 | `reference_versions` |  | 6 |
 | `road_conditions` |  | 3 |
 | `service_allowances` |  | 4 |
@@ -162,6 +183,16 @@ erDiagram
   }
   login_attempts {
   }
+  mcp_rate_windows {
+    text bucket PK
+    timestamptz window_start PK
+  }
+  mcp_write_confirmations {
+    text confirmation_hash PK
+    uuid user_id FK
+    uuid oauth_client_id
+    uuid command_id UK
+  }
   oauth_authorization_codes {
     text code_hash PK
     uuid client_id FK
@@ -169,6 +200,7 @@ erDiagram
   }
   oauth_clients {
     uuid client_id PK
+    bigint row_version
   }
   pin_attempts {
     uuid user_id FK
@@ -257,6 +289,7 @@ erDiagram
   oauth_clients ||--o{ oauth_authorization_codes : "client_id"
   users ||--o{ oauth_authorization_codes : "user_id"
   oauth_clients ||--o{ sessions : "oauth_client_id"
+  users ||--o{ mcp_write_confirmations : "user_id"
 ```
 
 | Table | Purpose | Columns |
@@ -264,8 +297,10 @@ erDiagram
 | `action_catalogue` |  | 4 |
 | `devices` |  | 10 |
 | `login_attempts` |  | 5 |
-| `oauth_authorization_codes` | One-time codes between sign-in and token exchange. Only the hash is stored; consumed_at makes a code single use. | 10 |
-| `oauth_clients` | Public OAuth clients that registered themselves for the remote MCP endpoint. No secret is ever issued. | 6 |
+| `mcp_rate_windows` | MCP requests per credential or OAuth client per one-minute window, shared by every replica (R-IAM-33). | 3 |
+| `mcp_write_confirmations` | MCP write previews awaiting the person's confirmation (R-IAM-35). Single use, bound to one connection. | 12 |
+| `oauth_authorization_codes` | One-time codes between sign-in and token exchange. Only the hash is stored; consumed_at makes a code single use. | 11 |
+| `oauth_clients` | Public OAuth clients that registered themselves for the remote MCP endpoint. No secret is ever issued. | 10 |
 | `pin_attempts` | Shared across replicas, or a second replica is a bypass. Five failures pause PIN entry for that person. | 5 |
 | `policies` |  | 7 |
 | `policy_attachments` |  | 6 |
@@ -273,7 +308,7 @@ erDiagram
 | `policy_versions` |  | 7 |
 | `roles` |  | 2 |
 | `session_operators` | Who operated a shared device and when. A queued write is accepted for the operator whose interval covers its recorded time. | 7 |
-| `sessions` |  | 12 |
+| `sessions` |  | 13 |
 | `user_depot_access` |  | 2 |
 | `user_outlet_access` |  | 2 |
 | `user_roles` |  | 2 |
@@ -299,6 +334,12 @@ erDiagram
     uuid actor_id
     uuid event_id
   }
+  order_stops {
+    uuid order_id PK
+    uuid trip_id
+    date service_date
+    integer plan_version
+  }
   orders {
     uuid order_id PK
     text order_ref UK
@@ -316,6 +357,7 @@ erDiagram
   orders ||--o{ orders : "redelivery_of"
   orders ||--o{ order_lines : "order_id"
   orders ||--o{ order_status_history : "order_id"
+  orders ||--o{ order_stops : "order_id"
 ```
 
 | Table | Purpose | Columns |
@@ -323,6 +365,7 @@ erDiagram
 | `day_closures` | orders.closed happened for this depot and day. Amendments stop, new orders roll forward. | 5 |
 | `order_lines` | Descriptive only. The current lines are those at orders.line_revision. | 4 |
 | `order_status_history` | Every status change with its actor, reason and time (architecture rule 8). Null actor is the system. | 8 |
+| `order_stops` | The stop and planned arrival of an allocated order, from plan.published and plan.revised (issue #224). | 7 |
 | `orders` | One outlet's demand for one delivery date. Status moves only along OrderStateMachine. | 26 |
 
 ## `warehouse`: Warehouse
@@ -401,6 +444,15 @@ erDiagram
     text depot_code
     date service_date
   }
+  generation_jobs {
+    uuid job_id PK
+    text depot_code
+    date service_date
+    text status
+    uuid command_id
+    uuid plan_id
+    bigint row_version
+  }
   policy_versions {
     uuid policy_version_id PK
     text depot_code
@@ -419,6 +471,7 @@ erDiagram
   }
   rule_sets {
     uuid rule_set_id PK
+    bigint row_version
   }
   runs {
     uuid plan_id PK
@@ -432,6 +485,14 @@ erDiagram
     uuid priority_policy_version_id FK
     uuid supersedes FK
     uuid command_id
+  }
+  snapshots {
+    uuid snapshot_id PK
+    text depot_code UK
+    date service_date UK
+    integer number UK
+    uuid source_plan_id FK
+    integer plan_version
   }
   trips {
     uuid trip_id PK
@@ -459,19 +520,22 @@ erDiagram
   ref_vehicle_registry ||--o{ fuel_usage : "vehicle_id"
   trips ||--o{ allocations : "plan_id, trip_id"
   trips ||--o{ route_legs : "trip_id, plan_id"
+  runs ||--o{ snapshots : "source_plan_id"
 ```
 
 | Table | Purpose | Columns |
 | --- | --- | --- |
-| `allocations` |  | 14 |
+| `allocations` |  | 18 |
 | `deferrals` | Who deferred which order, why, and how often it has now been skipped (rule 8, R-PLN-20). The engine is the system actor. | 10 |
 | `fuel_usage` | Litres per vehicle per run. Weekly usage counts published runs only; a draft never consumes quota (D-K, B15). | 6 |
+| `generation_jobs` | Queued plan generations: one active per depot and day, claimed with SKIP LOCKED and a lease (R-PLN-41). | 16 |
 | `policy_versions` | Effective-dated decision tables. keys is the ordered PriorityPolicy.Key list, highest priority first (R-PLN-21). | 9 |
 | `route_legs` | Planned times only. Actual times belong to Execution. | 9 |
 | `rule_parameters` |  | 4 |
-| `rule_sets` | Effective-dated rule parameters. Immutable except closing effective_to when a successor starts. | 6 |
-| `runs` | One planning run for a depot and day. plan_version is the business revision, row_version the concurrency revision. | 23 |
-| `trips` |  | 13 |
+| `rule_sets` | Effective-dated rule parameters. Immutable except closing effective_to when a successor starts. | 7 |
+| `runs` | One planning run for a depot and day. plan_version is the business revision, row_version the concurrency revision. | 24 |
+| `snapshots` | A plan as a dispatcher saw it at a moment. Written once, never changed (INSERT and SELECT only). | 11 |
+| `trips` |  | 14 |
 
 ## `loading`: Loading
 
@@ -601,6 +665,16 @@ erDiagram
     text vehicle_id FK
     date service_date
   }
+  vehicle_positions {
+    uuid position_id PK
+    text vehicle_id FK
+    text depot_code
+    date service_date
+    uuid trip_id FK
+    uuid driver_id
+    timestamptz recorded_at UK
+    uuid command_id
+  }
   vehicle_reports {
     uuid report_id PK
     text vehicle_id FK
@@ -623,6 +697,8 @@ erDiagram
   proofs ||--o{ delivery_records : "proof_id"
   delivery_records ||--o{ road_reports : "delivery_id"
   delivery_records ||--o{ delivery_lines : "delivery_id"
+  ref_vehicle_registry ||--o{ vehicle_positions : "vehicle_id"
+  trips ||--o{ vehicle_positions : "trip_id"
 ```
 
 | Table | Purpose | Columns |
@@ -634,6 +710,7 @@ erDiagram
 | `proofs` | Append only. The latest attempt is the delivery's proof; earlier ones stay as evidence. recipient_name is personal data. | 13 |
 | `road_reports` | A road fault or delay a driver reported (R-EXE-07). | 12 |
 | `trips` | A trip as it left the dock (trip.released). announced_delay_minutes is the delay last told to the stops ahead. | 8 |
+| `vehicle_positions` | GPS fixes from the assigned driver's phone. Personal data: never logged, thinned after service day plus 30 days. | 15 |
 | `vehicle_reports` | What a driver reported about the vehicle (R-EXE-06). A report changes nothing in reference data; the dispatcher applies vehicle:SetDayStatus. | 13 |
 
 ## `receipt`: Receipt
@@ -757,6 +834,43 @@ erDiagram
 | `issues` | One operational problem: owner, lifecycle, recorded resolution. Never deleted. | 21 |
 | `parameters` |  | 5 |
 
+## `messaging`: Messaging
+
+```mermaid
+erDiagram
+  messages {
+    uuid message_id PK
+    uuid thread_id FK
+    uuid author_user_id UK
+    uuid voice_note_id FK
+    uuid client_message_id UK
+    uuid source_event_id UK
+    uuid command_id
+    uuid source_issue_id
+  }
+  threads {
+    uuid thread_id PK
+    text subject_type UK
+    text subject_id UK
+    text depot_code
+    text vehicle_id
+    date service_date
+  }
+  voice_notes {
+    uuid voice_note_id PK
+    uuid thread_id FK
+  }
+  threads ||--o{ voice_notes : "thread_id"
+  threads ||--o{ messages : "thread_id"
+  voice_notes ||--o{ messages : "voice_note_id"
+```
+
+| Table | Purpose | Columns |
+| --- | --- | --- |
+| `messages` | What people wrote on a thread, and the reports they made. Append only and never deleted. Bodies are personal communication: never logged. | 19 |
+| `threads` | One conversation per subject (issue #136). A trip's thread is opened when its plan is published and keeps its depot, vehicle, date and outlets. | 9 |
+| `voice_notes` | The audio of a voice message or report. Personal communication: never logged, served only to who may see its message. | 12 |
+
 ## `notification`: Notification
 
 ```mermaid
@@ -805,7 +919,7 @@ erDiagram
 | Table | Purpose | Columns |
 | --- | --- | --- |
 | `deliveries` | Each channel a notification went out on, with every attempt counted. A push that keeps failing reaches dead and stays. | 11 |
-| `notifications` | One message to one person about one event. Kept forever; read state only ever moves from unread to read. | 13 |
+| `notifications` | One message to one person about one event. Kept forever; read state only ever moves from unread to read. | 14 |
 | `push_subscriptions` | A browser push endpoint per person and device. One browser has one endpoint, so it is active for one person at a time. | 10 |
 | `routing_rules` | Event type to recipient role and scope, with the message template. {name} is filled from the event. | 10 |
 | `routing_versions` | One version of the routing matrix is current. A change is a new version, never an edit. | 4 |
@@ -859,6 +973,13 @@ erDiagram
     text status
     bigint row_version
   }
+  order_outlooks {
+    uuid order_id PK
+    date delivery_date PK
+    text outlet_id
+    text depot_code
+    text status
+  }
   plan_scorings {
     uuid plan_id PK
     text depot_code
@@ -879,7 +1000,37 @@ erDiagram
 | `delivery_predictions` |  | 13 |
 | `demand_forecasts` | Weekly depot x brand forecasts. Every run is kept; a read takes the newest per week. | 12 |
 | `model_versions` | Model registry. A model is used only while active and only when the serving process reports the same name and version. | 17 |
+| `order_outlooks` |  | 7 |
 | `plan_scorings` | One per published plan: whether its stops were scored by a model or by the deterministic estimator, and why. | 14 |
+
+## `demo`: Demo (opt-in judge scenarios)
+
+```mermaid
+erDiagram
+  scenario_runs {
+    uuid id PK
+    bigint row_version
+  }
+  settings {
+    boolean id PK
+    bigint row_version
+  }
+  simulations {
+    uuid id PK
+    text vehicle_id
+    date service_date
+    uuid trip_id
+    uuid driver_user_id
+    text status
+    bigint row_version
+  }
+```
+
+| Table | Purpose | Columns |
+| --- | --- | --- |
+| `scenario_runs` |  | 8 |
+| `settings` |  | 10 |
+| `simulations` |  | 13 |
 
 ## `integration`: Platform (outbox, inbox, receipts, audit, jobs)
 

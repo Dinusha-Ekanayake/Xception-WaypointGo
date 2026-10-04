@@ -22,10 +22,11 @@ import Track from "./screens/Track.tsx";
 import ProfileDialog from "./screens/account/ProfileDialog.tsx";
 import StoreDetailsDialog from "./screens/account/StoreDetailsDialog.tsx";
 import { SideNav, TabBar, Toast, type Tab } from "./ui.tsx";
-import { NotificationsCard, NotificationsDrawer } from "./screens/Notifications.tsx";
+import { NotificationsDrawer } from "./screens/Notifications.tsx";
 import TripMessages, { type OpenThread } from "./screens/TripMessages.tsx";
 import { useInbox } from "@shared/notifications/useInbox";
 import type { NotificationView } from "@shared/domain/types";
+import { useClockOffset } from "@shared/demo/useDemo";
 
 // The store manager workspace from Figma "15 Store Manager · Mobile" and
 // "14 Store Manager · Desktop": a tab bar on phones, a sidebar from lg. Resilient offline tier
@@ -81,6 +82,8 @@ export default function Store({
   const orders = useResource(forOutlet(gateway.orders), outletId, 20_000);
   const pending = useResource(forOutlet(gateway.pendingReceipts), outletId, 20_000);
   const warehouse = useResource((s) => gateway.catalogueStatus(s), "catalogue", 60_000);
+  // Today on the business clock, which demo mode can move.
+  useClockOffset();
   const today = depotToday();
   const deliveries = useResource(outletId ? (s) => gateway.deliveries(outletId, today, s) : null, `${outletId}|${today}`, 20_000);
   const orderIds = recentOrderIds(orders.data ?? [], today);
@@ -267,7 +270,6 @@ export default function Store({
         onReceive={receive}
         onTrack={() => openView({ kind: "track" })}
         onRetry={orders.refresh}
-        notifications={<NotificationsCard inbox={inbox} onSubject={openSubject} onAll={() => setInboxOpen(true)} />}
       />
     );
   } else if (tab === "orders") {

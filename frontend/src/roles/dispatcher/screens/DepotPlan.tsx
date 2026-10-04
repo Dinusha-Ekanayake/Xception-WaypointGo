@@ -19,6 +19,8 @@ import PlanCompare from "./PlanCompare.tsx";
 import PlanDecide from "./PlanDecide.tsx";
 import PlanPublish from "./PlanPublish.tsx";
 import PlanSteps, { type Tab } from "./PlanSteps.tsx";
+import { explainPlan } from "../data/explain.ts";
+import ExplainPlanSheet from "./ExplainPlanSheet.tsx";
 import PlanTools from "./PlanTools.tsx";
 import type { Place, PlanActions } from "./planActions.ts";
 import Refusal, { refusalText } from "./Refusal.tsx";
@@ -226,12 +228,15 @@ export default function DepotPlan({
         ].filter((line): line is string => line !== null)
       : [];
   const draft = state.stage === "draft";
+  const [explaining, setExplaining] = useState(false);
   const toolsLine = summary && plan ? `saved ${savedWhen(plan.savedAt)} · ${stage}` : plans.data ? stage : "Loading";
 
   return (
     <section aria-label="Plan" className="flex w-full flex-col gap-4">
       <div className="flex w-full flex-wrap items-center gap-3">
         <p className="min-w-[200px] flex-1 text-[13px] text-go-secondary">{toolsLine}</p>
+        {plan && <SecondaryButton onClick={() => setExplaining(true)}>Explain this plan</SecondaryButton>}
+        {explaining && plan && <ExplainPlanSheet explanation={explainPlan({ plan, day: dayLabel(plan.serviceDate), notes: about })} onClose={() => setExplaining(false)} />}
         {state.stage !== "none" && !settled && (
           <PlanTools
             draft={draft}
