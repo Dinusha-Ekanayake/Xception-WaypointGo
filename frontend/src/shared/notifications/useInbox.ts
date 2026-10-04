@@ -149,15 +149,18 @@ export function useInbox(accountId: string | null, enabled = true): Inbox {
   const markRead = useCallback(async (ids: string[]) => {
     const fresh = ids.filter((id) => items.some((n) => n.notificationId === id && n.readAt === null));
     if (fresh.length === 0) return;
+    const nowIso = new Date().toISOString();
+    setItems((current) => markedRead(current, new Set(fresh), nowIso));
+    setUnread((current) => (current !== null ? Math.max(0, current - fresh.length) : null));
     const ack = await send<{ unread: number }>(newCommand(NotificationCommandKind.markRead, { notificationIds: fresh }));
-    setItems((current) => markedRead(current, new Set(fresh), new Date().toISOString()));
     if (typeof ack.result?.unread === "number") setUnread(ack.result.unread);
   }, [items]);
 
   const markAllRead = useCallback(async (upTo: Date = new Date()) => {
     const at = upTo.toISOString();
-    const ack = await send<{ unread: number }>(newCommand(NotificationCommandKind.markAllRead, { upTo: at }));
     setItems((current) => markedAllRead(current, at));
+    setUnread(0);
+    const ack = await send<{ unread: number }>(newCommand(NotificationCommandKind.markAllRead, { upTo: at }));
     if (typeof ack.result?.unread === "number") setUnread(ack.result.unread);
   }, []);
 
