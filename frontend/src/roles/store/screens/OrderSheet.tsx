@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { useResource } from "@shared/api/useResource";
 import { OrderCommandKind, type OrderView } from "@shared/domain/types";
-import { Notice } from "@shared/ui";
+import { Notice, SkeletonRows } from "@shared/ui";
 import type { StoreGateway } from "../data/gateway.ts";
-import { ORDER_STATUS, cases, clock, dayLabel, depotToday, editable, temperatureLabel } from "../data/format.ts";
+import { ORDER_STATUS, units, clock, dayLabel, depotToday, editable, planNote, temperatureLabel } from "../data/format.ts";
+import { awaitingPlan, needsWarning, warningWords } from "../data/outlook.ts";
 import { conflictMessage, type useCommands } from "../data/useCommands.ts";
 import { Button, Chip, Sheet } from "../ui.tsx";
 
@@ -32,6 +33,13 @@ export default function OrderSheet({
   onClose: () => void;
 }): React.JSX.Element {
   const history = useResource((s) => gateway.history(order.orderId, s), `${order.orderId}:${order.rowVersion}:${order.status}`);
+  // R-ML-08: a booked day that has turned busy says so here too; quiet when it has not, or when the outlook is unavailable.
+  const watched = awaitingPlan(order, depotToday());
+  const outlook = useResource(
+    watched ? (s) => gateway.outlook(order.outletId, order.deliveryDate, order.deliveryDate, s) : null,
+    `${order.orderId}|${order.deliveryDate}`,
+  );
+  const outlookDay = outlook.data?.days.find((d) => d.date === order.deliveryDate);
   const [cancelling, setCancelling] = useState(false);
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -52,9 +60,15 @@ export default function OrderSheet({
         <Chip tone={s.tone}>{s.label}</Chip>
       </div>
       <p className="text-[15px] text-go-muted">
-        {temperatureLabel(order.temperature)} · {cases(order.itemCount)} · {order.weightKg} kg · {order.volumeM3} m³ · delivery {dayLabel(order.deliveryDate)}
+        {temperatureLabel(order.temperature)} · {units(order.itemCount)} · {order.weightKg} kg · {order.volumeM3} m³ · delivery {dayLabel(order.deliveryDate)}
         {order.dateRolled && ` (moved from ${dayLabel(order.requestedDate)}, not a delivery day)`}
       </p>
+      {planNote(order) && <Notice tone="info" title={planNote(order)!}>Dispatch has put your order on a vehicle for that day.</Notice>}
+      {watched && outlookDay && needsWarning(outlookDay) && (
+        <Notice tone="warning" title={`${dayLabel(order.deliveryDate)} is ${warningWords(outlookDay.status)}`}>
+          {outlookDay.reason}. Your order may move a day; dispatch plans it the afternoon before.
+        </Notice>
+      )}
       {error && <Notice tone="danger" live title={error} />}
       {queued && <Notice tone="warning" live title="Cancellation saved on this phone. It is sent when the connection returns." />}
 
@@ -78,8 +92,17 @@ export default function OrderSheet({
               </span>
             </li>
           ))}
-          {history.loading && <li className="text-[13px] text-go-muted">Loading…</li>}
+          {history.loading && (
+            <li>
+              <SkeletonRows label="Loading…" />
+            </li>
+          )}
         </ol>
+        {history.error && !history.loading && (
+          <Notice tone="danger" title="Could not load the timeline" onRetry={history.refresh}>
+            {history.error.message}
+          </Notice>
+        )}
       </section>
 
       {order.status === "DEFERRED" && (

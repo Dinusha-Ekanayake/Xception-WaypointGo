@@ -260,7 +260,10 @@ public class IntelligenceDataQuery implements PredictionQuery, ModelQuery, Trave
           .sorted(java.util.Comparator.comparing(BrandVolumeView::brandCode))
           .toList();
       int operating = (int) week.stream().filter(CalendarDayView::operating).count();
-      FleetCapacity.Week capacity = FleetCapacity.weekly(fleet, operating);
+      FleetCapacity.Week capacity = FleetCapacity.weekly(fleet, week.stream()
+          .filter(CalendarDayView::operating)
+          .map(day -> plans.maxTripsFor(day.date()))
+          .toList());
       out.add(new ForecastWeekView(
           year, isoWeek, weekStart, operating,
           (int) week.stream().filter(CalendarDayView::holiday).count(),

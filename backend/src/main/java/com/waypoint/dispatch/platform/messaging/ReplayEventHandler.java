@@ -41,7 +41,7 @@ public class ReplayEventHandler implements CommandHandler {
       Database database, AuditLog audit, Clock clock, Metrics metrics, RelaySignal relay) {
     this.database = database;
     this.audit = audit;
-    this.clock = clock;
+    this.clock = clock.realTime();
     this.metrics = metrics;
     this.relay = relay;
   }

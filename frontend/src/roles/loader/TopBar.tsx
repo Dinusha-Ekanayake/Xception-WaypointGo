@@ -1,19 +1,20 @@
 import type { ReactNode } from "react";
-import { Icon, cx, useShell } from "@shared/ui";
+import { CountBadge, Icon, cx, useShell } from "@shared/ui";
 import { useT } from "./i18n.tsx";
 import { GearIcon, LockIcon, MoonIcon, SunIcon, SwapIcon } from "./icons.tsx";
 import { useTheme } from "./theme.tsx";
 import { initials } from "./ui.tsx";
 import { clock } from "@shared/wording";
+import { useKeptSince } from "@shared/offline";
 
 // The loader's top bar, Figma "08 Loader · Phone" (01 Dock board, 02 Load
 // sheet) and the tablet pages. Connection state is always on screen: the
 // resilient tier keeps working offline, and the loader must know their ticks
 // are waiting.
 //
-// Phone: the brand or back, then theme and settings; under it, when a loader is
-// working, their name with the bell and the lock, and Switch user. Tablet: one
-// row, the bell between the name and the actions. The bell carries a red dot
+// Phone: the brand or back, then theme and settings; under it, when a loader
+// is working, their name (it opens Settings, as the picture does on tablets)
+// with the bell and the lock, and Switch user. Tablet: one row, the bell between the name and the actions. The bell carries the unread count
 // while anything is unread (issue #118). "Synced 02:23" is a button: it sends
 // what waits and reads the board again.
 
@@ -60,11 +61,17 @@ export default function TopBar({
   const tr = useT();
   const { theme, setTheme } = useTheme();
   const shell = useShell();
+  // When a screen shows what this device kept rather than the server's answer, say from when (#201).
+  const since = useKeptSince();
   const sync = !online
     ? waiting > 0
       ? tr("Offline · {n} saved on this device", { n: waiting })
-      : tr("Offline · showing last sync")
-    : waiting > 0
+      : since
+        ? tr("Offline · showing {time}", { time: clock(since) })
+        : tr("Offline · showing last sync")
+    : since
+      ? tr("Server unreachable · showing {time}", { time: clock(since) })
+      : waiting > 0
       ? tr("Sending {n}…", { n: waiting })
       : syncedAt
         ? tr("Synced {time}", { time: clock(syncedAt) })
@@ -101,7 +108,7 @@ export default function TopBar({
     onNotifications && (
       <button type="button" onClick={onNotifications} aria-label={bellLabel} className={cx("relative flex shrink-0 items-center justify-center text-go-ink", className)}>
         <Icon name="bell" />
-        {hasUnread && <span aria-hidden className="absolute top-1.5 right-1.5 size-2.5 rounded-full border-2 border-go-card bg-[#ea2525]" />}
+        <CountBadge count={unread} />
       </button>
     );
   const sampleBadge = sample && (
@@ -154,7 +161,9 @@ export default function TopBar({
         {displayName && (
           <div className="flex w-full items-center justify-between gap-2">
             <span className="flex h-12 min-w-0 items-center gap-1 rounded-full border border-go-muted pr-1 pl-5 text-[15px] text-go-muted">
-              <span className="truncate">{displayName}</span>
+              <button type="button" onClick={onSettings} aria-label={`${tr("Settings")}: ${displayName}`} className="min-h-10 truncate text-left">
+                {displayName}
+              </button>
               {bell("size-10")}
               {lock}
             </span>
@@ -173,15 +182,17 @@ export default function TopBar({
           <span className="text-[18px] font-semibold text-go-ink">{title ?? tr("Waypoint · Loader")}</span>
           <span className="text-[14px] text-go-ink/85">{subtitle ?? tr("Depot {depot}", { depot })}</span>
         </div>
-        {syncButton("flex min-h-12 shrink-0 items-center gap-2 rounded-full bg-go-card pr-3.5 pl-3 text-[14px] shadow-go-float")}
+        {syncButton("flex min-h-12 shrink-0 items-center gap-2 rounded-full bg-go-card pr-3.5 pl-3 text-[14px] shadow-go-float min-[1700px]:text-[16px]")}
         <span className="flex-1" />
         {sampleBadge}
         {displayName && (
           <span className="flex min-h-12 shrink-0 items-center gap-2 rounded-full bg-go-card py-1 pr-1 pl-1 shadow-go-float lg:pl-1">
-            <span className="flex size-10 items-center justify-center rounded-full bg-go-soft text-[13px] font-semibold text-go-on-soft">
-              {initials(displayName)}
-            </span>
-            <span className="text-[14px] text-go-muted max-lg:hidden">{displayName}</span>
+            <button type="button" onClick={onSettings} aria-label={`${tr("Settings")}: ${displayName}`} className="flex items-center gap-2">
+              <span className="flex size-10 items-center justify-center rounded-full bg-go-soft text-[13px] font-semibold text-go-on-soft">
+                {initials(displayName)}
+              </span>
+              <span className="text-[14px] text-go-muted max-lg:hidden">{displayName}</span>
+            </button>
             {lock}
           </span>
         )}

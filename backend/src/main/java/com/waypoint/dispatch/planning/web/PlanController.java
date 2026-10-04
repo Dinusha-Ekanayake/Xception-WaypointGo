@@ -1,12 +1,19 @@
 package com.waypoint.dispatch.planning.web;
 
 import com.waypoint.dispatch.planning.application.PlanDataQuery;
+import com.waypoint.dispatch.planning.contract.PlanViews.AllocationPageView;
 import com.waypoint.dispatch.planning.contract.PlanViews.AllocationView;
+import com.waypoint.dispatch.planning.contract.PlanViews.PlanSummaryView;
 import com.waypoint.dispatch.planning.contract.PlanViews.DeferralView;
 import com.waypoint.dispatch.planning.contract.PlanViews.FuelView;
 import com.waypoint.dispatch.planning.contract.PlanViews.InterchangePreview;
 import com.waypoint.dispatch.planning.contract.PlanViews.PlacementView;
+import com.waypoint.dispatch.planning.contract.PlanViews.ComparisonView;
+import com.waypoint.dispatch.planning.contract.PlanViews.GenerationJobView;
 import com.waypoint.dispatch.planning.contract.PlanViews.PlanView;
+import com.waypoint.dispatch.planning.contract.PlanViews.SnapshotDetailView;
+import com.waypoint.dispatch.planning.contract.PlanViews.SnapshotView;
+import com.waypoint.dispatch.planning.contract.PlanViews.TripPreview;
 import com.waypoint.dispatch.platform.web.RequestAuthorizer;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.LocalDate;
@@ -38,6 +45,21 @@ public class PlanController {
     this.authorizer = authorizer;
   }
 
+  /** A queued plan generation (R-PLN-41), which the screen follows after Generate. */
+  @GetMapping("/jobs/{jobId}")
+  public GenerationJobView job(@PathVariable UUID jobId, @RequestParam String depot, HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:plan:depot:" + depot);
+    return plans.job(actor, depot, jobId);
+  }
+
+  /** The latest generation for a depot and day; 404 while there has been none. */
+  @GetMapping("/jobs")
+  public GenerationJobView latestJob(
+      @RequestParam String depot, @RequestParam LocalDate date, HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:plan:depot:" + depot);
+    return plans.latestJob(actor, depot, date);
+  }
+
   /** The current published plan for a depot and day; 404 while none is published. */
   @GetMapping("/published")
   public PlanView published(
@@ -52,6 +74,45 @@ public class PlanController {
       @RequestParam String depot, @RequestParam LocalDate date, HttpServletRequest request) {
     var actor = authorizer.require(request, READ, "wpt:plan:depot:" + depot);
     return plans.workingDraft(actor, depot, date);
+  }
+
+  /** The published plan without its allocations (issue #177); 404 while none is published. */
+  @GetMapping("/published/summary")
+  public PlanSummaryView publishedSummary(
+      @RequestParam String depot, @RequestParam LocalDate date, HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:plan:depot:" + depot);
+    return plans.publishedSummary(actor, depot, date);
+  }
+
+  /** The open draft without its allocations; 404 while none is open. */
+  @GetMapping("/draft/summary")
+  public PlanSummaryView draftSummary(
+      @RequestParam String depot, @RequestParam LocalDate date, HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:plan:depot:" + depot);
+    return plans.draftSummary(actor, depot, date);
+  }
+
+  /** One keyset page of a plan's allocations, in order id order. */
+  @GetMapping("/{planId}/allocations")
+  public AllocationPageView allocations(
+      @PathVariable UUID planId,
+      @RequestParam(required = false) String after,
+      @RequestParam(required = false, defaultValue = "50") int limit,
+      HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:plan:plan:" + planId);
+    return plans.allocationPage(actor, planId, cursor(after), limit);
+  }
+
+  private static java.util.Optional<UUID> cursor(String after) {
+    if (after == null || after.isBlank()) {
+      return java.util.Optional.empty();
+    }
+    try {
+      return java.util.Optional.of(UUID.fromString(after));
+    } catch (IllegalArgumentException e) {
+      throw new com.waypoint.dispatch.shared.error.DomainException(
+          com.waypoint.dispatch.shared.error.ErrorCode.VALIDATION_FAILED, "after is not a cursor from this list");
+    }
   }
 
   /** Any version, draft to superseded, with every allocation's constraint results. */
@@ -88,6 +149,61 @@ public class PlanController {
       @RequestParam UUID trip, @RequestParam String vehicle, HttpServletRequest request) {
     var actor = authorizer.require(request, READ, "wpt:plan:trip:" + trip);
     return plans.previewInterchange(actor, trip, vehicle);
+  }
+
+  /**
+   * The trip a swap would leave, and every rule's verdict on the vehicle's day;
+   * with {@code orders}, the trip's stops in that order after the swap.
+   */
+  @GetMapping("/preview/swap")
+  public TripPreview previewSwap(
+      @RequestParam UUID out,
+      @RequestParam("in") UUID in,
+      @RequestParam(required = false) List<UUID> orders,
+      HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:plan:order:" + out);
+    return plans.previewSwap(actor, out, in, orders == null ? List.of() : orders);
+  }
+
+  /**
+   * A trip holding exactly the orders given, in that order (comma separated;
+   * none removes the trip), timed and checked against the vehicle's day.
+   */
+  @GetMapping("/preview/trip")
+  public TripPreview previewTripEdit(
+      @RequestParam UUID trip, @RequestParam(required = false) List<UUID> orders, HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:plan:trip:" + trip);
+    return plans.previewTripEdit(actor, trip, orders == null ? List.of() : orders);
+  }
+
+  /** A trip with its stops in the order given (every order of it, comma separated), timed and checked. */
+  @GetMapping("/preview/sequence")
+  public TripPreview previewSequence(
+      @RequestParam UUID trip, @RequestParam List<UUID> orders, HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:plan:trip:" + trip);
+    return plans.previewSequence(actor, trip, orders);
+  }
+
+  /** The saved plans of a depot and day, newest first. */
+  @GetMapping("/snapshots")
+  public List<SnapshotView> snapshots(
+      @RequestParam String depot, @RequestParam LocalDate date, HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:plan:depot:" + depot);
+    return plans.snapshots(actor, depot, date);
+  }
+
+  /** One saved plan with the plan itself, read only. */
+  @GetMapping("/snapshots/{snapshotId}")
+  public SnapshotDetailView snapshot(@PathVariable UUID snapshotId, HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:plan:snapshot:" + snapshotId);
+    return plans.snapshot(actor, snapshotId);
+  }
+
+  /** Two plans of one depot and day side by side; each id is a saved plan or a plan version. */
+  @GetMapping("/compare")
+  public ComparisonView compare(@RequestParam UUID a, @RequestParam UUID b, HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:plan:plan:" + a);
+    return plans.compare(actor, a, b);
   }
 
   /** Weekly fuel for the ISO week containing {@code date}, published plans only (D-K). */

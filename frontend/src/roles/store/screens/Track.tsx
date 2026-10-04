@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { useResource } from "@shared/api/useResource";
 import type { DeliveryRecordView, IssueView, OrderView, OutletView, PendingReceiptView } from "@shared/domain/types";
-import { Icon, Notice, Pending, cx } from "@shared/ui";
+import { Icon, Notice, Pending, SkeletonRows, cx } from "@shared/ui";
 import type { StoreGateway } from "../data/gateway.ts";
-import { ORDER_STATUS, cases, clock, depotToday, hhmm, longDay, onTheWay, temperatureLabel } from "../data/format.ts";
+import { ORDER_STATUS, units, clock, depotToday, hhmm, longDay, onTheWay, temperatureLabel } from "../data/format.ts";
 import { ISSUE_TYPE, isOpenIssue } from "../data/issues.ts";
 import { BackButton, Button, Card, Chip, Muted } from "../ui.tsx";
 import LiveMapCard from "./LiveMapCard.tsx";
@@ -92,7 +92,7 @@ export default function Track({
       ) : (
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
           <div className="flex min-w-0 flex-col gap-5">
-            <Card label="Where it is">
+            <Card label="Where it is" style={{ viewTransitionName: "vt-delivery" }}>
               <div className="flex items-center gap-2">
                 <Chip tone={arrived ? "ink" : "mint"}>{arrived ? "Arrived" : "On the way"}</Chip>
                 {refrigerated && <Chip outline>Refrigerated vehicle</Chip>}
@@ -105,7 +105,7 @@ export default function Track({
 
             <Card label="Timeline">
               <h2 className="text-[18px] font-medium text-black">Timeline</h2>
-              {history.error && <Notice tone="danger" title="Could not load the timeline">{history.error.message}</Notice>}
+              {history.error && <Notice tone="danger" title="Could not load the timeline" onRetry={history.refresh}>{history.error.message}</Notice>}
               <ol className="flex flex-col gap-3">
                 {(history.data ?? []).map((h) => (
                   <li key={`${h.to}-${h.at}`} className="flex gap-3">
@@ -129,14 +129,14 @@ export default function Track({
                   </li>
                 )}
               </ol>
-              {history.loading && !history.data && <Muted>Loading…</Muted>}
+              {history.loading && !history.data && <SkeletonRows label="Loading…" />}
             </Card>
           </div>
 
           <div className="flex flex-col gap-5">
             <Card label="Need to talk">
               <h2 className="text-[18px] font-medium text-black">Need to talk?</h2>
-              <Pending what="Calling the dispatcher or the driver" waitingOn="contact numbers (not on record yet)" />
+              <Pending what="Calling the dispatcher or the driver" waitingOn="Contact numbers are not on record yet. Use Message on the delivery in Deliveries instead." />
             </Card>
 
             <Card label="Orders on this vehicle">
@@ -159,7 +159,7 @@ export default function Track({
                           {o?.orderRef ?? "Order"} · {o ? temperatureLabel(o.temperature) : ""}
                         </span>
                         {/* The order's own volume, which the warehouse returned: never summed from lines. */}
-                        <span className="text-[13px] text-go-muted">{o ? `${cases(o.itemCount)} · ${o.volumeM3} m³` : `${d.lines.length} lines`}</span>
+                        <span className="text-[13px] text-go-muted">{o ? `${units(o.itemCount)} · ${o.volumeM3} m³` : `${d.lines.length} lines`}</span>
                         <span className={cx("text-[13px] font-medium", short ? "text-go-warning-text" : "text-go-success")}>
                           {short ? ISSUE_TYPE[short.type] : o && onTheWay(o.status) ? "Loaded in full" : (o && ORDER_STATUS[o.status].label) ?? ""}
                         </span>

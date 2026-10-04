@@ -130,7 +130,7 @@ export default function Receive({
   };
 
   const add = () => {
-    if (!selected) return setAddError("Choose a package first.");
+    if (!selected) return setAddError("Choose a product line first.");
     if (!kind) return setAddError("Choose an issue type.");
     if (LOWERS_COUNT[kind] && room < 1) return setAddError("Every unit of this item is already reported.");
     setAddError(null);

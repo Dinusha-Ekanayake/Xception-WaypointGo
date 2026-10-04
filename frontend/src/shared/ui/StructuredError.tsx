@@ -44,7 +44,7 @@ export function getErrorDefaults(code?: string | number | null): {
   if (norm === 404 || norm === "404" || norm === "NOT_FOUND") {
     return {
       title: "Page not found",
-      message: "The page or destination you requested could not be found.\nDon't worry—your work is saved safely on this phone.",
+      message: "The page or destination you requested could not be found.\nDon't worry: your work is saved safely on this phone.",
       actionLabel: "Return to home",
       defaultAction: () => {
         if (typeof window !== "undefined") window.location.href = "/";
@@ -55,7 +55,7 @@ export function getErrorDefaults(code?: string | number | null): {
   if (norm === 401 || norm === "401" || norm === "UNAUTHORIZED") {
     return {
       title: "Session expired",
-      message: "Your session has ended. Please sign in again to continue.\nDon't worry—your work is saved safely on this phone.",
+      message: "Your session has ended. Please sign in again to continue.\nDon't worry: your work is saved safely on this phone.",
       actionLabel: "Sign in",
       defaultAction: () => {
         if (typeof window !== "undefined") window.location.reload();
@@ -66,7 +66,7 @@ export function getErrorDefaults(code?: string | number | null): {
   if (norm === 403 || norm === "403" || norm === "FORBIDDEN") {
     return {
       title: "Access denied",
-      message: "You do not have permission to access this area or role address.\nDon't worry—your work is saved safely on this phone.",
+      message: "You do not have permission to access this area or role address.\nDon't worry: your work is saved safely on this phone.",
       actionLabel: "Return to home",
       defaultAction: () => {
         if (typeof window !== "undefined") window.location.href = "/";
@@ -77,7 +77,7 @@ export function getErrorDefaults(code?: string | number | null): {
   if (norm === 500 || norm === "500" || norm === "INTERNAL_SERVER_ERROR") {
     return {
       title: "Something went wrong",
-      message: "An unexpected server error occurred while loading this view.\nDon't worry—your work is saved safely on this phone.",
+      message: "An unexpected server error occurred while loading this view.\nDon't worry: your work is saved safely on this phone.",
       actionLabel: "Try again",
       defaultAction: () => {
         if (typeof window !== "undefined") window.location.reload();
@@ -88,7 +88,7 @@ export function getErrorDefaults(code?: string | number | null): {
   if (norm === 502 || norm === "502" || norm === 504 || norm === "504" || norm === "GATEWAY_TIMEOUT") {
     return {
       title: "Dispatch is unreachable",
-      message: "The server took too long to answer or could not be reached.\nDon't worry—your work is saved safely on this phone.",
+      message: "The server took too long to answer or could not be reached.\nDon't worry: your work is saved safely on this phone.",
       actionLabel: "Try again",
       defaultAction: () => {
         if (typeof window !== "undefined") window.location.reload();
@@ -99,7 +99,7 @@ export function getErrorDefaults(code?: string | number | null): {
   if (norm === "OFFLINE") {
     return {
       title: "This device is offline",
-      message: "You are currently offline.\nDon't worry—your work is saved safely on this phone.",
+      message: "You are currently offline.\nDon't worry: your work is saved safely on this phone.",
       actionLabel: "Try again",
       defaultAction: () => {
         if (typeof window !== "undefined") window.location.reload();
@@ -109,7 +109,7 @@ export function getErrorDefaults(code?: string | number | null): {
 
   return {
     title: typeof norm === "number" ? `Error ${norm}` : "Cannot reach dispatch",
-    message: "Having trouble connecting right now.\nDon't worry—your work is saved safely on this phone.",
+    message: "Having trouble connecting right now.\nDon't worry: your work is saved safely on this phone.",
     actionLabel: "Try again",
     defaultAction: () => {
       if (typeof window !== "undefined") window.location.reload();

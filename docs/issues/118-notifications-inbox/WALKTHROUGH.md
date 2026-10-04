@@ -70,9 +70,15 @@ Issue [#118](https://github.com/kavindamihiran/Xception-WaypointGo/issues/118), 
 - [EDGE-CASES](../../architecture/EDGE-CASES.md): NOT-09 (client half) and NOT-10.
 - [MODULES](../../architecture/MODULES.md) section 9: the matrix.
 
+## Follow-up: push, the driver's feed, translated loader messages
+
+`feat/notifications-push-driver-i18n`:
+- **Push.** `shared/notifications/push.ts` (`usePush`) reads `push-config`, asks the browser's permission, subscribes with the server's VAPID key and sends `notification:Subscribe` with this device's id and keys; off unsubscribes on both sides. When it cannot it says why: not supported, not set up on the server, blocked. The switch: loader Settings (translated), store account menu, dispatcher panel. `scripts/build-sw.mjs` shows each push and focuses or opens the app on a tap. `pushKeys.ts` is unit tested.
+- **Driver.** Figma "Driver: Home" (83:1996): Isuru's feed cards now carry the driver's real notifications (Run published, Route updated, Vehicle loaded, urgent ones as Action needed) with the read-aloud player, and the "N new" pill and driving mode's badge (11:104732) are the real count. Without an account the design's sample feed still shows.
+- **Loader language.** Each notification keeps the facts its message was filled from (`facts` jsonb, migration `20261003T1700`); the loader fills the same templates in Sinhala and Tamil (`roles/loader/data/messages.ts`), falling back to the English text when facts are missing.
+
 ## Known gaps
 
-- **Push:** opt-in and the service worker `push` / `notificationclick` handlers are not built; the inbox works without them.
-- **Driver:** the feed is #21's.
+- **Push needs VAPID keys on the server**; without them every role's switch says it is not set up.
 - **Dispatcher Reply:** waits on messaging between roles, which does not exist.
-- **Language:** the messages are composed on the server in English; the loader translates the frame around them.
+- **Store and dispatcher messages** stay English, as those screens are English only.

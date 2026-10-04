@@ -10,6 +10,8 @@ import com.waypoint.dispatch.planning.domain.FleetVehicle;
 import com.waypoint.dispatch.planning.domain.FuelLedger;
 import com.waypoint.dispatch.planning.domain.PlanOrder;
 import com.waypoint.dispatch.planning.domain.PlanningRun;
+import com.waypoint.dispatch.planning.domain.PlanningRun.Mark;
+import com.waypoint.dispatch.planning.domain.PlanningRun.Source;
 import com.waypoint.dispatch.planning.domain.PlanningRun.Stamps;
 import com.waypoint.dispatch.planning.domain.TemperatureClass;
 import com.waypoint.dispatch.planning.domain.Trip;
@@ -62,8 +64,9 @@ final class PlanRecords {
    * id (PLN-04, R-LOD-06) and a deferral already communicated is copied rather
    * than counted again.
    */
-  record Predecessor(Map<Set<UUID>, UUID> tripIds, Map<UUID, DeferralRow> deferrals) {
-    static final Predecessor NONE = new Predecessor(Map.of(), Map.of());
+  record Predecessor(
+      Map<Set<UUID>, UUID> tripIds, Map<UUID, DeferralRow> deferrals, Map<UUID, AllocationRow> allocations) {
+    static final Predecessor NONE = new Predecessor(Map.of(), Map.of(), Map.of());
 
     static Predecessor of(List<TripRow> trips, List<AllocationRow> allocations, List<DeferralRow> deferrals) {
       Map<UUID, Set<UUID>> orders = new HashMap<>();
@@ -75,7 +78,9 @@ final class PlanRecords {
         ids.put(Set.copyOf(orders.getOrDefault(t.tripId(), Set.of())), t.tripId());
       }
       return new Predecessor(
-          ids, deferrals.stream().collect(Collectors.toMap(DeferralRow::orderId, d -> d)));
+          ids,
+          deferrals.stream().collect(Collectors.toMap(DeferralRow::orderId, d -> d)),
+          allocations.stream().collect(Collectors.toMap(AllocationRow::orderId, a -> a)));
     }
   }
 
@@ -110,7 +115,8 @@ final class PlanRecords {
                 trip.volumeM3(),
                 s.formulaMinutes().setScale(2, RoundingMode.HALF_UP),
                 s.departure(),
-                FuelLedger.tripLitres(trip, d, vehicle)));
+                FuelLedger.tripLitres(trip, d, vehicle),
+                trip.hasFixedSequence()));
         StopTime previous = null;
         for (StopTime stop : s.stops()) {
           stops.put(stop.order().orderId(), new Stop(tripId, stop.sequence(), stop.arrival()));
@@ -132,6 +138,17 @@ final class PlanRecords {
     for (OrderDecision decision : run.decisions()) {
       PlanOrder o = order(built, decision.orderId());
       Optional<Stop> stop = Optional.ofNullable(stops.get(o.orderId()));
+      Optional<Mark> mark = run.markOf(o.orderId());
+      String source = mark.map(m -> m.source().name().toLowerCase(java.util.Locale.ROOT)).orElse("engine");
+      boolean locked = mark.map(Mark::locked).orElse(false);
+      // A decision keeps the time it was first taken while it stands unchanged.
+      AllocationRow before = predecessor.allocations().get(o.orderId());
+      Optional<Instant> decidedAt =
+          mark.map(
+              m ->
+                  before != null && before.source().equals(source) && before.decidedBy().equals(Optional.of(m.actor()))
+                      ? before.decidedAt().orElse(at)
+                      : at);
       allocations.add(
           new AllocationRow(
               o.orderId(),
@@ -145,7 +162,11 @@ final class PlanRecords {
               o.serviceMinutes(),
               decision.bindingRule(),
               decision.reason(),
-              decision.checks()));
+              decision.checks(),
+              source,
+              locked,
+              mark.map(Mark::actor),
+              decidedAt));
       DeferralRow earlier = predecessor.deferrals().get(o.orderId());
       if (decision.decision() == AllocationDecision.DEFERRED
           && earlier != null
@@ -183,6 +204,7 @@ final class PlanRecords {
             run.partial(),
             run.engine(),
             run.improvement(),
+            run.cost(),
             true,
             at,
             generatedBy,
@@ -241,11 +263,7 @@ final class PlanRecords {
               .filter(t -> !onTrip.getOrDefault(t.tripId(), List.of()).isEmpty())
               .map(
                   t ->
-                      new Trip(
-                          t.brandCode(),
-                          t.districtName(),
-                          TemperatureClass.of(t.temperature()),
-                          onTrip.getOrDefault(t.tripId(), List.of())))
+                      tripOf(t, onTrip.getOrDefault(t.tripId(), List.of())))
               .toList();
       days.add(new VehicleDay(vehicle, vehicleTrips));
     }
@@ -265,6 +283,14 @@ final class PlanRecords {
     }
     Map<UUID, UUID> deferredBy =
         deferrals.stream().collect(Collectors.toMap(DeferralRow::orderId, DeferralRow::actorId));
+    Map<UUID, Mark> marks = new HashMap<>();
+    for (AllocationRow a : allocations) {
+      if (a.decidedBy().isPresent()) {
+        marks.put(
+            a.orderId(),
+            new Mark(Source.valueOf(a.source().toUpperCase(java.util.Locale.ROOT)), a.decidedBy().get(), a.locked()));
+      }
+    }
 
     return new PlanningRun(
         run.planId(),
@@ -280,9 +306,11 @@ final class PlanRecords {
         run.partial(),
         run.engine(),
         run.improvement(),
+        run.cost(),
         days,
         decisions,
         deferredBy,
+        marks,
         run.rowVersion());
   }
 
@@ -313,6 +341,12 @@ final class PlanRecords {
                         .sorted(Comparator.comparingInt(PlannedStop::sequence))
                         .toList()))
         .toList();
+  }
+
+  /** A stored trip as the domain holds it; a fixed stop order is read back from the stored sequence. */
+  private static Trip tripOf(TripRow t, List<PlanOrder> inStopOrder) {
+    Trip trip = new Trip(t.brandCode(), t.districtName(), TemperatureClass.of(t.temperature()), inStopOrder);
+    return t.manualSequence() ? trip.withSequence(inStopOrder.stream().map(PlanOrder::orderId).toList()) : trip;
   }
 
   private record Stop(UUID tripId, int sequence, LocalTime arrival) {}

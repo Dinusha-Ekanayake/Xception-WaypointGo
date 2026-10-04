@@ -1,5 +1,8 @@
 package com.waypoint.dispatch.notification.infrastructure;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.waypoint.dispatch.notification.contract.NotificationViews.NotificationView;
 import com.waypoint.dispatch.notification.domain.Delivery;
 import com.waypoint.dispatch.notification.domain.Delivery.Channel;
@@ -33,9 +36,11 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class JdbcNotificationRepository {
   private final Database database;
+  private final ObjectMapper mapper;
 
-  public JdbcNotificationRepository(Database database) {
+  public JdbcNotificationRepository(Database database, ObjectMapper mapper) {
     this.database = database;
+    this.mapper = mapper;
   }
 
   // ---- routing ---------------------------------------------------------------
@@ -82,7 +87,8 @@ public class JdbcNotificationRepository {
       String body,
       Optional<String> subjectType,
       Optional<String> subjectId,
-      Instant createdAt) {}
+      Instant createdAt,
+      Map<String, String> facts) {}
 
   /** @return false when this person already heard about this target of this event */
   public boolean insert(NewNotification n) {
@@ -90,8 +96,8 @@ public class JdbcNotificationRepository {
             """
             INSERT INTO notification.notifications
                 (notification_id, recipient_user_id, event_id, event_type, target_key, rule_version, title, body,
-                 subject_type, subject_id, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 subject_type, subject_id, created_at, facts)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb)
             ON CONFLICT (event_id, recipient_user_id, target_key) DO NOTHING
             """,
             n.notificationId(),
@@ -104,7 +110,8 @@ public class JdbcNotificationRepository {
             n.body(),
             n.subjectType().orElse(null),
             n.subjectId().orElse(null),
-            Timestamp.from(n.createdAt()))
+            Timestamp.from(n.createdAt()),
+            json(n.facts()))
         == 1;
   }
 
@@ -112,7 +119,7 @@ public class JdbcNotificationRepository {
   public List<NotificationView> inbox(
       UUID recipient, Optional<Instant> beforeCreated, Optional<UUID> beforeId, int limit) {
     String columns =
-        "SELECT notification_id, event_type, title, body, subject_type, subject_id, created_at, read_at"
+        "SELECT notification_id, event_type, title, body, subject_type, subject_id, created_at, read_at, facts::text AS facts"
             + " FROM notification.notifications WHERE recipient_user_id = ?";
     List<Map<String, Object>> rows =
         beforeCreated.isEmpty()
@@ -125,7 +132,7 @@ public class JdbcNotificationRepository {
                 Timestamp.from(beforeCreated.get()),
                 beforeId.orElseThrow(),
                 limit);
-    return rows.stream().map(JdbcNotificationRepository::view).toList();
+    return rows.stream().map(this::view).toList();
   }
 
   public long unreadCount(UUID recipient) {
@@ -395,7 +402,26 @@ public class JdbcNotificationRepository {
 
   // ---- mapping -------------------------------------------------------------------
 
-  private static NotificationView view(Map<String, Object> row) {
+  private String json(Map<String, String> facts) {
+    try {
+      return mapper.writeValueAsString(facts);
+    } catch (JsonProcessingException e) {
+      throw new IllegalStateException("Notification facts are not serialisable", e);
+    }
+  }
+
+  private Map<String, String> facts(Object raw) {
+    if (raw == null) {
+      return Map.of();
+    }
+    try {
+      return mapper.readValue(raw.toString(), new TypeReference<Map<String, String>>() {});
+    } catch (JsonProcessingException e) {
+      return Map.of();
+    }
+  }
+
+  private NotificationView view(Map<String, Object> row) {
     return new NotificationView(
         (UUID) row.get("notification_id"),
         (String) row.get("event_type"),
@@ -404,7 +430,8 @@ public class JdbcNotificationRepository {
         Optional.ofNullable((String) row.get("subject_type")),
         Optional.ofNullable((String) row.get("subject_id")),
         instant(row.get("created_at")),
-        Optional.ofNullable(row.get("read_at")).map(JdbcNotificationRepository::instant));
+        Optional.ofNullable(row.get("read_at")).map(JdbcNotificationRepository::instant),
+        facts(row.get("facts")));
   }
 
   private static Subscription subscription(Map<String, Object> row) {

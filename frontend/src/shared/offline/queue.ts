@@ -3,9 +3,10 @@ import type { Command } from "@shared/api/commands";
 import { ApiError } from "@shared/api/problem";
 import type { OperationView, SubmitBatch, SyncAck } from "@shared/domain/sync";
 import { outcomeAction } from "./outcome.ts";
-import { discardCommand, inRecordedOrder, redoCommands } from "./review.ts";
+import { discardCommand, inRecordedOrder, nextOrder, readyToSend, recordedOrder, redoCommands } from "./review.ts";
 import type { RedoBasis } from "./resolvers.ts";
-import { all, put, putSnapshot, remove, type StoredEntry } from "./store.ts";
+import { all, allUploads, put, putSnapshot, remove, type StoredEntry } from "./store.ts";
+import { drainUploads } from "./uploads.ts";
 import { queuesWrites, type Role } from "./tiers.ts";
 
 // The write queue.
@@ -28,18 +29,14 @@ export async function enqueue(
   accountId: string,
   role: Role,
   command: Command,
+  /** Uploads saved with saveUpload that must reach the server before this write. */
+  waitsFor: string[] = [],
 ): Promise<EnqueueResult> {
   if (!queuesWrites(role)) {
     return { durable: false, reason: "This role works online; the write was not queued." };
   }
   try {
-    await put(accountId, {
-      commandId: command.commandId,
-      kind: command.kind,
-      payload: command,
-      enqueuedAt: command.clientRecordedAt,
-      attempts: 0,
-    });
+    await keepCommand(accountId, command, waitsFor);
     queued();
     return { durable: true };
   } catch (error) {
@@ -121,7 +118,7 @@ const DEVICE_KEY = "waypoint.deviceId";
  * it, so it outlives sign-in and sign-out. Blocked storage gets a fresh id per
  * page load, which only costs ordering across reloads, never a write.
  */
-function deviceId(): string {
+export function deviceId(): string {
   try {
     const known = localStorage.getItem(DEVICE_KEY);
     if (known) return known;
@@ -157,9 +154,18 @@ async function keepDeviceForWorker(accountId: string, id: string): Promise<void>
 async function drainOnce(accountId: string): Promise<DrainReport> {
   await beforeDrain.get(accountId)?.();
   const entries = await all(accountId);
+  // Uploads a write names go first (issue #136); a write whose upload is still
+  // here waits, and so does everything after it.
+  let waitingUploads = new Set<string>();
+  if (entries.some((e) => (e.waitsFor ?? []).length > 0)) {
+    await drainUploads(accountId).catch(() => undefined);
+    // A refused upload is held for a person; the write naming it is then refused
+    // too and held beside it, rather than blocking every write after it.
+    waitingUploads = new Set((await allUploads(accountId).catch(() => [])).filter((u) => !u.needsReview).map((u) => u.id));
+  }
   // In the order they were recorded, so a batch never sends a later write
   // without an earlier one (storage returns them by id).
-  const ready = inRecordedOrder(entries.filter((e) => !e.needsReview)).slice(0, BATCH);
+  const ready = readyToSend(inRecordedOrder(entries.filter((e) => !e.needsReview)), waitingUploads).slice(0, BATCH);
   let sent = 0;
   let heldForReview = entries.length - entries.filter((e) => !e.needsReview).length;
   if (ready.length === 0) return { sent, heldForReview, remaining: entries.length };
@@ -168,9 +174,9 @@ async function drainOnce(accountId: string): Promise<DrainReport> {
   await keepDeviceForWorker(accountId, device);
   const batch: SubmitBatch = {
     deviceId: device,
-    // The recording time is the sequence: stable across retries, and in the
-    // order the person did things.
-    operations: ready.map((e, i) => ({ sequence: Date.parse(e.enqueuedAt) || i, command: e.payload as Command })),
+    // The recorded order is the sequence: stable across retries, strictly
+    // increasing, and in the order the person did things.
+    operations: ready.map((e, i) => ({ sequence: recordedOrder(e) || i, command: e.payload as Command })),
   };
 
   let ack: SyncAck;
@@ -277,13 +283,20 @@ async function withServerVersion(entry: StoredEntry, forRedo = false): Promise<S
   return { ...entry, serverVersion: view.rowVersion, ...(view.problemCode ? { problemCode: view.problemCode } : {}) };
 }
 
-async function keepCommand(accountId: string, command: Command): Promise<void> {
+/** The last order given on this page, so two writes queued at once never share one. */
+let lastOrder = 0;
+
+async function keepCommand(accountId: string, command: Command, waitsFor: string[] = []): Promise<void> {
+  const order = nextOrder(command.clientRecordedAt, await all(accountId), lastOrder);
+  lastOrder = order;
   await put(accountId, {
     commandId: command.commandId,
     kind: command.kind,
     payload: command,
     enqueuedAt: command.clientRecordedAt,
+    order,
     attempts: 0,
+    ...(waitsFor.length > 0 ? { waitsFor } : {}),
   });
 }
 

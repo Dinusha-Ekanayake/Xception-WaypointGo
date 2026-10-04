@@ -1,5 +1,7 @@
 package com.waypoint.dispatch.planning.application;
 
+import com.waypoint.dispatch.platform.db.Database;
+import com.waypoint.dispatch.planning.infrastructure.JdbcGenerationJobs;
 import com.waypoint.dispatch.loading.contract.LoadingEvents.InterchangeRequested;
 import com.waypoint.dispatch.ordering.contract.OrderEvents.OrderAmended;
 import com.waypoint.dispatch.ordering.contract.OrderEvents.OrderCancelled;
@@ -91,11 +93,18 @@ final class PlanningConsumers {
   static class OnOrdersClosed extends PlanningConsumer<OrdersClosed> {
     private final GeneratePlanHandler generator;
     private final JdbcPlanRepository plans;
+    private final JdbcGenerationJobs jobs;
+    private final GenerationSignal signal;
+    private final Database database;
     private final Metrics metrics;
     private final Clock clock;
 
-    OnOrdersClosed(GeneratePlanHandler generator, JdbcPlanRepository plans, Metrics metrics, Clock clock) {
+    OnOrdersClosed(GeneratePlanHandler generator, JdbcPlanRepository plans, JdbcGenerationJobs jobs,
+        GenerationSignal signal, Database database, Metrics metrics, Clock clock) {
       this.generator = generator;
+      this.jobs = jobs;
+      this.signal = signal;
+      this.database = database;
       this.plans = plans;
       this.metrics = metrics;
       this.clock = clock;
@@ -118,7 +127,11 @@ final class PlanningConsumers {
         return;
       }
       try {
-        generator.generate(Actor.SYSTEM, closed.depotCode(), closed.serviceDate(), clock.now(), envelope.eventId());
+        // Queued like a dispatcher's Generate (R-PLN-41): the engine never runs inside the relay's transaction.
+        generator.refuseClosedDay(closed.depotCode(), closed.serviceDate());
+        jobs.enqueue(UUID.nameUUIDFromBytes(("generate/" + envelope.eventId()).getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+            closed.depotCode(), closed.serviceDate(), false, Actor.SYSTEM_ID, envelope.eventId(), clock.now());
+        database.afterCommit(signal::wake);
         metrics.increment("waypoint.plan.auto_generated");
       } catch (DomainException e) {
         // Degrade visibly: the dispatcher generates by hand and sees the same refusal.

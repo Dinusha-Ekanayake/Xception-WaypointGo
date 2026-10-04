@@ -3,6 +3,156 @@
 @kavindamihiran's entries, newest first. Only @kavindamihiran adds to this file; how to write an entry is in the [log's index](../development-log.md).
 
 ---
+## 2026-10-04 - ci: check only what a change touches
+
+`ci/checks-only-what-changed` · @kavindamihiran
+
+Checks ran every job on every pull request (~4.5 min even for a frontend change). A first job now lists the changed areas and each job is skipped when its area is untouched; deploys and workflow changes still run everything, and the two aggregate statuses accept skipped. The backend's slowest shard is split (planning and messaging apart), and "Frontend checks" no longer builds, since every browser runner builds. Verified by this pull request's own checks.
+
+## 2026-10-04 - ci: run the browser suites side by side
+
+`ci/parallel-browser-suites` · @kavindamihiran
+
+The "Browser suites" job ran five Playwright suites one after another with one worker, about 7 minutes. Each suite now has its own runner (a matrix in `checks.yml`) and two workers in CI; a single "Browser suites" status still gates, like "Backend tests". Target 3-5 minutes. Not run locally; verified by the pull request's own checks.
+
+## 2026-10-05 - fix: driver map trail, re-centring, dark mode and tile prefetch
+
+`feat/231-demo-scenarios` · @kavindamihiran · #161, #201, #231
+
+The driver map now reads every page of the trip's trail (it stopped at the oldest 200 points), polls it every 15 s so server simulation points reach it, and skips null coordinates instead of drawing them at 0,0. The phone's trail resets with the trip and points already on the server are drawn once. The map fits once per stop instead of every ~100 m, so the driver's pan and zoom stay. GPS pauses during a simulated drive. Zoom buttons, notice and attribution follow the dark theme. Tile prefetch keeps each stop's street tiles first, in stop order, plus the opening zoom 8.
+Verified: typecheck, Node tests (229 pass, new `driver-trail.test.ts` and a prefetch case), production build, driver browser suite (24 pass). Left: 5 s polling on store and dispatcher maps and the "GPS paused" note ([plan](../../issues/231-demo-mode/PLAN.md) PR 4 item).
+
+## 2026-10-05 - feat: simulated vehicles and scenario deck, issue #231 complete
+
+`feat/231-demo-scenarios` · @kavindamihiran · #231, PRs 4 to 6
+
+Added `demo.simulations`, `RouteWalker`, `demo:StartSimulation`/`ControlSimulations` and `SimulationJob`: released trips drive from the depot through each stop, each point a real `delivery:RecordPositions` command as the assigned driver (R-DEMO-04, DEMO-04 to 06). Disable stops every simulation. The control room gained the vehicles panel, a nine-scenario deck and faster map refresh in demo mode. [Walkthrough](../../issues/231-demo-mode/WALKTHROUGH.md) holds the runbook and gaps.
+Verified: full `mvn verify` on a fresh PostgreSQL 16 database, 1015 tests, no skips, one error in `ReferenceCreationIntegrationTest` (the shared-state interaction logged below; it passes beside Demo on a fresh database). Frontend typecheck, Node tests, build and all five browser suites, including the two new control room specs.
+
+## 2026-10-05 - feat: demo control room, banner and simulated drive, issue #231
+
+`feat/231-demo-control-room` · @kavindamihiran · #231, PRs 3 and 4 (frontend part)
+
+Added the admin "Demo control room" tab: on/off switch with an audited reason, demo clock presets (15:30, 16:05, 05:00, real time, custom), prepare demo day, position update interval and banner, demo accounts with copy, the 12-step demo path checklist and the demo log. Every role shows a demo banner while demo mode is on. In demo mode the driver's route screen offers "Simulate drive to the next stop", which sends real `delivery:RecordPositions` commands stamped with the demo clock, so the store and dispatcher maps move. With demo mode off or unreadable nothing renders and the driver flush stays at 60 s.
+Verified: typecheck, Node tests (225 pass), production build, and every browser suite unchanged (shell 14, driver 24, store 55, dispatcher 57, loader 31). Left: browser specs for the control room, the server-side fleet simulator and the scenario deck (PR 5).
+
+## 2026-10-04 - feat: opt-in demo runtime and day preparation, issue #231
+
+`feat/231-demo-backend-core` · @kavindamihiran · #231, PR 2 of 6
+
+Added administrator-only, versioned runtime controls and a business-clock offset with a real-time security seam. Reset starts a persisted run and prepares a new empty operating day through Reference, Identity and Ordering commands; existing operational rows and credentials remain. The [plan](../../issues/231-demo-mode/PLAN.md), R-DEMO-01 to 03 and DEMO-01 to 03 record the limits. Frontend controls, trucks and scenarios remain for later PRs.
+Verified: demo integration, reference-creation interaction and module-boundary tests on a fresh dedicated PostgreSQL 16 database, no skips; frontend typecheck, Node tests and production build. A full `mvn clean verify` ran 997 tests with one error in `ReferenceCreationIntegrationTest` after other suites had mutated shared reference state; that test passes beside Demo on a fresh database. The full-suite state interaction remains to resolve.
+
+## 2026-10-04 - plan: runtime demo control room and scenario deck, issue #231
+
+`docs/231-demo-mode-plan` · @kavindamihiran · #231, PR 1 of 6
+
+Mapped the booklet and all 17 scenario cards to current commands in the [plan](../../issues/231-demo-mode/PLAN.md). Recorded the real gaps: one-time seed with ordinary order references, cron unaffected by clock offset, sessions sharing the business clock, driver map using phone GPS, and admin-only actions conflicting with driver start. Proposed safe new-date preparation, separate security time, owner-module commands and admin-started simulations; snapshot restore and frozen time remain explicit review decisions.
+Why: the issue asks for a docs-first PR before runtime changes; its sketch needs these corrections to preserve module boundaries and operational records.
+Verified: source/contract review and documentation checks only. No application code changed; runtime acceptance and preview rehearsal remain open.
+
+## 2026-10-04 - feat: Admins switch assistants per person and role
+
+`feat/admin-mcp-people` · @kavindamihiran · #177
+
+The AI assistants screen could only block a whole app, though per person and per role switches already existed as policies (R-IAM-37). It now lists roles and people with three switches (assistants, changes, personal details) sent as the existing versioned `iam:AttachPolicy` and `iam:DetachPolicy`, and ends one person's connections with a reason through new `mcp:RevokeUserConnections` (R-IAM-38, SEC-44). The reads are `GET /api/mcp/access/roles` and keyset paged `/api/mcp/access/people`.
+Verified: `McpEnterpriseIntegrationTest` (10, none skipped) on a local database, typecheck, `npm test`, build, `mcp-admin.spec.ts` (2).
+## 2026-10-04 - feat: Tech stores see which nearby day a trip already serves
+
+`feat/ride-along-suggestion` · @kavindamihiran · #199 ([walkthrough](../../issues/199-ride-along/WALKTHROUGH.md))
+
+Joining another day's plan is impossible: a plan exists only for a day past its cutoff, and it is immutable. So the hint counts other stores of the same brand and district booked for open days within two either side. It is Ordering only and advice only: no Planning read, no capacity claim, and Fresh and Style are never moved (R-ORD-13, ORD-16 to ORD-18).
+Verified: `RideAlongTest` (7), `ModuleBoundaryTest`, typecheck, `npm test`, build, store suite 44 (3 new). The integration test was not run locally (no test database); CI runs it.
+## 2026-10-04 - fix: proof link forgery test could forge the real link
+
+`fix/proof-link-forgery-flake` · @kavindamihiran
+
+`ExecutionIntegrationTest` forged a proof link by setting the last two signature digits to `00`; one signature in 256 already ends that way, so the "forgery" opened (Checks #195). It now flips the last digit. `TestDates` ends before 2286, where epoch seconds pass the `9999999999` expiry the stretched-link check relies on.
+Verified: `mvn verify` on a fresh local database.
+## 2026-10-04 - fix: integration tests no longer share a service day
+
+`fix/test-date-collisions` · @kavindamihiran
+
+Two of six `dev` preview deploys failed on a different backend test each time (planning saw 4 stops instead of 2, ordering 3 orders instead of 1): a dozen integration classes drew random days from overlapping windows for the same depot and read each other's orders. `support/TestDates` now hands out a day no other test in the run has, after `nextOperatingDay`, from a wider window.
+Verified: `mvn verify` on a fresh local database, 914 tests, 0 failed, 0 skipped.
+## 2026-10-04 - fix: way back between role addresses
+
+`fix/role-address-flow` · @kavindamihiran
+
+The wrong-address screen was a bare warning with one link. It is now a full page (`app-shell/WrongAddress.tsx`) offering the account's own roles, another account on this address, and "All roles". Sign-in on a role address links back to the shared landing (`sharedHostFor` in `hostRole.ts`), and the landing links to the admin console.
+Verified: typecheck, hostRole, wording and boundary tests, build, shell browser suite 13 passed.
+## 2026-10-04 - fix: driver Settings opens, map stop card
+
+`fix/driver-settings-map` · @kavindamihiran
+
+The driver's picture opened nothing: the sheet is `fixed`, and the header's scaling wrapper is a transformed ancestor that clipped it. It now renders through a portal into the themed driver root. The map's bottom boxes became one theme-aware stop card (stop number, district, window, straight-line distance, Navigate).
+Verified: typecheck, `npm test`, build; driver suite 20 passed, 13 skipped.
+## 2026-10-04 - feat: loader on a phone held sideways, #201 walkthrough
+
+`feat/role-pwa-loader-layout` · @kavindamihiran · #201, PR 5 of 5 ([walkthrough](../../issues/201-role-pwa/WALKTHROUGH.md))
+
+The loader's tablet, desk and terminal layouts held on every size; on a phone held sideways the completion ring filled the first screen, so under `short:` it is 104 px. `e2e-loader/devices.spec.ts` opens a trip and checks an item on eight sizes. Walkthrough written; #201 closes.
+Verified: typecheck, `npm test`, build; loader suite 29 (21 plus the device spec on eight sizes).
+## 2026-10-04 - feat: store fits phones and tablets either way up
+
+`feat/role-pwa-store-layout` · @kavindamihiran · #201, PR 4 of 5
+
+The store's portrait tablet layout (720 px column with the tab bar) already held. On a phone held sideways the tab bar's fade and padding took nearly half the screen; under `short:` it now sits low with no fade. From `lg` the floating sync pill and bell covered Orders' "+ New order"; the header keeps clear of them.
+Verified: typecheck, build; store suite 41 (33 plus `e2e-store/devices.spec.ts` on eight sizes: every tab opens, nothing overflows, New order and Receive can be pressed).
+## 2026-10-04 - feat: driver fits phones and tablets either way up
+
+`feat/role-pwa-driver-layout` · @kavindamihiran · #201, PR 3 of 5
+
+The driver's 393x852 phone mock-up from `sm:` is gone: the run fills a phone, a tablet gets a 600 px column, and a landscape tablet (in-cab) shows the trip map beside the run (`useMedia` in `@shared/ui`, which the loader's `useWide` now uses). On a phone held sideways (`short:`) each screen scrolls as one page so every action is reachable. The signature pad re-fits on rotation without stretching what was signed. The location prompt is one solid card (its buttons were drawn over the stop name). `tilesFor` and `keepTiles` keep the run's map tiles (overview zooms 9-13, streets around each stop at 14-15, at most 600) while online.
+Verified: typecheck, `npm test` (192), build; `tests/devices.ts` adds seven device projects and `e2e-driver/devices.spec.ts` delivers a stop on each with nothing wider than the screen; driver, loader and store suites green.
+## 2026-10-04 - feat: loader and store open offline on kept reads
+
+`feat/role-pwa-offline-reads` · @kavindamihiran · #201, PR 2 of 5
+
+`shared/offline/keptReads.ts` `readThrough` keeps each loader and store read per account and, in an outage only (no network, timeout, 5xx), answers with the kept copy; a refusal passes through. The loader's trips are keyed by depot and day; the store's delivery date and handover state are not kept. `session.ts` now lets the resilient tier carry on unverified like the driver (A-43). Both top bars say "Offline · showing HH:MM" or "Server unreachable · showing HH:MM" while kept data is on screen. EDGE-CASES EXE-31 to EXE-33.
+Verified: typecheck, `npm test` (189), build, driver, loader (21, new offline reload case) and store (33, new `offline.spec.ts`) suites.
+## 2026-10-04 - feat: each field role installs as its own app
+
+`feat/role-pwa` · @kavindamihiran · #201, PR 1 of 5 ([plan](../../issues/201-role-pwa/PLAN.md))
+
+`app/manifest.ts` serves a manifest chosen by Host (`appManifest.ts` over `hostRole.ts`), so `driver.`, `loader.` and `store.` install as Waypoint Driver, Loader and Store, each with its own icon (`scripts/build-app-icons.mjs`, PNGs committed) and the shared address as the generic app; `app/apple-touch-icon.png` does the same for iOS, and the page stays static. The layout draws edge to edge (`viewportFit: cover`) and fixed bottom bars pad for the home bar. The worker keeps icons, fonts and `/assets` cache first and map tiles up to 1500, oldest out, across builds (`scripts/sw-cache.mjs`); `/api` is never kept, offline reads stay the per-account snapshots. Settings gains Install app (Chrome's prompt, Safari's steps), and queuing roles ask for persistent storage. No orientation lock: tablets mount in landscape.
+Verified: typecheck, `npm test` (184), build, `e2e/install.spec.ts` (Chrome reports each address installable; icons load offline, `/api` does not), driver, loader and store suites green. `e2e/shell.spec.ts` CSP case times out on `networkidle`, also on a clean `dev`.
+## 2026-10-03 - feat: Settings behind each role's profile picture
+
+`feat/role-settings-panel` · @kavindamihiran
+
+Dispatcher, driver, store and loader open Settings from the person's picture (shared `SettingsPanel` in `@shared/ui`; the store's account menu gains the same rows). Settings holds the language, kept per device, and the MCP button, which leaves the headers. The theme toggle and alerts stay where they were, and the loader's Settings loses Appearance. Dispatcher and store screens are English only, and the picker says so.
+Verified: typecheck, `npm test`, build, loader, driver and store suites green; dispatcher suite green except three `forecast.spec.ts` cases that fail on the model version text and are unrelated.
+## 2026-10-03 - fix: one sign-in for every role, admin workspace on the shared shell
+
+`fix/single-sign-in` · @kavindamihiran
+
+The admin console's demo sign-in is removed: the shell `SignIn` is the only sign-in (the driver's own login went with the driver rewrite in #186), and the admin signs out through the shell. The admin workspace gets the dispatcher's sidebar with every screen and AI assistants in one nav, and `go-*` tokens in place of its own greens; status colours in the operations screens stay.
+Verified: typecheck, `npm test`, build, `e2e/mcp-admin.spec.ts`.
+## 2026-10-03 - feat: dispatcher live screen matching Figma 05 Live
+
+`feat/live-timeline-figma` · @kavindamihiran
+
+Live screen gets a `Needs you / Map / Timeline` switch, header depot and status filters, a timeline of every vehicle on a shared clock (`LiveTimeline.tsx`) and compact progress cards, following Figma "05 Live" and "05 Live: timeline". The KPI, Needs you and dock panels move to the Needs you view.
+Verified: typecheck.
+## 2026-10-03 - feat: MCP scopes, confirmed issue writes, personal fields and app blocking
+
+`feat/177-mcp-enterprise` · @kavindamihiran
+
+Finishes #177 ([walkthrough](../../issues/177-mcp/WALKTHROUGH.md)): paged plans, client scopes (R-IAM-34), confirmed `raise_issue` and `assign_issue` through the command bus with an hourly limit (R-IAM-35, P-32), personal fields withheld unless granted (R-IAM-36), blocking an app (R-IAM-37), own connections and the admin AI assistants screen.
+Why: reads and safe writes on by default, an administrator can turn either off (decision 2026-10-03); plan generation left out because it cancels the open draft.
+Verified: `mvn verify`, `npm test` in `mcp/` and `frontend/`, typecheck, build, Playwright `mcp-oauth` and `mcp-admin`.
+Open: `get_thread` (#136), production enablement.
+
+## 2026-10-03 - feat: MCP day summary, prompts and example questions
+
+`feat/177-mcp-reads` · @kavindamihiran
+
+Issue #177 PR 1 of 6 ([plan](../../issues/177-mcp/PLAN.md)). `day_summary` composes the plan, loading trips and open issues reads in the adapter; a refused or absent part is named in `unavailable` (SEC-40). Prompts `morning_briefing`, `what_to_load_next`, `pending_receipts` are offered by read action. Every tool description carries an example question.
+Why: one call answers "how does the depot look today" without new backend reads or authorization paths.
+Verified: `npm test` in `mcp/` (24 passed).
+Open: paging, per-client scopes, personal-field grant, confirmed writes, admin view (#177 PRs 2-6).
+
 ## 2026-10-03 - feat: add listen-to-message play button to all driver notification cards
 
 `feat/driver-UI` · @kavindamihiran
@@ -47,6 +197,31 @@ Synchronized header unblurring with popup and bottom sheet dismissals by excludi
 Why: prevent the header elements from delaying 300ms before starting their unblur transition after closing message popups.
 Verified: `npm run typecheck`, `npm test` (10 passed).
 Open: none.
+
+## 2026-10-03 - feat: dispatcher live shows the map and the timeline together
+
+`feat/live-map-with-timeline` · @kavindamihiran
+
+The Map / Timeline toggle on Live is gone: the map (with its selected vehicle panel) sits on top and the timeline (on the road, needs you, at the dock) is always under it, so a dispatcher sees where trucks are and how each run is going without switching. The remembered view in `localStorage` is dropped. Part of #161.
+
+---
+
+## 2026-10-03 - fix: VPS deploys cap the Docker build cache
+
+`fix/vps-build-cache-cap` · @kavindamihiran
+
+The BuildKit cache on the VPS reached 22.85 GB (606 entries, 22 GB reclaimable) in two days, because `deploy.sh` only pruned dangling images. With 64 GB free that is about a week of deploys. Each successful deploy now runs `docker builder prune --max-used-space 10GB`, keeping recent layers so builds stay fast. See [deployment.md](../../deployment.md).
+
+---
+
+## 2026-10-03 - fix: failed map tiles are never kept by the browser
+
+`fix/map-tile-no-store` · @kavindamihiran
+
+`/map-tiles/` answered 404 with no `Cache-Control` while preview had no `MAP_TILE_URL`; Cloudflare stamped `max-age=14400` on it, so browsers kept a blank map for four hours after the URL was set. Every failed tile (404, 502, 504) now sends `no-store`.
+Why: #161 base map stayed "unavailable" on dispatcher-preview.
+
+---
 
 ## 2026-10-03 - fix: VPS edge loads again and caches map tiles
 

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Icon, type IconName } from "./Icon.tsx";
+import { PRESS, Spinner } from "./Spinner.tsx";
 import { clock } from "../wording/index.ts";
 
 // The GO components every role composes: cards, pills, tiles and buttons, as
@@ -145,29 +146,43 @@ type ButtonProps = {
   disabled?: boolean;
   type?: "button" | "submit";
   title?: string;
+  /** The command is on its way: disabled, with a spinner before the label. */
+  busy?: boolean;
 };
 
-export function PrimaryButton({ children, icon, type = "button", ...rest }: ButtonProps): React.JSX.Element {
+export function PrimaryButton({ children, icon, type = "button", busy = false, disabled, ...rest }: ButtonProps): React.JSX.Element {
   return (
     <button
       type={type}
       {...rest}
-      className="inline-flex items-center justify-center gap-1.5 rounded-full bg-go-ink px-[18px] py-3 text-sm font-medium text-go-card disabled:cursor-not-allowed disabled:opacity-40"
+      disabled={disabled || busy}
+      aria-busy={busy || undefined}
+      className={cx(
+        "inline-flex items-center justify-center gap-1.5 rounded-full bg-go-ink px-[18px] py-3 text-sm font-medium text-go-card disabled:cursor-not-allowed disabled:opacity-40",
+        busy && "disabled:cursor-wait disabled:opacity-70",
+        PRESS,
+      )}
     >
-      {icon && <Icon name={icon} />}
+      {busy ? <Spinner /> : icon && <Icon name={icon} />}
       {children}
     </button>
   );
 }
 
-export function SecondaryButton({ children, icon, type = "button", ...rest }: ButtonProps): React.JSX.Element {
+export function SecondaryButton({ children, icon, type = "button", busy = false, disabled, ...rest }: ButtonProps): React.JSX.Element {
   return (
     <button
       type={type}
       {...rest}
-      className="inline-flex items-center justify-center gap-1.5 rounded-full border border-go-rule bg-go-card px-[18px] py-3 text-sm font-medium text-go-ink disabled:cursor-not-allowed disabled:opacity-40"
+      disabled={disabled || busy}
+      aria-busy={busy || undefined}
+      className={cx(
+        "inline-flex items-center justify-center gap-1.5 rounded-full border border-go-rule bg-go-card px-[18px] py-3 text-sm font-medium text-go-ink disabled:cursor-not-allowed disabled:opacity-40",
+        busy && "disabled:cursor-wait disabled:opacity-70",
+        PRESS,
+      )}
     >
-      {icon && <Icon name={icon} />}
+      {busy ? <Spinner /> : icon && <Icon name={icon} />}
       {children}
     </button>
   );
@@ -186,7 +201,7 @@ export function FilterTabs<T extends string>({
   label: string;
 }): React.JSX.Element {
   return (
-    <div role="tablist" aria-label={label} className="flex items-center gap-2">
+    <div role="tablist" aria-label={label} className="flex flex-wrap items-center gap-2">
       {options.map((option) => {
         const selected = option.value === value;
         return (
@@ -209,20 +224,27 @@ export function FilterTabs<T extends string>({
   );
 }
 
-/** Small pill-shaped segmented control, as in the sidebar depot scope. */
+/**
+ * Pill-shaped segmented control. "sm" is the sidebar depot scope; "md" is a
+ * screen's own switch in its header (Orders: Current / Upcoming / Past, Issues:
+ * Open / In progress / Resolved), with an optional quiet hint after the label.
+ */
 export function Segmented<T extends string>({
   options,
   value,
   onChange,
   label,
+  size = "sm",
 }: {
-  options: Array<{ value: T; label: string }>;
+  options: Array<{ value: T; label: string; hint?: string }>;
   value: T;
   onChange: (value: T) => void;
   label: string;
+  size?: "sm" | "md";
 }): React.JSX.Element {
+  const md = size === "md";
   return (
-    <div role="radiogroup" aria-label={label} className="flex items-center gap-0.5 rounded-full bg-go-card p-[3px]">
+    <div role="radiogroup" aria-label={label} className={cx("flex w-fit items-center rounded-full bg-go-card", md ? "gap-1 p-1" : "gap-0.5 p-[3px]")}>
       {options.map((option) => {
         const selected = option.value === value;
         return (
@@ -233,11 +255,13 @@ export function Segmented<T extends string>({
             aria-checked={selected}
             onClick={() => onChange(option.value)}
             className={cx(
-              "rounded-full px-[9px] py-[5px] text-[11px] font-medium whitespace-nowrap",
-              selected ? "bg-go-ink text-go-card" : "text-go-ink",
+              "flex items-baseline rounded-full font-medium whitespace-nowrap",
+              md ? "gap-2 px-4 py-2 text-[15px]" : "px-[9px] py-[5px] text-[11px]",
+              selected ? "bg-go-ink text-go-card" : "text-go-ink hover:bg-go-subtle",
             )}
           >
             {option.label}
+            {option.hint && <span className={cx("text-xs font-normal", selected ? "text-go-card/75" : "text-go-secondary")}>{option.hint}</span>}
           </button>
         );
       })}

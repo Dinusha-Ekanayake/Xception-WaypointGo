@@ -18,7 +18,7 @@ export default function ErrorBoundary({
     <StructuredError
       code={500}
       title="Something went wrong"
-      message="An unexpected error occurred while loading this view.&#10;Don't worry—your work is saved safely on this phone."
+      message="An unexpected error occurred while loading this view.&#10;Don't worry: your work is saved safely on this phone."
       actionLabel="Try again"
       onAction={
         reset ??

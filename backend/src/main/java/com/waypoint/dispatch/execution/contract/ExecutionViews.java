@@ -58,6 +58,8 @@ public final class ExecutionViews {
       Optional<Integer> waitMinutes,
       Optional<Integer> lateMinutes,
       DeliveryOutcome outcome,
+      /** The units handed over, once recorded: a partial delivery is a stop total, not per line. */
+      Optional<Integer> deliveredUnits,
       boolean proofCaptured,
       long rowVersion,
       List<DeliveryLineView> lines) {

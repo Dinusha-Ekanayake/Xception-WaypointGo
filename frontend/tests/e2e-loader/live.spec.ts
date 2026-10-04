@@ -33,7 +33,7 @@ test("a real shared-device loader signs in, saves offline, syncs and releases", 
   const undo = page.getByRole("button", { name: /^Undo loaded, item/ });
   while (await undo.count() > 0) {
     await undo.first().click();
-    await page.getByRole("button", { name: "Done" }).click({ trial: false }).catch(() => undefined);
+    await page.getByRole("button", { name: "Apply changes" }).click({ trial: false }).catch(() => undefined);
   }
   const markLoaded = page.getByRole("button", { name: /^Mark item \d+ of .* loaded$/ });
   await expect(markLoaded.first()).toBeEnabled();

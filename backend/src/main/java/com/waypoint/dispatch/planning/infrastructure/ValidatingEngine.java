@@ -45,6 +45,14 @@ public final class ValidatingEngine implements AllocationEngine {
           "engine " + delegate.name() + " returned an infeasible plan; it was rejected before leaving Planning",
           violations.stream().map(Violation::ruleId).distinct().toList());
     }
+    // The rules plan offered beside it is a plan the dispatcher can switch to, so it is held to the same check;
+    // a failing one is dropped rather than offered.
+    if (result.alternative().isPresent()
+        && !PlanVerification.verify(result.alternative().get(), demand, problem.context(), registry).isEmpty()) {
+      onRejected.accept(List.of(new Violation("PLN-12", "alternative", "the rules plan failed its re-check")));
+      return new AllocationResult(result.days(), result.decisions(), result.partial(), result.engine(),
+          result.improvement(), result.cost(), java.util.Optional.empty());
+    }
     return result;
   }
 }

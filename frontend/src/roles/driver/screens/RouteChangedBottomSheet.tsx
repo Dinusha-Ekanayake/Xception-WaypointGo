@@ -18,7 +18,7 @@ export default function RouteChangedBottomSheet({
   onClose,
   onViewRoute,
   isNight = false,
-  sender = "Sent by Priya S. • Dispatch",
+  sender = "Sent by dispatch",
   time = "Just now",
 }: RouteChangedBottomSheetProps): React.JSX.Element | null {
   const [isRendered, setIsRendered] = useState(isOpen);
@@ -37,7 +37,7 @@ export default function RouteChangedBottomSheet({
       setIsVisible(false);
       const timer = setTimeout(() => {
         setIsRendered(false);
-      }, 300);
+      }, 250);
       return () => clearTimeout(timer);
     }
   }, [isOpen]);
@@ -49,7 +49,7 @@ export default function RouteChangedBottomSheet({
     setIsVisible(false);
     setTimeout(() => {
       onClose();
-    }, 300);
+    }, 250);
   }, [onClose]);
 
   // Close on Escape key press
@@ -67,19 +67,19 @@ export default function RouteChangedBottomSheet({
 
   if (!isRendered) return null;
 
+  // Opening the route does not wait for the sheet to slide away.
   const handleViewRoute = () => {
     setIsVisible(false);
-    setTimeout(() => {
-      onClose();
-      if (onViewRoute) {
-        onViewRoute();
-      }
-    }, 300);
+    onClose();
+    if (onViewRoute) {
+      onViewRoute();
+    }
   };
 
   return (
     <div
       role={isVisible ? "dialog" : undefined}
+      aria-label={isVisible ? "Run sheet changed" : undefined}
       aria-modal={isVisible ? "true" : undefined}
       aria-hidden={!isVisible}
       data-state={isVisible ? "open" : "closed"}
@@ -91,7 +91,7 @@ export default function RouteChangedBottomSheet({
       {/* Scrim (Figma: background: rgba(0, 0, 0, 0.25); backdrop-filter: blur(6px);) */}
       <div
         className={cx(
-          "absolute inset-0 bg-black/35 backdrop-blur-[6px] transition-opacity duration-300 ease-out",
+          "absolute inset-0 bg-black/35 backdrop-blur-[6px] transition-opacity duration-[250ms] ease-out",
           isVisible ? "opacity-100" : "opacity-0 pointer-events-none"
         )}
         onClick={handleClose}
@@ -102,7 +102,7 @@ export default function RouteChangedBottomSheet({
         onClick={(e) => e.stopPropagation()}
         className={cx(
           "relative z-10 w-full rounded-t-[40px] px-5 pt-5 pb-9 flex flex-col items-center gap-3 font-go select-none shadow-2xl",
-          "transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform",
+          "transition-transform duration-[250ms] ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform",
           isVisible ? "translate-y-0" : "translate-y-full",
           isNight ? "bg-[#292929] text-white" : "bg-white text-black"
         )}
@@ -114,7 +114,7 @@ export default function RouteChangedBottomSheet({
             isNight ? "bg-[#121212]" : "bg-[#E7F3F2]"
           )}
         >
-          {/* Meta row: Dot + "Route changed" + "Just now" */}
+          {/* Meta row: Dot + "Run sheet changed" + "Just now" */}
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-1.5">
               <span
@@ -129,7 +129,7 @@ export default function RouteChangedBottomSheet({
                   isNight ? "text-[#00BF6A]" : "text-[#0E766D]"
                 )}
               >
-                Route changed
+                Run sheet changed
               </span>
             </div>
             <span
@@ -142,14 +142,14 @@ export default function RouteChangedBottomSheet({
             </span>
           </div>
 
-          {/* Title: "Your route has changed" */}
+          {/* Title: "Your run sheet has changed" */}
           <h3
             className={cx(
               "text-[24px] font-medium leading-[30px] tracking-tight mt-0.5",
               isNight ? "text-white" : "text-black"
             )}
           >
-            Your route has changed
+            Your run sheet has changed
           </h3>
 
           {/* Body */}
@@ -159,7 +159,7 @@ export default function RouteChangedBottomSheet({
               isNight ? "text-[#A9A9A9]" : "text-[#6B6B6B]"
             )}
           >
-            Stops were added or reordered. Check the new route before you continue.
+            Stops were added or reordered. Check the new run sheet before you continue.
           </p>
 
           {/* From sender */}
@@ -173,7 +173,7 @@ export default function RouteChangedBottomSheet({
           </span>
           <VoiceMessagePlayer
             duration="0:07"
-            text="Your route has changed. Stops were added or reordered. Check the new route before you continue."
+            text="Your run sheet has changed. Stops were added or reordered. Check the new run sheet before you continue."
             isNight={isNight}
             className="pt-2"
           />
@@ -190,7 +190,7 @@ export default function RouteChangedBottomSheet({
               : "bg-[#031B08] text-white hover:bg-[#031B08]/90"
           )}
         >
-          View route
+          View run sheet
         </button>
       </div>
     </div>

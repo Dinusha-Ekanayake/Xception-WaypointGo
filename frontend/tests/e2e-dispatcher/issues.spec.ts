@@ -14,6 +14,8 @@ test("the inbox lists the most severe first, and a dispatcher takes an issue and
   const detail = page.getByRole("region", { name: "Selected issue" });
   await detail.getByRole("button", { name: "Take it" }).click();
   await expect(page.getByRole("status").filter({ hasText: "assigned to you" })).toBeVisible();
+  // Taken, it moves from Open to In progress and stays open here.
+  await expect(page.getByRole("radio", { name: "In progress (1)" })).toBeVisible();
   expect(desk.commands.at(-1)).toMatchObject({ kind: "issue:Assign", expectedVersion: 1, payload: { issueId: "issue-2", assigneeUserId: SESSION.userId } });
 
   await detail.getByRole("button", { name: "Resolve" }).click();
@@ -52,18 +54,19 @@ test("a redelivery is offered only when nothing arrived, and a stale issue is re
   await expect(detail.getByRole("button", { name: "Schedule redelivery" })).toHaveCount(0);
 });
 
-test("the overview counts the day from orders, the road and issues, and lists skipped outlets", async ({ page }) => {
+test("the overview counts the day from orders and issues, and names the outlets that must go first", async ({ page }) => {
   await serve(page, {
     issues: [issue(1, { severity: "CRITICAL" }), issue(2)],
     deferrals: [{ orderId: "order-9", outletId: "OUT077", serviceDate: "2027-03-01", ruleId: "R-PLN-06", reason: "no room", skipCount: 2 }],
   });
   await page.goto("/#/overview");
   const summary = page.getByRole("region", { name: "Summary" });
-  await expect(summary).toContainText("Open issues2");
-  await expect(summary).toContainText("1 high or critical");
-  const skipped = page.getByRole("list", { name: "Skipped outlets" });
-  await expect(skipped).toContainText("OUT077");
-  await expect(skipped).toContainText("Skipped 2×");
+  await expect(summary).toContainText("Issues reported2");
+  const orders = page.getByRole("region", { name: "Orders" });
+  await expect(orders).toContainText("Deferred today1");
+  await expect(orders).toContainText("No room on the vehicle · 1");
+  await expect(orders).toContainText("Must-deliver deferred1");
+  await expect(orders).toContainText("OUT077");
 });
 
 test("going offline turns the inbox read only and says so", async ({ page, context }) => {

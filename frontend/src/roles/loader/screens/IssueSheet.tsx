@@ -225,7 +225,7 @@ export default function IssueSheet({
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={2}
-            placeholder={tr("For example: two cases crushed on the pallet")}
+            placeholder={tr("For example: two units crushed on the pallet")}
             className="rounded-[16px] border border-go-rule px-4 py-3 text-base"
           />
         </label>
@@ -240,7 +240,7 @@ export default function IssueSheet({
           <BigButton tone="grey" size="l" onClick={onClose}>
             {tr("Cancel")}
           </BigButton>
-          <BigButton tone="danger" size="l" type="submit" disabled={!ready || busy}>
+          <BigButton tone="danger" size="l" type="submit" disabled={!ready} busy={busy}>
             {tr(busy ? "Sending…" : "Send to dispatcher")}
           </BigButton>
         </div>

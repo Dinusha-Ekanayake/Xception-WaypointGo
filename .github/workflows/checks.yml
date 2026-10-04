@@ -11,8 +11,49 @@ permissions:
   contents: read
 
 jobs:
+  # Which areas this change touches. A job whose area is untouched is skipped,
+  # so a frontend change does not wait on the backend and a docs change runs
+  # nothing. Deploys (workflow_call) and changes to the workflows run everything.
+  changes:
+    name: Changed areas
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      backend: ${{ steps.areas.outputs.backend }}
+      frontend: ${{ steps.areas.outputs.frontend }}
+      mcp: ${{ steps.areas.outputs.mcp }}
+      ml: ${{ steps.areas.outputs.ml }}
+      compose: ${{ steps.areas.outputs.compose }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - id: areas
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          areas="backend frontend mcp ml compose"
+          if [ "${{ github.event_name }}" != pull_request ]; then
+            for a in $areas; do echo "$a=true" >> "$GITHUB_OUTPUT"; done
+            exit 0
+          fi
+          files=$(git diff --name-only "$BASE"...HEAD)
+          echo "$files"
+          all=false
+          echo "$files" | grep -q '^\.github/workflows/' && all=true
+          hit() { $all && echo true && return; echo "$files" | grep -qE "$1" && echo true || echo false; }
+          {
+            echo "backend=$(hit '^(backend|migrations|data|tools/check_allocation)/')"
+            echo "frontend=$(hit '^frontend/')"
+            echo "mcp=$(hit '^mcp/')"
+            echo "ml=$(hit '^ml-server/')"
+            echo "compose=$(hit '^(compose[^/]*\.yaml|deploy/)|Dockerfile')"
+          } | tee -a "$GITHUB_OUTPUT"
+
   mcp:
     name: Read-only MCP checks
+    needs: changes
+    if: needs.changes.outputs.mcp == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
@@ -32,6 +73,8 @@ jobs:
 
   ml-server:
     name: Model service tests
+    needs: changes
+    if: needs.changes.outputs.ml == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -58,6 +101,8 @@ jobs:
   # others do not name, so a new test always runs somewhere.
   backend:
     name: Backend tests (${{ matrix.shard.name }})
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -68,10 +113,12 @@ jobs:
             tests: "com/waypoint/dispatch/execution/**,com/waypoint/dispatch/loading/**,com/waypoint/dispatch/identity/**"
           - name: notification, issues, receipt
             tests: "com/waypoint/dispatch/notification/**,com/waypoint/dispatch/issues/**,com/waypoint/dispatch/receipt/**"
-          - name: everything else
-            tests: "!com/waypoint/dispatch/execution/**,!com/waypoint/dispatch/loading/**,!com/waypoint/dispatch/identity/**,!com/waypoint/dispatch/notification/**,!com/waypoint/dispatch/issues/**,!com/waypoint/dispatch/receipt/**"
+          - name: planning, messaging
+            tests: "com/waypoint/dispatch/planning/**,com/waypoint/dispatch/messaging/**"
             # PeakDayAllocationTest (planning) runs here and writes the Task 2B file.
             validator: true
+          - name: everything else
+            tests: "!com/waypoint/dispatch/execution/**,!com/waypoint/dispatch/loading/**,!com/waypoint/dispatch/identity/**,!com/waypoint/dispatch/notification/**,!com/waypoint/dispatch/issues/**,!com/waypoint/dispatch/receipt/**,!com/waypoint/dispatch/planning/**,!com/waypoint/dispatch/messaging/**"
     services:
       postgres:
         image: postgres:16-bookworm
@@ -124,10 +171,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
-      - run: test "${{ needs.backend.result }}" = success
+      # Skipped means the change does not touch the backend.
+      - run: test "${{ needs.backend.result }}" = success || test "${{ needs.backend.result }}" = skipped
 
   frontend:
     name: Frontend checks
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -143,10 +193,93 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+      # No build here: every browser suite runner builds the same commit.
+
+  # Every role's screens in a real browser (#120), each suite against the
+  # production build with its API mocked, so no backend is needed. One runner
+  # per suite, side by side, each building for itself: the wall time is the
+  # slowest suite rather than the sum. Driver and loader are drawn at 393 px,
+  # dispatcher and store at 1440 px (the configs).
+  browser:
+    name: Browser suite (${{ matrix.suite.name }})
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        suite:
+          - { name: shell, config: playwright.config.ts }
+          - { name: dispatcher, config: playwright.dispatcher.config.ts }
+          - { name: driver, config: playwright.driver.config.ts }
+          - { name: loader, config: playwright.loader.config.ts }
+          - { name: store, config: playwright.store.config.ts }
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Playwright version
+        id: playwright
+        run: echo "version=$(npx playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+      # Restored here and saved at the end even when a suite failed, so a red run
+      # does not make the next one download Chromium again.
+      - uses: actions/cache/restore@v6
+        id: browsers
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+      - name: Install Chromium
+        if: steps.browsers.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+      - name: Install Chromium's system libraries
+        if: steps.browsers.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
       - run: npm run build
+      - name: Suite
+        run: npx playwright test -c ${{ matrix.suite.config }}
+      - name: Keep the reports of a failed run
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: browser-suites-report-${{ matrix.suite.name }}
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+          retention-days: 7
+      # Several suites may miss the cache at once; the first save wins and the
+      # rest fail to save, which is harmless.
+      - name: Keep Chromium for the next run
+        if: always() && steps.browsers.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+  # One status named as before, green only when every suite passed.
+  browser-result:
+    name: Browser suites
+    needs: browser
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - run: test "${{ needs.browser.result }}" = success || test "${{ needs.browser.result }}" = skipped
 
   compose:
     name: Compose files parse
+    needs: changes
+    if: needs.changes.outputs.compose == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

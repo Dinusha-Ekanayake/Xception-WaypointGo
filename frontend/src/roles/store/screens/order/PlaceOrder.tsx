@@ -6,7 +6,7 @@ import { useResource } from "@shared/api/useResource";
 import { OrderCommandKind, type LineAvailability, type OrderView, type PlacedOrder, type OutletView, type Temperature } from "@shared/domain/types";
 import { Notice, cx } from "@shared/ui";
 import type { StoreGateway } from "../../data/gateway.ts";
-import { addDays, clock, cutoffLabel, dayLabel, depotToday, hhmm, longDay, untilCutoff } from "../../data/format.ts";
+import { addDays, clock, cutoffLabel, dayLabel, depotToday, hhmm, longDay, untilCutoff, units } from "../../data/format.ts";
 import { clearDraft, loadDraft, saveDraft } from "../../data/draft.ts";
 import { classOf, rowsOf, usualOf } from "../../data/lines.ts";
 import { conflictMessage, type useCommands } from "../../data/useCommands.ts";
@@ -14,6 +14,8 @@ import { BackButton, Muted, Toast } from "../../ui.tsx";
 import OrderLines from "./OrderLines.tsx";
 import OrderSent, { type Sent } from "./OrderSent.tsx";
 import OrderSummary from "./OrderSummary.tsx";
+import DateStrip from "./DateStrip.tsx";
+import RideAlongHint from "./RideAlongHint.tsx";
 
 // Figma "03 Place order", "03b chilled", "03c add item", "03d item added" and
 // "03e draft saved". Chilled and ambient are separate orders (R-ORD-06), so one
@@ -61,10 +63,11 @@ export default function PlaceOrder({
   const [sent, setSent] = useState<Sent | null>(null);
   const [restored, setRestored] = useState<string | null>(null);
   const [note, setNote] = useState<Note | null>(null);
+  const [shared, setShared] = useState<string[]>([]);
 
   useEffect(() => {
     if (!note) return;
-    const timer = setTimeout(() => setNote(null), 6000);
+    const timer = setTimeout(() => setNote(null), 4000);
     return () => clearTimeout(timer);
   }, [note]);
 
@@ -91,7 +94,7 @@ export default function PlaceOrder({
   const saveAsDraft = () => {
     setNote(
       saveDraft(outletKey, qty)
-        ? { title: `Draft saved · ${clock(new Date().toISOString())}`, detail: left > 0 ? "Submit before 4:00 PM to send it" : "Nothing is sent until you submit" }
+        ? { title: `Draft saved · ${clock(new Date().toISOString())}`, detail: left > 0 ? "Submit before 16:00 to send it" : "Nothing is sent until you submit" }
         : { title: "This device cannot keep a draft", detail: "Submit the order to keep it", tone: "danger" },
     );
   };
@@ -99,7 +102,7 @@ export default function PlaceOrder({
   const products = catalogue.data ?? [];
   const tempOf = (id: string) => classOf(id, products, usual);
   const count = (t: Temperature) => Object.entries(qty).filter(([id, n]) => n > 0 && tempOf(id) === t);
-  const lines = (t: Temperature) => ({ items: count(t).length, cases: count(t).reduce((s, [, n]) => s + n, 0) });
+  const lines = (t: Temperature) => ({ items: count(t).length, units: count(t).reduce((s, [, n]) => s + n, 0) });
   const classes: Temperature[] = amend ? [amend.temperature] : ["ambient", "chilled"];
   const rows = rowsOf(temp, products, usual, qty, added);
   const rolled = amend
@@ -164,7 +167,7 @@ export default function PlaceOrder({
     setAdded((a) => (a.includes(id) ? a : [...a, id]));
     setLine(id, n);
     setFresh(id);
-    setNote({ title: `${id} added · ${n === 1 ? "1 case" : `${n} cases`}`, detail: "Use − and + to change the amount" });
+    setNote({ title: `${id} added · ${units(n)}`, detail: "Use − and + to change the amount" });
   };
 
   return (
@@ -173,7 +176,7 @@ export default function PlaceOrder({
       <div className="flex flex-col gap-1">
         <h1 className="text-[32px] leading-tight font-medium text-black">{amend ? `Change ${amend.orderRef}` : "Place order"}</h1>
         <Muted>
-          {longDay(today)} · orders close 4:00 PM · {cutoffLabel(left)}
+          {longDay(today)} · orders close 16:00 · {cutoffLabel(left)}
         </Muted>
         {restored && (
           <p role="status" className="text-[13px] text-go-teal">
@@ -185,35 +188,16 @@ export default function PlaceOrder({
       {/* Desktop: the list on the left and the summary card on the right, as in "03 Place order". */}
       <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start lg:gap-6">
         <div className="flex min-w-0 flex-col gap-4">
-          {!amend && (
-            <fieldset className="flex flex-col gap-2">
-              <legend className="mb-2 text-[13px] text-go-muted">Delivery day</legend>
-              <div className="flex gap-2">
-                {[0, 1, 2].map((i) => {
-                  const d = addDays(first, i);
-                  return (
-                    <button
-                      key={d}
-                      type="button"
-                      aria-pressed={d === date}
-                      onClick={() => setDate(d)}
-                      className={cx("min-h-12 flex-1 rounded-[18px] px-2 text-[15px] font-medium", d === date ? "bg-[#031a0c] text-white" : "bg-white text-black")}
-                    >
-                      {dayLabel(d)}
-                    </button>
-                  );
-                })}
-              </div>
-            </fieldset>
-          )}
+          {!amend && <DateStrip gateway={gateway} outletId={outletId} first={first} date={date} shared={shared} onPick={setDate} />}
           {rolled && !amend && (
             <Notice tone="warning" live title={`This order will arrive ${dayLabel(rolled)}, not ${dayLabel(date)}.`}>
-              {reasons.includes("cutoff") && "Orders for that day closed at 4:00 PM. "}
+              {reasons.includes("cutoff") && "Orders for that day closed at 16:00. "}
               {reasons.includes("closed") && "The depot has closed ordering for that day. "}
               {reasons.includes("non_operating") && `Depots are closed that day${festival ? ` (${festival})` : ""}. `}
               You can still order now; it goes on the next run.
             </Notice>
           )}
+          {!amend && <RideAlongHint gateway={gateway} outletId={outletId} brandCode={brand} date={date} onPick={setDate} onDays={setShared} />}
           {warehouseDown && (
             <Notice tone="warning" title="Stock can't be checked right now">
               The order is kept as &ldquo;stock not checked&rdquo; until the warehouse answers. It is not confirmed yet.

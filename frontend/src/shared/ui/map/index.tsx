@@ -11,7 +11,7 @@ export const LiveMap = dynamic(() => import("./MapCanvas.tsx"), {
 });
 
 export type { LiveMapProps, MapLine, MapMarker, MapStatus } from "./types.ts";
-export { cluster, compass, keepFix, metres, num, round6, tileAllowed, type LatLon } from "./geo.ts";
+export { cluster, compass, keepFix, metres, num, round6, keepTiles, tileAllowed, tilesFor, type LatLon } from "./geo.ts";
 
 const LEGEND: { status: MapStatus; label: string }[] = [
   { status: "on-time", label: "On time" },
@@ -31,14 +31,14 @@ export const STATUS_COLOR: Record<MapStatus, string> = {
 
 export function MapLegend({ hint }: { hint?: string }): React.JSX.Element {
   return (
-    <div className="flex h-[30px] items-center gap-3 rounded-full bg-white px-3 text-[12px] text-go-ink shadow">
+    <div className="flex h-[30px] w-max max-w-full items-center gap-3 overflow-hidden rounded-full bg-white px-3 text-[12px] whitespace-nowrap text-go-ink shadow">
       {LEGEND.map((item) => (
-        <span key={item.status} className="flex items-center gap-1.5">
+        <span key={item.status} className="flex shrink-0 items-center gap-1.5">
           <span className="h-2 w-2 rounded-full" style={{ background: STATUS_COLOR[item.status] }} />
           {item.label}
         </span>
       ))}
-      {hint && <span className="text-go-teal">{hint}</span>}
+      {hint && <span className="shrink-0 text-go-teal">{hint}</span>}
     </div>
   );
 }

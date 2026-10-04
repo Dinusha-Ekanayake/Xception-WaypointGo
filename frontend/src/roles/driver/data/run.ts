@@ -80,6 +80,7 @@ export function project(sheet: RunSheetView, writes: WaitingWrite[]): Stop[] {
       case DeliveryKind.record:
         stop.outcome = payload.outcome as DeliveryOutcome;
         stop.completedAt = when;
+        stop.deliveredUnits = typeof payload.deliveredUnits === "number" ? payload.deliveredUnits : null;
         break;
       case DeliveryKind.proof:
         stop.proofCaptured = true;
@@ -159,6 +160,20 @@ export type RunSummary = {
   proofOwed: number;
 };
 
+/**
+ * Units handed over across the finished stops: a full delivery is its order, a
+ * partial one the stop total it was recorded with (on the server or still on
+ * this phone), a failed or replanned stop none.
+ */
+export function unitsHandedOver(stops: Stop[]): { handed: number; ordered: number } {
+  let handed = 0;
+  for (const stop of stops) {
+    if (stop.outcome === "DELIVERED") handed += stop.deliveredUnits ?? stop.itemCount;
+    else if (stop.outcome === "PARTIAL") handed += stop.deliveredUnits ?? 0;
+  }
+  return { handed, ordered: stops.reduce((n, stop) => n + stop.itemCount, 0) };
+}
+
 export function summarize(stops: Stop[]): RunSummary {
   const count = (outcome: DeliveryOutcome) => stops.filter((stop) => stop.outcome === outcome).length;
   return {
@@ -177,3 +192,94 @@ export function operatingDate(now: Date): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Colombo", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
 }
 
+
+/**
+ * The run sheet this phone works from. A driver can be assigned several
+ * vehicles for a day, most with no released trip: the one with a stop still to
+ * do comes first, then one with any stops, then the first.
+ */
+export function todaysSheet(sheets: RunSheetView[]): RunSheetView | null {
+  return (
+    sheets.find((sheet) => sheet.stops.some((stop) => !isFinished(stop))) ??
+    sheets.find((sheet) => sheet.stops.length > 0) ??
+    sheets[0] ??
+    null
+  );
+}
+
+/** What every stop command answers with (ExecutionMessages.result on the server). */
+export type StopAck = { deliveryId: string; rowVersion: number; outcome: DeliveryOutcome };
+
+export function isStopAck(value: unknown): value is StopAck {
+  const ack = value as Partial<StopAck> | null;
+  return typeof ack?.deliveryId === "string" && typeof ack.rowVersion === "number" && typeof ack.outcome === "string";
+}
+
+/**
+ * The sheets with a sent command's answer taken in, so the next write names the
+ * version the server now holds even when reading the sheet back fails (EXE-29).
+ * Never moves a stop backwards.
+ */
+export function acknowledged(sheets: RunSheetView[], ack: StopAck): RunSheetView[] {
+  return sheets.map((sheet) => ({
+    ...sheet,
+    stops: sheet.stops.map((stop) =>
+      stop.deliveryId === ack.deliveryId && ack.rowVersion > stop.rowVersion ? { ...stop, rowVersion: ack.rowVersion, outcome: ack.outcome } : stop,
+    ),
+  }));
+}
+
+/** A day has a run when one of its sheets has stops: a vehicle is listed before its trip is released. */
+export const hasRun = (sheets: Array<{ stops: unknown[] }>): boolean => sheets.some((sheet) => sheet.stops.length > 0);
+
+/** How far ahead the driver looks for a released trip when today has none. */
+export const RUN_LOOK_AHEAD_DAYS = 7;
+
+/** One day ahead as the phone sees it: a released run, or a published trip still at the dock. */
+export type DayProbe = { released: boolean; waiting: { vehicleId: string; departure: string } | null };
+
+/** The driver's next trip: on a released run (the phone switches to it) or waiting for the loader. */
+export type NextRun = { date: string; released: boolean; vehicleId: string | null; departure: string | null };
+
+/**
+ * The first day after `today`, within a week, with a trip for this driver
+ * (issues #114 and the deadline-day UX plan): a released run, which the phone
+ * switches to, or a published trip the loader has not released yet, which Home
+ * names. Every day is asked at once, so the answer takes one round trip rather
+ * than seven, and a day that cannot be read is skipped.
+ */
+export async function lookAhead(today: string, probe: (date: string) => Promise<DayProbe>): Promise<NextRun | null> {
+  const start = new Date(`${today}T00:00:00Z`);
+  const days = Array.from({ length: RUN_LOOK_AHEAD_DAYS }, (_, i) => {
+    const d = new Date(start);
+    d.setUTCDate(d.getUTCDate() + i + 1);
+    return d.toISOString().slice(0, 10);
+  });
+  const answers = await Promise.all(days.map((day) => probe(day).catch(() => null)));
+  for (const [i, answer] of answers.entries()) {
+    if (!answer) continue;
+    if (answer.released) return { date: days[i]!, released: true, vehicleId: null, departure: null };
+    if (answer.waiting) return { date: days[i]!, released: false, ...answer.waiting };
+  }
+  return null;
+}
+
+/** The run day this phone last followed, so a reload offline opens the same run. */
+const RUN_DAY_KEY = (accountId: string) => `waypoint.driver.runDay.${accountId}`;
+
+export function keptRunDay(accountId: string, today: string): string {
+  try {
+    const kept = window.localStorage.getItem(RUN_DAY_KEY(accountId));
+    return kept && kept >= today ? kept : today;
+  } catch {
+    return today;
+  }
+}
+
+export function keepRunDay(accountId: string, date: string): void {
+  try {
+    window.localStorage.setItem(RUN_DAY_KEY(accountId), date);
+  } catch {
+    // Storage unavailable: the run is found again online.
+  }
+}

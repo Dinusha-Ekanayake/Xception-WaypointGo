@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { hostForRole, isPreviewHome, roleForHost, sharedHomeFor } from "../src/app-shell/hostRole.ts";
+import { hostForRole, isPreviewHome, roleForHost, sharedHomeFor, sharedHostFor } from "../src/app-shell/hostRole.ts";
 
 test("a role address names its role", () => {
   assert.equal(roleForHost("dispatcher.waypointgo.live"), "dispatcher");
@@ -54,4 +54,11 @@ test("a role address, www, a bare machine name and a number are never a shared h
   for (const host of ["loader.waypointgo.live", "loader-preview.waypointgo.live", "www.waypointgo.live", "localhost", "127.0.0.1", "[::1]", "preview.live", ""]) {
     assert.equal(sharedHomeFor(host, "loader", true), null, host);
   }
+});
+
+test("a role address leads back to the address every role shares", () => {
+  assert.equal(sharedHostFor("dispatcher-preview.waypointgo.live"), "preview.waypointgo.live");
+  assert.equal(sharedHostFor("Admin.WaypointGo.live"), "waypointgo.live");
+  assert.equal(sharedHostFor("store.waypointgo.live"), "waypointgo.live");
+  for (const host of ["preview.waypointgo.live", "waypointgo.live", "localhost"]) assert.equal(sharedHostFor(host), null, host);
 });

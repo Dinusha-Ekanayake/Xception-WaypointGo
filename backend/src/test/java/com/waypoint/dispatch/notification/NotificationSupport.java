@@ -7,6 +7,7 @@ import com.waypoint.dispatch.notification.contract.NotificationViews.PushConfigV
 import com.waypoint.dispatch.notification.domain.Delivery.PushResult;
 import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.support.ReceiptIssuesSupport;
+import com.waypoint.dispatch.support.TestDates;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -193,6 +194,6 @@ public abstract class NotificationSupport extends ReceiptIssuesSupport {
 
   /** A date far enough out that no other test has assigned anyone to anything. */
   protected static LocalDate someFarDate() {
-    return LocalDate.of(2060, 1, 1).plusDays(ThreadLocalRandom.current().nextInt(0, 30_000));
+    return TestDates.unusedDay();
   }
 }

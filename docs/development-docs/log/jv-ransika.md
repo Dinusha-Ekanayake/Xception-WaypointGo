@@ -4,6 +4,87 @@
 
 ---
 
+## 2026-10-04 - feat: trip drawer, vehicle picker, published plan final at 16:00
+
+`feat/plan-trip-drawer` · @jv-ransika
+
+The trip detail on View plan opens as a side drawer like the order drawer (shared `Drawer`); nothing opens by default. "Move trip to" is a pop-up with a search, filters (All, Free, Refrigerated, Ambient, Van) and each vehicle's trips in the plan (`VehiclePicker.tsx`). Once a day is published the screen shows only that plan: saved candidates, Save snapshot, Regenerate and Compare go. A published plan takes a revision or a trip move until 16:00 depot time on its day, then it is final (R-PLN-43, `PublishedEditWindow`, mirrored as `PUBLISHED_EDIT_CLOSES`). The error pop-up closes on a click outside or Escape, like every other pop-up.
+Why: user review: one detail pattern, no candidates after publish, a findable vehicle list, and the day's plan settles at the cutoff.
+Verified: `PublishedEditWindowTest`, `PlanningDecisionsIntegrationTest`, `PlanningRevisionIntegrationTest`; `npm test` (235), typecheck, build; dispatcher browser suite 59 of 60 (`live-map.spec.ts` flaky as before).
+Open: none new.
+
+---
+
+## 2026-10-04 - feat: one plan view across depots, depot switch in every page header
+
+`feat/dispatcher-figma-screens` · @jv-ransika
+
+The depot scope left the sidebar. It is one switch in the page header of every screen, in the same place, from a shared context (`depotScope.tsx`). Plan is one plan view: "Both" shows both depots' trips and orders together. Each depot keeps its own plan, and each command goes to the plan that holds its order or trip (`data/planRouting.ts`, unit-tested). Plan-wide commands (generate, save, publish, revise) go to each depot's plan in turn. Live's day field stays in the header on every view.
+Why: user review: no second plan window stacked below the first; one switch in one place; Live's day field moved when the view changed.
+Verified: `npm test` (216), `npm run typecheck`, `npm run build`; dispatcher browser suite 56 of 57 (`live-map.spec.ts` flaky on a marker click, as before).
+Open: none new.
+
+---
+
+## 2026-10-04 - fix: dispatcher UX review fixes (must and should fix)
+
+`feat/dispatcher-figma-screens` · @jv-ransika
+
+From a critic and defender review of the dispatcher screens:
+- **Trip window:** stops with no window or no time are no longer counted as met, and the tiles say "Not checked yet" until the server answers.
+- **Required reasons:** marked, and the footer says what Accept waits for.
+- **Swap:** no dead swap dialog; "Open swap window" is disabled with the reason.
+- **Day picker:** one shared field in depot words on Plan, Live and the redelivery date; Live marks a day that is not today.
+- **Charts:** labelled refrigerated chart; whole-number trips chart with an empty state; "The 1 check".
+- **One leftover wording:** "6 not on a trip · 5 deferred · 1 too big", the same on the board and Publish.
+- **Step bar:** warns on Decide and names a blocked Publish's blocker.
+- **Decide:** moves to the next open order, and notes when an order now fits. "Keep the rest deferred" is quiet until one order is decided, and lists its outlets and when stores are told.
+- **Names and terms:** names in "Also sent to"; truck and van as in the glossary.
+- **Order drawer:** focus trap and return, plus a link to the order's day in Plan.
+- **Overview:** a "Tomorrow's plan" card.
+- **Other:** badge tooltips; a confirm before an edited trip or swap is closed; Compare pickers disabled with one plan; saved time with its day; a flag when the return is before the last stop; Orders placeholder and header fixed; Issues fits its content.
+- **Refactors:** `Plan.tsx` and `Sidebar.tsx` split under 300 lines.
+
+Why: findings of the UX review, reranked by both sides.
+Verified: `npm run typecheck`, `npm test` (213), `npm run build`; dispatcher browser suite 57 of 57.
+Also: the Plan header has a depot switch (Both, Kandy, Peliyagoda) on the same shared scope as the sidebar (FIGMA-GAP updated); Orders has a brand legend that also filters.
+Open: a pass on real data to confirm the mock-only items.
+
+---
+
+## 2026-10-04 - feat: plan screen edits trips by drag and drop, shows both depots, refusals pop up
+
+`feat/dispatcher-figma-screens` · @jv-ransika
+
+`plan:EditTrip` sets what a trip carries and in what order in one change (add from deferred or another trip, take off, reorder, remove the trip), judged whole with a preview (R-PLN-42, migration 20261004T1810). Edit trip is drag and drop; the board's trip panel can lock a stop to its vehicle. The Plan screen shows a section per depot in the sidebar's scope instead of asking; its header is the one every screen has (sync, bell); the step bar keeps one button slot on every step, with Edit plan and Watch the run in the Publish card; Compare has Back to the plan. Refusals are pop-ups that stay until closed. Trip cells no longer truncate, the hover card is gone, the trip timeline line and dots line up, passed checks read as met.
+Why: review of the plan pages with a realistic day.
+Verified: `PlanningRunTest` (32), `ModuleBoundaryTest`, `PlanningDecisionsIntegrationTest` (14, PostgreSQL 16, with a denied-scope case); `npm run typecheck`, `npm test`, `npm run build`; dispatcher browser suite.
+Open: AI stop order is still a placeholder; workshop list and resolved issues still wait on a read.
+
+---
+
+## 2026-10-04 - feat: dispatcher shell and screens follow Figma 05
+
+`feat/plan-figma` · @jv-ransika
+
+One sidebar on every screen, folded to the rail by the dispatcher and kept, with the depot scope in the rail too, and the account and Sign out inside Settings behind the picture (as every role has it); the sidebar is the only depot scope, Live included. Overview, Orders (current, upcoming, past, order drawer), Plan (three-column swap and edit windows, publish, compare, trip and deferred cards), Vehicles and Issues rebuilt to the Figma frames from existing reads; `plan:Swap` takes an optional stop order (`orderIds`, R-PLN-33) so the swap window swaps and reorders in one command, and "AI order" is a placeholder (`useStopOrderProposal`); success is a toast (`shared/ui/Toast.tsx`, `Popover.tsx`). What still waits on a read is listed in [FIGMA-GAP](../../issues/019-dispatcher-ui/FIGMA-GAP.md).
+Why: the screens and the left bar did not match the design and the bar changed shape between screens.
+Verified: `PlanningRunTest`, `ModuleBoundaryTest`, `PlanningDecisionsIntegrationTest` (11, PostgreSQL 16); `npm run typecheck`, `npm test` (193), `npm run build`; `playwright.dispatcher.config.ts` 44 of 45 after rebasing on `dev` (live map passes alone, flaky in the full run), with a new `shell.spec.ts`.
+Open: AI stop-order proposal (placeholder only), workshop list, resolved issues and a stop order proposal have no read; Live and Forecast specs are stale against their screens.
+
+---
+
+## 2026-10-04 - feat: the Plan screen follows the design, with decisions recorded and saved plans
+
+`feat/plan-figma` · @jv-ransika
+
+Each hand decision is recorded on the order (who, when, held or not); a regenerate can keep them; swap, keep deferred, lock, a fixed stop order, a message to a store, saved plans and compare are commands and reads; a revision tells only the trips and outlets it changes. The Plan screen is rebuilt around them: counter and bulk keep, swap window, too-big card, deferred column, filter, low-load and late risk, timeline, Edit trip, publish gate, plan switcher, compare, and an icon rail. No rule id is shown; `ruleLabel` says it in words. Migrations 20261004T0900, 0910, 1000, 1100; R-PLN-33 to 37, R-NOT-12 and 13, PLN-25 to 32, NOT-11 to 13.
+Why: Figma is the ground truth and the Plan screen lacked most of it; decision 9 of #19 had left these out only because nothing served them (reversed, see FIGMA-GAP).
+Verified: `mvn test` on PlanningRunTest (28), PinnedDecisionsTest, PlanDiffTest, PeakDayAllocationTest, ModuleBoundaryTest, EventCatalogueTest, and against PostgreSQL 16 Planning{Decisions,Snapshots,Revision,Command,Schema}IntegrationTest, CommandPathIntegrationTest, NotificationConsumersIntegrationTest, LoadingIntegrationTest, ExecutionIntegrationTest; frontend `npm run typecheck`, `npm test` (146), `npm run build`; browser `plan.spec.ts` and `plan-decisions.spec.ts` (13). Five other dispatcher specs (live, forecast, live map) fail the same way on a clean origin/dev.
+Open: Overview and Orders still differ from the design (FIGMA-GAP sections 1 and 2); the swap window, Compare, Edit trip and publish frames were built from the workflow map, not seen; the full `mvn verify` was not run; after editing these migrations before merge, recreate the test database (checksums).
+
+---
+
 ## 2026-10-03 - ci: backend tests run as three parallel shards
 
 `feat/observability-metrics-dashboard` · @jv-ransika

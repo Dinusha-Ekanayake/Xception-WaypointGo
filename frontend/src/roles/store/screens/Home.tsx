@@ -3,9 +3,10 @@
 import { useEffect, useState, type ReactNode } from "react";
 import type { ApiError } from "@shared/api/problem";
 import type { DeliveryRecordView, IssueView, OrderStatus, OrderView, OutletView, PendingReceiptView } from "@shared/domain/types";
-import { Icon, Notice, cx } from "@shared/ui";
-import { cases, addDays, clock, cutoffLabel, dayLabel, depotToday, editable, greeting, hhmm, onTheWay, temperatureLabel, untilCutoff } from "../data/format.ts";
+import { Icon, Notice, SkeletonRows, cx } from "@shared/ui";
+import { units, addDays, clock, cutoffLabel, dayLabel, depotToday, editable, greeting, hhmm, onTheWay, temperatureLabel, untilCutoff } from "../data/format.ts";
 import { isOpenIssue, issueCard, loaderShortUnits } from "../data/issues.ts";
+import { aheadLabel, nextDelivery } from "../data/nextDelivery.ts";
 import NextStop from "./NextStop.tsx";
 import { Button, Card, Chip, Muted } from "../ui.tsx";
 
@@ -22,10 +23,10 @@ export function Progress({ status }: { status: OrderStatus }): React.JSX.Element
     <ol className="flex w-full" aria-label="Delivery progress">
       {STEPS.map((step, i) => (
         <li key={step} className="relative flex flex-1 flex-col items-center gap-1" aria-current={i === done ? "step" : undefined}>
-          {i > 0 && <span aria-hidden className={cx("absolute top-3 -left-1/2 h-0.5 w-full", i <= done ? "bg-go-success" : "bg-[#dfe7e6]")} />}
+          {i > 0 && <span aria-hidden className={cx("absolute top-3 left-[calc(-50%+13px)] h-0.5 w-[calc(100%-26px)] transition-colors duration-[250ms]", i <= done ? "bg-go-success" : "bg-[#dfe7e6]")} />}
           <span
             className={cx(
-              "relative flex size-[26px] items-center justify-center rounded-full",
+              "relative flex size-[26px] items-center justify-center rounded-full transition-colors duration-[250ms]",
               i < done ? "bg-go-success" : i === done ? "border-[3px] border-go-success bg-white" : "bg-[#f1f6f5]",
             )}
           >
@@ -52,6 +53,7 @@ export default function Home({
   onReceive,
   onTrack,
   notifications,
+  onRetry,
 }: {
   orders: OrderView[];
   loading: boolean;
@@ -66,6 +68,8 @@ export default function Home({
   onPlace: () => void;
   onReceive: (orderId: string) => void;
   onTrack: () => void;
+  /** Read the orders again after a failure. */
+  onRetry?: () => void;
   /** The notifications column on desktops (issue #118). */
   notifications: ReactNode;
 }): React.JSX.Element {
@@ -78,8 +82,9 @@ export default function Home({
   const today = depotToday();
   // Before the cutoff an order is for tomorrow's run; after it, the day after (R-ORD-01).
   const next = addDays(today, left > 0 ? 1 : 2);
-  const todays = orders.filter((o) => o.deliveryDate === today && o.status !== "CANCELLED");
-  const coming = todays.find((o) => onTheWay(o.status)) ?? todays.find((o) => o.status === "DELIVERED") ?? null;
+  // Today's delivery on the way, else the next one planned or confirmed (UX plan U3).
+  const next_ = nextDelivery(orders, today);
+  const coming = next_?.order ?? null;
   const forNext = orders.filter((o) => o.deliveryDate === next && o.status !== "CANCELLED");
   const stop = coming ? (deliveries.find((d) => d.orderId === coming.orderId) ?? null) : null;
   const shortage = coming ? issues.find((i) => i.type === "LOADING_SHORTFALL" && isOpenIssue(i) && i.subjects.some((s) => s.id === coming.orderId)) : undefined;
@@ -97,14 +102,23 @@ export default function Home({
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
         <div className="flex min-w-0 flex-col gap-5">
-          {error && <Notice tone="danger" title="Could not load your orders">{error.message}</Notice>}
+          {error && <Notice tone="danger" title="Could not load your orders" onRetry={onRetry}>{error.message}</Notice>}
 
-          <Card label="Next delivery">
+          {/* Moves into Track's first card when the delivery is tracked (shared element, UX polish 4). */}
+          <Card label="Next delivery" style={{ viewTransitionName: "vt-delivery" }}>
             <div className="flex items-center gap-1.5">
               <p className="flex-1 text-[13px] font-light text-go-muted">
-                {coming ? `Next delivery · ${todays.indexOf(coming) + 1} of ${todays.length} today` : "No delivery on the way"}
+                {next_
+                  ? next_.when === "today"
+                    ? `Next delivery · ${next_.position} of ${next_.ofDay} today`
+                    : <>
+                        Next delivery · {dayLabel(next_.order.deliveryDate)}
+                        {/* Kept together on a narrow phone, never "1 of / 3". */}
+                        {next_.ofDay > 1 && <span className="whitespace-nowrap"> · 1 of {next_.ofDay}</span>}
+                      </>
+                  : "No delivery planned"}
               </p>
-              {coming && <Chip>{onTheWay(coming.status) ? "On the way" : "Arrived"}</Chip>}
+              {coming && <Chip>{next_?.when === "ahead" ? aheadLabel(coming.status) : onTheWay(coming.status) ? "On the way" : "Arrived"}</Chip>}
               {coming && <Chip outline>{temperatureLabel(coming.temperature)}</Chip>}
               {stop && <Chip outline>{stop.vehicleId}</Chip>}
             </div>
@@ -121,7 +135,7 @@ export default function Home({
                     </span>
                     <span className="text-[20px] font-medium text-black">
                       {loaderShortUnits(shortage) > 0
-                        ? `${loaderShortUnits(shortage)} ${loaderShortUnits(shortage) === 1 ? "package" : "packages"} short - ${Math.max(0, coming.itemCount - loaderShortUnits(shortage))} of ${coming.itemCount} coming`
+                        ? `${units(loaderShortUnits(shortage))} short - ${Math.max(0, coming.itemCount - loaderShortUnits(shortage))} of ${coming.itemCount} coming`
                         : issueCard(shortage, coming, clock).title}
                     </span>
                     <span className="text-[13px] text-go-secondary">Reported at loading · comes next delivery</span>
@@ -137,7 +151,7 @@ export default function Home({
                 </div>
               </>
             ) : (
-              <Muted>{loading ? "Loading…" : "Nothing is on the way to you today."}</Muted>
+              loading ? <SkeletonRows label="Loading…" /> : <Muted>No delivery is planned for you yet. Your next order shows here once it is confirmed.</Muted>
             )}
           </Card>
 
@@ -145,7 +159,7 @@ export default function Home({
             <div className="flex items-start gap-2">
               <div className="flex flex-1 flex-col gap-[3px]">
                 <h2 className="text-[18px] font-medium text-black">Order for {dayLabel(next)}</h2>
-                <Muted>Closes 4:00 PM · {cutoffLabel(left)}</Muted>
+                <Muted>Closes 16:00 · {cutoffLabel(left)}</Muted>
               </div>
               <Chip tone={forNext.length ? "ok" : "muted"}>{forNext.length ? `${forNext.length} placed` : "Not placed yet"}</Chip>
             </div>
@@ -164,7 +178,7 @@ export default function Home({
                     >
                       <span className="text-[15px] font-medium">{temperatureLabel(t)}</span>
                       <span className="text-[13px] text-go-muted">
-                        {first ? `${first.orderRef} · ${cases(total)}${placed.some((o) => editable(o.status)) ? " · change" : ""}` : "Not placed"}
+                        {first ? `${first.orderRef} · ${units(total)}${placed.some((o) => editable(o.status)) ? " · change" : ""}` : "Not placed"}
                       </span>
                     </button>
                   </li>

@@ -1,14 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { newCommand } from "@shared/api/commands";
+import { ApiError } from "@shared/api/problem";
 import { useOnline } from "@shared/api/useResource";
-import { ExecutionCommandKind, type FailureReason, type ReportedVehicleStatus } from "@shared/domain/types";
+import type { HandoverEntryResult } from "@shared/domain/receipt";
+import { ExecutionCommandKind, ReceiptCommandKind, type FailureReason, type ReportedVehicleStatus } from "@shared/domain/types";
 import { discardUpload, useSync } from "@shared/offline";
-import { useShell } from "@shared/ui";
+import { useShell, withTransition } from "@shared/ui";
+import { keepTiles, num, tilesFor, type LatLon } from "@shared/ui/map";
 import { createGateway } from "./data/gateway.ts";
+import { queuedSender } from "@shared/messaging/senders";
 import { usePositionRecorder } from "./data/position.ts";
 import { isFinished, nextStop, type Stop } from "./data/run.ts";
 import { DeliveryKind, useRun, type Outcome } from "./data/useRun.ts";
+import type { HandoverAnswer } from "./screens/DeliveryPinConfirmModal.tsx";
 import type { Report } from "./screens/DeliveryReport.tsx";
 import type { ProofDraft } from "./screens/ProofCapture.tsx";
 import type { Problem } from "./screens/Sheets.tsx";
@@ -25,7 +31,14 @@ export type View =
   | { name: "complete" }
   | { name: "map" };
 
-export type Saved = { title: string; onPhone: boolean; last: boolean; warning: string | null };
+export type Saved = {
+  title: string;
+  onPhone: boolean;
+  last: boolean;
+  warning: string | null;
+  /** The stop just recorded; null when nothing was handed over, so there is no PIN to enter. */
+  handedOver: Stop | null;
+};
 
 const THEME_KEY = "waypoint.driver.theme";
 
@@ -41,16 +54,50 @@ function words(outcome: Outcome): string | null {
   return outcome.ok ? null : outcome.error.message;
 }
 
-export function useDriver(userId: string) {
+/** @param depot the driver's depot, for the next trip on its published plan. */
+export function useDriver(userId: string, depot: string | null = null) {
   const online = useOnline();
   const shell = useShell();
   const sync = useSync(userId);
   const gateway = useMemo(() => createGateway(userId), [userId]);
-  const run = useRun(gateway, userId, online, `${sync.pending}:${sync.held.length}`, sync.syncNow);
+  const run = useRun(gateway, userId, online, `${sync.pending}:${sync.held.length}`, sync.syncNow, depot);
+
+  // The run's map is kept on the phone while there is a signal, so it still
+  // draws in a valley with none (issue #201). Once per run and connection; a
+  // tile already kept is answered by the worker without the network.
+  // In stop order, so if the cap cuts, it is the last stops that lose their streets.
+  const stopPoints = useMemo(() => {
+    const points: LatLon[] = [];
+    const ordered = [...run.stops].sort((x, y) => x.sequence - y.sequence).map((stop) => stop.outletId);
+    const ids = [...new Set([...ordered, ...Object.keys(run.outlets)])];
+    for (const outlet of ids.map((id) => run.outlets[id]).filter((o) => o !== undefined)) {
+      const lat = num(outlet.location?.latitude);
+      const lon = num(outlet.location?.longitude);
+      if (lat !== null && lon !== null) points.push({ lat, lon });
+    }
+    return points;
+  }, [run.outlets, run.stops]);
+  const tileKey = stopPoints.map((p) => `${p.lat},${p.lon}`).join(";");
+  useEffect(() => {
+    if (!online || tileKey === "") return;
+    const stop = new AbortController();
+    void keepTiles(tilesFor(stopPoints), stop.signal);
+    return () => stop.abort();
+    // Keyed on tileKey, not stopPoints: a new run sheet read with the same stops fetches nothing again.
+  }, [online, tileKey]);
 
   const [view, setView] = useState<View>({ name: "home" });
   // GPS while a run is open (issue #161): a released trip with a stop still to do.
   const stillToDo = nextStop(run.stops);
+  // Messages on the trip's thread keep on the phone with no signal, like every driver write (issue #136).
+  const postMessage = useMemo(
+    () => queuedSender({ accountId: userId, role: "driver", online, onQueued: sync.syncNow }),
+    [userId, online, sync.syncNow],
+  );
+  const nextOutlet = stillToDo ? run.outlets[stillToDo.outletId] : undefined;
+  const nextLat = num(nextOutlet?.location?.latitude);
+  const nextLon = num(nextOutlet?.location?.longitude);
+  const nextPoint: LatLon | null = nextLat !== null && nextLon !== null ? { lat: nextLat, lon: nextLon } : null;
   const location = usePositionRecorder(gateway, run.vehicle?.vehicleId ?? null, stillToDo?.tripId ?? null, stillToDo !== null);
   const [dark, setDark] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,11 +128,18 @@ export function useDriver(userId: string) {
     });
   };
 
+  // A stop, its report or the map slides in; Home or the route slides back from them (UX polish 4).
+  const current = useRef(view.name);
+  current.current = view.name;
   const go = useCallback((next: View) => {
-    setError(null);
-    setNotice(null);
-    setView(next);
-    window.scrollTo({ top: 0 });
+    const detail = (name: View["name"]) => name === "stop" || name === "report" || name === "map";
+    const direction = detail(next.name) ? "forward" : (next.name === "home" || next.name === "route") && detail(current.current) ? "back" : "tab";
+    withTransition(() => {
+      setError(null);
+      setNotice(null);
+      setView(next);
+      window.scrollTo({ top: 0 });
+    }, direction);
   }, []);
 
   const { stops, act } = run;
@@ -103,6 +157,8 @@ export function useDriver(userId: string) {
   const openRun = async () => {
     const next = nextStop(stops);
     if (!next) return go({ name: "complete" });
+    // Already at the stop, recorded here or before a restart: straight to its report.
+    if (next.outcome === "ARRIVED") return go({ name: "report", deliveryId: next.deliveryId, failed: null });
     go({ name: "route", deliveryId: null });
     await start(next);
   };
@@ -114,11 +170,16 @@ export function useDriver(userId: string) {
     await start(stop);
   };
 
-  const arrived = async (stop: Stop) => {
+  /** True once the arrival is recorded, sent or kept on this phone. */
+  const arrived = async (stop: Stop): Promise<boolean> => {
     setError(null);
     const outcome = await act(DeliveryKind.arrive, { deliveryId: stop.deliveryId, deviceArrivedAt: new Date().toISOString() }, stop);
-    if (!outcome.ok) return setError(words(outcome));
+    if (!outcome.ok) {
+      setError(words(outcome));
+      return false;
+    }
     go({ name: "report", deliveryId: stop.deliveryId, failed: null });
+    return true;
   };
 
   /**
@@ -148,7 +209,8 @@ export function useDriver(userId: string) {
     );
   };
 
-  const confirm = async (stop: Stop, report: Report) => {
+  /** True once the record is kept, sent or on this phone; its proof may still have failed (see `saved`). */
+  const confirm = async (stop: Stop, report: Report): Promise<boolean> => {
     setError(null);
     setWorking(true);
     try {
@@ -164,7 +226,10 @@ export function useDriver(userId: string) {
         },
         stop,
       );
-      if (!recorded.ok) return setError(words(recorded));
+      if (!recorded.ok) {
+        setError(words(recorded));
+        return false;
+      }
       // The record moved the stop's version on by one, sent or waiting.
       const proven = report.proof ? await captureProof(stop, stop.rowVersion + 1, report.proof) : null;
       setSaved({
@@ -172,7 +237,9 @@ export function useDriver(userId: string) {
         onPhone: recorded.queued || (proven?.ok === true && proven.queued),
         last: stops.every((other) => other.deliveryId === stop.deliveryId || isFinished(other)),
         warning: proven && !proven.ok ? `The delivery is recorded, but its proof was not: ${proven.error.message} Open the stop from Home to add it.` : null,
+        handedOver: record.outcome === "FAILED" ? null : stop,
       });
+      return true;
     } finally {
       setWorking(false);
     }
@@ -228,6 +295,25 @@ export function useDriver(userId: string) {
     setNotice(outcome.queued ? "Vehicle status saved on this phone." : "Vehicle status sent to dispatch.");
   };
 
+  /**
+   * The store manager's handover PIN (R-RCP-09). Online only: the PIN is checked
+   * by the server and expires, so a queued guess would mean nothing. Never a
+   * gate: whatever the answer, the delivery stands.
+   */
+  const verifyHandover = async (stop: Stop, pin: string): Promise<HandoverAnswer> => {
+    try {
+      const ack = await gateway.send(newCommand(ReceiptCommandKind.verifyHandover, { orderId: stop.orderId, pin }));
+      const result = ack.result as HandoverEntryResult;
+      return { outcome: result.outcome, attemptsLeft: result.attemptsLeft };
+    } catch (failure) {
+      if (failure instanceof ApiError && failure.code === "FORBIDDEN" && /no handover PIN/i.test(failure.message)) {
+        return { error: "The store manager has not confirmed the receipt yet, so there is no PIN to check. Ask them to confirm it, or skip." };
+      }
+      if (failure instanceof ApiError) return { error: failure.message };
+      return { error: "Waypoint is not answering. The delivery is recorded; you can skip the PIN." };
+    }
+  };
+
   /** A proof file the server refused: only the driver drops it. */
   const dropUpload = async (id: string) => {
     await discardUpload(userId, id);
@@ -278,6 +364,10 @@ export function useDriver(userId: string) {
     afterSaved,
     report,
     reportStatus,
+    postMessage,
+    tripId: (stillToDo ?? run.stops[run.stops.length - 1])?.tripId ?? null,
+    nextPoint,
+    verifyHandover,
     dropUpload,
     openProblem: (target: Stop | "run") => setProblemFor(target),
     closeProblem: () => {

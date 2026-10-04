@@ -1,4 +1,6 @@
 import type { Page, Route } from "@playwright/test";
+import type { PostMessagePayload } from "../../src/shared/domain/messaging.ts";
+import { postToThread, threadRead, type ThreadMock } from "../thread-mocks.ts";
 import type { DeliveryRecordView } from "../../src/shared/domain/execution.ts";
 import type { IssueView } from "../../src/shared/domain/issues.ts";
 import type { OrderView } from "../../src/shared/domain/ordering.ts";
@@ -139,7 +141,7 @@ export const SHORTFALL: IssueView = {
 
 // ---- the week around today, for "05a Deliveries" and "05b make-up delivery" ----
 
-const shift = (days: number) => new Date(Date.parse(`${today}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
+export const shift = (days: number) => new Date(Date.parse(`${today}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
 export const PAST_DAY = shift(-2);
 
 /** Delivered two days ago, one yoghurt short on the store's count. */
@@ -198,7 +200,7 @@ export const REDELIVERED: IssueView = {
 };
 
 /** The make-up delivery: planned for today, not on a vehicle yet. */
-export const MAKE_UP: OrderView = { ...ORIGINAL, orderId: "order-2", orderRef: "ORD0092418", requestedDate: today, deliveryDate: today, status: "ALLOCATED", redeliveryOf: ORIGINAL.orderId };
+export const MAKE_UP: OrderView = { ...ORIGINAL, orderId: "order-2", orderRef: "ORD0092418", requestedDate: today, deliveryDate: today, status: "ALLOCATED", redeliveryOf: ORIGINAL.orderId, plannedStop: 4, plannedArrival: "06:10:00" };
 
 export const NEXT: OrderView = { ...ORDER, orderId: "order-3", orderRef: "ORD0092420", temperature: "ambient", requestedDate: shift(1), deliveryDate: shift(1), status: "CONFIRMED" };
 
@@ -224,8 +226,9 @@ export type Handover = { status: "AWAITING" | "CONFIRMED" | "LOCKED" | "EXPIRED"
 /** Routes every call the store makes; a delivered order is waiting to be received. */
 export async function mockStore(
   page: Page,
-  options: { answered?: Handover | null; loadingShort?: boolean; week?: boolean; deferred?: boolean; positions?: unknown[] } = {},
+  options: { answered?: Handover | null; loadingShort?: boolean; week?: boolean; deferred?: boolean; positions?: unknown[]; threads?: ThreadMock[]; rideAlong?: { date: string; stopsBooked: number }[] | "down"; roomChecked?: boolean; outlook?: Record<string, "ON_TRACK" | "BUSY" | "AT_RISK" | "TOO_EARLY" | "CLOSED"> | "down" } = {},
 ): Promise<{ sent: Sent; handover: { current: Handover | null }; uploads: string[] }> {
+  const threads = options.threads ?? [];
   const sent: Sent = [];
   /** Photo uploads, as the paths they were PUT to. */
   const uploads: string[] = [];
@@ -247,7 +250,27 @@ export async function mockStore(
       return json({ outletId: "OUT085", windowOpen: null, windowClose: null, dockType: null, contactName: null, contactPhone: null, receivingNotes: null, rowVersion: 0, updatedAt: null });
     }
     if (pathname === "/api/session") return json(SESSION);
-    if (pathname === "/api/reference/outlets/OUT085") return json(OUTLET);
+    // A Tech store is offered a shared trip (R-ORD-13); the others never are.
+    if (pathname === "/api/reference/outlets/OUT085") return json(options.rideAlong ? { ...OUTLET, brandCode: "Tech" } : OUTLET);
+    if (pathname === "/api/orders/ride-along") {
+      if (options.rideAlong === "down") return route.fulfill({ status: 503, contentType: "application/problem+json", body: JSON.stringify({ title: "Unavailable", status: 503 }) });
+      const requested = url.searchParams.get("requestedDate");
+      return json({ requestedDate: requested, deliveryDate: requested, offered: options.rideAlong !== undefined, days: Array.isArray(options.rideAlong) ? options.rideAlong.filter((d) => d.date !== requested) : [], roomChecked: options.roomChecked ?? false });
+    }
+    if (pathname === "/api/ml/outlook") {
+      if (options.outlook === "down") return route.fulfill({ status: 503, contentType: "application/problem+json", body: JSON.stringify({ title: "Unavailable", status: 503 }) });
+      // Every day on track unless the test names it (issue #224).
+      const from = url.searchParams.get("from")!;
+      const to = url.searchParams.get("to")!;
+      const named = options.outlook ?? {};
+      const days = [];
+      for (let d = new Date(`${from}T00:00:00Z`); d.toISOString().slice(0, 10) <= to; d.setUTCDate(d.getUTCDate() + 1)) {
+        const date = d.toISOString().slice(0, 10);
+        const status = named[date] ?? "ON_TRACK";
+        days.push({ date, status, load: status === "CLOSED" ? null : "0.5000", reason: status === "BUSY" ? "Most of the room on the vehicles is expected to be taken" : "There is room on the vehicles that day" });
+      }
+      return json({ outletId: url.searchParams.get("outlet"), from, to, days, forecast: true, modelLabel: "deterministic", degraded: false });
+    }
     if (pathname === "/api/execution/positions") return json(options.positions ?? []);
     if (pathname.startsWith("/api/execution/trips/")) {
       return json({ items: [{ recordedAt: `${today}T00:05:00Z`, latitude: "7.290000", longitude: "80.630000", lowQuality: false }, { recordedAt: `${today}T00:10:00Z`, latitude: "7.270000", longitude: "80.580000", lowQuality: false }], nextCursor: null });
@@ -323,6 +346,10 @@ export async function mockStore(
     if (pathname === "/api/commands" && route.request().method() === "POST") {
       const body = route.request().postDataJSON() as { commandId: string; kind: string; payload: unknown; expectedVersion: number | null };
       sent.push({ kind: body.kind, payload: body.payload, expectedVersion: body.expectedVersion });
+      if (body.kind === "message:Post") {
+        const result = postToThread(threads, body.payload as PostMessagePayload, { name: SESSION.displayName, role: "store_manager" }, new Date().toISOString());
+        return json({ commandId: body.commandId, kind: body.kind, replayed: false, result });
+      }
       // order:Place answers with the order as created (PlacedOrder); the others need only a row version.
       const result =
         body.kind === "order:Place"
@@ -355,6 +382,8 @@ export async function mockStore(
               : { orderId: ORDER.orderId, rowVersion: 2 };
       return json({ commandId: body.commandId, kind: body.kind, replayed: false, result });
     }
+    const thread = route.request().method() === "GET" ? threadRead(threads, url) : undefined;
+    if (thread) return route.fulfill({ status: thread.status, contentType: "application/json", body: JSON.stringify(thread.body) });
     return route.fulfill({ status: 404, body: "not mocked" });
   });
   return { sent, handover, uploads };

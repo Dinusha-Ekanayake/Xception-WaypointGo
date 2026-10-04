@@ -35,6 +35,8 @@ export type RunSheetStopView = {
   waitMinutes: number | null;
   lateMinutes: number | null;
   outcome: DeliveryOutcome;
+  /** The units handed over, once recorded; a partial delivery is a stop total, not per line. */
+  deliveredUnits: number | null;
   /** False on a finished stop means proof is still owed. */
   proofCaptured: boolean;
   rowVersion: number;

@@ -1,4 +1,4 @@
-import type { Decimal, IsoDate, IsoInstant, Temperature, Uuid } from "./common.ts";
+import type { IsoTime, Decimal, IsoDate, IsoInstant, Temperature, Uuid } from "./common.ts";
 
 // Mirrors com.waypoint.dispatch.ordering.contract.
 
@@ -47,6 +47,10 @@ export type OrderView = {
   placedAt: IsoInstant;
   lines: OrderLineView[];
   rowVersion: number;
+  /** Issue #224: the stop on the published plan, while planned, loading or on the road; absent otherwise. */
+  plannedStop?: number | null;
+  /** Expected arrival at that stop, depot time ("06:10:00"). */
+  plannedArrival?: IsoTime | null;
 };
 
 /**
@@ -82,6 +86,27 @@ export type DeliveryDateAnswer = {
   requested: IsoDate;
   delivery: IsoDate;
   reasons: string[];
+};
+
+/**
+ * Mirrors `ordering/domain/Cutoff.TIME` (R-ORD-01): orders for a day close at
+ * 16:00, depot time, on the calendar day before it. For display only; the
+ * server decides on its own clock (R-ORD-07).
+ */
+export const ORDER_CUTOFF = "16:00";
+
+/**
+ * Nearby open days whose trip already serves the outlet's district (R-ORD-13,
+ * issue #199). Advice only: `offered` is false for brands held to their day,
+ * and a day says how many other stores are booked, never which.
+ */
+export type RideAlongView = {
+  requestedDate: IsoDate;
+  deliveryDate: IsoDate;
+  offered: boolean;
+  days: { date: IsoDate; stopsBooked: number }[];
+  /** Each day was checked for room on its trip from the store's usual order (R-ORD-14); false when it could not be. */
+  roomChecked?: boolean;
 };
 
 export type StatusChangeView = {

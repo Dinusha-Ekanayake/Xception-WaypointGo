@@ -3,8 +3,9 @@
 import { useState } from "react";
 import type { Resource } from "@shared/api/useResource";
 import type { ReadyTripView } from "@shared/domain/types";
-import { Icon, Notice, cx } from "@shared/ui";
-import { holdLapsed } from "../data/manifest.ts";
+import { Icon, Notice, SkeletonRows, cx, usePersistentState } from "@shared/ui";
+import { depotToday, holdLapsed } from "../data/manifest.ts";
+import { addDays, dayLabel } from "../../../shared/wording/index.ts";
 import { BigButton } from "../ui.tsx";
 import { TruckIcon } from "../icons.tsx";
 import DockPicker, { DOCK_KEY } from "./DockPicker.tsx";
@@ -32,6 +33,8 @@ export default function DockBoard({
   trips,
   online,
   onOpen,
+  moving,
+  date,
 }: {
   depot: string;
   /** The loader operating this device; a trip they hold is "Mine". */
@@ -39,9 +42,15 @@ export default function DockBoard({
   trips: Resource<ReadyTripView[]>;
   online: boolean;
   onOpen: (tripId: string) => void;
+  /** The trip being opened or just closed, whose row moves to and from the load sheet. */
+  moving?: string | null;
+  /** The day these trips leave; named under the title when it is not today or tomorrow (UX plan U8). */
+  date?: string;
 }): React.JSX.Element {
   const tr = useT();
-  const [filter, setFilter] = useState<Filter>("all");
+  const today = depotToday();
+  const leavesLater = date !== undefined && date !== today && date !== addDays(today, 1);
+  const [filter, setFilter] = usePersistentState<Filter>("loader:board:filter", "all");
   const [dock, setDockState] = useState<string>(() => {
     try {
       return window.localStorage.getItem(DOCK_KEY) ?? "";
@@ -80,7 +89,10 @@ export default function DockBoard({
       {/* A phone stacks the controls (Figma 08). A landscape tablet, desk or terminal puts the
           search and filters beside the title and dock (Figma 07, 10). */}
       <div className="flex flex-col gap-3.5 pt-2 lg:grid lg:grid-cols-[auto_1fr] lg:items-center lg:gap-x-6">
-        <h1 className="text-[30px] font-semibold text-go-ink lg:col-start-1 lg:row-start-1">{tr("Tonight's departures")}</h1>
+        <div className="flex flex-col gap-0.5 lg:col-start-1 lg:row-start-1">
+          <h1 className="text-[30px] font-semibold text-go-ink">{tr("Tonight's departures")}</h1>
+          {leavesLater && date && <p className="text-[15px] text-go-muted">{tr("Departing {day}", { day: dayLabel(date) })}</p>}
+        </div>
         <div className="lg:col-start-1 lg:row-start-2">
           <DockPicker
             docks={docks}
@@ -99,8 +111,8 @@ export default function DockBoard({
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={tr("Search vehicle, route or loader")}
-            aria-label={tr("Search vehicle, route or loader")}
+            placeholder={tr("Search vehicle, trip or loader")}
+            aria-label={tr("Search vehicle, trip or loader")}
             className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-go-muted"
           />
         </label>
@@ -112,7 +124,7 @@ export default function DockBoard({
               aria-pressed={filter === f.value}
               onClick={() => setFilter(f.value)}
               className={cx(
-                "min-h-12 shrink-0 rounded-full px-[18px] text-[15px] font-medium whitespace-nowrap max-md:px-2.5 max-md:text-[14px]",
+                "min-h-12 shrink-0 rounded-full px-[18px] text-[15px] font-medium whitespace-nowrap min-[1700px]:text-[17px] max-md:px-2.5 max-md:text-[14px]",
                 filter === f.value ? "bg-go-soft text-go-on-soft" : "bg-go-surface text-go-ink",
               )}
             >
@@ -140,7 +152,7 @@ export default function DockBoard({
           {trips.error.message}
         </Notice>
       )}
-      {!trips.data && !trips.error && <p className="py-8 text-center text-[15px] text-go-muted">{tr("Loading trips…")}</p>}
+      {!trips.data && !trips.error && <SkeletonRows label={tr("Loading trips…")} />}
       {trips.data && shown.length === 0 && (
         <div className="flex flex-col items-center gap-3 rounded-[32px] bg-go-card px-6 py-12 text-center text-go-ink shadow-go-card">
           <span className="flex size-14 items-center justify-center rounded-full bg-go-surface text-go-muted"><TruckIcon /></span>
@@ -167,12 +179,12 @@ export default function DockBoard({
           <ul className="grid gap-3 md:hidden">
             {shown.map((trip) => (
               <li key={trip.tripId}>
-                <TripCard trip={trip} who={who(trip)} online={online} showDock={dock === ""} onOpen={() => onOpen(trip.tripId)} />
+                <TripCard trip={trip} who={who(trip)} online={online} showDock={dock === ""} moving={trip.tripId === moving} onOpen={() => onOpen(trip.tripId)} />
               </li>
             ))}
           </ul>
           <div className="hidden md:block">
-            <TripTable trips={shown} who={who} online={online} showDock={dock === ""} onOpen={onOpen} />
+            <TripTable trips={shown} who={who} online={online} showDock={dock === ""} moving={moving} onOpen={onOpen} />
           </div>
         </>
       )}

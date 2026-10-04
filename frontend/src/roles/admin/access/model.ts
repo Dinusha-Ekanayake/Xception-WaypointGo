@@ -11,7 +11,20 @@ export type Capability = {
   relevant: Persona[];
   optionalFor?: Persona[];
 };
-export type Member = { id: string; name: string; email: string; personas: Persona[]; places: string[]; active: boolean; vehicleType?: "van" | "truck" };
+export type Member = {
+  id: string;
+  name: string;
+  email: string;
+  personas: Persona[];
+  places: string[];
+  active: boolean;
+  vehicleType?: "van" | "truck";
+  rowVersion?: number;
+  depots?: string[];
+  outlets?: string[];
+  source?: "live" | "demo";
+  roleCodes?: string[];
+};
 export type Exception = { memberId: string; action: string; decision: "allow" | "deny"; reason: string; place: string | null; expires: string | null };
 export type Change = { id: number; at: string; actor: string; target: string; action: string; before: string; after: string; reason: string; place: string | null; expires: string | null };
 export type DemoState = { members: Member[]; personaSettings: Record<string, Decision>; exceptions: Exception[]; history: Change[] };
@@ -42,13 +55,22 @@ export const CAPABILITIES: Capability[] = [
   c("sync:Read", "View sync status", "See own pending operations and conflicts.", "Offline work", true, ALL),
   c("sync:Submit", "Send offline work", "Submit work saved on a device; each action is checked separately.", "Offline work", true, ["loader", "driver", "store_manager"]),
   c("sync:Acknowledge", "Acknowledge synced work", "Mark an own operation as synchronized.", "Offline work", true, ["loader", "driver", "store_manager"]),
-  c("plan:Read", "View route plans", "See assigned plans and deferrals.", "Planning", false, ["dispatcher", "loader", "driver"]),
+  c("plan:Read", "View plans", "See assigned plans and deferrals.", "Planning", false, ["dispatcher", "loader", "driver"]),
   c("plan:Generate", "Generate draft plan", "Build a draft allocation for a depot.", "Planning", false, ["dispatcher"]),
   c("plan:Override", "Override plan decision", "Change a draft allocation with a reason.", "Planning", false, ["dispatcher"]),
   c("plan:Publish", "Publish plan", "Release a reviewed plan to field teams.", "Planning", false, ["dispatcher"]),
   c("plan:Defer", "Defer order", "Move an order out of a draft plan with a reason.", "Planning", false, ["dispatcher"]),
   c("plan:Replan", "Replan affected trips", "Rebuild affected work after a vehicle change.", "Planning", false, ["dispatcher"]),
   c("plan:Revise", "Revise published plan", "Create a new version from a published plan.", "Planning", false, ["dispatcher"]),
+  c("plan:Swap", "Swap orders on a trip", "Trade a served order for a deferred one, whole or not at all.", "Planning", false, ["dispatcher"]),
+  c("plan:EditTrip", "Edit a trip", "Set what one trip carries and in what order, or remove it, judged whole.", "Planning", false, ["dispatcher"]),
+  c("plan:KeepDeferred", "Keep orders deferred", "Decide that deferred orders stay deferred, with a reason.", "Planning", false, ["dispatcher"]),
+  c("plan:Lock", "Hold an order on its trip", "A regenerate keeps a held order where it is.", "Planning", false, ["dispatcher"]),
+  c("plan:Unlock", "Release a held order", "Let a held order be moved again.", "Planning", false, ["dispatcher"]),
+  c("plan:ReorderStops", "Change a trip's stop order", "Fix the order of a trip's stops; every stop is still checked.", "Planning", false, ["dispatcher"]),
+  c("plan:ContactStore", "Contact a store manager", "Tell a store its order could not be served.", "Planning", false, ["dispatcher"]),
+  c("plan:SaveSnapshot", "Save a plan", "Keep a draft as it is to compare or return to.", "Planning", false, ["dispatcher"]),
+  c("plan:RestoreSnapshot", "Return to a saved plan", "Put a draft back to a saved plan, keeping the decisions.", "Planning", false, ["dispatcher"]),
   c("issue:Read", "View issues", "Read linked operational issues.", "Issues", false, OPS),
   c("issue:Raise", "Raise issue", "Report an operational exception.", "Issues", false, OPS),
   c("issue:Assign", "Assign issue", "Give an issue to the right person.", "Issues", false, ["dispatcher"]),

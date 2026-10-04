@@ -22,6 +22,11 @@ async function main() {
     process.stderr.write('Waypoint MCP connection revoked and local credential removed.\n');
     return;
   }
+  // Optional narrower grant (R-IAM-34), for example --scope "orders.read receipts.read".
+  // Without it the connection gets every read and the confirmed safe writes.
+  const flag = process.argv.indexOf('--scope');
+  const scope = flag >= 0 ? process.argv[flag + 1] ?? '' : '';
+  if (flag >= 0 && !/^[a-z.]+( [a-z.]+)*$/.test(scope)) throw new Error('--scope takes space separated scope names');
   if (!process.stdin.isTTY) throw new Error('Use a trusted interactive terminal');
   // Do not mint an inaccessible credential when an existing file would block saving it.
   try { await access(file); throw new Error('Disconnect the existing connection first'); }
@@ -42,7 +47,7 @@ async function main() {
     process.stderr.write('\n');
     const response = await fetch(`${backendUrl}/api/mcp/session`, {
       method: 'POST', redirect: 'error', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }), signal: AbortSignal.timeout(10_000),
+      body: JSON.stringify({ email, password, ...(scope ? { scope } : {}) }), signal: AbortSignal.timeout(10_000),
     });
     if (!response.ok) {
       await response.body?.cancel();
@@ -51,7 +56,7 @@ async function main() {
     const { token } = z.object({ token: z.string().regex(/^mcp\.[A-Za-z0-9_-]+$/) }).parse(await readJson(response));
     try { await saveConnection(file, { backendUrl, token }); }
     catch (error) { await revoke(backendUrl, token); throw error; }
-    process.stderr.write('Waypoint read-only MCP connected. Credential saved privately; no token is printed.\n');
+    process.stderr.write('Waypoint MCP connected. Credential saved privately; no token is printed.\n');
   } finally { input.close(); output.end(); }
 }
 

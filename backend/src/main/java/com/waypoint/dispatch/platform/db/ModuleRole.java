@@ -13,6 +13,7 @@ package com.waypoint.dispatch.platform.db;
  * would fail.
  */
 public enum ModuleRole {
+  DEMO("waypoint_demo"),
   REF("waypoint_ref"),
   IAM("waypoint_iam"),
   ORDERING("waypoint_ordering"),
@@ -25,6 +26,7 @@ public enum ModuleRole {
   SYNC("waypoint_sync"),
   WAREHOUSE("waypoint_warehouse"),
   ML("waypoint_ml"),
+  MESSAGING("waypoint_messaging"),
   INTEGRATION("waypoint_integration");
 
   private final String roleName;

@@ -2,53 +2,53 @@
 
 import type { Resource } from "@shared/api/useResource";
 import type { VehicleView } from "@shared/domain/types";
-import { Card, CardHead, LinkAction, Notice, StatTile, cx } from "@shared/ui";
+import { Card, CardHead, LinkAction, cx } from "@shared/ui";
 import PageHeader from "../PageHeader.tsx";
 import FleetError from "./FleetError.tsx";
 import { NotificationRows } from "../NotificationsPanel.tsx";
 import { useDispatcherInbox } from "../inbox.tsx";
 import Refusal from "./Refusal.tsx";
-import SkippedOutlets from "./SkippedOutlets.tsx";
+import { OrdersCard, SummaryCard } from "./OverviewCards.tsx";
+import PlanDayCard from "./PlanDayCard.tsx";
 import { summarise } from "../data/fleet.ts";
-import { issueCounts } from "../data/issues.ts";
-import { punctuality, totals, vehicleDay } from "../data/live.ts";
-import { flow } from "../data/orders.ts";
 import { depotStamp, depotToday, greeting } from "../data/scope.ts";
-import { useIssues, useLive, useOrders } from "../data/useDay.ts";
+import { useIssues, useOrders } from "../data/useDay.ts";
 import type { ViewId } from "../navigation.ts";
 
 // Figma "02 Overview": today's depot at a glance, every tile from the module
-// that owns the fact: orders from Ordering, the road from Execution and
-// Loading, issues from Issues, vehicles from reference data. Notifications
-// name the module they wait on (decision D-D: no mock data).
+// that owns the fact: orders and deferrals from Ordering and Planning, the
+// days behind from Ordering and Execution, issues from Issues, vehicles from
+// reference data. What no module serves yet says so (decision D-D: no mock data).
 
 export default function Overview({
   displayName,
-  userId,
   depots,
+  scope,
+  depotFilter,
+  onDepotFilter,
   scopeLabel,
   fleet,
   online,
   onNavigate,
+  onOpenPlan,
 }: {
   displayName: string;
-  userId: string;
   depots: string[];
+  /** Every depot in the session, for the Summary's depot menu, which is the sidebar's scope. */
+  scope: string[];
+  depotFilter: string;
+  onDepotFilter: (filter: string) => void;
   scopeLabel: string;
   fleet: Resource<VehicleView[]>;
   online: boolean;
   onNavigate: (view: ViewId) => void;
+  /** Opens Plan on a day. */
+  onOpenPlan: (date: string) => void;
 }): React.JSX.Element {
   const summary = fleet.data ? summarise(fleet.data) : null;
   const today = depotToday();
   const orders = useOrders(depots, today);
-  const live = useLive(depots, today);
   const issues = useIssues(depots);
-  const day = orders.data ? flow(orders.data) : null;
-  const road = live.data ? totals(live.data.sheets.map((sheet) => vehicleDay(sheet, new Date())), live.data.dock) : null;
-  const served = live.data ? punctuality(live.data.sheets) : null;
-  const open = issues.data ? issueCounts(issues.data, userId) : null;
-  const show = (value: number | string | undefined) => (value === undefined ? "…" : value);
 
   return (
     <>
@@ -63,46 +63,9 @@ export default function Overview({
 
       <div className="flex min-h-0 w-full flex-1 gap-5 max-lg:flex-col">
         <div className="flex min-w-0 flex-1 flex-col gap-5">
-          <Card label="Orders">
-            <CardHead
-              title="Orders"
-              meta={`Today · ${scopeLabel}`}
-              action={<LinkAction onClick={() => onNavigate("orders")}>Open orders</LinkAction>}
-            />
-            {orders.error && !day ? (
-              <Refusal error={orders.error} what="today's orders" />
-            ) : (
-              <div className="flex gap-2 max-sm:flex-wrap">
-                <StatTile label="Due today" value={show(day?.due)} />
-                <StatTile label="Planned" value={show(day?.planned)} />
-                <StatTile label="Delivered" value={show(day?.delivered)} note={day ? `${day.confirmedByStore} confirmed by store` : undefined} />
-                <StatTile label="Need attention" value={show(day?.attention)} valueClassName={day?.attention ? "text-go-warning-text" : "text-go-ink"} />
-              </div>
-            )}
-          </Card>
-
-          <Card label="Summary">
-            <CardHead title="Summary" meta={`Today · ${scopeLabel}`} action={<LinkAction onClick={() => onNavigate("live")}>Open live</LinkAction>} />
-            {live.error && !road && <Refusal error={live.error} what="the road today" />}
-            {issues.error && !open && <Refusal error={issues.error} what="the issues" />}
-            <div className="flex gap-2 max-sm:flex-wrap">
-              <StatTile label="On the road" value={show(road?.onTheRoad)} note={road ? `${road.atDock} still at the dock` : undefined} />
-              <StatTile label="Stops done" value={road ? `${road.stopsDone} of ${road.stops}` : "…"} />
-              <StatTile
-                label="On time"
-                value={!served ? "…" : served.served === 0 ? "-" : `${Math.round((served.onTime / served.served) * 100)}%`}
-                note={served ? `${served.onTime} of ${served.served} delivered stops` : undefined}
-              />
-              <StatTile
-                label="Open issues"
-                value={show(open?.open)}
-                note={open ? <button type="button" onClick={() => onNavigate("issues")} className="text-go-teal">{open.urgent} high or critical</button> : undefined}
-                valueClassName={open?.urgent ? "text-go-danger-strong" : "text-go-ink"}
-              />
-            </div>
-          </Card>
-
-          <SkippedOutlets depots={depots} date={today} onNavigate={onNavigate} />
+          <PlanDayCard depots={depots} onOpenPlan={onOpenPlan} />
+          <OrdersCard depots={depots} orders={orders.data} error={orders.error} scopeLabel={scopeLabel} onNavigate={onNavigate} />
+          <SummaryCard depots={depots} scope={scope} depotFilter={depotFilter} onDepotFilter={onDepotFilter} issues={issues.data} onNavigate={onNavigate} />
         </div>
 
         <div className="flex min-w-[300px] flex-1 flex-col gap-5 lg:max-w-[380px]">
@@ -116,15 +79,12 @@ export default function Overview({
               <FleetError error={fleet.error} onRetry={fleet.refresh} />
             ) : (
               <div className="flex gap-2">
-                <FleetTile value={summary?.vans} label="Available vans" />
-                <FleetTile value={summary?.nonVans} label="Available vehicles" />
-                <FleetTile value={null} label="Workshop vehicles" warning />
+                <FleetTile value={summary?.nonVans} label="Trucks available" />
+                <FleetTile value={summary?.vans} label="Vans available" />
+                <FleetTile value={null} label="In the workshop" warning />
               </div>
             )}
-            <Notice tone="neutral" title="Workshop vehicles">
-              Reference data serves only the vehicles available on a day, so the workshop list waits on a fleet
-              status read.
-            </Notice>
+            <p className="text-xs text-go-secondary">Counts are vehicles available today; vehicles in the workshop are not listed yet.</p>
           </Card>
 
           <RecentNotifications onNavigate={onNavigate} />

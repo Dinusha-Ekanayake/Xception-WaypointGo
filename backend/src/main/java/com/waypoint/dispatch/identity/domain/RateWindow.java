@@ -14,6 +14,7 @@ import java.time.Instant;
  */
 public record RateWindow(Instant start, Duration size) {
   public static final Duration MINUTE = Duration.ofMinutes(1);
+  public static final Duration HOUR = Duration.ofHours(1);
 
   public static RateWindow containing(Instant now, Duration size) {
     long sizeMillis = size.toMillis();

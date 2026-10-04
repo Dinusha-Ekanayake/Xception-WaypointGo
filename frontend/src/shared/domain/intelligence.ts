@@ -74,6 +74,22 @@ export type SupplyProbabilityView = {
   degraded: boolean;
 };
 
+/** How likely a delivery day is to be kept (issue #224, R-ML-07). */
+export type OutlookStatus = "ON_TRACK" | "BUSY" | "AT_RISK" | "TOO_EARLY" | "CLOSED";
+
+export type DayOutlookView = { date: IsoDate; status: OutlookStatus; load: Decimal | null; reason: string };
+
+/** GET /api/ml/outlook?outlet=&from=&to= : advice from the depot's totals, never a promise. */
+export type DateOutlookView = {
+  outletId: string;
+  from: IsoDate;
+  to: IsoDate;
+  days: DayOutlookView[];
+  forecast: boolean;
+  modelLabel: string;
+  degraded: boolean;
+};
+
 export const ModelCommandKind = {
   register: "ml:RegisterModel",
   activate: "ml:ActivateModel",
@@ -98,7 +114,7 @@ export type OverviewStatus = "READY" | "NONE";
 /** One brand's demand in a week; chilled is zero for Style and Tech. */
 export type BrandVolumeView = { brandCode: string; totalM3: Decimal; chilledM3: Decimal };
 
-/** The depot's reference fleet, two trips a day on each operating day (A-40). An upper bound. */
+/** The depot's reference fleet under each day's effective trip limit (A-40). An upper bound. */
 export type WeekCapacityView = {
   vehicles: number;
   refrigeratedVehicles: number;

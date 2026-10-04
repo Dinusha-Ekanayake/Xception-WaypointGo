@@ -66,7 +66,15 @@ public final class PlanEvents {
     }
   }
 
-  /** A new published version replaced {@code supersedes}; consumers rebuild from it. */
+  /**
+   * A new published version replaced {@code supersedes}; consumers rebuild from it.
+   *
+   * @param changedTripIds the trips a driver would see differently from the plan
+   *     this replaced. Absent on an event written before this was recorded, and
+   *     then every trip counts as changed
+   * @param affectedOutletIds outlets reached on a different trip or at a different
+   *     time; absent as above, and then none is told separately
+   */
   public record PlanRevised(
       UUID planId,
       String depotCode,
@@ -74,12 +82,28 @@ public final class PlanEvents {
       int planVersion,
       UUID supersedes,
       String reason,
-      List<PlannedTrip> trips)
+      List<PlannedTrip> trips,
+      Optional<List<UUID>> changedTripIds,
+      Optional<List<String>> affectedOutletIds)
       implements DomainEvent {
     public static final String TYPE = "plan.revised";
 
     public PlanRevised {
       trips = List.copyOf(trips);
+      changedTripIds = changedTripIds == null ? Optional.empty() : changedTripIds.map(List::copyOf);
+      affectedOutletIds = affectedOutletIds == null ? Optional.empty() : affectedOutletIds.map(List::copyOf);
+    }
+
+    /** A revision with no record of what changed: everyone on it hears. */
+    public PlanRevised(
+        UUID planId,
+        String depotCode,
+        LocalDate serviceDate,
+        int planVersion,
+        UUID supersedes,
+        String reason,
+        List<PlannedTrip> trips) {
+      this(planId, depotCode, serviceDate, planVersion, supersedes, reason, trips, Optional.empty(), Optional.empty());
     }
 
     @Override
@@ -109,6 +133,32 @@ public final class PlanEvents {
       int skipCount)
       implements DomainEvent {
     public static final String TYPE = "order.deferred";
+
+    @Override
+    public String type() {
+      return TYPE;
+    }
+
+    @Override
+    public String aggregateType() {
+      return "order";
+    }
+
+    @Override
+    public String aggregateId() {
+      return orderId.toString();
+    }
+  }
+
+  /**
+   * A dispatcher asked an outlet's store manager to act on an order the plan
+   * could not serve (too big for any vehicle, or deferred). Carries the
+   * dispatcher's own words; Planning decides nothing from it.
+   */
+  public record StoreContacted(
+      UUID orderId, UUID planId, String outletId, LocalDate serviceDate, String message, UUID contactedBy)
+      implements DomainEvent {
+    public static final String TYPE = "plan.store_contacted";
 
     @Override
     public String type() {

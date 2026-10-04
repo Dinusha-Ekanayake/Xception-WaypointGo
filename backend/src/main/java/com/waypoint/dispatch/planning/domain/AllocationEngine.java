@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -23,6 +24,10 @@ public interface AllocationEngine {
    *
    * @param fleet every vehicle of the depot, available or not: the unservable
    *     screen asks whether any vehicle could ever carry an order (R-PLN-22)
+   * @param pins orders a dispatcher placed or locked, which a regenerate puts
+   *     back where they were before it places anything else (R-PLN-36)
+   * @param held orders a dispatcher decided stay deferred; they are not
+   *     offered a place
    */
   record Problem(
       String depotCode,
@@ -31,18 +36,46 @@ public interface AllocationEngine {
       List<FleetVehicle> fleet,
       Map<String, DistrictTravel> travel,
       RuleSet rules,
-      PriorityPolicy policy) {
+      PriorityPolicy policy,
+      Map<UUID, Pin> pins,
+      Set<UUID> held) {
 
     public Problem {
       orders = List.copyOf(orders);
       fleet = List.copyOf(fleet);
       travel = Map.copyOf(travel);
+      pins = Map.copyOf(pins);
+      held = Set.copyOf(held);
+    }
+
+    /** A problem with nothing pinned and nothing held: the engine decides everything. */
+    public Problem(
+        String depotCode,
+        LocalDate serviceDate,
+        List<PlanOrder> orders,
+        List<FleetVehicle> fleet,
+        Map<String, DistrictTravel> travel,
+        RuleSet rules,
+        PriorityPolicy policy) {
+      this(depotCode, serviceDate, orders, fleet, travel, rules, policy, Map.of(), Set.of());
+    }
+
+    public boolean hasDecisions() {
+      return !pins.isEmpty() || !held.isEmpty();
+    }
+
+    /** The same problem with a dispatcher's decisions to keep. */
+    public Problem keeping(Map<UUID, Pin> nextPins, Set<UUID> nextHeld) {
+      return new Problem(depotCode, serviceDate, orders, fleet, travel, rules, policy, nextPins, nextHeld);
     }
 
     public PlanContext context() {
       return new PlanContext(depotCode, travel, rules);
     }
   }
+
+  /** Where an order was put: a vehicle and its trip number. */
+  record Pin(String vehicleId, int tripNumber) {}
 
   /**
    * @param bindingRule for a deferral or an unservable order, the rule that
@@ -66,13 +99,17 @@ public interface AllocationEngine {
   /**
    * @param partial the engine ran out of time; the rest were deferred, never dropped (PLN-11)
    * @param improvement what a second pass over the first plan achieved, when one ran (issue #92)
+   * @param cost what the cost stage did, or why it did not run (R-PLN-39)
+   * @param alternative the rules plan, when the cost stage replaced it, for the dispatcher to compare
    */
   record AllocationResult(
       List<VehicleDay> days,
       List<OrderDecision> decisions,
       boolean partial,
       String engine,
-      Optional<ScarceFleetReplan.Summary> improvement) {
+      Optional<ScarceFleetReplan.Summary> improvement,
+      Optional<CostReplan.Summary> cost,
+      Optional<AllocationResult> alternative) {
 
     public AllocationResult {
       days = days.stream().filter(d -> !d.trips().isEmpty()).toList();
@@ -81,6 +118,12 @@ public interface AllocationEngine {
 
     public AllocationResult(List<VehicleDay> days, List<OrderDecision> decisions, boolean partial, String engine) {
       this(days, decisions, partial, engine, Optional.empty());
+    }
+
+    public AllocationResult(
+        List<VehicleDay> days, List<OrderDecision> decisions, boolean partial, String engine,
+        Optional<ScarceFleetReplan.Summary> improvement) {
+      this(days, decisions, partial, engine, improvement, Optional.empty(), Optional.empty());
     }
 
     public Optional<OrderDecision> decisionFor(UUID orderId) {

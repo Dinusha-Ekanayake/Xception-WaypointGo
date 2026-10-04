@@ -2,23 +2,30 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { cx } from "@shared/ui";
-import { ROUTE_STOPS, RouteStop } from "./routeData.ts";
+import type { RouteStop } from "../data/stopView.ts";
 
 export type DrivingModeScreenProps = {
   onExit: () => void;
   isNight?: boolean;
   stopIndex?: number;
+  /** The run sheet's stops (issue #117). */
+  stops: RouteStop[];
   onToggleTheme?: () => void;
+  /** Unread notifications for the bell's badge (issue #118). */
+  unread?: number | null;
 };
 
 export default function DrivingModeScreen({
   onExit,
   isNight = false,
-  stopIndex = 2, // Defaults to Kadugannawa as in Figma, or current stop
+  stopIndex = 0,
+  stops,
   onToggleTheme,
+  unread,
 }: DrivingModeScreenProps): React.JSX.Element {
-  const safeIndex = Math.min(Math.max(0, stopIndex), ROUTE_STOPS.length - 1);
-  const activeStop: RouteStop = ROUTE_STOPS[safeIndex] ?? ROUTE_STOPS[2];
+  const badge = unread ?? 0;
+  const safeIndex = Math.min(Math.max(0, stopIndex), Math.max(0, stops.length - 1));
+  const activeStop: RouteStop | undefined = stops[safeIndex];
 
   // Slide to exit slider state
   const trackRef = useRef<HTMLDivElement>(null);
@@ -70,6 +77,8 @@ export default function DrivingModeScreen({
   };
 
 
+  if (!activeStop) return <></>;
+
   return (
     <div
       className={cx(
@@ -81,14 +90,14 @@ export default function DrivingModeScreen({
       {/* TOP HEADER: Driving Mode indicator + Notification button          */}
       {/* =================================================================== */}
       <div className="w-full flex items-center justify-between px-6 pt-5 pb-3 shrink-0 z-20">
-        {/* Driving • Controls Hidden */}
+        {/* Driving · Controls Hidden */}
         <span
           className={cx(
             "text-[16px] font-medium leading-[20px] tracking-tight",
             isNight ? "text-white" : "text-black"
           )}
         >
-          Driving • Controls Hidden
+          Driving · Controls Hidden
         </span>
 
         {/* Top Right: Notification Bell & Theme toggle */}
@@ -119,15 +128,18 @@ export default function DrivingModeScreen({
               </svg>
             </div>
 
-            {/* Notification Badge Count (Figma: 22px circle, bg #E5484D, count 3) */}
-            <div
-              className={cx(
-                "absolute -top-1 -right-1 min-w-[20px] h-[20px] px-1 rounded-full bg-[#E5484D] flex items-center justify-center text-[12px] font-semibold text-white pointer-events-none",
-                isNight ? "border-[2px] border-black" : "border-[2px] border-white"
-              )}
-            >
-              3
-            </div>
+            {/* Notification Badge Count (Figma: 22px circle, bg #E5484D), the real unread count */}
+            {badge > 0 && (
+              <div
+                className={cx(
+                  "absolute -top-1 -right-1 min-w-[20px] h-[20px] px-1 rounded-full bg-[#E5484D] flex items-center justify-center text-[12px] font-semibold text-white pointer-events-none",
+                  isNight ? "border-[2px] border-black" : "border-[2px] border-white"
+                )}
+                aria-label={`${badge} unread notifications`}
+              >
+                {badge > 9 ? "9+" : badge}
+              </div>
+            )}
           </div>
 
           {onToggleTheme && (
@@ -238,7 +250,7 @@ export default function DrivingModeScreen({
                 isNight ? "text-white" : "text-black"
               )}
             >
-              3.22 Km • {activeStop.windowStatus}
+              {activeStop.etaDistanceTime} · {activeStop.windowStatus}
             </span>
           </div>
         </div>

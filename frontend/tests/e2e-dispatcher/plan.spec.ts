@@ -4,35 +4,36 @@ import { DEPOT, draftPlan, serve } from "./mocks.ts";
 test("generate, see why an order was deferred, place it by hand, publish", async ({ page }) => {
   const desk = await serve(page);
   await page.goto("/#/plan");
-  await expect(page.getByRole("heading", { name: `No plan for ${DEPOT}` })).toBeVisible();
-  await expect(page.getByText("3 orders are confirmed and waiting to be planned.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: new RegExp(`^No plan yet for ${DEPOT} on `) })).toBeVisible();
+  await expect(page.getByText(`${DEPOT}: 3 orders wait`)).toBeVisible();
 
   await page.getByRole("button", { name: "Generate draft" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Draft version 1: 2 placed, 1 deferred." })).toBeVisible();
   expect(desk.commands[0]).toMatchObject({ kind: "plan:Generate", expectedVersion: null, payload: { depotCode: DEPOT } });
-  // Issue #92: what the engine's second pass achieved is said on the plan.
-  await expect(page.getByText("Reefers planned again: 1 more order served")).toBeVisible();
-  await expect(page.getByText("Deferred went from 2 to 1, with 7.9 m³ more chilled delivered")).toBeVisible();
 
   // The deferral names its rule and its reason, never a generic message; every check is one click away.
   const decision = page.getByRole("region", { name: "Decision", exact: true });
   await expect(decision.getByRole("heading", { name: "ORD0092303" })).toBeVisible();
-  await expect(decision).toContainText("R-PLN-06");
+  await expect(decision).toContainText("No room on the vehicle");
+  await expect(decision).not.toContainText("R-PLN-06");
   await expect(decision).toContainText("No refrigerated vehicle has 7.9 m³ free");
   await decision.getByText("All 2 checks").click();
-  await expect(decision).toContainText("slack -5.4");
+  await expect(decision).toContainText("room -5.4");
 
   // Only places the server says are feasible can be chosen; the refused one says which rule refuses it.
   await expect(decision.getByRole("radio")).toHaveCount(1);
-  await decision.getByRole("button", { name: "Show 1 place it does not fit" }).click();
+  await decision.getByRole("switch", { name: "Only trips it can fit" }).click();
+  await expect(decision.getByRole("radio")).toHaveCount(2);
   await expect(decision).toContainText("volume 7.9 m³ exceeds 2.5 m³ free");
+  await decision.getByRole("switch", { name: "Only trips it can fit" }).click();
   await decision.getByRole("radio", { name: /VEH044 · Trip 1/ }).click();
   const place = decision.getByRole("button", { name: "Place on VEH044 trip 1" });
   await expect(place).toBeDisabled();
-  await decision.getByLabel("Why are you placing it by hand?").fill("Outlet has waited two days");
+  await decision.getByLabel("Why are you deciding this by hand?").fill("Outlet has waited two days");
   await place.click();
 
-  await expect(page.getByRole("heading", { name: "Every order is on a trip" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Every order is decided" })).toBeVisible();
+  await expect(page.getByText("1 of 1 decided")).toBeVisible();
   expect(desk.commands[1]).toMatchObject({
     kind: "plan:Override",
     expectedVersion: 1,
@@ -40,9 +41,16 @@ test("generate, see why an order was deferred, place it by hand, publish", async
   });
 
   await page.getByRole("tab", { name: /View plan/ }).click();
-  await expect(page.getByRole("button", { name: /VEH044 trip 1/ })).toBeVisible();
+  // Issue #92: what the engine's second pass achieved is one click from the board.
+  await page.getByRole("button", { name: "How it was planned" }).click();
+  const about = page.getByRole("dialog", { name: "How this plan was made" });
+  await expect(about).toContainText("Refrigerated vehicles planned again: 1 more order served");
+  await expect(about).toContainText("Deferred went from 2 to 1, with 7.9 m³ more chilled delivered");
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: /VEH044 trip 1/ }).click();
   // 31.5 of 33.4 m³: drawn as tight, so the dispatcher sees there is no room left.
   await expect(page.getByRole("meter", { name: "Volume used" })).toHaveAttribute("aria-valuenow", "94");
+  await page.keyboard.press("Escape");
 
   await page.getByRole("tab", { name: /Publish/ }).click();
   await page.getByRole("button", { name: "Publish plan" }).click();
@@ -55,7 +63,7 @@ test("generate, see why an order was deferred, place it by hand, publish", async
 });
 
 test("a refused publish shows every reason and leaves the draft a draft", async ({ page }) => {
-  const desk = await serve(page, { draft: draftPlan() });
+  const desk = await serve(page, { draft: draftPlan(1, true) });
   desk.refuse = {
     kind: "plan:Publish",
     status: 409,
@@ -80,7 +88,7 @@ test("an edit on a draft someone else already changed is refused and the screen 
   await page.goto("/#/plan");
   const decision = page.getByRole("region", { name: "Decision", exact: true });
   await decision.getByRole("radio", { name: /VEH044 · Trip 1/ }).click();
-  await decision.getByLabel("Why are you placing it by hand?").fill("Asked by the store");
+  await decision.getByLabel("Why are you deciding this by hand?").fill("Asked by the store");
 
   // Another dispatcher regenerates while this one is deciding.
   desk.draft = draftPlan(2);
@@ -104,4 +112,28 @@ test("offline, the plan can be read and nothing can be changed", async ({ page, 
   await expect(page.getByRole("region", { name: "Decision", exact: true }).getByRole("radio")).toHaveCount(0);
   await page.getByRole("tab", { name: /Publish/ }).click();
   await expect(page.getByRole("button", { name: "Publish plan" })).toBeDisabled();
+});
+
+test("with nothing waiting today, the plan points to the next day that has orders and switches to it", async ({ page }) => {
+  // Issue #114: a fresh install seeds the next operating day, while the screen opens on today.
+  const desk = await serve(page);
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Colombo" }).format(new Date());
+  const later = new Date(`${today}T00:00:00Z`);
+  later.setUTCDate(later.getUTCDate() + 2);
+  const seeded = later.toISOString().slice(0, 10);
+  const asked: string[] = [];
+  await page.route("**/api/orders/day?*", (route) => {
+    const date = new URL(route.request().url()).searchParams.get("date")!;
+    asked.push(date);
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(date === seeded ? desk.orders : []) });
+  });
+
+  await page.goto("/#/plan");
+  await expect(page.getByText(`${DEPOT}: 0 orders wait`)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Generate draft" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: /^Plan \w{3} \d{1,2} \w{3} · 3 waiting$/ }).click();
+  await expect(page.getByText(`${DEPOT}: 3 orders wait`)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Generate draft" })).toBeVisible();
+  expect(asked).toContain(seeded);
 });

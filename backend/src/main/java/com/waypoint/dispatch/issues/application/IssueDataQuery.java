@@ -60,6 +60,11 @@ public class IssueDataQuery implements IssueQuery {
     return read(ambient(), () -> about(subject));
   }
 
+  @Override
+  public Optional<IssueView> issue(UUID issueId) {
+    return read(ambient(), () -> issues.find(issueId).map(IssueDataQuery::toView));
+  }
+
   // ---- web: as the authenticated actor -------------------------------------
 
   public Page<IssueView> openIssues(Actor actor, String depotCode, Optional<String> cursor, Integer limit) {

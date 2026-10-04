@@ -38,7 +38,7 @@ test("a store's note is read back as units per problem", () => {
   assert.deepEqual(problemsIn("nothing in our words"), []);
 });
 
-test("the count's investigation reads as damaged on arrival, with the packages and the photos", () => {
+test("the count's investigation reads as damaged on arrival, with the units and the photos", () => {
   const card = issueCard(
     issue({
       description: "shortage investigation: partial receipt. Store's note: Damaged: Red lentils 1 kg x1, Biscuits x1. Missing: Soya meat x1.",
@@ -50,7 +50,7 @@ test("the count's investigation reads as damaged on arrival, with the packages a
   assert.deepEqual(card, {
     label: "Damaged on arrival",
     tone: "danger",
-    title: "3 packages of ORD0092335 (Ambient)",
+    title: "3 units of ORD0092335 (Ambient)",
     detail: "2 damaged · 1 missing · photos attached",
     stamp: "Sent 05:54",
   });
@@ -63,7 +63,7 @@ test("the loader's shortage reads as a short delivery reported at the dock", () 
     clock,
   );
   assert.equal(card.label, "Short delivery");
-  assert.equal(card.title, "1 package of ORD0092336 (Chilled)");
+  assert.equal(card.title, "1 unit of ORD0092336 (Chilled)");
   assert.equal(card.detail, "Reported by the loader at 03:10");
   assert.equal(card.stamp, "Reported 03:10");
 });

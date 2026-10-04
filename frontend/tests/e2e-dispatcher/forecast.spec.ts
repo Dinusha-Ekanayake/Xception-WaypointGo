@@ -11,7 +11,9 @@ test("the forecast shows ten weeks against the fleet, with the peak and what it 
 
   const chart = page.getByRole("region", { name: "Weekly demand" });
   await expect(chart.getByRole("img", { name: /Weekly demand for the next 10 weeks/ })).toBeVisible();
-  await expect(chart).toContainText("datathon-task2a@2026.1");
+  // Issue #119: the error the model measured, not per brand; the model's own name stays off the screen.
+  await expect(page.getByText("Forecast error · ±4% total · ±4% chilled")).toBeVisible();
+  await expect(page.locator("main")).not.toContainText("datathon");
 
   const actions = page.getByRole("region", { name: "Suggested actions" });
   await expect(actions).toContainText("Wk 2: keep all refrigerated vehicles out");
@@ -36,7 +38,8 @@ test("a forecast from the fallback says the model is not answering", async ({ pa
   await page.goto("/#/forecast");
 
   await expect(page.getByText("The demand model is not answering")).toBeVisible();
-  await expect(page.getByRole("region", { name: "Weekly demand" })).toContainText("Recent weekday averages");
+  await expect(page.getByRole("region", { name: "Forecast runs" })).toContainText("Recent averages");
+  await expect(page.getByText("Recent averages · forecast error not measured")).toBeVisible();
 });
 
 test("before the first run the screen says there is no forecast yet", async ({ page }) => {
@@ -54,7 +57,6 @@ test("the last and next run read in depot time, with a countdown to the next", a
 
   const runs = page.getByRole("region", { name: "Forecast runs" });
   await expect(runs).toContainText("Mon 22 Feb · 09:30");
-  await expect(runs).toContainText("datathon-task2a@2026.1");
   await expect(runs).toContainText("Mon 1 Mar · 00:00");
   await expect(runs.getByRole("timer")).toHaveText("in 23:41");
 });
@@ -76,4 +78,20 @@ test("when the run is due the screen says so and shows the new forecast once it 
   await expect(runs).toContainText("Mon 1 Mar · 00:00");
   await expect(runs).toContainText("Mon 8 Mar · 00:00");
   await expect(page.getByText("No forecast yet")).toHaveCount(0);
+});
+
+test("with the fleet far above demand the bars follow demand and the fleet is stated, with the vehicles a day needs", async ({ page }) => {
+  const f = forecast();
+  f.weeks = f.weeks.map((w) => ({
+    ...w,
+    capacity: { vehicles: 38, refrigeratedVehicles: 9, fleetM3: String(2025 * w.operatingDays), refrigeratedM3: String(415 * w.operatingDays) },
+  }));
+  await serve(page, { forecast: f });
+  await page.goto("/#/forecast");
+
+  const chart = page.getByRole("region", { name: "Weekly demand" });
+  await expect(chart).toContainText("fleet ≈ 12,150 m³/wk, above the scale · peak week uses 5%");
+  await expect(chart).toContainText("Share of refrigerated capacity, peak 16%");
+  await expect(chart).toContainText("Capacity 2,490 m³/wk · 9 vehicles");
+  await expect(chart).toContainText("2 of 9");
 });

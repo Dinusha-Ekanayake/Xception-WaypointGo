@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { ForecastOverviewView, ForecastWeekView } from "../src/shared/domain/intelligence.ts";
+import { forecastError, type ModelMetrics } from "../src/roles/dispatcher/data/forecast.ts";
 import {
   actions,
   combine,
   countdown,
+  focusScale,
+  refrigeratedNeeded,
   dayNeeds,
   forBrand,
   kpis,
@@ -155,4 +158,32 @@ test("the next run is the earliest across the depots in view", () => {
     overview("Peliyagoda", [week(41)], { nextRunAt: "2026-10-05T08:30:00Z" }),
   ]);
   assert.equal(f.nextRunAt, "2026-10-05T08:30:00Z");
+});
+
+test("capacity near demand is drawn on the scale; far above, the scale follows demand with round ticks", () => {
+  const near = focusScale([492, 612, 352], [801.6, 801.6, 400.8], 4);
+  assert.equal(near.capacityOnScale, true);
+  assert.ok(near.top >= 801.6, "the capacity line fits");
+  const far = focusScale([810, 1390, 560], [12150, 12150, 6075], 4);
+  assert.equal(far.capacityOnScale, false, "12,150 would flatten every bar");
+  assert.deepEqual(far.ticks, [0, 500, 1000, 1500, 2000]);
+});
+
+test("refrigerated vehicles an average day needs: chilled per day over one vehicle's two trips", () => {
+  const w = combine([overview("Kandy", [week(41, { fresh: [300, 60], style: 0 })])]).weeks[0]!;
+  // 60 chilled over 6 days = 10 a day; one of 2 reefers carries 120 / 6 / 2 = 10 a day.
+  assert.equal(refrigeratedNeeded(w), 1);
+  assert.equal(refrigeratedNeeded({ ...w, refrigeratedVehicles: 0 }), 0, "no refrigerated fleet, nothing to count");
+});
+
+test("the error chip says what the demand model measured, and never per brand it did not (#119)", () => {
+  const models: ModelMetrics[] = [
+    { name: "task1", version: "1", kind: "delivery_risk", status: "ACTIVE", metrics: { late_logloss: "0.15" } },
+    { name: "demand", version: "2026.1", kind: "demand_forecast", status: "ACTIVE", metrics: { total_wape: "0.0415", chilled_wape: "0.0439" } },
+  ];
+  assert.equal(forecastError(models, "demand@2026.1", false), "Forecast error · ±4% total · ±4% chilled");
+  assert.equal(forecastError(models, "demand@2025.9", false), "Forecast error · ±4% total · ±4% chilled", "falls back to the active model");
+  assert.equal(forecastError(models, "demand@2026.1", true), "Recent averages · forecast error not measured");
+  assert.equal(forecastError(models, null, false), "Recent averages · forecast error not measured");
+  assert.equal(forecastError([], "demand@2026.1", false), "Forecast error not reported by the model");
 });

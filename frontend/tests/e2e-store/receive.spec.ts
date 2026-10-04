@@ -10,7 +10,7 @@ test("home shows the next delivery, its shortfall and the Issues count", async (
   await expect(page.getByText("Rashmika Dilshan")).toBeVisible();
   await expect(page.getByText(/stop 3 of 7/)).toBeVisible();
   // "Shortage notice" of "02 Home": a grey card in the next delivery, not a yellow warning.
-  await expect(page.getByText("1 package short - 4 of 5 coming")).toBeVisible();
+  await expect(page.getByText("1 unit short - 4 of 5 coming")).toBeVisible();
   await expect(page.getByText("Reported at loading · comes next delivery")).toBeVisible();
   await expect(page.getByRole("button", { name: /Issues/ })).toContainText("1");
 });
@@ -26,7 +26,7 @@ test("a damaged line with a photo lowers the count and is one report: the receip
   await page.getByRole("button", { name: /Fresh milk 1 L/ }).click();
   await page.getByRole("radio", { name: "Damaged" }).click();
   await page.getByLabel("Take a photo of the problem").setInputFiles({ name: "carton.png", mimeType: "image/png", buffer: PNG });
-  const photo = page.getByRole("dialog", { name: "Package photo" });
+  const photo = page.getByRole("dialog", { name: "Product photo" });
   await expect(photo).toBeVisible();
   await photo.getByRole("button", { name: "Close" }).click();
   await page.getByRole("button", { name: "Add issue" }).click();
@@ -99,7 +99,7 @@ test("what the loader kept back is marked on its item, lowers the count and is n
   });
 });
 
-test("adding an issue says what is missing: a package, then a type", async ({ page }) => {
+test("adding an issue says what is missing: a product line, then a type", async ({ page }) => {
   await mockStore(page);
   await page.goto("/");
   await page.getByRole("button", { name: "Receive delivery" }).first().click();
@@ -107,7 +107,7 @@ test("adding an issue says what is missing: a package, then a type", async ({ pa
   // The card's own alert, not Next's route announcer, which also has the role.
   const alert = page.getByRole("region", { name: "Report an issue" }).getByRole("alert");
   await page.getByRole("button", { name: "Add issue" }).click();
-  await expect(alert).toHaveText("Choose a package first.");
+  await expect(alert).toHaveText("Choose a product line first.");
   await page.getByRole("button", { name: /Fresh milk 1 L/ }).click();
   await page.getByRole("button", { name: "Add issue" }).click();
   await expect(alert).toHaveText("Choose an issue type.");
@@ -120,7 +120,7 @@ test("a remark on a complete delivery confirms it and raises one issue with the 
   await page.getByRole("button", { name: /Butter 200 g/ }).click();
   await page.getByRole("radio", { name: "Other" }).click();
   await page.getByLabel("Take a photo of the problem").setInputFiles({ name: "seal.png", mimeType: "image/png", buffer: PNG });
-  await page.getByRole("dialog", { name: "Package photo" }).getByRole("button", { name: "Close" }).click();
+  await page.getByRole("dialog", { name: "Product photo" }).getByRole("button", { name: "Close" }).click();
   await page.getByRole("button", { name: "Add issue" }).click();
   await page.getByRole("button", { name: "Submit count" }).click();
   await expect(page.getByRole("dialog", { name: "Enter this PIN on the driver's phone" })).toBeVisible();

@@ -1,19 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { flushSync } from "react-dom";
 import { useOnline, useResource } from "@shared/api/useResource";
 import { registerResolver, useSync } from "@shared/offline";
 import { useInbox } from "@shared/notifications/useInbox";
-import { Notice } from "@shared/ui";
+import { Notice, useScrollMemory, withTransition } from "@shared/ui";
 import { crew, lockOperator, replayBeforeSync } from "@app-shell/operators";
 import { keptCrew, logOfflineSwitch } from "@app-shell/offlinePin";
 import type { CrewMember } from "@app-shell/operators";
 import type { Operator } from "@app-shell/session";
 import TopBar from "./TopBar.tsx";
+import { useWide } from "./useWide.ts";
 import { LangProvider, useT } from "./i18n.tsx";
 import { ThemeProvider, useTheme } from "./theme.tsx";
 import { createGateway } from "./data/gateway.ts";
 import { depotToday, hhmm } from "./data/manifest.ts";
+import { dockDay, stillToLoad } from "./data/dockDay.ts";
 import { redoVersion, tripOf } from "./data/redo.ts";
 import DockBoard from "./screens/DockBoard.tsx";
 import Locked from "./screens/Locked.tsx";
@@ -52,7 +55,9 @@ function LoaderWorkspace({
   const gateway = useMemo(() => createGateway(userId), [userId]);
   const online = useOnline();
   const depot = scope[0] ?? "";
-  const date = depotToday();
+  // The dock's day: the first from today with a trip still to load (issue #114).
+  const today = depotToday();
+  const [date, setDate] = useState(today);
   const [openId, setOpenId] = useState<string | null>(null);
   const [tripSync, setTripSync] = useState<Date | null>(null);
   // Before the first sync pass: queued work goes after the switches it was recorded under.
@@ -79,6 +84,8 @@ function LoaderWorkspace({
   // Who locked the device (Figma 08), kept across a reload so the locked screen survives one.
   const [locked, setLockedState] = useState<Operator | null>(() => readLocked(userId));
   const [unlocking, setUnlocking] = useState(false);
+  // From a tablet up the locked screen carries its own keypad (Figma 06 Locked).
+  const wide = useWide();
   const setLocked = useCallback((who: Operator | null) => {
     setLockedState(who);
     writeLocked(userId, who);
@@ -86,6 +93,18 @@ function LoaderWorkspace({
   const { theme } = useTheme();
 
   const trips = useResource(depot ? (signal) => gateway.readyTrips(depot, date, signal) : null, `${depot}:${date}`, 30_000);
+  // Found again on start, on reconnecting, and once the shown day has nothing left to load.
+  const dayDone = trips.data !== null && !stillToLoad(trips.data);
+  useEffect(() => {
+    if (!depot || !online) return;
+    const controller = new AbortController();
+    dockDay(today, (day) => gateway.readyTrips(depot, day, controller.signal))
+      .then((day) => !controller.signal.aborted && setDate(day))
+      .catch(() => {
+        // Unreachable: keep the day shown; the board says it could not read it.
+      });
+    return () => controller.abort();
+  }, [depot, online, gateway, today, dayDone]);
   // Notifications for this device's account (issue #118); none in the sample.
   const inbox = useInbox(userId, !gateway.sample);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -99,10 +118,20 @@ function LoaderWorkspace({
   const outletList = useResource(depot ? (signal) => gateway.outlets(depot, signal) : null, depot);
   const outlets = useMemo(() => new Map((outletList.data ?? []).map((o) => [o.outletId, o])), [outletList.data]);
   const open = trips.data?.find((t) => t.tripId === openId) ?? null;
+  // Back from a load sheet, the board is where it was; a load sheet opens at the top (UX polish 2).
+  useScrollMemory(operator && !open && !settings ? "loader:board" : null);
 
   const { refresh } = trips;
+  // The trip last opened: its row on the board and the load sheet's truck card are one
+  // shared element, so it moves in and back out (UX polish 4). Named before the
+  // transition starts, so the board's snapshot already carries it.
+  const [moving, setMoving] = useState<string | null>(null);
+  const openTrip = useCallback((tripId: string) => {
+    flushSync(() => setMoving(tripId));
+    withTransition(() => setOpenId(tripId), "forward");
+  }, []);
   const back = useCallback(() => {
-    setOpenId(null);
+    withTransition(() => setOpenId(null), "back");
     refresh();
   }, [refresh]);
   useEffect(() => setOperator(initialOperator), [initialOperator]);
@@ -203,7 +232,16 @@ function LoaderWorkspace({
         </div>
       )}
       {settings ? (
-        <Settings hasLoader={operator !== null} deviceName={displayName} onClose={() => setSettings(false)} />
+        <Settings deviceName={displayName} onClose={() => setSettings(false)} />
+      ) : !operator && locked && wide ? (
+        <OperatorGate
+          key="locked"
+          account={userId}
+          online={online}
+          onOperator={signedIn}
+          unlock={unlockMember}
+          aside={<Locked gateway={gateway} operator={locked} depot={depot} trip={lockedTrip} onUnlock={() => {}} onSwitch={() => void switchUser()} wide />}
+        />
       ) : !operator && locked && unlocking ? (
         <OperatorGate
           key="unlock"
@@ -239,10 +277,11 @@ function LoaderWorkspace({
           onSynced={setTripSync}
           onBack={back}
           actingUserId={operator.userId}
+          accountId={userId}
           refreshKey={syncKey}
         />
       ) : (
-        <DockBoard depot={depot} meId={operator.userId} trips={trips} online={online} onOpen={setOpenId} />
+        <DockBoard depot={depot} meId={operator.userId} trips={trips} online={online} onOpen={openTrip} moving={moving} date={date} />
       )}
     </div>
     </div>

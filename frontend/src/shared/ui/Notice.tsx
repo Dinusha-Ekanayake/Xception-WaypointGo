@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { cx } from "./primitives.tsx";
+import { cx, SecondaryButton } from "./primitives.tsx";
 
 // An inline alert, drawn like the "Short by 2 refrigerated vehicles" block on the
 // Vehicles screen: a tinted panel, a strong first line, a plain second line.
@@ -18,12 +18,18 @@ export function Notice({
   title,
   children,
   action,
+  onRetry,
+  retryLabel = "Try again",
   live = false,
 }: {
   tone?: keyof typeof TONE;
   title: string;
   children?: ReactNode;
   action?: ReactNode;
+  /** The next step for a failed read: a "Try again" button in the action slot. */
+  onRetry?: () => void;
+  /** The retry button's words, for a role that translates its screens. */
+  retryLabel?: string;
   /** Announce it: for states that arrive after the page, such as going offline. */
   live?: boolean;
 }): React.JSX.Element {
@@ -37,6 +43,7 @@ export function Notice({
         {children && <div className="text-xs text-go-ink">{children}</div>}
       </div>
       {action}
+      {onRetry && <SecondaryButton onClick={onRetry}>{retryLabel}</SecondaryButton>}
     </div>
   );
 }
@@ -45,10 +52,15 @@ export function Notice({
  * A card body for data whose backend module is not built yet. Decision D-D rules
  * out mock data, so the screen names what it is waiting for instead.
  */
+/**
+ * Something the design shows that the system cannot fill yet. `waitingOn` is
+ * said to the person reading the screen, in their words: what is missing, or
+ * where to look meanwhile. Never a module, issue or table name.
+ */
 export function Pending({ what, waitingOn }: { what: string; waitingOn: string }): React.JSX.Element {
   return (
     <Notice tone="neutral" title={`Not available yet: ${what}`}>
-      Waiting on {waitingOn}. This appears here once that module serves it.
+      {waitingOn}
     </Notice>
   );
 }

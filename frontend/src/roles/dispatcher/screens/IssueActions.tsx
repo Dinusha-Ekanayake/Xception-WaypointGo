@@ -6,6 +6,7 @@ import { Notice, PrimaryButton, SecondaryButton } from "@shared/ui";
 import { RESOLUTIONS, actionsFor, nextDay, subject, type IssueAction } from "../data/issues.ts";
 import { depotToday } from "../data/scope.ts";
 import { useCommand } from "../data/useCommand.ts";
+import DayField from "./DayTools.tsx";
 import Refusal from "./Refusal.tsx";
 
 // What the dispatcher can do to one issue. Every write is one command with the
@@ -60,6 +61,8 @@ export default function IssueActions({
   const [resolution, setResolution] = useState<(typeof RESOLUTIONS)[number]["value"]>("write_off");
   const [date, setDate] = useState(() => nextDay(depotToday()));
   const [outcome, setOutcome] = useState<{ action: IssueAction; error: Error | null } | null>(null);
+  // Which action is on its way, so only its button turns busy.
+  const [sending, setSending] = useState<IssueAction | null>(null);
 
   const actions = actionsFor(issue, userId);
   if (actions.length === 0) return outcome && !outcome.error ? <Notice tone="info" title={DONE[outcome.action]} live /> : null;
@@ -79,6 +82,7 @@ export default function IssueActions({
               : action === "close"
                 ? [IssueCommandKind.close, { issueId: id }]
                 : [IssueCommandKind.cancel, { issueId: id, reason: note.trim() }];
+    setSending(action);
     const sent = await run(kind, payload, issue.rowVersion);
     setOutcome({ action, error: sent.ok ? null : sent.error });
     if (sent.ok) {
@@ -92,18 +96,19 @@ export default function IssueActions({
   // Taking and closing decide nothing new, so they go at once; the rest ask why.
   const immediate = (action: IssueAction) => action === "take" || action === "close";
   const disabled = busy || !online;
+  const inFlight = (action: IssueAction) => busy && sending === action;
 
   return (
     <div className="flex flex-col gap-2">
       <div role="group" aria-label="Act on this issue" className="flex flex-wrap gap-2">
         {actions.map((action) =>
           action === actions[0] && action !== "cancel" ? (
-            <PrimaryButton key={action} disabled={disabled} onClick={() => (immediate(action) ? void send(action) : setOpen(action))}>
-              {LABEL[action]}
+            <PrimaryButton key={action} disabled={disabled} busy={inFlight(action) && immediate(action)} onClick={() => (immediate(action) ? void send(action) : setOpen(action))}>
+              {inFlight(action) && immediate(action) ? "Sending…" : LABEL[action]}
             </PrimaryButton>
           ) : (
-            <SecondaryButton key={action} disabled={disabled} onClick={() => (immediate(action) ? void send(action) : setOpen(action))}>
-              {LABEL[action]}
+            <SecondaryButton key={action} disabled={disabled} busy={inFlight(action) && immediate(action)} onClick={() => (immediate(action) ? void send(action) : setOpen(action))}>
+              {inFlight(action) && immediate(action) ? "Sending…" : LABEL[action]}
             </SecondaryButton>
           ),
         )}
@@ -132,19 +137,18 @@ export default function IssueActions({
             </label>
           )}
           {open === "redelivery" && (
-            <label className="flex flex-col gap-1 text-xs font-medium text-go-secondary">
-              Deliver on
-              <input type="date" value={date} min={depotToday()} onChange={(event) => setDate(event.target.value)} className={input} />
+            <div className="flex flex-col gap-1 text-xs font-medium text-go-secondary">
+              <DayField label="Deliver on" date={date} min={depotToday()} onDate={setDate} />
               <span className="font-normal">The whole order goes again, only because nothing arrived (A-24).</span>
-            </label>
+            </div>
           )}
           <label className="flex flex-col gap-1 text-xs font-medium text-go-secondary">
             {open === "cancel" ? "Why it was raised in error" : "Reason"}
             <input value={note} maxLength={500} onChange={(event) => setNote(event.target.value)} className={input} />
           </label>
           <div className="flex gap-2">
-            <PrimaryButton type="submit" disabled={disabled || note.trim().length < 3 || (open === "redelivery" && !date)}>
-              {LABEL[open]}
+            <PrimaryButton type="submit" disabled={disabled || note.trim().length < 3 || (open === "redelivery" && !date)} busy={inFlight(open)}>
+              {inFlight(open) ? "Sending…" : LABEL[open]}
             </PrimaryButton>
             <SecondaryButton onClick={() => setOpen(null)}>Back</SecondaryButton>
           </div>

@@ -28,6 +28,7 @@ import com.waypoint.dispatch.referencedata.contract.ReferenceQuery;
 import com.waypoint.dispatch.shared.event.DomainEvent;
 import com.waypoint.dispatch.shared.event.EventEnvelope;
 import com.waypoint.dispatch.shared.util.Clock;
+import com.waypoint.dispatch.support.TestDates;
 import jakarta.servlet.http.Cookie;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -38,7 +39,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -120,8 +120,7 @@ class LoadingIntegrationTest {
     referenceImport.importFrom(Path.of("../data"), null);
     depot = reference.outlet(OUTLET, null).orElseThrow().depotCode();
     serviceDate =
-        reference.nextOperatingDay(
-            LocalDate.of(2040, 1, 1).plusDays(ThreadLocalRandom.current().nextInt(0, 15_000)));
+        TestDates.unusedDay(reference::nextOperatingDay);
     clock.set(serviceDate.minusDays(1).atTime(LocalTime.of(10, 0)).atZone(Clock.OPERATING_ZONE).toInstant());
 
     String run = UUID.randomUUID().toString().substring(0, 8);

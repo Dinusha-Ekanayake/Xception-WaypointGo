@@ -4,6 +4,86 @@
 
 ---
 
+## 2026-10-04 - feat(ordering): the shared-trip hint offers a day only when the order fits the trip (issue #199)
+
+`feat/199-trip-room` · @Oxshadha
+
+The Tech hint from #211 offered any nearby day with other bookings, even a trip already full. Now:
+- **Planning** answers `PlanQuery.joinsTrip`. `TripRoom` (pure) packs the booked measured orders of the brand and district onto the day's available vehicles. It asks only the registry's own load rules (temperature, van access, weight and volume with the epsilon), so capacity keeps one definition (rule 5).
+- **Ordering** passes the store's usual order (the median of its latest twenty, A-45) and drops days with no room (R-ORD-14).
+- **Store:** the card says "room on the vehicle", estimated.
+- **Degrading:** with no history, or Planning unable to answer, it falls back to bookings alone and claims nothing (ORD-22, ORD-23).
+- **Style within its weekly run:** rejected, because R-ORD-11 holds it to its date.
+
+Also fixed while proving the edge cases:
+- A room check that failed partway left earlier days filtered while the card said no check ran. `RideAlong.suggestChecked` now drops the check for every day (ORD-23).
+- #224's stop showed on the store's reads but not through the `OrderQuery.order` contract or the dispatcher's day board. All three now attach it (ORD-21).
+Why: a shared-trip hint that points at a full trip moves the order for nothing.
+Verified: `mvn verify` 1005 on a real test database, all pass but the local-only `SET ROLE k.e.oshada` identity test, and three that reuse fixed emails and codes, which pass on a fresh database; new `TripRoomTest` 6, `TripRoomIntegrationTest` 3, `RideAlongTest` 11; `npm test` 225, typecheck, build; Playwright store 55.
+
+## 2026-10-04 - feat: a store hears when a day it booked turns busy (issue #224, slice 3)
+
+`feat/224-outlook-warning` · @Oxshadha
+
+`OutlookWatchJob` (Intelligence) runs hourly 06:00-15:00. It watches orders booked from tomorrow to 14 days ahead and not yet planned (`OrderQuery.openOrders`), using the same `DateOutlookQuery.assess` the store's date strip uses. When a day turns busy or at risk, and is worse than any warning already given for that order and day (`OutlookChangePolicy`, `ml.order_outlooks`), it records the warning and publishes `order.outlook_changed` in one transaction (R-ML-08, P-36). Notification routing version 6 tells the outlet "Fri 9 Oct is at risk" with the reason (R-NOT-16). It also fixes slice 1's store title, which showed an ISO date. The order sheet of an unplanned later order shows the same warning.
+Why: the promise made at booking can break before the plan (workshop vehicles, more orders than forecast), and the store should hear it early, once.
+Verified: `mvn verify` 991 on a real test database, 990 pass (the same local-only `SET ROLE k.e.oshada` identity failure as before); `npm test`, typecheck, build; Playwright store 52.
+Open: the other routing templates still show ISO dates (`{serviceDate}`), as before this work.
+
+## 2026-10-04 - feat: the delivery promise for a day a store orders ahead (issue #224)
+
+`feat/224-delivery-promise` · @Oxshadha
+
+A store ordering "next Friday" could pick only three days, never heard when the plan put its order on a vehicle, and had no idea whether a day was likely to hold. Built inside the existing modules:
+- **Ordering:** records each order's stop and planned arrival from `plan.published` and `plan.revised` (`ordering.order_stops`; an older plan version never overwrites a newer one), shows them on `OrderView`, and offers `OrderQuery.bookedVolumes`.
+- **Notification:** routing version 5 tells each outlet its stop (R-NOT-15).
+- **Intelligence:** `DateOutlookPolicy` and `GET /api/ml/outlook` rate each day on track, busy, at risk, too early or closed. The rating comes from booked volume or the forecast share, set against the vehicles available that day; it is aggregate only, behind `ml:ReadOutlook` with an audited 403 for another outlet (R-ML-07, A-44, P-35).
+- **Store:** a 28-day strip with the outlook, a warning and a suggested day that prefers #211's shared trip, and "Planned for {day} · stop n · planned arrival hh:mm" on the order.
+
+Why: a day chosen ahead is a promise; the store should see how likely it is when booking, and its stop when the plan is made. Detail in [the walkthrough](../../issues/224-delivery-promise/WALKTHROUGH.md).
+
+Verified:
+- `mvn verify` 976 on a real test database: 975 pass. The one failure is `IdentityHardeningIntegrationTest.migrateLetsThePoolLogInAsWaypointAppWithItsOwnPassword`, which runs `SET ROLE` unquoted with the local owner name `k.e.oshada` (dots); it is untouched here and passes in CI.
+- `npm test` 221, typecheck, build, Playwright store 50.
+
+Open: the early warning when a booked day turns busy, and supply probability on the outlook basis. The 28-day horizon is the strip's, not a server refusal.
+
+---
+
+## 2026-10-04 - feat(planning): planning v2 (issue #219), a measured engine choice, the cost stage, GPS stops and a generation queue
+
+`feat/219-planning-v2` · @Oxshadha
+
+Every approach was measured on the same 62 days (S1, the 8 historic depot-days with 0, 25 and 40% of the fleet out, and seeded synthetic days up to 300 orders) under the production `ConstraintRegistry`: rules (E0), rules plus the exact reefer pass (E1), an exact MIP solved with CP-SAT, SCIP and HiGHS (E2), ALNS (E3), OR-Tools routing (E4) and the production chain (E5). Test scope only (`planning/bench`, OR-Tools as a test dependency), charts in `docs/issues/219-planning-v2/benchmark/planning-benchmark.ipynb`. E5 is best by rank on 58 of 62 days and matches the MIP's proven optimum on all 34 days it proved; routing is best on 13; HiGHS crashes with a hint and ignores its time limit. Production: `CostReplan`, an ALNS cost stage after the rules that never trades the served set (R-PLN-38), runs only on a day worth it and has its own budget (R-PLN-39), keeps the rules plan beside the draft as a `rules` snapshot for Compare (S1: 16 to 13 vehicles, 725 to 611 L, same 73 orders); exact outlet GPS orders stops, district points change nothing (R-PLN-40); `plan:Generate` queues a job and a worker runs the engine outside any transaction, one active job per day, SKIP LOCKED with a lease, rerun when demand moved (R-PLN-41); reference data cached by immutable version. The dispatcher follows the job, sees the cost note and opens Compare on the rules plan. The benchmark found two hangs in the reefer pass on large days (unbounded day listing, quadratic covered-day pruning; PLN-39), now bounded.
+Why: planning is what the judges weigh most; the engine is now chosen by evidence, cheaper on every hard day, safe under concurrent use and bounded on large days.
+Verified: `mvn verify` 932 with integration tests on a real test database before the last two fixes (planning suites rerun after them); Node 167; Playwright dispatcher plan specs 15; `check_allocation.py` passes on S1.
+Open: outlet GPS needs real exact coordinates in `geo_points.csv`; the trip disruption channel is the next piece.
+
+---
+
+## 2026-10-03 - feat(frontend): the driver's Figma screens run on the real run sheet (issue #117)
+
+`feat/117-driver-gaps` · @Oxshadha
+
+The driver UI rebuild (#174) drew sample stops and never sent a command: no arrival, delivery, proof or problem reached the server, and all 13 driver browser tests failed. The Figma screens are now fed by `useDriver` through `data/stopView.ts` (run sheet to the screens' stop shape, trip status, run summary, sync label; pure and tested). Home shows the vehicle, the stop count and vehicle status, and keeps #184's inbox and driving-mode badge; a revised plan opens "Run sheet changed". The delivery form, proof, problem sheet, stop detail and refused files keep their working forms inside the frame. New: the store manager's handover PIN after saving a delivery (`receipt:VerifyHandover`, online only, Skip always there, wrong tries counted down). Restored: the shell's sync badge with its review panel, and MCP. Removed: the sign-in, QR and vehicle ID screens, fake map, fake fuel QR and every "Synced 05:31". The waiting screen no longer says the store confirms first.
+Found running it against a real backend, all fixed: the phone worked from the first of the driver's 28 vehicles, not the one with a released trip (`todaysSheet`); a write tapped while the one before was in flight, or sent just before the signal went, named a stale version (EXE-29: writes in turn, and the server's answered version is kept, in the saved run too); writes recorded in the same millisecond went to the server in random order, so a proof could land before its record (EXE-30: a strictly increasing order per device, in the page's queue and the service worker's); Run complete called refused writes "waiting for the connection".
+Why: the judge flow could not deliver anything on the driver phone, and #117 asked for the PIN and the inbox.
+Verified: `npm test` 144, typecheck, build; Playwright driver 17 (13 rewritten, 4 new), loader 20, store 32; dispatcher 20 of 25, the five Live and Forecast failures arriving with today's `dev` (no dispatcher file changed here). Against a real backend on a fresh database seeded as `init` does: plan, publish, load and release through the API, then the browser trip: three stops, the second with the store manager's real PIN (a wrong one counted, the right one confirmed), the third with no signal, a reload and the sync; all three DELIVERED with proof on the server, applied once and in order.
+Open: the driver phone asks for today's run, but the seed plans the first day still open for ordering (two days out), so the README's driver step shows no trip on the day; the language toggle in the Figma header changes nothing yet.
+
+---
+
+## 2026-10-03 - fix(frontend): every screen uses the glossary's words (issue #128)
+
+`feat/128-apply-glossary` · @Oxshadha
+
+The guardrail's baseline is empty: no retired word, raw code or 12-hour clock is left in screen text. Store manager: units, never cases or packages; product line where it means one product; Expected, never ETA; 16:00, never 4:00 PM; Regular delivery, never Regular run. Dispatcher and loader: "store" that meant the person reads store manager; "Refrigerated vehicles planned again". Loader: "Search vehicle, trip or loader" and "two units crushed", with Sinhala and Tamil changed to match (drafts for a native speaker). Driver: "No one at the outlet", Expected for ETA, run sheet for route, units in the demo cargo. Error screens: "Don't worry: your work is saved", with no em dash. Admin: plans, never route plans; "On a trip". Backend: a deferral reads "is not refrigerated"; notification text already followed the glossary, so no routing version. The guardrail is sharper: it reads JSX text on its own line and between tags, and ignores code, class lists and interpolated names.
+Why: issue #126's glossary, applied; the store screens alone called one quantity three names.
+Verified: `npm test` 125, typecheck, build; Playwright dispatcher 24, store 32, loader 16 of 18 (the same two failures as untouched `dev`); the driver suite fails all 13 on untouched `dev` too, since the driver UI rebuild (#174) removed the screens it drives; `ConstraintsTest`, `PeakDayAllocationTest`, `ScarceFleetReplanTest`, `PlanningRunTest`.
+Open: the two proposed terms on #126; the landing page's role card keeps "store" for the store manager's own store.
+
+---
+
 ## 2026-10-03 - feat(frontend): one wording layer and a guardrail against drift (issue #127)
 
 `feat/127-wording-layer` · @Oxshadha

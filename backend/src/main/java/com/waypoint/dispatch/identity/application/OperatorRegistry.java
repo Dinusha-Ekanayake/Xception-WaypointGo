@@ -59,7 +59,7 @@ public class OperatorRegistry {
     this.hasher = hasher;
     this.audit = audit;
     this.metrics = metrics;
-    this.clock = clock;
+    this.clock = clock.realTime();
   }
 
   /** @param offlineVerifier the PIN check this device may run offline; empty until the PIN is used online once */

@@ -1,6 +1,6 @@
 "use client";
 
-import { segments, share, weekDate, weekLabel, type ForecastWeek } from "../data/forecast.ts";
+import { focusScale, refrigeratedNeeded, segments, share, weekDate, weekLabel, type ForecastWeek } from "../data/forecast.ts";
 
 // Figma "Forecast" chart: weekly demand stacked by brand against the fleet's
 // weekly capacity, and below it chilled demand against refrigerated capacity.
@@ -35,19 +35,20 @@ function tagFor(w: ForecastWeek): Tag | null {
 
 const W = 660;
 const H = 270;
-const PLOT_TOP = 40;
+const PLOT_TOP = 52;
 const PLOT_BOTTOM = 230;
 const LEFT = 40;
 
 export default function ForecastChart({ weeks }: { weeks: ForecastWeek[] }): React.JSX.Element {
-  const max = Math.max(1, ...weeks.map((w) => Math.max(w.total, w.fleetM3))) * 1.08;
+  const scale = focusScale(weeks.map((w) => w.total), weeks.map((w) => w.fleetM3), 4);
+  const max = scale.top;
   const slot = (W - LEFT) / Math.max(1, weeks.length);
   const barW = Math.min(30, slot * 0.46);
-  const y = (v: number) => PLOT_BOTTOM - (v / max) * (PLOT_BOTTOM - PLOT_TOP);
+  const y = (v: number) => PLOT_BOTTOM - (Math.min(v, max) / max) * (PLOT_BOTTOM - PLOT_TOP);
   const peak = weeks.reduce<ForecastWeek | null>((a, b) => (!a || b.total > a.total ? b : a), null);
-  const ticks = [0, max / 3, (2 * max) / 3].map((t) => Math.round(t / 50) * 50);
   // The capacity of a full week, labelled once at the right like the design.
-  const fleetLabel = weeks.reduce((m, w) => Math.max(m, w.fleetM3), 0);
+  const fleet = weeks.reduce((m, w) => Math.max(m, w.fleetM3), 0);
+  const peakUse = peak && peak.fleetM3 > 0 ? Math.round((peak.total / peak.fleetM3) * 100) : null;
 
   return (
     <figure className="m-0 flex flex-col gap-3">
@@ -57,18 +58,28 @@ export default function ForecastChart({ weeks }: { weeks: ForecastWeek[] }): Rea
         aria-label={`Weekly demand for the next ${weeks.length} weeks against fleet capacity${peak ? `; peak ${weekLabel(peak)} at ${Math.round(peak.total)} cubic metres` : ""}`}
         className="h-auto w-full"
       >
-        {ticks.map((t) => (
+        {scale.ticks.map((t) => (
           <g key={t}>
             <line x1={LEFT} x2={W} y1={y(t)} y2={y(t)} stroke="#e3ebe9" />
             <text x={LEFT - 6} y={y(t) + 3} textAnchor="end" className="fill-go-secondary text-[9px]">
-              {t}
+              {t.toLocaleString("en-GB")}
             </text>
           </g>
         ))}
-        {fleetLabel && (
-          <text x={W} y={y(fleetLabel) - 5} textAnchor="end" className="fill-go-secondary text-[8.5px] font-medium">
-            {`fleet ≈ ${Math.round(fleetLabel).toLocaleString("en-GB")} m³/wk`}
+        {fleet > 0 && scale.capacityOnScale && (
+          <text x={W} y={y(fleet) - 5} textAnchor="end" className="fill-go-secondary text-[8.5px] font-medium">
+            {`fleet ≈ ${Math.round(fleet).toLocaleString("en-GB")} m³/wk`}
           </text>
+        )}
+        {fleet > 0 && !scale.capacityOnScale && (
+          // Capacity far above demand: one dashed line on the top edge says so,
+          // with how much of it the peak week uses, instead of flattening every bar.
+          <g>
+            <line x1={LEFT} x2={W} y1={PLOT_TOP - 14} y2={PLOT_TOP - 14} stroke="#7c8a87" strokeDasharray="4 3" />
+            <text x={W} y={PLOT_TOP - 19} textAnchor="end" className="fill-go-secondary text-[8.5px] font-medium">
+              {`fleet ≈ ${Math.round(fleet).toLocaleString("en-GB")} m³/wk, above the scale${peakUse !== null ? ` · peak week uses ${peakUse}%` : ""}`}
+            </text>
+          </g>
         )}
         {weeks.map((w, i) => {
           const cx = LEFT + slot * i + slot / 2;
@@ -80,7 +91,7 @@ export default function ForecastChart({ weeks }: { weeks: ForecastWeek[] }): Rea
           const tagY = Math.max(2, valueY - 23);
           return (
             <g key={w.key}>
-              {w.fleetM3 > 0 && (
+              {w.fleetM3 > 0 && scale.capacityOnScale && (
                 <line
                   x1={cx - slot * 0.42}
                   x2={cx + slot * 0.42}
@@ -118,7 +129,9 @@ export default function ForecastChart({ weeks }: { weeks: ForecastWeek[] }): Rea
         })}
       </svg>
       <ChilledStrip weeks={weeks} />
-      <table className="sr-only">
+      {/* A table ignores the 1px of sr-only and widens the page on a phone; its wrapper does not. */}
+      <div className="sr-only">
+      <table>
         <caption>Forecast by week</caption>
         <thead>
           <tr>
@@ -141,12 +154,14 @@ export default function ForecastChart({ weeks }: { weeks: ForecastWeek[] }): Rea
           ))}
         </tbody>
       </table>
+      </div>
     </figure>
   );
 }
 
 const STRIP_H = 96;
-const STRIP_TOP = 10;
+const STRIP_TOP = 12;
+const NEEDS_ROW = 16;
 /** Below this many units a bar cannot hold its label, so the label sits above it. */
 const LABEL_INSIDE_MIN = 18;
 
@@ -156,23 +171,33 @@ function loadColour(load: number): string {
 
 /**
  * Figma "Chilled vs refrigerated vehicle capacity": each week's chilled demand
- * under its bar above, against that week's refrigerated capacity (the tick; a
- * short week's is lower). One scale for every week, so heights compare; the
- * share is written in the bar, or above it when the bar is too short to hold it.
- * Amber from 85%, red from 95%.
+ * under its bar above, labelled with its share of refrigerated capacity, and
+ * under it the refrigerated vehicles an average day of the week needs, out of
+ * those the depot has. Capacity is ticked per week (lower in a short week) when
+ * it is near demand, as in the design; when it is far above, the bars follow
+ * demand so the weeks can be compared, and the header says so. Amber from 85%,
+ * red from 95%.
  */
 function ChilledStrip({ weeks }: { weeks: ForecastWeek[] }): React.JSX.Element {
   const slot = (W - LEFT) / Math.max(1, weeks.length);
   const barW = Math.min(30, slot * 0.46);
-  const scale = Math.max(1, ...weeks.map((w) => Math.max(w.refrigeratedM3, w.chilled)));
+  const scale = focusScale(weeks.map((w) => w.chilled), weeks.map((w) => w.refrigeratedM3), 4);
   const plot = STRIP_H - STRIP_TOP;
-  const y = (v: number) => STRIP_H - (Math.min(v, scale) / scale) * plot;
+  const y = (v: number) => STRIP_H - (Math.min(v, scale.top) / scale.top) * plot;
   const typical = weeks.reduce<ForecastWeek | null>((a, b) => (!a || b.refrigeratedM3 > a.refrigeratedM3 ? b : a), null);
+  const peakShare = Math.max(0, ...weeks.map((w) => share(w.chilled, w.refrigeratedM3)));
 
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <p className="m-0 text-[14px] font-semibold text-go-ink">Chilled vs refrigerated vehicle capacity</p>
+        <div>
+          <p className="m-0 text-[14px] font-semibold text-go-ink">Chilled vs refrigerated vehicle capacity</p>
+          <p className="m-0 text-[11px] text-go-secondary">
+            {scale.capacityOnScale
+              ? "Share of refrigerated capacity · line = capacity · vehicles needed a day below"
+              : `Share of refrigerated capacity, peak ${Math.round(peakShare * 100)}% · vehicles needed a day below`}
+          </p>
+        </div>
         {typical && typical.refrigeratedM3 > 0 && (
           <p className="m-0 text-[12px] text-go-secondary">
             {`Capacity ${Math.round(typical.refrigeratedM3).toLocaleString("en-GB")} m³/wk · ${typical.refrigeratedVehicles} ${typical.refrigeratedVehicles === 1 ? "vehicle" : "vehicles"}`}
@@ -180,12 +205,15 @@ function ChilledStrip({ weeks }: { weeks: ForecastWeek[] }): React.JSX.Element {
         )}
       </div>
       <svg
-        viewBox={`0 0 ${W} ${STRIP_H}`}
+        viewBox={`0 0 ${W} ${STRIP_H + NEEDS_ROW}`}
         role="img"
-        aria-label="Chilled demand as a share of refrigerated vehicle capacity, by week"
+        aria-label="Chilled demand as a share of refrigerated vehicle capacity, and the refrigerated vehicles an average day needs, by week"
         className="h-auto w-full"
       >
         <line x1={LEFT} x2={W} y1={STRIP_H - 0.5} y2={STRIP_H - 0.5} stroke="#e3ebe9" />
+        <text x={LEFT - 6} y={STRIP_H + 12} textAnchor="end" className="fill-go-secondary text-[8px]">
+          per day
+        </text>
         {weeks.map((w, i) => {
           const cx = LEFT + slot * i + slot / 2;
           const load = share(w.chilled, w.refrigeratedM3);
@@ -194,9 +222,11 @@ function ChilledStrip({ weeks }: { weeks: ForecastWeek[] }): React.JSX.Element {
           const height = STRIP_H - top;
           const inside = height >= LABEL_INSIDE_MIN;
           const label = w.refrigeratedM3 > 0 ? `${Math.round(load * 100)}%` : "No capacity";
+          const needed = refrigeratedNeeded(w);
+          const short = w.refrigeratedVehicles > 0 && needed > w.refrigeratedVehicles;
           return (
             <g key={w.key}>
-              {w.refrigeratedM3 > 0 && (
+              {scale.capacityOnScale && w.refrigeratedM3 > 0 && (
                 <line
                   x1={cx - slot * 0.42}
                   x2={cx + slot * 0.42}
@@ -206,9 +236,7 @@ function ChilledStrip({ weeks }: { weeks: ForecastWeek[] }): React.JSX.Element {
                   strokeWidth={2}
                 />
               )}
-              {height > 0 && (
-                <rect x={cx - barW / 2} y={top} width={barW} height={height} rx={4} fill={colour} />
-              )}
+              {height > 0 && <rect x={cx - barW / 2} y={top} width={barW} height={height} rx={4} fill={colour} />}
               <text
                 x={cx}
                 y={inside ? top + 13 : top - 5}
@@ -218,6 +246,16 @@ function ChilledStrip({ weeks }: { weeks: ForecastWeek[] }): React.JSX.Element {
               >
                 {label}
               </text>
+              {w.refrigeratedVehicles > 0 && (
+                <text
+                  x={cx}
+                  y={STRIP_H + 12}
+                  textAnchor="middle"
+                  className={`text-[8.5px] font-medium ${short ? "fill-go-danger" : "fill-go-secondary"}`}
+                >
+                  {`${needed} of ${w.refrigeratedVehicles}`}
+                </text>
+              )}
             </g>
           );
         })}

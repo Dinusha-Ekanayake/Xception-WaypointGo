@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Configuration;
 
 /**
  * The one registry and the engine behind the port: priority insertion, then the
- * scarce-fleet re-plan (issue #92). Whatever engine sits here,
+ * scarce-fleet re-plan (issue #92), then the cost stage (planning v2). Whatever engine sits here,
  * {@link ValidatingEngine} wraps it, so a replacement can never hand a draft an
  * infeasible plan (PLN-12).
  */
@@ -23,7 +23,9 @@ public class PlanningEngineConfiguration {
   @Bean
   public AllocationEngine allocationEngine(ConstraintRegistry planningConstraints, Metrics metrics) {
     return new ValidatingEngine(
-        new ImprovingEngine(new PriorityInsertionEngine(planningConstraints), planningConstraints),
+        new CostImprovingEngine(
+            new ImprovingEngine(new PriorityInsertionEngine(planningConstraints), planningConstraints),
+            planningConstraints),
         planningConstraints,
         violations -> metrics.increment("waypoint.plan.engine_rejected"));
   }

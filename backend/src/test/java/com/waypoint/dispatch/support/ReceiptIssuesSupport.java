@@ -38,7 +38,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -196,7 +195,7 @@ public abstract class ReceiptIssuesSupport {
 
   /** A reserved order with two lines, already delivered, written straight into Ordering. */
   protected Order deliveredOrder(OutletView at) {
-    LocalDate date = LocalDate.of(2040, 1, 1).plusDays(ThreadLocalRandom.current().nextInt(0, 15_000));
+    LocalDate date = TestDates.unusedDay();
     String ref = "WPO-R" + UUID.randomUUID().toString().replace("-", "").substring(0, 11).toUpperCase();
     Order placed =
         Order.place(

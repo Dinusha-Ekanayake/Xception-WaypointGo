@@ -25,3 +25,17 @@ test("the list hides received orders until their filter is chosen", async ({ pag
   await expect(page.getByRole("button", { name: /ORD0092336/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /ORD0092413/ })).toBeVisible();
 });
+
+test("a planned order shows its day, stop and planned arrival in the list and its sheet (#224)", async ({ page }) => {
+  await mockStore(page, { week: true });
+  await page.goto("/");
+  await page.getByRole("navigation", { name: "Store" }).getByRole("button", { name: /^Orders/ }).click();
+
+  const row = page.getByRole("button", { name: /ORD0092418/ });
+  await expect(row).toContainText(/Planned for .+ · stop 4 · planned arrival 06:10/);
+  await expect(page.getByRole("button", { name: /ORD0092420/ })).not.toContainText("stop");
+
+  await row.click();
+  await expect(page.getByText(/Planned for .+ · stop 4 · planned arrival 06:10/).last()).toBeVisible();
+  await expect(page.getByText("Dispatch has put your order on a vehicle for that day.")).toBeVisible();
+});

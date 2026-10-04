@@ -86,6 +86,24 @@ test.describe("landscape dock tablet", () => {
     expect(pins).toEqual(["1111", "2468"]);
   });
 
+  test("locked, the keypad sits beside who locked it and their trip, and their PIN unlocks", async ({ page }) => {
+    const pins = await serve(page, (pin) =>
+      pin === "2468"
+        ? { status: 200, body: { userId: ISURU.userId, displayName: ISURU.displayName, employeeCode: ISURU.employeeCode, since: new Date().toISOString() } }
+        : { status: 401, body: { triesLeft: 2 } });
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "Tonight's departures" })).toBeVisible();
+    await page.getByRole("button", { name: "Lock loader" }).click();
+
+    await expect(page.getByRole("heading", { name: "Device locked" })).toBeVisible();
+    await expect(page.getByText("Enter PIN to unlock")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Enter PIN to unlock/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Switch user" })).toBeVisible();
+    await tap(page, "2468");
+    await expect(page.getByRole("heading", { name: "Tonight's departures" })).toBeVisible();
+    expect(pins).toEqual(["2468"]);
+  });
+
   test("too many tries pauses the keypad with a countdown", async ({ page }) => {
     await serve(page, () => ({ status: 429, body: { triesLeft: 0, retryAfterSeconds: 300 } }));
     await toSignIn(page);

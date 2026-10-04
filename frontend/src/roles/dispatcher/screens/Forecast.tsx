@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { FilterTabs, KpiCard, Notice } from "@shared/ui";
+import { FilterTabs, KpiCard, Notice, SkeletonRows } from "@shared/ui";
 import PageHeader from "../PageHeader.tsx";
 import Refusal from "./Refusal.tsx";
 import ForecastChart, { seriesColour } from "./ForecastChart.tsx";
@@ -12,6 +12,7 @@ import {
   actions,
   combine,
   dayNeeds,
+  forecastError,
   forBrand,
   kpis,
   m3,
@@ -20,7 +21,7 @@ import {
   weekLabel,
   type BrandFilter,
 } from "../data/forecast.ts";
-import { useForecast } from "../data/useForecast.ts";
+import { useForecast, useModels } from "../data/useForecast.ts";
 
 // Figma "Forecast": the next ten weeks of demand for the depots in view, against
 // what the fleet can carry. Read from /api/ml/forecast/overview (#16). Container
@@ -36,6 +37,7 @@ export default function Forecast({
   online: boolean;
 }): React.JSX.Element {
   const resource = useForecast(depots);
+  const models = useModels(depots.length > 0);
   const [brand, setBrand] = useState<BrandFilter>("all");
   const forecast = useMemo(() => (resource.data ? combine(resource.data) : null), [resource.data]);
   const weeks = useMemo(() => (forecast ? forBrand(forecast.weeks, brand) : []), [forecast, brand]);
@@ -67,6 +69,14 @@ export default function Forecast({
           degraded={forecast.degraded}
           onDue={resource.refresh}
         />
+      )}
+      {forecast && ready && models.data && (
+        // Figma "Forecast error" chip (#119): what the model measured, from the registry.
+        <p className="flex w-full justify-end">
+          <span className="rounded-full bg-go-card px-3.5 py-1.5 text-[13px] text-go-secondary shadow-go-card" title="How far the weekly forecast was off when the model was checked against past weeks">
+            {forecastError(models.data, forecast.modelLabel, forecast.degraded)}
+          </span>
+        </p>
       )}
       {forecast && !ready && (
         <Notice tone="info" title="No forecast yet">
@@ -121,17 +131,10 @@ export default function Forecast({
                 <Legend weeks={weeks} />
               </div>
               {loading ? (
-                <p className="py-10 text-center text-[13px] text-go-secondary">Loading the forecast…</p>
+                <SkeletonRows label="Loading the forecast…" />
               ) : (
                 <ForecastChart weeks={weeks} />
               )}
-              <p className="m-0 text-[11px] text-go-secondary">
-                {forecast?.modelLabel
-                  ? forecast.degraded
-                    ? "Recent weekday averages · the demand model did not answer"
-                    : `${forecast.modelLabel} · weekly demand model, refreshed every Monday`
-                  : " "}
-              </p>
             </section>
             <div className="flex min-w-[300px] flex-col gap-5 lg:max-w-[380px]">
               <DayNeeds rows={dayNeeds(weeks)} />

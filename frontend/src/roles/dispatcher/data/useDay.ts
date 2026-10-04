@@ -1,9 +1,13 @@
 "use client";
 
+import { useEffect } from "react";
 import { request, requestAll } from "@shared/api/client";
+import { REPORT_RESOLVED_EVENT } from "@shared/messaging/useThread";
 import { ApiError } from "@shared/api/problem";
 import { useResource, type Resource } from "@shared/api/useResource";
-import type { DepotView, VehiclePositionView, DeferralView, FuelView, IssueHistoryView, IssueView, OrderView, PlanView, ReadyTripView, RunSheetView } from "@shared/domain/types";
+import { livePoll, useDemo } from "@shared/demo/useDemo";
+import { addDays } from "@shared/wording";
+import type { ReportMarkView, DepotView, VehiclePositionView, DeferralView, FuelView, IssueHistoryView, IssueView, OrderView, PlanView, ReadyTripView, RunSheetView } from "@shared/domain/types";
 
 // The dispatcher's reads for a depot and a day. Each polls while the tab is
 // visible and online, so the screen follows the loaders, the drivers and any
@@ -21,6 +25,39 @@ async function orNone<T>(path: string, signal: AbortSignal): Promise<T | null> {
     if (failure instanceof ApiError && failure.status === 404) return null;
     throw failure;
   }
+}
+
+/** Orders a plan for their day would still take: confirmed, or deferred and back in the queue. */
+export function waitingToPlan(orders: OrderView[]): number {
+  return orders.filter((order) => order.status === "CONFIRMED" || order.status === "DEFERRED").length;
+}
+
+/** How far ahead the Plan screen looks for the next day with orders waiting. */
+export const LOOK_AHEAD_DAYS = 7;
+
+/**
+ * The first day after `date`, within a week, with orders waiting to be planned
+ * (issue #114). A dispatcher usually plans the next delivery day while the
+ * screen opens on today, so an empty today points there instead of to an
+ * empty plan. Read only while `enabled`, one day at a time, stopping at the
+ * first hit.
+ */
+export function useNextOrderDay(depots: string[], date: string, enabled: boolean): Resource<{ date: string; waiting: number } | null> {
+  const load =
+    !enabled || depots.length === 0
+      ? null
+      : async (signal: AbortSignal) => {
+          for (let ahead = 1; ahead <= LOOK_AHEAD_DAYS; ahead++) {
+            const day = addDays(date, ahead);
+            const perDepot = await Promise.all(
+              depots.map((depot) => request<OrderView[]>(`/api/orders/day?depot=${q(depot)}&date=${q(day)}`, { signal })),
+            );
+            const waiting = waitingToPlan(perDepot.flat());
+            if (waiting > 0) return { date: day, waiting };
+          }
+          return null;
+        };
+  return useResource(load, `next-order-day|${depots.join(",")}|${date}|${enabled}`);
 }
 
 /** Every order due at these depots on the day, whatever became of it. */
@@ -133,12 +170,13 @@ export function useFuel(vehicleId: string, date: string): Resource<FuelView> {
 
 /** Each vehicle's last good fix in these depots, every 15 seconds while visible (issue #161, D5). */
 export function usePositions(depots: string[], date: string): Resource<VehiclePositionView[]> {
+  const demo = useDemo();
   const load =
     depots.length === 0
       ? null
       : async (signal: AbortSignal) =>
           (await Promise.all(depots.map((depot) => request<VehiclePositionView[]>(`/api/execution/positions?depot=${q(depot)}&date=${q(date)}`, { signal })))).flat();
-  return useResource(load, `positions|${depots.join(",")}|${date}`, 15_000);
+  return useResource(load, `positions|${depots.join(",")}|${date}`, livePoll(demo, 15_000));
 }
 
 /** The depots and their locations, read once. */
@@ -146,4 +184,64 @@ export function useDepots(depots: string[]): Resource<DepotView[]> {
   const load =
     depots.length === 0 ? null : async (signal: AbortSignal) => Promise.all(depots.map((depot) => request<DepotView>(`/api/reference/depots/${q(depot)}`, { signal })));
   return useResource(load, `depots|${depots.join(",")}`);
+}
+
+/**
+ * The reports on the day's trip threads (issue #136): the warning signs on the
+ * timeline, each opening its thread at the report. Read with the run sheets.
+ */
+export function useReports(depots: string[], date: string): Resource<ReportMarkView[]> {
+  const load =
+    depots.length === 0
+      ? null
+      : async (signal: AbortSignal) =>
+          (
+            await Promise.all(
+              depots.map((depot) => request<ReportMarkView[]>(`/api/threads/reports?depot=${q(depot)}&date=${q(date)}`, { signal })),
+            )
+          ).flat();
+  const reports = useResource(load, `reports|${depots.join(",")}|${date}`, POLL_MS);
+  // A report resolved in the thread leaves the timeline now, not at the next poll.
+  const { refresh } = reports;
+  useEffect(() => {
+    window.addEventListener(REPORT_RESOLVED_EVENT, refresh);
+    return () => window.removeEventListener(REPORT_RESOLVED_EVENT, refresh);
+  }, [refresh]);
+  return reports;
+}
+
+export type HistoryDay = { date: string; orders: OrderView[]; sheets: RunSheetView[] };
+
+/**
+ * Each past day's orders and run sheets, for the Overview summary. Read once,
+ * not polled: past days do not move, and a range of four weeks is many reads.
+ */
+export function useHistory(depots: string[], dates: string[]): Resource<HistoryDay[]> {
+  const load =
+    depots.length === 0 || dates.length === 0
+      ? null
+      : (signal: AbortSignal) =>
+          Promise.all(
+            dates.map(async (date) => {
+              const where = (depot: string) => `depot=${q(depot)}&date=${q(date)}`;
+              const [orders, sheets] = await Promise.all([
+                Promise.all(depots.map((depot) => request<OrderView[]>(`/api/orders/day?${where(depot)}`, { signal }))),
+                Promise.all(depots.map((depot) => request<RunSheetView[]>(`/api/execution/run-sheets?${where(depot)}`, { signal }))),
+              ]);
+              return { date, orders: orders.flat(), sheets: sheets.flat() };
+            }),
+          );
+  return useResource(load, `history|${depots.join(",")}|${dates.join(",")}`);
+}
+
+/** The week's planned fuel of every vehicle in view, in one read each; not polled, the week moves only when a plan is published. */
+export function useFleetFuel(vehicleIds: string[], date: string): Resource<Record<string, FuelView>> {
+  const load =
+    vehicleIds.length === 0
+      ? null
+      : async (signal: AbortSignal) =>
+          Object.fromEntries(
+            await Promise.all(vehicleIds.map(async (id) => [id, await request<FuelView>(`/api/plans/fuel?vehicle=${q(id)}&date=${q(date)}`, { signal })] as const)),
+          );
+  return useResource(load, `fleet-fuel|${vehicleIds.join(",")}|${date}`);
 }

@@ -1,6 +1,7 @@
 package com.waypoint.dispatch.notification.contract;
 
 import java.time.Instant;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -24,7 +25,10 @@ public final class NotificationViews {
       Optional<String> subjectType,
       Optional<String> subjectId,
       Instant createdAt,
-      Optional<Instant> readAt) {}
+      Optional<Instant> readAt,
+      // The values the title and body were filled from, so a client can show
+      // the same message in its own language (issue #118). Empty for older rows.
+      Map<String, String> facts) {}
 
   public record UnreadCountView(long count) {}
 

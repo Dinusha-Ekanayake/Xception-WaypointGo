@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { NotificationView } from "../src/shared/domain/notification.ts";
-import { ago, appended, isStale, kindOf, markedAllRead, markedRead, STALE_AFTER_MS } from "../src/shared/notifications/inbox.ts";
+import { ago, appended, badgeText, isStale, kindOf, markedAllRead, markedRead, STALE_AFTER_MS, toneOf } from "../src/shared/notifications/inbox.ts";
 
 // Issue #118: what each role's inbox shows and when its live count is stale.
 
@@ -50,4 +50,26 @@ test("mark all read stops at when the person looked; later arrivals stay unread"
 test("a later page adds what is new and never repeats a notification", () => {
   const merged = appended([n("a", "t"), n("b", "t")], [n("b", "t"), n("c", "t")]);
   assert.deepEqual(merged.map((x) => x.notificationId), ["a", "b", "c"]);
+});
+
+test("anything about an issue reads urgent, whatever raised it; the rest keep their event's tone", () => {
+  assert.equal(toneOf({ eventType: "issue.raised", subjectType: "issue" }), "urgent");
+  assert.equal(toneOf({ eventType: "issue.escalated", subjectType: "issue" }), "urgent");
+  assert.equal(toneOf({ eventType: "something.new", subjectType: "issue" }), "urgent", "by subject, for events added later");
+  assert.equal(toneOf({ eventType: "trip.released", subjectType: "trip" }), "good");
+  assert.equal(toneOf({ eventType: "plan.published", subjectType: null }), "info");
+});
+
+test("a report on a trip's thread reads urgent; any other message is news", () => {
+  assert.equal(toneOf({ eventType: "message.posted", subjectType: "thread", title: "Driver report · WP-K07" }), "urgent");
+  assert.equal(toneOf({ eventType: "message.posted", subjectType: "thread", title: "Nimal Perera · WP-K07" }), "info");
+  assert.equal(kindOf("message.posted").label, "Message");
+});
+
+test("the bell shows nothing at zero or unknown, the count, then 99+", () => {
+  assert.equal(badgeText(null), null);
+  assert.equal(badgeText(0), null);
+  assert.equal(badgeText(3), "3");
+  assert.equal(badgeText(99), "99");
+  assert.equal(badgeText(140), "99+");
 });

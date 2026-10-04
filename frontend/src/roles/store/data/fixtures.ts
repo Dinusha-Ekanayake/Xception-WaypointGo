@@ -438,6 +438,22 @@ export function sampleGateway(): StoreGateway {
       circuitState: warehouseDown ? "open" : "closed",
     }),
     calendar: async (date) => calendar(date),
+    // The sample store is Fresh, which is never offered another day (R-ORD-13).
+    rideAlong: async (_outletId, requested) => ({ requestedDate: requested, deliveryDate: requested, offered: false, days: [] }),
+    // Sample outlook: the calendar decides closed days; the rest are on track but too early to say past two weeks.
+    outlook: async (outletId, from, to) => {
+      const days = [];
+      for (let d = from, i = 0; d <= to; d = addDays(d, 1), i++) {
+        const operating = calendar(d).operating;
+        days.push({
+          date: d,
+          status: !operating ? ("CLOSED" as const) : i >= 14 ? ("TOO_EARLY" as const) : ("ON_TRACK" as const),
+          load: operating ? "0.4000" : null,
+          reason: operating ? "There is room on the vehicles that day" : "The network does not run that day",
+        });
+      }
+      return { outletId, from, to, days, forecast: true, modelLabel: "sample", degraded: false };
+    },
     deliveryDate: async (_outletId, requested) => {
       const day = calendar(requested);
       return { requested, delivery: day.nextOperatingDay, reasons: day.operating ? [] : ["non_operating"] };

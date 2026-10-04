@@ -40,7 +40,7 @@ public class McpRateLimiter {
     this.properties = properties;
     this.audit = audit;
     this.metrics = metrics;
-    this.clock = clock;
+    this.clock = clock.realTime();
   }
 
   /** Counts this request against its credential and, for a remote connection, its client. */
@@ -58,6 +58,17 @@ public class McpRateLimiter {
     }
   }
 
+  /**
+   * Writes have a budget of their own, per credential per hour (P-32, R-IAM-35),
+   * on top of the request limit: a looping assistant can read a lot, but it can
+   * change little before a person notices.
+   */
+  public void requireWrite(String token, Actor actor) {
+    var now = clock.now();
+    check("write", "write:" + tokens.hash(token), properties.writesPerCredentialPerHour(),
+        RateWindow.containing(now, RateWindow.HOUR), now, actor);
+  }
+
   private void check(String kind, String bucket, int limit, RateWindow window, java.time.Instant now, Actor actor) {
     int calls = database.asSystem(ModuleRole.IAM, () -> ((Number) database.queryOne(
         """
@@ -72,12 +83,12 @@ public class McpRateLimiter {
     metrics.increment("waypoint.mcp.rate_limited", "bucket", kind);
     if (RateWindow.firstRefusal(calls, limit)) {
       audit.recordStandalone(AuditEntry.denied(actor.userId(), actor.deviceId(), McpAccessHandler.CONNECT,
-          McpAccessHandler.RESOURCE, "MCP rate limit: " + limit + " requests a minute per " + kind));
+          McpAccessHandler.RESOURCE, "MCP rate limit: " + limit + ("write".equals(kind) ? " writes an hour per credential" : " requests a minute per " + kind)));
     }
     throw DomainException.rateLimited(
         "Too many MCP requests for this " + kind + "; try again in a moment", window.secondsUntilNext(now));
   }
 
   /** Windows older than this are no longer read; the retention job removes them. */
-  public static final java.time.Duration KEEP = java.time.Duration.ofHours(1);
+  public static final java.time.Duration KEEP = java.time.Duration.ofHours(2);
 }

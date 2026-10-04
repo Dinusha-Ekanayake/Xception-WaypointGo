@@ -30,9 +30,12 @@ import java.util.UUID;
  */
 public final class NotificationPolicy {
 
-  /** The events a driver is pushed (R-NOT-08). All of them happen before departure. */
+  /**
+   * The events a driver is pushed (R-NOT-08): the trip-level ones before
+   * departure, and a message on the trip's thread meant for the driver (R-NOT-14).
+   */
   public static final Set<String> DRIVER_PUSH_EVENTS =
-      Set.of("plan.published", "plan.revised", "trip.released");
+      Set.of("plan.published", "plan.revised", "trip.released", "message.posted");
 
   private NotificationPolicy() {}
 
@@ -50,10 +53,12 @@ public final class NotificationPolicy {
       boolean push,
       String title,
       String body,
-      Set<String> missingFacts) {
+      Set<String> missingFacts,
+      Map<String, String> facts) {
 
     public Addressed {
       missingFacts = Set.copyOf(missingFacts);
+      facts = Map.copyOf(facts);
     }
   }
 
@@ -119,7 +124,7 @@ public final class NotificationPolicy {
           continue;
         }
         if (seen.add(person + "|" + target.key())) {
-          out.add(new Addressed(person, rule.role(), target, push, title.text(), body.text(), missing));
+          out.add(new Addressed(person, rule.role(), target, push, title.text(), body.text(), missing, facts));
         }
       }
     }

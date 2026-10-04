@@ -32,6 +32,7 @@ import com.waypoint.dispatch.shared.domain.Actor;
 import com.waypoint.dispatch.shared.event.DomainEvent;
 import com.waypoint.dispatch.shared.event.EventEnvelope;
 import com.waypoint.dispatch.shared.util.Clock;
+import com.waypoint.dispatch.support.TestDates;
 import com.waypoint.dispatch.warehouse.contract.StockPort.Reserved;
 import com.waypoint.dispatch.warehouse.contract.WarehouseEvents.WarehouseOrderStatusChanged;
 import java.math.BigDecimal;
@@ -78,6 +79,7 @@ class OrderingConsumersIntegrationTest {
   @Autowired ConsumerInbox inbox;
   @Autowired List<EventSubscriber<?>> subscribers;
   @Autowired CutoffJob cutoff;
+  @Autowired com.waypoint.dispatch.ordering.contract.OrderQuery orderQuery;
 
   LocalDate serviceDate;
 
@@ -99,8 +101,7 @@ class OrderingConsumersIntegrationTest {
     migrator.migrate();
     referenceImport.importFrom(Path.of("../data"), null);
     serviceDate =
-        reference.nextOperatingDay(
-            LocalDate.of(2031, 1, 1).plusDays(ThreadLocalRandom.current().nextInt(0, 20_000)));
+        TestDates.unusedDay(reference::nextOperatingDay);
   }
 
   @Test
@@ -169,6 +170,40 @@ class OrderingConsumersIntegrationTest {
 
     assertEquals(Optional.of(second), current(order).tripId());
     assertEquals(OrderStatus.ALLOCATED, status(order));
+  }
+
+  @Test
+  void aPublishedPlanGivesTheOrderItsStopAndAnOlderPlanNeverOverwritesIt() {
+    Order order = saved(true);
+    deliver("ordering.on-plan-published", published(UUID.randomUUID(), order));
+    Map<String, Object> stop = stopOf(order);
+    assertEquals(1, ((Number) stop.get("stop_sequence")).intValue());
+    assertEquals(LocalTime.of(8, 0), ((java.sql.Time) stop.get("planned_arrival")).toLocalTime());
+
+    deliver("ordering.on-plan-revised",
+        new PlanRevised(UUID.randomUUID(), order.depotCode(), serviceDate, 2, UUID.randomUUID(), "vehicle fault",
+            List.of(new PlannedTrip(UUID.randomUUID(), "VEH002", 1, order.brandCode(), order.districtName(), "ambient",
+                LocalTime.of(5, 0), List.of(new PlannedStop(4, order.orderId(), OUTLET, LocalTime.of(9, 30)))))));
+    assertEquals(4, ((Number) stopOf(order).get("stop_sequence")).intValue(), "a revision re-points the stop");
+
+    deliver("ordering.on-plan-published", published(UUID.randomUUID(), order));
+    assertEquals(4, ((Number) stopOf(order).get("stop_sequence")).intValue(), "version 1 arriving late changes nothing");
+  }
+
+  @Test
+  void aPlannedOrderShowsItsStopAndOnceDeferredToAnotherDayItDoesNot() {
+    Order order = saved(true);
+    deliver("ordering.on-plan-published", published(UUID.randomUUID(), order));
+    var planned = database.asSystem(ModuleRole.ORDERING, () -> orderQuery.order(order.orderId())).orElseThrow();
+    assertEquals(Optional.of(1), planned.plannedStop());
+    assertEquals(Optional.of(LocalTime.of(8, 0)), planned.plannedArrival());
+
+    deliver("ordering.on-order-deferred",
+        new OrderDeferred(order.orderId(), UUID.randomUUID(), OUTLET, serviceDate, "R-PLN-07", "no vehicle", 1));
+    var deferred = database.asSystem(ModuleRole.ORDERING, () -> orderQuery.order(order.orderId())).orElseThrow();
+    assertEquals(OrderStatus.DEFERRED, deferred.status());
+    assertTrue(deferred.plannedStop().isEmpty(), "ORD-21: the stop belonged to the old day");
+    assertTrue(deferred.plannedArrival().isEmpty());
   }
 
   @Test
@@ -311,6 +346,10 @@ class OrderingConsumersIntegrationTest {
   private DeliveryCompleted completed(UUID tripId, Order order, DeliveryOutcome outcome) {
     return new DeliveryCompleted(UUID.randomUUID(), order.orderId(), tripId, OUTLET, outcome,
         Optional.of(10), Instant.now(), Optional.empty());
+  }
+
+  private Map<String, Object> stopOf(Order order) {
+    return database.asSystem(ModuleRole.ORDERING, () -> orders.stops(List.of(order.orderId()))).get(order.orderId());
   }
 
   private Order current(Order order) {

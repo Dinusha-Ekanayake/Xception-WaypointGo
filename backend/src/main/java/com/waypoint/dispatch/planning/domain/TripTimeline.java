@@ -24,8 +24,10 @@ import java.util.Map;
  * return leg added, which is the model behind the booklet's 101 + 112 minute
  * example (assumption A-26). Stops are tried earliest-close first and
  * earliest-open first; the feasible order that finishes earlier wins, so the
- * result is deterministic (D-L: sequence by window; there are no coordinates, so
- * distance cannot reorder stops inside a district).
+ * result is deterministic (D-L). When every stop has an exact point, the
+ * shortest path by road is tried too, and the drive between stops is measured
+ * from the points (R-PLN-40, {@link StopTravel}); without points, stops are
+ * ordered by window and the drive is the district's inter-stop time.
  */
 public final class TripTimeline {
   private TripTimeline() {}
@@ -85,7 +87,7 @@ public final class TripTimeline {
       BigDecimal base = minuteOf(trip.fresh() ? rules.freshDeparture() : rules.daytimeDeparture());
       BigDecimal earliest = previousEnd == null ? base : base.max(previousEnd);
       TripSchedule best = null;
-      for (Comparator<PlanOrder> order : SEQUENCES) {
+      for (Comparator<PlanOrder> order : sequencesFor(trip, d)) {
         TripSchedule candidate = simulate(i + 1, trip, d, earliest, order);
         if (best == null || better(candidate, best)) {
           best = candidate;
@@ -128,6 +130,31 @@ public final class TripTimeline {
 
   private static final List<Comparator<PlanOrder>> SEQUENCES = List.of(CLOSE_FIRST, OPEN_FIRST);
 
+  /** A dispatcher's stop order is the only one tried: it is the decision, checked like any other. */
+  private static List<Comparator<PlanOrder>> sequencesFor(Trip trip, DistrictTravel d) {
+    if (!trip.hasFixedSequence()) {
+      if (!StopTravel.located(trip.orders())) {
+        return SEQUENCES;
+      }
+      // The shortest path by road, starting where the window order would start.
+      PlanOrder first = trip.orders().stream().min(CLOSE_FIRST).orElseThrow();
+      List<PlanOrder> path = StopTravel.shortestPath(first, trip.orders());
+      Map<java.util.UUID, Integer> at = new java.util.HashMap<>();
+      for (int i = 0; i < path.size(); i++) {
+        at.put(path.get(i).orderId(), i);
+      }
+      return List.of(CLOSE_FIRST, OPEN_FIRST,
+          Comparator.comparingInt((PlanOrder o) -> at.get(o.orderId())).thenComparing(Trip.STABLE));
+    }
+    Map<java.util.UUID, Integer> position = new java.util.HashMap<>();
+    for (int i = 0; i < trip.sequence().size(); i++) {
+      position.put(trip.sequence().get(i), i);
+    }
+    return List.of(
+        Comparator.comparingInt((PlanOrder o) -> position.getOrDefault(o.orderId(), Integer.MAX_VALUE))
+            .thenComparing(Trip.STABLE));
+  }
+
   private static TripSchedule simulate(
       int tripNumber, Trip trip, DistrictTravel d, BigDecimal earliest, Comparator<PlanOrder> sequence) {
     List<PlanOrder> ordered = trip.orders().stream().sorted(sequence).toList();
@@ -141,7 +168,7 @@ public final class TripTimeline {
     for (int i = 0; i < ordered.size(); i++) {
       PlanOrder o = ordered.get(i);
       if (i > 0) {
-        t = t.add(d.interStopMinutes());
+        t = t.add(StopTravel.minutes(ordered.get(i - 1), o, d));
       }
       BigDecimal arrival = t;
       BigDecimal wait = BigDecimal.ZERO;

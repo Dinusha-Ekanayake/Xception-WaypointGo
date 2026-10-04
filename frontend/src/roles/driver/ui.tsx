@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef, type ButtonHTMLAttributes, type ReactNode } from "react";
-import { cx } from "@shared/ui";
+import { createPortal } from "react-dom";
+import { ChatIcon, PRESS, SettingsPanel, Spinner, cx, initialsOf } from "@shared/ui";
 
 /** Waveform bar heights exactly copied from the Figma specification */
 export const WAVEFORM_HEIGHTS = [
@@ -10,45 +11,66 @@ export const WAVEFORM_HEIGHTS = [
 
 export type SupportedLang = "en" | "si" | "ta";
 
-const LANG_CONFIG: Record<
-  SupportedLang,
-  { label: string; title: string; style?: React.CSSProperties; className?: string }
-> = {
-  en: {
-    label: "EN",
-    title: "English",
-    className: "text-[13px] font-medium tracking-tight",
-  },
-  si: {
-    label: "සිං",
-    title: "Sinhala",
-    style: { fontFamily: "var(--font-sinhala), 'UN-Malithi', sans-serif", fontWeight: 400 },
-    className: "text-[14px] font-normal",
-  },
-  ta: {
-    label: "த",
-    title: "Tamil",
-    style: { fontFamily: "'Anek Tamil', sans-serif", fontWeight: 400 },
-    className: "text-[15px] font-normal pb-0.5",
-  },
-};
+/** The driver's initials; tapping them opens Settings as a bottom sheet. */
+function DriverProfileButton({
+  displayName,
+  lang,
+  onLang,
+  isNight,
+}: {
+  displayName: string;
+  lang: SupportedLang;
+  onLang?: (l: SupportedLang) => void;
+  isNight: boolean;
+}): React.JSX.Element {
+  const [open, setOpen] = useState(false);
+  const button = useRef<HTMLButtonElement>(null);
+  // The header scales its controls, and a transformed ancestor traps a fixed
+  // sheet inside it, so the sheet renders into the themed driver root instead.
+  const host = open ? (button.current?.closest<HTMLElement>("[data-theme]") ?? document.body) : null;
+  return (
+    <>
+      <button
+        ref={button}
+        type="button"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-label={`Settings: ${displayName}`}
+        onClick={() => setOpen(true)}
+        className={cx(
+          "w-[42px] h-[42px] rounded-full flex items-center justify-center border text-[14px] font-semibold shadow-[0_5px_20px_rgba(0,0,0,0.05)] active:scale-95 transition-all",
+          isNight ? "bg-[#292929] border-[#383838] text-white" : "bg-go-mint border-[#dfe7e6] text-black",
+        )}
+      >
+        {initialsOf(displayName)}
+      </button>
+      {host &&
+        createPortal(
+          <SettingsPanel displayName={displayName} roleLabel="Driver" lang={lang} onLang={(l) => onLang?.(l)} placement="sheet" onClose={() => setOpen(false)} />,
+          host,
+        )}
+    </>
+  );
+}
 
-/** Driver Header with GO logo, Language toggle, Sign out, and Theme toggle */
+/** Driver Header with GO logo, Settings (picture), Sign out, and Theme toggle */
 export function DriverHeader({
   lang = "en",
   onToggleLang,
+  displayName,
   onSignOut,
   onToggleTheme,
   isNight = false,
 }: {
   lang?: SupportedLang;
   onToggleLang?: (l: SupportedLang) => void;
+  /** The signed-in driver; their picture opens Settings. */
+  displayName?: string;
   onSignOut?: () => void;
   onToggleTheme?: () => void;
   isNight?: boolean;
 }): React.JSX.Element {
   // Show the other two languages that the user can switch to
-  const availableLangs = (["si", "ta", "en"] as const).filter((l) => l !== lang);
 
   return (
     <header className="driver-header w-full flex items-center justify-between px-6 pt-5 pb-3 shrink-0 select-none transition-all duration-300">
@@ -64,37 +86,8 @@ export function DriverHeader({
 
       {/* Right controls */}
       <div className="flex items-center gap-2">
-        {/* Language toggle: shows the two alternative languages to switch to */}
-        <div
-          role="group"
-          aria-label="Language selection"
-          className={cx(
-            "flex items-center rounded-full p-[4px] gap-[2px] shadow-[0_5px_20px_2px_rgba(0,0,0,0.05)] border transition-colors",
-            isNight ? "bg-[#292929] border-[#383838]" : "bg-white border-[#dfe7e6]"
-          )}
-        >
-          {availableLangs.map((itemLang) => {
-            const config = LANG_CONFIG[itemLang];
-            return (
-              <button
-                key={itemLang}
-                type="button"
-                onClick={() => onToggleLang?.(itemLang)}
-                style={config.style}
-                className={cx(
-                  "w-[36px] h-[34px] rounded-full flex items-center justify-center transition-all active:scale-95",
-                  config.className,
-                  isNight
-                    ? "text-[#A3A3A3] hover:text-white hover:bg-white/10"
-                    : "text-[#6B6B6B] hover:text-black hover:bg-black/5"
-                )}
-                title={config.title}
-              >
-                {config.label}
-              </button>
-            );
-          })}
-        </div>
+        {/* The driver's picture opens Settings: language and the assistant connection. */}
+        {displayName && <DriverProfileButton displayName={displayName} lang={lang} onLang={onToggleLang} isNight={isNight} />}
 
         {/* Sign out button */}
         {onSignOut && (
@@ -161,27 +154,37 @@ export function DriverHeader({
  * Driver morphing header shared across Driver Home and Route Next Stop.
  * - The Dark/Light theme toggle stays strictly stationary in place (no slide or scale).
  * - Left slot: GO logo zooms out while < Back button pops up in its place.
- * - Middle-right slot: Language toggle + Sign out zoom out while the Synced pill pops up.
+ * - Middle-right slot: the Settings picture + Sign out zoom out while the Synced pill pops up.
  * - No slide effect is applied to any of these controls.
  */
 export function DriverMorphHeader({
   activeScreen,
+  syncLabel = "Connecting",
   onBack,
   lang = "en",
   onToggleLang,
+  displayName,
   onSignOut,
   onToggleTheme,
   isNight = false,
+  onMessages,
+  unreadMessages = 0,
 }: {
   activeScreen: "home" | "route-next-stop" | "route-map";
+  /** Whether this phone is in step with the server, in words. */
+  syncLabel?: string;
   onBack?: () => void;
   lang?: SupportedLang;
   onToggleLang?: (l: SupportedLang) => void;
+  /** The signed-in driver; their picture opens Settings. */
+  displayName?: string;
   onSignOut?: () => void;
   onToggleTheme?: () => void;
   isNight?: boolean;
+  /** The trip's thread (issue #136): an icon beside the theme, on every screen with a trip. */
+  onMessages?: () => void;
+  unreadMessages?: number;
 }): React.JSX.Element {
-  const availableLangs = (["si", "ta", "en"] as const).filter((l) => l !== lang);
   const isHome = activeScreen === "home";
   const isRoute = activeScreen === "route-next-stop";
   const isMap = activeScreen === "route-map";
@@ -221,7 +224,7 @@ export function DriverMorphHeader({
                 ? "text-white bg-transparent hover:opacity-80"
                 : "text-black bg-transparent hover:opacity-80"
           )}
-          aria-label={isMap ? "Back to route" : "Go back to home"}
+          aria-label={isMap ? "Back to run sheet" : "Go back to home"}
         >
           <svg width="9" height="14" viewBox="0 0 9 14" fill="none">
             <path
@@ -249,37 +252,8 @@ export function DriverMorphHeader({
                 : "scale-0 opacity-0 pointer-events-none absolute right-0"
             )}
           >
-            {/* Language toggle */}
-            <div
-              role="group"
-              aria-label="Language selection"
-              className={cx(
-                "flex items-center rounded-full p-[4px] gap-[2px] shadow-[0_5px_20px_2px_rgba(0,0,0,0.05)] border transition-colors",
-                isNight ? "bg-[#292929] border-[#383838]" : "bg-white border-[#dfe7e6]"
-              )}
-            >
-              {availableLangs.map((itemLang) => {
-                const config = LANG_CONFIG[itemLang];
-                return (
-                  <button
-                    key={itemLang}
-                    type="button"
-                    onClick={() => onToggleLang?.(itemLang)}
-                    style={config.style}
-                    className={cx(
-                      "w-[36px] h-[34px] rounded-full flex items-center justify-center transition-all active:scale-95",
-                      config.className,
-                      isNight
-                        ? "text-[#A3A3A3] hover:text-white hover:bg-white/10"
-                        : "text-[#6B6B6B] hover:text-black hover:bg-black/5"
-                    )}
-                    title={config.title}
-                  >
-                    {config.label}
-                  </button>
-                );
-              })}
-            </div>
+            {/* The driver's picture opens Settings: language and the assistant connection. */}
+            {displayName && <DriverProfileButton displayName={displayName} lang={lang} onLang={onToggleLang} isNight={isNight} />}
 
             {/* Sign out button */}
             {onSignOut && (
@@ -304,7 +278,7 @@ export function DriverMorphHeader({
             )}
           </div>
 
-          {/* Route & Map Controls: Synced 05:31 Pill */}
+          {/* Route & Map Controls: sync pill */}
           <div
             className={cx(
               "w-[125px] h-[43px] rounded-[25px] flex items-center justify-center transition-all duration-300 transform-gpu origin-right",
@@ -317,10 +291,31 @@ export function DriverMorphHeader({
             )}
           >
             <span className="text-[15px] font-medium leading-[19px] tracking-tight">
-              Synced 05:31
+              {syncLabel}
             </span>
           </div>
         </div>
+
+        {/* Messages on the trip's thread, with the count of new ones (issue #136). */}
+        {onMessages && (
+          <button
+            type="button"
+            onClick={onMessages}
+            className={cx(
+              "relative w-[43px] h-[43px] rounded-full flex items-center justify-center border shadow-[0_5px_20px_rgba(0,0,0,0.09)] active:scale-95 transition-all shrink-0",
+              isNight ? "bg-[#292929] border-[#383838] text-white hover:bg-[#333333]" : "bg-white border-[#dfe7e6] text-black hover:bg-slate-50"
+            )}
+            title="Messages"
+            aria-label={unreadMessages > 0 ? `Messages, ${unreadMessages} new` : "Messages"}
+          >
+            <ChatIcon className="size-[21px]" />
+            {unreadMessages > 0 && (
+              <span aria-hidden className="absolute -top-1 -right-1 min-w-[19px] h-[19px] rounded-full bg-[#E5484D] px-1 text-[11px] font-semibold leading-[19px] text-white text-center ring-2 ring-[#E7F3F2]">
+                {unreadMessages > 99 ? "99+" : unreadMessages}
+              </span>
+            )}
+          </button>
+        )}
 
         {/* 3. Theme toggle button - strictly stationary, NO slide, NO scale */}
         <button
@@ -599,31 +594,49 @@ export function VoiceMessagePlayer({
 // drawn from theme tokens, so the dark theme is the same markup. Touch targets
 // are at least 56px: the phone is used one-handed, when safely stopped.
 
-type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & { children: ReactNode };
+/** `busy`: the command is on its way, so the button is disabled with a spinner before the label. */
+type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & { children: ReactNode; busy?: boolean };
 
-const big = "flex min-h-16 w-full items-center justify-center gap-2 rounded-[22px] px-5 text-[19px] font-medium disabled:opacity-50";
+const big = cx("flex min-h-16 w-full items-center justify-center gap-2 rounded-[22px] px-5 text-[19px] font-medium disabled:opacity-50", PRESS);
 
-export function ActionButton({ children, className, type = "button", ...rest }: ButtonProps): React.JSX.Element {
+function DriverButton({ children, className, type = "button", busy = false, disabled, look, ...rest }: ButtonProps & { look: string }): React.JSX.Element {
   return (
-    <button type={type} {...rest} className={cx(big, "bg-go-action text-go-on-action", className)}>
+    <button type={type} {...rest} disabled={disabled || busy} aria-busy={busy || undefined} className={cx(big, look, busy && "disabled:opacity-70", className)}>
+      {busy && <Spinner />}
       {children}
     </button>
   );
 }
 
-export function SoftButton({ children, className, type = "button", ...rest }: ButtonProps): React.JSX.Element {
-  return (
-    <button type={type} {...rest} className={cx(big, "bg-go-soft text-go-on-soft", className)}>
-      {children}
-    </button>
-  );
+export function ActionButton(props: ButtonProps): React.JSX.Element {
+  return <DriverButton {...props} look="bg-go-action text-go-on-action" />;
 }
 
-export function OutlineButton({ children, className, type = "button", ...rest }: ButtonProps): React.JSX.Element {
+export function SoftButton(props: ButtonProps): React.JSX.Element {
+  return <DriverButton {...props} look="bg-go-soft text-go-on-soft" />;
+}
+
+export function OutlineButton(props: ButtonProps): React.JSX.Element {
+  return <DriverButton {...props} look="border border-go-ink bg-transparent text-go-ink" />;
+}
+
+/**
+ * The primary action of a long form, pinned to the bottom of the scrolling
+ * layer on a phone so it is always in reach; the form scrolls under it. From
+ * the tablet column up it sits in the flow as drawn. `on` is the surface it
+ * sits on, the page or a panel, so the content passing under it is hidden.
+ */
+export function PinnedAction({ on, className, children }: { on: "canvas" | "card"; className?: string; children: ReactNode }): React.JSX.Element {
   return (
-    <button type={type} {...rest} className={cx(big, "border border-go-ink bg-transparent text-go-ink", className)}>
+    <div
+      className={cx(
+        "max-md:sticky max-md:bottom-0 max-md:z-10 max-md:pt-3 max-md:pb-[max(1rem,env(safe-area-inset-bottom))] max-md:shadow-[0_-8px_16px_rgba(0,0,0,0.04)]",
+        on === "canvas" ? "max-md:-mx-5 max-md:bg-go-canvas max-md:px-5" : "max-md:-mx-6 max-md:bg-go-card max-md:px-6",
+        className,
+      )}
+    >
       {children}
-    </button>
+    </div>
   );
 }
 

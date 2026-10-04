@@ -6,7 +6,7 @@ import { ApiError } from "@shared/api/problem";
 import { drainUploads, pendingEntries, pendingUploads, UPLOADS_EVENT, type StoredEntry, type StoredUpload } from "@shared/offline";
 import type { OutletView, VehicleView } from "@shared/domain/types";
 import type { DriverGateway, RunData } from "./gateway.ts";
-import { DeliveryKind, operatingDate, project, type Stop } from "./run.ts";
+import { DeliveryKind, acknowledged, hasRun, isStopAck, keepRunDay, keptRunDay, lookAhead, operatingDate, project, todaysSheet, type NextRun, type Stop } from "./run.ts";
 
 // The driver's day: read from the server when it answers, from the phone when it
 // does not, and shown with the writes still waiting applied on top.
@@ -41,6 +41,8 @@ export type Run = {
   refresh: () => void;
   act: (kind: string, payload: Record<string, unknown>, stop?: Stop) => Promise<Outcome>;
   saveArtifact: DriverGateway["saveArtifact"];
+  /** With nothing released today: the next trip ahead, released or still at the dock (U2). */
+  nextRun: NextRun | null;
 };
 
 /**
@@ -49,8 +51,10 @@ export type Run = {
  *     the server's copy too. A refusal changes no count, so a count alone
  *     would leave a refused write drawn as if it had happened (EXE-03).
  */
-export function useRun(gateway: DriverGateway, accountId: string, online: boolean, queueState: string, onQueued: () => void): Run {
-  const date = useMemo(() => operatingDate(new Date()), []);
+export function useRun(gateway: DriverGateway, accountId: string, online: boolean, queueState: string, onQueued: () => void, depot: string | null = null): Run {
+  const today = useMemo(() => operatingDate(new Date()), []);
+  // The run's day: today, or the first day ahead with a released trip (issue #114).
+  const [date, setDate] = useState(() => keptRunDay(accountId, today));
   const [data, setData] = useState<RunData | null>(null);
   const [keptAt, setKeptAt] = useState<Date | null>(null);
   const [syncedAt, setSyncedAt] = useState<Date | null>(null);
@@ -61,6 +65,13 @@ export function useRun(gateway: DriverGateway, accountId: string, online: boolea
   const [busy, setBusy] = useState(false);
   const [tick, setTick] = useState(0);
   const entriesRef = useRef<StoredEntry[]>([]);
+  // The day as last read, for the version of the next write: React state lags a render behind.
+  const dataRef = useRef<RunData | null>(null);
+  dataRef.current = data;
+  // Versions the server acknowledged this session: a floor, whatever copy is on screen.
+  const acked = useRef(new Map<string, number>());
+  // One write at a time, so each names the version the one before it produced.
+  const writes = useRef<Promise<unknown>>(Promise.resolve());
 
   const refresh = useCallback(() => setTick((n) => n + 1), []);
 
@@ -82,6 +93,7 @@ export function useRun(gateway: DriverGateway, accountId: string, online: boolea
         try {
           const fresh = await gateway.run(date, controller.signal);
           if (cancelled) return;
+          dataRef.current = fresh;
           setData(fresh);
           setKeptAt(null);
           setSyncedAt(new Date());
@@ -107,6 +119,29 @@ export function useRun(gateway: DriverGateway, accountId: string, online: boolea
     };
   }, [gateway, date, online, tick, readDevice]);
 
+  // Nothing released today: look ahead for the next trip in the background, every
+  // day at once, so Home is drawn first and never waits on it (U1). A released run
+  // becomes the phone's day; a trip still at the dock is named on Home (U2).
+  const [nextRun, setNextRun] = useState<NextRun | null>(null);
+  const nothingToday = data !== null && !hasRun(data.sheets);
+  useEffect(() => {
+    if (!online || date !== today || !nothingToday) return;
+    const controller = new AbortController();
+    lookAhead(today, (day) => gateway.probeDay(day, depot, controller.signal))
+      .then((found) => {
+        if (controller.signal.aborted) return;
+        setNextRun(found);
+        if (found?.released) {
+          keepRunDay(accountId, found.date);
+          setDate(found.date);
+        }
+      })
+      .catch(() => {
+        // Unreachable: Home keeps today's state; the next pass tries again.
+      });
+    return () => controller.abort();
+  }, [online, date, today, nothingToday, tick, gateway, depot, accountId]);
+
   // The shell's engine sent, or kept, something: read the queue again, and the
   // server's copy once nothing of ours is in flight.
   useEffect(() => {
@@ -128,51 +163,84 @@ export function useRun(gateway: DriverGateway, accountId: string, online: boolea
     };
   }, [online, accountId, readDevice]);
 
-  const sheet = data?.sheets[0] ?? null;
+  const sheet = data ? todaysSheet(data.sheets) : null;
   const stops = useMemo(
     () => (sheet ? project(sheet, entries.map((entry) => ({ command: entry.payload as Command, needsReview: entry.needsReview === true }))) : []),
     [sheet, entries],
   );
 
-  const act = useCallback<Run["act"]>(
-    async (kind, payload, stop) => {
-      const command = newCommand(kind, payload, stop ? stop.rowVersion : null);
-      const keepOnPhone = async (): Promise<Outcome> => {
-        const saved = await gateway.queue(command);
-        if (!saved.durable) {
-          return { ok: false, error: new Error(`Not saved on this phone: ${saved.reason ?? "storage unavailable"}`) };
-        }
-        await readDevice();
-        onQueued();
-        return { ok: true, queued: true };
-      };
-      // Anything already waiting goes first, so this write queues behind it.
-      const inFlight = (await readDevice()).some((entry) => !entry.needsReview);
-      if (!online || inFlight) return keepOnPhone();
+  /**
+   * The version a write for this stop must name: what the last read holds with
+   * every write still on the phone applied, and never below what the caller saw.
+   */
+  const versionOf = useCallback((stop: Stop, queued: StoredEntry[]): number => {
+    const sheet = dataRef.current ? todaysSheet(dataRef.current.sheets) : null;
+    const projected = sheet
+      ? project(sheet, queued.map((entry) => ({ command: entry.payload as Command, needsReview: entry.needsReview === true }))).find(
+          (other) => other.deliveryId === stop.deliveryId,
+        )
+      : undefined;
+    return Math.max(stop.rowVersion, projected?.rowVersion ?? 0, acked.current.get(stop.deliveryId) ?? 0);
+  }, []);
 
-      setBusy(true);
-      try {
-        await gateway.send(command);
-        // Read the stop back before answering, so the next screen opens on what
-        // the server now holds rather than on what it held a moment ago.
+  const act = useCallback<Run["act"]>(
+    (kind, payload, stop) => {
+      const write = async (): Promise<Outcome> => {
+        const command = newCommand(kind, payload, stop ? versionOf(stop, await readDevice()) : null);
+        const keepOnPhone = async (): Promise<Outcome> => {
+          const saved = await gateway.queue(command);
+          if (!saved.durable) {
+            return { ok: false, error: new Error(`Not saved on this phone: ${saved.reason ?? "storage unavailable"}`) };
+          }
+          await readDevice();
+          onQueued();
+          return { ok: true, queued: true };
+        };
+        // Anything already waiting goes first, so this write queues behind it.
+        const inFlight = (await readDevice()).some((entry) => !entry.needsReview);
+        if (!online || inFlight) return keepOnPhone();
+
+        setBusy(true);
         try {
-          setData(await gateway.run(date, new AbortController().signal));
-          setKeptAt(null);
-          setSyncedAt(new Date());
-        } catch {
+          const ack = await gateway.send(command);
+          // The answer names the stop's new version: keep it before anything
+          // else can fail, so the next write never names the old one.
+          if (isStopAck(ack.result)) {
+            acked.current.set(ack.result.deliveryId, Math.max(ack.result.rowVersion, acked.current.get(ack.result.deliveryId) ?? 0));
+            if (dataRef.current) {
+              const known = { ...dataRef.current, sheets: acknowledged(dataRef.current.sheets, ack.result) };
+              dataRef.current = known;
+              setData(known);
+              // The kept copy too, or a reload with no signal would bring the old version back.
+              await gateway.keepRun(date, known).catch(() => undefined);
+            }
+          }
+          // Read the stop back before answering, so the next screen opens on what
+          // the server now holds rather than on what it held a moment ago.
+          try {
+            const fresh = await gateway.run(date, new AbortController().signal);
+            dataRef.current = fresh;
+            setData(fresh);
+            setKeptAt(null);
+            setSyncedAt(new Date());
+          } catch {
+            refresh();
+          }
+          return { ok: true, queued: false };
+        } catch (failure) {
+          const refused = failure instanceof ApiError && !failure.isRetryable && failure.status !== 401;
+          if (!refused) return keepOnPhone();
           refresh();
+          return { ok: false, error: failure };
+        } finally {
+          setBusy(false);
         }
-        return { ok: true, queued: false };
-      } catch (failure) {
-        const refused = failure instanceof ApiError && !failure.isRetryable && failure.status !== 401;
-        if (!refused) return keepOnPhone();
-        refresh();
-        return { ok: false, error: failure };
-      } finally {
-        setBusy(false);
-      }
+      };
+      const next = writes.current.then(write);
+      writes.current = next.catch(() => undefined);
+      return next;
     },
-    [gateway, date, online, readDevice, refresh, onQueued],
+    [gateway, date, online, readDevice, refresh, onQueued, versionOf],
   );
 
   return {
@@ -190,6 +258,7 @@ export function useRun(gateway: DriverGateway, accountId: string, online: boolea
     refresh,
     act,
     saveArtifact: gateway.saveArtifact,
+    nextRun: date === today && nothingToday ? nextRun : null,
   };
 }
 

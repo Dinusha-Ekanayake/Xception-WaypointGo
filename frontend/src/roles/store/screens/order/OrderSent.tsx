@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { OutletView, PlacedOrder } from "@shared/domain/types";
 import { Icon, Notice } from "@shared/ui";
-import { cases, changeDeadline, clock, dayLabel, depotToday, hhmm, temperatureLabel } from "../../data/format.ts";
+import { units, changeDeadline, clock, dayLabel, depotToday, hhmm, temperatureLabel } from "../../data/format.ts";
 import { Badge, Button, Facts, Modal } from "../../ui.tsx";
 
 // Figma "04 Order sent". Totals are the warehouse's, returned with the order,
@@ -55,7 +55,7 @@ export default function OrderSent({
           rows={[
             ...orders.map((o) => ({
               label: `${o.orderRef}${o.temperature ? ` · ${temperatureLabel(o.temperature)}` : ""}`,
-              value: o.itemCount === null ? "Totals follow once stock is checked" : cases(o.itemCount),
+              value: o.itemCount === null ? "Totals follow once stock is checked" : units(o.itemCount),
             })),
             {
               label: "Delivery window",
@@ -106,7 +106,7 @@ function ShortfallNotice({ order, onAccept }: { order: PlacedOrder; onAccept: (o
       live
       title={`${order.orderRef}: held until ${clock(short.expiresAt)}`}
       action={
-        <Button large onClick={() => void accept()}>
+        <Button large busy={state.busy} onClick={() => void accept()}>
           {state.busy ? "Accepting…" : "Accept reserved"}
         </Button>
       }

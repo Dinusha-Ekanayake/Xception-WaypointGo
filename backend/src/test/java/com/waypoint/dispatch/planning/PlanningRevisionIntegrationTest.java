@@ -65,6 +65,33 @@ class PlanningRevisionIntegrationTest extends PlanningIntegrationSupport {
   }
 
   @Test
+  void aRevisionThatMovesATripNamesItAndOneThatChangesNothingNamesNone() throws Exception {
+    demand("ambient");
+    demand("ambient");
+    UUID original = publishedPlan();
+    JsonNode trip = plan(original).get("trips").get(0);
+    UUID tripId = UUID.fromString(trip.get("tripId").asText());
+
+    UUID nothing =
+        UUID.fromString(mapper.readTree(send(dispatcher, revise(original, 2L, "a second look"), 200)).get("result").get("planId").asText());
+    send(dispatcher, publish(nothing, 1L), 200);
+    JsonNode unchanged = mapper.readTree(outboxRows(nothing.toString(), "plan.revised").get(0).get("payload").toString());
+    assertEquals(0, unchanged.get("changedTripIds").size(), "nothing a driver would see differently");
+    assertEquals(0, unchanged.get("affectedOutletIds").size());
+
+    String replacement = spareTruck(nothing);
+    JsonNode moved =
+        mapper.readTree(send(dispatcher, replan(nothing, 2L, tripId, replacement, "tyre puncture"), 200)).get("result");
+    UUID revision = UUID.fromString(moved.get("planId").asText());
+    send(dispatcher, publish(revision, 1L), 200);
+
+    JsonNode event = mapper.readTree(outboxRows(revision.toString(), "plan.revised").get(0).get("payload").toString());
+    assertEquals(1, event.get("changedTripIds").size(), "the trip on another vehicle");
+    assertEquals(tripId.toString(), event.get("changedTripIds").get(0).asText());
+    assertTrue(event.get("affectedOutletIds").size() >= 1, "the outlet on it now sees another vehicle and time");
+  }
+
+  @Test
   void replanningAPublishedTripMovesItWholeAndKeepsItsId() throws Exception {
     demand("ambient");
     demand("ambient");
@@ -156,6 +183,13 @@ class PlanningRevisionIntegrationTest extends PlanningIntegrationSupport {
     UUID order = demand("ambient");
 
     deliver("planning.on-orders-closed", new OrdersClosed(depot, serviceDate, List.of(order)));
+    // The consumer queues the generation (R-PLN-41); delivering the same event again queues nothing more.
+    deliver("planning.on-orders-closed", new OrdersClosed(depot, serviceDate, List.of(order)));
+    worker.runPending();
+    assertEquals(1L, ((Number) database.asSystem(com.waypoint.dispatch.platform.db.ModuleRole.PLANNING,
+        () -> database.queryOne("SELECT count(*) AS n FROM planning.generation_jobs WHERE depot_code = ? AND service_date = ?",
+            depot, java.sql.Date.valueOf(serviceDate)).get("n"))).longValue(),
+        "one job for the day, however often the event arrives");
 
     Map<String, Object> draft = openDraft();
     assertEquals(Actor.SYSTEM_ID, draft.get("generated_by"));

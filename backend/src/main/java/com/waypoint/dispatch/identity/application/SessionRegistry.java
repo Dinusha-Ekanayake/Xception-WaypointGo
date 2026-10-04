@@ -1,5 +1,8 @@
 package com.waypoint.dispatch.identity.application;
 
+import com.waypoint.dispatch.identity.domain.McpScopes;
+import java.util.Set;
+
 import com.waypoint.dispatch.identity.contract.SessionView;
 import com.waypoint.dispatch.identity.infrastructure.SessionTokens;
 import com.waypoint.dispatch.platform.config.AppProperties;
@@ -60,7 +63,7 @@ public class SessionRegistry {
     this.database = database;
     this.tokens = tokens;
     this.operators = operators;
-    this.clock = clock;
+    this.clock = clock.realTime();
     this.metrics = metrics;
     this.absoluteLifetime = properties.session().absoluteLifetime();
     this.idleLifetime = properties.session().idleLifetime();
@@ -173,6 +176,50 @@ public class SessionRegistry {
         .query("SELECT outlet_id FROM iam.user_outlet_access WHERE user_id = ?", userId)
         .forEach(r -> scope.add("outlet:" + r.get("outlet_id")));
     return List.copyOf(scope);
+  }
+
+  /**
+   * What one MCP connection was granted and which OAuth client holds it (issue
+   * #177). The client is null for a local connection.
+   */
+  public record McpConnection(String sessionKey, Set<String> scopes, UUID oauthClientId) {}
+
+  /** Inside the caller's transaction, right after {@link #issue}: a grant is fixed when the credential is. */
+  public void grantMcpScopesInTransaction(String token, Set<String> scopes) {
+    database.update(
+        "UPDATE iam.sessions SET mcp_scopes = ?::text[] WHERE token_hash = ? AND mcp_read_only",
+        "{" + String.join(",", new java.util.TreeSet<>(scopes)) + "}",
+        tokens.hash(token));
+  }
+
+  /** {@link #grantMcpScopesInTransaction} in a transaction of its own, for the local connect path. */
+  public void grantMcpScopes(String token, Set<String> scopes) {
+    database.asModule(ModuleRole.IAM, null, () -> {
+      grantMcpScopesInTransaction(token, scopes);
+      return null;
+    });
+  }
+
+  public Optional<McpConnection> mcpConnection(String token) {
+    if (token == null || !token.startsWith("mcp.")) {
+      return Optional.empty();
+    }
+    String key = tokens.hash(token);
+    return database.readAs(ModuleRole.IAM, null, () -> {
+      var row = database.queryOne(
+          "SELECT array_to_string(mcp_scopes, ',') AS scopes, mcp_scopes IS NULL AS legacy, oauth_client_id"
+              + " FROM iam.sessions WHERE token_hash = ? AND mcp_read_only",
+          key);
+      if (row == null) {
+        return Optional.<McpConnection>empty();
+      }
+      String scopes = (String) row.get("scopes");
+      return Optional.of(new McpConnection(
+          key,
+          McpScopes.stored(Boolean.TRUE.equals(row.get("legacy")) ? null
+              : scopes == null || scopes.isEmpty() ? List.of() : List.of(scopes.split(","))),
+          (UUID) row.get("oauth_client_id")));
+    });
   }
 
   /** Remote credentials are accepted only for their issued resource; local credentials have no audience. */

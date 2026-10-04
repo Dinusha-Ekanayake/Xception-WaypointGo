@@ -8,6 +8,7 @@ import com.waypoint.dispatch.execution.contract.ExecutionEvents.RoadDisruptionRe
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.VehicleFaultReported;
 import com.waypoint.dispatch.issues.contract.IssueEvents.IssueEscalated;
 import com.waypoint.dispatch.issues.contract.IssueEvents.IssueRaised;
+import com.waypoint.dispatch.messaging.contract.MessagingEvents.MessagePosted;
 import com.waypoint.dispatch.loading.contract.LoadingEvents.LoadingShortfall;
 import com.waypoint.dispatch.loading.contract.LoadingEvents.ReleasedStop;
 import com.waypoint.dispatch.loading.contract.LoadingEvents.TripReleased;
@@ -22,6 +23,9 @@ import com.waypoint.dispatch.planning.contract.PlanEvents.OrderDeferred;
 import com.waypoint.dispatch.planning.contract.PlanEvents.OrderUnservable;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlanPublished;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlanRevised;
+import com.waypoint.dispatch.planning.contract.PlanEvents.StoreContacted;
+import com.waypoint.dispatch.intelligence.contract.OutlookEvents.OrderOutlookChanged;
+import com.waypoint.dispatch.planning.contract.PlanEvents.PlannedStop;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlannedTrip;
 import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.platform.messaging.EventSubscriber;
@@ -63,6 +67,8 @@ import org.springframework.stereotype.Component;
  */
 final class NotificationConsumers {
   private static final DateTimeFormatter CLOCK = DateTimeFormatter.ofPattern("HH:mm");
+  /** The glossary's date: "Thu 1 Oct". */
+  private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("EEE d MMM", Locale.ENGLISH);
 
   private NotificationConsumers() {}
 
@@ -143,6 +149,10 @@ final class NotificationConsumers {
     return at == null ? null : CLOCK.format(at);
   }
 
+  private static String day(LocalDate date) {
+    return date == null ? null : DAY.format(date);
+  }
+
   /** Lookups for events that do not carry the scope a rule routes by. */
   @Component
   static class Scopes {
@@ -191,6 +201,34 @@ final class NotificationConsumers {
       return new Routed()
           .fact("serviceDate", e.serviceDate()).fact("reason", e.reason()).fact("ruleId", e.ruleId())
           .fact("skipCount", e.skipCount()).fact("outletId", e.outletId())
+          .to(ScopeKind.OUTLET, e.outletId(), "order", e.orderId());
+    }
+  }
+
+  /** R-NOT-16: a day the store booked has worsened to busy or at risk (issue #224). */
+  @Component
+  static class OnOrderOutlookChanged extends NotificationConsumer<OrderOutlookChanged> {
+    OnOrderOutlookChanged(Notifier notifier) {
+      super(notifier);
+    }
+
+    @Override
+    public String consumerName() {
+      return "notification.on-order-outlook-changed";
+    }
+
+    @Override
+    public Class<OrderOutlookChanged> eventType() {
+      return OrderOutlookChanged.class;
+    }
+
+    @Override
+    Routed route(OrderOutlookChanged e) {
+      return new Routed()
+          .on(e.deliveryDate())
+          .fact("deliveryDate", e.deliveryDate()).fact("deliveryDay", day(e.deliveryDate()))
+          .fact("status", e.status()).fact("statusWords", words(e.status())).fact("reason", e.reason())
+          .fact("outletId", e.outletId())
           .to(ScopeKind.OUTLET, e.outletId(), "order", e.orderId());
     }
   }
@@ -300,7 +338,25 @@ final class NotificationConsumers {
 
     @Override
     Routed route(PlanPublished e) {
-      return plan(e.planId(), e.depotCode(), e.serviceDate(), e.planVersion(), e.trips(), null);
+      Routed r = plan(e.planId(), e.depotCode(), e.serviceDate(), e.planVersion(), e.trips(), null);
+      // R-NOT-15: each outlet on the plan hears its order is planned, one target per stop (issue #224).
+      for (PlannedTrip trip : e.trips()) {
+        for (PlannedStop stop : trip.stops()) {
+          if (stop.outletId() == null) {
+            continue;
+          }
+          r.to(
+              new Target(
+                  ScopeKind.OUTLET,
+                  stop.outletId(),
+                  "stop:" + trip.tripId() + ":" + stop.sequence(),
+                  Map.of(
+                      "stopNumber", String.valueOf(stop.sequence()),
+                      "plannedArrival", stop.plannedArrival() == null ? "-" : time(stop.plannedArrival())),
+                  subject("order", stop.orderId())));
+        }
+      }
+      return r;
     }
   }
 
@@ -321,21 +377,50 @@ final class NotificationConsumers {
       return PlanRevised.class;
     }
 
+    /**
+     * Only what a revision changed is news (R-NOT-12): the drivers of the trips that differ, the
+     * outlets reached on another trip or at another time, and the depot when any trip differs. An
+     * event written before the revision recorded what changed tells every trip, as it always did.
+     */
     @Override
     Routed route(PlanRevised e) {
-      return plan(e.planId(), e.depotCode(), e.serviceDate(), e.planVersion(), e.trips(), e.reason());
+      List<PlannedTrip> told =
+          e.changedTripIds()
+              .map(ids -> e.trips().stream().filter(t -> ids.contains(t.tripId())).toList())
+              .orElse(e.trips());
+      boolean depotHears = e.changedTripIds().isEmpty() || !told.isEmpty();
+      Routed r = plan(e.planId(), e.depotCode(), e.serviceDate(), e.planVersion(), told, e.reason(), depotHears);
+      e.affectedOutletIds()
+          .ifPresent(
+              outlets ->
+                  outlets.forEach(
+                      outlet -> r.to(Target.of(ScopeKind.OUTLET, outlet, subject("plan", e.planId())))));
+      return r;
     }
   }
 
   /** One target per trip, so a vehicle driven twice in a plan is told about both trips. */
   private static Routed plan(
       UUID planId, String depotCode, LocalDate serviceDate, int planVersion, List<PlannedTrip> trips, String reason) {
+    return plan(planId, depotCode, serviceDate, planVersion, trips, reason, true);
+  }
+
+  private static Routed plan(
+      UUID planId,
+      String depotCode,
+      LocalDate serviceDate,
+      int planVersion,
+      List<PlannedTrip> trips,
+      String reason,
+      boolean depotHears) {
     Routed r =
         new Routed()
             .on(serviceDate)
-            .fact("serviceDate", serviceDate).fact("planVersion", planVersion).fact("tripCount", trips.size())
-            .fact("depotCode", depotCode).fact("reason", reason)
-            .to(ScopeKind.DEPOT, depotCode, "plan", planId);
+            .fact("serviceDate", serviceDate).fact("serviceDay", day(serviceDate)).fact("planVersion", planVersion).fact("tripCount", trips.size())
+            .fact("depotCode", depotCode).fact("reason", reason);
+    if (depotHears) {
+      r.to(ScopeKind.DEPOT, depotCode, "plan", planId);
+    }
     for (PlannedTrip trip : trips) {
       r.to(
           new Target(
@@ -350,6 +435,38 @@ final class NotificationConsumers {
               subject("trip", trip.tripId())));
     }
     return r;
+  }
+
+  /** A dispatcher's own words to the store that owns an order the plan could not serve. */
+  @Component
+  static class OnStoreContacted extends NotificationConsumer<StoreContacted> {
+    private final Scopes scopes;
+
+    OnStoreContacted(Notifier notifier, Scopes scopes) {
+      super(notifier);
+      this.scopes = scopes;
+    }
+
+    @Override
+    public String consumerName() {
+      return "notification.on-store-contacted";
+    }
+
+    @Override
+    public Class<StoreContacted> eventType() {
+      return StoreContacted.class;
+    }
+
+    @Override
+    Routed route(StoreContacted e) {
+      Optional<OrderView> order = scopes.order(e.orderId());
+      return new Routed()
+          .on(e.serviceDate())
+          .fact("message", e.message())
+          .fact("orderRef", order.map(OrderView::orderRef))
+          .fact("outletId", e.outletId())
+          .to(ScopeKind.OUTLET, e.outletId(), "order", e.orderId());
+    }
   }
 
   // ---- Loading -------------------------------------------------------------------
@@ -637,6 +754,60 @@ final class NotificationConsumers {
           .fact("depotCode", e.depotCode()).fact("outletId", e.outletId())
           .to(ScopeKind.DEPOT, e.depotCode(), "issue", e.issueId())
           .to(ScopeKind.OUTLET, e.outletId(), "issue", e.issueId());
+    }
+  }
+
+  /**
+   * R-NOT-14: a message on a thread (issue #136). Names the depot (the dispatcher,
+   * who hears of every message, and the loaders), the vehicle (its driver on the
+   * service date) and the outlets the message reaches; each routing rule fires
+   * only for the audience the fact names. The author is not told (R-NOT-07).
+   */
+  @Component
+  static class OnMessagePosted extends NotificationConsumer<MessagePosted> {
+    OnMessagePosted(Notifier notifier) {
+      super(notifier);
+    }
+
+    @Override
+    public String consumerName() {
+      return "notification.on-message-posted";
+    }
+
+    @Override
+    public Class<MessagePosted> eventType() {
+      return MessagePosted.class;
+    }
+
+    @Override
+    Routed route(MessagePosted e) {
+      String where = e.vehicleId().map(v -> " · " + v).orElse("");
+      String heading =
+          "report".equals(e.kind())
+              ? roleWords(e.authorRole()) + " report" + where
+              : e.authorName() + where;
+      Routed r =
+          new Routed()
+              .fact("audience", e.audience()).fact("heading", heading).fact("excerpt", e.excerpt())
+              .fact("vehicleId", e.vehicleId()).fact("depotCode", e.depotCode())
+              // A voice message plays its own audio in the inbox, never read aloud by text to speech.
+              .fact("voiceNoteId", e.voiceNoteId()).fact("voiceDurationMs", e.voiceDurationMs())
+              .fact("voicePeaks", e.voicePeaks().isEmpty() ? null : e.voicePeaks().stream().map(String::valueOf)
+                  .collect(java.util.stream.Collectors.joining(",")))
+              .on(e.serviceDate().orElse(null))
+              .to(ScopeKind.DEPOT, e.depotCode(), "thread", e.threadId());
+      e.vehicleId().ifPresent(v -> r.to(ScopeKind.VEHICLE, v, "thread", e.threadId()));
+      e.outletIds().forEach(o -> r.to(ScopeKind.OUTLET, o, "thread", e.threadId()));
+      return r;
+    }
+
+    private static String roleWords(String role) {
+      return switch (role) {
+        case "loader" -> "Loader";
+        case "driver" -> "Driver";
+        case "store_manager" -> "Store";
+        default -> "Dispatcher";
+      };
     }
   }
 

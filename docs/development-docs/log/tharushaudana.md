@@ -4,6 +4,94 @@
 
 ---
 
+## 2026-10-05 - feat(messaging): resolve reports, real voice in the inbox, signs on the line
+
+`feat/136-voice-fixes` · @tharushaudana
+
+The dispatcher resolves a report from the thread with a note (`message:Resolve`, R-MSG-07); resolving its issue resolves it too. Its warning sign then leaves the timeline; the report stays, marked. The sign waves gently, sits centred on the run's line, and replaces the stop's dot when the report is about a store on the trip. Every timeline run has a messages icon. A voice note's waveform travels with the audio and is stored, so every phone draws the real bars; the driver's inbox plays a voice message's own audio instead of reading the notification aloud. The report bubble lost its border artifact. The driver's Messages button is an icon in the top bar.
+Why: user review of preview on 2026-10-05.
+Verified: `MessagePolicyTest`, `ModuleBoundaryTest`, `EventCatalogueTest`; `MessagingIntegrationTest` adds resolving, issue resolution, waveform and outlet cases (CI); `npm test`; the four role suites.
+Open: a resolved report does not notify its reporter.
+
+---
+
+## 2026-10-04 - feat(frontend): voice notes recorded and played as in a messaging app
+
+`feat/136-voice-ui` · @tharushaudana
+
+The thread's "Voice" button is a mic: hold to record and let go to send, slide up to lock and talk hands free (then stop, listen, send), slide left to cancel; a tap says how. A keyboard press starts a locked recording. A sent voice note is a card in the bubble's colours (teal for your own, ink for others, red for a report): a play button, a waveform that fills as it plays (tap to seek), the time and 1x/1.5x/2x, instead of the browser's black player. Bars come from the levels heard while recording, or from decoding the audio; audio the browser cannot decode keeps steady placeholder bars. One note plays at a time. Labels are in the loader's Sinhala and Tamil too.
+Why: the user asked for WhatsApp-like voice and a card that matches the UI.
+Verified: `npm run typecheck`, `npm test` (229, adds `messaging-waveform.test.ts`), driver suite (26, `voice.spec.ts` holds, slides, locks, cancels and plays real audio from the fake microphone), dispatcher (57), loader (31), store (55; one receipt flake passed on rerun).
+Open: try it on a real phone once the microphone header (`microphone=(self)`) reaches the edge with the next production deploy.
+
+---
+
+## 2026-10-04 - feat(messaging): voice notes offline, on a shared loader device, and kept for 400 days
+
+`feat/136-messaging` · @tharushaudana
+
+Voice notes now work end to end. Deployed, the site had denied the microphone (`Permissions-Policy`) and the playback of a fresh recording (CSP `media-src`); both fixed. With no signal a message, voice included, is kept on the device and shown as waiting: the audio is uploaded first and the message waits for it (`waitsFor` in the shared queue and the service worker, MSG-10). The driver, the loader and the store all keep what they write. On a shared loader device a message is written as the loader who entered their PIN (MSG-12), and the thread reads in Sinhala and Tamil. Audio is cleared after 400 days, and the message stays (P-33, MSG-11).
+Why: voice notes were untested in a browser and would not have worked on the deployed site; the loader and the store could not write offline.
+Verified: `npm run typecheck`, `npm test` (206), `MessagePolicyTest`, `ModuleBoundaryTest`, `EventCatalogueTest`, `e2e-driver/voice.spec.ts` recording real audio with Chromium's fake microphone, and the loader and driver message specs. `MessagingIntegrationTest` (9) runs in CI.
+Open: recording on real phones (Android Chrome, iPhone Safari) once preview has it.
+
+---
+
+## 2026-10-04 - feat(frontend): the trip's thread on every role's screen
+
+`feat/136-messaging` · @tharushaudana
+
+One shared thread view (`shared/ui/TripThread.tsx`) with @mentions, reports and voice notes. Dispatcher: report signs on the Live timeline open the thread at the report, the bell's Reply opens it, and the trip page's "Send an update", "Notify store" and voice now write on it. Driver: Messages with a count of new ones; typed messages keep on the phone with no signal (MSG-10). Loader: Messages on the load sheet. Store: a message notification or a delivery's Message opens the thread. Detail in the [walkthrough](../../issues/136-messaging/WALKTHROUGH.md).
+Why: "Exception · click to open" opened nothing, and Notify store, Send an update and Voice were drawn but disabled.
+Verified: `npm run typecheck`, `npm test` (201), `npm run build`, browser suites: dispatcher 47, driver 22, loader 30, store 43, all passed.
+Open: calls; what each outlet was told per stop; the loader and the store write online only; threads for issues, orders and deliveries.
+
+---
+
+## 2026-10-04 - feat(messaging): a thread per trip for the dispatcher, loaders, driver and stores
+
+`feat/136-messaging` · @tharushaudana
+
+New module `messaging` (ADR-004, #135 decided): a trip's thread opens with its published plan. The dispatcher reads everything; the loaders, the driver and the stores read broadcasts, what is for them and their own (R-MSG-01). The dispatcher writes to any of them; everyone else writes to the dispatcher, and the driver also to its stops (R-MSG-02). Every raised issue about the trip lands on it as a report for the dispatcher alone, once (R-MSG-03, R-MSG-05). Messages and reports may be voice notes (R-MSG-06). `message.posted` reaches the dispatcher's bell for every message, and the others only for what is theirs (routing v4, R-NOT-14).
+Why: the timeline's warning signs opened nothing, and nobody could write to anyone; decisions of 2026-10-04 on #136.
+Verified: `MessagePolicyTest` (13), `ModuleBoundaryTest`, `EventCatalogueTest`; `MessagingIntegrationTest` runs in CI on PostgreSQL.
+Open: the role screens (next PR); threads for issues, orders and deliveries; how long voice notes are kept.
+
+---
+
+## 2026-10-04 - feat: the dispatcher's Live tab as in the Figma frames
+
+`feat/dispatcher-live-figma` · @tharushaudana
+
+Needs you (cards most urgent first and the trip board), the timeline, the map with the vehicle panel, and the trip page, from one join of run sheet, loading trip and position (`data/liveDesk.ts`). The header no longer wraps; the map no longer repeats the header's filters; the offline count works. Detail in the [#19 walkthrough](../../issues/019-dispatcher-ui/WALKTHROUGH.md).
+Why: Live differed from the Figma in layout and shapes, and had no trip page or recommended actions.
+Verified: `npm run typecheck`, `npm test` (149), `npm run build`, dispatcher browser suite (26 passed; the 3 Forecast failures are already on `dev` since 86e6d57).
+Open: store and driver messages (Notify store, Send an update, voice, calls, what each outlet was told) need a Notification command; they are drawn and disabled.
+
+---
+
+## 2026-10-03 - feat: the Forecast chart scales to demand, and says how many refrigerated vehicles a day needs
+
+`feat/forecast-dispatcher-scale` · @tharushaudana
+
+`focusScale` draws fleet capacity on the chart only when it is within 1.6 times the busiest week; otherwise the bars follow demand with round ticks and the fleet is stated on the top edge with the peak week's share. The chilled strip does the same and adds the refrigerated vehicles an average day needs under each bar. With the Figma's numbers the chart is unchanged.
+Why: on preview the fleet (about 12,150 m³ a week at Peliyagoda) is ten times a week's demand, so every bar was a sliver and the chilled shares (5-16%) were unreadable.
+Verified: `npm run typecheck`, `npm test` (129), `npm run build`, dispatcher browser suite (25). Screenshots with preview-like and Figma-like numbers.
+Open: nothing.
+
+---
+
+## 2026-10-03 - feat: notifications coloured by tone, issues in red, and an unread count on every bell
+
+`feat/notification-tones-badge` · @tharushaudana
+
+`toneOf` makes anything about an issue urgent, and `TONE_STYLE` gives each tone one edge, tint, dot and label colour, used by the dispatcher, loader and store manager inboxes; info is blue, so only good news is green. `CountBadge` puts the unread count on each bell (99+ above 99) in place of the red dot.
+Why: every row read green whatever it said, and only two bells showed that anything was unread, not how much.
+Verified: `npm run typecheck`, `npm test` (127), `npm run build`, dispatcher (24), loader (18) and store (32) browser suites.
+Open: the driver screens still show a sample count; they get the real one with the driver inbox (#21).
+
+---
+
 ## 2026-10-02 - fix(deploy): start the model service
 
 `fix/deploy-start-ml` · @tharushaudana

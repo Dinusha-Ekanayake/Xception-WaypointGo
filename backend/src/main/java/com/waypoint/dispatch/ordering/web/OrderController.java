@@ -2,8 +2,10 @@ package com.waypoint.dispatch.ordering.web;
 
 import com.waypoint.dispatch.ordering.application.DeliveryDateResolver;
 import com.waypoint.dispatch.ordering.application.OrderDataQuery;
+import com.waypoint.dispatch.ordering.application.RideAlongQuery;
 import com.waypoint.dispatch.ordering.contract.OrderViews.DemandView;
 import com.waypoint.dispatch.ordering.contract.OrderViews.OrderView;
+import com.waypoint.dispatch.ordering.contract.OrderViews.RideAlongView;
 import com.waypoint.dispatch.ordering.contract.OrderViews.StatusChangeView;
 import com.waypoint.dispatch.ordering.domain.DeliveryDate;
 import com.waypoint.dispatch.platform.web.RequestAuthorizer;
@@ -38,6 +40,7 @@ public class OrderController {
 
   private final OrderDataQuery orders;
   private final DeliveryDateResolver dates;
+  private final RideAlongQuery rideAlong;
   private final ReferenceQuery reference;
   private final RequestAuthorizer authorizer;
   private final Clock clock;
@@ -45,11 +48,13 @@ public class OrderController {
   public OrderController(
       OrderDataQuery orders,
       DeliveryDateResolver dates,
+      RideAlongQuery rideAlong,
       ReferenceQuery reference,
       RequestAuthorizer authorizer,
       Clock clock) {
     this.orders = orders;
     this.dates = dates;
+    this.rideAlong = rideAlong;
     this.reference = reference;
     this.authorizer = authorizer;
     this.clock = clock;
@@ -108,5 +113,22 @@ public class OrderController {
             .outlet(outlet, null)
             .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No outlet " + outlet));
     return orders.asActor(actor, () -> dates.resolve(o.depotCode(), requestedDate, clock.now()));
+  }
+
+  /**
+   * Nearby open days whose trip already serves the outlet's district, so the
+   * store can choose to join it (R-ORD-13, issue #199). Advice only.
+   */
+  @GetMapping("/ride-along")
+  public RideAlongView rideAlong(
+      @RequestParam String outlet,
+      @RequestParam LocalDate requestedDate,
+      HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:order:outlet:" + outlet);
+    OutletView o =
+        reference
+            .outlet(outlet, null)
+            .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No outlet " + outlet));
+    return rideAlong.suggest(actor, o, requestedDate, clock.now());
   }
 }

@@ -52,7 +52,7 @@ final class OrderingConsumers {
     @Override
     public void on(EventEnvelope<PlanPublished> envelope) {
       PlanPublished plan = envelope.payload();
-      allocation.allocate(plan.trips(), plan.planVersion(), envelope);
+      allocation.allocate(plan.trips(), plan.planVersion(), plan.serviceDate(), envelope);
     }
   }
 
@@ -78,7 +78,7 @@ final class OrderingConsumers {
     @Override
     public void on(EventEnvelope<PlanRevised> envelope) {
       PlanRevised plan = envelope.payload();
-      allocation.allocate(plan.trips(), plan.planVersion(), envelope);
+      allocation.allocate(plan.trips(), plan.planVersion(), plan.serviceDate(), envelope);
     }
   }
 

@@ -4,6 +4,113 @@
 
 ---
 
+## 2026-10-04 - feat: UX polish 3 to 5 of 5, feedback, screen transitions, pinned actions and undo
+
+`feat/ux-polish-feedback` · @Dinusha-Ekanayake
+
+From [UX-PLAN.md](../../ux/UX-PLAN.md) section 7, the last three parts:
+- Feedback: every button gives under a press; a command in flight shows a spinner and "Sending…" (`busy` on each role's buttons); a loader line cannot be ticked twice while its tick is sending; loading lists show placeholder rows (`SkeletonRows`); errors offer "Try again" (`Notice` `onRetry`); a count badge pops when it rises; no transition is longer than 250 ms.
+- Transitions: screen changes crossfade, and a detail slides in and back out (`withTransition`, the View Transitions API, instant without it or under reduced motion). The trip, the stop and the next delivery move from list to detail.
+- Actions: the driver's Confirm and Save proof and the store's receipt submit stay pinned on phones (README departure); a cleared signature can be undone for 5 s (`useUndo`; the voice-note undo was dropped in favour of the new voice UI on `dev`); the dispatcher's sidebar starts as the rail below 1280 px until the dispatcher chooses.
+Why: taps gave no sign of work, loading and errors left no next step, and long phone forms hid their button.
+Verified: see the PR. On the VPS preview data: the sidebar is 84 px at 1100 and 260 px at 1440; store tabs crossfade and Track slides forward; no horizontal scroll in any role. `npm test` 231; all five browser suites (the forecast countdown is the known flaky test, 28 of 28 on repeat).
+
+---
+
+## 2026-10-04 - feat: UX polish 2 of 5, every screen keeps its place
+
+`feat/ux-polish-state` · @Dinusha-Ekanayake
+
+From [UX-PLAN.md](../../ux/UX-PLAN.md) section 7: tabs, filters and searches that were lost when a screen unmounted are kept for the browser tab and the signed-in account (`usePersistentState`), in dispatcher Orders, Live, Issues, the plan board filter and the fleet table, the loader's board filter and the store's Orders and Deliveries. Scroll position comes back on return (`useScrollMemory`): dispatcher screens and its fleet table, store tabs, the loader's board, the driver's home and route lists; a form or detail opens at the top. The store's top-level tab is not kept across a reload, so a reload still opens Home.
+Why: going to Overview and back reset the dispatcher's filters and scroll; the store kept the last tab's offset on a new tab.
+Verified: see the PR. On the VPS preview data: the store's Orders list comes back at 500 px with its filter, Home opens at the top; the dispatcher's fleet table comes back at 700 px at 1440 and 390 px. `npm test` 227; all five browser suites, with new kept-state specs for dispatcher and store.
+
+---
+
+## 2026-10-04 - feat: UX polish 1 of 5, one motion and one overlay behaviour in every role
+
+`feat/ux-polish-motion` · @Dinusha-Ekanayake
+
+From [UX-PLAN.md](../../ux/UX-PLAN.md) section 7: one curve and three lengths (150, 200, 250 ms) in `shared/ui/theme.css`; every sheet, dialog and drawer rises or slides in, closes with Escape, keeps focus inside, gives it back and holds the page still (`useOverlay`); a phone's bottom sheet follows a swipe down and resists a pull up (`useSheetDrag`). The store's dialogs gain the Escape and focus handling they lacked. Toasts share one timing (4 s, 6 s with Undo); the driver's sheets no longer hold an action back for their animation. Reduced motion now stops animations too, and `animate-fade-in` and `animate-in`, used but never defined, work.
+Why: overlays behaved five different ways, and a sheet on a phone could only be closed by its button.
+Verified: see the PR. On the VPS preview data: the store's notifications sheet rises in at 390 px, a 200 px swipe closes it, a 45 px drag springs back; at 1440 px it slides from the side and Escape returns focus to the bell. `npm test` 216; all five browser suites, with a new store overlay spec.
+
+---
+
+## 2026-10-04 - fix: UX Tier 2 (next working day, departure day, store phone header, counts, empty states)
+
+`fix/ux-tier2` · @Dinusha-Ekanayake
+
+From [UX-PLAN.md](../../ux/UX-PLAN.md) U8 to U11 (U7 is covered by the Overview's "Tomorrow's plan" card already on `dev`, which was kept): the loader's board names the departure day when it is after tomorrow; the store's phone header keeps "Synced HH:MM" whole below 440 px (Store chip hidden, 40 px buttons); counts read "(n)" in dispatcher Issues and publish audience and store Orders and Deliveries; empty states say what happens next.
+Why: on a Sunday every role read "0" with no pointer forward, and the store's sync time was cut to "Sync…" on a phone.
+Verified: see the PR. On the VPS preview data: the store pill unclipped at 360, 390, 440 and 1440 px. `npm test` 213; all five browser suites.
+
+---
+
+## 2026-10-04 - fix: deadline-day UX, Tier 1 (driver first screen and next trip, store Next delivery, plain wording, edge header, README)
+
+`fix/ux-tier1` · @Dinusha-Ekanayake
+
+From [UX-PLAN.md](../../ux/UX-PLAN.md): the driver's Home draws at once and looks a week ahead in parallel (7.6 s to under 2 s), and names a published trip still waiting for the loader; the store's Next delivery card shows the next planned or confirmed delivery when nothing is on the way today (Figma 11:112937); pending notices speak to the user, not about modules; the edge sends `Cache-Control: no-transform` so Cloudflare stops injecting a script our CSP blocks; the README's departures are current.
+Why: judges walk these screens on production today; the booklet asks for the store's expected arrival and judges the driver on a phone.
+Verified: see the PR. On the VPS preview data: driver Home in 1.8 s with "Next trip Mon 5 Oct · VEH035 · departs 04:36"; the store card "Next delivery · Mon 5 Oct · Expected in your window 05:00-07:30". `npm test` 213; driver and store suites. The edge header takes effect with the next production deploy.
+
+---
+
+## 2026-10-04 - ci: the shell and every role's browser suite run in CI (issue #120)
+
+`chore/120-browser-suites-ci` · @Dinusha-Ekanayake
+
+A "Browser suites" job in `checks.yml` builds once and runs the shell, dispatcher (1440 px), driver (393 px), loader (393 px) and store (1440 px) suites as separate steps, each running even after another failed; one retry in CI, failures annotated on the pull request, each suite's report and traces kept 7 days. It also gates the preview and production deploys. The shell's CSP test answers its own API, as it failed on `dev` with no backend.
+Why: a screen could break with every check green.
+Verified: see the PR. A throwaway broken loader test turned the job red with only "Loader (393 px)" failed, the line annotated and the report attached; reverted, then green. About 4.5 minutes a run. [walkthrough](../../issues/120-browser-suites-ci/WALKTHROUGH.md)
+Open: making it a required check is a repository setting.
+
+---
+
+## 2026-10-04 - feat(dispatcher): late risk per trip and stop, the forecast error, counts in brackets, phone widths (issue #119)
+
+`feat/119-forecast-late-risk` · @Dinusha-Ekanayake
+
+On the teammates' Plan and Forecast screens, kept as built: a published plan tags each trip from 20% late risk and every stop with its chance (`<1%` for a tiny one, `· estimate` when the predictor was off); the Forecast shows the demand model's measured error from the registry, total and chilled, never per brand. Live, Orders and Vehicles counts read `(9)` as Isuru asked. Every dispatcher screen fits from 1440 down to 360 px.
+Why: #119 asked for late risk per stop and trip and the forecast fallback; the dispatcher overflowed on phones.
+Verified: see the PR. `npm test` 170, the dispatcher suite 42; on the VPS preview database the real registry and a published Peliyagoda plan, and no overflow at five widths. [walkthrough](../../issues/119-dispatcher-forecast-late-risk/WALKTHROUGH.md)
+Open: the preview's model service answers 500, so plans are scored by the estimate (#16).
+
+---
+
+## 2026-10-03 - feat(execution): the run sheet carries a stop's recorded units
+
+`fix/partial-units-and-preview-cleanup` · @Dinusha-Ekanayake
+
+`RunSheetStopView` gains `deliveredUnits` (additive), read from `delivery_records.delivered_units`; the frontend mirror follows, the phone's projection of a record still on the phone sets it, and the driver's run complete shows "Units delivered" counted by it.
+Why: a partial delivery is recorded as a stop total, so the phone could not count it (open item of #114).
+Verified: see the PR. `ExecutionIntegrationTest` asserts the units on the run sheet (runs in CI; no local database here); `npm test` 168.
+
+---
+
+## 2026-10-03 - fix: a fresh install walks the whole judge path (issue #114)
+
+`fix/114-fresh-install-check` · @Dinusha-Ekanayake
+
+Ran `docker compose down -v && docker compose up --build` from a Windows clone and walked all eleven README steps in a browser. Fixed what stopped it: `compose-init.sh` checked out with CRLF so init died at `set -eu` (`.gitattributes` now keeps scripts and nginx files LF); the dispatcher's empty plan day names the seeded day; the dock board and the driver look up to a week ahead for the first day with work, since the seed always lands after today. The driver's live wiring is @Oxshadha's from `dev` (#117); this adds only the look-ahead and the remembered run day on top of it.
+Why: the issue's "done when" had never been run; on install day the seed's day is never today.
+Verified: see the PR. Fresh stack: 85 orders, idempotent rerun, plan 73/11/1, release with a shortfall, offline partial delivery applied once, store receipt partial, Live and Issues. `npm test`, the dispatcher plan spec and the loader suite.
+Open: a partial stop's delivered units are not on the run sheet.
+
+---
+
+## 2026-10-03 - feat: push alerts, the driver's notification feed, and loader notifications in Sinhala and Tamil (issue #118)
+
+`feat/notifications-push-driver-i18n` · @Dinusha-Ekanayake
+
+The three gaps #153 left. Push: a switch in each role's settings subscribes this device (VAPID key from `push-config`, `notification:Subscribe`), says why when it cannot, and the service worker shows each push and opens the app on a tap. Driver: Isuru's Figma feed and driving-mode badge now carry the driver's real notifications and count; his sample feed stays without an account. Loader: each notification keeps the facts its message was filled from, and the loader fills the same templates in Sinhala and Tamil.
+Why: phones should alert with the app closed; the driver and the loader's languages were the last roles without their notifications.
+Verified: see the PR. `NotificationConsumersIntegrationTest` (facts in the inbox), `loader-messages.test.ts`, `push-keys.test.ts`, the loader suite with the Settings alerts row; driver Home compared with Figma 83:1996.
+Open: push needs VAPID keys on the server. The driver browser suite fails 13 of its tests on `dev` itself since the driver rework; they test the old screens.
+
+---
+
 ## 2026-10-03 - feat: notifications inbox and last sync in each role UI (issue #118)
 
 `feat/118-notifications-inbox` · @Dinusha-Ekanayake

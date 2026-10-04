@@ -9,6 +9,30 @@ import { Notice } from "@shared/ui";
  * named. A refusal on a rule lists each violation; an outage says so and offers
  * the retry, which is safe because commands are idempotent.
  */
+/** The words of a refusal or an outage: a title, the server's reasons one per line, and the rules it named. */
+export function refusalText(error: Error, what: string): { title: string; lines: string[]; rules: string[] } {
+  const api = error instanceof ApiError ? error : null;
+  const status = api?.status ?? 0;
+  const title =
+    status === 401
+      ? "Your session has ended. Sign in again."
+      : status === 403
+        ? `You do not have access to ${what}`
+        : status === 409 && api?.isVersionConflict
+          ? "Someone else changed this first"
+          : status === 409 || status === 422 || status === 400
+            ? `${what[0]!.toUpperCase()}${what.slice(1)} was refused`
+            : `${what[0]!.toUpperCase()}${what.slice(1)} could not be reached`;
+  const violations = api?.problem.violations ?? [];
+  // The server joins several reasons with "; "; each is shown on its own line.
+  const lines = [
+    ...error.message.split("; ").filter(Boolean),
+    ...violations.filter((violation) => violation.message).map((violation) => `${violation.rule}: ${violation.message}`),
+  ];
+  const rules = [...new Set(violations.filter((violation) => !violation.message).map((violation) => violation.rule))];
+  return { title, lines, rules };
+}
+
 export default function Refusal({ error, what, action }: { error: Error; what: string; action?: ReactNode }): React.JSX.Element {
   const api = error instanceof ApiError ? error : null;
   const status = api?.status ?? 0;

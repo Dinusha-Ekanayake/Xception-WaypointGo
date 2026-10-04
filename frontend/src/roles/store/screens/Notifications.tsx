@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { NotificationView } from "@shared/domain/types";
 import type { Inbox } from "@shared/notifications/useInbox";
-import { isUnread, kindOf, type Tone } from "@shared/notifications/inbox";
+import { isUnread, kindOf, toneOf, TONE_STYLE } from "@shared/notifications/inbox";
 import { Icon, cx } from "@shared/ui";
 import { Drawer } from "../ui.tsx";
 import { clock, dayLabel, depotToday } from "@shared/wording";
@@ -15,18 +15,6 @@ import { clock, dayLabel, depotToday } from "@shared/wording";
 // outlined. Deferrals and expected arrivals are what the booklet asks the
 // store to be told (p6).
 
-const LABEL: Record<Tone, string> = {
-  urgent: "text-go-danger-strong",
-  warning: "text-go-warning-text",
-  good: "text-go-success",
-  info: "text-go-teal",
-};
-const DOT: Record<Tone, string> = {
-  urgent: "bg-go-danger-strong",
-  warning: "bg-go-warning",
-  good: "bg-go-success",
-  info: "bg-go-teal",
-};
 
 /** "03:12" today, "Sat 19:10" before: depot time, whatever the phone's own zone. */
 export function when(createdAt: string, now: Date = new Date()): string {
@@ -41,6 +29,7 @@ export type OpenSubject = (n: NotificationView) => void;
 function Row({ n, onOpen }: { n: NotificationView; onOpen: (n: NotificationView) => void }): React.JSX.Element {
   const kind = kindOf(n.eventType);
   const fresh = isUnread(n);
+  const tone = TONE_STYLE[toneOf(n)];
   return (
     <li>
       <button
@@ -48,13 +37,14 @@ function Row({ n, onOpen }: { n: NotificationView; onOpen: (n: NotificationView)
         onClick={() => onOpen(n)}
         aria-label={`${fresh ? "Unread. " : ""}${kind.label}. ${n.title}. ${n.body}`}
         className={cx(
-          "flex w-full flex-col gap-1 rounded-[16px] px-3.5 py-3 text-left",
-          fresh ? "bg-go-surface" : "border border-go-rule bg-white",
+          "flex w-full flex-col gap-1 rounded-[16px] border-l-4 px-3.5 py-3 text-left",
+          tone.edge,
+          fresh ? tone.tint : "border-y border-r border-y-go-rule border-r-go-rule bg-white",
         )}
       >
         <span className="flex items-center justify-between gap-2 text-[13px]">
-          <span className={cx("flex items-center gap-1.5 font-medium", LABEL[kind.tone])}>
-            <span aria-hidden className={cx("size-2 rounded-full", DOT[kind.tone])} />
+          <span className={cx("flex items-center gap-1.5 font-medium", tone.label)}>
+            <span aria-hidden className={cx("size-2 rounded-full", tone.dot)} />
             {kind.label}
           </span>
           <span className="text-go-muted">{when(n.createdAt)}</span>
@@ -116,7 +106,7 @@ export function NotificationsDrawer({
       )}
       {(error ?? inbox.error) && <p role="alert" className="text-[14px] text-go-danger-strong">{error ?? inbox.error}</p>}
       {inbox.items.length === 0 ? (
-        <p className="py-8 text-center text-[15px] text-go-muted">{inbox.loading ? "Loading…" : "No notifications yet."}</p>
+        <p className="py-8 text-center text-[15px] text-go-muted">{inbox.loading ? "Loading…" : "No notifications yet. Order confirmations, deferrals and deliveries on the way appear here."}</p>
       ) : (
         <ul className="flex flex-col gap-3">
           {inbox.items.map((n) => (
@@ -157,7 +147,7 @@ export function NotificationsCard({ inbox, onSubject, onAll }: { inbox: Inbox; o
       </div>
       {error && <p role="alert" className="text-[13px] text-go-danger-strong">{error}</p>}
       {inbox.items.length === 0 ? (
-        <p className="text-[14px] text-go-muted">{inbox.loading ? "Loading…" : "No notifications yet."}</p>
+        <p className="text-[14px] text-go-muted">{inbox.loading ? "Loading…" : "No notifications yet. Order confirmations, deferrals and deliveries on the way appear here."}</p>
       ) : (
         <ul className="flex flex-col gap-3">
           {inbox.items.slice(0, 4).map((n) => (

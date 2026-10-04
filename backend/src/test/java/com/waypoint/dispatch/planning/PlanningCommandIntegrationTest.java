@@ -55,7 +55,12 @@ class PlanningCommandIntegrationTest extends PlanningIntegrationSupport {
     UUID planId = UUID.fromString(generate(dispatcher, 200).get("planId").asText());
     JsonNode generated = mapper.readTree(read(dispatcher, path, 200));
     assertEquals(planId.toString(), generated.get("planId").asText());
-    assertEquals("priority-insertion-v1+scarce-replan-v1", generated.get("engine").asText(), "the run says which engine made it");
+    assertEquals("priority-insertion-v1+scarce-replan-v1+cost-alns-v1", generated.get("engine").asText(),
+        "the run says which engine made it");
+    JsonNode cost = generated.get("cost");
+    assertEquals(1, cost.get("rulesVehicles").asInt(), "planning v2: the cost stage's summary is stored and served: " + cost);
+    assertTrue(cost.get("trigger").asText().length() > 0, "it says why it ran or was skipped");
+    assertTrue(cost.get("vehicles").asInt() <= cost.get("rulesVehicles").asInt(), "never more vehicles than the rules plan");
     JsonNode improvement = generated.get("improvement");
     assertEquals(2, improvement.get("firstPassServed").asInt(), "issue #92: what the second pass did is stored with the run");
     assertFalse(improvement.get("improved").asBoolean(), "two ambient orders on a truck: nothing for the reefers to improve");
@@ -186,6 +191,42 @@ class PlanningCommandIntegrationTest extends PlanningIntegrationSupport {
         mapper.readTree(read(dispatcher, "/api/plans/deferrals?depot=" + depot + "&date=" + serviceDate, 200));
     assertEquals(first.toString(), deferrals.get(0).get("orderId").asText());
     assertEquals(1, deferrals.get(0).get("skipCount").asInt());
+  }
+
+  @Test
+  void aHandDecisionNamesWhoTookItAndSurvivesPublication() throws Exception {
+    UUID first = demand("ambient");
+    UUID second = demand("ambient");
+    UUID planId = UUID.fromString(generate(dispatcher, 200).get("planId").asText());
+    JsonNode next =
+        mapper.readTree(send(dispatcher, defer(planId, 1L, first, "outlet asked to skip today"), 200)).get("result");
+    UUID successor = UUID.fromString(next.get("planId").asText());
+
+    JsonNode draft = mapper.readTree(read(dispatcher, "/api/plans/draft?depot=" + depot + "&date=" + serviceDate, 200));
+    assertTrue(draft.get("savedAt").asText().length() > 0, "a draft says when it was last saved");
+    JsonNode deferred = allocation(draft, first);
+    assertEquals("MANUAL_DEFER", deferred.get("source").asText());
+    assertFalse(deferred.get("decidedBy").isNull(), "rule 8: a hand decision names who");
+    assertFalse(deferred.get("decidedAt").isNull());
+    assertEquals("ENGINE", allocation(draft, second).get("source").asText());
+    assertFalse(allocation(draft, second).get("locked").asBoolean());
+
+    send(dispatcher, publish(successor, 1L), 200);
+    JsonNode published = mapper.readTree(read(dispatcher, "/api/plans/published?depot=" + depot + "&date=" + serviceDate, 200));
+    assertEquals("MANUAL_DEFER", allocation(published, first).get("source").asText());
+    assertEquals(
+        deferred.get("decidedAt").asText(),
+        allocation(published, first).get("decidedAt").asText(),
+        "publishing does not change when it was decided");
+  }
+
+  private static JsonNode allocation(JsonNode plan, UUID orderId) {
+    for (JsonNode a : plan.get("allocations")) {
+      if (a.get("orderId").asText().equals(orderId.toString())) {
+        return a;
+      }
+    }
+    throw new AssertionError("order " + orderId + " is not in the plan");
   }
 
 }

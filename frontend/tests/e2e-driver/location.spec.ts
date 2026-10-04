@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { serve } from "./mocks.ts";
+import { openForm, serve, startTrip } from "./mocks.ts";
 
 // Issue #161: positions while a run is open, through the offline queue, and a
 // map that hands off to the phone's maps app only for an exact store location.
@@ -13,9 +13,9 @@ test("points recorded with no signal survive a reload and are sent when the sign
   await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
   await server.goOffline(context);
 
+  await startTrip(page);
   await expect(page.getByText("Share your location while the run is open?")).toBeVisible();
   await page.getByRole("button", { name: "Share location" }).click();
-  await page.getByRole("button", { name: "Start run" }).click();
   await expect(page.getByRole("heading", { name: "OUT0101" })).toBeVisible();
   // The flush after a minute puts the batch in the phone's queue.
   await page.clock.runFor(61_000);
@@ -24,7 +24,15 @@ test("points recorded with no signal survive a reload and are sent when the sign
   await page.reload();
   await expect(page.getByText("Showing the run saved on this phone")).toBeVisible();
   await server.goOnline(context);
-  await expect.poll(() => server.commands.filter((c) => c.kind === "delivery:RecordPositions").length, { timeout: 15_000 }).toBeGreaterThan(0);
+  // The queue drains on "online" and then every 30 s. The clock is frozen, so
+  // move it on while waiting: a first drain that came too early on a slow
+  // machine is retried instead of waiting for a timer that never fires (#120).
+  await expect
+    .poll(async () => {
+      await page.clock.runFor(30_000);
+      return server.commands.filter((c) => c.kind === "delivery:RecordPositions").length;
+    }, { timeout: 15_000 })
+    .toBeGreaterThan(0);
   const sent = server.commands.find((c) => c.kind === "delivery:RecordPositions")!;
   expect((sent.payload as { vehicleId: string }).vehicleId).toBe("VEH043");
 });
@@ -32,12 +40,12 @@ test("points recorded with no signal survive a reload and are sent when the sign
 test("Open map and Navigate appear only for a store with an exact location", async ({ page }) => {
   await serve(page);
   await page.goto("/");
+  await startTrip(page);
   await page.getByRole("button", { name: "Share location" }).click();
-  await page.getByRole("button", { name: "Start run" }).click();
-  await page.getByRole("button", { name: "Open map" }).click();
+  await page.getByRole("button", { name: /^(Open map|Map)$/ }).click();
   const navigate = page.getByRole("link", { name: "Navigate to OUT0101" });
   await expect(navigate).toHaveAttribute("href", /destination=7\.291,80\.633/);
-  await page.getByRole("button", { name: "Back" }).click();
+  await page.getByRole("button", { name: "Back to run sheet" }).click();
   await expect(page.getByRole("heading", { name: "OUT0101" })).toBeVisible();
 });
 
@@ -45,11 +53,14 @@ test("a store with only a district location gets no map, and declining location 
   const server = await serve(page);
   server.stops[0]!.outletId = "OUT0303";
   await page.goto("/");
+  await startTrip(page);
   await page.getByRole("button", { name: "Not now" }).click();
   await expect(page.getByText("Location off · the dispatcher sees your stops only")).toBeVisible();
-  await page.getByRole("button", { name: "Start run" }).click();
+  await page.getByRole("button", { name: /^(Open map|Map)$/ }).click();
   await expect(page.getByText("No exact location for this store yet")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Open map" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /Navigate to/ })).toHaveCount(0);
+  await page.getByRole("button", { name: "Back to run sheet" }).click();
   await page.getByRole("button", { name: "I've arrived" }).click();
+  await openForm(page);
   await expect(page.getByText(/Delivery report/)).toBeVisible();
 });

@@ -24,6 +24,7 @@ import com.waypoint.dispatch.shared.domain.Actor;
 import com.waypoint.dispatch.shared.domain.Page;
 import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
+import com.waypoint.dispatch.support.TestDates;
 import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -31,7 +32,6 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -268,7 +268,7 @@ class OrderingSchemaIntegrationTest {
   }
 
   private static LocalDate freshDate() {
-    return LocalDate.of(2031, 1, 1).plusDays(ThreadLocalRandom.current().nextInt(0, 20_000));
+    return TestDates.unusedDay();
   }
 
   private long deniedReads(Actor actor) {

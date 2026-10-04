@@ -31,6 +31,7 @@ import com.waypoint.dispatch.referencedata.contract.ReferenceViews.OutletView;
 import com.waypoint.dispatch.shared.domain.Actor;
 import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
+import com.waypoint.dispatch.support.TestDates;
 import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -41,7 +42,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -418,7 +418,8 @@ class PlanningSchemaIntegrationTest {
                       new BigDecimal("6.5000"),
                       new BigDecimal("101.00"),
                       LocalTime.of(3, 30),
-                      new BigDecimal("42.500"))));
+                      new BigDecimal("42.500"),
+                      false)));
           plans.insertAllocations(
               planId,
               depot,
@@ -457,6 +458,7 @@ class PlanningSchemaIntegrationTest {
         false,
         "priority-insertion",
         Optional.empty(),
+        Optional.empty(),
         true,
         Instant.now(),
         Actor.SYSTEM_ID,
@@ -478,7 +480,11 @@ class PlanningSchemaIntegrationTest {
         new BigDecimal("15.00"),
         Optional.empty(),
         "served on trip 1",
-        List.of(ConstraintResult.pass("R-PLN-06", "VolumeCapacity", "fits", new BigDecimal("2.5"))));
+        List.of(ConstraintResult.pass("R-PLN-06", "VolumeCapacity", "fits", new BigDecimal("2.5"))),
+        "engine",
+        false,
+        Optional.empty(),
+        Optional.empty());
   }
 
   private AllocationRow deferred(UUID orderId) {
@@ -494,7 +500,11 @@ class PlanningSchemaIntegrationTest {
         new BigDecimal("15.00"),
         Optional.of("R-PLN-06"),
         "no vehicle had room",
-        List.of(ConstraintResult.fail("R-PLN-06", "VolumeCapacity", "over by 1.5 m3", new BigDecimal("-1.5"))));
+        List.of(ConstraintResult.fail("R-PLN-06", "VolumeCapacity", "over by 1.5 m3", new BigDecimal("-1.5"))),
+        "engine",
+        false,
+        Optional.empty(),
+        Optional.empty());
   }
 
   /** A one-day version; a null depot is global. */
@@ -519,7 +529,7 @@ class PlanningSchemaIntegrationTest {
   /** A random date no run in the shared test database uses yet, so plan versions cannot collide. */
   private LocalDate freshDate() {
     while (true) {
-      LocalDate date = LocalDate.of(2031, 1, 1).plusDays(ThreadLocalRandom.current().nextInt(0, 20_000));
+      LocalDate date = TestDates.unusedDay();
       Number taken =
           database.asSystem(
               ModuleRole.PLANNING,

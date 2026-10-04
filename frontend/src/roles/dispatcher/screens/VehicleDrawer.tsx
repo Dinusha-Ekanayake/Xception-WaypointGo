@@ -43,12 +43,12 @@ export default function VehicleDrawer({
 
   return (
     <div className="fixed inset-0 z-40 flex justify-end">
-      <button type="button" aria-label="Close vehicle details" onClick={onClose} className="absolute inset-0 bg-black/30" />
+      <button type="button" aria-label="Close vehicle details" onClick={onClose} className="absolute inset-0 animate-fade-in bg-black/30" />
       <aside
         role="dialog"
         aria-modal="true"
         aria-label={`Vehicle ${vehicle.vehicleId}`}
-        className="relative flex h-full w-full max-w-[460px] flex-col gap-4 overflow-y-auto rounded-l-[32px] bg-white p-7 shadow-[-10px_0_40px_0_rgba(0,0,0,0.12)]"
+        className="relative flex h-full w-full max-w-[460px] animate-slide-in-end flex-col gap-4 overflow-y-auto overscroll-contain rounded-l-[32px] bg-white p-7 shadow-[-10px_0_40px_0_rgba(0,0,0,0.12)]"
       >
         <div className="flex items-start gap-2.5">
           <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -87,7 +87,7 @@ export default function VehicleDrawer({
 
         <section className="flex flex-col gap-2">
           <h3 className="text-[13px] font-semibold tracking-normal text-go-ink">This week</h3>
-          <Pending what="This vehicle's trips" waitingOn="Planning (#9)" />
+          <Pending what="This vehicle's trips" waitingOn="Its trips are on the Plan screen for the day." />
         </section>
 
         {confirming && (
@@ -114,7 +114,7 @@ export default function VehicleDrawer({
               It leaves the next planning run for that day. Plans already made stay as they are (R-FLT-04).
             </p>
             <div className="flex gap-2">
-              <PrimaryButton type="submit" disabled={!online || sending || !reason.trim()}>
+              <PrimaryButton type="submit" disabled={!online || !reason.trim()} busy={sending}>
                 {sending ? "Sending…" : `Send ${vehicle.vehicleId} to workshop`}
               </PrimaryButton>
               <SecondaryButton onClick={() => setConfirming(false)} disabled={sending}>

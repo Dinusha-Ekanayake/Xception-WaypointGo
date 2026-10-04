@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -17,6 +18,9 @@ import java.util.UUID;
  * feature (MODULES §4).
  */
 public final class PlanViews {
+  /** An order's load as a trip sees it, for {@link PlanQuery#joinsTrip} (issue #199). */
+  public record LoadView(String temperature, boolean vanOnly, BigDecimal weightKg, BigDecimal volumeM3) {}
+
   private PlanViews() {}
 
   public enum PlanStatus {
@@ -39,6 +43,7 @@ public final class PlanViews {
    *
    * @param planVersion the business revision; {@code rowVersion} is the
    *     concurrency revision. They are different things (AGENTS.md)
+   * @param savedAt when this version was written: for a draft, its last edit
    * @param referenceVersionId the reference snapshot the plan was built on
    * @param ruleSetVersionId the effective rule parameters
    * @param priorityPolicyVersionId the deferral priority table in force
@@ -55,12 +60,14 @@ public final class PlanViews {
       UUID priorityPolicyVersionId,
       Optional<UUID> supersedes,
       Optional<Instant> publishedAt,
+      Instant savedAt,
       boolean plannedWithoutPredictor,
       List<TripView> trips,
       List<AllocationView> allocations,
       long rowVersion,
       String engine,
-      Optional<ImprovementView> improvement) {
+      Optional<ImprovementView> improvement,
+      Optional<CostView> cost) {
 
     public PlanView {
       trips = List.copyOf(trips);
@@ -125,10 +132,31 @@ public final class PlanViews {
     }
   }
 
+  /** Who decided where an order stands (rule 8). */
+  public enum AllocationSource {
+    /** Nobody: the engine's own answer. */
+    ENGINE,
+    /** A dispatcher placed it on a trip by hand. */
+    OVERRIDE,
+    /** A dispatcher traded it for another order on a trip. */
+    SWAP,
+    /** A dispatcher decided it stays deferred. */
+    KEPT,
+    /** A dispatcher took it off its trip. */
+    MANUAL_DEFER,
+    /** Restored from a saved plan. */
+    RESTORED
+  }
+
   /**
    * @param bindingRule the rule that decided a deferral or an unservable order;
    *     never a generic message (R-PLN-19)
    * @param checks every constraint evaluated, with its slack
+   * @param source who decided it; {@code ENGINE} when nobody did
+   * @param locked held on its trip, so a regenerate keeps it there
+   * @param decidedBy the dispatcher behind a hand decision or a lock
+   * @param lastServedOn the outlet's most recent day a published plan served an
+   *     order of it, before this plan's day; empty when it has never been served
    */
   public record AllocationView(
       UUID orderId,
@@ -136,10 +164,81 @@ public final class PlanViews {
       Optional<UUID> tripId,
       Optional<String> bindingRule,
       String reason,
-      List<ConstraintResultView> checks) {
+      List<ConstraintResultView> checks,
+      AllocationSource source,
+      boolean locked,
+      Optional<UUID> decidedBy,
+      Optional<Instant> decidedAt,
+      Optional<LocalDate> lastServedOn) {
 
     public AllocationView {
       checks = List.copyOf(checks);
+    }
+  }
+
+  /**
+   * A plan without its allocations (issue #177): the header, how many orders
+   * each decision took, and the trips without their stops. Small for any depot,
+   * so a client that cannot hold a whole plan reads this and then pages
+   * {@link AllocationPageView}.
+   */
+  public record PlanSummaryView(
+      UUID planId,
+      String depotCode,
+      LocalDate serviceDate,
+      int planVersion,
+      PlanStatus status,
+      UUID referenceVersionId,
+      UUID ruleSetVersionId,
+      UUID priorityPolicyVersionId,
+      Optional<UUID> supersedes,
+      Optional<Instant> publishedAt,
+      long rowVersion,
+      int served,
+      int deferred,
+      int unservable,
+      List<TripSummaryView> trips) {
+
+    public PlanSummaryView {
+      trips = List.copyOf(trips);
+    }
+  }
+
+  public record TripSummaryView(
+      UUID tripId,
+      String vehicleId,
+      int tripNumber,
+      String brandCode,
+      String districtName,
+      String temperature,
+      BigDecimal weightKg,
+      BigDecimal volumeM3,
+      BigDecimal plannedMinutes,
+      LocalTime plannedDeparture,
+      int stopCount) {}
+
+  /** One allocation with where it stops, for a paged read. Empty stop fields for an order not served. */
+  public record AllocationLineView(
+      UUID orderId,
+      AllocationDecision decision,
+      Optional<UUID> tripId,
+      Optional<Integer> stopSequence,
+      Optional<LocalTime> plannedArrival,
+      Optional<String> bindingRule,
+      String reason,
+      List<ConstraintResultView> checks) {
+
+    public AllocationLineView {
+      checks = List.copyOf(checks);
+    }
+  }
+
+  /** A keyset page of one plan's allocations in order id order; {@code nextCursor} is empty on the last page. */
+  public record AllocationPageView(
+      UUID planId, int planVersion, List<AllocationLineView> items, Optional<String> nextCursor) {
+
+    public AllocationPageView {
+      items = List.copyOf(items);
     }
   }
 
@@ -153,6 +252,41 @@ public final class PlanViews {
    * @param chilledSearched of {@code chilledCandidates}, how many the search
    *     ranked; the rest were placed by insertion (rule 9)
    */
+  /**
+   * The cost stage (planning v2): the rules plan's vehicles, trips and litres
+   * against the plan kept, or why the stage did not run (R-PLN-38, R-PLN-39).
+   *
+   * @param trigger DEFERRALS, LOW_UTILISATION, or SKIPPED_SIMPLE_DAY, SKIPPED_KEPT_DECISIONS, SKIPPED_DISABLED
+   */
+  public record CostView(
+      String trigger,
+      boolean improved,
+      int rulesVehicles,
+      int rulesTrips,
+      BigDecimal rulesLitres,
+      int vehicles,
+      int trips,
+      BigDecimal litres,
+      int iterations,
+      String stoppedBy) {}
+
+  /**
+   * A queued plan generation (R-PLN-41): QUEUED, RUNNING, DONE or FAILED. When
+   * done, {@code planId} is the draft it wrote; when failed, {@code error} says why.
+   */
+  public record GenerationJobView(
+      UUID jobId,
+      String depotCode,
+      LocalDate serviceDate,
+      String status,
+      int attempts,
+      Optional<UUID> planId,
+      Optional<String> error,
+      Instant createdAt,
+      Optional<Instant> startedAt,
+      Optional<Instant> finishedAt,
+      Optional<Map<String, Object>> result) {}
+
   public record ImprovementView(
       int firstPassServed,
       int firstPassDeferred,
@@ -187,6 +321,102 @@ public final class PlanViews {
       BigDecimal quotaLitres,
       BigDecimal usedLitres,
       BigDecimal remainingLitres) {}
+
+  /** Where a saved plan came from. */
+  public enum SnapshotKind {
+    /** The engine's plan of a generate. */
+    AUTO,
+    /** Saved by a dispatcher. */
+    MANUAL,
+    /** The draft a regenerate replaced. */
+    REGENERATED,
+    /** The plan the rules made, when the cost stage replaced it (planning v2): offered for comparison. */
+    RULES
+  }
+
+  /** A saved plan's header: enough to list it. */
+  public record SnapshotView(
+      UUID snapshotId,
+      String depotCode,
+      LocalDate serviceDate,
+      int number,
+      String label,
+      SnapshotKind kind,
+      UUID sourcePlanId,
+      int planVersion,
+      UUID createdBy,
+      Instant createdAt) {}
+
+  /** How an order's place differs between two plans. */
+  public enum ChangeKind {
+    /** Served by both, on another vehicle or trip. */
+    MOVED,
+    /** Served by the second, not by the first. */
+    ADDED,
+    /** Served by the first, not by the second. */
+    DROPPED
+  }
+
+  /** Where an order stands in one plan: absent when the plan does not have it. */
+  public record PlaceView(
+      Optional<AllocationDecision> decision, Optional<String> vehicleId, Optional<Integer> tripNumber) {}
+
+  public record OrderChange(
+      UUID orderId, Optional<String> outletId, ChangeKind kind, PlaceView before, PlaceView after) {}
+
+  /** One side of a comparison: the plan's name and what it adds up to. */
+  public record PlanSideView(
+      String label,
+      UUID planId,
+      int planVersion,
+      int served,
+      int deferred,
+      int unservable,
+      int trips,
+      int vehicles) {}
+
+  /**
+   * Two plans of one depot and day, side by side.
+   *
+   * @param changedTrips trips of {@code b} a driver would see differently from {@code a}
+   * @param removedTrips trips of {@code a} that {@code b} no longer has
+   * @param affectedOutlets outlets whose order changed place
+   */
+  public record ComparisonView(
+      PlanSideView a,
+      PlanSideView b,
+      List<OrderChange> changes,
+      List<UUID> changedTrips,
+      List<UUID> removedTrips,
+      List<String> affectedOutlets) {
+
+    public ComparisonView {
+      changes = List.copyOf(changes);
+      changedTrips = List.copyOf(changedTrips);
+      removedTrips = List.copyOf(removedTrips);
+      affectedOutlets = List.copyOf(affectedOutlets);
+    }
+  }
+
+  /** A saved plan with the plan itself, read only. */
+  public record SnapshotDetailView(SnapshotView snapshot, PlanView plan) {}
+
+  /**
+   * What a swap or a new stop order would leave: the trip as it would run, and
+   * every rule's verdict on the vehicle's whole day.
+   */
+  public record TripPreview(
+      String vehicleId,
+      int tripNumber,
+      boolean feasible,
+      List<StopView> stops,
+      List<ConstraintResultView> checks) {
+
+    public TripPreview {
+      stops = List.copyOf(stops);
+      checks = List.copyOf(checks);
+    }
+  }
 
   /** Whether a substitute vehicle could carry a trip, checked against the whole registry. */
   public record InterchangePreview(

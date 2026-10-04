@@ -34,6 +34,7 @@ class EventCatalogueTest {
           "plan.revised",
           "order.deferred",
           "order.unservable",
+          "plan.store_contacted",
           "loading.started",
           "loading.shortfall",
           "loading.interchange_requested",
@@ -58,7 +59,9 @@ class EventCatalogueTest {
           "catalogue.synced",
           "reference.version_published",
           "vehicle.status_changed",
-          "calendar.overridden");
+          "calendar.overridden",
+          "message.posted",
+          "order.outlook_changed");
 
   @Test
   void everyEventTypeIsUniqueWellFormedAndCatalogued() throws Exception {

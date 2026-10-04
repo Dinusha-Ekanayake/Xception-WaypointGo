@@ -94,6 +94,91 @@ public class JdbcOrderRepository {
         != null;
   }
 
+  /**
+   * How many other outlets of one brand and district hold a live order for each
+   * day in a range (R-ORD-13). A count per day, never which outlets: the caller
+   * runs it as the system, so the result must name nobody.
+   */
+  public Map<LocalDate, Integer> bookedStops(
+      String depotCode,
+      String brandCode,
+      String districtName,
+      String exceptOutletId,
+      LocalDate from,
+      LocalDate to) {
+    Map<LocalDate, Integer> stops = new java.util.HashMap<>();
+    for (Map<String, Object> row :
+        database.query(
+            """
+            SELECT delivery_date, count(DISTINCT outlet_id) AS stops
+              FROM ordering.orders
+             WHERE depot_code = ? AND brand_code = ? AND district_name = ? AND outlet_id <> ?
+               AND delivery_date BETWEEN ? AND ?
+               AND status IN ('stock_unknown','confirmed','allocated','deferred')
+             GROUP BY delivery_date
+            """,
+            depotCode,
+            brandCode,
+            districtName,
+            exceptOutletId,
+            Date.valueOf(from),
+            Date.valueOf(to))) {
+      stops.put(
+          ((Date) row.get("delivery_date")).toLocalDate(), ((Number) row.get("stops")).intValue());
+    }
+    return stops;
+  }
+
+  /** One measured order of another outlet, for the room on a trip (issue #199). */
+  public record BookedLoad(LocalDate date, String outletId, String temperature, BigDecimal weightKg, BigDecimal volumeM3) {}
+
+  /**
+   * Other outlets' measured orders of one brand and district per day: the load a
+   * trip there will carry. An order the warehouse has not reserved has no
+   * measures yet and adds nothing (R-ORD-12), so the room is optimistic and
+   * labelled an estimate.
+   */
+  public List<BookedLoad> bookedLoads(
+      String depotCode, String brandCode, String districtName, String exceptOutletId, LocalDate from, LocalDate to) {
+    return database.query(
+            """
+            SELECT delivery_date, outlet_id, temperature, weight_kg, volume_m3
+              FROM ordering.orders
+             WHERE depot_code = ? AND brand_code = ? AND district_name = ? AND outlet_id <> ?
+               AND delivery_date BETWEEN ? AND ?
+               AND status IN ('confirmed','allocated','deferred')
+               AND weight_kg IS NOT NULL AND volume_m3 IS NOT NULL AND temperature IS NOT NULL
+             ORDER BY delivery_date, order_id
+            """,
+            depotCode, brandCode, districtName, exceptOutletId, Date.valueOf(from), Date.valueOf(to))
+        .stream()
+        .map(r -> new BookedLoad(((Date) r.get("delivery_date")).toLocalDate(), (String) r.get("outlet_id"),
+            (String) r.get("temperature"), (BigDecimal) r.get("weight_kg"), (BigDecimal) r.get("volume_m3")))
+        .toList();
+  }
+
+  /** The outlet's usual order: the median of its measured orders, the latest twenty; empty with none. */
+  public Optional<BookedLoad> usualLoad(String outletId) {
+    Map<String, Object> row = database.queryOne(
+        """
+        SELECT count(*) AS n,
+               percentile_cont(0.5) WITHIN GROUP (ORDER BY weight_kg) AS weight,
+               percentile_cont(0.5) WITHIN GROUP (ORDER BY volume_m3) AS volume,
+               mode() WITHIN GROUP (ORDER BY temperature) AS temperature
+          FROM (SELECT weight_kg, volume_m3, temperature FROM ordering.orders
+                 WHERE outlet_id = ? AND weight_kg IS NOT NULL AND volume_m3 IS NOT NULL AND temperature IS NOT NULL
+                   AND status <> 'cancelled'
+                 ORDER BY placed_at DESC LIMIT 20) recent
+        """,
+        outletId);
+    if (row == null || ((Number) row.get("n")).intValue() == 0) {
+      return Optional.empty();
+    }
+    return Optional.of(new BookedLoad(null, outletId, (String) row.get("temperature"),
+        BigDecimal.valueOf(((Number) row.get("weight")).doubleValue()).setScale(3, java.math.RoundingMode.HALF_UP),
+        BigDecimal.valueOf(((Number) row.get("volume")).doubleValue()).setScale(4, java.math.RoundingMode.HALF_UP)));
+  }
+
   /** An order as stored, with the facts the aggregate does not need but a reader does. */
   public record Stored(Order order, Instant placedAt) {}
 
@@ -173,6 +258,42 @@ public class JdbcOrderRepository {
   }
 
   // ---- writes --------------------------------------------------------------
+
+  /** The order's stop on a published plan (issue #224); a revision overwrites it, an older plan never does. */
+  public void recordStop(
+      UUID orderId, UUID tripId, int sequence, java.time.LocalTime plannedArrival, LocalDate serviceDate,
+      int planVersion, Instant at) {
+    database.update(
+        """
+        INSERT INTO ordering.order_stops
+            (order_id, trip_id, stop_sequence, planned_arrival, service_date, plan_version, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT (order_id) DO UPDATE
+           SET trip_id = EXCLUDED.trip_id, stop_sequence = EXCLUDED.stop_sequence,
+               planned_arrival = EXCLUDED.planned_arrival, service_date = EXCLUDED.service_date,
+               plan_version = EXCLUDED.plan_version, updated_at = EXCLUDED.updated_at
+         WHERE ordering.order_stops.service_date <> EXCLUDED.service_date
+            OR ordering.order_stops.plan_version <= EXCLUDED.plan_version
+        """,
+        orderId, tripId, sequence, plannedArrival == null ? null : java.sql.Time.valueOf(plannedArrival),
+        Date.valueOf(serviceDate), planVersion, Timestamp.from(at));
+  }
+
+  /** Stop and planned arrival per order, for the orders given. */
+  public java.util.Map<UUID, Map<String, Object>> stops(java.util.Collection<UUID> orderIds) {
+    if (orderIds.isEmpty()) {
+      return java.util.Map.of();
+    }
+    java.util.Map<UUID, Map<String, Object>> out = new java.util.HashMap<>();
+    String marks = String.join(", ", java.util.Collections.nCopies(orderIds.size(), "?"));
+    for (Map<String, Object> r : database.query(
+        "SELECT order_id, stop_sequence, planned_arrival, service_date FROM ordering.order_stops WHERE order_id IN ("
+            + marks + ")",
+        orderIds.toArray())) {
+      out.put((UUID) r.get("order_id"), r);
+    }
+    return out;
+  }
 
   public void insert(
       Order order, UUID placedBy, Instant at, UUID commandId, Optional<UUID> sourceIssueId) {

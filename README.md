@@ -51,27 +51,47 @@ The seed places the Task 2B peak day: 85 confirmed Peliyagoda orders across all 
 
 1. **Store manager: see the order.** Sign in as `store_manager@waypoint.local`. Home and Orders show OUT001's two orders for the seeded day (one ambient, one chilled), confirmed and waiting to be planned.
 2. **Dispatcher: one queue.** Sign in as `dispatcher@waypoint.local` and open **Orders**. Every order due at Peliyagoda that day is in one table with its brand, temperature and status. **Close orders** is accepted only after the 16:00 cutoff the day before (R-ORD-01); before then the screen shows the refusal and its rule, and planning still works.
-3. **Dispatcher: plan the peak day.** Open **Plan**, choose Peliyagoda and **Generate**. The engine allocates against weight and volume limits, refrigerated vehicles for chilled goods, vans for `van_only` outlets, delivery and mall windows, weekly fuel and at most two trips per vehicle, then plans the refrigerated vehicles again as a whole and keeps the result only if it is better by priority; the plan says what that second pass changed. On the seeded day most orders are placed, about a dozen are deferred, and one order is larger than any vehicle and cannot be served.
+3. **Dispatcher: plan the peak day.** Open **Plan**. It opens on today; when nothing waits today it names the seeded day, so choose **Plan** for that day, then **Generate draft**. The engine allocates against weight and volume limits, refrigerated vehicles for chilled goods, vans for `van_only` outlets, delivery and mall windows, weekly fuel and at most two trips per vehicle, then plans the refrigerated vehicles again as a whole and keeps the result only if it is better by priority; the plan says what that second pass changed. On the seeded day most orders are placed, about a dozen are deferred, and one order is larger than any vehicle and cannot be served.
 4. **Dispatcher: explain the deferrals.** In **Decide**, each order the plan could not place shows the rule that stopped it. Open one to see where it could go; only feasible places can be chosen, and a manual placement needs a reason. In **View plan**, open a trip to see its load against capacity, departure and stop order; **Take off** defers an order with a reason.
-5. **Dispatcher: publish.** **Publish** lists what the plan leaves undelivered, then **Confirm publish**. **Vehicles** shows each vehicle's planned fuel against its weekly quota, and Overview lists outlets skipped on earlier runs.
-6. **Loader: load in stop order.** Sign in as `loader@waypoint.local`, then enter PIN `2468` on the dock screen. The dock board lists the published trips. Open the trip that carries OUT001: items are listed in reverse stop order, so the first stop is loaded last. Check items off one by one.
+5. **Dispatcher: publish.** **Publish** lists what the plan leaves undelivered, then **Publish plan**. **Vehicles** shows each vehicle's planned fuel against its weekly quota, and Overview lists outlets skipped on earlier runs.
+6. **Loader: load in stop order.** Sign in as `loader@waypoint.local`, then enter PIN `2468` on the dock screen. The dock board lists the published trips: it shows the first day, from today, with a trip still to load, so on the evening before (or a weekend before Monday's run) it is the seeded day's. Open the trip that carries OUT001: items are listed in reverse stop order, so the first stop is loaded last. Check items off one by one.
 7. **Loader: flag a shortfall (degradation).** Mark one item short by a unit, or missing or damaged. The shortfall is recorded before departure and reaches the dispatcher's **Issues** inbox. Complete the release checklist and **release** the trip.
-8. **Driver: follow the run.** Sign in as `driver@waypoint.local`. Home shows the released trip; **Route** lists its stops in order with their windows.
-9. **Driver: deliver with no signal (degradation).** In the browser's developer tools set the network to Offline. Open the OUT001 stop, record the delivery with receiver name, count, photo and signature, and finish. If a unit was short at loading, record a partial delivery: the screen asks what happened to the goods that did not arrive. The record is kept on the phone and the screen says it is waiting to sync. Reload the page: it is still there. Set the network back to Online and the queue drains on its own; the server applies each record once.
+8. **Driver: follow the run.** Sign in as `driver@waypoint.local`. Home shows the vehicle, the run's stop count (today's, or the first day within the next week with a released trip, so on install day the seeded day's) and the driver's notifications (plan published, trip released). **Start trip** opens the run sheet: the next stop with its expected arrival, window and units, and the other stops in order.
+9. **Driver: deliver with no signal (degradation).** In the browser's developer tools set the network to Offline. At OUT001 tap **I've arrived**, then **Open delivery report** and **Record delivery**, and record the delivery with receiver name, count, photo and signature. If a unit was short at loading, record a partial delivery: the screen asks what happened to the goods that did not arrive. The record is kept on the phone and the screen says it is waiting to sync. Reload the page: it is still there. Set the network back to Online and the queue drains on its own; the server applies each record once.
 10. **Dispatcher: watch progress.** **Live** lists vehicles most urgent first, with the delivered stop and anything that still needs the dispatcher.
-11. **Store manager: confirm receipt.** Back as the store manager, the delivery shows as arrived. **Receive this delivery**, confirm what arrived per item, or report a problem (missing, damaged, wrong item) with a photo. The report reaches the dispatcher's **Issues** inbox, where it can be taken, resolved and closed.
+11. **Store manager: confirm receipt.** Back as the store manager, the delivery shows as arrived. **Receive this delivery**, confirm what arrived per item, or report a problem (missing, damaged, wrong item) with a photo. The report reaches the dispatcher's **Issues** inbox, where it can be taken, resolved and closed. The answer shows a four-digit handover PIN; the driver can enter it from **Enter store manager PIN** after saving the delivery, as evidence the two met. A wrong PIN says how many tries are left, and skipping it never holds the delivery up.
 
 To start again from an empty database: `docker compose down -v && docker compose up --build`.
 
 ## Departures from the Designathon design
 
-The Figma file (pages 04 to 17) is the specification. Where the design shows something no backend module provides yet, it is left out rather than faked:
+The Figma file (pages 04 to 17) is the specification. Where the design shows something no backend module provides yet, it is left out rather than faked. Updated 2026-10-04:
 
-- **Driver:** vehicle pick-up by QR code, the notifications inbox, fuel logging, call and voice notes, driving mode and the map. The store's handover PIN is shown to the store manager but no driver screen asks for it yet. English only.
-- **Dispatcher:** late risk on the plan (its backend exists; the Forecast tab is built), snapshots and compare, regenerate with locked orders, contact store manager, global search and the map. Vehicle interchange approval waits on Loading.
-- **Loader:** vehicle interchange and dispatcher handover. Sinhala and Tamil are drafts awaiting a native speaker.
-- **Store manager:** call options, the live map and draft orders.
-- **All roles:** notifications arrive in the dispatcher, loader and store manager screens with a live badge; push to a closed phone is not switched on, and the driver has no inbox yet.
+- **Driver:**
+  - Vehicle pick-up by QR code is not built (dispatch assigns the vehicle).
+  - The fuel pass QR, fuel logging and calls have no backend.
+  - The map is the run's own trail and next stop. It hands off to the phone's maps app only for an exact store location.
+  - With no released trip today, Home names the next trip ahead and says it is waiting for the loader. The design shows only a released run.
+  - English only.
+- **Dispatcher:**
+  - Global search is not built.
+  - Vehicle interchange approval waits on Loading.
+  - The Forecast's error chip shows the demand model's measured error over all volume and over chilled volume. The design shows a figure per brand, which the model does not measure.
+  - Late risk is shown only on a published plan, once the time predictor has scored it. A draft says it is scored once published, and an estimate says so.
+- **Loader:**
+  - Vehicle interchange and dispatcher handover are not built.
+  - When the trips on the board leave after tomorrow (a weekend), "Tonight's departures" names the day they leave.
+  - Sinhala and Tamil are drafts awaiting a native speaker.
+- **Store manager:**
+  - Call options are not built (no contact numbers on record); a delivery's Message is used instead.
+  - Draft orders are not built.
+  - The Next delivery card shows the driver and a predicted arrival once the trip leaves. Before that, it shows the next planned or confirmed delivery and the outlet's window.
+  - Below 440 px the header hides the Store chip and uses smaller round buttons so the sync time fits. The bottom bar stays icon-only, as designed.
+- **All roles:**
+  - On a phone, the main action of a long form (the driver's Confirm and Save proof, the store's receipt) stays pinned at the bottom of the screen while the form scrolls under it.
+  - Notifications arrive in every role's screens with a live count.
+  - Push to a closed phone works only where the server has VAPID keys, and says so otherwise.
+  - Messages (with voice notes) are per trip; threads for issues and orders are not built.
 
 Role by role detail is in [design-mapping.md](docs/design-mapping.md).
 
@@ -128,7 +148,7 @@ cd frontend && npx playwright test -c playwright.driver.config.ts
 cd frontend && npx playwright test -c playwright.loader.config.ts
 ```
 
-Integration tests use `TEST_DATABASE_URL` when it is set, a throwaway PostgreSQL 16 container when Docker is available, and are skipped with a stated reason otherwise. `TEST_DATABASE_URL` must name a dedicated database, never the application one. CI (`.github/workflows/checks.yml`) runs the backend tests, the typecheck, `npm test` and the build on every pull request to `dev` and `main`, and before every deploy. The browser suites are not in CI and are run by hand.
+Integration tests use `TEST_DATABASE_URL` when it is set, a throwaway PostgreSQL 16 container when Docker is available, and are skipped with a stated reason otherwise. `TEST_DATABASE_URL` must name a dedicated database, never the application one. CI (`.github/workflows/checks.yml`) runs the backend tests, the typecheck, `npm test`, the build and the browser suites (the shell and every role) on every pull request to `dev` and `main`, and before every deploy.
 
 ## Documentation
 

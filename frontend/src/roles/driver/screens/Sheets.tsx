@@ -20,7 +20,7 @@ const CHOICES: Array<{ id: string; label: string; problem: (text: string) => Pro
   { id: "road", label: "Road closed or blocked", hint: "Tells dispatch about the road.", needsText: true, problem: (t) => ({ kind: "report", fault: "road", description: t }) },
   { id: "vehicle", label: "Vehicle problem", hint: "Tells dispatch the vehicle has a fault.", needsText: true, problem: (t) => ({ kind: "report", fault: "vehicle", description: t }) },
   { id: "unload", label: "Cannot unload here", hint: "Records this stop as not delivered.", problem: () => ({ kind: "not-delivered", reason: "access_blocked" }) },
-  { id: "nobody", label: "No one at the store", hint: "Records this stop as not delivered.", problem: () => ({ kind: "not-delivered", reason: "outlet_closed" }) },
+  { id: "nobody", label: "No one at the outlet", hint: "Records this stop as not delivered.", problem: () => ({ kind: "not-delivered", reason: "outlet_closed" }) },
   { id: "damaged", label: "Goods damaged", hint: "Records this stop as not delivered.", problem: () => ({ kind: "not-delivered", reason: "goods_damaged" }) },
 ];
 
@@ -72,8 +72,8 @@ export function ProblemSheet({
         </Field>
       )}
       {error && <Banner tone="bad" title={error} live />}
-      <ActionButton disabled={!ready || busy} onClick={() => choice && onSend(choice.problem(text.trim()))}>
-        {choice?.problem("").kind === "not-delivered" ? "Record this stop" : "Send to dispatch"}
+      <ActionButton disabled={!ready} busy={busy} onClick={() => choice && onSend(choice.problem(text.trim()))}>
+        {busy ? "Sending…" : choice?.problem("").kind === "not-delivered" ? "Record this stop" : "Send to dispatch"}
       </ActionButton>
       <OutlineButton onClick={onClose}>Close</OutlineButton>
     </Sheet>
@@ -86,8 +86,11 @@ export function SavedSheet({
   last,
   warning,
   onNext,
+  onHandover,
 }: {
   title: string;
+  /** Opens the store manager's PIN; absent when nothing was handed over. */
+  onHandover?: () => void;
   /** Something about this stop still needs the driver, such as proof the server refused. */
   warning?: string | null;
   /** Saved on this phone and not yet on the server. */
@@ -107,6 +110,7 @@ export function SavedSheet({
         </p>
       </div>
       {warning && <Banner tone="warn" title={warning} />}
+      {onHandover && <OutlineButton onClick={onHandover}>Enter store manager PIN</OutlineButton>}
       <ActionButton onClick={onNext}>{last ? "Finish run" : "Next stop"}</ActionButton>
     </Sheet>
   );
