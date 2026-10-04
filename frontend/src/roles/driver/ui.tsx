@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { SettingsPanel, cx, initialsOf } from "@shared/ui";
+import { PRESS, SettingsPanel, Spinner, cx, initialsOf } from "@shared/ui";
 
 /** Waveform bar heights exactly copied from the Figma specification */
 export const WAVEFORM_HEIGHTS = [
@@ -568,32 +568,30 @@ export function VoiceMessagePlayer({
 // drawn from theme tokens, so the dark theme is the same markup. Touch targets
 // are at least 56px: the phone is used one-handed, when safely stopped.
 
-type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & { children: ReactNode };
+/** `busy`: the command is on its way, so the button is disabled with a spinner before the label. */
+type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & { children: ReactNode; busy?: boolean };
 
-const big = "flex min-h-16 w-full items-center justify-center gap-2 rounded-[22px] px-5 text-[19px] font-medium disabled:opacity-50";
+const big = cx("flex min-h-16 w-full items-center justify-center gap-2 rounded-[22px] px-5 text-[19px] font-medium disabled:opacity-50", PRESS);
 
-export function ActionButton({ children, className, type = "button", ...rest }: ButtonProps): React.JSX.Element {
+function DriverButton({ children, className, type = "button", busy = false, disabled, look, ...rest }: ButtonProps & { look: string }): React.JSX.Element {
   return (
-    <button type={type} {...rest} className={cx(big, "bg-go-action text-go-on-action", className)}>
+    <button type={type} {...rest} disabled={disabled || busy} aria-busy={busy || undefined} className={cx(big, look, busy && "disabled:opacity-70", className)}>
+      {busy && <Spinner />}
       {children}
     </button>
   );
 }
 
-export function SoftButton({ children, className, type = "button", ...rest }: ButtonProps): React.JSX.Element {
-  return (
-    <button type={type} {...rest} className={cx(big, "bg-go-soft text-go-on-soft", className)}>
-      {children}
-    </button>
-  );
+export function ActionButton(props: ButtonProps): React.JSX.Element {
+  return <DriverButton {...props} look="bg-go-action text-go-on-action" />;
 }
 
-export function OutlineButton({ children, className, type = "button", ...rest }: ButtonProps): React.JSX.Element {
-  return (
-    <button type={type} {...rest} className={cx(big, "border border-go-ink bg-transparent text-go-ink", className)}>
-      {children}
-    </button>
-  );
+export function SoftButton(props: ButtonProps): React.JSX.Element {
+  return <DriverButton {...props} look="bg-go-soft text-go-on-soft" />;
+}
+
+export function OutlineButton(props: ButtonProps): React.JSX.Element {
+  return <DriverButton {...props} look="border border-go-ink bg-transparent text-go-ink" />;
 }
 
 export function Panel({ children, className, label }: { children: ReactNode; className?: string; label?: string }): React.JSX.Element {

@@ -22,6 +22,7 @@ export {
 } from "./primitives.tsx";
 export { ShellActions, ShellProvider, useShell, type ShellControls, type ShellRoleOption } from "./shell.tsx";
 export { Sheet } from "./Sheet.tsx";
+export { PRESS, Spinner } from "./Spinner.tsx";
 export { readKept, setStateScope, usePersistentState, writeKept } from "./usePersistentState.ts";
 export { useScrollMemory } from "./useScrollMemory.ts";
 export { dismisses, rubberBand, useSheetDrag } from "./sheetDrag.ts";
