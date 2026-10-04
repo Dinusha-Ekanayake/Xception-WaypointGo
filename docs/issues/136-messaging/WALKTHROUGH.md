@@ -6,7 +6,7 @@ Issue #136 (epic #150), branch `feat/136-messaging`. The [plan](PLAN.md) has the
 
 | Layer | Files |
 | --- | --- |
-| Migrations | `migrations/20261004T0100_messaging_threads.sql` (schema, role, row-level security), `20261004T0101_iam_messaging_actions.sql` (`message:Read`, `message:Post`), `20261004T1700_notification_routing_v4.sql` |
+| Migrations | `migrations/20261004T0100_messaging_threads.sql` (schema, role, row-level security), `20261004T0101_iam_messaging_actions.sql` (`message:Read`, `message:Post`), `20261004T1700_notification_routing_v4.sql`, `20261004T1800_messaging_voice_retention.sql` (P-33) |
 | Contract | `messaging/contract/MessagingCommands.java`, `MessagingEvents.java` (`message.posted`), `MessagingViews.java` |
 | Domain | `messaging/domain/MessagePolicy.java`: who writes to whom, reports, the posting window, voice limits, excerpts, the report a raised issue becomes |
 | Application | `PostMessageHandler` (the command), `MessagingConsumers` (threads from `plan.published` and `plan.revised`, reports from `issue.raised`), `MessagingQuery` (reads), `VoiceNotes`, `VoiceRetentionJob` (P-33) |
