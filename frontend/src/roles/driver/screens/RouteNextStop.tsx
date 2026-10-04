@@ -586,7 +586,7 @@ export default function RouteNextStop({
                 <span className={cx("text-[12px] font-light leading-[15px]", isNight ? "text-white" : "text-black")}>
                   Expected
                 </span>
-                <span className={cx("text-[36px] font-semibold leading-[45px] tracking-tight", isNight ? "text-white" : "text-black")}>
+                <span className={cx("text-[42px] font-medium leading-[50px] tracking-tight", isNight ? "text-white" : "text-black")}>
                   {activeStop.eta}
                 </span>
                 <span className={cx("text-[12px] font-light leading-[15px]", isNight ? "text-white" : "text-black")}>
@@ -601,7 +601,7 @@ export default function RouteNextStop({
                 <span className={cx("text-[12px] font-light leading-[15px]", isNight ? "text-white" : "text-black")}>
                   Window
                 </span>
-                <span className={cx("text-[36px] font-semibold leading-[45px] tracking-tight", isNight ? "text-white" : "text-black")}>
+                <span className={cx("text-[42px] font-medium leading-[50px] tracking-tight", isNight ? "text-white" : "text-black")}>
                   {activeStop.window}
                 </span>
                 <span className={cx("text-[12px] font-light leading-[15px]", isNight ? "text-white" : "text-black")}>
