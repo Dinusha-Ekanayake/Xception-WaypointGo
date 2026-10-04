@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Badge, card, field, primary, secondary } from "./components";
 import type { DemoState } from "./model";
-import { fetchAdminOutlets } from "../data/reference";
+import { createAdminOutlet, fetchAdminOutlets } from "../data/reference";
 
 export type OutletRecord = {
   id: string;
@@ -44,21 +44,16 @@ export function OutletsScreen({
 
   // Add Outlet modal state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [createError, setCreateError] = useState("");
+  const [createNotice, setCreateNotice] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [districtDepots, setDistrictDepots] = useState<Record<string, string>>({});
   const [newOutletId, setNewOutletId] = useState("");
-  const [newOutletName, setNewOutletName] = useState("");
   const [newOutletBrand, setNewOutletBrand] = useState<"Fresh" | "Style" | "Tech">("Fresh");
-  const [newOutletTempZone, setNewOutletTempZone] = useState<"Ambient Fresh" | "Chilled (Refrigerated)" | "Ambient Standard">("Ambient Fresh");
   const [newOutletDistrict, setNewOutletDistrict] = useState("Colombo");
-  const [newOutletDepot, setNewOutletDepot] = useState("PELIYAGODA");
   const [newOutletDockType, setNewOutletDockType] = useState<"rear_dock" | "street" | "mall_bay">("rear_dock");
-  const [newOutletDockDetails, setNewOutletDockDetails] = useState("");
   const [newOutletWindowOpen, setNewOutletWindowOpen] = useState("05:00");
   const [newOutletWindowClose, setNewOutletWindowClose] = useState("08:00");
-  const [newOutletWindowNotes, setNewOutletWindowNotes] = useState("");
-  const [newOutletStoreManager, setNewOutletStoreManager] = useState("");
-  const [newOutletManagerPhone, setNewOutletManagerPhone] = useState("");
-  const [newOutletManagerEmail, setNewOutletManagerEmail] = useState("");
-  const [newOutletAddress, setNewOutletAddress] = useState("");
   const [newOutletMaxVehicleType, setNewOutletMaxVehicleType] = useState<"Van & Truck" | "Van Only" | "Medium Rigid Truck Only">("Van & Truck");
 
   // Dynamic unique districts
@@ -157,67 +152,53 @@ export function OutletsScreen({
     });
   }, [outletsList, brandFilter, districtFilter, depotFilter, dockFilter, searchQuery]);
 
-  // Brand change handler for modal
-  const handleBrandChange = (brand: "Fresh" | "Style" | "Tech") => {
-    setNewOutletBrand(brand);
-    if (brand === "Fresh") {
-      setNewOutletTempZone("Ambient Fresh");
-      setNewOutletWindowOpen("05:00");
-      setNewOutletWindowClose("08:00");
-      setNewOutletMaxVehicleType("Van & Truck");
-    } else if (brand === "Style") {
-      setNewOutletTempZone("Ambient Standard");
-      setNewOutletWindowOpen("10:00");
-      setNewOutletWindowClose("12:30");
-      setNewOutletMaxVehicleType("Van Only");
-    } else {
-      setNewOutletTempZone("Ambient Standard");
-      setNewOutletWindowOpen("09:00");
-      setNewOutletWindowClose("17:00");
-      setNewOutletMaxVehicleType("Van & Truck");
+  const handleCreateOutlet = async () => {
+    setCreateError("");
+    setCreating(true);
+    let saved = false;
+    try {
+      const depotCode = districtDepots[newOutletDistrict];
+      if (!depotCode) throw new Error("Choose a published district.");
+      await createAdminOutlet({
+        outletId: newOutletId.trim().toUpperCase(), brand: newOutletBrand,
+        district: newOutletDistrict, depotCode,
+        dockType: newOutletDockType,
+        parking: newOutletDockType === "mall_bay" ? "mall_dock"
+          : newOutletMaxVehicleType === "Van Only" ? "van_only" : "normal",
+        windowOpen: newOutletWindowOpen, windowClose: newOutletWindowClose,
+        ...(newOutletDockType === "mall_bay"
+          ? { mallOpen: newOutletWindowOpen, mallClose: newOutletWindowClose } : {}),
+      });
+      saved = true;
+      const page = await fetchAdminOutlets({ limit: 200 });
+      setOutletsList(page.items.map((o) => ({
+        id: o.outletId, name: `Outlet ${o.outletId}`,
+        brand: (o.brand === "Style" || o.brand === "Tech" ? o.brand : "Fresh") as "Fresh" | "Style" | "Tech",
+        district: o.district, depot: o.depot,
+        dockType: (o.dockType === "rear_dock" || o.dockType === "mall_bay" ? o.dockType : "street") as "rear_dock" | "street" | "mall_bay",
+        windowOpen: o.windowOpen, windowClose: o.windowClose,
+        maxVehicleType: o.parking === "van_only" ? "Van Only" : "Van & Truck",
+      })));
+      setIsAddModalOpen(false);
+    } catch (error) {
+      if (saved) {
+        setCreateNotice("Outlet saved, but the directory could not refresh. Reload to see it.");
+        setIsAddModalOpen(false);
+      } else {
+        setCreateError(error instanceof Error ? error.message : "Could not create outlet.");
+      }
+    } finally {
+      setCreating(false);
     }
-  };
-
-  const handleCreateOutlet = () => {
-    const generatedId = newOutletId.trim().toUpperCase() || `OUT${Math.floor(100 + Math.random() * 900)}`;
-    const created: OutletRecord = {
-      id: generatedId,
-      name: newOutletName.trim() || `${newOutletDistrict} ${newOutletBrand} Store`,
-      brand: newOutletBrand,
-      tempZone: newOutletTempZone,
-      district: newOutletDistrict,
-      depot: newOutletDepot,
-      dockType: newOutletDockType,
-      dockDetails: newOutletDockDetails.trim() || (newOutletDockType === "rear_dock" ? "Standard rear loading dock with ramp." : newOutletDockType === "mall_bay" ? "Enclosed mall loading bay." : "Street kerbside unloading bay."),
-      windowOpen: newOutletWindowOpen || "06:00",
-      windowClose: newOutletWindowClose || "09:00",
-      windowNotes: newOutletWindowNotes.trim() || undefined,
-      storeManager: newOutletStoreManager.trim() || undefined,
-      managerPhone: newOutletManagerPhone.trim() || undefined,
-      managerEmail: newOutletManagerEmail.trim() || undefined,
-      address: newOutletAddress.trim() || `${newOutletDistrict} Commercial District`,
-      maxVehicleType: newOutletMaxVehicleType,
-    };
-
-    setOutletsList((prev) => [created, ...prev]);
-    setIsAddModalOpen(false);
 
     // Reset form
+    if (!saved) return;
     setNewOutletId("");
-    setNewOutletName("");
     setNewOutletBrand("Fresh");
-    setNewOutletTempZone("Ambient Fresh");
     setNewOutletDistrict("Colombo");
-    setNewOutletDepot("PELIYAGODA");
     setNewOutletDockType("rear_dock");
-    setNewOutletDockDetails("");
     setNewOutletWindowOpen("05:00");
     setNewOutletWindowClose("08:00");
-    setNewOutletWindowNotes("");
-    setNewOutletStoreManager("");
-    setNewOutletManagerPhone("");
-    setNewOutletManagerEmail("");
-    setNewOutletAddress("");
     setNewOutletMaxVehicleType("Van & Truck");
   };
 
@@ -262,6 +243,7 @@ export function OutletsScreen({
 
   return (
     <div className="space-y-6">
+      {createNotice && <p role="status" className="rounded-xl bg-go-subtle p-3 text-sm text-go-ink">{createNotice}</p>}
       {/* Top action bar: Add outlet */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -274,8 +256,15 @@ export function OutletsScreen({
         <button
           type="button"
           className={`${primary} flex items-center gap-2`}
-          disabled
-          title="Adding an outlet requires a reference create command that is not available yet"
+          onClick={() => {
+            setCreateError("");
+            setIsAddModalOpen(true);
+            void fetchAdminOutlets().then((page) => {
+              const choices = Object.fromEntries(page.items.map((item) => [item.district, item.depot]));
+              setDistrictDepots(choices);
+              setNewOutletDistrict((current) => choices[current] ? current : Object.keys(choices).sort()[0] ?? "");
+            }).catch((error) => setCreateError(error instanceof Error ? error.message : "Districts unavailable."));
+          }}
         >
           <span className="text-lg leading-none" aria-hidden="true">+</span>
           <span>Add outlet</span>
@@ -722,258 +711,65 @@ export function OutletsScreen({
 
             {/* Form */}
             <div className="mt-5 space-y-4 text-sm">
-              {/* Outlet Code & Store Name */}
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="block font-medium text-go-ink">
-                  Outlet Code / ID *
-                  <input
-                    type="text"
-                    className={`${field} mt-1 uppercase`}
-                    placeholder="e.g. OUT045"
-                    value={newOutletId}
-                    onChange={(e) => setNewOutletId(e.target.value)}
-                  />
-                </label>
-
-                <label className="block font-medium text-go-ink">
-                  Store Facility Name
-                  <input
-                    type="text"
-                    className={`${field} mt-1`}
-                    placeholder="e.g. Maharagama Central Mart"
-                    value={newOutletName}
-                    onChange={(e) => setNewOutletName(e.target.value)}
-                  />
-                </label>
-              </div>
-
-              {/* Brand & Temperature Zone Requirement (Brand asked first, conditional sub-options for Fresh) */}
-              <div className="rounded-2xl border border-go-rule bg-go-subtle p-4 space-y-3">
-                <span className="block text-xs font-bold uppercase tracking-wider text-go-teal">
-                  Brand &amp; Temperature Profile
-                </span>
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="block font-medium text-go-ink">
-                    Which Brand is this Outlet for? *
-                    <select
-                      className={`${field} mt-1`}
-                      value={newOutletBrand}
-                      onChange={(e) => handleBrandChange(e.target.value as "Fresh" | "Style" | "Tech")}
-                    >
-                      <option value="Fresh">Fresh (Food, Dairy &amp; Groceries)</option>
-                      <option value="Style">Style (Apparel &amp; Fashion)</option>
-                      <option value="Tech">Tech (Electronics &amp; Appliances)</option>
-                    </select>
-                  </label>
-
-                  {newOutletBrand === "Fresh" ? (
-                    <label className="block font-medium text-go-ink">
-                      Fresh Sub-Category / Temperature *
-                      <select
-                        className={`${field} mt-1`}
-                        value={newOutletTempZone}
-                        onChange={(e) => setNewOutletTempZone(e.target.value as "Ambient Fresh" | "Chilled (Refrigerated)")}
-                      >
-                        <option value="Ambient Fresh">Ambient Fresh (Dry &amp; packaged foods)</option>
-                        <option value="Chilled (Refrigerated)">Chilled Refrigerated (Cold chain &amp; perishables)</option>
-                      </select>
-                    </label>
-                  ) : (
-                    <div>
-                      <span className="block text-xs font-medium text-go-secondary">
-                        Temperature Zone Requirement
-                      </span>
-                      <div className="mt-1 flex items-center gap-2 rounded-xl border border-[#e1ece5] bg-white px-3 py-2 text-sm text-[#3b5246]">
-                        <span className="size-2 rounded-full bg-go-teal"></span>
-                        <span>Standard Ambient ({newOutletBrand} merchandise)</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* District & Assigned Depot */}
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="block font-medium text-go-ink">
-                  District *
-                  <select
-                    className={`${field} mt-1`}
-                    value={newOutletDistrict}
-                    onChange={(e) => setNewOutletDistrict(e.target.value)}
-                  >
-                    <option value="Colombo">Colombo</option>
-                    <option value="Gampaha">Gampaha</option>
-                    <option value="Kalutara">Kalutara</option>
-                    <option value="Kandy">Kandy</option>
-                    <option value="Matale">Matale</option>
-                    <option value="Nuwara Eliya">Nuwara Eliya</option>
-                    <option value="Kurunegala">Kurunegala</option>
-                  </select>
-                </label>
-
-                <label className="block font-medium text-go-ink">
-                  Assigned Servicing Depot *
-                  <select
-                    className={`${field} mt-1`}
-                    value={newOutletDepot}
-                    onChange={(e) => setNewOutletDepot(e.target.value)}
-                  >
-                    <option value="PELIYAGODA">Peliyagoda (Western)</option>
-                    <option value="KANDY">Kandy (Central)</option>
-                  </select>
-                </label>
-              </div>
-
-              {/* Dock Infrastructure */}
-              <div className="rounded-2xl border border-go-rule bg-go-subtle p-4 space-y-3">
-                <span className="block text-xs font-bold uppercase tracking-wider text-go-teal">
-                  Dock Availability &amp; Vehicle Access
-                </span>
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="block font-medium text-go-ink">
-                    Dock Type *
-                    <select
-                      className={`${field} mt-1`}
-                      value={newOutletDockType}
-                      onChange={(e) => {
-                        const dt = e.target.value as "rear_dock" | "street" | "mall_bay";
-                        setNewOutletDockType(dt);
-                        if (dt === "mall_bay") {
-                          setNewOutletMaxVehicleType("Van Only");
-                        } else {
-                          setNewOutletMaxVehicleType("Van & Truck");
-                        }
-                      }}
-                    >
-                      <option value="rear_dock">Rear loading dock</option>
-                      <option value="street">Street kerbside unload</option>
-                      <option value="mall_bay">Mall enclosed bay</option>
-                    </select>
-                  </label>
-
-                  <label className="block font-medium text-go-ink">
-                    Permitted Transport Vehicle *
-                    <select
-                      className={`${field} mt-1`}
-                      value={newOutletMaxVehicleType}
-                      onChange={(e) => setNewOutletMaxVehicleType(e.target.value as "Van & Truck" | "Van Only" | "Medium Rigid Truck Only")}
-                    >
-                      <option value="Van & Truck">Van &amp; Heavy Truck Allowed</option>
-                      <option value="Van Only">Van Only (Height / Access Restricted)</option>
-                      <option value="Medium Rigid Truck Only">Medium Rigid Truck Only</option>
-                    </select>
-                  </label>
-                </div>
-
-                <label className="block font-medium text-go-ink">
-                  Dock &amp; Ramp Facility Description
-                  <input
-                    type="text"
-                    className={`${field} mt-1`}
-                    placeholder="e.g. Hydraulic dock leveler with pallet ramp access."
-                    value={newOutletDockDetails}
-                    onChange={(e) => setNewOutletDockDetails(e.target.value)}
-                  />
-                </label>
-              </div>
-
-              {/* Delivery Window Open & Close */}
-              <div className="rounded-2xl border border-go-rule bg-go-subtle p-4 space-y-3">
-                <span className="block text-xs font-bold uppercase tracking-wider text-go-teal">
-                  Delivery Time Window (Receiving Hours)
-                </span>
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="block font-medium text-go-ink">
-                    Window Opening Time *
-                    <input
-                      type="time"
-                      className={`${field} mt-1`}
-                      value={newOutletWindowOpen}
-                      onChange={(e) => setNewOutletWindowOpen(e.target.value)}
-                    />
-                  </label>
-
-                  <label className="block font-medium text-go-ink">
-                    Window Closing Time *
-                    <input
-                      type="time"
-                      className={`${field} mt-1`}
-                      value={newOutletWindowClose}
-                      onChange={(e) => setNewOutletWindowClose(e.target.value)}
-                    />
-                  </label>
-                </div>
-
-                <label className="block font-medium text-go-ink">
-                  Window Notes / Receiving Gate Instructions
-                  <input
-                    type="text"
-                    className={`${field} mt-1`}
-                    placeholder="e.g. Early morning slot before retail opening at 08:30."
-                    value={newOutletWindowNotes}
-                    onChange={(e) => setNewOutletWindowNotes(e.target.value)}
-                  />
-                </label>
-              </div>
-
-              {/* Store Manager Details */}
-              <div className="rounded-2xl border border-go-rule bg-go-subtle p-4 space-y-3">
-                <span className="block text-xs font-bold uppercase tracking-wider text-go-teal">
-                  Assigned Store Manager
-                </span>
-
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <label className="block font-medium text-go-ink">
-                    Manager Name
-                    <input
-                      type="text"
-                      className={`${field} mt-1`}
-                      placeholder="e.g. Kasun Fernando"
-                      value={newOutletStoreManager}
-                      onChange={(e) => setNewOutletStoreManager(e.target.value)}
-                    />
-                  </label>
-
-                  <label className="block font-medium text-go-ink">
-                    Manager Phone
-                    <input
-                      type="text"
-                      className={`${field} mt-1`}
-                      placeholder="e.g. +94 77 123 4567"
-                      value={newOutletManagerPhone}
-                      onChange={(e) => setNewOutletManagerPhone(e.target.value)}
-                    />
-                  </label>
-
-                  <label className="block font-medium text-go-ink">
-                    Manager Email
-                    <input
-                      type="email"
-                      className={`${field} mt-1`}
-                      placeholder="e.g. kasun.f@waypoint.lk"
-                      value={newOutletManagerEmail}
-                      onChange={(e) => setNewOutletManagerEmail(e.target.value)}
-                    />
-                  </label>
-                </div>
-              </div>
-
-              {/* Address */}
               <label className="block font-medium text-go-ink">
-                Store Physical Address
-                <input
-                  type="text"
-                  className={`${field} mt-1`}
-                  placeholder="e.g. 104 Main Street, Maharagama"
-                  value={newOutletAddress}
-                  onChange={(e) => setNewOutletAddress(e.target.value)}
-                />
+                Outlet code *
+                <input type="text" className={`${field} mt-1 uppercase`}
+                  value={newOutletId} onChange={(e) => setNewOutletId(e.target.value)} />
               </label>
+              <label className="block font-medium text-go-ink">
+                Brand *
+                <select className={`${field} mt-1`} value={newOutletBrand}
+                  onChange={(e) => setNewOutletBrand(e.target.value as "Fresh" | "Style" | "Tech")}>
+                  <option value="Fresh">Fresh</option>
+                  <option value="Style">Style</option>
+                  <option value="Tech">Tech</option>
+                </select>
+              </label>
+              <label className="block font-medium text-go-ink">
+                District *
+                <select className={`${field} mt-1`} value={newOutletDistrict}
+                  onChange={(e) => setNewOutletDistrict(e.target.value)}>
+                  {Object.keys(districtDepots).sort().map((district) => <option key={district} value={district}>{district}</option>)}
+                </select>
+              </label>
+              <p className="text-xs text-go-secondary">
+                The servicing depot comes from the published district assignment.
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block font-medium text-go-ink">
+                  Dock type *
+                  <select className={`${field} mt-1`} value={newOutletDockType}
+                    onChange={(e) => setNewOutletDockType(e.target.value as "rear_dock" | "street" | "mall_bay")}>
+                    <option value="rear_dock">Rear loading dock</option>
+                    <option value="street">Street kerbside</option>
+                    <option value="mall_bay">Mall enclosed bay</option>
+                  </select>
+                </label>
+                <label className="block font-medium text-go-ink">
+                  Vehicle access *
+                  <select className={`${field} mt-1`} value={newOutletMaxVehicleType}
+                    onChange={(e) => setNewOutletMaxVehicleType(e.target.value as "Van & Truck" | "Van Only" | "Medium Rigid Truck Only")}>
+                    <option value="Van & Truck">Van and truck</option>
+                    <option value="Van Only">Van only</option>
+                  </select>
+                </label>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block font-medium text-go-ink">
+                  Window opens *
+                  <input type="time" className={`${field} mt-1`} value={newOutletWindowOpen}
+                    onChange={(e) => setNewOutletWindowOpen(e.target.value)} />
+                </label>
+                <label className="block font-medium text-go-ink">
+                  Window closes *
+                  <input type="time" className={`${field} mt-1`} value={newOutletWindowClose}
+                    onChange={(e) => setNewOutletWindowClose(e.target.value)} />
+                </label>
+              </div>
+              {newOutletDockType === "mall_bay" &&
+                <p className="text-xs text-go-secondary">The mall access window will match the delivery window.</p>}
+              {createError && <p role="alert" className="text-sm text-go-danger">{createError}</p>}
             </div>
-
             {/* Modal Actions */}
             <div className="mt-6 flex flex-wrap justify-end gap-3 border-t border-go-subtle pt-4">
               <button
@@ -986,10 +782,10 @@ export function OutletsScreen({
               <button
                 type="button"
                 className={primary}
-                disabled={!newOutletId.trim() && !newOutletName.trim()}
+                disabled={creating || !newOutletId.trim() || !districtDepots[newOutletDistrict]}
                 onClick={handleCreateOutlet}
               >
-                Create outlet
+                {creating ? "Creating..." : "Create outlet"}
               </button>
             </div>
           </div>

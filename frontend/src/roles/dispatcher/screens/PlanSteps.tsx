@@ -1,11 +1,11 @@
 "use client";
 
-import type { ReactNode } from "react";
 import { Icon, PrimaryButton } from "@shared/ui";
 
 // Figma "Plan" step bar: Decide, View plan, Publish, with the step you are on
 // filled, a check on a step that is done, a progress line under the bar, and one
-// black button on the right that takes you to the next step.
+// black button on the right: the next step, or on Publish the publish itself.
+// It looks the same on every step; what a step adds lives in its own card.
 
 export type Tab = "decide" | "view" | "publish" | "compare";
 type Step = "decide" | "view" | "publish";
@@ -19,8 +19,7 @@ export default function PlanSteps({
   view,
   publish,
   decideDone,
-  nextLabel,
-  actions,
+  next,
   published = false,
 }: {
   tab: Tab;
@@ -30,10 +29,8 @@ export default function PlanSteps({
   publish: string;
   /** Every order that needed a decision has one. */
   decideDone: boolean;
-  /** The button on the right; omitted on the last step. */
-  nextLabel: string | null;
-  /** The step's own buttons in place of the next-step button (Publish: Publish plan, Edit plan). */
-  actions?: ReactNode;
+  /** The one button on the right. */
+  next: { label: string; onClick: () => void; disabled?: boolean };
   /** The plan is out: every step shows done. */
   published?: boolean;
 }): React.JSX.Element {
@@ -43,14 +40,13 @@ export default function PlanSteps({
     view: ["View plan", view],
     publish: ["Publish", publish],
   };
-  const next = ORDER[Math.min(current + 1, ORDER.length - 1)]!;
 
   return (
     <div className="relative w-full overflow-hidden rounded-go-card-l bg-go-card p-2">
       <div className="flex w-full flex-wrap items-center gap-2">
         <div role="tablist" aria-label="Plan steps" className="flex flex-1 flex-wrap gap-1">
           {ORDER.map((id, index) => {
-            const selected = id === tab || (tab === "compare" && id === "view");
+            const selected = id === tab;
             const done = (id === "decide" ? decideDone && tab !== "decide" : index < current) || (published && !selected);
             return (
               <button
@@ -75,7 +71,9 @@ export default function PlanSteps({
             );
           })}
         </div>
-        {actions ?? (nextLabel && <PrimaryButton onClick={() => onTab(next)}>{nextLabel}</PrimaryButton>)}
+        <PrimaryButton disabled={next.disabled} onClick={next.onClick}>
+          {next.label}
+        </PrimaryButton>
       </div>
       <span aria-hidden className="absolute bottom-0 left-0 h-[3px] bg-go-teal transition-[width]" style={{ width: `${((current + 1) / ORDER.length) * 100}%` }} />
     </div>

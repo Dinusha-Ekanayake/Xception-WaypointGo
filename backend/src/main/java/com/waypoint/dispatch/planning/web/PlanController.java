@@ -165,6 +165,17 @@ public class PlanController {
     return plans.previewSwap(actor, out, in, orders == null ? List.of() : orders);
   }
 
+  /**
+   * A trip holding exactly the orders given, in that order (comma separated;
+   * none removes the trip), timed and checked against the vehicle's day.
+   */
+  @GetMapping("/preview/trip")
+  public TripPreview previewTripEdit(
+      @RequestParam UUID trip, @RequestParam(required = false) List<UUID> orders, HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:plan:trip:" + trip);
+    return plans.previewTripEdit(actor, trip, orders == null ? List.of() : orders);
+  }
+
   /** A trip with its stops in the order given (every order of it, comma separated), timed and checked. */
   @GetMapping("/preview/sequence")
   public TripPreview previewSequence(

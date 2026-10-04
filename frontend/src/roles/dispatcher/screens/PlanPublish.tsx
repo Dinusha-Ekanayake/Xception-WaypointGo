@@ -185,6 +185,16 @@ export default function PlanPublish({
           </div>
         )}
 
+        {published && !revising && (
+          <div className="flex flex-wrap items-center gap-2 border-t border-go-rule pt-4">
+            <SecondaryButton disabled={!online} onClick={() => onRevising(true)}>
+              Edit plan
+            </SecondaryButton>
+            <SecondaryButton onClick={() => (window.location.hash = "/live")}>Watch the run</SecondaryButton>
+            <p className="text-xs text-go-secondary">Editing starts a revision; drivers and stores keep this plan until the update is sent.</p>
+          </div>
+        )}
+
         {published && revising && (
           <div className="flex flex-col gap-2 rounded-go-card bg-go-surface p-3">
             <p className="text-[13px] text-go-ink">

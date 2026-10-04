@@ -132,10 +132,6 @@ export function RolesScreen({
               <dd className="font-mono text-sm font-bold text-go-ink">{selectedRole.roleCode}</dd>
             </div>
             <div>
-              <dt className="font-semibold text-go-secondary">Resource URI</dt>
-              <dd className="font-mono text-xs text-go-teal">wpt:iam:role:{selectedRole.roleCode}</dd>
-            </div>
-            <div>
               <dt className="font-semibold text-go-secondary">Classification</dt>
               <dd>
                 <Badge tone={roleBadgeTone(selectedRole.roleCode)}>
@@ -326,7 +322,7 @@ export function ActionsScreen({
             <div>
               <dt className="font-semibold text-go-secondary">Authorization note</dt>
               <dd className="text-xs text-go-secondary">
-                Policies matching <code>Action: &quot;{selectedAction.action}&quot;</code> are evaluated against requests on <code>wpt:{selectedAction.action.split(":")[0]}:*</code>. Unregistered actions fail closed.
+                This action applies only where the member has the required policy and place assignment. Unregistered actions are denied.
               </dd>
             </div>
           </dl>

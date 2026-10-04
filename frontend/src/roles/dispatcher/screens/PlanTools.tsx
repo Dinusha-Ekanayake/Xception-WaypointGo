@@ -6,14 +6,26 @@ import { clock } from "@shared/wording";
 
 // The Plan header's controls, as Figma draws them: which plan you are looking at
 // (the working draft, the engine's own plan, a saved one), Save snapshot,
-// Regenerate with its two ways, and Compare. The depot is the sidebar's scope;
-// the day is a field drawn like the plan picker, so a dispatcher can plan
-// tomorrow without leaving the screen.
+// Regenerate with its two ways, and Compare, in each depot's section bar. The
+// depot is the sidebar's scope; the day is the page header's DayField.
+
+/** The day being planned, drawn like the plan picker; it sits in the page header. */
+export function DayField({ date, onDate }: { date: string; onDate: (date: string) => void }): React.JSX.Element {
+  return (
+    <label className="flex min-w-[150px] flex-col rounded-go-card bg-go-card px-4 py-1.5 shadow-go-card">
+      <span className="text-[10px] font-medium tracking-wide text-go-secondary uppercase">Day</span>
+      <input
+        type="date"
+        aria-label="Day to plan"
+        value={date}
+        onChange={(event) => event.target.value && onDate(event.target.value)}
+        className="bg-transparent text-sm font-medium text-go-ink outline-none"
+      />
+    </label>
+  );
+}
 
 export default function PlanTools({
-  date,
-  onDate,
-  hasPlan,
   draft,
   workingLabel,
   snapshots,
@@ -26,9 +38,6 @@ export default function PlanTools({
   onCompare,
   comparing = false,
 }: {
-  date: string;
-  onDate: (date: string) => void;
-  hasPlan: boolean;
   /** The working plan is an open draft, so it can be saved, regenerated and returned to a saved plan. */
   draft: boolean;
   workingLabel: string;
@@ -58,18 +67,7 @@ export default function PlanTools({
 
   return (
     <>
-      <label className="flex min-w-[150px] flex-col rounded-go-card bg-go-card px-4 py-1.5 shadow-go-card">
-        <span className="text-[10px] font-medium tracking-wide text-go-secondary uppercase">Day</span>
-        <input
-          type="date"
-          aria-label="Day to plan"
-          value={date}
-          onChange={(event) => event.target.value && onDate(event.target.value)}
-          className="bg-transparent text-sm font-medium text-go-ink outline-none"
-        />
-      </label>
-      {hasPlan && (
-        <>
+      <span className="flex flex-wrap items-center gap-2.5">
           <Menu
             label="Plan"
             align="right"
@@ -107,8 +105,7 @@ export default function PlanTools({
             }>
             Compare
           </button>
-        </>
-      )}
+      </span>
     </>
   );
 }

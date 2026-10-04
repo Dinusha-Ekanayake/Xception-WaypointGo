@@ -504,6 +504,42 @@ class PlanningRunTest {
   }
 
   @Test
+  void aTripEditAddsADeferredOrderTakesOneOffAndFixesTheOrderInOneVersion() {
+    PlanningRun plan = draftWithAmbientDeferred();
+    PlanningRun edited =
+        plan.editTrip(UUID.randomUUID(), 2, "T1", 1, List.of(d, b), "outlet waited two days", DISPATCHER, REGISTRY, CONTEXT);
+
+    Trip trip = edited.days().get(0).trip(1);
+    assertEquals(List.of(d.orderId(), b.orderId()), trip.sequence());
+    assertEquals(AllocationDecision.SERVED, edited.decisionFor(d.orderId()).orElseThrow().decision());
+    assertEquals(Source.OVERRIDE, edited.markOf(d.orderId()).orElseThrow().source());
+    OrderDecision off = edited.decisionFor(a.orderId()).orElseThrow();
+    assertEquals(AllocationDecision.DEFERRED, off.decision());
+    assertEquals(DISPATCHER, edited.deferredBy().get(a.orderId()), "rule 8: who");
+    assertTrue(edited.verify(everyOrder(), CONTEXT, REGISTRY).isEmpty(), "the whole plan still passes");
+  }
+
+  @Test
+  void anEmptyTripEditRemovesTheTripAndDefersItsOrders() {
+    PlanningRun removed = draft().editTrip(UUID.randomUUID(), 2, "T1", 1, List.of(), "vehicle off the road", DISPATCHER, REGISTRY, CONTEXT);
+    assertTrue(removed.days().stream().allMatch(day -> day.trips().isEmpty()), removed.days().toString());
+    assertEquals(AllocationDecision.DEFERRED, removed.decisionFor(a.orderId()).orElseThrow().decision());
+    assertEquals(AllocationDecision.DEFERRED, removed.decisionFor(b.orderId()).orElseThrow().decision());
+  }
+
+  @Test
+  void aTripEditThatBreaksARuleIsRefusedWholeWithThatRule() {
+    PlanningRun before = draft();
+    DomainException refused =
+        assertThrows(
+            DomainException.class,
+            () -> before.editTrip(UUID.randomUUID(), 2, "T1", 1, List.of(a, b, c), "add the chilled one", DISPATCHER, REGISTRY, CONTEXT));
+    assertEquals(ErrorCode.CONSTRAINT_VIOLATED, refused.code());
+    assertTrue(refused.rules().contains("R-PLN-02"), refused.rules().toString());
+    assertEquals(AllocationDecision.SERVED, before.decisionFor(a.orderId()).orElseThrow().decision(), "nothing half done");
+  }
+
+  @Test
   void aStopOrderMustNameEveryOrderOfTheTripOnce() {
     PlanningRun plan = draft();
     assertEquals(

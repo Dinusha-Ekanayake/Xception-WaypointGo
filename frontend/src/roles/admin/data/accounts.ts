@@ -4,6 +4,10 @@ import type { Page } from "@shared/domain/common";
 import type { AccountView } from "@shared/domain/identity";
 import type { Member, Persona } from "../access/model";
 
+export async function fetchOwnProfile(): Promise<{ userId: string; rowVersion: number }> {
+  return request<{ userId: string; rowVersion: number }>("/api/profile");
+}
+
 /**
  * Fetch a paged list of visible accounts from the backend Identity module.
  * Admin callers receive operational accounts; privileged accounts are excluded by the backend SQL.

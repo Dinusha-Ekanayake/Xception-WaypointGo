@@ -223,11 +223,11 @@ export default function AccessDemo({ displayName = "Administrator" }: { displayN
   };
 
   const peopleNav = (compact: boolean) => <>
-    <button type="button" aria-expanded={peopleOpen} onClick={() => { setPeopleOpen(true); navigate("people"); }}
+    <button type="button" aria-expanded={peopleOpen} onClick={() => { if (peopleOpen) setPeopleOpen(false); else navigate("people"); }}
       className={compact
         ? cx("flex min-h-11 shrink-0 items-center gap-2 rounded-full px-3.5 text-[15px] text-go-ink", PEOPLE_TABS.includes(route.tab) ? "bg-go-mint font-medium" : "bg-go-subtle")
         : cx("flex w-full items-center gap-3 rounded-go-card-l px-3.5 py-2.5 text-[15px] text-go-ink", PEOPLE_TABS.includes(route.tab) ? "bg-go-mint font-medium" : "hover:bg-go-subtle")}>
-      <Icon name="users" /><span className="min-w-0 flex-1 text-left">People</span>
+      <Icon name="users" /><span className="min-w-0 flex-1 text-left">People</span><span className={cx("inline-flex size-3.5 transition-transform", !peopleOpen && "-rotate-90")}><Icon name="chevron-down" /></span>
     </button>
     {peopleOpen && <div className={compact ? "flex gap-1.5" : "ml-5 flex flex-col gap-1 border-l border-go-rule pl-3"}>
       {PEOPLE_NAV.map((item) => <a key={item.tab} href={`#${item.tab}`} aria-current={route.tab === item.tab ? "page" : undefined}
@@ -241,11 +241,11 @@ export default function AccessDemo({ displayName = "Administrator" }: { displayN
   </>;
 
   const tripsNav = (compact: boolean) => <>
-    <button type="button" aria-expanded={tripsOpen} onClick={() => { setTripsOpen(true); navigate("trips_planned"); }}
+    <button type="button" aria-expanded={tripsOpen} onClick={() => { if (tripsOpen) setTripsOpen(false); else navigate("trips_planned"); }}
       className={compact
         ? cx("flex min-h-11 shrink-0 items-center gap-2 rounded-full px-3.5 text-[15px] text-go-ink", TRIPS_TABS.includes(route.tab) ? "bg-go-mint font-medium" : "bg-go-subtle")
         : cx("flex w-full items-center gap-3 rounded-go-card-l px-3.5 py-2.5 text-[15px] text-go-ink", TRIPS_TABS.includes(route.tab) ? "bg-go-mint font-medium" : "hover:bg-go-subtle")}>
-      <Icon name="plan" /><span className="min-w-0 flex-1 text-left">Trips</span>
+      <Icon name="plan" /><span className="min-w-0 flex-1 text-left">Trips</span><span className={cx("inline-flex size-3.5 transition-transform", !tripsOpen && "-rotate-90")}><Icon name="chevron-down" /></span>
     </button>
     {tripsOpen && <div className={compact ? "flex gap-1.5" : "ml-5 flex flex-col gap-1 border-l border-go-rule pl-3"}>
       {TRIPS_NAV.map((item) => <a key={item.tab} href={`#${item.tab}`} aria-current={route.tab === item.tab ? "page" : undefined}
@@ -298,7 +298,6 @@ export default function AccessDemo({ displayName = "Administrator" }: { displayN
         <TripsScreen
           state={state}
           activeSubTab={route.tab === "trips_live" ? "live" : "planned"}
-          onSubTabChange={(sub) => navigate(sub === "live" ? "trips_live" : "trips_planned")}
           onNavigateTab={(target) => navigate(target)}
         />
       )}

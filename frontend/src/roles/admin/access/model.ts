@@ -63,6 +63,7 @@ export const CAPABILITIES: Capability[] = [
   c("plan:Replan", "Replan affected trips", "Rebuild affected work after a vehicle change.", "Planning", false, ["dispatcher"]),
   c("plan:Revise", "Revise published plan", "Create a new version from a published plan.", "Planning", false, ["dispatcher"]),
   c("plan:Swap", "Swap orders on a trip", "Trade a served order for a deferred one, whole or not at all.", "Planning", false, ["dispatcher"]),
+  c("plan:EditTrip", "Edit a trip", "Set what one trip carries and in what order, or remove it, judged whole.", "Planning", false, ["dispatcher"]),
   c("plan:KeepDeferred", "Keep orders deferred", "Decide that deferred orders stay deferred, with a reason.", "Planning", false, ["dispatcher"]),
   c("plan:Lock", "Hold an order on its trip", "A regenerate keeps a held order where it is.", "Planning", false, ["dispatcher"]),
   c("plan:Unlock", "Release a held order", "Let a held order be moved again.", "Planning", false, ["dispatcher"]),

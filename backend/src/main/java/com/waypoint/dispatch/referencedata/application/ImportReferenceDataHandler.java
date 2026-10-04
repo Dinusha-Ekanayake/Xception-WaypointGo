@@ -46,6 +46,7 @@ public class ImportReferenceDataHandler implements CommandHandler {
   private final Database database;
   private final Metrics metrics;
   private final AppProperties properties;
+  private final ManagedReferencePublisher additions;
 
   public ImportReferenceDataHandler(
       CsvReferenceImporter importer,
@@ -54,7 +55,8 @@ public class ImportReferenceDataHandler implements CommandHandler {
       ReferenceCache cache,
       Database database,
       Metrics metrics,
-      AppProperties properties) {
+      AppProperties properties,
+      ManagedReferencePublisher additions) {
     this.importer = importer;
     this.writer = writer;
     this.reader = reader;
@@ -62,6 +64,7 @@ public class ImportReferenceDataHandler implements CommandHandler {
     this.database = database;
     this.metrics = metrics;
     this.properties = properties;
+    this.additions = additions;
   }
 
   /** What an import did, so the caller can tell a publish from a no-op. */
@@ -128,17 +131,25 @@ public class ImportReferenceDataHandler implements CommandHandler {
   }
 
   private ImportOutcome publish(CsvReferenceImporter.Staged staged, UUID importedBy) {
+    additions.lockPublication();
+    var managed = additions.additions();
+    String contentHash = additions.importHash(staged.contentHash(), managed);
     // Identical content is a no-op by hash, not a new version of the world.
-    var existing = writer.findByHash(staged.contentHash());
+    var existing = writer.findByHash(contentHash);
     if (existing.isPresent()) {
       metrics.increment("waypoint.reference.import.unchanged");
       log.info("Reference data unchanged; version {} already holds it", existing.get());
-      reader.load(existing.get()).ifPresent(cache::publish);
+      if (!reader.currentVersionId().filter(existing.get()::equals).isPresent()) {
+        writer.makeCurrent(existing.get());
+      }
+      reader.load(existing.get()).ifPresent(snapshot -> database.afterCommit(() -> cache.publish(snapshot)));
       return new ImportOutcome(existing.get(), false, 0, 0);
     }
 
-    UUID versionId = writer.insertVersion(staged.sourceLabel(), staged.contentHash(), importedBy);
-    writer.writeRows(versionId, staged.snapshot());
+    ReferenceSnapshot merged = additions.overlay(staged.snapshot(), managed);
+    additions.validate(merged);
+    UUID versionId = writer.insertVersion(staged.sourceLabel(), contentHash, importedBy);
+    writer.writeRows(versionId, merged);
     writer.writeSeries(versionId, staged.trafficSpeed(), staged.roadConditions());
     writer.makeCurrent(versionId);
 
@@ -149,7 +160,7 @@ public class ImportReferenceDataHandler implements CommandHandler {
                 () ->
                     new IllegalStateException(
                         "Version " + versionId + " was written but could not be read back"));
-    cache.publish(published);
+    database.afterCommit(() -> cache.publish(published));
     metrics.increment("waypoint.reference.import.published");
     return new ImportOutcome(
         versionId, true, published.allOutlets().size(), published.allVehicles().size());
