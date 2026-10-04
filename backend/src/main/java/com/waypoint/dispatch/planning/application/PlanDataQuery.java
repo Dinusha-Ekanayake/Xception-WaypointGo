@@ -543,7 +543,7 @@ public class PlanDataQuery implements PlanQuery {
 
   private TripPreview sequencePreview(UUID tripId, List<UUID> orderIds) {
     RunRow row =
-        plans.runsWithTrip(tripId).stream().findFirst()
+        draftWithTrip(tripId)
             .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No live plan carries trip " + tripId));
     if (row.status() != PlanStatus.DRAFT) {
       throw new DomainException(
@@ -558,7 +558,7 @@ public class PlanDataQuery implements PlanQuery {
 
   private TripPreview tripEditPreview(UUID tripId, List<UUID> orderIds) {
     RunRow row =
-        plans.runsWithTrip(tripId).stream().findFirst()
+        draftWithTrip(tripId)
             .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No live plan carries trip " + tripId));
     if (row.status() != PlanStatus.DRAFT) {
       throw new DomainException(
@@ -584,7 +584,7 @@ public class PlanDataQuery implements PlanQuery {
 
   private PlanViews.StopOrderSuggestion stopOrderSuggestion(UUID tripId, List<UUID> orderIds) {
     RunRow row =
-        plans.runsWithTrip(tripId).stream().findFirst()
+        draftWithTrip(tripId)
             .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No live plan carries trip " + tripId));
     if (row.status() != PlanStatus.DRAFT) {
       throw new DomainException(
@@ -672,6 +672,17 @@ public class PlanDataQuery implements PlanQuery {
       return "Late stops arrive " + before.minutesLate().subtract(after.minutesLate()).setScale(0, java.math.RoundingMode.HALF_UP) + " min closer to their windows.";
     }
     return "Same windows kept, and the trip is back " + saved + " min sooner.";
+  }
+
+  /**
+   * The run a draft-only preview works on: the newest draft carrying the trip
+   * when there is one, so a revision of a published plan previews its own
+   * draft rather than the published plan that shares the trip's id (which the
+   * draft check below would refuse); else whatever live run carries it.
+   */
+  private Optional<RunRow> draftWithTrip(UUID tripId) {
+    List<RunRow> runs = plans.runsWithTrip(tripId);
+    return runs.stream().filter(r -> r.status() == PlanStatus.DRAFT).findFirst().or(() -> runs.stream().findFirst());
   }
 
   /** The proposed trip as it would run: stops in order with their arrivals, and the registry's checks. */
