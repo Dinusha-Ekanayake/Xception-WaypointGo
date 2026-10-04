@@ -41,6 +41,7 @@ export function VehiclesScreen() {
 
   // New Vehicle form draft
   const [newVehicleId, setNewVehicleId] = useState("");
+  const [newVehicleBrand, setNewVehicleBrand] = useState<"Fresh" | "Style" | "Tech">("Fresh");
   const [newVehicleType, setNewVehicleType] = useState<"Van" | "Truck">("Van");
   const [newVehicleDepot, setNewVehicleDepot] = useState<string>("");
   const [newVehicleTemp, setNewVehicleTemp] = useState<string>("Ambient Fresh");
@@ -109,13 +110,22 @@ export function VehiclesScreen() {
     };
   }, [depot, status, query]);
 
+  const handleBrandChange = (nextBrand: "Fresh" | "Style" | "Tech") => {
+    setNewVehicleBrand(nextBrand);
+    if (nextBrand !== "Fresh") {
+      setNewVehicleTemp("Ambient");
+    } else {
+      setNewVehicleTemp("Ambient Fresh");
+    }
+  };
+
   const handleVehicleTypeChange = (nextType: "Van" | "Truck") => {
     setNewVehicleType(nextType);
     if (nextType === "Truck") {
       setNewVehicleWeightCap("5510");
       setNewVehicleVolumeCap("26.4");
       setNewVehicleFuelQuota("480");
-      setNewVehicleEfficiency("4.7");
+      setNewVehicleEfficiency(newVehicleTemp.includes("Refrigerated") ? "4.7" : "5.6");
     } else {
       setNewVehicleWeightCap("1200");
       setNewVehicleVolumeCap("8.5");
@@ -132,7 +142,7 @@ export function VehiclesScreen() {
       await createAdminVehicle({
         vehicleId: newVehicleId.trim().toUpperCase(), depotCode: newVehicleDepot,
         type: newVehicleType.toLowerCase(),
-        temperature: newVehicleTemp === "Chilled (Refrigerated)" ? "reefer" : "ambient",
+        temperature: (newVehicleBrand === "Fresh" && newVehicleTemp.includes("Refrigerated")) ? "reefer" : "ambient",
         weightCapKg: newVehicleWeightCap, volumeCapM3: newVehicleVolumeCap,
         fuelType: newVehicleFuelType.toLowerCase(), kmPerL: newVehicleEfficiency,
         weeklyFuelQuotaL: newVehicleFuelQuota,
@@ -140,7 +150,8 @@ export function VehiclesScreen() {
       saved = true;
       const page = await fetchAdminVehicles({ limit: 100 });
       setVehiclesList(page.items.map((v) => ({
-        id: v.vehicleId, brand: "Make unavailable",
+        id: v.vehicleId,
+        brand: v.vehicleId === newVehicleId.trim().toUpperCase() ? newVehicleBrand : "Waypoint Fleet",
         type: v.type.toLowerCase() === "truck" ? "Truck" : "Van", depot: v.depot,
         weightCapKg: Number(v.weightCapKg), volumeCapM3: Number(v.volumeCapM3),
         fuelType: v.fuelType, weeklyFuelQuotaL: Number(v.weeklyFuelQuotaL),
@@ -163,6 +174,7 @@ export function VehiclesScreen() {
     // Reset vehicle form
     if (!saved) return;
     setNewVehicleId("");
+    setNewVehicleBrand("Fresh");
     setNewVehicleType("Van");
     setNewVehicleTemp("Ambient Fresh");
     setNewVehicleWeightCap("1200");
@@ -353,6 +365,21 @@ export function VehiclesScreen() {
                         <span className="text-base font-semibold text-go-ink">
                           {item.id}
                         </span>
+                        {item.brand && item.brand !== "Make unavailable" && (
+                          <span
+                            className={`rounded-md px-2 py-0.5 text-xs font-semibold ${
+                              item.brand === "Fresh"
+                                ? "bg-[#e6f4ea] text-[#137333]"
+                                : item.brand === "Style"
+                                ? "bg-[#f3e8fd] text-[#7e22ce]"
+                                : item.brand === "Tech"
+                                ? "bg-[#e0f2fe] text-[#0369a1]"
+                                : "bg-go-subtle text-go-secondary"
+                            }`}
+                          >
+                            {item.brand}
+                          </span>
+                        )}
                         <span className="rounded-md bg-go-subtle px-2 py-0.5 text-xs font-semibold text-go-ink">
                           {item.type}
                         </span>
@@ -557,17 +584,21 @@ export function VehiclesScreen() {
                 </label>
               </div>
 
-              <label className="block font-medium text-go-ink">
-                Temperature capability *
-                <select className={`${field} mt-1`} value={newVehicleTemp}
-                  onChange={(e) => setNewVehicleTemp(e.target.value)}>
-                  <option value="Ambient Fresh">Ambient</option>
-                  <option value="Chilled (Refrigerated)">Refrigerated</option>
-                </select>
-              </label>
-
-              {/* Vehicle type */}
+              {/* Brand Allocation & Vehicle Type */}
               <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block font-medium text-go-ink">
+                  Brand Allocation *
+                  <select
+                    className={`${field} mt-1`}
+                    value={newVehicleBrand}
+                    onChange={(e) => handleBrandChange(e.target.value as "Fresh" | "Style" | "Tech")}
+                  >
+                    <option value="Fresh">Waypoint Fresh (Groceries, Chilled &amp; Ambient)</option>
+                    <option value="Style">Waypoint Style (Apparel &amp; Garments)</option>
+                    <option value="Tech">Waypoint Tech (Appliances &amp; Electronics)</option>
+                  </select>
+                </label>
+
                 <label className="block font-medium text-go-ink">
                   Vehicle Type *
                   <select
@@ -575,12 +606,36 @@ export function VehiclesScreen() {
                     value={newVehicleType}
                     onChange={(e) => handleVehicleTypeChange(e.target.value as "Van" | "Truck")}
                   >
-                    <option value="Van">Van (Small / Medium fleet)</option>
-                    <option value="Truck">Truck (Heavy / Multi-ton fleet)</option>
+                    <option value="Van">Van (Small / Medium fleet · narrow access)</option>
+                    <option value="Truck">Truck (Heavy / Multi-ton fleet · Docks &amp; stores)</option>
                   </select>
                 </label>
-
               </div>
+
+              {/* Temperature capability (Only selectable for Fresh brand) */}
+              {newVehicleBrand === "Fresh" ? (
+                <label className="block font-medium text-go-ink">
+                  Temperature capability *
+                  <select
+                    className={`${field} mt-1`}
+                    value={newVehicleTemp}
+                    onChange={(e) => setNewVehicleTemp(e.target.value)}
+                  >
+                    <option value="Ambient Fresh">Ambient</option>
+                    <option value="Chilled (Refrigerated)">Refrigerated (Chilled)</option>
+                  </select>
+                </label>
+              ) : (
+                <div className="rounded-2xl border border-go-rule bg-go-subtle p-3.5 flex items-center justify-between text-xs">
+                  <div>
+                    <span className="font-semibold text-go-ink">Temperature capability: </span>
+                    <span className="font-bold text-go-teal">Ambient</span>
+                  </div>
+                  <span className="text-go-secondary text-[11px]">
+                    {newVehicleBrand} orders are non-perishable (no refrigeration needed)
+                  </span>
+                </div>
+              )}
 
               {/* Capacity Specs */}
               <div className="rounded-2xl border border-go-rule bg-go-subtle p-4 space-y-3">
