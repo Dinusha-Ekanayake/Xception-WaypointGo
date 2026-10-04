@@ -368,6 +368,8 @@ export const STRINGS: Record<string, [string, string]> = {
   "Nothing in the {kind} catalogue matches \"{query}\".": ["{kind} නාමාවලියේ \"{query}\" ට ගැළපෙන කිසිවක් නැත.", "{kind} பட்டியலில் \"{query}\" உடன் பொருந்துவது எதுவும் இல்லை."],
   "Shared trip suggestions are unavailable right now.": ["හවුල් ගමන් යෝජනා දැන් ලබාගත නොහැක.", "பகிரப்பட்ட பயணப் பரிந்துரைகள் இப்போது கிடைக்கவில்லை."],
   "Shared trip": ["හවුල් ගමන", "பகிரப்பட்ட பயணம்"],
+  "Chilled goods (mixed)": ["ශීත භාණ්ඩ (මිශ්‍ර)", "குளிர் பொருட்கள் (கலப்பு)"],
+  "Dry goods (mixed)": ["වියළි භාණ්ඩ (මිශ්‍ර)", "உலர் பொருட்கள் (கலப்பு)"],
   "A better day for this order": ["මෙම ඇණවුමට වඩා හොඳ දිනයක්", "இந்த ஆர்டருக்கு சிறந்த நாள்"],
   "{day}: {trip} already goes to {district}": ["{day}: {district} වෙත {trip} දැනටමත් යයි", "{day}: {district} க்கு {trip} ஏற்கனவே செல்கிறது"],
   "a refrigerated trip": ["ශීතකරණ ගමනක්", "குளிர்சாதனப் பயணம்"],

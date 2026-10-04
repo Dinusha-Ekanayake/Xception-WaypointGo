@@ -97,3 +97,14 @@ export const dockLabel = (code: string) => DOCKS[code]?.label ?? code.replace(/_
 
 /** "at your rear dock", for a sentence about where a vehicle stands. */
 export const dockWhere = (code: string | null | undefined) => (code ? (DOCKS[code]?.where ?? `at your ${code.replace(/_/g, " ")}`) : "at your store");
+
+/**
+ * A product line as people read it. The delivery-day seed books each order as
+ * one line named `SEED-<brand>-<temperature>` (it has totals, not products), so
+ * that line reads as the mixed goods it stands for rather than as a code.
+ */
+export function productLabel(productId: string): string {
+  const seed = /^SEED-[A-Za-z]+-(ambient|chilled)$/.exec(productId);
+  if (seed) return seed[1] === "chilled" ? "Chilled goods (mixed)" : "Dry goods (mixed)";
+  return productId;
+}

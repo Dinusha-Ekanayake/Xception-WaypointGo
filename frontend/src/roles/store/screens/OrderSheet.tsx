@@ -5,7 +5,7 @@ import { useResource } from "@shared/api/useResource";
 import { OrderCommandKind, type OrderView } from "@shared/domain/types";
 import { Notice, SkeletonRows } from "@shared/ui";
 import type { StoreGateway } from "../data/gateway.ts";
-import { ORDER_STATUS, units, clock, dayLabel, depotToday, editable, planNote, temperatureLabel } from "../data/format.ts";
+import { ORDER_STATUS, units, clock, dayLabel, depotToday, editable, planNote, temperatureLabel, productLabel } from "../data/format.ts";
 import { awaitingPlan, needsWarning, warningWords } from "../data/outlook.ts";
 import { conflictMessage, type useCommands } from "../data/useCommands.ts";
 import { Button, Chip, Sheet } from "../ui.tsx";
@@ -75,7 +75,7 @@ export default function OrderSheet({
       <ul className="flex flex-col gap-1 rounded-[20px] bg-go-canvas p-4 text-[15px]">
         {order.lines.map((l) => (
           <li key={l.productId} className="flex justify-between gap-3">
-            <span>{l.productId}</span>
+            <span>{productLabel(l.productId)}</span>
             <span className="font-medium">{l.quantity}</span>
           </li>
         ))}

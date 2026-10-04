@@ -4,7 +4,7 @@ import { useResource } from "@shared/api/useResource";
 import type { DeliveryRecordView, IssueView, OrderView, OutletView } from "@shared/domain/types";
 import { Icon, cx } from "@shared/ui";
 import type { StoreGateway } from "../../data/gateway.ts";
-import { units, clock, depotToday, expectedAt, hhmm, temperatureLabel } from "../../data/format.ts";
+import { units, clock, depotToday, expectedAt, hhmm, temperatureLabel, productLabel } from "../../data/format.ts";
 import { makeUpSteps } from "../../data/runs.ts";
 import { Button, Drawer } from "../../ui.tsx";
 
@@ -55,7 +55,7 @@ export default function MakeUpDrawer({
         <ul className="flex flex-col gap-1.5">
           {order.lines.map((l) => (
             <li key={l.productId} className="flex flex-col">
-              <span className="text-[15px] text-black">{l.productId}</span>
+              <span className="text-[15px] text-black">{productLabel(l.productId)}</span>
               <span className="text-[13px] text-go-muted">
                 {units(l.quantity)} · {temperatureLabel(order.temperature)} · <span title="Reconstructed from order totals, not a confirmed product">inferred</span>
               </span>

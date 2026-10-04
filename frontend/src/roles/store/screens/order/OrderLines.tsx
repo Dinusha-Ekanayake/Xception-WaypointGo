@@ -4,6 +4,7 @@ import type { LineAvailability, ProductView, Temperature } from "@shared/domain/
 import { Icon, cx } from "@shared/ui";
 import type { Usual } from "../../data/lines.ts";
 import { Muted, Stepper } from "../../ui.tsx";
+import { productLabel } from "../../data/format.ts";
 import ItemPicker from "./ItemPicker.tsx";
 import { useT } from "../../i18n.tsx";
 
@@ -98,7 +99,7 @@ export default function OrderLines({
               )}
             >
               <div className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-[16px] font-medium text-black">{id}</span>
+                <span className="truncate text-[16px] font-medium text-black">{tr(productLabel(id))}</span>
                 <span className="text-[13px] text-go-muted">
                   {inferred && <span title={tr("Reconstructed from order totals, not a confirmed product")}>{tr("inferred")}</span>}
                   <span className="lg:hidden">
@@ -116,7 +117,7 @@ export default function OrderLines({
                 )}
               </div>
               <span className="hidden w-[72px] shrink-0 text-[15px] text-go-muted lg:block">{u ?? "·"}</span>
-              <Stepper value={n} label={id} highlight={u !== undefined && n > u} onChange={(v) => onLine(id, v)} />
+              <Stepper value={n} label={tr(productLabel(id))} highlight={u !== undefined && n > u} onChange={(v) => onLine(id, v)} />
             </li>
           );
         })}

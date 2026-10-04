@@ -21,6 +21,9 @@ const REACHED: Partial<Record<OrderStatus, number>> = { CONFIRMED: 1, ALLOCATED:
 export function Progress({ status }: { status: OrderStatus }): React.JSX.Element {
   const t = useT();
   const done = REACHED[status] ?? 0;
+  // The next step is ringed only once it is under way; an order still waiting
+  // for the plan shows its next step as not started, matching its status pill.
+  const underWay = status === "LOADING" || status === "IN_TRANSIT" || status === "DELIVERED" || status === "PARTIALLY_DELIVERED";
   return (
     <ol className="flex w-full" aria-label={t("Delivery progress")}>
       {STEPS.map((step, i) => (
@@ -29,12 +32,12 @@ export function Progress({ status }: { status: OrderStatus }): React.JSX.Element
           <span
             className={cx(
               "relative flex size-[26px] items-center justify-center rounded-full transition-colors duration-[250ms]",
-              i < done ? "bg-go-success" : i === done ? "border-[3px] border-go-success bg-white" : "bg-[#f1f6f5]",
+              i < done ? "bg-go-success" : i === done && underWay ? "border-[3px] border-go-success bg-white" : i === done ? "border-2 border-dashed border-[#b9c9c6] bg-white" : "bg-[#f1f6f5]",
             )}
           >
             {i < done && <Icon name="check-white" />}
           </span>
-          <span className={cx("text-[12px] font-medium", i <= done ? "text-black" : "text-[#a9a9a9]")}>{t(step)}</span>
+          <span className={cx("text-[12px] font-medium", i < done || (i === done && underWay) ? "text-black" : "text-[#a9a9a9]")}>{t(step)}</span>
         </li>
       ))}
     </ol>

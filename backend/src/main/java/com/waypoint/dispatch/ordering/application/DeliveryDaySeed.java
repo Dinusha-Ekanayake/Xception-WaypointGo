@@ -92,7 +92,10 @@ public class DeliveryDaySeed {
           if (earlier != null) {
             return new Outcome(depot, LocalDate.parse((String) earlier.get("delivery_date")), 0);
           }
-          DeliveryDate date = dates.resolve(depot, now.atZone(Clock.OPERATING_ZONE).toLocalDate(), now);
+          // The first day still open, asked for as itself: a store orders for its
+          // delivery day, so the seeded orders read "for Tue", not "moved from Mon".
+          DeliveryDate first = dates.resolve(depot, now.atZone(Clock.OPERATING_ZONE).toLocalDate(), now);
+          DeliveryDate date = dates.resolve(depot, first.delivery(), now);
           int placed = 0;
           for (Map<String, String> row : rows) {
             place(row, date, now);
