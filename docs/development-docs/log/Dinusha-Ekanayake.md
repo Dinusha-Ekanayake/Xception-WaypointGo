@@ -11,6 +11,13 @@
 The README opens with the deliverables the booklet lists, each linked, the deployed address with its four accounts, and both ways to run. `docker compose up` now also creates those named accounts and the four Peliyagoda loaders with their PIN, from `scripts/demo-accounts.csv` through the backend's own commands (`scripts/seed-demo-accounts.sh`); no backend code changed.
 Left: the seeded day's outlet and vehicles are still granted to `store_manager@` and `driver@waypoint.local` only, so the named store manager and driver sign in with no outlet and no vehicles.
 Verified: a fresh checkout built and started with `docker compose up --build`; init seeded 120 outlets, 60 vehicles and 85 orders, and each named account signed in through the stack.
+## 2026-10-04 - feat: the attention watch, increment 2a (issue #268): acknowledge, reminders counted, a scorer seam
+
+`feat/268-attention-ack` · @Dinusha-Ekanayake
+
+`ml:AcknowledgeAttention` (handler, action catalogue row, dispatcher policy statement `AttentionWatch`): the dispatcher acknowledges an item with a reason of three characters or more and its `expectedVersion`; who, when and why are kept, the item leaves the list and is never deleted; another depot is 403. The watch now marks a critical, unacknowledged item as reminded when `ReminderPolicy` says it is due, up to the depot's cap. `AttentionScorer` is the one place another way of ranking would plug in; the built-in scorer is the rules, which stay the fallback.
+Left: reminders reaching the dispatcher (events through the outbox, the MODULES.md catalogue rows, the notification subscriber), the EDGE-CASES row for a stalled watch, and the Live screen reading from the endpoint. No external model is connected: JEV's API is not public, and trip data would leave the system.
+Verified: compiles; the unit and architecture tests pass. The new integration tests (acknowledge, stale version, short reason, out-of-scope) run first in this PR's CI; no database was available locally.
 
 ---
 

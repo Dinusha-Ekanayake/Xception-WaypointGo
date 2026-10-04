@@ -600,6 +600,38 @@ class IntelligenceIntegrationTest {
     read(stranger, "/api/ml/attention?depot=" + depot + "&date=2031-03-04", 403);
   }
 
+  @Test
+  void aDispatcherAcknowledgesAnItemWithAReasonAndItLeavesTheList() throws Exception {
+    UUID delivery = UUID.randomUUID();
+    LocalDate day = LocalDate.of(2031, 3, 5);
+    raiseAttention(delivery, UUID.randomUUID(), day, Instant.parse("2031-03-05T04:00:00Z"));
+    String payload = "{\"depotCode\":\"" + depot + "\",\"deliveryId\":\"" + delivery
+        + "\",\"kind\":\"WINDOW_AT_RISK\",\"reason\":\"The store agreed to receive late\"}";
+
+    // A stale version is refused, and a reason is required.
+    send(dispatcher, envelope("ml:AcknowledgeAttention", 9L, payload), 409);
+    send(dispatcher, envelope("ml:AcknowledgeAttention", 1L, payload.replace("The store agreed to receive late", "ok")), 422);
+
+    send(dispatcher, envelope("ml:AcknowledgeAttention", 1L, payload), 200);
+    assertEquals(0, read(dispatcher, "/api/ml/attention?depot=" + depot + "&date=" + day, 200).get("items").size());
+    Map<String, Object> row = database.asSystem(ModuleRole.ML, () -> database.queryOne(
+        "SELECT acknowledged_by, ack_reason FROM ml.attention_items WHERE delivery_id = ?", delivery));
+    assertEquals(dispatcherId, row.get("acknowledged_by"));
+    assertEquals("The store agreed to receive late", row.get("ack_reason"));
+
+    // Once acknowledged it cannot be acknowledged again.
+    send(dispatcher, envelope("ml:AcknowledgeAttention", 2L, payload), 409);
+  }
+
+  @Test
+  void aDispatcherWithoutTheDepotCannotAcknowledge() throws Exception {
+    UUID delivery = UUID.randomUUID();
+    raiseAttention(delivery, UUID.randomUUID(), LocalDate.of(2031, 3, 6), Instant.parse("2031-03-06T04:00:00Z"));
+    send(stranger, envelope("ml:AcknowledgeAttention", 1L,
+        "{\"depotCode\":\"" + depot + "\",\"deliveryId\":\"" + delivery
+            + "\",\"kind\":\"WINDOW_AT_RISK\",\"reason\":\"Not mine to decide\"}"), 403);
+  }
+
   private boolean raiseAttention(UUID delivery, UUID trip, LocalDate day, Instant at) {
     return database.asSystem(ModuleRole.ML, () -> {
       boolean raised = attentionItems.raise(

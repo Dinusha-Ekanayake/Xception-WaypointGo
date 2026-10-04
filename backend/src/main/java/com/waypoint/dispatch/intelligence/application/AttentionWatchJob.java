@@ -10,6 +10,8 @@ import com.waypoint.dispatch.intelligence.domain.AttentionPolicy.Finding;
 import com.waypoint.dispatch.intelligence.domain.AttentionPolicy.Progress;
 import com.waypoint.dispatch.intelligence.domain.AttentionPolicy.StopFacts;
 import com.waypoint.dispatch.intelligence.domain.AttentionThresholds;
+import com.waypoint.dispatch.intelligence.domain.ReminderPolicy;
+import com.waypoint.dispatch.intelligence.infrastructure.JdbcAttentionRepository.Chase;
 import com.waypoint.dispatch.intelligence.infrastructure.JdbcAttentionRepository;
 import com.waypoint.dispatch.planning.contract.PlanQuery;
 import com.waypoint.dispatch.planning.contract.PlanViews.TripView;
@@ -47,6 +49,7 @@ public class AttentionWatchJob implements ScheduledJob {
   private final ExecutionQuery execution;
   private final ReferenceQuery reference;
   private final Metrics metrics;
+  private final AttentionScorer scorer;
 
   public AttentionWatchJob(
       Database database,
@@ -54,7 +57,9 @@ public class AttentionWatchJob implements ScheduledJob {
       PlanQuery plans,
       ExecutionQuery execution,
       ReferenceQuery reference,
-      Metrics metrics) {
+      Metrics metrics,
+      AttentionScorer scorer) {
+    this.scorer = scorer;
     this.database = database;
     this.repository = repository;
     this.plans = plans;
@@ -105,7 +110,7 @@ public class AttentionWatchJob implements ScheduledJob {
       int open = 0;
       for (RunSheetView sheet : sheets) {
         for (RunSheetStopView stop : sheet.stops()) {
-          Optional<Finding> finding = AttentionPolicy.assess(facts(stop, day), thresholds, now);
+          Optional<Finding> finding = scorer.score(facts(stop, day), thresholds, now);
           if (finding.isEmpty()) {
             continue;
           }
@@ -121,6 +126,13 @@ public class AttentionWatchJob implements ScheduledJob {
         }
       }
       repository.clearUnseen(depot, day, now);
+      for (Chase chase : repository.openCritical(depot, day)) {
+        if (ReminderPolicy.due(
+            AttentionPolicy.Severity.CRITICAL, chase.raisedAt(), chase.lastRemindedAt(), chase.remindedCount(), thresholds, now)) {
+          repository.reminded(chase.deliveryId(), chase.kind(), now);
+          metrics.increment("waypoint.ml.attention_reminded", "kind", chase.kind().name().toLowerCase(java.util.Locale.ROOT));
+        }
+      }
       repository.beat(depot, sheets.size(), now);
       return open;
     });

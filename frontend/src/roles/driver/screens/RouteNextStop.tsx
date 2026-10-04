@@ -493,15 +493,16 @@ export default function RouteNextStop({
           >
             {/* ---- Completed Stops Section (Above Primary Card) ------------ */}
             {completedStops.length > 0 && (
-              <div className="flex flex-col gap-2.5 mb-3 px-2 animate-fade-in">
-                {completedStops.map((stop) => (
+              <div className="flex flex-col gap-3 mb-5 px-2 animate-fade-in">
+                {completedStops.map((stop, i) => (
                   <ScrollRevealCard key={stop.id} scrollContainerRef={scrollRef} pullY={pullY}>
                     <button
                       type="button"
                       onClick={() => onSelectStop?.(stop.stopIndex)}
                       aria-label={`Stop ${stop.stopNumber} ${stop.name} · ${stopState(stop)}`}
-                      className="w-full flex items-center justify-between text-left text-[14px] font-light leading-[18px] cursor-pointer active:opacity-70 transition-opacity"
+                      className="w-full flex flex-col gap-3 text-left cursor-pointer active:opacity-70 transition-opacity"
                     >
+                      <div className="flex items-center justify-between text-[14px] font-light leading-[18px]">
                       <div className="flex items-center gap-3" style={stop.id === movingStop ? MOVING : undefined}>
                         <span className={cx(isNight ? "text-white" : "text-black")}>{stop.stopNumber}</span>
                         <span className={cx(isNight ? "text-white" : "text-black")}>{stop.name}</span>
@@ -514,6 +515,11 @@ export default function RouteNextStop({
                         </div>
                       ) : (
                         <span className={cx(isNight ? "text-white" : "text-black")}>{stopState(stop)}</span>
+                      )}
+                      </div>
+                      {/* The same rule as between the stops still to come, below the card. */}
+                      {i < completedStops.length - 1 && (
+                        <div className={cx("w-full h-0 border-t", isNight ? "border-white/20" : "border-black/20")} />
                       )}
                     </button>
                   </ScrollRevealCard>

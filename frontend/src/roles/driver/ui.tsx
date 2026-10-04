@@ -209,15 +209,15 @@ export function DriverMorphHeader({
           onClick={onBack}
           className={cx(
             "absolute left-0 flex items-center gap-2 h-[43px] px-3.5 rounded-full text-[17px] font-medium leading-none transition-all duration-300 transform-gpu origin-left active:scale-95 pointer-events-auto",
-            // The enlarged map draws its own Back on the map, above the tiles.
-            isRoute
+            // The map screen uses this Back too, so it sits where every other Back does.
+            isRouteOrMap
               ? "scale-100 opacity-100"
               : "scale-0 opacity-0 pointer-events-none",
             isNight
               ? "text-white bg-transparent hover:opacity-80"
               : "text-black bg-transparent hover:opacity-80"
           )}
-          aria-label="Go back to home"
+          aria-label={isMap ? "Back to run sheet" : "Go back to home"}
         >
           <svg width="9" height="14" viewBox="0 0 9 14" fill="none">
             <path

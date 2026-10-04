@@ -28,7 +28,7 @@ final class ExecutionViewMapper {
         r.deliveryId(), r.tripId(), r.sequence(), r.orderId(), r.outletId(), r.itemCount(), r.mallOutlet(),
         r.plannedArrival(), r.window().open(), r.window().close(), instant(row.get("expected_arrival")),
         r.startedAt(), r.arrivedAt(), r.completedAt(), r.waitMinutes(), r.lateMinutes(), r.outcome(), r.deliveredUnits(),
-        r.proofId().isPresent(), r.rowVersion(), lines(row));
+        r.proofId().isPresent(), r.rowVersion(), lines(row), Optional.ofNullable((String) row.get("store_answer_waived")));
   }
 
   /** One sheet per vehicle, in the order the rows came: trips as they left, stops as planned. */

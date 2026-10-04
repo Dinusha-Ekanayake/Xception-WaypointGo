@@ -1,7 +1,9 @@
 "use client";
-import { useState, useEffect } from "react";
 import { cx } from "@shared/ui";
+import type { ReceiptAnswerView } from "@shared/domain/types";
 import type { RouteStop } from "../data/stopView.ts";
+import type { HandoverPhase } from "../data/handover.ts";
+import { SlideToConfirm } from "../ui.tsx";
 
 export type DeliveryReportWaitingProps = {
   /** Whether this phone is in step with the server, in words. */
@@ -9,8 +11,22 @@ export type DeliveryReportWaitingProps = {
   onBack: () => void;
   /** The run sheet's stops (issue #117). */
   stops: RouteStop[];
-  /** Opens the delivery form for this stop: counts, outcome, photo and signature. */
-  onConfirm?: (stop: RouteStop) => void;
+  phase: HandoverPhase;
+  /** The store's answer, once it is in. */
+  answer?: ReceiptAnswerView | null;
+  /** False when this phone cannot ask whether the store has answered. */
+  reachable?: boolean;
+  busy?: boolean;
+  /** Why the driver moved on, in words, once they did. */
+  leftBecause?: string | null;
+  /** Records the handover: the goods are with the store. */
+  onHandOver?: () => void;
+  /** Asks why, then moves on before the store answered. */
+  onContinue?: () => void;
+  onEnterPin?: () => void;
+  /** The driver does not agree with the store's report. */
+  onDisagree?: () => void;
+  onNext?: () => void;
   /** Opens the problem report, which sends to dispatch or records the stop as not delivered. */
   onProblem?: () => void;
   isNight?: boolean;
@@ -21,24 +37,48 @@ export type DeliveryReportWaitingProps = {
 export default function DeliveryReportWaiting({
   syncLabel = "Connecting",
   onBack,
-  onConfirm,
+  phase,
+  answer = null,
+  reachable = true,
+  busy = false,
+  leftBecause = null,
+  onHandOver,
+  onContinue,
+  onEnterPin,
+  onDisagree,
+  onNext,
   onProblem,
   stops,
   isNight = false,
   onToggleTheme,
   stopIndex = 0,
 }: DeliveryReportWaitingProps): React.JSX.Element {
-  const [viewState, setViewState] = useState<"waiting" | "report">("waiting");
+  // The store's report replaces the waiting view as soon as it is in.
+  const viewState = phase === "answered" || phase === "accepted" ? "report" : "waiting";
 
   const safeIndex = Math.min(Math.max(0, stopIndex), Math.max(0, stops.length - 1));
   const currentStop: RouteStop | undefined = stops[safeIndex];
-  const deliveredItems = currentStop?.deliveredItems ?? [];
-  const expectedUnits = currentStop?.expectedUnits ?? 0;
-
-
-  const handleConfirmDelivery = () => {
-    if (currentStop) onConfirm?.(currentStop);
-  };
+  const lines = answer?.lines ?? [];
+  const expectedUnits = answer ? lines.reduce((sum, line) => sum + line.expectedQuantity, 0) : (currentStop?.expectedUnits ?? 0);
+  // A line the store left blank was received as expected.
+  const receivedUnits = lines.reduce((sum, line) => sum + (line.receivedQuantity ?? line.expectedQuantity), 0);
+  // The catalogue is reconstructed from order totals: a product is never shown as a real SKU.
+  const deliveredItems = lines.map((line) => ({
+    code: line.productId,
+    category: "Inferred product",
+    qty: line.receivedQuantity ?? line.expectedQuantity,
+    expected: line.expectedQuantity,
+  }));
+  const handover = answer?.handover ?? null;
+  const pinClosed = handover !== null && (handover.status === "LOCKED" || handover.status === "EXPIRED");
+  const verdict =
+    answer?.status === "CONFIRMED"
+      ? "All received"
+      : answer?.status === "PARTIAL"
+        ? "Part received"
+        : answer?.status === "DISPUTED"
+          ? "Disputed by the store"
+          : "The store's report";
 
   if (!currentStop) return <></>;
 
@@ -190,8 +230,8 @@ export default function DeliveryReportWaiting({
             <div
               className="px-[40px] flex flex-col items-center text-center gap-3.5 shrink-0 my-auto"
             >
-              {/* 8-tick Circular Spinner */}
-              <div className="w-[40px] h-[40px] relative waypoint-spinner">
+              {/* 8-tick Circular Spinner, while the store is checking */}
+              <div className={cx("w-[40px] h-[40px] relative waypoint-spinner", phase !== "waiting" && "hidden")}>
                 <svg viewBox="0 0 40 40" className="w-full h-full" fill="none">
                   {[
                     { rot: 0, op: 1.0 },
@@ -225,7 +265,7 @@ export default function DeliveryReportWaiting({
                     isNight ? "text-[#FFFFFF]" : "text-[#000000]"
                   )}
                 >
-                  At the stop
+                  {phase === "arrived" ? "At the stop" : phase === "left" ? "You moved on" : "Waiting for store confirmation"}
                 </h2>
                 <p
                   className={cx(
@@ -233,7 +273,13 @@ export default function DeliveryReportWaiting({
                     isNight ? "text-[#A9A9A9]" : "text-[#6B7280]"
                   )}
                 >
-                  Count the units with the store manager, then open the delivery report. The store confirms its receipt on its own screen afterwards.
+                  {phase === "arrived"
+                    ? "Unload the goods, then slide Hand over. The store checks what arrived and their report appears here."
+                    : phase === "left"
+                      ? `${leftBecause ?? "You moved on"}. The store can still answer, and dispatch sees why you left.`
+                      : reachable
+                        ? "The store is checking the load. Their report appears here as soon as they send it."
+                        : "This phone cannot reach Waypoint, so the store's report cannot be shown yet. You can carry on and say why."}
                 </p>
               </div>
             </div>
@@ -241,16 +287,34 @@ export default function DeliveryReportWaiting({
             {/* Bottom Action: Report problem button */}
             {/* Figma: left:49px, right:49px, bottom:34px, h:64px, radius:22px */}
             <div className="px-[49px] pb-[34px] shrink-0 flex flex-col gap-3">
-              <button
-                type="button"
-                onClick={() => setViewState("report")}
-                className={cx(
-                  "w-full h-[64px] rounded-[22px] text-[20px] font-medium leading-[25px] flex items-center justify-center transition-all active:scale-[0.99] shadow-sm",
-                  isNight ? "bg-[#00BF6A] text-black hover:bg-[#00BF6A]/90" : "bg-[#031B08] text-white hover:bg-[#031B08]/90"
-                )}
-              >
-                Open delivery report
-              </button>
+              {phase === "arrived" && (
+                <SlideToConfirm label="Hand over" doneLabel="Handed over" done={busy} isNight={isNight} onConfirm={() => onHandOver?.()} />
+              )}
+              {phase === "waiting" && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onContinue?.()}
+                  className={cx(
+                    "w-full h-[64px] rounded-[22px] border text-[20px] font-medium leading-[25px] flex items-center justify-center bg-transparent transition-all active:scale-[0.99] disabled:opacity-60",
+                    isNight ? "border-[#A9A9A9] text-white" : "border-[#6B6B6B] text-black"
+                  )}
+                >
+                  Continue to next stop
+                </button>
+              )}
+              {phase === "left" && (
+                <button
+                  type="button"
+                  onClick={() => onNext?.()}
+                  className={cx(
+                    "w-full h-[64px] rounded-[22px] text-[20px] font-medium leading-[25px] flex items-center justify-center transition-all active:scale-[0.99] shadow-sm",
+                    isNight ? "bg-[#00BF6A] text-black" : "bg-[#031B08] text-white"
+                  )}
+                >
+                  Next stop
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => onProblem?.()}
@@ -276,12 +340,12 @@ export default function DeliveryReportWaiting({
             <div className="pt-[20px] px-[25px] sm:px-[33px] flex items-center justify-between shrink-0 z-20">
               <button
                 type="button"
-                onClick={() => setViewState("waiting")}
+                onClick={onBack}
                 className={cx(
                   "flex items-center gap-[9px] text-[20px] font-medium leading-[25px] h-[30px] transition-opacity active:opacity-70",
                   isNight ? "text-white" : "text-black"
                 )}
-                aria-label="Back to waiting"
+                aria-label="Go back"
               >
                 <svg width="9" height="14" viewBox="0 0 9 14" fill="none">
                   <path
@@ -387,7 +451,7 @@ export default function DeliveryReportWaiting({
                     isNight ? "text-[#FFFFFF]" : "text-[#000000]"
                   )}
                 >
-                  Delivery report
+                  {verdict}
                 </span>
               </div>
 
@@ -446,7 +510,7 @@ export default function DeliveryReportWaiting({
                       isNight ? "text-[#FFFFFF]" : "text-[#000000]"
                     )}
                   >
-                    Products
+                    Received
                   </span>
                   <div className="flex items-baseline justify-center gap-1.5 mt-0.5">
                     <span
@@ -455,7 +519,7 @@ export default function DeliveryReportWaiting({
                         isNight ? "text-[#FFFFFF]" : "text-[#000000]"
                       )}
                     >
-                      {deliveredItems.length}
+                      {receivedUnits}
                     </span>
                     <span
                       className={cx(
@@ -463,7 +527,7 @@ export default function DeliveryReportWaiting({
                         isNight ? "text-[#FFFFFF]" : "text-[#000000]"
                       )}
                     >
-                      Lines
+                      Units
                     </span>
                   </div>
                 </div>
@@ -487,7 +551,7 @@ export default function DeliveryReportWaiting({
                       isNight ? "text-[#FFFFFF]" : "text-[#000000]"
                     )}
                   >
-                    Delivered items
+                    Received items
                   </span>
                   <span
                     className={cx(
@@ -495,7 +559,7 @@ export default function DeliveryReportWaiting({
                       isNight ? "text-[#A9A9A9]" : "text-[#6B6B6B]"
                     )}
                   >
-                    {expectedUnits} units
+                    {receivedUnits} of {expectedUnits} units
                   </span>
                 </div>
 
@@ -551,14 +615,14 @@ export default function DeliveryReportWaiting({
                         </span>
                       </div>
 
-                      {/* Quantity */}
+                      {/* Quantity: what the store received, against what was sent when it differs */}
                       <span
                         className={cx(
                           "text-[15px] font-semibold leading-[19px]",
-                          isNight ? "text-[#FFFFFF]" : "text-[#000000]"
+                          item.qty < item.expected ? "text-[#E5484D]" : isNight ? "text-[#FFFFFF]" : "text-[#000000]"
                         )}
                       >
-                        {item.qty}
+                        {item.qty < item.expected ? `${item.qty} of ${item.expected}` : item.qty}
                       </span>
                     </div>
 
@@ -575,8 +639,23 @@ export default function DeliveryReportWaiting({
                 ))}
               </div>
 
-              {/* Scroll Spacer to let the user scroll cleanly past the floating bottom button & gradient */}
-              <div className="h-[170px] shrink-0" />
+              {/* The store's own words, when they gave any */}
+              {answer?.note && (
+                <div
+                  className={cx(
+                    "w-full rounded-[25px] mt-[16px] px-[21px] py-[16px] transition-colors",
+                    isNight ? "bg-[#292929]" : "bg-white"
+                  )}
+                >
+                  <span className={cx("text-[13px] font-light leading-[16px] block", isNight ? "text-[#A9A9A9]" : "text-[#6B6B6B]")}>
+                    The store's note
+                  </span>
+                  <p className={cx("mt-1 text-[15px] leading-[20px]", isNight ? "text-white" : "text-black")}>{answer.note}</p>
+                </div>
+              )}
+
+              {/* Scroll Spacer to let the user scroll cleanly past the floating buttons & gradient */}
+              <div className="h-[220px] shrink-0" />
             </div>
 
             {/* Bottom Fade Gradient (height: 160px) */}
@@ -589,20 +668,56 @@ export default function DeliveryReportWaiting({
               )}
             />
 
-            {/* Floating Confirm Button (Figma Component 5: h:64px, left:49px, right:49px, bottom:34px, radius:22px) */}
-            <div className="absolute bottom-[34px] left-[49px] right-[49px] z-30">
-              <button
-                type="button"
-                onClick={handleConfirmDelivery}
-                className={cx(
-                  "w-full h-[64px] rounded-[22px] text-[20px] font-medium leading-[25px] flex items-center justify-center transition-all active:scale-[0.99] shadow-lg",
-                  isNight
-                    ? "bg-[#00BF6A] text-black hover:bg-[#00BF6A]/90"
-                    : "bg-[#031B08] text-white hover:bg-[#031B08]/90"
-                )}
-              >
-                Record delivery
-              </button>
+            {/* Floating actions (Figma Component 5: h:64px, left:49px, right:49px, bottom:34px, radius:22px) */}
+            <div className="absolute bottom-[34px] left-[49px] right-[49px] z-30 flex flex-col gap-3">
+              {phase === "accepted" ? (
+                <>
+                  <p role="status" className={cx("text-center text-[15px] font-medium", isNight ? "text-[#00BF6A]" : "text-[#0E766D]")}>
+                    Accepted with the store's PIN
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => onNext?.()}
+                    className={cx(
+                      "w-full h-[64px] rounded-[22px] text-[20px] font-medium leading-[25px] flex items-center justify-center transition-all active:scale-[0.99] shadow-lg",
+                      isNight ? "bg-[#00BF6A] text-black" : "bg-[#031B08] text-white"
+                    )}
+                  >
+                    Next stop
+                  </button>
+                </>
+              ) : (
+                <>
+                  {pinClosed ? (
+                    <p role="status" className={cx("text-center text-[14px]", isNight ? "text-[#A9A9A9]" : "text-[#6B6B6B]")}>
+                      {handover?.status === "LOCKED" ? "The PIN is locked after too many tries." : "The PIN has expired."} Ask the store for a new one, or carry on.
+                    </p>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => onEnterPin?.()}
+                      className={cx(
+                        "w-full h-[64px] rounded-[22px] text-[20px] font-medium leading-[25px] flex items-center justify-center transition-all active:scale-[0.99] shadow-lg disabled:opacity-60",
+                        isNight ? "bg-[#00BF6A] text-black hover:bg-[#00BF6A]/90" : "bg-[#031B08] text-white hover:bg-[#031B08]/90"
+                      )}
+                    >
+                      Enter PIN to accept
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => (pinClosed ? onContinue?.() : onDisagree?.())}
+                    className={cx(
+                      "w-full h-[56px] rounded-[22px] border text-[18px] font-medium flex items-center justify-center bg-transparent transition-all active:scale-[0.99] disabled:opacity-60",
+                      isNight ? "border-[#A9A9A9] text-white" : "border-[#6B6B6B] text-black"
+                    )}
+                  >
+                    {pinClosed ? "Continue to next stop" : "I disagree"}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         )}

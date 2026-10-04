@@ -126,6 +126,64 @@ public class JdbcAttentionRepository {
         .toList();
   }
 
+  /** An item as the acknowledge command and the reminder need it. */
+  public record ItemState(long rowVersion, boolean acknowledged) {}
+
+  public Optional<ItemState> state(String depotCode, UUID deliveryId, AttentionKind kind) {
+    return database.query(
+            """
+            SELECT row_version, acknowledged_at FROM ml.attention_items
+             WHERE depot_code = ? AND delivery_id = ? AND kind = ?
+            """,
+            depotCode, deliveryId, kind.name())
+        .stream().findFirst()
+        .map(r -> new ItemState(((Number) r.get("row_version")).longValue(), r.get("acknowledged_at") != null));
+  }
+
+  /** @return 0 when the row moved on since it was read, or was already acknowledged */
+  public int acknowledge(
+      UUID deliveryId, AttentionKind kind, UUID actorId, String reason, Instant now, long expectedVersion) {
+    return database.update(
+        """
+        UPDATE ml.attention_items
+           SET acknowledged_at = ?, acknowledged_by = ?, ack_reason = ?, row_version = row_version + 1
+         WHERE delivery_id = ? AND kind = ? AND row_version = ? AND acknowledged_at IS NULL
+        """,
+        Timestamp.from(now), actorId, reason, deliveryId, kind.name(), expectedVersion);
+  }
+
+  /** What is open and critical, for the reminder rule: when it was raised, and how often it has been chased. */
+  public record Chase(UUID deliveryId, AttentionKind kind, Instant raisedAt, Optional<Instant> lastRemindedAt, int remindedCount) {}
+
+  public List<Chase> openCritical(String depotCode, LocalDate serviceDate) {
+    return database.query(
+            """
+            SELECT delivery_id, kind, raised_at, last_reminded_at, reminded_count
+              FROM ml.attention_items
+             WHERE depot_code = ? AND service_date = ? AND severity = 'CRITICAL'
+               AND cleared_at IS NULL AND acknowledged_at IS NULL
+            """,
+            depotCode, Date.valueOf(serviceDate))
+        .stream()
+        .map(r -> new Chase(
+            (UUID) r.get("delivery_id"),
+            AttentionKind.valueOf((String) r.get("kind")),
+            JdbcIntelligenceRepository.instant(r.get("raised_at")),
+            Optional.ofNullable(r.get("last_reminded_at")).map(JdbcIntelligenceRepository::instant),
+            number(r, "reminded_count")))
+        .toList();
+  }
+
+  public void reminded(UUID deliveryId, AttentionKind kind, Instant now) {
+    database.update(
+        """
+        UPDATE ml.attention_items
+           SET reminded_count = reminded_count + 1, last_reminded_at = ?, row_version = row_version + 1
+         WHERE delivery_id = ? AND kind = ?
+        """,
+        Timestamp.from(now), deliveryId, kind.name());
+  }
+
   private static int number(Map<String, Object> row, String column) {
     return ((Number) row.get(column)).intValue();
   }

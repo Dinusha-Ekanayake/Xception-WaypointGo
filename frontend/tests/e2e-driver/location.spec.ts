@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { arrive, openForm, serve, startTrip } from "./mocks.ts";
+import { arrive, handOver, serve, startTrip } from "./mocks.ts";
 
 // Issue #161: positions while a run is open, through the offline queue, and a
 // map that hands off to the phone's maps app only for an exact store location.
@@ -7,7 +7,7 @@ import { arrive, openForm, serve, startTrip } from "./mocks.ts";
 test.use({ geolocation: { latitude: 7.25, longitude: 80.6 }, permissions: ["geolocation"] });
 
 test("points recorded with no signal survive a reload and are sent when the signal returns", async ({ page, context }) => {
-  const server = await serve(page);
+  const server = await serve(page, undefined, { askLocation: true });
   await page.clock.install();
   await page.goto("/");
   await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
@@ -38,7 +38,7 @@ test("points recorded with no signal survive a reload and are sent when the sign
 });
 
 test("Open map and Navigate appear only for a store with an exact location", async ({ page }) => {
-  await serve(page);
+  await serve(page, undefined, { askLocation: true });
   await page.goto("/");
   await startTrip(page);
   await page.getByRole("button", { name: "Share location" }).click();
@@ -50,7 +50,7 @@ test("Open map and Navigate appear only for a store with an exact location", asy
 });
 
 test("a store with only a district location gets no map, and declining location never blocks the run", async ({ page }) => {
-  const server = await serve(page);
+  const server = await serve(page, undefined, { askLocation: true });
   server.stops[0]!.outletId = "OUT0303";
   await page.goto("/");
   await startTrip(page);
@@ -61,6 +61,6 @@ test("a store with only a district location gets no map, and declining location 
   await expect(page.getByRole("link", { name: /Navigate to/ })).toHaveCount(0);
   await page.getByRole("button", { name: "Back to run sheet" }).click();
   await arrive(page);
-  await openForm(page);
-  await expect(page.getByText(/Delivery report/)).toBeVisible();
+  await handOver(page);
+  await expect(page.getByText("Waiting for store confirmation")).toBeVisible();
 });

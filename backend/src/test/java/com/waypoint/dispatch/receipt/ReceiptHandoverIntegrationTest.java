@@ -233,6 +233,49 @@ class ReceiptHandoverIntegrationTest extends ReceiptIssuesSupport {
         "an order with no PIN and an order outside scope look the same, and both are recorded");
   }
 
+  // ---- the store's answer on the driver's phone (issue #21) ---------------------
+
+  @Test
+  void theDriverSeesNothingUntilTheStoreAnswersThenTheStoresCountAndThePin() throws Exception {
+    Order order = answeredDelivery();
+    read(driver, "/api/receipts/" + order.orderId() + "/answer", 404);
+
+    send(manager, partial(order, "[{\"productId\":\"P-1\",\"receivedQuantity\":7}]"), 200);
+
+    JsonNode answer = read(driver, "/api/receipts/" + order.orderId() + "/answer", 200);
+    assertEquals("PARTIAL", answer.get("status").asText());
+    JsonNode first = answer.get("lines").get(0);
+    assertEquals("P-1", first.get("productId").asText());
+    assertEquals(10, first.get("expectedQuantity").asInt());
+    assertEquals(7, first.get("receivedQuantity").asInt());
+    assertEquals("wet cartons", answer.get("note").asText());
+    assertFalse(answer.get("answeredAt").isNull(), "the store's answer carries when it was given");
+    assertEquals("AWAITING", answer.get("handover").get("status").asText());
+    assertEquals(5, answer.get("handover").get("attemptsLeft").asInt());
+  }
+
+  @Test
+  void onlyTheDriverOfTheVehicleReadsTheAnswerAndNeverTheReceiptItself() throws Exception {
+    Order order = answeredDelivery();
+    answer(order);
+
+    read(roamingDriver, "/api/receipts/" + order.orderId() + "/answer", 404);
+    read(driver, "/api/receipts/" + order.orderId() + "/answer", 200);
+    // The answer is all the driver is given: the store's receipt reads stay the store's and the depot's.
+    read(driver, "/api/receipts/" + order.orderId(), 403);
+  }
+
+  @Test
+  void aRoleWithoutTheActionIsRefusedAndTheRefusalIsAudited() throws Exception {
+    Order order = answeredDelivery();
+    answer(order);
+    long before = denials(loader.id(), "receipt:ReadAnswer");
+
+    read(loader, "/api/receipts/" + order.orderId() + "/answer", 403);
+
+    assertEquals(before + 1, denials(loader.id(), "receipt:ReadAnswer"));
+  }
+
   // ---- concurrency -------------------------------------------------------------
 
   @Test
@@ -353,6 +396,12 @@ class ReceiptHandoverIntegrationTest extends ReceiptIssuesSupport {
 
   private static String confirm(UUID orderId, Long version) {
     return envelope("receipt:Confirm", version, "{\"orderId\":\"" + orderId + "\"}");
+  }
+
+  private static String partial(Order order, String lines) {
+    return envelope(
+        "receipt:ConfirmPartial", 1L,
+        "{\"orderId\":\"" + order.orderId() + "\",\"lines\":" + lines + ",\"note\":\"wet cartons\"}");
   }
 
   private static String verify(Order order, String pin) {

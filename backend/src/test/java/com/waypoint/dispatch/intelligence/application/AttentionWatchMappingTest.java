@@ -25,7 +25,7 @@ class AttentionWatchMappingTest {
         UUID.randomUUID(), UUID.randomUUID(), 1, UUID.randomUUID(), "OUT001", 12, false,
         LocalTime.of(9, 30), LocalTime.of(8, 0), LocalTime.of(11, 0),
         Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
-        outcome, Optional.empty(), proof, 1L, List.of());
+        outcome, Optional.empty(), proof, 1L, List.of(), Optional.empty());
   }
 
   @Test
