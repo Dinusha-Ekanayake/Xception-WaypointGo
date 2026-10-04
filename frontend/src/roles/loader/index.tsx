@@ -266,6 +266,7 @@ function LoaderWorkspace({
           onSynced={setTripSync}
           onBack={back}
           actingUserId={operator.userId}
+          accountId={userId}
           refreshKey={syncKey}
         />
       ) : (

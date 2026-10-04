@@ -1,5 +1,7 @@
 "use client";
 
+import { useMemo } from "react";
+import { queuedSender } from "@shared/messaging/senders";
 import { useTripThread } from "@shared/messaging/useThread";
 import { Sheet, TripThread } from "@shared/ui";
 import { useT } from "../i18n.tsx";
@@ -8,20 +10,32 @@ import { useT } from "../i18n.tsx";
 // dispatcher wrote to the loaders or to everyone, and writes to the dispatcher
 // alone, a report of missing or damaged items included (R-MSG-02, R-MSG-03).
 // An item flagged on the load sheet already reaches the thread as a report.
+// Messages are written as the loader who entered their PIN (actingUserId), and
+// kept on the device with no signal, like the load sheet's own work.
 
 export default function TripMessages({
+  accountId,
+  actingUserId,
   tripId,
   vehicleId,
   online,
+  onQueued,
   onClose,
 }: {
+  accountId: string;
+  actingUserId: string;
   tripId: string;
   vehicleId: string;
   online: boolean;
+  onQueued: () => void;
   onClose: () => void;
 }): React.JSX.Element {
   const tr = useT();
-  const thread = useTripThread(tripId);
+  const thread = useTripThread(tripId, accountId);
+  const sender = useMemo(
+    () => queuedSender({ accountId, role: "loader", online, onQueued, actingUserId }),
+    [accountId, online, onQueued, actingUserId],
+  );
   const threadId = thread.data?.threadId ?? null;
   return (
     <Sheet label={tr("Messages for {vehicle}", { vehicle: vehicleId })} onClose={onClose}>
@@ -36,7 +50,7 @@ export default function TripMessages({
       </header>
       <div className="flex h-[62dvh] min-h-0 flex-col">
         {threadId ? (
-          <TripThread threadId={threadId} online={online} variant="phone" />
+          <TripThread threadId={threadId} online={online} variant="phone" sender={sender} keepsOffline accountId={accountId} tr={tr} />
         ) : (
           <p className="py-8 text-center text-sm text-go-secondary">{thread.loading ? "…" : tr("This trip has no messages yet.")}</p>
         )}
