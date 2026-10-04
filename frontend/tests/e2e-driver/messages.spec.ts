@@ -59,7 +59,7 @@ test("with no signal a typed message is kept on the phone and sent when the sign
   await server.goOffline(context);
   await expect(screen.getByText(/No signal\. What you write or record is kept on this phone/)).toBeVisible();
   // A voice note is kept with no signal too (voice.spec.ts).
-  await expect(screen.getByRole("button", { name: "Voice" })).toBeEnabled();
+  await expect(screen.getByRole("button", { name: "Hold to record a voice note" })).toBeEnabled();
   await screen.getByRole("textbox", { name: "Message" }).fill("Signal gone near Deniyaya");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
   await expect(screen.getByText("Saved on this device. It sends when the connection returns.")).toBeVisible();
