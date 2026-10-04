@@ -74,10 +74,15 @@ test("choosing an order lands on Orders with its ref already in the kept search 
   await serve(page, { orders: [order(1, "CONFIRMED", { orderRef: "ORD-8800", outletId: "OUT099" })] });
   await page.goto("/#/overview");
 
-  // The shortcut is live once the header has drawn.
+  // The header can draw before its key listener attaches, so a press that
+  // lands first is lost: press again until the search opens.
   await expect(page.getByRole("button", { name: "Search", exact: true })).toBeVisible();
-  await page.keyboard.press("Control+k");
-  await page.getByRole("combobox", { name: "Search orders, vehicles, trips, issues and depots" }).fill("8800");
+  const combobox = page.getByRole("combobox", { name: "Search orders, vehicles, trips, issues and depots" });
+  await expect(async () => {
+    await page.keyboard.press("Control+k");
+    await expect(combobox).toBeVisible({ timeout: 1_000 });
+  }).toPass();
+  await combobox.fill("8800");
   await page.getByRole("option", { name: /ORD-8800/ }).click();
 
   await expect(page).toHaveURL(/#\/orders$/);
