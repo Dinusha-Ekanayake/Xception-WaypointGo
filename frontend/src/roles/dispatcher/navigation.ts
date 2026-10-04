@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { IconName } from "@shared/ui";
+import { withTransition, type IconName } from "@shared/ui";
 
 // The dispatcher's screens, in the sidebar order of the Figma shell. The view
 // lives in the URL hash so reload and the back button keep the dispatcher where
@@ -28,8 +28,9 @@ export function useView(): [ViewId, (view: ViewId) => void] {
   const [view, setView] = useState<ViewId>("overview");
 
   useEffect(() => {
-    const sync = () => setView(fromHash());
-    sync();
+    setView(fromHash());
+    // A hash change (a sidebar link, or the browser's back and forward) crossfades.
+    const sync = () => withTransition(() => setView(fromHash()), "tab");
     window.addEventListener("hashchange", sync);
     return () => window.removeEventListener("hashchange", sync);
   }, []);

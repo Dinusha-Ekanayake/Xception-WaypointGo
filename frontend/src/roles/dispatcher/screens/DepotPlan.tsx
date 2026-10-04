@@ -273,7 +273,7 @@ export default function DepotPlan({
           {state.stage === "none" && toPlan === 0 && nextDay.data ? (
             <PrimaryButton onClick={() => onDate(nextDay.data!.date)}>{`Plan ${dayLabel(nextDay.data.date)} · ${nextDay.data.waiting} waiting`}</PrimaryButton>
           ) : (
-            <PrimaryButton disabled={!online || busy || planning !== null} onClick={() => void generate(false, unplanned)}>
+            <PrimaryButton disabled={!online || planning !== null} busy={busy} onClick={() => void generate(false, unplanned)}>
               {planning ?? (busy ? "Generating…" : "Generate draft")}
             </PrimaryButton>
           )}

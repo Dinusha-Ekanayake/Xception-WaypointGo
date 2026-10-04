@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import type { NotificationView } from "@shared/domain/notification";
 import { ago } from "@shared/notifications/inbox";
 import { useInbox } from "@shared/notifications/useInbox";
@@ -48,6 +49,8 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
   const [pinFor, setPinFor] = useState<Stop | null>(null);
   const [revised, setRevised] = useState<NotificationView | null>(null);
   const [talking, setTalking] = useState(false);
+  // The stop row last tapped on the route, one shared element with the stop's header (UX polish 4).
+  const [movingStop, setMovingStop] = useState<string | null>(null);
   const unread = unreadMessages(inbox.items);
   const openMessages = () => {
     setTalking(true);
@@ -147,7 +150,8 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
             Loading today's run…
           </p>
         ) : (
-          <div key={screen} className="absolute inset-0 animate-fade-in short:overflow-y-auto">
+          // Where the browser crossfades screens itself (shared/ui/transition.ts), this fade would play twice.
+          <div key={screen} className="absolute inset-0 animate-fade-in supports-[view-transition-name:none]:animate-none short:overflow-y-auto">
             {screen === "home" && (
               <HomeNoVehicle
                 driverName={displayName}
@@ -174,7 +178,14 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
                 stops={routeStops}
                 stopIndex={stops.indexOf(shown)}
                 syncLabel={sync}
-                onSelectStop={(index) => stops[index] && void d.openStop(stops[index])}
+                onSelectStop={(index) => {
+                  const stop = stops[index];
+                  if (!stop) return;
+                  // The tapped row is named before the transition starts, so it moves into the stop's header.
+                  flushSync(() => setMovingStop(stop.deliveryId));
+                  void d.openStop(stop);
+                }}
+                movingStop={movingStop}
                 onBack={() => d.go({ name: "home" })}
                 onOpenMap={() => d.go({ name: "map" })}
                 onArrived={arrivedAt}

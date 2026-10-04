@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ItemView, OutletView, ReadyTripView, ReleaseTrip } from "@shared/domain/types";
 import { ApiError } from "@shared/api/problem";
-import { Notice } from "@shared/ui";
+import { Notice, SkeletonRows } from "@shared/ui";
 import type { LoadingGateway } from "../data/gateway.ts";
 import { loadedTotals, orderLabel, paceOf, progress } from "../data/manifest.ts";
 import { useTrip, type Line, type Outcome } from "../data/useTrip.ts";
@@ -55,6 +55,8 @@ export default function LoadSheet({
   const [releasing, setReleasing] = useState(false);
   const [blockedBy, setBlockedBy] = useState<string | null>(null);
   const [talking, setTalking] = useState(false);
+  // Lines whose tick is on its way: a second tap on the same line is ignored until it answers.
+  const ticking = useRef(new Set<string>());
   const m = t.manifest.data;
 
   useEffect(() => onSynced(t.manifest.loadedAt), [t.manifest.loadedAt, onSynced]);
@@ -66,12 +68,14 @@ export default function LoadSheet({
   if (!m) {
     return t.manifest.error ? (
       <div className="px-5">
-        <Notice tone="danger" title={tr("Could not load this trip's load sheet")}>
+        <Notice tone="danger" title={tr("Could not load this trip's load sheet")} onRetry={reload} retryLabel={tr("Try again")}>
           {t.manifest.error.message}
         </Notice>
       </div>
     ) : (
-      <p className="py-10 text-center text-[15px] text-go-muted">{tr("Loading the load sheet…")}</p>
+      <div className="px-5 py-4">
+        <SkeletonRows label={tr("Loading the load sheet…")} />
+      </div>
     );
   }
 
@@ -100,6 +104,16 @@ export default function LoadSheet({
       setJustReleased(true);
     }
     else setBlockedBy(outcome.error.message);
+  };
+
+  const once = async (key: string, work: () => Promise<unknown>) => {
+    if (ticking.current.has(key)) return;
+    ticking.current.add(key);
+    try {
+      await work();
+    } finally {
+      ticking.current.delete(key);
+    }
   };
 
   /** Tick one item; a pending stop that loads earlier is warned about first (E6), then Undo is offered (E5). */
@@ -203,7 +217,9 @@ export default function LoadSheet({
         outlets={outlets}
         editable={editable}
         onToggle={(line, item) =>
-          item ? void tick(line, item) : void t.check(line, null, line.status === "LOADED" ? "PENDING" : "LOADED")
+          void once(`${line.orderId}:${item?.lineNo ?? "order"}`, () =>
+            item ? tick(line, item) : t.check(line, null, line.status === "LOADED" ? "PENDING" : "LOADED"),
+          )
         }
         onReport={(line, item) => setIssueFor({ line, item })}
       />

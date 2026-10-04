@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useResource } from "@shared/api/useResource";
 import { OrderCommandKind, type OrderView } from "@shared/domain/types";
-import { Notice } from "@shared/ui";
+import { Notice, SkeletonRows } from "@shared/ui";
 import type { StoreGateway } from "../data/gateway.ts";
 import { ORDER_STATUS, units, clock, dayLabel, depotToday, editable, planNote, temperatureLabel } from "../data/format.ts";
 import { awaitingPlan, needsWarning, warningWords } from "../data/outlook.ts";
@@ -92,8 +92,17 @@ export default function OrderSheet({
               </span>
             </li>
           ))}
-          {history.loading && <li className="text-[13px] text-go-muted">Loading…</li>}
+          {history.loading && (
+            <li>
+              <SkeletonRows label="Loading…" />
+            </li>
+          )}
         </ol>
+        {history.error && !history.loading && (
+          <Notice tone="danger" title="Could not load the timeline" onRetry={history.refresh}>
+            {history.error.message}
+          </Notice>
+        )}
       </section>
 
       {order.status === "DEFERRED" && (

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Icon, type IconName } from "./Icon.tsx";
+import { PRESS, Spinner } from "./Spinner.tsx";
 import { clock } from "../wording/index.ts";
 
 // The GO components every role composes: cards, pills, tiles and buttons, as
@@ -145,29 +146,43 @@ type ButtonProps = {
   disabled?: boolean;
   type?: "button" | "submit";
   title?: string;
+  /** The command is on its way: disabled, with a spinner before the label. */
+  busy?: boolean;
 };
 
-export function PrimaryButton({ children, icon, type = "button", ...rest }: ButtonProps): React.JSX.Element {
+export function PrimaryButton({ children, icon, type = "button", busy = false, disabled, ...rest }: ButtonProps): React.JSX.Element {
   return (
     <button
       type={type}
       {...rest}
-      className="inline-flex items-center justify-center gap-1.5 rounded-full bg-go-ink px-[18px] py-3 text-sm font-medium text-go-card disabled:cursor-not-allowed disabled:opacity-40"
+      disabled={disabled || busy}
+      aria-busy={busy || undefined}
+      className={cx(
+        "inline-flex items-center justify-center gap-1.5 rounded-full bg-go-ink px-[18px] py-3 text-sm font-medium text-go-card disabled:cursor-not-allowed disabled:opacity-40",
+        busy && "disabled:cursor-wait disabled:opacity-70",
+        PRESS,
+      )}
     >
-      {icon && <Icon name={icon} />}
+      {busy ? <Spinner /> : icon && <Icon name={icon} />}
       {children}
     </button>
   );
 }
 
-export function SecondaryButton({ children, icon, type = "button", ...rest }: ButtonProps): React.JSX.Element {
+export function SecondaryButton({ children, icon, type = "button", busy = false, disabled, ...rest }: ButtonProps): React.JSX.Element {
   return (
     <button
       type={type}
       {...rest}
-      className="inline-flex items-center justify-center gap-1.5 rounded-full border border-go-rule bg-go-card px-[18px] py-3 text-sm font-medium text-go-ink disabled:cursor-not-allowed disabled:opacity-40"
+      disabled={disabled || busy}
+      aria-busy={busy || undefined}
+      className={cx(
+        "inline-flex items-center justify-center gap-1.5 rounded-full border border-go-rule bg-go-card px-[18px] py-3 text-sm font-medium text-go-ink disabled:cursor-not-allowed disabled:opacity-40",
+        busy && "disabled:cursor-wait disabled:opacity-70",
+        PRESS,
+      )}
     >
-      {icon && <Icon name={icon} />}
+      {busy ? <Spinner /> : icon && <Icon name={icon} />}
       {children}
     </button>
   );

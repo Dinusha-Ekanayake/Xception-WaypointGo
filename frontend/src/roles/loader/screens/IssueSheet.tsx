@@ -240,7 +240,7 @@ export default function IssueSheet({
           <BigButton tone="grey" size="l" onClick={onClose}>
             {tr("Cancel")}
           </BigButton>
-          <BigButton tone="danger" size="l" type="submit" disabled={!ready || busy}>
+          <BigButton tone="danger" size="l" type="submit" disabled={!ready} busy={busy}>
             {tr(busy ? "Sending…" : "Send to dispatcher")}
           </BigButton>
         </div>

@@ -69,7 +69,7 @@ export default function OrderSummary({
               Save draft
             </Button>
           )}
-          <Button large disabled={total === 0 || busy || !canSubmit} onClick={onSubmit}>
+          <Button large disabled={total === 0 || !canSubmit} busy={busy} onClick={onSubmit}>
             {busy ? "Sending…" : amend ? "Save change" : "Submit order"}
           </Button>
         </div>

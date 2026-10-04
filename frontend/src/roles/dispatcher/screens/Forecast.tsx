@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { FilterTabs, KpiCard, Notice } from "@shared/ui";
+import { FilterTabs, KpiCard, Notice, SkeletonRows } from "@shared/ui";
 import PageHeader from "../PageHeader.tsx";
 import Refusal from "./Refusal.tsx";
 import ForecastChart, { seriesColour } from "./ForecastChart.tsx";
@@ -131,7 +131,7 @@ export default function Forecast({
                 <Legend weeks={weeks} />
               </div>
               {loading ? (
-                <p className="py-10 text-center text-[13px] text-go-secondary">Loading the forecast…</p>
+                <SkeletonRows label="Loading the forecast…" />
               ) : (
                 <ForecastChart weeks={weeks} />
               )}
