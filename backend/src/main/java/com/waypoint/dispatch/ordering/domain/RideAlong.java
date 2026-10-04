@@ -75,4 +75,35 @@ public final class RideAlong {
         .limit(MAX_SUGGESTIONS)
         .toList();
   }
+
+  /** The days offered, and whether each was checked for room on its trip (R-ORD-14). */
+  public record Checked(List<Suggestion> days, boolean roomChecked) {}
+
+  /**
+   * The suggestion with the room check when it can be made (R-ORD-14), and on
+   * bookings alone when it cannot: no usual order to size it ({@code joins}
+   * empty, ORD-22), or the check failing on any day (ORD-23). A failure drops the
+   * check for every day, so no day is filtered by a check the screen says it
+   * did not make.
+   *
+   * @param joins whether the order joins that day's trip; may throw
+   * @param onFailure told once when the check could not be made
+   */
+  public static Checked suggestChecked(
+      String brandCode,
+      LocalDate chosen,
+      List<LocalDate> openDays,
+      Map<LocalDate, Integer> stopsByDay,
+      java.util.Optional<java.util.function.Predicate<LocalDate>> joins,
+      Runnable onFailure) {
+    if (joins.isEmpty()) {
+      return new Checked(suggest(brandCode, chosen, openDays, stopsByDay), false);
+    }
+    try {
+      return new Checked(suggest(brandCode, chosen, openDays, stopsByDay, joins.get()), true);
+    } catch (RuntimeException e) {
+      onFailure.run();
+      return new Checked(suggest(brandCode, chosen, openDays, stopsByDay), false);
+    }
+  }
 }

@@ -108,26 +108,16 @@ public class RideAlongQuery {
                   id -> reference.outlet(id, null).map(OutletView::vanOnly).orElse(false)),
               b.weightKg(), b.volumeM3())));
     }
-    boolean[] checked = {usual.isPresent()};
-    java.util.function.Predicate<LocalDate> roomOn = d -> {
-      if (!checked[0]) {
-        return true;
-      }
-      try {
-        LoadView extra = new LoadView(
-            usual.get().temperature(), outlet.vanOnly(), usual.get().weightKg(), usual.get().volumeM3());
-        return plans.joinsTrip(outlet.depotCode(), d, outlet.brandCode(), outlet.districtName(),
-            booked.getOrDefault(d, List.of()), extra);
-      } catch (RuntimeException e) {
-        metrics.increment("waypoint.order.ride_along_room_unknown");
-        checked[0] = false;
-        return true;
-      }
-    };
-    List<RideAlongDay> days =
-        RideAlong.suggest(outlet.brandCode(), day, open, stops, roomOn).stream()
-            .map(s -> new RideAlongDay(s.date(), s.stopsBooked()))
-            .toList();
-    return new RideAlongView(requested, day, true, days, checked[0]);
+    Optional<java.util.function.Predicate<LocalDate>> joins = usual.map(u -> {
+      LoadView extra = new LoadView(u.temperature(), outlet.vanOnly(), u.weightKg(), u.volumeM3());
+      return d -> plans.joinsTrip(outlet.depotCode(), d, outlet.brandCode(), outlet.districtName(),
+          booked.getOrDefault(d, List.of()), extra);
+    });
+    RideAlong.Checked checked = RideAlong.suggestChecked(outlet.brandCode(), day, open, stops, joins,
+        () -> metrics.increment("waypoint.order.ride_along_room_unknown"));
+    List<RideAlongDay> days = checked.days().stream()
+        .map(s -> new RideAlongDay(s.date(), s.stopsBooked()))
+        .toList();
+    return new RideAlongView(requested, day, true, days, checked.roomChecked());
   }
 }
