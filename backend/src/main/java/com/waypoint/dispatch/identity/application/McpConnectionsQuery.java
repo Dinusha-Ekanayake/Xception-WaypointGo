@@ -6,6 +6,8 @@ import com.waypoint.dispatch.platform.audit.AuditLog;
 import com.waypoint.dispatch.platform.db.Database;
 import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.shared.domain.Actor;
+import com.waypoint.dispatch.shared.domain.Cursor;
+import com.waypoint.dispatch.shared.domain.Page;
 import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
 import com.waypoint.dispatch.shared.util.Clock;
@@ -49,6 +51,88 @@ public class McpConnectionsQuery {
 
   public record ClientView(UUID clientId, String clientName, Instant registeredAt, Optional<Instant> lastUsedAt,
       int activeConnections, Optional<Instant> blockedAt, Optional<String> blockReason, long rowVersion) {}
+
+  /**
+   * One person or role and the MCP switches attached to it directly (R-IAM-38).
+   *
+   * @param principalId a user id or a role code
+   * @param label a person's display name or a role's description
+   * @param liveConnections open MCP connections; always 0 for a role
+   */
+  public record PrincipalAccess(String principalType, String principalId, String label, List<String> policies,
+      int liveConnections) {
+    public PrincipalAccess {
+      policies = List.copyOf(policies);
+    }
+  }
+
+  /** The policies an administrator turns on and off per person or role from the assistants screen. */
+  private static final String SWITCH_NAMES =
+      "('WaypointMcpBlocked', 'WaypointMcpNoWrites', 'WaypointMcpPersonalReader')";
+
+  private static String attached(String principalType, String principalId) {
+    return "COALESCE((SELECT string_agg(p.name, ',' ORDER BY p.name)"
+        + " FROM iam.policy_attachments a JOIN iam.policies p ON p.policy_id = a.policy_id"
+        + " WHERE a.principal_type = '" + principalType + "' AND a.principal_id = " + principalId
+        + " AND p.name IN " + SWITCH_NAMES + "), '')";
+  }
+
+  /** Every role with its MCP switches. Roles are a short fixed list, so this is not paged. */
+  public List<PrincipalAccess> roles(Actor actor) {
+    return database.readAs(ModuleRole.IAM, actor.userId(), () -> database.query(
+            "SELECT r.role_code, r.description, " + attached("role", "r.role_code")
+                + " AS attached FROM iam.roles r ORDER BY r.role_code")
+        .stream()
+        .map(row -> new PrincipalAccess("role", (String) row.get("role_code"), (String) row.get("description"),
+            split((String) row.get("attached")), 0))
+        .toList());
+  }
+
+  /**
+   * People with an MCP switch attached or a live connection, keyset paged on
+   * the user id. With {@code search}, every active person whose name or email
+   * starts with it instead, so an administrator can find someone to switch off.
+   */
+  public Page<PrincipalAccess> people(Actor actor, String search, String after, Integer limit) {
+    int size = Page.limit(limit);
+    List<String> key = Cursor.decode(after, 1);
+    UUID afterId = key.isEmpty() ? null : parseId(key.get(0));
+    String prefix = search == null || search.isBlank() ? null : search.trim().toLowerCase(java.util.Locale.ROOT);
+    Timestamp now = Timestamp.from(clock.now());
+    String live = "SELECT count(*) FROM iam.sessions s WHERE s.user_id = u.user_id AND s.mcp_read_only"
+        + " AND s.absolute_expiry > ? AND s.idle_expiry > ?";
+    List<PrincipalAccess> rows = database.readAs(ModuleRole.IAM, actor.userId(), () -> database.query(
+            "SELECT u.user_id, u.display_name, " + attached("user", "u.user_id::text") + " AS attached,"
+                + " (" + live + ") AS live"
+                + " FROM iam.users u"
+                + " WHERE (?::uuid IS NULL OR u.user_id > ?::uuid)"
+                + " AND CASE WHEN ?::text IS NULL THEN"
+                + "   EXISTS (SELECT 1 FROM iam.policy_attachments a JOIN iam.policies p ON p.policy_id = a.policy_id"
+                + "            WHERE a.principal_type = 'user' AND a.principal_id = u.user_id::text"
+                + "              AND p.name IN " + SWITCH_NAMES + ")"
+                + "   OR (" + live + ") > 0"
+                + " ELSE u.is_active AND (starts_with(lower(u.display_name), ?::text)"
+                + "   OR starts_with(lower(u.email), ?::text)) END"
+                + " ORDER BY u.user_id LIMIT ?",
+            now, now, afterId, afterId, prefix, now, now, prefix, prefix, size + 1)
+        .stream()
+        .map(row -> new PrincipalAccess("user", row.get("user_id").toString(), (String) row.get("display_name"),
+            split((String) row.get("attached")), ((Number) row.get("live")).intValue()))
+        .toList());
+    return Page.fromOverfetch(rows, size, row -> Cursor.encode(row.principalId()));
+  }
+
+  private static List<String> split(String attached) {
+    return attached == null || attached.isEmpty() ? List.of() : List.of(attached.split(","));
+  }
+
+  private static UUID parseId(String value) {
+    try {
+      return UUID.fromString(value);
+    } catch (IllegalArgumentException e) {
+      throw Cursor.invalid();
+    }
+  }
 
   public List<ConnectionView> own(Actor actor) {
     Instant now = clock.now();
