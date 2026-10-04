@@ -17,8 +17,13 @@ type RowProps = {
   online: boolean;
   /** All docks are on the board, so each trip says which dock it loads at. */
   showDock: boolean;
+  /** This trip is being opened or just closed: its vehicle moves to the load sheet's truck card. */
+  moving?: boolean;
   onOpen: () => void;
 };
+
+// One shared element name, given only to the trip in motion (shared/ui/transition.ts).
+const MOVING = { viewTransitionName: "vt-trip" };
 
 /** The one thing a loader can do with a trip: continue, take, view, or nothing while someone else holds it (R-LOD-11). */
 function TripAction({ trip, who, online, onOpen }: Omit<RowProps, "showDock">): React.JSX.Element {
@@ -47,12 +52,12 @@ function tripLine(trip: ReadyTripView, showDock: boolean, tr: ReturnType<typeof 
 const stops = (trip: ReadyTripView, tr: ReturnType<typeof useT>) =>
   tr(trip.stopCount === 1 ? "{n} stop" : "{n} stops", { n: trip.stopCount });
 
-export function TripCard({ trip, who, online, showDock, onOpen }: RowProps): React.JSX.Element {
+export function TripCard({ trip, who, online, showDock, moving, onOpen }: RowProps): React.JSX.Element {
   const tr = useT();
   return (
     <article className="flex flex-col gap-3 rounded-[24px] bg-go-card p-4 drop-shadow-[0_5px_10px_rgba(0,0,0,0.09)]">
       <div className="flex items-start justify-between gap-3">
-        <div className="flex flex-col gap-0.5">
+        <div className="flex flex-col gap-0.5" style={moving ? MOVING : undefined}>
           <span className="flex items-center gap-2">
             <span className="text-[18px] font-medium">{trip.vehicleId}</span>
             <TempBadge temperature={trip.temperature} />
@@ -99,11 +104,12 @@ function LoaderCell({ trip, who }: { trip: ReadyTripView; who: Who }): React.JSX
   );
 }
 
-export function TripTable({ trips, who, online, showDock, onOpen }: {
+export function TripTable({ trips, who, online, showDock, moving, onOpen }: {
   trips: ReadyTripView[];
   who: (trip: ReadyTripView) => Who;
   online: boolean;
   showDock: boolean;
+  moving?: string | null;
   onOpen: (tripId: string) => void;
 }): React.JSX.Element {
   const tr = useT();
@@ -130,7 +136,7 @@ export function TripTable({ trips, who, online, showDock, onOpen }: {
             return (
               <tr key={trip.tripId} className="border-t border-go-divider align-middle">
                 <td className="px-3 py-3">
-                  <span className="flex flex-wrap items-center gap-2">
+                  <span className="flex flex-wrap items-center gap-2" style={trip.tripId === moving ? MOVING : undefined}>
                     <span className={done ? "text-[18px] font-medium text-go-muted" : "text-[18px] font-medium"}>{trip.vehicleId}</span>
                     <TempBadge temperature={trip.temperature} />
                   </span>

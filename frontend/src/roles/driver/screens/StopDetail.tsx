@@ -42,7 +42,8 @@ export default function StopDetail({
   if ((stop.lateMinutes ?? 0) > 0) rows.splice(2, 0, ["Late by", `${stop.lateMinutes} min`]);
   return (
     <div className="flex flex-col gap-4 px-5 pb-8 pt-2">
-      <div>
+      {/* The tapped stop row on the route moves into this header (shared element, UX polish 4). */}
+      <div style={{ viewTransitionName: "vt-stop" }}>
         <p className="text-[15px] text-go-ink">
           Stop {String(stop.sequence).padStart(2, "0")} of {String(total).padStart(2, "0")}
         </p>

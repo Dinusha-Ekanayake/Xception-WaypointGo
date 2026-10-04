@@ -58,7 +58,8 @@ export default function TruckCard({
   const tr = useT();
   return (
       <section aria-label="Truck" className="flex flex-col gap-4 rounded-[31px] bg-go-card px-[22px] py-5 shadow-[0_5px_20px_rgba(0,0,0,0.09)] lg:sticky lg:top-[132px]">
-        <div className="flex items-center gap-2.5">
+        {/* The trip's row on the dock board moves into this header (shared element, UX polish 4). */}
+        <div className="flex items-center gap-2.5" style={{ viewTransitionName: "vt-trip" }}>
           <span className="rounded-full bg-go-action px-3.5 py-1.5 text-[15px] font-medium text-go-on-action">
             {tr(status === "COMPLETED" ? "Released" : status === "NOT_STARTED" ? "Not started" : status === "READY" ? "Ready to release" : "Loading")}
           </span>

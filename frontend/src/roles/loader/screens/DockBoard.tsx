@@ -33,6 +33,7 @@ export default function DockBoard({
   trips,
   online,
   onOpen,
+  moving,
   date,
 }: {
   depot: string;
@@ -41,6 +42,8 @@ export default function DockBoard({
   trips: Resource<ReadyTripView[]>;
   online: boolean;
   onOpen: (tripId: string) => void;
+  /** The trip being opened or just closed, whose row moves to and from the load sheet. */
+  moving?: string | null;
   /** The day these trips leave; named under the title when it is not today or tomorrow (UX plan U8). */
   date?: string;
 }): React.JSX.Element {
@@ -176,12 +179,12 @@ export default function DockBoard({
           <ul className="grid gap-3 md:hidden">
             {shown.map((trip) => (
               <li key={trip.tripId}>
-                <TripCard trip={trip} who={who(trip)} online={online} showDock={dock === ""} onOpen={() => onOpen(trip.tripId)} />
+                <TripCard trip={trip} who={who(trip)} online={online} showDock={dock === ""} moving={trip.tripId === moving} onOpen={() => onOpen(trip.tripId)} />
               </li>
             ))}
           </ul>
           <div className="hidden md:block">
-            <TripTable trips={shown} who={who} online={online} showDock={dock === ""} onOpen={onOpen} />
+            <TripTable trips={shown} who={who} online={online} showDock={dock === ""} moving={moving} onOpen={onOpen} />
           </div>
         </>
       )}

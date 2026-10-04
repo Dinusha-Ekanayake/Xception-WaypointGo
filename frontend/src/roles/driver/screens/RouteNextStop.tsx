@@ -18,8 +18,12 @@ export type RouteNextStopProps = {
   onToggleTheme?: () => void;
   stopIndex?: number;
   onSelectStop?: (index: number) => void;
+  /** The stop row last tapped: it alone moves into the stop's header (shared element, UX polish 4). */
+  movingStop?: string | null;
   hideHeader?: boolean;
 };
+
+const MOVING = { viewTransitionName: "vt-stop" };
 
 /**
  * Apple UIScrollView rubber-band resistance formula:
@@ -347,6 +351,7 @@ export default function RouteNextStop({
   onToggleTheme,
   stopIndex = 0,
   onSelectStop,
+  movingStop = null,
   hideHeader = false,
 }: RouteNextStopProps): React.JSX.Element {
   const [hasArrived, setHasArrived] = useState(false);
@@ -496,7 +501,7 @@ export default function RouteNextStop({
                       aria-label={`Stop ${stop.stopNumber} ${stop.name} · ${stopState(stop)}`}
                       className="w-full flex items-center justify-between text-left text-[14px] font-light leading-[18px] cursor-pointer active:opacity-70 transition-opacity"
                     >
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3" style={stop.id === movingStop ? MOVING : undefined}>
                         <span className={cx(isNight ? "text-white" : "text-black")}>{stop.stopNumber}</span>
                         <span className={cx(isNight ? "text-white" : "text-black")}>{stop.name}</span>
                       </div>
@@ -740,7 +745,7 @@ export default function RouteNextStop({
                     className="w-full text-left flex flex-col gap-3 cursor-pointer active:opacity-70 transition-opacity"
                   >
                     <div className="flex items-center justify-between text-[14px] font-light leading-[18px]">
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3" style={stop.id === movingStop ? MOVING : undefined}>
                         <span className={cx(isNight ? "text-white" : "text-black")}>{stop.stopNumber}</span>
                         <span className={cx(isNight ? "text-white" : "text-black")}>{stop.name}</span>
                       </div>
