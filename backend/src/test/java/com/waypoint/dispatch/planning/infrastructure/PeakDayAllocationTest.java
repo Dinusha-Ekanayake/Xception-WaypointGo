@@ -43,9 +43,31 @@ class PeakDayAllocationTest {
   static final PriorityPolicy POLICY =
       new PriorityPolicy(UUID.nameUUIDFromBytes("policy-v1".getBytes()), PriorityPolicy.DEFAULT_KEYS);
 
+  /** The production chain, as PlanningEngineConfiguration wires it. */
   static AllocationEngine engine() {
     ConstraintRegistry registry = ConstraintRegistry.standard();
-    return new ValidatingEngine(new ImprovingEngine(new PriorityInsertionEngine(registry), registry), registry, v -> {});
+    return new ValidatingEngine(
+        new CostImprovingEngine(new ImprovingEngine(new PriorityInsertionEngine(registry), registry), registry),
+        registry, v -> {});
+  }
+
+  @Test
+  void theCostStageServesTheSameOrdersOnFewerVehiclesAndLessFuel() {
+    PeakDayScenario s1 = PeakDayScenario.load(DATA, RULES, POLICY);
+    ConstraintRegistry registry = ConstraintRegistry.standard();
+    AllocationResult rules = new ImprovingEngine(new PriorityInsertionEngine(registry), registry).allocate(s1.problem());
+    AllocationResult result = engine().allocate(s1.problem());
+
+    assertEquals(served(rules), served(result), "R-PLN-38: the cost stage never changes which orders are served on S1");
+    var cost = result.cost().orElseThrow();
+    assertEquals(com.waypoint.dispatch.planning.domain.CostReplan.Trigger.DEFERRALS, cost.trigger());
+    assertTrue(cost.improved());
+    assertTrue(cost.vehicles() < cost.rulesVehicles(), "fewer vehicles: " + cost);
+    assertTrue(cost.litres().compareTo(cost.rulesLitres()) < 0, "less fuel: " + cost);
+    assertEquals(com.waypoint.dispatch.planning.domain.CostReplan.Stop.NONE, cost.stoppedBy());
+    assertTrue(result.alternative().isPresent(), "the rules plan is offered beside it");
+    assertEquals(served(rules), served(result.alternative().get()));
+    System.out.println("S1 cost stage: " + cost);
   }
 
   @Test

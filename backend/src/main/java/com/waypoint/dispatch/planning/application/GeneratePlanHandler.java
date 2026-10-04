@@ -6,11 +6,14 @@ import com.waypoint.dispatch.planning.contract.PlanViews.PlanView;
 import com.waypoint.dispatch.planning.contract.PlanViews.SnapshotKind;
 import com.waypoint.dispatch.planning.domain.AllocationEngine;
 import com.waypoint.dispatch.planning.domain.AllocationEngine.AllocationResult;
+import com.waypoint.dispatch.planning.domain.AllocationEngine.Problem;
 import com.waypoint.dispatch.planning.domain.PlanningRun;
 import com.waypoint.dispatch.planning.domain.PlanningRun.Stamps;
 import com.waypoint.dispatch.planning.domain.PriorityPolicy;
 import com.waypoint.dispatch.planning.domain.RuleSet;
 import com.waypoint.dispatch.planning.infrastructure.JdbcPlanRepository;
+import com.waypoint.dispatch.planning.infrastructure.JdbcGenerationJobs;
+import com.waypoint.dispatch.planning.infrastructure.JdbcGenerationJobs.JobRow;
 import com.waypoint.dispatch.planning.infrastructure.JdbcPlanRepository.RunRow;
 import com.waypoint.dispatch.platform.db.Database;
 import com.waypoint.dispatch.platform.db.ModuleRole;
@@ -52,6 +55,9 @@ public class GeneratePlanHandler implements CommandHandler {
   private final Metrics metrics;
   private final Clock clock;
   private final SnapshotRecords snapshots;
+  private final PlanDataQuery view;
+  private final JdbcGenerationJobs jobs;
+  private final GenerationSignal signal;
 
   public GeneratePlanHandler(
       Database database,
@@ -62,7 +68,10 @@ public class GeneratePlanHandler implements CommandHandler {
       ReferenceQuery reference,
       Metrics metrics,
       Clock clock,
-      SnapshotRecords snapshots) {
+      SnapshotRecords snapshots,
+      PlanDataQuery view,
+      JdbcGenerationJobs jobs,
+      GenerationSignal signal) {
     this.database = database;
     this.plans = plans;
     this.problems = problems;
@@ -72,6 +81,9 @@ public class GeneratePlanHandler implements CommandHandler {
     this.metrics = metrics;
     this.clock = clock;
     this.snapshots = snapshots;
+    this.view = view;
+    this.jobs = jobs;
+    this.signal = signal;
   }
 
   @Override
@@ -108,7 +120,83 @@ public class GeneratePlanHandler implements CommandHandler {
       throw new DomainException(ErrorCode.FORBIDDEN, "Depot " + depot + " is outside the actor's scope");
     }
     boolean keep = payload.flag("keepDecisions", false);
-    return PlanningDrafts.body(generate(actor, depot, serviceDate, now, command.commandId(), keep));
+    refuseClosedDay(depot, serviceDate);
+    // The engine runs in the queue, not in this transaction (R-PLN-41): a second Generate finds the same job.
+    JobRow job = jobs.enqueue(drafts.newId(now), depot, serviceDate, keep, actor.userId(), command.commandId(), now);
+    database.afterCommit(signal::wake);
+    metrics.increment("waypoint.plan.generation_queued");
+    return jobBody(job);
+  }
+
+  /** What a Generate answers: the job, which the screen follows until the draft is written. */
+  static Map<String, Object> jobBody(JobRow job) {
+    Map<String, Object> body = new java.util.LinkedHashMap<>();
+    body.put("jobId", job.jobId().toString());
+    body.put("status", job.status().toUpperCase(java.util.Locale.ROOT));
+    body.put("depotCode", job.depotCode());
+    body.put("serviceDate", job.serviceDate().toString());
+    return body;
+  }
+
+  /** A day that is not operating, or already published, is refused at once rather than queued. */
+  public void refuseClosedDay(String depot, LocalDate serviceDate) {
+    if (!reference.isOperating(serviceDate)) {
+      throw new DomainException(
+          ErrorCode.CONSTRAINT_VIOLATED, serviceDate + " is not an operating day", List.of("PLN-13"));
+    }
+    if (plans.published(depot, serviceDate).isPresent()) {
+      throw new DomainException(
+          ErrorCode.CONFLICT,
+          "a plan is already published for " + depot + " on " + serviceDate + "; revise it instead",
+          List.of("R-PLN-28"));
+    }
+  }
+
+  // ---- the queued generation, in three steps (R-PLN-41) ---------------------------
+
+  /** What a job needs from the database, read in one short transaction. */
+  public record JobInput(Built built, Stamps stamps, Optional<RunRow> open, KeptDecisions kept) {
+    Problem problem() {
+      return kept.isEmpty() ? built.problem() : built.problem().keeping(kept.pins(), kept.held());
+    }
+  }
+
+  /** Step 1, inside a transaction as the requester: the demand, fleet and rules in force, and what to keep. */
+  public JobInput prepareJob(String depot, LocalDate serviceDate, boolean keepDecisions) {
+    refuseClosedDay(depot, serviceDate);
+    Prepared prepared = prepare(depot, serviceDate);
+    Optional<RunRow> open = plans.latestDraft(depot, serviceDate);
+    KeptDecisions kept =
+        keepDecisions && open.isPresent()
+            ? KeptDecisions.ofDraft(plans.allocations(open.get().planId()), plans.trips(open.get().planId()))
+                .within(prepared.built().orders().keySet())
+            : KeptDecisions.NONE;
+    return new JobInput(prepared.built(), prepared.stamps(), open, kept);
+  }
+
+  /** Step 2, with no transaction open: the engine. Pure, so a retry of step 3 never repeats it. */
+  public AllocationResult allocate(JobInput input) {
+    long started = System.nanoTime();
+    AllocationResult result = engine.allocate(input.problem());
+    metrics.record("waypoint.plan.engine_ms", (System.nanoTime() - started) / 1_000_000L, "engine", engine.name());
+    return result;
+  }
+
+  /**
+   * Step 3, inside a transaction as the requester: the draft, but only if the
+   * day is as the engine saw it. Empty when the demand changed meanwhile, so the
+   * job runs again on the new demand rather than writing a plan for the old one.
+   */
+  public Optional<PlanningRun> persistJob(
+      Actor actor, JobInput input, AllocationResult result, Instant now, UUID commandId) {
+    refuseClosedDay(input.built().problem().depotCode(), input.built().problem().serviceDate());
+    Prepared current = prepare(input.built().problem().depotCode(), input.built().problem().serviceDate());
+    if (!current.built().fingerprint().equals(input.built().fingerprint())) {
+      metrics.increment("waypoint.plan.generation_demand_moved");
+      return Optional.empty();
+    }
+    Optional<RunRow> open = plans.latestDraft(input.built().problem().depotCode(), input.built().problem().serviceDate());
+    return Optional.of(persist(actor, input.built(), input.stamps(), open, input.kept(), now, commandId, result));
   }
 
   /**
@@ -126,16 +214,7 @@ public class GeneratePlanHandler implements CommandHandler {
    */
   public PlanningRun generate(
       Actor actor, String depot, LocalDate serviceDate, Instant now, UUID commandId, boolean keepDecisions) {
-    if (!reference.isOperating(serviceDate)) {
-      throw new DomainException(
-          ErrorCode.CONSTRAINT_VIOLATED, serviceDate + " is not an operating day", List.of("PLN-13"));
-    }
-    if (plans.published(depot, serviceDate).isPresent()) {
-      throw new DomainException(
-          ErrorCode.CONFLICT,
-          "a plan is already published for " + depot + " on " + serviceDate + "; revise it instead",
-          List.of("R-PLN-28"));
-    }
+    refuseClosedDay(depot, serviceDate);
 
     Prepared prepared = prepare(depot, serviceDate);
     Optional<RunRow> open = plans.latestDraft(depot, serviceDate);
@@ -205,12 +284,22 @@ public class GeneratePlanHandler implements CommandHandler {
       KeptDecisions kept,
       Instant now,
       UUID commandId) {
+    AllocationResult result = allocate(new JobInput(built, stamps, open, kept));
+    return persist(actor, built, stamps, open, kept, now, commandId, result);
+  }
+
+  /** Stores an engine result as the day's open draft: the previous draft saved, then cancelled. */
+  private PlanningRun persist(
+      Actor actor,
+      Built built,
+      Stamps stamps,
+      Optional<RunRow> open,
+      KeptDecisions kept,
+      Instant now,
+      UUID commandId,
+      AllocationResult result) {
     String depot = built.problem().depotCode();
     LocalDate serviceDate = built.problem().serviceDate();
-    long started = System.nanoTime();
-    AllocationResult result =
-        engine.allocate(kept.isEmpty() ? built.problem() : built.problem().keeping(kept.pins(), kept.held()));
-    metrics.record("waypoint.plan.engine_ms", (System.nanoTime() - started) / 1_000_000L, "engine", engine.name());
 
     open.ifPresent(previous -> snapshots.save(previous, SnapshotKind.REGENERATED, Optional.empty(), actor.userId(), now));
     drafts.cancelOpen(depot, serviceDate, now);
@@ -227,7 +316,17 @@ public class GeneratePlanHandler implements CommandHandler {
                 Actor.SYSTEM_ID)
             .withCarried(kept.marks(), kept.heldDecisions());
     drafts.write(run, built, actor.userId(), now, commandId);
-    snapshots.save(plans.findRun(run.planId()).orElseThrow(), SnapshotKind.AUTO, Optional.empty(), actor.userId(), now);
+    RunRow saved = plans.findRun(run.planId()).orElseThrow();
+    snapshots.save(saved, SnapshotKind.AUTO, Optional.empty(), actor.userId(), now);
+    // The cost stage replaced the rules plan: keep that plan beside the draft, to compare and choose.
+    if (result.alternative().isPresent()) {
+      PlanningRun rules =
+          PlanningRun.draft(run.planId(), depot, serviceDate, run.planVersion(), stamps, Optional.empty(),
+              built.fingerprint(), result.alternative().get(), Actor.SYSTEM_ID);
+      PlanRecords.Rows rows = PlanRecords.of(rules, built, actor.userId(), now, () -> drafts.newId(now));
+      snapshots.saveView(view.viewOf(rows), saved, SnapshotKind.RULES, actor.userId(), now);
+      metrics.increment("waypoint.plan.rules_alternative");
+    }
 
     metrics.increment("waypoint.plan.generated");
     if (run.partial()) {

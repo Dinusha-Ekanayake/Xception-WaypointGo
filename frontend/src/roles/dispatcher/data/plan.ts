@@ -1,4 +1,4 @@
-import type { AllocationView, ImprovementView, OrderView, PlanView, TripView, VehicleView } from "@shared/domain/types";
+import type { AllocationView, CostView, ImprovementView, OrderView, PlanView, TripView, VehicleView } from "@shared/domain/types";
 export { hhmm } from "../../../shared/wording/index.ts";
 
 // What a plan adds up to on the dispatcher's screen. Pure: the plan, the day's
@@ -127,6 +127,37 @@ export function working(published: PlanView | null, draft: PlanView | null): Wor
  * What the engine's second pass did, in the dispatcher's words (issue #92), or
  * null when there is nothing to say. A search cut short is always said (rule 9).
  */
+/**
+ * Planning v2: what the cost stage did, in the dispatcher's words. Null when
+ * there is nothing to say (no stage ran, or it was switched off).
+ */
+export function costNote(cost: CostView | null | undefined): { title: string; detail: string; compare: boolean } | null {
+  if (!cost) return null;
+  const litres = (value: string | number) => `${Math.round(Number(value))} L`;
+  const vehicles = (n: number) => `${n} ${n === 1 ? "vehicle" : "vehicles"}`;
+  switch (cost.trigger) {
+    case "SKIPPED_SIMPLE_DAY":
+      return { title: "Simple day: the rules plan", detail: "Nothing was deferred and the trips are full, so no cheaper arrangement was searched for.", compare: false };
+    case "SKIPPED_KEPT_DECISIONS":
+      return { title: "Your decisions kept", detail: "The cost search did not run, so nothing was moved around the orders you placed or held.", compare: false };
+    case "SKIPPED_DISABLED":
+      return null;
+  }
+  if (!cost.improved) {
+    return { title: "The rules plan was already the cheapest found", detail: `The search tried ${cost.iterations} rearrangements with the same orders and found none cheaper.`, compare: false };
+  }
+  const saved = cost.rulesVehicles - cost.vehicles;
+  const fuel = Number(cost.rulesLitres) - Number(cost.litres);
+  return {
+    title: `Optimised: ${vehicles(cost.vehicles)}, ${cost.trips} trips, ${litres(cost.litres)}`,
+    detail:
+      `Rules plan: ${vehicles(cost.rulesVehicles)}, ${cost.rulesTrips} trips, ${litres(cost.rulesLitres)}. ` +
+      `The same orders are served${saved > 0 ? ` with ${saved} fewer ${saved === 1 ? "vehicle" : "vehicles"}` : ""}${fuel > 0 ? ` and ${litres(fuel)} less fuel` : ""}.` +
+      (cost.stoppedBy === "CLOCK" ? " The search stopped at its time limit, so this is the best it found." : ""),
+    compare: true,
+  };
+}
+
 export function improvementNote(improvement: ImprovementView | null): { title: string; detail: string } | null {
   if (!improvement) return null;
   const early =

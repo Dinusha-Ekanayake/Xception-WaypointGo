@@ -15,6 +15,8 @@ import java.util.UUID;
  * @param windowOpen the effective window, outlet and mall already intersected
  *     (R-PLN-29). Empty when the intersection is empty
  * @param serviceMinutes the allowance for this brand and dock type (A-16)
+ * @param location the outlet's exact point, when reference data has one; a
+ *     district-level point is left out, so stops are ordered by window alone (R-PLN-40)
  * @param deferralCount how many runs have skipped it (R-PLN-20)
  * @param daysSinceServed days since the outlet last received a delivery
  */
@@ -36,13 +38,40 @@ public record PlanOrder(
     BigDecimal serviceMinutes,
     int deferralCount,
     int daysSinceServed,
-    LocalDate originalRequestedDate) {
+    LocalDate originalRequestedDate,
+    Optional<Coordinates> location) {
 
   public PlanOrder {
     Objects.requireNonNull(orderId, "orderId");
     Objects.requireNonNull(weightKg, "weightKg");
     Objects.requireNonNull(volumeM3, "volumeM3");
     Objects.requireNonNull(serviceMinutes, "serviceMinutes");
+    Objects.requireNonNull(location, "location");
+  }
+
+  /** An order with no exact point: its stop is ordered by window, as before GPS (R-PLN-40). */
+  public PlanOrder(
+      UUID orderId,
+      String orderRef,
+      String outletId,
+      String depotCode,
+      String brand,
+      String district,
+      String temperature,
+      BigDecimal weightKg,
+      BigDecimal volumeM3,
+      String dockType,
+      boolean vanOnly,
+      boolean mallDock,
+      Optional<LocalTime> windowOpen,
+      Optional<LocalTime> windowClose,
+      BigDecimal serviceMinutes,
+      int deferralCount,
+      int daysSinceServed,
+      LocalDate originalRequestedDate) {
+    this(orderId, orderRef, outletId, depotCode, brand, district, temperature, weightKg, volumeM3, dockType, vanOnly,
+        mallDock, windowOpen, windowClose, serviceMinutes, deferralCount, daysSinceServed, originalRequestedDate,
+        Optional.empty());
   }
 
   public TemperatureClass temperatureClass() {

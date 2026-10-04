@@ -23,7 +23,7 @@ class PlanningSnapshotsIntegrationTest extends PlanningIntegrationSupport {
 
   UUID regenerate(boolean keepDecisions) throws Exception {
     String body = send(dispatcher, envelope("plan:Generate", null, generatePayload(keepDecisions)), 200);
-    return UUID.fromString(mapper.readTree(body).get("result").get("planId").asText());
+    return UUID.fromString(finishJob(dispatcher, mapper.readTree(body).get("result")).get("planId").asText());
   }
 
   JsonNode draft() throws Exception {

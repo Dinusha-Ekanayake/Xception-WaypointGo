@@ -87,6 +87,7 @@ class IntelligenceIntegrationTest {
   @Autowired ObjectMapper mapper;
   @Autowired Migrator migrator;
   @Autowired Database database;
+  @Autowired com.waypoint.dispatch.planning.application.PlanGenerationWorker worker;
   @Autowired AccountAdminUseCase accounts;
   @Autowired LoginHandler login;
   @Autowired ImportReferenceDataHandler referenceImport;
@@ -421,9 +422,11 @@ class IntelligenceIntegrationTest {
   private UUID publishedPlan() throws Exception {
     demand();
     demand();
-    JsonNode draft = result(send(dispatcher, envelope("plan:Generate", null,
+    JsonNode queued = result(send(dispatcher, envelope("plan:Generate", null,
         "{\"depotCode\":\"" + depot + "\",\"serviceDate\":\"" + serviceDate + "\"}"), 200));
-    UUID planId = UUID.fromString(draft.get("planId").asText());
+    worker.runPending();
+    JsonNode job = read(dispatcher, "/api/plans/jobs/" + queued.get("jobId").asText() + "?depot=" + depot, 200);
+    UUID planId = UUID.fromString(job.get("planId").asText());
     send(dispatcher, envelope("plan:Publish", 1L, "{\"planId\":\"" + planId + "\"}"), 200);
     deliver("ml.on-plan-published", UUID.randomUUID(),
         new PlanPublished(planId, depot, serviceDate, 1, Optional.empty(), List.of()));

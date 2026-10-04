@@ -458,6 +458,7 @@ class PlanningSchemaIntegrationTest {
         false,
         "priority-insertion",
         Optional.empty(),
+        Optional.empty(),
         true,
         Instant.now(),
         Actor.SYSTEM_ID,

@@ -69,6 +69,8 @@ const vehicle = (vehicleId: string) => ({
 });
 
 export type Desk = {
+  /** Queued generations (R-PLN-41), each done with the draft it wrote. */
+  jobs: Array<{ jobId: string; result: ReturnType<typeof body> }>;
   orders: OrderView[];
   draft: PlanView | null;
   published: PlanView | null;
@@ -120,7 +122,7 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
   const desk: Desk = {
     orders: [order(1, "CONFIRMED"), order(2, "CONFIRMED"), order(3, "CONFIRMED")],
     draft: null, published: null, sheets: [], dock: [], issues: [], history: {}, deferrals: [], commands: [], refuse: null,
-    forecast: forecast(), snapshots: [], savedPlans: {}, preview: FEASIBLE_PREVIEW, ...start,
+    forecast: forecast(), snapshots: [], savedPlans: {}, preview: FEASIBLE_PREVIEW, jobs: [], ...start,
   };
   const json = (value: unknown) => ({ status: 200, contentType: "application/json", body: JSON.stringify(value) });
   const problem = (status: number, code: string, detail: string, rules: string[] = []) => ({
@@ -133,8 +135,11 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
     if (command.kind.startsWith("issue:")) return applyIssue(desk, command);
     if (command.kind === "order:CloseForDay") return { alreadyClosed: false };
     if (command.kind === "plan:Generate") {
+      // Planning v2 (R-PLN-41): Generate queues a job; the worker writes the draft and the screen follows the job.
       desk.draft = draftPlan((desk.draft?.planVersion ?? 0) + 1);
-      return body(desk.draft);
+      const jobId = `job-${desk.jobs.length + 1}`;
+      desk.jobs.push({ jobId, result: body(desk.draft) });
+      return { jobId, status: "QUEUED", depotCode: DEPOT, serviceDate: "2027-03-01" };
     }
     const plan = desk.draft!;
     if (command.kind === "plan:Override") {
@@ -193,6 +198,16 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
     if (pathname === "/api/reference/vehicles") return route.fulfill(json({ items: [vehicle("VEH043"), vehicle("VEH044")], nextCursor: null }));
     if (pathname === "/api/orders/day") return route.fulfill(json(desk.orders));
     if (pathname === "/api/plans/draft") return route.fulfill(desk.draft ? json(desk.draft) : problem(404, "NOT_FOUND", "No open draft"));
+    if (pathname.startsWith("/api/plans/jobs")) {
+      const id = pathname.split("/")[4];
+      const job = id ? desk.jobs.find((j) => j.jobId === id) : desk.jobs.at(-1);
+      if (!job) return route.fulfill(problem(404, "NOT_FOUND", "No plan generation"));
+      return route.fulfill(json({
+        jobId: job.jobId, depotCode: DEPOT, serviceDate: "2027-03-01", status: "DONE", attempts: 1, planId: job.result.planId,
+        error: null, createdAt: "2027-02-28T10:00:00Z", startedAt: "2027-02-28T10:00:00Z", finishedAt: "2027-02-28T10:00:01Z",
+        result: job.result,
+      }));
+    }
     if (pathname === "/api/plans/published") return route.fulfill(desk.published ? json(desk.published) : problem(404, "NOT_FOUND", "No published plan"));
     if (pathname === "/api/plans/preview/placements") return route.fulfill(json(PLACES));
     if (pathname === "/api/plans/preview/swap" || pathname === "/api/plans/preview/sequence") return route.fulfill(json(desk.preview));

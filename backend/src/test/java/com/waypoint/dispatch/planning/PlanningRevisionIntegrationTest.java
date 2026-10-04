@@ -183,6 +183,13 @@ class PlanningRevisionIntegrationTest extends PlanningIntegrationSupport {
     UUID order = demand("ambient");
 
     deliver("planning.on-orders-closed", new OrdersClosed(depot, serviceDate, List.of(order)));
+    // The consumer queues the generation (R-PLN-41); delivering the same event again queues nothing more.
+    deliver("planning.on-orders-closed", new OrdersClosed(depot, serviceDate, List.of(order)));
+    worker.runPending();
+    assertEquals(1L, ((Number) database.asSystem(com.waypoint.dispatch.platform.db.ModuleRole.PLANNING,
+        () -> database.queryOne("SELECT count(*) AS n FROM planning.generation_jobs WHERE depot_code = ? AND service_date = ?",
+            depot, java.sql.Date.valueOf(serviceDate)).get("n"))).longValue(),
+        "one job for the day, however often the event arrives");
 
     Map<String, Object> draft = openDraft();
     assertEquals(Actor.SYSTEM_ID, draft.get("generated_by"));

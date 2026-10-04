@@ -187,4 +187,22 @@ class ScarceFleetReplanTest {
     assertTrue(ScarceFleetReplan.compareByRank(ranked, Set.of(high.orderId()), Set.of(low1.orderId(), low2.orderId())) > 0);
     assertEquals(0, ScarceFleetReplan.compareByRank(ranked, Set.of(low1.orderId()), Set.of(low1.orderId())));
   }
+
+  @Test
+  void aLargeChilledDayIsListedWithinTheBudgetAndSaysItWasCutShort() {
+    // Forty small chilled orders of one group: every subset fits a trip, and pairs of trips run to the billions.
+    List<PlanOrder> orders = new ArrayList<>();
+    for (int i = 0; i < 40; i++) {
+      orders.add(order().chilled().volume("0.2").weight("10").window("03:00", "12:00").service(1).ref(String.format("BIG-%02d", i)).build());
+    }
+    Problem p = problem(orders);
+    AllocationResult first = firstPlan(orders, List.of());
+    long started = System.nanoTime();
+    ScarceFleetReplan.Result r = improve(p, first, 20_000);
+    long ms = (System.nanoTime() - started) / 1_000_000L;
+
+    assertTrue(ms < 10_000, "bounded by the node budget, not by the size of the day: " + ms + " ms");
+    assertEquals(ScarceFleetReplan.Stop.NODES, r.summary().stoppedBy(), "and the plan says the search was cut short");
+    assertFeasible(p, r.allocation());
+  }
 }

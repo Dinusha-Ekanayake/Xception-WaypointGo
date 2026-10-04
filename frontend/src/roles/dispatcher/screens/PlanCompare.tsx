@@ -44,7 +44,8 @@ export default function PlanCompare({
     { id: working.id, label: `Working draft (version ${working.version})`, snapshotId: null },
     ...snapshots.map((s) => ({ id: s.snapshotId, label: pickLabel(s), snapshotId: s.snapshotId })),
   ];
-  const auto = snapshots.find((s) => s.kind === "AUTO");
+  // An optimised draft opens against the rules plan made beside it (planning v2); otherwise the engine's own plan.
+  const auto = snapshots.find((s) => s.kind === "RULES" && s.sourcePlanId === working.id) ?? snapshots.find((s) => s.kind === "AUTO");
   const [aId, setAId] = useState(auto?.snapshotId ?? picks[picks.length - 1]!.id);
   const [bId, setBId] = useState(working.id);
   const a = picks.find((p) => p.id === aId) ?? picks[0]!;

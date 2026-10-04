@@ -2,6 +2,7 @@ package com.waypoint.dispatch.planning.application;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.waypoint.dispatch.planning.contract.PlanViews.PlanView;
 import com.waypoint.dispatch.planning.contract.PlanViews.SnapshotKind;
 import com.waypoint.dispatch.planning.contract.PlanViews.SnapshotView;
 import com.waypoint.dispatch.planning.infrastructure.JdbcPlanRepository;
@@ -54,6 +55,36 @@ class SnapshotRecords {
     return row;
   }
 
+  /**
+   * Stores a plan that was never a draft of its own, such as the rules plan the
+   * cost stage replaced. It is kept under the draft it was made beside, so it is
+   * compared and restored like any other saved plan.
+   */
+  SnapshotRow saveView(PlanView plan, RunRow beside, SnapshotKind kind, UUID actor, Instant now) {
+    int number = plans.nextSnapshotNumber(beside.depotCode(), beside.serviceDate());
+    String payload;
+    try {
+      payload = json.writeValueAsString(plan);
+    } catch (JsonProcessingException e) {
+      throw new IllegalStateException("plan beside " + beside.planId() + " cannot be saved", e);
+    }
+    SnapshotRow row =
+        new SnapshotRow(
+            UuidV7.generate(now, random),
+            beside.depotCode(),
+            beside.serviceDate(),
+            number,
+            defaultLabel(kind, number),
+            kind.name().toLowerCase(Locale.ROOT),
+            beside.planId(),
+            beside.planVersion(),
+            payload,
+            actor,
+            now);
+    plans.insertSnapshot(row);
+    return row;
+  }
+
   static SnapshotView view(SnapshotRow row) {
     return new SnapshotView(
         row.snapshotId(),
@@ -73,6 +104,7 @@ class SnapshotRecords {
       case AUTO -> "Auto plan";
       case MANUAL -> "Snapshot " + number;
       case REGENERATED -> "Before regenerate (snapshot " + number + ")";
+      case RULES -> "Rules plan";
     };
   }
 

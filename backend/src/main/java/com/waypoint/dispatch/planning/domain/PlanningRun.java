@@ -34,6 +34,7 @@ import java.util.UUID;
  *     dispatcher (rule 8)
  * @param improvement what the engine's second pass achieved over its first,
  *     kept through every version of the draft (issue #92)
+ * @param cost what the cost stage did, or why it did not run (R-PLN-39)
  * @param marks the decisions a dispatcher took on an order, and whether it is
  *     held in place; an order with no entry is the engine's and free (rule 8)
  */
@@ -51,6 +52,7 @@ public record PlanningRun(
     boolean partial,
     String engine,
     Optional<ScarceFleetReplan.Summary> improvement,
+    Optional<CostReplan.Summary> cost,
     List<VehicleDay> days,
     List<OrderDecision> decisions,
     Map<UUID, UUID> deferredBy,
@@ -113,12 +115,12 @@ public record PlanningRun(
         .forEach(d -> by.put(d.orderId(), engineActor));
     return new PlanningRun(
         planId, depotCode, serviceDate, planVersion, PlanStatus.DRAFT, stamps, supersedes, Optional.empty(),
-        demandFingerprint, false, result.partial(), result.engine(), result.improvement(), result.days(),
+        demandFingerprint, false, result.partial(), result.engine(), result.improvement(), result.cost(), result.days(),
         result.decisions(), by, Map.of(), 1);
   }
 
   public AllocationResult result() {
-    return new AllocationResult(days, decisions, partial, engine, improvement);
+    return new AllocationResult(days, decisions, partial, engine, improvement, cost, Optional.empty());
   }
 
   /**
@@ -140,7 +142,7 @@ public record PlanningRun(
     }
     return new PlanningRun(
         planId, depotCode, serviceDate, planVersion, status, stamps, supersedes, revisionReason, demandFingerprint,
-        stale, partial, engine, improvement, days, next, by, kept(carried, next), rowVersion);
+        stale, partial, engine, improvement, cost, days, next, by, kept(carried, next), rowVersion);
   }
 
   public Optional<Mark> markOf(UUID orderId) {
@@ -735,7 +737,7 @@ public record PlanningRun(
     }
     return new PlanningRun(
         nextPlanId, depotCode, serviceDate, nextVersion, PlanStatus.DRAFT, nextStamps, nextSupersedes,
-        nextReason, nextFingerprint, false, partial, engine, improvement, nextDays, refreshed, nextDeferredBy,
+        nextReason, nextFingerprint, false, partial, engine, improvement, cost, nextDays, refreshed, nextDeferredBy,
         kept(nextMarks, refreshed), 1);
   }
 
