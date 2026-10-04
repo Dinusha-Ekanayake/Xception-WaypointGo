@@ -37,13 +37,16 @@ export function explainDeferral(input: {
   outletId: string | null;
   day: string;
   allocation: Pick<AllocationView, "bindingRule" | "reason" | "checks">;
-  places: PlacementView[] | null;
+  /** Null while they load; undefined where the places are not looked up (the plan view's list). */
+  places?: PlacementView[] | null;
   /** False for an order kept deferred, or on a plan that can no longer be edited. */
   canPlace?: boolean;
 }): Explanation {
-  const { allocation, places } = input;
+  const { allocation } = input;
+  const unknown = input.places === undefined;
+  const places = input.places ?? null;
   const order = input.orderRef ?? "This order";
-  const canPlace = input.canPlace ?? true;
+  const canPlace = !unknown && (input.canPlace ?? true);
   const fits = places === null ? null : places.filter((place) => place.feasible);
   const refused = (places ?? []).filter((place) => !place.feasible).slice(0, REFUSED_SHOWN);
 
@@ -56,7 +59,9 @@ export function explainDeferral(input: {
     met: allocation.checks.filter((check) => check.passed).map((check) => checkLabel(check.ruleId, true)),
     fits: fits === null ? null : fits.map((place) => `${where(place)}: ${place.joins ? "joins the trip already planned" : "opens a new trip"}`),
     refused: refused.map((place) => ({ where: where(place), why: `${ruleLabel(place.bindingRule)}: ${place.reason}` })),
-    next: !canPlace
+    next: unknown
+      ? "Open the order in Decide to see where it could go, swap it with an order on a trip, or keep it deferred."
+      : !canPlace
       ? "It stays deferred on this plan, with its reason on record, and is offered first on the next plan."
       : fits === null
         ? "Every vehicle is still being checked."

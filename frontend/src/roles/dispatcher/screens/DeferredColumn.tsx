@@ -5,7 +5,9 @@ import type { OrderView, PlanView, VehicleView } from "@shared/domain/types";
 import { Pill } from "@shared/ui";
 import { dayLabel, ruleLabel } from "@shared/wording";
 import { useNextDelivery } from "../data/usePlanReads.ts";
+import { explainDeferral } from "../data/explain.ts";
 import DeferredOrderCard from "./DeferredOrderCard.tsx";
+import ExplainSheet from "./ExplainSheet.tsx";
 import type { PlanActions } from "./planActions.ts";
 
 // Figma "Plan · 2 View plan", left column: every order the plan did not carry,
@@ -33,6 +35,9 @@ export default function DeferredColumn({
   const card = cardId ? plan.allocations.find((a) => a.orderId === cardId) : undefined;
   const cardOrder = cardId ? orders.get(cardId) : undefined;
   const next = useNextDelivery(plan.serviceDate);
+  const [whyId, setWhyId] = useState<string | null>(null);
+  const why = whyId ? plan.allocations.find((a) => a.orderId === whyId) : undefined;
+  const whyOrder = whyId ? orders.get(whyId) : undefined;
   const left = plan.allocations.filter((allocation) => allocation.decision !== "SERVED");
 
   return (
@@ -49,7 +54,7 @@ export default function DeferredColumn({
             const order = orders.get(allocation.orderId);
             const tooBig = allocation.decision === "UNSERVABLE";
             return (
-              <li key={allocation.orderId}>
+              <li key={allocation.orderId} className="relative">
                 <button
                   type="button"
                   onClick={() => (order ? setCardId(allocation.orderId) : onOpen(allocation.orderId))}
@@ -67,10 +72,25 @@ export default function DeferredColumn({
                     <span className="rounded-full bg-go-surface px-2 py-0.5">{tooBig ? "Too big" : ruleLabel(allocation.bindingRule)}</span>
                   </span>
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setWhyId(allocation.orderId)}
+                  aria-label={`Why ${order?.orderRef ?? "this order"} was not placed`}
+                  title="Why it was not placed"
+                  className="absolute right-2 bottom-2 flex size-7 items-center justify-center rounded-full border border-go-rule bg-go-card text-[13px] font-semibold text-go-teal before:absolute before:-inset-1.5 hover:border-go-teal"
+                >
+                  ?
+                </button>
               </li>
             );
           })}
         </ul>
+      )}
+      {why && (
+        <ExplainSheet
+          explanation={explainDeferral({ orderRef: whyOrder?.orderRef ?? null, outletId: whyOrder?.outletId ?? null, day: dayLabel(plan.serviceDate), allocation: why })}
+          onClose={() => setWhyId(null)}
+        />
       )}
       {card && cardOrder && (
         <DeferredOrderCard

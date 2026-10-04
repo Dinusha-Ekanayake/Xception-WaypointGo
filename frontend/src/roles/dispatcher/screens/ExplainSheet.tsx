@@ -21,7 +21,7 @@ const list = "flex list-disc flex-col gap-1 pl-5 text-[13px] text-go-ink";
 export default function ExplainSheet({ explanation, onClose }: { explanation: Explanation; onClose: () => void }): React.JSX.Element {
   const { stopped, met, fits, refused } = explanation;
   return (
-    <Sheet label="Why this order was not placed" onClose={onClose}>
+    <Sheet label="Why this order was not placed" onClose={onClose} centered>
       <h2 className="text-[20px] font-medium text-go-ink">Why this order was not placed</h2>
       <p className="text-[14px] text-go-ink">{explanation.headline}</p>
 

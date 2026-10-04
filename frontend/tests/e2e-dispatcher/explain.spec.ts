@@ -34,3 +34,18 @@ test("Explain this plan says what the plan carries and why orders were left off"
   await page.keyboard.press("Escape");
   await expect(sheet).toHaveCount(0);
 });
+
+test("each deferred order on the plan view has a question mark that says why it was not placed", async ({ page }) => {
+  await serve(page, { draft: draftPlan() });
+  await page.goto("/#/plan");
+  await page.getByRole("tab", { name: /View plan/ }).click();
+
+  const deferred = page.getByRole("region", { name: "Deferred orders" });
+  await deferred.getByRole("button", { name: /^Why .* was not placed$/ }).first().click();
+
+  const sheet = page.getByRole("dialog", { name: "Why this order was not placed" });
+  await expect(sheet.getByRole("heading", { name: "The reason" })).toBeVisible();
+  await expect(sheet).toContainText("Open the order in Decide");
+  await page.keyboard.press("Escape");
+  await expect(sheet).toHaveCount(0);
+});

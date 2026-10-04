@@ -11,6 +11,15 @@
 The language buttons in the store's account menu now switch the screens. Strings are hardcoded in `store/data/strings.ts` (English is the key, a missing one falls back to English), read through `store/i18n.tsx`, as the loader does; the choice stays under the device key Settings already used. Covered: navigation, top bar, account menu, Home, Orders, Deliveries, Issues and placing an order.
 Left in English: Receive, Track, the order sheet, notifications, reporting an issue, the handover PIN, the profile and store dialogs, messages, and sentences built in the data layer (issue card titles, make-up timeline). Dates, times and unit counts come from the shared wording and stay English. The Sinhala and Tamil are drafts awaiting a native speaker.
 Verified: typecheck, `npm test` 284 (new `store-i18n.test.ts` holds every translation to its English placeholders). Not seen in a browser.
+---
+
+## 2026-10-04 - feat: a generated plan explains itself at once, and each deferred order has a question mark
+
+`feat/explain-auto` · @Dinusha-Ekanayake
+
+The plan's explanation opens by itself when a plan is generated (the button stays, to open it again). Each order in the plan view's Deferred list has a question mark that opens why it was not placed. Both pop-ups sit in the middle of the screen from a tablet up (`Sheet` `centered`). Rule-based, frontend only.
+Not built: wording by an outside language model (Groq). It was stopped before any plan data left the system; the explanations stay rule-based.
+Verified: see the PR. `npm test` 281; `explain.spec.ts` and the generate spec in `plan.spec.ts` cover the new behaviour.
 
 ---
 
