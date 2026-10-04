@@ -58,7 +58,7 @@ class NotificationConsumersIntegrationTest extends NotificationSupport {
     assertFalse(recipientsOf(eventId).contains(stranger.id()), "another outlet's manager");
     assertFalse(recipientsOf(eventId).contains(dispatcher.id()), "no depot rule for a deferral");
     assertEquals("Order deferred", mine.get("title"));
-    assertEquals("Your order planned for 2026-10-03 was deferred: vehicle capacity", mine.get("body"));
+    assertEquals("Your order planned for Sat 3 Oct was deferred: vehicle capacity", mine.get("body"));
     List<Map<String, Object>> deliveries = deliveriesOf((UUID) mine.get("notification_id"));
     assertEquals(1, deliveries.size(), "no device subscribed, so the inbox is the only channel");
     assertEquals("in_app", deliveries.get(0).get("channel"));
@@ -170,7 +170,7 @@ class NotificationConsumersIntegrationTest extends NotificationSupport {
     Map<String, Object> toDriver =
         written.stream().filter(n -> n.get("recipient_user_id").equals(driver.id())).findFirst().orElseThrow();
     assertEquals("trip:" + tripId, toDriver.get("target_key"));
-    assertEquals("Trip 1 on " + vehicle + ", departing 06:30, 1 stops.", toDriver.get("body"));
+    assertEquals("Trip 1 on " + vehicle + ", departing 06:30, 1 stop.", toDriver.get("body"));
   }
 
   @Test
