@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-04 - fix: Compare shows an order's ref, never its internal id
+
+`fix/compare-order-refs` · @jv-ransika
+
+"Orders that differ" took refs from the day's order list; a saved plan can still place an order that has since moved to another day, which then showed as a raw id. Missing orders are now read by id (`useOrdersById`); one that cannot be read says "Order not found".
+Verified: `npm test` (259), typecheck, build; dispatcher browser suite 68 of 68.
+Open: Decide, Publish and the decision card still fall back to the id for an order off the day's list; they show the working plan, where that does not happen today.
+
+---
+
 ## 2026-10-04 - feat: trip drawer, vehicle picker, published plan final at 16:00
 
 `feat/plan-trip-drawer` · @jv-ransika

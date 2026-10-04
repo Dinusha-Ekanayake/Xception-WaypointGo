@@ -74,6 +74,23 @@ export function useOrders(depots: string[], date: string): Resource<OrderView[]>
   return useResource(load, `orders|${depots.join(",")}|${date}`, POLL_MS);
 }
 
+/**
+ * Orders named by id that the day's list does not hold, such as an order a
+ * saved plan still places but that has since moved to another day. Read one by
+ * one; one that cannot be read is left out, so the screen falls back to words.
+ */
+export function useOrdersById(ids: string[]): Resource<OrderView[]> {
+  const key = [...ids].sort().join(",");
+  const load =
+    ids.length === 0
+      ? null
+      : async (signal: AbortSignal) => {
+          const read = await Promise.allSettled(ids.map((id) => request<OrderView>(`/api/orders/${q(id)}`, { signal })));
+          return read.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
+        };
+  return useResource(load, `orders-by-id|${key}`);
+}
+
 export type DepotPlans = { depot: string; published: PlanView | null; draft: PlanView | null };
 
 /** The published plan and the open draft of each depot for the day; either may be absent. */
