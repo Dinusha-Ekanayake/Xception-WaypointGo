@@ -1,6 +1,7 @@
 import type { Temperature } from "@shared/domain/types";
 import { productLines, units } from "../../data/format.ts";
 import { Button } from "../../ui.tsx";
+import { useT } from "../../i18n.tsx";
 
 // The summary card of "03 Place order": a bottom sheet on a phone, a card beside
 // the list on a desktop. Cases only: weight and volume are the warehouse's,
@@ -29,14 +30,15 @@ export default function OrderSummary({
   onSaveDraft: () => void;
   onSubmit: () => void;
 }): React.JSX.Element {
+  const tr = useT();
   const total = classes.reduce((s, t) => s + lines(t).units, 0);
   const orders = classes.filter((t) => lines(t).items > 0).length;
   return (
     <div className="fixed inset-x-0 bottom-0 z-30 flex justify-center lg:sticky lg:top-8 lg:z-auto">
       <div className="flex w-full max-w-[720px] flex-col gap-3 rounded-t-[32px] bg-white px-6 pt-5 pb-[max(1.75rem,env(safe-area-inset-bottom))] shadow-[0_-5px_20px_rgba(0,0,0,0.06)] lg:rounded-[26px] lg:shadow-[0_5px_20px_rgba(0,0,0,0.09)]">
-        <h2 className="hidden text-[20px] font-medium text-black lg:block">Order summary</h2>
+        <h2 className="hidden text-[20px] font-medium text-black lg:block">{tr("Order summary")}</h2>
         <div className="flex flex-col rounded-[16px] bg-go-mint/70 px-4 py-3">
-          <span className="text-[12px] text-go-muted">Delivery</span>
+          <span className="text-[12px] text-go-muted">{tr("Delivery")}</span>
           <span className="text-[16px] font-medium text-black">{delivery}</span>
         </div>
         {/* Desktop: one line per class with its own count, as in "03 Place order". */}
@@ -45,7 +47,7 @@ export default function OrderSummary({
             const { items, units: n } = lines(t);
             return (
               <li key={t} className="flex justify-between gap-3">
-                <span className="text-black">{t === "chilled" ? "Chilled order" : "Ambient order"}</span>
+                <span className="text-black">{tr(t === "chilled" ? "Chilled order" : "Ambient order")}</span>
                 <span className="text-go-muted">
                   {productLines(items)} · {units(n)}
                 </span>
@@ -54,23 +56,23 @@ export default function OrderSummary({
           })}
         </ul>
         <p className="flex items-baseline justify-between gap-3 border-t border-[#dfe7e6] pt-3 text-[28px] leading-tight font-semibold text-black lg:text-[18px]">
-          <span className="hidden text-[15px] font-medium lg:inline">Total</span>
+          <span className="hidden text-[15px] font-medium lg:inline">{tr("Total")}</span>
           <span>
             {units(total)}
-            <span className="lg:hidden">{!amend && ` · ${orders} ${orders === 1 ? "order" : "orders"}`}</span>
+            <span className="lg:hidden">{!amend && ` · ${tr(orders === 1 ? "{n} order" : "{n} orders", { n: orders })}`}</span>
           </span>
         </p>
         <div className="flex gap-2.5 lg:flex-col-reverse">
           <Button tone="plain" large onClick={onCancel}>
-            Cancel
+            {tr("Cancel")}
           </Button>
           {!amend && (
             <Button tone="plain" large disabled={total === 0} onClick={onSaveDraft}>
-              Save draft
+              {tr("Save draft")}
             </Button>
           )}
           <Button large disabled={total === 0 || !canSubmit} busy={busy} onClick={onSubmit}>
-            {busy ? "Sending…" : amend ? "Save change" : "Submit order"}
+            {tr(busy ? "Sending…" : amend ? "Save change" : "Submit order")}
           </Button>
         </div>
       </div>

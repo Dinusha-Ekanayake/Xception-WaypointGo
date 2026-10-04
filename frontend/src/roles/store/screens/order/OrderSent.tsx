@@ -3,6 +3,7 @@ import type { OutletView, PlacedOrder } from "@shared/domain/types";
 import { Icon, Notice } from "@shared/ui";
 import { units, changeDeadline, clock, dayLabel, depotToday, hhmm, temperatureLabel } from "../../data/format.ts";
 import { Badge, Button, Facts, Modal } from "../../ui.tsx";
+import { useT } from "../../i18n.tsx";
 
 // Figma "04 Order sent". Totals are the warehouse's, returned with the order,
 // never summed from product lines here. An order kept on the phone is said to
@@ -27,11 +28,12 @@ export default function OrderSent({
   /** Take what a partial reservation locked; answers an error message or null. */
   onAccept?: (order: PlacedOrder) => Promise<string | null>;
 }): React.JSX.Element {
+  const t = useT();
   const { orders, queued } = sent;
   const unknown = orders.some((o) => o.status === "STOCK_UNKNOWN");
   const partial = orders.some((o) => o.shortfall);
   const offline = orders.length === 0 && queued;
-  const title = offline ? "Saved on this phone" : partial ? "Only part could be reserved" : unknown ? "Order kept, stock not checked" : "Order sent";
+  const title = t(offline ? "Saved on this phone" : partial ? "Only part could be reserved" : unknown ? "Order kept, stock not checked" : "Order sent");
   const rolled = orders.find((o) => o.dateRolled);
   const deliveryDate = orders[0]?.deliveryDate ?? sent.requestedDate;
 
@@ -44,45 +46,45 @@ export default function OrderSent({
         <h2 className="text-[26px] font-medium text-black">{title}</h2>
         <p className="text-[14px] text-go-muted">
           {offline
-            ? "You are offline. It is sent the moment the connection returns; keep this app open or come back to it."
+            ? t("You are offline. It is sent the moment the connection returns; keep this app open or come back to it.")
             : unknown
-              ? "The warehouse is not answering. Waypoint confirms it once stock is checked."
-              : `Waypoint has your order for ${dayLabel(deliveryDate)}.`}
+              ? t("The warehouse is not answering. Waypoint confirms it once stock is checked.")
+              : t("Waypoint has your order for {day}.", { day: dayLabel(deliveryDate) })}
         </p>
       </div>
       {orders.length > 0 && (
         <Facts
           rows={[
             ...orders.map((o) => ({
-              label: `${o.orderRef}${o.temperature ? ` · ${temperatureLabel(o.temperature)}` : ""}`,
-              value: o.itemCount === null ? "Totals follow once stock is checked" : units(o.itemCount),
+              label: `${o.orderRef}${o.temperature ? ` · ${t(temperatureLabel(o.temperature))}` : ""}`,
+              value: o.itemCount === null ? t("Totals follow once stock is checked") : units(o.itemCount),
             })),
             {
-              label: "Delivery window",
+              label: t("Delivery window"),
               value: `${dayLabel(deliveryDate)}${outlet ? ` · ${hhmm(outlet.windowOpen)}-${hhmm(outlet.windowClose)}` : ""}`,
             },
-            { label: "You can change it until", value: changeDeadline(deliveryDate, depotToday()) },
+            { label: t("You can change it until"), value: changeDeadline(deliveryDate, depotToday()) },
           ]}
         />
       )}
-      {rolled && <p className="text-[13px] text-go-warning-text">Moved from {dayLabel(rolled.requestedDate)}, which is not a delivery day.</p>}
+      {rolled && <p className="text-[13px] text-go-warning-text">{t("Moved from {day}, which is not a delivery day.", { day: dayLabel(rolled.requestedDate) })}</p>}
       {onAccept && orders.filter((o) => o.shortfall).map((o) => <ShortfallNotice key={o.orderId} order={o} onAccept={onAccept} />)}
-      {queued && orders.length > 0 && <p className="text-[14px] text-go-warning-text">Part of this order is saved on this phone and sent when the connection returns.</p>}
+      {queued && orders.length > 0 && <p className="text-[14px] text-go-warning-text">{t("Part of this order is saved on this phone and sent when the connection returns.")}</p>}
       <div className="flex gap-2.5">
         {onFixRest ? (
           <Button tone="plain" large onClick={onFixRest}>
-            Fix the rest
+            {t("Fix the rest")}
           </Button>
         ) : (
           onEdit &&
           orders.length > 0 && (
             <Button tone="plain" large onClick={() => onEdit(orders[0]!)}>
-              Edit order
+              {t("Edit order")}
             </Button>
           )
         )}
         <Button large onClick={onDone}>
-          Back to home
+          {t("Back to home")}
         </Button>
       </div>
     </Modal>
@@ -93,21 +95,22 @@ export default function OrderSent({
 // as it is or cancels the order from Orders; nothing is split or guessed here.
 function ShortfallNotice({ order, onAccept }: { order: PlacedOrder; onAccept: (order: PlacedOrder) => Promise<string | null> }): React.JSX.Element {
   const [state, setState] = useState<{ busy: boolean; done: boolean; error: string | null }>({ busy: false, done: false, error: null });
+  const t = useT();
   const short = order.shortfall!;
   const accept = async () => {
     setState({ busy: true, done: false, error: null });
     const error = await onAccept(order);
     setState({ busy: false, done: error === null, error });
   };
-  if (state.done) return <Notice tone="info" live title={`${order.orderRef}: the reserved quantities are confirmed.`} />;
+  if (state.done) return <Notice tone="info" live title={t("{ref}: the reserved quantities are confirmed.", { ref: order.orderRef })} />;
   return (
     <Notice
       tone="warning"
       live
-      title={`${order.orderRef}: held until ${clock(short.expiresAt)}`}
+      title={t("{ref}: held until {time}", { ref: order.orderRef, time: clock(short.expiresAt) })}
       action={
         <Button large busy={state.busy} onClick={() => void accept()}>
-          {state.busy ? "Accepting…" : "Accept reserved"}
+          {t(state.busy ? "Accepting…" : "Accept reserved")}
         </Button>
       }
     >
@@ -116,12 +119,12 @@ function ShortfallNotice({ order, onAccept }: { order: PlacedOrder; onAccept: (o
           .filter((l) => l.reserved < l.requested)
           .map((l) => (
             <li key={l.productId}>
-              {l.productId}: {l.reserved} of {l.requested}
+              {l.productId}: {t("{n} of {total}", { n: l.reserved, total: l.requested })}
             </li>
           ))}
       </ul>
       {state.error && <p className="mt-1 font-medium text-go-danger-strong">{state.error}</p>}
-      <p className="mt-1">Accept before then, or cancel the order from Orders.</p>
+      <p className="mt-1">{t("Accept before then, or cancel the order from Orders.")}</p>
     </Notice>
   );
 }

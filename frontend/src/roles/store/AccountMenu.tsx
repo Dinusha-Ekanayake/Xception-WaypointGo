@@ -2,9 +2,10 @@
 
 import { useEffect, useRef } from "react";
 import type { OutletView } from "@shared/domain/types";
-import { APP_LANGS, InstallApp, cx, useDeviceLang, useShell } from "@shared/ui";
+import { APP_LANGS, InstallApp, cx, useShell } from "@shared/ui";
 import { usePush, type PushState } from "@shared/notifications/push";
 import { dockLabel } from "./data/format.ts";
+import { useLang, useT } from "./i18n.tsx";
 
 // Figma "Overlay · Account menu": on a shared counter computer, who is signed in
 // and for which outlet, dock and window, with one Sign out. Staff ID and the
@@ -34,6 +35,7 @@ export default function AccountMenu({
   onClose: () => void;
 }): React.JSX.Element {
   const shell = useShell();
+  const t = useT();
   const panel = useRef<HTMLDivElement>(null);
   const close = useRef(onClose);
   useEffect(() => {
@@ -52,13 +54,13 @@ export default function AccountMenu({
   }, []);
 
   const rows: [string, string][] = [
-    ["Role", "Store manager"],
+    [t("Role"), t("Store manager")],
     ...(outlet
       ? ([
-          ["Brand", outlet.brandCode],
-          ["Outlet", `${outlet.districtName} · ${outlet.outletId}`],
-          ["Receiving", `${dockLabel(outlet.dockType)} · ${outlet.windowOpen.slice(0, 5)}-${outlet.windowClose.slice(0, 5)}`],
-          ["Depot", outlet.depotCode],
+          [t("Brand"), outlet.brandCode],
+          [t("Outlet"), `${outlet.districtName} · ${outlet.outletId}`],
+          [t("Receiving"), `${t(dockLabel(outlet.dockType))} · ${outlet.windowOpen.slice(0, 5)}-${outlet.windowClose.slice(0, 5)}`],
+          [t("Depot"), outlet.depotCode],
         ] as [string, string][])
       : []),
   ];
@@ -67,7 +69,7 @@ export default function AccountMenu({
     <>
       <button
         type="button"
-        aria-label="Close the account menu"
+        aria-label={t("Close the account menu")}
         tabIndex={-1}
         onClick={onClose}
         className={cx("fixed inset-0 z-40 cursor-default", placement === "sheet" && "bg-black/20 backdrop-blur-[6px]")}
@@ -76,7 +78,7 @@ export default function AccountMenu({
         ref={panel}
         tabIndex={-1}
         role="dialog"
-        aria-label="Account"
+        aria-label={t("Account")}
         className={cx(
           "z-50 flex flex-col gap-1 bg-white p-[7px] shadow-[0_10px_30px_rgba(0,0,0,0.18)] outline-none",
           placement === "sheet" ? "fixed inset-x-0 bottom-0 animate-sheet-up rounded-t-[28px] px-4 pt-4 pb-[max(2rem,env(safe-area-inset-bottom))]" : "absolute bottom-[84px] left-5 w-[280px] animate-rise-in rounded-[20px]",
@@ -88,7 +90,7 @@ export default function AccountMenu({
           </span>
           <span className="flex min-w-0 flex-col">
             <span className="truncate text-[15px] font-medium text-black">{displayName}</span>
-            <span className="text-[12px] text-go-muted">Store manager</span>
+            <span className="text-[12px] text-go-muted">{t("Store manager")}</span>
           </span>
         </div>
         <dl className="flex flex-col gap-2 rounded-[14px] bg-go-canvas px-2.5 py-3 text-[12px]">
@@ -112,8 +114,8 @@ export default function AccountMenu({
             }}
             className="flex min-h-12 flex-col justify-center rounded-[14px] px-3 text-left hover:bg-go-surface"
           >
-            <span className="text-[14px] font-medium text-black">{item.label}</span>
-            <span className="text-[12px] text-go-secondary">{item.note}</span>
+            <span className="text-[14px] font-medium text-black">{t(item.label)}</span>
+            <span className="text-[12px] text-go-secondary">{t(item.note)}</span>
           </button>
         ))}
         <SettingsRows />
@@ -130,7 +132,7 @@ export default function AccountMenu({
           <svg aria-hidden viewBox="0 0 24 24" className="size-[18px] fill-none stroke-current stroke-2">
             <path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l-5-5 5-5M5 12h11" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          Sign out
+          {t("Sign out")}
         </button>
       </div>
     </>
@@ -148,6 +150,7 @@ const PUSH_NOTE: Record<PushState["kind"], string> = {
 
 function PushRow(): React.JSX.Element {
   const push = usePush();
+  const t = useT();
   const on = push.state.kind === "on";
   const usable = push.state.kind === "on" || push.state.kind === "off";
   return (
@@ -161,8 +164,8 @@ function PushRow(): React.JSX.Element {
         className="flex min-h-12 items-center justify-between gap-3 rounded-[14px] px-3 text-left hover:bg-go-surface disabled:hover:bg-transparent"
       >
         <span className="flex flex-col">
-          <span className="text-[14px] font-medium text-black">Alerts on this device</span>
-          <span className="text-[12px] text-go-secondary">{PUSH_NOTE[push.state.kind]}</span>
+          <span className="text-[14px] font-medium text-black">{t("Alerts on this device")}</span>
+          <span className="text-[12px] text-go-secondary">{t(PUSH_NOTE[push.state.kind])}</span>
         </span>
         {usable && (
           <span aria-hidden className={cx("flex h-6 w-10 shrink-0 items-center rounded-full p-0.5", on ? "justify-end bg-go-success" : "justify-start bg-go-divider")}>
@@ -175,14 +178,14 @@ function PushRow(): React.JSX.Element {
   );
 }
 
-/** Language (kept on this device; the store screens are English for now) and the assistant connection. */
+/** Language, kept on this device, and installing the app. */
 function SettingsRows(): React.JSX.Element {
-  const shell = useShell();
-  const [lang, setLang] = useDeviceLang();
+  const { lang, setLang } = useLang();
+  const t = useT();
   return (
     <div className="flex flex-col gap-2 px-3 py-2">
-      <span className="text-[14px] font-medium text-black">Language</span>
-      <div role="group" aria-label="Language" className="flex gap-1">
+      <span className="text-[14px] font-medium text-black">{t("Language")}</span>
+      <div role="group" aria-label={t("Language")} className="flex gap-1">
         {APP_LANGS.map((l) => (
           <button
             key={l.value}
@@ -197,7 +200,7 @@ function SettingsRows(): React.JSX.Element {
           </button>
         ))}
       </div>
-      <span className="text-[12px] text-go-secondary">These screens are in English for now; your choice is kept on this device.</span>
+      <span className="text-[12px] text-go-secondary">{t("Your choice is kept on this device.")}</span>
       <InstallApp className="flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-go-surface text-[14px] font-medium text-black" />
     </div>
   );

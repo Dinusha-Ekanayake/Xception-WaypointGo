@@ -5,6 +5,7 @@ import AccountMenu from "./AccountMenu.tsx";
 import { initials } from "./ui.tsx";
 import { clock } from "@shared/wording";
 import { useKeptSince } from "@shared/offline";
+import { useT } from "./i18n.tsx";
 
 // The store's top bar from "02 Home" (mobile and desktop). Connection state is always on screen: the
 // resilient tier keeps working offline, and the manager must know an order is
@@ -40,39 +41,40 @@ export default function TopBar({
   onNotifications?: () => void;
 }): React.JSX.Element {
   // Phones have no sidebar, so the account menu opens from here as a bottom sheet.
+  const t = useT();
   const [account, setAccount] = useState(false);
   // When a screen shows what this device kept rather than the server's answer, say from when (#201).
   const since = useKeptSince();
   const sync = !online
     ? waiting > 0
-      ? `Offline · ${waiting} saved on this phone`
+      ? t("Offline · {n} saved on this phone", { n: waiting })
       : since
-        ? `Offline · showing ${clock(since)}`
-        : "Offline · showing last sync"
+        ? t("Offline · showing {time}", { time: clock(since) })
+        : t("Offline · showing last sync")
     : since
-      ? `Server unreachable · showing ${clock(since)}`
+      ? t("Server unreachable · showing {time}", { time: clock(since) })
       : waiting > 0
-      ? `Sending ${waiting}…`
+      ? t("Sending {n}…", { n: waiting })
       : syncing
-        ? "Syncing…"
+        ? t("Syncing…")
         : syncedAt
-          ? `Synced ${clock(syncedAt)}`
-          : "Connecting…";
+          ? t("Synced {time}", { time: clock(syncedAt) })
+          : t("Connecting…");
   // On a narrow phone the pill keeps "Synced 10:49" but drops the longer words
   // of the other states; the full sentence stays its accessible name. The round
   // buttons step down to 40 px there to make room (UX plan U9).
   const short = !online
     ? waiting > 0
-      ? `Offline · ${waiting}`
-      : "Offline"
+      ? t("Offline · {n}", { n: waiting })
+      : t("Offline")
     : since
-      ? "Unreachable"
+      ? t("Unreachable")
       : waiting > 0
-        ? `Sending ${waiting}`
+        ? t("Sending {n}", { n: waiting })
         : syncing
-          ? "Syncing…"
+          ? t("Syncing…")
           : syncedAt
-            ? `Synced ${clock(syncedAt)}`
+            ? t("Synced {time}", { time: clock(syncedAt) })
             : "…";
   const synced = online && !since && waiting === 0 && !syncing && syncedAt !== null;
   const hasUnread = (unread ?? 0) > 0;
@@ -86,14 +88,14 @@ export default function TopBar({
       {/* On desktops the brand is in the sidebar; the sync pill stays top right, as in "02 Home". */}
       <span className="text-[40px] leading-none font-extrabold text-black lg:hidden">GO</span>
       {/* Below 440 px the bar cannot hold the chip and a readable sync time; GO stays (UX plan U9). */}
-      <span className="rounded-full bg-go-mint px-2.5 py-[5px] text-[13px] font-medium text-black max-[439px]:hidden lg:hidden">Store</span>
+      <span className="rounded-full bg-go-mint px-2.5 py-[5px] text-[13px] font-medium text-black max-[439px]:hidden lg:hidden">{t("Store")}</span>
       <span className="flex-1" />
-      {sample && <span className="shrink-0 rounded-full bg-go-warning-tint px-3 py-1.5 text-xs font-medium text-go-warning-text">Sample data</span>}
+      {sample && <span className="shrink-0 rounded-full bg-go-warning-tint px-3 py-1.5 text-xs font-medium text-go-warning-text">{t("Sample data")}</span>}
       <button
         type="button"
         onClick={onSync}
         disabled={syncing}
-        aria-label={`${sync}. Sync now`}
+        aria-label={t("{state}. Sync now", { state: sync })}
         className={cx(
           "min-h-12 min-w-0 truncate text-right text-[13px] max-[439px]:shrink-0 disabled:cursor-wait lg:flex lg:items-center lg:rounded-full lg:bg-white lg:px-4 lg:text-[14px] lg:shadow-[0_5px_20px_rgba(0,0,0,0.09)]",
           online ? "text-go-muted lg:text-black" : "font-medium text-go-warning-text",
@@ -113,7 +115,7 @@ export default function TopBar({
         <button
           type="button"
           onClick={onNotifications}
-          aria-label={hasUnread ? `Notifications, ${unread} unread` : "Notifications"}
+          aria-label={hasUnread ? t("Notifications, {n} unread", { n: unread ?? 0 }) : t("Notifications")}
           className="relative flex size-12 shrink-0 items-center justify-center rounded-full bg-white text-black shadow-[0_5px_20px_rgba(0,0,0,0.09)] max-[439px]:size-10"
         >
           <Icon name="bell" />
@@ -127,7 +129,7 @@ export default function TopBar({
         type="button"
         aria-haspopup="dialog"
         aria-expanded={account}
-        aria-label={`Account: ${displayName}`}
+        aria-label={t("Account: {name}", { name: displayName })}
         onClick={() => setAccount(true)}
         className="flex size-12 shrink-0 items-center justify-center rounded-full bg-go-mint text-[14px] font-semibold text-black lg:hidden max-[439px]:size-10 max-[439px]:text-[13px]"
       >

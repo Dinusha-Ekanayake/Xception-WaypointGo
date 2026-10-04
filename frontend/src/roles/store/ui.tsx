@@ -3,6 +3,7 @@ import { Icon, PRESS, ShellActions, Spinner, cx, useOverlay, useSheetDrag, type 
 import type { OutletView } from "@shared/domain/types";
 import AccountMenu from "./AccountMenu.tsx";
 import { dockLabel, type StatusTone } from "./data/format.ts";
+import { useT } from "./i18n.tsx";
 
 // Store pieces from Figma "15 Store Manager · Mobile". Touch targets are at
 // least 48px; the manager works at the counter, often one handed.
@@ -274,11 +275,12 @@ function usePageScrolled(threshold = 24): boolean {
 
 /** "SM / Tab bar": floating, dark, the active tab on a white pill. Scrolling folds it smaller. */
 export function TabBar({ tab, onTab, badges }: { tab: Tab; onTab: (t: Tab) => void; badges: Partial<Record<Tab, number>> }): React.JSX.Element {
+  const tr = useT();
   const compact = usePageScrolled();
   // On a phone held sideways (`short:`) the fade and the padding took nearly
   // half the screen; there the bar sits low with no fade (issue #201).
   return (
-    <nav aria-label="Store" className={cx("fixed inset-x-0 bottom-0 z-30 flex justify-center lg:hidden bg-gradient-to-b from-go-canvas/0 via-go-canvas via-45% to-go-canvas px-4 transition-all duration-300 short:bg-none short:pt-0 short:pb-[max(0.5rem,env(safe-area-inset-bottom))]", compact ? "pt-4 pb-[max(0.75rem,env(safe-area-inset-bottom))]" : "pt-10 pb-[max(1.5rem,env(safe-area-inset-bottom))]")}>
+    <nav aria-label={tr("Store")} className={cx("fixed inset-x-0 bottom-0 z-30 flex justify-center lg:hidden bg-gradient-to-b from-go-canvas/0 via-go-canvas via-45% to-go-canvas px-4 transition-all duration-300 short:bg-none short:pt-0 short:pb-[max(0.5rem,env(safe-area-inset-bottom))]", compact ? "pt-4 pb-[max(0.75rem,env(safe-area-inset-bottom))]" : "pt-10 pb-[max(1.5rem,env(safe-area-inset-bottom))]")}>
       <div className={cx("flex w-full items-center justify-around rounded-[32px] bg-[#031b08] px-2 drop-shadow-[0_8px_12px_rgba(0,0,0,0.18)] transition-all duration-300 short:h-14", compact ? "h-12 max-w-[248px]" : "h-16 max-w-[324px]")}>
         {TABS.map((t) => {
           const active = t.id === tab;
@@ -287,7 +289,7 @@ export function TabBar({ tab, onTab, badges }: { tab: Tab; onTab: (t: Tab) => vo
             <button
               key={t.id}
               type="button"
-              aria-label={t.label}
+              aria-label={tr(t.label)}
               aria-current={active ? "page" : undefined}
               onClick={() => onTab(t.id)}
               className={cx("relative flex items-center justify-center rounded-[24px] transition-all duration-300", compact ? "h-9 w-12" : "h-12 w-[64px]", active && "bg-white")}
@@ -333,15 +335,16 @@ export function SideNav({
   onEditProfile: () => void;
   onEditStore: () => void;
 }): React.JSX.Element {
+  const tr = useT();
   const [account, setAccount] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-[260px] flex-col gap-6 bg-white px-5 pt-8 pb-6 lg:flex">
       <div className="flex items-center gap-2.5 px-2">
         <span className="text-[40px] leading-none font-extrabold text-black">GO</span>
-        <span className="rounded-full bg-go-mint px-3 py-[5px] text-[13px] font-medium text-black">WayPoint Store</span>
+        <span className="rounded-full bg-go-mint px-3 py-[5px] text-[13px] font-medium text-black">{tr("WayPoint Store")}</span>
       </div>
-      <nav aria-label="Store" className="flex flex-col gap-1">
+      <nav aria-label={tr("Store")} className="flex flex-col gap-1">
         {TABS.map((t) => {
           const active = t.id === tab;
           const badge = badges[t.id] ?? 0;
@@ -357,7 +360,7 @@ export function SideNav({
               )}
             >
               <Icon name={t.icon} />
-              <span className="flex-1">{t.label}</span>
+              <span className="flex-1">{tr(t.label)}</span>
               {badge > 0 && (
                 <span className={cx("flex size-7 items-center justify-center rounded-full text-[12px] font-semibold", t.id === "issues" ? "bg-go-danger-tint text-go-danger-strong" : "bg-go-mint text-black")}>
                   {badge}
@@ -375,7 +378,7 @@ export function SideNav({
             {outlet.districtName} · {outlet.outletId}
           </span>
           <span className="text-[13px] text-go-muted">
-            {dockLabel(outlet.dockType)} · {outlet.windowOpen.slice(0, 5)}-{outlet.windowClose.slice(0, 5)}
+            {tr(dockLabel(outlet.dockType))} · {outlet.windowOpen.slice(0, 5)}-{outlet.windowClose.slice(0, 5)}
           </span>
         </div>
       )}
@@ -385,14 +388,14 @@ export function SideNav({
           type="button"
           aria-haspopup="dialog"
           aria-expanded={account}
-          aria-label={`Account: ${displayName}`}
+          aria-label={tr("Account: {name}", { name: displayName })}
           onClick={() => setAccount((open) => !open)}
           className="flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-[16px] text-left"
         >
           <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-go-mint text-[14px] font-semibold text-black">{initials(displayName)}</span>
           <span className="flex min-w-0 flex-1 flex-col">
             <span className="truncate text-[15px] font-medium text-black">{displayName}</span>
-            <span className="text-[13px] text-go-muted">Store manager</span>
+            <span className="text-[13px] text-go-muted">{tr("Store manager")}</span>
           </span>
         </button>
         <ShellActions compact switchUser={false} />
