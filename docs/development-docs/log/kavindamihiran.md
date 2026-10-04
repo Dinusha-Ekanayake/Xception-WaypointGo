@@ -3,6 +3,12 @@
 @kavindamihiran's entries, newest first. Only @kavindamihiran adds to this file; how to write an entry is in the [log's index](../development-log.md).
 
 ---
+## 2026-10-04 - feat: Tech stores see which nearby day a trip already serves
+
+`feat/ride-along-suggestion` · @kavindamihiran · #199 ([walkthrough](../../issues/199-ride-along/WALKTHROUGH.md))
+
+Joining another day's plan is impossible: a plan exists only for a day past its cutoff, and it is immutable. So the hint counts other stores of the same brand and district booked for open days within two either side. It is Ordering only and advice only: no Planning read, no capacity claim, and Fresh and Style are never moved (R-ORD-13, ORD-16 to ORD-18).
+Verified: `RideAlongTest` (7), `ModuleBoundaryTest`, typecheck, `npm test`, build, store suite 44 (3 new). The integration test was not run locally (no test database); CI runs it.
 ## 2026-10-04 - fix: proof link forgery test could forge the real link
 
 `fix/proof-link-forgery-flake` · @kavindamihiran

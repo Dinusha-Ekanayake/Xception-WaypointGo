@@ -91,6 +91,18 @@ export type DeliveryDateAnswer = {
  */
 export const ORDER_CUTOFF = "16:00";
 
+/**
+ * Nearby open days whose trip already serves the outlet's district (R-ORD-13,
+ * issue #199). Advice only: `offered` is false for brands held to their day,
+ * and a day says how many other stores are booked, never which.
+ */
+export type RideAlongView = {
+  requestedDate: IsoDate;
+  deliveryDate: IsoDate;
+  offered: boolean;
+  days: { date: IsoDate; stopsBooked: number }[];
+};
+
 export type StatusChangeView = {
   from: OrderStatus | null;
   to: OrderStatus;

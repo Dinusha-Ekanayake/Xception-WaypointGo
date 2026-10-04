@@ -154,6 +154,11 @@ public class OrderDataQuery implements OrderQuery {
     try { return UUID.fromString(value); } catch (IllegalArgumentException e) { throw Cursor.invalid(); }
   }
 
+  /** The scope half of "policy AND scope" for one outlet: 403 and an audit row when outside it. */
+  void requireOutletScope(Actor actor, String outletId) {
+    requireScope(actor, "wpt:order:outlet:" + outletId, "SELECT app.actor_has_outlet(?) AS ok", outletId);
+  }
+
   /** Any other Ordering read, as the authenticated actor. */
   public <T> T asActor(Actor actor, java.util.function.Supplier<T> work) {
     return read(actor.userId(), work);

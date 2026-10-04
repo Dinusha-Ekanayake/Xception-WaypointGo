@@ -92,4 +92,17 @@ public final class OrderViews {
   /** One day of placed demand for a depot and brand (issue #16). */
   public record DailyVolumeView(
       LocalDate date, int orders, java.math.BigDecimal totalM3, java.math.BigDecimal chilledM3) {}
+
+  /**
+   * Nearby open days whose trip already serves the outlet's district (R-ORD-13,
+   * issue #199). Advice only; {@code offered} is false for brands held to their
+   * day, so the screen can say why nothing is shown.
+   *
+   * @param deliveryDate where the chosen day lands after any roll
+   */
+  public record RideAlongView(
+      LocalDate requestedDate, LocalDate deliveryDate, boolean offered, List<RideAlongDay> days) {}
+
+  /** A day and how many other outlets of the same brand and district are booked for it. */
+  public record RideAlongDay(LocalDate date, int stopsBooked) {}
 }

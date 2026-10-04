@@ -60,6 +60,7 @@ Values that will change are not listed here. They live in the parameter register
 | R-ORD-10 | An order whose outlet window is shorter than its brand and dock service allowance is rejected at capture, because it can never be served | Policy | Policy |
 | R-ORD-11 | Scheduled orders are mandatory for their scheduled date | Team draft | Team |
 | R-ORD-12 | Order weight and volume at **order level** are authoritative for every capacity decision. Product lines are descriptive | Policy, from catalogue accuracy | Policy |
+| R-ORD-13 | A Tech store choosing a delivery day is told which open days within two either side already carry more stops for its brand and district (a trip goes there anyway), as a count of other stores and never which. **Advice only**: it never moves an order, never claims the order fits a vehicle (its measures are unknown until the warehouse reserves it, R-ORD-12) and never reads Planning. Fresh and Style are never offered another day (R-ORD-03, R-ORD-11). Issue #199 | Team, from booklet trip rules | Team |
 
 ## 2. Stock and the external warehouse
 
