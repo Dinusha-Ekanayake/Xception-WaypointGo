@@ -1,8 +1,10 @@
 # Architecture
 
-Waypoint Dispatch is one web application for four field roles, served by a modular monolith over one PostgreSQL database. This page draws what is built and deployed today; the reasoning and the target design are in [SYSTEM-ARCHITECTURE.md](../SYSTEM-ARCHITECTURE.md), each module's contract in [MODULES.md](architecture/MODULES.md), and every table in [data-model.md](data-model.md).
+Waypoint Dispatch is one web application for four field roles, served by a modular monolith over one PostgreSQL database. This page draws what is built and deployed today. Each section has a rendered image in [diagrams/](diagrams/) and, below it, the Mermaid source that the image follows; the reasoning and the target design are in [SYSTEM-ARCHITECTURE.md](../SYSTEM-ARCHITECTURE.md), each module's contract in [MODULES.md](architecture/MODULES.md), and every table in [data-model.md](data-model.md).
 
 ## Who uses it and what it talks to
+
+![System context](diagrams/01-system-context.png)
 
 ```mermaid
 flowchart LR
@@ -27,6 +29,8 @@ Each role sees its own screens; the server decides what each person may do (poli
 
 ## What runs
 
+![Runtime containers](diagrams/02-runtime-containers.png)
+
 The judge path, `docker compose up` with [compose.yaml](../compose.yaml):
 
 ```mermaid
@@ -45,7 +49,7 @@ flowchart LR
     ML[ml<br/>FastAPI, trained Datathon models]
     MCP[mcp<br/>MCP adapter, Node]
     INIT[init<br/>migrate, import-reference]
-    OBS[alloy, loki, grafana<br/>logs and dashboards]
+    OBS[alloy, loki, prometheus, grafana<br/>logs, metrics and dashboards]
   end
   UI -->|HTTPS| FE
   Q -->|POST /api/sync on reconnect| FE
@@ -55,7 +59,7 @@ flowchart LR
   BE --> DB
   BE -->|plan scoring, forecasts| ML
   INIT -->|before start| DB
-  BE -. logs .-> OBS
+  BE -. logs, /prometheus .-> OBS
 ```
 
 - **Offline is tiered by role** ([tiers.ts](../frontend/src/shared/offline/tiers.ts)): the driver works fully offline, the loader and store manager are resilient to drops, the dispatcher is online only.
@@ -64,7 +68,9 @@ flowchart LR
 
 ## Modules and how they connect
 
-Twelve modules in one process, each owning one schema. They connect in three ways only: a domain event through the outbox, a read through another module's published contract, or a port for anything outside the process.
+![Modules and events](diagrams/03-modules-and-events.png)
+
+Thirteen business modules in one process, each owning one schema, plus the platform (command bus, outbox, audit, scheduler in `integration`) and an opt-in `demo` module that drives the judge scenarios. They connect in three ways only: a domain event through the outbox, a read through another module's published contract, or a port for anything outside the process.
 
 ```mermaid
 flowchart TB
@@ -80,6 +86,7 @@ flowchart TB
   NOT[Notification<br/>notification]
   INT[Intelligence<br/>ml]
   SYN[Sync<br/>sync]
+  MSG[Messaging<br/>messaging]
 
   ORD -->|orders.closed, order.placed| PLN
   ORD <-->|StockPort| WHS
@@ -96,6 +103,8 @@ flowchart TB
   ISS -->|shortfall.resolved| LOD
   PLN -. PredictionQuery .-> INT
   SYN -->|replays queued commands| ORD & LOD & EXE & RCP
+  PLN -->|plan.published, plan.revised| MSG
+  ISS -->|issue.raised, issue.resolved| MSG
   ORD & PLN & LOD & EXE & RCP & ISS -->|events| NOT
   REF -. ReferenceQuery, read by all .- ORD
   IAM -. IdentityQuery, read by all .- PLN
@@ -104,6 +113,8 @@ flowchart TB
 Solid arrows are events (asynchronous, at least once, consumers idempotent); dotted lines are contract reads. The full catalogue of events with producers and consumers is in [MODULES.md](architecture/MODULES.md#module-connection-summary). Boundaries are enforced by `ModuleBoundaryTest` and `EventCatalogueTest`.
 
 ## Inside a module
+
+![Inside a module](diagrams/04-module-layers.png)
 
 ```mermaid
 flowchart LR
@@ -117,6 +128,8 @@ flowchart LR
 ```
 
 ## One command, end to end
+
+![One command, end to end](diagrams/05-command-path.png)
 
 Every write goes through one path, whether it was sent online or replayed from the offline queue.
 
@@ -151,6 +164,7 @@ A refused rule comes back as `application/problem+json` naming every rule that f
 | Why these choices | [SYSTEM-ARCHITECTURE.md](../SYSTEM-ARCHITECTURE.md) |
 | What each module owns, its commands and events | [architecture/MODULES.md](architecture/MODULES.md) |
 | Every table and key | [data-model.md](data-model.md) |
+| How the diagrams were made | [diagrams/README.md](diagrams/README.md) |
 | Every rule and where it is enforced | [architecture/RULES-AND-POLICIES.md](architecture/RULES-AND-POLICIES.md) |
 | Every edge case and its test | [architecture/EDGE-CASES.md](architecture/EDGE-CASES.md) |
 | What is built and what is left | [development-docs/STATUS.md](development-docs/STATUS.md) |
