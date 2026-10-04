@@ -103,7 +103,7 @@ allocation distances or capacity rules. See [the plan](../issues/161-live-map/PL
 
 | Layer | Contents |
 | --- | --- |
-| contract | `OrderViews`, `OrderStatus`, `OrderQuery` (incl. `confirmedDemand`), `OrderCommands`, `OrderEvents` |
+| contract | `OrderViews`, `OrderStatus`, `OrderQuery` (incl. `confirmedDemand`, and `bookedVolumes`, depot totals by delivery day for the date outlook), `OrderCommands`, `OrderEvents` |
 | domain | `Order`, `OrderLine`, `OrderStatus` state machine, `Cutoff`, `TemperatureRequirement`, `OrderVersion` |
 | application | `PlaceOrderHandler`, `AmendOrderHandler`, `CancelOrderHandler`, `CloseOrdersHandler`, `OrderDataQuery` |
 | infrastructure | `JdbcOrderRepository`, `OrderProjection`. The warehouse adapter lives in the Warehouse module, behind `StockPort` |
@@ -423,7 +423,7 @@ A driver is pushed only trip-level events (R-NOT-08), and whoever caused an even
 
 **Connections.**
 - Consumes `plan.published` and `plan.revised`.
-- Reads Planning (`PlanQuery.plan`), Ordering (`order`, `dailyVolumes`), Execution (`actuals`) and Reference (outlets, vehicles, travel, calendar, traffic speed, road conditions) through their contracts.
+- Reads Planning (`PlanQuery.plan`), Ordering (`order`, `dailyVolumes`, `bookedVolumes`), Execution (`actuals`) and Reference (outlets, vehicles, travel, calendar, traffic speed, road conditions) through their contracts.
 - Planning reads `PredictionQuery.planScoring` for `plannedWithoutPredictor`, lazily, so it still works without this module.
 
 ---

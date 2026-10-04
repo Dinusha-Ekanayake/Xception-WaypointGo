@@ -324,6 +324,7 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-NOT-12 | A revised plan tells only what it changed. The drivers of the trips a driver would see differently (another vehicle, number, departure or stop time), the outlets reached on another trip or at another time, and the depot's loaders when any trip differs | `plan.revised` carries `changedTripIds` and `affectedOutletIds`, worked out by `PlanDiff` against the plan it replaced. An outlet whose order the revision drops is told by the deferral, not twice. An event written before these were recorded tells every trip, as it always did. Routing version 3 |
 | R-NOT-13 | A dispatcher's message about an order the plan could not serve goes to the store managers of its outlet, in the dispatcher's own words | `plan.store_contacted` routes to the outlet; the message and who sent it are on the event (rule 8). Routing version 3 |
 | R-NOT-14 | A message on a trip's thread is told to the depot's dispatcher whoever it is for, so every message appears under the dispatcher's bell, and to the loaders, the driver or the outlets only when it is for them. The author is never told (R-NOT-07). A report made from an issue is not told again (R-MSG-05). Routing version 4 | Product decision 2026-10-04 | Policy |
+| R-NOT-15 | A published plan tells each outlet on it its own stop and planned arrival for the day, once per stop: "Delivery planned for {day}", "Your order is stop {n}, planned arrival {time}". The order shows the same stop and time while it is planned, loading or on the road, and an older plan version never overwrites a newer one's (issue #224). Routing version 5 | Product decision 2026-10-04 | Policy |
 
 ---
 
@@ -420,6 +421,7 @@ Seven places where the sources disagree. C-1, C-2, C-3, C-5, C-6 and C-7 are set
 | R-ML-04 | A model answers only when serving is configured, a model of that kind is active, and the service reports exactly that model. Anything else is the deterministic answer, marked degraded with the reason, and the plan says it was scored without the predictor | Rule 9, Policy | Policy |
 | R-ML-05 | Predictions are advice. Allocation keeps the booklet's service allowances and travel times, which the validator checks (R-PLN-08); learned times never change a plan | Booklet, Policy | Policy |
 | R-ML-06 | The training export keeps waiting for the window apart from service time, so an early arrival never teaches a long service (EXE-18) | R-EXE-04, Policy | Policy |
+| R-ML-07 | The date outlook is advice for a store choosing a delivery day, never a promise or a block: any day can still be ordered, and the plan made the afternoon before decides. It is built from the depot's totals (booked volume, the forecast share, the vehicles available that day) and returns a status per day, never another outlet's orders. The outlet is checked against the asker's scope first; outside it is `403` plus an audit row (issue #224) | Rule 7, Policy | Policy |
 
 ---
 

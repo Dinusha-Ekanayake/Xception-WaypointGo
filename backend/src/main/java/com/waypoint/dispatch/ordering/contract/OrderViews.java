@@ -30,6 +30,11 @@ public final class OrderViews {
    *     reservation. Empty while {@link OrderStatus#STOCK_UNKNOWN}
    * @param redeliveryOf the original order when this one is a redelivery
    */
+  /**
+   * @param plannedStop the order's stop on the published plan for its delivery
+   *     day, while it is planned, loading or on the road (issue #224)
+   * @param plannedArrival the planned arrival at that stop, depot time
+   */
   public record OrderView(
       UUID orderId,
       String orderRef,
@@ -50,10 +55,29 @@ public final class OrderViews {
       int deferralCount,
       Instant placedAt,
       List<OrderLineView> lines,
-      long rowVersion) {
+      long rowVersion,
+      Optional<Integer> plannedStop,
+      Optional<java.time.LocalTime> plannedArrival) {
 
     public OrderView {
       lines = List.copyOf(lines);
+    }
+
+    public OrderView(
+        UUID orderId, String orderRef, String outletId, String depotCode, String brandCode, String districtName,
+        LocalDate requestedDate, LocalDate deliveryDate, boolean dateRolled, String temperature, int itemCount,
+        BigDecimal weightKg, BigDecimal volumeM3, OrderStatus status, Optional<String> warehouseOrderRef,
+        Optional<UUID> redeliveryOf, int deferralCount, Instant placedAt, List<OrderLineView> lines, long rowVersion) {
+      this(orderId, orderRef, outletId, depotCode, brandCode, districtName, requestedDate, deliveryDate, dateRolled,
+          temperature, itemCount, weightKg, volumeM3, status, warehouseOrderRef, redeliveryOf, deferralCount, placedAt,
+          lines, rowVersion, Optional.empty(), Optional.empty());
+    }
+
+    /** The same order with its stop on the published plan (issue #224). */
+    public OrderView withStop(int stop, Optional<java.time.LocalTime> arrival) {
+      return new OrderView(orderId, orderRef, outletId, depotCode, brandCode, districtName, requestedDate, deliveryDate,
+          dateRolled, temperature, itemCount, weightKg, volumeM3, status, warehouseOrderRef, redeliveryOf,
+          deferralCount, placedAt, lines, rowVersion, Optional.of(stop), arrival);
     }
   }
 
@@ -92,6 +116,10 @@ public final class OrderViews {
   /** One day of placed demand for a depot and brand (issue #16). */
   public record DailyVolumeView(
       LocalDate date, int orders, java.math.BigDecimal totalM3, java.math.BigDecimal chilledM3) {}
+
+  /** One brand's orders due on one day at a depot, by delivery date (issue #224). */
+  public record BookedVolumeView(
+      LocalDate date, String brandCode, int orders, java.math.BigDecimal totalM3, java.math.BigDecimal chilledM3) {}
 
   /**
    * Nearby open days whose trip already serves the outlet's district (R-ORD-13,

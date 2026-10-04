@@ -24,6 +24,7 @@ import com.waypoint.dispatch.planning.contract.PlanEvents.OrderUnservable;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlanPublished;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlanRevised;
 import com.waypoint.dispatch.planning.contract.PlanEvents.StoreContacted;
+import com.waypoint.dispatch.planning.contract.PlanEvents.PlannedStop;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlannedTrip;
 import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.platform.messaging.EventSubscriber;
@@ -302,7 +303,25 @@ final class NotificationConsumers {
 
     @Override
     Routed route(PlanPublished e) {
-      return plan(e.planId(), e.depotCode(), e.serviceDate(), e.planVersion(), e.trips(), null);
+      Routed r = plan(e.planId(), e.depotCode(), e.serviceDate(), e.planVersion(), e.trips(), null);
+      // R-NOT-15: each outlet on the plan hears its order is planned, one target per stop (issue #224).
+      for (PlannedTrip trip : e.trips()) {
+        for (PlannedStop stop : trip.stops()) {
+          if (stop.outletId() == null) {
+            continue;
+          }
+          r.to(
+              new Target(
+                  ScopeKind.OUTLET,
+                  stop.outletId(),
+                  "stop:" + trip.tripId() + ":" + stop.sequence(),
+                  Map.of(
+                      "stopNumber", String.valueOf(stop.sequence()),
+                      "plannedArrival", stop.plannedArrival() == null ? "-" : time(stop.plannedArrival())),
+                  subject("order", stop.orderId())));
+        }
+      }
+      return r;
     }
   }
 

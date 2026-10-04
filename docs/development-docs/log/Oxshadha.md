@@ -4,6 +4,26 @@
 
 ---
 
+## 2026-10-04 - feat: the delivery promise for a day a store orders ahead (issue #224)
+
+`feat/224-delivery-promise` · @Oxshadha
+
+A store ordering "next Friday" could pick only three days, never heard when the plan put its order on a vehicle, and had no idea whether a day was likely to hold. Built inside the existing modules:
+- **Ordering:** records each order's stop and planned arrival from `plan.published` and `plan.revised` (`ordering.order_stops`; an older plan version never overwrites a newer one), shows them on `OrderView`, and offers `OrderQuery.bookedVolumes`.
+- **Notification:** routing version 5 tells each outlet its stop (R-NOT-15).
+- **Intelligence:** `DateOutlookPolicy` and `GET /api/ml/outlook` rate each day on track, busy, at risk, too early or closed. The rating comes from booked volume or the forecast share, set against the vehicles available that day; it is aggregate only, behind `ml:ReadOutlook` with an audited 403 for another outlet (R-ML-07, A-44, P-35).
+- **Store:** a 28-day strip with the outlook, a warning and a suggested day that prefers #211's shared trip, and "Planned for {day} · stop n · planned arrival hh:mm" on the order.
+
+Why: a day chosen ahead is a promise; the store should see how likely it is when booking, and its stop when the plan is made. Detail in [the walkthrough](../../issues/224-delivery-promise/WALKTHROUGH.md).
+
+Verified:
+- `mvn verify` 976 on a real test database: 975 pass. The one failure is `IdentityHardeningIntegrationTest.migrateLetsThePoolLogInAsWaypointAppWithItsOwnPassword`, which runs `SET ROLE` unquoted with the local owner name `k.e.oshada` (dots); it is untouched here and passes in CI.
+- `npm test` 221, typecheck, build, Playwright store 50.
+
+Open: the early warning when a booked day turns busy, and supply probability on the outlook basis. The 28-day horizon is the strip's, not a server refusal.
+
+---
+
 ## 2026-10-04 - feat(planning): planning v2 (issue #219), a measured engine choice, the cost stage, GPS stops and a generation queue
 
 `feat/219-planning-v2` · @Oxshadha
