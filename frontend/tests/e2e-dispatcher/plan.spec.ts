@@ -47,9 +47,10 @@ test("generate, see why an order was deferred, place it by hand, publish", async
   await expect(about).toContainText("Refrigerated vehicles planned again: 1 more order served");
   await expect(about).toContainText("Deferred went from 2 to 1, with 7.9 m³ more chilled delivered");
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("button", { name: /VEH044 trip 1/ })).toBeVisible();
+  await page.getByRole("button", { name: /VEH044 trip 1/ }).click();
   // 31.5 of 33.4 m³: drawn as tight, so the dispatcher sees there is no room left.
   await expect(page.getByRole("meter", { name: "Volume used" })).toHaveAttribute("aria-valuenow", "94");
+  await page.keyboard.press("Escape");
 
   await page.getByRole("tab", { name: /Publish/ }).click();
   await page.getByRole("button", { name: "Publish plan" }).click();

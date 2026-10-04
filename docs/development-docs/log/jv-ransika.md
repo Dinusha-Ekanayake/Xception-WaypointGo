@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-04 - feat: trip drawer, vehicle picker, published plan final at 16:00
+
+`feat/plan-trip-drawer` · @jv-ransika
+
+The trip detail on View plan opens as a side drawer like the order drawer (shared `Drawer`); nothing opens by default. "Move trip to" is a pop-up with a search, filters (All, Free, Refrigerated, Ambient, Van) and each vehicle's trips in the plan (`VehiclePicker.tsx`). Once a day is published the screen shows only that plan: saved candidates, Save snapshot, Regenerate and Compare go. A published plan takes a revision or a trip move until 16:00 depot time on its day, then it is final (R-PLN-43, `PublishedEditWindow`, mirrored as `PUBLISHED_EDIT_CLOSES`). The error pop-up closes on a click outside or Escape, like every other pop-up.
+Why: user review: one detail pattern, no candidates after publish, a findable vehicle list, and the day's plan settles at the cutoff.
+Verified: `PublishedEditWindowTest`, `PlanningDecisionsIntegrationTest`, `PlanningRevisionIntegrationTest`; `npm test` (235), typecheck, build; dispatcher browser suite 59 of 60 (`live-map.spec.ts` flaky as before).
+Open: none new.
+
+---
+
 ## 2026-10-04 - feat: one plan view across depots, depot switch in every page header
 
 `feat/dispatcher-figma-screens` · @jv-ransika

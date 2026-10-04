@@ -35,6 +35,7 @@ export default function PlanPublish({
   onConfirming,
   revising,
   onRevising,
+  final,
   reviseReason,
   onReviseReason,
   onPublish,
@@ -56,6 +57,8 @@ export default function PlanPublish({
   /** The step bar's Edit plan was pressed on a published plan. */
   revising: boolean;
   onRevising: (revising: boolean) => void;
+  /** Past 16:00 on the service day: the published plan is final (R-PLN-43). */
+  final: boolean;
   reviseReason: string;
   onReviseReason: (reason: string) => void;
   onPublish: () => void;
@@ -187,15 +190,19 @@ export default function PlanPublish({
 
         {published && !revising && (
           <div className="flex flex-wrap items-center gap-2 border-t border-go-rule pt-4">
-            <SecondaryButton disabled={!online} onClick={() => onRevising(true)}>
+            <SecondaryButton disabled={!online || final} onClick={() => onRevising(true)}>
               Edit plan
             </SecondaryButton>
             <SecondaryButton onClick={() => (window.location.hash = "/live")}>Watch the run</SecondaryButton>
-            <p className="text-xs text-go-secondary">Editing starts a revision; drivers and stores keep this plan until the update is sent.</p>
+            <p className="text-xs text-go-secondary">
+              {final
+                ? "This plan is final: changes closed at 16:00 on its day."
+                : "Editing starts a revision until 16:00 on the plan's day; drivers and stores keep this plan until the update is sent."}
+            </p>
           </div>
         )}
 
-        {published && revising && (
+        {published && revising && !final && (
           <div className="flex flex-col gap-2 rounded-go-card bg-go-surface p-3">
             <p className="text-[13px] text-go-ink">
               A published plan is not edited. A revision becomes a draft, and nothing changes on the dock or the road until it is sent.

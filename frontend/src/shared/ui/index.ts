@@ -4,6 +4,7 @@ export { InstallApp } from "./InstallApp.tsx";
 export { McpButton, scopeWords } from "./McpConnect.tsx";
 export { Menu, type MenuItem } from "./Menu.tsx";
 export { Notice, Pending } from "./Notice.tsx";
+export { Drawer } from "./Drawer.tsx";
 export { Popover } from "./Popover.tsx";
 export {
   Card,
