@@ -65,15 +65,18 @@ export function useDriver(userId: string, depot: string | null = null) {
   // The run's map is kept on the phone while there is a signal, so it still
   // draws in a valley with none (issue #201). Once per run and connection; a
   // tile already kept is answered by the worker without the network.
+  // In stop order, so if the cap cuts, it is the last stops that lose their streets.
   const stopPoints = useMemo(() => {
     const points: LatLon[] = [];
-    for (const outlet of Object.values(run.outlets)) {
+    const ordered = [...run.stops].sort((x, y) => x.sequence - y.sequence).map((stop) => stop.outletId);
+    const ids = [...new Set([...ordered, ...Object.keys(run.outlets)])];
+    for (const outlet of ids.map((id) => run.outlets[id]).filter((o) => o !== undefined)) {
       const lat = num(outlet.location?.latitude);
       const lon = num(outlet.location?.longitude);
       if (lat !== null && lon !== null) points.push({ lat, lon });
     }
     return points;
-  }, [run.outlets]);
+  }, [run.outlets, run.stops]);
   const tileKey = stopPoints.map((p) => `${p.lat},${p.lon}`).join(";");
   useEffect(() => {
     if (!online || tileKey === "") return;

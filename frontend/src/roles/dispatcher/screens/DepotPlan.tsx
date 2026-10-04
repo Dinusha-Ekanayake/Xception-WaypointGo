@@ -68,7 +68,7 @@ export default function DepotPlan({
   // before it and Compare go away, and it takes changes only until 16:00 that
   // day (R-PLN-43).
   const settled = state.stage === "published" || (state.stage === "draft" && state.revises !== null);
-  const final = state.stage === "published" && !publishedEditOpen(date);
+  const final = state.stage === "published" && !publishedEditOpen(state.plan.serviceDate);
   useEffect(() => {
     if (!settled) return;
     setViewing(null);
