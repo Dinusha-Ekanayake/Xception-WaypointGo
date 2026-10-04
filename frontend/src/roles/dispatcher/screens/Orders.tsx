@@ -12,7 +12,7 @@ import { useHistory, useIssues, useLive, useOrders, usePlans, type HistoryDay } 
 import type { ViewId } from "../navigation.ts";
 import OrderDrawer from "./OrderDrawer.tsx";
 import OrdersTable, { type LastColumn, type OrderLine } from "./OrdersTable.tsx";
-import Refusal from "./Refusal.tsx";
+import Refusal, { refusalText } from "./Refusal.tsx";
 
 // Figma "03 Orders" (current, upcoming, past, order details): what became of
 // every order, from the order to the store's confirmation. Current is today,
@@ -226,12 +226,10 @@ function UpcomingDays({
 }): React.JSX.Element {
   const toast = useToast();
   const { busy, run } = useCommand();
-  const [failure, setFailure] = useState<Error | null>(null);
 
   const close = async (depot: string, date: string) => {
-    setFailure(null);
     const sent = await run<CloseResult>(OrderCommandKind.closeForDay, { depotCode: depot, serviceDate: date }, null);
-    if (!sent.ok) return setFailure(sent.error);
+    if (!sent.ok) return toast({ tone: "error", ...refusalText(sent.error, "closing orders") });
     toast(
       sent.result.alreadyClosed
         ? { title: "Already closed", detail: `Orders for ${depot} on ${dayLabel(date)} were closed before.` }
@@ -242,7 +240,6 @@ function UpcomingDays({
 
   return (
     <section aria-label="Upcoming days" className="flex w-full flex-col gap-2 rounded-go-panel bg-go-card p-3">
-      {failure && <Refusal error={failure} what="closing orders" />}
       <div className="flex gap-2.5 max-md:flex-col">
         {days.map((day) => {
           const inPlan = day.orders.filter((o) => o.status === "ALLOCATED").length;

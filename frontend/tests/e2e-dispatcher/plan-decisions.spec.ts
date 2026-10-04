@@ -164,9 +164,65 @@ test("a stop order that breaks a rule shows the rule in words and cannot be save
   // Back to the order it had, then to the new one again, so the server is asked once more.
   await window.getByRole("button", { name: /Move .*OUT052.* later/ }).click();
   await window.getByRole("button", { name: /Move .*OUT052.* earlier/ }).click();
-  await expect(window).toContainText("1 change · new stop order");
+  await expect(window).toContainText("Every check passes · new stop order");
   await window.getByRole("button", { name: "Accept changes" }).click();
-  expect(desk.commands[0]).toMatchObject({ kind: "plan:ReorderStops", expectedVersion: 1, payload: { planId: "plan-v1", tripId: "trip-VEH043-1" } });
+  expect(desk.commands[0]).toMatchObject({
+    kind: "plan:EditTrip",
+    expectedVersion: 1,
+    payload: { planId: "plan-v1", tripId: "trip-VEH043-1", orderIds: ["order-2", "order-1"] },
+  });
+});
+
+test("a trip takes a deferred order by drag and drop, gives one up, and goes as one change", async ({ page }) => {
+  const desk = await serve(page, { draft: draftPlan(1, true) });
+  await page.goto("/#/plan");
+  await page.getByRole("tab", { name: /View plan/ }).click();
+  await page.getByRole("button", { name: "Edit this trip" }).click();
+  const window = page.getByRole("dialog", { name: "Edit trip" });
+  const stops = window.getByRole("list", { name: "Stops in order" });
+
+  // The deferred order is dragged onto the trip, above the first stop.
+  await window.getByRole("list", { name: "Deferred orders" }).getByRole("listitem").filter({ hasText: "OUT053" }).dragTo(stops.getByRole("listitem").first());
+  await expect(stops.getByRole("listitem").first()).toContainText("NEW · added by you");
+  // A stop is dragged out to "Will be deferred".
+  await stops.getByRole("listitem").filter({ hasText: "OUT052" }).dragTo(window.getByText("Drag a stop here to defer it"));
+  await expect(window.getByRole("region", { name: "Will be deferred" })).toContainText("OUT052");
+  await expect(window).toContainText("1 added · 1 taken off");
+
+  await window.getByLabel("Why this change?").fill("The outlet waited two days");
+  await window.getByRole("button", { name: "Accept changes" }).click();
+  expect(desk.commands[0]).toMatchObject({ kind: "plan:EditTrip", payload: { tripId: "trip-VEH043-1", orderIds: ["order-3", "order-1"] } });
+  await expect(page.getByRole("status").filter({ hasText: "Trip saved." })).toBeVisible();
+});
+
+test("removing a trip sends it empty, and a refusal comes back as a pop-up with its rule", async ({ page }) => {
+  const desk = await serve(page, { draft: draftPlan(1, true) });
+  desk.refuse = { kind: "plan:EditTrip", status: 409, code: "CONSTRAINT_VIOLATED", detail: "trip edit refused: R-PLN-07 too many trips", rules: ["R-PLN-07"] };
+  await page.goto("/#/plan");
+  await page.getByRole("tab", { name: /View plan/ }).click();
+  await page.getByRole("button", { name: "Edit this trip" }).click();
+  const window = page.getByRole("dialog", { name: "Edit trip" });
+  await window.getByRole("button", { name: "Remove trip" }).click();
+  await expect(window).toContainText("No stops: the trip is removed");
+  await window.getByLabel("Why this change?").fill("Vehicle off the road");
+  await window.getByRole("button", { name: "Accept changes" }).click();
+  expect(desk.commands[0]).toMatchObject({ kind: "plan:EditTrip", payload: { tripId: "trip-VEH043-1", orderIds: [] } });
+
+  const popup = page.getByRole("alert").filter({ hasText: "Changing the trip was refused" });
+  await expect(popup).toContainText("R-PLN-07");
+  await popup.getByRole("button", { name: "Close" }).click();
+  await expect(popup).toHaveCount(0);
+});
+
+test("compare has a way back to the plan, and the step bar stays the same", async ({ page }) => {
+  await serve(page, { draft: draftPlan(1, true) });
+  await page.goto("/#/plan");
+  await page.getByRole("button", { name: "Compare", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Compare plans" })).toBeVisible();
+  await expect(page.getByRole("tablist", { name: "Plan steps" })).toBeVisible();
+  await page.getByRole("button", { name: "Back to the plan" }).click();
+  await expect(page.getByRole("heading", { name: "Compare plans" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Next: publish" })).toBeVisible();
 });
 
 test("an order too big for any vehicle is drawn apart and the store manager can be told", async ({ page }) => {

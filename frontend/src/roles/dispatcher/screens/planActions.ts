@@ -15,6 +15,8 @@ export type PlanActions = {
   keepDeferred: (orderIds: string[], reason: string) => Promise<boolean>;
   lock: (orderId: string, locked: boolean) => Promise<boolean>;
   reorder: (tripId: string, orderIds: string[], reason: string) => Promise<boolean>;
+  /** The trip holds exactly these orders in this order; an empty list removes it (plan:EditTrip). */
+  editTrip: (tripId: string, orderIds: string[], reason: string) => Promise<boolean>;
   moveTrip: (tripId: string, vehicleId: string, reason: string) => Promise<boolean>;
   contactStore: (orderId: string, message: string) => Promise<boolean>;
 };

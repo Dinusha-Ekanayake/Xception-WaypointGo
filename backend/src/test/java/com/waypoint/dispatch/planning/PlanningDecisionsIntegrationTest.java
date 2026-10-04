@@ -159,6 +159,59 @@ class PlanningDecisionsIntegrationTest extends PlanningIntegrationSupport {
     assertEquals(a.toString(), tripAfter.get("stops").get(0).get("orderId").asText(), "one command, both changes");
   }
 
+  // ---- edit trip ----------------------------------------------------------------
+
+  static String editTrip(UUID planId, String tripId, List<UUID> orders, String reason) {
+    StringBuilder ids = new StringBuilder();
+    for (UUID id : orders) ids.append(ids.length() == 0 ? "" : ",").append("\"").append(id).append("\"");
+    return envelope(
+        "plan:EditTrip", 1L,
+        "{\"planId\":\"" + planId + "\",\"tripId\":\"" + tripId + "\",\"orderIds\":[" + ids + "],\"reason\":\"" + reason + "\"}");
+  }
+
+  @Test
+  void aTripEditTakesADeferredOrderInAndOneOffInOneVersion() throws Exception {
+    UUID a = demand("ambient");
+    UUID b = demand("ambient");
+    UUID planId = UUID.fromString(generate(dispatcher, 200).get("planId").asText());
+    UUID withADeferred = nextPlan(send(dispatcher, defer(planId, 1L, a, "outlet closed for stocktake"), 200));
+    String trip = allocation(draft(), b).get("tripId").asText();
+
+    JsonNode preview = mapper.readTree(read(dispatcher, "/api/plans/preview/trip?trip=" + trip + "&orders=" + a, 200));
+    assertTrue(preview.get("feasible").asBoolean(), preview.toString());
+    assertEquals(a.toString(), preview.get("stops").get(0).get("orderId").asText());
+
+    send(dispatcher, editTrip(withADeferred, trip, List.of(a), "the stocktake moved"), 200);
+
+    JsonNode after = draft();
+    assertEquals("SERVED", allocation(after, a).get("decision").asText());
+    assertEquals("OVERRIDE", allocation(after, a).get("source").asText());
+    assertEquals("DEFERRED", allocation(after, b).get("decision").asText());
+    assertFalse(allocation(after, b).get("decidedBy").isNull());
+  }
+
+  @Test
+  void anEmptyTripEditRemovesTheTrip() throws Exception {
+    UUID a = demand("ambient");
+    UUID planId = UUID.fromString(generate(dispatcher, 200).get("planId").asText());
+    String trip = allocation(draft(), a).get("tripId").asText();
+
+    send(dispatcher, editTrip(planId, trip, List.of(), "vehicle off the road"), 200);
+
+    assertEquals("DEFERRED", allocation(draft(), a).get("decision").asText());
+  }
+
+  @Test
+  void anotherDepotsDispatcherCannotEditATripOfThisPlan() throws Exception {
+    UUID a = demand("ambient");
+    UUID planId = UUID.fromString(generate(dispatcher, 200).get("planId").asText());
+    String trip = allocation(draft(), a).get("tripId").asText();
+
+    send(elsewhere, editTrip(planId, trip, List.of(), "not mine"), 404);
+
+    assertEquals("SERVED", allocation(draft(), a).get("decision").asText());
+  }
+
   @Test
   void aSwapOfTwoServedOrdersIsRefused() throws Exception {
     UUID a = demand("ambient");

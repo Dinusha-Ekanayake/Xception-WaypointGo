@@ -213,6 +213,7 @@ export const PlanCommandKind = {
   revise: "plan:Revise",
   replan: "plan:Replan",
   swap: "plan:Swap",
+  editTrip: "plan:EditTrip",
   keepDeferred: "plan:KeepDeferred",
   lock: "plan:Lock",
   unlock: "plan:Unlock",

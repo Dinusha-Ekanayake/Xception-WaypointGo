@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from "react";
 import type { ConstraintResultView, OrderView, PlanView, VehicleView } from "@shared/domain/types";
-import { Pill, Popover, PrimaryButton } from "@shared/ui";
-import { hhmm, ruleLabel, temperatureLabel } from "@shared/wording";
+import { Icon, Pill, Popover, PrimaryButton } from "@shared/ui";
+import { checkLabel, hhmm, temperatureLabel } from "@shared/wording";
 import { typeLabel } from "../data/fleet.ts";
 import { after, type TripLoad } from "../data/plan.ts";
 import { riskLabel, riskTone, stopShare, tightLine, type StopRisk } from "../data/planViews.ts";
@@ -71,13 +71,13 @@ export default function PlanTrip({
           {checks.length === 0 && <p className="text-white/70">No checks are recorded for this trip.</p>}
           {checks.map((check, index) => (
             <p key={`${check.ruleId}-${index}`} title={check.reason} className={check.passed ? "" : "text-go-warning"}>
-              {`${check.passed ? "✓" : "!"} ${ruleLabel(check.ruleId)}`}
+              {`${check.passed ? "✓" : "!"} ${checkLabel(check.ruleId, check.passed)}`}
             </p>
           ))}
         </Popover>
       </div>
 
-      <Timeline plan={plan} load={load} orders={orders} vehicle={vehicle} risks={risks} />
+      <Timeline plan={plan} load={load} orders={orders} vehicle={vehicle} risks={risks} onLock={editable ? (orderId, held) => void actions.lock(orderId, held) : undefined} />
       </div>
       {(editable || canReplan) && (
         <div className="flex flex-col px-5 pt-2 pb-5">
@@ -104,15 +104,37 @@ export function tripChecks(plan: PlanView, tripId: string): ConstraintResultView
   return [...seen.values()];
 }
 
-/** Depart, each stop with its window and its share of the load, and back at the depot. */
-function Timeline({ plan, load, orders, vehicle, risks }: { plan: PlanView; load: TripLoad; orders: Map<string, OrderView>; vehicle: VehicleView | undefined; risks: Map<string, StopRisk> | null }): React.JSX.Element {
+/**
+ * Depart, each stop with its window and its share of the load, and back at the
+ * depot. Each row draws its own piece of the line, so the dots sit on it
+ * whatever a row's height. A stop can be locked to this vehicle: a regenerate
+ * keeps a locked order where it is (R-PLN-34).
+ */
+function Timeline({
+  plan,
+  load,
+  orders,
+  vehicle,
+  risks,
+  onLock,
+}: {
+  plan: PlanView;
+  load: TripLoad;
+  orders: Map<string, OrderView>;
+  vehicle: VehicleView | undefined;
+  risks: Map<string, StopRisk> | null;
+  /** Present on an open draft: locks or unlocks a stop's order. */
+  onLock?: (orderId: string, locked: boolean) => void;
+}): React.JSX.Element {
   const { trip } = load;
+  const locked = new Set(plan.allocations.filter((a) => a.locked).map((a) => a.orderId));
   return (
-    <ol aria-label="Stops in order" className="relative flex flex-col before:absolute before:top-4 before:bottom-4 before:left-[67px] before:w-0.5 before:bg-go-rule">
-      <Row time={hhmm(trip.plannedDeparture)} dot="hollow" title={`Depart ${plan.depotCode}`} />
+    <ol aria-label="Stops in order" className="flex flex-col">
+      <Row first time={hhmm(trip.plannedDeparture)} dot="hollow" title={`Depart ${plan.depotCode}`} />
       {trip.stops.map((stop) => {
         const order = orders.get(stop.orderId);
         const share = stopShare(order, vehicle);
+        const held = locked.has(stop.orderId);
         return (
           <Row
             key={stop.orderId}
@@ -122,29 +144,80 @@ function Timeline({ plan, load, orders, vehicle, risks }: { plan: PlanView; load
             note={stop.windowOpen && stop.windowClose ? `${hhmm(stop.windowOpen)}-${hhmm(stop.windowClose)}` : "No window"}
             aside={share === null ? undefined : `${share}%`}
             risk={risks?.get(stop.orderId)}
+            lock={onLock || held ? { held, onToggle: onLock ? () => onLock(stop.orderId, !held) : undefined, name: stop.outletId } : undefined}
           />
         );
       })}
-      <Row time={after(trip.plannedDeparture, trip.plannedMinutes)} dot="hollow" title={`Back at ${plan.depotCode}`} />
+      <Row last time={after(trip.plannedDeparture, trip.plannedMinutes)} dot="hollow" title={`Back at ${plan.depotCode}`} />
     </ol>
   );
 }
 
-function Row({ time, dot, title, note, aside, risk }: { time: string; dot: "filled" | "hollow"; title: string; note?: string; aside?: string; risk?: StopRisk }): React.JSX.Element {
+function Row({
+  time,
+  dot,
+  title,
+  note,
+  aside,
+  risk,
+  lock,
+  first = false,
+  last = false,
+}: {
+  time: string;
+  dot: "filled" | "hollow";
+  title: string;
+  note?: string;
+  aside?: string;
+  risk?: StopRisk;
+  lock?: { held: boolean; onToggle?: () => void; name: string };
+  first?: boolean;
+  last?: boolean;
+}): React.JSX.Element {
   return (
-    <li className="flex items-start gap-3 py-1.5">
-      <span className="w-11 shrink-0 text-[14px] font-medium tabular-nums text-go-ink">{time}</span>
-      <span aria-hidden className={`relative z-10 mt-1.5 size-2.5 shrink-0 rounded-full border-2 border-go-teal ${dot === "filled" ? "bg-go-teal" : "bg-go-card"}`} />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-[14px] font-medium text-go-ink">{title}</span>
+    <li className="flex items-stretch gap-3">
+      <span className="w-11 shrink-0 py-1.5 text-[14px] leading-5 font-medium tabular-nums text-go-ink">{time}</span>
+      <span aria-hidden className="relative flex w-3 shrink-0 justify-center">
+        <span className={`absolute w-0.5 bg-go-rule ${first ? "top-[13px]" : "top-0"} ${last ? "h-[13px]" : "bottom-0"}`} />
+        <span className={`relative z-10 mt-[8px] size-2.5 rounded-full border-2 border-go-teal ${dot === "filled" ? "bg-go-teal" : "bg-go-card"}`} />
+      </span>
+      <span className="min-w-0 flex-1 py-1.5">
+        <span className="block truncate text-[14px] leading-5 font-medium text-go-ink">{title}</span>
         {note && <span className="block text-xs text-go-secondary">{note}</span>}
       </span>
-      {risk && (
-        <span className="shrink-0" title="Chance this stop arrives after its window">
-          <Pill tone={RISK_PILL[riskTone(risk.percent)]}>{riskLabel(risk)}</Pill>
-        </span>
-      )}
-      {aside && <span className="shrink-0 rounded-full bg-go-surface px-2 py-0.5 text-[11px] text-go-secondary" title="Share of the vehicle's load">{aside}</span>}
+      <span className="flex shrink-0 items-start gap-1.5 py-1.5">
+        {risk && (
+          <span title="Chance this stop arrives after its window">
+            <Pill tone={RISK_PILL[riskTone(risk.percent)]}>{riskLabel(risk)}</Pill>
+          </span>
+        )}
+        {aside && (
+          <span className="rounded-full bg-go-surface px-2 py-0.5 text-[11px] text-go-secondary" title="Share of the vehicle's load">
+            {aside}
+          </span>
+        )}
+        {lock &&
+          (lock.onToggle ? (
+            <button
+              type="button"
+              aria-pressed={lock.held}
+              aria-label={lock.held ? `Unlock ${lock.name}` : `Lock ${lock.name} to this vehicle`}
+              title={lock.held ? "Locked: a regenerate keeps it here" : "Lock to this vehicle"}
+              onClick={lock.onToggle}
+              className={`flex size-6 items-center justify-center rounded-full ${lock.held ? "bg-go-ink" : "bg-go-surface opacity-60 hover:opacity-100"}`}
+            >
+              <span className={lock.held ? "invert" : ""}>
+                <Icon name="lock" />
+              </span>
+            </button>
+          ) : (
+            lock.held && (
+              <span title="Locked: a regenerate keeps it here" className="flex size-6 items-center justify-center rounded-full bg-go-surface">
+                <Icon name="lock" label="Locked" />
+              </span>
+            )
+          ))}
+      </span>
     </li>
   );
 }
