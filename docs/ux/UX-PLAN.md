@@ -117,3 +117,15 @@ One behaviour per kind of interaction, built once in `frontend/src/shared/ui/` a
 | 4 | Screen transitions (View Transitions API, with an instant fallback) and three shared-element moves | Done (`feat/ux-polish-feedback`) |
 | 5 | Primary actions pinned on phones, local Undo (signature), dispatcher sidebar folded by default on narrow desktops | Done (`feat/ux-polish-feedback`) |
 
+## 8. Usability round 2 (frontend only)
+
+| Track | Scope | State |
+| --- | --- | --- |
+| A | Plain language: friendly errors, rule names, status wording, named pending changes, admin wording | Done (`feat/usability-round2`) |
+| B | Field-level form errors, announced with their field | Done |
+| C | A quiet console: 204 instead of 404 for "nothing yet" | Not started: a backend contract change, for the module owners |
+| D | Accessibility: 40 px targets, state-only announcements, focus and Escape in dialogs, skip link | Done |
+| E | Busy state on the last buttons, placeholder rows on the last lists | Done |
+| F | Dispatcher global search over loaded data | Done |
+| G | Voice-note undo in the new voice UI, admin Depots retry, the driver's stop moving back | Open |
+

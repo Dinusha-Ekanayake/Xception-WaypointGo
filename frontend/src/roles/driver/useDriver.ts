@@ -266,14 +266,14 @@ export function useDriver(userId: string, depot: string | null = null) {
     await start(next);
   };
 
-  const report = async (problem: Problem) => {
+  const report = async (problem: Problem): Promise<boolean> => {
     const stop = problemFor === "run" ? null : problemFor;
     if (problem.kind === "not-delivered") {
       setProblemFor(null);
       if (stop) go({ name: "report", deliveryId: stop.deliveryId, failed: problem.reason });
-      return;
+      return true;
     }
-    if (!run.vehicle) return;
+    if (!run.vehicle) return false;
     setError(null);
     const outcome = await act(ExecutionCommandKind.reportFault, {
       vehicleId: run.vehicle.vehicleId,
@@ -281,9 +281,13 @@ export function useDriver(userId: string, depot: string | null = null) {
       kind: problem.fault,
       description: problem.description,
     });
-    if (!outcome.ok) return setError(words(outcome));
-    setProblemFor(null);
+    if (!outcome.ok) {
+      setError(words(outcome));
+      return false;
+    }
+    // The sheet stays up long enough to show Report sent, then closes itself.
     setNotice(outcome.queued ? "Report saved on this phone. Dispatch gets it when the connection is back." : "Dispatch has your report.");
+    return true;
   };
 
   const reportStatus = async (status: ReportedVehicleStatus) => {

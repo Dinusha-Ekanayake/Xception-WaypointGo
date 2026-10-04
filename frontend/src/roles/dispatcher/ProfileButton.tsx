@@ -51,7 +51,7 @@ export default function ProfileButton({ displayName, depots, placement }: { disp
                   aria-pressed={role.value === shell.active}
                   onClick={() => shell.onRole(role.value)}
                   className={cx(
-                    "rounded-full px-3 py-1.5 text-[13px] font-medium",
+                    "relative rounded-full px-3 py-1.5 text-[13px] font-medium before:absolute before:-inset-y-1.5",
                     role.value === shell.active ? "bg-go-ink text-go-card" : "bg-go-surface text-go-ink",
                   )}
                 >

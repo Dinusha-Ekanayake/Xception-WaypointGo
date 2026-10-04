@@ -55,6 +55,8 @@ export function VoiceNote({
   seed,
   tone,
   label,
+  caption,
+  heading,
   tr = plain,
 }: {
   src: string;
@@ -68,6 +70,10 @@ export function VoiceNote({
   seed: string;
   tone: VoiceTone;
   label: string;
+  /** Shown in place of the waveform: the words the note is about. */
+  caption?: string;
+  /** Sits on the same row as the play button. The caption then starts at the left. */
+  heading?: string;
   tr?: Translate;
 }): React.JSX.Element {
   const audio = useRef<HTMLAudioElement>(null);
@@ -77,6 +83,10 @@ export function VoiceNote({
   const [at, setAt] = useState(0);
   const [speed, setSpeed] = useState<(typeof SPEEDS)[number]>(1);
   const [failed, setFailed] = useState(false);
+  /** Played through: the next press replays it. */
+  const ended = useRef(false);
+  /** The reader pressed play; only then does a failure say "Could not play". */
+  const wanted = useRef(false);
   const look = TONE[tone];
   const total = (durationMs ?? 0) / 1000;
 
@@ -111,12 +121,24 @@ export function VoiceNote({
       cancelAnimationFrame(frame);
       setAt(el.currentTime);
     };
+    // At the end the note waits at the start. Rewinding is a seek, which some
+    // browsers refuse on audio they cannot request in parts; replaying then
+    // loads it afresh instead (see toggle), so a refused rewind is no failure.
     const onEnd = () => {
       onStop();
-      el.currentTime = 0;
+      ended.current = true;
+      try {
+        el.currentTime = 0;
+      } catch {
+        // Replayed from a fresh load.
+      }
       setAt(0);
     };
-    const onError = () => setFailed(true);
+    // A failure while nothing was asked of the note (it only loaded ahead) is
+    // left for the next press to retry, which reloads it.
+    const onError = () => {
+      if (wanted.current) setFailed(true);
+    };
     el.addEventListener("timeupdate", onTime);
     el.addEventListener("loadedmetadata", onMeta);
     el.addEventListener("play", onPlay);
@@ -140,15 +162,34 @@ export function VoiceNote({
   const length = known || total;
   const progress = length > 0 ? Math.min(1, at / length) : 0;
 
+  const start = async (el: HTMLAudioElement, fresh: boolean) => {
+    if (fresh) {
+      // Load the note again from the start: what a replay needs where the rewind was refused.
+      el.load();
+      setAt(0);
+    }
+    el.playbackRate = speed;
+    await el.play();
+  };
+
   const toggle = () => {
     const el = audio.current;
     if (!el) return;
-    if (el.paused) {
-      // One note plays at a time, as in any messaging app.
-      document.querySelectorAll<HTMLAudioElement>("audio[data-voice-note]").forEach((other) => other !== el && other.pause());
-      el.playbackRate = speed;
-      void el.play().catch(() => setFailed(true));
-    } else el.pause();
+    if (!el.paused) return el.pause();
+    // One note plays at a time, as in any messaging app.
+    document.querySelectorAll<HTMLAudioElement>("audio[data-voice-note]").forEach((other) => other !== el && other.pause());
+    wanted.current = true;
+    setFailed(false);
+    const replay = ended.current || el.error !== null || el.ended;
+    ended.current = false;
+    void start(el, replay).catch((failure: unknown) => {
+      // Pressing pause, or another note, interrupts the start: not a failure.
+      if (failure instanceof DOMException && failure.name === "AbortError") return;
+      // Otherwise try once more from a fresh load before saying so.
+      void start(el, true).catch((again: unknown) => {
+        if (!(again instanceof DOMException && again.name === "AbortError")) setFailed(true);
+      });
+    });
   };
 
   const seek = (clientX: number) => {
@@ -166,17 +207,29 @@ export function VoiceNote({
   };
 
   return (
-    <div role="group" aria-label={label} data-testid="voice-note" className="flex w-[248px] max-w-full items-center gap-2.5 py-0.5">
+    <div role="group" aria-label={label} data-testid="voice-note" className={cx("flex max-w-full gap-2.5 py-0.5", heading ? "w-full flex-col" : "w-[248px] items-center")}>
       <audio ref={audio} src={src} preload="metadata" data-voice-note aria-label={label} className="hidden" />
+      <div className={cx("flex min-w-0 items-center gap-3", heading && "w-full")}>
       <button
         type="button"
         onClick={toggle}
-        disabled={failed}
         aria-label={playing ? tr("Pause") : tr("Play")}
-        className={cx("flex size-10 shrink-0 items-center justify-center rounded-full shadow-sm transition-transform active:scale-95 disabled:opacity-40", look.button)}
+        className={cx("relative flex size-11 shrink-0 items-center justify-center text-current active:scale-95 disabled:opacity-40", tone === "report" ? "text-go-danger" : "text-go-ink")}
       >
-        {playing ? <PauseIcon className="size-[18px]" /> : <PlayIcon className="ml-0.5 size-[18px]" />}
+        <span
+          aria-hidden
+          className="absolute inset-0 rounded-full"
+          style={{ background: `conic-gradient(currentColor ${Math.round(progress * 360)}deg, transparent 0deg)` }}
+        />
+        <span className={cx("relative flex size-8 items-center justify-center rounded-full shadow-sm", look.button)}>
+          {playing ? <PauseIcon className="size-[18px]" /> : <PlayIcon className="ml-0.5 size-[18px]" />}
+        </span>
       </button>
+      {heading && <span className="min-w-0 flex-1 text-left text-[15px] font-medium leading-5 text-inherit">{heading}</span>}
+      </div>
+      {caption && heading ? null : caption ? (
+        <p className={cx("min-w-0 flex-1 line-clamp-2 text-[13px] leading-4", look.text)}>{caption}</p>
+      ) : (
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div
           ref={bars}
@@ -215,6 +268,8 @@ export function VoiceNote({
           </button>
         </span>
       </div>
+      )}
+      {caption && heading && <p className={cx("text-left text-[13px] font-light leading-4", look.text)}>{caption}</p>}
     </div>
   );
 }

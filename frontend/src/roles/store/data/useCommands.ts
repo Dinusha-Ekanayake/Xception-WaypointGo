@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { newCommand, type CommandAck } from "@shared/api/commands";
-import { ApiError } from "@shared/api/problem";
+import { ApiError, friendlyError } from "@shared/api/problem";
 import type { StoreGateway } from "./gateway.ts";
 
 // Every store write. The store manager is on the resilient tier: offline, or
@@ -48,5 +48,5 @@ export function useCommands(gateway: StoreGateway, online: boolean, onQueued: ()
 }
 
 export function conflictMessage(error: ApiError | Error): string {
-  return error instanceof ApiError && error.isVersionConflict ? "This order changed since you opened it. Review it and try again." : error.message;
+  return error instanceof ApiError && error.isVersionConflict ? "This order changed since you opened it. Review it and try again." : friendlyError(error);
 }

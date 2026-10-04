@@ -318,6 +318,15 @@ class MessagingIntegrationTest {
     assertEquals(voiceId.toString(), message.get("voiceNoteId").asText());
     assertEquals(audio.length, readBytes(dispatcher, voiceId, 200).length);
     readBytes(manager, voiceId, 404);
+
+    // Byte ranges, which Safari needs to replay a note (MSG-15).
+    MvcResult part = http.perform(get("/api/threads/" + threadId + "/voice/" + voiceId)
+            .cookie(session(dispatcher)).header("Range", "bytes=2-4"))
+        .andReturn();
+    assertEquals(206, part.getResponse().getStatus());
+    assertEquals("bytes 2-4/" + audio.length, part.getResponse().getHeader("Content-Range"));
+    assertEquals(3, part.getResponse().getContentAsByteArray().length);
+    assertEquals("bytes", part.getResponse().getHeader("Accept-Ranges"));
     assertTrue(json(read(dispatcher, "/api/threads/reports?depot=" + depot + "&date=" + day, 200))
         .get(0).get("voice").asBoolean());
   }

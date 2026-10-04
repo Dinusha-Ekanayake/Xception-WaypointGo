@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ApiError } from "@shared/api/problem";
+import { ApiError, friendlyError } from "@shared/api/problem";
 import type { VehicleView } from "@shared/domain/types";
 import { Icon, Notice, Pending, Pill, PrimaryButton, SecondaryButton } from "@shared/ui";
 import { capacityLabel, litres, typeLabel } from "../data/fleet.ts";
@@ -157,7 +157,7 @@ function SubmitError({ error }: { error: Error }): React.JSX.Element {
     const rules = error.problem.violations.map((v) => v.rule);
     return (
       <Notice tone="danger" title={error.status === 403 ? "You are not allowed to change this vehicle" : "The change was refused"} live>
-        {error.message}
+        {friendlyError(error)}
         {rules.length > 0 && ` Rule ${rules.join(", ")}.`}
       </Notice>
     );

@@ -74,7 +74,7 @@ The Figma file (pages 04 to 17) is the specification. Where the design shows som
   - With no released trip today, Home names the next trip ahead and says it is waiting for the loader. The design shows only a released run.
   - English only.
 - **Dispatcher:**
-  - Global search is not built.
+  - Global search (the header, `/` or Ctrl+K) looks through what the screens have already loaded for the day and the depots in view: orders, vehicles, trips, issues and depots. It does not search other days.
   - Vehicle interchange approval waits on Loading.
   - The Forecast's error chip shows the demand model's measured error over all volume and over chilled volume. The design shows a figure per brand, which the model does not measure.
   - Late risk is shown only on a published plan, once the time predictor has scored it. A draft says it is scored once published, and an estimate says so.

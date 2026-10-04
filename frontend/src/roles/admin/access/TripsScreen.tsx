@@ -11,6 +11,7 @@ import {
   type AdminTrip,
   type AdminStop,
 } from "../data/plans";
+import { clock, dayLabel } from "@shared/wording";
 
 export type TripsSubTab = "planned" | "live";
 
@@ -283,7 +284,7 @@ export function TripsScreen({
                   </span>
                 </div>
                 <p className="text-xs text-go-secondary">
-                  Plan ID: {currentPlan.planId} · Service Date: {currentPlan.serviceDate}
+                  Plan #{currentPlan.planId.slice(-8)} · Service date: {dayLabel(currentPlan.serviceDate)}
                 </p>
               </div>
             </div>
@@ -503,7 +504,7 @@ export function TripsScreen({
             <div className="flex items-start justify-between border-b border-go-subtle pb-4">
               <div>
                 <div className="flex items-center gap-2.5">
-                  <span className="text-xl font-bold text-go-ink">{selectedTrip.tripId}</span>
+                  <span className="text-xl font-bold text-go-ink">#{selectedTrip.tripId.slice(-8)}</span>
                   <span className="rounded-md bg-go-subtle px-2 py-0.5 text-xs font-semibold text-go-ink">
                     Trip {selectedTrip.tripNumber}
                   </span>
@@ -541,8 +542,8 @@ export function TripsScreen({
                 </div>
                 <div>
                   <span className="text-go-secondary">Planned Departure</span>
-                  <p className="font-bold text-go-ink text-sm mt-0.5">{selectedTrip.plannedDeparture}</p>
-                  <p className="text-go-secondary text-[11px]">Return: {selectedTrip.estimatedReturn}</p>
+                  <p className="font-bold text-go-ink text-sm mt-0.5">{clock(selectedTrip.plannedDeparture)}</p>
+                  <p className="text-go-secondary text-[11px]">Return: {clock(selectedTrip.estimatedReturn)}</p>
                 </div>
                 <div>
                   <span className="text-go-secondary">Load Specifications</span>
@@ -580,7 +581,7 @@ export function TripsScreen({
                             <span className="text-xs font-medium text-go-secondary">{stop.outletName || ""}</span>
                           </div>
                           <p className="text-go-secondary text-[11px]">
-                            Order ID: {stop.orderId} · {stop.weightKg == null ? "Weight unavailable" : `${stop.weightKg} kg`} ({stop.volumeM3 == null ? "volume unavailable" : `${stop.volumeM3} m³`})
+                            Order #{stop.orderId.slice(-8)} · {stop.weightKg == null ? "Weight unavailable" : `${stop.weightKg} kg`} ({stop.volumeM3 == null ? "volume unavailable" : `${stop.volumeM3} m³`})
                           </p>
                         </div>
                       </div>

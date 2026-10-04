@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { VehicleStatuses, type ReportedVehicleStatus, type VehicleView } from "@shared/domain/types";
+import { type ReportedVehicleStatus, type VehicleView } from "@shared/domain/types";
 import { isUnread, kindOf } from "@shared/notifications/inbox";
 import type { Inbox } from "@shared/notifications/useInbox";
 import { cx, useDeviceLang, useScrollMemory, VoiceNote } from "@shared/ui";
 import { voiceUrl } from "@shared/messaging/useThread";
-import { clock, countdown, dayLabel, hhmm, stops as stopsText } from "../../../shared/wording/index.ts";
+import { clock, countdown, dayLabel, hhmm } from "../../../shared/wording/index.ts";
 import type { TripStatus } from "../data/stopView.ts";
 import type { NextRun } from "../data/run.ts";
 import { DriverHeader, VoiceMessagePlayer } from "../ui.tsx";
@@ -28,6 +28,8 @@ function useRubberBandScroll() {
   const [isPulling, setIsPulling] = useState(false);
   const [topFadeSize, setTopFadeSize] = useState(0);
   const [bottomFadeSize, setBottomFadeSize] = useState(0);
+  // Once the voice list moves, the driver card above it folds up so the voices have the screen.
+  const [compact, setCompact] = useState(false);
 
   // Gesture tracking
   const overshootStartY = useRef<number | null>(null);
@@ -43,25 +45,32 @@ function useRubberBandScroll() {
     const bottom = Math.min(FADE_DISTANCE, Math.max(0, remaining));
     setTopFadeSize((prev) => (prev !== top ? top : prev));
     setBottomFadeSize((prev) => (prev !== bottom ? bottom : prev));
+    const folded = el.scrollTop > 16;
+    setCompact((prev) => (prev !== folded ? folded : prev));
   };
 
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     updateMask(el);
+    const onScroll = () => updateMask(el);
+    el.addEventListener("scroll", onScroll, { passive: true });
 
     const ro = new ResizeObserver(() => {
       updateMask(el);
     });
     ro.observe(el);
     return () => {
+      el.removeEventListener("scroll", onScroll);
       ro.disconnect();
       if (wheelReleaseTimer.current) clearTimeout(wheelReleaseTimer.current);
     };
   }, []);
 
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    updateMask(e.currentTarget);
+  const handleScroll = () => {
+    // The event's current target is not always this list, so read the ref.
+    const el = scrollRef.current;
+    if (el) updateMask(el);
   };
 
   // 1. Touch Gesture Handling
@@ -241,6 +250,7 @@ function useRubberBandScroll() {
     scrollRef,
     pullY,
     isPulling,
+    compact,
     maskStyle,
     handlers: {
       onScroll: handleScroll,
@@ -370,12 +380,6 @@ export type DriverHomeProps = {
   onOpenMessages?: () => void;
 };
 
-const STATUS_LABEL: Record<ReportedVehicleStatus, string> = {
-  available: "Available",
-  on_trip: "On trip",
-  at_workshop: "At workshop",
-  fault: "Fault",
-};
 
 /**
  * Figma "Driver: Home" notification cards: the label and its colour by what
@@ -432,7 +436,9 @@ export default function HomeNoVehicle({
 }: DriverHomeProps): React.JSX.Element {
   const [lang, setLang] = useDeviceLang();
   const [activeAudioId, setActiveAudioId] = useState<string | null>(null);
-  const { scrollRef, pullY, isPulling, maskStyle, handlers } = useRubberBandScroll();
+  const [fuelQr, setFuelQr] = useState(false);
+  const [markingRead, setMarkingRead] = useState(false);
+  const { scrollRef, pullY, isPulling, compact, maskStyle, handlers } = useRubberBandScroll();
   useScrollMemory("driver:home", scrollRef, { page: false });
 
   useEffect(() => {
@@ -450,7 +456,7 @@ export default function HomeNoVehicle({
     .slice(0, 2)
     .join("") || "D";
 
-  const startLabel = tripStatus === "completed" ? "Trip summary" : tripStatus === "in-progress" ? "Continue trip" : "Start trip";
+  const startLabel = tripStatus === "completed" ? "Trip summary" : tripStatus === "in-progress" ? "Continue run" : "Start run";
   const card = isNight ? "bg-[#292929]" : "bg-white";
   const ink = isNight ? "text-white" : "text-black";
   const unread = inbox.unread ?? inbox.items.filter(isUnread).length;
@@ -478,26 +484,48 @@ export default function HomeNoVehicle({
           <DriverHeader displayName={driverName} lang={lang} onToggleLang={setLang} onSignOut={onSignOut} onToggleTheme={onToggleTheme} isNight={isNight} />
         )}
 
-        {/* Driver Identity Card (Figma "Driver card") */}
-        <div className="px-6 pt-1 shrink-0">
-          <div className={cx("w-full rounded-[38px] p-5 sm:p-6 shadow-[0px_5px_20px_rgba(0,0,0,0.05)] flex flex-col gap-3.5 transition-colors", card)}>
+        {/* Driver Identity Card (Figma "Driver card"). Scrolling the voices folds it up. */}
+        <div className={cx("shrink-0 transition-all duration-300", compact ? "px-6 pt-0" : "px-6 pt-1")}>
+          <div className={cx("w-full shadow-[0px_5px_20px_rgba(0,0,0,0.05)] flex flex-col transition-all duration-300", card, compact ? "gap-0 rounded-[24px] p-3" : "gap-3.5 rounded-[38px] p-5 sm:p-6")}>
             <div className="flex items-center gap-3.5">
               <div
                 className={cx(
-                  "size-[52px] rounded-full flex items-center justify-center shrink-0 transition-colors",
+                  "rounded-full flex items-center justify-center shrink-0 transition-all duration-300",
+                  compact ? "size-9" : "size-[52px]",
                   isNight ? "bg-[#00BF6A]" : "bg-[#B7F2ED]"
                 )}
               >
-                <span className="text-[18px] font-medium text-black">{initials}</span>
+                <span className={cx("font-medium text-black transition-all duration-300", compact ? "text-[13px]" : "text-[18px]")}>{initials}</span>
               </div>
-              <div className="flex flex-col min-w-0">
-                <h1 className={cx("text-[26px] font-medium leading-[33px] truncate tracking-tight transition-colors", ink)}>{driverName}</h1>
-                <p className="text-[13px] font-light text-[#A9A9A9] leading-none pt-0.5">
+              <div className="flex flex-col min-w-0 flex-1">
+                <h1 className={cx("font-medium truncate tracking-tight transition-all duration-300", ink, compact ? "text-[16px] leading-5" : "text-[26px] leading-[33px]")}>{driverName}</h1>
+                <p className={cx("text-[13px] font-light text-[#A9A9A9] leading-none overflow-hidden transition-all duration-300", compact ? "h-0 pt-0 opacity-0" : "pt-0.5 opacity-100")}>
                   Driver{depotName ? ` · ${depotName} depot` : ""}
                 </p>
               </div>
+              {compact && stopCount > 0 && (
+                <button
+                  type="button"
+                  onClick={startTrip}
+                  className={cx(
+                    "h-10 shrink-0 rounded-full px-4 text-[14px] font-medium active:scale-[0.98]",
+                    isNight ? "bg-[#00BF6A] text-black" : "bg-[#031B08] text-white"
+                  )}
+                >
+                  {startLabel}
+                </button>
+              )}
             </div>
 
+            <div
+              aria-hidden={compact}
+              inert={compact}
+              className={cx(
+                "min-h-0 overflow-hidden transition-[max-height,opacity] duration-300",
+                compact ? "max-h-0 opacity-0" : "max-h-[640px] opacity-100"
+              )}
+            >
+            <div className="flex flex-col gap-3.5">
             {unavailable ? (
               <p role="status" className={cx("text-[14px] leading-[18px]", ink)}>
                 {online ? "Waypoint is not answering." : "This phone is offline."} Today's trip has not been downloaded to this phone
@@ -530,26 +558,46 @@ export default function HomeNoVehicle({
                       <span className="text-[13px] font-light leading-[16px]">{vehicleKind(vehicle)}</span>
                     </div>
                   </div>
-                  <label className={cx("flex items-center justify-between gap-3 text-[14px] font-medium", ink)}>
-                    Vehicle status
-                    <select
-                      value={vehicleStatus ?? ""}
-                      onChange={(event) => onVehicleStatus(event.target.value as ReportedVehicleStatus)}
+                  <div className="flex items-center justify-between gap-3">
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={vehicleStatus !== "at_workshop" && vehicleStatus !== "fault"}
+                      aria-label="Available"
+                      onClick={() => onVehicleStatus((vehicleStatus === "at_workshop" || vehicleStatus === "fault" ? "available" : "at_workshop") as ReportedVehicleStatus)}
+                      className="flex items-center gap-2"
+                    >
+                      <span
+                        aria-hidden
+                        className={cx(
+                          "flex h-7 w-12 items-center rounded-full p-0.5 transition-colors",
+                          vehicleStatus === "at_workshop" || vehicleStatus === "fault" ? "justify-start bg-[#d5d5d5]" : "justify-end bg-[#22c55e]",
+                        )}
+                      >
+                        <span className="size-6 rounded-full bg-white shadow" />
+                      </span>
+                      <span className={cx("text-[15px] font-medium", ink)}>Available</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFuelQr(true)}
                       className={cx(
-                        "h-[36px] rounded-[34px] px-3 text-[14px] font-medium",
-                        isNight ? "bg-[#292929] text-white" : "bg-white text-black"
+                        "flex h-10 shrink-0 items-center gap-2 rounded-full px-3 text-[14px] font-medium active:scale-[0.98]",
+                        isNight ? "bg-[#292929] text-white" : "bg-white text-black",
                       )}
                     >
-                      <option value="" disabled>
-                        Choose
-                      </option>
-                      {VehicleStatuses.filter((status) => status !== "fault").map((status) => (
-                        <option key={status} value={status}>
-                          {STATUS_LABEL[status]}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                      <svg aria-hidden width="18" height="18" viewBox="0 0 18 18" fill="currentColor">
+                        <rect x="1" y="1" width="6" height="6" rx="1.2" />
+                        <rect x="11" y="1" width="6" height="6" rx="1.2" />
+                        <rect x="1" y="11" width="6" height="6" rx="1.2" />
+                        <rect x="11" y="11" width="2.4" height="2.4" rx="0.4" />
+                        <rect x="14.6" y="11" width="2.4" height="2.4" rx="0.4" />
+                        <rect x="11" y="14.6" width="2.4" height="2.4" rx="0.4" />
+                        <rect x="14.6" y="14.6" width="2.4" height="2.4" rx="0.4" />
+                      </svg>
+                      Fuel QR
+                    </button>
+                  </div>
                 </div>
 
                 {stopCount > 0 ? (
@@ -571,19 +619,25 @@ export default function HomeNoVehicle({
                       : `No trip planned for ${vehicle.vehicleId} today. Your stops appear here when the loader releases the vehicle.`}
                   </p>
                 )}
-                {stopCount > 0 && tripStatus !== "completed" && (
-                  <p className="text-center text-[13px] font-light text-[#A9A9A9]">{stopsText(stopCount)} on today's run sheet</p>
-                )}
-                <button type="button" onClick={onProblem} className={cx("text-[15px] font-medium underline", ink)}>
+                <button
+                  type="button"
+                  onClick={onProblem}
+                  className={cx(
+                    "flex h-[52px] w-full items-center justify-center rounded-[22px] text-[18px] font-medium active:scale-[0.98]",
+                    isNight ? "bg-[#3A3A3A] text-white" : "bg-[#B7F2ED] text-black",
+                  )}
+                >
                   Report problem
                 </button>
               </>
             )}
+            </div>
+            </div>
           </div>
         </div>
 
         {/* Notifications Header (Bell icon, "Notifications" text, unread badge) */}
-        <div className="flex items-center justify-between px-8 py-5 shrink-0">
+        <div className={cx("flex items-center justify-between px-8 shrink-0 transition-all duration-300", compact ? "py-2" : "py-5")}>
           <div className="flex items-center gap-2">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" className={ink}>
               <path d="M10 2.1V3.4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
@@ -601,14 +655,19 @@ export default function HomeNoVehicle({
           {unread > 0 && (
             <button
               type="button"
-              onClick={() => void inbox.markAllRead(now)}
-              aria-label={`${unread} new. Mark all read`}
+              disabled={markingRead}
+              onClick={() => {
+                setMarkingRead(true);
+                void inbox.markAllRead(now).finally(() => setMarkingRead(false));
+              }}
+              aria-label={markingRead ? "Marking all read" : `${unread} new. Mark all read`}
+              aria-busy={markingRead || undefined}
               className={cx(
-                "text-[12px] font-medium px-2.5 py-0.5 rounded-[34px] transition-colors",
+                "text-[12px] font-medium px-2.5 py-0.5 rounded-[34px] transition-colors disabled:cursor-wait disabled:opacity-70",
                 isNight ? "bg-[#00BF6A] text-black" : "bg-[#B7F2ED] text-black"
               )}
             >
-              {unread > 99 ? "99+" : unread} new
+              {markingRead ? "Marking…" : `${unread > 99 ? "99+" : unread} new`}
             </button>
           )}
         </div>
@@ -620,7 +679,7 @@ export default function HomeNoVehicle({
           ref={scrollRef}
           {...handlers}
           aria-label="Notifications"
-          className="h-full overflow-y-auto overscroll-contain pb-6 short:h-auto short:overflow-visible no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden snap-y snap-mandatory scroll-smooth"
+          className="h-full overflow-y-auto overscroll-contain pb-6 short:h-auto short:overflow-visible no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           <div
             style={{
@@ -661,34 +720,14 @@ export default function HomeNoVehicle({
               return (
                 <ScrollRevealCard key={item.notificationId} scrollContainerRef={scrollRef} pullY={pullY}>
                   <div
-                    className={cx(
+                      className={cx(
                       "rounded-[20px] p-[14px_20px] flex flex-col gap-1 transition-all duration-200",
+                      !fresh && "opacity-70",
                       card,
                       activeAudioId === id &&
                         (isNight ? "ring-1 ring-[#00BF6A]/60 shadow-[0_0_15px_rgba(0,191,106,0.15)]" : "ring-1 ring-[#0E766D]/50 shadow-[0_0_15px_rgba(14,118,109,0.12)]")
                     )}
                   >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (fresh && inbox.online) void inbox.markRead([item.notificationId]).catch(() => undefined);
-                        if (item.eventType === "message.posted") onOpenMessages?.();
-                      }}
-                      aria-label={`${fresh ? "Unread. " : ""}${kind.label}. ${item.title}. ${item.body}`}
-                      className={cx("flex w-full flex-col gap-1 text-left", !fresh && "opacity-70")}
-                    >
-                      <span className="flex items-center justify-between">
-                        <span className="flex items-center gap-1.5">
-                          <span className="size-2 rounded-full" style={{ backgroundColor: kind.color }} />
-                          <span className="text-[12px] font-medium" style={{ color: kind.color }}>
-                            {kind.label}
-                          </span>
-                        </span>
-                        <span className="text-[12px] font-light text-[#A9A9A9]">{clock(item.createdAt)}</span>
-                      </span>
-                      <span className={cx("text-[15px] font-medium leading-[19px] pt-0.5", ink)}>{item.title}</span>
-                      <span className={cx("text-[13px] font-light leading-4 pt-0.5", ink)}>{item.body}</span>
-                    </button>
                     {item.eventType === "message.posted" && item.facts?.voiceNoteId && item.subjectId ? (
                       // A voice message plays the person's own voice, never text to speech (issue #136).
                       <div className={cx("mt-1 rounded-[16px] px-2 py-1", isNight ? "bg-[#1f1f1f]" : "bg-[#F1F6F5]")}>
@@ -699,6 +738,8 @@ export default function HomeNoVehicle({
                           seed={item.facts.voiceNoteId}
                           tone="theirs"
                           label={`Voice message from ${item.title}`}
+                          heading={item.title}
+                          caption={item.body}
                         />
                       </div>
                     ) : (
@@ -706,6 +747,11 @@ export default function HomeNoVehicle({
                         id={id}
                         duration={readingTime(`${item.title} ${item.body}`)}
                         text={`${kind.label}. ${item.title}. ${item.body}`}
+                        heading={item.title}
+                        status={kind.label}
+                        statusColor={kind.color}
+                        statusTime={clock(item.createdAt)}
+                        message={item.body}
                         isNight={isNight}
                         activeAudioId={activeAudioId}
                         onPlayChange={setActiveAudioId}
@@ -723,6 +769,26 @@ export default function HomeNoVehicle({
           </div>
         </div>
       </div>
+      {fuelQr && vehicle && (
+        <div role="dialog" aria-modal="true" aria-label="Fuel QR" className="absolute inset-0 z-40 flex items-end justify-center bg-black/35 p-4" onClick={() => setFuelQr(false)}>
+          <div onClick={(event) => event.stopPropagation()} className={cx("mb-4 flex w-full max-w-[360px] flex-col items-center gap-3 rounded-[28px] p-6", card)}>
+            <h2 className={cx("text-[22px] font-medium", ink)}>Fuel QR</h2>
+            <p className="text-[15px] text-[#A9A9A9]">{vehicle.vehicleId}</p>
+            <svg aria-hidden width="120" height="120" viewBox="0 0 18 18" fill="currentColor" className={ink}>
+              <rect x="1" y="1" width="6" height="6" rx="1.2" />
+              <rect x="11" y="1" width="6" height="6" rx="1.2" />
+              <rect x="1" y="11" width="6" height="6" rx="1.2" />
+              <rect x="11" y="11" width="2.4" height="2.4" rx="0.4" />
+              <rect x="14.6" y="11" width="2.4" height="2.4" rx="0.4" />
+              <rect x="11" y="14.6" width="2.4" height="2.4" rx="0.4" />
+              <rect x="14.6" y="14.6" width="2.4" height="2.4" rx="0.4" />
+            </svg>
+            <button type="button" onClick={() => setFuelQr(false)} className={cx("mt-1 flex h-12 w-full items-center justify-center rounded-[18px] text-[17px] font-medium", isNight ? "bg-[#00BF6A] text-black" : "bg-[#031B08] text-white")}>
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

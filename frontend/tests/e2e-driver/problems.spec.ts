@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { openForm, serve, sign, startTrip, stop } from "./mocks.ts";
+import { arrive, openForm, serve, sign, startTrip, stop } from "./mocks.ts";
 
 // Written for the earlier driver screens (#114 moved the run onto the Figma flow): the Figma driver flow has no "not delivered" path yet (failure reason and what happened to the goods); issue #21.
 test.fixme("no one at the store: the stop is recorded as not delivered, with what happened to the goods", async ({ page }) => {
@@ -60,7 +60,7 @@ test.fixme("a write the server refuses on a rule is shown and is not kept for la
   await startTrip(page);
   await expect(page.getByRole("heading", { name: "OUT0101" })).toBeVisible();
   server.refuse = "delivery:RecordArrival";
-  await page.getByRole("button", { name: "I've arrived" }).click();
+  await arrive(page);
   await expect(page.getByText("Arrival is recorded once for a stop")).toBeVisible();
   await expect(page.getByRole("button", { name: /to send|saved on this device|to review/ })).toHaveCount(0);
   expect(server.batches).toBe(0);
@@ -72,7 +72,7 @@ test.fixme("a proof file the server refuses stays on the phone until the driver 
   server.refuseUploads = true;
   await page.goto("/");
   await startTrip(page);
-  await page.getByRole("button", { name: "I've arrived" }).click();
+  await arrive(page);
   await openForm(page);
   await sign(page);
   await expect(page.getByText("Signed", { exact: true })).toBeVisible();
@@ -86,13 +86,15 @@ test.fixme("a proof file the server refuses stays on the phone until the driver 
   await expect(refused).toContainText("The file is not a JPEG, PNG or WebP image");
   expect(server.commands.map((c) => c.kind)).toContain("delivery:CaptureProof");
 
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.getByRole("button", { name: /Settings:/ }).click();
+  await page.getByRole("dialog", { name: "Settings" }).getByRole("button", { name: "Sign out" }).click();
   const sheet = page.getByRole("dialog", { name: "Sign out" });
   await expect(sheet).toContainText("1 record is still only on this phone");
   await sheet.getByRole("button", { name: "Stay signed in" }).click();
 
   await refused.getByRole("button", { name: "Remove" }).click();
   await expect(refused).toHaveCount(0);
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.getByRole("button", { name: /Settings:/ }).click();
+  await page.getByRole("dialog", { name: "Settings" }).getByRole("button", { name: "Sign out" }).click();
   await expect(page.getByRole("dialog", { name: "Sign out" }).getByRole("button", { name: "Sign out" })).toBeVisible();
 });

@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import { request } from "@shared/api/client";
 import { useResource } from "@shared/api/useResource";
 import type { ThreadView } from "@shared/domain/types";
-import { TripThread } from "@shared/ui";
+import { TripThread, useOverlay } from "@shared/ui";
 import { dayLabel } from "@shared/wording";
-import { useDispatcherInbox } from "./inbox.tsx";
+import { useDispatcherInbox, type OpenThread } from "./inbox.tsx";
 
 // A trip's thread in a sheet on the right (issue #136), over whichever screen
 // opened it: a warning sign on the timeline, the trip page, a notification.
@@ -15,34 +15,40 @@ import { useDispatcherInbox } from "./inbox.tsx";
 export default function ThreadSheet({ online }: { online: boolean }): React.JSX.Element | null {
   const ctx = useDispatcherInbox();
   const open = ctx?.thread ?? null;
-  const close = useRef(() => ctx?.openThread(null));
-  close.current = () => ctx?.openThread(null);
-  const threadId = open?.threadId ?? null;
-  const thread = useResource(
-    threadId === null ? null : (signal: AbortSignal) => request<ThreadView>(`/api/threads/${encodeURIComponent(threadId)}`, { signal }),
-    `thread-head|${threadId ?? ""}`,
-  );
-
-  useEffect(() => {
-    if (threadId === null) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") close.current();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [threadId]);
-
+  const onClose = () => ctx?.openThread(null);
   if (!open) return null;
+  return <ThreadSheetPanel open={open} online={online} onClose={onClose} />;
+}
+
+/** Mounted only while a thread is open, so useOverlay's focus trap and Escape set up and tear down cleanly with it. */
+function ThreadSheetPanel({
+  open,
+  online,
+  onClose,
+}: {
+  open: OpenThread;
+  online: boolean;
+  onClose: () => void;
+}): React.JSX.Element {
+  const panel = useRef<HTMLDivElement>(null);
+  const { closing, requestClose } = useOverlay(panel, onClose);
+  const threadId = open.threadId;
+  const thread = useResource(
+    (signal: AbortSignal) => request<ThreadView>(`/api/threads/${encodeURIComponent(threadId)}`, { signal }),
+    `thread-head|${threadId}`,
+  );
   const head = thread.data && thread.data.threadId === open.threadId ? thread.data : null;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end" role="presentation">
-      <button type="button" tabIndex={-1} aria-label="Close messages" onClick={() => close.current()} className="absolute inset-0 animate-fade-in bg-black/20" />
+    <div data-closing={closing || undefined} className="go-overlay fixed inset-0 z-50 flex justify-end" role="presentation">
+      <button type="button" tabIndex={-1} aria-label="Close messages" onClick={requestClose} className="go-backdrop absolute inset-0 bg-black/20" />
       <section
+        ref={panel}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label="Trip messages"
-        className="relative flex h-dvh w-full max-w-[520px] animate-slide-in-end flex-col gap-3 overscroll-contain bg-go-card p-5 shadow-go-card md:p-6"
+        className="go-panel go-panel-drawer relative flex h-dvh w-full max-w-[520px] flex-col gap-3 overscroll-contain bg-go-card p-5 shadow-go-card outline-none md:p-6"
       >
         <header className="flex items-start justify-between gap-3">
           <div className="flex flex-col gap-0.5">
@@ -54,7 +60,7 @@ export default function ThreadSheet({ online }: { online: boolean }): React.JSX.
               </p>
             )}
           </div>
-          <button type="button" onClick={() => close.current()} className="min-h-9 rounded-full bg-go-surface px-3.5 text-sm font-medium text-go-teal">
+          <button type="button" onClick={requestClose} className="min-h-9 rounded-full bg-go-surface px-3.5 text-sm font-medium text-go-teal">
             Close
           </button>
         </header>

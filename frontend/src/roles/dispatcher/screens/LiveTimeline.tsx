@@ -124,7 +124,7 @@ export default function LiveTimeline({
         onClick={() => onReport?.(mark)}
         title={`Exception · click to open · ${REPORT_LABEL[mark.reportType]}${where} · ${ROLE_LABEL[mark.authorRole]} · ${time}`}
         aria-label={`${REPORT_LABEL[mark.reportType]}${where} reported by the ${ROLE_LABEL[mark.authorRole].toLowerCase()} at ${time}${list.length > 1 ? `, and ${list.length - 1} more` : ""}, open the messages`}
-        className="absolute top-1/2 z-30 flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full"
+        className="absolute top-1/2 z-30 flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full before:absolute before:-inset-1.5"
         style={{ left: at(minute) }}
       >
         <span aria-hidden className="absolute inset-0 rounded-full bg-go-danger/20" />
@@ -195,7 +195,7 @@ export default function LiveTimeline({
                   onClick={() => onMessages(run)}
                   aria-label={`Messages for ${day.vehicleId}`}
                   title={`Messages for ${day.vehicleId}`}
-                  className="absolute top-2.5 left-[calc(var(--lab)-36px)] z-30 flex size-8 items-center justify-center rounded-full bg-go-surface text-go-teal transition-colors hover:bg-go-soft"
+                  className="absolute top-2.5 left-[calc(var(--lab)-36px)] z-30 flex size-8 items-center justify-center rounded-full bg-go-surface text-go-teal transition-colors before:absolute before:-inset-1 hover:bg-go-soft"
                 >
                   <ChatIcon className="size-[17px]" />
                   {(marks.get(day.vehicleId) ?? []).length > 0 && (

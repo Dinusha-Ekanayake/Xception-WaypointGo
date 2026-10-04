@@ -4,8 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { resample } from "./waveform.ts";
 
 // A voice note from the phone's microphone (issue #136, R-MSG-06), in the
-// format the device records: Opus in WebM on Chrome and Android, AAC in MP4 on
-// Safari. At most two minutes; the server holds the same limits. While it
+// best format the device records: AAC in MP4 where it can (Safari, recent
+// Chrome), else Opus in WebM or Ogg (Firefox). At most two minutes; the server holds the same limits. While it
 // records, the loudness is sampled ten times a second: the live bars, and the
 // waveform the sent note shows.
 
@@ -13,7 +13,17 @@ export const VOICE_MAX_MS = 120_000;
 /** Shorter than this is a tap, not a voice note. */
 export const VOICE_MIN_MS = 700;
 
-const TYPES = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus", "audio/aac"];
+// MP4 with AAC first: every phone plays it, an iPhone included. Chrome and
+// Safari can record it; Firefox records WebM or Ogg, which iPhones play less
+// reliably, so those come after.
+const TYPES = [
+  "audio/mp4;codecs=mp4a.40.2",
+  "audio/mp4",
+  "audio/webm;codecs=opus",
+  "audio/webm",
+  "audio/ogg;codecs=opus",
+  "audio/aac",
+];
 
 export type Recording = { blob: Blob; durationMs: number; peaks: number[] };
 

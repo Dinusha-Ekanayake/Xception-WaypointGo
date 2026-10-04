@@ -3,6 +3,19 @@
 @kavindamihiran's entries, newest first. Only @kavindamihiran adds to this file; how to write an entry is in the [log's index](../development-log.md).
 
 ---
+## 2026-10-05 - fix: dispatcher and store maps read the whole trail and keep the view
+
+`fix/role-maps` · @kavindamihiran · #161, #231
+
+The trail reader moved to `shared/ui/map/trail.ts` with `readTripTrail` beside the map, and all three maps use it: every page is read (the dispatcher and store stopped at 200 points) and missing coordinates are skipped. The dispatcher trail follows the demo refresh, choosing a vehicle from the list brings it into view, a filter that hides it ends the choice, and a failed trail read says so with Retry. The store map fits once instead of following the truck, stops asking for the trail once its stop is done, and its "not updated" note has Retry. `MapCanvas` redraws only when what is drawn changed, so a focused marker keeps focus across polls.
+Verified: typecheck, Node tests (243 pass), production build, dispatcher (63), store (56) and driver (27) browser suites; the dispatcher mock now pages the trail. Left: position age check and marker colours ([walkthrough](../../issues/161-live-map/WALKTHROUGH.md) gaps).
+
+## 2026-10-04 - ci: release pull request reuses the dev checks
+
+`ci/release-pr-reuses-dev-checks` · @kavindamihiran
+
+Every push to dev ran Checks twice (preview deploy and the open dev to main pull request), about 26 jobs, and runs queued ~2 minutes for runners. The release pull request, and the production deploy of a merge whose tree equals the dev commit it merged, now run one job that waits for the preview deploy's checks of the same commit and takes their result; the deploys gained `actions: read` for it. Verified by the pull request's own checks.
+
 ## 2026-10-04 - ci: check only what a change touches
 
 `ci/checks-only-what-changed` · @kavindamihiran

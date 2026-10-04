@@ -5,7 +5,7 @@ import { flushSync } from "react-dom";
 import type { NotificationView } from "@shared/domain/notification";
 import { ago } from "@shared/notifications/inbox";
 import { useInbox } from "@shared/notifications/useInbox";
-import { cx, useDeviceLang, useMedia, useShell } from "@shared/ui";
+import { cx, useDeviceLang, useMedia, useShell, SkeletonRows, SkipLink } from "@shared/ui";
 import { nextStop, type Stop } from "./data/run.ts";
 import { activeIndex, syncLabel, toRouteStops, tripStatus, type RouteStop } from "./data/stopView.ts";
 import DeliveryPinConfirmModal from "./screens/DeliveryPinConfirmModal.tsx";
@@ -117,12 +117,15 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
         d.dark ? "go-dark bg-[#161616] md:bg-[#0a0a0a]" : "bg-[#E7F3F2] md:bg-[#d6e7e5]"
       )}
     >
+      <SkipLink targetId="driver-content" />
       {sideMap && next && (
         <aside aria-label="Trip map" className="relative min-w-0 flex-1 overflow-hidden">
           <RouteMap next={next} outlet={run.outlets[next.outletId]} recorder={d.location} syncedAt={run.syncedAt} className="h-full w-full" />
         </aside>
       )}
       <div
+        id="driver-content"
+        tabIndex={-1}
         className={cx(
           "relative h-dvh w-full overflow-hidden transition-colors md:max-w-[600px] md:shadow-2xl",
           sideMap && "lg:max-w-[480px]",
@@ -147,12 +150,17 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
         )}
 
         {run.loading ? (
-          <p role="status" className="absolute inset-x-0 top-[96px] px-8 text-[17px] text-go-muted">
-            Loading today's run…
-          </p>
+          // A card-shaped skeleton in the Home layout's own shape, not a full-screen
+          // spinner: the driver UX plan prioritises a fast-feeling load. The label
+          // keeps the exact words the screen used to show, so a screen reader hears
+          // the same thing it always did.
+          <div className="absolute inset-x-0 top-[96px] flex flex-col gap-3 px-5">
+            <div className="h-24 w-full animate-pulse rounded-go-card-l bg-go-card" aria-hidden />
+            <SkeletonRows rows={4} label="Loading today's run…" />
+          </div>
         ) : (
           // Where the browser crossfades screens itself (shared/ui/transition.ts), this fade would play twice.
-          <div key={screen} className="absolute inset-0 animate-fade-in supports-[view-transition-name:none]:animate-none short:overflow-y-auto">
+          <div key={screen} className="absolute inset-0 z-0 animate-fade-in supports-[view-transition-name:none]:animate-none short:overflow-y-auto">
             {screen === "home" && (
               <HomeNoVehicle
                 {...(d.tripId ? { onOpenMessages: openMessages } : {})}
@@ -199,7 +207,7 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
             )}
             {screen === "map" && next && (
               <GoLayer dark={d.dark} top>
-                <RouteMap next={next} outlet={run.outlets[next.outletId]} recorder={d.location} syncedAt={run.syncedAt} />
+                <RouteMap next={next} outlet={run.outlets[next.outletId]} recorder={d.location} syncedAt={run.syncedAt} onBack={() => d.go({ name: "route", deliveryId: null })} className="h-full w-full" />
               </GoLayer>
             )}
             {screen === "report" && reporting && view.name === "report" && formFor !== reporting.deliveryId && (
@@ -335,7 +343,16 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
         )}
 
         {d.problemFor !== null && (
-          <ProblemSheet stop={d.problemFor === "run" ? null : d.problemFor} busy={busy} error={error} onSend={(problem) => void d.report(problem)} onClose={d.closeProblem} />
+          <ProblemSheet
+            stop={d.problemFor === "run" ? null : d.problemFor}
+            tripId={d.tripId}
+            accountId={userId}
+            sender={d.postMessage}
+            busy={busy}
+            error={error}
+            onSend={(problem) => d.report(problem)}
+            onClose={d.closeProblem}
+          />
         )}
         {d.saved && !pinFor && (
           <SavedSheet
@@ -411,7 +428,7 @@ function GoLayer({
   children: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <div className={cx(dark && "go-dark", "absolute inset-0 overflow-y-auto bg-go-canvas font-go text-go-ink", top && "pt-[74px]")}>
+    <div className={cx(dark && "go-dark", "absolute inset-0 bg-go-canvas font-go text-go-ink", top && !onBack ? "overflow-hidden pt-[74px]" : "overflow-y-auto", top && onBack && "pt-[74px]")}>
       {onBack && (
         <div className="flex items-center justify-between px-5 pt-5">
           <button type="button" onClick={onBack} className="-ml-2 flex min-h-12 items-center gap-2 rounded-full px-2 text-[19px] font-medium text-go-ink">

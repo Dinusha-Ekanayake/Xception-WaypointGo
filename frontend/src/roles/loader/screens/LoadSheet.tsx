@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { ItemView, OutletView, ReadyTripView, ReleaseTrip } from "@shared/domain/types";
-import { ApiError } from "@shared/api/problem";
+import { ApiError, friendlyError } from "@shared/api/problem";
 import { Notice, SkeletonRows } from "@shared/ui";
 import type { LoadingGateway } from "../data/gateway.ts";
 import { loadedTotals, orderLabel, paceOf, progress } from "../data/manifest.ts";
@@ -69,7 +69,7 @@ export default function LoadSheet({
     return t.manifest.error ? (
       <div className="px-5">
         <Notice tone="danger" title={tr("Could not load this trip's load sheet")} onRetry={reload} retryLabel={tr("Try again")}>
-          {t.manifest.error.message}
+          {friendlyError(t.manifest.error)}
         </Notice>
       </div>
     ) : (
@@ -166,7 +166,7 @@ export default function LoadSheet({
         <Notice
           tone="danger"
           live
-          title={t.error.message}
+          title={friendlyError(t.error)}
           action={
             <button type="button" onClick={t.clearError} className="min-h-12 shrink-0 px-2 text-[13px] font-medium text-go-teal">
               {tr("Dismiss")}

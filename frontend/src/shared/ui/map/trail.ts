@@ -1,8 +1,8 @@
 import type { TrailPointView } from "@shared/domain/types";
-import { num, type LatLon } from "../../../shared/ui/map/geo.ts";
+import { num, type LatLon } from "./geo.ts";
 
-// The trail the server holds for a trip, as the driver's map draws it. Pure,
-// so Node tests reach it; RouteMap does the reading.
+// The trail the server holds for a trip, as every map draws it. Pure, so Node
+// tests reach it; `readTripTrail` in index.tsx does the reading.
 
 /** `at` in epoch milliseconds, as the phone stamped it. */
 export type TrailPoint = LatLon & { at: number };

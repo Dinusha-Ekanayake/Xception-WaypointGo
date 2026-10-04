@@ -4,6 +4,22 @@ import { mockStore } from "./mocks.ts";
 // The Orders list opens on what is still open: received and cancelled orders
 // are each a filter away, and All shows everything.
 
+test("the floating bar shrinks once the page is scrolled", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockStore(page);
+  await page.goto("/");
+  await expect(page.getByRole("navigation", { name: "Store" })).toBeVisible();
+  await page.evaluate(() => {
+    document.body.style.minHeight = "2000px";
+  });
+  const pill = page.getByRole("navigation", { name: "Store" }).locator("div").first();
+  const open = await pill.boundingBox();
+  await page.evaluate(() => window.scrollTo(0, 200));
+  await expect.poll(async () => (await pill.boundingBox())?.height ?? 0).toBeLessThan(open?.height ?? 0);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect.poll(async () => (await pill.boundingBox())?.height ?? 0).toBe(open?.height ?? 0);
+});
+
 test("the list hides received orders until their filter is chosen", async ({ page }) => {
   await mockStore(page, { answered: { status: "CONFIRMED", pin: "4827", rowVersion: 2, confirmedAt: new Date().toISOString() }, deferred: true });
   await page.goto("/");

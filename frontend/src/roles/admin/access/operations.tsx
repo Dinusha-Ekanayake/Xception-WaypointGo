@@ -1,18 +1,32 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge, Empty, VehicleTypeIcon, card, field, primary, secondary } from "./components";
-import { todayInColombo } from "./model";
+import { todayInColombo, type DemoState } from "./model";
 import { createAdminVehicle, fetchAdminVehicles, fetchAdminDepots, updateAdminVehicle } from "../data/reference";
+import {
+  fetchAccounts,
+  fetchDriverAssignments,
+  submitAssignDriver,
+  submitEndDriverAssignment,
+  type DriverAssignmentView,
+} from "../data/accounts";
+import type { AccountView } from "@shared/domain/identity";
 import { request } from "@shared/api/client";
 import type { ForecastOverviewView } from "@shared/domain/intelligence";
+import { dayLabel } from "@shared/wording";
 
 
 export type LastDriver = {
   id: string;
   name: string;
-  phone: string;
+  phone?: string;
   lastRunDate: string;
+  from?: string;
+  until?: string | null;
+  assignmentId?: string;
+  assignmentVersion?: number;
+  driverVersion?: number;
 };
 
 export type Vehicle = {
@@ -31,7 +45,7 @@ export type Vehicle = {
   rowVersion?: number;
 };
 
-export function VehiclesScreen() {
+export function VehiclesScreen({ state }: { state?: DemoState } = {}) {
   const [vehiclesList, setVehiclesList] = useState<Vehicle[]>([]);
   const [liveConnected, setLiveConnected] = useState<boolean | null>(null);
   const [isAddVehicleModalOpen, setIsAddVehicleModalOpen] = useState(false);
@@ -40,6 +54,17 @@ export function VehiclesScreen() {
   const [createNotice, setCreateNotice] = useState("");
   const [creating, setCreating] = useState(false);
   const [depotChoices, setDepotChoices] = useState<string[]>([]);
+
+  // Driver Assignment State
+  const [, setAssignments] = useState<DriverAssignmentView[]>([]);
+  const [driverAccounts, setDriverAccounts] = useState<AccountView[]>([]);
+  const [assigningVehicle, setAssigningVehicle] = useState<Vehicle | null>(null);
+  const [assignDriverId, setAssignDriverId] = useState("");
+  const [assignFrom, setAssignFrom] = useState(todayInColombo());
+  const [assignUntil, setAssignUntil] = useState("");
+  const [assignError, setAssignError] = useState("");
+  const [assigning, setAssigning] = useState(false);
+  const [endingAssignment, setEndingAssignment] = useState(false);
 
   // New Vehicle form draft
   const [newVehicleId, setNewVehicleId] = useState("");
@@ -61,57 +86,158 @@ export function VehiclesScreen() {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
 
+  // Fetch live vehicles and active driver assignments from backend API
+  const loadVehicles = useCallback(async () => {
+    try {
+      const [vehiclesPage, assignmentsList, accountsPage] = await Promise.all([
+        fetchAdminVehicles({
+          date: todayInColombo(),
+          depot: depot !== "all" ? depot : undefined,
+          status: status !== "all" ? status.toLowerCase() : undefined,
+          search: query.trim() || undefined,
+          limit: 100,
+        }),
+        fetchDriverAssignments({ on: todayInColombo() }).catch(() => [] as DriverAssignmentView[]),
+        fetchAccounts({ limit: 100 }).catch(() => ({ items: [] as AccountView[], nextCursor: null })),
+      ]);
 
-  // Fetch live vehicles from backend API
-  useEffect(() => {
-    let cancelled = false;
-    fetchAdminVehicles({
-      date: todayInColombo(),
-      depot: depot !== "all" ? depot : undefined,
-      status: status !== "all" ? status.toLowerCase() : undefined,
-      search: query.trim() || undefined,
-      limit: 100,
-    })
-      .then((page) => {
-        if (cancelled) return;
-        {
-          const records: Vehicle[] = page.items.map((v) => {
-            const isTruck = v.type?.toLowerCase() === "truck";
-            const tempVal =
-              v.temperature?.toLowerCase().includes("reefer") || v.temperature?.toLowerCase().includes("chilled")
-                ? "Chilled (Refrigerated)"
-                : "Ambient";
-            const statusVal =
-              v.dayStatus === "in_workshop" || v.dayStatus === "workshop"
-                ? "Workshop"
-                : v.dayStatus === "unavailable" ? "Unavailable" : "Available";
+      const drivers = accountsPage.items.filter((acc) => acc.active && acc.roles.includes("driver"));
+      setDriverAccounts(drivers);
+      setAssignments(assignmentsList);
 
-            return {
-              id: v.vehicleId,
-              brand: "Make unavailable",
-              type: isTruck ? "Truck" : "Van",
-              depot: v.depot,
-              weightCapKg: Number(v.weightCapKg),
-              volumeCapM3: Number(v.volumeCapM3),
-              fuelType: v.fuelType,
-              weeklyFuelQuotaL: Number(v.weeklyFuelQuotaL),
-              fuelEfficiencyKmPerL: Number(v.kmPerL),
-              temp: tempVal,
-              status: statusVal,
-              rowVersion: v.rowVersion,
-            };
-          });
-          setVehiclesList(records);
-          setLiveConnected(true);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setLiveConnected(false);
+      const records: Vehicle[] = vehiclesPage.items.map((v) => {
+        const isTruck = v.type?.toLowerCase() === "truck";
+        const tempVal =
+          v.temperature?.toLowerCase().includes("reefer") || v.temperature?.toLowerCase().includes("chilled")
+            ? "Chilled (Refrigerated)"
+            : "Ambient";
+        const statusVal =
+          v.dayStatus === "in_workshop" || v.dayStatus === "workshop"
+            ? "Workshop"
+            : v.dayStatus === "unavailable" ? "Unavailable" : "Available";
+
+        const activeAssign = assignmentsList.find((a) => a.vehicleId === v.vehicleId);
+        const driverAcc = activeAssign
+          ? drivers.find((d) => d.userId === activeAssign.driverUserId)
+          : undefined;
+
+        const lastDriver: LastDriver | undefined = activeAssign
+          ? {
+              id: activeAssign.driverUserId,
+              name: activeAssign.driverName,
+              phone: driverAcc?.email || "",
+              lastRunDate: activeAssign.from,
+              from: activeAssign.from,
+              until: activeAssign.until,
+              assignmentId: activeAssign.assignmentId,
+              assignmentVersion: activeAssign.rowVersion,
+              driverVersion: driverAcc?.rowVersion,
+            }
+          : undefined;
+
+        return {
+          id: v.vehicleId,
+          brand: "Make unavailable",
+          type: isTruck ? "Truck" : "Van",
+          depot: v.depot,
+          weightCapKg: Number(v.weightCapKg),
+          volumeCapM3: Number(v.volumeCapM3),
+          fuelType: v.fuelType,
+          weeklyFuelQuotaL: Number(v.weeklyFuelQuotaL),
+          fuelEfficiencyKmPerL: Number(v.kmPerL),
+          temp: tempVal,
+          status: statusVal,
+          lastDriver,
+          rowVersion: v.rowVersion,
+        };
       });
-    return () => {
-      cancelled = true;
-    };
+
+      setVehiclesList(records);
+      setLiveConnected(true);
+    } catch {
+      setLiveConnected(false);
+    }
   }, [depot, status, query]);
+
+  useEffect(() => {
+    void loadVehicles();
+  }, [loadVehicles]);
+
+  const availableDrivers = useMemo(() => {
+    if (driverAccounts.length > 0) {
+      return driverAccounts;
+    }
+    if (state?.members?.length) {
+      return state.members
+        .filter((m) => m.active && m.personas.includes("driver"))
+        .map((m) => ({
+          userId: m.id,
+          email: m.email,
+          displayName: m.name,
+          active: m.active,
+          rowVersion: m.rowVersion ?? 1,
+          roles: ["driver"],
+          depots: m.places,
+          outlets: [],
+        }));
+    }
+    return [];
+  }, [driverAccounts, state]);
+
+  function openAssignDriverModal(vehicle: Vehicle) {
+    setAssigningVehicle(vehicle);
+    setAssignDriverId(vehicle.lastDriver?.id || "");
+    setAssignFrom(todayInColombo());
+    setAssignUntil(vehicle.lastDriver?.until || "");
+    setAssignError("");
+  }
+
+  const handleAssignDriver = async () => {
+    if (!assigningVehicle || !assignDriverId) return;
+    const targetDriver = availableDrivers.find((d) => d.userId === assignDriverId);
+    if (!targetDriver) {
+      setAssignError("Selected driver was not found.");
+      return;
+    }
+    setAssigning(true);
+    setAssignError("");
+    try {
+      await submitAssignDriver({
+        vehicleId: assigningVehicle.id,
+        driverUserId: targetDriver.userId,
+        from: assignFrom,
+        until: assignUntil.trim() ? assignUntil.trim() : null,
+        expectedVersion: targetDriver.rowVersion,
+      });
+      setCreateNotice(`Driver ${targetDriver.displayName} assigned to ${assigningVehicle.id}.`);
+      setAssigningVehicle(null);
+      void loadVehicles();
+    } catch (err) {
+      setAssignError(err instanceof Error ? err.message : "Could not assign driver.");
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  const handleEndAssignment = async () => {
+    if (!assigningVehicle?.lastDriver?.assignmentId) return;
+    setEndingAssignment(true);
+    setAssignError("");
+    try {
+      await submitEndDriverAssignment({
+        assignmentId: assigningVehicle.lastDriver.assignmentId,
+        on: todayInColombo(),
+        expectedVersion: assigningVehicle.lastDriver.assignmentVersion ?? 1,
+      });
+      setCreateNotice(`Driver assignment for ${assigningVehicle.id} ended.`);
+      setAssigningVehicle(null);
+      void loadVehicles();
+    } catch (err) {
+      setAssignError(err instanceof Error ? err.message : "Could not end driver assignment.");
+    } finally {
+      setEndingAssignment(false);
+    }
+  };
 
   const handleBrandChange = (nextBrand: "Fresh" | "Style" | "Tech") => {
     setNewVehicleBrand(nextBrand);
@@ -408,8 +534,14 @@ export function VehiclesScreen() {
                           {item.temp}
                         </span>
                       </div>
-                      <p className="mt-0.5 text-xs text-go-secondary">
+                      <p className="mt-0.5 text-xs text-go-secondary flex items-center gap-2">
                         <span>{item.depot} depot</span>
+                        {item.lastDriver && (
+                          <>
+                            <span>·</span>
+                            <span className="font-medium text-go-teal">{item.lastDriver.name}</span>
+                          </>
+                        )}
                       </p>
                     </div>
                   </div>
@@ -441,7 +573,7 @@ export function VehiclesScreen() {
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="text-xs text-go-secondary">Last driver:</span>
+                            <span className="text-xs text-go-secondary">Assigned driver:</span>
                             <span className="text-sm font-semibold text-go-ink">
                               {item.lastDriver?.name || "Unassigned"}
                             </span>
@@ -451,18 +583,31 @@ export function VehiclesScreen() {
                               </span>
                             )}
                           </div>
-                          {item.lastDriver && (
+                          {item.lastDriver ? (
                             <p className="mt-0.5 text-xs text-go-secondary">
-                              <span>{item.lastDriver.phone}</span>
-                              <span className="mx-1.5">·</span>
-                              <span>Last run: {item.lastDriver.lastRunDate}</span>
+                              <span>From: {dayLabel(item.lastDriver.from || item.lastDriver.lastRunDate || todayInColombo())}</span>
+                              {item.lastDriver.until && <span> · Until: {dayLabel(item.lastDriver.until)}</span>}
+                              {item.lastDriver.phone && <span className="ml-1.5">({item.lastDriver.phone})</span>}
+                            </p>
+                          ) : (
+                            <p className="mt-0.5 text-xs text-go-secondary">
+                              No driver currently assigned to this vehicle
                             </p>
                           )}
                         </div>
                       </div>
-                      <span className="text-xs text-go-secondary">
-                        Depot base: <strong className="font-semibold text-go-ink">{item.depot}</strong>
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          className={`${primary} min-h-8 px-3 text-xs`}
+                          onClick={() => openAssignDriverModal(item)}
+                        >
+                          {item.lastDriver ? "Change driver" : "Assign driver"}
+                        </button>
+                        <span className="text-xs text-go-secondary ml-1">
+                          Depot base: <strong className="font-semibold text-go-ink">{item.depot}</strong>
+                        </span>
+                      </div>
                     </div>
 
                     <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -535,7 +680,22 @@ export function VehiclesScreen() {
                         </Badge>
                       </div>
                     </div>
-                    <div className="mt-3 flex justify-end"><button type="button" className={primary} onClick={() => openVehicleEditor(item)}>Edit vehicle</button></div>
+                    <div className="mt-3 flex flex-wrap justify-end gap-2">
+                      <button
+                        type="button"
+                        className={`${primary} text-xs`}
+                        onClick={() => openAssignDriverModal(item)}
+                      >
+                        {item.lastDriver ? "Change driver" : "Assign driver"}
+                      </button>
+                      <button
+                        type="button"
+                        className={`${secondary} text-xs`}
+                        onClick={() => openVehicleEditor(item)}
+                      >
+                        Edit vehicle
+                      </button>
+                    </div>
                   </div>
                 )}
               </article>
@@ -742,6 +902,136 @@ export function VehiclesScreen() {
               >
                 {creating ? "Saving..." : editingVehicle ? "Save changes" : "Create vehicle"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Assign Driver Modal */}
+      {assigningVehicle && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="assign-driver-ops-title"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs"
+        >
+          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-3xl bg-white p-6 sm:p-7 shadow-2xl border border-go-rule animate-in fade-in duration-200">
+            <div className="flex items-center justify-between border-b border-go-subtle pb-4">
+              <div>
+                <h3 id="assign-driver-ops-title" className="text-xl font-bold text-go-ink">
+                  Assign Driver · {assigningVehicle.id}
+                </h3>
+                <p className="text-xs text-go-secondary">
+                  Assign an authorized driver account to this fleet vehicle.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="grid size-9 place-items-center rounded-full text-go-secondary hover:bg-go-subtle text-lg"
+                onClick={() => setAssigningVehicle(null)}
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-4 text-sm">
+              <div className="rounded-2xl border border-go-rule bg-go-subtle p-3.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+                <div>
+                  <span className="font-semibold text-go-ink">{assigningVehicle.id}</span>
+                  <span className="text-go-secondary"> · {assigningVehicle.depot} depot · {assigningVehicle.type}</span>
+                </div>
+                {assigningVehicle.lastDriver ? (
+                  <Badge tone="blue">Current: {assigningVehicle.lastDriver.name}</Badge>
+                ) : (
+                  <Badge tone="neutral">Unassigned</Badge>
+                )}
+              </div>
+
+              {assignError && (
+                <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+                  {assignError}
+                </p>
+              )}
+
+              <label className="block font-medium text-go-ink">
+                Driver *
+                <select
+                  className={`${field} mt-1`}
+                  value={assignDriverId}
+                  onChange={(e) => setAssignDriverId(e.target.value)}
+                >
+                  <option value="">Select a driver</option>
+                  {availableDrivers.map((d) => (
+                    <option key={d.userId} value={d.userId}>
+                      {d.displayName} ({d.email}){d.depots?.length ? ` · ${d.depots.join(", ")}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {availableDrivers.length === 0 && (
+                <p className="text-xs text-go-secondary">
+                  No active driver accounts found. Drivers must have an account with the Driver persona in People &amp; access.
+                </p>
+              )}
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block font-medium text-go-ink">
+                  Effective from *
+                  <input
+                    type="date"
+                    className={`${field} mt-1`}
+                    value={assignFrom}
+                    onChange={(e) => setAssignFrom(e.target.value)}
+                  />
+                </label>
+
+                <label className="block font-medium text-go-ink">
+                  Effective until (optional)
+                  <input
+                    type="date"
+                    className={`${field} mt-1`}
+                    value={assignUntil}
+                    min={assignFrom ? new Date(new Date(assignFrom).getTime() + 86_400_000).toISOString().slice(0, 10) : undefined}
+                    onChange={(e) => setAssignUntil(e.target.value)}
+                  />
+                </label>
+              </div>
+              <p className="text-[11px] text-go-secondary">
+                Leave until empty for an ongoing driver assignment. The validity range is half-open: from inclusive, until exclusive.
+              </p>
+
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-go-subtle">
+                {assigningVehicle.lastDriver?.assignmentId ? (
+                  <button
+                    type="button"
+                    className="text-xs font-semibold text-red-600 hover:underline"
+                    disabled={endingAssignment}
+                    onClick={() => void handleEndAssignment()}
+                  >
+                    {endingAssignment ? "Ending assignment..." : "End current assignment"}
+                  </button>
+                ) : <span />}
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className={secondary}
+                    onClick={() => setAssigningVehicle(null)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className={primary}
+                    disabled={!assignDriverId || !assignFrom || assigning}
+                    onClick={() => void handleAssignDriver()}
+                  >
+                    {assigning ? "Assigning..." : "Assign driver"}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

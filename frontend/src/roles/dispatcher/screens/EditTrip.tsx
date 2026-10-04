@@ -129,7 +129,7 @@ export default function EditTrip({
               type="button"
               disabled={ids.length === 0}
               onClick={() => setIds([])}
-              className="rounded-full bg-go-danger-tint px-3.5 py-1.5 text-[13px] font-medium text-go-danger-strong disabled:opacity-40"
+              className="relative rounded-full bg-go-danger-tint px-3.5 py-1.5 text-[13px] font-medium text-go-danger-strong before:absolute before:-inset-y-1.5 disabled:opacity-40"
             >
               Remove trip
             </button>
@@ -138,7 +138,7 @@ export default function EditTrip({
             <VehiclePicker plan={plan} fleet={fleet} current={trip.vehicleId} chosen={moveTo} disabled={changed} onChoose={setMoveTo} />
           )}
           {(changed || moveTo !== null) && (
-            <button type="button" onClick={() => (setIds(original), setMoveTo(null))} className="text-[13px] font-medium text-go-teal">
+            <button type="button" onClick={() => (setIds(original), setMoveTo(null))} className="relative text-[13px] font-medium text-go-teal before:absolute before:-inset-x-2 before:-inset-y-3.5">
               Undo all
             </button>
           )}
@@ -164,7 +164,7 @@ export default function EditTrip({
                       type="button"
                       aria-label={`Add ${order.outletId} to the trip`}
                       onClick={() => insert(order.orderId, ids.length)}
-                      className="rounded-full bg-go-ink px-2 py-0.5 text-[11px] font-medium text-go-card"
+                      className="relative rounded-full bg-go-ink px-2 py-0.5 text-[11px] font-medium text-go-card before:absolute before:-inset-x-1.5 before:-inset-y-2.5"
                     >
                       + Add
                     </button>

@@ -2,7 +2,7 @@
 
 import type { Resource } from "@shared/api/useResource";
 import type { VehicleView } from "@shared/domain/types";
-import { Card, CardHead, LinkAction, cx } from "@shared/ui";
+import { Card, CardHead, LinkAction, SkeletonRows, cx } from "@shared/ui";
 import PageHeader from "../PageHeader.tsx";
 import FleetError from "./FleetError.tsx";
 import { NotificationRows } from "../NotificationsPanel.tsx";
@@ -118,7 +118,11 @@ function RecentNotifications({ onNavigate }: { onNavigate: (view: ViewId) => voi
         action={ctx && <LinkAction onClick={() => ctx.setOpen(true)}>View all</LinkAction>}
       />
       {items.length === 0 ? (
-        <p className="text-sm text-go-secondary">{ctx?.inbox.loading ? "Loading…" : "No notifications yet."}</p>
+        ctx?.inbox.loading ? (
+          <SkeletonRows rows={3} label="Loading…" />
+        ) : (
+          <p className="text-sm text-go-secondary">No notifications yet.</p>
+        )
       ) : (
         <NotificationRows items={items} onNavigate={onNavigate} limit={3} />
       )}

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { DEPOT, FEASIBLE_PREVIEW, draftPlan, serve, snapshotOf } from "./mocks.ts";
+import { DEPOT, FEASIBLE_PREVIEW, draftPlan, order, serve, snapshotOf } from "./mocks.ts";
 
 // The decisions beyond placing: keep orders deferred and be allowed to publish,
 // swap two orders, hold an order and regenerate around it, save and compare
@@ -140,6 +140,28 @@ test("a plan can be saved, looked at read only, compared and returned to", async
   await expect(page.getByRole("region", { name: "Compare plans" }).getByText("Decision impact")).toBeVisible();
   await page.getByRole("button", { name: "Use plan A" }).click();
   expect(desk.commands[1]).toMatchObject({ kind: "plan:RestoreSnapshot", expectedVersion: 1, payload: { snapshotId: early.snapshotId } });
+});
+
+test("an order that has left the day still shows by its ref in Compare, never by its internal id", async ({ page }) => {
+  const desk = await serve(page, { draft: draftPlan(2, true) });
+  const early = snapshotOf(1, "Auto plan", "AUTO");
+  desk.snapshots = [early];
+  desk.savedPlans[early.snapshotId] = draftPlan(1);
+  desk.elsewhere = [order(9, "CONFIRMED", { orderId: "order-moved", orderRef: "ORD0099999" })];
+  const moved = (orderId: string, outletId: string) => ({
+    orderId, outletId, kind: "DROPPED" as const,
+    before: { decision: "SERVED" as const, vehicleId: "VEH043", tripNumber: 1 },
+    after: { decision: null, vehicleId: null, tripNumber: null },
+  });
+  desk.compareExtra = [moved("order-moved", "OUT099"), moved("order-gone", "OUT098")];
+  await page.goto("/#/plan");
+
+  await page.getByRole("button", { name: "Compare" }).click();
+  const differ = page.getByRole("region", { name: "Orders that differ" });
+  await expect(differ).toContainText("ORD0099999");
+  await expect(differ).toContainText("Order not found");
+  await expect(differ).not.toContainText("order-moved");
+  await expect(differ).not.toContainText("order-gone");
 });
 
 test("a stop order that breaks a rule shows the rule in words and cannot be saved", async ({ page }) => {

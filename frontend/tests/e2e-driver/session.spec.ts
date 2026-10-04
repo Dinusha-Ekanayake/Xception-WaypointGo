@@ -1,16 +1,17 @@
 import { expect, test } from "@playwright/test";
-import { openForm, serve, startTrip } from "./mocks.ts";
+import { arrive, openForm, serve, startTrip } from "./mocks.ts";
 
 // Written for the earlier driver screens (#114 moved the run onto the Figma flow): the Figma sign-out sheet does not yet hold sign-out while work is only on the phone; issue #21.
 test.fixme("sign-out is refused while work is still only on the phone", async ({ page, context }) => {
   const server = await serve(page);
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Start trip" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Start run" })).toBeVisible();
   await server.goOffline(context);
   await startTrip(page);
   await page.getByRole("button", { name: "Go back to home" }).click();
 
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.getByRole("button", { name: /Settings:/ }).click();
+  await page.getByRole("dialog", { name: "Settings" }).getByRole("button", { name: "Sign out" }).click();
   const sheet = page.getByRole("dialog", { name: "Sign out" });
   await expect(sheet).toContainText("1 record is still only on this phone");
   await expect(sheet.getByRole("button", { name: "Sign out" })).toHaveCount(0);
@@ -19,7 +20,8 @@ test.fixme("sign-out is refused while work is still only on the phone", async ({
 
   await server.goOnline(context);
   await expect.poll(() => server.commands.length).toBe(1);
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.getByRole("button", { name: /Settings:/ }).click();
+  await page.getByRole("dialog", { name: "Settings" }).getByRole("button", { name: "Sign out" }).click();
   await expect(page.getByRole("dialog", { name: "Sign out" }).getByRole("button", { name: "Sign out" })).toBeVisible();
 });
 
@@ -27,10 +29,10 @@ test.fixme("sign-out is refused while work is still only on the phone", async ({
 test.fixme("a session that ended while offline keeps the work and sends it after signing in again", async ({ page, context }) => {
   const server = await serve(page);
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Start trip" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Start run" })).toBeVisible();
   await server.goOffline(context);
   await startTrip(page);
-  await page.getByRole("button", { name: "I've arrived" }).click();
+  await arrive(page);
   await openForm(page);
   await expect(page.getByText("Stop 01 of 02 · Delivery report")).toBeVisible();
 
@@ -51,10 +53,10 @@ test.fixme("a session that ended while offline keeps the work and sends it after
 test.fixme("a stop replanned while the phone was offline is held for the driver, never merged", async ({ page, context }) => {
   const server = await serve(page);
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Start trip" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Start run" })).toBeVisible();
   await server.goOffline(context);
   await startTrip(page);
-  await page.getByRole("button", { name: "I've arrived" }).click();
+  await arrive(page);
   await openForm(page);
   await expect(page.getByText("Stop 01 of 02 · Delivery report")).toBeVisible();
 
@@ -80,10 +82,10 @@ test("a write the server took, with the signal gone before the phone read it bac
   await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
   // Start reaches the server, then the signal goes before the run sheet is read again.
   server.dropReads = true;
-  await page.getByRole("button", { name: "Start trip" }).click();
+  await page.getByRole("button", { name: "Start run" }).click();
   await expect.poll(() => server.commands.map((c) => c.kind)).toEqual(["delivery:Start"]);
   await server.goOffline(context);
-  await page.getByRole("button", { name: "I've arrived" }).click();
+  await arrive(page);
   await openForm(page);
   await page.getByLabel("I can't capture a signature or a photo").check();
   await page.getByLabel("Why not?").fill("Receiver refused to sign");
