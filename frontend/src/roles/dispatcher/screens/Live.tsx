@@ -6,7 +6,8 @@ import PageHeader from "../PageHeader.tsx";
 import { byUrgency, punctuality, vehicleDay } from "../data/live.ts";
 import { closedOnTheirOwn, depotSummaries, filterRuns, needCards, runsOf, summaryText, type RunFilter } from "../data/liveDesk.ts";
 import { dayLabel } from "../data/scope.ts";
-import { useIssues, useLive, usePositions } from "../data/useDay.ts";
+import { useIssues, useLive, usePositions, useReports } from "../data/useDay.ts";
+import { useDispatcherInbox } from "../inbox.tsx";
 import DayPicker from "./DayTools.tsx";
 import { Retry } from "./Orders.tsx";
 import LiveMapView from "./LiveMap.tsx";
@@ -42,6 +43,8 @@ export default function Live({
   const live = useLive(depots, date);
   const positions = usePositions(depots, date);
   const issues = useIssues(depots);
+  const reports = useReports(depots, date);
+  const inbox = useDispatcherInbox();
   const [now, setNow] = useState(() => new Date());
   const [view, setView] = useState<View>("needs");
   const [depot, setDepot] = useState("all");
@@ -104,6 +107,7 @@ export default function Live({
           live.refresh();
           positions.refresh();
           issues.refresh();
+          reports.refresh();
         }}
         syncing={live.loading}
         tools={
@@ -150,14 +154,20 @@ export default function Live({
       {!online && <Notice tone="warning" title="Live updates are paused" />}
 
       {view === "needs" && (
-        <LiveNeeds cards={cards} runs={inDepot} closedOnTheirOwn={closedOnTheirOwn(inDepot)} online={online} onOpenTrip={setTrip} onOpenIssue={onOpenIssue} onViewAll={() => setView("timeline")} />
+        <LiveNeeds cards={cards} runs={inDepot} date={date} closedOnTheirOwn={closedOnTheirOwn(inDepot)} online={online} onOpenTrip={setTrip} onOpenIssue={onOpenIssue} onViewAll={() => setView("timeline")} />
       )}
 
       {view === "map" && <LiveMapView depots={depots} date={date} runs={shown.runs} positions={positions} depotName={depotName} now={now} onOpenTrip={setTrip} />}
 
       {view === "timeline" && (
         <div className="flex w-full items-start gap-[18px] max-lg:flex-col">
-          <LiveTimeline runs={shown.runs} now={now} onOpen={setTrip} />
+          <LiveTimeline
+            runs={shown.runs}
+            now={now}
+            onOpen={setTrip}
+            reports={reports.data ?? []}
+            onReport={(mark) => inbox?.openThread({ threadId: mark.threadId, messageId: mark.messageId })}
+          />
           <aside aria-label="Vehicles on the road" className="flex w-full flex-col gap-2.5 rounded-[24px] bg-white p-[18px] shadow-go-card lg:max-w-[360px]">
             <div className="flex items-baseline justify-between">
               <h2 className="text-[17px] font-medium text-go-ink">On the road</h2>

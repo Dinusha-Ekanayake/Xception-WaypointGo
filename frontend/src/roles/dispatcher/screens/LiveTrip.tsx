@@ -1,19 +1,17 @@
 "use client";
 
-import { useState } from "react";
 import type { RunSheetStopView } from "@shared/domain/types";
 import { ConnectionStatus, cx } from "@shared/ui";
 import { activity, depotClock, etaOf, limits, round1, runTitle, silentMinutes, type Run } from "../data/liveDesk.ts";
-import { hhmm } from "../data/plan.ts";
 import { useFuel } from "../data/useDay.ts";
 import { driverLine, useDriver } from "./LivePanel.tsx";
-import { Action, Bar, Chip, NOT_AVAILABLE_NOTE, STATUS } from "./LiveParts.tsx";
+import { Bar, Chip, STATUS } from "./LiveParts.tsx";
+import LiveTripUpdate from "./LiveTripUpdate.tsx";
 
 // Figma "05 Live · trip" (189:21943), opened from "Open trip": the driver, the
 // trip's limits right now, its stops and what each outlet was told, what has
-// happened on the trip and a way to send an update. What outlets were told and
-// sending an update wait on store and driver messages; they are drawn as
-// designed and disabled.
+// happened on the trip and a way to send an update on the trip's thread
+// (issue #136). What each outlet was told is not recorded per stop yet.
 
 export default function LiveTrip({
   run,
@@ -38,10 +36,6 @@ export default function LiveTrip({
   const next = run.day.current;
   const quiet = silentMinutes(run, now);
   const waiting = run.day.stops.filter((s) => s.outcome === "PENDING" || s.outcome === "ARRIVED");
-  const [audience, setAudience] = useState<"driver" | "waiting" | "all">("waiting");
-  const lateBy = next?.expectedArrival
-    ? Math.round((new Date(next.expectedArrival).getTime() - new Date(`${date}T${hhmm(next.plannedArrival)}:00+05:30`).getTime()) / 60_000)
-    : null;
 
   return (
     <div className="flex w-full flex-col gap-4">
@@ -161,40 +155,7 @@ export default function LiveTrip({
           </Card>
 
           <Card>
-            <h2 className="text-[15px] font-medium text-go-ink">Send an update</h2>
-            <div role="group" aria-label="Send to" className="flex flex-wrap gap-1.5">
-              {(
-                [
-                  ["driver", "Driver"],
-                  ["waiting", "Waiting outlet"],
-                  ["all", "All outlets"],
-                ] as const
-              ).map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  aria-pressed={audience === value}
-                  onClick={() => setAudience(value)}
-                  className={cx("rounded-full px-2.5 py-1 text-[12px] font-medium", audience === value ? "bg-go-ink text-white" : "bg-go-surface text-go-ink")}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <textarea
-              disabled
-              rows={2}
-              aria-label="Message"
-              defaultValue={lateBy !== null && lateBy > 0 && next ? `Running ${lateBy} min late · now expected ${etaOf(next)}` : next ? `On the way · expected ${etaOf(next)}` : ""}
-              className="w-full resize-none rounded-xl bg-go-subtle px-3 py-2.5 text-[13px] text-go-secondary"
-            />
-            <div className="flex gap-2">
-              <Action unavailable>Voice</Action>
-              <Action primary unavailable className="flex-1">
-                {audience === "driver" ? "Send to driver" : audience === "all" ? `Send to ${run.day.stops.length} outlets` : `Send to ${waiting.length} ${waiting.length === 1 ? "outlet" : "outlets"}`}
-              </Action>
-            </div>
-            <p className="text-[11px] text-go-secondary">{NOT_AVAILABLE_NOTE}</p>
+            <LiveTripUpdate run={run} date={date} online={online} />
           </Card>
         </div>
       </div>
