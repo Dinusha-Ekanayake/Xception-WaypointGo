@@ -43,6 +43,7 @@ Issue #136 (epic #150), branch `feat/136-messaging`. The [plan](PLAN.md) has the
 2. It uploads the audio to `PUT /api/threads/{id}/voice/{voiceNoteId}`.
 3. It then posts the message that carries the voice note.
 4. The audio is served only to who may read the message (R-MSG-06, MSG-09).
+5. The site lets its own pages use the microphone (`Permissions-Policy` in `deploy/vps/nginx/snippets/site.conf`) and play a recording before it is sent (`media-src 'self' blob:` in `frontend/next.config.mjs` and `nginx/templates/waypoint.conf.template`).
 
 **The dispatcher.**
 - Live's timeline reads `/api/threads/reports` for each depot. Each report is the pulsing red sign at its time, on the run whose trip it is. Clicking the sign opens `ThreadSheet` scrolled to that report.
