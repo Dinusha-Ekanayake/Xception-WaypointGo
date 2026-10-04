@@ -3,6 +3,13 @@
 @kavindamihiran's entries, newest first. Only @kavindamihiran adds to this file; how to write an entry is in the [log's index](../development-log.md).
 
 ---
+## 2026-10-05 - feat: demo control room, banner and simulated drive, issue #231
+
+`feat/231-demo-control-room` · @kavindamihiran · #231, PRs 3 and 4 (frontend part)
+
+Added the admin "Demo control room" tab: on/off switch with an audited reason, demo clock presets (15:30, 16:05, 05:00, real time, custom), prepare demo day, position update interval and banner, demo accounts with copy, the 12-step demo path checklist and the demo log. Every role shows a demo banner while demo mode is on. In demo mode the driver's route screen offers "Simulate drive to the next stop", which sends real `delivery:RecordPositions` commands stamped with the demo clock, so the store and dispatcher maps move. With demo mode off or unreadable nothing renders and the driver flush stays at 60 s.
+Verified: typecheck, Node tests (225 pass), production build, and every browser suite unchanged (shell 14, driver 24, store 55, dispatcher 57, loader 31). Left: browser specs for the control room, the server-side fleet simulator and the scenario deck (PR 5).
+
 ## 2026-10-04 - feat: opt-in demo runtime and day preparation, issue #231
 
 `feat/231-demo-backend-core` · @kavindamihiran · #231, PR 2 of 6
