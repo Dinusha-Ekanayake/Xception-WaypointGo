@@ -28,6 +28,21 @@ import {
 /** How often an open tab asks whether a new build was deployed. */
 const UPDATE_CHECK_MS = 30 * 60_000;
 const OWN_HEADER = new Set<ShellRole>(["loader", "store_manager", "dispatcher", "driver", "admin"]);
+/** Roles whose screens are named in the address after "#", such as "#/forecast". */
+const HASH_ROUTES = new Set<ShellRole>(["dispatcher", "admin", "auditor"]);
+
+/**
+ * Drops a screen name another role left in the address. A dispatcher's
+ * "#/forecast" otherwise stays there when a loader, driver or store manager
+ * signs in next on the same address, naming a screen they do not have.
+ */
+function StaleRouteCleaner({ role }: { role: ShellRole }): null {
+  useEffect(() => {
+    if (HASH_ROUTES.has(role) || !window.location.hash) return;
+    window.history.replaceState(null, "", window.location.pathname + window.location.search);
+  }, [role]);
+  return null;
+}
 
 /**
  * Session gate and role routing. Signed out, server unreachable and offline are
@@ -318,6 +333,7 @@ export default function AppShell(): React.JSX.Element {
             )}
           </div>
         )}
+        <StaleRouteCleaner role={active} />
         <RoleRouter key={active} session={session} role={active} />
       </main>
     </ShellProvider>

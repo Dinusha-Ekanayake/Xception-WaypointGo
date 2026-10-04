@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-10-04 - fix: a loader, driver or store manager no longer keeps a dispatcher's "#/forecast" in the address
+
+`fix/role-hash` · @Dinusha-Ekanayake
+
+The dispatcher and the admin console name their screen after "#" in the address. Since sign-in opens the account's own role on any address, that name stayed when a loader, driver or store manager signed in next, so `loader.waypointgo.live/#/forecast` showed the loader. The shell now drops it for the roles that have no such screens (`StaleRouteCleaner` in `AppShell.tsx`).
+Verified: typecheck, `npm test`. Not seen on the preview.
+
+---
+
 ## 2026-10-04 - feat: a generated plan explains itself at once, and each deferred order has a question mark
 
 `feat/explain-auto` · @Dinusha-Ekanayake
