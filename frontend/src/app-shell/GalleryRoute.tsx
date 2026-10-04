@@ -92,7 +92,7 @@ function Components(): React.JSX.Element {
             <Notice tone={tone} title={`${tone} notice`}>Second line.</Notice>
           </div>
         ))}
-        <div className="w-[320px]"><Pending what="Forecast" waitingOn="#16" /></div>
+        <div className="w-[320px]"><Pending what="Forecast" waitingOn="The first forecast is made at the next weekly run." /></div>
       </Section>
       <Section title="Connection status">
         <ConnectionStatus online lastSyncedAt={new Date()} offlineNote="Saved on this device" />

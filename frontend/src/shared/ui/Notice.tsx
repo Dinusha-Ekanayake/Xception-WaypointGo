@@ -45,10 +45,15 @@ export function Notice({
  * A card body for data whose backend module is not built yet. Decision D-D rules
  * out mock data, so the screen names what it is waiting for instead.
  */
+/**
+ * Something the design shows that the system cannot fill yet. `waitingOn` is
+ * said to the person reading the screen, in their words: what is missing, or
+ * where to look meanwhile. Never a module, issue or table name.
+ */
 export function Pending({ what, waitingOn }: { what: string; waitingOn: string }): React.JSX.Element {
   return (
     <Notice tone="neutral" title={`Not available yet: ${what}`}>
-      Waiting on {waitingOn}. This appears here once that module serves it.
+      {waitingOn}
     </Notice>
   );
 }

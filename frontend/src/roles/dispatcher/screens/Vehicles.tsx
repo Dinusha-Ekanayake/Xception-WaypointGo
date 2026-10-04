@@ -93,7 +93,7 @@ export default function Vehicles({
 
       <div className="flex w-full gap-3.5 max-md:flex-col">
         <KpiCard label="Available today" value={fleet.data ? summary.total : "…"} note={onRoad === null ? "for planning today" : `${onRoad} on the road · ${summary.total - onRoad} at depot`} />
-        <KpiCard label="In workshop" value="-" valueClassName="text-go-warning-text" note="waits on a fleet status read" />
+        <KpiCard label="In workshop" value="-" valueClassName="text-go-warning-text" note="Not listed yet" />
         <KpiCard label="Refrigerated available" value={fleet.data ? `${summary.refrigerated} / ${summary.total}` : "…"} note="vehicles and vans" />
         <KpiCard
           label="Fuel quota used"
@@ -116,7 +116,7 @@ export default function Vehicles({
         <div className="flex w-full flex-col gap-[18px] lg:w-[360px] lg:shrink-0">
           <Card label="Back in service">
             <CardHead title="Back in service" meta="Vehicles in the workshop and when they return" />
-            <Pending what="the workshop list" waitingOn="a fleet status read in reference data" />
+            <Pending what="the workshop list" waitingOn="Vehicles in the workshop are left out of the counts on this screen; they are not listed yet." />
           </Card>
           <Card label="Refrigerated vehicles">
             <CardHead title="Refrigerated vehicles" meta="Available vs needed a day · next 4 weeks" />

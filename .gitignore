@@ -142,6 +142,7 @@ artifacts/
 !docs/architecture/DATA-MODEL-REVIEW.md
 !docs/architecture/EDGE-CASES.md
 !docs/architecture/GLOSSARY.md
+!docs/ux/UX-PLAN.md
 !docs/architecture/schema/README.md
 !.agent/rules/*.md
 !docs/ai-disclosure.md

@@ -54,12 +54,13 @@ function words(outcome: Outcome): string | null {
   return outcome.ok ? null : outcome.error.message;
 }
 
-export function useDriver(userId: string) {
+/** @param depot the driver's depot, for the next trip on its published plan. */
+export function useDriver(userId: string, depot: string | null = null) {
   const online = useOnline();
   const shell = useShell();
   const sync = useSync(userId);
   const gateway = useMemo(() => createGateway(userId), [userId]);
-  const run = useRun(gateway, userId, online, `${sync.pending}:${sync.held.length}`, sync.syncNow);
+  const run = useRun(gateway, userId, online, `${sync.pending}:${sync.held.length}`, sync.syncNow, depot);
 
   // The run's map is kept on the phone while there is a signal, so it still
   // draws in a valley with none (issue #201). Once per run and connection; a

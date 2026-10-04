@@ -5,8 +5,9 @@ import { VehicleStatuses, type ReportedVehicleStatus, type VehicleView } from "@
 import { isUnread, kindOf } from "@shared/notifications/inbox";
 import type { Inbox } from "@shared/notifications/useInbox";
 import { cx, useDeviceLang } from "@shared/ui";
-import { clock, countdown, stops as stopsText } from "../../../shared/wording/index.ts";
+import { clock, countdown, dayLabel, hhmm, stops as stopsText } from "../../../shared/wording/index.ts";
 import type { TripStatus } from "../data/stopView.ts";
+import type { NextRun } from "../data/run.ts";
 import { DriverHeader, VoiceMessagePlayer } from "../ui.tsx";
 
 /**
@@ -347,6 +348,8 @@ export type DriverHomeProps = {
   vehicle: VehicleView | null;
   tripStatus: TripStatus;
   stopCount: number;
+  /** With nothing released today: the next trip, released or still at the dock. */
+  nextRun?: NextRun | null;
   /** The server could not be asked and this phone holds no copy of today. */
   unavailable: boolean;
   online: boolean;
@@ -409,6 +412,7 @@ export default function HomeNoVehicle({
   vehicle,
   tripStatus,
   stopCount,
+  nextRun = null,
   unavailable,
   online,
   vehicleStatus,
@@ -557,7 +561,9 @@ export default function HomeNoVehicle({
                   </button>
                 ) : (
                   <p role="status" className={cx("text-[14px] leading-[18px]", ink)}>
-                    No trip planned for {vehicle.vehicleId} today. Your stops appear here when the loader releases the vehicle.
+                    {nextRun && !nextRun.released && nextRun.vehicleId && nextRun.departure
+                      ? `Next trip ${dayLabel(nextRun.date)} · ${nextRun.vehicleId} · departs ${hhmm(nextRun.departure)}. It is planned and waiting for the loader to release it; your stops appear here then.`
+                      : `No trip planned for ${vehicle.vehicleId} today. Your stops appear here when the loader releases the vehicle.`}
                   </p>
                 )}
                 {stopCount > 0 && tripStatus !== "completed" && (

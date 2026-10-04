@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-04 - fix: deadline-day UX, Tier 1 (driver first screen and next trip, store Next delivery, plain wording, edge header, README)
+
+`fix/ux-tier1` · @Dinusha-Ekanayake
+
+From [UX-PLAN.md](../../ux/UX-PLAN.md): the driver's Home draws at once and looks a week ahead in parallel (7.6 s to under 2 s), and names a published trip still waiting for the loader; the store's Next delivery card shows the next planned or confirmed delivery when nothing is on the way today (Figma 11:112937); pending notices speak to the user, not about modules; the edge sends `Cache-Control: no-transform` so Cloudflare stops injecting a script our CSP blocks; the README's departures are current.
+Why: judges walk these screens on production today; the booklet asks for the store's expected arrival and judges the driver on a phone.
+Verified: see the PR. On the VPS preview data: driver Home in 1.8 s with "Next trip Mon 5 Oct · VEH035 · departs 04:36"; the store card "Next delivery · Mon 5 Oct · Expected in your window 05:00-07:30". `npm test` 213; driver and store suites. The edge header takes effect with the next production deploy.
+
+---
+
 ## 2026-10-04 - ci: the shell and every role's browser suite run in CI (issue #120)
 
 `chore/120-browser-suites-ci` · @Dinusha-Ekanayake

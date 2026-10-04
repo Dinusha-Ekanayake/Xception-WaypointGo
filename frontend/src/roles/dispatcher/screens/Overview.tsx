@@ -80,7 +80,7 @@ export default function Overview({
               </div>
             )}
             <h3 className="text-[14px] font-medium text-go-ink">Workshop vehicles</h3>
-            <Pending what="which vehicles are in the workshop and when they come back" waitingOn="a fleet status read in reference data" />
+            <Pending what="which vehicles are in the workshop and when they come back" waitingOn="The counts above are vehicles available today. Vehicles in the workshop are not listed yet." />
           </Card>
 
           <RecentNotifications onNavigate={onNavigate} />

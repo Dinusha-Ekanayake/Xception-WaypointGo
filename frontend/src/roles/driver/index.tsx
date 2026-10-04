@@ -32,7 +32,7 @@ import { useDriver } from "./useDriver.ts";
  * proof, the problem report and the stop detail keep their working forms.
  */
 export default function Driver({ userId, displayName, scope }: { userId: string; displayName: string; scope: string[] }): React.JSX.Element {
-  const d = useDriver(userId);
+  const d = useDriver(userId, scope[0] ?? null);
   const inbox = useInbox(userId);
   const shell = useShell();
   const { run, view, screen, shown, reporting, detail, online, error, notice, busy } = d;
@@ -153,6 +153,7 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
                 driverName={displayName}
                 depotName={depot}
                 vehicle={run.vehicle}
+                nextRun={run.nextRun}
                 tripStatus={tripStatus(stops)}
                 stopCount={stops.length}
                 unavailable={run.unavailable}

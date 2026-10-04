@@ -87,7 +87,7 @@ export default function VehicleDrawer({
 
         <section className="flex flex-col gap-2">
           <h3 className="text-[13px] font-semibold tracking-normal text-go-ink">This week</h3>
-          <Pending what="This vehicle's trips" waitingOn="Planning (#9)" />
+          <Pending what="This vehicle's trips" waitingOn="Its trips are on the Plan screen for the day." />
         </section>
 
         {confirming && (

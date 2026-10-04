@@ -6,6 +6,7 @@ import type { DeliveryRecordView, IssueView, OrderStatus, OrderView, OutletView,
 import { Icon, Notice, cx } from "@shared/ui";
 import { units, addDays, clock, cutoffLabel, dayLabel, depotToday, editable, greeting, hhmm, onTheWay, temperatureLabel, untilCutoff } from "../data/format.ts";
 import { isOpenIssue, issueCard, loaderShortUnits } from "../data/issues.ts";
+import { aheadLabel, nextDelivery } from "../data/nextDelivery.ts";
 import NextStop from "./NextStop.tsx";
 import { Button, Card, Chip, Muted } from "../ui.tsx";
 
@@ -78,8 +79,9 @@ export default function Home({
   const today = depotToday();
   // Before the cutoff an order is for tomorrow's run; after it, the day after (R-ORD-01).
   const next = addDays(today, left > 0 ? 1 : 2);
-  const todays = orders.filter((o) => o.deliveryDate === today && o.status !== "CANCELLED");
-  const coming = todays.find((o) => onTheWay(o.status)) ?? todays.find((o) => o.status === "DELIVERED") ?? null;
+  // Today's delivery on the way, else the next one planned or confirmed (UX plan U3).
+  const next_ = nextDelivery(orders, today);
+  const coming = next_?.order ?? null;
   const forNext = orders.filter((o) => o.deliveryDate === next && o.status !== "CANCELLED");
   const stop = coming ? (deliveries.find((d) => d.orderId === coming.orderId) ?? null) : null;
   const shortage = coming ? issues.find((i) => i.type === "LOADING_SHORTFALL" && isOpenIssue(i) && i.subjects.some((s) => s.id === coming.orderId)) : undefined;
@@ -102,9 +104,13 @@ export default function Home({
           <Card label="Next delivery">
             <div className="flex items-center gap-1.5">
               <p className="flex-1 text-[13px] font-light text-go-muted">
-                {coming ? `Next delivery · ${todays.indexOf(coming) + 1} of ${todays.length} today` : "No delivery on the way"}
+                {next_
+                  ? next_.when === "today"
+                    ? `Next delivery · ${next_.position} of ${next_.ofDay} today`
+                    : `Next delivery · ${dayLabel(next_.order.deliveryDate)}${next_.ofDay > 1 ? ` · 1 of ${next_.ofDay}` : ""}`
+                  : "No delivery planned"}
               </p>
-              {coming && <Chip>{onTheWay(coming.status) ? "On the way" : "Arrived"}</Chip>}
+              {coming && <Chip>{next_?.when === "ahead" ? aheadLabel(coming.status) : onTheWay(coming.status) ? "On the way" : "Arrived"}</Chip>}
               {coming && <Chip outline>{temperatureLabel(coming.temperature)}</Chip>}
               {stop && <Chip outline>{stop.vehicleId}</Chip>}
             </div>
@@ -137,7 +143,7 @@ export default function Home({
                 </div>
               </>
             ) : (
-              <Muted>{loading ? "Loading…" : "Nothing is on the way to you today."}</Muted>
+              <Muted>{loading ? "Loading…" : "No delivery is planned for you yet. Your next order shows here once it is confirmed."}</Muted>
             )}
           </Card>
 
