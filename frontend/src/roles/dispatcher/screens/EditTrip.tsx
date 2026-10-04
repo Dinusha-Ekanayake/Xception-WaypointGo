@@ -114,7 +114,7 @@ export default function EditTrip({
   return (
     <TripWindow
       label="Edit trip"
-      kicker={`Edit trip · ${plan.depotCode}`}
+      kicker={`Edit trip · ${(vehicle?.depotCode ?? plan.depotCode)}`}
       title={`${trip.vehicleId} Trip ${trip.tripNumber} · ${trip.brandCode} ${trip.districtName} · departs ${hhmm(trip.plannedDeparture)}`}
       onClose={leave}
       banner={
@@ -190,7 +190,7 @@ export default function EditTrip({
         ),
       }}
       tiles={tripTiles(stops, orders, vehicle, !changed || (Boolean(preview.data) && !preview.loading))}
-      depart={{ place: `${plan.depotCode} depot`, time: hhmm(trip.plannedDeparture) }}
+      depart={{ place: `${(vehicle?.depotCode ?? plan.depotCode)} depot`, time: hhmm(trip.plannedDeparture) }}
       back={{ time: changed ? "…" : after(trip.plannedDeparture, trip.plannedMinutes) }}
       stops={stopRows(plan, stops, orders, vehicle).map((row) => (added.includes(row.orderId) ? { ...row, tag: "NEW · added by you" } : row))}
       onReorder={canEdit ? (from, to) => setIds((list) => moveItem(list, from, to)) : undefined}

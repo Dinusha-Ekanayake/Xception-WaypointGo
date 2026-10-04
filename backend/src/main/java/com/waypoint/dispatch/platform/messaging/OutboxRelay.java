@@ -79,7 +79,7 @@ public class OutboxRelay {
     this.database = database;
     this.inbox = inbox;
     this.mapper = mapper;
-    this.clock = clock;
+    this.clock = clock.realTime();
     this.metrics = metrics;
     this.settings = settings;
     this.subscribersByType = byType(subscribers);

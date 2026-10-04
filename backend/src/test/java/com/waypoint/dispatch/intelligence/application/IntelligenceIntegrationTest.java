@@ -97,6 +97,7 @@ class IntelligenceIntegrationTest {
   @Autowired List<EventSubscriber<?>> subscribers;
   @Autowired PlanScoringJob scoring;
   @Autowired ForecastJob forecasts;
+  @Autowired OutlookWatchJob watch;
 
   private String run;
   private String depot;
@@ -456,6 +457,23 @@ class IntelligenceIntegrationTest {
     read(store, "/api/ml/outlook?outlet=" + other + "&from=" + serviceDate + "&to=" + serviceDate.plusDays(40), 422);
   }
 
+  @Test
+  void aBookedDayThatTurnsAtRiskWarnsTheStoreOnceAndARerunSaysNothingNew() {
+    UUID booked = demandOf("0.6000");
+    watch.watch(serviceDate, serviceDate, Instant.now());
+    assertTrue(warnings(booked).isEmpty(), "too early to say is not a warning");
+
+    demandOf("9999.0000"); // far more than the depot's vehicles carry that day
+    watch.watch(serviceDate, serviceDate, Instant.now());
+    List<Map<String, Object>> told = warnings(booked);
+    assertEquals(1, told.size());
+    assertEquals("AT_RISK", told.get(0).get("status"));
+    assertEquals("More is expected than the vehicles can carry", told.get(0).get("reason"));
+
+    watch.watch(serviceDate, serviceDate, Instant.now());
+    assertEquals(1, warnings(booked).size(), "R-ML-08: once per order, day and status");
+  }
+
   // ---- helpers --------------------------------------------------------------------------------
 
   private UUID publishedPlan() throws Exception {
@@ -473,14 +491,25 @@ class IntelligenceIntegrationTest {
   }
 
   private void demand() {
+    demandOf("0.6000");
+  }
+
+  private UUID demandOf(String volumeM3) {
     UUID id = UUID.randomUUID();
     String ref = "WPO-M" + id.toString().replace("-", "").substring(0, 11).toUpperCase();
     Order order = Order.place(id, ref, outlet.outletId(), depot, outlet.brandCode(), outlet.districtName(),
         new DeliveryDate(serviceDate, serviceDate, List.of()),
-        Optional.of(new Reservation("WH-" + ref, new BigDecimal("80.000"), new BigDecimal("0.6000"), "ambient", 6)),
+        Optional.of(new Reservation("WH-" + ref, new BigDecimal("80.000"), new BigDecimal(volumeM3), "ambient", 6)),
         List.of(new OrderLine("P-1", 6)));
     database.asSystem(ModuleRole.ORDERING,
         () -> orders.insert(order, null, Instant.now(), UUID.randomUUID(), Optional.empty()));
+    return id;
+  }
+
+  private List<Map<String, Object>> warnings(UUID orderId) {
+    return database.asModule(ModuleRole.INTEGRATION, null, () -> database.query(
+        "SELECT payload->>'status' AS status, payload->>'reason' AS reason FROM integration.outbox_events"
+            + " WHERE event_type = 'order.outlook_changed' AND aggregate_id = ?", orderId.toString()));
   }
 
   private void scoreUntilDone(UUID planId) {

@@ -51,7 +51,7 @@ export default function PlanTrip({
           {`${trip.vehicleId} Trip ${trip.tripNumber}`} <Pill tone="success">{trip.brandCode}</Pill> {trip.districtName}
         </h2>
         <p className="text-xs text-go-secondary">
-          {`${vehicle ? `${typeLabel(vehicle)} · ` : ""}Depart ${plan.depotCode} ${hhmm(trip.plannedDeparture)} · back ${after(trip.plannedDeparture, trip.plannedMinutes)} · ${temperatureLabel(trip.temperature).toLowerCase()}`}
+          {`${vehicle ? `${typeLabel(vehicle)} · ` : ""}Depart ${(vehicle?.depotCode ?? plan.depotCode)} ${hhmm(trip.plannedDeparture)} · back ${after(trip.plannedDeparture, trip.plannedMinutes)} · ${temperatureLabel(trip.temperature).toLowerCase()}`}
         </p>
       </div>
 
@@ -132,7 +132,7 @@ function Timeline({
   const lastStop = trip.stops[trip.stops.length - 1];
   return (
     <ol aria-label="Stops in order" className="flex flex-col">
-      <Row first time={hhmm(trip.plannedDeparture)} dot="hollow" title={`Depart ${plan.depotCode}`} />
+      <Row first time={hhmm(trip.plannedDeparture)} dot="hollow" title={`Depart ${(vehicle?.depotCode ?? plan.depotCode)}`} />
       {trip.stops.map((stop) => {
         const order = orders.get(stop.orderId);
         const share = stopShare(order, vehicle);
@@ -154,7 +154,7 @@ function Timeline({
         last
         time={back}
         dot="hollow"
-        title={`Back at ${plan.depotCode}`}
+        title={`Back at ${(vehicle?.depotCode ?? plan.depotCode)}`}
         note={lastStop && back < hhmm(lastStop.plannedArrival) ? "Earlier than the last stop: these times need a fresh check" : undefined}
       />
     </ol>

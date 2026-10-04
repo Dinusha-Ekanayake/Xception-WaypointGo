@@ -79,6 +79,7 @@ class OrderingConsumersIntegrationTest {
   @Autowired ConsumerInbox inbox;
   @Autowired List<EventSubscriber<?>> subscribers;
   @Autowired CutoffJob cutoff;
+  @Autowired com.waypoint.dispatch.ordering.contract.OrderQuery orderQuery;
 
   LocalDate serviceDate;
 
@@ -187,6 +188,22 @@ class OrderingConsumersIntegrationTest {
 
     deliver("ordering.on-plan-published", published(UUID.randomUUID(), order));
     assertEquals(4, ((Number) stopOf(order).get("stop_sequence")).intValue(), "version 1 arriving late changes nothing");
+  }
+
+  @Test
+  void aPlannedOrderShowsItsStopAndOnceDeferredToAnotherDayItDoesNot() {
+    Order order = saved(true);
+    deliver("ordering.on-plan-published", published(UUID.randomUUID(), order));
+    var planned = database.asSystem(ModuleRole.ORDERING, () -> orderQuery.order(order.orderId())).orElseThrow();
+    assertEquals(Optional.of(1), planned.plannedStop());
+    assertEquals(Optional.of(LocalTime.of(8, 0)), planned.plannedArrival());
+
+    deliver("ordering.on-order-deferred",
+        new OrderDeferred(order.orderId(), UUID.randomUUID(), OUTLET, serviceDate, "R-PLN-07", "no vehicle", 1));
+    var deferred = database.asSystem(ModuleRole.ORDERING, () -> orderQuery.order(order.orderId())).orElseThrow();
+    assertEquals(OrderStatus.DEFERRED, deferred.status());
+    assertTrue(deferred.plannedStop().isEmpty(), "ORD-21: the stop belonged to the old day");
+    assertTrue(deferred.plannedArrival().isEmpty());
   }
 
   @Test

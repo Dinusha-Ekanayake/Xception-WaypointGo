@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-10-04 - reorganize the system constraints workspace
+
+`codex/system-constraints` · @ranathungaWK
+
+Replace category chips and inline planning forms with category navigation, a searchable constraint list and a focused side panel. Match each value to a time, number, duration, choice or on/off control, and distinguish live changes from deployment, related-record and locked settings.
+Verified: frontend typecheck.
+
 ## 2026-10-04 - author effective planning constraints from admin
 
 `codex/system-constraints` · @ranathungaWK

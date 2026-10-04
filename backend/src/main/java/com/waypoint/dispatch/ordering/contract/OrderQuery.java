@@ -45,4 +45,11 @@ public interface OrderQuery {
    * (R-ML-07).
    */
   List<OrderViews.BookedVolumeView> bookedVolumes(String depotCode, LocalDate from, LocalDate to);
+
+  /**
+   * Orders booked for a day and not yet on a plan, for the date outlook watch
+   * (issue #224, slice 3): ids, outlet, brand and day only. Read as the system;
+   * the caller is a job, never a person.
+   */
+  List<OrderViews.OpenOrderView> openOrders(String depotCode, LocalDate from, LocalDate to);
 }

@@ -78,7 +78,7 @@ export default function SwapWindow({
         onClose={onClose}
         left={{ title: "Incoming", hint: "Deferred order to swap in", body: <Incoming order={incoming} lastServed={allocation ? lastServedText(allocation.lastServedOn, plan.serviceDate) : null} /> }}
         tiles={[]}
-        depart={{ place: plan.depotCode, time: "-" }}
+        depart={{ place: (vehicle?.depotCode ?? plan.depotCode), time: "-" }}
         back={{ time: "-" }}
         stops={[]}
         right={{ title: "Will be deferred", hint: "No trip of this plan carries the same brand, district and temperature, so there is nothing to trade with." }}
@@ -182,7 +182,7 @@ export default function SwapWindow({
         ),
       }}
       tiles={tripTiles(showing, orders, vehicle, !outId || (Boolean(preview.data) && !preview.loading))}
-      depart={{ place: `${plan.depotCode} depot`, time: hhmm(trip.plannedDeparture) }}
+      depart={{ place: `${(vehicle?.depotCode ?? plan.depotCode)} depot`, time: hhmm(trip.plannedDeparture) }}
       back={{ time: after(trip.plannedDeparture, trip.plannedMinutes) }}
       stops={stopRows(plan, showing, orders, vehicle, outId ? incoming.orderId : null)}
       onDefer={outId ? undefined : choose}

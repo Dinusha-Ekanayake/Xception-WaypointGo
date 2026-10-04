@@ -103,7 +103,7 @@ allocation distances or capacity rules. See [the plan](../issues/161-live-map/PL
 
 | Layer | Contents |
 | --- | --- |
-| contract | `OrderViews`, `OrderStatus`, `OrderQuery` (incl. `confirmedDemand`, and `bookedVolumes`, depot totals by delivery day for the date outlook), `OrderCommands`, `OrderEvents` |
+| contract | `OrderViews`, `OrderStatus`, `OrderQuery` (incl. `confirmedDemand`, and `bookedVolumes` and `openOrders`, depot totals and unplanned orders by delivery day for the date outlook), `OrderCommands`, `OrderEvents` |
 | domain | `Order`, `OrderLine`, `OrderStatus` state machine, `Cutoff`, `TemperatureRequirement`, `OrderVersion` |
 | application | `PlaceOrderHandler`, `AmendOrderHandler`, `CancelOrderHandler`, `CloseOrdersHandler`, `OrderDataQuery` |
 | infrastructure | `JdbcOrderRepository`, `OrderProjection`. The warehouse adapter lives in the Warehouse module, behind `StockPort` |
@@ -149,7 +149,7 @@ Revised 2026-09-30. `OrderStatus` in `ordering/contract` is the one vocabulary; 
 
 | Layer | Contents |
 | --- | --- |
-| contract | `PlanViews` (`PlanView`, `TripView`, `AllocationView`, `ConstraintResultView`, `DeferralView`, `FuelView`, `InterchangePreview`), `PlanQuery`, `PlanCommands`, `PlanEvents` |
+| contract | `PlanViews` (`PlanView`, `TripView`, `AllocationView`, `ConstraintResultView`, `DeferralView`, `FuelView`, `InterchangePreview`, `LoadView`), `PlanQuery` (incl. `joinsTrip`, whether one more order joins a district's trip by the load rules, for the store's shared-trip hint), `PlanCommands`, `PlanEvents` |
 | domain | `PlanningRun` (the aggregate: draft, override, defer, revision, trip move and replan, options), `VehicleDay`, `Trip`, `PlanOrder`, `FleetVehicle`, `DistrictTravel`, `PlanContext`, `RuleSet`, `CheapestInsertion`, `CostReplan` (the ALNS cost stage), `StopTravel` and `Coordinates` (GPS stop order, R-PLN-40) and `ScarceFleetReplan` (placement, deferral explanation and the reefer re-plan, issue #92), `PriorityPolicy` (versioned decision table), `ConstraintRegistry`, `Constraint`, `Constraints`, `ConstraintResult`, `PlanVerification`, `PublicationGate`, `DemandFingerprint`, `TripTimeline`, `FuelLedger`, `TemperatureClass`, `AllocationEngine` (port, with `Problem` and `AllocationResult`) |
 | application | `GeneratePlanHandler` (queues a generation, R-PLN-41), `PlanGenerationWorker` (runs it outside any transaction), `ReferenceSnapshotCache` (reference data by immutable version), `OverrideAllocationHandler`, `DeferOrderHandler`, `PublishPlanHandler`, `RevisePlanHandler`, `ReplanTripHandler`, `PlanDataQuery` (implements `PlanQuery`, previews included), `PlanningProblems`, `PlanningDrafts`, `PlanningRevisions`, `PlanPublication` (the gate), `PlanRecords` (translation only), `PlanningConsumers` |
 | infrastructure | `PriorityInsertionEngine`, `ImprovingEngine` (decorator running `ScarceFleetReplan` after it, issue #92), `CostImprovingEngine` (decorator running the cost stage `CostReplan` after that, planning v2, R-PLN-38), `ValidatingEngine` (decorator, always outermost), `PlanningEngineConfiguration`, `JdbcPlanRepository`, `PeakDayScenario` (the Task 2B fixture and CSV export) |
@@ -340,6 +340,7 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 | `order.deferred` | Store manager | yes | With the binding reason (R-RCP-03, R-NOT-04) |
 | `plan.store_contacted` | Store managers of the outlet | yes | The dispatcher's message about an order the plan did not serve |
 | `order.auto_deferred` | Store manager | yes | The warehouse never confirmed stock before the cutoff (STK-03) |
+| `order.outlook_changed` | Store manager | yes | A booked day worsened to busy or at risk, once per order and status (R-NOT-16) |
 | `plan.published`, `plan.revised` | Loader; driver of each trip's vehicle on the service date; for a revision, only the drivers of trips that changed and the outlets reached differently (R-NOT-12) | yes | Work is available, or changed |
 | `trip.released` | Driver; dispatcher when the vehicle has no driver (LOD-05); the depot's other loaders (R-NOT-10); each outlet on the trip with its stop number and expected arrival (R-NOT-11) | yes | Vehicle ready; the dock is free; the store can staff the arrival |
 | `loading.shortfall` | Dispatcher | yes | Departure is blocked now (R-NOT-02) |
@@ -423,7 +424,8 @@ A driver is pushed only trip-level events (R-NOT-08), and whoever caused an even
 
 **Connections.**
 - Consumes `plan.published` and `plan.revised`.
-- Reads Planning (`PlanQuery.plan`), Ordering (`order`, `dailyVolumes`, `bookedVolumes`), Execution (`actuals`) and Reference (outlets, vehicles, travel, calendar, traffic speed, road conditions) through their contracts.
+- Publishes `order.outlook_changed` when a day an order is booked for worsens to busy or at risk (`OutlookWatchJob`, R-ML-08).
+- Reads Planning (`PlanQuery.plan`), Ordering (`order`, `dailyVolumes`, `bookedVolumes`, `openOrders`), Execution (`actuals`) and Reference (outlets, vehicles, travel, calendar, traffic speed, road conditions) through their contracts.
 - Planning reads `PredictionQuery.planScoring` for `plannedWithoutPredictor`, lazily, so it still works without this module.
 
 ---
@@ -483,6 +485,24 @@ The trip is found through the issue's trip, delivery or order subject (`Executio
 - Bodies and audio are personal communication: never logged.
 
 ---
+
+## 14. Demo runtime (`demo`, issue #231)
+
+**Purpose.** Opt-in runtime control for a dedicated demo deployment. The first backend slice owns settings, an adjusted business clock and a persisted day-preparation run. Simulated vehicles drive released trips through the real position command; the scenario deck is presenter guidance over the real screens.
+
+| Layer | Contents |
+| --- | --- |
+| contract | `DemoView` and `DemoRuntime` for a safe operational projection |
+| domain | `DemoSettings` bounds and OFF invariant |
+| application | Versioned settings and reset commands, administrator check, read query and persisted reset coordinator |
+| infrastructure | Demo-owned tables in `demo` schema; the neutral Platform time port is implemented by the application query |
+| web | Authenticated runtime read and administrator run read |
+
+**Owns:** `demo.settings`, `demo.scenario_runs`, `demo.simulations`. **Commands:** `demo:Enable`, `demo:Disable`, `demo:SetClock`, `demo:UpdateSettings`, `demo:ResetDay`, `demo:StartSimulation`, `demo:ControlSimulations`. **Queries:** `GET /api/demo`, `GET /api/demo/scenario-runs`, `GET /api/demo/simulations`.
+
+**Connections.** Demo asks Ordering's `DemoDayQuery` about empty days and last close, and Reference's `ReferenceQuery` about the operating calendar. Its reset job sends `reference:PrepareDemoDay`, `iam:PrepareDemoDay` and `order:PrepareDemoDay` through the command bus, each in its owner's transaction. Starting a simulation reads Execution's `ExecutionQuery.runSheet`, Identity's `IdentityQuery.driverOn` and Reference locations; `SimulationJob` then sends `delivery:RecordPositions` as the assigned driver. Platform sees only the neutral `TimeAdjustment` port. Real-time security and audit use `Clock.realTime()`.
+
+**Failure modes.** A missing database makes the business clock fall back to real time. A failed reset step stays recorded in `scenario_runs`; the coordinator retries a step with its stable command id up to three times and never deletes existing orders. See R-DEMO-01 to 03 and the [issue plan](../issues/231-demo-mode/PLAN.md).
 
 ## External warehouse integration contract
 
@@ -556,6 +576,7 @@ Modules connect three ways: a contract query (synchronous, read only), an event 
 | `OrderQuery.confirmedDemand` | Planning | Ordering |
 | `PlanQuery.previewInterchange` | Loading | Planning |
 | `PredictionQuery` (plan scoring, degradable) | Planning | Intelligence |
+| `PlanQuery.joinsTrip` (room on a trip, advice) | Ordering | Planning |
 | `CatalogueQuery` | store UI, admin | Warehouse |
 | `IssueQuery.issue`, `ExecutionQuery.deliveryRecord`, `deliveryForOrder` | Messaging | Issues, Execution |
 | audit row, written in the same transaction | all | platform |
@@ -586,3 +607,4 @@ Modules connect three ways: a contract query (synchronous, read only), an event 
 | `catalogue.synced` | Warehouse | Ordering |
 | `reference.version_published`, `vehicle.status_changed`, `calendar.overridden` | Reference | Planning, Notification |
 | `message.posted` | Messaging | Notification |
+| `order.outlook_changed` | Intelligence | Notification |

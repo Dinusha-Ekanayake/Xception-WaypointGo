@@ -6,6 +6,7 @@ import { OrderCommandKind, type OrderView } from "@shared/domain/types";
 import { Notice, SkeletonRows } from "@shared/ui";
 import type { StoreGateway } from "../data/gateway.ts";
 import { ORDER_STATUS, units, clock, dayLabel, depotToday, editable, planNote, temperatureLabel } from "../data/format.ts";
+import { awaitingPlan, needsWarning, warningWords } from "../data/outlook.ts";
 import { conflictMessage, type useCommands } from "../data/useCommands.ts";
 import { Button, Chip, Sheet } from "../ui.tsx";
 
@@ -32,6 +33,13 @@ export default function OrderSheet({
   onClose: () => void;
 }): React.JSX.Element {
   const history = useResource((s) => gateway.history(order.orderId, s), `${order.orderId}:${order.rowVersion}:${order.status}`);
+  // R-ML-08: a booked day that has turned busy says so here too; quiet when it has not, or when the outlook is unavailable.
+  const watched = awaitingPlan(order, depotToday());
+  const outlook = useResource(
+    watched ? (s) => gateway.outlook(order.outletId, order.deliveryDate, order.deliveryDate, s) : null,
+    `${order.orderId}|${order.deliveryDate}`,
+  );
+  const outlookDay = outlook.data?.days.find((d) => d.date === order.deliveryDate);
   const [cancelling, setCancelling] = useState(false);
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +64,11 @@ export default function OrderSheet({
         {order.dateRolled && ` (moved from ${dayLabel(order.requestedDate)}, not a delivery day)`}
       </p>
       {planNote(order) && <Notice tone="info" title={planNote(order)!}>Dispatch has put your order on a vehicle for that day.</Notice>}
+      {watched && outlookDay && needsWarning(outlookDay) && (
+        <Notice tone="warning" title={`${dayLabel(order.deliveryDate)} is ${warningWords(outlookDay.status)}`}>
+          {outlookDay.reason}. Your order may move a day; dispatch plans it the afternoon before.
+        </Notice>
+      )}
       {error && <Notice tone="danger" live title={error} />}
       {queued && <Notice tone="warning" live title="Cancellation saved on this phone. It is sent when the connection returns." />}
 

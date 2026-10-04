@@ -97,7 +97,7 @@ public class McpClientHandlers {
     BlockClientHandler(Database database, SessionRegistry sessions, Clock clock) {
       super(database, BLOCK);
       this.sessions = sessions;
-      this.clock = clock;
+      this.clock = clock.realTime();
     }
 
     @Override

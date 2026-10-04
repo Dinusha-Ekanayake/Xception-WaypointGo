@@ -1,4 +1,4 @@
-import type { DayOutlookView, OutlookStatus } from "../../../shared/domain/types.ts";
+import type { DayOutlookView, OrderStatus, OutlookStatus } from "../../../shared/domain/types.ts";
 import type { Tone } from "../../../shared/ui/primitives.tsx";
 
 // Issue #224 (R-ML-07): how likely a delivery day is to be kept, as the store
@@ -43,4 +43,19 @@ export function suggestDay(days: DayOutlookView[], chosen: string, shared: strin
     return byDistance !== 0 ? byDistance : a.date.localeCompare(b.date);
   });
   return ranked[0].date;
+}
+
+const AWAITING_PLAN: OrderStatus[] = ["STOCK_UNKNOWN", "PARTIALLY_RESERVED", "CONFIRMED", "DEFERRED"];
+
+/**
+ * An order booked for a later day and not on a plan yet: the one whose day can
+ * still turn busy (R-ML-08), and so the one whose sheet shows the outlook.
+ */
+export function awaitingPlan(order: { status: OrderStatus; deliveryDate: string }, today: string): boolean {
+  return AWAITING_PLAN.includes(order.status) && order.deliveryDate > today;
+}
+
+/** "Fri 9 Oct is busy" or "... is at risk"; the day comes from the caller's wording. */
+export function warningWords(status: OutlookStatus): string {
+  return status === "AT_RISK" ? "at risk" : "busy";
 }

@@ -16,7 +16,7 @@ import org.springframework.context.annotation.Configuration;
 public class TimeConfig {
 
   @Bean
-  public Clock clock() {
-    return Clock.system();
+  public Clock clock(org.springframework.beans.factory.ObjectProvider<com.waypoint.dispatch.platform.time.TimeAdjustment> adjustment) {
+    return new com.waypoint.dispatch.platform.time.AdjustedClock(Clock.system(), adjustment::getIfAvailable);
   }
 }

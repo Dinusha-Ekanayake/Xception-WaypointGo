@@ -7,19 +7,12 @@ import { working } from "../data/plan.ts";
 import { useOrders, usePlans } from "../data/useDay.ts";
 import DepotPlan from "./DepotPlan.tsx";
 import { DayField } from "./PlanTools.tsx";
-import { Segmented } from "@shared/ui";
-import { depotOptions } from "../Sidebar.tsx";
 
-// Figma "Plan": decide, view plan, publish, and compare. A plan is one depot's
-// day, so the screen holds one section per depot in scope: both when both are
-// shown, one when one is; nothing asks. The page header carries the depot
-// switch beside the day, the same shared scope the sidebar sets, so the plan
-// can be narrowed where it is read. The header is otherwise the one every
-// dispatcher screen has (title, day, sync, bell); each
-// section carries its own plan tools, steps and body. No draft id is held:
-// every edit replaces the draft with its next version, so the draft is read by
-// depot and day and each command names the version it saw (PLAN.md decision
-// 4). A saved plan can be looked at, read only, beside the working one.
+// Figma "Plan": decide, view plan, publish, and compare, as one plan view for
+// the depots in scope: "Both" shows every depot's trips and orders together,
+// and the depot switch in the header narrows it (the shell's one depot scope).
+// The header is otherwise the one every dispatcher screen has (title, day,
+// sync, bell); the plan view (DepotPlan) carries its tools, steps and body.
 
 export default function Plan({
   depots,
@@ -41,7 +34,6 @@ export default function Plan({
   onDate: (date: string) => void;
   online: boolean;
 }): React.JSX.Element {
-  const options = depotOptions(scope);
   const plans = usePlans(depots, date);
   const orders = useOrders(depots, date);
   const totals = useMemo(() => {
@@ -70,14 +62,11 @@ export default function Plan({
         syncing={plans.loading}
         tools={
           <span className="flex flex-wrap items-center gap-2.5">
-            {options.length > 1 && <Segmented size="md" label="Depots in the plan" value={depotFilter} onChange={onDepotFilter} options={options} />}
             <DayField date={date} onDate={onDate} />
           </span>
         }
       />
-      {depots.map((depot) => (
-        <DepotPlan key={`${depot}|${date}`} depot={depot} date={date} onDate={onDate} online={online} titled={depots.length > 1} />
-      ))}
+      <DepotPlan key={`${depots.join(",")}|${date}`} depots={depots} date={date} onDate={onDate} online={online} />
     </>
   );
 }

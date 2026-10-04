@@ -6,6 +6,7 @@ import { audienceLabel, byDay, plain, REPORT_LABEL, ROLE_LABEL, voiceLength, typ
 import { voiceUrl } from "../messaging/useThread.ts";
 import { clock, dayLabel } from "../wording/time.ts";
 import { cx } from "./primitives.tsx";
+import { VoiceNote } from "./VoiceNote.tsx";
 
 // The messages of a trip's thread (issue #136), oldest first under a line for
 // each day. A report reads as a warning, red like the timeline sign that opens
@@ -102,10 +103,14 @@ function Message({ message: m, focused, compact, tr }: { message: MessageView; f
           </span>
         )}
         {m.voiceNoteId && (
-          <span className="flex items-center gap-2">
-            <audio controls preload="none" src={voiceUrl(m.threadId, m.voiceNoteId)} aria-label={`${tr("Voice note")}${m.voiceDurationMs ? `, ${voiceLength(m.voiceDurationMs)}` : ""}`} className="h-9 max-w-[240px]" />
-            {m.voiceDurationMs ? <span className="text-xs text-go-secondary">{voiceLength(m.voiceDurationMs)}</span> : null}
-          </span>
+          <VoiceNote
+            src={voiceUrl(m.threadId, m.voiceNoteId)}
+            durationMs={m.voiceDurationMs}
+            seed={m.voiceNoteId}
+            tone={report ? "report" : m.mine ? "mine" : "theirs"}
+            label={`${tr("Voice note")}${m.voiceDurationMs ? `, ${voiceLength(m.voiceDurationMs)}` : ""}`}
+            tr={tr}
+          />
         )}
         {m.body && <p className="whitespace-pre-wrap break-words">{m.body}</p>}
       </div>

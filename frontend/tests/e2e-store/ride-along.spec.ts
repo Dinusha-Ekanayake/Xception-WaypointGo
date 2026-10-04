@@ -38,3 +38,13 @@ test("a Fresh store is never offered another day", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Place order" })).toBeVisible();
   await expect(page.getByRole("region", { name: "Shared trip" })).toHaveCount(0);
 });
+
+test("a day checked for room says so, and that the room is estimated (R-ORD-14)", async ({ page }) => {
+  await mockStore(page, { rideAlong: [{ date: shift(3), stopsBooked: 2 }], roomChecked: true });
+  await page.goto("/");
+  await page.getByRole("button", { name: /Place order for/ }).click();
+
+  const card = page.getByRole("region", { name: "Shared trip" });
+  await expect(card).toContainText("2 other stores booked · room on the vehicle");
+  await expect(card).toContainText("Room is estimated from your usual order.");
+});

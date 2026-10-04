@@ -30,7 +30,7 @@ public class PolicyCoverageQuery {
 
   public PolicyCoverageQuery(Database database, Clock clock, Metrics metrics) {
     this.database = database;
-    this.clock = clock;
+    this.clock = clock.realTime();
     metrics.gauge("waypoint.iam.actors_without_policy", this::actorsWithoutPolicy);
   }
 

@@ -89,7 +89,19 @@ public class DateOutlookQuery {
   private DateOutlookView build(String outletId, LocalDate from, LocalDate to) {
     OutletView outlet = reference.outlet(outletId, null)
         .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No outlet " + outletId));
-    String depot = outlet.depotCode();
+    Assessed a = assess(outlet.depotCode(), outlet.brandCode(), from, to);
+    return new DateOutlookView(outletId, from, to, a.days(), a.forecast(), a.modelLabel(), a.degraded());
+  }
+
+  /** The days of a depot for one brand, and what the forecast behind them was. */
+  public record Assessed(List<DayOutlookView> days, boolean forecast, String modelLabel, boolean degraded) {}
+
+  /**
+   * The one computation behind the store's strip and the watch job (rule 5):
+   * a depot's days for a brand, from totals read as the system. The caller has
+   * checked scope, or is the system.
+   */
+  public Assessed assess(String depot, String brandCode, LocalDate from, LocalDate to) {
     LocalDate firstMonday = from.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
     LocalDate lastSunday = to.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY));
 
@@ -100,8 +112,8 @@ public class DateOutlookQuery {
     reference.calendarDays(firstMonday, lastSunday).forEach(d -> calendar.put(d.date(), d));
 
     // A-05: only some brands send chilled goods; the store's own history and forecast say whether its brand does.
-    boolean chilled = booked.stream().anyMatch(b -> b.brandCode().equals(outlet.brandCode()) && b.chilledM3().signum() > 0)
-        || forecasts.stream().anyMatch(f -> outlet.brandCode().equals(f.get("brand_code"))
+    boolean chilled = booked.stream().anyMatch(b -> b.brandCode().equals(brandCode) && b.chilledM3().signum() > 0)
+        || forecasts.stream().anyMatch(f -> brandCode.equals(f.get("brand_code"))
             && ((BigDecimal) f.get("chilled_m3")).signum() > 0);
 
     Map<Integer, BigDecimal[]> weekly = new HashMap<>();
@@ -150,7 +162,7 @@ public class DateOutlookQuery {
     String label = forecasts.stream().map(f -> (String) f.get("model_label")).distinct()
         .reduce((a, b) -> "mixed").orElse("none");
     boolean degraded = forecasts.stream().anyMatch(f -> Boolean.TRUE.equals(f.get("degraded")));
-    return new DateOutlookView(outletId, from, to, days, !forecasts.isEmpty(), label, degraded);
+    return new Assessed(days, !forecasts.isEmpty(), label, degraded);
   }
 
   /**

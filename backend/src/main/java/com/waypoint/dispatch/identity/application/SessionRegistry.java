@@ -63,7 +63,7 @@ public class SessionRegistry {
     this.database = database;
     this.tokens = tokens;
     this.operators = operators;
-    this.clock = clock;
+    this.clock = clock.realTime();
     this.metrics = metrics;
     this.absoluteLifetime = properties.session().absoluteLifetime();
     this.idleLifetime = properties.session().idleLifetime();

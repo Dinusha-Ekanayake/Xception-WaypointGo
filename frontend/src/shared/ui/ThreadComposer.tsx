@@ -3,19 +3,19 @@
 import { useState } from "react";
 import { ApiError } from "../api/problem.ts";
 import type { MemberRole, MemberView, ReportType } from "../domain/messaging.ts";
-import { defaultAddress, parseMention, plain, REPORT_LABEL, REPORTS_BY_ROLE, sameAddress, voiceLength, type Address, type Translate } from "../messaging/thread.ts";
+import { defaultAddress, parseMention, plain, REPORT_LABEL, REPORTS_BY_ROLE, sameAddress, type Address, type Translate } from "../messaging/thread.ts";
 import { useRecorder, type Recording } from "../messaging/recorder.ts";
 import { newId, postCommand } from "../messaging/useThread.ts";
 import { sendNow, type Sender } from "../messaging/senders.ts";
 import { cx } from "./primitives.tsx";
-import { useUndo } from "./useUndo.ts";
+import { SendIcon } from "./thread-icons.tsx";
+import { VoiceCapture } from "./VoiceCapture.tsx";
 
 // Writing on a trip's thread (issue #136). Who it is for is a chip, or a
 // leading mention such as "@driver" or "@OUT063" (R-MSG-02). Anyone but the
 // dispatcher may make it a report, which only the dispatcher reads (R-MSG-03).
 // A voice note goes before the message that carries it; a role whose sender
-// keeps writes on the device sends both later when there is no signal. A
-// removed voice note can be put back for a few seconds: it never left the device.
+// keeps writes on the device sends both later when there is no signal.
 
 export type Draft = { address?: Address; body?: string; report?: boolean };
 
@@ -50,8 +50,6 @@ export function ThreadComposer({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const recorder = useRecorder();
-  const voice = recorder.state.status === "ready" ? recorder.state : null;
-  const removed = useUndo<Recording>();
   const to: Address = report ? { to: "dispatch", outletId: null } : address;
 
   const type = (text: string) => {
@@ -68,8 +66,8 @@ export function ThreadComposer({
     setBody(text);
   };
 
-  const submit = async () => {
-    const text = body.trim();
+  const submit = async (voice?: Recording) => {
+    const text = voice ? "" : body.trim();
     if (busy || (!text && !voice)) return;
     setBusy(true);
     setError(null);
@@ -86,12 +84,11 @@ export function ThreadComposer({
           ...(voiceNoteId ? { voiceNoteId } : {}),
           clientMessageId,
         }),
-        voice && voiceNoteId ? { threadId, voiceNoteId, blob: voice.recording.blob, durationMs: voice.recording.durationMs } : undefined,
+        voice && voiceNoteId ? { threadId, voiceNoteId, blob: voice.blob, durationMs: voice.durationMs } : undefined,
       );
-      setBody("");
+      if (!voice) setBody("");
       setReport(null);
       recorder.discard();
-      removed.drop();
       onSent(sent.queued);
     } catch (failure) {
       setError(failure instanceof ApiError ? failure.problem.violations[0]?.message ?? failure.message : tr("Could not send. Try again."));
@@ -152,87 +149,47 @@ export function ThreadComposer({
         </label>
       )}
 
-      {recorder.state.status === "recording" && (
-        <p role="status" className="flex items-center gap-2 text-[13px] text-go-danger-strong">
-          <span aria-hidden className="size-2 animate-pulse rounded-full bg-go-danger" />
-          {tr("Recording {time} of 2:00", { time: voiceLength(recorder.state.elapsedMs) || "0:00" })}
-        </p>
-      )}
-      {voice && (
-        <span className="flex items-center gap-2">
-          <audio controls src={voice.url} aria-label={tr("Your voice note")} className="h-9 max-w-[220px]" />
-          <button
-            type="button"
-            onClick={() => {
-              removed.hold(voice.recording);
-              recorder.discard();
-            }}
-            className="min-h-8 rounded-full px-3 text-[13px] font-medium text-go-teal"
-          >
-            {tr("Remove")}
-          </button>
-        </span>
-      )}
-      {!voice && removed.held && (
-        <span className="flex items-center gap-2">
-          {/* Holds the player's place, so Undo sits where Remove was. */}
-          <span aria-hidden className="h-9 w-[220px] max-w-full" />
-          <button
-            type="button"
-            onClick={() => {
-              const recording = removed.take();
-              if (recording) recorder.restore(recording);
-            }}
-            className="min-h-8 rounded-full px-3 text-[13px] font-medium text-go-teal"
-          >
-            {tr("Undo")}
-          </button>
-        </span>
-      )}
       {recorder.state.status === "unavailable" && <p className="text-[13px] text-go-warning-text">{tr(recorder.state.reason)}</p>}
 
-      <div className="flex items-end gap-2">
-        <textarea
-          aria-label={tr("Message")}
-          value={body}
-          rows={2}
-          maxLength={1000}
-          onChange={(e) => type(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-              e.preventDefault();
-              void submit();
-            }
-          }}
-          placeholder={tr(report ? "What happened?" : role === "dispatcher" ? "Write, or start with @driver, @all or a store code" : "Write a message")}
-          className="min-h-11 flex-1 resize-none rounded-go-card-s border border-go-divider bg-go-card px-3 py-2 text-[15px] text-go-ink outline-none focus:border-go-teal"
-        />
-        {recorder.state.status === "recording" ? (
-          <button type="button" onClick={recorder.stop} className="min-h-11 rounded-full bg-go-danger px-4 text-sm font-medium text-white">
-            {tr("Stop")}
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => {
-              removed.drop();
-              void recorder.start();
+      <VoiceCapture
+        recorder={recorder}
+        enabled={(online || keepsOffline) && !busy}
+        disabledReason={tr("Voice notes need a connection")}
+        tr={tr}
+        onSend={(recording) => submit(recording)}
+        field={
+          <textarea
+            aria-label={tr("Message")}
+            value={body}
+            rows={1}
+            maxLength={1000}
+            onChange={(e) => type(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                void submit();
+              }
             }}
-            disabled={(!online && !keepsOffline) || voice !== null || busy}
-            title={tr(online || keepsOffline ? "Record a voice note" : "Voice notes need a connection")}
-            className="min-h-11 rounded-full bg-go-surface px-4 text-sm font-medium text-go-ink disabled:opacity-50"
-          >
-            {tr("Voice")}
-          </button>
-        )}
-        <button
-          type="submit"
-          disabled={busy || recorder.state.status === "recording" || (!body.trim() && !voice)}
-          className="min-h-11 rounded-full bg-go-ink px-5 text-sm font-medium text-go-card disabled:opacity-50"
-        >
-          {tr(busy ? "Sending" : report ? "Report" : "Send")}
-        </button>
-      </div>
+            placeholder={tr(report ? "What happened?" : role === "dispatcher" ? "Write, or start with @driver, @all or a store code" : "Write a message")}
+            className="max-h-32 min-h-11 flex-1 resize-none rounded-[22px] border border-go-divider bg-go-card px-4 py-2.5 text-[15px] text-go-ink outline-none [field-sizing:content] focus:border-go-teal"
+          />
+        }
+        trailing={
+          body.trim() ? (
+            <button
+              type="submit"
+              disabled={busy}
+              aria-label={tr(busy ? "Sending" : report ? "Report" : "Send")}
+              className={cx(
+                "flex size-11 shrink-0 items-center justify-center rounded-full text-white shadow-sm transition-transform active:scale-95 disabled:opacity-50",
+                report ? "bg-go-danger" : "bg-go-teal",
+              )}
+            >
+              <SendIcon />
+            </button>
+          ) : null
+        }
+      />
       {!online && !keepsOffline && <p className="text-xs text-go-secondary">{tr("Offline. Voice notes need a connection.")}</p>}
       {error && (
         <p role="alert" className="text-[13px] text-go-danger-strong">

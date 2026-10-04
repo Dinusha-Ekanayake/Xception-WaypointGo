@@ -3,6 +3,35 @@
 @kavindamihiran's entries, newest first. Only @kavindamihiran adds to this file; how to write an entry is in the [log's index](../development-log.md).
 
 ---
+## 2026-10-05 - feat: simulated vehicles and scenario deck, issue #231 complete
+
+`feat/231-demo-scenarios` · @kavindamihiran · #231, PRs 4 to 6
+
+Added `demo.simulations`, `RouteWalker`, `demo:StartSimulation`/`ControlSimulations` and `SimulationJob`: released trips drive from the depot through each stop, each point a real `delivery:RecordPositions` command as the assigned driver (R-DEMO-04, DEMO-04 to 06). Disable stops every simulation. The control room gained the vehicles panel, a nine-scenario deck and faster map refresh in demo mode. [Walkthrough](../../issues/231-demo-mode/WALKTHROUGH.md) holds the runbook and gaps.
+Verified: full `mvn verify` on a fresh PostgreSQL 16 database, 1015 tests, no skips, one error in `ReferenceCreationIntegrationTest` (the shared-state interaction logged below; it passes beside Demo on a fresh database). Frontend typecheck, Node tests, build and all five browser suites, including the two new control room specs.
+
+## 2026-10-05 - feat: demo control room, banner and simulated drive, issue #231
+
+`feat/231-demo-control-room` · @kavindamihiran · #231, PRs 3 and 4 (frontend part)
+
+Added the admin "Demo control room" tab: on/off switch with an audited reason, demo clock presets (15:30, 16:05, 05:00, real time, custom), prepare demo day, position update interval and banner, demo accounts with copy, the 12-step demo path checklist and the demo log. Every role shows a demo banner while demo mode is on. In demo mode the driver's route screen offers "Simulate drive to the next stop", which sends real `delivery:RecordPositions` commands stamped with the demo clock, so the store and dispatcher maps move. With demo mode off or unreadable nothing renders and the driver flush stays at 60 s.
+Verified: typecheck, Node tests (225 pass), production build, and every browser suite unchanged (shell 14, driver 24, store 55, dispatcher 57, loader 31). Left: browser specs for the control room, the server-side fleet simulator and the scenario deck (PR 5).
+
+## 2026-10-04 - feat: opt-in demo runtime and day preparation, issue #231
+
+`feat/231-demo-backend-core` · @kavindamihiran · #231, PR 2 of 6
+
+Added administrator-only, versioned runtime controls and a business-clock offset with a real-time security seam. Reset starts a persisted run and prepares a new empty operating day through Reference, Identity and Ordering commands; existing operational rows and credentials remain. The [plan](../../issues/231-demo-mode/PLAN.md), R-DEMO-01 to 03 and DEMO-01 to 03 record the limits. Frontend controls, trucks and scenarios remain for later PRs.
+Verified: demo integration, reference-creation interaction and module-boundary tests on a fresh dedicated PostgreSQL 16 database, no skips; frontend typecheck, Node tests and production build. A full `mvn clean verify` ran 997 tests with one error in `ReferenceCreationIntegrationTest` after other suites had mutated shared reference state; that test passes beside Demo on a fresh database. The full-suite state interaction remains to resolve.
+
+## 2026-10-04 - plan: runtime demo control room and scenario deck, issue #231
+
+`docs/231-demo-mode-plan` · @kavindamihiran · #231, PR 1 of 6
+
+Mapped the booklet and all 17 scenario cards to current commands in the [plan](../../issues/231-demo-mode/PLAN.md). Recorded the real gaps: one-time seed with ordinary order references, cron unaffected by clock offset, sessions sharing the business clock, driver map using phone GPS, and admin-only actions conflicting with driver start. Proposed safe new-date preparation, separate security time, owner-module commands and admin-started simulations; snapshot restore and frozen time remain explicit review decisions.
+Why: the issue asks for a docs-first PR before runtime changes; its sketch needs these corrections to preserve module boundaries and operational records.
+Verified: source/contract review and documentation checks only. No application code changed; runtime acceptance and preview rehearsal remain open.
+
 ## 2026-10-04 - feat: Admins switch assistants per person and role
 
 `feat/admin-mcp-people` · @kavindamihiran · #177

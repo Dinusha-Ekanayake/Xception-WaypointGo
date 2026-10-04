@@ -11,9 +11,10 @@ import java.util.Map;
  * district, so a store choosing a delivery day can join a trip that is going
  * there anyway (R-ORD-13, issue #199).
  *
- * <p>Advice only. It never moves an order and never decides whether an order
- * fits a vehicle: the order's weight and volume are not known until the
- * warehouse reserves it (R-ORD-12), and capacity stays with Planning. Only
+ * <p>Advice only. It never moves an order. Whether the order fits the trip is
+ * Planning's to say (R-ORD-14): the caller passes that answer in, built from
+ * the store's usual order, because this order's measures are not known until
+ * the warehouse reserves it (R-ORD-12). Only
  * Tech is offered a different day, because Fresh is daily and perishable and
  * Style is held to its scheduled day (R-ORD-03, R-ORD-11).
  */
@@ -43,6 +44,19 @@ public final class RideAlong {
       LocalDate chosen,
       List<LocalDate> openDays,
       Map<LocalDate, Integer> stopsByDay) {
+    return suggest(brandCode, chosen, openDays, stopsByDay, d -> true);
+  }
+
+  /**
+   * @param roomOn whether the order would join that day's trip rather than need
+   *     its own (R-ORD-14); asked only of days that would otherwise be offered
+   */
+  public static List<Suggestion> suggest(
+      String brandCode,
+      LocalDate chosen,
+      List<LocalDate> openDays,
+      Map<LocalDate, Integer> stopsByDay,
+      java.util.function.Predicate<LocalDate> roomOn) {
     if (!offeredTo(brandCode)) {
       return List.of();
     }
@@ -57,7 +71,39 @@ public final class RideAlong {
                 .reversed()
                 .thenComparingLong(s -> Math.abs(ChronoUnit.DAYS.between(chosen, s.date())))
                 .thenComparing(Suggestion::date))
+        .filter(s -> roomOn.test(s.date()))
         .limit(MAX_SUGGESTIONS)
         .toList();
+  }
+
+  /** The days offered, and whether each was checked for room on its trip (R-ORD-14). */
+  public record Checked(List<Suggestion> days, boolean roomChecked) {}
+
+  /**
+   * The suggestion with the room check when it can be made (R-ORD-14), and on
+   * bookings alone when it cannot: no usual order to size it ({@code joins}
+   * empty, ORD-22), or the check failing on any day (ORD-23). A failure drops the
+   * check for every day, so no day is filtered by a check the screen says it
+   * did not make.
+   *
+   * @param joins whether the order joins that day's trip; may throw
+   * @param onFailure told once when the check could not be made
+   */
+  public static Checked suggestChecked(
+      String brandCode,
+      LocalDate chosen,
+      List<LocalDate> openDays,
+      Map<LocalDate, Integer> stopsByDay,
+      java.util.Optional<java.util.function.Predicate<LocalDate>> joins,
+      Runnable onFailure) {
+    if (joins.isEmpty()) {
+      return new Checked(suggest(brandCode, chosen, openDays, stopsByDay), false);
+    }
+    try {
+      return new Checked(suggest(brandCode, chosen, openDays, stopsByDay, joins.get()), true);
+    } catch (RuntimeException e) {
+      onFailure.run();
+      return new Checked(suggest(brandCode, chosen, openDays, stopsByDay), false);
+    }
   }
 }

@@ -129,6 +129,56 @@ public class JdbcOrderRepository {
     return stops;
   }
 
+  /** One measured order of another outlet, for the room on a trip (issue #199). */
+  public record BookedLoad(LocalDate date, String outletId, String temperature, BigDecimal weightKg, BigDecimal volumeM3) {}
+
+  /**
+   * Other outlets' measured orders of one brand and district per day: the load a
+   * trip there will carry. An order the warehouse has not reserved has no
+   * measures yet and adds nothing (R-ORD-12), so the room is optimistic and
+   * labelled an estimate.
+   */
+  public List<BookedLoad> bookedLoads(
+      String depotCode, String brandCode, String districtName, String exceptOutletId, LocalDate from, LocalDate to) {
+    return database.query(
+            """
+            SELECT delivery_date, outlet_id, temperature, weight_kg, volume_m3
+              FROM ordering.orders
+             WHERE depot_code = ? AND brand_code = ? AND district_name = ? AND outlet_id <> ?
+               AND delivery_date BETWEEN ? AND ?
+               AND status IN ('confirmed','allocated','deferred')
+               AND weight_kg IS NOT NULL AND volume_m3 IS NOT NULL AND temperature IS NOT NULL
+             ORDER BY delivery_date, order_id
+            """,
+            depotCode, brandCode, districtName, exceptOutletId, Date.valueOf(from), Date.valueOf(to))
+        .stream()
+        .map(r -> new BookedLoad(((Date) r.get("delivery_date")).toLocalDate(), (String) r.get("outlet_id"),
+            (String) r.get("temperature"), (BigDecimal) r.get("weight_kg"), (BigDecimal) r.get("volume_m3")))
+        .toList();
+  }
+
+  /** The outlet's usual order: the median of its measured orders, the latest twenty; empty with none. */
+  public Optional<BookedLoad> usualLoad(String outletId) {
+    Map<String, Object> row = database.queryOne(
+        """
+        SELECT count(*) AS n,
+               percentile_cont(0.5) WITHIN GROUP (ORDER BY weight_kg) AS weight,
+               percentile_cont(0.5) WITHIN GROUP (ORDER BY volume_m3) AS volume,
+               mode() WITHIN GROUP (ORDER BY temperature) AS temperature
+          FROM (SELECT weight_kg, volume_m3, temperature FROM ordering.orders
+                 WHERE outlet_id = ? AND weight_kg IS NOT NULL AND volume_m3 IS NOT NULL AND temperature IS NOT NULL
+                   AND status <> 'cancelled'
+                 ORDER BY placed_at DESC LIMIT 20) recent
+        """,
+        outletId);
+    if (row == null || ((Number) row.get("n")).intValue() == 0) {
+      return Optional.empty();
+    }
+    return Optional.of(new BookedLoad(null, outletId, (String) row.get("temperature"),
+        BigDecimal.valueOf(((Number) row.get("weight")).doubleValue()).setScale(3, java.math.RoundingMode.HALF_UP),
+        BigDecimal.valueOf(((Number) row.get("volume")).doubleValue()).setScale(4, java.math.RoundingMode.HALF_UP)));
+  }
+
   /** An order as stored, with the facts the aggregate does not need but a reader does. */
   public record Stored(Order order, Instant placedAt) {}
 

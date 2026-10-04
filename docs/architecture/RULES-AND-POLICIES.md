@@ -60,7 +60,8 @@ Values that will change are not listed here. They live in the parameter register
 | R-ORD-10 | An order whose outlet window is shorter than its brand and dock service allowance is rejected at capture, because it can never be served | Policy | Policy |
 | R-ORD-11 | Scheduled orders are mandatory for their scheduled date | Team draft | Team |
 | R-ORD-12 | Order weight and volume at **order level** are authoritative for every capacity decision. Product lines are descriptive | Policy, from catalogue accuracy | Policy |
-| R-ORD-13 | A Tech store choosing a delivery day is told which open days within two either side already carry more stops for its brand and district (a trip goes there anyway), as a count of other stores and never which. **Advice only**: it never moves an order, never claims the order fits a vehicle (its measures are unknown until the warehouse reserves it, R-ORD-12) and never reads Planning. Fresh and Style are never offered another day (R-ORD-03, R-ORD-11). Issue #199 | Team, from booklet trip rules | Team |
+| R-ORD-13 | A Tech store choosing a delivery day is told which open days within two either side already carry more stops for its brand and district (a trip goes there anyway), as a count of other stores and never which. **Advice only**: it never moves an order, and claims room on the trip only as R-ORD-14 allows. Fresh and Style are never offered another day (R-ORD-03, R-ORD-11); moving Style within its weekly run was considered and rejected, because R-ORD-11 holds a scheduled order to its date. Issue #199 | Team, from booklet trip rules | Team |
+| R-ORD-14 | A shared-trip day is offered only when the store's usual order (the median of its latest twenty measured orders) would join a trip already going there, and the screen says the room is estimated. Planning answers (`PlanQuery.joinsTrip`): the booked measured orders of the brand and district are packed as trips on the vehicles available that day, and only the registry's load rules are asked (temperature, van access, weight and volume with the validator's epsilon), so capacity keeps one definition. A store with no measured order yet, or a Planning that cannot answer, gets the days on bookings alone with no room claimed. Issue #199 | Rule 5, R-ORD-12, Policy | Policy |
 
 ## 2. Stock and the external warehouse
 
@@ -327,6 +328,7 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-NOT-13 | A dispatcher's message about an order the plan could not serve goes to the store managers of its outlet, in the dispatcher's own words | `plan.store_contacted` routes to the outlet; the message and who sent it are on the event (rule 8). Routing version 3 |
 | R-NOT-14 | A message on a trip's thread is told to the depot's dispatcher whoever it is for, so every message appears under the dispatcher's bell, and to the loaders, the driver or the outlets only when it is for them. The author is never told (R-NOT-07). A report made from an issue is not told again (R-MSG-05). Routing version 4 | Product decision 2026-10-04 | Policy |
 | R-NOT-15 | A published plan tells each outlet on it its own stop and planned arrival for the day, once per stop: "Delivery planned for {day}", "Your order is stop {n}, planned arrival {time}". The order shows the same stop and time while it is planned, loading or on the road, and an older plan version never overwrites a newer one's (issue #224). Routing version 5 | Product decision 2026-10-04 | Policy |
+| R-NOT-16 | When a day a store already booked worsens to busy or at risk before its plan, the outlet's store manager is told: "{day} is busy" or "is at risk", with the reason, once per order, day and status (R-ML-08). The day itself reads as the glossary writes it, and from routing version 6 so does R-NOT-15's title | Product decision 2026-10-04 | Policy |
 
 ---
 
@@ -400,6 +402,15 @@ ADR-004: a conversation is a thread anchored to one subject; the first subject i
 | R-MSG-05 | **Reports from the field arrive once and are not told twice.** Every raised issue about a trip is posted on its thread as a report, once per event, naming the role that reported it. It publishes nothing, because `issue.raised` already notified the dispatcher | Product decision 2026-10-04 | Policy |
 | R-MSG-06 | **Voice notes.** A message or report may be a voice note: WebM, Ogg, MP4/AAC or MP3, at most 2 MB and 120 seconds, uploaded under the phone's id before the message and heard only by who may see that message, and by its author | Product decision 2026-10-04 | Policy |
 
+## 7e. Demo runtime (issue #231)
+
+| ID | Rule | Source | Status |
+| --- | --- | --- | --- |
+| R-DEMO-01 | Demo starts OFF. Only an administrator can enable it or change settings, with a reason and the current row version. Disabling clears the business-clock offset | Product decision 2026-10-04 | Policy |
+| R-DEMO-02 | Business time may move by at most seven days. Authentication, sessions, command receipts, audits and scheduler leases use real time; a database outage falls back to real time | Product decision 2026-10-04 | Policy |
+| R-DEMO-03 | A day reset records its run and delegates preparation to Reference, Identity and Ordering commands. It accepts only an empty operating date within seven days and never deletes operational rows or changes account credentials | Product decision 2026-10-04 | Policy |
+| R-DEMO-04 | A simulated vehicle drives only a released trip of an assigned driver, and each point is a real `delivery:RecordPositions` command sent as that driver, so Execution's own checks apply. The simulator never records an arrival, a delivery, proof or receipt: people do. Straight legs between known locations are shown as such, never as road navigation | Product decision 2026-10-04 | Policy |
+
 ## 8. Conflicts found
 
 Seven places where the sources disagree. C-1, C-2, C-3, C-5, C-6 and C-7 are settled; C-4 remains open.
@@ -425,6 +436,7 @@ Seven places where the sources disagree. C-1, C-2, C-3, C-5, C-6 and C-7 are set
 | R-ML-05 | Predictions are advice. Allocation keeps the booklet's service allowances and travel times, which the validator checks (R-PLN-08); learned times never change a plan | Booklet, Policy | Policy |
 | R-ML-06 | The training export keeps waiting for the window apart from service time, so an early arrival never teaches a long service (EXE-18) | R-EXE-04, Policy | Policy |
 | R-ML-07 | The date outlook is advice for a store choosing a delivery day, never a promise or a block: any day can still be ordered, and the plan made the afternoon before decides. It is built from the depot's totals (booked volume, the forecast share, the vehicles available that day) and returns a status per day, never another outlet's orders. The outlet is checked against the asker's scope first; outside it is `403` plus an audit row (issue #224) | Rule 7, Policy | Policy |
+| R-ML-08 | A booked, unplanned order's day is watched from tomorrow to two weeks ahead, hourly from 06:00 to 15:00, with the same outlook the store saw when booking. A warning is given only when the day is busy or at risk and worse than any warning already given for that order and day, recorded and published in one transaction, so a day that eases and worsens again, a rerun or a second replica never tells the store twice. A deferral to another day is watched afresh; a planned order is no longer watched (issue #224) | Rule 8, Policy | Policy |
 
 ---
 

@@ -130,11 +130,6 @@ export function SummaryCard({
     <Card label="Summary" className="flex-1">
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="mr-auto text-[17px] font-medium text-go-ink">Summary</h2>
-        {options.length > 1 && (
-          <Menu label="Depot" align="right" items={options.map((o) => ({ id: o.value, label: o.value === "all" ? `${o.label} depots` : o.label, selected: o.value === depotFilter }))} onSelect={onDepotFilter} className={field} chevron>
-            {depotText === "Both" ? "Both depots" : depotText}
-          </Menu>
-        )}
         <Menu label="Time range" align="right" items={RANGES.map((r) => ({ id: r.id, label: r.label, selected: r.id === range }))} onSelect={(id) => setRange(id as Range)} className={field} chevron>
           {rangeText}
         </Menu>

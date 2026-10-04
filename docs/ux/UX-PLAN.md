@@ -115,5 +115,5 @@ One behaviour per kind of interaction, built once in `frontend/src/shared/ui/` a
 | 2 | Keep filters, tabs and scroll position when leaving and returning to a screen | Done (`feat/ux-polish-state`) |
 | 3 | Pressed state on every button, a spinner while sending, skeletons instead of bare "Loading…", "Try again" on every error | Done (`feat/ux-polish-feedback`) |
 | 4 | Screen transitions (View Transitions API, with an instant fallback) and three shared-element moves | Done (`feat/ux-polish-feedback`) |
-| 5 | Primary actions pinned on phones, local Undo (signature, voice note), dispatcher sidebar folded by default on narrow desktops | Done (`feat/ux-polish-feedback`) |
+| 5 | Primary actions pinned on phones, local Undo (signature), dispatcher sidebar folded by default on narrow desktops | Done (`feat/ux-polish-feedback`) |
 

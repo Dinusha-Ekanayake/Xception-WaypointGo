@@ -37,7 +37,7 @@ public class OperatorController {
       SessionRegistry sessions, OperatorRegistry operators, Clock clock, SessionCookie cookie) {
     this.sessions = sessions;
     this.operators = operators;
-    this.clock = clock;
+    this.clock = clock.realTime();
     this.cookie = cookie;
   }
 
