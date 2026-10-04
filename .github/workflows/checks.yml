@@ -10,6 +10,13 @@ on:
 permissions:
   contents: read
 
+# A newer push to a pull request cancels its older run, so stale runs do not
+# hold runners while the current one queues. Deploy runs (workflow_call) are
+# never cancelled: each gets its own group.
+concurrency:
+  group: checks-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   # Which areas this change touches. A job whose area is untouched is skipped,
   # so a frontend change does not wait on the backend and a docs change runs
