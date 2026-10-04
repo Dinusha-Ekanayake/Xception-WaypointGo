@@ -103,7 +103,7 @@ The details, and which process reads which configuration file, are in [developme
 
 `admin@waypoint.local` and `auditor@waypoint.local` exist too, with the same password, but are not part of the walkthrough. Locally every role is on http://localhost:3000.
 
-`docker compose up` also creates the deployed system's named accounts from [scripts/demo-accounts.csv](scripts/demo-accounts.csv), with the same `SEED_PASSWORD`: the dispatcher, driver, store manager and `peliyagoda@waypoint.local` listed under [Deployed system](#deployed-system), and the four loaders with PIN `2468` ([scripts/seed-demo-accounts.sh](scripts/seed-demo-accounts.sh)). The seeded delivery day (its outlet and vehicles) belongs to `store_manager@waypoint.local` and `driver@waypoint.local`, so in a local copy follow the walkthrough with the accounts in the table above.
+`docker compose up` also creates the deployed system's named accounts from [scripts/demo-accounts.csv](scripts/demo-accounts.csv), with the same `SEED_PASSWORD`: the dispatcher, driver, store manager and `peliyagoda@waypoint.local` listed under [Deployed system](#deployed-system), and the four loaders with PIN `2468` ([scripts/seed-demo-accounts.sh](scripts/seed-demo-accounts.sh)). [scripts/seed-demo.sql](scripts/seed-demo.sql) then gives the named store manager the seeded outlet `OUT001`. The seeded day's vehicles belong to `driver@waypoint.local` (a vehicle has one driver a day), so in a local copy follow the driver's steps with that account. If the first start stops at `init`, run `docker compose up` again: the second start completes.
 
 ## Judge walkthrough
 

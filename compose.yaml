@@ -57,6 +57,18 @@ services:
       db:
         condition: service_healthy
     restart: "no"
+  # Local demo data the init commands do not cover: see scripts/seed-demo.sql.
+  seed:
+    image: postgres:16-bookworm
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:-local-testing-only}
+    command: ["psql", "-h", "db", "-U", "waypoint", "-d", "waypoint", "-v", "ON_ERROR_STOP=1", "-f", "/seed/seed-demo.sql"]
+    volumes:
+      - ./scripts/seed-demo.sql:/seed/seed-demo.sql:ro
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    restart: "no"
   backend:
     labels:
       com.waypoint.logs: "true"
@@ -101,6 +113,8 @@ services:
       - waypoint-proofs:/var/lib/waypoint/proofs
     depends_on:
       init:
+        condition: service_completed_successfully
+      seed:
         condition: service_completed_successfully
     restart: unless-stopped
     healthcheck:
