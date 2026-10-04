@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { OutletView } from "@shared/domain/types";
-import { APP_LANGS, InstallApp, McpButton, cx, useDeviceLang, useShell } from "@shared/ui";
+import { APP_LANGS, InstallApp, cx, useDeviceLang, useShell } from "@shared/ui";
 import { usePush, type PushState } from "@shared/notifications/push";
 import { dockLabel } from "./data/format.ts";
 
@@ -198,7 +198,6 @@ function SettingsRows(): React.JSX.Element {
         ))}
       </div>
       <span className="text-[12px] text-go-secondary">These screens are in English for now; your choice is kept on this device.</span>
-      <McpButton url={shell?.mcpUrl ?? null} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-go-surface text-[14px] font-medium text-black" />
       <InstallApp className="flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-go-surface text-[14px] font-medium text-black" />
     </div>
   );
