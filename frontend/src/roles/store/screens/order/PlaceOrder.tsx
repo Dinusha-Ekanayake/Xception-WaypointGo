@@ -14,6 +14,7 @@ import { BackButton, Muted, Toast } from "../../ui.tsx";
 import OrderLines from "./OrderLines.tsx";
 import OrderSent, { type Sent } from "./OrderSent.tsx";
 import OrderSummary from "./OrderSummary.tsx";
+import RideAlongHint from "./RideAlongHint.tsx";
 
 // Figma "03 Place order", "03b chilled", "03c add item", "03d item added" and
 // "03e draft saved". Chilled and ambient are separate orders (R-ORD-06), so one
@@ -214,6 +215,7 @@ export default function PlaceOrder({
               You can still order now; it goes on the next run.
             </Notice>
           )}
+          {!amend && <RideAlongHint gateway={gateway} outletId={outletId} brandCode={brand} date={date} onPick={setDate} />}
           {warehouseDown && (
             <Notice tone="warning" title="Stock can't be checked right now">
               The order is kept as &ldquo;stock not checked&rdquo; until the warehouse answers. It is not confirmed yet.

@@ -438,6 +438,8 @@ export function sampleGateway(): StoreGateway {
       circuitState: warehouseDown ? "open" : "closed",
     }),
     calendar: async (date) => calendar(date),
+    // The sample store is Fresh, which is never offered another day (R-ORD-13).
+    rideAlong: async (_outletId, requested) => ({ requestedDate: requested, deliveryDate: requested, offered: false, days: [] }),
     deliveryDate: async (_outletId, requested) => {
       const day = calendar(requested);
       return { requested, delivery: day.nextOperatingDay, reasons: day.operating ? [] : ["non_operating"] };
