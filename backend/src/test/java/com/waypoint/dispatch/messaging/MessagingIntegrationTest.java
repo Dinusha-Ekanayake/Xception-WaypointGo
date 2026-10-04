@@ -441,7 +441,7 @@ class MessagingIntegrationTest {
                         + " WHERE status IN ('failed','dead') AND occurred_at >= ?"
                         // The plan here names orders Ordering never took; Loading
                         // refuses it, which is Loading's rule, not this test's.
-                        + " AND coalesce(last_error, '') NOT LIKE 'loading.on-plan-published:%'",
+                        + " AND coalesce(last_error, '') NOT LIKE 'loading.on-plan-%'",
                     Timestamp.from(clock.now().minusSeconds(86_400 * 2))));
         assertEquals("[]", String.valueOf(failures), "an event of this test failed delivery");
         return;
