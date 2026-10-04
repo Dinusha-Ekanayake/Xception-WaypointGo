@@ -594,6 +594,26 @@ export function OutlineButton(props: ButtonProps): React.JSX.Element {
   return <DriverButton {...props} look="border border-go-ink bg-transparent text-go-ink" />;
 }
 
+/**
+ * The primary action of a long form, pinned to the bottom of the scrolling
+ * layer on a phone so it is always in reach; the form scrolls under it. From
+ * the tablet column up it sits in the flow as drawn. `on` is the surface it
+ * sits on, the page or a panel, so the content passing under it is hidden.
+ */
+export function PinnedAction({ on, className, children }: { on: "canvas" | "card"; className?: string; children: ReactNode }): React.JSX.Element {
+  return (
+    <div
+      className={cx(
+        "max-md:sticky max-md:bottom-0 max-md:z-10 max-md:pt-3 max-md:pb-[max(1rem,env(safe-area-inset-bottom))] max-md:shadow-[0_-8px_16px_rgba(0,0,0,0.04)]",
+        on === "canvas" ? "max-md:-mx-5 max-md:bg-go-canvas max-md:px-5" : "max-md:-mx-6 max-md:bg-go-card max-md:px-6",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
 export function Panel({ children, className, label }: { children: ReactNode; className?: string; label?: string }): React.JSX.Element {
   return (
     <section aria-label={label} className={cx("rounded-[28px] bg-go-card p-6 shadow-go-card", className)}>

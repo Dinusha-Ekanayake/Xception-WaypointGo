@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { OutletView } from "@shared/domain/types";
 import { clock, type Stop } from "../data/run.ts";
-import { ActionButton, Banner, Panel, Tag } from "../ui.tsx";
+import { ActionButton, Banner, Panel, PinnedAction, Tag } from "../ui.tsx";
 import ProofCapture, { EMPTY_PROOF, proofMissing, type ProofDraft } from "./ProofCapture.tsx";
 
 /**
@@ -77,17 +77,18 @@ export default function StopDetail({
               <Banner tone="bad" title={problem ?? error ?? ""} live />
             </div>
           )}
-          <ActionButton
-            className="mt-4"
-            disabled={busy}
-            onClick={() => {
-              const gap = proofMissing(proof);
-              setProblem(gap);
-              if (!gap) onProof(proof);
-            }}
-          >
-            Save proof
-          </ActionButton>
+          <PinnedAction on="card" className="mt-4">
+            <ActionButton
+              busy={busy}
+              onClick={() => {
+                const gap = proofMissing(proof);
+                setProblem(gap);
+                if (!gap) onProof(proof);
+              }}
+            >
+              {busy ? "Sending…" : "Save proof"}
+            </ActionButton>
+          </PinnedAction>
         </Panel>
       )}
     </div>

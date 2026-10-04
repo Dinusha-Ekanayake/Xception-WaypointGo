@@ -4,16 +4,18 @@ import { useState } from "react";
 import { ApiError } from "../api/problem.ts";
 import type { MemberRole, MemberView, ReportType } from "../domain/messaging.ts";
 import { defaultAddress, parseMention, plain, REPORT_LABEL, REPORTS_BY_ROLE, sameAddress, voiceLength, type Address, type Translate } from "../messaging/thread.ts";
-import { useRecorder } from "../messaging/recorder.ts";
+import { useRecorder, type Recording } from "../messaging/recorder.ts";
 import { newId, postCommand } from "../messaging/useThread.ts";
 import { sendNow, type Sender } from "../messaging/senders.ts";
 import { cx } from "./primitives.tsx";
+import { useUndo } from "./useUndo.ts";
 
 // Writing on a trip's thread (issue #136). Who it is for is a chip, or a
 // leading mention such as "@driver" or "@OUT063" (R-MSG-02). Anyone but the
 // dispatcher may make it a report, which only the dispatcher reads (R-MSG-03).
 // A voice note goes before the message that carries it; a role whose sender
-// keeps writes on the device sends both later when there is no signal.
+// keeps writes on the device sends both later when there is no signal. A
+// removed voice note can be put back for a few seconds: it never left the device.
 
 export type Draft = { address?: Address; body?: string; report?: boolean };
 
@@ -49,6 +51,7 @@ export function ThreadComposer({
   const [error, setError] = useState<string | null>(null);
   const recorder = useRecorder();
   const voice = recorder.state.status === "ready" ? recorder.state : null;
+  const removed = useUndo<Recording>();
   const to: Address = report ? { to: "dispatch", outletId: null } : address;
 
   const type = (text: string) => {
@@ -88,6 +91,7 @@ export function ThreadComposer({
       setBody("");
       setReport(null);
       recorder.discard();
+      removed.drop();
       onSent(sent.queued);
     } catch (failure) {
       setError(failure instanceof ApiError ? failure.problem.violations[0]?.message ?? failure.message : tr("Could not send. Try again."));
@@ -157,8 +161,31 @@ export function ThreadComposer({
       {voice && (
         <span className="flex items-center gap-2">
           <audio controls src={voice.url} aria-label={tr("Your voice note")} className="h-9 max-w-[220px]" />
-          <button type="button" onClick={recorder.discard} className="min-h-8 rounded-full px-3 text-[13px] font-medium text-go-teal">
+          <button
+            type="button"
+            onClick={() => {
+              removed.hold(voice.recording);
+              recorder.discard();
+            }}
+            className="min-h-8 rounded-full px-3 text-[13px] font-medium text-go-teal"
+          >
             {tr("Remove")}
+          </button>
+        </span>
+      )}
+      {!voice && removed.held && (
+        <span className="flex items-center gap-2">
+          {/* Holds the player's place, so Undo sits where Remove was. */}
+          <span aria-hidden className="h-9 w-[220px] max-w-full" />
+          <button
+            type="button"
+            onClick={() => {
+              const recording = removed.take();
+              if (recording) recorder.restore(recording);
+            }}
+            className="min-h-8 rounded-full px-3 text-[13px] font-medium text-go-teal"
+          >
+            {tr("Undo")}
           </button>
         </span>
       )}
@@ -187,7 +214,10 @@ export function ThreadComposer({
         ) : (
           <button
             type="button"
-            onClick={() => void recorder.start()}
+            onClick={() => {
+              removed.drop();
+              void recorder.start();
+            }}
             disabled={(!online && !keepsOffline) || voice !== null || busy}
             title={tr(online || keepsOffline ? "Record a voice note" : "Voice notes need a connection")}
             className="min-h-11 rounded-full bg-go-surface px-4 text-sm font-medium text-go-ink disabled:opacity-50"

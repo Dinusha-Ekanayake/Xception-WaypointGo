@@ -34,6 +34,7 @@ export type { Draft as ThreadDraft } from "./ThreadComposer.tsx";
 export { APP_LANGS, SettingsPanel, initialsOf, useDeviceLang, type AppLang } from "./SettingsPanel.tsx";
 export { Switch } from "./Switch.tsx";
 export { useMedia } from "./useMedia.ts";
+export { UNDO_MS, useUndo } from "./useUndo.ts";
 export { useDialogFocus } from "./useDialogFocus.ts";
 export { ToastProvider, useToast, type ToastMessage } from "./Toast.tsx";
 export { StructuredError, getErrorDefaults, type StructuredErrorProps } from "./StructuredError.tsx";
