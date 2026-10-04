@@ -15,6 +15,7 @@ import com.waypoint.dispatch.identity.web.AuthController;
 import com.waypoint.dispatch.loading.contract.LoadingEvents.LoadingShortfall;
 import com.waypoint.dispatch.loading.contract.LoadingViews.CheckStatus;
 import com.waypoint.dispatch.messaging.MessagingTestConfig.MovableClock;
+import com.waypoint.dispatch.identity.application.OperatorRegistry;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlanPublished;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlanRevised;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlannedStop;
@@ -38,6 +39,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
@@ -85,6 +87,8 @@ class MessagingIntegrationTest {
   @Autowired MovableClock clock;
   @Autowired EventPublisher publisher;
   @Autowired OutboxRelay relay;
+  @Autowired OperatorRegistry operators;
+  @Autowired com.waypoint.dispatch.messaging.application.VoiceRetentionJob voiceRetention;
 
   String depot;
   LocalDate day;
@@ -314,6 +318,63 @@ class MessagingIntegrationTest {
     readBytes(manager, voiceId, 404);
     assertTrue(json(read(dispatcher, "/api/threads/reports?depot=" + depot + "&date=" + day, 200))
         .get(0).get("voice").asBoolean());
+  }
+
+  @Test
+  void aVoiceNotePastItsRetentionIsClearedAndItsMessageStays() throws Exception {
+    UUID voiceId = UUID.randomUUID();
+    byte[] audio = new byte[] {0x1a, 0x45, (byte) 0xdf, (byte) 0xa3, 9, 8, 7};
+    upload(driver, voiceId, "audio/webm", audio, 200);
+    say(driver, "{\"to\":\"dispatch\",\"body\":\"\",\"voiceNoteId\":\"" + voiceId + "\"}", 200);
+    assertEquals(audio.length, readBytes(dispatcher, voiceId, 200).length);
+
+    // A day short of the retention nothing goes; past it the audio is cleared once.
+    voiceRetention.runAt(clock.now().plus(java.time.Duration.ofDays(399)));
+    assertEquals(audio.length, readBytes(dispatcher, voiceId, 200).length);
+    java.time.Instant later = clock.now().plus(java.time.Duration.ofDays(401));
+    assertTrue(voiceRetention.runAt(later) >= 1);
+    readBytes(dispatcher, voiceId, 404);
+    voiceRetention.runAt(later);
+
+    JsonNode message = json(read(dispatcher, "/api/threads/" + threadId + "/messages", 200)).get("items").get(0);
+    assertEquals(voiceId.toString(), message.get("voiceNoteId").asText(), "the message is a record and stays");
+    Map<String, Object> row = database.asSystem(ModuleRole.MESSAGING, () -> database.queryOne(
+        "SELECT content IS NULL AS cleared, purged_at IS NOT NULL AS purged, sha256 FROM messaging.voice_notes"
+            + " WHERE voice_note_id = ?", voiceId));
+    assertEquals(true, row.get("cleared"));
+    assertEquals(true, row.get("purged"));
+    assertTrue(String.valueOf(row.get("sha256")).length() == 64, "the checksum stays as the record");
+  }
+
+  @Test
+  void aSharedLoaderDeviceWritesAsTheLoaderWhoEnteredTheirPin() throws Exception {
+    String run = UUID.randomUUID().toString().substring(0, 8);
+    String second = "ml2-" + run + "@messaging.test";
+    UUID secondId = accounts.createAccount(second, "Kasun Second", PASSWORD, "loader");
+    accounts.grantDepot(second, depot);
+    operators.setPin(loader, "1357", null);
+    operators.setPin(second, "2468", null);
+    Cookie device = session(loader);
+    MvcResult switched = http.perform(post("/api/session/operator").cookie(device)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"userId\":\"" + secondId + "\",\"pin\":\"2468\"}"))
+        .andReturn();
+    assertEquals(200, switched.getResponse().getStatus(), switched.getResponse().getContentAsString());
+
+    String envelope = "{\"commandId\":\"" + UUID.randomUUID() + "\",\"kind\":\"message:Post\",\"expectedVersion\":null,"
+        + "\"payload\":{\"threadId\":\"" + threadId + "\",\"to\":\"dispatch\",\"body\":\"Two crates short\"},"
+        + "\"clientRecordedAt\":\"" + clock.now() + "\",\"actingUserId\":\"" + secondId + "\"}";
+    MvcResult posted = http.perform(post("/api/commands").cookie(device).contentType(MediaType.APPLICATION_JSON)
+        .content(envelope)).andReturn();
+    assertEquals(200, posted.getResponse().getStatus(), posted.getResponse().getContentAsString());
+    JsonNode newest = json(read(dispatcher, "/api/threads/" + threadId + "/messages", 200)).get("items").get(0);
+    assertEquals("Kasun Second", newest.get("authorName").asText(), "the operator, not the device's account, wrote it");
+
+    // Naming a loader who is not operating the device is refused.
+    String stranger = envelope.replace(secondId.toString() + "\"}", loaderId + "\"}")
+        .replaceFirst("\"commandId\":\"[^\"]+\"", "\"commandId\":\"" + UUID.randomUUID() + "\"");
+    assertEquals(403, http.perform(post("/api/commands").cookie(device).contentType(MediaType.APPLICATION_JSON)
+        .content(stranger)).andReturn().getResponse().getStatus());
   }
 
   // ---- helpers ----
