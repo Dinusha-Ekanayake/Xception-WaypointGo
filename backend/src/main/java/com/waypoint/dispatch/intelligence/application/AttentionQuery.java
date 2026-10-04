@@ -41,14 +41,16 @@ public class AttentionQuery {
   }
 
   public AttentionBoardView board(Actor actor, String depotCode, LocalDate serviceDate) {
+    boolean inScope = database.readAs(ModuleRole.ML, actor.userId(), () -> Boolean.TRUE.equals(
+        database.queryOne("SELECT app.actor_has_depot(?) AS ok", depotCode).get("ok")));
+    if (!inScope) {
+      // Audited outside the read: a read-only transaction cannot write the entry.
+      String resource = "wpt:ml:attention:" + depotCode;
+      String reason = "outside the actor's scope";
+      audit.recordStandalone(AuditEntry.denied(actor.userId(), actor.deviceId(), IntelligenceDataQuery.READ, resource, reason));
+      throw new DomainException(ErrorCode.FORBIDDEN, resource + " is " + reason);
+    }
     return database.readAs(ModuleRole.ML, actor.userId(), () -> {
-      boolean inScope = Boolean.TRUE.equals(database.queryOne("SELECT app.actor_has_depot(?) AS ok", depotCode).get("ok"));
-      if (!inScope) {
-        String resource = "wpt:ml:attention:" + depotCode;
-        String reason = "outside the actor's scope";
-        audit.recordStandalone(AuditEntry.denied(actor.userId(), actor.deviceId(), IntelligenceDataQuery.READ, resource, reason));
-        throw new DomainException(ErrorCode.FORBIDDEN, resource + " is " + reason);
-      }
       List<AttentionItemView> items = repository.open(depotCode, serviceDate);
       Optional<Instant> checkedAt = repository.checkedAt(depotCode);
       return new AttentionBoardView(depotCode, serviceDate, items, checkedAt, stale(checkedAt, clock.now()));
