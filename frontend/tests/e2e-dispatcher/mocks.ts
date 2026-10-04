@@ -76,6 +76,10 @@ export type Desk = {
   /** Trip threads (issue #136). */
   threads?: ThreadMock[];
   orders: OrderView[];
+  /** Orders off the day's list but readable by id (moved to another day). */
+  elsewhere?: OrderView[];
+  /** Extra differences the comparison names beside order 3's. */
+  compareExtra?: ComparisonView["changes"];
   draft: PlanView | null;
   published: PlanView | null;
   sheets: RunSheetView[];
@@ -223,6 +227,11 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
     if (pathname === "/api/session") return route.fulfill(json(SESSION));
     if (pathname === "/api/reference/vehicles") return route.fulfill(json({ items: [vehicle("VEH043"), vehicle("VEH044")], nextCursor: null }));
     if (pathname === "/api/orders/day") return route.fulfill(json(desk.orders));
+    const byId = /^\/api\/orders\/(order-[^/]+)$/.exec(pathname);
+    if (byId) {
+      const found = [...desk.orders, ...(desk.elsewhere ?? [])].find((o) => o.orderId === byId[1]);
+      return route.fulfill(found ? json(found) : problem(404, "NOT_FOUND", "No order"));
+    }
     if (pathname === "/api/plans/draft") return route.fulfill(desk.draft ? json(desk.draft) : problem(404, "NOT_FOUND", "No open draft"));
     if (pathname.startsWith("/api/plans/jobs")) {
       const id = pathname.split("/")[4];
@@ -250,7 +259,7 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
       };
       const view: ComparisonView = {
         a: side(String(url.searchParams.get("a")), "Plan A"), b: side(String(url.searchParams.get("b")), "Plan B"),
-        changes: [{ orderId: "order-3", outletId: "OUT053", kind: "ADDED", before: { decision: "DEFERRED", vehicleId: null, tripNumber: null }, after: { decision: "SERVED", vehicleId: "VEH044", tripNumber: 1 } }],
+        changes: [{ orderId: "order-3", outletId: "OUT053", kind: "ADDED", before: { decision: "DEFERRED", vehicleId: null, tripNumber: null }, after: { decision: "SERVED", vehicleId: "VEH044", tripNumber: 1 } }, ...(desk.compareExtra ?? [])],
         changedTrips: ["trip-VEH044-1"], removedTrips: [], affectedOutlets: ["OUT053"],
       };
       return route.fulfill(json(view));

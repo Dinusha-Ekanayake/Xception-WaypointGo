@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { ComparisonView, OrderView, SnapshotView } from "@shared/domain/types";
 import { Icon, Menu, Pill, PrimaryButton, SecondaryButton } from "@shared/ui";
 import { clock } from "@shared/wording";
+import { useOrdersById } from "../data/useDay.ts";
 import { useComparison } from "../data/usePlanReads.ts";
 import Refusal from "./Refusal.tsx";
 
@@ -184,6 +185,12 @@ function Metric({ label, note, a, b, better }: { label: string; note: string; a:
 }
 
 function Differences({ view, orders }: { view: ComparisonView; orders: Map<string, OrderView> }): React.JSX.Element {
+  // A saved plan can still place an order that has since left this day's list;
+  // its ref is read on its own, and an internal id is never shown.
+  const missing = view.changes.map((c) => c.orderId).filter((id) => !orders.has(id));
+  const extra = useOrdersById(missing);
+  const refOf = (orderId: string) =>
+    orders.get(orderId)?.orderRef ?? extra.data?.find((o) => o.orderId === orderId)?.orderRef ?? (extra.data || extra.error ? "Order not found" : "Loading");
   if (view.changes.length === 0) return <p className="text-[13px] text-go-secondary">The two plans place every order the same way.</p>;
   return (
     <table className="w-full text-left text-[13px]">
@@ -198,7 +205,7 @@ function Differences({ view, orders }: { view: ComparisonView; orders: Map<strin
         {view.changes.map((change) => (
           <tr key={change.orderId} className="border-t border-go-rule">
             <th scope="row" className="py-2.5 font-normal">
-              <span className="block font-medium text-go-ink">{orders.get(change.orderId)?.orderRef ?? change.orderId}</span>
+              <span className="block font-medium text-go-ink">{refOf(change.orderId)}</span>
               <span className="block text-xs text-go-secondary">{change.outletId ?? ""}</span>
             </th>
             <td className={`py-2.5 ${tone(change.before)}`}>{where(change.before)}</td>
