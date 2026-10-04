@@ -70,4 +70,47 @@ class RideAlongTest {
     org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(roomy),
         days.stream().map(RideAlong.Suggestion::date).toList(), "R-ORD-14");
   }
+
+  @Test
+  void aStoreWithNoUsualOrderIsOfferedDaysOnBookingsAloneAndNoRoomIsClaimed() {
+    LocalDate chosen = LocalDate.of(2026, 10, 7);
+    LocalDate busy = chosen.plusDays(1);
+    var checked = RideAlong.suggestChecked("Tech", chosen, java.util.List.of(chosen, busy), java.util.Map.of(busy, 2),
+        java.util.Optional.empty(), () -> { throw new AssertionError("nothing failed"); });
+    org.junit.jupiter.api.Assertions.assertFalse(checked.roomChecked(), "ORD-22");
+    org.junit.jupiter.api.Assertions.assertEquals(1, checked.days().size());
+  }
+
+  @Test
+  void whenTheRoomCheckFailsEveryDayStandsOnBookingsAloneAndTheFailureIsCounted() {
+    LocalDate chosen = LocalDate.of(2026, 10, 7);
+    LocalDate full = chosen.plusDays(1);
+    LocalDate broken = chosen.minusDays(1);
+    int[] failures = {0};
+    java.util.function.Predicate<LocalDate> joins = d -> {
+      if (d.equals(broken)) {
+        throw new IllegalStateException("no rule set");
+      }
+      return false; // the other day's trip is full
+    };
+    var checked = RideAlong.suggestChecked("Tech", chosen, java.util.List.of(broken, chosen, full),
+        java.util.Map.of(full, 3, broken, 1), java.util.Optional.of(joins), () -> failures[0]++);
+    org.junit.jupiter.api.Assertions.assertFalse(checked.roomChecked(), "ORD-23");
+    org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(full, broken),
+        checked.days().stream().map(RideAlong.Suggestion::date).toList(),
+        "no day stays filtered by a check that did not finish");
+    org.junit.jupiter.api.Assertions.assertEquals(1, failures[0]);
+  }
+
+  @Test
+  void aCheckThatRunsSaysSoAndKeepsOnlyDaysWithRoom() {
+    LocalDate chosen = LocalDate.of(2026, 10, 7);
+    LocalDate full = chosen.plusDays(1);
+    LocalDate roomy = chosen.minusDays(1);
+    var checked = RideAlong.suggestChecked("Tech", chosen, java.util.List.of(roomy, chosen, full),
+        java.util.Map.of(full, 3, roomy, 1), java.util.Optional.of(d -> d.equals(roomy)), () -> { });
+    org.junit.jupiter.api.Assertions.assertTrue(checked.roomChecked());
+    org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(roomy),
+        checked.days().stream().map(RideAlong.Suggestion::date).toList());
+  }
 }

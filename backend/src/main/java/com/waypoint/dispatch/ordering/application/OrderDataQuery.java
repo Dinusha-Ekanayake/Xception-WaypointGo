@@ -70,7 +70,7 @@ public class OrderDataQuery implements OrderQuery {
 
   @Override
   public Optional<OrderView> order(UUID orderId) {
-    return read(ambient(), () -> orders.findStored(orderId).map(OrderDataQuery::toView));
+    return read(ambient(), () -> orders.findStored(orderId).map(OrderDataQuery::toView).map(v -> withStops(List.of(v)).get(0)));
   }
 
   @Override
@@ -143,7 +143,7 @@ public class OrderDataQuery implements OrderQuery {
     requireScope(actor, "wpt:order:depot:" + depotCode, "SELECT app.actor_has_depot(?) AS ok", depotCode);
     return read(
         actor.userId(),
-        () -> orders.forDay(depotCode, serviceDate).stream().map(OrderDataQuery::toView).toList());
+        () -> withStops(orders.forDay(depotCode, serviceDate).stream().map(OrderDataQuery::toView).toList()));
   }
 
   /** Keyset directory of orders visible through the actor's SQL scope. */
