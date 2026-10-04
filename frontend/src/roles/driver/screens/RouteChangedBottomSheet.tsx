@@ -142,14 +142,14 @@ export default function RouteChangedBottomSheet({
             </span>
           </div>
 
-          {/* Title: "Your run sheet has changed" */}
+          {/* Title: "Your route has been changed" */}
           <h3
             className={cx(
               "text-[24px] font-medium leading-[30px] tracking-tight mt-0.5",
               isNight ? "text-white" : "text-black"
             )}
           >
-            Your run sheet has changed
+            Your route has been changed
           </h3>
 
           {/* Body */}
@@ -173,7 +173,7 @@ export default function RouteChangedBottomSheet({
           </span>
           <VoiceMessagePlayer
             duration="0:07"
-            text="Your run sheet has changed. Stops were added or reordered. Check the new run sheet before you continue."
+            text="Your route has been changed. Stops were added or reordered. Check the new run sheet before you continue."
             isNight={isNight}
             className="pt-2"
           />
