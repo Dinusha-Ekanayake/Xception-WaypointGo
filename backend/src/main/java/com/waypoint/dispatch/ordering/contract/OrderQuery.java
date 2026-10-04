@@ -36,4 +36,13 @@ public interface OrderQuery {
    */
   List<OrderViews.DailyVolumeView> dailyVolumes(
       String depotCode, String brandCode, LocalDate from, LocalDate to);
+
+  /**
+   * Volume already booked per delivery day and brand for a depot: orders still
+   * to be delivered, by the day they are due (issue #224, the date outlook).
+   * Totals only, read as the system across every outlet of the depot, so the
+   * caller checks the asking actor's scope first and never passes a row on
+   * (R-ML-07).
+   */
+  List<OrderViews.BookedVolumeView> bookedVolumes(String depotCode, LocalDate from, LocalDate to);
 }

@@ -171,6 +171,32 @@ class NotificationConsumersIntegrationTest extends NotificationSupport {
     assertEquals("Trip 1 on " + vehicle + ", departing 06:30, 1 stops.", toDriver.get("body"));
   }
 
+  @Test
+  void aPublishedPlanTellsEachStoreItsStopAndPlannedArrivalOnce() {
+    LocalDate date = someFarDate();
+    String vehicle = assignOn(driver, date);
+    UUID tripId = UUID.randomUUID();
+    PlanPublished published =
+        new PlanPublished(
+            UUID.randomUUID(), depot, date, 1, Optional.empty(),
+            List.of(
+                new PlannedTrip(tripId, vehicle, 1, "B", "Colombo", "ambient", LocalTime.of(5, 0),
+                    List.of(
+                        new PlannedStop(1, UUID.randomUUID(), otherOutlet.outletId(), LocalTime.of(5, 40)),
+                        new PlannedStop(3, UUID.randomUUID(), outlet.outletId(), LocalTime.of(6, 10))))));
+
+    UUID eventId = deliver("notification.on-plan-published", published);
+
+    Map<String, Object> toManager = notificationFor(eventId, manager);
+    assertTrue(((String) toManager.get("title")).startsWith("Delivery planned for "), "R-NOT-15");
+    assertEquals("Your order is stop 3, planned arrival 06:10.", toManager.get("body"));
+    assertEquals("stop:" + tripId + ":3", toManager.get("target_key"));
+    assertEquals("Your order is stop 1, planned arrival 05:40.", notificationFor(eventId, stranger).get("body"),
+        "each outlet hears its own stop");
+    assertEquals(1, notificationsOf(eventId).stream().filter(n -> n.get("recipient_user_id").equals(manager.id())).count(),
+        "one notice per store");
+  }
+
   // ---- a revision tells only what it changed (R-NOT-12) ----------------------------
 
   private PlannedTrip tripOn(UUID tripId, String vehicle, int number, String outletId) {

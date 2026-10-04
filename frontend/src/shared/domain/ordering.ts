@@ -1,4 +1,4 @@
-import type { Decimal, IsoDate, IsoInstant, Temperature, Uuid } from "./common.ts";
+import type { IsoTime, Decimal, IsoDate, IsoInstant, Temperature, Uuid } from "./common.ts";
 
 // Mirrors com.waypoint.dispatch.ordering.contract.
 
@@ -47,6 +47,10 @@ export type OrderView = {
   placedAt: IsoInstant;
   lines: OrderLineView[];
   rowVersion: number;
+  /** Issue #224: the stop on the published plan, while planned, loading or on the road; absent otherwise. */
+  plannedStop?: number | null;
+  /** Expected arrival at that stop, depot time ("06:10:00"). */
+  plannedArrival?: IsoTime | null;
 };
 
 /**

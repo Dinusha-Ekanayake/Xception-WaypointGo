@@ -27,7 +27,7 @@ class PlanAllocation {
     this.transitions = transitions;
   }
 
-  void allocate(List<PlannedTrip> trips, int planVersion, EventEnvelope<?> envelope) {
+  void allocate(List<PlannedTrip> trips, int planVersion, java.time.LocalDate serviceDate, EventEnvelope<?> envelope) {
     for (PlannedTrip trip : trips) {
       for (PlannedStop stop : trip.stops()) {
         Optional<Order> found = orders.find(stop.orderId());
@@ -35,6 +35,10 @@ class PlanAllocation {
           transitions.unknown(stop.orderId(), envelope);
           continue;
         }
+        // Issue #224: where the order stands on the plan, for the store to see; a revision rewrites it.
+        orders.recordStop(
+            stop.orderId(), trip.tripId(), stop.sequence(), stop.plannedArrival(), serviceDate, planVersion,
+            envelope.occurredAt());
         Order current = found.get();
         String reason = "allocated to trip " + trip.tripId() + " in plan version " + planVersion;
         if (current.status() == OrderStatus.ALLOCATED) {

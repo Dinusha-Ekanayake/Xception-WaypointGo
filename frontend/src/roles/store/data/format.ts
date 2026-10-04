@@ -1,5 +1,5 @@
 import type { IsoDate, OrderStatus } from "@shared/domain/types";
-import { addDays, dayLabel } from "../../../shared/wording/index.ts";
+import { addDays, dayLabel, hhmm } from "../../../shared/wording/index.ts";
 export { addDays, clock, dayLabel, depotToday, greeting, hhmm, longDay, productLines, units } from "../../../shared/wording/index.ts";
 
 // Dates and labels for the store screens. The depot clock is Asia/Colombo; the
@@ -54,6 +54,16 @@ export const ORDER_STATUS: Record<OrderStatus, { label: string; tone: StatusTone
 };
 
 /** The store can still change these; later ones are planned or moving. */
+/**
+ * Issue #224: what the store is promised once the plan is published, "Planned
+ * for Fri 9 Oct · stop 3 · planned arrival 06:10"; null while it is not on a plan.
+ */
+export function planNote(order: { status: OrderStatus; deliveryDate: string; plannedStop?: number | null; plannedArrival?: string | null }): string | null {
+  if (order.plannedStop == null || !(order.status === "ALLOCATED" || order.status === "LOADING" || order.status === "IN_TRANSIT")) return null;
+  const arrival = order.plannedArrival ? ` · planned arrival ${hhmm(order.plannedArrival)}` : "";
+  return `Planned for ${dayLabel(order.deliveryDate)} · stop ${order.plannedStop}${arrival}`;
+}
+
 export const editable = (status: OrderStatus) => status === "CONFIRMED" || status === "STOCK_UNKNOWN";
 export const onTheWay = (status: OrderStatus) => status === "LOADING" || status === "IN_TRANSIT";
 export const temperatureLabel = (t: string) => (t === "chilled" ? "Chilled" : "Ambient");

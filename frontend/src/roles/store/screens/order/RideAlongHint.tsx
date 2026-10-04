@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useResource } from "@shared/api/useResource";
 import type { StoreGateway } from "../../data/gateway.ts";
 import { dayLabel } from "../../data/format.ts";
@@ -14,15 +15,20 @@ export default function RideAlongHint({
   brandCode,
   date,
   onPick,
+  onDays,
 }: {
   gateway: StoreGateway;
   outletId: string;
   brandCode: string;
   date: string;
   onPick: (date: string) => void;
+  /** The days offered, so the date strip can prefer them when it suggests a day (#224). */
+  onDays?: (dates: string[]) => void;
 }): React.JSX.Element | null {
   const asked = brandCode.toLowerCase() === "tech" && outletId !== "";
   const hint = useResource(asked ? (s) => gateway.rideAlong(outletId, date, s) : null, `${outletId}|${date}`);
+  const offered = (hint.data?.offered ? hint.data.days : []).map((d) => d.date).join(",");
+  useEffect(() => onDays?.(offered ? offered.split(",") : []), [offered, onDays]);
   if (!asked) return null;
   // Degrade visibly (rule 9): say the hint is missing rather than show nothing.
   if (hint.error) {

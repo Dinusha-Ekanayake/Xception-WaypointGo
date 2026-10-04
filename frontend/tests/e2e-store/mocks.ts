@@ -200,7 +200,7 @@ export const REDELIVERED: IssueView = {
 };
 
 /** The make-up delivery: planned for today, not on a vehicle yet. */
-export const MAKE_UP: OrderView = { ...ORIGINAL, orderId: "order-2", orderRef: "ORD0092418", requestedDate: today, deliveryDate: today, status: "ALLOCATED", redeliveryOf: ORIGINAL.orderId };
+export const MAKE_UP: OrderView = { ...ORIGINAL, orderId: "order-2", orderRef: "ORD0092418", requestedDate: today, deliveryDate: today, status: "ALLOCATED", redeliveryOf: ORIGINAL.orderId, plannedStop: 4, plannedArrival: "06:10:00" };
 
 export const NEXT: OrderView = { ...ORDER, orderId: "order-3", orderRef: "ORD0092420", temperature: "ambient", requestedDate: shift(1), deliveryDate: shift(1), status: "CONFIRMED" };
 
@@ -226,7 +226,7 @@ export type Handover = { status: "AWAITING" | "CONFIRMED" | "LOCKED" | "EXPIRED"
 /** Routes every call the store makes; a delivered order is waiting to be received. */
 export async function mockStore(
   page: Page,
-  options: { answered?: Handover | null; loadingShort?: boolean; week?: boolean; deferred?: boolean; positions?: unknown[]; threads?: ThreadMock[]; rideAlong?: { date: string; stopsBooked: number }[] | "down" } = {},
+  options: { answered?: Handover | null; loadingShort?: boolean; week?: boolean; deferred?: boolean; positions?: unknown[]; threads?: ThreadMock[]; rideAlong?: { date: string; stopsBooked: number }[] | "down"; outlook?: Record<string, "ON_TRACK" | "BUSY" | "AT_RISK" | "TOO_EARLY" | "CLOSED"> | "down" } = {},
 ): Promise<{ sent: Sent; handover: { current: Handover | null }; uploads: string[] }> {
   const threads = options.threads ?? [];
   const sent: Sent = [];
@@ -256,6 +256,20 @@ export async function mockStore(
       if (options.rideAlong === "down") return route.fulfill({ status: 503, contentType: "application/problem+json", body: JSON.stringify({ title: "Unavailable", status: 503 }) });
       const requested = url.searchParams.get("requestedDate");
       return json({ requestedDate: requested, deliveryDate: requested, offered: options.rideAlong !== undefined, days: Array.isArray(options.rideAlong) ? options.rideAlong.filter((d) => d.date !== requested) : [] });
+    }
+    if (pathname === "/api/ml/outlook") {
+      if (options.outlook === "down") return route.fulfill({ status: 503, contentType: "application/problem+json", body: JSON.stringify({ title: "Unavailable", status: 503 }) });
+      // Every day on track unless the test names it (issue #224).
+      const from = url.searchParams.get("from")!;
+      const to = url.searchParams.get("to")!;
+      const named = options.outlook ?? {};
+      const days = [];
+      for (let d = new Date(`${from}T00:00:00Z`); d.toISOString().slice(0, 10) <= to; d.setUTCDate(d.getUTCDate() + 1)) {
+        const date = d.toISOString().slice(0, 10);
+        const status = named[date] ?? "ON_TRACK";
+        days.push({ date, status, load: status === "CLOSED" ? null : "0.5000", reason: status === "BUSY" ? "Most of the room on the vehicles is expected to be taken" : "There is room on the vehicles that day" });
+      }
+      return json({ outletId: url.searchParams.get("outlet"), from, to, days, forecast: true, modelLabel: "deterministic", degraded: false });
     }
     if (pathname === "/api/execution/positions") return json(options.positions ?? []);
     if (pathname.startsWith("/api/execution/trips/")) {

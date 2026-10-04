@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { ApiError } from "@shared/api/problem";
 import type { OrderView } from "@shared/domain/types";
 import { Notice, cx } from "@shared/ui";
-import { units, ORDER_STATUS, dayLabel, depotToday, temperatureLabel } from "../data/format.ts";
+import { units, ORDER_STATUS, dayLabel, depotToday, planNote, temperatureLabel } from "../data/format.ts";
 import { Chip, Muted } from "../ui.tsx";
 
 // Every order for this outlet, newest delivery day first. Tapping one opens its
@@ -100,6 +100,7 @@ export default function Orders({
                     {o.dateRolled ? ` · moved from ${dayLabel(o.requestedDate)}` : ""}
                     {o.deferralCount > 0 ? ` · deferred ${o.deferralCount}×` : ""}
                   </span>
+                  {planNote(o) && <span className="text-[13px] font-medium text-go-teal">{planNote(o)}</span>}
                 </button>
               );
             })}

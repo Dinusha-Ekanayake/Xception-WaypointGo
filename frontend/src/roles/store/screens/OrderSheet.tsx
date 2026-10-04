@@ -5,7 +5,7 @@ import { useResource } from "@shared/api/useResource";
 import { OrderCommandKind, type OrderView } from "@shared/domain/types";
 import { Notice } from "@shared/ui";
 import type { StoreGateway } from "../data/gateway.ts";
-import { ORDER_STATUS, units, clock, dayLabel, depotToday, editable, temperatureLabel } from "../data/format.ts";
+import { ORDER_STATUS, units, clock, dayLabel, depotToday, editable, planNote, temperatureLabel } from "../data/format.ts";
 import { conflictMessage, type useCommands } from "../data/useCommands.ts";
 import { Button, Chip, Sheet } from "../ui.tsx";
 
@@ -55,6 +55,7 @@ export default function OrderSheet({
         {temperatureLabel(order.temperature)} · {units(order.itemCount)} · {order.weightKg} kg · {order.volumeM3} m³ · delivery {dayLabel(order.deliveryDate)}
         {order.dateRolled && ` (moved from ${dayLabel(order.requestedDate)}, not a delivery day)`}
       </p>
+      {planNote(order) && <Notice tone="info" title={planNote(order)!}>Dispatch has put your order on a vehicle for that day.</Notice>}
       {error && <Notice tone="danger" live title={error} />}
       {queued && <Notice tone="warning" live title="Cancellation saved on this phone. It is sent when the connection returns." />}
 
