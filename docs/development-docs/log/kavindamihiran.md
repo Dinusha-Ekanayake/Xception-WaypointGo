@@ -3,6 +3,13 @@
 @kavindamihiran's entries, newest first. Only @kavindamihiran adds to this file; how to write an entry is in the [log's index](../development-log.md).
 
 ---
+## 2026-10-05 - fix: driver map trail, re-centring, dark mode and tile prefetch
+
+`feat/231-demo-scenarios` · @kavindamihiran · #161, #201, #231
+
+The driver map now reads every page of the trip's trail (it stopped at the oldest 200 points), polls it every 15 s so server simulation points reach it, and skips null coordinates instead of drawing them at 0,0. The phone's trail resets with the trip and points already on the server are drawn once. The map fits once per stop instead of every ~100 m, so the driver's pan and zoom stay. GPS pauses during a simulated drive. Zoom buttons, notice and attribution follow the dark theme. Tile prefetch keeps each stop's street tiles first, in stop order, plus the opening zoom 8.
+Verified: typecheck, Node tests (229 pass, new `driver-trail.test.ts` and a prefetch case), production build, driver browser suite (24 pass). Left: 5 s polling on store and dispatcher maps and the "GPS paused" note ([plan](../../issues/231-demo-mode/PLAN.md) PR 4 item).
+
 ## 2026-10-05 - feat: simulated vehicles and scenario deck, issue #231 complete
 
 `feat/231-demo-scenarios` · @kavindamihiran · #231, PRs 4 to 6
