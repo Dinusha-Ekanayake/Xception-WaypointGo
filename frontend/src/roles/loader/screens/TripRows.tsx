@@ -46,7 +46,14 @@ function TripAction({ trip, who, online, onOpen }: Omit<RowProps, "showDock">): 
 
 function tripLine(trip: ReadyTripView, showDock: boolean, tr: ReturnType<typeof useT>): string {
   const n = tr("Trip {n} of {m}", { n: trip.tripNumber, m: trip.tripsForVehicle });
-  return showDock ? `${n} · ${trip.dockCode}` : n;
+  const line = showDock ? `${n} · ${trip.dockCode}` : n;
+  // R-LOD-12: the driver has brought the vehicle; the board puts this trip first to take.
+  return waiting(trip) ? `${line} · ${tr("Driver at the dock")}` : line;
+}
+
+/** The driver is at the depot and the trip is not yet released. */
+export function waiting(trip: ReadyTripView): boolean {
+  return Boolean(trip.driverAtDepotAt) && trip.releasedAt === null && trip.status !== "COMPLETED";
 }
 
 const stops = (trip: ReadyTripView, tr: ReturnType<typeof useT>) =>

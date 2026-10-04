@@ -99,6 +99,8 @@ export type ReadyTripView = {
   holder: HolderView | null;
   releasedAt: IsoInstant | null;
   rowVersion: number;
+  /** R-LOD-12: when the driver reported at the depot with the vehicle. Added 2026-10-05; older servers omit it. */
+  driverAtDepotAt?: IsoInstant | null;
 };
 
 export type ShortfallView = {

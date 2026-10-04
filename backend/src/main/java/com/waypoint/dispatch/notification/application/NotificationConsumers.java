@@ -1,6 +1,8 @@
 package com.waypoint.dispatch.notification.application;
 
+import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryArrived;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryCompleted;
+import com.waypoint.dispatch.execution.contract.ExecutionEvents.VehicleAtDepot;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryFailed;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryStarted;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.EtaChanged;
@@ -592,6 +594,56 @@ final class NotificationConsumers {
           .fact("outcome", e.outcome() == null ? null : words(e.outcome())).fact("outletId", e.outletId())
           .fact("lateMinutes", e.lateMinutes())
           .to(ScopeKind.OUTLET, e.outletId(), "delivery", e.deliveryId());
+    }
+  }
+
+  /** R-EXE-25: the vehicle is at the store's door, so someone comes out to unload and check. */
+  @Component
+  static class OnDeliveryArrived extends NotificationConsumer<DeliveryArrived> {
+    OnDeliveryArrived(Notifier notifier) {
+      super(notifier);
+    }
+
+    @Override
+    public String consumerName() {
+      return "notification.on-delivery-arrived";
+    }
+
+    @Override
+    public Class<DeliveryArrived> eventType() {
+      return DeliveryArrived.class;
+    }
+
+    @Override
+    Routed route(DeliveryArrived e) {
+      return new Routed()
+          .fact("outletId", e.outletId()).fact("vehicleId", e.vehicleId())
+          .to(ScopeKind.OUTLET, e.outletId(), "delivery", e.deliveryId());
+    }
+  }
+
+  /** R-EXE-24: the driver is at the depot with the vehicle; a loader takes its trip. */
+  @Component
+  static class OnVehicleAtDepot extends NotificationConsumer<VehicleAtDepot> {
+    OnVehicleAtDepot(Notifier notifier) {
+      super(notifier);
+    }
+
+    @Override
+    public String consumerName() {
+      return "notification.on-vehicle-at-depot";
+    }
+
+    @Override
+    public Class<VehicleAtDepot> eventType() {
+      return VehicleAtDepot.class;
+    }
+
+    @Override
+    Routed route(VehicleAtDepot e) {
+      return new Routed()
+          .fact("vehicleId", e.vehicleId()).fact("serviceDate", e.serviceDate()).fact("depotCode", e.depotCode())
+          .to(ScopeKind.DEPOT, e.depotCode(), "vehicle", e.vehicleId());
     }
   }
 

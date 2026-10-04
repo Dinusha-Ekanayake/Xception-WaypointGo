@@ -95,7 +95,7 @@ function LoaderWorkspace({
   }, [userId]);
   const { theme } = useTheme();
 
-  const trips = useResource(depot ? (signal) => gateway.readyTrips(depot, date, signal) : null, `${depot}:${date}`, 30_000);
+  const trips = useResource(depot ? (signal) => gateway.readyTrips(depot, date, signal) : null, `${depot}:${date}`, 2_000);
   // Found again on start, on reconnecting, and once the shown day has nothing left to load.
   const dayDone = trips.data !== null && !stillToLoad(trips.data);
   useEffect(() => {
