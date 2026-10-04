@@ -140,6 +140,24 @@ export async function updateAdminOutletDetails(payload: UpdateOutletDetails, exp
   await send(newCommand("reference:UpdateOutletDetails", payload, expectedVersion));
 }
 
+export async function updateAdminOutlet(payload: {
+  outletId: string; brand: string; district: string; depotCode: string;
+  dockType: string; parking: string; windowOpen: string; windowClose: string;
+  mallOpen?: string; mallClose?: string;
+}, expectedVersion: number) {
+  return send<{ id: string; rowVersion: number }>(newCommand("reference:UpdateOutlet", payload, expectedVersion));
+}
+
+export async function submitSetVehicleDayStatus(payload: {
+  vehicleId: string;
+  status: "available" | "in_workshop" | "unavailable";
+  serviceDate: string;
+}) {
+  return send<{ vehicleId: string; status: string; serviceDate: string }>(
+    newCommand("vehicle:SetDayStatus", payload)
+  );
+}
+
 export async function fetchAdminVehicles(options: {
   depot?: string;
   date?: string;

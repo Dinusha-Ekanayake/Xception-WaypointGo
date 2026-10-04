@@ -85,6 +85,19 @@ export async function submitUpdateUser(payload: {
   }, payload.expectedVersion));
 }
 
+export async function submitDisableUser(
+  userId: string,
+  expectedVersion: number
+): Promise<CommandAck<{ userId: string; sessionsRevoked: number }>> {
+  return send(
+    newCommand(
+      "iam:DisableUser",
+      { userId },
+      expectedVersion
+    )
+  );
+}
+
 export type DriverAssignmentView = {
   assignmentId: string;
   vehicleId: string;
