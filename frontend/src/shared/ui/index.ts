@@ -28,6 +28,7 @@ export { readKept, setStateScope, usePersistentState, writeKept } from "./usePer
 export { useScrollMemory } from "./useScrollMemory.ts";
 export { dismisses, rubberBand, useSheetDrag } from "./sheetDrag.ts";
 export { reducedMotion, useEscape, useOverlay } from "./useOverlay.ts";
+export { withTransition, type TransitionDirection } from "./transition.ts";
 export { TripThread } from "./TripThread.tsx";
 export type { Draft as ThreadDraft } from "./ThreadComposer.tsx";
 export { APP_LANGS, SettingsPanel, initialsOf, useDeviceLang, type AppLang } from "./SettingsPanel.tsx";

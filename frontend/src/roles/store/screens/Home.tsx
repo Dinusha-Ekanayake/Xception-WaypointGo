@@ -104,7 +104,8 @@ export default function Home({
         <div className="flex min-w-0 flex-col gap-5">
           {error && <Notice tone="danger" title="Could not load your orders" onRetry={onRetry}>{error.message}</Notice>}
 
-          <Card label="Next delivery">
+          {/* Moves into Track's first card when the delivery is tracked (shared element, UX polish 4). */}
+          <Card label="Next delivery" style={{ viewTransitionName: "vt-delivery" }}>
             <div className="flex items-center gap-1.5">
               <p className="flex-1 text-[13px] font-light text-go-muted">
                 {next_

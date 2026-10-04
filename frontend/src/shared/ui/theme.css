@@ -163,3 +163,26 @@
   .go-panel-drawer { animation-name: go-slide-in-end; }
   .go-overlay[data-closing] .go-panel-drawer { animation-name: go-slide-out-end; }
 }
+
+/*
+ * Screen changes (shared/ui/transition.ts). The old and new screen crossfade
+ * in 200 ms; drilling into a detail (`data-vt="forward"`) also slides them
+ * 12 px towards the start, coming back slides them the other way. Three shared
+ * elements (a trip, a stop, the next delivery) move from the list to the
+ * detail header in 250 ms. Reduced motion turns it all off (app/globals.css).
+ */
+@keyframes go-vt-fade-out { to { opacity: 0; } }
+@keyframes go-vt-fade-in { from { opacity: 0; } }
+@keyframes go-vt-out-start { to { opacity: 0; transform: translateX(-12px); } }
+@keyframes go-vt-in-end { from { opacity: 0; transform: translateX(12px); } }
+@keyframes go-vt-out-end { to { opacity: 0; transform: translateX(12px); } }
+@keyframes go-vt-in-start { from { opacity: 0; transform: translateX(-12px); } }
+::view-transition-old(root) { animation: go-vt-fade-out 200ms var(--ease-go-out) both; }
+::view-transition-new(root) { animation: go-vt-fade-in 200ms var(--ease-go-out) both; }
+html[data-vt="forward"]::view-transition-old(root) { animation-name: go-vt-out-start; }
+html[data-vt="forward"]::view-transition-new(root) { animation-name: go-vt-in-end; }
+html[data-vt="back"]::view-transition-old(root) { animation-name: go-vt-out-end; }
+html[data-vt="back"]::view-transition-new(root) { animation-name: go-vt-in-start; }
+::view-transition-group(vt-trip),
+::view-transition-group(vt-stop),
+::view-transition-group(vt-delivery) { animation-duration: 250ms; animation-timing-function: var(--ease-go-out); }

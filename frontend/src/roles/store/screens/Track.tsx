@@ -92,7 +92,7 @@ export default function Track({
       ) : (
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
           <div className="flex min-w-0 flex-col gap-5">
-            <Card label="Where it is">
+            <Card label="Where it is" style={{ viewTransitionName: "vt-delivery" }}>
               <div className="flex items-center gap-2">
                 <Chip tone={arrived ? "ink" : "mint"}>{arrived ? "Arrived" : "On the way"}</Chip>
                 {refrigerated && <Chip outline>Refrigerated vehicle</Chip>}

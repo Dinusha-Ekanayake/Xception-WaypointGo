@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Icon, PRESS, ShellActions, Spinner, cx, useOverlay, useSheetDrag, type IconName } from "@shared/ui";
 import type { OutletView } from "@shared/domain/types";
 import AccountMenu from "./AccountMenu.tsx";
@@ -73,9 +73,9 @@ export function Button({
   );
 }
 
-export function Card({ children, label, className }: { children: ReactNode; label?: string; className?: string }): React.JSX.Element {
+export function Card({ children, label, className, style }: { children: ReactNode; label?: string; className?: string; style?: CSSProperties }): React.JSX.Element {
   return (
-    <section aria-label={label} className={cx("flex w-full flex-col gap-3.5 rounded-[26px] bg-white p-[18px]", className)}>
+    <section aria-label={label} className={cx("flex w-full flex-col gap-3.5 rounded-[26px] bg-white p-[18px]", className)} style={style}>
       {children}
     </section>
   );
