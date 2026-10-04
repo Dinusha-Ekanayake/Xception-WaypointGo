@@ -103,7 +103,7 @@ allocation distances or capacity rules. See [the plan](../issues/161-live-map/PL
 
 | Layer | Contents |
 | --- | --- |
-| contract | `OrderViews`, `OrderStatus`, `OrderQuery` (incl. `confirmedDemand`), `OrderCommands`, `OrderEvents` |
+| contract | `OrderViews`, `OrderStatus`, `OrderQuery` (incl. `confirmedDemand`, and `bookedVolumes`, depot totals by delivery day for the date outlook), `OrderCommands`, `OrderEvents` |
 | domain | `Order`, `OrderLine`, `OrderStatus` state machine, `Cutoff`, `TemperatureRequirement`, `OrderVersion` |
 | application | `PlaceOrderHandler`, `AmendOrderHandler`, `CancelOrderHandler`, `CloseOrdersHandler`, `OrderDataQuery` |
 | infrastructure | `JdbcOrderRepository`, `OrderProjection`. The warehouse adapter lives in the Warehouse module, behind `StockPort` |
@@ -150,12 +150,12 @@ Revised 2026-09-30. `OrderStatus` in `ordering/contract` is the one vocabulary; 
 | Layer | Contents |
 | --- | --- |
 | contract | `PlanViews` (`PlanView`, `TripView`, `AllocationView`, `ConstraintResultView`, `DeferralView`, `FuelView`, `InterchangePreview`), `PlanQuery`, `PlanCommands`, `PlanEvents` |
-| domain | `PlanningRun` (the aggregate: draft, override, defer, revision, trip move and replan, options), `VehicleDay`, `Trip`, `PlanOrder`, `FleetVehicle`, `DistrictTravel`, `PlanContext`, `RuleSet`, `CheapestInsertion` and `ScarceFleetReplan` (placement, deferral explanation and the reefer re-plan, issue #92), `PriorityPolicy` (versioned decision table), `ConstraintRegistry`, `Constraint`, `Constraints`, `ConstraintResult`, `PlanVerification`, `PublicationGate`, `DemandFingerprint`, `TripTimeline`, `FuelLedger`, `TemperatureClass`, `AllocationEngine` (port, with `Problem` and `AllocationResult`) |
-| application | `GeneratePlanHandler`, `OverrideAllocationHandler`, `DeferOrderHandler`, `PublishPlanHandler`, `RevisePlanHandler`, `ReplanTripHandler`, `PlanDataQuery` (implements `PlanQuery`, previews included), `PlanningProblems`, `PlanningDrafts`, `PlanningRevisions`, `PlanPublication` (the gate), `PlanRecords` (translation only), `PlanningConsumers` |
-| infrastructure | `PriorityInsertionEngine`, `ImprovingEngine` (decorator running `ScarceFleetReplan` after it, issue #92), `ValidatingEngine` (decorator, always outermost), `PlanningEngineConfiguration`, `JdbcPlanRepository`, `PeakDayScenario` (the Task 2B fixture and CSV export) |
+| domain | `PlanningRun` (the aggregate: draft, override, defer, revision, trip move and replan, options), `VehicleDay`, `Trip`, `PlanOrder`, `FleetVehicle`, `DistrictTravel`, `PlanContext`, `RuleSet`, `CheapestInsertion`, `CostReplan` (the ALNS cost stage), `StopTravel` and `Coordinates` (GPS stop order, R-PLN-40) and `ScarceFleetReplan` (placement, deferral explanation and the reefer re-plan, issue #92), `PriorityPolicy` (versioned decision table), `ConstraintRegistry`, `Constraint`, `Constraints`, `ConstraintResult`, `PlanVerification`, `PublicationGate`, `DemandFingerprint`, `TripTimeline`, `FuelLedger`, `TemperatureClass`, `AllocationEngine` (port, with `Problem` and `AllocationResult`) |
+| application | `GeneratePlanHandler` (queues a generation, R-PLN-41), `PlanGenerationWorker` (runs it outside any transaction), `ReferenceSnapshotCache` (reference data by immutable version), `OverrideAllocationHandler`, `DeferOrderHandler`, `PublishPlanHandler`, `RevisePlanHandler`, `ReplanTripHandler`, `PlanDataQuery` (implements `PlanQuery`, previews included), `PlanningProblems`, `PlanningDrafts`, `PlanningRevisions`, `PlanPublication` (the gate), `PlanRecords` (translation only), `PlanningConsumers` |
+| infrastructure | `PriorityInsertionEngine`, `ImprovingEngine` (decorator running `ScarceFleetReplan` after it, issue #92), `CostImprovingEngine` (decorator running the cost stage `CostReplan` after that, planning v2, R-PLN-38), `ValidatingEngine` (decorator, always outermost), `PlanningEngineConfiguration`, `JdbcPlanRepository`, `PeakDayScenario` (the Task 2B fixture and CSV export) |
 | web | routed through the command endpoint |
 
-**Owns:** `planning.runs`, `planning.trips`, `planning.allocations`, `planning.deferrals`, `planning.route_legs` (planned times only; actual times belong to Execution), `planning.fuel_usage`, `planning.rule_sets`, `planning.rule_parameters`, `planning.policy_versions`. A trip id is unique within a plan and stable across versions while the trip carries the same orders, whichever vehicle carries it.
+**Owns:** `planning.generation_jobs` (queued generations, one active per depot and day), `planning.runs`, `planning.trips`, `planning.allocations`, `planning.deferrals`, `planning.route_legs` (planned times only; actual times belong to Execution), `planning.fuel_usage`, `planning.rule_sets`, `planning.rule_parameters`, `planning.policy_versions`. A trip id is unique within a plan and stable across versions while the trip carries the same orders, whichever vehicle carries it.
 
 **The constraint registry.** Every rule is a named unit reporting pass, fail with a human-readable reason, and remaining slack:
 
@@ -351,6 +351,7 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 | `vehicle.fault_reported`, `road.disruption_reported` | Dispatcher | yes | The dispatcher decides the vehicle's status |
 | `receipt.disputed` | Dispatcher | yes | The store disagrees with what arrived |
 | `vehicle.status_changed` | Dispatcher | no | Fleet availability changed. Reference does not publish it yet |
+| `message.posted` | The depot's dispatcher, for every message; the loaders, the driver, or the outlets the message is for (R-NOT-14) | yes | Someone wrote on a trip's thread (issue #136) |
 
 A driver is pushed only trip-level events (R-NOT-08), and whoever caused an event is not told about it (R-NOT-07).
 
@@ -422,8 +423,64 @@ A driver is pushed only trip-level events (R-NOT-08), and whoever caused an even
 
 **Connections.**
 - Consumes `plan.published` and `plan.revised`.
-- Reads Planning (`PlanQuery.plan`), Ordering (`order`, `dailyVolumes`), Execution (`actuals`) and Reference (outlets, vehicles, travel, calendar, traffic speed, road conditions) through their contracts.
+- Reads Planning (`PlanQuery.plan`), Ordering (`order`, `dailyVolumes`, `bookedVolumes`), Execution (`actuals`) and Reference (outlets, vehicles, travel, calendar, traffic speed, road conditions) through their contracts.
 - Planning reads `PredictionQuery.planScoring` for `plannedWithoutPredictor`, lazily, so it still works without this module.
+
+---
+
+## 13. Messaging (`messaging`)
+
+**Built** (issue #136, ADR-004). What was built is in [the walkthrough](../issues/136-messaging/WALKTHROUGH.md).
+
+**Purpose.** One conversation per subject. A trip's thread joins the people working that trip:
+- the depot's dispatcher;
+- the depot's loaders;
+- the vehicle's driver;
+- the stores on it.
+
+People write to each other there, and every field report about the trip lands on it as a warning for the dispatcher.
+
+| Layer | Contents |
+| --- | --- |
+| contract | `MessagingCommands` (`message:Post`, `message:Read`), `MessagingEvents` (`MessagePosted`), `MessagingViews` (`ThreadView`, `MessageView`, `MessagePage`, `ReportMarkView`, `MemberView`) |
+| domain | `MessagePolicy`: who belongs how, who may write to whom, reports, the posting window, voice notes (R-MSG-01 to R-MSG-06) |
+| application | `PostMessageHandler`, `MessagingConsumers` (`OnPlanPublished`, `OnPlanRevised`, `OnIssueRaised`), `MessagingQuery`, `VoiceNotes` |
+| infrastructure | `JdbcThreadRepository` |
+| web | `ThreadController`: `/api/threads/by-subject?type=trip&id=`, `/{id}`, `/{id}/messages` (keyset, newest first), `/{id}/members`, `/reports?depot=&date=`, and voice notes at `/{id}/voice/{voiceNoteId}` (PUT upload, GET audio) |
+
+**Owns:** `messaging.threads`, `messaging.messages`, `messaging.voice_notes`.
+
+**Who belongs and who reads what (R-MSG-01).** Row-level security answers both from the thread's own row through `app.actor_oversees_depot`, `app.actor_has_depot` with the loader role, `app.actor_drives` and `app.actor_has_outlet`. A driver's or a loader's depot grant never makes them the dispatcher.
+- **The dispatcher** reads every message.
+- **Anyone else** reads messages for everyone, messages addressed to them, and their own.
+
+**Who writes to whom (R-MSG-02, R-MSG-03).**
+- **The dispatcher** writes to the driver, the loaders, one outlet or everyone.
+- **The driver** writes to the dispatcher, or to an outlet on the trip.
+- **A loader or a store manager** writes to the dispatcher only.
+- **A report**, typed or voice, goes to the dispatcher alone.
+
+**Reports from the field (R-MSG-05).** `issue.raised` becomes a report on its trip's thread, once per event, naming the role that reported it:
+- the loader's shortfall;
+- the driver's fault, road disruption or failed delivery;
+- the store's dispute, stock discrepancy or damaged goods.
+
+The trip is found through the issue's trip, delivery or order subject (`ExecutionQuery`), or the vehicle's trip that day. It publishes nothing: `issue.raised` already told the dispatcher.
+
+**Voice (R-MSG-06).**
+- The phone uploads the audio first under its own id, then posts the message carrying it, so a retry stores it once.
+- The audio must be WebM, Ogg, MP4/AAC or MP3, at most 2 MB and 120 seconds.
+- It is heard by its author and by whoever may see its message.
+
+**Publishes:** `message.posted` (never the body; an excerpt for the notification).
+**Consumes:** `plan.published`, `plan.revised` (open or widen each trip's thread; never narrowed), `issue.raised`.
+**Queries used:** `IssueQuery.issue`, `ExecutionQuery.deliveryRecord`, `ExecutionQuery.deliveryForOrder`, `IdentityQuery` (`driverOn`, `scopeOf`), `PersonQuery`.
+
+**Invariants.**
+- Messages and voice notes are append only and never deleted.
+- A thread is opened and widened by the system alone.
+- A thread takes posts until the end of the day after its service date, then it is read only (R-MSG-04).
+- Bodies and audio are personal communication: never logged.
 
 ---
 
@@ -500,6 +557,7 @@ Modules connect three ways: a contract query (synchronous, read only), an event 
 | `PlanQuery.previewInterchange` | Loading | Planning |
 | `PredictionQuery` (plan scoring, degradable) | Planning | Intelligence |
 | `CatalogueQuery` | store UI, admin | Warehouse |
+| `IssueQuery.issue`, `ExecutionQuery.deliveryRecord`, `deliveryForOrder` | Messaging | Issues, Execution |
 | audit row, written in the same transaction | all | platform |
 
 **Event catalogue.** Envelope `{eventId (UUIDv7), type, version, occurredAt, producer, correlationId, actorId, payload}`. Each consumer records `(consumer, eventId)` so a redelivery is a no-op.
@@ -509,7 +567,7 @@ Modules connect three ways: a contract query (synchronous, read only), an event 
 | `order.placed`, `order.amended`, `order.cancelled` | Ordering | Planning, Warehouse (cancel), Notification |
 | `order.auto_deferred` | Ordering | Notification |
 | `orders.closed` | Ordering | Planning |
-| `plan.published`, `plan.revised` | Planning | Ordering, Loading, Execution, Notification, Intelligence |
+| `plan.published`, `plan.revised` | Planning | Ordering, Loading, Execution, Notification, Intelligence, Messaging |
 | `order.deferred`, `order.unservable` | Planning | Ordering, Notification |
 | `plan.store_contacted` | Planning | Notification |
 | `loading.started` | Loading | Ordering, Notification |
@@ -520,10 +578,11 @@ Modules connect three ways: a contract query (synchronous, read only), an event 
 | `vehicle.fault_reported`, `road.disruption_reported` | Execution | Issues, Notification |
 | `receipt.confirmed`, `receipt.disputed`, `receipt.auto_closed` | Receipt | Ordering, Issues, Notification |
 | `receipt.handover_confirmed` | Receipt | Notification |
-| `issue.raised`, `issue.resolved`, `issue.escalated` | Issues | Notification |
+| `issue.raised`, `issue.resolved`, `issue.escalated` | Issues | Notification, Messaging (`issue.raised`) |
 | `shortfall.resolved` | Issues | Loading |
 | `redelivery.requested` | Issues | Ordering |
 | `warehouse.order_status_changed` | Warehouse | Ordering, Notification |
 | `warehouse.discrepancy_found` | Warehouse | Issues |
 | `catalogue.synced` | Warehouse | Ordering |
 | `reference.version_published`, `vehicle.status_changed`, `calendar.overridden` | Reference | Planning, Notification |
+| `message.posted` | Messaging | Notification |

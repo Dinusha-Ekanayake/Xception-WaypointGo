@@ -34,6 +34,7 @@ import java.util.UUID;
  *     dispatcher (rule 8)
  * @param improvement what the engine's second pass achieved over its first,
  *     kept through every version of the draft (issue #92)
+ * @param cost what the cost stage did, or why it did not run (R-PLN-39)
  * @param marks the decisions a dispatcher took on an order, and whether it is
  *     held in place; an order with no entry is the engine's and free (rule 8)
  */
@@ -51,6 +52,7 @@ public record PlanningRun(
     boolean partial,
     String engine,
     Optional<ScarceFleetReplan.Summary> improvement,
+    Optional<CostReplan.Summary> cost,
     List<VehicleDay> days,
     List<OrderDecision> decisions,
     Map<UUID, UUID> deferredBy,
@@ -113,12 +115,12 @@ public record PlanningRun(
         .forEach(d -> by.put(d.orderId(), engineActor));
     return new PlanningRun(
         planId, depotCode, serviceDate, planVersion, PlanStatus.DRAFT, stamps, supersedes, Optional.empty(),
-        demandFingerprint, false, result.partial(), result.engine(), result.improvement(), result.days(),
+        demandFingerprint, false, result.partial(), result.engine(), result.improvement(), result.cost(), result.days(),
         result.decisions(), by, Map.of(), 1);
   }
 
   public AllocationResult result() {
-    return new AllocationResult(days, decisions, partial, engine, improvement);
+    return new AllocationResult(days, decisions, partial, engine, improvement, cost, Optional.empty());
   }
 
   /**
@@ -140,7 +142,7 @@ public record PlanningRun(
     }
     return new PlanningRun(
         planId, depotCode, serviceDate, planVersion, status, stamps, supersedes, revisionReason, demandFingerprint,
-        stale, partial, engine, improvement, days, next, by, kept(carried, next), rowVersion);
+        stale, partial, engine, improvement, cost, days, next, by, kept(carried, next), rowVersion);
   }
 
   public Optional<Mark> markOf(UUID orderId) {
@@ -433,6 +435,17 @@ public record PlanningRun(
    * takes the trip {@code out} leaves, on the same vehicle (the whole day is checked).
    */
   public Proposed proposeSwap(PlanOrder out, PlanOrder in, ConstraintRegistry registry, PlanContext context) {
+    return proposeSwap(out, in, List.of(), registry, context);
+  }
+
+  /**
+   * The swap with the trip's stops in the order a dispatcher gave, so a swap and a
+   * new stop order are judged, and applied, as one change (R-PLN-19, R-PLN-13).
+   * An empty {@code sequence} leaves the order to the timeline. A sequence names
+   * every order of the trip after the swap exactly once, the incoming one included.
+   */
+  public Proposed proposeSwap(
+      PlanOrder out, PlanOrder in, List<UUID> sequence, ConstraintRegistry registry, PlanContext context) {
     OrderDecision leaving = decisionOrThrow(out.orderId());
     OrderDecision entering = decisionOrThrow(in.orderId());
     if (leaving.decision() != AllocationDecision.SERVED || leaving.vehicleId().isEmpty()) {
@@ -448,11 +461,23 @@ public record PlanningRun(
     VehicleDay base = dayOf(leaving.vehicleId().get()).without(out.orderId());
     int trip = leaving.tripNumber().orElseThrow();
     int trips = base.trips().size();
-    VehicleDay placed = trip <= trips ? base.withJoined(trip, in) : base.withNewTrip(in);
-    return new Proposed(
-        placed,
-        placed.tripNumberOf(in.orderId()).orElseThrow(),
-        registry.evaluate(new Candidate(placed, context, Set.of())));
+    VehicleDay joined = trip <= trips ? base.withJoined(trip, in) : base.withNewTrip(in);
+    int tripNumber = joined.tripNumberOf(in.orderId()).orElseThrow();
+    VehicleDay placed = sequence.isEmpty() ? joined : withSequence(joined, tripNumber, sequence);
+    return new Proposed(placed, tripNumber, registry.evaluate(new Candidate(placed, context, Set.of())));
+  }
+
+  /** The day with one trip's stops in the given order, which must name every order of the trip once. */
+  private static VehicleDay withSequence(VehicleDay day, int tripNumber, List<UUID> orderIds) {
+    Trip trip = day.trip(tripNumber);
+    Set<UUID> onTrip = trip.orders().stream().map(PlanOrder::orderId).collect(java.util.stream.Collectors.toSet());
+    if (orderIds.size() != onTrip.size() || !onTrip.equals(new java.util.HashSet<>(orderIds))) {
+      throw new DomainException(
+          ErrorCode.VALIDATION_FAILED, "name every order of " + day.vehicleId() + " trip " + tripNumber + " exactly once");
+    }
+    List<Trip> next = new ArrayList<>(day.trips());
+    next.set(tripNumber - 1, trip.withSequence(orderIds));
+    return new VehicleDay(day.vehicle(), next);
   }
 
   /**
@@ -469,8 +494,22 @@ public record PlanningRun(
       UUID actor,
       ConstraintRegistry registry,
       PlanContext context) {
+    return swap(nextPlanId, nextVersion, out, in, List.of(), reason, actor, registry, context);
+  }
+
+  /** The swap, with the trip's stop order when the dispatcher fixed one in the same window. */
+  public PlanningRun swap(
+      UUID nextPlanId,
+      int nextVersion,
+      PlanOrder out,
+      PlanOrder in,
+      List<UUID> sequence,
+      String reason,
+      UUID actor,
+      ConstraintRegistry registry,
+      PlanContext context) {
     requireOpenDraft();
-    Proposed proposed = proposeSwap(out, in, registry, context);
+    Proposed proposed = proposeSwap(out, in, sequence, registry, context);
     refuseFailures("swap", proposed.checks());
     List<VehicleDay> next = new ArrayList<>(days);
     next.removeIf(d -> d.vehicleId().equals(proposed.day().vehicleId()));
@@ -608,6 +647,104 @@ public record PlanningRun(
     return successor(nextPlanId, nextVersion, next, changed, deferredBy, marks, moved, registry, context);
   }
 
+  /**
+   * What one trip would be holding exactly {@code orders}, in that order: orders
+   * not named leave it (deferred), orders named from elsewhere join it (from the
+   * deferred list or from another trip, which loses them), and the stops run in
+   * the order given. An empty list removes the trip. The vehicle's whole day is
+   * judged, so the dispatcher can try changes until every rule passes (R-PLN-42).
+   */
+  public Proposed proposeTripEdit(
+      String vehicleId, int tripNumber, List<PlanOrder> orders, ConstraintRegistry registry, PlanContext context) {
+    VehicleDay day = dayOf(vehicleId);
+    if (tripNumber < 1 || tripNumber > day.trips().size()) {
+      throw new DomainException(ErrorCode.NOT_FOUND, vehicleId + " has no trip " + tripNumber + " in plan " + planId);
+    }
+    List<UUID> ids = orders.stream().map(PlanOrder::orderId).toList();
+    if (new java.util.HashSet<>(ids).size() != ids.size()) {
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, "name each order of the trip once");
+    }
+    for (UUID id : ids) {
+      decisionOrThrow(id);
+    }
+    Trip trip = day.trip(tripNumber);
+    List<Trip> trips = new ArrayList<>();
+    for (int i = 1; i <= day.trips().size(); i++) {
+      if (i == tripNumber) {
+        trips.add(new Trip(trip.brand(), trip.district(), trip.temperature(), orders, ids));
+      } else {
+        Trip other = day.trip(i);
+        for (UUID id : ids) {
+          other = other.without(id);
+        }
+        trips.add(other);
+      }
+    }
+    VehicleDay placed = new VehicleDay(day.vehicle(), trips);
+    int number = ids.isEmpty() ? 0 : placed.tripNumberOf(ids.get(0)).orElseThrow();
+    return new Proposed(placed, number, registry.evaluate(new Candidate(placed, context, Set.of())));
+  }
+
+  /** Applies {@link #proposeTripEdit} as one new draft version, or nothing when a rule refuses it. */
+  public PlanningRun editTrip(
+      UUID nextPlanId,
+      int nextVersion,
+      String vehicleId,
+      int tripNumber,
+      List<PlanOrder> orders,
+      String reason,
+      UUID actor,
+      ConstraintRegistry registry,
+      PlanContext context) {
+    requireOpenDraft();
+    Set<UUID> before = dayOf(vehicleId).trip(tripNumber).orders().stream().map(PlanOrder::orderId)
+        .collect(java.util.stream.Collectors.toSet());
+    Proposed proposed = proposeTripEdit(vehicleId, tripNumber, orders, registry, context);
+    refuseFailures("trip edit", proposed.checks());
+    Set<UUID> kept = orders.stream().map(PlanOrder::orderId).collect(java.util.stream.Collectors.toSet());
+    Set<UUID> removed = new java.util.HashSet<>(before);
+    removed.removeAll(kept);
+    Set<UUID> added = new java.util.HashSet<>(kept);
+    added.removeAll(before);
+
+    List<VehicleDay> next = new ArrayList<>();
+    for (VehicleDay d : days) {
+      if (d.vehicleId().equals(vehicleId)) {
+        next.add(proposed.day());
+        continue;
+      }
+      VehicleDay lighter = d;
+      for (UUID id : added) {
+        lighter = lighter.without(id);
+      }
+      next.add(lighter);
+    }
+    Map<UUID, UUID> by = new HashMap<>(deferredBy);
+    Map<UUID, Mark> hand = new HashMap<>(marks);
+    Set<UUID> keepReason = new java.util.HashSet<>(removed);
+    keepReason.addAll(added);
+    List<OrderDecision> changed =
+        decisions.stream()
+            .map(
+                d -> {
+                  if (removed.contains(d.orderId())) {
+                    by.put(d.orderId(), actor);
+                    hand.put(d.orderId(), new Mark(Source.MANUAL_DEFER, actor, false));
+                    return new OrderDecision(
+                        d.orderId(), AllocationDecision.DEFERRED, Optional.empty(), Optional.empty(),
+                        Optional.of(MANUAL_DEFERRAL_RULE), "deferred by dispatcher: taken off its trip: " + reason, List.of());
+                  }
+                  if (added.contains(d.orderId())) {
+                    by.remove(d.orderId());
+                    hand.put(d.orderId(), new Mark(Source.OVERRIDE, actor, false));
+                    return served(d.orderId(), "override: added to the trip by dispatcher: " + reason);
+                  }
+                  return d;
+                })
+            .toList();
+    return successor(nextPlanId, nextVersion, next, changed, by, hand, keepReason, registry, context);
+  }
+
   private static void refuseFailures(String what, List<ConstraintResult> checks) {
     List<ConstraintResult> failed = checks.stream().filter(r -> !r.passed()).toList();
     if (!failed.isEmpty()) {
@@ -735,7 +872,7 @@ public record PlanningRun(
     }
     return new PlanningRun(
         nextPlanId, depotCode, serviceDate, nextVersion, PlanStatus.DRAFT, nextStamps, nextSupersedes,
-        nextReason, nextFingerprint, false, partial, engine, improvement, nextDays, refreshed, nextDeferredBy,
+        nextReason, nextFingerprint, false, partial, engine, improvement, cost, nextDays, refreshed, nextDeferredBy,
         kept(nextMarks, refreshed), 1);
   }
 

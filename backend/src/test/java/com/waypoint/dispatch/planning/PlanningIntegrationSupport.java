@@ -1,5 +1,6 @@
 package com.waypoint.dispatch.planning;
 
+import com.waypoint.dispatch.planning.application.PlanGenerationWorker;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -20,6 +21,7 @@ import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.referencedata.application.ImportReferenceDataHandler;
 import com.waypoint.dispatch.referencedata.contract.ReferenceQuery;
 import com.waypoint.dispatch.referencedata.contract.ReferenceViews.OutletView;
+import com.waypoint.dispatch.support.TestDates;
 import jakarta.servlet.http.Cookie;
 import java.math.BigDecimal;
 import java.nio.file.Path;
@@ -31,7 +33,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.junit.jupiter.api.BeforeAll;
@@ -65,6 +66,7 @@ abstract class PlanningIntegrationSupport {
   @Autowired ObjectMapper mapper;
   @Autowired Migrator migrator;
   @Autowired Database database;
+  @Autowired PlanGenerationWorker worker;
   @Autowired AccountAdminUseCase accounts;
   @Autowired LoginHandler login;
   @Autowired ImportReferenceDataHandler referenceImport;
@@ -117,8 +119,7 @@ abstract class PlanningIntegrationSupport {
             .min(Comparator.comparing(OutletView::outletId))
             .orElseThrow();
     serviceDate =
-        reference.nextOperatingDay(
-            LocalDate.of(2045, 1, 1).plusDays(ThreadLocalRandom.current().nextInt(0, 15_000)));
+        TestDates.unusedDay(reference::nextOperatingDay);
 
     String run = UUID.randomUUID().toString().substring(0, 8);
     String here = "pcd-" + run + "@planning.test";
@@ -156,9 +157,27 @@ abstract class PlanningIntegrationSupport {
     return id;
   }
 
+  /**
+   * Generate, then run the queued job as the worker would (R-PLN-41), and answer
+   * what the job wrote: the draft's id, versions and counts.
+   */
   JsonNode generate(Cookie session, int expected) throws Exception {
     String body = send(session, envelope("plan:Generate", null, generatePayload()), expected);
-    return expected == 200 ? mapper.readTree(body).get("result") : mapper.readTree(body);
+    if (expected != 200) {
+      return mapper.readTree(body);
+    }
+    return finishJob(session, mapper.readTree(body).get("result"));
+  }
+
+  /** Runs the queued generation and reads its result; fails the test if the job did not finish. */
+  JsonNode finishJob(Cookie session, JsonNode queued) throws Exception {
+    worker.runPending();
+    JsonNode job = mapper.readTree(read(session,
+        "/api/plans/jobs/" + queued.get("jobId").asText() + "?depot=" + depot, 200));
+    if (!"DONE".equals(job.get("status").asText())) {
+      throw new AssertionError("generation did not finish: " + job);
+    }
+    return job.get("result");
   }
 
   String generatePayload() {

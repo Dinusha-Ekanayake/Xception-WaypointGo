@@ -32,3 +32,29 @@ export function ruleLabel(ruleId: string | null | undefined): string {
   if (!ruleId) return "";
   return RULE_LABEL[ruleId] ?? "Another rule";
 }
+
+/** The same rules when they pass, for a check shown as met ("✓ Fits on the vehicle"). */
+export const RULE_PASSED_LABEL: Record<string, string> = {
+  "R-FLT-03": "Vehicle available",
+  "R-PLN-01": "One brand and district",
+  "R-PLN-02": "Refrigerated where needed",
+  "R-PLN-03": "Van-only outlets on a van",
+  "R-PLN-04": "All from this depot",
+  "R-PLN-05": "No order split",
+  "R-PLN-06": "Fits on the vehicle",
+  "R-PLN-07": "Trips fit the day",
+  "R-PLN-09": "Within the Fresh time budget",
+  "R-PLN-10": "Within the Style and Tech time budget",
+  "R-PLN-12": "Travel times known",
+  "R-PLN-13": "Delivery windows met",
+  "R-PLN-16": "Weekly fuel within quota",
+  "R-PLN-22": "Fits a vehicle",
+  "R-PLN-29": "Mall windows met",
+  "R-PLN-30": "Windows long enough to serve",
+  "R-PLN-31": "One temperature per trip",
+};
+
+/** A check in words: what it met when it passed, what stopped it when it failed. */
+export function checkLabel(ruleId: string, passed: boolean): string {
+  return passed ? (RULE_PASSED_LABEL[ruleId] ?? "Rule met") : ruleLabel(ruleId);
+}

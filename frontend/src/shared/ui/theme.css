@@ -99,3 +99,67 @@
   --color-go-info-tint: #172e45;
   --shadow-go-card: 0 6px 24px 0 rgba(0, 0, 0, 0.4);
 }
+
+/*
+ * Installed apps (issue #201): `short:` is a phone held sideways, with little
+ * height, so bars compact and actions sit beside the content, not below it.
+ * Bars at the bottom pad with max(their own padding, env(safe-area-inset-
+ * bottom)) so the home bar never covers them once the app draws edge to edge
+ * (`viewportFit: cover` in app/layout.tsx); in a browser tab the inset is zero.
+ */
+@custom-variant short (@media (orientation: landscape) and (max-height: 500px));
+
+/*
+ * Motion (UX plan, Tier 3). One curve and three lengths for the whole app:
+ * 150 ms for presses and exits, 200 ms for fades, 250 ms for sheets and
+ * drawers. Nothing waits on an animation, and reduced motion removes them
+ * (app/globals.css). Entrances fill backwards only: a transform left on a
+ * finished panel would trap any fixed sheet opened from inside it.
+ */
+@theme {
+  --ease-go-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-go-in: cubic-bezier(0.4, 0, 1, 1);
+  --animate-fade-in: go-fade-in 200ms var(--ease-go-out) backwards;
+  --animate-rise-in: go-rise-in 200ms var(--ease-go-out) backwards;
+  --animate-pop: go-pop 200ms var(--ease-go-out);
+  --animate-sheet-up: go-sheet-up 250ms var(--ease-go-out) backwards;
+  --animate-slide-in-end: go-slide-in-end 250ms var(--ease-go-out) backwards;
+
+  @keyframes go-fade-in { from { opacity: 0; } }
+  @keyframes go-fade-out { to { opacity: 0; } }
+  @keyframes go-rise-in { from { opacity: 0; transform: translateY(8px) scale(0.98); } }
+  @keyframes go-rise-out { to { opacity: 0; transform: translateY(8px) scale(0.98); } }
+  @keyframes go-sheet-up { from { transform: translateY(100%); } }
+  @keyframes go-sheet-down { to { transform: translateY(100%); } }
+  @keyframes go-slide-in-end { from { transform: translateX(100%); } }
+  @keyframes go-slide-out-end { to { transform: translateX(100%); } }
+  @keyframes go-pop { 50% { transform: scale(1.12); } }
+}
+
+/* Admin's screens were written with `animate-in fade-in`; this makes them fade as meant. */
+@utility animate-in {
+  animation: go-fade-in 200ms var(--ease-go-out) backwards;
+}
+
+/*
+ * Overlays: the backdrop fades, a phone's sheet rises from the bottom edge, a
+ * dialog rises a little, a drawer slides from the side. `data-closing` plays
+ * the same in reverse before the overlay unmounts.
+ */
+.go-backdrop { animation: go-fade-in 200ms var(--ease-go-out) backwards; }
+.go-overlay[data-closing] .go-backdrop { animation: go-fade-out 150ms var(--ease-go-in) both; }
+.go-panel { overscroll-behavior: contain; }
+.go-panel-sheet { animation: go-sheet-up 250ms var(--ease-go-out) backwards; }
+.go-overlay[data-closing] .go-panel-sheet { animation: go-sheet-down 150ms var(--ease-go-in) both; }
+.go-panel-dialog { animation: go-rise-in 200ms var(--ease-go-out) backwards; }
+.go-overlay[data-closing] .go-panel-dialog { animation: go-rise-out 150ms var(--ease-go-in) both; }
+@media (min-width: 768px) {
+  .go-panel-sheet { animation-name: go-rise-in; animation-duration: 200ms; }
+  .go-overlay[data-closing] .go-panel-sheet { animation-name: go-rise-out; }
+}
+.go-panel-drawer { animation: go-sheet-up 250ms var(--ease-go-out) backwards; }
+.go-overlay[data-closing] .go-panel-drawer { animation: go-sheet-down 150ms var(--ease-go-in) both; }
+@media (min-width: 1024px) {
+  .go-panel-drawer { animation-name: go-slide-in-end; }
+  .go-overlay[data-closing] .go-panel-drawer { animation-name: go-slide-out-end; }
+}

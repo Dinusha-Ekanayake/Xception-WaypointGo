@@ -136,7 +136,7 @@ export default function Track({
           <div className="flex flex-col gap-5">
             <Card label="Need to talk">
               <h2 className="text-[18px] font-medium text-black">Need to talk?</h2>
-              <Pending what="Calling the dispatcher or the driver" waitingOn="contact numbers (not on record yet)" />
+              <Pending what="Calling the dispatcher or the driver" waitingOn="Contact numbers are not on record yet. Use Message on the delivery in Deliveries instead." />
             </Card>
 
             <Card label="Orders on this vehicle">

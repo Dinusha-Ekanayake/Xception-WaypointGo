@@ -5,15 +5,16 @@ import { Badge, PersonaIcon, VehicleTypeIcon, card, field, primary, secondary } 
 import type { DemoState, Member, Persona } from "./model";
 import type { Vehicle } from "./operations";
 import type { OutletRecord } from "./OutletsScreen";
-import { fetchAdminDepots, fetchAdminOutlets, fetchAdminVehicles } from "../data/reference";
+import { createAdminDepot, fetchAdminDepots, fetchAdminOutlets, fetchAdminVehicles } from "../data/reference";
+import { fetchOwnProfile, submitGrantScope } from "../data/accounts";
 
 export type DepotRecord = {
   id: string;
   name: string;
   badge: string;
   region: string;
-  lat: number;
-  lng: number;
+  lat?: number;
+  lng?: number;
   outlets?: string[];
 };
 
@@ -33,6 +34,9 @@ export function DepotsScreen({
   const [selectedDepotId, setSelectedDepotId] = useState<string>("PELIYAGODA");
   const [activeComponent, setActiveComponent] = useState<"people" | "vehicles" | "stores">("people");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [createError, setCreateError] = useState("");
+  const [createNotice, setCreateNotice] = useState("");
+  const [creating, setCreating] = useState(false);
   const [selectedOutlet, setSelectedOutlet] = useState<OutletRecord | null>(null);
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
 
@@ -51,8 +55,6 @@ export function DepotsScreen({
             name: d.name || `${d.code} Hub`,
             badge: "Distribution Hub",
             region: `${d.code}, Sri Lanka`,
-            lat: d.code === "KANDY" ? 7.2906 : 6.9697,
-            lng: d.code === "KANDY" ? 80.6337 : 79.8887,
             outlets: [],
           }));
           setDepots(records);
@@ -71,16 +73,16 @@ export function DepotsScreen({
           setVehiclesList(
             page.items.map((v) => ({
               id: v.vehicleId,
-              brand: "Waypoint",
+              brand: "Make unavailable",
               type: v.type?.toLowerCase() === "truck" ? "Truck" : "Van",
-              depot: v.depot || "PELIYAGODA",
-              weightCapKg: Number(v.weightCapKg) || 1200,
-              volumeCapM3: Number(v.volumeCapM3) || 8.5,
-              fuelType: "Diesel",
-              weeklyFuelQuotaL: Number(v.weeklyFuelQuotaL) || 280,
-              fuelEfficiencyKmPerL: Number(v.kmPerL) || 10,
+              depot: v.depot,
+              weightCapKg: Number(v.weightCapKg),
+              volumeCapM3: Number(v.volumeCapM3),
+              fuelType: v.fuelType,
+              weeklyFuelQuotaL: Number(v.weeklyFuelQuotaL),
+              fuelEfficiencyKmPerL: Number(v.kmPerL),
               temp: v.temperature?.toLowerCase().includes("chilled") ? "Chilled (Refrigerated)" : "Ambient",
-              status: v.dayStatus === "workshop" || v.dayStatus === "in_workshop" ? "Workshop" : v.dayStatus === "on_route" ? "On trip" : "Available",
+              status: v.dayStatus === "in_workshop" ? "Workshop" : v.dayStatus === "unavailable" ? "Unavailable" : "Available",
             }))
           );
         }
@@ -96,19 +98,14 @@ export function DepotsScreen({
               id: o.outletId,
               name: `Outlet ${o.outletId}`,
               brand: (o.brand === "Style" || o.brand === "Tech" ? o.brand : "Fresh") as "Fresh" | "Style" | "Tech",
-              tempZone: o.brand === "Fresh" ? "Ambient Fresh" : "Ambient Standard",
               district: o.district || "",
-              depot: o.depot || "",
+              depot: o.depot,
               dockType: (o.dockType === "rear_dock" || o.dockType === "mall_bay" ? o.dockType : "street") as "rear_dock" | "street" | "mall_bay",
               dockDetails: `Unloading capability: ${o.dockType || "standard"}`,
-              windowOpen: o.windowOpen || "08:00",
-              windowClose: o.windowClose || "17:00",
-              windowNotes: `Time window: ${o.windowOpen || "08:00"} - ${o.windowClose || "17:00"}`,
-              storeManager: "Assigned Manager",
-              managerPhone: "+94 77 000 0000",
-              managerEmail: `store.${o.outletId.toLowerCase()}@waypoint.lk`,
-              address: `${o.district || "Commercial District"}, Sri Lanka`,
-              maxVehicleType: o.dockType === "street" ? "Van Only" : "Van & Truck",
+              windowOpen: o.windowOpen,
+              windowClose: o.windowClose,
+              windowNotes: `Time window: ${o.windowOpen} - ${o.windowClose}`,
+              maxVehicleType: o.parking === "van_only" ? "Van Only" : "Van & Truck",
             }))
           );
         }
@@ -137,10 +134,8 @@ export function DepotsScreen({
   // New Depot form draft
   const [newDepotName, setNewDepotName] = useState("");
   const [newDepotCode, setNewDepotCode] = useState("");
-  const [newDepotRegion, setNewDepotRegion] = useState("");
   const [newDepotLat, setNewDepotLat] = useState("");
   const [newDepotLng, setNewDepotLng] = useState("");
-  const [newDepotOutletsInput, setNewDepotOutletsInput] = useState("");
 
   const currentDepot = useMemo(() => {
     return depots.find((d) => d.id === selectedDepotId) || depots[0];
@@ -148,6 +143,7 @@ export function DepotsScreen({
 
   // People belonging to this depot (Only Drivers & Store Managers are bound to a depot)
   const depotPeople = useMemo(() => {
+    if (!currentDepot) return [];
     return state.members.filter((m) => {
       const isDriver = m.personas.includes("driver");
       const isStoreMgr = m.personas.includes("store_manager");
@@ -170,12 +166,13 @@ export function DepotsScreen({
 
       return false;
     });
-  }, [state.members, currentDepot.id]);
+  }, [state.members, currentDepot, outletsList]);
 
   // Vehicles stationed at this depot
   const depotVehicles = useMemo(() => {
+    if (!currentDepot) return [];
     return vehiclesList.filter((v) => v.depot === currentDepot.id);
-  }, [vehiclesList, currentDepot.id]);
+  }, [vehiclesList, currentDepot]);
 
   // Outlets connected to this depot
   const depotOutlets = useMemo(() => {
@@ -233,39 +230,47 @@ export function DepotsScreen({
     });
   }, [depotOutlets, outletBrandFilter, outletDockFilter, outletSearch]);
 
-  const handleCreateDepot = () => {
-    const code = newDepotCode.trim().toUpperCase() || `DEPOT-${Date.now().toString().slice(-4)}`;
-    const name = newDepotName.trim() || `${code} Hub`;
-    const region = newDepotRegion.trim() || "Sri Lanka";
-    const lat = parseFloat(newDepotLat) || 6.9271;
-    const lng = parseFloat(newDepotLng) || 79.8612;
-
-    const parsedOutlets = newDepotOutletsInput
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-
-    const newDepot: DepotRecord = {
-      id: code,
-      name,
-      badge: "Regional Logistics Hub",
-      region,
-      lat,
-      lng,
-      outlets: parsedOutlets.length > 0 ? parsedOutlets : [`OUT-${code}-01`, `OUT-${code}-02`],
-    };
-
-    setDepots((prev) => [...prev, newDepot]);
-    setSelectedDepotId(code);
-    setIsAddModalOpen(false);
-
-    // Reset form
-    setNewDepotName("");
-    setNewDepotCode("");
-    setNewDepotRegion("");
-    setNewDepotLat("");
-    setNewDepotLng("");
-    setNewDepotOutletsInput("");
+  const handleCreateDepot = async () => {
+    setCreateError("");
+    setCreating(true);
+    let createdCode = "";
+    try {
+      const code = newDepotCode.trim().toUpperCase();
+      await createAdminDepot({ code, name: newDepotName.trim(), timezone: "Asia/Colombo",
+        latitude: newDepotLat.trim(), longitude: newDepotLng.trim(),
+        locationPrecision: "approximate" });
+      createdCode = code;
+      let accessWarning = "";
+      try {
+        const profile = await fetchOwnProfile();
+        await submitGrantScope(profile.userId, code, "depot", profile.rowVersion);
+      } catch (error) {
+        accessWarning = `Depot saved, but access could not be assigned: ${error instanceof Error ? error.message : "Try again in People & access."}`;
+      }
+      const live = await fetchAdminDepots();
+      setDepots(live.map((item) => ({ id: item.code, name: item.name,
+        badge: "Distribution Hub", region: `${item.code}, Sri Lanka`, outlets: [] })));
+      if (live.some((item) => item.code === code)) {
+        setSelectedDepotId(code);
+        setCreateNotice(`${code} was created.`);
+      } else {
+        setCreateNotice(accessWarning || `${code} was created. Assign this depot to your account in People & access to see it here.`);
+      }
+      setNewDepotName("");
+      setNewDepotCode("");
+      setNewDepotLat("");
+      setNewDepotLng("");
+      setIsAddModalOpen(false);
+    } catch (error) {
+      if (createdCode) {
+        setCreateNotice(`${createdCode} was saved, but the directory could not refresh. Reload to see it.`);
+        setIsAddModalOpen(false);
+      } else {
+        setCreateError(error instanceof Error ? error.message : "Could not create depot.");
+      }
+    } finally {
+      setCreating(false);
+    }
   };
 
   const getDockLabel = (dockType: "rear_dock" | "street" | "mall_bay") => {
@@ -301,8 +306,15 @@ export function DepotsScreen({
     }
   };
 
+  if (!currentDepot) {
+    return <div className={`${card} p-6 text-go-secondary`} role="status">
+      {liveConnected === false ? "Depots could not be loaded. Try refreshing the page." : "Loading depots..."}
+    </div>;
+  }
+
   return (
     <div className="space-y-6">
+      {createNotice && <p role="status" className="rounded-xl bg-go-subtle p-3 text-sm text-go-ink">{createNotice}</p>}
       {/* Top Bar: Single Depot Selection & Actions */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-go-rule pb-5">
         <div className="flex flex-wrap items-center gap-3">
@@ -322,7 +334,7 @@ export function DepotsScreen({
           </label>
           {liveConnected !== null && (
             <Badge tone={liveConnected ? "green" : "neutral"}>
-              {liveConnected ? "Live API: GET /api/admin/reference/depots" : "Connecting..."}
+              {liveConnected ? "Live data" : "Depots unavailable"}
             </Badge>
           )}
         </div>
@@ -331,7 +343,7 @@ export function DepotsScreen({
           <button
             type="button"
             className={`${primary} flex items-center gap-2`}
-            onClick={() => setIsAddModalOpen(true)}
+            onClick={() => { setCreateError(""); setIsAddModalOpen(true); }}
           >
             <span className="text-lg leading-none" aria-hidden="true">+</span>
             <span>Add depot</span>
@@ -1075,8 +1087,9 @@ export function DepotsScreen({
             <div className="flex items-center justify-between border-b border-go-subtle pb-4">
               <div>
                 <h3 id="add-depot-title" className="text-xl font-bold text-go-ink">Add New Depot</h3>
-                <p className="text-xs text-go-secondary">Create an operational distribution hub with geo-location coordinates.</p>
+                <p className="text-xs text-go-secondary">Create a depot with an approximate location. It starts with no districts or outlets.</p>
               </div>
+
               <button
                 type="button"
                 className="grid size-9 place-items-center rounded-full text-go-secondary hover:bg-go-subtle text-lg"
@@ -1111,62 +1124,19 @@ export function DepotsScreen({
                 </label>
               </div>
 
-              <label className="block font-medium text-go-ink">
-                Region / District Description *
-                <input
-                  type="text"
-                  className={`${field} mt-1`}
-                  placeholder="e.g. Galle, Southern Province"
-                  value={newDepotRegion}
-                  onChange={(e) => setNewDepotRegion(e.target.value)}
-                />
-              </label>
-
-              {/* Geo-location coordinates */}
-              <div className="rounded-2xl border border-go-rule bg-go-subtle p-4 space-y-3">
-                <span className="block text-xs font-bold uppercase tracking-wider text-go-teal">
-                  Geo-Location Coordinates
-                </span>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="block font-medium text-go-ink">
-                    Latitude (°N) *
-                    <input
-                      type="number"
-                      step="any"
-                      className={`${field} mt-1`}
-                      placeholder="e.g. 6.0535"
-                      value={newDepotLat}
-                      onChange={(e) => setNewDepotLat(e.target.value)}
-                    />
-                  </label>
-                  <label className="block font-medium text-go-ink">
-                    Longitude (°E) *
-                    <input
-                      type="number"
-                      step="any"
-                      className={`${field} mt-1`}
-                      placeholder="e.g. 80.2210"
-                      value={newDepotLng}
-                      onChange={(e) => setNewDepotLng(e.target.value)}
-                    />
-                  </label>
-                </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block font-medium text-go-ink">Latitude *
+                  <input type="number" step="any" className={`${field} mt-1`} value={newDepotLat}
+                    onChange={(e) => setNewDepotLat(e.target.value)} />
+                </label>
+                <label className="block font-medium text-go-ink">Longitude *
+                  <input type="number" step="any" className={`${field} mt-1`} value={newDepotLng}
+                    onChange={(e) => setNewDepotLng(e.target.value)} />
+                </label>
               </div>
 
-              {/* Related Outlets */}
-              <label className="block font-medium text-go-ink">
-                Related Outlets (comma-separated codes)
-                <input
-                  type="text"
-                  className={`${field} mt-1`}
-                  placeholder="e.g. OUT-GAL-01, OUT-GAL-02, OUT045"
-                  value={newDepotOutletsInput}
-                  onChange={(e) => setNewDepotOutletsInput(e.target.value)}
-                />
-                <span className="mt-1 block text-xs text-go-secondary">
-                  Leave empty to generate initial starter outlets for this depot automatically.
-                </span>
-              </label>
+              <p className="text-xs text-go-secondary">Assign access to this depot in People &amp; access after creation.</p>
+              {createError && <p role="alert" className="text-sm text-go-danger">{createError}</p>}
             </div>
 
             <div className="mt-6 flex flex-wrap justify-end gap-3 border-t border-go-subtle pt-4">
@@ -1180,10 +1150,10 @@ export function DepotsScreen({
               <button
                 type="button"
                 className={primary}
-                disabled={!newDepotName.trim() && !newDepotCode.trim()}
+                disabled={creating || !newDepotName.trim() || !newDepotCode.trim() || !newDepotLat.trim() || !newDepotLng.trim()}
                 onClick={handleCreateDepot}
               >
-                Create depot
+                {creating ? "Creating..." : "Create depot"}
               </button>
             </div>
           </div>

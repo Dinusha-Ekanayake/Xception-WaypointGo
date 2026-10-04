@@ -213,7 +213,8 @@ public class SubmitBatchHandler {
 
     try {
       Actor commandActor = actor;
-      if (command.kind().startsWith("loading:")) {
+      // Loading work must name its loader; any other command may (#136).
+      if (command.kind().startsWith("loading:") || command.actingUserId() != null) {
         if (command.actingUserId() == null || command.clientRecordedAt() == null || operators.isEmpty()) {
           throw new DomainException(ErrorCode.FORBIDDEN,
               "Queued loading work must identify the loader who recorded it on this device");

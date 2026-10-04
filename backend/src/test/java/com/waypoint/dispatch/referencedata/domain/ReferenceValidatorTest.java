@@ -222,6 +222,21 @@ class ReferenceValidatorTest {
   }
 
   @Test
+  void anEmptyNewDepotDoesNotNeedFleetUntilItServesAnOutlet() {
+    ReferenceSnapshot original = valid();
+    ReferenceSnapshot expanded = new ReferenceSnapshot(
+        UUID.randomUUID(), original.brands(),
+        List.of(new Depot(PELIYAGODA, "Peliyagoda", ZoneId.of("Asia/Colombo")),
+            new Depot(new DepotCode("GALLE"), "Galle", ZoneId.of("Asia/Colombo"))),
+        List.copyOf(original.allDistricts()), List.copyOf(original.allOutlets()),
+        List.copyOf(original.allVehicles()), List.copyOf(original.allTravelProfiles()),
+        List.copyOf(original.allAllowances()), List.copyOf(original.allDays()));
+
+    assertEquals(List.of(), ReferenceValidator.validate(expanded,
+        new Expectations(1, 1, 2, 1)));
+  }
+
+  @Test
   void rule9_rejectsAGapInTheCalendar() {
     var withGap =
         List.of(day(LocalDate.of(2026, 2, 9)), day(LocalDate.of(2026, 2, 11)));

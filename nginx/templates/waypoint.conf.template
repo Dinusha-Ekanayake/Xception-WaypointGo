@@ -24,7 +24,7 @@ limit_req_status 429;
 # Same policy as frontend/next.config.mjs. Next.js emits inline scripts and styles
 # without a nonce, so those two stay 'unsafe-inline'; everything else is self only.
 map $host $content_security_policy {
-  default "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'";
+  default "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'";
 }
 
 # Map tiles (issue #161): the Next route fetches them from MAP_TILE_URL; nginx

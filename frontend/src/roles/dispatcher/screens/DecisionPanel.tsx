@@ -52,6 +52,9 @@ export default function DecisionPanel({
   const target = fits.find((place) => key(place) === chosen) ?? null;
   const days = allocation.lastServedOn ? daysBetween(allocation.lastServedOn, plan.serviceDate) : null;
   const askReason = open && editable && (target !== null || keeping);
+  // A swap needs a trip of the same brand, district and temperature; without one the window would have nothing to offer.
+  const canSwap = swapTrips(plan, order).length > 0;
+  const firstFit = fits[0] ?? null;
 
   return (
     <section aria-label="Decision" className="flex w-full flex-col rounded-[24px] bg-go-card shadow-go-card lg:max-h-[calc(100dvh-240px)] lg:max-w-[380px]">
@@ -97,6 +100,11 @@ export default function DecisionPanel({
               {allocation.bindingRule && <span title={allocation.bindingRule}>{` · ${ruleLabel(allocation.bindingRule)}`}</span>}
             </p>
             <p>{allocation.reason}</p>
+            {firstFit && (
+              <p className="mt-1.5 border-t border-go-warning/30 pt-1.5 font-medium text-go-teal">
+                {`Since the plan was made: fits on ${firstFit.vehicleId} trip ${firstFit.tripNumber}${firstFit.joins ? "" : " as a new trip"}`}
+              </p>
+            )}
           </div>
         )}
         {open && <CheckList checks={allocation.checks} />}
@@ -116,12 +124,13 @@ export default function DecisionPanel({
                 <TripChoice key={key(place)} place={place} checked={chosen === key(place)} only={fits.length === 1 && place.feasible} onChoose={() => (setChosen(key(place)), setKeeping(false))} />
               ))}
             </div>
-            <div>
-              <SecondaryButton disabled={actions.busy} onClick={onSwap}>
+            <div className="flex flex-col gap-1">
+              <SecondaryButton disabled={actions.busy || !canSwap} onClick={onSwap}>
                 Open swap window
               </SecondaryButton>
+              {!canSwap && <p className="text-xs text-go-secondary">No trip of the same brand, district and temperature to swap with.</p>}
             </div>
-            {askReason && <ReasonPicker label={target ? "Why are you deciding this by hand?" : "Why does it stay deferred?"} value={reason} onChange={setReason} />}
+            {askReason && <ReasonPicker required label={target ? "Why are you deciding this by hand?" : "Why does it stay deferred?"} value={reason} onChange={setReason} />}
           </>
         )}
         {!editable && open && <p className="text-[13px] text-go-secondary">This plan is read only. Revise it to decide this order.</p>}

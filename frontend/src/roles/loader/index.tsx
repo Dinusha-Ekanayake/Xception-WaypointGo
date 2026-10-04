@@ -266,10 +266,11 @@ function LoaderWorkspace({
           onSynced={setTripSync}
           onBack={back}
           actingUserId={operator.userId}
+          accountId={userId}
           refreshKey={syncKey}
         />
       ) : (
-        <DockBoard depot={depot} meId={operator.userId} trips={trips} online={online} onOpen={setOpenId} />
+        <DockBoard depot={depot} meId={operator.userId} trips={trips} online={online} onOpen={setOpenId} date={date} />
       )}
     </div>
     </div>

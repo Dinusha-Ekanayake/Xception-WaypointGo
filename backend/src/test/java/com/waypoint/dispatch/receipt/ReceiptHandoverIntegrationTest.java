@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.waypoint.dispatch.ordering.domain.Order;
 import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.support.ReceiptIssuesSupport;
+import com.waypoint.dispatch.support.TestDates;
 import java.sql.Date;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -20,7 +21,6 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.ThreadLocalRandom;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MvcResult;
@@ -283,7 +283,7 @@ class ReceiptHandoverIntegrationTest extends ReceiptIssuesSupport {
 
   /** A delivery with a record in Execution for the vehicle the test driver drives, and a receipt waiting. */
   private Order answeredDelivery() {
-    day = reference.nextOperatingDay(LocalDate.of(2040, 1, 1).plusDays(ThreadLocalRandom.current().nextInt(0, 15_000)));
+    day = TestDates.unusedDay(reference::nextOperatingDay);
     vehicle = reference.availableVehicles(depot, day, null).get(0).vehicleId();
     database.asModule(
         ModuleRole.IAM,

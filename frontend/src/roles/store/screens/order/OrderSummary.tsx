@@ -33,7 +33,7 @@ export default function OrderSummary({
   const orders = classes.filter((t) => lines(t).items > 0).length;
   return (
     <div className="fixed inset-x-0 bottom-0 z-30 flex justify-center lg:sticky lg:top-8 lg:z-auto">
-      <div className="flex w-full max-w-[720px] flex-col gap-3 rounded-t-[32px] bg-white px-6 pt-5 pb-7 shadow-[0_-5px_20px_rgba(0,0,0,0.06)] lg:rounded-[26px] lg:shadow-[0_5px_20px_rgba(0,0,0,0.09)]">
+      <div className="flex w-full max-w-[720px] flex-col gap-3 rounded-t-[32px] bg-white px-6 pt-5 pb-[max(1.75rem,env(safe-area-inset-bottom))] shadow-[0_-5px_20px_rgba(0,0,0,0.06)] lg:rounded-[26px] lg:shadow-[0_5px_20px_rgba(0,0,0,0.09)]">
         <h2 className="hidden text-[20px] font-medium text-black lg:block">Order summary</h2>
         <div className="flex flex-col rounded-[16px] bg-go-mint/70 px-4 py-3">
           <span className="text-[12px] text-go-muted">Delivery</span>

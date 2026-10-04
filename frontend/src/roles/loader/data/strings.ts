@@ -14,12 +14,28 @@ export const LANGS: Array<{ value: Lang; label: string; short: string; html: str
 
 /** [Sinhala, Tamil] for each English string. `{name}` marks a value filled in at run time. */
 const STRINGS: Record<string, [string, string]> = {
+  // Install (issue #201)
+  "Install app": ["යෙදුම ස්ථාපනය කරන්න", "செயலியை நிறுவு"],
+  "In Safari, tap Share, then Add to Home Screen. The app then opens from its own icon and keeps working with no signal.": [
+    "Safari හි Share ඔබා, Add to Home Screen තෝරන්න. එවිට යෙදුම එහි අයිකනයෙන් විවෘත වන අතර සංඥා නැතිව ද ක්‍රියා කරයි.",
+    "Safari-இல் Share-ஐத் தட்டி, Add to Home Screen-ஐத் தேர்ந்தெடுக்கவும். பின்னர் செயலி அதன் சொந்த ஐகானிலிருந்து திறந்து, சிக்னல் இல்லாமலும் வேலை செய்யும்.",
+  ],
+  "This browser may clear work saved offline when the device runs low on space.": [
+    "උපාංගයේ ඉඩ අඩු වූ විට මෙම බ්‍රව්සරය නොබැඳිව සුරැකි වැඩ මකා දැමිය හැක.",
+    "சாதனத்தில் இடம் குறையும்போது இந்த உலாவி இணைப்பின்றிச் சேமித்த வேலையை அழிக்கக்கூடும்.",
+  ],
+  "Installing keeps work saved offline when the device runs low on space.": [
+    "ස්ථාපනය කළ විට, උපාංගයේ ඉඩ අඩු වූවද නොබැඳිව සුරැකි වැඩ රැකේ.",
+    "நிறுவினால், சாதனத்தில் இடம் குறைந்தாலும் இணைப்பின்றிச் சேமித்த வேலை காக்கப்படும்.",
+  ],
   // Top bar
   "Loader": ["පටවන්නා", "ஏற்றுபவர்"],
   "Waypoint · Loader": ["Waypoint · පටවන්නා", "Waypoint · ஏற்றுபவர்"],
   "Depot {depot}": ["ගබඩාව {depot}", "கிடங்கு {depot}"],
   "Offline · {n} saved on this device": ["නොබැඳි · මෙම උපාංගයේ {n}ක් සුරැකිණි", "இணைப்பில்லை · இந்தச் சாதனத்தில் {n} சேமிக்கப்பட்டது"],
   "Offline · showing last sync": ["නොබැඳි · අවසන් සමමුහුර්තය පෙන්වයි", "இணைப்பில்லை · கடைசி ஒத்திசைவு காட்டப்படுகிறது"],
+  "Offline · showing {time}": ["නොබැඳි · {time} දත්ත පෙන්වයි", "இணைப்பில்லை · {time} தரவு காட்டப்படுகிறது"],
+  "Server unreachable · showing {time}": ["සේවාදායකය නොලැබේ · {time} දත්ත පෙන්වයි", "சேவையகம் கிடைக்கவில்லை · {time} தரவு காட்டப்படுகிறது"],
   "Sending {n}…": ["{n}ක් යවමින්…", "{n} அனுப்பப்படுகிறது…"],
   "Synced {time}": ["සමමුහුර්ත කළේ {time}", "ஒத்திசைந்தது {time}"],
   "Connecting…": ["සම්බන්ධ වෙමින්…", "இணைக்கிறது…"],
@@ -34,6 +50,7 @@ const STRINGS: Record<string, [string, string]> = {
 
   // Dock board
   "Tonight's departures": ["අද රාත්‍රී පිටත්වීම්", "இன்றிரவு புறப்பாடுகள்"],
+  "Departing {day}": ["{day} පිටත් වේ", "{day} அன்று புறப்படும்"],
   "Dock": ["පැටවුම් ස්ථානය", "ஏற்றுமிடம்"],
   "All docks · {depot}": ["සියලු පැටවුම් ස්ථාන · {depot}", "அனைத்து ஏற்றுமிடங்கள் · {depot}"],
   "Search vehicle, trip or loader": ["වාහනය, ගමන හෝ පටවන්නා සොයන්න", "வாகனம், பயணம் அல்லது ஏற்றுபவரைத் தேடு"],
@@ -220,10 +237,6 @@ const STRINGS: Record<string, [string, string]> = {
   "Settings": ["සැකසුම්", "அமைப்புகள்"],
   "Switch user": ["පරිශීලකයා මාරු කරන්න", "பயனரை மாற்று"],
   "Back": ["ආපසු", "பின்"],
-  "Appearance": ["පෙනුම", "தோற்றம்"],
-  "Light or dark theme": ["ආලෝක හෝ අඳුරු තේමාව", "ஒளி அல்லது இருண்ட தீம்"],
-  "Light": ["ආලෝක", "ஒளி"],
-  "Dark": ["අඳුරු", "இருண்ட"],
   "App language": ["යෙදුමේ භාෂාව", "செயலி மொழி"],
   "Apply changes": ["වෙනස්කම් යොදන්න", "மாற்றங்களைப் பயன்படுத்து"],
   "This device": ["මෙම උපාංගය", "இந்தச் சாதனம்"],
@@ -410,6 +423,74 @@ const STRINGS: Record<string, [string, string]> = {
   "{vehicleId} left for {serviceDate} with {stopCount} stops.": [
     "{vehicleId} නැවතුම් {stopCount} ක් සමඟ {serviceDate} සඳහා පිටත් විය.",
     "{vehicleId} {stopCount} நிறுத்தங்களுடன் {serviceDate} க்கு புறப்பட்டது.",
+  ],
+  // Trip messages (issue #136)
+  "Messages": ["පණිවිඩ", "செய்திகள்"],
+  "Messages for {vehicle}": ["{vehicle} සඳහා පණිවිඩ", "{vehicle} க்கான செய்திகள்"],
+  "Write to the dispatcher. A report of missing or damaged items goes to the dispatcher only.": [
+    "යැවීම් භාරකරුට ලියන්න. අඩු හෝ හානි වූ භාණ්ඩ ගැන වාර්තාවක් යන්නේ යැවීම් භාරකරුට පමණි.",
+    "அனுப்புநருக்கு எழுதுங்கள். காணாமல் போன அல்லது சேதமான பொருட்களின் அறிக்கை அனுப்புநருக்கு மட்டுமே செல்லும்.",
+  ],
+  "This trip has no messages yet.": ["මෙම ගමනට තවම පණිවිඩ නැත.", "இந்தப் பயணத்திற்கு இன்னும் செய்திகள் இல்லை."],
+  // The trip's thread, shared with the other roles (issue #136)
+  "No messages yet. Anything written here reaches the people it is for.": [
+    "තවම පණිවිඩ නැත. මෙහි ලියන දේ එය අදාළ අයට ලැබේ.",
+    "இன்னும் செய்திகள் இல்லை. இங்கே எழுதுவது அது யாருக்கானதோ அவர்களைச் சென்றடையும்.",
+  ],
+  "Show earlier messages": ["පෙර පණිවිඩ පෙන්වන්න", "முந்தைய செய்திகளைக் காட்டு"],
+  "Problem": ["ගැටලුව", "சிக்கல்"],
+  "Voice note": ["හඬ සටහන", "குரல் குறிப்பு"],
+  "To the dispatcher": ["යැවීම් භාරකරුට", "அனுப்புநருக்கு"],
+  "To the driver": ["රියදුරුට", "ஓட்டுநருக்கு"],
+  "To the loaders": ["පටවන්නන්ට", "ஏற்றுபவர்களுக்கு"],
+  "To {outlet}": ["{outlet} වෙත", "{outlet} க்கு"],
+  "To a store": ["වෙළඳසැලකට", "ஒரு கடைக்கு"],
+  "To everyone on the trip": ["ගමනේ සැමට", "பயணத்தில் உள்ள அனைவருக்கும்"],
+  "To {name}": ["{name} වෙත", "{name} க்கு"],
+  "Dispatcher": ["යැවීම් භාරකරු", "அனுப்புநர்"],
+  "Driver": ["රියදුරු", "ஓட்டுநர்"],
+  "Store": ["වෙළඳසැල", "கடை"],
+  "Could not send. Try again.": ["යැවිය නොහැකි විය. නැවත උත්සාහ කරන්න.", "அனுப்ப முடியவில்லை. மீண்டும் முயலவும்."],
+  "Write a message": ["පණිවිඩයක් ලියන්න", "ஒரு செய்தியை எழுது"],
+  "Send to": ["යවන්නේ", "யாருக்கு அனுப்ப"],
+  "Report a problem to the dispatcher": ["යැවීම් භාරකරුට ගැටලුවක් වාර්තා කරන්න", "அனுப்புநருக்கு ஒரு சிக்கலைப் புகாரளி"],
+  "Damaged goods": ["හානි වූ භාණ්ඩ", "சேதமடைந்த பொருட்கள்"],
+  "Other problem": ["වෙනත් ගැටලුවක්", "வேறு சிக்கல்"],
+  "Recording {time} of 2:00": ["පටිගත කරමින් {time} / 2:00", "பதிவாகிறது {time} / 2:00"],
+  "Your voice note": ["ඔබේ හඬ සටහන", "உங்கள் குரல் குறிப்பு"],
+  "Remove": ["ඉවත් කරන්න", "நீக்கு"],
+  "This browser cannot record. Type the message instead.": [
+    "මෙම බ්‍රව්සරයට පටිගත කළ නොහැක. ඒ වෙනුවට පණිවිඩය ටයිප් කරන්න.",
+    "இந்த உலாவியால் பதிவு செய்ய முடியாது. பதிலாக செய்தியைத் தட்டச்சு செய்யவும்.",
+  ],
+  "The microphone is not allowed. Allow it in the browser to send a voice note.": [
+    "මයික්‍රෆෝනයට අවසර නැත. හඬ සටහනක් යැවීමට බ්‍රව්සරයේ එයට අවසර දෙන්න.",
+    "ஒலிவாங்கிக்கு அனுமதி இல்லை. குரல் குறிப்பை அனுப்ப உலாவியில் அனுமதி கொடுங்கள்.",
+  ],
+  "Message": ["පණිවිඩය", "செய்தி"],
+  "What happened?": ["සිදු වූයේ කුමක්ද?", "என்ன நடந்தது?"],
+  "Stop": ["නවත්වන්න", "நிறுத்து"],
+  "Voice": ["හඬ", "குரல்"],
+  "Record a voice note": ["හඬ සටහනක් පටිගත කරන්න", "குரல் குறிப்பைப் பதிவு செய்"],
+  "Voice notes need a connection": ["හඬ සටහන් සඳහා සම්බන්ධතාවයක් අවශ්‍යයි", "குரல் குறிப்புகளுக்கு இணைப்பு தேவை"],
+  "Sending": ["යවමින්", "அனுப்புகிறது"],
+  "Send": ["යවන්න", "அனுப்பு"],
+  "Offline. Voice notes need a connection.": ["නොබැඳිව ඇත. හඬ සටහන් සඳහා සම්බන්ධතාවයක් අවශ්‍යයි.", "இணைப்பில்லை. குரல் குறிப்புகளுக்கு இணைப்பு தேவை."],
+  "This thread is not yours to read": ["මෙම පණිවිඩ ඔබට කියවිය නොහැක", "இந்தச் செய்திகளை நீங்கள் படிக்க முடியாது"],
+  "Only the people on this trip can open it.": ["මෙම ගමනේ අයට පමණක් එය විවෘත කළ හැක.", "இந்தப் பயணத்தில் உள்ளவர்கள் மட்டுமே இதைத் திறக்க முடியும்."],
+  "Messages could not be refreshed": ["පණිවිඩ යාවත්කාලීන කළ නොහැකි විය", "செய்திகளைப் புதுப்பிக்க முடியவில்லை"],
+  "Showing what arrived at {time}.": ["{time} ට ලැබුණු දේ පෙන්වයි.", "{time} மணிக்கு வந்தவை காட்டப்படுகின்றன."],
+  "Check the connection and try again.": ["සම්බන්ධතාවය පරීක්ෂා කර නැවත උත්සාහ කරන්න.", "இணைப்பைச் சரிபார்த்து மீண்டும் முயலவும்."],
+  "Loading messages…": ["පණිවිඩ පූරණය වෙමින්…", "செய்திகள் ஏற்றப்படுகின்றன…"],
+  "Waiting to send": ["යැවීමට රැඳී සිටී", "அனுப்பக் காத்திருக்கிறது"],
+  "You · waiting to send": ["ඔබ · යැවීමට රැඳී සිටී", "நீங்கள் · அனுப்பக் காத்திருக்கிறது"],
+  "This trip is over. Its messages can still be read, but nobody can write here now.": [
+    "මෙම ගමන අවසන්. එහි පණිවිඩ කියවිය හැකි නමුත් දැන් කිසිවෙකුට මෙහි ලිවිය නොහැක.",
+    "இந்தப் பயணம் முடிந்தது. அதன் செய்திகளைப் படிக்கலாம், ஆனால் இனி யாரும் இங்கே எழுத முடியாது.",
+  ],
+  "Saved on this device. It sends when the connection returns.": [
+    "මෙම උපාංගයේ සුරැකිණි. සම්බන්ධතාවය ලැබුණු විට යැවේ.",
+    "இந்தச் சாதனத்தில் சேமிக்கப்பட்டது. இணைப்பு வந்ததும் அனுப்பப்படும்.",
   ],
 };
 

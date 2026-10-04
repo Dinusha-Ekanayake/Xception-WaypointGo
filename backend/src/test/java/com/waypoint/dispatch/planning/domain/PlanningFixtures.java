@@ -52,6 +52,7 @@ final class PlanningFixtures {
     int deferrals;
     int unserved = 1;
     String ref;
+    Coordinates location;
 
     Builder brand(String v) {
       brand = v;
@@ -133,6 +134,12 @@ final class PlanningFixtures {
       return this;
     }
 
+    /** An exact outlet point, so the stop is ordered by distance (R-PLN-40). */
+    Builder at(double latitude, double longitude) {
+      location = new Coordinates(latitude, longitude);
+      return this;
+    }
+
     Builder ref(String v) {
       ref = v;
       return this;
@@ -159,7 +166,8 @@ final class PlanningFixtures {
           minutes,
           deferrals,
           unserved,
-          LocalDate.of(2026, 10, 2));
+          LocalDate.of(2026, 10, 2),
+          Optional.ofNullable(location));
     }
   }
 

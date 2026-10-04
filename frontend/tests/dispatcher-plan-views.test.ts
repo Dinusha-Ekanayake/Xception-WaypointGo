@@ -16,6 +16,11 @@ import {
   largestVehicleM3,
   lastServedText,
   lateRisk,
+  riskLabel,
+  riskTone,
+  scoredByEstimate,
+  stopRisks,
+  tripRisks,
   lowLoad,
   publishBlocker,
   stopShare,
@@ -194,6 +199,29 @@ test("late risk counts trips with a stop at least 35% likely to run late", () =>
   } as unknown as PlanPredictionsView;
 
   assert.deepEqual(lateRisk(p, predictions), { high: 1, low: 2 });
+});
+
+test("each stop and trip reads its own late risk; a trip is as late as its latest stop (#119)", () => {
+  const predictions = {
+    scoring: { status: "SCORED" },
+    stops: [
+      { orderId: "o1", tripId: "t1", lateProbability: "0.05", degraded: false },
+      { orderId: "o2", tripId: "t1", lateProbability: "0.414", degraded: false },
+      { orderId: "o3", tripId: "t2", lateProbability: "0.2", degraded: true },
+    ],
+  } as unknown as PlanPredictionsView;
+
+  assert.deepEqual(stopRisks(predictions).get("o2"), { percent: 41, estimate: false });
+  assert.deepEqual(tripRisks(predictions).get("t1"), { percent: 41, estimate: false });
+  assert.deepEqual(tripRisks(predictions).get("t2"), { percent: 20, estimate: true });
+  assert.equal(riskTone(19), "low");
+  assert.equal(riskTone(20), "watch");
+  assert.equal(riskTone(35), "high");
+  assert.equal(riskLabel({ percent: 41, estimate: false }), "Late 41%");
+  assert.equal(riskLabel({ percent: 0, estimate: true }), "Late <1% · estimate", "a tiny chance is not shown as none");
+  assert.equal(riskLabel({ percent: 20, estimate: true }, "Late risk"), "Late risk 20% · estimate");
+  assert.equal(scoredByEstimate(predictions), true, "one estimated stop makes the scoring an estimate");
+  assert.equal(scoredByEstimate({ scoring: { status: "SCORED" }, stops: [] } as unknown as PlanPredictionsView), false);
 });
 
 test("every rule the engine names reads as words, never as a code", () => {

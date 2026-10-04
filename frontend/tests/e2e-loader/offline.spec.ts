@@ -42,3 +42,36 @@ test("an offline item check syncs once under the recorded operator", async ({ pa
     payload: { lineNo: 1 },
   });
 });
+
+// Issue #201: a dock tablet reloaded with no network still opens on the day's
+// trips and manifest, kept on the device, and says it is showing kept data.
+test("reloaded offline, the loader opens on the kept trip and says from when", async ({ page, context }) => {
+  const json = (body: unknown) => ({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
+  let outage = false;
+  await page.route("**/api/**", async (route) => {
+    if (outage) return route.abort("internetdisconnected");
+    const { pathname } = new URL(route.request().url());
+    const current = manifest("trip-kept", false, 4);
+    if (pathname === "/api/session") return route.fulfill(json(SESSION));
+    if (pathname === "/api/loading/trips") return route.fulfill(json(board(current)));
+    if (pathname === "/api/reference/outlets") return route.fulfill(json([]));
+    if (pathname === "/api/loading/trips/trip-kept/manifest") return route.fulfill(json(current));
+    return route.fulfill({ status: 404, body: "not mocked" });
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByRole("button", { name: /Mark item 1 of ORD0092336 loaded/ })).toBeVisible();
+  // The shell registers the worker; wait until it serves the page, so the reload below is answered offline.
+  await page.evaluate(() => navigator.serviceWorker.register("/sw.js").then(() => navigator.serviceWorker.ready).then(() => undefined));
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null);
+
+  outage = true;
+  await context.setOffline(true);
+  await page.reload();
+  // The board, from the device, says so; the held trip opens from it.
+  await expect(page.getByText(/Offline · showing \d\d:\d\d/).first()).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByRole("button", { name: /Mark item 1 of ORD0092336 loaded/ })).toBeVisible();
+  await context.setOffline(false);
+});

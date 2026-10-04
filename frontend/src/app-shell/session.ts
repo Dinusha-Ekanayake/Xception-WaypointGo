@@ -1,6 +1,6 @@
 import { request } from "@shared/api/client";
 import { ApiError } from "@shared/api/problem";
-import { prefetchesWorkingSet, type Role } from "@shared/offline";
+import { queuesWrites, type Role } from "@shared/offline";
 import { forgetCrew } from "./offlinePin.ts";
 
 // Who is signed in, according to the server. The client never decides this: it
@@ -90,9 +90,15 @@ function remembered(): Session | null {
   }
 }
 
-/** Roles whose working set is on the device, so they can work while the server is unreachable. */
+/**
+ * Roles that keep their work on the device, so they can carry on while the
+ * server is unreachable: the driver (full tier), and since issue #201 the
+ * loader and store manager (resilient), whose reads are kept too. Every write
+ * still waits in the queue and is authorized by the server when it is sent,
+ * so carrying on widens nothing. The dispatcher works online only.
+ */
 function worksOffline(session: Session): boolean {
-  return session.roles.some((role) => role !== "admin" && role !== "auditor" && prefetchesWorkingSet(role as Role));
+  return session.roles.some((role) => role !== "admin" && role !== "auditor" && queuesWrites(role as Role));
 }
 
 export async function currentSession(): Promise<SessionState> {

@@ -6,7 +6,8 @@ import PageHeader from "../PageHeader.tsx";
 import { byUrgency, punctuality, vehicleDay } from "../data/live.ts";
 import { closedOnTheirOwn, depotSummaries, filterRuns, needCards, runsOf, summaryText, type RunFilter } from "../data/liveDesk.ts";
 import { dayLabel } from "../data/scope.ts";
-import { useIssues, useLive, usePositions } from "../data/useDay.ts";
+import { useIssues, useLive, usePositions, useReports } from "../data/useDay.ts";
+import { useDispatcherInbox } from "../inbox.tsx";
 import DayPicker from "./DayTools.tsx";
 import { Retry } from "./Orders.tsx";
 import LiveMapView from "./LiveMap.tsx";
@@ -31,6 +32,8 @@ export default function Live({
   onDate,
   online,
   onOpenIssue,
+  depotFilter,
+  onDepotFilter,
 }: {
   depots: string[];
   scopeLabel: string;
@@ -38,13 +41,20 @@ export default function Live({
   onDate: (date: string) => void;
   online: boolean;
   onOpenIssue: (issueId: string) => void;
+  /** The sidebar's depot scope: the depot pills here read and set it, so there is one depot choice. */
+  depotFilter?: string;
+  onDepotFilter?: (filter: string) => void;
 }): React.JSX.Element {
   const live = useLive(depots, date);
   const positions = usePositions(depots, date);
   const issues = useIssues(depots);
+  const reports = useReports(depots, date);
+  const inbox = useDispatcherInbox();
   const [now, setNow] = useState(() => new Date());
   const [view, setView] = useState<View>("needs");
-  const [depot, setDepot] = useState("all");
+  const [localDepot, setLocalDepot] = useState("all");
+  const depot = depotFilter ?? localDepot;
+  const setDepot = onDepotFilter ?? setLocalDepot;
   const [filter, setFilter] = useState<RunFilter>("all");
   const [trip, setTrip] = useState<string | null>(null);
 
@@ -104,17 +114,18 @@ export default function Live({
           live.refresh();
           positions.refresh();
           issues.refresh();
+          reports.refresh();
         }}
         syncing={live.loading}
         tools={
-          <span className="flex items-center gap-2.5">
-          {!rowShown && <DayPicker date={date} onDate={onDate} />}
+          <span className="flex flex-wrap items-center gap-2.5">
+          {!rowShown && <DayPicker warnNotToday date={date} onDate={onDate} />}
           <Toggle
             label="View"
             value={view}
             onChange={setView}
             options={[
-              { value: "needs", label: `Needs you ${cards.length}` },
+              { value: "needs", label: `Needs you (${cards.length})` },
               { value: "map", label: "Map" },
               { value: "timeline", label: "Timeline" },
             ]}
@@ -134,14 +145,14 @@ export default function Live({
             value={filter}
             onChange={setFilter}
             options={[
-              { value: "all", label: `All ${shown.inDepot}` },
-              { value: "at-risk", label: `At risk ${shown.atRisk}` },
-              { value: "offline", label: `Offline ${shown.offline}` },
+              { value: "all", label: `All (${shown.inDepot})` },
+              { value: "at-risk", label: `At risk (${shown.atRisk})` },
+              { value: "offline", label: `Offline (${shown.offline})` },
             ]}
           />
         )}
         <span className="ml-auto">
-          <DayPicker date={date} onDate={onDate} />
+          <DayPicker warnNotToday date={date} onDate={onDate} />
         </span>
       </div>
       )}
@@ -150,14 +161,20 @@ export default function Live({
       {!online && <Notice tone="warning" title="Live updates are paused" />}
 
       {view === "needs" && (
-        <LiveNeeds cards={cards} runs={inDepot} closedOnTheirOwn={closedOnTheirOwn(inDepot)} online={online} onOpenTrip={setTrip} onOpenIssue={onOpenIssue} onViewAll={() => setView("timeline")} />
+        <LiveNeeds cards={cards} runs={inDepot} date={date} closedOnTheirOwn={closedOnTheirOwn(inDepot)} online={online} onOpenTrip={setTrip} onOpenIssue={onOpenIssue} onViewAll={() => setView("timeline")} />
       )}
 
       {view === "map" && <LiveMapView depots={depots} date={date} runs={shown.runs} positions={positions} depotName={depotName} now={now} onOpenTrip={setTrip} />}
 
       {view === "timeline" && (
         <div className="flex w-full items-start gap-[18px] max-lg:flex-col">
-          <LiveTimeline runs={shown.runs} now={now} onOpen={setTrip} />
+          <LiveTimeline
+            runs={shown.runs}
+            now={now}
+            onOpen={setTrip}
+            reports={reports.data ?? []}
+            onReport={(mark) => inbox?.openThread({ threadId: mark.threadId, messageId: mark.messageId })}
+          />
           <aside aria-label="Vehicles on the road" className="flex w-full flex-col gap-2.5 rounded-[24px] bg-white p-[18px] shadow-go-card lg:max-w-[360px]">
             <div className="flex items-baseline justify-between">
               <h2 className="text-[17px] font-medium text-go-ink">On the road</h2>

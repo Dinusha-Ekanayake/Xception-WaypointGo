@@ -28,6 +28,7 @@ import com.waypoint.dispatch.referencedata.contract.ReferenceQuery;
 import com.waypoint.dispatch.referencedata.contract.ReferenceViews.OutletView;
 import com.waypoint.dispatch.shared.event.EventEnvelope;
 import com.waypoint.dispatch.support.TestDatabase;
+import com.waypoint.dispatch.support.TestDates;
 import jakarta.servlet.http.Cookie;
 import java.math.BigDecimal;
 import java.nio.file.Path;
@@ -86,6 +87,7 @@ class IntelligenceIntegrationTest {
   @Autowired ObjectMapper mapper;
   @Autowired Migrator migrator;
   @Autowired Database database;
+  @Autowired com.waypoint.dispatch.planning.application.PlanGenerationWorker worker;
   @Autowired AccountAdminUseCase accounts;
   @Autowired LoginHandler login;
   @Autowired ImportReferenceDataHandler referenceImport;
@@ -114,8 +116,7 @@ class IntelligenceIntegrationTest {
         .filter(o -> !o.vanOnly() && o.effectiveWindowOpen().isPresent())
         .min(Comparator.comparing(OutletView::outletId))
         .orElseThrow();
-    serviceDate = reference.nextOperatingDay(
-        LocalDate.of(2045, 1, 1).plusDays(ThreadLocalRandom.current().nextInt(0, 15_000)));
+    serviceDate = TestDates.unusedDay(reference::nextOperatingDay);
     run = UUID.randomUUID().toString().substring(0, 8);
     dispatcherId = account("mld-" + run, "dispatcher", true);
     dispatcher = session("mld-" + run);
@@ -416,14 +417,55 @@ class IntelligenceIntegrationTest {
     assertEquals(0.5, supply.get("probability").asDouble(), 1e-9, "no outlet history yet: an honest half");
   }
 
+  // ---- the date outlook a store reads (issue #224, R-ML-07) ----------------------------------
+
+  @Test
+  void aStoreReadsItsDaysOutlookFromTheDepotsTotalsWithoutAForecastItIsTooEarly() throws Exception {
+    demand();
+    demand();
+    Cookie store = storeManager("mlo-" + run, outlet.outletId());
+    LocalDate to = serviceDate.plusDays(6);
+
+    JsonNode o = read(store, "/api/ml/outlook?outlet=" + outlet.outletId() + "&from=" + serviceDate + "&to=" + to, 200);
+
+    assertEquals(7, o.get("days").size());
+    assertFalse(o.get("forecast").asBoolean(), "no forecast reaches a day this far out");
+    JsonNode first = o.get("days").get(0);
+    assertEquals(serviceDate.toString(), first.get("date").asText());
+    assertEquals("TOO_EARLY", first.get("status").asText(), "1.2 m3 booked is too little to call");
+    assertTrue(first.get("load").asDouble() > 0, "the two booked orders count against the day");
+    for (JsonNode d : o.get("days")) {
+      boolean operating = reference.isOperating(LocalDate.parse(d.get("date").asText()));
+      assertEquals(!operating, "CLOSED".equals(d.get("status").asText()), d.toString());
+    }
+    assertFalse(o.toString().contains("orderId"), "totals only, never another outlet's order");
+  }
+
+  @Test
+  void anotherOutletsOutlookIsRefusedAndRecorded() throws Exception {
+    String other = reference.outletsOfDepot(depot, null).stream().map(OutletView::outletId)
+        .filter(id -> !id.equals(outlet.outletId())).findFirst().orElseThrow();
+    UUID storeId = accounts.createAccount("mlq-" + run + "@intelligence.test", "mlq", PASSWORD, "store_manager");
+    accounts.grantOutlet("mlq-" + run + "@intelligence.test", other);
+    Cookie store = session("mlq-" + run);
+    long before = denials(storeId, "ml:ReadOutlook");
+
+    read(store, "/api/ml/outlook?outlet=" + outlet.outletId() + "&from=" + serviceDate + "&to=" + serviceDate, 403);
+
+    assertEquals(before + 1, denials(storeId, "ml:ReadOutlook"));
+    read(store, "/api/ml/outlook?outlet=" + other + "&from=" + serviceDate + "&to=" + serviceDate.plusDays(40), 422);
+  }
+
   // ---- helpers --------------------------------------------------------------------------------
 
   private UUID publishedPlan() throws Exception {
     demand();
     demand();
-    JsonNode draft = result(send(dispatcher, envelope("plan:Generate", null,
+    JsonNode queued = result(send(dispatcher, envelope("plan:Generate", null,
         "{\"depotCode\":\"" + depot + "\",\"serviceDate\":\"" + serviceDate + "\"}"), 200));
-    UUID planId = UUID.fromString(draft.get("planId").asText());
+    worker.runPending();
+    JsonNode job = read(dispatcher, "/api/plans/jobs/" + queued.get("jobId").asText() + "?depot=" + depot, 200);
+    UUID planId = UUID.fromString(job.get("planId").asText());
     send(dispatcher, envelope("plan:Publish", 1L, "{\"planId\":\"" + planId + "\"}"), 200);
     deliver("ml.on-plan-published", UUID.randomUUID(),
         new PlanPublished(planId, depot, serviceDate, 1, Optional.empty(), List.of()));
@@ -497,6 +539,13 @@ class IntelligenceIntegrationTest {
       accounts.grantDepot(email, depot);
     }
     return id;
+  }
+
+  private Cookie storeManager(String prefix, String outletId) {
+    String email = prefix + "@intelligence.test";
+    accounts.createAccount(email, prefix, PASSWORD, "store_manager");
+    accounts.grantOutlet(email, outletId);
+    return session(prefix);
   }
 
   private Cookie session(String prefix) {

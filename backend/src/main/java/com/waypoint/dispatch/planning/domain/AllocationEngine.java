@@ -99,13 +99,17 @@ public interface AllocationEngine {
   /**
    * @param partial the engine ran out of time; the rest were deferred, never dropped (PLN-11)
    * @param improvement what a second pass over the first plan achieved, when one ran (issue #92)
+   * @param cost what the cost stage did, or why it did not run (R-PLN-39)
+   * @param alternative the rules plan, when the cost stage replaced it, for the dispatcher to compare
    */
   record AllocationResult(
       List<VehicleDay> days,
       List<OrderDecision> decisions,
       boolean partial,
       String engine,
-      Optional<ScarceFleetReplan.Summary> improvement) {
+      Optional<ScarceFleetReplan.Summary> improvement,
+      Optional<CostReplan.Summary> cost,
+      Optional<AllocationResult> alternative) {
 
     public AllocationResult {
       days = days.stream().filter(d -> !d.trips().isEmpty()).toList();
@@ -114,6 +118,12 @@ public interface AllocationEngine {
 
     public AllocationResult(List<VehicleDay> days, List<OrderDecision> decisions, boolean partial, String engine) {
       this(days, decisions, partial, engine, Optional.empty());
+    }
+
+    public AllocationResult(
+        List<VehicleDay> days, List<OrderDecision> decisions, boolean partial, String engine,
+        Optional<ScarceFleetReplan.Summary> improvement) {
+      this(days, decisions, partial, engine, improvement, Optional.empty(), Optional.empty());
     }
 
     public Optional<OrderDecision> decisionFor(UUID orderId) {

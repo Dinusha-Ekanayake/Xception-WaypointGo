@@ -30,9 +30,12 @@ import java.util.UUID;
  */
 public final class NotificationPolicy {
 
-  /** The events a driver is pushed (R-NOT-08). All of them happen before departure. */
+  /**
+   * The events a driver is pushed (R-NOT-08): the trip-level ones before
+   * departure, and a message on the trip's thread meant for the driver (R-NOT-14).
+   */
   public static final Set<String> DRIVER_PUSH_EVENTS =
-      Set.of("plan.published", "plan.revised", "trip.released");
+      Set.of("plan.published", "plan.revised", "trip.released", "message.posted");
 
   private NotificationPolicy() {}
 

@@ -4,6 +4,58 @@
 
 ---
 
+## 2026-10-04 - feat: UX polish 1 of 5, one motion and one overlay behaviour in every role
+
+`feat/ux-polish-motion` · @Dinusha-Ekanayake
+
+From [UX-PLAN.md](../../ux/UX-PLAN.md) section 7: one curve and three lengths (150, 200, 250 ms) in `shared/ui/theme.css`; every sheet, dialog and drawer rises or slides in, closes with Escape, keeps focus inside, gives it back and holds the page still (`useOverlay`); a phone's bottom sheet follows a swipe down and resists a pull up (`useSheetDrag`). The store's dialogs gain the Escape and focus handling they lacked. Toasts share one timing (4 s, 6 s with Undo); the driver's sheets no longer hold an action back for their animation. Reduced motion now stops animations too, and `animate-fade-in` and `animate-in`, used but never defined, work.
+Why: overlays behaved five different ways, and a sheet on a phone could only be closed by its button.
+Verified: see the PR. On the VPS preview data: the store's notifications sheet rises in at 390 px, a 200 px swipe closes it, a 45 px drag springs back; at 1440 px it slides from the side and Escape returns focus to the bell. `npm test` 216; all five browser suites, with a new store overlay spec.
+
+---
+
+## 2026-10-04 - fix: UX Tier 2 (next working day, departure day, store phone header, counts, empty states)
+
+`fix/ux-tier2` · @Dinusha-Ekanayake
+
+From [UX-PLAN.md](../../ux/UX-PLAN.md) U8 to U11 (U7 is covered by the Overview's "Tomorrow's plan" card already on `dev`, which was kept): the loader's board names the departure day when it is after tomorrow; the store's phone header keeps "Synced HH:MM" whole below 440 px (Store chip hidden, 40 px buttons); counts read "(n)" in dispatcher Issues and publish audience and store Orders and Deliveries; empty states say what happens next.
+Why: on a Sunday every role read "0" with no pointer forward, and the store's sync time was cut to "Sync…" on a phone.
+Verified: see the PR. On the VPS preview data: the store pill unclipped at 360, 390, 440 and 1440 px. `npm test` 213; all five browser suites.
+
+---
+
+## 2026-10-04 - fix: deadline-day UX, Tier 1 (driver first screen and next trip, store Next delivery, plain wording, edge header, README)
+
+`fix/ux-tier1` · @Dinusha-Ekanayake
+
+From [UX-PLAN.md](../../ux/UX-PLAN.md): the driver's Home draws at once and looks a week ahead in parallel (7.6 s to under 2 s), and names a published trip still waiting for the loader; the store's Next delivery card shows the next planned or confirmed delivery when nothing is on the way today (Figma 11:112937); pending notices speak to the user, not about modules; the edge sends `Cache-Control: no-transform` so Cloudflare stops injecting a script our CSP blocks; the README's departures are current.
+Why: judges walk these screens on production today; the booklet asks for the store's expected arrival and judges the driver on a phone.
+Verified: see the PR. On the VPS preview data: driver Home in 1.8 s with "Next trip Mon 5 Oct · VEH035 · departs 04:36"; the store card "Next delivery · Mon 5 Oct · Expected in your window 05:00-07:30". `npm test` 213; driver and store suites. The edge header takes effect with the next production deploy.
+
+---
+
+## 2026-10-04 - ci: the shell and every role's browser suite run in CI (issue #120)
+
+`chore/120-browser-suites-ci` · @Dinusha-Ekanayake
+
+A "Browser suites" job in `checks.yml` builds once and runs the shell, dispatcher (1440 px), driver (393 px), loader (393 px) and store (1440 px) suites as separate steps, each running even after another failed; one retry in CI, failures annotated on the pull request, each suite's report and traces kept 7 days. It also gates the preview and production deploys. The shell's CSP test answers its own API, as it failed on `dev` with no backend.
+Why: a screen could break with every check green.
+Verified: see the PR. A throwaway broken loader test turned the job red with only "Loader (393 px)" failed, the line annotated and the report attached; reverted, then green. About 4.5 minutes a run. [walkthrough](../../issues/120-browser-suites-ci/WALKTHROUGH.md)
+Open: making it a required check is a repository setting.
+
+---
+
+## 2026-10-04 - feat(dispatcher): late risk per trip and stop, the forecast error, counts in brackets, phone widths (issue #119)
+
+`feat/119-forecast-late-risk` · @Dinusha-Ekanayake
+
+On the teammates' Plan and Forecast screens, kept as built: a published plan tags each trip from 20% late risk and every stop with its chance (`<1%` for a tiny one, `· estimate` when the predictor was off); the Forecast shows the demand model's measured error from the registry, total and chilled, never per brand. Live, Orders and Vehicles counts read `(9)` as Isuru asked. Every dispatcher screen fits from 1440 down to 360 px.
+Why: #119 asked for late risk per stop and trip and the forecast fallback; the dispatcher overflowed on phones.
+Verified: see the PR. `npm test` 170, the dispatcher suite 42; on the VPS preview database the real registry and a published Peliyagoda plan, and no overflow at five widths. [walkthrough](../../issues/119-dispatcher-forecast-late-risk/WALKTHROUGH.md)
+Open: the preview's model service answers 500, so plans are scored by the estimate (#16).
+
+---
+
 ## 2026-10-03 - feat(execution): the run sheet carries a stop's recorded units
 
 `fix/partial-units-and-preview-cleanup` · @Dinusha-Ekanayake

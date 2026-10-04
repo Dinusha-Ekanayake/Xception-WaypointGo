@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { OutletView } from "@shared/domain/types";
-import { cx, useShell } from "@shared/ui";
+import { APP_LANGS, InstallApp, McpButton, cx, useDeviceLang, useShell } from "@shared/ui";
 import { usePush, type PushState } from "@shared/notifications/push";
 import { dockLabel } from "./data/format.ts";
 
@@ -13,7 +13,8 @@ import { dockLabel } from "./data/format.ts";
 // through the shell, which first says when writes are still waiting on this
 // device (SEC-01). Beside the sidebar on a desktop; a bottom sheet on a phone.
 // "Alerts on this device" turns push on or off (issue #118), and says why when
-// it cannot.
+// it cannot. Settings, the language and the assistant connection (MCP, issue
+// #177), sit here too, behind the manager's picture.
 
 export default function AccountMenu({
   displayName,
@@ -78,7 +79,7 @@ export default function AccountMenu({
         aria-label="Account"
         className={cx(
           "z-50 flex flex-col gap-1 bg-white p-[7px] shadow-[0_10px_30px_rgba(0,0,0,0.18)] outline-none",
-          placement === "sheet" ? "fixed inset-x-0 bottom-0 rounded-t-[28px] px-4 pt-4 pb-8" : "absolute bottom-[84px] left-5 w-[280px] rounded-[20px]",
+          placement === "sheet" ? "fixed inset-x-0 bottom-0 animate-sheet-up rounded-t-[28px] px-4 pt-4 pb-[max(2rem,env(safe-area-inset-bottom))]" : "absolute bottom-[84px] left-5 w-[280px] animate-rise-in rounded-[20px]",
         )}
       >
         <div className="flex items-center gap-3 p-2.5">
@@ -115,6 +116,7 @@ export default function AccountMenu({
             <span className="text-[12px] text-go-secondary">{item.note}</span>
           </button>
         ))}
+        <SettingsRows />
         <PushRow />
         <button
           type="button"
@@ -169,6 +171,35 @@ function PushRow(): React.JSX.Element {
         )}
       </button>
       {push.error && <p role="alert" className="px-3 text-[12px] text-go-danger-strong">{push.error}</p>}
+    </div>
+  );
+}
+
+/** Language (kept on this device; the store screens are English for now) and the assistant connection. */
+function SettingsRows(): React.JSX.Element {
+  const shell = useShell();
+  const [lang, setLang] = useDeviceLang();
+  return (
+    <div className="flex flex-col gap-2 px-3 py-2">
+      <span className="text-[14px] font-medium text-black">Language</span>
+      <div role="group" aria-label="Language" className="flex gap-1">
+        {APP_LANGS.map((l) => (
+          <button
+            key={l.value}
+            type="button"
+            lang={l.value}
+            aria-label={l.label}
+            aria-pressed={lang === l.value}
+            onClick={() => setLang(l.value)}
+            className={cx("flex min-h-10 min-w-12 items-center justify-center rounded-full px-3 text-[14px]", lang === l.value ? "bg-go-mint font-medium text-black" : "bg-go-surface text-go-muted")}
+          >
+            {l.short}
+          </button>
+        ))}
+      </div>
+      <span className="text-[12px] text-go-secondary">These screens are in English for now; your choice is kept on this device.</span>
+      <McpButton url={shell?.mcpUrl ?? null} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-go-surface text-[14px] font-medium text-black" />
+      <InstallApp className="flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-go-surface text-[14px] font-medium text-black" />
     </div>
   );
 }

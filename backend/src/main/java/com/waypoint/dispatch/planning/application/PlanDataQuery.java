@@ -16,6 +16,8 @@ import com.waypoint.dispatch.planning.contract.PlanViews.TripPreview;
 import com.waypoint.dispatch.planning.contract.PlanViews.AllocationView;
 import com.waypoint.dispatch.planning.contract.PlanViews.PlanSummaryView;
 import com.waypoint.dispatch.planning.contract.PlanViews.TripSummaryView;
+import com.waypoint.dispatch.planning.contract.PlanViews.CostView;
+import com.waypoint.dispatch.planning.contract.PlanViews.GenerationJobView;
 import com.waypoint.dispatch.planning.contract.PlanViews.ImprovementView;
 import com.waypoint.dispatch.planning.contract.PlanViews.ConstraintResultView;
 import com.waypoint.dispatch.planning.contract.PlanViews.DeferralView;
@@ -41,6 +43,7 @@ import com.waypoint.dispatch.planning.domain.PlanningRun.Placement;
 import com.waypoint.dispatch.planning.domain.PlanningRun.Proposed;
 import com.waypoint.dispatch.planning.domain.PlanningRun.TripMove;
 import com.waypoint.dispatch.planning.domain.TripTimeline;
+import com.waypoint.dispatch.planning.infrastructure.JdbcGenerationJobs;
 import com.waypoint.dispatch.planning.infrastructure.JdbcPlanRepository;
 import com.waypoint.dispatch.planning.infrastructure.JdbcPlanRepository.AllocationRow;
 import com.waypoint.dispatch.planning.infrastructure.JdbcPlanRepository.DeferralRow;
@@ -54,10 +57,13 @@ import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.referencedata.contract.ReferenceQuery;
 import com.waypoint.dispatch.referencedata.contract.ReferenceViews.VehicleView;
 import com.waypoint.dispatch.shared.domain.Actor;
+import com.waypoint.dispatch.shared.domain.Cursor;
+import com.waypoint.dispatch.shared.domain.Page;
 import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -89,6 +95,15 @@ import org.springframework.stereotype.Component;
 public class PlanDataQuery implements PlanQuery {
   public static final String READ = "plan:Read";
 
+  @Override
+  public int maxTripsFor(LocalDate serviceDate) {
+    return database.readAs(ModuleRole.PLANNING, Actor.SYSTEM_ID, () ->
+        plans.effectiveRuleSet(serviceDate)
+            .orElseThrow(() -> new DomainException(ErrorCode.CONSTRAINT_VIOLATED,
+                "No planning rule set for " + serviceDate, List.of("POL-10")))
+            .maxTrips());
+  }
+
   private final Database database;
   private final JdbcPlanRepository plans;
   private final ReferenceQuery reference;
@@ -98,6 +113,7 @@ public class PlanDataQuery implements PlanQuery {
   private final ConstraintRegistry registry;
   private final ObjectProvider<PredictionQuery> predictions;
   private final ObjectMapper json;
+  private final JdbcGenerationJobs jobs;
 
   PlanDataQuery(
       Database database,
@@ -108,7 +124,8 @@ public class PlanDataQuery implements PlanQuery {
       PlanningRevisions revisions,
       ConstraintRegistry registry,
       ObjectProvider<PredictionQuery> predictions,
-      ObjectMapper json) {
+      ObjectMapper json,
+      JdbcGenerationJobs jobs) {
     this.database = database;
     this.plans = plans;
     this.reference = reference;
@@ -118,6 +135,37 @@ public class PlanDataQuery implements PlanQuery {
     this.registry = registry;
     this.predictions = predictions;
     this.json = json;
+    this.jobs = jobs;
+  }
+
+  // ---- queued generations (R-PLN-41) ----------------------------------------------
+
+  /** One job; row-level security hides a job outside the actor's depots, which reads as not found. */
+  public GenerationJobView job(Actor actor, String depotCode, UUID jobId) {
+    requireDepot(actor, depotCode);
+    return read(actor.userId(), () -> jobs.find(jobId).filter(j -> j.depotCode().equals(depotCode)).map(this::jobView))
+        .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No plan generation " + jobId));
+  }
+
+  /** The latest job for a depot and day, so a screen opened mid-generation can follow it. */
+  public GenerationJobView latestJob(Actor actor, String depotCode, LocalDate serviceDate) {
+    requireDepot(actor, depotCode);
+    return read(actor.userId(), () -> jobs.latest(depotCode, serviceDate).map(this::jobView))
+        .orElseThrow(() -> new DomainException(
+            ErrorCode.NOT_FOUND, "No plan generation for " + depotCode + " on " + serviceDate));
+  }
+
+  private GenerationJobView jobView(JdbcGenerationJobs.JobRow j) {
+    Optional<Map<String, Object>> result = j.result().map(text -> {
+      try {
+        return json.readValue(text, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+      } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+        throw new IllegalStateException("unreadable job result", e);
+      }
+    });
+    return new GenerationJobView(j.jobId(), j.depotCode(), j.serviceDate(),
+        j.status().toUpperCase(java.util.Locale.ROOT), j.attempts(), j.planId(), j.error(), j.createdAt(),
+        j.startedAt(), j.finishedAt(), result);
   }
 
   // ---- contract: as the ambient actor --------------------------------------
@@ -168,6 +216,34 @@ public class PlanDataQuery implements PlanQuery {
     return read(
         actor.userId(),
         () -> plans.snapshots(depotCode, serviceDate).stream().map(SnapshotRecords::view).toList());
+  }
+
+  /** Keyset directory of plans visible under planning's row-level security. */
+  public Page<PlanView> adminPage(Actor actor, String depot, LocalDate date, String status,
+      String after, Integer limit) {
+    int size = Page.limit(limit);
+    List<String> cursor = Cursor.decode(after, 1);
+    UUID key = cursor.isEmpty() ? null : uuidCursor(cursor.get(0));
+    return read(actor.userId(), () -> {
+      List<UUID> ids = database.query(
+          """
+          SELECT plan_id FROM planning.runs
+           WHERE (?::text IS NULL OR depot_code = ?::text)
+             AND (?::date IS NULL OR service_date = ?::date)
+             AND (?::text IS NULL OR status = ?::text)
+             AND (?::uuid IS NULL OR plan_id > ?::uuid)
+           ORDER BY plan_id LIMIT ?
+          """, depot, depot, date == null ? null : java.sql.Date.valueOf(date),
+          date == null ? null : java.sql.Date.valueOf(date), status, status, key, key, size + 1)
+          .stream().map(r -> (UUID) r.get("plan_id")).toList();
+      List<PlanView> rows = ids.stream().map(id -> plans.findRun(id).map(this::assemble)
+          .orElseThrow(() -> new IllegalStateException("Visible plan disappeared"))).toList();
+      return Page.fromOverfetch(rows, size, row -> Cursor.encode(row.planId().toString()));
+    });
+  }
+
+  private static UUID uuidCursor(String value) {
+    try { return UUID.fromString(value); } catch (IllegalArgumentException e) { throw Cursor.invalid(); }
   }
 
   /** One saved plan with the plan itself, read only. Outside the actor's depots it is not found. */
@@ -225,8 +301,13 @@ public class PlanDataQuery implements PlanQuery {
   }
 
   /** The trip a swap would leave, and every rule's verdict, before the dispatcher commits to it. */
-  public TripPreview previewSwap(Actor actor, UUID outOrderId, UUID inOrderId) {
-    return read(actor.userId(), () -> swapPreview(outOrderId, inOrderId));
+  public TripPreview previewSwap(Actor actor, UUID outOrderId, UUID inOrderId, List<UUID> sequence) {
+    return read(actor.userId(), () -> swapPreview(outOrderId, inOrderId, sequence));
+  }
+
+  /** A trip holding exactly the orders given, in that order, timed, and every rule's verdict on the day (R-PLN-42). */
+  public TripPreview previewTripEdit(Actor actor, UUID tripId, List<UUID> orderIds) {
+    return read(actor.userId(), () -> tripEditPreview(tripId, orderIds));
   }
 
   /** The trip with its stops in the order given, timed, and every rule's verdict on it. */
@@ -414,7 +495,7 @@ public class PlanDataQuery implements PlanQuery {
         p.checks().stream().map(PlanDataQuery::toView).toList());
   }
 
-  private TripPreview swapPreview(UUID outOrderId, UUID inOrderId) {
+  private TripPreview swapPreview(UUID outOrderId, UUID inOrderId, List<UUID> sequence) {
     RunRow row =
         plans.openDraftsWithOrder(outOrderId).stream().findFirst()
             .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "order " + outOrderId + " is in no open draft"));
@@ -426,7 +507,7 @@ public class PlanDataQuery implements PlanQuery {
           ErrorCode.CONSTRAINT_VIOLATED, "an order is no longer in the demand", List.of("PLN-07"));
     }
     PlanContext context = opened.built().problem().context();
-    return tripPreview(drafts.run(opened).proposeSwap(out, in, registry, context), context);
+    return tripPreview(drafts.run(opened).proposeSwap(out, in, sequence, registry, context), context);
   }
 
   private TripPreview sequencePreview(UUID tripId, List<UUID> orderIds) {
@@ -442,6 +523,29 @@ public class PlanDataQuery implements PlanQuery {
     Place place = revisions.locate(row.planId(), tripId, run);
     PlanContext context = opened.built().problem().context();
     return tripPreview(run.proposeSequence(place.vehicleId(), place.tripNumber(), orderIds, registry, context), context);
+  }
+
+  private TripPreview tripEditPreview(UUID tripId, List<UUID> orderIds) {
+    RunRow row =
+        plans.runsWithTrip(tripId).stream().findFirst()
+            .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No live plan carries trip " + tripId));
+    if (row.status() != PlanStatus.DRAFT) {
+      throw new DomainException(
+          ErrorCode.CONFLICT, "plan " + row.planId() + " is " + row.status() + "; only a draft changes", List.of("R-PLN-28"));
+    }
+    Opened opened = drafts.rebuild(row);
+    PlanningRun run = drafts.run(opened);
+    Place place = revisions.locate(row.planId(), tripId, run);
+    PlanContext context = opened.built().problem().context();
+    List<PlanOrder> orders = new ArrayList<>();
+    for (UUID id : orderIds) {
+      PlanOrder order = opened.built().orders().get(id);
+      if (order == null) {
+        throw new DomainException(ErrorCode.CONSTRAINT_VIOLATED, "order " + id + " is no longer in the demand", List.of("PLN-07"));
+      }
+      orders.add(order);
+    }
+    return tripPreview(run.proposeTripEdit(place.vehicleId(), place.tripNumber(), orders, registry, context), context);
   }
 
   /** The proposed trip as it would run: stops in order with their arrivals, and the registry's checks. */
@@ -544,7 +648,16 @@ public class PlanDataQuery implements PlanQuery {
   }
 
   private PlanView assemble(RunRow run, boolean withoutPredictor) {
-    List<AllocationRow> allocations = plans.allocations(run.planId());
+    return assemble(run, plans.trips(run.planId()), plans.allocations(run.planId()), withoutPredictor);
+  }
+
+  /** A plan that exists only in memory, such as the rules plan beside a draft (planning v2). */
+  PlanView viewOf(PlanRecords.Rows rows) {
+    return assemble(rows.run(), rows.trips(), rows.allocations(), true);
+  }
+
+  private PlanView assemble(
+      RunRow run, List<JdbcPlanRepository.TripRow> tripRows, List<AllocationRow> allocations, boolean withoutPredictor) {
     Map<String, LocalDate> lastServed = plans.lastServed(run.depotCode(), run.serviceDate());
     Map<UUID, List<StopView>> stops =
         allocations.stream()
@@ -554,7 +667,7 @@ public class PlanDataQuery implements PlanQuery {
                     a -> a.tripId().orElseThrow(),
                     Collectors.mapping(PlanDataQuery::toStop, Collectors.toList())));
     List<TripView> trips =
-        plans.trips(run.planId()).stream()
+        tripRows.stream()
             .map(t -> toView(t, stops.getOrDefault(t.tripId(), List.of())))
             .toList();
     return new PlanView(
@@ -576,7 +689,10 @@ public class PlanDataQuery implements PlanQuery {
         run.engine(),
         run.improvement()
             .map(i -> new ImprovementView(i.greedyServed(), i.greedyDeferred(), i.served(), i.deferred(), i.improved(),
-                i.chilledVolumeGainedM3(), i.stoppedBy().name(), i.chilledCandidates(), i.chilledSearched())));
+                i.chilledVolumeGainedM3(), i.stoppedBy().name(), i.chilledCandidates(), i.chilledSearched())),
+        run.cost()
+            .map(c -> new CostView(c.trigger().name(), c.improved(), c.rulesVehicles(), c.rulesTrips(), c.rulesLitres(),
+                c.vehicles(), c.trips(), c.litres(), c.iterations(), c.stoppedBy().name())));
   }
 
   /** Called inside a read, like {@link #assemble}. */

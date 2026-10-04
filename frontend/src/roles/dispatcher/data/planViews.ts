@@ -214,3 +214,47 @@ export function lateRisk(plan: PlanView, predictions: PlanPredictionsView): Late
   const high = plan.trips.filter((trip) => (worst.get(trip.tripId) ?? 0) >= LATE_RISK_PERCENT).length;
   return { high, low: plan.trips.length - high };
 }
+
+// ---- late risk per stop and trip (issue #119) -----------------------------------
+
+/** From this chance a stop or trip is worth a look: amber. At LATE_RISK_PERCENT it is red. */
+export const LATE_WATCH_PERCENT = 20;
+
+/** One stop's chance of arriving after its window, and whether a model or the estimate said so. */
+export type StopRisk = { percent: number; estimate: boolean };
+
+const asPercent = (p: string | number): number => Math.round(Number(p) * 100);
+
+/** Each order's late risk on the published plan, keyed by order id. */
+export function stopRisks(predictions: PlanPredictionsView): Map<string, StopRisk> {
+  return new Map(predictions.stops.map((stop) => [stop.orderId, { percent: asPercent(stop.lateProbability), estimate: stop.degraded }]));
+}
+
+/** Each trip's worst stop, keyed by trip id: a trip is as late as its latest stop. */
+export function tripRisks(predictions: PlanPredictionsView): Map<string, StopRisk> {
+  const worst = new Map<string, StopRisk>();
+  for (const stop of predictions.stops) {
+    const seen = worst.get(stop.tripId);
+    worst.set(stop.tripId, {
+      percent: Math.max(seen?.percent ?? 0, asPercent(stop.lateProbability)),
+      // Any stop from the estimate makes the trip's figure an estimate.
+      estimate: (seen?.estimate ?? false) || stop.degraded,
+    });
+  }
+  return worst;
+}
+
+export type RiskTone = "low" | "watch" | "high";
+
+export function riskTone(percent: number): RiskTone {
+  return percent >= LATE_RISK_PERCENT ? "high" : percent >= LATE_WATCH_PERCENT ? "watch" : "low";
+}
+
+/** "Late 41%" ("Late <1%" below one), with "· estimate" when the time predictor was not running (degrade visibly). */
+export function riskLabel(risk: StopRisk, lead = "Late"): string {
+  return `${lead} ${risk.percent < 1 ? "<1" : risk.percent}%${risk.estimate ? " · estimate" : ""}`;
+}
+
+/** True when any stop was scored by the deterministic estimate rather than the model. */
+export const scoredByEstimate = (predictions: PlanPredictionsView): boolean =>
+  predictions.scoring.status === "DEGRADED" || predictions.stops.some((stop) => stop.degraded);

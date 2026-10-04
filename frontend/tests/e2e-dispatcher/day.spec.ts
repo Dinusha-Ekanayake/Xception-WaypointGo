@@ -10,9 +10,8 @@ test("the order board follows each order from due to confirmed, and says where i
   await page.goto("/#/orders");
 
   const flow = page.getByRole("region", { name: "Order flow" });
-  await expect(flow).toContainText("Due4");
   await expect(flow).toContainText("Planned2");
-  await expect(flow).toContainText("Confirmed by the store manager1");
+  await expect(flow).toContainText("Confirmed by store1");
   await expect(page.getByText("1 order has no stock answer from the warehouse")).toBeVisible();
 
   const table = page.getByRole("table", { name: "Orders due" });
@@ -20,10 +19,28 @@ test("the order board follows each order from due to confirmed, and says where i
   await expect(first).toContainText("VEH043 · T1");
   await expect(first).toContainText("On the road");
   const third = table.getByRole("row").filter({ hasText: "ORD0092303" });
-  await expect(third).toContainText("Not on a plan");
+  await expect(third).toContainText("Deferred");
   await expect(third).toContainText("deferred 2×");
 
-  await page.getByRole("tab", { name: /Need attention/ }).click();
+  // The brand legend names the dots and filters to one brand.
+  const legend = page.getByRole("group", { name: "Brands" });
+  await legend.getByRole("button", { name: "Style" }).click();
+  await expect(table.getByRole("row").filter({ hasText: "ORD0092301" })).toHaveCount(0);
+  await legend.getByRole("button", { name: "Style" }).click();
+  await expect(table.getByRole("row").filter({ hasText: "ORD0092301" })).toHaveCount(1);
+
+  // A row opens the order with its day as a timeline (Figma 03d).
+  await first.click();
+  const drawer = page.getByRole("dialog", { name: "Order ORD0092301" });
+  await expect(drawer).toContainText("Timeline");
+  await expect(drawer).toContainText("Planned");
+  // Focus moves into the drawer, and Escape gives it back.
+  await expect(drawer.getByRole("button", { name: "Close" })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(drawer).toHaveCount(0);
+
+  await page.getByRole("button", { name: "All statuses" }).click();
+  await page.getByRole("menuitem", { name: "Need attention" }).click();
   await expect(table.getByRole("row")).toHaveCount(3);
   await page.getByLabel("Search orders").fill("2304");
   await expect(table.getByRole("row")).toHaveCount(2);
@@ -33,13 +50,16 @@ test("closing orders before the cutoff is refused with the rule", async ({ page 
   const desk = await serve(page);
   desk.refuse = { kind: "order:CloseForDay", status: 409, code: "CONSTRAINT_VIOLATED", detail: "The cutoff for this day has not passed", rules: ["R-ORD-01"] };
   await page.goto("/#/orders");
-  await page.getByRole("button", { name: `Close ${DEPOT}` }).click();
+  // Closing a day lives on that day's card under Upcoming (Figma 03b).
+  await page.getByRole("radio", { name: /Upcoming/ }).click();
+  const close = () => page.getByRole("button", { name: "Close orders" }).first().click().then(() => page.getByRole("menuitem", { name: `Close ${DEPOT}` }).click());
+  await close();
   const refusal = page.getByRole("alert").filter({ hasText: "Closing orders was refused" });
   await expect(refusal).toContainText("The cutoff for this day has not passed");
   await expect(refusal).toContainText("R-ORD-01");
 
-  await page.getByRole("button", { name: `Close ${DEPOT}` }).click();
-  await expect(page.getByRole("status").filter({ hasText: "are closed" })).toBeVisible();
+  await close();
+  await expect(page.getByRole("status").filter({ hasText: "Orders closed" })).toBeVisible();
   expect(desk.commands.at(-1)).toMatchObject({ kind: "order:CloseForDay", payload: { depotCode: DEPOT } });
 });
 
@@ -65,4 +85,20 @@ test("live lists vehicles most urgent first and what needs the dispatcher", asyn
   await needs.getByRole("listitem").nth(0).getByRole("button", { name: "Open trip" }).click();
   await expect(page.getByRole("heading", { name: "VEH044" })).toBeVisible();
   await expect(page.getByRole("row", { name: /OUT053/ })).toContainText("Not delivered");
+});
+
+
+test("the overview leads into tomorrow's plan, and an order opens its day in Plan", async ({ page }) => {
+  await serve(page, { draft: draftPlan() });
+  await page.goto("/#/overview");
+  const card = page.getByRole("region", { name: "Tomorrow's plan" });
+  await expect(card).toContainText("Kandy");
+  await expect(card).toContainText("1 needs a decision");
+  await card.getByRole("button", { name: "Open plan" }).click();
+  await expect(page).toHaveURL(/#\/plan/);
+
+  await page.goto("/#/orders");
+  await page.getByRole("table", { name: "Orders due" }).getByRole("row").filter({ hasText: "ORD0092303" }).click();
+  await page.getByRole("dialog", { name: "Order ORD0092303" }).getByRole("button", { name: /in Plan|on the plan/ }).click();
+  await expect(page).toHaveURL(/#\/plan/);
 });

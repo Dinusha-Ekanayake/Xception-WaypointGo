@@ -24,7 +24,15 @@ test("points recorded with no signal survive a reload and are sent when the sign
   await page.reload();
   await expect(page.getByText("Showing the run saved on this phone")).toBeVisible();
   await server.goOnline(context);
-  await expect.poll(() => server.commands.filter((c) => c.kind === "delivery:RecordPositions").length, { timeout: 15_000 }).toBeGreaterThan(0);
+  // The queue drains on "online" and then every 30 s. The clock is frozen, so
+  // move it on while waiting: a first drain that came too early on a slow
+  // machine is retried instead of waiting for a timer that never fires (#120).
+  await expect
+    .poll(async () => {
+      await page.clock.runFor(30_000);
+      return server.commands.filter((c) => c.kind === "delivery:RecordPositions").length;
+    }, { timeout: 15_000 })
+    .toBeGreaterThan(0);
   const sent = server.commands.find((c) => c.kind === "delivery:RecordPositions")!;
   expect((sent.payload as { vehicleId: string }).vehicleId).toBe("VEH043");
 });

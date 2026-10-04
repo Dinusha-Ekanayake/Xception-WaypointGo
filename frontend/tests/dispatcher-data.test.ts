@@ -4,7 +4,7 @@ import type { OrderStatus, OrderView } from "../src/shared/domain/ordering.ts";
 import type { AllocationView, PlanView, TripView } from "../src/shared/domain/planning.ts";
 import type { VehicleView } from "../src/shared/domain/referencedata.ts";
 import type { RunSheetStopView, RunSheetView } from "../src/shared/domain/execution.ts";
-import { after, board, improvementNote, openDecisions, percent, summarise, working } from "../src/roles/dispatcher/data/plan.ts";
+import { after, board, costNote, improvementNote, openDecisions, percent, summarise, working } from "../src/roles/dispatcher/data/plan.ts";
 import { flow, matches } from "../src/roles/dispatcher/data/orders.ts";
 import { attention, byUrgency, isLate, punctuality, vehicleDay } from "../src/roles/dispatcher/data/live.ts";
 import type { IssueView } from "../src/shared/domain/issues.ts";
@@ -203,4 +203,23 @@ test("the second pass is said only when it changed the plan or stopped early", (
   assert.equal(improvementNote({ ...base, improved: false, served: 70, deferred: 14 }), null);
   assert.match(improvementNote({ ...base, improved: false, stoppedBy: "CLOCK" })!.detail, /stopped before it finished/);
   assert.match(improvementNote({ ...base, improved: false, chilledCandidates: 70, chilledSearched: 62 })!.detail, /top 62 of 70 chilled orders/);
+});
+
+test("planning v2: the cost stage is said as the optimised plan against the rules plan, or why it did not run", () => {
+  const ran = {
+    trigger: "DEFERRALS" as const, improved: true, rulesVehicles: 16, rulesTrips: 32, rulesLitres: "724.8",
+    vehicles: 13, trips: 25, litres: "610.6", iterations: 2000, stoppedBy: "NONE" as const,
+  };
+  const note = costNote(ran)!;
+  assert.equal(note.title, "Optimised: 13 vehicles, 25 trips, 611 L");
+  assert.equal(note.detail, "Rules plan: 16 vehicles, 32 trips, 725 L. The same orders are served with 3 fewer vehicles and 114 L less fuel.");
+  assert.equal(note.compare, true, "an optimised plan offers the rules plan to compare");
+  assert.match(costNote({ ...ran, stoppedBy: "CLOCK" })!.detail, /time limit/);
+  assert.equal(costNote({ ...ran, trigger: "SKIPPED_SIMPLE_DAY", improved: false })!.title, "Simple day: the rules plan");
+  assert.equal(costNote({ ...ran, trigger: "SKIPPED_SIMPLE_DAY", improved: false })!.compare, false);
+  assert.equal(costNote({ ...ran, trigger: "SKIPPED_KEPT_DECISIONS", improved: false })!.title, "Your decisions kept");
+  assert.equal(costNote({ ...ran, improved: false })!.title, "The rules plan was already the cheapest found");
+  assert.equal(costNote({ ...ran, trigger: "SKIPPED_DISABLED", improved: false }), null);
+  assert.equal(costNote(null), null);
+  assert.equal(costNote(undefined), null, "a run from before planning v2 has no cost stage");
 });

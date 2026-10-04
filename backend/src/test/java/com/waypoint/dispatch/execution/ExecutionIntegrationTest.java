@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.waypoint.dispatch.execution.ExecutionTestConfig.MovableClock;
 import com.waypoint.dispatch.execution.application.PositionRetentionJob;
 import com.waypoint.dispatch.execution.application.ProofRetentionJob;
+import com.waypoint.dispatch.support.TestDates;
 import com.waypoint.dispatch.sync.application.PositionPayloadRetentionJob;
 import com.waypoint.dispatch.identity.application.AccountAdminUseCase;
 import com.waypoint.dispatch.identity.application.LoginHandler;
@@ -45,7 +46,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -140,8 +140,7 @@ class ExecutionIntegrationTest {
     // assignments stay in the database. A random day that lands beside an
     // earlier test's would break the no-overlap constraint, so pick again.
     do {
-      day = reference.nextOperatingDay(
-          LocalDate.of(2040, 1, 1).plusDays(ThreadLocalRandom.current().nextInt(0, 15_000)));
+      day = TestDates.unusedDay(reference::nextOperatingDay);
       var vehicles = reference.availableVehicles(depot, day, null);
       vehicleId = vehicles.get(0).vehicleId();
       otherVehicleId = vehicles.get(1).vehicleId();
@@ -636,7 +635,10 @@ class ExecutionIntegrationTest {
     assertEquals("nosniff", image.getResponse().getHeader("X-Content-Type-Options"));
 
     // Forged, stretched and expired links all answer the same.
-    assertEquals(404, http.perform(get(link.substring(0, link.length() - 2) + "00")).andReturn().getResponse().getStatus());
+    // Flip the last hex digit, so the forgery always differs from the real signature.
+    char last = link.charAt(link.length() - 1);
+    String forged = link.substring(0, link.length() - 1) + (last == '0' ? '1' : '0');
+    assertEquals(404, http.perform(get(forged)).andReturn().getResponse().getStatus());
     assertEquals(404, http.perform(get(link.replaceFirst("exp=\\d+", "exp=9999999999"))).andReturn().getResponse().getStatus());
     clock.set(clock.now().plusSeconds(301));
     assertEquals(404, http.perform(get(link)).andReturn().getResponse().getStatus());

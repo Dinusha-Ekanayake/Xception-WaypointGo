@@ -96,6 +96,15 @@ public record RuleSet(UUID id, Map<String, BigDecimal> parameters) {
     return require(CADENCE_DAYS_PREFIX + brand).intValueExact();
   }
 
+  /**
+   * A parameter an engine version reads only to override its own constant, such
+   * as the cost stage's iteration count. Absent means the engine's value, which
+   * is part of its name, so no old value can come back silently (POL-10).
+   */
+  public java.util.Optional<BigDecimal> optional(String key) {
+    return java.util.Optional.ofNullable(parameters.get(key));
+  }
+
   public long engineBudgetMillis() {
     return require(ENGINE_BUDGET_MS).longValueExact();
   }

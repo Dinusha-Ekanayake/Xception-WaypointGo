@@ -34,6 +34,7 @@ export default function Deliveries({
   onOrders,
   onReceive,
   onTrack,
+  onMessage,
 }: {
   gateway: StoreGateway;
   orders: OrderView[];
@@ -46,6 +47,8 @@ export default function Deliveries({
   onOrders: () => void;
   onReceive: (orderId: string) => void;
   onTrack: (vehicleId: string) => void;
+  /** The trip's thread (issue #136). */
+  onMessage?: (tripId: string, vehicleId: string) => void;
 }): React.JSX.Element {
   const [range, setRange] = useState<Range>("today");
   const [makeUp, setMakeUp] = useState<string | null>(null);
@@ -88,6 +91,7 @@ export default function Deliveries({
         highlight={receivable !== undefined}
         actions={[
           ...(moving ? [{ label: "Track", onClick: () => onTrack(run.vehicleId) }] : []),
+          ...(onMessage ? [{ label: "Message", onClick: () => onMessage(run.tripId, run.vehicleId) }] : []),
           receivable
             ? { label: "Receive", tone: "ink" as const, onClick: () => onReceive(receivable.orderId) }
             : firstMakeUp
@@ -169,7 +173,7 @@ export default function Deliveries({
             className={cx("min-h-12 flex-1 rounded-full px-2 text-[15px] font-medium lg:flex-none lg:px-5", r === range ? "bg-[#031a0c] text-white" : "text-black")}
           >
             {r === "today" ? "Today" : r === "upcoming" ? "Upcoming" : "Past 7 days"}
-            {counts[r] !== null && <span className="ml-1.5 opacity-60">{counts[r]}</span>}
+            {counts[r] !== null && <span className="ml-1.5 opacity-60">({counts[r]})</span>}
           </button>
         ))}
       </div>
@@ -179,7 +183,7 @@ export default function Deliveries({
           {heading(`Today · ${dayLabel(today)}`, `${counts.today} ${counts.today === 1 ? "delivery" : "deliveries"}`)}
           {runs.map(runRow)}
           {loose.map(looseRow)}
-          {counts.today === 0 && <Muted>Nothing is coming today.</Muted>}
+          {counts.today === 0 && <Muted>Nothing is coming today. Upcoming shows what is planned next.</Muted>}
         </section>
       )}
 
@@ -197,7 +201,7 @@ export default function Deliveries({
               actions={[d.orders.length === 1 ? { label: "View order", onClick: () => onOpen(d.orders[0]!.orderId) } : { label: "View orders", onClick: onOrders }]}
             />
           ))}
-          {days.length === 0 && <Muted>No orders after today yet.</Muted>}
+          {days.length === 0 && <Muted>No orders after today yet. An order you place appears here, with its delivery once it is planned.</Muted>}
         </section>
       )}
 

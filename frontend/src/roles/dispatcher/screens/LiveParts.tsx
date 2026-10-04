@@ -78,27 +78,31 @@ export function Action({
   primary,
   onClick,
   unavailable,
+  disabled,
   className,
   icon,
 }: {
   children: React.ReactNode;
   primary?: boolean;
   onClick?: () => void;
+  /** Not built yet: disabled, and says so. */
   unavailable?: boolean;
+  /** Built, but not possible now, such as offline. */
+  disabled?: boolean;
   className?: string;
   icon?: React.ReactNode;
 }): React.JSX.Element {
   return (
     <button
       type="button"
-      onClick={unavailable ? undefined : onClick}
-      disabled={unavailable}
+      onClick={unavailable || disabled ? undefined : onClick}
+      disabled={unavailable || disabled}
       title={unavailable ? NOT_YET : undefined}
       aria-description={unavailable ? NOT_YET : undefined}
       className={cx(
         "inline-flex min-h-[34px] items-center justify-center gap-2 rounded-full px-4 text-[14px] font-medium whitespace-nowrap",
         primary ? "bg-go-ink text-white" : "border border-go-divider bg-white text-go-ink",
-        unavailable && "cursor-not-allowed opacity-45",
+        (unavailable || disabled) && "cursor-not-allowed opacity-45",
         className,
       )}
     >
@@ -108,4 +112,4 @@ export function Action({
   );
 }
 
-export const NOT_AVAILABLE_NOTE = "Store and driver messages are not available yet.";
+export const NOT_AVAILABLE_NOTE = "Calls are not available yet.";

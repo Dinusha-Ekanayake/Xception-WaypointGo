@@ -4,6 +4,37 @@
 
 ---
 
+## 2026-10-04 - feat: the delivery promise for a day a store orders ahead (issue #224)
+
+`feat/224-delivery-promise` · @Oxshadha
+
+A store ordering "next Friday" could pick only three days, never heard when the plan put its order on a vehicle, and had no idea whether a day was likely to hold. Built inside the existing modules:
+- **Ordering:** records each order's stop and planned arrival from `plan.published` and `plan.revised` (`ordering.order_stops`; an older plan version never overwrites a newer one), shows them on `OrderView`, and offers `OrderQuery.bookedVolumes`.
+- **Notification:** routing version 5 tells each outlet its stop (R-NOT-15).
+- **Intelligence:** `DateOutlookPolicy` and `GET /api/ml/outlook` rate each day on track, busy, at risk, too early or closed. The rating comes from booked volume or the forecast share, set against the vehicles available that day; it is aggregate only, behind `ml:ReadOutlook` with an audited 403 for another outlet (R-ML-07, A-44, P-35).
+- **Store:** a 28-day strip with the outlook, a warning and a suggested day that prefers #211's shared trip, and "Planned for {day} · stop n · planned arrival hh:mm" on the order.
+
+Why: a day chosen ahead is a promise; the store should see how likely it is when booking, and its stop when the plan is made. Detail in [the walkthrough](../../issues/224-delivery-promise/WALKTHROUGH.md).
+
+Verified:
+- `mvn verify` 976 on a real test database: 975 pass. The one failure is `IdentityHardeningIntegrationTest.migrateLetsThePoolLogInAsWaypointAppWithItsOwnPassword`, which runs `SET ROLE` unquoted with the local owner name `k.e.oshada` (dots); it is untouched here and passes in CI.
+- `npm test` 221, typecheck, build, Playwright store 50.
+
+Open: the early warning when a booked day turns busy, and supply probability on the outlook basis. The 28-day horizon is the strip's, not a server refusal.
+
+---
+
+## 2026-10-04 - feat(planning): planning v2 (issue #219), a measured engine choice, the cost stage, GPS stops and a generation queue
+
+`feat/219-planning-v2` · @Oxshadha
+
+Every approach was measured on the same 62 days (S1, the 8 historic depot-days with 0, 25 and 40% of the fleet out, and seeded synthetic days up to 300 orders) under the production `ConstraintRegistry`: rules (E0), rules plus the exact reefer pass (E1), an exact MIP solved with CP-SAT, SCIP and HiGHS (E2), ALNS (E3), OR-Tools routing (E4) and the production chain (E5). Test scope only (`planning/bench`, OR-Tools as a test dependency), charts in `docs/issues/219-planning-v2/benchmark/planning-benchmark.ipynb`. E5 is best by rank on 58 of 62 days and matches the MIP's proven optimum on all 34 days it proved; routing is best on 13; HiGHS crashes with a hint and ignores its time limit. Production: `CostReplan`, an ALNS cost stage after the rules that never trades the served set (R-PLN-38), runs only on a day worth it and has its own budget (R-PLN-39), keeps the rules plan beside the draft as a `rules` snapshot for Compare (S1: 16 to 13 vehicles, 725 to 611 L, same 73 orders); exact outlet GPS orders stops, district points change nothing (R-PLN-40); `plan:Generate` queues a job and a worker runs the engine outside any transaction, one active job per day, SKIP LOCKED with a lease, rerun when demand moved (R-PLN-41); reference data cached by immutable version. The dispatcher follows the job, sees the cost note and opens Compare on the rules plan. The benchmark found two hangs in the reefer pass on large days (unbounded day listing, quadratic covered-day pruning; PLN-39), now bounded.
+Why: planning is what the judges weigh most; the engine is now chosen by evidence, cheaper on every hard day, safe under concurrent use and bounded on large days.
+Verified: `mvn verify` 932 with integration tests on a real test database before the last two fixes (planning suites rerun after them); Node 167; Playwright dispatcher plan specs 15; `check_allocation.py` passes on S1.
+Open: outlet GPS needs real exact coordinates in `geo_points.csv`; the trip disruption channel is the next piece.
+
+---
+
 ## 2026-10-03 - feat(frontend): the driver's Figma screens run on the real run sheet (issue #117)
 
 `feat/117-driver-gaps` · @Oxshadha

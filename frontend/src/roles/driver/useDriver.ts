@@ -8,7 +8,9 @@ import type { HandoverEntryResult } from "@shared/domain/receipt";
 import { ExecutionCommandKind, ReceiptCommandKind, type FailureReason, type ReportedVehicleStatus } from "@shared/domain/types";
 import { discardUpload, useSync } from "@shared/offline";
 import { useShell } from "@shared/ui";
+import { keepTiles, num, tilesFor, type LatLon } from "@shared/ui/map";
 import { createGateway } from "./data/gateway.ts";
+import { queuedSender } from "@shared/messaging/senders";
 import { usePositionRecorder } from "./data/position.ts";
 import { isFinished, nextStop, type Stop } from "./data/run.ts";
 import { DeliveryKind, useRun, type Outcome } from "./data/useRun.ts";
@@ -52,16 +54,43 @@ function words(outcome: Outcome): string | null {
   return outcome.ok ? null : outcome.error.message;
 }
 
-export function useDriver(userId: string) {
+/** @param depot the driver's depot, for the next trip on its published plan. */
+export function useDriver(userId: string, depot: string | null = null) {
   const online = useOnline();
   const shell = useShell();
   const sync = useSync(userId);
   const gateway = useMemo(() => createGateway(userId), [userId]);
-  const run = useRun(gateway, userId, online, `${sync.pending}:${sync.held.length}`, sync.syncNow);
+  const run = useRun(gateway, userId, online, `${sync.pending}:${sync.held.length}`, sync.syncNow, depot);
+
+  // The run's map is kept on the phone while there is a signal, so it still
+  // draws in a valley with none (issue #201). Once per run and connection; a
+  // tile already kept is answered by the worker without the network.
+  const stopPoints = useMemo(() => {
+    const points: LatLon[] = [];
+    for (const outlet of Object.values(run.outlets)) {
+      const lat = num(outlet.location?.latitude);
+      const lon = num(outlet.location?.longitude);
+      if (lat !== null && lon !== null) points.push({ lat, lon });
+    }
+    return points;
+  }, [run.outlets]);
+  const tileKey = stopPoints.map((p) => `${p.lat},${p.lon}`).join(";");
+  useEffect(() => {
+    if (!online || tileKey === "") return;
+    const stop = new AbortController();
+    void keepTiles(tilesFor(stopPoints), stop.signal);
+    return () => stop.abort();
+    // Keyed on tileKey, not stopPoints: a new run sheet read with the same stops fetches nothing again.
+  }, [online, tileKey]);
 
   const [view, setView] = useState<View>({ name: "home" });
   // GPS while a run is open (issue #161): a released trip with a stop still to do.
   const stillToDo = nextStop(run.stops);
+  // Messages on the trip's thread keep on the phone with no signal, like every driver write (issue #136).
+  const postMessage = useMemo(
+    () => queuedSender({ accountId: userId, role: "driver", online, onQueued: sync.syncNow }),
+    [userId, online, sync.syncNow],
+  );
   const location = usePositionRecorder(gateway, run.vehicle?.vehicleId ?? null, stillToDo?.tripId ?? null, stillToDo !== null);
   const [dark, setDark] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -321,6 +350,8 @@ export function useDriver(userId: string) {
     afterSaved,
     report,
     reportStatus,
+    postMessage,
+    tripId: (stillToDo ?? run.stops[run.stops.length - 1])?.tripId ?? null,
     verifyHandover,
     dropUpload,
     openProblem: (target: Stop | "run") => setProblemFor(target),

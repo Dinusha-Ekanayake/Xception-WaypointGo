@@ -13,6 +13,9 @@ import java.util.UUID;
 /** The only way another module reads plans. */
 public interface PlanQuery {
 
+  /** Effective trip ceiling for a service date, shared with fleet forecasts. */
+  int maxTripsFor(LocalDate serviceDate);
+
   /** The current published version, never a draft or a superseded one. */
   Optional<PlanView> publishedPlan(String depotCode, LocalDate serviceDate);
 

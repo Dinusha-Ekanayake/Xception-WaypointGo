@@ -3,6 +3,78 @@
 @kavindamihiran's entries, newest first. Only @kavindamihiran adds to this file; how to write an entry is in the [log's index](../development-log.md).
 
 ---
+## 2026-10-04 - feat: Admins switch assistants per person and role
+
+`feat/admin-mcp-people` · @kavindamihiran · #177
+
+The AI assistants screen could only block a whole app, though per person and per role switches already existed as policies (R-IAM-37). It now lists roles and people with three switches (assistants, changes, personal details) sent as the existing versioned `iam:AttachPolicy` and `iam:DetachPolicy`, and ends one person's connections with a reason through new `mcp:RevokeUserConnections` (R-IAM-38, SEC-44). The reads are `GET /api/mcp/access/roles` and keyset paged `/api/mcp/access/people`.
+Verified: `McpEnterpriseIntegrationTest` (10, none skipped) on a local database, typecheck, `npm test`, build, `mcp-admin.spec.ts` (2).
+## 2026-10-04 - feat: Tech stores see which nearby day a trip already serves
+
+`feat/ride-along-suggestion` · @kavindamihiran · #199 ([walkthrough](../../issues/199-ride-along/WALKTHROUGH.md))
+
+Joining another day's plan is impossible: a plan exists only for a day past its cutoff, and it is immutable. So the hint counts other stores of the same brand and district booked for open days within two either side. It is Ordering only and advice only: no Planning read, no capacity claim, and Fresh and Style are never moved (R-ORD-13, ORD-16 to ORD-18).
+Verified: `RideAlongTest` (7), `ModuleBoundaryTest`, typecheck, `npm test`, build, store suite 44 (3 new). The integration test was not run locally (no test database); CI runs it.
+## 2026-10-04 - fix: proof link forgery test could forge the real link
+
+`fix/proof-link-forgery-flake` · @kavindamihiran
+
+`ExecutionIntegrationTest` forged a proof link by setting the last two signature digits to `00`; one signature in 256 already ends that way, so the "forgery" opened (Checks #195). It now flips the last digit. `TestDates` ends before 2286, where epoch seconds pass the `9999999999` expiry the stretched-link check relies on.
+Verified: `mvn verify` on a fresh local database.
+## 2026-10-04 - fix: integration tests no longer share a service day
+
+`fix/test-date-collisions` · @kavindamihiran
+
+Two of six `dev` preview deploys failed on a different backend test each time (planning saw 4 stops instead of 2, ordering 3 orders instead of 1): a dozen integration classes drew random days from overlapping windows for the same depot and read each other's orders. `support/TestDates` now hands out a day no other test in the run has, after `nextOperatingDay`, from a wider window.
+Verified: `mvn verify` on a fresh local database, 914 tests, 0 failed, 0 skipped.
+## 2026-10-04 - fix: way back between role addresses
+
+`fix/role-address-flow` · @kavindamihiran
+
+The wrong-address screen was a bare warning with one link. It is now a full page (`app-shell/WrongAddress.tsx`) offering the account's own roles, another account on this address, and "All roles". Sign-in on a role address links back to the shared landing (`sharedHostFor` in `hostRole.ts`), and the landing links to the admin console.
+Verified: typecheck, hostRole, wording and boundary tests, build, shell browser suite 13 passed.
+## 2026-10-04 - fix: driver Settings opens, map stop card
+
+`fix/driver-settings-map` · @kavindamihiran
+
+The driver's picture opened nothing: the sheet is `fixed`, and the header's scaling wrapper is a transformed ancestor that clipped it. It now renders through a portal into the themed driver root. The map's bottom boxes became one theme-aware stop card (stop number, district, window, straight-line distance, Navigate).
+Verified: typecheck, `npm test`, build; driver suite 20 passed, 13 skipped.
+## 2026-10-04 - feat: loader on a phone held sideways, #201 walkthrough
+
+`feat/role-pwa-loader-layout` · @kavindamihiran · #201, PR 5 of 5 ([walkthrough](../../issues/201-role-pwa/WALKTHROUGH.md))
+
+The loader's tablet, desk and terminal layouts held on every size; on a phone held sideways the completion ring filled the first screen, so under `short:` it is 104 px. `e2e-loader/devices.spec.ts` opens a trip and checks an item on eight sizes. Walkthrough written; #201 closes.
+Verified: typecheck, `npm test`, build; loader suite 29 (21 plus the device spec on eight sizes).
+## 2026-10-04 - feat: store fits phones and tablets either way up
+
+`feat/role-pwa-store-layout` · @kavindamihiran · #201, PR 4 of 5
+
+The store's portrait tablet layout (720 px column with the tab bar) already held. On a phone held sideways the tab bar's fade and padding took nearly half the screen; under `short:` it now sits low with no fade. From `lg` the floating sync pill and bell covered Orders' "+ New order"; the header keeps clear of them.
+Verified: typecheck, build; store suite 41 (33 plus `e2e-store/devices.spec.ts` on eight sizes: every tab opens, nothing overflows, New order and Receive can be pressed).
+## 2026-10-04 - feat: driver fits phones and tablets either way up
+
+`feat/role-pwa-driver-layout` · @kavindamihiran · #201, PR 3 of 5
+
+The driver's 393x852 phone mock-up from `sm:` is gone: the run fills a phone, a tablet gets a 600 px column, and a landscape tablet (in-cab) shows the trip map beside the run (`useMedia` in `@shared/ui`, which the loader's `useWide` now uses). On a phone held sideways (`short:`) each screen scrolls as one page so every action is reachable. The signature pad re-fits on rotation without stretching what was signed. The location prompt is one solid card (its buttons were drawn over the stop name). `tilesFor` and `keepTiles` keep the run's map tiles (overview zooms 9-13, streets around each stop at 14-15, at most 600) while online.
+Verified: typecheck, `npm test` (192), build; `tests/devices.ts` adds seven device projects and `e2e-driver/devices.spec.ts` delivers a stop on each with nothing wider than the screen; driver, loader and store suites green.
+## 2026-10-04 - feat: loader and store open offline on kept reads
+
+`feat/role-pwa-offline-reads` · @kavindamihiran · #201, PR 2 of 5
+
+`shared/offline/keptReads.ts` `readThrough` keeps each loader and store read per account and, in an outage only (no network, timeout, 5xx), answers with the kept copy; a refusal passes through. The loader's trips are keyed by depot and day; the store's delivery date and handover state are not kept. `session.ts` now lets the resilient tier carry on unverified like the driver (A-43). Both top bars say "Offline · showing HH:MM" or "Server unreachable · showing HH:MM" while kept data is on screen. EDGE-CASES EXE-31 to EXE-33.
+Verified: typecheck, `npm test` (189), build, driver, loader (21, new offline reload case) and store (33, new `offline.spec.ts`) suites.
+## 2026-10-04 - feat: each field role installs as its own app
+
+`feat/role-pwa` · @kavindamihiran · #201, PR 1 of 5 ([plan](../../issues/201-role-pwa/PLAN.md))
+
+`app/manifest.ts` serves a manifest chosen by Host (`appManifest.ts` over `hostRole.ts`), so `driver.`, `loader.` and `store.` install as Waypoint Driver, Loader and Store, each with its own icon (`scripts/build-app-icons.mjs`, PNGs committed) and the shared address as the generic app; `app/apple-touch-icon.png` does the same for iOS, and the page stays static. The layout draws edge to edge (`viewportFit: cover`) and fixed bottom bars pad for the home bar. The worker keeps icons, fonts and `/assets` cache first and map tiles up to 1500, oldest out, across builds (`scripts/sw-cache.mjs`); `/api` is never kept, offline reads stay the per-account snapshots. Settings gains Install app (Chrome's prompt, Safari's steps), and queuing roles ask for persistent storage. No orientation lock: tablets mount in landscape.
+Verified: typecheck, `npm test` (184), build, `e2e/install.spec.ts` (Chrome reports each address installable; icons load offline, `/api` does not), driver, loader and store suites green. `e2e/shell.spec.ts` CSP case times out on `networkidle`, also on a clean `dev`.
+## 2026-10-03 - feat: Settings behind each role's profile picture
+
+`feat/role-settings-panel` · @kavindamihiran
+
+Dispatcher, driver, store and loader open Settings from the person's picture (shared `SettingsPanel` in `@shared/ui`; the store's account menu gains the same rows). Settings holds the language, kept per device, and the MCP button, which leaves the headers. The theme toggle and alerts stay where they were, and the loader's Settings loses Appearance. Dispatcher and store screens are English only, and the picker says so.
+Verified: typecheck, `npm test`, build, loader, driver and store suites green; dispatcher suite green except three `forecast.spec.ts` cases that fail on the model version text and are unrelated.
 ## 2026-10-03 - fix: one sign-in for every role, admin workspace on the shared shell
 
 `fix/single-sign-in` · @kavindamihiran

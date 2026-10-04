@@ -189,7 +189,8 @@ public final class ReferenceValidator {
         out.add(
             new ReferenceViolation("fleet-sanity", code.value(), "van-only outlets but no van"));
       }
-      if (fleet.stream().noneMatch(v -> v.temperature() == TemperatureCapability.REEFER)) {
+      if (!s.outletsOf(code).isEmpty()
+          && fleet.stream().noneMatch(v -> v.temperature() == TemperatureCapability.REEFER)) {
         out.add(
             new ReferenceViolation("fleet-sanity", code.value(), "no refrigerated vehicle"));
       }

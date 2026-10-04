@@ -24,6 +24,7 @@ public final class PlanCommands {
   public static final String UNLOCK = "plan:Unlock";
   public static final String REORDER_STOPS = "plan:ReorderStops";
   public static final String CONTACT_STORE = "plan:ContactStore";
+  public static final String EDIT_TRIP = "plan:EditTrip";
   public static final String SAVE_SNAPSHOT = "plan:SaveSnapshot";
   public static final String RESTORE_SNAPSHOT = "plan:RestoreSnapshot";
 
@@ -45,8 +46,10 @@ public final class PlanCommands {
   /**
    * Trade a served order for a deferred one in a draft: {@code outOrderId} is
    * deferred and {@code inOrderId} takes its place on the trip, or nothing changes.
+   * {@code orderIds} is optional: the trip's stop order after the swap, every
+   * order of it once, when the dispatcher fixed one in the same window.
    */
-  public record SwapOrders(UUID planId, UUID outOrderId, UUID inOrderId, String reason) {}
+  public record SwapOrders(UUID planId, UUID outOrderId, UUID inOrderId, String reason, java.util.List<UUID> orderIds) {}
 
   /** Decide that deferred orders stay deferred, so the plan can be published. */
   public record KeepDeferred(UUID planId, java.util.List<UUID> orderIds, String reason) {}
@@ -56,6 +59,13 @@ public final class PlanCommands {
 
   /** Fix the order of one trip's stops; every order of the trip exactly once. */
   public record ReorderStops(UUID planId, UUID tripId, java.util.List<UUID> orderIds, String reason) {}
+
+  /**
+   * Make one trip hold exactly {@code orderIds}, in that order: orders left out
+   * are deferred, orders named from the deferred list or another trip join it,
+   * and an empty list removes the trip. Judged whole (R-PLN-42).
+   */
+  public record EditTrip(UUID planId, UUID tripId, java.util.List<UUID> orderIds, String reason) {}
 
   /** Tell the order's store manager the plan could not serve it. Changes no plan. */
   public record ContactStore(UUID planId, UUID orderId, String message) {}

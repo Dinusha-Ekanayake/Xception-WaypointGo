@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { cx } from "@shared/ui";
+import { cx, useEscape } from "@shared/ui";
 import { ago, isUnread, kindOf, toneOf, TONE_STYLE } from "@shared/notifications/inbox";
 import type { NotificationView } from "@shared/domain/types";
 import { useDispatcherInbox } from "./inbox.tsx";
@@ -11,9 +11,8 @@ import { usePush, type PushState } from "@shared/notifications/push";
 
 // Figma "05 Dispatcher Desktop": the notifications panel (189:23606) and the
 // Overview card (189:10739). Each row: a small grey line naming the kind and
-// when, the message, then "Mark as read". Figma also has "Reply"; there is no
-// messaging between roles to reply through, so it is left out rather than
-// shown doing nothing.
+// when, the message, then "Mark as read". A message on a trip's thread opens
+// the thread, where the dispatcher replies (issue #136).
 
 export function NotificationRows({
   items,
@@ -27,7 +26,7 @@ export function NotificationRows({
   const ctx = useDispatcherInbox();
   const [error, setError] = useState<string | null>(null);
   if (!ctx) return <></>;
-  const { inbox, setOpen, viewOf } = ctx;
+  const { inbox, setOpen, viewOf, openThread } = ctx;
   const now = new Date();
   const shown = limit ? items.slice(0, limit) : items;
   const markRead = (n: NotificationView) => {
@@ -42,6 +41,7 @@ export function NotificationRows({
         {shown.map((n) => {
           const fresh = isUnread(n);
           const view = viewOf(n);
+          const thread = n.subjectType === "thread" && n.subjectId ? n.subjectId : null;
           const tone = TONE_STYLE[toneOf(n)];
           return (
             <li
@@ -63,7 +63,20 @@ export function NotificationRows({
               <span className={cx("text-[15px] text-go-ink", fresh && "font-medium")}>{n.title}</span>
               <span className="text-[13px] text-go-secondary">{n.body}</span>
               <span className="flex gap-1 pt-1">
-                {view && (
+                {thread && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (fresh) markRead(n);
+                      setOpen(false);
+                      openThread({ threadId: thread });
+                    }}
+                    className="min-h-9 rounded-full bg-go-soft px-3.5 text-[13px] font-medium text-go-on-soft"
+                  >
+                    Reply
+                  </button>
+                )}
+                {!thread && view && (
                   <button
                     type="button"
                     onClick={() => {
@@ -92,18 +105,19 @@ export function NotificationRows({
 
 export default function NotificationsPanel({ onNavigate }: { onNavigate: (view: ViewId) => void }): React.JSX.Element | null {
   const ctx = useDispatcherInbox();
+  useEscape(ctx?.open ? () => ctx.setOpen(false) : undefined);
   if (!ctx?.open) return null;
   const { inbox, setOpen } = ctx;
   const unread = inbox.items.filter(isUnread).length;
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-end p-4 md:pt-24 md:pr-9" role="presentation">
-      <button type="button" aria-label="Close notifications" onClick={() => setOpen(false)} className="absolute inset-0 bg-black/20" />
+      <button type="button" aria-label="Close notifications" onClick={() => setOpen(false)} className="absolute inset-0 animate-fade-in bg-black/20" />
       <section
         role="dialog"
         aria-modal="true"
         aria-label="Notifications"
-        className="relative flex max-h-[80dvh] w-full max-w-[520px] flex-col gap-3 overflow-y-auto rounded-go-panel bg-go-card p-6 shadow-go-card"
+        className="relative flex max-h-[80dvh] w-full max-w-[520px] animate-rise-in flex-col gap-3 overflow-y-auto overscroll-contain rounded-go-panel bg-go-card p-6 shadow-go-card"
       >
         <header className="flex items-center justify-between gap-3">
           <h2 className="text-[22px] font-medium text-go-ink">Notifications</h2>
@@ -122,7 +136,7 @@ export default function NotificationsPanel({ onNavigate }: { onNavigate: (view: 
         )}
         {inbox.error && <p role="alert" className="text-sm text-go-danger-strong">{inbox.error}</p>}
         {inbox.items.length === 0 ? (
-          <p className="py-6 text-center text-sm text-go-secondary">{inbox.loading ? "Loading…" : "No notifications yet."}</p>
+          <p className="py-6 text-center text-sm text-go-secondary">{inbox.loading ? "Loading…" : "No notifications yet. Deferrals, releases, issues and store messages appear here as they happen."}</p>
         ) : (
           <NotificationRows items={inbox.items} onNavigate={onNavigate} />
         )}

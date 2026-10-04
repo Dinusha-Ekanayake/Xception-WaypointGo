@@ -145,6 +145,78 @@ jobs:
       - run: npm test
       - run: npm run build
 
+  # Every role's screens in a real browser (#120), each suite against the
+  # production build with its API mocked, so no backend is needed. One job
+  # builds once and runs the suites in turn: each step runs even when an earlier
+  # one failed, so every role reports and the failing one is named. Driver and
+  # loader are drawn at 393 px, dispatcher and store at 1440 px (the configs).
+  browser:
+    name: Browser suites
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Playwright version
+        id: playwright
+        run: echo "version=$(npx playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+      # Restored here and saved at the end even when a suite failed, so a red run
+      # does not make the next one download Chromium again.
+      - uses: actions/cache/restore@v6
+        id: browsers
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+      - name: Install Chromium
+        if: steps.browsers.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+      - name: Install Chromium's system libraries
+        if: steps.browsers.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+      - name: Build
+        id: build
+        run: npm run build
+      - name: Shell
+        if: (success() || failure()) && steps.build.outcome == 'success'
+        run: npx playwright test -c playwright.config.ts
+      - name: Dispatcher (1440 px)
+        if: (success() || failure()) && steps.build.outcome == 'success'
+        run: npx playwright test -c playwright.dispatcher.config.ts
+      - name: Driver (393 px)
+        if: (success() || failure()) && steps.build.outcome == 'success'
+        run: npx playwright test -c playwright.driver.config.ts
+      - name: Loader (393 px)
+        if: (success() || failure()) && steps.build.outcome == 'success'
+        run: npx playwright test -c playwright.loader.config.ts
+      - name: Store manager (1440 px)
+        if: (success() || failure()) && steps.build.outcome == 'success'
+        run: npx playwright test -c playwright.store.config.ts
+      - name: Keep the reports of a failed run
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: browser-suites-report
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+          retention-days: 7
+      - name: Keep Chromium for the next run
+        if: always() && steps.browsers.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
   compose:
     name: Compose files parse
     runs-on: ubuntu-latest

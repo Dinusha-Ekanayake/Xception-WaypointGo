@@ -8,6 +8,7 @@ import com.waypoint.dispatch.execution.contract.ExecutionEvents.RoadDisruptionRe
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.VehicleFaultReported;
 import com.waypoint.dispatch.issues.contract.IssueEvents.IssueEscalated;
 import com.waypoint.dispatch.issues.contract.IssueEvents.IssueRaised;
+import com.waypoint.dispatch.messaging.contract.MessagingEvents.MessagePosted;
 import com.waypoint.dispatch.loading.contract.LoadingEvents.LoadingShortfall;
 import com.waypoint.dispatch.loading.contract.LoadingEvents.ReleasedStop;
 import com.waypoint.dispatch.loading.contract.LoadingEvents.TripReleased;
@@ -23,6 +24,7 @@ import com.waypoint.dispatch.planning.contract.PlanEvents.OrderUnservable;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlanPublished;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlanRevised;
 import com.waypoint.dispatch.planning.contract.PlanEvents.StoreContacted;
+import com.waypoint.dispatch.planning.contract.PlanEvents.PlannedStop;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlannedTrip;
 import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.platform.messaging.EventSubscriber;
@@ -301,7 +303,25 @@ final class NotificationConsumers {
 
     @Override
     Routed route(PlanPublished e) {
-      return plan(e.planId(), e.depotCode(), e.serviceDate(), e.planVersion(), e.trips(), null);
+      Routed r = plan(e.planId(), e.depotCode(), e.serviceDate(), e.planVersion(), e.trips(), null);
+      // R-NOT-15: each outlet on the plan hears its order is planned, one target per stop (issue #224).
+      for (PlannedTrip trip : e.trips()) {
+        for (PlannedStop stop : trip.stops()) {
+          if (stop.outletId() == null) {
+            continue;
+          }
+          r.to(
+              new Target(
+                  ScopeKind.OUTLET,
+                  stop.outletId(),
+                  "stop:" + trip.tripId() + ":" + stop.sequence(),
+                  Map.of(
+                      "stopNumber", String.valueOf(stop.sequence()),
+                      "plannedArrival", stop.plannedArrival() == null ? "-" : time(stop.plannedArrival())),
+                  subject("order", stop.orderId())));
+        }
+      }
+      return r;
     }
   }
 
@@ -699,6 +719,56 @@ final class NotificationConsumers {
           .fact("depotCode", e.depotCode()).fact("outletId", e.outletId())
           .to(ScopeKind.DEPOT, e.depotCode(), "issue", e.issueId())
           .to(ScopeKind.OUTLET, e.outletId(), "issue", e.issueId());
+    }
+  }
+
+  /**
+   * R-NOT-14: a message on a thread (issue #136). Names the depot (the dispatcher,
+   * who hears of every message, and the loaders), the vehicle (its driver on the
+   * service date) and the outlets the message reaches; each routing rule fires
+   * only for the audience the fact names. The author is not told (R-NOT-07).
+   */
+  @Component
+  static class OnMessagePosted extends NotificationConsumer<MessagePosted> {
+    OnMessagePosted(Notifier notifier) {
+      super(notifier);
+    }
+
+    @Override
+    public String consumerName() {
+      return "notification.on-message-posted";
+    }
+
+    @Override
+    public Class<MessagePosted> eventType() {
+      return MessagePosted.class;
+    }
+
+    @Override
+    Routed route(MessagePosted e) {
+      String where = e.vehicleId().map(v -> " · " + v).orElse("");
+      String heading =
+          "report".equals(e.kind())
+              ? roleWords(e.authorRole()) + " report" + where
+              : e.authorName() + where;
+      Routed r =
+          new Routed()
+              .fact("audience", e.audience()).fact("heading", heading).fact("excerpt", e.excerpt())
+              .fact("vehicleId", e.vehicleId()).fact("depotCode", e.depotCode())
+              .on(e.serviceDate().orElse(null))
+              .to(ScopeKind.DEPOT, e.depotCode(), "thread", e.threadId());
+      e.vehicleId().ifPresent(v -> r.to(ScopeKind.VEHICLE, v, "thread", e.threadId()));
+      e.outletIds().forEach(o -> r.to(ScopeKind.OUTLET, o, "thread", e.threadId()));
+      return r;
+    }
+
+    private static String roleWords(String role) {
+      return switch (role) {
+        case "loader" -> "Loader";
+        case "driver" -> "Driver";
+        case "store_manager" -> "Store";
+        default -> "Dispatcher";
+      };
     }
   }
 

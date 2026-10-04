@@ -1,232 +1,313 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { OrderCommandKind, type OrderView } from "@shared/domain/types";
-import { FilterTabs, Icon, Notice, Pill, SecondaryButton } from "@shared/ui";
+import { ORDER_CUTOFF, OrderCommandKind, type IssueView, type OrderStatus, type OrderView, type RunSheetStopView } from "@shared/domain/types";
+import { Icon, Menu, Notice, Segmented, cx, useToast } from "@shared/ui";
+import { addDays, clock, dayLabel } from "@shared/wording";
 import PageHeader from "../PageHeader.tsx";
-import { STATUS, flow, matches, size, type StatusFilter } from "../data/orders.ts";
-import { dayLabel } from "../data/scope.ts";
+import { flow } from "../data/orders.ts";
+import { depotToday } from "../data/scope.ts";
 import { useCommand } from "../data/useCommand.ts";
-import { useOrders, usePlans } from "../data/useDay.ts";
-import DayPicker from "./DayTools.tsx";
-import Refusal from "./Refusal.tsx";
+import { useHistory, useIssues, useLive, useOrders, usePlans, type HistoryDay } from "../data/useDay.ts";
+import type { ViewId } from "../navigation.ts";
+import OrderDrawer from "./OrderDrawer.tsx";
+import OrdersTable, { type LastColumn, type OrderLine } from "./OrdersTable.tsx";
+import { seriesColour } from "./ForecastChart.tsx";
+import Refusal, { refusalText } from "./Refusal.tsx";
 
-// Figma "03 Orders: current": what became of every order due on a day, from the
-// order to the store's confirmation. The design's Upcoming and Past tabs are
-// the day picker; its ETA column waits on a live ETA per order.
+// Figma "03 Orders" (current, upcoming, past, order details): what became of
+// every order, from the order to the store's confirmation. Current is today,
+// read live; Upcoming is the next two days, where a day's orders are closed so
+// the plan can be made; Past is the last seven days. A row opens the order.
 
-const COLUMNS = "grid grid-cols-[120px_minmax(150px,1.3fr)_84px_150px_120px_minmax(170px,1fr)] items-center gap-3 px-1";
-
+type Tab = "current" | "upcoming" | "past";
 type CloseResult = { alreadyClosed: boolean };
+
+const UPCOMING_DAYS = 2;
+const PAST_DAYS = 7;
+
+const STATUS_GROUPS: Array<{ id: string; label: string; statuses: OrderStatus[] | null }> = [
+  { id: "all", label: "All statuses", statuses: null },
+  { id: "to-plan", label: "To plan", statuses: ["CONFIRMED", "DEFERRED", "STOCK_UNKNOWN", "PARTIALLY_RESERVED"] },
+  { id: "planned", label: "Planned", statuses: ["ALLOCATED", "LOADING"] },
+  { id: "road", label: "On the road", statuses: ["IN_TRANSIT"] },
+  { id: "delivered", label: "Delivered", statuses: ["DELIVERED", "PARTIALLY_DELIVERED", "RECEIVED", "UNCONFIRMED"] },
+  { id: "problem", label: "Need attention", statuses: ["STOCK_UNKNOWN", "PARTIALLY_RESERVED", "DEFERRED", "UNSERVABLE", "PARTIALLY_DELIVERED", "FAILED", "UNCONFIRMED"] },
+];
 
 export default function Orders({
   depots,
   scopeLabel,
-  date,
-  onDate,
   online,
+  onNavigate,
+  onOpenPlan,
 }: {
   depots: string[];
   scopeLabel: string;
-  date: string;
-  onDate: (date: string) => void;
   online: boolean;
+  onNavigate: (view: ViewId) => void;
+  onOpenPlan: (date: string) => void;
 }): React.JSX.Element {
-  const orders = useOrders(depots, date);
-  const plans = usePlans(depots, date);
-  const { busy, run } = useCommand();
-  const [status, setStatus] = useState<StatusFilter>("all");
+  const today = depotToday();
+  const [tab, setTab] = useState<Tab>("current");
   const [brand, setBrand] = useState("all");
+  const [statusId, setStatusId] = useState("all");
   const [text, setText] = useState("");
-  const [closed, setClosed] = useState<string | null>(null);
-  const [failure, setFailure] = useState<Error | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
 
-  const all = orders.data ?? [];
+  const current = useOrders(depots, today);
+  const live = useLive(depots, today);
+  const issues = useIssues(depots);
+  const upcomingDates = useMemo(() => Array.from({ length: UPCOMING_DAYS }, (_, i) => addDays(today, i + 1)), [today]);
+  const pastDates = useMemo(() => Array.from({ length: PAST_DAYS }, (_, i) => addDays(today, -i - 1)), [today]);
+  const upcoming = useHistory(depots, tab === "upcoming" ? upcomingDates : []);
+  const past = useHistory(depots, tab === "past" ? pastDates : []);
+
+  const all = current.data ?? [];
   const f = flow(all);
-  const brands = useMemo(() => [...new Set(all.map((order) => order.brandCode))].sort(), [all]);
-  const rows = useMemo(() => all.filter((order) => matches(order, { status, brand, text })), [all, status, brand, text]);
+  const stops = useMemo(() => {
+    const byOrder = new Map<string, RunSheetStopView>();
+    const days: HistoryDay[] = [...(past.data ?? []), { date: today, orders: [], sheets: live.data?.sheets ?? [] }];
+    for (const day of days) for (const sheet of day.sheets) for (const stop of sheet.stops) byOrder.set(stop.orderId, stop);
+    return byOrder;
+  }, [live.data, past.data, today]);
+  const issuesByOrder = useMemo(() => {
+    const byOrder = new Map<string, IssueView[]>();
+    for (const issue of issues.data ?? []) {
+      for (const subject of issue.subjects) if (subject.type === "order") byOrder.set(subject.id, [...(byOrder.get(subject.id) ?? []), issue]);
+    }
+    return byOrder;
+  }, [issues.data]);
+  const atRisk = (live.data?.sheets ?? []).flatMap((s) => s.stops).filter((s) => s.outcome === "PENDING" && (s.lateMinutes ?? 0) > 0).length;
 
-  // Where each order rides, from the published plan; a draft is not a promise.
+  const days: HistoryDay[] =
+    tab === "current" ? [{ date: today, orders: all, sheets: [] }] : tab === "upcoming" ? (upcoming.data ?? []) : [...(past.data ?? [])];
+  const brands = useMemo(() => [...new Set(days.flatMap((d) => d.orders.map((o) => o.brandCode)))].sort(), [days]);
+  const group = STATUS_GROUPS.find((g) => g.id === statusId)!;
+  const keep = (order: OrderView) =>
+    (brand === "all" || order.brandCode === brand) &&
+    (group.statuses === null || group.statuses.includes(order.status)) &&
+    (!text.trim() || [order.orderRef, order.outletId, order.districtName].some((v) => v.toLowerCase().includes(text.trim().toLowerCase())));
+
+  const plans = usePlans(depots, tab === "current" ? today : (upcomingDates[0] ?? today));
   const rides = useMemo(() => {
     const byOrder = new Map<string, string>();
     for (const depot of plans.data ?? []) {
-      for (const trip of depot.published?.trips ?? []) {
-        for (const stop of trip.stops) byOrder.set(stop.orderId, `${trip.vehicleId} · T${trip.tripNumber}`);
+      for (const plan of [depot.draft, depot.published]) {
+        for (const trip of plan?.trips ?? []) for (const stop of trip.stops) byOrder.set(stop.orderId, `${trip.vehicleId} · T${trip.tripNumber}`);
       }
     }
     return byOrder;
   }, [plans.data]);
 
-  const close = async (depot: string) => {
-    setClosed(null);
-    setFailure(null);
-    const sent = await run<CloseResult>(OrderCommandKind.closeForDay, { depotCode: depot, serviceDate: date }, null);
-    if (!sent.ok) return setFailure(sent.error);
-    setClosed(
-      sent.result.alreadyClosed
-        ? `Orders for ${depot} on ${dayLabel(date)} were already closed.`
-        : `Orders for ${depot} on ${dayLabel(date)} are closed. New orders for that day roll to the next run.`,
-    );
-    orders.refresh();
-  };
-
-  const steps: Array<[string, number]> = [
-    ["Due", f.due],
-    ["Planned", f.planned],
-    ["Left the dock", f.leftDock],
-    ["Delivered", f.delivered],
-    ["Confirmed by the store manager", f.confirmedByStore],
-  ];
+  const line = (order: OrderView): OrderLine => ({ order, ride: rides.get(order.orderId), stop: stops.get(order.orderId), issues: issuesByOrder.get(order.orderId)?.length ?? 0 });
+  const groups = days
+    .map((day) => ({ title: tab === "current" ? null : dayLabel(day.date), lines: day.orders.filter(keep).map(line) }))
+    .filter((g) => tab === "current" || g.lines.length > 0);
+  const shown = groups.reduce((n, g) => n + g.lines.length, 0);
+  const chosen = selected ? days.flatMap((d) => d.orders).find((o) => o.orderId === selected) : undefined;
+  const last: LastColumn = tab === "current" ? "eta" : tab === "upcoming" ? "placed" : "done";
+  const loading = tab === "current" ? !current.data && !current.error : tab === "upcoming" ? upcoming.loading && !upcoming.data : past.loading && !past.data;
+  const error = tab === "current" ? current.error : tab === "upcoming" ? upcoming.error : past.error;
+  const field = "flex items-center gap-1.5 rounded-full bg-go-card px-4 py-2.5 text-[14px] font-medium text-go-ink";
 
   return (
     <>
       <PageHeader
         title="Orders"
-        subtitle={`${orders.data ? `${f.due} due` : "Loading"} · ${scopeLabel} · ${dayLabel(date)}`}
+        subtitle={`${scopeLabel} · cutoff ${ORDER_CUTOFF}`}
         online={online}
-        lastSyncedAt={orders.loadedAt}
-        onSync={orders.refresh}
-        syncing={orders.loading}
-        tools={<DayPicker date={date} onDate={onDate} />}
+        lastSyncedAt={current.loadedAt}
+        onSync={current.refresh}
+        syncing={current.loading}
       />
 
-      {orders.error && <Refusal error={orders.error} what="the orders" action={<Retry onClick={orders.refresh} />} />}
-      {failure && <Refusal error={failure} what="closing orders" />}
-      {closed && <Notice tone="info" title={closed} live />}
-      {f.stockUnknown > 0 && (
+      <div className="flex w-full flex-wrap items-center gap-2.5">
+        <Segmented
+          size="md"
+          label="Which orders"
+          value={tab}
+          onChange={(next) => (setTab(next), setSelected(null))}
+          options={[
+            { value: "current", label: "Current", hint: `Today · ${current.data ? f.due : "…"}` },
+            { value: "upcoming", label: "Upcoming", hint: upcomingDates.map((d) => dayLabel(d).split(" ").slice(0, 2).join(" ")).join(" · ") },
+            { value: "past", label: "Past", hint: `Last ${PAST_DAYS} days` },
+          ]}
+        />
+        <span className="flex-1" />
+        <label className="flex items-center gap-2 rounded-full bg-go-card px-4 py-2.5">
+          <Icon name="search" />
+          <input
+            type="search"
+            value={text}
+            onChange={(event) => setText(event.target.value)}
+            placeholder="Search orders"
+            aria-label="Search orders"
+            className="w-48 bg-transparent text-[14px] text-go-ink outline-none placeholder:text-go-placeholder"
+          />
+        </label>
+        <Menu label="Brand" align="right" items={[{ id: "all", label: "All brands", selected: brand === "all" }, ...brands.map((b) => ({ id: b, label: b, selected: b === brand }))]} onSelect={setBrand} className={field} chevron>
+          {brand === "all" ? "All brands" : brand}
+        </Menu>
+        <Menu label="Status" align="right" items={STATUS_GROUPS.map((g) => ({ id: g.id, label: g.label, selected: g.id === statusId }))} onSelect={setStatusId} className={field} chevron>
+          {group.label}
+        </Menu>
+      </div>
+
+      {error && <Refusal error={error} what="the orders" action={<Retry onClick={tab === "current" ? current.refresh : tab === "upcoming" ? upcoming.refresh : past.refresh} />} />}
+      {tab === "current" && f.stockUnknown > 0 && (
         <Notice tone="warning" title={`${f.stockUnknown} ${f.stockUnknown === 1 ? "order has" : "orders have"} no stock answer from the warehouse`}>
           They are not planned until the warehouse confirms the stock. Stock is never assumed.
         </Notice>
       )}
 
-      <section aria-label="Order flow" className="flex w-full flex-wrap items-center gap-x-6 gap-y-3 rounded-[24px] bg-white px-5 py-4 shadow-go-card">
-        <ol className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          {steps.map(([label, value], index) => (
-            <li key={label} className="flex items-center gap-4">
-              {index > 0 && <Icon name="chevron-right" />}
-              <span className="flex flex-col">
-                <span className="text-xs text-go-secondary">{label}</span>
-                <span className="text-2xl font-medium tabular-nums text-go-ink">{orders.data ? value : "…"}</span>
-              </span>
-            </li>
-          ))}
-        </ol>
-        <div className="flex-1" />
-        <div className="flex flex-wrap gap-2">
-          <Tile tone="bg-go-success-tint" value={f.onTheRoad} label="On the road" onClick={() => setStatus("road")} />
-          <Tile tone="bg-go-danger-tint" value={f.attention} label="Need attention" onClick={() => setStatus("attention")} />
-          <Tile tone="bg-go-surface" value={f.awaitingStore} label="Awaiting the store manager" onClick={() => setStatus("done")} />
-        </div>
-      </section>
-
-      <section aria-label="Orders" className="flex min-w-0 flex-1 flex-col rounded-[24px] bg-white px-5 pt-3.5 pb-3 shadow-go-card">
-        <div className="flex flex-wrap items-center gap-2 pb-3">
-          <FilterTabs
-            label="Filter orders"
-            value={status}
-            onChange={setStatus}
-            options={[
-              { value: "all", label: `All ${all.length}` },
-              { value: "attention", label: `Need attention ${f.attention}` },
-              { value: "to-plan", label: "To plan" },
-              { value: "planned", label: "Planned" },
-              { value: "road", label: "On the road" },
-              { value: "done", label: "Done" },
-            ]}
-          />
-          <div className="flex-1" />
-          <label className="flex items-center gap-1.5 rounded-go-card-s bg-go-surface px-3 py-[7px]">
-            <Icon name="search" />
-            <input
-              type="search"
-              value={text}
-              onChange={(event) => setText(event.target.value)}
-              placeholder="Order, outlet or district"
-              aria-label="Search orders"
-              className="w-44 bg-transparent text-[13px] text-go-ink outline-none placeholder:text-go-placeholder"
-            />
-          </label>
-          <select value={brand} onChange={(event) => setBrand(event.target.value)} aria-label="Brand" className="rounded-go-card-s bg-go-surface px-3 py-2 text-[13px] text-go-ink">
-            <option value="all">All brands</option>
-            {brands.map((code) => (
-              <option key={code} value={code}>
-                {code}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="overflow-x-auto">
-          <div role="table" aria-label="Orders due" className="min-w-[860px]">
-            <div role="row" className={`${COLUMNS} border-b border-go-rule pb-2 text-xs text-go-secondary`}>
-              {["Order", "Outlet", "Type", "Size", "Vehicle · trip", "Status"].map((heading) => (
-                <span key={heading} role="columnheader">
-                  {heading}
+      {tab === "current" && (
+        <section aria-label="Order flow" className="flex w-full flex-wrap items-center gap-x-6 gap-y-3 rounded-go-panel bg-go-card px-5 py-3.5">
+          <ol className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            {(
+              [
+                ["Planned", f.planned],
+                ["Loaded", f.leftDock],
+                ["Delivered", f.delivered],
+                ["Confirmed by store", f.confirmedByStore],
+              ] as Array<[string, number]>
+            ).map(([label, value], index) => (
+              <li key={label} className="flex items-center gap-5">
+                {index > 0 && <Icon name="chevron-right-muted" />}
+                <span className="flex flex-col">
+                  <span className="text-[13px] text-go-secondary">{label}</span>
+                  <span className="text-[24px] leading-tight font-medium text-go-ink tabular-nums">{current.data ? value : "…"}</span>
                 </span>
-              ))}
-            </div>
-            {rows.map((order) => (
-              <OrderRow key={order.orderId} order={order} ride={rides.get(order.orderId)} />
+              </li>
+            ))}
+          </ol>
+          <span className="flex-1" />
+          <div className="flex flex-wrap gap-2.5">
+            <Tile tone="bg-go-success-tint" value={f.onTheRoad} label="On the road" onClick={() => setStatusId("road")} />
+            <Tile tone="bg-go-warning-tint" value={live.data ? atRisk : null} label="At risk" onClick={() => onNavigate("live")} />
+            <Tile tone="bg-go-danger-tint" value={issues.data ? issuesByOrder.size : null} label="Issues reported" onClick={() => onNavigate("issues")} />
+            <Tile tone="bg-go-surface" value={f.awaitingStore} label="Awaiting store" onClick={() => setStatusId("delivered")} />
+          </div>
+        </section>
+      )}
+
+      {tab === "upcoming" && <UpcomingDays depots={depots} days={upcoming.data ?? []} online={online} onNavigate={onNavigate} onClosed={upcoming.refresh} />}
+
+      <section aria-label="Orders" className="flex min-w-0 flex-1 flex-col rounded-go-panel bg-go-card px-5 pt-4 pb-3">
+        {brands.length > 0 && (
+          // The dots in the outlet column are brands: the legend names them, and a click filters to one.
+          <div role="group" aria-label="Brands" className="flex flex-wrap items-center gap-1.5 pb-3 text-xs text-go-secondary">
+            <span className="pr-1">Brands</span>
+            {brands.map((code) => (
+              <button
+                key={code}
+                type="button"
+                aria-pressed={brand === code}
+                onClick={() => setBrand(brand === code ? "all" : code)}
+                className={cx("flex items-center gap-1.5 rounded-full px-2.5 py-1 font-medium", brand === code ? "bg-go-ink text-go-card" : "bg-go-surface text-go-ink hover:bg-go-subtle")}
+              >
+                <span aria-hidden className="size-2 rounded-full" style={{ background: seriesColour(`${code}-ambient`) }} />
+                {code}
+              </button>
             ))}
           </div>
-        </div>
-        {orders.data && rows.length === 0 && (
-          <p className="py-8 text-center text-[13px] text-go-secondary">
-            {all.length === 0 ? `No orders are due on ${dayLabel(date)}.` : "No orders match these filters."}
-          </p>
         )}
-        {!orders.data && !orders.error && <p className="py-8 text-center text-[13px] text-go-secondary">Loading the orders…</p>}
+        <OrdersTable groups={groups} last={last} selected={selected} onSelect={setSelected} />
+        {!loading && shown === 0 && (
+          <div className="flex flex-col items-center gap-2 py-8 text-center text-[13px] text-go-secondary">
+            {days.every((d) => d.orders.length === 0) ? "No orders in these days." : "No orders match these filters."}
+            {text && (
+              <button type="button" onClick={() => setText("")} className="font-medium text-go-teal">
+                Clear search
+              </button>
+            )}
+          </div>
+        )}
+        {loading && <p className="py-8 text-center text-[13px] text-go-secondary">Loading the orders…</p>}
       </section>
 
-      <section aria-label="Close orders" className="flex w-full flex-wrap items-center gap-3 rounded-[24px] bg-white px-5 py-4 shadow-go-card">
-        <div className="min-w-[240px] flex-1">
-          <h2 className="text-[15px] font-medium text-go-ink">Close orders for {dayLabel(date)}</h2>
-          <p className="text-xs text-go-secondary">After the cutoff, closing stops new orders for the day so the plan can be made. Before the cutoff it is refused.</p>
-        </div>
-        {depots.map((depot) => (
-          <SecondaryButton key={depot} disabled={!online || busy} onClick={() => void close(depot)}>
-            Close {depot}
-          </SecondaryButton>
-        ))}
-      </section>
+      {chosen && <OrderDrawer line={line(chosen)} issues={issuesByOrder.get(chosen.orderId) ?? []} onClose={() => setSelected(null)} onOpenPlan={onOpenPlan} />}
     </>
   );
 }
 
-function OrderRow({ order, ride }: { order: OrderView; ride: string | undefined }): React.JSX.Element {
-  const state = STATUS[order.status];
+/** Figma "03b Orders: upcoming": one card per day with where its orders stand, and Close orders once the cutoff has passed. */
+function UpcomingDays({
+  depots,
+  days,
+  online,
+  onNavigate,
+  onClosed,
+}: {
+  depots: string[];
+  days: HistoryDay[];
+  online: boolean;
+  onNavigate: (view: ViewId) => void;
+  onClosed: () => void;
+}): React.JSX.Element {
+  const toast = useToast();
+  const { busy, run } = useCommand();
+
+  const close = async (depot: string, date: string) => {
+    const sent = await run<CloseResult>(OrderCommandKind.closeForDay, { depotCode: depot, serviceDate: date }, null);
+    if (!sent.ok) return toast({ tone: "error", ...refusalText(sent.error, "closing orders") });
+    toast(
+      sent.result.alreadyClosed
+        ? { title: "Already closed", detail: `Orders for ${depot} on ${dayLabel(date)} were closed before.` }
+        : { title: "Orders closed", detail: `${depot} · ${dayLabel(date)}. New orders for that day roll to the next run.` },
+    );
+    onClosed();
+  };
+
   return (
-    <div role="row" className={`${COLUMNS} min-h-[44px] border-b border-go-rule py-2 text-[13px] text-go-ink`}>
-      <span role="cell" className="font-medium">
-        {order.orderRef}
-      </span>
-      <span role="cell" className="truncate">
-        {order.outletId} · {order.districtName}
-        <span className="text-go-secondary"> · {order.brandCode}</span>
-      </span>
-      <span role="cell">
-        <Pill tone={order.temperature === "chilled" ? "info" : "muted"}>{order.temperature === "chilled" ? "Chilled" : "Ambient"}</Pill>
-      </span>
-      <span role="cell" className="tabular-nums">
-        {size(order)}
-      </span>
-      <span role="cell" className={ride ? "" : "text-go-secondary"}>
-        {ride ?? "Not on a plan"}
-      </span>
-      <span role="cell" className="flex flex-wrap items-center gap-1.5">
-        <Pill tone={state.tone}>{state.label}</Pill>
-        {order.deferralCount > 0 && <span className="text-xs text-go-warning-text">deferred {order.deferralCount}×</span>}
-        {order.dateRolled && <span className="text-xs text-go-secondary">moved from {dayLabel(order.requestedDate)}</span>}
-      </span>
-    </div>
+    <section aria-label="Upcoming days" className="flex w-full flex-col gap-2 rounded-go-panel bg-go-card p-3">
+      <div className="flex gap-2.5 max-md:flex-col">
+        {days.map((day) => {
+          const inPlan = day.orders.filter((o) => o.status === "ALLOCATED").length;
+          const deferred = day.orders.filter((o) => o.status === "DEFERRED").length;
+          const closesOn = addDays(day.date, -1);
+          const closed = closesOn < depotToday() || (closesOn === depotToday() && clock(new Date()) >= ORDER_CUTOFF);
+          const count = `${day.orders.length} ${day.orders.length === 1 ? "order" : "orders"}`;
+          return (
+            <div key={day.date} className="flex min-w-0 flex-1 flex-wrap items-center gap-2 rounded-go-card bg-go-surface px-4 py-3">
+              <div className="min-w-[140px] flex-1">
+                <p className="text-[15px] font-medium text-go-ink">{`${dayLabel(day.date)}${closed ? "" : " · open"}`}</p>
+                <p className="text-xs text-go-secondary">
+                  {closed ? `Closed ${ORDER_CUTOFF} · ${count}` : `Closes ${dayLabel(closesOn).split(" ")[0]} ${ORDER_CUTOFF} · ${count} so far`}
+                </p>
+              </div>
+              {inPlan > 0 && <span className="rounded-full bg-go-success-tint px-2.5 py-1 text-xs text-go-teal">{`${inPlan} in plan drafts`}</span>}
+              {deferred > 0 && <span className="rounded-full bg-go-warning-tint px-2.5 py-1 text-xs text-go-warning-text">{`${deferred} deferred`}</span>}
+              <Menu
+                label={`Close orders for ${dayLabel(day.date)}`}
+                align="right"
+                disabled={!online || busy}
+                items={depots.map((depot) => ({ id: depot, label: `Close ${depot}`, hint: "Refused before the cutoff" }))}
+                onSelect={(depot) => void close(depot, day.date)}
+                className="rounded-full bg-go-card px-3 py-1.5 text-[13px] font-medium text-go-ink"
+                chevron
+              >
+                Close orders
+              </Menu>
+              <button type="button" onClick={() => onNavigate("plan")} className="flex items-center gap-0.5 text-[13px] font-medium text-go-teal">
+                Open plan <Icon name="chevron-right" />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
-function Tile({ tone, value, label, onClick }: { tone: string; value: number; label: string; onClick: () => void }): React.JSX.Element {
+function Tile({ tone, value, label, onClick }: { tone: string; value: number | null; label: string; onClick: () => void }): React.JSX.Element {
   return (
-    <button type="button" onClick={onClick} className={`flex min-w-[104px] flex-col rounded-go-card px-3.5 py-2 text-left ${tone}`}>
-      <span className="text-xl font-medium tabular-nums text-go-ink">{value}</span>
-      <span className="text-xs text-go-secondary">{label}</span>
+    <button type="button" onClick={onClick} className={cx("flex min-w-[104px] items-center gap-3 rounded-go-card px-3.5 py-2 text-left", tone)}>
+      <span className="flex flex-col">
+        <span className="text-xl font-medium text-go-ink tabular-nums">{value ?? "…"}</span>
+        <span className="text-xs text-go-secondary">{label}</span>
+      </span>
+      <Icon name="chevron-right-muted" />
     </button>
   );
 }

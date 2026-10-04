@@ -164,7 +164,7 @@ class PlanningRunTest {
     PlanningRun published =
         new PlanningRun(
             d.planId(), d.depotCode(), d.serviceDate(), d.planVersion(), PlanStatus.PUBLISHED, d.stamps(),
-            d.supersedes(), d.revisionReason(), d.demandFingerprint(), false, false, d.engine(), d.improvement(), d.days(), d.decisions(),
+            d.supersedes(), d.revisionReason(), d.demandFingerprint(), false, false, d.engine(), d.improvement(), d.cost(), d.days(), d.decisions(),
             d.deferredBy(), d.marks(), 2);
     DomainException refused =
         assertThrows(
@@ -190,7 +190,7 @@ class PlanningRunTest {
   PlanningRun published(PlanningRun d) {
     return new PlanningRun(
         d.planId(), d.depotCode(), d.serviceDate(), d.planVersion(), PlanStatus.PUBLISHED, d.stamps(),
-        d.supersedes(), d.revisionReason(), d.demandFingerprint(), false, false, d.engine(), d.improvement(), d.days(), d.decisions(),
+        d.supersedes(), d.revisionReason(), d.demandFingerprint(), false, false, d.engine(), d.improvement(), d.cost(), d.days(), d.decisions(),
         d.deferredBy(), d.marks(), 2);
   }
 
@@ -333,6 +333,26 @@ class PlanningRunTest {
     assertEquals(Source.SWAP, swapped.markOf(d.orderId()).orElseThrow().source());
     assertEquals(Source.MANUAL_DEFER, swapped.markOf(a.orderId()).orElseThrow().source());
     assertTrue(swapped.verify(everyOrder(), CONTEXT, REGISTRY).isEmpty(), "the whole plan still passes");
+  }
+
+  @Test
+  void aSwapCanFixTheTripsStopOrderInTheSameChange() {
+    PlanningRun plan = draftWithAmbientDeferred();
+    PlanningRun swapped =
+        plan.swap(UUID.randomUUID(), 2, a, d, List.of(d.orderId(), b.orderId()), "the new outlet first", DISPATCHER, REGISTRY, CONTEXT);
+
+    Trip trip = swapped.days().get(0).trip(1);
+    assertEquals(List.of(d.orderId(), b.orderId()), trip.sequence());
+    assertTrue(trip.hasFixedSequence());
+    assertEquals(AllocationDecision.DEFERRED, swapped.decisionFor(a.orderId()).orElseThrow().decision());
+    assertEquals(Source.SWAP, swapped.markOf(d.orderId()).orElseThrow().source());
+
+    DomainException wrong =
+        assertThrows(
+            DomainException.class,
+            () -> plan.swap(UUID.randomUUID(), 2, a, d, List.of(a.orderId(), b.orderId()), "names the outgoing one", DISPATCHER, REGISTRY, CONTEXT));
+    assertEquals(ErrorCode.VALIDATION_FAILED, wrong.code());
+    assertEquals(AllocationDecision.SERVED, plan.decisionFor(a.orderId()).orElseThrow().decision(), "nothing half done");
   }
 
   @Test
@@ -481,6 +501,42 @@ class PlanningRunTest {
     assertTrue(
         refused.rules().stream().anyMatch(r -> r.equals("R-PLN-13") || r.equals("R-PLN-29")),
         refused.rules().toString());
+  }
+
+  @Test
+  void aTripEditAddsADeferredOrderTakesOneOffAndFixesTheOrderInOneVersion() {
+    PlanningRun plan = draftWithAmbientDeferred();
+    PlanningRun edited =
+        plan.editTrip(UUID.randomUUID(), 2, "T1", 1, List.of(d, b), "outlet waited two days", DISPATCHER, REGISTRY, CONTEXT);
+
+    Trip trip = edited.days().get(0).trip(1);
+    assertEquals(List.of(d.orderId(), b.orderId()), trip.sequence());
+    assertEquals(AllocationDecision.SERVED, edited.decisionFor(d.orderId()).orElseThrow().decision());
+    assertEquals(Source.OVERRIDE, edited.markOf(d.orderId()).orElseThrow().source());
+    OrderDecision off = edited.decisionFor(a.orderId()).orElseThrow();
+    assertEquals(AllocationDecision.DEFERRED, off.decision());
+    assertEquals(DISPATCHER, edited.deferredBy().get(a.orderId()), "rule 8: who");
+    assertTrue(edited.verify(everyOrder(), CONTEXT, REGISTRY).isEmpty(), "the whole plan still passes");
+  }
+
+  @Test
+  void anEmptyTripEditRemovesTheTripAndDefersItsOrders() {
+    PlanningRun removed = draft().editTrip(UUID.randomUUID(), 2, "T1", 1, List.of(), "vehicle off the road", DISPATCHER, REGISTRY, CONTEXT);
+    assertTrue(removed.days().stream().allMatch(day -> day.trips().isEmpty()), removed.days().toString());
+    assertEquals(AllocationDecision.DEFERRED, removed.decisionFor(a.orderId()).orElseThrow().decision());
+    assertEquals(AllocationDecision.DEFERRED, removed.decisionFor(b.orderId()).orElseThrow().decision());
+  }
+
+  @Test
+  void aTripEditThatBreaksARuleIsRefusedWholeWithThatRule() {
+    PlanningRun before = draft();
+    DomainException refused =
+        assertThrows(
+            DomainException.class,
+            () -> before.editTrip(UUID.randomUUID(), 2, "T1", 1, List.of(a, b, c), "add the chilled one", DISPATCHER, REGISTRY, CONTEXT));
+    assertEquals(ErrorCode.CONSTRAINT_VIOLATED, refused.code());
+    assertTrue(refused.rules().contains("R-PLN-02"), refused.rules().toString());
+    assertEquals(AllocationDecision.SERVED, before.decisionFor(a.orderId()).orElseThrow().decision(), "nothing half done");
   }
 
   @Test

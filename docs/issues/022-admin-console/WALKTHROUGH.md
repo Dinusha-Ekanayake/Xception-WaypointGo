@@ -1,5 +1,11 @@
 # Admin console frontend rebuild
 
+## Managed reference creation (2026-10-04)
+
+The Add depot, Add outlet and Add vehicle dialogs now send `reference:CreateDepot`, `reference:CreateOutlet` and `reference:CreateVehicle` through the command bus. Each handler validates the full candidate snapshot, stores the managed source row in `ref.managed_additions`, publishes a new immutable version, and refreshes the local cache after commit. A later CSV import overlays the managed rows under the same publication lock. Vehicle and outlet commands require scope for the existing depot; the outlet's depot is derived from its published district. A new depot needs a supplied approximate point and starts empty. Its creator still needs an IAM depot grant to see it in scoped admin reads.
+
+The UI collects only fields represented in the reference schema and reloads from the API after saving. After depot creation it submits a separate, versioned `iam:GrantScope` for the creator and reports if that grant fails. People and Trips sidebar parents have collapse chevrons; the Trips content no longer repeats the Planned/Live choice. Persona and action details do not expose internal role resource names. Verify with frontend typecheck, tests and build, plus `ReferenceValidatorTest`, `ModuleBoundaryTest` and `ReferenceCreationIntegrationTest` against a dedicated PostgreSQL test database.
+
 ## Capability UI mock, 2026-10-01
 
 The current checkout adds an isolated interactive mock at `http://127.0.0.1:43000/access-demo` when the frontend is started on port 43000. The route does not require a session and never sends permission writes. The signed-out root page links to it. It is labeled Mock data in the page chrome; its state resets on reload. The shell follows the supplied Figma file's style guide and dispatcher desktop language; that file has no separate Admin screen. The existing walkthrough below describes an earlier admin rebuild whose source files are absent from this checkout.

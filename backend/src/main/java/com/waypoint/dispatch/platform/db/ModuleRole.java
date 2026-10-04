@@ -25,6 +25,7 @@ public enum ModuleRole {
   SYNC("waypoint_sync"),
   WAREHOUSE("waypoint_warehouse"),
   ML("waypoint_ml"),
+  MESSAGING("waypoint_messaging"),
   INTEGRATION("waypoint_integration");
 
   private final String roleName;

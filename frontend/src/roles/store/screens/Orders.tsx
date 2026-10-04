@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { ApiError } from "@shared/api/problem";
 import type { OrderView } from "@shared/domain/types";
 import { Notice, cx } from "@shared/ui";
-import { units, ORDER_STATUS, dayLabel, depotToday, temperatureLabel } from "../data/format.ts";
+import { units, ORDER_STATUS, dayLabel, depotToday, planNote, temperatureLabel } from "../data/format.ts";
 import { Chip, Muted } from "../ui.tsx";
 
 // Every order for this outlet, newest delivery day first. Tapping one opens its
@@ -23,9 +23,9 @@ const FILTERS: { id: Filter; label: string; keep: (o: OrderView) => boolean }[] 
 
 const EMPTY: Record<Filter, string> = {
   open: "No open orders. Received and cancelled ones are under their filters.",
-  received: "No received orders yet.",
+  received: "No received orders yet. An order moves here once you confirm its delivery.",
   cancelled: "No cancelled orders.",
-  all: "No orders yet.",
+  all: "No orders yet. Place one from Home before the 16:00 cutoff.",
 };
 
 export default function Orders({
@@ -49,7 +49,8 @@ export default function Orders({
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex items-end gap-3">
+      {/* From lg the sync pill and the bell sit top right over the page (TopBar); keep New order clear of them. */}
+      <div className="flex items-end gap-3 lg:mr-[260px]">
         <h1 className="flex-1 text-[32px] leading-tight font-medium text-black">Orders</h1>
         <button type="button" onClick={onPlace} className="min-h-12 rounded-[22px] bg-go-mint px-5 text-[15px] font-medium text-black">
           + New order
@@ -65,7 +66,7 @@ export default function Orders({
             onClick={() => setFilter(f.id)}
             className={cx("min-h-12 flex-1 rounded-full px-3 text-[15px] font-medium lg:flex-none lg:px-5", f.id === filter ? "bg-[#031a0c] text-white" : "text-black")}
           >
-            {f.label} <span className="opacity-60">{orders.filter(f.keep).length}</span>
+            {f.label} <span className="opacity-60">({orders.filter(f.keep).length})</span>
           </button>
         ))}
       </div>
@@ -99,6 +100,7 @@ export default function Orders({
                     {o.dateRolled ? ` · moved from ${dayLabel(o.requestedDate)}` : ""}
                     {o.deferralCount > 0 ? ` · deferred ${o.deferralCount}×` : ""}
                   </span>
+                  {planNote(o) && <span className="text-[13px] font-medium text-go-teal">{planNote(o)}</span>}
                 </button>
               );
             })}

@@ -1,5 +1,24 @@
 # Issue 22: Admin and super-admin console plan
 
+## 2026-10-04 system constraints configuration
+
+The admin console groups planning thresholds, priority policy, ordering, loading, execution, receipt, issues, notifications, intelligence, integration, security and fixed planning rules. Only values with a working runtime write path are editable. Safety and validator invariants remain read-only. A control is chosen from the value type: a number or time for thresholds, an ordered list for priority, a choice for enumerations, and a toggle only for an independently defined boolean policy. No toggle disables a planning constraint predicate.
+
+First delivery: Planning owns a read of effective rule sets and a versioned `planning:CreateRuleSet` command. The command copies every existing parameter into a successor, replaces validated numeric/time values, closes the previous range on the selected date, requires a reason, and leaves old rule sets stamped on existing plans. The UI reviews changed values and submits an effective date and expected version. The existing engine, override checks and publication gate keep reading `RuleSet`; forecast capacity and the store's date outlook read the same effective trip ceiling through the planning contract. The frontend does not duplicate their thresholds. The reference category uses the existing `calendar:Override` command for a dated on/off decision. Its current cache propagation gap between replicas remains visible in the UI. Remaining categories show their documented baseline source and availability until each owning module gets an equivalent command and a single runtime read path.
+
+## 2026-10-04 reference creation and navigation follow-up
+
+The admin sidebar owns the Planned trips and Live trips choice, so the Trips screen drops its duplicate switch. People and Trips parents show a chevron and can collapse their child links. Persona cards and role details omit internal resource URIs.
+
+Depots, outlets and vehicles created by an administrator must persist as managed reference source rows. A create command records the row, validates the resulting snapshot, publishes a new immutable reference version and returns its identity. The import command composes managed rows into later CSV snapshots under the same publication lock. A new depot requires supplied approximate coordinates and initially has no districts or outlets; a store's depot is still derived from its district. The form accepts only fields represented by the reference schema. A new depot remains subject to explicit IAM scope grants before an administrator can read it through the scoped directory. Existing reference versions and published plans retain their original snapshots.
+
+The reference module owns validation, managed rows, version publication and cache refresh. Identity owns scope grants. The frontend submits commands through the shared command client and reloads each directory after a successful acknowledgement. Duplicate identities, invalid capacities/windows/coordinates and missing scope produce clear errors without adding a local-only row.
+
+## 2026-10-03 wiring repair
+
+The deployed console calls `/api/admin/*`, while the backend has no matching routes. This repair adds read-only admin routes in the owning module's web and application layers: Identity owns accounts, roles and actions; Reference owns depots, outlets and vehicles; Ordering owns orders and timelines; Planning owns plans. Each read is authorized and scoped before returning data. Existing command endpoints remain the only write path. The frontend maps the returned contracts and must not report a failed command as saved. Unsupported writes stay visibly unavailable until their command contracts exist. Production data is inspected read-only; the fix is made and verified locally before deployment.
+
+
 Date: 2026-10-01. Branch inspected: `22-admin-console`.
 
 Authorization implementation specification: [AWS IAM semantics and delivery plan](IAM-PLAN.md), with [all current and proposed permissions](PERMISSION-INVENTORY.md). These documents define the replacement permission model; the existing frontend preview is not evidence that it is implemented.

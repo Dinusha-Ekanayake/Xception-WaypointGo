@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { NotificationView } from "@shared/domain/notification";
 import { ago } from "@shared/notifications/inbox";
 import { useInbox } from "@shared/notifications/useInbox";
-import { cx, McpButton, useShell } from "@shared/ui";
+import { cx, useDeviceLang, useMedia, useShell } from "@shared/ui";
 import { nextStop, type Stop } from "./data/run.ts";
 import { activeIndex, syncLabel, toRouteStops, tripStatus, type RouteStop } from "./data/stopView.ts";
 import DeliveryPinConfirmModal from "./screens/DeliveryPinConfirmModal.tsx";
@@ -12,6 +12,8 @@ import DeliveryReport from "./screens/DeliveryReport.tsx";
 import DeliveryReportWaiting from "./screens/DeliveryReportWaiting.tsx";
 import DrivingModeScreen from "./screens/DrivingModeScreen.tsx";
 import HomeNoVehicle from "./screens/HomeNoVehicle.tsx";
+import Messages from "./screens/Messages.tsx";
+import { unreadMessages } from "./data/messages.ts";
 import RefusedUploads from "./screens/RefusedUploads.tsx";
 import RouteChangedBottomSheet from "./screens/RouteChangedBottomSheet.tsx";
 import RouteMap from "./screens/RouteMap.tsx";
@@ -20,7 +22,7 @@ import RunCompleteScreen from "./screens/RunCompleteScreen.tsx";
 import { ProblemSheet, SavedSheet } from "./screens/Sheets.tsx";
 import SignOutConfirmBottomSheet from "./screens/SignOutConfirmBottomSheet.tsx";
 import StopDetail from "./screens/StopDetail.tsx";
-import { BackIcon, Banner, DriverMorphHeader, OutlineButton, type SupportedLang } from "./ui.tsx";
+import { BackIcon, Banner, DriverMorphHeader, OutlineButton } from "./ui.tsx";
 import { useDriver } from "./useDriver.ts";
 
 /**
@@ -30,7 +32,7 @@ import { useDriver } from "./useDriver.ts";
  * proof, the problem report and the stop detail keep their working forms.
  */
 export default function Driver({ userId, displayName, scope }: { userId: string; displayName: string; scope: string[] }): React.JSX.Element {
-  const d = useDriver(userId);
+  const d = useDriver(userId, scope[0] ?? null);
   const inbox = useInbox(userId);
   const shell = useShell();
   const { run, view, screen, shown, reporting, detail, online, error, notice, busy } = d;
@@ -40,11 +42,17 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
   const depot = scope[0] ?? "";
   const sync = syncLabel(online, run.uploadsWaiting.length, run.syncedAt, run.keptAt);
 
-  const [lang, setLang] = useState<SupportedLang>("en");
+  const [lang, setLang] = useDeviceLang();
   const [driving, setDriving] = useState(false);
   const [formFor, setFormFor] = useState<string | null>(null);
   const [pinFor, setPinFor] = useState<Stop | null>(null);
   const [revised, setRevised] = useState<NotificationView | null>(null);
+  const [talking, setTalking] = useState(false);
+  const unread = unreadMessages(inbox.items);
+  const openMessages = () => {
+    setTalking(true);
+    if (unread.length > 0 && online) void inbox.markRead(unread.map((n) => n.notificationId)).catch(() => undefined);
+  };
   const seen = useRef<Set<string> | null>(null);
 
   // The delivery form opens from the waiting screen; a stop reported as not
@@ -89,19 +97,32 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
 
   const header = screen === "home" || screen === "route" || screen === "map";
   const next = nextStop(stops);
+  // A tablet held sideways (an in-cab mount) shows the trip map beside the
+  // run, so the map is always in view; the Map screen itself stays one column.
+  const sideMap = useMedia("(min-width: 1024px) and (orientation: landscape)") && next !== null && screen !== "map";
 
   return (
     <main
       aria-label="Driver workspace"
       data-theme={d.dark ? "dark" : "light"}
+      // The run fills the device: a phone either way up, and on a tablet a
+      // column as wide as the screens are drawn for (issue #201). The phone
+      // mock-up it sat in before was cut off on a phone held sideways and on a
+      // landscape tablet.
       className={cx(
-        "h-dvh max-h-dvh sm:h-auto sm:min-h-dvh w-full sm:py-6 flex items-center justify-center font-go overflow-hidden transition-colors",
-        d.dark ? "go-dark bg-[#161616] sm:bg-[#0a0a0a]" : "bg-[#E7F3F2] sm:bg-[#d6e7e5]"
+        "flex h-dvh max-h-dvh w-full justify-center overflow-hidden font-go transition-colors",
+        d.dark ? "go-dark bg-[#161616] md:bg-[#0a0a0a]" : "bg-[#E7F3F2] md:bg-[#d6e7e5]"
       )}
     >
+      {sideMap && next && (
+        <aside aria-label="Trip map" className="relative min-w-0 flex-1 overflow-hidden">
+          <RouteMap next={next} outlet={run.outlets[next.outletId]} recorder={d.location} syncedAt={run.syncedAt} className="h-full w-full" />
+        </aside>
+      )}
       <div
         className={cx(
-          "w-full h-full sm:max-w-[393px] h-dvh sm:h-[852px] sm:max-h-[852px] sm:rounded-[44px] sm:shadow-2xl overflow-hidden relative transition-colors",
+          "relative h-dvh w-full overflow-hidden transition-colors md:max-w-[600px] md:shadow-2xl",
+          sideMap && "lg:max-w-[480px]",
           d.dark ? "bg-[#161616]" : "bg-[#E7F3F2]"
         )}
       >
@@ -113,6 +134,7 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
               onBack={() => (screen === "map" ? d.go({ name: "route", deliveryId: null }) : d.go({ name: "home" }))}
               lang={lang}
               onToggleLang={setLang}
+              displayName={displayName}
               onSignOut={d.askSignOut}
               onToggleTheme={d.theme}
               isNight={d.dark}
@@ -125,12 +147,13 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
             Loading today's run…
           </p>
         ) : (
-          <div key={screen} className="absolute inset-0 animate-fade-in">
+          <div key={screen} className="absolute inset-0 animate-fade-in short:overflow-y-auto">
             {screen === "home" && (
               <HomeNoVehicle
                 driverName={displayName}
                 depotName={depot}
                 vehicle={run.vehicle}
+                nextRun={run.nextRun}
                 tripStatus={tripStatus(stops)}
                 stopCount={stops.length}
                 unavailable={run.unavailable}
@@ -225,12 +248,34 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
           </div>
         )}
 
+        {talking && (
+          <Messages
+            accountId={userId}
+            tripId={d.tripId}
+            vehicleId={run.vehicle?.vehicleId ?? null}
+            online={online}
+            dark={d.dark}
+            sender={d.postMessage}
+            onBack={() => setTalking(false)}
+          />
+        )}
+
         {/* What is degraded, said on screen (rule 9): an expired session, a saved copy, location, a refused file. */}
         <div className={cx("absolute inset-x-0 z-40 flex flex-col gap-2 px-5 pointer-events-none", header ? "top-[78px]" : "top-[84px]")}>
-          {/* The shell's sync badge opens writes the server refused, for review; MCP on Home (#177). */}
+          {/* The shell's sync badge opens writes the server refused, for review; MCP is in Settings (#177). */}
           <div className="pointer-events-auto flex items-center justify-end gap-2 empty:hidden">
+            {(screen === "home" || screen === "route") && d.tripId && (
+              <button
+                type="button"
+                onClick={openMessages}
+                aria-label={unread.length > 0 ? `Messages, ${unread.length} new` : "Messages"}
+                className="flex min-h-10 items-center gap-2 rounded-full bg-go-card px-4 text-[14px] font-medium text-go-ink shadow-go-card"
+              >
+                Messages
+                {unread.length > 0 && <span className="min-w-5 rounded-full bg-go-danger px-1.5 text-center text-[12px] text-white">{unread.length > 99 ? "99+" : unread.length}</span>}
+              </button>
+            )}
             {shell?.sync}
-            {screen === "home" && <McpButton url={shell?.mcpUrl ?? null} compact className="flex shrink-0 items-center justify-center rounded-full bg-go-card text-go-ink shadow-go-float" />}
           </div>
           {run.expired && !run.loading ? (
             <div className="pointer-events-auto flex flex-col gap-2">
@@ -249,7 +294,8 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
             )
           )}
           {d.location.needsConsent && screen === "route" && (
-            <div className="pointer-events-auto flex flex-col gap-2">
+            // One solid card: on its own the outline buttons were drawn over the stop name.
+            <div className="pointer-events-auto flex flex-col gap-2 rounded-[22px] bg-go-card p-2 shadow-go-card">
               <Banner tone="warn" title="Share your location while the run is open?">
                 So the dispatcher and the store can see where the truck is. Only while your run is open.
               </Banner>

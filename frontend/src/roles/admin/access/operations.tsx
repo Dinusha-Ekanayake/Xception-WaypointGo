@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Badge, Empty, VehicleTypeIcon, card, field, primary, secondary } from "./components";
-import { DEMO_DEPOTS } from "./fixtures";
-import { fetchAdminVehicles } from "../data/reference";
+import { todayInColombo } from "./model";
+import { createAdminVehicle, fetchAdminVehicles, fetchAdminDepots } from "../data/reference";
+import { request } from "@shared/api/client";
+import type { ForecastOverviewView } from "@shared/domain/intelligence";
 
 
 export type LastDriver = {
@@ -20,36 +22,33 @@ export type Vehicle = {
   depot: string;
   weightCapKg: number;
   volumeCapM3: number;
-  fuelType: "Diesel" | "Petrol";
+  fuelType: string;
   weeklyFuelQuotaL: number;
   fuelEfficiencyKmPerL: number;
   temp: "Ambient" | "Chilled (Refrigerated)";
-  status: "Available" | "On trip" | "Workshop";
+  status: "Available" | "On trip" | "Workshop" | "Unavailable";
   lastDriver?: LastDriver;
 };
-
-const FORECASTS: { depot: string; orders: number; previous: number; vans: number; trucks: number }[] = [];
 
 export function VehiclesScreen() {
   const [vehiclesList, setVehiclesList] = useState<Vehicle[]>([]);
   const [liveConnected, setLiveConnected] = useState<boolean | null>(null);
   const [isAddVehicleModalOpen, setIsAddVehicleModalOpen] = useState(false);
+  const [createError, setCreateError] = useState("");
+  const [createNotice, setCreateNotice] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [depotChoices, setDepotChoices] = useState<string[]>([]);
 
   // New Vehicle form draft
   const [newVehicleId, setNewVehicleId] = useState("");
-  const [newVehicleBrand, setNewVehicleBrand] = useState("Toyota");
-  const [newVehicleTargetBrand, setNewVehicleTargetBrand] = useState<"Fresh" | "Style" | "Tech" | "General">("Fresh");
   const [newVehicleType, setNewVehicleType] = useState<"Van" | "Truck">("Van");
-  const [newVehicleDepot, setNewVehicleDepot] = useState<string>("PELIYAGODA");
+  const [newVehicleDepot, setNewVehicleDepot] = useState<string>("");
   const [newVehicleTemp, setNewVehicleTemp] = useState<string>("Ambient Fresh");
   const [newVehicleWeightCap, setNewVehicleWeightCap] = useState("1200");
   const [newVehicleVolumeCap, setNewVehicleVolumeCap] = useState("8.5");
   const [newVehicleFuelType, setNewVehicleFuelType] = useState<"Diesel" | "Petrol">("Diesel");
   const [newVehicleFuelQuota, setNewVehicleFuelQuota] = useState("280");
   const [newVehicleEfficiency, setNewVehicleEfficiency] = useState("11.2");
-  const [newVehicleStatus, setNewVehicleStatus] = useState<"Available" | "On trip" | "Workshop">("Available");
-  const [newVehicleDriverName, setNewVehicleDriverName] = useState("");
-  const [newVehicleDriverPhone, setNewVehicleDriverPhone] = useState("");
 
   const [depot, setDepot] = useState("all");
   const [capacityFilter, setCapacityFilter] = useState("all");
@@ -64,6 +63,7 @@ export function VehiclesScreen() {
   useEffect(() => {
     let cancelled = false;
     fetchAdminVehicles({
+      date: todayInColombo(),
       depot: depot !== "all" ? depot : undefined,
       status: status !== "all" ? status.toLowerCase() : undefined,
       search: query.trim() || undefined,
@@ -71,7 +71,7 @@ export function VehiclesScreen() {
     })
       .then((page) => {
         if (cancelled) return;
-        if (page.items && page.items.length > 0) {
+        {
           const records: Vehicle[] = page.items.map((v) => {
             const isTruck = v.type?.toLowerCase() === "truck";
             const tempVal =
@@ -81,28 +81,20 @@ export function VehiclesScreen() {
             const statusVal =
               v.dayStatus === "in_workshop" || v.dayStatus === "workshop"
                 ? "Workshop"
-                : v.dayStatus === "on_route"
-                ? "On trip"
-                : "Available";
+                : v.dayStatus === "unavailable" ? "Unavailable" : "Available";
 
             return {
               id: v.vehicleId,
-              brand: isTruck ? "Isuzu" : "Toyota",
+              brand: "Make unavailable",
               type: isTruck ? "Truck" : "Van",
-              depot: v.depot || "PELIYAGODA",
-              weightCapKg: Number(v.weightCapKg) || (isTruck ? 5510 : 1200),
-              volumeCapM3: Number(v.volumeCapM3) || (isTruck ? 26.4 : 8.5),
-              fuelType: (v.fuelType === "Petrol" || v.fuelType === "Diesel" ? v.fuelType : "Diesel") as "Diesel" | "Petrol",
-              weeklyFuelQuotaL: Number(v.weeklyFuelQuotaL) || (isTruck ? 480 : 280),
-              fuelEfficiencyKmPerL: Number(v.kmPerL) || (isTruck ? 4.7 : 11.2),
+              depot: v.depot,
+              weightCapKg: Number(v.weightCapKg),
+              volumeCapM3: Number(v.volumeCapM3),
+              fuelType: v.fuelType,
+              weeklyFuelQuotaL: Number(v.weeklyFuelQuotaL),
+              fuelEfficiencyKmPerL: Number(v.kmPerL),
               temp: tempVal,
               status: statusVal,
-              lastDriver: {
-                id: `DRV-${v.vehicleId.slice(-3)}`,
-                name: "Assigned Driver",
-                phone: "+94 77 123 4567",
-                lastRunDate: "Today",
-              },
             };
           });
           setVehiclesList(records);
@@ -132,62 +124,52 @@ export function VehiclesScreen() {
     }
   };
 
-  const handleTargetBrandChange = (brand: "Fresh" | "Style" | "Tech" | "General") => {
-    setNewVehicleTargetBrand(brand);
-    if (brand === "Fresh") {
-      setNewVehicleTemp("Ambient Fresh");
-    } else {
-      setNewVehicleTemp("Ambient");
+  const handleCreateVehicle = async () => {
+    setCreateError("");
+    setCreating(true);
+    let saved = false;
+    try {
+      await createAdminVehicle({
+        vehicleId: newVehicleId.trim().toUpperCase(), depotCode: newVehicleDepot,
+        type: newVehicleType.toLowerCase(),
+        temperature: newVehicleTemp === "Chilled (Refrigerated)" ? "reefer" : "ambient",
+        weightCapKg: newVehicleWeightCap, volumeCapM3: newVehicleVolumeCap,
+        fuelType: newVehicleFuelType.toLowerCase(), kmPerL: newVehicleEfficiency,
+        weeklyFuelQuotaL: newVehicleFuelQuota,
+      });
+      saved = true;
+      const page = await fetchAdminVehicles({ limit: 100 });
+      setVehiclesList(page.items.map((v) => ({
+        id: v.vehicleId, brand: "Make unavailable",
+        type: v.type.toLowerCase() === "truck" ? "Truck" : "Van", depot: v.depot,
+        weightCapKg: Number(v.weightCapKg), volumeCapM3: Number(v.volumeCapM3),
+        fuelType: v.fuelType, weeklyFuelQuotaL: Number(v.weeklyFuelQuotaL),
+        fuelEfficiencyKmPerL: Number(v.kmPerL),
+        temp: v.temperature === "reefer" ? "Chilled (Refrigerated)" : "Ambient",
+        status: "Available",
+      })));
+      setIsAddVehicleModalOpen(false);
+    } catch (error) {
+      if (saved) {
+        setCreateNotice("Vehicle saved, but the directory could not refresh. Reload to see it.");
+        setIsAddVehicleModalOpen(false);
+      } else {
+        setCreateError(error instanceof Error ? error.message : "Could not create vehicle.");
+      }
+    } finally {
+      setCreating(false);
     }
-  };
-
-  const handleCreateVehicle = () => {
-    const vId = newVehicleId.trim().toUpperCase() || `WP-${Math.floor(1000 + Math.random() * 9000)}`;
-    const weight = parseFloat(newVehicleWeightCap) || (newVehicleType === "Van" ? 1200 : 5510);
-    const volume = parseFloat(newVehicleVolumeCap) || (newVehicleType === "Van" ? 8.5 : 26.4);
-    const quota = parseFloat(newVehicleFuelQuota) || (newVehicleType === "Van" ? 280 : 480);
-    const efficiency = parseFloat(newVehicleEfficiency) || (newVehicleType === "Van" ? 11.2 : 4.7);
-
-    const newVeh: Vehicle = {
-      id: vId,
-      brand: newVehicleBrand.trim() || "Toyota",
-      type: newVehicleType,
-      depot: newVehicleDepot,
-      weightCapKg: weight,
-      volumeCapM3: volume,
-      fuelType: newVehicleFuelType,
-      weeklyFuelQuotaL: quota,
-      fuelEfficiencyKmPerL: efficiency,
-      temp: newVehicleTemp as "Ambient" | "Chilled (Refrigerated)",
-      status: newVehicleStatus,
-      lastDriver: newVehicleDriverName.trim()
-        ? {
-            id: `DRV-${Date.now().toString().slice(-3)}`,
-            name: newVehicleDriverName.trim(),
-            phone: newVehicleDriverPhone.trim() || "+94 77 000 0000",
-            lastRunDate: "Just registered",
-          }
-        : undefined,
-    };
-
-    setVehiclesList((prev) => [newVeh, ...prev]);
-    setIsAddVehicleModalOpen(false);
 
     // Reset vehicle form
+    if (!saved) return;
     setNewVehicleId("");
-    setNewVehicleBrand("Toyota");
-    setNewVehicleTargetBrand("Fresh");
     setNewVehicleType("Van");
-    setNewVehicleDepot("PELIYAGODA");
     setNewVehicleTemp("Ambient Fresh");
     setNewVehicleWeightCap("1200");
     setNewVehicleVolumeCap("8.5");
     setNewVehicleFuelType("Diesel");
     setNewVehicleFuelQuota("280");
     setNewVehicleEfficiency("11.2");
-    setNewVehicleStatus("Available");
-    setNewVehicleDriverName("");
-    setNewVehicleDriverPhone("");
   };
 
   const rows = useMemo(() => {
@@ -233,18 +215,27 @@ export function VehiclesScreen() {
 
   return (
     <div className="space-y-6">
+      {createNotice && <p role="status" className="rounded-xl bg-go-subtle p-3 text-sm text-go-ink">{createNotice}</p>}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           {liveConnected !== null && (
             <Badge tone={liveConnected ? "green" : "neutral"}>
-              {liveConnected ? "Live API: GET /api/admin/vehicles" : "Connecting..."}
+              {liveConnected ? "Live data" : "Vehicles unavailable"}
             </Badge>
           )}
         </div>
         <button
           type="button"
           className={`${primary} flex items-center gap-2`}
-          onClick={() => setIsAddVehicleModalOpen(true)}
+          onClick={() => {
+            setCreateError("");
+            setIsAddVehicleModalOpen(true);
+            void fetchAdminDepots().then((rows) => {
+              const codes = rows.map((row) => row.code).sort();
+              setDepotChoices(codes);
+              setNewVehicleDepot((current) => codes.includes(current) ? current : codes[0] ?? "");
+            }).catch((error) => setCreateError(error instanceof Error ? error.message : "Depots unavailable."));
+          }}
         >
           <span className="text-lg leading-none" aria-hidden="true">+</span>
           <span>Add vehicle</span>
@@ -274,7 +265,7 @@ export function VehiclesScreen() {
           Depot
           <select className={`${field} mt-1`} value={depot} onChange={(event) => setDepot(event.target.value)}>
             <option value="all">All depots</option>
-            {DEMO_DEPOTS.map((item) => (
+            {[...new Set(vehiclesList.map((item) => item.depot))].sort().map((item) => (
               <option key={item} value={item}>
                 {item}
               </option>
@@ -557,7 +548,7 @@ export function VehiclesScreen() {
                     value={newVehicleDepot}
                     onChange={(e) => setNewVehicleDepot(e.target.value)}
                   >
-                    {DEMO_DEPOTS.map((d) => (
+                    {depotChoices.map((d) => (
                       <option key={d} value={d}>
                         {d}
                       </option>
@@ -566,53 +557,16 @@ export function VehiclesScreen() {
                 </label>
               </div>
 
-              {/* Brand & Category Configuration (Asks brand first, then conditional sub-options for Fresh) */}
-              <div className="rounded-2xl border border-go-rule bg-go-subtle p-4 space-y-3">
-                <span className="block text-xs font-bold uppercase tracking-wider text-go-teal">
-                  Brand &amp; Merchandise Category
-                </span>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="block font-medium text-go-ink">
-                    Which Brand is this vehicle for? *
-                    <select
-                      className={`${field} mt-1`}
-                      value={newVehicleTargetBrand}
-                      onChange={(e) => handleTargetBrandChange(e.target.value as "Fresh" | "Style" | "Tech" | "General")}
-                    >
-                      <option value="Fresh">Fresh (Food, Dairy &amp; Groceries)</option>
-                      <option value="Style">Style (Apparel &amp; Fashion)</option>
-                      <option value="Tech">Tech (Electronics &amp; Appliances)</option>
-                      <option value="General">General Fleet (Multi-brand network)</option>
-                    </select>
-                  </label>
+              <label className="block font-medium text-go-ink">
+                Temperature capability *
+                <select className={`${field} mt-1`} value={newVehicleTemp}
+                  onChange={(e) => setNewVehicleTemp(e.target.value)}>
+                  <option value="Ambient Fresh">Ambient</option>
+                  <option value="Chilled (Refrigerated)">Refrigerated</option>
+                </select>
+              </label>
 
-                  {newVehicleTargetBrand === "Fresh" ? (
-                    <label className="block font-medium text-go-ink">
-                      Fresh Sub-Category / Temperature *
-                      <select
-                        className={`${field} mt-1`}
-                        value={newVehicleTemp}
-                        onChange={(e) => setNewVehicleTemp(e.target.value)}
-                      >
-                        <option value="Ambient Fresh">Ambient Fresh (Dry &amp; packaged foods)</option>
-                        <option value="Chilled (Refrigerated)">Chilled Refrigerated (Cold chain &amp; perishables)</option>
-                      </select>
-                    </label>
-                  ) : (
-                    <div>
-                      <span className="block text-xs font-medium text-go-secondary">
-                        Temperature Zone Requirement
-                      </span>
-                      <div className="mt-1 flex items-center gap-2 rounded-xl border border-[#e1ece5] bg-white px-3 py-2 text-sm text-[#3b5246]">
-                        <span className="size-2 rounded-full bg-go-teal"></span>
-                        <span>Standard Ambient ({newVehicleTargetBrand} does not require refrigerated)</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Vehicle Type & Initial Status */}
+              {/* Vehicle type */}
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="block font-medium text-go-ink">
                   Vehicle Type *
@@ -626,18 +580,6 @@ export function VehiclesScreen() {
                   </select>
                 </label>
 
-                <label className="block font-medium text-go-ink">
-                  Initial Status *
-                  <select
-                    className={`${field} mt-1`}
-                    value={newVehicleStatus}
-                    onChange={(e) => setNewVehicleStatus(e.target.value as "Available" | "On trip" | "Workshop")}
-                  >
-                    <option value="Available">Available</option>
-                    <option value="On trip">On trip</option>
-                    <option value="Workshop">Workshop</option>
-                  </select>
-                </label>
               </div>
 
               {/* Capacity Specs */}
@@ -709,29 +651,7 @@ export function VehiclesScreen() {
                 </div>
               </div>
 
-              {/* Assigned Driver (Optional) */}
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="block font-medium text-go-ink">
-                  Assigned Driver Name (Optional)
-                  <input
-                    type="text"
-                    className={`${field} mt-1`}
-                    placeholder="e.g. Kasun Fernando"
-                    value={newVehicleDriverName}
-                    onChange={(e) => setNewVehicleDriverName(e.target.value)}
-                  />
-                </label>
-                <label className="block font-medium text-go-ink">
-                  Driver Phone (Optional)
-                  <input
-                    type="text"
-                    className={`${field} mt-1`}
-                    placeholder="e.g. +94 77 123 4567"
-                    value={newVehicleDriverPhone}
-                    onChange={(e) => setNewVehicleDriverPhone(e.target.value)}
-                  />
-                </label>
-              </div>
+              {createError && <p role="alert" className="text-sm text-go-danger">{createError}</p>}
             </div>
 
             <div className="mt-6 flex flex-wrap justify-end gap-3 border-t border-go-subtle pt-4">
@@ -745,10 +665,10 @@ export function VehiclesScreen() {
               <button
                 type="button"
                 className={primary}
-                disabled={!newVehicleId.trim()}
+                disabled={creating || !newVehicleId.trim() || !newVehicleDepot}
                 onClick={handleCreateVehicle}
               >
-                Create vehicle
+                {creating ? "Creating..." : "Create vehicle"}
               </button>
             </div>
           </div>
@@ -760,46 +680,60 @@ export function VehiclesScreen() {
 
 export function ForecastsScreen() {
   const [depot, setDepot] = useState("all");
-  const rows = FORECASTS.filter((item) => depot === "all" || item.depot === depot);
-  const totalOrders = rows.reduce((sum, item) => sum + item.orders, 0);
-  const totalVehicles = rows.reduce((sum, item) => sum + item.vans + item.trucks, 0);
+  const [overviews, setOverviews] = useState<ForecastOverviewView[]>([]);
+  const [error, setError] = useState(false);
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetchAdminDepots({ signal: controller.signal })
+      .then((depots) => Promise.all(depots.map((d) => request<ForecastOverviewView>(
+        `/api/ml/forecast/overview?depot=${encodeURIComponent(d.code)}`, { signal: controller.signal }))))
+      .then((rows) => { setOverviews(rows); setError(false); })
+      .catch(() => { if (!controller.signal.aborted) setError(true); });
+    return () => controller.abort();
+  }, []);
+  const rows = overviews.filter((item) => depot === "all" || item.depotCode === depot);
+  const nextWeek = rows.map((item) => item.weeks[0]).filter((week) => week != null);
+  const totalVolume = nextWeek.reduce((sum, week) => sum + Number(week.totalM3), 0);
+  const fleetVolume = nextWeek.reduce((sum, week) => sum + Number(week.capacity.fleetM3), 0);
+  const vehicles = nextWeek.reduce((sum, week) => sum + week.capacity.vehicles, 0);
   return (
     <div className="space-y-5">
       <div>
         <h2 className="text-2xl font-semibold">Forecasts</h2>
         <p className="mt-1 text-sm text-go-secondary">
-          Operational order demand and vehicle needs for the next operating day.
+          Weekly demand volume and reference fleet capacity from the published forecast.
         </p>
       </div>
+      {error && <Empty>Forecast data is unavailable. Reopen this screen to retry.</Empty>}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Summary value={totalOrders} label="Forecast orders" />
-        <Summary value={totalVehicles} label="Suggested vehicles" />
-        <Summary value={0} label="Available vehicles" />
-        <Summary value={0} label="Workshop vehicles" />
+        <Summary value={Number(totalVolume.toFixed(1))} label="Next week forecast m³" />
+        <Summary value={Number(fleetVolume.toFixed(1))} label="Next week fleet capacity m³" />
+        <Summary value={vehicles} label="Reference fleet vehicles" />
+        <Summary value={rows.filter((item) => item.degraded).length} label="Depots using fallback" />
       </div>
       <label className={`${card} block max-w-sm p-4 text-sm font-medium`}>
         Depot
         <select className={`${field} mt-1`} value={depot} onChange={(event) => setDepot(event.target.value)}>
           <option value="all">All depots</option>
-          {FORECASTS.map((item) => <option key={item.depot}>{item.depot}</option>)}
+          {overviews.map((item) => <option key={item.depotCode}>{item.depotCode}</option>)}
         </select>
       </label>
-      {rows.length === 0 ? (
+      {!error && rows.length === 0 ? (
         <Empty>No forecast data published yet.</Empty>
-      ) : (
+      ) : !error && (
         <div className="grid gap-4 lg:grid-cols-3">
           {rows.map((item) => {
-            const change = Math.round((item.orders - item.previous) / item.previous * 100);
+            const week = item.weeks[0];
             return (
-              <article key={item.depot} className={`${card} p-5`}>
-                <p className="text-xs font-bold uppercase tracking-wider text-go-secondary">{item.depot}</p>
+              <article key={item.depotCode} className={`${card} p-5`}>
+                <p className="text-xs font-bold uppercase tracking-wider text-go-secondary">{item.depotCode}</p>
                 <div className="mt-4 flex items-end gap-2">
-                  <strong className="text-4xl text-go-teal">{item.orders}</strong>
-                  <span className="pb-1 text-sm text-go-secondary">orders</span>
+                  <strong className="text-4xl text-go-teal">{week ? Number(week.totalM3).toFixed(1) : "Unavailable"}</strong>
+                  <span className="pb-1 text-sm text-go-secondary">m³ next week</span>
                 </div>
-                <p className="mt-2 text-sm text-go-secondary">{change >= 0 ? "+" : ""}{change}% against the comparison day</p>
+                <p className="mt-2 text-sm text-go-secondary">{item.degraded ? "Deterministic fallback forecast" : item.modelLabel ?? "No model recorded"}</p>
                 <div className="mt-5 border-t border-go-rule pt-4 text-sm">
-                  <p>Suggested: <strong>{item.vans} vans</strong> · <strong>{item.trucks} trucks</strong></p>
+                  <p>Fleet capacity: <strong>{week ? Number(week.capacity.fleetM3).toFixed(1) : "Unavailable"} m³</strong> · {week?.capacity.vehicles ?? 0} vehicles</p>
                 </div>
               </article>
             );

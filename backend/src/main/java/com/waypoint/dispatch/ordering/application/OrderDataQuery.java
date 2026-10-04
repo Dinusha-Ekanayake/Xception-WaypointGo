@@ -1,6 +1,7 @@
 package com.waypoint.dispatch.ordering.application;
 
 import com.waypoint.dispatch.ordering.contract.OrderQuery;
+import com.waypoint.dispatch.ordering.contract.OrderStatus;
 import com.waypoint.dispatch.ordering.contract.OrderViews.DemandView;
 import com.waypoint.dispatch.ordering.contract.OrderViews.OrderLineView;
 import com.waypoint.dispatch.ordering.contract.OrderViews.OrderView;
@@ -14,6 +15,7 @@ import com.waypoint.dispatch.platform.audit.AuditLog;
 import com.waypoint.dispatch.platform.db.Database;
 import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.shared.domain.Actor;
+import com.waypoint.dispatch.shared.domain.Cursor;
 import com.waypoint.dispatch.shared.domain.Page;
 import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
@@ -22,6 +24,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
@@ -83,8 +86,32 @@ public class OrderDataQuery implements OrderQuery {
   // ---- web: as the authenticated actor -------------------------------------
 
   public OrderView order(Actor actor, UUID orderId) {
-    return read(actor.userId(), () -> orders.findStored(orderId).map(OrderDataQuery::toView))
+    return read(actor.userId(), () -> orders.findStored(orderId).map(OrderDataQuery::toView)
+            .map(v -> withStops(List.of(v)).get(0)))
         .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No order " + orderId));
+  }
+
+  /** Planned, loading or on the road: the stop on the published plan still holds (issue #224). */
+  private static final java.util.Set<OrderStatus> ON_PLAN =
+      java.util.Set.of(OrderStatus.ALLOCATED, OrderStatus.LOADING, OrderStatus.IN_TRANSIT);
+
+  /** Each order with its stop and expected arrival, read inside the caller's transaction and scope. */
+  private List<OrderView> withStops(List<OrderView> views) {
+    List<UUID> ids = views.stream().filter(v -> ON_PLAN.contains(v.status())).map(OrderView::orderId).toList();
+    if (ids.isEmpty()) {
+      return views;
+    }
+    Map<UUID, Map<String, Object>> stops = orders.stops(ids);
+    return views.stream().map(v -> {
+      Map<String, Object> s = stops.get(v.orderId());
+      if (s == null || !ON_PLAN.contains(v.status())
+          || !((java.sql.Date) s.get("service_date")).toLocalDate().equals(v.deliveryDate())) {
+        return v;
+      }
+      Optional<java.time.LocalTime> arrival =
+          Optional.ofNullable((java.sql.Time) s.get("planned_arrival")).map(java.sql.Time::toLocalTime);
+      return v.withStop(((Number) s.get("stop_sequence")).intValue(), arrival);
+    }).toList();
   }
 
   public List<StatusChangeView> timeline(Actor actor, UUID orderId) {
@@ -119,6 +146,45 @@ public class OrderDataQuery implements OrderQuery {
         () -> orders.forDay(depotCode, serviceDate).stream().map(OrderDataQuery::toView).toList());
   }
 
+  /** Keyset directory of orders visible through the actor's SQL scope. */
+  public Page<OrderView> adminPage(Actor actor, String depot, LocalDate date, String status,
+      String brand, String outlet, String temperature, String search, String after, Integer limit) {
+    int size = Page.limit(limit);
+    List<String> cursor = Cursor.decode(after, 1);
+    UUID key = cursor.isEmpty() ? null : uuidCursor(cursor.get(0));
+    return read(actor.userId(), () -> {
+      List<UUID> ids = database.query(
+          """
+          SELECT order_id FROM ordering.orders
+           WHERE (?::text IS NULL OR depot_code = ?::text)
+             AND (?::date IS NULL OR delivery_date = ?::date)
+             AND (?::text IS NULL OR status = ?::text)
+             AND (?::text IS NULL OR brand_code = ?::text)
+             AND (?::text IS NULL OR outlet_id = ?::text)
+             AND (?::text IS NULL OR temperature = ?::text)
+             AND (?::text IS NULL OR order_ref ILIKE '%' || ?::text || '%'
+                  OR outlet_id ILIKE '%' || ?::text || '%')
+             AND (?::uuid IS NULL OR order_id > ?::uuid)
+           ORDER BY order_id LIMIT ?
+          """, depot, depot, date == null ? null : java.sql.Date.valueOf(date),
+          date == null ? null : java.sql.Date.valueOf(date), status, status, brand, brand,
+          outlet, outlet, temperature, temperature, search, search, search, key, key, size + 1)
+          .stream().map(r -> (UUID) r.get("order_id")).toList();
+      List<OrderView> rows = ids.stream().map(id -> orders.findStored(id).map(OrderDataQuery::toView)
+          .orElseThrow(() -> new IllegalStateException("Visible order disappeared"))).toList();
+      return Page.fromOverfetch(rows, size, row -> Cursor.encode(row.orderId().toString()));
+    });
+  }
+
+  private static UUID uuidCursor(String value) {
+    try { return UUID.fromString(value); } catch (IllegalArgumentException e) { throw Cursor.invalid(); }
+  }
+
+  /** The scope half of "policy AND scope" for one outlet: 403 and an audit row when outside it. */
+  void requireOutletScope(Actor actor, String outletId) {
+    requireScope(actor, "wpt:order:outlet:" + outletId, "SELECT app.actor_has_outlet(?) AS ok", outletId);
+  }
+
   /** Any other Ordering read, as the authenticated actor. */
   public <T> T asActor(Actor actor, java.util.function.Supplier<T> work) {
     return read(actor.userId(), work);
@@ -150,6 +216,43 @@ public class OrderDataQuery implements OrderQuery {
                     r ->
                         new com.waypoint.dispatch.ordering.contract.OrderViews.DailyVolumeView(
                             ((java.sql.Date) r.get("day")).toLocalDate(),
+                            ((Number) r.get("n")).intValue(),
+                            (java.math.BigDecimal) r.get("total"),
+                            (java.math.BigDecimal) r.get("chilled")))
+                .toList());
+  }
+
+  /**
+   * Orders not yet delivered or ended, by the day they are due. A store-unknown
+   * order has no measures yet and adds nothing (R-STK-05).
+   */
+  @Override
+  public List<com.waypoint.dispatch.ordering.contract.OrderViews.BookedVolumeView> bookedVolumes(
+      String depotCode, LocalDate from, LocalDate to) {
+    return read(
+        Actor.SYSTEM_ID,
+        () ->
+            database
+                .query(
+                    """
+                    SELECT o.delivery_date AS day, o.brand_code AS brand, count(*) AS n,
+                           coalesce(sum(o.volume_m3), 0) AS total,
+                           coalesce(sum(o.volume_m3) FILTER (WHERE o.temperature = 'chilled'), 0) AS chilled
+                      FROM ordering.orders o
+                     WHERE o.depot_code = ? AND o.delivery_date BETWEEN ? AND ?
+                       AND o.status IN ('confirmed', 'partially_reserved', 'allocated', 'deferred',
+                                        'loading', 'in_transit')
+                     GROUP BY 1, 2 ORDER BY 1, 2
+                    """,
+                    depotCode,
+                    java.sql.Date.valueOf(from),
+                    java.sql.Date.valueOf(to))
+                .stream()
+                .map(
+                    r ->
+                        new com.waypoint.dispatch.ordering.contract.OrderViews.BookedVolumeView(
+                            ((java.sql.Date) r.get("day")).toLocalDate(),
+                            (String) r.get("brand"),
                             ((Number) r.get("n")).intValue(),
                             (java.math.BigDecimal) r.get("total"),
                             (java.math.BigDecimal) r.get("chilled")))
@@ -205,7 +308,7 @@ public class OrderDataQuery implements OrderQuery {
                 new Keyset(shown.get(size - 1).placedAt(), shown.get(size - 1).order().orderId())
                     .encode())
             : Optional.empty();
-    return new Page<>(shown.stream().map(OrderDataQuery::toView).toList(), next);
+    return new Page<>(withStops(shown.stream().map(OrderDataQuery::toView).toList()), next);
   }
 
   /** The keyset position; opaque to the caller and free of personal data. */

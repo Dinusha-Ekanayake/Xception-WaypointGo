@@ -235,18 +235,31 @@ export const hasRun = (sheets: Array<{ stops: unknown[] }>): boolean => sheets.s
 /** How far ahead the driver looks for a released trip when today has none. */
 export const RUN_LOOK_AHEAD_DAYS = 7;
 
+/** One day ahead as the phone sees it: a released run, or a published trip still at the dock. */
+export type DayProbe = { released: boolean; waiting: { vehicleId: string; departure: string } | null };
+
+/** The driver's next trip: on a released run (the phone switches to it) or waiting for the loader. */
+export type NextRun = { date: string; released: boolean; vehicleId: string | null; departure: string | null };
+
 /**
- * The first day after `today`, within a week, with a released trip (issue #114).
- * Run sheets get stops once the loader releases a trip, so a driver signed in
- * the evening before an early departure, or on a Saturday before Monday's run,
- * still finds it. `read` is asked one day at a time, stopping at the first hit.
+ * The first day after `today`, within a week, with a trip for this driver
+ * (issues #114 and the deadline-day UX plan): a released run, which the phone
+ * switches to, or a published trip the loader has not released yet, which Home
+ * names. Every day is asked at once, so the answer takes one round trip rather
+ * than seven, and a day that cannot be read is skipped.
  */
-export async function nextRunDay(today: string, read: (date: string) => Promise<{ sheets: Array<{ stops: unknown[] }> }>): Promise<string | null> {
-  const d = new Date(`${today}T00:00:00Z`);
-  for (let ahead = 1; ahead <= RUN_LOOK_AHEAD_DAYS; ahead++) {
-    d.setUTCDate(d.getUTCDate() + 1);
-    const date = d.toISOString().slice(0, 10);
-    if (hasRun((await read(date)).sheets)) return date;
+export async function lookAhead(today: string, probe: (date: string) => Promise<DayProbe>): Promise<NextRun | null> {
+  const start = new Date(`${today}T00:00:00Z`);
+  const days = Array.from({ length: RUN_LOOK_AHEAD_DAYS }, (_, i) => {
+    const d = new Date(start);
+    d.setUTCDate(d.getUTCDate() + i + 1);
+    return d.toISOString().slice(0, 10);
+  });
+  const answers = await Promise.all(days.map((day) => probe(day).catch(() => null)));
+  for (const [i, answer] of answers.entries()) {
+    if (!answer) continue;
+    if (answer.released) return { date: days[i]!, released: true, vehicleId: null, departure: null };
+    if (answer.waiting) return { date: days[i]!, released: false, ...answer.waiting };
   }
   return null;
 }

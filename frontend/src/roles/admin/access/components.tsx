@@ -113,7 +113,7 @@ export function Modal({ title, children, onClose, wide = false }: { title: strin
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => { const node = ref.current; node?.showModal(); return () => node?.close(); }, []);
   return <dialog ref={ref} onCancel={(event) => { event.preventDefault(); onClose(); }}
-    aria-label={title} className={`fixed inset-0 m-auto max-h-[94dvh] w-[calc(100%-1.5rem)] overflow-y-auto rounded-3xl border border-go-rule bg-white p-0 text-go-ink shadow-2xl backdrop:bg-[#10261bb3] ${wide ? "max-w-2xl" : "max-w-xl"}`}>
+    aria-label={title} className={`fixed inset-0 m-auto max-h-[94dvh] animate-rise-in w-[calc(100%-1.5rem)] overflow-y-auto rounded-3xl border border-go-rule bg-white p-0 text-go-ink shadow-2xl backdrop:bg-[#10261bb3] ${wide ? "max-w-2xl" : "max-w-xl"}`}>
     <div className="sticky top-0 z-10 flex items-center justify-between border-b border-go-rule bg-white px-5 py-4 sm:px-7"><h2 className="text-xl font-semibold">{title}</h2><button aria-label="Close dialog" className="grid size-11 place-items-center rounded-full hover:bg-go-subtle" onClick={onClose}>✕</button></div>
     <div className="p-5 sm:p-7">{children}</div>
   </dialog>;

@@ -351,6 +351,9 @@ class FoundationIntegrationTest {
         ModuleRole.REF,
         null,
         () -> {
+          // This fixture needs the supplied 120 outlets, not additions left by
+          // another integration test in the shared throwaway database.
+          database.update("DELETE FROM ref.managed_additions");
           database.update(
               "UPDATE ref.reference_versions SET is_current = false,"
                   + " content_hash = content_hash || ':retired:' || reference_version_id"

@@ -9,6 +9,7 @@ import com.waypoint.dispatch.planning.contract.PlanViews.FuelView;
 import com.waypoint.dispatch.planning.contract.PlanViews.InterchangePreview;
 import com.waypoint.dispatch.planning.contract.PlanViews.PlacementView;
 import com.waypoint.dispatch.planning.contract.PlanViews.ComparisonView;
+import com.waypoint.dispatch.planning.contract.PlanViews.GenerationJobView;
 import com.waypoint.dispatch.planning.contract.PlanViews.PlanView;
 import com.waypoint.dispatch.planning.contract.PlanViews.SnapshotDetailView;
 import com.waypoint.dispatch.planning.contract.PlanViews.SnapshotView;
@@ -42,6 +43,21 @@ public class PlanController {
   public PlanController(PlanDataQuery plans, RequestAuthorizer authorizer) {
     this.plans = plans;
     this.authorizer = authorizer;
+  }
+
+  /** A queued plan generation (R-PLN-41), which the screen follows after Generate. */
+  @GetMapping("/jobs/{jobId}")
+  public GenerationJobView job(@PathVariable UUID jobId, @RequestParam String depot, HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:plan:depot:" + depot);
+    return plans.job(actor, depot, jobId);
+  }
+
+  /** The latest generation for a depot and day; 404 while there has been none. */
+  @GetMapping("/jobs")
+  public GenerationJobView latestJob(
+      @RequestParam String depot, @RequestParam LocalDate date, HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:plan:depot:" + depot);
+    return plans.latestJob(actor, depot, date);
   }
 
   /** The current published plan for a depot and day; 404 while none is published. */
@@ -135,11 +151,29 @@ public class PlanController {
     return plans.previewInterchange(actor, trip, vehicle);
   }
 
-  /** The trip a swap would leave, and every rule's verdict on the vehicle's day. */
+  /**
+   * The trip a swap would leave, and every rule's verdict on the vehicle's day;
+   * with {@code orders}, the trip's stops in that order after the swap.
+   */
   @GetMapping("/preview/swap")
-  public TripPreview previewSwap(@RequestParam UUID out, @RequestParam("in") UUID in, HttpServletRequest request) {
+  public TripPreview previewSwap(
+      @RequestParam UUID out,
+      @RequestParam("in") UUID in,
+      @RequestParam(required = false) List<UUID> orders,
+      HttpServletRequest request) {
     var actor = authorizer.require(request, READ, "wpt:plan:order:" + out);
-    return plans.previewSwap(actor, out, in);
+    return plans.previewSwap(actor, out, in, orders == null ? List.of() : orders);
+  }
+
+  /**
+   * A trip holding exactly the orders given, in that order (comma separated;
+   * none removes the trip), timed and checked against the vehicle's day.
+   */
+  @GetMapping("/preview/trip")
+  public TripPreview previewTripEdit(
+      @RequestParam UUID trip, @RequestParam(required = false) List<UUID> orders, HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:plan:trip:" + trip);
+    return plans.previewTripEdit(actor, trip, orders == null ? List.of() : orders);
   }
 
   /** A trip with its stops in the order given (every order of it, comma separated), timed and checked. */

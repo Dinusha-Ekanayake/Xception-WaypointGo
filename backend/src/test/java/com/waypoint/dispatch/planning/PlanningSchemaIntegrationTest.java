@@ -31,6 +31,7 @@ import com.waypoint.dispatch.referencedata.contract.ReferenceViews.OutletView;
 import com.waypoint.dispatch.shared.domain.Actor;
 import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
+import com.waypoint.dispatch.support.TestDates;
 import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -41,7 +42,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -458,6 +458,7 @@ class PlanningSchemaIntegrationTest {
         false,
         "priority-insertion",
         Optional.empty(),
+        Optional.empty(),
         true,
         Instant.now(),
         Actor.SYSTEM_ID,
@@ -528,7 +529,7 @@ class PlanningSchemaIntegrationTest {
   /** A random date no run in the shared test database uses yet, so plan versions cannot collide. */
   private LocalDate freshDate() {
     while (true) {
-      LocalDate date = LocalDate.of(2031, 1, 1).plusDays(ThreadLocalRandom.current().nextInt(0, 20_000));
+      LocalDate date = TestDates.unusedDay();
       Number taken =
           database.asSystem(
               ModuleRole.PLANNING,

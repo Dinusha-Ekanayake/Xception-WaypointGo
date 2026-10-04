@@ -46,7 +46,7 @@ export function RolesScreen({
           <div className="flex items-center gap-2.5">
             <h2 className="text-2xl font-semibold">System roles</h2>
             <Badge tone={liveConnected ? "green" : "neutral"}>
-              {liveConnected ? "Live API: GET /api/admin/roles" : "Connecting..."}
+              {liveConnected ? "Live data" : "Roles unavailable"}
             </Badge>
           </div>
           <p className="mt-1 text-sm text-go-secondary">
@@ -58,7 +58,7 @@ export function RolesScreen({
       <div className="rounded-2xl border border-go-rule bg-go-subtle p-4 text-sm text-go-ink">
         <p className="font-semibold text-go-teal">Role catalogue notice</p>
         <p className="mt-1 text-[#486357]">
-          This view provides registered role labels and catalogue descriptions from <code>GET /api/admin/roles</code>. Neither this list nor role detail includes account membership or an effective access decision. User scope and dynamic policies are evaluated separately by the policy engine.
+          This view provides registered role labels and catalogue descriptions. Neither this list nor role detail includes account membership or an effective access decision. User scope and dynamic policies are evaluated separately by the policy engine.
         </p>
       </div>
 
@@ -132,10 +132,6 @@ export function RolesScreen({
               <dd className="font-mono text-sm font-bold text-go-ink">{selectedRole.roleCode}</dd>
             </div>
             <div>
-              <dt className="font-semibold text-go-secondary">Resource URI</dt>
-              <dd className="font-mono text-xs text-go-teal">wpt:iam:role:{selectedRole.roleCode}</dd>
-            </div>
-            <div>
               <dt className="font-semibold text-go-secondary">Classification</dt>
               <dd>
                 <Badge tone={roleBadgeTone(selectedRole.roleCode)}>
@@ -205,7 +201,7 @@ export function ActionsScreen({
           <div className="flex items-center gap-2.5">
             <h2 className="text-2xl font-semibold">Action catalogue</h2>
             <Badge tone={liveConnected ? "green" : "neutral"}>
-              {liveConnected ? "Live API: GET /api/admin/actions" : "Connecting..."}
+              {liveConnected ? "Live data" : "Actions unavailable"}
             </Badge>
           </div>
           <p className="mt-1 text-sm text-go-secondary">
@@ -326,7 +322,7 @@ export function ActionsScreen({
             <div>
               <dt className="font-semibold text-go-secondary">Authorization note</dt>
               <dd className="text-xs text-go-secondary">
-                Policies matching <code>Action: &quot;{selectedAction.action}&quot;</code> are evaluated against requests on <code>wpt:{selectedAction.action.split(":")[0]}:*</code>. Unregistered actions fail closed.
+                This action applies only where the member has the required policy and place assignment. Unregistered actions are denied.
               </dd>
             </div>
           </dl>

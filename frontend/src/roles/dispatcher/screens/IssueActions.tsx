@@ -6,6 +6,7 @@ import { Notice, PrimaryButton, SecondaryButton } from "@shared/ui";
 import { RESOLUTIONS, actionsFor, nextDay, subject, type IssueAction } from "../data/issues.ts";
 import { depotToday } from "../data/scope.ts";
 import { useCommand } from "../data/useCommand.ts";
+import DayField from "./DayTools.tsx";
 import Refusal from "./Refusal.tsx";
 
 // What the dispatcher can do to one issue. Every write is one command with the
@@ -132,11 +133,10 @@ export default function IssueActions({
             </label>
           )}
           {open === "redelivery" && (
-            <label className="flex flex-col gap-1 text-xs font-medium text-go-secondary">
-              Deliver on
-              <input type="date" value={date} min={depotToday()} onChange={(event) => setDate(event.target.value)} className={input} />
+            <div className="flex flex-col gap-1 text-xs font-medium text-go-secondary">
+              <DayField label="Deliver on" date={date} min={depotToday()} onDate={setDate} />
               <span className="font-normal">The whole order goes again, only because nothing arrived (A-24).</span>
-            </label>
+            </div>
           )}
           <label className="flex flex-col gap-1 text-xs font-medium text-go-secondary">
             {open === "cancel" ? "Why it was raised in error" : "Reason"}

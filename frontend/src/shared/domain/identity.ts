@@ -55,8 +55,45 @@ export type McpUsageView = {
   attention: boolean;
 };
 
-/** Command kinds an administrator sends about assistant apps. */
-export const McpCommandKind = { BlockClient: "mcp:BlockClient", UnblockClient: "mcp:UnblockClient" } as const;
+/** Command kinds an administrator sends about assistant apps and the people using them. */
+export const McpCommandKind = {
+  BlockClient: "mcp:BlockClient",
+  UnblockClient: "mcp:UnblockClient",
+  /** Ends every MCP connection of one person; payload `{userId, reason}`, no version (R-IAM-38). */
+  RevokeUserConnections: "mcp:RevokeUserConnections",
+} as const;
+
+/** The policies that switch MCP per person or role (R-IAM-36, R-IAM-37). */
+export const McpSwitchPolicy = {
+  Blocked: "WaypointMcpBlocked",
+  NoWrites: "WaypointMcpNoWrites",
+  PersonalReader: "WaypointMcpPersonalReader",
+} as const;
+export type McpSwitchPolicyName = (typeof McpSwitchPolicy)[keyof typeof McpSwitchPolicy];
+
+/** GET /api/mcp/access/roles and /api/mcp/access/people: one principal's MCP switches (R-IAM-38). */
+export type McpPrincipalAccessView = {
+  principalType: "user" | "role";
+  /** A user id or a role code. */
+  principalId: string;
+  /** A person's display name or a role's description. */
+  label: string;
+  /** The switch policies attached directly to this principal. */
+  policies: McpSwitchPolicyName[];
+  /** Open MCP connections; always 0 for a role. */
+  liveConnections: number;
+};
+
+/** GET /api/policies: one policy, with the version an attach or detach must name. */
+export type PolicySummaryView = {
+  policyId: string;
+  name: string;
+  versionNumber: number;
+  rowVersion: number;
+};
+
+/** Policy commands; payload `{name, principalType, principalId}`, guarded by the policy's rowVersion. */
+export const PolicyCommandKind = { Attach: "iam:AttachPolicy", Detach: "iam:DetachPolicy" } as const;
 
 /** GET /api/profile: a person's own account (R-IAM-32), with the version a change sends back. */
 export type ProfileView = {
@@ -83,7 +120,7 @@ export type UpdateOwnProfile = {
 
 /**
  * Safe account profile and authorization scope returned by Identity's
- * account directory reads (GET /api/admin/accounts and /api/admin/accounts/{id}),
+ * account directory reads (GET /api/accounts and /api/accounts/{id}),
  * mirrored from AccountQuery.AccountView.
  */
 export type AccountView = {

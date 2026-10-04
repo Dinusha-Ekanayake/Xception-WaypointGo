@@ -16,13 +16,30 @@ const unMalithi = localFont({
   display: "swap",
 });
 
+// The manifest link comes from app/manifest.ts and the home screen icon from
+// app/apple-touch-icon.png, both chosen by the role address (issue #201), so
+// this layout stays static and the offline shell stays one page.
 export const metadata: Metadata = {
   title: "Waypoint Dispatch",
   description: "One delivery record, from the store order to the store signature.",
-  manifest: "/manifest.json",
+  applicationName: "Waypoint",
+  icons: { icon: "/icons/app/waypoint-192.png", apple: "/apple-touch-icon.png" },
+  // No apple title: iOS then names the home screen icon from the manifest, which follows the address.
+  appleWebApp: { capable: true, statusBarStyle: "default" },
+  formatDetection: { telephone: false },
 };
 
-export const viewport: Viewport = { themeColor: "#0a6b63" };
+// `viewportFit: cover` lets an installed app draw under the notch and the home
+// bar; bars at the bottom pad with env(safe-area-inset-bottom) (see theme.css).
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#0e766d" },
+    { media: "(prefers-color-scheme: dark)", color: "#0b1413" },
+  ],
+};
 
 export default function RootLayout({
   children,

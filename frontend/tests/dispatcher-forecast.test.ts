@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { ForecastOverviewView, ForecastWeekView } from "../src/shared/domain/intelligence.ts";
+import { forecastError, type ModelMetrics } from "../src/roles/dispatcher/data/forecast.ts";
 import {
   actions,
   combine,
@@ -173,4 +174,16 @@ test("refrigerated vehicles an average day needs: chilled per day over one vehic
   // 60 chilled over 6 days = 10 a day; one of 2 reefers carries 120 / 6 / 2 = 10 a day.
   assert.equal(refrigeratedNeeded(w), 1);
   assert.equal(refrigeratedNeeded({ ...w, refrigeratedVehicles: 0 }), 0, "no refrigerated fleet, nothing to count");
+});
+
+test("the error chip says what the demand model measured, and never per brand it did not (#119)", () => {
+  const models: ModelMetrics[] = [
+    { name: "task1", version: "1", kind: "delivery_risk", status: "ACTIVE", metrics: { late_logloss: "0.15" } },
+    { name: "demand", version: "2026.1", kind: "demand_forecast", status: "ACTIVE", metrics: { total_wape: "0.0415", chilled_wape: "0.0439" } },
+  ];
+  assert.equal(forecastError(models, "demand@2026.1", false), "Forecast error · ±4% total · ±4% chilled");
+  assert.equal(forecastError(models, "demand@2025.9", false), "Forecast error · ±4% total · ±4% chilled", "falls back to the active model");
+  assert.equal(forecastError(models, "demand@2026.1", true), "Recent averages · forecast error not measured");
+  assert.equal(forecastError(models, null, false), "Recent averages · forecast error not measured");
+  assert.equal(forecastError([], "demand@2026.1", false), "Forecast error not reported by the model");
 });

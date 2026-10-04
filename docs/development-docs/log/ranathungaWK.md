@@ -4,6 +4,89 @@
 
 ---
 
+## 2026-10-04 - author effective planning constraints from admin
+
+`codex/system-constraints` · @ranathungaWK
+
+Add a categorized System constraints screen and an audited planning rule-set command with effective dates, reason and version checks. Planning, forecast capacity and the store's date outlook read the same trip ceiling; scored upper bounds and fixed checks remain enforced. Use the existing calendar override for a dated operating-day toggle. Other surveyed settings stay visible as unavailable until their owning modules expose runtime commands.
+Verification was intentionally not run at the user's request.
+
+## 2026-10-04 - persist admin reference additions and simplify navigation
+
+`dev` · @ranathungaWK
+
+Add command-backed depot, outlet and vehicle creation with managed source rows that survive later imports. Keep new reference versions immutable and require an explicit scope grant for a new depot.
+Remove the duplicate trip switch and internal role codes; add collapse chevrons to People and Trips.
+Verified: frontend typecheck, 206 Node tests, production build, backend compile, ReferenceValidatorTest and ModuleBoundaryTest. The database integration test was skipped locally because Docker is unavailable; CI must run it.
+
+## 2026-10-04 - keep scheduled jobs off during integration tests
+
+`dev` · @ranathungaWK
+
+Disable scheduled jobs in the shared Spring test configuration.
+Why: a job tried to open the application pool before migrations created `waypoint_app`, causing SyncIntegrationTest bootstrap and its later login checks to fail.
+Verified: the CI log identified the startup race; the next dev run will verify the change.
+
+## 2026-10-04 - restore direct MCP admin route
+
+`dev` · @ranathungaWK
+
+Keep `#assistants` directly addressable for the live MCP administration screen without adding it to the admin sidebar.
+Why: the existing Playwright flow and MCP controls still use this route after the navigation tab was removed.
+Verified: frontend typecheck and production build passed. The local browser test could not start because Playwright Chromium is not installed; CI will exercise it.
+
+## 2026-10-04 - group trips and remove admin endpoint labels
+
+`dev` · @ranathungaWK
+
+Nest Planned trips and Live trips under Trips, remove AI assistants from admin navigation, and replace visible endpoint strings with plain live-data status.
+Why: the sidebar should group related views and admin screens should not expose implementation paths.
+Verified: source search confirms no endpoint labels or assistant tab remain in the admin UI; automated checks will run on dev.
+
+---
+
+## 2026-10-04 - simplify admin navigation and trip rows
+
+`dev` · @ranathungaWK
+
+Group Personas, Actions, Permission catalogue and Change history beneath People, and show trips as compact rows with the existing detail dialog behind More info.
+Why: the admin sidebar and trip cards took too much space for routine scanning.
+Verified: frontend typecheck, 193 Node tests and production build passed. CI found the shell browser test still locating People as a link; it now targets the expandable button. Local Playwright could not run because Chromium is not installed in this worktree.
+
+---
+
+## 2026-10-04 - fix: render admin depots while loading
+
+`dev` · @ranathungaWK
+
+Guard depot-specific calculations until the scoped depot list arrives, and show a loading or unavailable state when it is empty.
+Why: the preview Depots page dereferenced `currentDepot.id` on its first render and fell into the app error boundary.
+Verified: frontend typecheck and Next.js compilation on the matching local fix; preview VPS backend and frontend containers healthy.
+
+---
+
+## 2026-10-04 - fix: grant reference reads of actor scope
+
+`codex/admin-live-wiring` · @ranathungaWK
+
+Give the reference module read access to only the depot and outlet scope tables, with policies limited to the current actor.
+Why: the admin reference directory calls the shared scope predicates in SQL; CI showed waypoint_ref lacked IAM schema usage and returned 500.
+Verified: CI failure traced to the scoped depot query; the forward migration awaits a fresh integration run.
+Open: confirm the admin integration test on CI and keep policy editing as separate issue 22 work.
+
+---
+
+## 2026-10-03 - fix: align admin reads with backend and SQL scope
+
+`dev` · @ranathungaWK
+
+Add scoped admin directories for current reference data, orders and plans; connect the console to supported account, audit and forecast APIs and remove invented operational values.
+Why: VPS inspection found missing admin routes and an admin account with no depot grants; the console was showing stale mock access decisions and empty or failed data.
+Verified: frontend typecheck, 161 Node tests, production build, backend test compilation. Database integration test could not run because Maven Surefire dependency retrieval failed certificate validation.
+Open: deploy the local routes and grant intended production depot scope; implement versioned IAM policy editing and effective access reads before enabling those controls.
+
+---
+
 ## 2026-10-03 - refactor: purge admin mock data and wire directly to live backend
 
 `dev` · @ranathungaWK

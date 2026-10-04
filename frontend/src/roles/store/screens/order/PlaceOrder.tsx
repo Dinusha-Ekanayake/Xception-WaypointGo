@@ -14,6 +14,8 @@ import { BackButton, Muted, Toast } from "../../ui.tsx";
 import OrderLines from "./OrderLines.tsx";
 import OrderSent, { type Sent } from "./OrderSent.tsx";
 import OrderSummary from "./OrderSummary.tsx";
+import DateStrip from "./DateStrip.tsx";
+import RideAlongHint from "./RideAlongHint.tsx";
 
 // Figma "03 Place order", "03b chilled", "03c add item", "03d item added" and
 // "03e draft saved". Chilled and ambient are separate orders (R-ORD-06), so one
@@ -61,10 +63,11 @@ export default function PlaceOrder({
   const [sent, setSent] = useState<Sent | null>(null);
   const [restored, setRestored] = useState<string | null>(null);
   const [note, setNote] = useState<Note | null>(null);
+  const [shared, setShared] = useState<string[]>([]);
 
   useEffect(() => {
     if (!note) return;
-    const timer = setTimeout(() => setNote(null), 6000);
+    const timer = setTimeout(() => setNote(null), 4000);
     return () => clearTimeout(timer);
   }, [note]);
 
@@ -185,27 +188,7 @@ export default function PlaceOrder({
       {/* Desktop: the list on the left and the summary card on the right, as in "03 Place order". */}
       <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start lg:gap-6">
         <div className="flex min-w-0 flex-col gap-4">
-          {!amend && (
-            <fieldset className="flex flex-col gap-2">
-              <legend className="mb-2 text-[13px] text-go-muted">Delivery day</legend>
-              <div className="flex gap-2">
-                {[0, 1, 2].map((i) => {
-                  const d = addDays(first, i);
-                  return (
-                    <button
-                      key={d}
-                      type="button"
-                      aria-pressed={d === date}
-                      onClick={() => setDate(d)}
-                      className={cx("min-h-12 flex-1 rounded-[18px] px-2 text-[15px] font-medium", d === date ? "bg-[#031a0c] text-white" : "bg-white text-black")}
-                    >
-                      {dayLabel(d)}
-                    </button>
-                  );
-                })}
-              </div>
-            </fieldset>
-          )}
+          {!amend && <DateStrip gateway={gateway} outletId={outletId} first={first} date={date} shared={shared} onPick={setDate} />}
           {rolled && !amend && (
             <Notice tone="warning" live title={`This order will arrive ${dayLabel(rolled)}, not ${dayLabel(date)}.`}>
               {reasons.includes("cutoff") && "Orders for that day closed at 16:00. "}
@@ -214,6 +197,7 @@ export default function PlaceOrder({
               You can still order now; it goes on the next run.
             </Notice>
           )}
+          {!amend && <RideAlongHint gateway={gateway} outletId={outletId} brandCode={brand} date={date} onPick={setDate} onDays={setShared} />}
           {warehouseDown && (
             <Notice tone="warning" title="Stock can't be checked right now">
               The order is kept as &ldquo;stock not checked&rdquo; until the warehouse answers. It is not confirmed yet.

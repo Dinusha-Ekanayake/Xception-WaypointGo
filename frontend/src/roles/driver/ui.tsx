@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef, type ButtonHTMLAttributes, type ReactNode } from "react";
-import { cx } from "@shared/ui";
+import { createPortal } from "react-dom";
+import { SettingsPanel, cx, initialsOf } from "@shared/ui";
 
 /** Waveform bar heights exactly copied from the Figma specification */
 export const WAVEFORM_HEIGHTS = [
@@ -10,45 +11,66 @@ export const WAVEFORM_HEIGHTS = [
 
 export type SupportedLang = "en" | "si" | "ta";
 
-const LANG_CONFIG: Record<
-  SupportedLang,
-  { label: string; title: string; style?: React.CSSProperties; className?: string }
-> = {
-  en: {
-    label: "EN",
-    title: "English",
-    className: "text-[13px] font-medium tracking-tight",
-  },
-  si: {
-    label: "සිං",
-    title: "Sinhala",
-    style: { fontFamily: "var(--font-sinhala), 'UN-Malithi', sans-serif", fontWeight: 400 },
-    className: "text-[14px] font-normal",
-  },
-  ta: {
-    label: "த",
-    title: "Tamil",
-    style: { fontFamily: "'Anek Tamil', sans-serif", fontWeight: 400 },
-    className: "text-[15px] font-normal pb-0.5",
-  },
-};
+/** The driver's initials; tapping them opens Settings as a bottom sheet. */
+function DriverProfileButton({
+  displayName,
+  lang,
+  onLang,
+  isNight,
+}: {
+  displayName: string;
+  lang: SupportedLang;
+  onLang?: (l: SupportedLang) => void;
+  isNight: boolean;
+}): React.JSX.Element {
+  const [open, setOpen] = useState(false);
+  const button = useRef<HTMLButtonElement>(null);
+  // The header scales its controls, and a transformed ancestor traps a fixed
+  // sheet inside it, so the sheet renders into the themed driver root instead.
+  const host = open ? (button.current?.closest<HTMLElement>("[data-theme]") ?? document.body) : null;
+  return (
+    <>
+      <button
+        ref={button}
+        type="button"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-label={`Settings: ${displayName}`}
+        onClick={() => setOpen(true)}
+        className={cx(
+          "w-[42px] h-[42px] rounded-full flex items-center justify-center border text-[14px] font-semibold shadow-[0_5px_20px_rgba(0,0,0,0.05)] active:scale-95 transition-all",
+          isNight ? "bg-[#292929] border-[#383838] text-white" : "bg-go-mint border-[#dfe7e6] text-black",
+        )}
+      >
+        {initialsOf(displayName)}
+      </button>
+      {host &&
+        createPortal(
+          <SettingsPanel displayName={displayName} roleLabel="Driver" lang={lang} onLang={(l) => onLang?.(l)} placement="sheet" onClose={() => setOpen(false)} />,
+          host,
+        )}
+    </>
+  );
+}
 
-/** Driver Header with GO logo, Language toggle, Sign out, and Theme toggle */
+/** Driver Header with GO logo, Settings (picture), Sign out, and Theme toggle */
 export function DriverHeader({
   lang = "en",
   onToggleLang,
+  displayName,
   onSignOut,
   onToggleTheme,
   isNight = false,
 }: {
   lang?: SupportedLang;
   onToggleLang?: (l: SupportedLang) => void;
+  /** The signed-in driver; their picture opens Settings. */
+  displayName?: string;
   onSignOut?: () => void;
   onToggleTheme?: () => void;
   isNight?: boolean;
 }): React.JSX.Element {
   // Show the other two languages that the user can switch to
-  const availableLangs = (["si", "ta", "en"] as const).filter((l) => l !== lang);
 
   return (
     <header className="driver-header w-full flex items-center justify-between px-6 pt-5 pb-3 shrink-0 select-none transition-all duration-300">
@@ -64,37 +86,8 @@ export function DriverHeader({
 
       {/* Right controls */}
       <div className="flex items-center gap-2">
-        {/* Language toggle: shows the two alternative languages to switch to */}
-        <div
-          role="group"
-          aria-label="Language selection"
-          className={cx(
-            "flex items-center rounded-full p-[4px] gap-[2px] shadow-[0_5px_20px_2px_rgba(0,0,0,0.05)] border transition-colors",
-            isNight ? "bg-[#292929] border-[#383838]" : "bg-white border-[#dfe7e6]"
-          )}
-        >
-          {availableLangs.map((itemLang) => {
-            const config = LANG_CONFIG[itemLang];
-            return (
-              <button
-                key={itemLang}
-                type="button"
-                onClick={() => onToggleLang?.(itemLang)}
-                style={config.style}
-                className={cx(
-                  "w-[36px] h-[34px] rounded-full flex items-center justify-center transition-all active:scale-95",
-                  config.className,
-                  isNight
-                    ? "text-[#A3A3A3] hover:text-white hover:bg-white/10"
-                    : "text-[#6B6B6B] hover:text-black hover:bg-black/5"
-                )}
-                title={config.title}
-              >
-                {config.label}
-              </button>
-            );
-          })}
-        </div>
+        {/* The driver's picture opens Settings: language and the assistant connection. */}
+        {displayName && <DriverProfileButton displayName={displayName} lang={lang} onLang={onToggleLang} isNight={isNight} />}
 
         {/* Sign out button */}
         {onSignOut && (
@@ -161,7 +154,7 @@ export function DriverHeader({
  * Driver morphing header shared across Driver Home and Route Next Stop.
  * - The Dark/Light theme toggle stays strictly stationary in place (no slide or scale).
  * - Left slot: GO logo zooms out while < Back button pops up in its place.
- * - Middle-right slot: Language toggle + Sign out zoom out while the Synced pill pops up.
+ * - Middle-right slot: the Settings picture + Sign out zoom out while the Synced pill pops up.
  * - No slide effect is applied to any of these controls.
  */
 export function DriverMorphHeader({
@@ -170,6 +163,7 @@ export function DriverMorphHeader({
   onBack,
   lang = "en",
   onToggleLang,
+  displayName,
   onSignOut,
   onToggleTheme,
   isNight = false,
@@ -180,11 +174,12 @@ export function DriverMorphHeader({
   onBack?: () => void;
   lang?: SupportedLang;
   onToggleLang?: (l: SupportedLang) => void;
+  /** The signed-in driver; their picture opens Settings. */
+  displayName?: string;
   onSignOut?: () => void;
   onToggleTheme?: () => void;
   isNight?: boolean;
 }): React.JSX.Element {
-  const availableLangs = (["si", "ta", "en"] as const).filter((l) => l !== lang);
   const isHome = activeScreen === "home";
   const isRoute = activeScreen === "route-next-stop";
   const isMap = activeScreen === "route-map";
@@ -252,37 +247,8 @@ export function DriverMorphHeader({
                 : "scale-0 opacity-0 pointer-events-none absolute right-0"
             )}
           >
-            {/* Language toggle */}
-            <div
-              role="group"
-              aria-label="Language selection"
-              className={cx(
-                "flex items-center rounded-full p-[4px] gap-[2px] shadow-[0_5px_20px_2px_rgba(0,0,0,0.05)] border transition-colors",
-                isNight ? "bg-[#292929] border-[#383838]" : "bg-white border-[#dfe7e6]"
-              )}
-            >
-              {availableLangs.map((itemLang) => {
-                const config = LANG_CONFIG[itemLang];
-                return (
-                  <button
-                    key={itemLang}
-                    type="button"
-                    onClick={() => onToggleLang?.(itemLang)}
-                    style={config.style}
-                    className={cx(
-                      "w-[36px] h-[34px] rounded-full flex items-center justify-center transition-all active:scale-95",
-                      config.className,
-                      isNight
-                        ? "text-[#A3A3A3] hover:text-white hover:bg-white/10"
-                        : "text-[#6B6B6B] hover:text-black hover:bg-black/5"
-                    )}
-                    title={config.title}
-                  >
-                    {config.label}
-                  </button>
-                );
-              })}
-            </div>
+            {/* The driver's picture opens Settings: language and the assistant connection. */}
+            {displayName && <DriverProfileButton displayName={displayName} lang={lang} onLang={onToggleLang} isNight={isNight} />}
 
             {/* Sign out button */}
             {onSignOut && (

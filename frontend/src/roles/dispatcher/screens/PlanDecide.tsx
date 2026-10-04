@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { OrderView, PlacementView, PlanView, VehicleView } from "@shared/domain/types";
 import { Icon, Pill, PrimaryButton, SecondaryButton } from "@shared/ui";
 import { temperatureLabel } from "@shared/wording";
@@ -51,6 +51,26 @@ export default function PlanDecide({
   const selected = rows.find((row) => row.allocation.orderId === selectedId) ?? rows[0] ?? null;
   const placesFor = (orderId: string): PlacementView[] | null => (places.data ? (places.data[orderId] ?? []) : null);
 
+  // Once the order on screen is decided, the next open one opens, so the
+  // dispatcher works down the list without hunting for it.
+  const wasOpen = useRef<{ id: string; open: boolean } | null>(null);
+  useEffect(() => {
+    const id = selected?.allocation.orderId ?? null;
+    const isOpen = selected?.state === "open";
+    const before = wasOpen.current;
+    if (id && before && before.id === id && before.open && !isOpen) {
+      const at = rows.findIndex((row) => row.allocation.orderId === id);
+      const next = [...rows.slice(at + 1), ...rows.slice(0, at)].find((row) => row.state === "open");
+      if (next) {
+        setSelectedId(next.allocation.orderId);
+        wasOpen.current = { id: next.allocation.orderId, open: true };
+        return;
+      }
+    }
+    wasOpen.current = id ? { id, open: isOpen } : null;
+  }, [rows, selected]);
+  const outlets = open.map((row) => row.order?.outletId).filter((id): id is string => Boolean(id));
+
   if (rows.length === 0) {
     return (
       <div className="flex min-h-0 w-full flex-1 flex-col gap-[18px]">
@@ -77,7 +97,8 @@ export default function PlanDecide({
                 type="button"
                 disabled={actions.busy}
                 onClick={() => setKeeping((value) => !value)}
-                className="rounded-full bg-go-mint px-[18px] py-2.5 text-sm font-medium text-go-ink disabled:cursor-not-allowed disabled:opacity-40"
+                // Quiet until the dispatcher has decided at least one order by hand: a bulk decision should not be the first thing offered.
+                className={`rounded-full px-[18px] py-2.5 text-sm font-medium text-go-ink disabled:cursor-not-allowed disabled:opacity-40 ${decided > 0 ? "bg-go-mint" : "border border-go-rule bg-go-card"}`}
               >
                 Keep the rest deferred
               </button>
@@ -85,7 +106,11 @@ export default function PlanDecide({
           </header>
           {keeping && (
             <div className="flex flex-col gap-2 rounded-go-card bg-go-subtle p-3">
-              <ReasonPicker label={`Why do the other ${open.length} stay deferred?`} value={reason} onChange={setReason} />
+              <p className="text-[13px] text-go-ink">
+                {`${open.length} ${open.length === 1 ? "order stays" : "orders stay"} deferred: ${outlets.slice(0, 8).join(", ")}${outlets.length > 8 ? ` and ${outlets.length - 8} more` : ""}.`}{" "}
+                <span className="text-go-secondary">Stores are told the reason when you publish; until then this can be changed.</span>
+              </p>
+              <ReasonPicker required label={`Why do the other ${open.length} stay deferred?`} value={reason} onChange={setReason} />
               <div className="flex gap-2">
                 <PrimaryButton
                   disabled={actions.busy || !reasonReady(reason)}
@@ -131,7 +156,7 @@ export default function PlanDecide({
           onSwap={() => setSwapping(true)}
         />
       )}
-      {swapping && selected?.order && <SwapWindow plan={plan} incoming={selected.order} orders={orders} actions={actions} onClose={() => setSwapping(false)} />}
+      {swapping && selected?.order && <SwapWindow plan={plan} incoming={selected.order} orders={orders} fleet={fleet} actions={actions} onClose={() => setSwapping(false)} />}
     </div>
   );
 }

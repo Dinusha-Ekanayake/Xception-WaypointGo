@@ -1,22 +1,18 @@
 "use client";
 
 import type { SnapshotView } from "@shared/domain/types";
-import { Icon, Menu, Segmented, cx, type MenuItem } from "@shared/ui";
+import { Icon, Menu, cx, type MenuItem } from "@shared/ui";
 import { clock } from "@shared/wording";
-import DayPicker from "./DayTools.tsx";
 
 // The Plan header's controls, as Figma draws them: which plan you are looking at
 // (the working draft, the engine's own plan, a saved one), Save snapshot,
-// Regenerate with its two ways, and Compare. Depot and day stay as on every
-// dated screen.
+// Regenerate with its two ways, and Compare, in each depot's section bar. The
+// depot is the sidebar's scope; the day is the page header's DayField.
+
+/** The day being planned: the one day control every dated dispatcher screen uses. */
+export { default as DayField } from "./DayTools.tsx";
 
 export default function PlanTools({
-  depots,
-  depot,
-  onDepot,
-  date,
-  onDate,
-  hasPlan,
   draft,
   workingLabel,
   snapshots,
@@ -27,13 +23,8 @@ export default function PlanTools({
   onSave,
   onRegenerate,
   onCompare,
+  comparing = false,
 }: {
-  depots: string[];
-  depot: string;
-  onDepot: (depot: string) => void;
-  date: string;
-  onDate: (date: string) => void;
-  hasPlan: boolean;
   /** The working plan is an open draft, so it can be saved, regenerated and returned to a saved plan. */
   draft: boolean;
   workingLabel: string;
@@ -46,6 +37,8 @@ export default function PlanTools({
   onSave: () => void;
   onRegenerate: (keepDecisions: boolean) => void;
   onCompare: () => void;
+  /** The compare view is open: the button is drawn pressed. */
+  comparing?: boolean;
 }): React.JSX.Element {
   const current = snapshots.find((s) => s.snapshotId === viewing);
   const items: MenuItem[] = [
@@ -57,14 +50,11 @@ export default function PlanTools({
       selected: s.snapshotId === viewing,
     })),
   ];
-  const pill = "flex items-center gap-1.5 rounded-full border border-go-rule bg-go-card px-4 py-2.5 text-sm font-medium text-go-ink";
+  const pill = "flex items-center gap-1.5 rounded-full bg-go-card px-4 py-2 text-sm font-medium text-go-ink shadow-go-card";
 
   return (
     <>
-      {depots.length > 1 && <Segmented label="Depot to plan" value={depot} onChange={onDepot} options={depots.map((code) => ({ value: code, label: code }))} />}
-      <DayPicker date={date} onDate={onDate} />
-      {hasPlan && (
-        <>
+      <span className="flex flex-wrap items-center gap-2.5">
           <Menu
             label="Plan"
             align="right"
@@ -95,11 +85,14 @@ export default function PlanTools({
           >
             Regenerate
           </Menu>
-          <button type="button" onClick={onCompare} className={cx(pill, "border-go-ink")}>
+          <button type="button" aria-pressed={comparing} onClick={onCompare} className={
+              comparing
+                ? "flex items-center gap-1.5 rounded-full bg-go-ink px-4 py-2 text-sm font-medium text-go-card"
+                : cx(pill, "shadow-none ring-1 ring-go-ink")
+            }>
             Compare
           </button>
-        </>
-      )}
+      </span>
     </>
   );
 }

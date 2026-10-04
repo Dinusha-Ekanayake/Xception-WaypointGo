@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Icon, cx, type IconName } from "@shared/ui";
+import { Icon, cx, useOverlay, useSheetDrag, type IconName } from "@shared/ui";
 import type { SessionStatus, Temperature } from "@shared/domain/types";
 import { STATUS_LABEL } from "./data/manifest.ts";
 import { useT } from "./i18n.tsx";
@@ -113,13 +113,13 @@ export function Bar({ label, value, share }: { label: string; value: string; sha
   );
 }
 
-/** The 168px completion ring. */
+/** The 168px completion ring; 104px on a phone held sideways, where it filled the screen above the load list (#201). */
 export function Ring({ percent }: { percent: number }): React.JSX.Element {
   const tr = useT();
   const r = 76;
   const c = 2 * Math.PI * r;
   return (
-    <div className="relative size-[168px]" role="img" aria-label={tr("{n}% of orders checked", { n: percent })}>
+    <div className="relative size-[168px] short:size-[104px]" role="img" aria-label={tr("{n}% of orders checked", { n: percent })}>
       <svg viewBox="0 0 168 168" className="size-full -rotate-90">
         <circle cx="84" cy="84" r={r} fill="none" stroke="var(--color-go-surface)" strokeWidth="12" />
         <circle
@@ -135,8 +135,8 @@ export function Ring({ percent }: { percent: number }): React.JSX.Element {
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-[36px] font-semibold text-go-ink">{percent}%</span>
-        <span className="text-[15px] text-go-muted">{tr("Completed")}</span>
+        <span className="text-[36px] font-semibold text-go-ink short:text-[24px]">{percent}%</span>
+        <span className="text-[15px] text-go-muted short:text-[12px]">{tr("Completed")}</span>
       </div>
     </div>
   );
@@ -161,51 +161,19 @@ export function Sheet({
 }): React.JSX.Element {
   const tr = useT();
   const panel = useRef<HTMLDivElement>(null);
-  const close = useRef(onClose);
-  close.current = onClose;
-
-  useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null;
-    const focusable = () =>
-      Array.from(
-        panel.current?.querySelectorAll<HTMLElement>("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])") ?? [],
-      ).filter((el) => !el.hasAttribute("disabled"));
-    (focusable()[0] ?? panel.current)?.focus();
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        close.current();
-        return;
-      }
-      if (event.key !== "Tab") return;
-      const items = focusable();
-      if (items.length === 0) return;
-      const first = items[0]!;
-      const last = items[items.length - 1]!;
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      previous?.focus();
-    };
-  }, []);
+  const { closing, requestClose } = useOverlay(panel, onClose);
+  useSheetDrag(panel, onClose, placement === "bottom");
 
   return (
     <div
+      data-closing={closing || undefined}
       className={cx(
-        "fixed inset-0 z-40 flex justify-center",
+        "go-overlay fixed inset-0 z-40 flex justify-center",
         placement === "center" ? "items-center px-4" : "items-end md:items-start md:p-6 md:pt-10",
       )}
       role="presentation"
     >
-      <button type="button" tabIndex={-1} aria-label={tr("Close")} onClick={onClose} className="absolute inset-0 bg-black/25 backdrop-blur-[6px]" />
+      <button type="button" tabIndex={-1} aria-label={tr("Close")} onClick={requestClose} className="go-backdrop absolute inset-0 bg-black/25 backdrop-blur-[6px]" />
       <div
         ref={panel}
         tabIndex={-1}
@@ -213,7 +181,8 @@ export function Sheet({
         aria-modal="true"
         aria-label={label}
         className={cx(
-          "relative flex w-full flex-col gap-4 overflow-y-auto bg-go-card text-go-ink outline-none",
+          "go-panel relative flex w-full flex-col gap-4 overflow-y-auto bg-go-card text-go-ink outline-none",
+          placement === "center" ? "go-panel-dialog" : "go-panel-sheet",
           placement === "center"
             ? "max-h-[90dvh] max-w-[400px] rounded-[32px] px-6 py-6"
             : "max-h-[92dvh] max-w-[560px] rounded-t-[32px] px-5 pt-6 pb-8 md:max-h-[calc(100dvh-64px)] md:rounded-[32px] md:px-7 md:pb-7",

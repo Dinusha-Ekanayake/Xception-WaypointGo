@@ -2,13 +2,15 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useOnline } from "@shared/api/useResource";
-import { useSync } from "@shared/offline";
+import { queuesWrites, useSync, type Role } from "@shared/offline";
+import { keepStorage, watchInstall } from "@shared/pwa";
 import { McpButton, Notice, ShellProvider, StructuredError, cx, type ShellControls } from "@shared/ui";
-import { ROLE_ADDRESSES, hostForRole, roleForHost, sharedHomeFor } from "./hostRole.ts";
+import { ROLE_ADDRESSES, roleForHost, sharedHomeFor, sharedHostFor } from "./hostRole.ts";
 import RoleLanding from "./RoleLanding.tsx";
 import RoleRouter from "./RoleRouter.tsx";
 import SignIn from "./SignIn.tsx";
 import SyncStatus from "./SyncStatus.tsx";
+import WrongAddress from "./WrongAddress.tsx";
 import {
   ROLE_LABEL,
   currentSession,
@@ -116,6 +118,15 @@ export default function AppShell(): React.JSX.Element {
       .catch(() => setMcpUrl(null));
   }, [signedIn]);
 
+  // The browser offers to install once, early; hold the offer for settings.
+  useEffect(() => watchInstall(), []);
+
+  // A role that queues writes keeps them on the device; ask the browser not to
+  // clear that storage when space runs low (issue #201).
+  useEffect(() => {
+    if (role && role !== "admin" && role !== "auditor" && queuesWrites(role as Role)) void keepStorage();
+  }, [role]);
+
   useEffect(() => {
     if (!("serviceWorker" in navigator) || process.env.NODE_ENV !== "production") return;
     const sw = navigator.serviceWorker;
@@ -205,6 +216,7 @@ export default function AppShell(): React.JSX.Element {
     return (
       <SignIn
         role={pinned}
+        home={sharedHostFor(host)}
         notice={notice}
         onSignedIn={(session) => {
           setNotice(undefined);
@@ -255,10 +267,10 @@ export default function AppShell(): React.JSX.Element {
   return (
     <ShellProvider value={controls}>
       <main className={cx("shell", adminPreview && "relative")}>
-        {(misplaced || !OWN_HEADER.has(active) && !adminPreview) && (
+        {!misplaced && !OWN_HEADER.has(active) && !adminPreview && (
           <div className={cx("mx-auto flex w-full max-w-[1440px] flex-wrap items-center justify-end gap-2 bg-go-canvas px-4 pt-2 font-go", adminPreview && "lg:absolute lg:inset-x-0 lg:top-0 lg:z-10 lg:max-w-none lg:bg-transparent lg:pr-8")}>
             <SyncStatus sync={sync} online={online} />
-            {!misplaced && <McpButton url={mcpUrl} className="flex min-h-10 items-center gap-2 rounded-full border border-[#dfe7e6] bg-white px-3.5 text-[13px] font-medium text-[#031b08]" />}
+            <McpButton url={mcpUrl} className="flex min-h-10 items-center gap-2 rounded-full border border-[#dfe7e6] bg-white px-3.5 text-[13px] font-medium text-[#031b08]" />
             {roles.length > 1 && (
               <div role="tablist" aria-label="Role" className="flex gap-1 rounded-full bg-white p-1">
                 {roles.map((r) => (
@@ -309,16 +321,7 @@ export default function AppShell(): React.JSX.Element {
           </div>
         )}
         {misplaced ? (
-          <section aria-label="Wrong address" className="mx-auto flex w-full max-w-[720px] flex-col gap-3 px-4 py-10 font-go">
-            <Notice tone="warning" title={`This address is for the ${ROLE_LABEL[pinned].toLowerCase()} role`}>
-              {session.displayName} does not hold it. Open your own address and sign in there.
-            </Notice>
-            {session.roles.map((r) => (
-              <a key={r} href={`https://${hostForRole(host, r)}/`} className="flex min-h-12 items-center rounded-[16px] bg-white px-4 text-[15px] font-medium text-go-teal">
-                {ROLE_LABEL[r]}: {hostForRole(host, r)}
-              </a>
-            ))}
-          </section>
+          <WrongAddress host={host} pinned={pinned} displayName={session.displayName} roles={session.roles.filter((r) => r !== pinned)} onSwitchAccount={() => void leave(false)} />
         ) : (
           <RoleRouter key={active} session={session} role={active} />
         )}

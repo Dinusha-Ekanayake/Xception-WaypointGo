@@ -41,9 +41,12 @@ test("generate, see why an order was deferred, place it by hand, publish", async
   });
 
   await page.getByRole("tab", { name: /View plan/ }).click();
-  // Issue #92: what the engine's second pass achieved is said with the board.
-  await expect(page.getByText("Refrigerated vehicles planned again: 1 more order served")).toBeVisible();
-  await expect(page.getByText("Deferred went from 2 to 1, with 7.9 m³ more chilled delivered")).toBeVisible();
+  // Issue #92: what the engine's second pass achieved is one click from the board.
+  await page.getByRole("button", { name: "How it was planned" }).click();
+  const about = page.getByRole("dialog", { name: "How this plan was made" });
+  await expect(about).toContainText("Refrigerated vehicles planned again: 1 more order served");
+  await expect(about).toContainText("Deferred went from 2 to 1, with 7.9 m³ more chilled delivered");
+  await page.keyboard.press("Escape");
   await expect(page.getByRole("button", { name: /VEH044 trip 1/ })).toBeVisible();
   // 31.5 of 33.4 m³: drawn as tight, so the dispatcher sees there is no room left.
   await expect(page.getByRole("meter", { name: "Volume used" })).toHaveAttribute("aria-valuenow", "94");

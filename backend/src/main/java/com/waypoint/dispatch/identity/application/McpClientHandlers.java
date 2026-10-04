@@ -25,6 +25,7 @@ import org.springframework.context.annotation.Configuration;
 public class McpClientHandlers {
   public static final String BLOCK = "mcp:BlockClient";
   public static final String UNBLOCK = "mcp:UnblockClient";
+  public static final String REVOKE_USER = "mcp:RevokeUserConnections";
 
   @Bean
   BlockClientHandler blockMcpClientHandler(Database database, SessionRegistry sessions, Clock clock) {
@@ -34,6 +35,11 @@ public class McpClientHandlers {
   @Bean
   UnblockClientHandler unblockMcpClientHandler(Database database) {
     return new UnblockClientHandler(database);
+  }
+
+  @Bean
+  RevokeUserConnectionsHandler revokeUserMcpConnectionsHandler(Database database, SessionRegistry sessions) {
+    return new RevokeUserConnectionsHandler(database, sessions);
   }
 
   abstract static class ClientHandler implements CommandHandler {
@@ -138,6 +144,63 @@ public class McpClientHandlers {
               + " row_version = row_version + 1 WHERE client_id = ? AND row_version = ?",
           clientId, command.expectedVersion());
       return Map.of("clientId", clientId.toString(), "blocked", false, "rowVersion", command.expectedVersion() + 1);
+    }
+  }
+
+  /**
+   * Ends every MCP connection one person holds, now (R-IAM-38). Their browser
+   * sessions are untouched. There is no aggregate to version: ending what is
+   * already gone ends nothing and succeeds, so a retry is harmless. To keep
+   * them from reconnecting, an administrator also attaches WaypointMcpBlocked.
+   */
+  static final class RevokeUserConnectionsHandler implements CommandHandler {
+    private final Database database;
+    private final SessionRegistry sessions;
+
+    RevokeUserConnectionsHandler(Database database, SessionRegistry sessions) {
+      this.database = database;
+      this.sessions = sessions;
+    }
+
+    @Override
+    public String kind() {
+      return REVOKE_USER;
+    }
+
+    @Override
+    public String action() {
+      return REVOKE_USER;
+    }
+
+    @Override
+    public ModuleRole moduleRole() {
+      return ModuleRole.IAM;
+    }
+
+    @Override
+    public String resource(Command command) {
+      UUID user = CommandPayload.of(command).optionalUuid("userId");
+      return user == null ? null : "wpt:mcp:user:" + user;
+    }
+
+    @Override
+    public Object handle(Actor actor, Command command) {
+      CommandPayload payload = CommandPayload.of(command);
+      UUID userId = payload.uuid("userId");
+      String reason = payload.requiredText("reason").trim();
+      if (reason.isEmpty() || reason.length() > 500) {
+        throw new DomainException(ErrorCode.VALIDATION_FAILED, "reason must be 1 to 500 characters");
+      }
+      if (database.queryOne("SELECT 1 AS found FROM iam.users WHERE user_id = ?", userId) == null) {
+        throw new DomainException(ErrorCode.NOT_FOUND, "No user " + userId);
+      }
+      int revoked = 0;
+      for (Map<String, Object> session : database.query(
+          "SELECT token_hash FROM iam.sessions WHERE user_id = ? AND mcp_read_only FOR UPDATE", userId)) {
+        sessions.revokeByKeyInTransaction((String) session.get("token_hash"), "admin_revoked");
+        revoked++;
+      }
+      return Map.of("userId", userId.toString(), "connectionsRevoked", revoked, "reason", reason);
     }
   }
 }

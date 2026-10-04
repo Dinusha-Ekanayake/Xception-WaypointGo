@@ -1,4 +1,6 @@
 import type { Page, Route } from "@playwright/test";
+import type { PostMessagePayload } from "../../src/shared/domain/messaging.ts";
+import { postToThread, threadRead, type ThreadMock } from "../thread-mocks.ts";
 import type { RunSheetStopView, RunSheetView } from "../../src/shared/domain/execution.ts";
 import type { ReadyTripView } from "../../src/shared/domain/loading.ts";
 import type { OrderStatus, OrderView } from "../../src/shared/domain/ordering.ts";
@@ -69,6 +71,10 @@ const vehicle = (vehicleId: string) => ({
 });
 
 export type Desk = {
+  /** Queued generations (R-PLN-41), each done with the draft it wrote. */
+  jobs: Array<{ jobId: string; result: ReturnType<typeof body> }>;
+  /** Trip threads (issue #136). */
+  threads?: ThreadMock[];
   orders: OrderView[];
   draft: PlanView | null;
   published: PlanView | null;
@@ -83,6 +89,10 @@ export type Desk = {
   commands: Sent[];
   /** Answer the next command of this kind with this problem instead of applying it. */
   refuse: { kind: string; status: number; code: string; detail: string; rules?: string[] } | null;
+  /** What /api/ml/models answers: the registry, for the forecast error chip (#119). */
+  models?: unknown[];
+  /** What /api/ml/plans/{id}/predictions answers for the published plan; none means not scored (#119). */
+  predictions?: unknown;
   /** What /api/ml/forecast/overview answers for the depot. */
   forecast: ForecastOverviewView;
   /** Saved plans, newest first, and the plan each one holds. */
@@ -116,7 +126,7 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
   const desk: Desk = {
     orders: [order(1, "CONFIRMED"), order(2, "CONFIRMED"), order(3, "CONFIRMED")],
     draft: null, published: null, sheets: [], dock: [], issues: [], history: {}, deferrals: [], commands: [], refuse: null,
-    forecast: forecast(), snapshots: [], savedPlans: {}, preview: FEASIBLE_PREVIEW, ...start,
+    forecast: forecast(), snapshots: [], savedPlans: {}, preview: FEASIBLE_PREVIEW, jobs: [], ...start,
   };
   const json = (value: unknown) => ({ status: 200, contentType: "application/json", body: JSON.stringify(value) });
   const problem = (status: number, code: string, detail: string, rules: string[] = []) => ({
@@ -127,10 +137,16 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
   const apply = (command: Sent) => {
     const { payload } = command;
     if (command.kind.startsWith("issue:")) return applyIssue(desk, command);
+    if (command.kind === "message:Post") {
+      return postToThread(desk.threads ?? [], payload as unknown as PostMessagePayload, { name: SESSION.displayName, role: "dispatcher" }, new Date().toISOString());
+    }
     if (command.kind === "order:CloseForDay") return { alreadyClosed: false };
     if (command.kind === "plan:Generate") {
+      // Planning v2 (R-PLN-41): Generate queues a job; the worker writes the draft and the screen follows the job.
       desk.draft = draftPlan((desk.draft?.planVersion ?? 0) + 1);
-      return body(desk.draft);
+      const jobId = `job-${desk.jobs.length + 1}`;
+      desk.jobs.push({ jobId, result: body(desk.draft) });
+      return { jobId, status: "QUEUED", depotCode: DEPOT, serviceDate: "2027-03-01" };
     }
     const plan = desk.draft!;
     if (command.kind === "plan:Override") {
@@ -160,6 +176,22 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
       );
     }
     if (command.kind === "plan:ReorderStops") return next((a) => a);
+    if (command.kind === "plan:EditTrip") {
+      // The trip holds exactly orderIds (none removes it): orders left out are deferred, orders named join it.
+      const tripId = String(payload.tripId);
+      const ids = payload.orderIds as string[];
+      const before = plan.trips.find((t) => t.tripId === tripId);
+      const kept = ids.length ? [{ ...before!, stops: ids.map((orderId, i) => ({ ...(before!.stops.find((st) => st.orderId === orderId) ?? before!.stops[0]!), sequence: i + 1, orderId })) }] : [];
+      desk.draft = {
+        ...plan, planId: `plan-v${plan.planVersion + 1}`, planVersion: plan.planVersion + 1,
+        trips: [...plan.trips.filter((t) => t.tripId !== tripId), ...kept],
+        allocations: plan.allocations.map((a) =>
+          ids.includes(a.orderId) ? { ...served(a.orderId, tripId), source: a.tripId === tripId ? a.source : ("OVERRIDE" as const), ...hand }
+          : a.tripId === tripId ? { ...deferred(a.orderId), source: "MANUAL_DEFER" as const, ...hand } : a,
+        ),
+      };
+      return body(desk.draft);
+    }
     if (command.kind === "plan:ContactStore") return { orderId: payload.orderId, outletId: "OUT053" };
     if (command.kind === "plan:SaveSnapshot") {
       const saved = snapshotOf(desk.snapshots.length + 1, String(payload.label ?? `Snapshot ${desk.snapshots.length + 1}`));
@@ -189,9 +221,19 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
     if (pathname === "/api/reference/vehicles") return route.fulfill(json({ items: [vehicle("VEH043"), vehicle("VEH044")], nextCursor: null }));
     if (pathname === "/api/orders/day") return route.fulfill(json(desk.orders));
     if (pathname === "/api/plans/draft") return route.fulfill(desk.draft ? json(desk.draft) : problem(404, "NOT_FOUND", "No open draft"));
+    if (pathname.startsWith("/api/plans/jobs")) {
+      const id = pathname.split("/")[4];
+      const job = id ? desk.jobs.find((j) => j.jobId === id) : desk.jobs.at(-1);
+      if (!job) return route.fulfill(problem(404, "NOT_FOUND", "No plan generation"));
+      return route.fulfill(json({
+        jobId: job.jobId, depotCode: DEPOT, serviceDate: "2027-03-01", status: "DONE", attempts: 1, planId: job.result.planId,
+        error: null, createdAt: "2027-02-28T10:00:00Z", startedAt: "2027-02-28T10:00:00Z", finishedAt: "2027-02-28T10:00:01Z",
+        result: job.result,
+      }));
+    }
     if (pathname === "/api/plans/published") return route.fulfill(desk.published ? json(desk.published) : problem(404, "NOT_FOUND", "No published plan"));
     if (pathname === "/api/plans/preview/placements") return route.fulfill(json(PLACES));
-    if (pathname === "/api/plans/preview/swap" || pathname === "/api/plans/preview/sequence") return route.fulfill(json(desk.preview));
+    if (pathname === "/api/plans/preview/swap" || pathname === "/api/plans/preview/sequence" || pathname === "/api/plans/preview/trip") return route.fulfill(json(desk.preview));
     if (pathname === "/api/plans/snapshots") return route.fulfill(json(desk.snapshots));
     const saved = /^\/api\/plans\/snapshots\/([^/]+)$/.exec(pathname);
     if (saved) {
@@ -213,7 +255,7 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
     if (pathname.startsWith("/api/reference/calendar/")) {
       return route.fulfill(json({ date: pathname.split("/").pop(), operating: true, nextOperatingDay: "2027-03-02", known: true, day: {} }));
     }
-    if (/^\/api\/ml\/plans\/[^/]+\/predictions$/.test(pathname)) return route.fulfill(problem(404, "NOT_FOUND", "Not scored"));
+    if (/^\/api\/ml\/plans\/[^/]+\/predictions$/.test(pathname)) return route.fulfill(desk.predictions ? json(desk.predictions) : problem(404, "NOT_FOUND", "Not scored"));
     if (pathname === "/api/execution/run-sheets") return route.fulfill(json(desk.sheets));
     if (pathname === "/api/execution/positions") return route.fulfill(json(desk.positions ?? []));
     if (pathname.startsWith("/api/execution/deliveries/")) {
@@ -233,6 +275,11 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
       return route.fulfill(json(one[2] ? (desk.history[found.issueId] ?? []) : found));
     }
     if (pathname === "/api/plans/deferrals") return route.fulfill(json(desk.deferrals));
+    if (pathname === "/api/ml/models") {
+      return route.fulfill(json(desk.models ?? [
+        { name: "datathon-task2a", version: "2026.1", kind: "demand_forecast", status: "ACTIVE", metrics: { total_wape: "0.0415", chilled_wape: "0.0439" } },
+      ]));
+    }
     if (pathname === "/api/ml/forecast/overview") {
       const weeks = Number(url.searchParams.get("weeks") ?? "10");
       return route.fulfill(json({ ...desk.forecast, weeks: desk.forecast.weeks.slice(0, weeks) }));
@@ -251,6 +298,8 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
       }
       return route.fulfill(json({ commandId: command.commandId, kind: command.kind, replayed: false, result: apply(command) }));
     }
+    const thread = request.method() === "GET" ? threadRead(desk.threads ?? [], url) : undefined;
+    if (thread) return route.fulfill({ status: thread.status, contentType: thread.status === 200 ? "application/json" : "application/problem+json", body: JSON.stringify(thread.body) });
     return route.fulfill({ status: 404, body: "not mocked" });
   });
   return desk;

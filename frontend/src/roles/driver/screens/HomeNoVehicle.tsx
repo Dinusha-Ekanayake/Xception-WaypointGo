@@ -4,10 +4,11 @@ import { useState, useRef, useEffect } from "react";
 import { VehicleStatuses, type ReportedVehicleStatus, type VehicleView } from "@shared/domain/types";
 import { isUnread, kindOf } from "@shared/notifications/inbox";
 import type { Inbox } from "@shared/notifications/useInbox";
-import { cx } from "@shared/ui";
-import { clock, countdown, stops as stopsText } from "../../../shared/wording/index.ts";
+import { cx, useDeviceLang } from "@shared/ui";
+import { clock, countdown, dayLabel, hhmm, stops as stopsText } from "../../../shared/wording/index.ts";
 import type { TripStatus } from "../data/stopView.ts";
-import { DriverHeader, VoiceMessagePlayer, type SupportedLang } from "../ui.tsx";
+import type { NextRun } from "../data/run.ts";
+import { DriverHeader, VoiceMessagePlayer } from "../ui.tsx";
 
 /**
  * Apple UIScrollView rubber-band resistance formula:
@@ -347,6 +348,8 @@ export type DriverHomeProps = {
   vehicle: VehicleView | null;
   tripStatus: TripStatus;
   stopCount: number;
+  /** With nothing released today: the next trip, released or still at the dock. */
+  nextRun?: NextRun | null;
   /** The server could not be asked and this phone holds no copy of today. */
   unavailable: boolean;
   online: boolean;
@@ -409,6 +412,7 @@ export default function HomeNoVehicle({
   vehicle,
   tripStatus,
   stopCount,
+  nextRun = null,
   unavailable,
   online,
   vehicleStatus,
@@ -422,7 +426,7 @@ export default function HomeNoVehicle({
   onToggleTheme,
   hideHeader = false,
 }: DriverHomeProps): React.JSX.Element {
-  const [lang, setLang] = useState<SupportedLang>("en");
+  const [lang, setLang] = useDeviceLang();
   const [activeAudioId, setActiveAudioId] = useState<string | null>(null);
   const { scrollRef, pullY, isPulling, maskStyle, handlers } = useRubberBandScroll();
 
@@ -457,7 +461,7 @@ export default function HomeNoVehicle({
   return (
     <div
       className={cx(
-        "relative mx-auto flex h-full max-h-full w-full flex-col overflow-hidden font-go select-none transition-colors",
+        "relative mx-auto flex h-full max-h-full w-full flex-col overflow-hidden font-go select-none transition-colors short:h-auto short:min-h-full short:max-h-none short:overflow-visible",
         isNight ? "bg-[#161616] text-white" : "bg-[#E7F3F2] text-[#000000]"
       )}
     >
@@ -466,7 +470,7 @@ export default function HomeNoVehicle({
         {hideHeader ? (
           <div className="w-full h-[74px] shrink-0 pointer-events-none" />
         ) : (
-          <DriverHeader lang={lang} onToggleLang={setLang} onSignOut={onSignOut} onToggleTheme={onToggleTheme} isNight={isNight} />
+          <DriverHeader displayName={driverName} lang={lang} onToggleLang={setLang} onSignOut={onSignOut} onToggleTheme={onToggleTheme} isNight={isNight} />
         )}
 
         {/* Driver Identity Card (Figma "Driver card") */}
@@ -557,7 +561,9 @@ export default function HomeNoVehicle({
                   </button>
                 ) : (
                   <p role="status" className={cx("text-[14px] leading-[18px]", ink)}>
-                    No trip planned for {vehicle.vehicleId} today. Your stops appear here when the loader releases the vehicle.
+                    {nextRun && !nextRun.released && nextRun.vehicleId && nextRun.departure
+                      ? `Next trip ${dayLabel(nextRun.date)} · ${nextRun.vehicleId} · departs ${hhmm(nextRun.departure)}. It is planned and waiting for the loader to release it; your stops appear here then.`
+                      : `No trip planned for ${vehicle.vehicleId} today. Your stops appear here when the loader releases the vehicle.`}
                   </p>
                 )}
                 {stopCount > 0 && tripStatus !== "completed" && (
@@ -604,12 +610,12 @@ export default function HomeNoVehicle({
       </div>
 
       {/* Scrollable Container with dynamic mask fade (ONLY this feed scrolls) */}
-      <div style={maskStyle} className="relative flex-1 min-h-0 px-6 overflow-hidden">
+      <div style={maskStyle} className="relative flex-1 min-h-0 px-6 overflow-hidden short:flex-none short:overflow-visible">
         <div
           ref={scrollRef}
           {...handlers}
           aria-label="Notifications"
-          className="h-full overflow-y-auto overscroll-contain pb-6 no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden snap-y snap-mandatory scroll-smooth"
+          className="h-full overflow-y-auto overscroll-contain pb-6 short:h-auto short:overflow-visible no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden snap-y snap-mandatory scroll-smooth"
         >
           <div
             style={{

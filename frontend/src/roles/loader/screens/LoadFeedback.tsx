@@ -30,14 +30,14 @@ export type ToastMessage = {
 export function Toast({ message, onDone }: { message: ToastMessage; onDone: () => void }): React.JSX.Element {
   const tr = useT();
   useEffect(() => {
-    const timer = window.setTimeout(onDone, message.undo ? 6000 : 5000);
+    const timer = window.setTimeout(onDone, message.undo ? 6000 : 4000);
     return () => window.clearTimeout(timer);
   }, [message, onDone]);
   const loaded = message.kind === "loaded";
 
   return (
     <div role="status" aria-live="polite" className="fixed inset-x-0 bottom-0 z-30 flex justify-center">
-      <div className="flex w-full max-w-[560px] flex-col gap-5 rounded-t-[32px] bg-go-card px-5 pt-5 pb-7 text-go-ink shadow-[0_-10px_30px_rgba(0,0,0,0.15)]">
+      <div className="flex w-full max-w-[560px] animate-sheet-up flex-col gap-5 rounded-t-[32px] bg-go-card px-5 pt-5 pb-[max(1.75rem,env(safe-area-inset-bottom))] text-go-ink shadow-[0_-10px_30px_rgba(0,0,0,0.15)]">
         <div className="flex flex-col gap-1 rounded-[24px] bg-go-canvas px-4 py-3.5">
           <div className="flex items-center justify-between text-[13px]">
             <span className={cx("flex items-center gap-1.5 font-medium", loaded ? "text-go-success" : "text-go-muted")}>

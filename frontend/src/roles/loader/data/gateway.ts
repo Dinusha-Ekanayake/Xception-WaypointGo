@@ -1,6 +1,6 @@
 import { request, requestAll } from "@shared/api/client";
 import { send, type Command, type CommandAck } from "@shared/api/commands";
-import { enqueue } from "@shared/offline";
+import { enqueue, readThrough } from "@shared/offline";
 import type { ManifestView, OutletView, ReadyTripView } from "@shared/domain/types";
 import { sampleGateway } from "./fixtures.ts";
 
@@ -27,10 +27,16 @@ function liveGateway(accountId: string): LoadingGateway {
   return {
     sample: false,
     // Paths follow MODULES.md; they are confirmed when the Loading module lands.
+    // Each read is kept on the dock tablet, so a reload with the network down
+    // still shows the day's trips and manifests (issue #201). The day is in the
+    // key: yesterday's departures never stand in for today's.
     readyTrips: (depot, date, signal) =>
-      request(`/api/loading/trips?depot=${encodeURIComponent(depot)}&date=${date}`, { signal }),
-    manifest: (tripId, signal) => request(`/api/loading/trips/${tripId}/manifest`, { signal }),
-    outlets: (depot, signal) => requestAll(`/api/reference/outlets?depot=${encodeURIComponent(depot)}`, { signal }),
+      readThrough(accountId, `loader:trips:${depot}:${date}`, () =>
+        request(`/api/loading/trips?depot=${encodeURIComponent(depot)}&date=${date}`, { signal })),
+    manifest: (tripId, signal) =>
+      readThrough(accountId, `loader:manifest:${tripId}`, () => request(`/api/loading/trips/${tripId}/manifest`, { signal })),
+    outlets: (depot, signal) =>
+      readThrough(accountId, `loader:outlets:${depot}`, () => requestAll(`/api/reference/outlets?depot=${encodeURIComponent(depot)}`, { signal })),
     send: (command) => send(command),
     queue: (command) => enqueue(accountId, "loader", command),
   };

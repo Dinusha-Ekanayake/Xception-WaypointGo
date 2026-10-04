@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Badge, VehicleTypeIcon, card, field, primary, secondary } from "./components";
+import { Badge, card, field, secondary } from "./components";
 import type { DemoState } from "./model";
+import { todayInColombo } from "./model";
 import {
   fetchAdminPlans,
   fetchAdminPlanDetail,
@@ -16,20 +17,13 @@ export type TripsSubTab = "planned" | "live";
 export function TripsScreen({
   state,
   activeSubTab,
-  onSubTabChange,
   onNavigateTab,
 }: {
   state?: DemoState;
   activeSubTab?: TripsSubTab;
-  onSubTabChange?: (tab: TripsSubTab) => void;
   onNavigateTab?: (tab: "people" | "personas" | "vehicles" | "forecasts" | "depots" | "outlets" | "orders" | "trips" | "audit") => void;
 }) {
-  const [internalSubTab, setInternalSubTab] = useState<TripsSubTab>("planned");
-  const subTab = activeSubTab || internalSubTab;
-  const setSubTab = (t: TripsSubTab) => {
-    setInternalSubTab(t);
-    onSubTabChange?.(t);
-  };
+  const subTab = activeSubTab || "planned";
   const [plans, setPlans] = useState<AdminPlan[]>([]);
   const [loading, setLoading] = useState(false);
   const [liveConnected, setLiveConnected] = useState<boolean | null>(null);
@@ -59,9 +53,7 @@ export function TripsScreen({
           limit: 200,
         });
         if (cancelled) return;
-        if (page.items && page.items.length > 0) {
-          setPlans(page.items);
-        }
+        setPlans(page.items);
         setLiveConnected(true);
       } catch {
         if (!cancelled) setLiveConnected(false);
@@ -91,7 +83,7 @@ export function TripsScreen({
         setSelectedPlanDetail(detail);
       } catch (error) {
         if (!cancelled) {
-          setSelectedPlanDetail(plans.find((p) => p.planId === currentTrip.planId) || plans[0]);
+          setSelectedPlanDetail(null);
         }
       } finally {
         if (!cancelled) setModalLoading(false);
@@ -103,7 +95,7 @@ export function TripsScreen({
     };
   }, [selectedTrip, plans]);
 
-  const TODAY = "2026-10-03";
+  const TODAY = todayInColombo();
 
   // Flatten all trips across plans
   const allTrips = useMemo(() => {
@@ -155,6 +147,11 @@ export function TripsScreen({
   const liveTripsCount = allTrips.filter((t) => t.status === "IN_TRANSIT" || t.status === "LOADING" || t.status === "DELAYED").length;
   const completedTripsCount = allTrips.filter((t) => t.status === "COMPLETED").length;
   const plannedOnlyCount = allTrips.filter((t) => t.status === "PLANNED").length;
+  const measuredTrips = allTrips.filter((t) => t.weightCapKg != null && t.weightCapKg > 0);
+  const fleetWeightUse = measuredTrips.length
+    ? Math.round(100 * measuredTrips.reduce((sum, t) => sum + t.weightKg, 0) /
+        measuredTrips.reduce((sum, t) => sum + (t.weightCapKg ?? 0), 0))
+    : null;
 
   const currentPlan = useMemo(() => {
     if (depotFilter !== "all") {
@@ -193,56 +190,13 @@ export function TripsScreen({
 
   return (
     <div className="space-y-6">
-      {/* 2 Sub-tabs Navigation: Planned vs Live */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-go-rule pb-3">
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Sub-tab 1: Planned Trips */}
-          <button
-            type="button"
-            onClick={() => setSubTab("planned")}
-            className={`flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-bold transition-all ${
-              subTab === "planned"
-                ? "bg-go-teal text-white shadow-sm"
-                : "bg-white text-go-secondary border border-go-rule hover:bg-go-subtle"
-            }`}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-4" aria-hidden="true">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-              <line x1="16" y1="13" x2="8" y2="13" />
-              <line x1="16" y1="17" x2="8" y2="17" />
-              <polyline points="10 9 9 9 8 9" />
-            </svg>
-            <span>Planned</span>
-            <span className={`rounded-full px-2 py-0.5 text-xs ${subTab === "planned" ? "bg-white/20 text-white" : "bg-go-subtle text-go-teal"}`}>
-              {totalTripsCount}
-            </span>
-          </button>
-
-          {/* Sub-tab 2: Live Trips */}
-          <button
-            type="button"
-            onClick={() => setSubTab("live")}
-            className={`flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-bold transition-all ${
-              subTab === "live"
-                ? "bg-[#1d4ed8] text-white shadow-sm"
-                : "bg-white text-go-secondary border border-go-rule hover:bg-[#eff6ff]"
-            }`}
-          >
-            <span className="size-2.5 rounded-full bg-[#3b82f6] animate-ping" aria-hidden="true"></span>
-            <span>Live</span>
-            <span className={`rounded-full px-2 py-0.5 text-xs ${subTab === "live" ? "bg-white/20 text-white" : "bg-[#dbeafe] text-[#1d4ed8]"}`}>
-              {liveTripsCount}
-            </span>
-          </button>
-        </div>
-
-        {liveConnected !== null && (
+      {liveConnected !== null && (
+        <div className="flex justify-end">
           <Badge tone={liveConnected ? "green" : "neutral"}>
-            {liveConnected ? "Live API: GET /api/admin/plans" : "Connecting..."}
+            {liveConnected ? "Live data" : "Plans unavailable"}
           </Badge>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* KPI Overview Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -303,12 +257,12 @@ export function TripsScreen({
               </svg>
             </span>
           </div>
-          <p className="mt-2 text-2xl font-bold text-go-ink">91.4%</p>
+          <p className="mt-2 text-2xl font-bold text-go-ink">{fleetWeightUse == null ? "Unavailable" : `${fleetWeightUse}%`}</p>
           <p className="mt-0.5 text-xs text-go-secondary">Authoritative weight fit</p>
         </div>
       </div>
 
-      {/* Planning Run Summary Box (GET /api/admin/plans) */}
+      {/* Planning run summary */}
       {currentPlan && (
         <div className="rounded-2xl border border-go-mint bg-go-subtle p-5 sm:p-6 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-go-rule pb-3">
@@ -365,7 +319,7 @@ export function TripsScreen({
             <div className="rounded-xl border border-go-rule bg-white p-3">
               <span className="text-go-secondary">Estimated Fuel</span>
               <p className="mt-0.5 text-base font-bold text-go-ink">
-                {currentPlan.fuelEstimatedLitres} Litres
+                {currentPlan.fuelEstimatedLitres == null ? "Unavailable" : `${currentPlan.fuelEstimatedLitres} litres`}
               </p>
               <span className="text-[11px] text-go-secondary">Across all trip legs</span>
             </div>
@@ -484,129 +438,38 @@ export function TripsScreen({
         </div>
       </div>
 
-      {/* Trips Cards / List */}
+      {/* Compact trip list. The inspection dialog holds the full trip details. */}
       {filteredTrips.length > 0 ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredTrips.map((trip) => {
-            const weightPct = trip.weightCapKg ? Math.round((trip.weightKg / trip.weightCapKg) * 100) : 0;
-            const volumePct = Math.round((trip.volumeM3 / trip.volumeCapM3) * 100);
-
-            return (
-              <article
-                key={trip.tripId}
-                className={`${card} flex flex-col justify-between p-5 transition-all hover:border-go-mint hover:shadow-md`}
+        <div className="space-y-2">
+          {filteredTrips.map((trip) => (
+            <article key={trip.tripId} className={`${card} flex flex-wrap items-center gap-x-6 gap-y-3 px-4 py-3 sm:px-5`}>
+              <div className="min-w-0 flex-1 basis-full sm:basis-56">
+                <p className="font-semibold text-go-ink">Trip {trip.tripNumber} <span className="ml-1 text-xs font-normal text-go-secondary">ID {trip.tripId.slice(-8)}</span></p>
+                <p className="mt-0.5 truncate text-sm text-go-secondary">{trip.depot} Depot · {trip.district} District</p>
+              </div>
+              <div className="min-w-24 text-sm">
+                <p className="text-xs text-go-secondary">Vehicle</p>
+                <p className="font-semibold text-go-ink">{trip.vehicleId}</p>
+              </div>
+              <div className="min-w-24 text-sm">
+                <p className="text-xs text-go-secondary">Departure</p>
+                <p className="font-semibold text-go-ink">{trip.plannedDeparture}</p>
+              </div>
+              <div className="min-w-20 text-sm">
+                <p className="text-xs text-go-secondary">Stops</p>
+                <p className="font-semibold text-go-ink">{trip.completedStopsCount || 0} / {trip.stops.length} done</p>
+              </div>
+              <div className="flex min-w-28 items-center">{getStatusBadge(trip.status)}</div>
+              <button
+                type="button"
+                onClick={() => setSelectedTrip(trip)}
+                className="min-h-11 rounded-xl border border-go-mint bg-go-subtle px-4 text-sm font-semibold text-go-teal hover:bg-go-mint"
+                aria-label={`More info for trip ${trip.tripNumber}, ${trip.tripId}`}
               >
-                <div>
-                  {/* Top: Trip ID & Status */}
-                  <div className="flex items-start justify-between gap-2 border-b border-go-subtle pb-3">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-base font-bold text-go-ink">{trip.tripId}</span>
-                        <span className="rounded-md bg-go-subtle px-2 py-0.5 text-xs font-semibold text-go-ink">
-                          Trip {trip.tripNumber}
-                        </span>
-                      </div>
-                      <p className="mt-0.5 text-xs text-go-secondary">
-                        {trip.depot} Depot · {trip.district} District
-                      </p>
-                    </div>
-                    {getStatusBadge(trip.status)}
-                  </div>
-
-                  {/* Vehicle & Driver Info */}
-                  <div className="mt-3 flex items-center justify-between gap-3 text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className="grid size-8 place-items-center rounded-lg bg-go-subtle text-go-teal">
-                        <VehicleTypeIcon type={trip.vehicleType} className="size-4" />
-                      </span>
-                      <div>
-                        <span className="font-bold text-go-ink">{trip.vehicleId}</span>
-                        <p className="text-go-secondary">{trip.vehicleType}</p>
-                      </div>
-                    </div>
-
-                    <div className="text-right">
-                      <span className="font-semibold text-go-ink">{trip.driverName}</span>
-                      <p className="text-go-secondary">{trip.driverPhone || "Phone unavailable"}</p>
-                    </div>
-                  </div>
-
-                  {/* Brand & Temperature */}
-                  <div className="mt-3 flex items-center gap-2">
-                    {getBrandBadge(trip.brand)}
-                    <span
-                      className={`rounded-md px-2 py-0.5 text-xs font-semibold ${
-                        trip.temperature.startsWith("Chilled") ? "bg-[#e0f2fe] text-[#0284c7]" : "bg-go-subtle text-go-secondary"
-                      }`}
-                    >
-                      {trip.temperature}
-                    </span>
-                  </div>
-
-                  {/* Schedule Timings */}
-                  <div className="mt-3.5 grid grid-cols-2 gap-2 rounded-xl border border-go-subtle bg-go-subtle p-2.5 text-xs">
-                    <div>
-                      <span className="text-go-secondary">Departure</span>
-                      <p className="font-bold text-go-ink">{trip.plannedDeparture}</p>
-                    </div>
-                    <div>
-                      <span className="text-go-secondary">Est. Return</span>
-                      <p className="font-bold text-go-ink">{trip.estimatedReturn}</p>
-                    </div>
-                  </div>
-
-                  {/* Load Utilization Gauges */}
-                  <div className="mt-3.5 space-y-2 text-xs">
-                    <div>
-                      <div className="flex justify-between text-[11px]">
-                        <span className="text-go-secondary">Weight Load ({weightPct}%)</span>
-                        <span className="font-bold text-go-ink">
-                          {trip.weightKg.toLocaleString()} / {trip.weightCapKg.toLocaleString()} kg
-                        </span>
-                      </div>
-                      <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-go-subtle">
-                        <div
-                          className={`h-full rounded-full ${weightPct > 95 ? "bg-[#b45309]" : "bg-go-teal"}`}
-                          style={{ width: `${Math.min(weightPct, 100)}%` }}
-                        ></div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex justify-between text-[11px]">
-                        <span className="text-go-secondary">Volume Load ({volumePct}%)</span>
-                        <span className="font-bold text-go-ink">
-                          {trip.volumeM3.toFixed(1)} / {trip.volumeCapM3.toFixed(1)} m³
-                        </span>
-                      </div>
-                      <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-go-subtle">
-                        <div
-                          className="h-full rounded-full bg-[#0284c7]"
-                          style={{ width: `${Math.min(volumePct, 100)}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Footer: Stops count & Inspect Button */}
-                <div className="mt-4 flex items-center justify-between border-t border-go-subtle pt-3 text-xs">
-                  <span className="font-semibold text-go-secondary">
-                    {trip.stops.length} Stops ({trip.completedStopsCount || 0} done)
-                  </span>
-
-                  <button
-                    type="button"
-                    onClick={() => setSelectedTrip(trip)}
-                    className="flex items-center gap-1 rounded-xl border border-go-mint bg-go-subtle px-3 py-1.5 font-bold text-go-teal transition-colors hover:bg-go-mint"
-                  >
-                    <span>Inspect Trip</span>
-                    <span aria-hidden="true">›</span>
-                  </button>
-                </div>
-              </article>
-            );
-          })}
+                More info <span aria-hidden="true">›</span>
+              </button>
+            </article>
+          ))}
         </div>
       ) : (
         <div className={`${card} flex flex-col items-center justify-center p-10 text-center`}>
@@ -627,7 +490,7 @@ export function TripsScreen({
         </div>
       )}
 
-      {/* Trip Inspection Modal (GET /api/admin/plans/{id}) */}
+      {/* Trip inspection details */}
       {selectedTrip && (
         <div
           role="dialog"
@@ -683,10 +546,13 @@ export function TripsScreen({
                 </div>
                 <div>
                   <span className="text-go-secondary">Load Specifications</span>
-                  <p className="font-bold text-go-teal text-sm mt-0.5">
-                    {selectedTrip.weightKg} kg · {selectedTrip.volumeM3} m³
+                  <p className="mt-0.5 font-bold text-go-teal text-sm">
+                    {selectedTrip.weightKg.toLocaleString()} / {selectedTrip.weightCapKg == null ? "Unavailable" : selectedTrip.weightCapKg.toLocaleString()} kg
                   </p>
-                  <p className="text-go-secondary text-[11px]">{selectedTrip.temperature}</p>
+                  <p className="text-go-secondary text-[11px]">
+                    {selectedTrip.volumeM3.toFixed(1)} / {selectedTrip.volumeCapM3 == null ? "Unavailable" : selectedTrip.volumeCapM3.toFixed(1)} m³
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-1">{getBrandBadge(selectedTrip.brand)}<span className="text-go-secondary">{selectedTrip.temperature}</span></div>
                 </div>
               </div>
 
@@ -696,7 +562,6 @@ export function TripsScreen({
                   <h4 className="text-xs font-bold uppercase tracking-wider text-go-ink">
                     Stop Sequence Timeline ({selectedTrip.stops.length} Retail Outlets)
                   </h4>
-                  <span className="text-[11px] text-go-secondary">GET /api/admin/plans/{selectedTrip.planId}</span>
                 </div>
 
                 <div className="space-y-2.5">
@@ -715,7 +580,7 @@ export function TripsScreen({
                             <span className="text-xs font-medium text-go-secondary">{stop.outletName || ""}</span>
                           </div>
                           <p className="text-go-secondary text-[11px]">
-                            Order Ref: {stop.orderRef} · {stop.weightKg} kg ({stop.volumeM3} m³)
+                            Order ID: {stop.orderId} · {stop.weightKg == null ? "Weight unavailable" : `${stop.weightKg} kg`} ({stop.volumeM3 == null ? "volume unavailable" : `${stop.volumeM3} m³`})
                           </p>
                         </div>
                       </div>

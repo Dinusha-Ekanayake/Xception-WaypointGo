@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ConnectionStatus, CountBadge, Icon, McpButton, Notice, useShell } from "@shared/ui";
+import { ConnectionStatus, CountBadge, Icon, Notice } from "@shared/ui";
 import { useDispatcherInbox } from "./inbox.tsx";
 import { clock } from "@shared/wording";
 
@@ -30,36 +30,37 @@ export default function PageHeader({
   /** Reads this screen again; the pill becomes a button. */
   onSync?: () => void;
   syncing?: boolean;
-  /** Leave out the sync pill, the MCP button and the bell, as the Plan screen is drawn. Offline still says so. */
+  /** Leave out the sync pill and the bell, as the Plan screen is drawn. Offline still says so. */
   quiet?: boolean;
 }): React.JSX.Element {
-  const shell = useShell();
   const inbox = useDispatcherInbox();
   const unread = inbox?.inbox.unread ?? 0;
   return (
     <>
       <header className="flex w-full flex-wrap items-center gap-3">
         <div className="flex min-w-[240px] flex-1 flex-col gap-0.5">
-          <h1 className="text-[26px] md:truncate md:text-[30px] font-medium tracking-normal text-go-ink">{title}</h1>
+          <h1 className="text-[26px] font-medium tracking-normal text-go-ink md:truncate md:text-[30px]">{title}</h1>
           <p className="truncate text-sm text-go-secondary">{subtitle}</p>
         </div>
-        {tools}
-        {!quiet && (
-          <>
-            <ConnectionStatus online={online} lastSyncedAt={lastSyncedAt} offlineNote="read only" onSync={onSync} syncing={syncing} />
-            <McpButton url={shell?.mcpUrl ?? null} className="flex min-h-[42px] items-center gap-2 rounded-[21px] bg-white px-3.5 text-sm font-medium text-go-ink" />
-            <button
-              type="button"
-              disabled={!inbox}
-              onClick={() => inbox?.setOpen(true)}
-              aria-label={unread > 0 ? `Notifications, ${unread} unread` : "Notifications"}
-              className="relative flex rounded-[21px] bg-go-card p-[11px] disabled:cursor-not-allowed"
-            >
-              <Icon name="bell" />
-              <CountBadge count={unread} />
-            </button>
-          </>
-        )}
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          {tools}
+          {!quiet && (
+            // The status cluster stays together: the bell never wraps away from the sync pill.
+            <span className="flex shrink-0 items-center gap-3">
+              <ConnectionStatus online={online} lastSyncedAt={lastSyncedAt} offlineNote="read only" onSync={onSync} syncing={syncing} />
+              <button
+                type="button"
+                disabled={!inbox}
+                onClick={() => inbox?.setOpen(true)}
+                aria-label={unread > 0 ? `Notifications, ${unread} unread` : "Notifications"}
+                className="relative flex rounded-[21px] bg-go-card p-[11px] disabled:cursor-not-allowed"
+              >
+                <Icon name="bell" />
+                <CountBadge count={unread} />
+              </button>
+            </span>
+          )}
+        </div>
       </header>
       {!online && (
         <Notice tone="warning" title="You are offline. The dispatcher screens are read only." live>

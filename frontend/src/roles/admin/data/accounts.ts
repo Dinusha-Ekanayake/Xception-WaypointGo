@@ -1,8 +1,12 @@
-import { request } from "@shared/api/client";
+import { request, requestAll } from "@shared/api/client";
 import { newCommand, send, type CommandAck } from "@shared/api/commands";
 import type { Page } from "@shared/domain/common";
 import type { AccountView } from "@shared/domain/identity";
 import type { Member, Persona } from "../access/model";
+
+export async function fetchOwnProfile(): Promise<{ userId: string; rowVersion: number }> {
+  return request<{ userId: string; rowVersion: number }>("/api/profile");
+}
 
 /**
  * Fetch a paged list of visible accounts from the backend Identity module.
@@ -27,76 +31,24 @@ export async function fetchAccounts(options: {
   if (options.active !== undefined) params.set("active", String(options.active));
   if (options.search) params.set("search", options.search);
   const qs = params.toString();
-  return request<Page<AccountView>>(`/api/admin/accounts${qs ? `?${qs}` : ""}`, {
-    signal: options.signal,
-  });
+  const path = `/api/accounts${qs ? `?${qs}` : ""}`;
+  return options.after ? request<Page<AccountView>>(path, { signal: options.signal })
+    : { items: await requestAll<AccountView>(path, { signal: options.signal }), nextCursor: null };
 }
 
 /**
  * Fetch a single visible account by its UUID.
  */
 export async function fetchAccount(id: string, signal?: AbortSignal): Promise<AccountView> {
-  return request<AccountView>(`/api/admin/accounts/${encodeURIComponent(id)}`, {
+  return request<AccountView>(`/api/accounts/${encodeURIComponent(id)}`, {
     signal,
   });
-}
-
-export type AccountAccessSource = {
-  name: string;
-  description: string;
-  version: number;
-  principalType: string;
-  principalId: string;
-  policyId: string;
-  rowVersion: number;
-};
-
-export type AccountAccessView = {
-  userId: string;
-  policies: AccountAccessSource[];
-};
-
-/**
- * Fetch policy sources attached to an account from GET /api/admin/accounts/{id}/access.
- */
-export async function fetchAccountAccess(id: string, signal?: AbortSignal): Promise<AccountAccessView> {
-  return request<AccountAccessView>(`/api/admin/accounts/${encodeURIComponent(id)}/access`, {
-    signal,
-  });
-}
-
-export type PermissionExplanation = {
-  userId: string;
-  action: string;
-  resource: string;
-  active: boolean;
-  implemented: boolean;
-  policyGeneration: number;
-  current: "allow" | "deny" | "omit";
-  proposed: "allow" | "deny" | "omit";
-  scopeEvaluation: string;
-};
-
-/**
- * Fetch permission explanation for an account and action from GET /api/admin/accounts/{id}/permissions.
- */
-export async function fetchAccountPermissions(
-  id: string,
-  action: string,
-  resource: string = "*",
-  signal?: AbortSignal
-): Promise<PermissionExplanation> {
-  const params = new URLSearchParams({ action, resource });
-  return request<PermissionExplanation>(
-    `/api/admin/accounts/${encodeURIComponent(id)}/permissions?${params.toString()}`,
-    { signal }
-  );
 }
 
 export type CreateUserPayload = {
   email: string;
   displayName: string;
-  password?: string;
+  password: string;
   roleCode: string;
 };
 
@@ -109,10 +61,18 @@ export async function submitCreateUser(
   const cmd = newCommand("iam:CreateUser", {
     email: payload.email,
     displayName: payload.displayName,
-    password: payload.password || "TemporaryPass123!",
+    password: payload.password,
     roleCode: payload.roleCode,
   });
   return send(cmd);
+}
+
+/** Grant the selected place after creation, guarded by the account revision. */
+export async function submitGrantScope(userId: string, place: string, kind: "depot" | "outlet", expectedVersion: number): Promise<void> {
+  await send(newCommand("iam:GrantScope", {
+    userId,
+    ...(kind === "depot" ? { depotCode: place } : { outletId: place }),
+  }, expectedVersion));
 }
 
 /**

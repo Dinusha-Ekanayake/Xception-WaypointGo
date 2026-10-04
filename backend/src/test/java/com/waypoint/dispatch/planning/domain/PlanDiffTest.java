@@ -55,7 +55,7 @@ class PlanDiffTest {
     return new PlanView(
         UUID.randomUUID(), "Peliyagoda", LocalDate.of(2026, 10, 5), 1, PlanStatus.DRAFT, UUID.randomUUID(),
         UUID.randomUUID(), UUID.randomUUID(), Optional.empty(), Optional.empty(), Instant.EPOCH, true, trips,
-        allocations, 1, "test", Optional.empty());
+        allocations, 1, "test", Optional.empty(), Optional.empty());
   }
 
   @Test

@@ -27,6 +27,7 @@ const KINDS: Record<string, { label: string; tone: Tone }> = {
   "road.disruption_reported": { label: "Road disruption", tone: "warning" },
   "receipt.disputed": { label: "Receipt disputed", tone: "warning" },
   "vehicle.status_changed": { label: "Vehicle status", tone: "info" },
+  "message.posted": { label: "Message", tone: "info" },
 };
 
 export function kindOf(eventType: string): { label: string; tone: Tone } {
@@ -37,8 +38,10 @@ export function kindOf(eventType: string): { label: string; tone: Tone } {
  * How loud a notification is. Anything about an issue is urgent, whatever event
  * raised it, so an issue always reads red; the rest take their event's tone.
  */
-export function toneOf(n: Pick<NotificationView, "eventType" | "subjectType">): Tone {
+export function toneOf(n: Pick<NotificationView, "eventType" | "subjectType"> & { title?: string }): Tone {
   if (n.subjectType === "issue" || n.eventType.startsWith("issue.")) return "urgent";
+  // A report on a trip's thread is titled "<Role> report · VEH" (R-NOT-14).
+  if (n.eventType === "message.posted" && / report\b/.test(n.title ?? "")) return "urgent";
   return kindOf(n.eventType).tone;
 }
 
