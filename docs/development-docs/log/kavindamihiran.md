@@ -3,6 +3,14 @@
 @kavindamihiran's entries, newest first. Only @kavindamihiran adds to this file; how to write an entry is in the [log's index](../development-log.md).
 
 ---
+## 2026-10-04 - plan: runtime demo control room and scenario deck, issue #231
+
+`docs/231-demo-mode-plan` · @kavindamihiran · #231, PR 1 of 6
+
+Mapped the booklet and all 17 scenario cards to current commands in the [plan](../../issues/231-demo-mode/PLAN.md). Recorded the real gaps: one-time seed with ordinary order references, cron unaffected by clock offset, sessions sharing the business clock, driver map using phone GPS, and admin-only actions conflicting with driver start. Proposed safe new-date preparation, separate security time, owner-module commands and admin-started simulations; snapshot restore and frozen time remain explicit review decisions.
+Why: the issue asks for a docs-first PR before runtime changes; its sketch needs these corrections to preserve module boundaries and operational records.
+Verified: source/contract review and documentation checks only. No application code changed; runtime acceptance and preview rehearsal remain open.
+
 ## 2026-10-04 - feat: Admins switch assistants per person and role
 
 `feat/admin-mcp-people` · @kavindamihiran · #177
