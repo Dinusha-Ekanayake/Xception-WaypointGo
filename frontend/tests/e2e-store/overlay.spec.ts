@@ -31,6 +31,9 @@ test("with reduced motion a dialog appears without animating", async ({ page }) 
   await page.emulateMedia({ reducedMotion: "reduce" });
   const dialog = await openProfile(page);
   await expect(dialog).toBeVisible();
-  const running = await page.evaluate(() => document.getAnimations().filter((a) => a.playState === "running").length);
-  expect(running).toBe(0);
+  // Reduced motion shortens every animation to an instant (0.01 ms); none may last longer.
+  const longest = await page.evaluate(() =>
+    Math.max(0, ...document.getAnimations().map((a) => Number(a.effect?.getComputedTiming().duration) || 0)),
+  );
+  expect(longest).toBeLessThanOrEqual(1);
 });
