@@ -3,21 +3,27 @@ import { newCommand } from "@shared/api/commands";
 import { request } from "@shared/api/client";
 import { useResource } from "@shared/api/useResource";
 import { ExecutionCommandKind, type DemoView, type PositionPoint, type RecordPositionsPayload } from "@shared/domain/types";
-import { keepFix, type LatLon } from "@shared/ui/map/geo";
+import { SAMPLE_MS, takeSample, travelBearing, type LatLon } from "@shared/ui/map/geo";
 import { batches, toPoint } from "./points.ts";
 import type { DriverGateway } from "./gateway.ts";
 import type { TrailPoint } from "@shared/ui/map/trail";
 
-// The phone's position while a run is open (issue #161, D2). Foreground only:
-// a closed or backgrounded app records nothing, and the dispatcher sees "Last
-// seen". Points go through the same durable queue as every driver write, so a
-// trail recorded with no signal survives a reload and arrives in order.
+// The phone's position while a trip is open (issue #161, R-EXE-23): one fix
+// every five seconds from Start run until the vehicle is back at the depot
+// (see recording.ts for when). Foreground only: a closed or backgrounded app
+// records nothing, and the dispatcher sees "Last seen"; while recording, the
+// screen is kept awake so the phone does not sleep in its cradle. Points go
+// through the same durable queue as every driver write, sent every five seconds
+// so the dispatcher's map moves as the vehicle does; a trail recorded with no
+// signal survives a reload and arrives in order.
 // Nothing here is logged: a position is personal data.
 
 export type LocationState = "off" | "on" | "denied" | "unsupported";
 
-const FLUSH_MS = 60_000;
+const FLUSH_MS = SAMPLE_MS;
 const FLUSH_POINTS = 20;
+
+type Fix = { coords: GeolocationCoordinates; at: number };
 const CONSENT_KEY = "waypoint.driver.location";
 
 function consented(): boolean | null {
@@ -35,6 +41,36 @@ function remember(yes: boolean): void {
   } catch {
     // Private mode: ask again next time.
   }
+}
+
+/**
+ * Keeps the screen on while recording, where the browser allows it (Screen Wake
+ * Lock), and takes it again when the driver comes back to the app, since the
+ * browser drops it whenever the page is hidden. @return what lets the screen sleep
+ */
+function keepAwake(): () => void {
+  type Sentinel = { release: () => Promise<void> };
+  const wake = (navigator as Navigator & { wakeLock?: { request: (type: "screen") => Promise<Sentinel> } }).wakeLock;
+  if (!wake) return () => undefined;
+  let lock: Sentinel | null = null;
+  let done = false;
+  const take = () => {
+    if (done || document.visibilityState !== "visible") return;
+    wake.request("screen").then(
+      (l) => {
+        if (done) void l.release().catch(() => undefined);
+        else lock = l;
+      },
+      () => undefined,
+    );
+  };
+  take();
+  document.addEventListener("visibilitychange", take);
+  return () => {
+    done = true;
+    document.removeEventListener("visibilitychange", take);
+    if (lock) void lock.release().catch(() => undefined);
+  };
 }
 
 export type PositionRecorder = {
@@ -61,7 +97,9 @@ export function usePositionRecorder(gateway: DriverGateway, vehicleId: string | 
   const [here, setHere] = useState<PositionRecorder["here"]>(null);
   const [trail, setTrail] = useState<TrailPoint[]>([]);
   const buffer = useRef<PositionPoint[]>([]);
-  const last = useRef<{ at: number; where: LatLon } | null>(null);
+  const lastKept = useRef<number | null>(null);
+  const latestFix = useRef<Fix | null>(null);
+  const recent = useRef<LatLon[]>([]);
   const target = useRef({ vehicleId, tripId });
   target.current = { vehicleId, tripId };
 
@@ -103,33 +141,54 @@ export function usePositionRecorder(gateway: DriverGateway, vehicleId: string | 
       setState("unsupported");
       return;
     }
-    const watch = navigator.geolocation.watchPosition(
-      (pos) => {
-        setState("on");
-        const where = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-        setHere({ ...where, heading: pos.coords.heading ?? null });
-        if (!keepFix(last.current, pos.timestamp, where)) return;
-        last.current = { at: pos.timestamp, where };
-        buffer.current.push(toPoint(pos.coords, pos.timestamp));
-        setTrail((t) => [...t, { ...where, at: pos.timestamp }]);
-        if (buffer.current.length >= FLUSH_POINTS) flush();
-      },
-      (err) => {
-        if (err.code === err.PERMISSION_DENIED) {
-          remember(false);
-          setAnswer(false);
-          setState("denied");
-        }
-      },
-      { enableHighAccuracy: true, maximumAge: 10_000 },
-    );
+    // The watch only remembers the newest fix; the five-second tick below decides what is kept.
+    const heard = (pos: GeolocationPosition) => {
+      setState("on");
+      if (latestFix.current && pos.timestamp <= latestFix.current.at) return;
+      latestFix.current = { coords: pos.coords, at: pos.timestamp };
+      const where = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+      setHere((before) => ({ ...where, heading: pos.coords.heading ?? before?.heading ?? null }));
+    };
+    const failed = (err: GeolocationPositionError) => {
+      if (err.code === err.PERMISSION_DENIED) {
+        remember(false);
+        setAnswer(false);
+        setState("denied");
+      }
+    };
+    const watch = navigator.geolocation.watchPosition(heard, failed, { enableHighAccuracy: true, maximumAge: 0 });
+    const sample = (ask = true) => {
+      // A phone standing still may stop reporting through the watch: ask it outright,
+      // so a vehicle waiting at a store still sends a fix every five seconds.
+      if (ask && (!latestFix.current || Date.now() - latestFix.current.at > SAMPLE_MS)) {
+        navigator.geolocation.getCurrentPosition(heard, failed, { enableHighAccuracy: true, maximumAge: 0, timeout: SAMPLE_MS - 500 });
+      }
+      const fix = latestFix.current;
+      if (!fix || !takeSample(lastKept.current, fix.at, Date.now())) return;
+      lastKept.current = fix.at;
+      const where = { lat: fix.coords.latitude, lon: fix.coords.longitude };
+      buffer.current.push(toPoint(fix.coords, fix.at));
+      setTrail((t) => [...t, { ...where, at: fix.at }]);
+      recent.current = [...recent.current.slice(-11), where];
+      // The phone's compass is often missing in a moving car; the way it moved is not (R-EXE-22).
+      const moved = travelBearing(recent.current) ?? fix.coords.heading ?? null;
+      if (moved !== null) setHere((h) => (h ? { ...h, heading: moved } : h));
+      if (buffer.current.length >= FLUSH_POINTS) flush();
+    };
+    const sampler = window.setInterval(() => sample(), SAMPLE_MS);
     const timer = window.setInterval(flush, flushMs);
+    const awake = keepAwake();
     return () => {
       navigator.geolocation.clearWatch(watch);
+      window.clearInterval(sampler);
       window.clearInterval(timer);
-      // The run closed or the driver signed out: send what was kept, keep nothing more.
+      awake();
+      // The trip ended or the driver signed out: send what was kept, keep nothing more.
+      sample(false);
       flush();
-      last.current = null;
+      lastKept.current = null;
+      latestFix.current = null;
+      recent.current = [];
     };
   }, [active, answer, vehicleId, flush, flushMs, simulating]);
 

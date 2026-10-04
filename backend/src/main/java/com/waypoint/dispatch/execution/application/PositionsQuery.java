@@ -20,6 +20,8 @@ import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -63,12 +65,18 @@ public class PositionsQuery {
   }
 
   public Page<TrailPointView> trail(Actor actor, UUID tripId, Optional<String> cursor, Integer limit) {
+    return trail(actor, tripId, cursor, Optional.empty(), limit);
+  }
+
+  /** @param since exclusive: only points recorded after it, for a map that already holds the rest */
+  public Page<TrailPointView> trail(
+      Actor actor, UUID tripId, Optional<String> cursor, Optional<Instant> since, Integer limit) {
     require(actor, "wpt:execution:trip:" + tripId, () -> positions.tripVisible(tripId));
     int size = Page.limit(limit);
     List<String> key = Cursor.decode(cursor.orElse(null), 1);
     Instant after;
     try {
-      after = key.isEmpty() ? null : Instant.parse(key.get(0));
+      after = key.isEmpty() ? since.orElse(null) : Instant.parse(key.get(0));
     } catch (RuntimeException e) {
       throw Cursor.invalid();
     }
@@ -81,20 +89,34 @@ public class PositionsQuery {
     return Page.fromOverfetch(rows, size, p -> Cursor.encode(p.recordedAt().toString()));
   }
 
+  /**
+   * One view per vehicle from its recent fixes (rows grouped by vehicle, newest
+   * first): the newest is where it is, and the heading is its direction of
+   * travel from the fixes before it (R-EXE-22), not the phone's compass.
+   */
   private List<VehiclePositionView> latest(List<Map<String, Object>> rows) {
     Instant now = clock.now();
-    return rows.stream()
-        .map(r -> {
-          Instant at = ((Timestamp) r.get("recorded_at")).toInstant();
-          BigDecimal accuracy = (BigDecimal) r.get("accuracy_m");
-          PositionFix fix = new PositionFix(
-              at, (BigDecimal) r.get("latitude"), (BigDecimal) r.get("longitude"), accuracy, null, null);
-          return new VehiclePositionView(
-              (String) r.get("vehicle_id"), Optional.ofNullable((UUID) r.get("trip_id")), fix.latitude(),
-              fix.longitude(), Optional.ofNullable((BigDecimal) r.get("heading_deg")), Optional.ofNullable(accuracy),
-              at, PositionPolicy.isOffline(fix, now, Boolean.TRUE.equals(r.get("in_progress"))));
-        })
-        .toList();
+    Map<String, List<Map<String, Object>>> byVehicle = new LinkedHashMap<>();
+    for (Map<String, Object> r : rows) {
+      byVehicle.computeIfAbsent((String) r.get("vehicle_id"), k -> new ArrayList<>()).add(r);
+    }
+    List<VehiclePositionView> views = new ArrayList<>();
+    byVehicle.forEach((vehicleId, recent) -> {
+      List<PositionFix> fixes = recent.stream().map(PositionsQuery::fixOf).toList();
+      Map<String, Object> r = recent.get(0);
+      PositionFix fix = fixes.get(0);
+      views.add(new VehiclePositionView(
+          vehicleId, Optional.ofNullable((UUID) r.get("trip_id")), fix.latitude(), fix.longitude(),
+          PositionPolicy.travelHeading(fixes), Optional.ofNullable(fix.accuracyM()), fix.recordedAt(),
+          PositionPolicy.isOffline(fix, now, Boolean.TRUE.equals(r.get("in_progress")))));
+    });
+    return List.copyOf(views);
+  }
+
+  private static PositionFix fixOf(Map<String, Object> r) {
+    return new PositionFix(
+        ((Timestamp) r.get("recorded_at")).toInstant(), (BigDecimal) r.get("latitude"),
+        (BigDecimal) r.get("longitude"), (BigDecimal) r.get("accuracy_m"), (BigDecimal) r.get("heading_deg"), null);
   }
 
   private <T> T read(Actor actor, Supplier<T> work) {

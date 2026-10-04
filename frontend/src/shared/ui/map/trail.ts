@@ -24,15 +24,40 @@ export async function readTrail(
   load: (cursor: string | null) => Promise<{ items: TrailPointView[]; nextCursor?: string | null }>,
   maxPages = 20,
 ): Promise<TrailPoint[]> {
-  const out: TrailPoint[] = [];
+  return (await readTrailPages(load, maxPages)).points;
+}
+
+/**
+ * Every page, and the newest point's `recordedAt` exactly as the server wrote
+ * it (low quality ones included), so the next read can ask only for what came
+ * after it without losing a microsecond to a Date.
+ */
+export async function readTrailPages(
+  load: (cursor: string | null) => Promise<{ items: TrailPointView[]; nextCursor?: string | null }>,
+  maxPages = 20,
+): Promise<{ points: TrailPoint[]; last: string | null }> {
+  const points: TrailPoint[] = [];
+  let last: string | null = null;
   let cursor: string | null = null;
   for (let i = 0; i < maxPages; i++) {
     const page = await load(cursor);
-    out.push(...trailPoints(page.items));
+    points.push(...trailPoints(page.items));
+    last = page.items.at(-1)?.recordedAt ?? last;
     cursor = page.nextCursor ?? null;
     if (!cursor) break;
   }
-  return out;
+  return { points, last };
+}
+
+/**
+ * The line to draw for a vehicle on the move: the trail so far, then its live
+ * position when that is newer than the trail's end, so the line reaches the
+ * truck between trail reads instead of trailing behind it.
+ */
+export function withLive(trail: TrailPoint[], live: TrailPoint | null): TrailPoint[] {
+  const end = trail.at(-1);
+  if (!live || (end && live.at <= end.at)) return trail;
+  return [...trail, live];
 }
 
 /**

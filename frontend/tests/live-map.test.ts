@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { cluster, compass, keepFix, metres, tileAllowed } from "../src/shared/ui/map/geo.ts";
+import { bearing, cluster, compass, metres, SAMPLE_MS, takeSample, tileAllowed, travelBearing } from "../src/shared/ui/map/geo.ts";
 import { serveTile } from "../src/app-shell/mapTiles.ts";
 import { mapStatus, vehicleDay } from "../src/roles/dispatcher/data/live.ts";
 import { batches, toPoint } from "../src/roles/driver/data/points.ts";
@@ -35,17 +35,28 @@ test("vehicles closer than the radius cluster; distant ones stay apart", () => {
   assert.deepEqual(groups.map((g) => g.map((p) => p.id)), [["a", "b"], ["c"]]);
 });
 
-test("the recorder keeps a fix after 30 seconds or 150 metres", () => {
-  const here = { lat: 6.9, lon: 79.86 };
-  assert.equal(keepFix(null, 0, here), true);
-  const last = { at: 0, where: here };
-  assert.equal(keepFix(last, 10_000, { lat: 6.9001, lon: 79.86 }), false, "11 m in 10 s");
-  assert.equal(keepFix(last, 30_000, here), true, "30 s still");
-  assert.equal(keepFix(last, 10_000, { lat: 6.902, lon: 79.86 }), true, "222 m");
-  assert.ok(Math.abs(metres(here, { lat: 6.902, lon: 79.86 }) - 222) < 2);
+test("R-EXE-23: each five-second tick keeps the newest fix once, and never a stale one", () => {
+  assert.equal(SAMPLE_MS, 5_000);
+  const now = 100_000;
+  assert.equal(takeSample(null, now - 1_000, now), true, "the first fix");
+  assert.equal(takeSample(now - 1_000, now - 1_000, now), false, "the same fix again is a duplicate");
+  assert.equal(takeSample(now - 6_000, now - 1_000, now), true, "a newer fix, still standing still or not");
+  assert.equal(takeSample(now - 30_000, now - 20_000, now), false, "the phone lost its signal 20 s ago");
+  assert.ok(Math.abs(metres({ lat: 6.9, lon: 79.86 }, { lat: 6.902, lon: 79.86 }) - 222) < 2);
 });
 
-test("headings snap to the eight Figma marker directions", () => {
+test("R-EXE-22: the direction of travel is from the last real movement, never from jitter", () => {
+  const a = { lat: 7, lon: 80 };
+  assert.ok(Math.abs(bearing(a, { lat: 7, lon: 80.001 }) - 90) < 0.2, "east");
+  assert.ok(Math.abs(bearing(a, { lat: 6.999, lon: 80 }) - 180) < 0.2, "south");
+  assert.ok(Math.abs(bearing(a, { lat: 7, lon: 79.999 }) - 270) < 0.2, "west");
+  assert.equal(travelBearing([a, { lat: 7.00005, lon: 80 }]), null, "5 m is jitter");
+  const east = travelBearing([{ lat: 7, lon: 79.999 }, a, { lat: 7.00002, lon: 80 }]);
+  assert.ok(east !== null && Math.abs(east - 90) < 2, "parked after driving east still faces east");
+  assert.equal(travelBearing([]), null);
+});
+
+test("headings name the eight compass directions", () => {
   assert.equal(compass(null), "N");
   assert.equal(compass(44), "NE");
   assert.equal(compass(181), "S");
