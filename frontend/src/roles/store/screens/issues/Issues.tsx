@@ -10,6 +10,7 @@ import { REPORT_KINDS, isOpenIssue, issueCard, type ReportKind } from "../../dat
 import type { useCommands } from "../../data/useCommands.ts";
 import { Button, Card, Muted } from "../../ui.tsx";
 import ReportIssue from "./ReportIssue.tsx";
+import { useT } from "../../i18n.tsx";
 
 // Figma "08 Issues": what was reported about this outlet's deliveries, by the
 // loader at the dock or by the store while counting or after unpacking, and a
@@ -46,6 +47,7 @@ export default function Issues({
   /** Read the issues again after a failure. */
   onRetry?: () => void;
 }): React.JSX.Element {
+  const t = useT();
   const [reporting, setReporting] = useState<{ preset: ReportKind | null } | null>(null);
   const [earlier, setEarlier] = useState(false);
   const since = addDays(depotToday(), -2);
@@ -62,20 +64,20 @@ export default function Issues({
         <article className="flex flex-col gap-1.5 rounded-[26px] bg-white p-5">
           <div className="flex items-center gap-2">
             <span aria-hidden className={cx("size-2 rounded-full", DOT[c.tone])} />
-            <span className={cx("flex-1 text-[13px] font-medium", LABEL[c.tone])}>{c.label}</span>
+            <span className={cx("flex-1 text-[13px] font-medium", LABEL[c.tone])}>{t(c.label)}</span>
             <span className={cx("rounded-full px-3 py-1 text-[12px] font-medium", STAMP[c.tone])}>{c.stamp}</span>
           </div>
           <h2 className="text-[20px] font-medium text-black">{c.title}</h2>
           <p className="text-[13px] text-go-muted">{c.detail}</p>
           {i.resolutionNote && (
             <p className="rounded-[14px] bg-go-canvas px-3 py-2 text-[13px] text-black">
-              <span className="text-go-muted">Dispatcher: </span>
+              <span className="text-go-muted">{t("Dispatcher")}: </span>
               {i.resolutionNote}
             </p>
           )}
           {order && (
             <button type="button" onClick={() => onOpenOrder(order.orderId)} className="min-h-12 self-start text-[13px] font-medium text-go-teal">
-              Open {order.orderRef}
+              {t("Open {ref}", { ref: order.orderRef })}
             </button>
           )}
         </article>
@@ -86,28 +88,28 @@ export default function Issues({
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-1">
-        <h1 className="text-[32px] leading-tight font-medium text-black">Issues</h1>
-        <Muted>{outlet ? `Deliveries to ${outlet.outletId}` : "…"}</Muted>
+        <h1 className="text-[32px] leading-tight font-medium text-black">{t("Issues")}</h1>
+        <Muted>{outlet ? t("Deliveries to {outlet}", { outlet: outlet.outletId }) : "…"}</Muted>
       </div>
-      {error && <Notice tone="danger" title="Could not load your issues" onRetry={onRetry}>{error.message}</Notice>}
+      {error && <Notice tone="danger" title={t("Could not load your issues")} onRetry={onRetry}>{error.message}</Notice>}
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
         <div className="flex min-w-0 flex-col gap-3">
-          {open.length === 0 && (loading ? <SkeletonRows label="Loading…" /> : <Muted>Nothing is open. Problems with a delivery show here.</Muted>)}
+          {open.length === 0 && (loading ? <SkeletonRows label={t("Loading…")} /> : <Muted>{t("Nothing is open. Problems with a delivery show here.")}</Muted>)}
           <ul className="flex flex-col gap-3">{open.map(card)}</ul>
           {closed.length > 0 && (
             <>
               <button type="button" onClick={() => setEarlier((v) => !v)} className="min-h-12 self-start text-[14px] font-medium text-go-teal">
-                {earlier ? "Hide" : "Show"} earlier issues ({closed.length})
+                {t(earlier ? "Hide earlier issues ({n})" : "Show earlier issues ({n})", { n: closed.length })}
               </button>
               {earlier && <ul className="flex flex-col gap-3">{closed.map(card)}</ul>}
             </>
           )}
         </div>
 
-        <Card label="Something else wrong?">
-          <h2 className="text-[18px] font-medium text-black">Something else wrong?</h2>
-          <Muted>Deliveries from the last 48 hours</Muted>
+        <Card label={t("Something else wrong?")}>
+          <h2 className="text-[18px] font-medium text-black">{t("Something else wrong?")}</h2>
+          <Muted>{t("Deliveries from the last 48 hours")}</Muted>
           <div className="flex flex-col gap-2">
             {REPORT_KINDS.map((k) => (
               <button
@@ -116,12 +118,12 @@ export default function Issues({
                 onClick={() => setReporting({ preset: k })}
                 className="min-h-12 rounded-[14px] bg-go-canvas px-4 text-left text-[15px] text-black"
               >
-                {k.label}
+                {t(k.label)}
               </button>
             ))}
           </div>
           <Button large onClick={() => setReporting({ preset: null })}>
-            Report an issue
+            {t("Report an issue")}
           </Button>
         </Card>
       </div>

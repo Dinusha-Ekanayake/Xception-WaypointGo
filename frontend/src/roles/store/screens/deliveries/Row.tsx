@@ -1,6 +1,7 @@
 import { cx } from "@shared/ui";
 import type { Status } from "../../data/runs.ts";
 import { Button, Chip } from "../../ui.tsx";
+import { useT } from "../../i18n.tsx";
 
 // One row of "05a Deliveries": the time box, what is coming, where it stands and
 // what the store can do. On a phone the chip and the buttons wrap below.
@@ -34,6 +35,8 @@ export default function Row({
   highlight?: boolean;
   onClick?: () => void;
 }): React.JSX.Element {
+  // Labels arrive in English from the data layer; a label with no translation stays as it is.
+  const t = useT();
   return (
     <article
       aria-label={title}
@@ -51,13 +54,13 @@ export default function Row({
             time.tone === "warm" ? "bg-[#fbf1e1]" : time.tone === "mint" ? "bg-go-mint" : "bg-go-canvas",
           )}
         >
-          <span className="text-[11px] text-go-muted">{time.label}</span>
+          <span className="text-[11px] text-go-muted">{t(time.label)}</span>
           <span className="text-[20px] leading-tight font-semibold text-black">{time.value}</span>
         </span>
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="flex flex-wrap items-center gap-2">
             <span className="text-[17px] font-medium text-black">{title}</span>
-            {tag && <Chip outline>{tag}</Chip>}
+            {tag && <Chip outline>{t(tag)}</Chip>}
             {badge && <Chip tone="muted">{badge}</Chip>}
           </span>
           {line && <span className="text-[14px] text-black">{line}</span>}
@@ -65,11 +68,11 @@ export default function Row({
         </span>
       </div>
       <div className="flex flex-wrap items-center gap-2 lg:flex-nowrap" onClick={(e) => e.stopPropagation()}>
-        <Chip tone={status.tone}>{status.label}</Chip>
+        <Chip tone={status.tone}>{t(status.label)}</Chip>
         {actions.map((a) => (
           <span key={a.label} className="min-w-[112px] flex-1 lg:flex-none">
             <Button tone={a.tone ?? "plain"} onClick={a.onClick}>
-              {a.label}
+              {t(a.label)}
             </Button>
           </span>
         ))}

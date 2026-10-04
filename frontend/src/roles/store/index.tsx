@@ -5,6 +5,7 @@ import { useOnline, useResource } from "@shared/api/useResource";
 import type { OrderView } from "@shared/domain/types";
 import { Notice, useScrollMemory, withTransition } from "@shared/ui";
 import TopBar from "./TopBar.tsx";
+import { LangProvider, useT } from "./i18n.tsx";
 import { depotToday } from "./data/format.ts";
 import { createGateway } from "./data/gateway.ts";
 import { isOpenIssue, issuesForOrders, recentOrderIds } from "./data/issues.ts";
@@ -40,16 +41,24 @@ type View =
   | { kind: "track" }
   | { kind: "deferred"; orderId: string };
 
-export default function Store({
-  userId,
-  displayName,
-  scope,
-}: {
+type StoreProps = {
   userId: string;
   displayName: string;
   /** Outlet ids from the session. The server enforces them. */
   scope: string[];
-}): React.JSX.Element {
+};
+
+/** The workspace inside the language the manager chose on this device. */
+export default function Store(props: StoreProps): React.JSX.Element {
+  return (
+    <LangProvider>
+      <StoreScreens {...props} />
+    </LangProvider>
+  );
+}
+
+function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Element {
+  const t = useT();
   const gateway = useMemo(() => createGateway(userId), [userId]);
   const online = useOnline();
   const outletId = scope[0] ?? (gateway.sample ? "OUT085" : "");
@@ -329,8 +338,8 @@ export default function Store({
       {thread && <TripMessages accountId={userId} open={thread} online={online} onQueued={queued} onClose={() => setThread(null)} />}
       {inboxOpen && <NotificationsDrawer inbox={inbox} onSubject={openSubject} onClose={() => setInboxOpen(false)} />}
       {warehouseDown && (
-        <Notice tone="warning" live title="The warehouse is not answering">
-          You can still place orders. They are kept as &ldquo;stock not checked&rdquo; and confirmed once the warehouse is back, never before.
+        <Notice tone="warning" live title={t("The warehouse is not answering")}>
+          {t("You can still place orders. They are kept as “stock not checked” and confirmed once the warehouse is back, never before.")}
         </Notice>
       )}
       {flushError && (
@@ -340,7 +349,7 @@ export default function Store({
           title={flushError}
           action={
             <button type="button" onClick={() => setFlushError(null)} className="min-h-12 shrink-0 px-2 text-[13px] font-medium text-go-teal">
-              Dismiss
+              {t("Dismiss")}
             </button>
           }
         />

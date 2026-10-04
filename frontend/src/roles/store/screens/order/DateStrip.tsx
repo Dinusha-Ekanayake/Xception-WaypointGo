@@ -8,6 +8,7 @@ import type { OutlookStatus } from "@shared/domain/types";
 import type { StoreGateway } from "../../data/gateway.ts";
 import { addDays, dayLabel, longDay } from "../../data/format.ts";
 import { BOOKING_DAYS, needsWarning, outlookChip, suggestDay } from "../../data/outlook.ts";
+import { useT } from "../../i18n.tsx";
 
 // Issue #224 (R-ML-07): four weeks of delivery days, each with how likely it is
 // to be kept, so "next Friday" can be chosen and a busy day is said before the
@@ -48,6 +49,7 @@ export default function DateStrip({
   shared: string[];
   onPick: (date: string) => void;
 }): React.JSX.Element {
+  const t = useT();
   const last = addDays(first, BOOKING_DAYS - 1);
   const dates = Array.from({ length: BOOKING_DAYS }, (_, i) => addDays(first, i));
   const outlook = useResource(outletId ? (s) => gateway.outlook(outletId, first, last, s) : null, `${outletId}|${first}`);
@@ -72,22 +74,22 @@ export default function DateStrip({
       <div className="flex items-end justify-between gap-3">
         <div className="min-w-0">
           <p aria-hidden="true" className="text-[13px] text-go-muted">
-            Delivery day
+            {t("Delivery day")}
           </p>
           <p className="truncate text-[17px] font-semibold text-go-ink">
             {longDay(date)}
-            {chosenChip && <span className="font-normal text-go-muted"> · {chosenChip.label}</span>}
+            {chosenChip && <span className="font-normal text-go-muted"> · {t(chosenChip.label)}</span>}
           </p>
         </div>
         <div className="flex shrink-0 gap-1.5">
-          <ArrowButton label="Earlier days" direction={-1} onClick={() => scroll(-1)} />
-          <ArrowButton label="Later days" direction={1} onClick={() => scroll(1)} />
+          <ArrowButton label={t("Earlier days")} direction={-1} onClick={() => scroll(-1)} />
+          <ArrowButton label={t("Later days")} direction={1} onClick={() => scroll(1)} />
         </div>
       </div>
 
       {/* The arrows sit outside the group, so it holds only the days. */}
       <fieldset className="min-w-0">
-        <legend className="sr-only">Delivery day</legend>
+        <legend className="sr-only">{t("Delivery day")}</legend>
         <div ref={strip} className="-mx-1 flex snap-x gap-2 overflow-x-auto scroll-smooth px-1 pt-0.5 pb-1.5 [scrollbar-width:none]">
           {dates.map((d, i) => {
             const day = days.find((x) => x.date === d);
@@ -101,7 +103,7 @@ export default function DateStrip({
                 key={d}
                 type="button"
                 aria-pressed={selected}
-                aria-label={chip ? `${dayLabel(d)} · ${chip.label}` : dayLabel(d)}
+                aria-label={chip ? `${dayLabel(d)} · ${t(chip.label)}` : dayLabel(d)}
                 onClick={() => onPick(d)}
                 className={cx(
                   "flex h-[88px] w-[62px] shrink-0 snap-start flex-col items-center justify-center gap-1 rounded-go-tile border transition-colors",
@@ -138,16 +140,16 @@ export default function DateStrip({
 
       {outlook.error ? (
         <p role="status" className="text-[13px] text-go-muted">
-          Outlook unavailable right now. Every day can still be chosen.
+          {t("Outlook unavailable right now. Every day can still be chosen.")}
         </p>
       ) : (
-        <ul aria-label="Outlook key" className="flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-go-secondary">
+        <ul aria-label={t("Outlook key")} className="flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-go-secondary">
           {KEY.map((status) => {
             const chip = outlookChip(status);
             return (
               <li key={status} className="flex items-center gap-1.5">
                 <span aria-hidden="true" className={cx("size-1.5 rounded-full", DOT[chip.tone])} />
-                {chip.label}
+                {t(chip.label)}
               </li>
             );
           })}
@@ -155,17 +157,17 @@ export default function DateStrip({
       )}
 
       {chosen && needsWarning(chosen) && (
-        <Notice tone="warning" live title={`${dayLabel(date)} is ${chosen.status === "AT_RISK" ? "at risk" : "busy"}: your order may move a day.`}>
+        <Notice tone="warning" live title={t(chosen.status === "AT_RISK" ? "{day} is at risk: your order may move a day." : "{day} is busy: your order may move a day.", { day: dayLabel(date) })}>
           {chosen.reason}.{" "}
           {suggestion ? (
             <>
-              {dayLabel(suggestion)} is on track.{" "}
+              {t("{day} is on track.", { day: dayLabel(suggestion) })}{" "}
               <button type="button" onClick={() => onPick(suggestion)} className="font-medium underline">
-                Deliver {dayLabel(suggestion)}
+                {t("Deliver {day}", { day: dayLabel(suggestion) })}
               </button>
             </>
           ) : (
-            "Dispatch plans each day the afternoon before and tells you at once if it moves."
+            t("Dispatch plans each day the afternoon before and tells you at once if it moves.")
           )}
         </Notice>
       )}
