@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import type { NotificationView } from "@shared/domain/notification";
 import { ago } from "@shared/notifications/inbox";
@@ -10,7 +10,7 @@ import { nextStop, type Stop } from "./data/run.ts";
 import { activeIndex, syncLabel, toRouteStops, tripStatus, type RouteStop } from "./data/stopView.ts";
 import DeliveryPinConfirmModal from "./screens/DeliveryPinConfirmModal.tsx";
 import DeliveryReport from "./screens/DeliveryReport.tsx";
-import DeliveryReportWaiting from "./screens/DeliveryReportWaiting.tsx";
+import StopHandover from "./screens/StopHandover.tsx";
 import DrivingModeScreen from "./screens/DrivingModeScreen.tsx";
 import HomeNoVehicle from "./screens/HomeNoVehicle.tsx";
 import Messages from "./screens/Messages.tsx";
@@ -48,6 +48,8 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
   const [driving, setDriving] = useState(false);
   const [formFor, setFormFor] = useState<string | null>(null);
   const [pinFor, setPinFor] = useState<Stop | null>(null);
+  // Stable, because the PIN popup closes itself on a timer that restarts whenever this changes.
+  const closePin = useCallback(() => setPinFor(null), []);
   const [revised, setRevised] = useState<NotificationView | null>(null);
   const [talking, setTalking] = useState(false);
   // The stop row last tapped on the route, one shared element with the stop's header (UX polish 4).
@@ -127,7 +129,8 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
       // mock-up it sat in before was cut off on a phone held sideways and on a
       // landscape tablet.
       className={cx(
-        "flex h-dvh max-h-dvh w-full justify-center overflow-hidden font-go transition-colors",
+        // The screen less the demo bar above it, and clear of the home bar when installed edge to edge.
+        "flex h-[calc(100dvh-var(--demo-banner-h,0px))] w-full justify-center overflow-hidden pb-[env(safe-area-inset-bottom)] font-go transition-colors",
         framed && "items-center",
         d.dark ? "go-dark bg-[#161616] md:bg-[#0a0a0a]" : "bg-[#E7F3F2] md:bg-[#d6e7e5]"
       )}
@@ -138,7 +141,7 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
         tabIndex={-1}
         className={cx(
           "relative w-full overflow-hidden transition-colors md:shadow-2xl",
-          framed ? "h-[min(852px,calc(100dvh-48px))] max-w-[393px] rounded-[44px]" : "h-dvh md:max-w-[600px]",
+          framed ? "h-[min(852px,calc(100dvh-48px-var(--demo-banner-h,0px)))] max-w-[393px] rounded-[44px]" : "h-full md:max-w-[600px]",
           d.dark ? "bg-[#161616]" : "bg-[#E7F3F2]"
         )}
       >
@@ -222,19 +225,27 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
             )}
             {screen === "map" && next && (
               <GoLayer dark={d.dark} top>
-                <RouteMap next={next} outlet={run.outlets[next.outletId]} recorder={d.location} syncedAt={run.syncedAt} onBack={() => d.go({ name: "route", deliveryId: null })} className="h-full w-full" />
+                <RouteMap next={next} outlet={run.outlets[next.outletId]} recorder={d.location} syncedAt={null} className="h-full w-full" />
               </GoLayer>
             )}
             {screen === "report" && reporting && view.name === "report" && formFor !== reporting.deliveryId && (
-              <DeliveryReportWaiting
+              // Issue #21: hand over, wait for the store's report, accept it with the store's PIN or say why you move on.
+              <StopHandover
+                key={reporting.deliveryId}
+                stop={reporting}
                 stops={routeStops}
                 stopIndex={stops.indexOf(reporting)}
                 syncLabel={sync}
-                onBack={() => d.go({ name: "route", deliveryId: reporting.deliveryId })}
-                onConfirm={() => setFormFor(reporting.deliveryId)}
-                onProblem={() => d.openProblem(reporting)}
+                online={online}
+                busy={busy}
                 isNight={d.dark}
+                onBack={() => d.go({ name: "route", deliveryId: reporting.deliveryId })}
                 onToggleTheme={d.theme}
+                onHandOver={() => d.handOver(reporting)}
+                onMoveOn={(reason, note) => d.moveOn(reporting, reason, note)}
+                onEnterPin={() => setPinFor(reporting)}
+                onNext={() => void d.toNextStop()}
+                onProblem={() => d.openProblem(reporting)}
               />
             )}
             {screen === "report" && reporting && view.name === "report" && formFor === reporting.deliveryId && (
@@ -340,12 +351,22 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
           </div>
         )}
         {d.location.state === "denied" && next && screen === "route" && (
-          <p role="status" className="absolute inset-x-0 bottom-2 z-40 flex justify-center gap-2 text-[13px] text-go-muted">
-            Location off · the dispatcher sees your stops only
-            <button type="button" onClick={d.location.allow} className="underline">
-              Turn on
-            </button>
-          </p>
+          // A floating pill over the run, so it reads as a state and not as part of the page.
+          <div className="pointer-events-none absolute inset-x-0 bottom-5 z-40 flex justify-center px-4">
+            <p
+              role="status"
+              className="pointer-events-auto flex animate-rise-in items-center gap-3 rounded-full bg-go-card py-1.5 pr-1.5 pl-4 text-[13px] text-go-ink shadow-[0_8px_24px_rgba(0,0,0,0.18)] motion-reduce:animate-none"
+            >
+              <span>Location off · the dispatcher sees your stops only</span>
+              <button
+                type="button"
+                onClick={d.location.allow}
+                className="h-8 shrink-0 rounded-full bg-go-action px-3.5 text-[13px] font-medium text-go-on-action active:scale-95"
+              >
+                Turn on
+              </button>
+            </p>
+          </div>
         )}
 
         {d.problemFor !== null && (
@@ -372,8 +393,14 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
         )}
         <DeliveryPinConfirmModal
           isOpen={pinFor !== null}
-          onClose={() => setPinFor(null)}
-          onVerify={(pin) => d.verifyHandover(pinFor!, pin)}
+          onClose={closePin}
+          // A correct PIN accepts the store's report: the run moves on behind the
+          // "Handover confirmed" popup, with no extra step (issue #21).
+          onVerify={async (pin) => {
+            const answer = await d.verifyHandover(pinFor!, pin);
+            if ("outcome" in answer && (answer.outcome === "VERIFIED" || answer.outcome === "ALREADY_CONFIRMED")) void d.toNextStop();
+            return answer;
+          }}
           isNight={d.dark}
           stopName={pinFor?.outletId ?? ""}
           online={online}

@@ -175,6 +175,7 @@ export default function RouteChangedBottomSheet({
             duration="0:07"
             text="Your trip has been changed. Stops were added or reordered. Check the new run sheet before you continue."
             isNight={isNight}
+            waveform
             className="pt-2"
           />
         </div>

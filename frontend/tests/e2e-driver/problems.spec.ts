@@ -45,7 +45,7 @@ test.fixme("a road report reaches dispatch with the stop it is about", async ({ 
   await sheet.getByLabel("What happened?").fill("Landslide at Kadugannawa");
   await sheet.getByRole("button", { name: "Send to dispatch" }).click();
 
-  await expect(page.getByText("Dispatch has your report.")).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Report sent" })).toBeVisible();
   expect(server.commands.at(-1)).toMatchObject({
     kind: "delivery:ReportFault",
     expectedVersion: null,

@@ -70,7 +70,8 @@ export default function Orders({
   const past = useHistory(depots, tab === "past" ? pastDates : []);
 
   const all = current.data ?? [];
-  const f = flow(all);
+  // The counts are of the one Current list: today's orders and tomorrow's run.
+  const f = flow([...all, ...(next.data ?? [])]);
   const stops = useMemo(() => {
     const byOrder = new Map<string, RunSheetStopView>();
     const days: HistoryDay[] = [...(past.data ?? []), { date: today, orders: [], sheets: live.data?.sheets ?? [] }];
@@ -88,7 +89,8 @@ export default function Orders({
 
   const days: HistoryDay[] =
     tab === "current"
-      ? [{ date: today, orders: all, sheets: [] }, { date: tomorrow, orders: next.data ?? [], sheets: [] }]
+      ? // One list: today's orders and tomorrow's run together, as the dispatcher works them.
+        [{ date: today, orders: [...all, ...(next.data ?? [])], sheets: [] }]
       : tab === "upcoming" ? (upcoming.data ?? []) : [...(past.data ?? [])];
   const brands = useMemo(() => [...new Set(days.flatMap((d) => d.orders.map((o) => o.brandCode)))].sort(), [days]);
   const group = STATUS_GROUPS.find((g) => g.id === statusId)!;
@@ -112,14 +114,10 @@ export default function Orders({
   const line = (order: OrderView): OrderLine => ({ order, ride: rides.get(order.orderId), stop: stops.get(order.orderId), issues: issuesByOrder.get(order.orderId)?.length ?? 0 });
   const groups = days
     .map((day) => ({
-      title: tab !== "current" ? dayLabel(day.date) : day.date === today ? `Today · ${dayLabel(day.date)}` : `Next run · ${dayLabel(day.date)}`,
-      date: day.date,
+      title: tab === "current" ? null : dayLabel(day.date),
       lines: day.orders.filter(keep).map(line),
     }))
-    // Today stays even when empty, so Current always says what is on the road.
-    .filter((g) => (tab === "current" && g.date === today) || g.lines.length > 0)
-    // With nothing for tomorrow yet, Current is today alone and needs no heading.
-    .map((g, _, all) => (tab === "current" && all.length === 1 ? { ...g, title: null } : g));
+    .filter((g) => tab === "current" || g.lines.length > 0);
   const shown = groups.reduce((n, g) => n + g.lines.length, 0);
   const chosen = selected ? days.flatMap((d) => d.orders).find((o) => o.orderId === selected) : undefined;
   const last: LastColumn = tab === "current" ? "eta" : tab === "upcoming" ? "placed" : "done";
@@ -148,7 +146,7 @@ export default function Orders({
           value={tab}
           onChange={(next) => (setTab(next), setSelected(null))}
           options={[
-            { value: "current", label: "Current", hint: `Today · ${current.data ? f.due : "…"} · next run ${next.data ? next.data.length : "…"}` },
+            { value: "current", label: "Current", hint: `Today and next run · ${current.data && next.data ? all.length + next.data.length : "…"}` },
             { value: "upcoming", label: "Upcoming", hint: upcomingDates.map((d) => dayLabel(d).split(" ").slice(0, 2).join(" ")).join(" · ") },
             { value: "past", label: "Past", hint: `Last ${PAST_DAYS} days` },
           ]}

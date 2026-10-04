@@ -43,12 +43,12 @@ class PlanAllocation {
         String reason = "allocated to trip " + trip.tripId() + " in plan version " + planVersion;
         if (current.status() == OrderStatus.ALLOCATED) {
           if (!current.tripId().equals(Optional.of(trip.tripId()))) {
-            transitions.write(current, current.allocateTo(trip.tripId()), "re" + reason, envelope);
+            transitions.write(current, current.allocateTo(trip.tripId(), serviceDate), "re" + reason, envelope);
           }
           continue;
         }
         transitions.apply(
-            current.orderId(), OrderStatus.ALLOCATED, o -> o.allocateTo(trip.tripId()), reason, envelope);
+            current.orderId(), OrderStatus.ALLOCATED, o -> o.allocateTo(trip.tripId(), serviceDate), reason, envelope);
       }
     }
   }

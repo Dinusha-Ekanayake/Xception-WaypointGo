@@ -11,7 +11,7 @@ import { decidedCount, decisionRows } from "../data/planViews.ts";
 import { depotToday } from "../data/scope.ts";
 import { useCommand } from "../data/useCommand.ts";
 import { progressLabel, useGenerations } from "../data/useGeneration.ts";
-import { useNextOrderDay, useOrders, usePlans, waitingToPlan } from "../data/useDay.ts";
+import { useNextOrderDay, useOrders, useOrdersById, usePlans, waitingToPlan } from "../data/useDay.ts";
 import { useSnapshot, useSnapshots } from "../data/usePlanReads.ts";
 import { Retry } from "./Orders.tsx";
 import PlanBoard from "./PlanBoard.tsx";
@@ -20,6 +20,7 @@ import PlanDecide from "./PlanDecide.tsx";
 import PlanPublish from "./PlanPublish.tsx";
 import PlanSteps, { type Tab } from "./PlanSteps.tsx";
 import { explainPlan } from "../data/explain.ts";
+import { useFriendlyText } from "@shared/api/useFriendlyText";
 import ExplainPlanSheet from "./ExplainPlanSheet.tsx";
 import PlanTools from "./PlanTools.tsx";
 import type { Place, PlanActions } from "./planActions.ts";
@@ -77,7 +78,20 @@ export default function DepotPlan({
     setTab((current) => (current === "compare" ? "view" : current));
   }, [settled]);
   const plan = viewing && snapshot.data ? snapshot.data.plan : live;
-  const byId = useMemo(() => new Map<string, OrderView>((orders.data ?? []).map((order) => [order.orderId, order])), [orders.data]);
+  // A plan can name orders of other days: earlier ones carried into this run
+  // (R-ORD-16) and deferred ones. They are read by id, so every row shows its
+  // order ref, its size and its swap, never a bare id.
+  const dayIds = useMemo(() => new Set((orders.data ?? []).map((order) => order.orderId)), [orders.data]);
+  const missing = useMemo(() => {
+    if (!plan || !orders.data) return [];
+    const named = new Set([...plan.allocations.map((a) => a.orderId), ...plan.trips.flatMap((t) => t.stops.map((s) => s.orderId))]);
+    return [...named].filter((id) => !dayIds.has(id)).sort();
+  }, [plan, orders.data, dayIds]);
+  const others = useOrdersById(missing);
+  const byId = useMemo(
+    () => new Map<string, OrderView>([...(orders.data ?? []), ...(others.data ?? [])].map((order) => [order.orderId, order])),
+    [orders.data, others.data],
+  );
   const vehicles = fleet.data ?? [];
   const rows = plan ? decisionRows(plan, byId) : [];
   const { decided, total, open } = decidedCount(rows);
@@ -231,6 +245,9 @@ export default function DepotPlan({
       : [];
   const draft = state.stage === "draft";
   const [explaining, setExplaining] = useState(false);
+  const planExplanation = plan ? explainPlan({ plan, day: dayLabel(plan.serviceDate), notes: about }) : null;
+  // Worded once per plan version, and only when someone opens the explanation.
+  const planFriendly = useFriendlyText(explaining && plan ? `plan:${plan.planId}:${plan.rowVersion}` : null, planExplanation);
   const toolsLine = summary && plan ? `saved ${savedWhen(plan.savedAt)} · ${stage}` : plans.data ? stage : "Loading";
 
   return (
@@ -238,7 +255,7 @@ export default function DepotPlan({
       <div className="flex w-full flex-wrap items-center gap-3">
         <p className="min-w-[200px] flex-1 text-[13px] text-go-secondary">{toolsLine}</p>
         {plan && <SecondaryButton onClick={() => setExplaining(true)}>Explain this plan</SecondaryButton>}
-        {explaining && plan && <ExplainPlanSheet explanation={explainPlan({ plan, day: dayLabel(plan.serviceDate), notes: about })} onClose={() => setExplaining(false)} />}
+        {explaining && planExplanation && <ExplainPlanSheet explanation={planExplanation} friendly={planFriendly} onClose={() => setExplaining(false)} />}
         {state.stage !== "none" && !settled && (
           <PlanTools
             draft={draft}

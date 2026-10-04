@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { cx } from "@shared/ui";
+import { hhmm } from "@shared/wording";
 import { lateBy, tripOf, updateText, useOpenTripThread } from "../data/threads.ts";
-import { depotSummaries, progress, routeLabel, summaryText, type NeedCard, type Run } from "../data/liveDesk.ts";
+import { depotSummaries, etaOf, progress, routeLabel, summaryText, type NeedCard, type Run } from "../data/liveDesk.ts";
+import { suggestionFor, type Suggestion } from "../data/playbooks.ts";
 import { Action, Bar, Chip, NOT_AVAILABLE_NOTE, STATUS } from "./LiveParts.tsx";
 
 // Figma "05 Live · Needs you" (189:20983): what needs the dispatcher on the
@@ -39,6 +41,24 @@ export default function LiveNeeds({
     if (!run || !next) return;
     setNote(null);
     void openThread(tripOf(run), { address: { to: "outlet", outletId: next.outletId }, body: updateText(next, lateBy(next, date)) }).then(setNote);
+  };
+  // The playbook for a card, its message filled from the stop it is about (issue #269).
+  const suggest = (card: NeedCard): { suggestion: Suggestion; tripId: string | null; outletId: string | null } => {
+    const run = runs.find((r) => r.day.vehicleId === card.vehicleId);
+    const stops = run?.day.stops ?? [];
+    const stop =
+      (card.kind === "failed" ? stops.find((s) => s.outcome === "FAILED") : card.kind === "left" ? stops.find((s) => `left-${s.deliveryId}` === card.id) : run?.day.current) ?? null;
+    const suggestion = suggestionFor(card.kind, {
+      vehicle: card.vehicleId,
+      store: stop?.outletId ?? null,
+      expected: stop ? etaOf(stop) : null,
+      "window close": stop ? hhmm(stop.windowClose) : null,
+    });
+    return { suggestion, tripId: stop?.tripId ?? null, outletId: stop?.outletId ?? null };
+  };
+  const write = (tripId: string | null, to: "outlet" | "driver", outletId: string | null, body: string) => {
+    setNote(null);
+    void openThread(tripId, { address: { to, outletId: to === "outlet" ? outletId : null }, body }).then(setNote);
   };
   return (
     <div className="flex w-full items-start gap-[18px] max-lg:flex-col">
@@ -82,12 +102,13 @@ export default function LiveNeeds({
                     Book make-up
                   </Action>
                 )}
-                {(card.kind === "failed" || card.kind === "proof") && card.vehicleId && (
+                {(card.kind === "failed" || card.kind === "left") && card.vehicleId && (
                   <Action primary className="flex-1" onClick={() => onOpenTrip(card.vehicleId!)}>
                     Open trip
                   </Action>
                 )}
               </span>
+              <Suggested {...suggest(card)} online={online} showMessage={card.kind !== "window"} onWrite={write} />
             </li>
           ))}
         </ul>
@@ -108,6 +129,46 @@ export default function LiveNeeds({
         </section>
       </div>
     </div>
+  );
+}
+
+/** The playbook's steps for a card, on request, and its ready message opened in the trip's thread for the dispatcher to send. */
+function Suggested({
+  suggestion,
+  tripId,
+  outletId,
+  online,
+  showMessage,
+  onWrite,
+}: {
+  suggestion: Suggestion;
+  tripId: string | null;
+  outletId: string | null;
+  online: boolean;
+  /** "Notify store" already writes to the store about a closing window. */
+  showMessage: boolean;
+  onWrite: (tripId: string | null, to: "outlet" | "driver", outletId: string | null, body: string) => void;
+}): React.JSX.Element {
+  const message = showMessage ? suggestion.message : null;
+  return (
+    <details className="mt-1 rounded-xl bg-go-subtle px-3 py-2 text-[12.5px] text-go-ink">
+      <summary className="cursor-pointer font-medium">Suggested steps</summary>
+      <ol className="mt-1.5 flex list-decimal flex-col gap-1 pl-4">
+        {suggestion.steps.map((step) => (
+          <li key={step}>{step}</li>
+        ))}
+      </ol>
+      {message && tripId && (
+        <div className="mt-2 flex flex-col gap-1.5">
+          <p className="rounded-lg bg-white px-2.5 py-2 text-go-secondary">
+            <em>{message.body}</em>
+          </p>
+          <Action disabled={!online} onClick={() => onWrite(tripId, message.to, outletId, message.body)}>
+            {message.to === "outlet" ? "Write to the store" : "Write to the driver"}
+          </Action>
+        </div>
+      )}
+    </details>
   );
 }
 

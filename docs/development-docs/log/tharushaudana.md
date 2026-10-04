@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-10-05 - fix(orders): one Current set, and all of it goes into the plan
+
+`fix/current-one-list-plan-next-run` · @tharushaudana
+
+Current split today's orders from tomorrow's run, and the plan took only its own day's orders, so orders placed before the cutoff for an earlier day that was never planned were left out. Current is now one list, the Plan screen opens on the run being planned (today's until 16:00, then tomorrow's), and a run's plan also takes earlier orders never put on a published plan; once placed on a trip such an order's delivery date moves to the run's day (R-ORD-16).
+Verified: `OrderTest`, `ModuleBoundaryTest`, `npm test` (282), typecheck, dispatcher suite.
+
+---
+
 ## 2026-10-05 - fix(flow): the main flow runs end to end without anyone filling the gaps by hand
 
 `fix/main-flow-gaps` · @tharushaudana

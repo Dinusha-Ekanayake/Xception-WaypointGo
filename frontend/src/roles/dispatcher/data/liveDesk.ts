@@ -1,4 +1,4 @@
-import type { FuelView, IssueView, ReadyTripView, RunSheetStopView, VehiclePositionView } from "@shared/domain/types";
+import type { FuelView, IssueView, ReadyTripView, RunSheetStopView, StoreAnswerWaiverReason, VehiclePositionView } from "@shared/domain/types";
 import { mapStatus, type MapStatus, type VehicleDay } from "./live.ts";
 
 // The Figma "05 Live" frames (189:20983 to 189:21943) read from what the
@@ -78,9 +78,16 @@ export function silentMinutes(run: Run, now: Date): number | null {
 
 export type Tone = "danger" | "warning" | "muted" | "success" | "info";
 
+/** Why a driver moved on before the store answered, as the dispatcher reads it. */
+const WAIVED: Record<StoreAnswerWaiverReason, string> = {
+  store_absent: "Store manager not available",
+  no_signal: "No signal at the stop",
+  disagree: "Driver disagrees",
+};
+
 export type NeedCard = {
   id: string;
-  kind: "window" | "offline" | "failed" | "issue" | "proof";
+  kind: "window" | "offline" | "failed" | "issue" | "left";
   /** Minutes to act, for the order and the chip; null when there is no clock. */
   minutesLeft: number | null;
   chip: { text: string; tone: Tone };
@@ -116,15 +123,19 @@ export function needCards(runs: Run[], issues: IssueView[], date: string, now: D
         issueId: null,
       });
     }
-    for (const stop of run.day.stops.filter((s) => (s.outcome === "DELIVERED" || s.outcome === "PARTIAL") && !s.proofCaptured)) {
+    // Issue #21: the driver moved on before the store answered, and said why.
+    // A handover the store checked is its own evidence; this one is not, yet.
+    for (const stop of run.day.stops.filter((s) => s.storeAnswerWaived)) {
       cards.push({
-        id: `proof-${stop.deliveryId}`,
-        kind: "proof",
+        id: `left-${stop.deliveryId}`,
+        kind: "left",
         minutesLeft: 1e8,
-        chip: { text: "Proof owed", tone: "muted" },
-        meta: stop.completedAt ? `delivered ${depotClock(stop.completedAt)}` : "",
-        title: `${stop.outletId} · proof of delivery owed`,
-        detail: [run.day.vehicleId, routeLabel(run), `stop ${stop.sequence}`].filter(Boolean).join(" · "),
+        chip: { text: WAIVED[stop.storeAnswerWaived!], tone: stop.storeAnswerWaived === "disagree" ? "warning" : "muted" },
+        meta: stop.completedAt ? `handed over ${depotClock(stop.completedAt)}` : "",
+        title: `${stop.outletId} · left before the store answered`,
+        detail: [run.day.vehicleId, routeLabel(run), `stop ${stop.sequence}`, stop.proofCaptured ? "" : "no photo or signature"]
+          .filter(Boolean)
+          .join(" · "),
         vehicleId: run.day.vehicleId,
         issueId: null,
       });

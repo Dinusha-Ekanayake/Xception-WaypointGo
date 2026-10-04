@@ -6,6 +6,7 @@ import { Pill } from "@shared/ui";
 import { dayLabel, ruleLabel } from "@shared/wording";
 import { useNextDelivery } from "../data/usePlanReads.ts";
 import { explainDeferral } from "../data/explain.ts";
+import { useFriendlyText } from "@shared/api/useFriendlyText";
 import DeferredOrderCard from "./DeferredOrderCard.tsx";
 import ExplainSheet from "./ExplainSheet.tsx";
 import type { PlanActions } from "./planActions.ts";
@@ -38,6 +39,8 @@ export default function DeferredColumn({
   const [whyId, setWhyId] = useState<string | null>(null);
   const why = whyId ? plan.allocations.find((a) => a.orderId === whyId) : undefined;
   const whyOrder = whyId ? orders.get(whyId) : undefined;
+  const whyExplanation = why ? explainDeferral({ orderRef: whyOrder?.orderRef ?? null, outletId: whyOrder?.outletId ?? null, day: dayLabel(plan.serviceDate), allocation: why }) : null;
+  const whyFriendly = useFriendlyText(why ? `order:${plan.planId}:${plan.rowVersion}:${why.orderId}:list` : null, whyExplanation);
   const left = plan.allocations.filter((allocation) => allocation.decision !== "SERVED");
 
   return (
@@ -86,12 +89,7 @@ export default function DeferredColumn({
           })}
         </ul>
       )}
-      {why && (
-        <ExplainSheet
-          explanation={explainDeferral({ orderRef: whyOrder?.orderRef ?? null, outletId: whyOrder?.outletId ?? null, day: dayLabel(plan.serviceDate), allocation: why })}
-          onClose={() => setWhyId(null)}
-        />
-      )}
+      {whyExplanation && <ExplainSheet explanation={whyExplanation} friendly={whyFriendly} onClose={() => setWhyId(null)} />}
       {card && cardOrder && (
         <DeferredOrderCard
           plan={plan}

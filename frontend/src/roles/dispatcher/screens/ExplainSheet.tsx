@@ -1,6 +1,6 @@
 "use client";
 
-import { SecondaryButton, Sheet } from "@shared/ui";
+import { RichText, SecondaryButton, Sheet } from "@shared/ui";
 import type { Explanation } from "../data/explain.ts";
 
 // The explanation of one deferral, in a pop-up (issue #267): what happened, the
@@ -18,12 +18,18 @@ function Part({ title, children }: { title: string; children: React.ReactNode })
 
 const list = "flex list-disc flex-col gap-1 pl-5 text-[13px] text-go-ink";
 
-export default function ExplainSheet({ explanation, onClose }: { explanation: Explanation; onClose: () => void }): React.JSX.Element {
+export default function ExplainSheet({ explanation, friendly, onClose }: { explanation: Explanation; friendly?: string | null; onClose: () => void }): React.JSX.Element {
   const { stopped, met, fits, refused } = explanation;
   return (
     <Sheet label="Why this order was not placed" onClose={onClose} centered>
       <h2 className="text-[20px] font-medium text-go-ink">Why this order was not placed</h2>
       <p className="text-[14px] text-go-ink">{explanation.headline}</p>
+      {friendly && (
+        <section aria-label="In short" className="flex flex-col gap-1.5 rounded-go-card bg-go-success-tint px-3.5 py-3">
+          <RichText text={friendly} className="text-[13px] text-go-ink" />
+          <p className="text-[11px] text-go-secondary">Worded by an AI model from the facts below.</p>
+        </section>
+      )}
 
       <Part title="The reason">
         <p className="rounded-go-card bg-go-warning-tint px-3.5 py-2.5 text-[13px] text-go-warning-text">
