@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-04 - feat: the attention watch, increment 1 (issue #268): the rule, the tables, the job and the read
+
+`feat/268-attention-watch` · @Dinusha-Ekanayake
+
+A scheduled job in `intelligence` watches every live trip each minute through Planning's and Execution's contracts and records what needs the dispatcher: a failed stop, a stop that will miss its window, a stop running late, a delivery with no proof. `AttentionPolicy` is the one definition of those rules (pure, the time a parameter); thresholds are data per depot with defaults in code; an item is raised once, refreshed, then cleared, never deleted; a heartbeat says when the watch last looked, and the read marks the list stale after three missed runs. `GET /api/ml/attention?depot=&date=` under `ml:Read`, another depot is 403. Plan in [PLAN.md](../../issues/268-attention-watch/PLAN.md).
+Left for increment 2: acknowledge (command, action catalogue row, authorisation test), reminders and their events through the outbox, the notification subscriber, and the Live screen reading from the endpoint.
+Verified: 11 domain and mapping unit tests, `ModuleBoundaryTest` and `EventCatalogueTest` pass. The two integration tests compile but were NOT run: no database was available locally, so the SQL and the migration are unproven until CI runs them.
+
+---
+
 ## 2026-10-04 - feat: a generated plan explains itself at once, and each deferred order has a question mark
 
 `feat/explain-auto` · @Dinusha-Ekanayake

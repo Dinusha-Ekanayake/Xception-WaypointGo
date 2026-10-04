@@ -1,7 +1,9 @@
 package com.waypoint.dispatch.intelligence.web;
 
+import com.waypoint.dispatch.intelligence.application.AttentionQuery;
 import com.waypoint.dispatch.intelligence.application.DateOutlookQuery;
 import com.waypoint.dispatch.intelligence.application.IntelligenceDataQuery;
+import com.waypoint.dispatch.intelligence.contract.AttentionViews.AttentionBoardView;
 import com.waypoint.dispatch.intelligence.contract.ModelViews.ModelVersionView;
 import com.waypoint.dispatch.intelligence.contract.PredictionViews.DateOutlookView;
 import com.waypoint.dispatch.intelligence.contract.PredictionViews.ForecastOverviewView;
@@ -38,13 +40,30 @@ import org.springframework.web.bind.annotation.RestController;
 public class IntelligenceController {
   private final IntelligenceDataQuery intelligence;
   private final DateOutlookQuery outlook;
+  private final AttentionQuery attention;
   private final RequestAuthorizer authorizer;
 
   public IntelligenceController(
-      IntelligenceDataQuery intelligence, DateOutlookQuery outlook, RequestAuthorizer authorizer) {
+      IntelligenceDataQuery intelligence,
+      DateOutlookQuery outlook,
+      AttentionQuery attention,
+      RequestAuthorizer authorizer) {
     this.intelligence = intelligence;
     this.outlook = outlook;
+    this.attention = attention;
     this.authorizer = authorizer;
+  }
+
+  /**
+   * What on the depot's live trips needs the dispatcher, most urgent first, and
+   * when the watch last looked (issue #268). Another depot is 403.
+   */
+  @GetMapping("/attention")
+  public AttentionBoardView attention(
+      @RequestParam String depot,
+      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+      HttpServletRequest request) {
+    return attention.board(read(request, "wpt:ml:attention:" + depot), depot, date);
   }
 
   @GetMapping("/models")
