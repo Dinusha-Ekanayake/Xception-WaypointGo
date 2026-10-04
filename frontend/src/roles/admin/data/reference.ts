@@ -1,5 +1,27 @@
 import { request, requestAll } from "@shared/api/client";
 import type { Page } from "@shared/domain/common";
+import { newCommand, send } from "@shared/api/commands";
+
+export async function createAdminDepot(payload: { code: string; name: string; timezone: string;
+  latitude: string; longitude: string; locationPrecision: "exact" | "approximate" }) {
+  return send<{ id: string; referenceVersionId: string }>(newCommand("reference:CreateDepot", payload));
+}
+
+export async function createAdminOutlet(payload: {
+  outletId: string; brand: string; district: string; depotCode: string;
+  dockType: string; parking: string; windowOpen: string; windowClose: string;
+  mallOpen?: string; mallClose?: string;
+}) {
+  return send<{ id: string; referenceVersionId: string }>(newCommand("reference:CreateOutlet", payload));
+}
+
+export async function createAdminVehicle(payload: {
+  vehicleId: string; depotCode: string; type: string; temperature: string;
+  weightCapKg: string; volumeCapM3: string; fuelType: string;
+  kmPerL: string; weeklyFuelQuotaL: string;
+}) {
+  return send<{ id: string; referenceVersionId: string }>(newCommand("reference:CreateVehicle", payload));
+}
 
 export type AdminDepot = {
   code: string;

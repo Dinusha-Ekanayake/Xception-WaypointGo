@@ -1,5 +1,13 @@
 # Issue 22: Admin and super-admin console plan
 
+## 2026-10-04 reference creation and navigation follow-up
+
+The admin sidebar owns the Planned trips and Live trips choice, so the Trips screen drops its duplicate switch. People and Trips parents show a chevron and can collapse their child links. Persona cards and role details omit internal resource URIs.
+
+Depots, outlets and vehicles created by an administrator must persist as managed reference source rows. A create command records the row, validates the resulting snapshot, publishes a new immutable reference version and returns its identity. The import command composes managed rows into later CSV snapshots under the same publication lock. A new depot requires supplied approximate coordinates and initially has no districts or outlets; a store's depot is still derived from its district. The form accepts only fields represented by the reference schema. A new depot remains subject to explicit IAM scope grants before an administrator can read it through the scoped directory. Existing reference versions and published plans retain their original snapshots.
+
+The reference module owns validation, managed rows, version publication and cache refresh. Identity owns scope grants. The frontend submits commands through the shared command client and reloads each directory after a successful acknowledgement. Duplicate identities, invalid capacities/windows/coordinates and missing scope produce clear errors without adding a local-only row.
+
 ## 2026-10-03 wiring repair
 
 The deployed console calls `/api/admin/*`, while the backend has no matching routes. This repair adds read-only admin routes in the owning module's web and application layers: Identity owns accounts, roles and actions; Reference owns depots, outlets and vehicles; Ordering owns orders and timelines; Planning owns plans. Each read is authorized and scoped before returning data. Existing command endpoints remain the only write path. The frontend maps the returned contracts and must not report a failed command as saved. Unsupported writes stay visibly unavailable until their command contracts exist. Production data is inspected read-only; the fix is made and verified locally before deployment.

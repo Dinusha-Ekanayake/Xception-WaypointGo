@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-10-04 - persist admin reference additions and simplify navigation
+
+`dev` · @ranathungaWK
+
+Add command-backed depot, outlet and vehicle creation with managed source rows that survive later imports. Keep new reference versions immutable and require an explicit scope grant for a new depot.
+Remove the duplicate trip switch and internal role codes; add collapse chevrons to People and Trips.
+Verified: frontend typecheck, 206 Node tests, production build, backend compile, ReferenceValidatorTest and ModuleBoundaryTest. The database integration test was skipped locally because Docker is unavailable; CI must run it.
+
 ## 2026-10-04 - keep scheduled jobs off during integration tests
 
 `dev` · @ranathungaWK

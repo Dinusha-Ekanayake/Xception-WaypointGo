@@ -334,9 +334,6 @@ export function PersonasScreen({
             )}
             <Badge tone={roleBadgeTone(selected)}>{roleCategory(selected)}</Badge>
           </div>
-          <span className="font-mono text-xs font-semibold text-go-teal bg-[#e4f7f1] px-2.5 py-1 rounded-lg">
-            wpt:iam:role:{selected}
-          </span>
         </div>
 
         <div className="rounded-xl bg-go-subtle p-3.5 text-sm text-go-ink border border-[#d8ebe1]">
@@ -460,11 +457,7 @@ function PersonaCard({
             <span className="mt-1 text-[11px] font-semibold text-[#8a6200] bg-[#fef5dd] px-2 py-0.5 rounded-full">
               Protected access
             </span>
-          ) : (
-            <span className="mt-1 font-mono text-[11px] text-go-secondary">
-              wpt:iam:role:{persona}
-            </span>
-          )}
+          ) : null}
         </button>
 
         <p className="mt-3 text-xs text-go-secondary line-clamp-2 min-h-8">
