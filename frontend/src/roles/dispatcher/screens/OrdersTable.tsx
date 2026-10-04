@@ -64,9 +64,13 @@ export default function OrdersTable({
   );
 }
 
+const IN_DRAFT = { label: "In the draft plan · publish to confirm", tone: "info" as const };
+
 function Row({ line, last, active, onSelect }: { line: OrderLine; last: LastColumn; active: boolean; onSelect: () => void }): React.JSX.Element {
   const { order, ride, stop, issues } = line;
-  const state = STATUS[order.status];
+  // A confirmed order already on a trip of the draft is planned but not yet
+  // published: it is allocated only when the plan is published (R-PLN-41).
+  const state = order.status === "CONFIRMED" && ride ? IN_DRAFT : STATUS[order.status];
   const late = stop && order.status === "IN_TRANSIT" && (stop.lateMinutes ?? 0) > 0;
   const detail = [late ? "at risk" : null, issues > 0 ? `${issues} ${issues === 1 ? "issue" : "issues"}` : null].filter(Boolean).join(" · ");
   const tone = issues > 0 ? "danger" : late ? "warning" : state.tone;
