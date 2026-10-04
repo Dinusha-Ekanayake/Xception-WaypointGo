@@ -233,6 +233,16 @@ public record Order(
     return copy(OrderStatus.ALLOCATED, reservation, Optional.of(trip), deliveryDate, deferralCount, lines);
   }
 
+  /**
+   * R-ORD-16: on a trip of the run on {@code runDate}. An order carried from an
+   * earlier day travels on that run, so its delivery date becomes the run's; it
+   * never moves earlier.
+   */
+  public Order allocateTo(UUID trip, LocalDate runDate) {
+    LocalDate travels = runDate.isAfter(deliveryDate) ? runDate : deliveryDate;
+    return copy(OrderStatus.ALLOCATED, reservation, Optional.of(trip), travels, deferralCount, lines);
+  }
+
   /** A status change driven by a consumed event, already judged by {@link OrderStateMachine#onEvent}. */
   public Order moveTo(OrderStatus to) {
     return copy(to, reservation, tripId, deliveryDate, deferralCount, lines);

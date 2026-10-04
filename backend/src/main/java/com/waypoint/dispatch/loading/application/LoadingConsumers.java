@@ -1,7 +1,9 @@
 package com.waypoint.dispatch.loading.application;
 
+import com.waypoint.dispatch.execution.contract.ExecutionEvents.VehicleAtDepot;
 import com.waypoint.dispatch.issues.contract.IssueEvents.ShortfallResolved;
 import com.waypoint.dispatch.loading.infrastructure.JdbcManifestWriter;
+import com.waypoint.dispatch.loading.infrastructure.JdbcVehicleArrivals;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlanPublished;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlanRevised;
 import com.waypoint.dispatch.platform.db.ModuleRole;
@@ -109,6 +111,36 @@ public final class LoadingConsumers {
     public void on(EventEnvelope<ShortfallResolved> envelope) {
       ShortfallResolved e = envelope.payload();
       writer.resolveShortfalls(e.tripId(), e.orderId(), e.resolution(), clock.now());
+    }
+  }
+
+  /**
+   * R-LOD-12: the driver is at the depot with the vehicle. The dock board marks
+   * the vehicle's trips "Driver at the dock" and puts them first, so the loader
+   * takes the trip whose vehicle is waiting. The first report of the day is kept.
+   */
+  @Component
+  public static class OnVehicleAtDepot extends LoadingConsumer<VehicleAtDepot> {
+    private final JdbcVehicleArrivals arrivals;
+
+    public OnVehicleAtDepot(JdbcVehicleArrivals arrivals) {
+      this.arrivals = arrivals;
+    }
+
+    @Override
+    public String consumerName() {
+      return "loading.on-vehicle-at-depot";
+    }
+
+    @Override
+    public Class<VehicleAtDepot> eventType() {
+      return VehicleAtDepot.class;
+    }
+
+    @Override
+    public void on(EventEnvelope<VehicleAtDepot> envelope) {
+      VehicleAtDepot e = envelope.payload();
+      arrivals.record(e.vehicleId(), e.depotCode(), e.serviceDate(), e.driverId(), e.arrivedAt());
     }
   }
 }

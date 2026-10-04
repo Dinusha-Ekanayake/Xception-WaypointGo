@@ -53,15 +53,15 @@ All nine are in [PLAN.md](PLAN.md). Added while building:
 
 ## Store-led handover (2026-10-05)
 
-The stop flow the team planned with the Figma screens, on real data. The plan and its decisions are in [PLAN.md](PLAN.md#amendment-store-led-handover-2026-10-04); the rules are R-RCP-10, R-EXE-24 and R-NOT-17 in [RULES-AND-POLICIES](../../architecture/RULES-AND-POLICIES.md), the cases RCP-19 to RCP-23 in [EDGE-CASES](../../architecture/EDGE-CASES.md).
+The stop flow the team planned with the Figma screens, on real data. The plan and its decisions are in [PLAN.md](PLAN.md#amendment-store-led-handover-2026-10-04); the rules are R-RCP-10, R-EXE-26 and R-NOT-17 in [RULES-AND-POLICIES](../../architecture/RULES-AND-POLICIES.md), the cases RCP-19 to RCP-23 in [EDGE-CASES](../../architecture/EDGE-CASES.md).
 
-**The flow.** The driver slides I've arrived, then Hand over (`delivery:Record`, the order as loaded). That opens the store's receipt and tells the store manager (routing version 7). The driver's phone shows "Waiting for store confirmation" and asks `GET /api/receipts/{orderId}/answer` every 10 s; when the store answers, the Figma delivery report shows what the store counted against what was sent, and the driver accepts with the store's PIN (`receipt:VerifyHandover`). At any point the driver can Continue to next stop with a reason (`delivery:LeaveWithoutStoreAnswer`); "I disagree" also raises an issue for the dispatcher. The dispatcher sees a stop left before the store answered under Needs you, with the reason.
+**The flow.** The driver slides I've arrived, then Hand over (`delivery:Record`, the order as loaded). That opens the store's receipt and tells the store manager (routing version 8). The driver's phone shows "Waiting for store confirmation" and asks `GET /api/receipts/{orderId}/answer` every 10 s; when the store answers, the Figma delivery report shows what the store counted against what was sent, and the driver accepts with the store's PIN (`receipt:VerifyHandover`). At any point the driver can Continue to next stop with a reason (`delivery:LeaveWithoutStoreAnswer`); "I disagree" also raises an issue for the dispatcher. The dispatcher sees a stop left before the store answered under Needs you, with the reason.
 
 **By layer.**
 
-- Receipt: `migrations/20261005T1400_receipt_driver_answer.sql` (read-only row policies through the handover, action `receipt:ReadAnswer` for drivers), `ReceiptDataQuery.answer`, `ReceiptController` `GET /{orderId}/answer`, `ReceiptViews.ReceiptAnswerView`.
-- Execution: `migrations/20261005T1401_execution_store_answer_waivers.sql`, `domain/StoreAnswerWaiver`, `LeaveWithoutStoreAnswerHandler`, `storeAnswerWaived` on `RunSheetStopView`.
-- Notification: `migrations/20261005T1402_notification_routing_v7.sql`.
+- Receipt: `migrations/20261005T1500_receipt_driver_answer.sql` (read-only row policies through the handover, action `receipt:ReadAnswer` for drivers), `ReceiptDataQuery.answer`, `ReceiptController` `GET /{orderId}/answer`, `ReceiptViews.ReceiptAnswerView`.
+- Execution: `migrations/20261005T1501_execution_store_answer_waivers.sql`, `domain/StoreAnswerWaiver`, `LeaveWithoutStoreAnswerHandler`, `storeAnswerWaived` on `RunSheetStopView`.
+- Notification: `migrations/20261005T1502_notification_routing_v8.sql`.
 - Driver: `data/storeAnswer.ts` (the poll), `data/handover.ts` (the phase and the reasons), `screens/StopHandover.tsx` (container, PIN, reason sheet), `screens/DeliveryReportWaiting.tsx` (the Figma views, now driven by the phase), `useDriver` `handOver`, `moveOn`, `toNextStop`. The delivery form is now reached only for a stop that did not happen.
 - Dispatcher: `data/live.ts` and `data/liveDesk.ts`: "left before the store answered" replaces "proof owed", since a handover the store checked is its own evidence.
 

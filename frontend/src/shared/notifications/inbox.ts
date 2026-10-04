@@ -18,6 +18,8 @@ const KINDS: Record<string, { label: string; tone: Tone }> = {
   "trip.released": { label: "Vehicle left", tone: "good" },
   "loading.shortfall": { label: "Loading shortfall", tone: "urgent" },
   "delivery.started": { label: "Delivery arriving", tone: "info" },
+  "delivery.arrived": { label: "Delivery arrived", tone: "good" },
+  "vehicle.at_depot": { label: "Driver at the dock", tone: "info" },
   "delivery.completed": { label: "Delivery recorded", tone: "good" },
   "delivery.failed": { label: "Delivery failed", tone: "urgent" },
   "eta.changed": { label: "Arrival changed", tone: "warning" },

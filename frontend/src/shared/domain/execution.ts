@@ -141,9 +141,13 @@ export const ExecutionCommandKind = {
   reportVehicleStatus: "delivery:ReportVehicleStatus",
   reportFault: "delivery:ReportFault",
   recordPositions: "delivery:RecordPositions",
-  /** Move on from a handed-over stop before the store answered, with the reason (issue #21). */
+  /** R-EXE-24: the driver is at the depot with the vehicle, ready for it to be loaded. */
+  arriveAtDepot: "delivery:ArriveAtDepot",
+  /** Move on from a handed-over stop before the store answered, with the reason (issue #21, R-EXE-26). */
   leaveWithoutStoreAnswer: "delivery:LeaveWithoutStoreAnswer",
 } as const;
+
+export type ArriveAtDepot = { vehicleId: string };
 
 /** Why the driver moved on before the store answered: the closed list the server keeps. */
 export type StoreAnswerWaiverReason = "store_absent" | "no_signal" | "disagree";

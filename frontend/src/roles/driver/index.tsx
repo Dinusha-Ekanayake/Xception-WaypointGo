@@ -183,6 +183,7 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
                 depotName={depot}
                 vehicle={run.vehicle}
                 nextRun={run.nextRun}
+                depotCheckIn={d.depotCheckIn}
                 tripStatus={tripStatus(stops)}
                 stopCount={stops.length}
                 unavailable={run.unavailable}

@@ -20,7 +20,7 @@ import Refusal from "./Refusal.tsx";
 import { businessNow } from "@shared/wording";
 
 // Figma "05 Live" (189:20983 needs you, 189:21127 timeline, 189:21358 map,
-// 189:21943 trip). Run sheets are read every 30 seconds while the tab is
+// 189:21943 trip). Run sheets are read every 2 seconds while the tab is
 // visible and online; positions are pushed as each fix lands (R-EXE-23), with a
 // poll when the push goes quiet; the header says when. The views share
 // one join of run sheet, loading trip and position (data/liveDesk.ts), and the

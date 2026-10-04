@@ -34,6 +34,16 @@ class OrderTest {
   }
 
   @Test
+  void anOrderCarriedIntoALaterRunTravelsOnThatRunsDayAndNeverMovesEarlier() {
+    // R-ORD-16: never planned on its own day, it goes with the next run.
+    Order carried = order(Optional.of(reservation("ambient"))).allocateTo(UUID.randomUUID(), DAY.plusDays(1));
+    assertEquals(OrderStatus.ALLOCATED, carried.status());
+    assertEquals(DAY.plusDays(1), carried.deliveryDate());
+    assertEquals(DAY, order(Optional.of(reservation("ambient"))).allocateTo(UUID.randomUUID(), DAY).deliveryDate());
+    assertEquals(DAY, order(Optional.of(reservation("ambient"))).allocateTo(UUID.randomUUID(), DAY.minusDays(1)).deliveryDate());
+  }
+
+  @Test
   void aReservedPlacementIsConfirmedAndAnUnreachableWarehouseLeavesItStockUnknown() {
     assertEquals(OrderStatus.CONFIRMED, order(Optional.of(reservation("ambient"))).status());
     assertEquals(OrderStatus.STOCK_UNKNOWN, order(Optional.empty()).status());

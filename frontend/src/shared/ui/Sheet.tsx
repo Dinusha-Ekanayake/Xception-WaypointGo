@@ -18,6 +18,7 @@ export function Sheet({
   size = "default",
   dismissible = true,
   placement = "viewport",
+  centered = false,
 }: {
   label: string;
   onClose: () => void;
@@ -28,6 +29,8 @@ export function Sheet({
   dismissible?: boolean;
   /** "frame" sits at the bottom of the nearest positioned ancestor, such as the driver's phone frame on a desk, and blurs everything in it, header included. */
   placement?: "viewport" | "frame";
+  /** In the middle of the screen from a tablet up, for a pop-up that is read rather than filled in. */
+  centered?: boolean;
 }): React.JSX.Element {
   const panel = useRef<HTMLDivElement>(null);
   const { closing, requestClose } = useOverlay(panel, onClose);
@@ -53,7 +56,7 @@ export function Sheet({
   }
 
   return (
-    <div data-closing={closing || undefined} className={`go-overlay fixed inset-0 z-40 flex items-end justify-center md:p-6 ${size === "wide" ? "md:items-center" : "md:items-start md:pt-10"}`} role="presentation">
+    <div data-closing={closing || undefined} className={`go-overlay fixed inset-0 z-40 flex items-end justify-center md:p-6 ${size === "wide" || centered ? "md:items-center" : "md:items-start md:pt-10"}`} role="presentation">
       <button type="button" tabIndex={-1} aria-label="Close" onClick={requestClose} className="go-backdrop absolute inset-0 bg-black/40 backdrop-blur-[6px]" />
       <div
         ref={panel}

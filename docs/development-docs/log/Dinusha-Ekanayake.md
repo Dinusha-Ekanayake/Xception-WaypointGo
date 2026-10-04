@@ -4,6 +4,47 @@
 
 ---
 
+## 2026-10-04 - feat: an optional language model rewords the plan explanations
+
+`feat/explain-groq` · @Dinusha-Ekanayake
+
+With `GROQ_API_KEY` set, the frontend's own server route (`app/explain/route.ts`) asks Groq to say an explanation more naturally. It is shown above the rule-based facts in the three pop-ups and marked as AI-worded. The route checks the session, sends only the facts of the one plan or order, keeps one answer per plan version (server memory, then the browser), and refuses an answer that names a figure the facts do not hold or that fails in any way: the rule-based text is always there. Blank key (the default) sends nothing. No backend change.
+Why: the user asked for friendlier wording; the decision to send plan facts to an outside model is theirs and is opt-in per deployment.
+Verified: see the PR. `npm test` 281; the explain and plan specs pass with no key. The live call to Groq was not exercised here.
+
+---
+
+## 2026-10-04 - feat: a generated plan explains itself at once, and each deferred order has a question mark
+
+`feat/explain-auto` · @Dinusha-Ekanayake
+
+The plan's explanation opens by itself when a plan is generated (the button stays, to open it again). Each order in the plan view's Deferred list has a question mark that opens why it was not placed. Both pop-ups sit in the middle of the screen from a tablet up (`Sheet` `centered`). Rule-based, frontend only.
+Not built: wording by an outside language model (Groq). It was stopped before any plan data left the system; the explanations stay rule-based.
+Verified: see the PR. `npm test` 281; `explain.spec.ts` and the generate spec in `plan.spec.ts` cover the new behaviour.
+
+---
+
+## 2026-10-04 - fix: the store manager has no "Switch user" button
+
+`fix/store-no-switch-user` · @Dinusha-Ekanayake
+
+The store's top bar and sidebar no longer show "Switch user": Sign out is already in the account menu behind the profile picture. `ShellActions` takes `switchUser` (default on), so the other roles keep the button; the sync badge and the role switcher of an account with several roles still show for the store.
+Verified: typecheck, `npm test`. Browser suites in CI.
+
+---
+
+## 2026-10-04 - fix: sign-in opens the account's own role on every address
+
+`fix/signin-opens-own-role` · @Dinusha-Ekanayake
+
+The page for choosing a role is gone, and so is the "All roles" button on sign-in. The shared address (`preview.waypointgo.live`, and the bare name on production) now shows the sign-in itself, and an email and password open the account's own workspace on whatever address they were entered. A role address still opens on its role for an account that holds it; any other account gets its own workspace there instead of the wrong-address page. Removed `RoleLanding.tsx`, `WrongAddress.tsx` and `roleCards.ts`. Frontend only: the session stays on the address it was made on.
+The "Connect AI" button is also gone from every role's settings and the shell strip, with the lookup that fed it and its browser spec (`e2e-dispatcher/mcp.spec.ts`). The MCP service and its consent screen are unchanged; `McpConnect.tsx` stays for `scopeWords`, its button unused.
+Why: a person should not have to pick a role before signing in; the account already says which one it is.
+Left: the helpers in `hostRole.ts` that only those pages used (`sharedHomeFor`, `sharedHostFor`, `hostForRole`, `isPreviewHome`, `ROLE_ADDRESSES`) are still there with their tests, unused by the shell.
+Verified: typecheck, `npm test` 279. Not yet seen on the preview.
+
+---
+
 ## 2026-10-04 - feat: the whole plan explains itself, and a kept order says it stays deferred
 
 `feat/explain-plan` · @Dinusha-Ekanayake

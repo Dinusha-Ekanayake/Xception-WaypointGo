@@ -1,6 +1,7 @@
 package com.waypoint.dispatch.ordering.application;
 
 import com.waypoint.dispatch.ordering.contract.OrderEvents.OrderAutoDeferred;
+import com.waypoint.dispatch.ordering.contract.OrderEvents.OrdersClosed;
 import com.waypoint.dispatch.ordering.contract.OrderStatus;
 import com.waypoint.dispatch.ordering.domain.Cutoff;
 import com.waypoint.dispatch.ordering.domain.Order;
@@ -24,7 +25,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * At the 16:00 cutoff, an order the warehouse has still not reserved moves to
- * the next run with reason {@code stock_unresolved} (R-STK-06, STK-03).
+ * the next run with reason {@code stock_unresolved} (R-STK-06, STK-03), and then
+ * each depot's day is closed so its plan is drafted automatically (R-ORD-15).
  *
  * <p>Stock is never assumed (R-STK-05), so the order does not become demand:
  * it is deferred without a reservation, and only the warehouse's answer makes
@@ -99,7 +101,45 @@ public class CutoffJob implements ScheduledJob {
       }
     }
     deferredLastRun.set(deferred);
+    closeDays(closed, now);
     return deferred;
+  }
+
+  /**
+   * R-ORD-15: the cutoff closes each depot's day by itself, so the plan is drafted
+   * without anyone pressing Close (Planning's {@code orders.closed} consumer
+   * queues generation, R-PLN-41). A day the dispatcher already closed is left as
+   * it is; a depot with no orders that day is closed with no event, since there
+   * is nothing to plan. Each depot is its own transaction.
+   *
+   * @return how many depot-days were closed now
+   */
+  int closeDays(LocalDate serviceDate, Instant now) {
+    int closedNow = 0;
+    for (String depot : reference.depotCodes()) {
+      try {
+        if (database.asSystem(ModuleRole.ORDERING, () -> closeDay(depot, serviceDate, now))) {
+          closedNow++;
+        }
+      } catch (DomainException | org.springframework.dao.DataAccessException e) {
+        metrics.increment("waypoint.order.auto_close_failed");
+      }
+    }
+    return closedNow;
+  }
+
+  private boolean closeDay(String depot, LocalDate serviceDate, Instant now) {
+    if (orders.isClosed(depot, serviceDate)) {
+      return false;
+    }
+    List<UUID> ids = orders.dueOn(depot, serviceDate).stream().map(Order::orderId).toList();
+    // A null closer is the system, as in the status history (architecture rule 8).
+    orders.close(depot, serviceDate, null, ids.size(), now);
+    if (!ids.isEmpty()) {
+      events.publish(Actor.SYSTEM, new OrdersClosed(depot, serviceDate, ids));
+    }
+    metrics.increment("waypoint.order.day_auto_closed");
+    return true;
   }
 
   /** The latest service date whose ordering has closed at {@code now}. */

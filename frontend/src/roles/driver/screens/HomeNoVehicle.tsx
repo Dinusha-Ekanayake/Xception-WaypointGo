@@ -388,6 +388,8 @@ export type DriverHomeProps = {
   stopCount: number;
   /** With nothing released today: the next trip, released or still at the dock. */
   nextRun?: NextRun | null;
+  /** Today's trip waits for the loader: the driver says they are at the depot (R-EXE-24). */
+  depotCheckIn?: { vehicleId: string; done: boolean; report: () => void } | null;
   /** The server could not be asked and this phone holds no copy of today. */
   unavailable: boolean;
   online: boolean;
@@ -442,6 +444,7 @@ export default function HomeNoVehicle({
   tripStatus,
   stopCount,
   nextRun = null,
+  depotCheckIn = null,
   unavailable,
   online,
   vehicleStatus,
@@ -646,11 +649,33 @@ export default function HomeNoVehicle({
                   >
                     {startLabel}
                   </button>
+                ) : depotCheckIn && !depotCheckIn.done ? (
+                  // R-EXE-24: today's trip waits for the loader. Collect the vehicle,
+                  // say so here, and a loader takes the trip to load it.
+                  <>
+                    <p role="status" className={cx("text-[14px] leading-[18px]", ink)}>
+                      {nextRun?.departure
+                        ? `Today's trip on ${depotCheckIn.vehicleId} departs ${hhmm(nextRun.departure)}. Collect the vehicle and tell the loader you are at the depot.`
+                        : `Today's trip on ${depotCheckIn.vehicleId} is planned. Collect the vehicle and tell the loader you are at the depot.`}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={depotCheckIn.report}
+                      className={cx(
+                        "w-full h-[64px] rounded-[22px] text-[20px] font-medium flex items-center justify-center transition-all active:scale-[0.99] shadow-sm",
+                        isNight ? "bg-[#00BF6A] text-black hover:bg-[#00d878]" : "bg-[#031B08] text-white hover:bg-[#062613]"
+                      )}
+                    >
+                      I&apos;m at the depot
+                    </button>
+                  </>
                 ) : (
                   <p role="status" className={cx("text-[14px] leading-[18px]", ink)}>
-                    {nextRun && !nextRun.released && nextRun.vehicleId && nextRun.departure
-                      ? `Next trip ${dayLabel(nextRun.date)} · ${nextRun.vehicleId} · departs ${hhmm(nextRun.departure)}. It is planned and waiting for the loader to release it; your stops appear here then.`
-                      : `No trip planned for ${vehicle.vehicleId} today. Your stops appear here when the loader releases the vehicle.`}
+                    {depotCheckIn?.done
+                      ? `At the depot with ${depotCheckIn.vehicleId}. The loader is loading it; your stops appear here when it is released.`
+                      : nextRun && !nextRun.released && nextRun.vehicleId && nextRun.departure
+                        ? `Next trip ${dayLabel(nextRun.date)} · ${nextRun.vehicleId} · departs ${hhmm(nextRun.departure)}. It is planned and waiting for the loader to release it; your stops appear here then.`
+                        : `No trip planned for ${vehicle.vehicleId} today. Your stops appear here when the loader releases the vehicle.`}
                   </p>
                 )}
               </>

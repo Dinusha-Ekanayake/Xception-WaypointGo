@@ -49,7 +49,7 @@ function DriverProfileButton({
       </button>
       {host &&
         createPortal(
-          <SettingsPanel displayName={displayName} roleLabel="Driver" lang={lang} onLang={(l) => onLang?.(l)} placement="frame" showInstall={false} showAssistant={false} onClose={() => setOpen(false)}>
+          <SettingsPanel displayName={displayName} roleLabel="Driver" lang={lang} onLang={(l) => onLang?.(l)} placement="frame" showInstall={false} onClose={() => setOpen(false)}>
             {onSignOut && (
               <button
                 type="button"

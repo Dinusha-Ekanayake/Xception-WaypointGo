@@ -38,11 +38,24 @@ test("the earliest day wins, whatever its state", async () => {
 test("every day is asked at once, across a month end, and a day that fails is skipped", async () => {
   const { asked, probe } = week({ "2026-10-31": "fails", "2026-11-01": { released: true, waiting: null } });
   assert.equal((await lookAhead("2026-10-30", probe))?.date, "2026-11-01");
-  assert.equal(asked.length, RUN_LOOK_AHEAD_DAYS);
+  assert.equal(asked.length, RUN_LOOK_AHEAD_DAYS + 1, "today and the week after");
   assert.equal(asked.at(-1), "2026-11-06");
 });
 
 test("nothing all week leaves the driver on today", async () => {
   const { probe } = week({});
   assert.equal(await lookAhead("2026-10-04", probe), null);
+});
+
+test("today's own trip, published and waiting for the loader, comes first so the driver can report at the depot", async () => {
+  const { probe } = week({
+    "2026-10-04": { released: false, waiting: { vehicleId: "VEH043", departure: "05:00:00" } },
+    "2026-10-05": { released: true, waiting: null },
+  });
+  assert.deepEqual(await lookAhead("2026-10-04", probe), { date: "2026-10-04", released: false, vehicleId: "VEH043", departure: "05:00:00" });
+});
+
+test("today already released is the run on screen, not a next trip", async () => {
+  const { probe } = week({ "2026-10-04": { released: true, waiting: null }, "2026-10-06": { released: true, waiting: null } });
+  assert.equal((await lookAhead("2026-10-04", probe))?.date, "2026-10-06");
 });

@@ -64,3 +64,20 @@ export function useEndedTrips(): [ReadonlySet<string>, (tripId: string) => void]
   }, []);
   return [ended, end];
 }
+
+const AT_DEPOT_KEY = (vehicleId: string, date: string) => `waypoint.driver.atDepot.${vehicleId}.${date}`;
+
+/**
+ * Whether the driver already said they are at the depot with this vehicle today
+ * (R-EXE-24), kept on the phone so a reload neither asks again nor sends twice.
+ */
+export function useAtDepot(vehicleId: string | null, date: string): [boolean, () => void] {
+  const [at, setAt] = useState(false);
+  useEffect(() => setAt(vehicleId ? stored<boolean>(AT_DEPOT_KEY(vehicleId, date), false) : false), [vehicleId, date]);
+  const mark = useCallback(() => {
+    if (!vehicleId) return;
+    store(AT_DEPOT_KEY(vehicleId, date), true);
+    setAt(true);
+  }, [vehicleId, date]);
+  return [at, mark];
+}

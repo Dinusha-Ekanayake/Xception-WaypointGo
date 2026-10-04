@@ -156,7 +156,9 @@ public final class LoadingViews {
       BigDecimal volumeCapM3,
       Optional<HolderView> holder,
       Optional<Instant> releasedAt,
-      long rowVersion) {}
+      long rowVersion,
+      /** R-LOD-12: when the vehicle's driver reported at the depot today, ready to load. */
+      Optional<Instant> driverAtDepotAt) {}
 
   public record ShortfallView(
       UUID shortfallId,

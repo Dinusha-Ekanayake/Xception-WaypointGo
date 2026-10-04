@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-10-04 - feat(store): delivery day picker reads as a calendar strip
+
+`feat/store-plan-date-strip` · @jv-ransika
+
+The order sheet's day strip wrapped "Mon 12 Oct" over two lines and repeated an "On track" pill on every tile. Each day is now a fixed tile (weekday, date number, month at the first day and each 1st) with one outlook dot, a key under the strip, the chosen day spelled out with its outlook above it, and arrows that page about a week. Accessible names, the "Delivery day" group and the busy-day warning are unchanged (`screens/order/DateStrip.tsx`).
+Verified: typecheck, build, wording and boundary tests, store outlook and order specs (11 of 11). `deliveries.spec.ts` "upcoming days wait for the plan" fails outside this change: the order dialog it opens has no "Close" button.
+
+---
+
 ## 2026-10-04 - fix: the demo clock reaches scheduled jobs and every role's screens
 
 `fix/demo-clock-reach` · @jv-ransika

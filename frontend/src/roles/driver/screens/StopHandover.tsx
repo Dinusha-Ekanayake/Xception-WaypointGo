@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Sheet } from "@shared/ui";
 import type { StoreAnswerWaiverReason } from "@shared/domain/types";
 import type { Stop } from "../data/run.ts";
@@ -57,6 +57,8 @@ export default function StopHandover({
   const phase = handoverPhase(stop, answer !== null, accepted);
 
   const [pinOpen, setPinOpen] = useState(false);
+  // Stable, because the PIN dialog closes itself on a timer that restarts whenever this changes.
+  const closePin = useCallback(() => setPinOpen(false), []);
   const [asking, setAsking] = useState<"continue" | "disagree" | null>(null);
   const [detail, setDetail] = useState("");
 
@@ -102,7 +104,7 @@ export default function StopHandover({
       />
       <DeliveryPinConfirmModal
         isOpen={pinOpen}
-        onClose={() => setPinOpen(false)}
+        onClose={closePin}
         onVerify={verify}
         isNight={isNight}
         stopName={stop.outletId}

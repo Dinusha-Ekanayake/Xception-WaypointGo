@@ -19,8 +19,6 @@ export type ShellControls = {
   onSignOut: () => void;
   /** The pending-writes badge and review list, or nothing when there is none. */
   sync: ReactNode;
-  /** The read-only MCP address on the shared host, for "Connect AI assistant". */
-  mcpUrl: string | null;
 };
 
 const ShellContext = createContext<ShellControls | null>(null);
@@ -38,7 +36,14 @@ const pill = "flex min-h-12 shrink-0 items-center gap-2 rounded-full bg-white sh
  * account holds several, and "Switch user". Labels hide below `lg`, where the
  * designs show icon buttons.
  */
-export function ShellActions({ compact = false }: { compact?: boolean }): React.JSX.Element | null {
+export function ShellActions({
+  compact = false,
+  switchUser = true,
+}: {
+  compact?: boolean;
+  /** False where the role has Sign out in its own account menu. */
+  switchUser?: boolean;
+}): React.JSX.Element | null {
   const shell = useShell();
   if (!shell) return null;
   return (
@@ -63,15 +68,17 @@ export function ShellActions({ compact = false }: { compact?: boolean }): React.
           ))}
         </div>
       )}
-      <button
-        type="button"
-        onClick={shell.onSignOut}
-        aria-label="Switch user"
-        className={cx(pill, compact ? "size-12 justify-center" : "justify-center px-3.5 max-lg:size-12 max-lg:px-0")}
-      >
-        <Icon name="switch-user" />
-        {!compact && <span className="text-[14px] text-go-muted max-lg:hidden">Switch user</span>}
-      </button>
+      {switchUser && (
+        <button
+          type="button"
+          onClick={shell.onSignOut}
+          aria-label="Switch user"
+          className={cx(pill, compact ? "size-12 justify-center" : "justify-center px-3.5 max-lg:size-12 max-lg:px-0")}
+        >
+          <Icon name="switch-user" />
+          {!compact && <span className="text-[14px] text-go-muted max-lg:hidden">Switch user</span>}
+        </button>
+      )}
     </div>
   );
 }
