@@ -2,7 +2,6 @@
 
 import { useRef, useState } from "react";
 import type { StoredEntry, SyncState } from "@shared/offline";
-import { friendlyError } from "@shared/api/problem";
 import { cx, useOverlay } from "@shared/ui";
 import { clock } from "@shared/wording";
 
@@ -146,7 +145,7 @@ function HeldChange({ entry, sync }: { entry: StoredEntry; sync: SyncState }): R
     <li className="flex flex-col gap-2 rounded-[20px] bg-go-canvas p-4">
       <span className="text-[15px] font-medium text-black">{describeKind(entry.kind)}</span>
       <span className="text-[13px] text-go-muted">
-        Saved {clock(new Date(entry.enqueuedAt))} · {entry.lastError ? friendlyError(new Error(entry.lastError)) : "refused"}
+        Saved {clock(new Date(entry.enqueuedAt))} · {entry.lastError ?? "refused"}
       </span>
       {error && (
         <span role="alert" className="text-[13px] text-go-danger-strong">

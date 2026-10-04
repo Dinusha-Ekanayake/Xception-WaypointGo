@@ -1,7 +1,6 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { ruleLabel } from "../wording/rules.ts";
 import { cx } from "./primitives.tsx";
 
 // The pop-up the designs draw at the bottom of the screen: a short confirmation
@@ -96,9 +95,9 @@ export function ToastProvider({ children }: { children: ReactNode }): React.JSX.
               {(message.rules ?? []).length > 0 && (
                 <p className="flex flex-wrap gap-1.5">
                   {message.rules!.map((rule) => (
-                    <span key={rule} className="rounded-go-chip bg-go-surface px-1.5 py-0.5 text-[11px] font-medium">
-                      {ruleLabel(rule)}
-                    </span>
+                    <code key={rule} className="rounded-go-chip bg-go-surface px-1.5 py-0.5 text-[11px] font-medium">
+                      {rule}
+                    </code>
                   ))}
                 </p>
               )}

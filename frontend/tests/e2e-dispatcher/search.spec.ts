@@ -12,6 +12,8 @@ test("Ctrl+K opens the search, shows grouped results, and Enter opens the matchi
   });
   await page.goto("/#/overview");
 
+  // The shortcut is live once the header has drawn.
+  await expect(page.getByRole("button", { name: "Search", exact: true })).toBeVisible();
   await page.keyboard.press("Control+k");
   const combobox = page.getByRole("combobox", { name: "Search orders, vehicles, trips, issues and depots" });
   await expect(combobox).toBeFocused();
@@ -34,6 +36,8 @@ test("Escape closes the search with no navigation", async ({ page }) => {
   await serve(page, { orders: [order(1, "CONFIRMED")] });
   await page.goto("/#/overview");
 
+  // The shortcut is live once the header has drawn.
+  await expect(page.getByRole("button", { name: "Search", exact: true })).toBeVisible();
   await page.keyboard.press("Control+k");
   const combobox = page.getByRole("combobox", { name: "Search orders, vehicles, trips, issues and depots" });
   await combobox.fill("ord");
@@ -70,6 +74,8 @@ test("choosing an order lands on Orders with its ref already in the kept search 
   await serve(page, { orders: [order(1, "CONFIRMED", { orderRef: "ORD-8800", outletId: "OUT099" })] });
   await page.goto("/#/overview");
 
+  // The shortcut is live once the header has drawn.
+  await expect(page.getByRole("button", { name: "Search", exact: true })).toBeVisible();
   await page.keyboard.press("Control+k");
   await page.getByRole("combobox", { name: "Search orders, vehicles, trips, issues and depots" }).fill("8800");
   await page.getByRole("option", { name: /ORD-8800/ }).click();

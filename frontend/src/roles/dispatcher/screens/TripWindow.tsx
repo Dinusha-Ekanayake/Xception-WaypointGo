@@ -197,7 +197,7 @@ export default function TripWindow({
                   {stop.share !== null && <span className="shrink-0 rounded-full bg-go-surface px-2 py-0.5 text-[11px] text-go-secondary">{`${stop.share}%`}</span>}
                   {onReorder && (
                     <span className="flex shrink-0 flex-col">
-                      <button type="button" aria-label={`Move ${stop.title} earlier`} disabled={index === 0} onClick={() => onReorder(index, index - 1)} className="relative px-1 text-[10px] leading-none text-go-secondary before:absolute before:-inset-2 disabled:opacity-30">
+                      <button type="button" aria-label={`Move ${stop.title} earlier`} disabled={index === 0} onClick={() => onReorder(index, index - 1)} className="relative px-1 text-[10px] leading-none text-go-secondary before:absolute before:-inset-x-2 before:inset-y-0 disabled:opacity-30">
                         ▲
                       </button>
                       <button
@@ -205,7 +205,7 @@ export default function TripWindow({
                         aria-label={`Move ${stop.title} later`}
                         disabled={index === stops.length - 1}
                         onClick={() => onReorder(index, index + 1)}
-                        className="relative px-1 text-[10px] leading-none text-go-secondary before:absolute before:-inset-2 disabled:opacity-30"
+                        className="relative px-1 text-[10px] leading-none text-go-secondary before:absolute before:-inset-x-2 before:inset-y-0 disabled:opacity-30"
                       >
                         ▼
                       </button>
