@@ -418,6 +418,31 @@ public final class PlanViews {
     }
   }
 
+  /**
+   * The stop order that fits a trip's delivery windows best (R-PLN-43), beside
+   * how the order asked for runs. Advice only: applying it is the dispatcher's
+   * own stop order, judged by the registry like any other.
+   */
+  public record StopOrderSuggestion(
+      List<UUID> orderIds,
+      boolean improves,
+      int lateStopsBefore,
+      int lateStopsAfter,
+      BigDecimal minutesLateBefore,
+      BigDecimal minutesLateAfter,
+      LocalTime finishBefore,
+      LocalTime finishAfter,
+      int minutesSaved,
+      String summary,
+      String source,
+      int ordersTried,
+      TripPreview preview) {
+
+    public StopOrderSuggestion {
+      orderIds = List.copyOf(orderIds);
+    }
+  }
+
   /** Whether a substitute vehicle could carry a trip, checked against the whole registry. */
   public record InterchangePreview(
       UUID tripId,

@@ -12,6 +12,7 @@ import type {
   SnapshotDetailView,
   SnapshotView,
   StopOrderProposal,
+  StopOrderSuggestion,
   TripPreview,
 } from "@shared/domain/types";
 import { addDays } from "@shared/wording";
@@ -97,6 +98,19 @@ export function useStopOrderProposal(
   void outOrderId;
   void inOrderId;
   return { available: false };
+}
+
+/**
+ * The stop order that fits the trip's windows best for the orders the dispatcher
+ * has now (R-PLN-43); null skips the read. Asked again whenever the orders change.
+ */
+export function useStopOrderSuggestion(tripId: string | null, orderIds: string[] | null, planId: string): Resource<StopOrderSuggestion> {
+  return useResource(
+    tripId === null || orderIds === null || orderIds.length < 2
+      ? null
+      : (signal) => request<StopOrderSuggestion>(`/api/plans/preview/suggested-sequence?trip=${q(tripId)}&orders=${orderIds.map(q).join(",")}`, { signal }),
+    `suggested|${planId}|${tripId ?? ""}|${(orderIds ?? []).join(",")}`,
+  );
 }
 
 /** A trip with its stops in the order asked, timed and checked; null skips the read. */

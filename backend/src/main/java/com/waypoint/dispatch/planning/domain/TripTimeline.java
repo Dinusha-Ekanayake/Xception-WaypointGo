@@ -193,6 +193,11 @@ public final class TripTimeline {
     return BigDecimal.valueOf(time.toSecondOfDay()).divide(BigDecimal.valueOf(60), 4, java.math.RoundingMode.HALF_UP);
   }
 
+  /** {@link #clock} for callers outside the package: a minute of the day as a clock time. */
+  public static LocalTime clockOf(BigDecimal minuteOfDay) {
+    return clock(minuteOfDay);
+  }
+
   /** A clock time for display; a minute past midnight is shown as 23:59 rather than wrapping. */
   static LocalTime clock(BigDecimal minuteOfDay) {
     long seconds = minuteOfDay.multiply(BigDecimal.valueOf(60)).setScale(0, java.math.RoundingMode.HALF_UP).longValue();
