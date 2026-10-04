@@ -120,7 +120,7 @@ export default function DecisionPanel({
         {(open || row.state === "kept") && <SecondaryButton onClick={() => setExplaining(true)}>Explain this decision</SecondaryButton>}
         {explaining && (
           <ExplainSheet
-            explanation={explainDeferral({ orderRef: order?.orderRef ?? null, outletId: order?.outletId ?? null, day: dayLabel(plan.serviceDate), allocation, places })}
+            explanation={explainDeferral({ orderRef: order?.orderRef ?? null, outletId: order?.outletId ?? null, day: dayLabel(plan.serviceDate), allocation, places, canPlace: open && editable })}
             onClose={() => setExplaining(false)}
           />
         )}

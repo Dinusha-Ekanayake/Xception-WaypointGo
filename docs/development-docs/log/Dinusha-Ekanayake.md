@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-04 - feat: the whole plan explains itself, and a kept order says it stays deferred
+
+`feat/explain-plan` · @Dinusha-Ekanayake
+
+"Explain this plan" on the Plan screen: what the plan carries (orders, trips, vehicles), the orders left off grouped by the rule that decided each, how many were decided by hand, the planner's own notes (second pass, cost stage, estimated times) and what comes next. Counted from the plan itself, frontend only, no model. An order that can no longer be placed (kept deferred, or a final plan) now reads "it stays deferred" instead of "checking every vehicle".
+Why: after generating, the dispatcher wants the plan in a few sentences, not only one order at a time.
+Verified: see the PR. On the VPS preview's published plan for Mon 5 Oct both pop-ups read correctly. `npm test` 271; `e2e-dispatcher/explain.spec.ts` covers both.
+
+---
+
 ## 2026-10-04 - feat: a deferred order explains itself (issue #267)
 
 `feat/267-explain-deferral` · @Dinusha-Ekanayake
