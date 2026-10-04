@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { ORDER_CUTOFF, OrderCommandKind, type IssueView, type OrderStatus, type OrderView, type RunSheetStopView } from "@shared/domain/types";
-import { Icon, Menu, Notice, Segmented, cx, usePersistentState, useToast } from "@shared/ui";
+import { Icon, Menu, Notice, Segmented, SkeletonRows, cx, usePersistentState, useToast } from "@shared/ui";
 import { addDays, clock, dayLabel } from "@shared/wording";
 import PageHeader from "../PageHeader.tsx";
 import { flow } from "../data/orders.ts";
@@ -223,7 +223,7 @@ export default function Orders({
             )}
           </div>
         )}
-        {loading && <p className="py-8 text-center text-[13px] text-go-secondary">Loading the orders…</p>}
+        {loading && <SkeletonRows label="Loading the orders…" />}
       </section>
 
       {chosen && <OrderDrawer line={line(chosen)} issues={issuesByOrder.get(chosen.orderId) ?? []} onClose={() => setSelected(null)} onOpenPlan={onOpenPlan} />}

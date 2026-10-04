@@ -121,7 +121,7 @@ export default function HandoverModal({
       <p className="text-[13px] text-go-muted">Your count is already on record. The PIN only shows the driver handed over here; you can close this at any time.</p>
       <div className="flex gap-2.5">
         {spent && (
-          <Button large disabled={busy || !h} onClick={() => void reissue()}>
+          <Button large disabled={!h} busy={busy} onClick={() => void reissue()}>
             {busy ? "Issuing…" : "New PIN"}
           </Button>
         )}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Icon, cx, useOverlay, useSheetDrag, type IconName } from "@shared/ui";
+import { Icon, PRESS, Spinner, cx, useOverlay, useSheetDrag, type IconName } from "@shared/ui";
 import type { SessionStatus, Temperature } from "@shared/domain/types";
 import { STATUS_LABEL } from "./data/manifest.ts";
 import { useT } from "./i18n.tsx";
@@ -69,6 +69,7 @@ export function BigButton({
   size = "m",
   fit = false,
   type = "button",
+  busy = false,
 }: {
   children: ReactNode;
   tone?: Tone;
@@ -79,21 +80,27 @@ export function BigButton({
   /** Sized to its label, as the side-by-side actions in the designs are. */
   fit?: boolean;
   type?: "button" | "submit";
+  /** The command is on its way: disabled, with a spinner before the label. */
+  busy?: boolean;
 }): React.JSX.Element {
   return (
     <button
       type={type}
       onClick={onClick}
-      disabled={disabled}
+      disabled={disabled || busy}
+      aria-busy={busy || undefined}
       className={cx(
         "flex items-center justify-center gap-2 px-[18px] font-medium disabled:cursor-not-allowed disabled:opacity-50",
+        busy && "disabled:cursor-wait disabled:opacity-70",
+        PRESS,
         fit ? "w-auto min-w-[170px] px-7" : "w-full",
         size === "l" ? "min-h-16 rounded-[22px] text-[20px]" : "min-h-12 rounded-full text-[15px] min-[1700px]:text-[17px]",
         TONE[tone],
       )}
     >
+      {busy && <Spinner />}
       {children}
-      {icon && <Icon name={icon} />}
+      {icon && !busy && <Icon name={icon} />}
     </button>
   );
 }
@@ -131,7 +138,7 @@ export function Ring({ percent }: { percent: number }): React.JSX.Element {
           strokeWidth="12"
           strokeDasharray={c}
           strokeDashoffset={c * (1 - percent / 100)}
-          className="transition-[stroke-dashoffset] duration-500"
+          className="transition-[stroke-dashoffset] duration-[250ms]"
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">

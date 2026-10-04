@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import ProfileButton from "./ProfileButton.tsx";
-import { CountBadge, Icon, Popover, Segmented, ShellActions, cx } from "@shared/ui";
+import { CountBadge, Icon, Popover, Segmented, ShellActions, cx, useMedia } from "@shared/ui";
 import { VIEWS, type ViewId } from "./navigation.ts";
 import type { DepotFilter } from "./data/scope.ts";
 
@@ -24,25 +24,31 @@ export type Badges = Partial<Record<ViewId, Badge>>;
 
 const FOLDED_KEY = "wp.dispatcher.sidebar.folded";
 
-/** Whether the sidebar is folded to the rail, remembered on this device only. */
+/**
+ * Whether the sidebar is folded to the rail, remembered on this device only.
+ * Until the dispatcher chooses, it follows the width: the rail below 1280px,
+ * where the full bar would crowd the screen, open from there up.
+ */
 export function useFolded(): [boolean, (folded: boolean) => void] {
-  const [folded, setFolded] = useState(false);
+  const [chosen, setChosen] = useState<boolean | null>(null);
+  const wide = useMedia("(min-width: 1280px)");
   useEffect(() => {
     try {
-      setFolded(window.localStorage.getItem(FOLDED_KEY) === "1");
+      const kept = window.localStorage.getItem(FOLDED_KEY);
+      if (kept !== null) setChosen(kept === "1");
     } catch {
-      // Storage refused (private window): the sidebar starts open.
+      // Storage refused (private window): the width decides.
     }
   }, []);
   const set = (next: boolean) => {
-    setFolded(next);
+    setChosen(next);
     try {
       window.localStorage.setItem(FOLDED_KEY, next ? "1" : "0");
     } catch {
       // Not remembered, still applied.
     }
   };
-  return [folded, set];
+  return [chosen ?? !wide, set];
 }
 
 export { depotOptions } from "./depotScope.tsx";
@@ -73,12 +79,19 @@ export default function Sidebar({
   scopeLabel?: string;
 }): React.JSX.Element {
   const rail = folded;
+  // The width animates only once the page has settled, so the first paint never slides.
+  const [settled, setSettled] = useState(false);
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => setSettled(true));
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
 
   return (
     <aside
       aria-label="Sidebar"
       className={cx(
         "hidden h-full shrink-0 flex-col bg-go-card pt-7 pb-6 lg:flex",
+        settled && "transition-[width] duration-200 ease-go-out",
         rail ? "w-[84px] items-center gap-[5px] px-3" : "w-[260px] gap-1.5 px-5",
       )}
     >

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useResource } from "@shared/api/useResource";
 import type { DeliveryRecordView, IssueView, OrderView, OutletView, PendingReceiptView } from "@shared/domain/types";
-import { Notice, cx, usePersistentState } from "@shared/ui";
+import { Notice, SkeletonRows, cx, usePersistentState } from "@shared/ui";
 import type { StoreGateway } from "../../data/gateway.ts";
 import { ORDER_STATUS, units, clock, dayLabel, depotToday, hhmm, temperatureLabel } from "../../data/format.ts";
 import { isOpenIssue } from "../../data/issues.ts";
@@ -208,9 +208,9 @@ export default function Deliveries({
       {range === "past" && (
         <section aria-label="Past 7 days" className="flex flex-col gap-3">
           {heading("Past 7 days", past.data ? `${pastRuns.length} ${pastRuns.length === 1 ? "delivery" : "deliveries"} · ${pastOpen} open ${pastOpen === 1 ? "issue" : "issues"}` : "")}
-          {past.error && <Notice tone="danger" title="Could not load the past week">{past.error.message}</Notice>}
+          {past.error && <Notice tone="danger" title="Could not load the past week" onRetry={past.refresh}>{past.error.message}</Notice>}
           {pastRuns.map(pastRow)}
-          {past.loading && !past.data && <Muted>Loading the past week…</Muted>}
+          {past.loading && !past.data && <SkeletonRows label="Loading the past week…" />}
           {past.data && pastRuns.length === 0 && <Muted>Nothing was delivered in the past week.</Muted>}
         </section>
       )}

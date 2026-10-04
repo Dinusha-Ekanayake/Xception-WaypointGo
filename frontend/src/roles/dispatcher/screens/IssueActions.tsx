@@ -61,6 +61,8 @@ export default function IssueActions({
   const [resolution, setResolution] = useState<(typeof RESOLUTIONS)[number]["value"]>("write_off");
   const [date, setDate] = useState(() => nextDay(depotToday()));
   const [outcome, setOutcome] = useState<{ action: IssueAction; error: Error | null } | null>(null);
+  // Which action is on its way, so only its button turns busy.
+  const [sending, setSending] = useState<IssueAction | null>(null);
 
   const actions = actionsFor(issue, userId);
   if (actions.length === 0) return outcome && !outcome.error ? <Notice tone="info" title={DONE[outcome.action]} live /> : null;
@@ -80,6 +82,7 @@ export default function IssueActions({
               : action === "close"
                 ? [IssueCommandKind.close, { issueId: id }]
                 : [IssueCommandKind.cancel, { issueId: id, reason: note.trim() }];
+    setSending(action);
     const sent = await run(kind, payload, issue.rowVersion);
     setOutcome({ action, error: sent.ok ? null : sent.error });
     if (sent.ok) {
@@ -93,18 +96,19 @@ export default function IssueActions({
   // Taking and closing decide nothing new, so they go at once; the rest ask why.
   const immediate = (action: IssueAction) => action === "take" || action === "close";
   const disabled = busy || !online;
+  const inFlight = (action: IssueAction) => busy && sending === action;
 
   return (
     <div className="flex flex-col gap-2">
       <div role="group" aria-label="Act on this issue" className="flex flex-wrap gap-2">
         {actions.map((action) =>
           action === actions[0] && action !== "cancel" ? (
-            <PrimaryButton key={action} disabled={disabled} onClick={() => (immediate(action) ? void send(action) : setOpen(action))}>
-              {LABEL[action]}
+            <PrimaryButton key={action} disabled={disabled} busy={inFlight(action) && immediate(action)} onClick={() => (immediate(action) ? void send(action) : setOpen(action))}>
+              {inFlight(action) && immediate(action) ? "Sending…" : LABEL[action]}
             </PrimaryButton>
           ) : (
-            <SecondaryButton key={action} disabled={disabled} onClick={() => (immediate(action) ? void send(action) : setOpen(action))}>
-              {LABEL[action]}
+            <SecondaryButton key={action} disabled={disabled} busy={inFlight(action) && immediate(action)} onClick={() => (immediate(action) ? void send(action) : setOpen(action))}>
+              {inFlight(action) && immediate(action) ? "Sending…" : LABEL[action]}
             </SecondaryButton>
           ),
         )}
@@ -143,8 +147,8 @@ export default function IssueActions({
             <input value={note} maxLength={500} onChange={(event) => setNote(event.target.value)} className={input} />
           </label>
           <div className="flex gap-2">
-            <PrimaryButton type="submit" disabled={disabled || note.trim().length < 3 || (open === "redelivery" && !date)}>
-              {LABEL[open]}
+            <PrimaryButton type="submit" disabled={disabled || note.trim().length < 3 || (open === "redelivery" && !date)} busy={inFlight(open)}>
+              {inFlight(open) ? "Sending…" : LABEL[open]}
             </PrimaryButton>
             <SecondaryButton onClick={() => setOpen(null)}>Back</SecondaryButton>
           </div>

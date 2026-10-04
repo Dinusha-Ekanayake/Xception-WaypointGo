@@ -72,8 +72,8 @@ export function ProblemSheet({
         </Field>
       )}
       {error && <Banner tone="bad" title={error} live />}
-      <ActionButton disabled={!ready || busy} onClick={() => choice && onSend(choice.problem(text.trim()))}>
-        {choice?.problem("").kind === "not-delivered" ? "Record this stop" : "Send to dispatch"}
+      <ActionButton disabled={!ready} busy={busy} onClick={() => choice && onSend(choice.problem(text.trim()))}>
+        {busy ? "Sending…" : choice?.problem("").kind === "not-delivered" ? "Record this stop" : "Send to dispatch"}
       </ActionButton>
       <OutlineButton onClick={onClose}>Close</OutlineButton>
     </Sheet>

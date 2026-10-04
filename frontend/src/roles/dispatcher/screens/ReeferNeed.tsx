@@ -1,6 +1,6 @@
 "use client";
 
-import { cx } from "@shared/ui";
+import { SkeletonRows, cx } from "@shared/ui";
 import { combine, dayNeeds, weekLabel } from "../data/forecast.ts";
 import { useForecast } from "../data/useForecast.ts";
 
@@ -26,7 +26,7 @@ export default function ReeferNeed({
   const needs = combined?.status === "READY" ? [...dayNeeds(combined.weeks, WEEKS)].sort((a, b) => a.week.key - b.week.key) : [];
 
   if (forecast.error && !combined) return <p className="text-[13px] text-go-secondary">The forecast could not be reached.</p>;
-  if (!combined || available === null) return <p className="text-[13px] text-go-secondary">Loading…</p>;
+  if (!combined || available === null) return <SkeletonRows rows={2} label="Loading…" />;
   if (needs.length === 0) return <p className="text-[13px] text-go-secondary">No forecast yet for the coming weeks. The weekly run makes one; Forecast shows when.</p>;
 
   const top = Math.max(available, ...needs.map((n) => n.refrigeratedNeeded), 1);

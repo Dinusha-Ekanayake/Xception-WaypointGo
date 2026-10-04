@@ -137,7 +137,7 @@ export default function StoreDetailsDialog({
         <Button tone="plain" onClick={onClose}>
           Cancel
         </Button>
-        <Button disabled={!details.data || commands.busy} onClick={() => void send(false)}>
+        <Button disabled={!details.data} busy={commands.busy} onClick={() => void send(false)}>
           {commands.busy ? "Saving…" : "Save"}
         </Button>
       </div>

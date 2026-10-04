@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import type { Resource } from "@shared/api/useResource";
 import type { VehicleView } from "@shared/domain/types";
-import { Card, CardHead, KpiCard, Pending, useToast } from "@shared/ui";
+import { Card, CardHead, KpiCard, Pending, SkeletonRows, useToast } from "@shared/ui";
 import PageHeader from "../PageHeader.tsx";
 import ReeferNeed from "./ReeferNeed.tsx";
 import FleetError from "./FleetError.tsx";
@@ -109,7 +109,7 @@ export default function Vehicles({
           {fleet.data ? (
             <FleetTable fleet={vehicles} status={status} trips={trips} fuel={fuel.data} onOpen={setOpenId} />
           ) : (
-            !fleet.error && <p className="py-6 text-center text-[13px] text-go-secondary">Loading the fleet…</p>
+            !fleet.error && <SkeletonRows label="Loading the fleet…" />
           )}
         </section>
 

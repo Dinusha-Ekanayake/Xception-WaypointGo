@@ -84,7 +84,7 @@ export default function ProfileDialog({
         <Button tone="plain" onClick={onClose}>
           Cancel
         </Button>
-        <Button disabled={!profile.data || commands.busy} onClick={() => void save()}>
+        <Button disabled={!profile.data} busy={commands.busy} onClick={() => void save()}>
           {commands.busy ? "Saving…" : "Save"}
         </Button>
       </div>

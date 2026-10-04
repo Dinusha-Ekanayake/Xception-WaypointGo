@@ -2,7 +2,7 @@
 
 import type { Sender } from "@shared/messaging/senders";
 import { useTripThread } from "@shared/messaging/useThread";
-import { TripThread, cx } from "@shared/ui";
+import { SecondaryButton, SkeletonRows, TripThread, cx } from "@shared/ui";
 import { BackIcon } from "../ui.tsx";
 
 // The trip's thread on the driver's phone (issue #136): what the dispatcher
@@ -53,11 +53,14 @@ export default function Messages({
         {tripId === null ? (
           <p className="py-8 text-center text-sm text-go-secondary">No trip today, so there is no one to message here.</p>
         ) : thread.loading && !thread.data ? (
-          <p className="py-8 text-center text-sm text-go-secondary">Loading messages…</p>
+          <SkeletonRows label="Loading messages…" />
+        ) : threadId === null && thread.error ? (
+          <div className="flex flex-col items-center gap-3 py-8">
+            <p className="text-center text-sm text-go-secondary">Messages could not be loaded. They load when the connection is back.</p>
+            <SecondaryButton onClick={thread.refresh}>Try again</SecondaryButton>
+          </div>
         ) : threadId === null ? (
-          <p className="py-8 text-center text-sm text-go-secondary">
-            {thread.error ? "Messages could not be loaded. They load when the connection is back." : "This trip has no messages yet."}
-          </p>
+          <p className="py-8 text-center text-sm text-go-secondary">This trip has no messages yet.</p>
         ) : (
           <TripThread threadId={threadId} online={online} variant="phone" sender={sender} keepsOffline accountId={accountId} />
         )}

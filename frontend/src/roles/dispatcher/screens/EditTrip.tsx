@@ -239,7 +239,7 @@ export default function EditTrip({
           <span className="text-go-danger-strong">{`${summary || `trip moves to ${moveTo}`}: a rule refuses it, see the checks`}</span>
         )
       }
-      accept={{ label: "Accept changes", disabled: actions.busy || !ready || !reasonReady(reason), onClick: () => void apply() }}
+      accept={{ label: "Accept changes", disabled: !ready || !reasonReady(reason), busy: actions.busy, onClick: () => void apply() }}
     />
   );
 }

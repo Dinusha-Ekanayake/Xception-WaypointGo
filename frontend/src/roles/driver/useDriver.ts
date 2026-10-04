@@ -1,13 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { newCommand } from "@shared/api/commands";
 import { ApiError } from "@shared/api/problem";
 import { useOnline } from "@shared/api/useResource";
 import type { HandoverEntryResult } from "@shared/domain/receipt";
 import { ExecutionCommandKind, ReceiptCommandKind, type FailureReason, type ReportedVehicleStatus } from "@shared/domain/types";
 import { discardUpload, useSync } from "@shared/offline";
-import { useShell } from "@shared/ui";
+import { useShell, withTransition } from "@shared/ui";
 import { keepTiles, num, tilesFor, type LatLon } from "@shared/ui/map";
 import { createGateway } from "./data/gateway.ts";
 import { queuedSender } from "@shared/messaging/senders";
@@ -125,11 +125,18 @@ export function useDriver(userId: string, depot: string | null = null) {
     });
   };
 
+  // A stop, its report or the map slides in; Home or the route slides back from them (UX polish 4).
+  const current = useRef(view.name);
+  current.current = view.name;
   const go = useCallback((next: View) => {
-    setError(null);
-    setNotice(null);
-    setView(next);
-    window.scrollTo({ top: 0 });
+    const detail = (name: View["name"]) => name === "stop" || name === "report" || name === "map";
+    const direction = detail(next.name) ? "forward" : (next.name === "home" || next.name === "route") && detail(current.current) ? "back" : "tab";
+    withTransition(() => {
+      setError(null);
+      setNotice(null);
+      setView(next);
+      window.scrollTo({ top: 0 });
+    }, direction);
   }, []);
 
   const { stops, act } = run;

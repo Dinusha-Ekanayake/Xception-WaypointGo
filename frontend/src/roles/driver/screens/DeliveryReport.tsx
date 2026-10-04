@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { FailureReasons, type FailureReason, type OutletView } from "@shared/domain/types";
 import { canDeliver, clock, missing, type RecordDraft, type Stop } from "../data/run.ts";
-import { ActionButton, Banner, Field, OutlineButton, Panel, input } from "../ui.tsx";
+import { ActionButton, Banner, Field, OutlineButton, Panel, PinnedAction, input } from "../ui.tsx";
 import ProofCapture, { EMPTY_PROOF, proofMissing, type ProofDraft } from "./ProofCapture.tsx";
 
 // Figma "Delivery report": expected against delivered, then confirm. In the
@@ -183,9 +183,11 @@ export default function DeliveryReport({
 
       {(problem || error) && <Banner tone="bad" title={problem ?? error ?? ""} live />}
 
-      <ActionButton disabled={busy} onClick={confirm}>
-        {failed ? "Record as not delivered" : "Confirm"}
-      </ActionButton>
+      <PinnedAction on="canvas">
+        <ActionButton busy={busy} onClick={confirm}>
+          {busy ? "Sending…" : failed ? "Record as not delivered" : "Confirm"}
+        </ActionButton>
+      </PinnedAction>
       {deliverable && (
         <OutlineButton
           onClick={() => {

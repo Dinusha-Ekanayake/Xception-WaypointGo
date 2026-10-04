@@ -88,6 +88,7 @@ The Figma file (pages 04 to 17) is the specification. Where the design shows som
   - The Next delivery card shows the driver and a predicted arrival once the trip leaves. Before that, it shows the next planned or confirmed delivery and the outlet's window.
   - Below 440 px the header hides the Store chip and uses smaller round buttons so the sync time fits. The bottom bar stays icon-only, as designed.
 - **All roles:**
+  - On a phone, the main action of a long form (the driver's Confirm and Save proof, the store's receipt) stays pinned at the bottom of the screen while the form scrolls under it.
   - Notifications arrive in every role's screens with a live count.
   - Push to a closed phone works only where the server has VAPID keys, and says so otherwise.
   - Messages (with voice notes) are per trip; threads for issues and orders are not built.
