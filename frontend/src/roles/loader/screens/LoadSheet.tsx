@@ -28,6 +28,7 @@ export default function LoadSheet({
   refreshKey,
   onBack,
   actingUserId,
+  accountId,
 }: {
   gateway: LoadingGateway;
   trip: ReadyTripView;
@@ -41,6 +42,8 @@ export default function LoadSheet({
   /** Back to the dock board, after a release or from the top bar. */
   onBack: () => void;
   actingUserId: string;
+  /** The device's account: messages are kept on it with no signal. */
+  accountId: string;
 }): React.JSX.Element {
   const tr = useT();
   const t = useTrip(gateway, trip.tripId, online, waiting, onQueued, actingUserId);
@@ -242,7 +245,7 @@ export default function LoadSheet({
         />
       )}
       {toast && <Toast message={toast} onDone={() => setToast(null)} />}
-      {talking && <TripMessages tripId={trip.tripId} vehicleId={m.vehicleId} online={online} onClose={() => setTalking(false)} />}
+      {talking && <TripMessages accountId={accountId} actingUserId={actingUserId} tripId={trip.tripId} vehicleId={m.vehicleId} online={online} onQueued={onQueued} onClose={() => setTalking(false)} />}
       {handingBack && (
         <HandBack
           vehicleId={m.vehicleId}

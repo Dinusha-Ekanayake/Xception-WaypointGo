@@ -6,10 +6,12 @@ import { useResource, type Resource } from "@shared/api/useResource";
 import type {
   CalendarAnswer,
   ComparisonView,
+  InterchangePreview,
   PlanPredictionsView,
   PlacementView,
   SnapshotDetailView,
   SnapshotView,
+  StopOrderProposal,
   TripPreview,
 } from "@shared/domain/types";
 import { addDays } from "@shared/wording";
@@ -61,14 +63,40 @@ export function usePlacements(planId: string, orderIds: string[]): Resource<Reco
   return useResource(load, key);
 }
 
-/** The trip a swap would leave, and every rule's verdict; null skips the read. */
-export function useSwapPreview(outOrderId: string | null, inOrderId: string | null, planId: string): Resource<TripPreview> {
+/**
+ * The trip a swap would leave, and every rule's verdict; null skips the read.
+ * With `sequence`, the trip's stops in that order after the swap.
+ */
+export function useSwapPreview(
+  outOrderId: string | null,
+  inOrderId: string | null,
+  planId: string,
+  sequence: string[] | null = null,
+): Resource<TripPreview> {
+  const orders = sequence && sequence.length > 0 ? `&orders=${sequence.map(q).join(",")}` : "";
   return useResource(
     outOrderId === null || inOrderId === null
       ? null
-      : (signal) => request<TripPreview>(`/api/plans/preview/swap?out=${q(outOrderId)}&in=${q(inOrderId)}`, { signal }),
-    `swap|${planId}|${outOrderId ?? ""}|${inOrderId ?? ""}`,
+      : (signal) => request<TripPreview>(`/api/plans/preview/swap?out=${q(outOrderId)}&in=${q(inOrderId)}${orders}`, { signal }),
+    `swap|${planId}|${outOrderId ?? ""}|${inOrderId ?? ""}|${orders}`,
   );
+}
+
+/**
+ * Placeholder for the swap window's "AI order": a stop order proposed for the
+ * trip after the swap. No module serves one yet, so this always answers "not
+ * available" and the window says so. To wire it, read the proposal here (for
+ * example a `GET /api/plans/preview/proposal?out=&in=` served by Intelligence)
+ * and return it; the window already offers it, applies it as the dispatcher's
+ * stop order and lets the server judge it like any other.
+ */
+export function useStopOrderProposal(
+  outOrderId: string | null,
+  inOrderId: string | null,
+): { available: false } | { available: true; proposal: Resource<StopOrderProposal> } {
+  void outOrderId;
+  void inOrderId;
+  return { available: false };
 }
 
 /** A trip with its stops in the order asked, timed and checked; null skips the read. */
@@ -108,5 +136,15 @@ export function usePredictions(planId: string | null): Resource<PlanPredictionsV
           }
         },
     `predictions|${planId ?? ""}`,
+  );
+}
+
+/** What moving a whole trip to another vehicle would do, judged before plan:Replan is sent; null skips the read. */
+export function useInterchange(planId: string, tripId: string, vehicleId: string | null): Resource<InterchangePreview> {
+  return useResource(
+    vehicleId === null
+      ? null
+      : (signal) => request<InterchangePreview>(`/api/plans/preview/interchange?trip=${q(tripId)}&vehicle=${q(vehicleId)}`, { signal }),
+    `interchange|${planId}|${tripId}|${vehicleId ?? ""}`,
   );
 }

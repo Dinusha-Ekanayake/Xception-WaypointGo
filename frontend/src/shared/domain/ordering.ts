@@ -84,6 +84,13 @@ export type DeliveryDateAnswer = {
   reasons: string[];
 };
 
+/**
+ * Mirrors `ordering/domain/Cutoff.TIME` (R-ORD-01): orders for a day close at
+ * 16:00, depot time, on the calendar day before it. For display only; the
+ * server decides on its own clock (R-ORD-07).
+ */
+export const ORDER_CUTOFF = "16:00";
+
 export type StatusChangeView = {
   from: OrderStatus | null;
   to: OrderStatus;

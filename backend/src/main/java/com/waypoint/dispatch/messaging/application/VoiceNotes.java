@@ -5,6 +5,7 @@ import com.waypoint.dispatch.messaging.domain.MessagePolicy;
 import com.waypoint.dispatch.messaging.infrastructure.JdbcThreadRepository;
 import com.waypoint.dispatch.platform.audit.AuditEntry;
 import com.waypoint.dispatch.platform.audit.AuditLog;
+import com.waypoint.dispatch.platform.config.MessagingProperties;
 import com.waypoint.dispatch.platform.db.Database;
 import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.platform.observability.Metrics;
@@ -34,8 +35,12 @@ public class VoiceNotes {
   private final AuditLog audit;
   private final Metrics metrics;
   private final Clock clock;
+  private final MessagingProperties properties;
 
-  VoiceNotes(Database database, JdbcThreadRepository threads, AuditLog audit, Metrics metrics, Clock clock) {
+  VoiceNotes(
+      Database database, JdbcThreadRepository threads, AuditLog audit, Metrics metrics, Clock clock,
+      MessagingProperties properties) {
+    this.properties = properties;
     this.database = database;
     this.threads = threads;
     this.audit = audit;
@@ -64,7 +69,9 @@ public class VoiceNotes {
             }
             return Optional.of(new Stored(voiceNoteId, true));
           }
-          threads.insertVoice(voiceNoteId, threadId, actor.userId(), type, content, durationMs, sha256(content), clock.now());
+          threads.insertVoice(
+              voiceNoteId, threadId, actor.userId(), type, content, durationMs, sha256(content), clock.now(),
+              clock.now().plus(properties.voiceRetention()));
           return Optional.of(new Stored(voiceNoteId, false));
         });
     if (stored.isEmpty()) {

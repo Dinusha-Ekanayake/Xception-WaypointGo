@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-04 - feat: dispatcher shell and screens follow Figma 05
+
+`feat/plan-figma` · @jv-ransika
+
+One sidebar on every screen, folded to the rail by the dispatcher and kept, with the depot scope in the rail too, and the account and Sign out inside Settings behind the picture (as every role has it); the sidebar is the only depot scope, Live included. Overview, Orders (current, upcoming, past, order drawer), Plan (three-column swap and edit windows, publish, compare, trip and deferred cards), Vehicles and Issues rebuilt to the Figma frames from existing reads; `plan:Swap` takes an optional stop order (`orderIds`, R-PLN-33) so the swap window swaps and reorders in one command, and "AI order" is a placeholder (`useStopOrderProposal`); success is a toast (`shared/ui/Toast.tsx`, `Popover.tsx`). What still waits on a read is listed in [FIGMA-GAP](../../issues/019-dispatcher-ui/FIGMA-GAP.md).
+Why: the screens and the left bar did not match the design and the bar changed shape between screens.
+Verified: `PlanningRunTest`, `ModuleBoundaryTest`, `PlanningDecisionsIntegrationTest` (11, PostgreSQL 16); `npm run typecheck`, `npm test` (193), `npm run build`; `playwright.dispatcher.config.ts` 44 of 45 after rebasing on `dev` (live map passes alone, flaky in the full run), with a new `shell.spec.ts`.
+Open: AI stop-order proposal (placeholder only), workshop list, resolved issues and a stop order proposal have no read; Live and Forecast specs are stale against their screens.
+
+---
+
 ## 2026-10-04 - feat: the Plan screen follows the design, with decisions recorded and saved plans
 
 `feat/plan-figma` · @jv-ransika

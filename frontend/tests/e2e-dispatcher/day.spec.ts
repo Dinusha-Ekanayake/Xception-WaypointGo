@@ -10,9 +10,8 @@ test("the order board follows each order from due to confirmed, and says where i
   await page.goto("/#/orders");
 
   const flow = page.getByRole("region", { name: "Order flow" });
-  await expect(flow).toContainText("Due4");
   await expect(flow).toContainText("Planned2");
-  await expect(flow).toContainText("Confirmed by the store manager1");
+  await expect(flow).toContainText("Confirmed by store1");
   await expect(page.getByText("1 order has no stock answer from the warehouse")).toBeVisible();
 
   const table = page.getByRole("table", { name: "Orders due" });
@@ -20,10 +19,18 @@ test("the order board follows each order from due to confirmed, and says where i
   await expect(first).toContainText("VEH043 · T1");
   await expect(first).toContainText("On the road");
   const third = table.getByRole("row").filter({ hasText: "ORD0092303" });
-  await expect(third).toContainText("Not on a plan");
+  await expect(third).toContainText("Deferred");
   await expect(third).toContainText("deferred 2×");
 
-  await page.getByRole("tab", { name: /Need attention/ }).click();
+  // A row opens the order with its day as a timeline (Figma 03d).
+  await first.click();
+  const drawer = page.getByRole("dialog", { name: "Order ORD0092301" });
+  await expect(drawer).toContainText("Timeline");
+  await expect(drawer).toContainText("Planned");
+  await page.keyboard.press("Escape");
+
+  await page.getByRole("button", { name: "All statuses" }).click();
+  await page.getByRole("menuitem", { name: "Need attention" }).click();
   await expect(table.getByRole("row")).toHaveCount(3);
   await page.getByLabel("Search orders").fill("2304");
   await expect(table.getByRole("row")).toHaveCount(2);
@@ -33,13 +40,16 @@ test("closing orders before the cutoff is refused with the rule", async ({ page 
   const desk = await serve(page);
   desk.refuse = { kind: "order:CloseForDay", status: 409, code: "CONSTRAINT_VIOLATED", detail: "The cutoff for this day has not passed", rules: ["R-ORD-01"] };
   await page.goto("/#/orders");
-  await page.getByRole("button", { name: `Close ${DEPOT}` }).click();
+  // Closing a day lives on that day's card under Upcoming (Figma 03b).
+  await page.getByRole("radio", { name: /Upcoming/ }).click();
+  const close = () => page.getByRole("button", { name: "Close orders" }).first().click().then(() => page.getByRole("menuitem", { name: `Close ${DEPOT}` }).click());
+  await close();
   const refusal = page.getByRole("alert").filter({ hasText: "Closing orders was refused" });
   await expect(refusal).toContainText("The cutoff for this day has not passed");
   await expect(refusal).toContainText("R-ORD-01");
 
-  await page.getByRole("button", { name: `Close ${DEPOT}` }).click();
-  await expect(page.getByRole("status").filter({ hasText: "are closed" })).toBeVisible();
+  await close();
+  await expect(page.getByRole("status").filter({ hasText: "Orders closed" })).toBeVisible();
   expect(desk.commands.at(-1)).toMatchObject({ kind: "order:CloseForDay", payload: { depotCode: DEPOT } });
 });
 

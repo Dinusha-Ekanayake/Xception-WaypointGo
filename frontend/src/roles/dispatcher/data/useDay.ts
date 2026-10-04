@@ -198,3 +198,39 @@ export function useReports(depots: string[], date: string): Resource<ReportMarkV
           ).flat();
   return useResource(load, `reports|${depots.join(",")}|${date}`, POLL_MS);
 }
+
+export type HistoryDay = { date: string; orders: OrderView[]; sheets: RunSheetView[] };
+
+/**
+ * Each past day's orders and run sheets, for the Overview summary. Read once,
+ * not polled: past days do not move, and a range of four weeks is many reads.
+ */
+export function useHistory(depots: string[], dates: string[]): Resource<HistoryDay[]> {
+  const load =
+    depots.length === 0 || dates.length === 0
+      ? null
+      : (signal: AbortSignal) =>
+          Promise.all(
+            dates.map(async (date) => {
+              const where = (depot: string) => `depot=${q(depot)}&date=${q(date)}`;
+              const [orders, sheets] = await Promise.all([
+                Promise.all(depots.map((depot) => request<OrderView[]>(`/api/orders/day?${where(depot)}`, { signal }))),
+                Promise.all(depots.map((depot) => request<RunSheetView[]>(`/api/execution/run-sheets?${where(depot)}`, { signal }))),
+              ]);
+              return { date, orders: orders.flat(), sheets: sheets.flat() };
+            }),
+          );
+  return useResource(load, `history|${depots.join(",")}|${dates.join(",")}`);
+}
+
+/** The week's planned fuel of every vehicle in view, in one read each; not polled, the week moves only when a plan is published. */
+export function useFleetFuel(vehicleIds: string[], date: string): Resource<Record<string, FuelView>> {
+  const load =
+    vehicleIds.length === 0
+      ? null
+      : async (signal: AbortSignal) =>
+          Object.fromEntries(
+            await Promise.all(vehicleIds.map(async (id) => [id, await request<FuelView>(`/api/plans/fuel?vehicle=${q(id)}&date=${q(date)}`, { signal })] as const)),
+          );
+  return useResource(load, `fleet-fuel|${vehicleIds.join(",")}|${date}`);
+}

@@ -129,6 +129,37 @@ class PlanningDecisionsIntegrationTest extends PlanningIntegrationSupport {
   }
 
   @Test
+  void aSwapCanCarryTheTripsNewStopOrderInOneCommand() throws Exception {
+    UUID a = demand("ambient");
+    UUID b = demand("ambient");
+    UUID c = demand("ambient");
+    UUID planId = UUID.fromString(generate(dispatcher, 200).get("planId").asText());
+    UUID withADeferred = nextPlan(send(dispatcher, defer(planId, 1L, a, "outlet closed for stocktake"), 200));
+    JsonNode before = draft();
+    String trip = allocation(before, c).get("tripId").asText();
+    assertEquals(trip, allocation(before, b).get("tripId").asText(), "b and c ride one trip");
+
+    JsonNode preview =
+        mapper.readTree(read(dispatcher, "/api/plans/preview/swap?out=" + b + "&in=" + a + "&orders=" + a + "," + c, 200));
+    assertEquals(a.toString(), preview.get("stops").get(0).get("orderId").asText(), "the given order is the one timed");
+
+    send(
+        dispatcher,
+        envelope(
+            "plan:Swap", 1L,
+            "{\"planId\":\"" + withADeferred + "\",\"outOrderId\":\"" + b + "\",\"inOrderId\":\"" + a
+                + "\",\"orderIds\":[\"" + a + "\",\"" + c + "\"],\"reason\":\"the new outlet first\"}"),
+        200);
+
+    JsonNode after = draft();
+    assertEquals("SERVED", allocation(after, a).get("decision").asText());
+    assertEquals("DEFERRED", allocation(after, b).get("decision").asText());
+    JsonNode tripAfter = null;
+    for (JsonNode t : after.get("trips")) if (t.get("tripId").asText().equals(allocation(after, a).get("tripId").asText())) tripAfter = t;
+    assertEquals(a.toString(), tripAfter.get("stops").get(0).get("orderId").asText(), "one command, both changes");
+  }
+
+  @Test
   void aSwapOfTwoServedOrdersIsRefused() throws Exception {
     UUID a = demand("ambient");
     UUID b = demand("ambient");

@@ -8,6 +8,8 @@ const CONTENT_SECURITY_POLICY = [
   scriptSrc,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
+  // A voice note plays back from the phone before it is sent (issue #136).
+  "media-src 'self' blob:",
   "font-src 'self' data:",
   "connect-src 'self'",
   "worker-src 'self'",

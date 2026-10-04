@@ -1,28 +1,42 @@
 "use client";
 
-import type { OrderView, PlanView } from "@shared/domain/types";
+import { useState } from "react";
+import type { OrderView, PlanView, VehicleView } from "@shared/domain/types";
 import { Pill } from "@shared/ui";
 import { dayLabel, ruleLabel } from "@shared/wording";
 import { useNextDelivery } from "../data/usePlanReads.ts";
+import DeferredOrderCard from "./DeferredOrderCard.tsx";
+import type { PlanActions } from "./planActions.ts";
 
 // Figma "Plan · 2 View plan", left column: every order the plan did not carry,
 // with why and when it is next offered a vehicle, so the day is judged with the
-// orders it leaves out in sight. A card opens that order in the Decide step.
+// orders it leaves out in sight. A card opens the order's details with its best
+// way out (Figma "Overlay · Deferred order").
 
 export default function DeferredColumn({
   plan,
   orders,
+  fleet,
+  editable,
+  actions,
   onOpen,
 }: {
   plan: PlanView;
   orders: Map<string, OrderView>;
+  fleet: VehicleView[];
+  editable: boolean;
+  actions: PlanActions;
+  /** Opens the order in the Decide step. */
   onOpen: (orderId: string) => void;
 }): React.JSX.Element {
+  const [cardId, setCardId] = useState<string | null>(null);
+  const card = cardId ? plan.allocations.find((a) => a.orderId === cardId) : undefined;
+  const cardOrder = cardId ? orders.get(cardId) : undefined;
   const next = useNextDelivery(plan.serviceDate);
   const left = plan.allocations.filter((allocation) => allocation.decision !== "SERVED");
 
   return (
-    <section aria-label="Deferred orders" className="flex w-full flex-col gap-2 rounded-[24px] bg-go-card p-4 shadow-go-card lg:w-[250px] lg:shrink-0">
+    <section aria-label="Deferred orders" className="flex w-full flex-col gap-2 rounded-go-panel bg-go-card p-3 lg:w-[258px] lg:shrink-0">
       <header className="flex items-center justify-between gap-2">
         <h2 className="text-[17px] font-medium text-go-ink">Deferred</h2>
         <Pill tone={left.length > 0 ? "danger" : "muted"}>{`${left.length} ${left.length === 1 ? "order" : "orders"}`}</Pill>
@@ -38,8 +52,8 @@ export default function DeferredColumn({
               <li key={allocation.orderId}>
                 <button
                   type="button"
-                  onClick={() => onOpen(allocation.orderId)}
-                  className="flex w-full flex-col gap-1 rounded-go-card border border-go-rule px-3 py-2 text-left"
+                  onClick={() => (order ? setCardId(allocation.orderId) : onOpen(allocation.orderId))}
+                  className="flex w-full flex-col gap-1 rounded-go-input border border-go-rule px-3 py-2 text-left hover:border-go-teal/50"
                 >
                   <span className="flex items-center justify-between gap-2 text-[13px] font-medium text-go-ink">
                     <span className="truncate">{order ? `${order.brandCode} ${order.districtName}` : allocation.orderId}</span>
@@ -57,6 +71,19 @@ export default function DeferredColumn({
             );
           })}
         </ul>
+      )}
+      {card && cardOrder && (
+        <DeferredOrderCard
+          plan={plan}
+          allocation={card}
+          order={cardOrder}
+          orders={orders}
+          fleet={fleet}
+          editable={editable}
+          actions={actions}
+          onDecide={() => (setCardId(null), onOpen(card.orderId))}
+          onClose={() => setCardId(null)}
+        />
       )}
     </section>
   );

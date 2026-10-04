@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-04 - feat(messaging): voice notes offline, on a shared loader device, and kept for 400 days
+
+`feat/136-messaging` · @tharushaudana
+
+Voice notes now work end to end. Deployed, the site had denied the microphone (`Permissions-Policy`) and the playback of a fresh recording (CSP `media-src`); both fixed. With no signal a message, voice included, is kept on the device and shown as waiting: the audio is uploaded first and the message waits for it (`waitsFor` in the shared queue and the service worker, MSG-10). The driver, the loader and the store all keep what they write. On a shared loader device a message is written as the loader who entered their PIN (MSG-12), and the thread reads in Sinhala and Tamil. Audio is cleared after 400 days, and the message stays (P-33, MSG-11).
+Why: voice notes were untested in a browser and would not have worked on the deployed site; the loader and the store could not write offline.
+Verified: `npm run typecheck`, `npm test` (206), `MessagePolicyTest`, `ModuleBoundaryTest`, `EventCatalogueTest`, `e2e-driver/voice.spec.ts` recording real audio with Chromium's fake microphone, and the loader and driver message specs. `MessagingIntegrationTest` (9) runs in CI.
+Open: recording on real phones (Android Chrome, iPhone Safari) once preview has it.
+
+---
+
 ## 2026-10-04 - feat(frontend): the trip's thread on every role's screen
 
 `feat/136-messaging` · @tharushaudana

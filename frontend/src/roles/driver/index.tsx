@@ -250,6 +250,7 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
 
         {talking && (
           <Messages
+            accountId={userId}
             tripId={d.tripId}
             vehicleId={run.vehicle?.vehicleId ?? null}
             online={online}

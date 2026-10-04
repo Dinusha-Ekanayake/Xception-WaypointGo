@@ -2,9 +2,9 @@
 
 import { useMemo, useState } from "react";
 import type { OrderView, PlanView, VehicleView } from "@shared/domain/types";
-import { Pill, cx } from "@shared/ui";
+import { Pill, Popover, cx } from "@shared/ui";
 import { capacityLabel, typeLabel } from "../data/fleet.ts";
-import { board, summarise, type TripLoad } from "../data/plan.ts";
+import { board, hhmm, summarise, type TripLoad } from "../data/plan.ts";
 import {
   NO_FILTER,
   addedByHand,
@@ -34,6 +34,7 @@ import PlanTrip from "./PlanTrip.tsx";
 // is never scored, and the card says so instead of showing a zero.
 
 export default function PlanBoard({
+  about = [],
   plan,
   fleet,
   orders,
@@ -43,6 +44,8 @@ export default function PlanBoard({
   actions,
   onOpenDecision,
 }: {
+  /** How the engine came to this plan, when there is something worth saying; opened from the board, not printed above it. */
+  about?: string[];
   plan: PlanView;
   fleet: VehicleView[];
   orders: Map<string, OrderView>;
@@ -92,27 +95,44 @@ export default function PlanBoard({
       </div>
 
       <div className="flex min-h-0 w-full flex-1 gap-[18px] max-lg:flex-col">
-        <DeferredColumn plan={plan} orders={orders} onOpen={onOpenDecision} />
+        <DeferredColumn plan={plan} orders={orders} fleet={fleet} editable={editable} actions={actions} onOpen={onOpenDecision} />
 
-        <section aria-label="Trips by vehicle" className="flex min-w-0 flex-1 flex-col rounded-[24px] bg-go-card px-5 pt-4 pb-3 shadow-go-card">
-          <BoardFilter filter={filter} brands={brandsOf(plan)} onChange={setFilter} />
+        <section aria-label="Trips by vehicle" className="flex min-w-0 flex-1 flex-col rounded-go-panel bg-go-card px-4 pt-3.5 pb-3">
+          <div className="flex items-start gap-2">
+            <div className="min-w-0 flex-1">
+              <BoardFilter filter={filter} brands={brandsOf(plan)} onChange={setFilter} />
+            </div>
+            {about.length > 0 && (
+              <Popover
+                label="How this plan was made"
+                align="right"
+                trigger="How it was planned"
+                className="rounded-full px-3 py-2 text-[13px] font-medium text-go-teal hover:bg-go-subtle"
+                panelClassName="flex w-[340px] flex-col gap-2 text-[13px] leading-snug"
+              >
+                {about.map((line) => (
+                  <p key={line}>{line}</p>
+                ))}
+              </Popover>
+            )}
+          </div>
           {shown.length === 0 ? (
             <p className="py-8 text-center text-[13px] text-go-secondary">
               {rows.length === 0 ? "This plan has no trips: no order could be placed." : "No trip matches this filter."}
             </p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[560px] border-separate border-spacing-y-2 text-left">
+            <div className="max-lg:overflow-x-auto">
+              <table className="w-full min-w-[440px] table-fixed border-separate border-spacing-y-2 text-left">
                 <thead>
-                  <tr className="text-[11px] tracking-wide text-go-secondary uppercase">
-                    <th scope="col" className="w-[150px] pb-1 font-medium">Vehicle</th>
-                    <th scope="col" className="pb-1 font-medium">Trip 1</th>
-                    <th scope="col" className="pb-1 font-medium">Trip 2</th>
+                  <tr className="text-[11px] tracking-[0.08em] text-go-secondary uppercase">
+                    <th scope="col" className="w-[132px] border-b border-go-rule pb-1.5 font-medium">Vehicle</th>
+                    <th scope="col" className="border-b border-go-rule pb-1.5 font-medium">Trip 1</th>
+                    <th scope="col" className="border-b border-go-rule pb-1.5 font-medium">Trip 2</th>
                   </tr>
                 </thead>
                 <tbody>
                   {shown.map((row) => (
-                    <tr key={row.vehicleId} className="align-top">
+                    <tr key={row.vehicleId} className="align-middle">
                       <th scope="row" className="pr-2 text-left font-normal">
                         <span className="block text-[15px] font-medium text-go-ink">{row.vehicleId}</span>
                         <span className="block text-xs text-go-secondary">
@@ -124,6 +144,7 @@ export default function PlanBoard({
                           {load ? (
                             <TripCell
                               load={load}
+                              vehicle={row.vehicle}
                               added={addedByHand(plan, load.trip)}
                               risk={trips?.get(load.trip.tripId)}
                               dim={!tripMatches(load.trip, filter)}
@@ -156,7 +177,7 @@ export default function PlanBoard({
 /** A KPI card as the plan is drawn: the label with a coloured tag at the right, a big number, a line under it. */
 function Kpi({ label, value, note, tag, tone = "danger" }: { label: string; value: React.ReactNode; note: string; tag?: string; tone?: "danger" | "warning" }): React.JSX.Element {
   return (
-    <div className="flex min-w-0 flex-1 flex-col gap-0.5 rounded-go-card-l bg-go-card px-[18px] py-3.5 shadow-go-card max-lg:min-w-[calc(50%-7px)]">
+    <div className="flex min-w-0 flex-1 flex-col gap-0.5 rounded-go-card-l bg-go-card px-[14px] py-3.5 max-lg:min-w-[calc(50%-7px)]">
       <p className="flex flex-wrap items-center justify-between gap-x-2 text-xs text-go-secondary">
         <span className="truncate">{label}</span>
         {tag && <span className={cx("shrink-0 font-medium", tone === "danger" ? "text-go-danger-strong" : "text-go-warning-text")}>{tag}</span>}
@@ -167,30 +188,82 @@ function Kpi({ label, value, note, tag, tone = "danger" }: { label: string; valu
   );
 }
 
-function TripCell({ load, added, dim, active, onOpen, risk }: { load: TripLoad; added: boolean; dim: boolean; active: boolean; onOpen: () => void; risk?: StopRisk }): React.JSX.Element {
+function TripCell({
+  load,
+  vehicle,
+  added,
+  dim,
+  active,
+  onOpen,
+  risk,
+}: {
+  load: TripLoad;
+  vehicle: VehicleView | undefined;
+  added: boolean;
+  dim: boolean;
+  active: boolean;
+  onOpen: () => void;
+  risk?: StopRisk;
+}): React.JSX.Element {
   const { trip } = load;
   const chilled = trip.temperature === "chilled";
+  const last = trip.stops[trip.stops.length - 1];
   return (
-    <button
-      type="button"
-      aria-pressed={active}
-      aria-label={`${trip.vehicleId} trip ${trip.tripNumber}: ${trip.brandCode} ${trip.districtName}, ${trip.stops.length} stops`}
-      onClick={onOpen}
-      className={`flex min-h-[58px] w-full flex-col gap-1 rounded-go-card border px-3 py-2 text-left ${dim ? "opacity-40" : ""} ${active ? "border-go-teal bg-go-success-tint" : "border-go-rule"}`}
-    >
-      <span className="flex items-center gap-2">
-        <Pill tone="success">{trip.brandCode}</Pill>
-        <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-go-ink">{trip.districtName}</span>
-        {added && <Pill tone="success">Added</Pill>}
-        {load.tight && <Pill tone="warning">Tight</Pill>}
-        {risk && riskTone(risk.percent) !== "low" && (
-          <Pill tone={riskTone(risk.percent) === "high" ? "danger" : "warning"}>{riskLabel(risk, "Late risk")}</Pill>
+    <div className="group relative">
+      <button
+        type="button"
+        aria-pressed={active}
+        aria-label={`${trip.vehicleId} trip ${trip.tripNumber}: ${trip.brandCode} ${trip.districtName}, ${trip.stops.length} stops`}
+        onClick={onOpen}
+        className={cx(
+          "flex min-h-[58px] w-full flex-col gap-1 rounded-go-input border px-3 py-2 text-left",
+          dim && "opacity-40",
+          active ? "border-[1.5px] border-go-teal bg-go-card" : "border-go-rule bg-go-subtle hover:border-go-teal/50",
         )}
-      </span>
-      <span className="flex items-center gap-1.5 text-xs text-go-secondary">
-        <span aria-hidden className={`size-2 rounded-full ${chilled ? "bg-go-info" : "bg-go-placeholder"}`} />
-        {chilled ? "Chilled" : "Ambient"} · {trip.stops.length} {trip.stops.length === 1 ? "stop" : "stops"}
-      </span>
-    </button>
+      >
+        <span className="flex items-center gap-2">
+          <Pill tone="success">{trip.brandCode}</Pill>
+          <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-go-ink">{trip.districtName}</span>
+          {added && <Pill tone="success">Added</Pill>}
+          {load.tight && <Pill tone="warning">Tight</Pill>}
+          {risk && riskTone(risk.percent) !== "low" && (
+            <Pill tone={riskTone(risk.percent) === "high" ? "danger" : "warning"}>{riskLabel(risk, "Late risk")}</Pill>
+          )}
+        </span>
+        <span className="flex items-center gap-1.5 text-xs text-go-secondary">
+          <span aria-hidden className={`size-2 rounded-full ${chilled ? "bg-go-info" : "bg-go-placeholder"}`} />
+          {chilled ? "Chilled" : "Ambient"} · {trip.stops.length} {trip.stops.length === 1 ? "stop" : "stops"}
+        </span>
+      </button>
+      <div
+        role="tooltip"
+        className="pointer-events-none invisible absolute bottom-full left-1/2 z-30 mb-2 flex w-[180px] -translate-x-1/2 flex-col gap-1 rounded-go-input bg-go-ink p-2.5 text-[10px] text-white opacity-0 shadow-go-float transition-opacity group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100"
+      >
+        <LoadBar label="Vol" value={load.volumePercent} />
+        <LoadBar label="Wt" value={load.weightPercent} />
+        <span>{`Departs ${hhmm(trip.plannedDeparture)}${last ? ` · last stop ${hhmm(last.plannedArrival)}` : ""}`}</span>
+        {vehicle && <span>{`${typeLabel(vehicle)} · ${capacityLabel(vehicle).split(" · ")[0]}`}</span>}
+        {load.tight && <span className="text-go-warning-tint">{`Tight · ${tightWord(load)}`}</span>}
+        <span className="text-white/60">Click for stops</span>
+      </div>
+    </div>
   );
+}
+
+function LoadBar({ label, value }: { label: string; value: number | null }): React.JSX.Element {
+  return (
+    <span className="flex items-center gap-2">
+      <span className="w-5">{label}</span>
+      <span className="h-1 flex-1 rounded-full bg-white/20">
+        <span className="block h-1 rounded-full bg-go-warning" style={{ width: `${Math.min(100, value ?? 0)}%` }} />
+      </span>
+      <span className="w-8 text-right font-medium">{value === null ? "-" : `${value}%`}</span>
+    </span>
+  );
+}
+
+function tightWord(load: TripLoad): string {
+  const v = load.volumePercent ?? 0;
+  const w = load.weightPercent ?? 0;
+  return v >= w ? `volume ${v}%` : `weight ${w}%`;
 }

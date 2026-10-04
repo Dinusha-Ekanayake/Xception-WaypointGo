@@ -291,8 +291,8 @@ public class PlanDataQuery implements PlanQuery {
   }
 
   /** The trip a swap would leave, and every rule's verdict, before the dispatcher commits to it. */
-  public TripPreview previewSwap(Actor actor, UUID outOrderId, UUID inOrderId) {
-    return read(actor.userId(), () -> swapPreview(outOrderId, inOrderId));
+  public TripPreview previewSwap(Actor actor, UUID outOrderId, UUID inOrderId, List<UUID> sequence) {
+    return read(actor.userId(), () -> swapPreview(outOrderId, inOrderId, sequence));
   }
 
   /** The trip with its stops in the order given, timed, and every rule's verdict on it. */
@@ -480,7 +480,7 @@ public class PlanDataQuery implements PlanQuery {
         p.checks().stream().map(PlanDataQuery::toView).toList());
   }
 
-  private TripPreview swapPreview(UUID outOrderId, UUID inOrderId) {
+  private TripPreview swapPreview(UUID outOrderId, UUID inOrderId, List<UUID> sequence) {
     RunRow row =
         plans.openDraftsWithOrder(outOrderId).stream().findFirst()
             .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "order " + outOrderId + " is in no open draft"));
@@ -492,7 +492,7 @@ public class PlanDataQuery implements PlanQuery {
           ErrorCode.CONSTRAINT_VIOLATED, "an order is no longer in the demand", List.of("PLN-07"));
     }
     PlanContext context = opened.built().problem().context();
-    return tripPreview(drafts.run(opened).proposeSwap(out, in, registry, context), context);
+    return tripPreview(drafts.run(opened).proposeSwap(out, in, sequence, registry, context), context);
   }
 
   private TripPreview sequencePreview(UUID tripId, List<UUID> orderIds) {
