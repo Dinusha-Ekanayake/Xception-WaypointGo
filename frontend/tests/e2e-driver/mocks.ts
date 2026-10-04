@@ -1,6 +1,8 @@
 import type { BrowserContext, Page, Route } from "@playwright/test";
 import type { RunSheetStopView } from "../../src/shared/domain/execution.ts";
 import type { NotificationView } from "../../src/shared/domain/notification.ts";
+import type { PostMessagePayload } from "../../src/shared/domain/messaging.ts";
+import { postToThread, threadRead, type ThreadMock } from "../thread-mocks.ts";
 
 // A small stand-in for Execution, in the shapes ExecutionViews.java serves and
 // with the server's own bookkeeping: one version per command, outcome by
@@ -69,6 +71,8 @@ export type Server = {
   notifications: NotificationView[];
   /** The store manager's handover PIN by order; absent until the store answers the receipt. */
   pins: Record<string, string>;
+  /** Trip threads (issue #136). */
+  threads: ThreadMock[];
   goOffline: (context: BrowserContext) => Promise<void>;
   goOnline: (context: BrowserContext) => Promise<void>;
 };
@@ -93,6 +97,7 @@ export async function serve(page: Page, stops: RunSheetStopView[] = [stop(1, "OU
     dropReads: false,
     notifications: [],
     pins: {},
+    threads: [],
     goOffline: async (context) => {
       server.offline = true;
       await context.setOffline(true);
@@ -106,6 +111,10 @@ export async function serve(page: Page, stops: RunSheetStopView[] = [stop(1, "OU
 
   const apply = (command: SentCommand): number | null => {
     server.commands.push(command);
+    if (command.kind === "message:Post") {
+      postToThread(server.threads, command.payload as unknown as PostMessagePayload, { name: SESSION.displayName, role: "driver" }, new Date().toISOString());
+      return null;
+    }
     const target = server.stops.find((s) => s.deliveryId === command.payload.deliveryId);
     if (!target || command.kind === "delivery:ReportFault") return null;
     const now = new Date().toISOString();
@@ -208,6 +217,8 @@ export async function serve(page: Page, stops: RunSheetStopView[] = [stop(1, "OU
       });
       return route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({ attachmentId: pathname.split("/").pop(), stored: true }) });
     }
+    const thread = method === "GET" ? threadRead(server.threads, new URL(request.url())) : undefined;
+    if (thread) return route.fulfill({ status: thread.status, contentType: "application/json", body: JSON.stringify(thread.body) });
     return route.fulfill({ status: 404, body: "not mocked" });
   });
   return server;

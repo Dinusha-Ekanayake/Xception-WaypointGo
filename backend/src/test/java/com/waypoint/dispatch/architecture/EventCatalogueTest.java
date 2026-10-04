@@ -59,7 +59,8 @@ class EventCatalogueTest {
           "catalogue.synced",
           "reference.version_published",
           "vehicle.status_changed",
-          "calendar.overridden");
+          "calendar.overridden",
+          "message.posted");
 
   @Test
   void everyEventTypeIsUniqueWellFormedAndCatalogued() throws Exception {

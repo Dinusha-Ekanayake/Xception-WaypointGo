@@ -320,6 +320,7 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-NOT-11 | When a trip is released, each outlet on it is told its stop number and expected arrival, so the store can schedule staff to receive (booklet p6, R-RCP-02). Routing version 2 | Booklet, issue #118 | Binding |
 | R-NOT-12 | A revised plan tells only what it changed. The drivers of the trips a driver would see differently (another vehicle, number, departure or stop time), the outlets reached on another trip or at another time, and the depot's loaders when any trip differs | `plan.revised` carries `changedTripIds` and `affectedOutletIds`, worked out by `PlanDiff` against the plan it replaced. An outlet whose order the revision drops is told by the deferral, not twice. An event written before these were recorded tells every trip, as it always did. Routing version 3 |
 | R-NOT-13 | A dispatcher's message about an order the plan could not serve goes to the store managers of its outlet, in the dispatcher's own words | `plan.store_contacted` routes to the outlet; the message and who sent it are on the event (rule 8). Routing version 3 |
+| R-NOT-14 | A message on a trip's thread is told to the depot's dispatcher whoever it is for, so every message appears under the dispatcher's bell, and to the loaders, the driver or the outlets only when it is for them. The author is never told (R-NOT-07). A report made from an issue is not told again (R-MSG-05). Routing version 4 | Product decision 2026-10-04 | Policy |
 
 ---
 
@@ -378,6 +379,19 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-PLT-07 | An audit row records the command, the target, a redacted outcome and, where the handler supplies it, a redacted state before. Snapshots are redacted by field name before they are written, bounded in size, and never carry a payload with personal data | Policy | Policy |
 
 ---
+
+## 7d. Messaging (issue #136)
+
+ADR-004: a conversation is a thread anchored to one subject; the first subject is a trip.
+
+| ID | Rule | Source | Status |
+| --- | --- | --- | --- |
+| R-MSG-01 | **Membership and visibility.** A trip's thread belongs to the depot's dispatcher (overseen, not merely granted), the depot's loaders, the vehicle's driver on the service date, and the store managers of its outlets. The dispatcher reads every message. Anyone else reads messages for everyone, messages addressed to them, and their own. Enforced by row-level security; a thread outside scope is 403 plus an audit row | Product decision 2026-10-04 | Policy |
+| R-MSG-02 | **Who writes to whom.** The dispatcher writes to the driver, the loaders, one outlet on the trip, or everyone. The driver writes to the dispatcher or to an outlet on the trip. A loader and a store manager write to the dispatcher only | Product decision 2026-10-04 | Policy |
+| R-MSG-03 | **A report is for the dispatcher alone.** A loader's, a driver's or a store's report, typed or spoken, is addressed to the dispatcher and seen by nobody else but its author. The dispatcher reads reports and does not make them | Product decision 2026-10-04 | Policy |
+| R-MSG-04 | **Posting window.** A trip's thread opens when its plan is published and takes posts until the end of the day after its service date; then it is read only | Our policy | Policy |
+| R-MSG-05 | **Reports from the field arrive once and are not told twice.** Every raised issue about a trip is posted on its thread as a report, once per event, naming the role that reported it. It publishes nothing, because `issue.raised` already notified the dispatcher | Product decision 2026-10-04 | Policy |
+| R-MSG-06 | **Voice notes.** A message or report may be a voice note: WebM, Ogg, MP4/AAC or MP3, at most 2 MB and 120 seconds, uploaded under the phone's id before the message and heard only by who may see that message, and by its author | Product decision 2026-10-04 | Policy |
 
 ## 8. Conflicts found
 

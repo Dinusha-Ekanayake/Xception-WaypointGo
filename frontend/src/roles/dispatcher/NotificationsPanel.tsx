@@ -11,9 +11,8 @@ import { usePush, type PushState } from "@shared/notifications/push";
 
 // Figma "05 Dispatcher Desktop": the notifications panel (189:23606) and the
 // Overview card (189:10739). Each row: a small grey line naming the kind and
-// when, the message, then "Mark as read". Figma also has "Reply"; there is no
-// messaging between roles to reply through, so it is left out rather than
-// shown doing nothing.
+// when, the message, then "Mark as read". A message on a trip's thread opens
+// the thread, where the dispatcher replies (issue #136).
 
 export function NotificationRows({
   items,
@@ -27,7 +26,7 @@ export function NotificationRows({
   const ctx = useDispatcherInbox();
   const [error, setError] = useState<string | null>(null);
   if (!ctx) return <></>;
-  const { inbox, setOpen, viewOf } = ctx;
+  const { inbox, setOpen, viewOf, openThread } = ctx;
   const now = new Date();
   const shown = limit ? items.slice(0, limit) : items;
   const markRead = (n: NotificationView) => {
@@ -42,6 +41,7 @@ export function NotificationRows({
         {shown.map((n) => {
           const fresh = isUnread(n);
           const view = viewOf(n);
+          const thread = n.subjectType === "thread" && n.subjectId ? n.subjectId : null;
           const tone = TONE_STYLE[toneOf(n)];
           return (
             <li
@@ -63,7 +63,20 @@ export function NotificationRows({
               <span className={cx("text-[15px] text-go-ink", fresh && "font-medium")}>{n.title}</span>
               <span className="text-[13px] text-go-secondary">{n.body}</span>
               <span className="flex gap-1 pt-1">
-                {view && (
+                {thread && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (fresh) markRead(n);
+                      setOpen(false);
+                      openThread({ threadId: thread });
+                    }}
+                    className="min-h-9 rounded-full bg-go-soft px-3.5 text-[13px] font-medium text-go-on-soft"
+                  >
+                    Reply
+                  </button>
+                )}
+                {!thread && view && (
                   <button
                     type="button"
                     onClick={() => {

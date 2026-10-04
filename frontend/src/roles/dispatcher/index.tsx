@@ -5,6 +5,7 @@ import { useOnline } from "@shared/api/useResource";
 import Sidebar, { CompactNav, type Badges } from "./Sidebar.tsx";
 import { InboxProvider } from "./inbox.tsx";
 import NotificationsPanel from "./NotificationsPanel.tsx";
+import ThreadSheet from "./ThreadSheet.tsx";
 import { useView } from "./navigation.ts";
 import { depotToday, depotsFor, scopeLabel, type DepotFilter } from "./data/scope.ts";
 import { useFleet } from "./data/fleet.ts";
@@ -67,6 +68,7 @@ export default function Dispatcher({
   return (
     <InboxProvider userId={userId}>
     <NotificationsPanel onNavigate={navigate} />
+    <ThreadSheet online={online} />
     <div className="flex min-h-dvh w-full flex-col bg-go-canvas font-go text-go-ink lg:h-dvh lg:flex-row">
       <CompactNav view={view} onNavigate={navigate} depots={scope} depotFilter={depotFilter} onDepotFilter={setDepotFilter} badges={badges} displayName={displayName} />
       <Sidebar

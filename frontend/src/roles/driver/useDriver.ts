@@ -10,6 +10,7 @@ import { discardUpload, useSync } from "@shared/offline";
 import { useShell } from "@shared/ui";
 import { keepTiles, num, tilesFor, type LatLon } from "@shared/ui/map";
 import { createGateway } from "./data/gateway.ts";
+import { messageSender } from "./data/messages.ts";
 import { usePositionRecorder } from "./data/position.ts";
 import { isFinished, nextStop, type Stop } from "./data/run.ts";
 import { DeliveryKind, useRun, type Outcome } from "./data/useRun.ts";
@@ -84,6 +85,8 @@ export function useDriver(userId: string) {
   const [view, setView] = useState<View>({ name: "home" });
   // GPS while a run is open (issue #161): a released trip with a stop still to do.
   const stillToDo = nextStop(run.stops);
+  // Messages on the trip's thread keep on the phone with no signal, like every driver write (issue #136).
+  const postMessage = useMemo(() => messageSender(gateway, online, sync.syncNow), [gateway, online, sync.syncNow]);
   const location = usePositionRecorder(gateway, run.vehicle?.vehicleId ?? null, stillToDo?.tripId ?? null, stillToDo !== null);
   const [dark, setDark] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -343,6 +346,8 @@ export function useDriver(userId: string) {
     afterSaved,
     report,
     reportStatus,
+    postMessage,
+    tripId: (stillToDo ?? run.stops[run.stops.length - 1])?.tripId ?? null,
     verifyHandover,
     dropUpload,
     openProblem: (target: Stop | "run") => setProblemFor(target),

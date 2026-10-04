@@ -1,4 +1,6 @@
 import type { Page, Route } from "@playwright/test";
+import type { PostMessagePayload } from "../../src/shared/domain/messaging.ts";
+import { postToThread, threadRead, type ThreadMock } from "../thread-mocks.ts";
 import type { RunSheetStopView, RunSheetView } from "../../src/shared/domain/execution.ts";
 import type { ReadyTripView } from "../../src/shared/domain/loading.ts";
 import type { OrderStatus, OrderView } from "../../src/shared/domain/ordering.ts";
@@ -71,6 +73,8 @@ const vehicle = (vehicleId: string) => ({
 export type Desk = {
   /** Queued generations (R-PLN-41), each done with the draft it wrote. */
   jobs: Array<{ jobId: string; result: ReturnType<typeof body> }>;
+  /** Trip threads (issue #136). */
+  threads?: ThreadMock[];
   orders: OrderView[];
   draft: PlanView | null;
   published: PlanView | null;
@@ -133,6 +137,9 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
   const apply = (command: Sent) => {
     const { payload } = command;
     if (command.kind.startsWith("issue:")) return applyIssue(desk, command);
+    if (command.kind === "message:Post") {
+      return postToThread(desk.threads ?? [], payload as unknown as PostMessagePayload, { name: SESSION.displayName, role: "dispatcher" }, new Date().toISOString());
+    }
     if (command.kind === "order:CloseForDay") return { alreadyClosed: false };
     if (command.kind === "plan:Generate") {
       // Planning v2 (R-PLN-41): Generate queues a job; the worker writes the draft and the screen follows the job.
@@ -275,6 +282,8 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
       }
       return route.fulfill(json({ commandId: command.commandId, kind: command.kind, replayed: false, result: apply(command) }));
     }
+    const thread = request.method() === "GET" ? threadRead(desk.threads ?? [], url) : undefined;
+    if (thread) return route.fulfill({ status: thread.status, contentType: thread.status === 200 ? "application/json" : "application/problem+json", body: JSON.stringify(thread.body) });
     return route.fulfill({ status: 404, body: "not mocked" });
   });
   return desk;

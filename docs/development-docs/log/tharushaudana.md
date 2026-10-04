@@ -4,6 +4,28 @@
 
 ---
 
+## 2026-10-04 - feat(frontend): the trip's thread on every role's screen
+
+`feat/136-messaging` · @tharushaudana
+
+One shared thread view (`shared/ui/TripThread.tsx`) with @mentions, reports and voice notes. Dispatcher: report signs on the Live timeline open the thread at the report, the bell's Reply opens it, and the trip page's "Send an update", "Notify store" and voice now write on it. Driver: Messages with a count of new ones; typed messages keep on the phone with no signal (MSG-10). Loader: Messages on the load sheet. Store: a message notification or a delivery's Message opens the thread. Detail in the [walkthrough](../../issues/136-messaging/WALKTHROUGH.md).
+Why: "Exception · click to open" opened nothing, and Notify store, Send an update and Voice were drawn but disabled.
+Verified: `npm run typecheck`, `npm test` (201), `npm run build`, browser suites: dispatcher 47, driver 22, loader 30, store 43, all passed.
+Open: calls; what each outlet was told per stop; the loader and the store write online only; threads for issues, orders and deliveries.
+
+---
+
+## 2026-10-04 - feat(messaging): a thread per trip for the dispatcher, loaders, driver and stores
+
+`feat/136-messaging` · @tharushaudana
+
+New module `messaging` (ADR-004, #135 decided): a trip's thread opens with its published plan. The dispatcher reads everything; the loaders, the driver and the stores read broadcasts, what is for them and their own (R-MSG-01). The dispatcher writes to any of them; everyone else writes to the dispatcher, and the driver also to its stops (R-MSG-02). Every raised issue about the trip lands on it as a report for the dispatcher alone, once (R-MSG-03, R-MSG-05). Messages and reports may be voice notes (R-MSG-06). `message.posted` reaches the dispatcher's bell for every message, and the others only for what is theirs (routing v4, R-NOT-14).
+Why: the timeline's warning signs opened nothing, and nobody could write to anyone; decisions of 2026-10-04 on #136.
+Verified: `MessagePolicyTest` (13), `ModuleBoundaryTest`, `EventCatalogueTest`; `MessagingIntegrationTest` runs in CI on PostgreSQL.
+Open: the role screens (next PR); threads for issues, orders and deliveries; how long voice notes are kept.
+
+---
+
 ## 2026-10-04 - feat: the dispatcher's Live tab as in the Figma frames
 
 `feat/dispatcher-live-figma` · @tharushaudana

@@ -4,7 +4,7 @@ import { request, requestAll } from "@shared/api/client";
 import { ApiError } from "@shared/api/problem";
 import { useResource, type Resource } from "@shared/api/useResource";
 import { addDays } from "@shared/wording";
-import type { DepotView, VehiclePositionView, DeferralView, FuelView, IssueHistoryView, IssueView, OrderView, PlanView, ReadyTripView, RunSheetView } from "@shared/domain/types";
+import type { ReportMarkView, DepotView, VehiclePositionView, DeferralView, FuelView, IssueHistoryView, IssueView, OrderView, PlanView, ReadyTripView, RunSheetView } from "@shared/domain/types";
 
 // The dispatcher's reads for a depot and a day. Each polls while the tab is
 // visible and online, so the screen follows the loaders, the drivers and any
@@ -180,4 +180,21 @@ export function useDepots(depots: string[]): Resource<DepotView[]> {
   const load =
     depots.length === 0 ? null : async (signal: AbortSignal) => Promise.all(depots.map((depot) => request<DepotView>(`/api/reference/depots/${q(depot)}`, { signal })));
   return useResource(load, `depots|${depots.join(",")}`);
+}
+
+/**
+ * The reports on the day's trip threads (issue #136): the warning signs on the
+ * timeline, each opening its thread at the report. Read with the run sheets.
+ */
+export function useReports(depots: string[], date: string): Resource<ReportMarkView[]> {
+  const load =
+    depots.length === 0
+      ? null
+      : async (signal: AbortSignal) =>
+          (
+            await Promise.all(
+              depots.map((depot) => request<ReportMarkView[]>(`/api/threads/reports?depot=${q(depot)}&date=${q(date)}`, { signal })),
+            )
+          ).flat();
+  return useResource(load, `reports|${depots.join(",")}|${date}`, POLL_MS);
 }

@@ -12,6 +12,8 @@ import DeliveryReport from "./screens/DeliveryReport.tsx";
 import DeliveryReportWaiting from "./screens/DeliveryReportWaiting.tsx";
 import DrivingModeScreen from "./screens/DrivingModeScreen.tsx";
 import HomeNoVehicle from "./screens/HomeNoVehicle.tsx";
+import Messages from "./screens/Messages.tsx";
+import { unreadMessages } from "./data/messages.ts";
 import RefusedUploads from "./screens/RefusedUploads.tsx";
 import RouteChangedBottomSheet from "./screens/RouteChangedBottomSheet.tsx";
 import RouteMap from "./screens/RouteMap.tsx";
@@ -45,6 +47,12 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
   const [formFor, setFormFor] = useState<string | null>(null);
   const [pinFor, setPinFor] = useState<Stop | null>(null);
   const [revised, setRevised] = useState<NotificationView | null>(null);
+  const [talking, setTalking] = useState(false);
+  const unread = unreadMessages(inbox.items);
+  const openMessages = () => {
+    setTalking(true);
+    if (unread.length > 0 && online) void inbox.markRead(unread.map((n) => n.notificationId)).catch(() => undefined);
+  };
   const seen = useRef<Set<string> | null>(null);
 
   // The delivery form opens from the waiting screen; a stop reported as not
@@ -239,10 +247,32 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
           </div>
         )}
 
+        {talking && (
+          <Messages
+            tripId={d.tripId}
+            vehicleId={run.vehicle?.vehicleId ?? null}
+            online={online}
+            dark={d.dark}
+            sender={d.postMessage}
+            onBack={() => setTalking(false)}
+          />
+        )}
+
         {/* What is degraded, said on screen (rule 9): an expired session, a saved copy, location, a refused file. */}
         <div className={cx("absolute inset-x-0 z-40 flex flex-col gap-2 px-5 pointer-events-none", header ? "top-[78px]" : "top-[84px]")}>
           {/* The shell's sync badge opens writes the server refused, for review; MCP is in Settings (#177). */}
           <div className="pointer-events-auto flex items-center justify-end gap-2 empty:hidden">
+            {(screen === "home" || screen === "route") && d.tripId && (
+              <button
+                type="button"
+                onClick={openMessages}
+                aria-label={unread.length > 0 ? `Messages, ${unread.length} new` : "Messages"}
+                className="flex min-h-10 items-center gap-2 rounded-full bg-go-card px-4 text-[14px] font-medium text-go-ink shadow-go-card"
+              >
+                Messages
+                {unread.length > 0 && <span className="min-w-5 rounded-full bg-go-danger px-1.5 text-center text-[12px] text-white">{unread.length > 99 ? "99+" : unread.length}</span>}
+              </button>
+            )}
             {shell?.sync}
           </div>
           {run.expired && !run.loading ? (

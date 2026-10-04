@@ -23,6 +23,7 @@ import ProfileDialog from "./screens/account/ProfileDialog.tsx";
 import StoreDetailsDialog from "./screens/account/StoreDetailsDialog.tsx";
 import { SideNav, TabBar, Toast, type Tab } from "./ui.tsx";
 import { NotificationsCard, NotificationsDrawer } from "./screens/Notifications.tsx";
+import TripMessages, { type OpenThread } from "./screens/TripMessages.tsx";
 import { useInbox } from "@shared/notifications/useInbox";
 import type { NotificationView } from "@shared/domain/types";
 
@@ -64,6 +65,7 @@ export default function Store({
   // Notifications for this store (issue #118); none in the sample.
   const inbox = useInbox(userId, !gateway.sample);
   const [inboxOpen, setInboxOpen] = useState(false);
+  const [thread, setThread] = useState<OpenThread | null>(null);
   const [syncing, setSyncing] = useState(false);
   useEffect(() => {
     if (!note) return;
@@ -131,6 +133,11 @@ export default function Store({
   };
   // A notification opens what it is about: the order, the deliveries or the issues.
   const openSubject = (n: NotificationView) => {
+    if (n.subjectType === "thread" && n.subjectId) {
+      setInboxOpen(false);
+      setThread({ threadId: n.subjectId });
+      return;
+    }
     setView({ kind: "tabs" });
     if (n.subjectType === "order" && n.subjectId) {
       setTab("orders");
@@ -290,6 +297,7 @@ export default function Store({
           setVehicle(vehicleId);
           setView({ kind: "track" });
         }}
+        onMessage={(tripId, vehicleId) => setThread({ tripId, vehicleId })}
       />
     );
   }
@@ -310,6 +318,7 @@ export default function Store({
         unread={inbox.unread}
         onNotifications={gateway.sample ? undefined : () => setInboxOpen(true)}
       />
+      {thread && <TripMessages open={thread} online={online} onClose={() => setThread(null)} />}
       {inboxOpen && <NotificationsDrawer inbox={inbox} onSubject={openSubject} onClose={() => setInboxOpen(false)} />}
       {warehouseDown && (
         <Notice tone="warning" live title="The warehouse is not answering">

@@ -60,6 +60,12 @@ test("anything about an issue reads urgent, whatever raised it; the rest keep th
   assert.equal(toneOf({ eventType: "plan.published", subjectType: null }), "info");
 });
 
+test("a report on a trip's thread reads urgent; any other message is news", () => {
+  assert.equal(toneOf({ eventType: "message.posted", subjectType: "thread", title: "Driver report · WP-K07" }), "urgent");
+  assert.equal(toneOf({ eventType: "message.posted", subjectType: "thread", title: "Nimal Perera · WP-K07" }), "info");
+  assert.equal(kindOf("message.posted").label, "Message");
+});
+
 test("the bell shows nothing at zero or unknown, the count, then 99+", () => {
   assert.equal(badgeText(null), null);
   assert.equal(badgeText(0), null);

@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { cx } from "@shared/ui";
+import { lateBy, tripOf, updateText, useOpenTripThread } from "../data/threads.ts";
 import { depotSummaries, progress, routeLabel, summaryText, type NeedCard, type Run } from "../data/liveDesk.ts";
 import { Action, Bar, Chip, NOT_AVAILABLE_NOTE, STATUS } from "./LiveParts.tsx";
 
@@ -11,6 +13,7 @@ import { Action, Bar, Chip, NOT_AVAILABLE_NOTE, STATUS } from "./LiveParts.tsx";
 export default function LiveNeeds({
   cards,
   runs,
+  date,
   closedOnTheirOwn,
   online,
   onOpenTrip,
@@ -19,13 +22,24 @@ export default function LiveNeeds({
 }: {
   cards: NeedCard[];
   runs: Run[];
+  date: string;
   closedOnTheirOwn: number;
   online: boolean;
   onOpenTrip: (vehicleId: string) => void;
   onOpenIssue: (issueId: string) => void;
   onViewAll: () => void;
 }): React.JSX.Element {
-  const unavailableShown = cards.some((c) => c.kind === "window" || c.kind === "offline");
+  const unavailableShown = cards.some((c) => c.kind === "offline");
+  const openThread = useOpenTripThread();
+  const [note, setNote] = useState<string | null>(null);
+  // "Notify store" opens the trip's thread written to the store, with the new expected arrival.
+  const notify = (vehicleId: string | null) => {
+    const run = runs.find((r) => r.day.vehicleId === vehicleId);
+    const next = run?.day.current ?? null;
+    if (!run || !next) return;
+    setNote(null);
+    void openThread(tripOf(run), { address: { to: "outlet", outletId: next.outletId }, body: updateText(next, lateBy(next, date)) }).then(setNote);
+  };
   return (
     <div className="flex w-full items-start gap-[18px] max-lg:flex-col">
       <section aria-label="Needs you" className="flex w-full flex-col gap-3 lg:max-w-[372px]">
@@ -53,7 +67,7 @@ export default function LiveNeeds({
               <span className="mt-1.5 flex gap-2">
                 {card.kind === "window" && (
                   <>
-                    <Action primary unavailable className="flex-1">Notify store</Action>
+                    <Action primary disabled={!online} className="flex-1" onClick={() => notify(card.vehicleId)}>Notify store</Action>
                     {card.vehicleId && <Action onClick={() => onOpenTrip(card.vehicleId!)}>Open trip</Action>}
                   </>
                 )}
@@ -77,6 +91,7 @@ export default function LiveNeeds({
             </li>
           ))}
         </ul>
+        {note && <p role="status" className="px-1 text-[11px] text-go-warning-text">{note}</p>}
         {unavailableShown && <p className="px-1 text-[11px] text-go-secondary">{NOT_AVAILABLE_NOTE}</p>}
         {!online && <p className="px-1 text-[11px] text-go-warning-text">Offline: actions are paused.</p>}
       </section>

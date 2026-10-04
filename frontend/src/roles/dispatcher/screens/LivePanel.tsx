@@ -6,12 +6,14 @@ import type { DeliveryRecordView } from "@shared/domain/types";
 import { cx } from "@shared/ui";
 import { depotClock, etaOf, limits, round1, runTitle, silentMinutes, type Run } from "../data/liveDesk.ts";
 import { useFuel } from "../data/useDay.ts";
+import { lateBy, tripOf, updateText, useOpenTripThread } from "../data/threads.ts";
+import { useState } from "react";
 import { Action, NOT_AVAILABLE_NOTE, STATUS } from "./LiveParts.tsx";
 
 // Figma "05 Live · map, selected" (189:21358 at risk, 189:21746 offline): the
 // vehicle's state, its trip from the depot to the stop ahead, its limits and
-// what to do next. Messages to the store and the driver are drawn as designed
-// but disabled until the backend can send them.
+// what to do next. Messages to the store and the driver open the trip's thread
+// (issue #136); calls are drawn as designed and disabled.
 
 /** The driver on the vehicle's current delivery, as Execution names them. */
 export function useDriver(run: Run | null): { name: string | null } {
@@ -56,6 +58,15 @@ export default function LivePanel({
   const load = facts.find((f) => f.label === "Load");
   const fuelUse = facts.find((f) => f.label === "Fuel quota");
   const stopsLeft = run.day.stops.length - run.day.done;
+  const openThread = useOpenTripThread();
+  const [note, setNote] = useState<string | null>(null);
+  const write = (to: "driver" | "outlet", withText: boolean) => {
+    setNote(null);
+    void openThread(tripOf(run), {
+      address: { to, outletId: to === "outlet" ? next?.outletId ?? null : null },
+      ...(withText ? { body: updateText(next, lateBy(next, date)) } : {}),
+    }).then(setNote);
+  };
 
   const box =
     run.status === "offline"
@@ -135,16 +146,17 @@ export default function LivePanel({
             {run.status === "offline" ? (
               <>
                 <Action unavailable>Call store</Action>
-                <Action primary unavailable>Send voice note</Action>
+                <Action primary onClick={() => write("driver", false)}>Send voice note</Action>
               </>
             ) : (
               <>
-                <Action unavailable>Voice message</Action>
-                <Action primary unavailable>Notify store</Action>
+                <Action onClick={() => write("outlet", false)}>Voice message</Action>
+                <Action primary onClick={() => write("outlet", true)}>Notify store</Action>
               </>
             )}
           </div>
-          <p className="text-[11px] text-go-secondary">{NOT_AVAILABLE_NOTE}</p>
+          {note && <p role="status" className="text-[11px] text-go-warning-text">{note}</p>}
+          {run.status === "offline" && <p className="text-[11px] text-go-secondary">{NOT_AVAILABLE_NOTE}</p>}
         </section>
       )}
 

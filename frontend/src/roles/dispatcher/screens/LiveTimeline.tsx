@@ -1,6 +1,7 @@
 "use client";
 
-import type { RunSheetStopView } from "@shared/domain/types";
+import type { ReportMarkView, RunSheetStopView } from "@shared/domain/types";
+import { REPORT_LABEL, ROLE_LABEL } from "@shared/messaging/thread";
 import { cx } from "@shared/ui";
 import { hhmm } from "../data/plan.ts";
 import { etaOf, progress, routeLabel, runTitle, type Run } from "../data/liveDesk.ts";
@@ -8,7 +9,9 @@ import { Bar, Chip, STATUS as LOOK } from "./LiveParts.tsx";
 
 // Figma "05 Live: timeline": one row per vehicle on a shared clock, a dot per
 // stop at its delivered or predicted arrival, a line at the time now. A dot is
-// a reading of the run sheet, so it moves as each stop closes.
+// a reading of the run sheet, so it moves as each stop closes. A report on the
+// trip's thread is the pulsing "Exception · click to open" sign at its time; it
+// opens the thread at that report (issue #136).
 
 
 const OFFSET_MINUTES = 330;
@@ -65,10 +68,32 @@ export function RoadCard({ run, onSelect }: { run: Run; onSelect: () => void }):
   );
 }
 
-export default function LiveTimeline({ runs, now, onOpen }: { runs: Run[]; now: Date; onOpen: (vehicleId: string) => void }): React.JSX.Element {
-  const days = runs.map((r) => r.day);
+/** The reports on a run's trips; a report made before the trips were known matches by vehicle. */
+export function reportsOf(run: Run, reports: ReportMarkView[]): ReportMarkView[] {
+  const trips = new Set(run.day.stops.map((s) => s.tripId));
+  return reports.filter((r) => trips.has(r.tripId) || (r.vehicleId !== null && r.vehicleId === run.day.vehicleId && trips.size === 0));
+}
+
+export default function LiveTimeline({
+  runs,
+  now,
+  onOpen,
+  reports = [],
+  onReport,
+}: {
+  runs: Run[];
+  now: Date;
+  onOpen: (vehicleId: string) => void;
+  reports?: ReportMarkView[];
+  onReport?: (report: ReportMarkView) => void;
+}): React.JSX.Element {
   const nowMinute = minutesOfInstant(now.toISOString());
-  const all = runs.flatMap((r) => [...r.day.stops.map(stopMinute), ...(r.trip?.releasedAt ? [minutesOfInstant(r.trip.releasedAt)] : [])]);
+  const marks = new Map(runs.map((r) => [r.day.vehicleId, reportsOf(r, reports)]));
+  const all = runs.flatMap((r) => [
+    ...r.day.stops.map(stopMinute),
+    ...(r.trip?.releasedAt ? [minutesOfInstant(r.trip.releasedAt)] : []),
+    ...(marks.get(r.day.vehicleId) ?? []).map((m) => minutesOfInstant(m.at)),
+  ]);
   const first = all.length ? Math.min(...all, nowMinute) : 8 * 60;
   const last = all.length ? Math.max(...all, nowMinute) : 18 * 60;
   // Fewer labels on a long day, so they never run into each other on a narrow screen.
@@ -164,6 +189,21 @@ export default function LiveTimeline({ runs, now, onOpen }: { runs: Run[]; now: 
                     </span>
                   );
                 })}
+                {(marks.get(day.vehicleId) ?? []).map((mark) => (
+                  <button
+                    key={mark.messageId}
+                    type="button"
+                    data-testid="report-sign"
+                    onClick={() => onReport?.(mark)}
+                    title={`Exception · click to open · ${REPORT_LABEL[mark.reportType]} · ${ROLE_LABEL[mark.authorRole]} · ${clockLabel(minutesOfInstant(mark.at))}`}
+                    aria-label={`${REPORT_LABEL[mark.reportType]} reported by the ${ROLE_LABEL[mark.authorRole].toLowerCase()} at ${clockLabel(minutesOfInstant(mark.at))}, open the messages`}
+                    className="absolute -top-3 z-30 flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full"
+                    style={{ left: at(minutesOfInstant(mark.at)) }}
+                  >
+                    <span aria-hidden className="absolute inset-0 animate-ping rounded-full bg-go-danger/30" />
+                    <span aria-hidden className="relative flex h-5 w-5 items-center justify-center rounded-full bg-go-danger text-[11px] font-bold leading-none text-white ring-2 ring-white">!</span>
+                  </button>
+                ))}
                 {run.status === "returning" && (
                   <span title="Back at depot" className="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 border-2 border-go-info bg-white" style={{ left: at(Math.max(...minutes) + 45) }} />
                 )}
@@ -182,6 +222,7 @@ export default function LiveTimeline({ runs, now, onOpen }: { runs: Run[]; now: 
         <li className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full border-2 border-dashed border-go-secondary" />Estimated (no signal)</li>
         <li className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 border-2 border-go-info" />Back at depot</li>
         <li className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-go-danger ring-2 ring-go-danger/25" />Exception</li>
+        <li className="flex items-center gap-1.5"><span className="flex h-3 w-3 items-center justify-center rounded-full bg-go-danger text-[8px] font-bold text-white">!</span>Report · click to open</li>
       </ul>
     </section>
   );
