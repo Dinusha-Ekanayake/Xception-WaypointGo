@@ -11,7 +11,7 @@ import { decidedCount, decisionRows } from "../data/planViews.ts";
 import { depotToday } from "../data/scope.ts";
 import { useCommand } from "../data/useCommand.ts";
 import { progressLabel, useGenerations } from "../data/useGeneration.ts";
-import { useNextOrderDay, useOrders, usePlans, waitingToPlan } from "../data/useDay.ts";
+import { useNextOrderDay, useOrders, useOrdersById, usePlans, waitingToPlan } from "../data/useDay.ts";
 import { useSnapshot, useSnapshots } from "../data/usePlanReads.ts";
 import { Retry } from "./Orders.tsx";
 import PlanBoard from "./PlanBoard.tsx";
@@ -78,7 +78,20 @@ export default function DepotPlan({
     setTab((current) => (current === "compare" ? "view" : current));
   }, [settled]);
   const plan = viewing && snapshot.data ? snapshot.data.plan : live;
-  const byId = useMemo(() => new Map<string, OrderView>((orders.data ?? []).map((order) => [order.orderId, order])), [orders.data]);
+  // A plan can name orders of other days: earlier ones carried into this run
+  // (R-ORD-16) and deferred ones. They are read by id, so every row shows its
+  // order ref, its size and its swap, never a bare id.
+  const dayIds = useMemo(() => new Set((orders.data ?? []).map((order) => order.orderId)), [orders.data]);
+  const missing = useMemo(() => {
+    if (!plan || !orders.data) return [];
+    const named = new Set([...plan.allocations.map((a) => a.orderId), ...plan.trips.flatMap((t) => t.stops.map((s) => s.orderId))]);
+    return [...named].filter((id) => !dayIds.has(id)).sort();
+  }, [plan, orders.data, dayIds]);
+  const others = useOrdersById(missing);
+  const byId = useMemo(
+    () => new Map<string, OrderView>([...(orders.data ?? []), ...(others.data ?? [])].map((order) => [order.orderId, order])),
+    [orders.data, others.data],
+  );
   const vehicles = fleet.data ?? [];
   const rows = plan ? decisionRows(plan, byId) : [];
   const { decided, total, open } = decidedCount(rows);
