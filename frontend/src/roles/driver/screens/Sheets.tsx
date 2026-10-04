@@ -229,7 +229,7 @@ export function ProblemSheet({
           <SlideRow key={c.id} label={c.label} disabled={busy || sending.current} onSend={() => sendChoice(c)} />
         ))}
       </div>
-      <p className="text-[14px] text-go-muted">Not in the cases above? Record a voice note to explain.</p>
+      <p className="text-[14px] text-go-muted">None of these? Record a voice note to explain.</p>
       <button
         type="button"
         onClick={() => void (recording ? sendVoice() : recorder.start())}
