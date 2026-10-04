@@ -22,6 +22,7 @@ const ICONS = {
   "gas-pump": { box: 15, inset: "5%" },
   "wrench-outline": { box: 16 },
   board: { box: 16 },
+  "table-columns": { box: 18, inset: "5%" },
   "dot-online": { box: 8 },
   // Loader (Figma "08 Loader · Phone").
   "arrow-left": { box: 22, inset: "5% 10.62% 5% 10.63%" },

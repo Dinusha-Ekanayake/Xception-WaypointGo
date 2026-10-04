@@ -45,8 +45,10 @@ public final class PlanCommands {
   /**
    * Trade a served order for a deferred one in a draft: {@code outOrderId} is
    * deferred and {@code inOrderId} takes its place on the trip, or nothing changes.
+   * {@code orderIds} is optional: the trip's stop order after the swap, every
+   * order of it once, when the dispatcher fixed one in the same window.
    */
-  public record SwapOrders(UUID planId, UUID outOrderId, UUID inOrderId, String reason) {}
+  public record SwapOrders(UUID planId, UUID outOrderId, UUID inOrderId, String reason, java.util.List<UUID> orderIds) {}
 
   /** Decide that deferred orders stay deferred, so the plan can be published. */
   public record KeepDeferred(UUID planId, java.util.List<UUID> orderIds, String reason) {}

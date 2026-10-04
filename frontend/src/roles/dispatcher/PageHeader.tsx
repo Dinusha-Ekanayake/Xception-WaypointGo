@@ -39,25 +39,28 @@ export default function PageHeader({
     <>
       <header className="flex w-full flex-wrap items-center gap-3">
         <div className="flex min-w-[240px] flex-1 flex-col gap-0.5">
-          <h1 className="text-[26px] md:truncate md:text-[30px] font-medium tracking-normal text-go-ink">{title}</h1>
+          <h1 className="text-[26px] font-medium tracking-normal text-go-ink md:truncate md:text-[30px]">{title}</h1>
           <p className="truncate text-sm text-go-secondary">{subtitle}</p>
         </div>
-        {tools}
-        {!quiet && (
-          <>
-            <ConnectionStatus online={online} lastSyncedAt={lastSyncedAt} offlineNote="read only" onSync={onSync} syncing={syncing} />
-            <button
-              type="button"
-              disabled={!inbox}
-              onClick={() => inbox?.setOpen(true)}
-              aria-label={unread > 0 ? `Notifications, ${unread} unread` : "Notifications"}
-              className="relative flex rounded-[21px] bg-go-card p-[11px] disabled:cursor-not-allowed"
-            >
-              <Icon name="bell" />
-              <CountBadge count={unread} />
-            </button>
-          </>
-        )}
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          {tools}
+          {!quiet && (
+            // The status cluster stays together: the bell never wraps away from the sync pill.
+            <span className="flex shrink-0 items-center gap-3">
+              <ConnectionStatus online={online} lastSyncedAt={lastSyncedAt} offlineNote="read only" onSync={onSync} syncing={syncing} />
+              <button
+                type="button"
+                disabled={!inbox}
+                onClick={() => inbox?.setOpen(true)}
+                aria-label={unread > 0 ? `Notifications, ${unread} unread` : "Notifications"}
+                className="relative flex rounded-[21px] bg-go-card p-[11px] disabled:cursor-not-allowed"
+              >
+                <Icon name="bell" />
+                <CountBadge count={unread} />
+              </button>
+            </span>
+          )}
+        </div>
       </header>
       {!online && (
         <Notice tone="warning" title="You are offline. The dispatcher screens are read only." live>

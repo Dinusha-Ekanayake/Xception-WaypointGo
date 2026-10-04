@@ -10,7 +10,8 @@ export type PlanActions = {
   busy: boolean;
   place: (target: Place) => Promise<boolean>;
   defer: (orderId: string, reason: string) => Promise<boolean>;
-  swap: (outOrderId: string, inOrderId: string, reason: string) => Promise<boolean>;
+  /** With `orderIds`, the trip's stop order after the swap, sent in the same command. */
+  swap: (outOrderId: string, inOrderId: string, reason: string, orderIds?: string[]) => Promise<boolean>;
   keepDeferred: (orderIds: string[], reason: string) => Promise<boolean>;
   lock: (orderId: string, locked: boolean) => Promise<boolean>;
   reorder: (tripId: string, orderIds: string[], reason: string) => Promise<boolean>;

@@ -21,7 +21,7 @@ export type * from "./events.ts";
 
 export { OutletCommandKind, VehicleCommandKind } from "./referencedata.ts";
 export { IdentityCommandKind, McpCommandKind } from "./identity.ts";
-export { OrderCommandKind } from "./ordering.ts";
+export { ORDER_CUTOFF, OrderCommandKind } from "./ordering.ts";
 export { PlanCommandKind } from "./planning.ts";
 export { LoadingCommandKind } from "./loading.ts";
 export { ExecutionCommandKind, FailureReasons, VehicleStatuses } from "./execution.ts";

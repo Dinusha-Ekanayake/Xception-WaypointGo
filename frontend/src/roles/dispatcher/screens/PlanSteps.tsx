@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Icon, PrimaryButton } from "@shared/ui";
 
 // Figma "Plan" step bar: Decide, View plan, Publish, with the step you are on
@@ -19,6 +20,8 @@ export default function PlanSteps({
   publish,
   decideDone,
   nextLabel,
+  actions,
+  published = false,
 }: {
   tab: Tab;
   onTab: (tab: Tab) => void;
@@ -29,6 +32,10 @@ export default function PlanSteps({
   decideDone: boolean;
   /** The button on the right; omitted on the last step. */
   nextLabel: string | null;
+  /** The step's own buttons in place of the next-step button (Publish: Publish plan, Edit plan). */
+  actions?: ReactNode;
+  /** The plan is out: every step shows done. */
+  published?: boolean;
 }): React.JSX.Element {
   const current = tab === "compare" ? 1 : ORDER.indexOf(tab);
   const notes: Record<Step, [string, string]> = {
@@ -39,12 +46,12 @@ export default function PlanSteps({
   const next = ORDER[Math.min(current + 1, ORDER.length - 1)]!;
 
   return (
-    <div className="relative w-full overflow-hidden rounded-[24px] bg-go-card p-2 shadow-go-card">
+    <div className="relative w-full overflow-hidden rounded-go-card-l bg-go-card p-2">
       <div className="flex w-full flex-wrap items-center gap-2">
         <div role="tablist" aria-label="Plan steps" className="flex flex-1 flex-wrap gap-1">
           {ORDER.map((id, index) => {
             const selected = id === tab || (tab === "compare" && id === "view");
-            const done = id === "decide" ? decideDone && tab !== "decide" : index < current;
+            const done = (id === "decide" ? decideDone && tab !== "decide" : index < current) || (published && !selected);
             return (
               <button
                 key={id}
@@ -56,7 +63,7 @@ export default function PlanSteps({
               >
                 <span
                   aria-hidden
-                  className={`flex size-7 shrink-0 items-center justify-center rounded-full text-[13px] font-medium ${selected || done ? "bg-go-ink text-go-card" : "bg-go-surface text-go-secondary"}`}
+                  className={`flex size-7 shrink-0 items-center justify-center rounded-full text-[13px] font-medium ${done ? "bg-go-teal text-go-card" : selected ? "bg-go-ink text-go-card" : "bg-go-surface text-go-secondary"}`}
                 >
                   {done ? <Icon name="check-white" /> : index + 1}
                 </span>
@@ -68,7 +75,7 @@ export default function PlanSteps({
             );
           })}
         </div>
-        {nextLabel && <PrimaryButton onClick={() => onTab(next)}>{nextLabel}</PrimaryButton>}
+        {actions ?? (nextLabel && <PrimaryButton onClick={() => onTab(next)}>{nextLabel}</PrimaryButton>)}
       </div>
       <span aria-hidden className="absolute bottom-0 left-0 h-[3px] bg-go-teal transition-[width]" style={{ width: `${((current + 1) / ORDER.length) * 100}%` }} />
     </div>

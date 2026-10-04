@@ -4,6 +4,7 @@ export { InstallApp } from "./InstallApp.tsx";
 export { McpButton, scopeWords } from "./McpConnect.tsx";
 export { Menu, type MenuItem } from "./Menu.tsx";
 export { Notice, Pending } from "./Notice.tsx";
+export { Popover } from "./Popover.tsx";
 export {
   Card,
   CardHead,
@@ -26,4 +27,5 @@ export type { Draft as ThreadDraft } from "./ThreadComposer.tsx";
 export { APP_LANGS, SettingsPanel, initialsOf, useDeviceLang, type AppLang } from "./SettingsPanel.tsx";
 export { Switch } from "./Switch.tsx";
 export { useMedia } from "./useMedia.ts";
+export { ToastProvider, useToast, type ToastMessage } from "./Toast.tsx";
 export { StructuredError, getErrorDefaults, type StructuredErrorProps } from "./StructuredError.tsx";

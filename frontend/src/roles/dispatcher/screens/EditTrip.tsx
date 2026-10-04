@@ -1,163 +1,239 @@
 "use client";
 
-import { useState } from "react";
-import type { OrderView, PlacementView, PlanView, VehicleView } from "@shared/domain/types";
-import { PrimaryButton, SecondaryButton } from "@shared/ui";
+import { useMemo, useState } from "react";
+import type { OrderView, PlanView, VehicleView } from "@shared/domain/types";
+import { Menu } from "@shared/ui";
 import { hhmm, ruleLabel } from "@shared/wording";
-import type { TripLoad } from "../data/plan.ts";
-import { usePlacements, useSequencePreview } from "../data/usePlanReads.ts";
-import CheckList from "./CheckList.tsx";
-import type { PlanActions } from "./planActions.ts";
+import { typeLabel } from "../data/fleet.ts";
+import { size } from "../data/orders.ts";
+import { after, type TripLoad } from "../data/plan.ts";
+import { lastServedText } from "../data/planViews.ts";
+import { checkChips, stopRows, tripTiles } from "../data/tripWindow.ts";
+import { useInterchange, usePlacements, useSequencePreview } from "../data/usePlanReads.ts";
+import { tripChecks } from "./PlanTrip.tsx";
 import ReasonPicker, { reasonReady } from "./ReasonPicker.tsx";
 import Refusal from "./Refusal.tsx";
+import TripWindow, { moveItem, sameOrder } from "./TripWindow.tsx";
+import type { PlanActions } from "./planActions.ts";
 
-// Figma "Plan · Edit trip": reorder a trip's stops, take an order off it, or move
-// an order to another trip, with the checks updating as the dispatcher changes
-// it. The new stop order is timed and judged by the server before it is sent, so
-// an order that would make a stop late shows the rule and cannot be saved.
+// Figma "Plan · Edit trip": the trip's stops in order with the deferred orders
+// beside them. A stop is dragged to a new place, dragged right to defer it, or
+// a deferred order is added; the server times and judges the trip before
+// anything is sent. Each change is one command on the draft, so the window
+// holds one change at a time: accept or undo it before the next. Moving the
+// whole trip to another vehicle also lives here, and is the only change a
+// published plan takes (it starts a revision).
 
-type Panel = { kind: "take" | "move"; orderId: string } | null;
+type Change =
+  | { kind: "order"; sequence: string[] }
+  | { kind: "defer"; orderId: string }
+  | { kind: "add"; orderId: string }
+  | { kind: "move"; vehicleId: string };
 
-function move<T>(list: T[], from: number, to: number): T[] {
-  const next = [...list];
-  const [item] = next.splice(from, 1);
-  next.splice(to, 0, item!);
-  return next;
-}
+const MAX_DEFERRED = 8;
 
 export default function EditTrip({
   plan,
   load,
   orders,
   fleet,
+  editable,
+  canReplan,
   actions,
-  onDone,
+  onClose,
 }: {
   plan: PlanView;
   load: TripLoad;
   orders: Map<string, OrderView>;
   fleet: VehicleView[];
+  /** A draft, online: stops can change. */
+  editable: boolean;
+  /** Online: the trip can move to another vehicle. */
+  canReplan: boolean;
   actions: PlanActions;
-  onDone: () => void;
+  onClose: () => void;
 }): React.JSX.Element {
   const { trip } = load;
-  const original = trip.stops.map((stop) => stop.orderId);
-  const [sequence, setSequence] = useState(original);
+  const vehicle = fleet.find((v) => v.vehicleId === trip.vehicleId);
+  const original = useMemo(() => trip.stops.map((stop) => stop.orderId), [trip.stops]);
+  const [change, setChange] = useState<Change | null>(null);
   const [reason, setReason] = useState("");
-  const [panel, setPanel] = useState<Panel>(null);
-  const [panelReason, setPanelReason] = useState("");
-  const [target, setTarget] = useState<string | null>(null);
 
-  const changed = sequence.some((id, index) => id !== original[index]);
-  const preview = useSequencePreview(changed ? trip.tripId : null, changed ? sequence : null, plan.planId);
-  const failed = preview.data?.checks.find((check) => !check.passed) ?? null;
-  const places = usePlacements(plan.planId, panel?.kind === "move" ? [panel.orderId] : []);
-  const fits = (places.data?.[panel?.orderId ?? ""] ?? []).filter((place) => place.feasible && !(place.vehicleId === trip.vehicleId && place.tripNumber === trip.tripNumber));
-  const chosen = fits.find((place) => `${place.vehicleId}/${place.tripNumber}` === target) ?? null;
-  const vehicleKind = (place: PlacementView) => fleet.find((v) => v.vehicleId === place.vehicleId)?.refrigerated ? "refrigerated" : "ambient";
+  const sequence = change?.kind === "order" ? change.sequence : original;
+  const reordered = change?.kind === "order" && !sameOrder(change.sequence, original);
+  const preview = useSequencePreview(reordered ? trip.tripId : null, reordered ? sequence : null, plan.planId);
+  const interchange = useInterchange(plan.planId, trip.tripId, change?.kind === "move" ? change.vehicleId : null);
+
+  const deferred = useMemo(
+    () =>
+      plan.allocations
+        .filter((a) => a.decision === "DEFERRED")
+        .map((a) => ({ allocation: a, order: orders.get(a.orderId) }))
+        .filter((d): d is { allocation: typeof d.allocation; order: OrderView } => d.order !== undefined)
+        .slice(0, MAX_DEFERRED),
+    [plan.allocations, orders],
+  );
+  const places = usePlacements(editable ? plan.planId : "", editable ? deferred.map((d) => d.allocation.orderId) : []);
+  const placeHere = (orderId: string) =>
+    (places.data?.[orderId] ?? []).find((place) => place.vehicleId === trip.vehicleId && place.tripNumber === trip.tripNumber) ?? null;
+
+  // The dispatcher's order, with the server's times for it once the preview has answered.
+  const timed = new Map((reordered && preview.data ? preview.data.stops : []).map((stop) => [stop.orderId, stop]));
+  const stopsNow = sequence.map((id) => timed.get(id) ?? trip.stops.find((s) => s.orderId === id)!).filter(Boolean);
+  const shownStops = change?.kind === "defer" ? stopsNow.filter((s) => s.orderId !== change.orderId) : stopsNow;
+  const chips = reordered && preview.data ? checkChips(preview.data.checks) : change?.kind === "move" && interchange.data ? checkChips(interchange.data.checks) : checkChips(tripChecks(plan, trip.tripId));
+
+  const ready =
+    change === null
+      ? false
+      : change.kind === "order"
+        ? reordered && preview.data?.feasible === true
+        : change.kind === "add"
+          ? placeHere(change.orderId)?.feasible === true
+          : change.kind === "move"
+            ? interchange.data?.feasible === true
+            : true;
+
+  const apply = async () => {
+    if (!change) return;
+    const why = reason.trim();
+    const ok =
+      change.kind === "order"
+        ? await actions.reorder(trip.tripId, change.sequence, why)
+        : change.kind === "defer"
+          ? await actions.defer(change.orderId, why)
+          : change.kind === "add"
+            ? await actions.place({ orderId: change.orderId, vehicleId: trip.vehicleId, tripNumber: trip.tripNumber, reason: why })
+            : await actions.moveTrip(trip.tripId, change.vehicleId, why);
+    if (ok) onClose();
+  };
+
+  const busyWithOther = (kind: Change["kind"]) => change !== null && change.kind !== kind;
+  const deferredOrder = change?.kind === "defer" ? orders.get(change.orderId) : undefined;
+  const others = fleet.filter((v) => v.vehicleId !== trip.vehicleId);
 
   return (
-    <div className="flex flex-col gap-3">
-      <ol aria-label="Stops, reorder them here" className="flex flex-col gap-1.5">
-        {sequence.map((orderId, index) => {
-          const stop = trip.stops.find((s) => s.orderId === orderId)!;
-          const order = orders.get(orderId);
-          return (
-            <li key={orderId} className="flex items-center gap-2 rounded-go-card bg-go-subtle px-3 py-2">
-              <span className="w-5 shrink-0 text-[13px] font-medium text-go-secondary">{index + 1}</span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-[13px] font-medium text-go-ink">{`${stop.outletId}${order ? ` · ${order.orderRef}` : ""}`}</span>
-                <span className="block text-xs text-go-secondary">{`${hhmm(stop.windowOpen)}-${hhmm(stop.windowClose)}`}</span>
-              </span>
-              <button type="button" aria-label={`Move ${stop.outletId} earlier`} disabled={index === 0} onClick={() => setSequence(move(sequence, index, index - 1))} className="rounded-full bg-go-card px-2 py-1 text-xs font-medium disabled:opacity-40">
-                Up
-              </button>
-              <button type="button" aria-label={`Move ${stop.outletId} later`} disabled={index === sequence.length - 1} onClick={() => setSequence(move(sequence, index, index + 1))} className="rounded-full bg-go-card px-2 py-1 text-xs font-medium disabled:opacity-40">
-                Down
-              </button>
-              <button type="button" onClick={() => setPanel({ kind: "take", orderId })} className="text-xs font-medium text-go-teal">
-                Take off
-              </button>
-              <button type="button" onClick={() => setPanel({ kind: "move", orderId })} className="text-xs font-medium text-go-teal">
-                Move
-              </button>
-            </li>
-          );
-        })}
-      </ol>
-
-      {changed && (
-        <div className="flex flex-col gap-2 rounded-go-card bg-go-subtle p-3">
-          {preview.error && <Refusal error={preview.error} what="the check of this stop order" />}
-          {preview.data && (
-            <p role="status" className={`text-[13px] font-medium ${preview.data.feasible ? "text-go-success" : "text-go-danger-strong"}`}>
-              {preview.data.feasible ? "Every stop is still on time." : `This order does not work: ${failed ? ruleLabel(failed.ruleId) : "a rule refuses it"}.`}
-            </p>
-          )}
-          {preview.data && !preview.data.feasible && failed && <p className="text-xs text-go-ink">{failed.reason}</p>}
-          {preview.data && <CheckList checks={preview.data.checks} />}
-          <ReasonPicker label="Why change the stop order?" value={reason} onChange={setReason} />
-          <PrimaryButton
-            disabled={actions.busy || !preview.data?.feasible || !reasonReady(reason)}
-            onClick={() => void actions.reorder(trip.tripId, sequence, reason.trim()).then((ok) => ok && onDone())}
-          >
-            Save stop order
-          </PrimaryButton>
-        </div>
-      )}
-
-      {panel?.kind === "take" && (
-        <div className="flex flex-col gap-2 rounded-go-card bg-go-subtle p-3">
-          <ReasonPicker label={`Why is ${orders.get(panel.orderId)?.orderRef ?? "this order"} taken off?`} value={panelReason} onChange={setPanelReason} />
-          <div className="flex gap-2">
-            <PrimaryButton disabled={actions.busy || !reasonReady(panelReason)} onClick={() => void actions.defer(panel.orderId, panelReason.trim()).then((ok) => ok && onDone())}>
-              Take it off the trip
-            </PrimaryButton>
-            <SecondaryButton onClick={() => setPanel(null)}>Cancel</SecondaryButton>
-          </div>
-        </div>
-      )}
-
-      {panel?.kind === "move" && (
-        <div className="flex flex-col gap-2 rounded-go-card bg-go-subtle p-3">
-          <p className="text-[13px] font-medium text-go-ink">{`Move ${orders.get(panel.orderId)?.orderRef ?? "this order"} to`}</p>
-          {places.error && <Refusal error={places.error} what="the places for this order" />}
-          {places.loading && !places.data && <p className="text-[13px] text-go-secondary">Checking every vehicle…</p>}
-          {places.data && fits.length === 0 && <p className="text-[13px] text-go-ink">It fits on no other trip.</p>}
-          <div role="radiogroup" aria-label="Trips it can move to" className="flex flex-col gap-1.5">
-            {fits.map((place) => (
-              <button
-                key={`${place.vehicleId}/${place.tripNumber}`}
-                type="button"
-                role="radio"
-                aria-checked={target === `${place.vehicleId}/${place.tripNumber}`}
-                onClick={() => setTarget(`${place.vehicleId}/${place.tripNumber}`)}
-                className={`rounded-go-card border px-3 py-2 text-left text-[13px] ${target === `${place.vehicleId}/${place.tripNumber}` ? "border-go-teal bg-go-success-tint" : "border-go-rule"}`}
-              >
-                <span className="font-medium text-go-ink">{`${place.vehicleId} · Trip ${place.tripNumber}`}</span>
-                <span className="block text-xs text-go-secondary">{`${vehicleKind(place)} · ${place.joins ? "joins the trip already planned" : "opens a new trip"}`}</span>
-              </button>
-            ))}
-          </div>
-          <ReasonPicker label="Why is it moving?" value={panelReason} onChange={setPanelReason} />
-          <div className="flex gap-2">
-            <PrimaryButton
-              disabled={actions.busy || !chosen || !reasonReady(panelReason)}
-              onClick={() =>
-                chosen &&
-                void actions
-                  .place({ orderId: panel.orderId, vehicleId: chosen.vehicleId, tripNumber: chosen.tripNumber as 1 | 2, reason: panelReason.trim() })
-                  .then((ok) => ok && onDone())
-              }
+    <TripWindow
+      label="Edit trip"
+      kicker={`Edit trip · ${plan.depotCode}`}
+      title={`${trip.vehicleId} Trip ${trip.tripNumber} · ${trip.brandCode} ${trip.districtName} · departs ${hhmm(trip.plannedDeparture)}`}
+      onClose={onClose}
+      banner={
+        canReplan ? (
+          <div className="flex flex-wrap items-center gap-3 rounded-go-input bg-go-surface px-4 py-2.5 text-[13px] text-go-ink">
+            <span className="min-w-0 flex-1">
+              {change?.kind === "move" ? `Moving the whole trip to ${change.vehicleId}` : "The whole trip can also move to another vehicle."}
+            </span>
+            <Menu
+              label="Move the trip to"
+              align="right"
+              disabled={busyWithOther("move")}
+              items={others.map((v) => ({ id: v.vehicleId, label: v.vehicleId, hint: typeLabel(v), selected: change?.kind === "move" && change.vehicleId === v.vehicleId }))}
+              onSelect={(vehicleId) => setChange({ kind: "move", vehicleId })}
+              className="rounded-full bg-go-card px-3.5 py-1.5 text-[13px] font-medium"
+              chevron
             >
-              Move the order
-            </PrimaryButton>
-            <SecondaryButton onClick={() => setPanel(null)}>Cancel</SecondaryButton>
+              Move trip to
+            </Menu>
+            {change?.kind === "move" && (
+              <button type="button" onClick={() => setChange(null)} className="text-[13px] font-medium text-go-teal">
+                Undo
+              </button>
+            )}
           </div>
-        </div>
-      )}
-
-      <SecondaryButton onClick={onDone}>Done</SecondaryButton>
-    </div>
+        ) : undefined
+      }
+      left={{
+        title: "Deferred orders",
+        hint: editable ? "Drag onto the trip or click Add" : "A published plan changes only by moving the trip",
+        body: (
+          <ul aria-label="Deferred orders" className="flex flex-col gap-2 overflow-y-auto">
+            {deferred.length === 0 && <li className="text-[13px] text-go-secondary">No order is deferred.</li>}
+            {deferred.map(({ allocation, order }) => {
+              const place = placeHere(order.orderId);
+              const fits = place?.feasible === true;
+              const why = place && !place.feasible ? place.bindingRule : null;
+              const adding = change?.kind === "add" && change.orderId === order.orderId;
+              return (
+                <li key={order.orderId} className={`flex flex-col gap-0.5 rounded-go-input border px-3 py-2 ${adding ? "border-go-teal bg-go-success-tint" : "border-go-rule"}`}>
+                  <span className="flex items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-go-ink">{`${order.outletId} ${order.districtName}`}</span>
+                    {editable && (fits || adding) && (
+                      <button
+                        type="button"
+                        disabled={busyWithOther("add")}
+                        onClick={() => setChange(adding ? null : { kind: "add", orderId: order.orderId })}
+                        className="rounded-full bg-go-ink px-2 py-0.5 text-[11px] font-medium text-go-card disabled:opacity-40"
+                      >
+                        {adding ? "Undo" : "+ Add"}
+                      </button>
+                    )}
+                  </span>
+                  <span className="text-xs text-go-secondary">{`${order.orderRef} · ${size(order)}`}</span>
+                  <span className="text-xs text-go-warning-text">{lastServedText(allocation.lastServedOn, plan.serviceDate)}</span>
+                  {editable && places.data && !fits && <span className="text-xs text-go-danger-strong">{`✕ ${why ? ruleLabel(why) : "Does not join this trip"}`}</span>}
+                </li>
+              );
+            })}
+          </ul>
+        ),
+      }}
+      tiles={tripTiles(shownStops, orders, vehicle)}
+      depart={{ place: `${plan.depotCode} depot`, time: hhmm(trip.plannedDeparture) }}
+      back={{ time: after(trip.plannedDeparture, trip.plannedMinutes) }}
+      stops={stopRows(plan, shownStops, orders, vehicle)}
+      onReorder={editable && !busyWithOther("order") ? (from, to) => setChange({ kind: "order", sequence: moveItem(sequence, from, to) }) : undefined}
+      onDefer={editable && change === null ? (orderId) => setChange({ kind: "defer", orderId }) : undefined}
+      right={{
+        title: "Will be deferred",
+        hint: "Moves to the next run, first on it. The reason goes to the store.",
+        body:
+          change !== null ? (
+            <div className="flex flex-col gap-3">
+              {deferredOrder && (
+                <div className="rounded-go-input border border-go-warning bg-go-warning-tint px-3 py-2.5">
+                  <p className="text-[14px] font-medium text-go-ink">{`${deferredOrder.outletId} ${deferredOrder.districtName}`}</p>
+                  <p className="text-xs text-go-secondary">{`${deferredOrder.orderRef} · ${size(deferredOrder)}`}</p>
+                  <button type="button" onClick={() => setChange(null)} className="mt-1 text-xs font-medium text-go-teal">
+                    Put it back
+                  </button>
+                </div>
+              )}
+              <ReasonPicker label="Why this change?" value={reason} onChange={setReason} />
+            </div>
+          ) : undefined,
+      }}
+      chips={chips}
+      footer={
+        preview.error ? (
+          <Refusal error={preview.error} what="the check of this stop order" />
+        ) : interchange.error ? (
+          <Refusal error={interchange.error} what="the check for this vehicle" />
+        ) : change === null ? (
+          "No changes yet"
+        ) : ready ? (
+          <span className="text-go-teal">{`1 change · ${describe(change, orders)}`}</span>
+        ) : change.kind === "order" && !reordered ? (
+          "The stop order is back as it was"
+        ) : (
+          <span className="text-go-danger-strong">{`${describe(change, orders)}: a rule refuses it, see the checks`}</span>
+        )
+      }
+      accept={{ label: "Accept changes", disabled: actions.busy || !ready || !reasonReady(reason), onClick: () => void apply() }}
+    />
   );
+}
+
+function describe(change: Change, orders: Map<string, OrderView>): string {
+  const name = (id: string) => orders.get(id)?.outletId ?? "the order";
+  switch (change.kind) {
+    case "order":
+      return "new stop order";
+    case "defer":
+      return `${name(change.orderId)} deferred`;
+    case "add":
+      return `${name(change.orderId)} added`;
+    case "move":
+      return `trip moves to ${change.vehicleId}`;
+  }
 }

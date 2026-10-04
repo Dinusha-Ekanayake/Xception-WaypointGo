@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { PlanCommandKind, type GenerationJobView, type OrderView, type PlanView } from "@shared/domain/types";
-import { Notice, PrimaryButton, SecondaryButton } from "@shared/ui";
+import { Notice, PrimaryButton, SecondaryButton, Segmented, useToast } from "@shared/ui";
 import { clock, dayLabel } from "@shared/wording";
 import PageHeader from "../PageHeader.tsx";
 import { useFleet } from "../data/fleet.ts";
@@ -33,18 +33,39 @@ type Body = { planVersion: number; served: number; deferred: number; unservable:
 
 export default function Plan({
   depots,
+  onDepot,
   date,
   onDate,
   online,
 }: {
-  /** The depots in view; with more than one the screen asks which to plan. */
+  /** The depots in the sidebar's scope; with more than one the screen asks which to plan. */
   depots: string[];
+  /** Narrows the sidebar's scope to one depot. */
+  onDepot: (depot: string) => void;
   date: string;
   onDate: (date: string) => void;
   online: boolean;
 }): React.JSX.Element {
-  const [chosen, setChosen] = useState<string | null>(null);
-  const depot = chosen && depots.includes(chosen) ? chosen : depots[0]!;
+  if (depots.length > 1) return <PickDepot depots={depots} onDepot={onDepot} date={date} online={online} />;
+  return <DepotPlan depot={depots[0]!} date={date} onDate={onDate} online={online} />;
+}
+
+/** A plan is one depot's day: with both depots in view, the dispatcher picks one. */
+function PickDepot({ depots, onDepot, date, online }: { depots: string[]; onDepot: (depot: string) => void; date: string; online: boolean }): React.JSX.Element {
+  return (
+    <>
+      <PageHeader title={`Plan ${dayLabel(date)}`} subtitle="One depot at a time" online={online} lastSyncedAt={null} quiet />
+      <section aria-label="Pick a depot" className="flex w-full max-w-[760px] flex-col items-start gap-3 rounded-go-panel bg-go-card p-6">
+        <h2 className="text-[19px] font-medium text-go-ink">Which depot are you planning?</h2>
+        <p className="text-[13px] text-go-secondary">A plan is one depot&apos;s day. Picking one narrows the sidebar to it; switch back to both there.</p>
+        <Segmented size="md" label="Depot to plan" value="" onChange={onDepot} options={depots.map((code) => ({ value: code, label: code }))} />
+      </section>
+    </>
+  );
+}
+
+function DepotPlan({ depot, date, onDate, online }: { depot: string; date: string; onDate: (date: string) => void; online: boolean }): React.JSX.Element {
+  const toast = useToast();
   const one = useMemo(() => [depot], [depot]);
   const plans = usePlans(one, date);
   const orders = useOrders(one, date);
@@ -54,9 +75,10 @@ export default function Plan({
   const [tab, setTab] = useState<Tab>("decide");
   const [focusId, setFocusId] = useState<string | null>(null);
   const [viewing, setViewing] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [failure, setFailure] = useState<{ error: Error; what: string } | null>(null);
   const [reviseReason, setReviseReason] = useState("");
+  const [confirming, setConfirming] = useState(false);
+  const [revising, setRevising] = useState(false);
   const snapshot = useSnapshot(viewing);
   const generation = useGeneration(depot, date);
   const planning = progressLabel(generation.following);
@@ -77,10 +99,9 @@ export default function Plan({
 
   /** Sends one command, then reads the day again whatever the answer: a refusal often means the plan moved. */
   const send = async (what: string, kind: string, payload: unknown, version: number | null, done: (body: Body) => string) => {
-    setNotice(null);
     setFailure(null);
     const sent = await run<Body>(kind, payload, version);
-    if (sent.ok) setNotice(done(sent.result));
+    if (sent.ok) toast(asToast(done(sent.result)));
     else setFailure({ error: sent.error, what });
     plans.refresh();
     orders.refresh();
@@ -98,8 +119,9 @@ export default function Plan({
     busy,
     place: (t: Place) => edit("placing the order", PlanCommandKind.override, { orderId: t.orderId, vehicleId: t.vehicleId, tripNumber: t.tripNumber, reason: t.reason }, (b) => `Placed on ${t.vehicleId} trip ${t.tripNumber}. ${draftNote(b)}`),
     defer: (orderId, reason) => edit("taking the order off", PlanCommandKind.defer, { orderId, reason }, (b) => `Order taken off its trip and deferred. ${draftNote(b)}`),
-    swap: (outOrderId, inOrderId, reason) => edit("swapping the orders", PlanCommandKind.swap, { outOrderId, inOrderId, reason }, (b) => `Swapped. ${draftNote(b)}`),
-    keepDeferred: (orderIds, reason) => edit("keeping the orders deferred", PlanCommandKind.keepDeferred, { orderIds, reason }, (b) => `${orderIds.length} ${orderIds.length === 1 ? "order kept" : "orders kept"} deferred. ${draftNote(b)}`),
+    swap: (outOrderId, inOrderId, reason, orderIds) =>
+      edit("swapping the orders", PlanCommandKind.swap, { outOrderId, inOrderId, reason, ...(orderIds ? { orderIds } : {}) }, (b) => `Swap approved${orderIds ? " with your stop order" : ""}. ${draftNote(b)}`),
+    keepDeferred: (orderIds, reason) => edit("keeping the orders deferred", PlanCommandKind.keepDeferred, { orderIds, reason }, (b) => `Kept deferred. ${orderIds.length === 1 ? "The store gets" : `${orderIds.length} stores get`} the reason at publish. ${draftNote(b)}`),
     lock: (orderId, locked) => edit(locked ? "locking the order" : "unlocking the order", locked ? PlanCommandKind.lock : PlanCommandKind.unlock, { orderId }, () => (locked ? "Locked: a regenerate keeps it on its trip." : "Unlocked.")),
     reorder: (tripId, orderIds, reason) => edit("changing the stop order", PlanCommandKind.reorderStops, { tripId, orderIds, reason }, (b) => `Stop order saved. ${draftNote(b)}`),
     moveTrip: (tripId, vehicleId, reason) =>
@@ -111,7 +133,7 @@ export default function Plan({
   const finish = async (job: GenerationJobView, keepDecisions: boolean) => {
     try {
       const done = await generation.follow(job);
-      if (done.status === "DONE" && done.result) setNotice(`${keepDecisions ? "Planned again, keeping your decisions. " : ""}${draftNote(done.result)}`);
+      if (done.status === "DONE" && done.result) toast(asToast(`${keepDecisions ? "Planned again, keeping your decisions. " : ""}${draftNote(done.result)}`));
       else setFailure({ error: new Error(done.error ?? "Planning stopped without a plan."), what: "generating the plan" });
     } catch (e) {
       setFailure({ error: e instanceof Error ? e : new Error(String(e)), what: "generating the plan" });
@@ -123,7 +145,6 @@ export default function Plan({
     setTab("decide");
   };
   const generate = async (keepDecisions: boolean) => {
-    setNotice(null);
     setFailure(null);
     const sent = await run<GenerationJobView>(PlanCommandKind.generate, { depotCode: depot, serviceDate: date, keepDecisions }, null);
     if (!sent.ok) {
@@ -141,16 +162,16 @@ export default function Plan({
     void finish(resumed, false);
   }, [resumed]);
 
-  const saveSnapshot = () => edit("saving the plan", PlanCommandKind.saveSnapshot, {}, () => "Snapshot saved.");
+  const saveSnapshot = () => edit("saving the plan", PlanCommandKind.saveSnapshot, {}, () => "Snapshot saved. Open it from the plan menu.");
   const restore = (snapshotId: string, label: string) =>
     edit("returning to the saved plan", PlanCommandKind.restoreSnapshot, { snapshotId }, (b) => `Returned to ${label}. ${draftNote(b)}`).then((ok) => ok && (setViewing(null), setTab("decide")));
 
   const publish = () =>
-    live && send("publishing the plan", PlanCommandKind.publish, { planId: live.planId }, live.rowVersion, () => (state.stage === "draft" && state.revises ? `Update sent for ${depot} on ${dayLabel(date)}. Only the drivers and stores it changes are told.` : `Plan for ${depot} on ${dayLabel(date)} is published. Loaders and drivers now work from it.`)).then((ok) => ok && setTab("view"));
+    live && send("publishing the plan", PlanCommandKind.publish, { planId: live.planId }, live.rowVersion, () => (state.stage === "draft" && state.revises ? `Update sent for ${depot} on ${dayLabel(date)}. Only the drivers and stores it changes are told.` : `Plan for ${depot} on ${dayLabel(date)} is published. Loaders and drivers now work from it.`)).then((ok) => ok && (setConfirming(false), setTab("view")));
 
   const revise = () =>
     live &&
-    send("revising the plan", PlanCommandKind.revise, { planId: live.planId, reason: reviseReason.trim() }, live.rowVersion, (b) => `Revision draft version ${b.planVersion}: ${counts(b)}. Nothing changes for loaders or drivers until it is sent.`).then((ok) => ok && (setReviseReason(""), setTab("decide")));
+    send("revising the plan", PlanCommandKind.revise, { planId: live.planId, reason: reviseReason.trim() }, live.rowVersion, (b) => `Revision draft version ${b.planVersion}: ${counts(b)}. Nothing changes for loaders or drivers until it is sent.`).then((ok) => ok && (setReviseReason(""), setRevising(false), setTab("decide")));
 
   const stage =
     state.stage === "none" ? "No plan yet" : state.stage === "draft" ? `Draft version ${state.plan.planVersion}${state.revises ? " · revises the published plan" : ""}` : `Published · version ${state.plan.planVersion}`;
@@ -160,9 +181,25 @@ export default function Plan({
   const cost = viewing ? null : costNote(plan?.cost);
   const viewingSaved = viewing !== null ? saved.data?.find((s) => s.snapshotId === viewing) : undefined;
   const decide = (orderId: string) => (setFocusId(orderId), setTab("decide"));
+  const about =
+    !viewing && plan
+      ? [
+          improvement ? `${improvement.title}. ${improvement.detail}` : null,
+          cost && !cost.compare ? `${cost.title}. ${cost.detail}` : null,
+          !plan.improvement && plan.engine.includes("scarce") && plan.allocations.some((a) => a.source !== "ENGINE")
+            ? "Refrigerated vehicles were not planned again: your decisions were kept, so the second pass that could move them did not run."
+            : null,
+          plan.plannedWithoutPredictor && live ? "Planned on the booklet's travel and service times: the time predictor is not running." : null,
+        ].filter((line): line is string => line !== null)
+      : [];
 
   return (
     <>
+      {tab === "compare" && (
+        <button type="button" onClick={() => setTab("view")} className="-mb-3 flex w-fit items-center gap-1.5 text-[15px] font-medium text-go-ink">
+          <span aria-hidden>‹</span> Back
+        </button>
+      )}
       <PageHeader
         title={`Plan ${dayLabel(date)}`}
         subtitle={
@@ -177,9 +214,6 @@ export default function Plan({
         quiet
         tools={
           <PlanTools
-            depots={depots}
-            depot={depot}
-            onDepot={(code) => (setChosen(code), setViewing(null))}
             date={date}
             onDate={onDate}
             hasPlan={state.stage !== "none"}
@@ -192,6 +226,7 @@ export default function Plan({
             busy={busy || planning !== null}
             onSave={() => void saveSnapshot()}
             onRegenerate={(keep) => void generate(keep)}
+            comparing={tab === "compare"}
             onCompare={() => setTab("compare")}
           />
         }
@@ -199,7 +234,6 @@ export default function Plan({
 
       {error && <Refusal error={error} what="the plan" action={<Retry onClick={() => (plans.refresh(), orders.refresh(), fleet.refresh())} />} />}
       {failure && <Refusal error={failure.error} what={failure.what} />}
-      {notice && <Notice tone="info" title={notice} live />}
       {planning && <Notice tone="neutral" title={planning} live>The plan is being made in the background; it opens here when it is ready, even after a reload.</Notice>}
       {cost?.compare && live && tab !== "compare" && (
         <Notice tone="info" title={cost.title} action={<SecondaryButton onClick={() => setTab("compare")}>Compare with the rules plan</SecondaryButton>}>
@@ -220,23 +254,8 @@ export default function Plan({
           A saved plan is never edited. Using it returns the working draft to it and keeps what you decided there.
         </Notice>
       )}
-      {tab === "view" && !viewing && plan && (
-        <p className="text-xs text-go-secondary">
-          {[
-            improvement ? `${improvement.title}. ${improvement.detail}` : null,
-            cost && !cost.compare ? `${cost.title}. ${cost.detail}` : null,
-            !plan.improvement && plan.engine.includes("scarce") && plan.allocations.some((a) => a.source !== "ENGINE")
-              ? "Refrigerated vehicles were not planned again: your decisions were kept, so the second pass that could move them did not run."
-              : null,
-            plan.plannedWithoutPredictor && live ? "Planned on the booklet's travel and service times: the time predictor is not running." : null,
-          ]
-            .filter(Boolean)
-            .join(" ")}
-        </p>
-      )}
-
       {plans.data && state.stage === "none" && (
-        <section aria-label="No plan" className="flex w-full max-w-[760px] flex-col items-start gap-3 rounded-[24px] bg-go-card p-6 shadow-go-card">
+        <section aria-label="No plan" className="flex w-full max-w-[760px] flex-col items-start gap-3 rounded-go-panel bg-go-card p-6">
           <h2 className="text-[19px] font-medium text-go-ink">{`No plan for ${depot} on ${dayLabel(date)}`}</h2>
           <p className="text-[13px] text-go-secondary">
             {orders.data ? `${toPlan} ${toPlan === 1 ? "order is" : "orders are"} confirmed and waiting to be planned.` : "Counting the orders…"} Generating places every order it can and names the rule
@@ -259,6 +278,7 @@ export default function Plan({
 
       {state.stage !== "none" && plan && summary && live && (
         <>
+          {tab !== "compare" && (
           <PlanSteps
             tab={tab}
             onTab={setTab}
@@ -266,12 +286,29 @@ export default function Plan({
             view={`${summary.trips} ${summary.trips === 1 ? "trip" : "trips"} · ${summary.tightTrips} tight`}
             publish={state.stage === "published" ? `Published${state.plan.publishedAt ? ` ${clock(new Date(state.plan.publishedAt))}` : ""}` : "Not published yet"}
             decideDone={open === 0}
+            published={state.stage === "published"}
+            actions={
+              tab === "publish" ? (
+                state.stage === "draft" ? (
+                  <PrimaryButton disabled={!online || busy || open > 0} onClick={() => setConfirming(true)}>
+                    {state.revises ? "Send update" : "Publish plan"}
+                  </PrimaryButton>
+                ) : (
+                  <span className="flex flex-wrap items-center gap-2">
+                    <SecondaryButton disabled={!online} onClick={() => setRevising(true)}>Edit plan</SecondaryButton>
+                    <span className="rounded-full bg-go-surface px-4 py-3 text-sm font-medium text-go-secondary">Published ✓</span>
+                    <SecondaryButton onClick={() => (window.location.hash = "/live")}>Watch the run</SecondaryButton>
+                  </span>
+                )
+              ) : undefined
+            }
             nextLabel={tab === "decide" ? "View plan" : tab === "view" ? (state.stage === "draft" && state.revises ? "Send update" : state.stage === "draft" ? "Publish" : null) : null}
           />
+          )}
 
           {tab === "decide" && <PlanDecide plan={plan} rows={rows} orders={byId} fleet={vehicles} editable={editable} actions={actions} focusId={focusId} />}
           {tab === "view" && (
-            <PlanBoard plan={plan} fleet={vehicles} orders={byId} editable={editable} canReplan={online && viewing === null} published={state.stage === "published" && viewing === null} actions={actions} onOpenDecision={decide} />
+            <PlanBoard about={about} plan={plan} fleet={vehicles} orders={byId} editable={editable} canReplan={online && viewing === null} published={state.stage === "published" && viewing === null} actions={actions} onOpenDecision={decide} />
           )}
           {tab === "publish" && (
             <PlanPublish
@@ -284,6 +321,10 @@ export default function Plan({
               rows={decisionRows(live, byId)}
               online={online}
               busy={busy}
+              confirming={confirming}
+              onConfirming={setConfirming}
+              revising={revising}
+              onRevising={setRevising}
               reviseReason={reviseReason}
               onReviseReason={setReviseReason}
               onPublish={() => void publish()}
@@ -306,4 +347,10 @@ export default function Plan({
       {!plans.data && !plans.error && <p className="py-8 text-center text-[13px] text-go-secondary">Loading the plan…</p>}
     </>
   );
+}
+
+/** "Swapped. Draft version 2: 3 placed, 1 deferred." reads as a bold first sentence and the rest. */
+function asToast(message: string): { title: string; detail?: string } {
+  const at = message.indexOf(". ");
+  return at < 0 ? { title: message } : { title: message.slice(0, at + 1), detail: message.slice(at + 2) };
 }

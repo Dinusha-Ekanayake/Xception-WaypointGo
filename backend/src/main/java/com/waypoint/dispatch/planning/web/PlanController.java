@@ -151,11 +151,18 @@ public class PlanController {
     return plans.previewInterchange(actor, trip, vehicle);
   }
 
-  /** The trip a swap would leave, and every rule's verdict on the vehicle's day. */
+  /**
+   * The trip a swap would leave, and every rule's verdict on the vehicle's day;
+   * with {@code orders}, the trip's stops in that order after the swap.
+   */
   @GetMapping("/preview/swap")
-  public TripPreview previewSwap(@RequestParam UUID out, @RequestParam("in") UUID in, HttpServletRequest request) {
+  public TripPreview previewSwap(
+      @RequestParam UUID out,
+      @RequestParam("in") UUID in,
+      @RequestParam(required = false) List<UUID> orders,
+      HttpServletRequest request) {
     var actor = authorizer.require(request, READ, "wpt:plan:order:" + out);
-    return plans.previewSwap(actor, out, in);
+    return plans.previewSwap(actor, out, in, orders == null ? List.of() : orders);
   }
 
   /** A trip with its stops in the order given (every order of it, comma separated), timed and checked. */

@@ -242,7 +242,25 @@ export type ReplanTrip = {
 };
 
 /** Trade a served order for a deferred one on its trip; whole or not at all. */
-export type SwapOrders = { planId: Uuid; outOrderId: Uuid; inOrderId: Uuid; reason: string };
+/** `orderIds`, optional: the trip's stop order after the swap, every order once, sent with the swap as one change. */
+export type SwapOrders = { planId: Uuid; outOrderId: Uuid; inOrderId: Uuid; reason: string; orderIds?: Uuid[] };
+
+/**
+ * A proposed stop order for a trip, as the swap window's "AI order" draws it.
+ * No module serves one yet: the read is a placeholder in
+ * `roles/dispatcher/data/usePlanReads.ts` (useStopOrderProposal), to be wired
+ * when Intelligence proposes stop orders. Applying one is the same as a
+ * dispatcher's own order: it goes in `SwapOrders.orderIds` and the server judges it.
+ */
+export type StopOrderProposal = {
+  orderIds: Uuid[];
+  /** One line on why, for the banner. */
+  summary: string;
+  /** Minutes shorter than the order the trip would otherwise run in; null when not known. */
+  minutesSaved: number | null;
+  /** The model and version that proposed it, for the record. */
+  source: string;
+};
 /** Decide that deferred orders stay deferred. */
 export type KeepDeferred = { planId: Uuid; orderIds: Uuid[]; reason: string };
 /** Hold a served order on its trip (`plan:Lock`) or let it go (`plan:Unlock`). */
