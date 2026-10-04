@@ -76,6 +76,7 @@ The Figma file (pages 04 to 17) is the specification. Where the design shows som
 - **Dispatcher:**
   - Global search (the header, `/` or Ctrl+K) looks through what the screens have already loaded for the day and the depots in view: orders, vehicles, trips, issues and depots. It does not search other days.
   - In Plan, **Explain this plan** and, on a deferred order, **Explain this decision** open a pop-up that sets out what the plan carries, why orders were left off, what was checked and what can be done, from the facts the plan already holds. The plan's explanation also opens by itself when a plan is generated, and each order in the plan view's Deferred list has a question mark that opens its own. The design shows the reason on the panel only.
+  - The explanations are rule-based. Where the deployment sets `GROQ_API_KEY`, a language model also rewords each one more naturally, shown above the facts and marked as AI-worded. It is given only the facts of that plan or order, is asked once and then reused, and is dropped if it names a figure the facts do not hold. Without the key nothing leaves the system.
   - Vehicle interchange approval waits on Loading.
   - The Forecast's error chip shows the demand model's measured error over all volume and over chilled volume. The design shows a figure per brand, which the model does not measure.
   - Late risk is shown only on a published plan, once the time predictor has scored it. A draft says it is scored once published, and an estimate says so.

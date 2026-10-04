@@ -20,6 +20,7 @@ import PlanDecide from "./PlanDecide.tsx";
 import PlanPublish from "./PlanPublish.tsx";
 import PlanSteps, { type Tab } from "./PlanSteps.tsx";
 import { explainPlan } from "../data/explain.ts";
+import { useFriendlyText } from "@shared/api/useFriendlyText";
 import ExplainPlanSheet from "./ExplainPlanSheet.tsx";
 import PlanTools from "./PlanTools.tsx";
 import type { Place, PlanActions } from "./planActions.ts";
@@ -231,6 +232,9 @@ export default function DepotPlan({
       : [];
   const draft = state.stage === "draft";
   const [explaining, setExplaining] = useState(false);
+  const planExplanation = plan ? explainPlan({ plan, day: dayLabel(plan.serviceDate), notes: about }) : null;
+  // Worded once per plan version, and only when someone opens the explanation.
+  const planFriendly = useFriendlyText(explaining && plan ? `plan:${plan.planId}:${plan.rowVersion}` : null, planExplanation);
   const toolsLine = summary && plan ? `saved ${savedWhen(plan.savedAt)} · ${stage}` : plans.data ? stage : "Loading";
 
   return (
@@ -238,7 +242,7 @@ export default function DepotPlan({
       <div className="flex w-full flex-wrap items-center gap-3">
         <p className="min-w-[200px] flex-1 text-[13px] text-go-secondary">{toolsLine}</p>
         {plan && <SecondaryButton onClick={() => setExplaining(true)}>Explain this plan</SecondaryButton>}
-        {explaining && plan && <ExplainPlanSheet explanation={explainPlan({ plan, day: dayLabel(plan.serviceDate), notes: about })} onClose={() => setExplaining(false)} />}
+        {explaining && planExplanation && <ExplainPlanSheet explanation={planExplanation} friendly={planFriendly} onClose={() => setExplaining(false)} />}
         {state.stage !== "none" && !settled && (
           <PlanTools
             draft={draft}
