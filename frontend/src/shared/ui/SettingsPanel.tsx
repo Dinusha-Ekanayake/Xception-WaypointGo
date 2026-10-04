@@ -67,6 +67,7 @@ export function SettingsPanel({
   translated = true,
   placement = "sheet",
   showInstall = true,
+  showAssistant = true,
   onClose,
   children,
 }: {
@@ -80,6 +81,8 @@ export function SettingsPanel({
   placement?: "popover" | "sheet" | "frame";
   /** False where the role has its own way to install, or none. */
   showInstall?: boolean;
+  /** False where the role does not offer the AI assistant connection. */
+  showAssistant?: boolean;
   onClose: () => void;
   /** Rows a role adds below the language and the assistant connection. */
   children?: ReactNode;
@@ -159,10 +162,12 @@ export function SettingsPanel({
         </div>
         {!translated && <span className="w-full text-[12px] text-go-muted">These screens are in English for now; your choice is kept on this device.</span>}
       </fieldset>
-      <McpButton
-        url={shell?.mcpUrl ?? null}
-        className="flex min-h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-go-surface text-[15px] font-medium text-go-ink"
-      />
+      {showAssistant && (
+        <McpButton
+          url={shell?.mcpUrl ?? null}
+          className="flex min-h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-go-surface text-[15px] font-medium text-go-ink"
+        />
+      )}
       {showInstall && (
         <InstallApp className="flex min-h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-go-surface text-[15px] font-medium text-go-ink" />
       )}

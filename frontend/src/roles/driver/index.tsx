@@ -222,7 +222,7 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
             )}
             {screen === "map" && next && (
               <GoLayer dark={d.dark} top>
-                <RouteMap next={next} outlet={run.outlets[next.outletId]} recorder={d.location} syncedAt={run.syncedAt} onBack={() => d.go({ name: "route", deliveryId: null })} className="h-full w-full" />
+                <RouteMap next={next} outlet={run.outlets[next.outletId]} recorder={d.location} syncedAt={null} className="h-full w-full" />
               </GoLayer>
             )}
             {screen === "report" && reporting && view.name === "report" && formFor !== reporting.deliveryId && (
