@@ -55,10 +55,16 @@ export default function Orders({
   const [text, setText] = usePersistentState("dispatcher:orders:text", "");
   const [selected, setSelected] = useState<string | null>(null);
 
+  // "Current" is today's orders and tomorrow's run: an order placed before the
+  // 16:00 cutoff is for tomorrow (R-ORD-01) and shows here at once. One placed
+  // after the cutoff is for the run after, so it is "Upcoming" until the next
+  // day, when that run becomes tomorrow's and moves here by itself.
+  const tomorrow = addDays(today, 1);
   const current = useOrders(depots, today);
+  const next = useOrders(depots, tomorrow);
   const live = useLive(depots, today);
   const issues = useIssues(depots);
-  const upcomingDates = useMemo(() => Array.from({ length: UPCOMING_DAYS }, (_, i) => addDays(today, i + 1)), [today]);
+  const upcomingDates = useMemo(() => Array.from({ length: UPCOMING_DAYS }, (_, i) => addDays(today, i + 2)), [today]);
   const pastDates = useMemo(() => Array.from({ length: PAST_DAYS }, (_, i) => addDays(today, -i - 1)), [today]);
   const upcoming = useHistory(depots, tab === "upcoming" ? upcomingDates : []);
   const past = useHistory(depots, tab === "past" ? pastDates : []);
@@ -81,7 +87,9 @@ export default function Orders({
   const atRisk = (live.data?.sheets ?? []).flatMap((s) => s.stops).filter((s) => s.outcome === "PENDING" && (s.lateMinutes ?? 0) > 0).length;
 
   const days: HistoryDay[] =
-    tab === "current" ? [{ date: today, orders: all, sheets: [] }] : tab === "upcoming" ? (upcoming.data ?? []) : [...(past.data ?? [])];
+    tab === "current"
+      ? [{ date: today, orders: all, sheets: [] }, { date: tomorrow, orders: next.data ?? [], sheets: [] }]
+      : tab === "upcoming" ? (upcoming.data ?? []) : [...(past.data ?? [])];
   const brands = useMemo(() => [...new Set(days.flatMap((d) => d.orders.map((o) => o.brandCode)))].sort(), [days]);
   const group = STATUS_GROUPS.find((g) => g.id === statusId)!;
   const keep = (order: OrderView) =>
@@ -90,20 +98,28 @@ export default function Orders({
     (!text.trim() || [order.orderRef, order.outletId, order.districtName].some((v) => v.toLowerCase().includes(text.trim().toLowerCase())));
 
   const plans = usePlans(depots, tab === "current" ? today : (upcomingDates[0] ?? today));
+  const nextPlans = usePlans(depots, tomorrow);
   const rides = useMemo(() => {
     const byOrder = new Map<string, string>();
-    for (const depot of plans.data ?? []) {
+    for (const depot of [...(plans.data ?? []), ...(tab === "current" ? nextPlans.data ?? [] : [])]) {
       for (const plan of [depot.draft, depot.published]) {
         for (const trip of plan?.trips ?? []) for (const stop of trip.stops) byOrder.set(stop.orderId, `${trip.vehicleId} · T${trip.tripNumber}`);
       }
     }
     return byOrder;
-  }, [plans.data]);
+  }, [plans.data, nextPlans.data, tab]);
 
   const line = (order: OrderView): OrderLine => ({ order, ride: rides.get(order.orderId), stop: stops.get(order.orderId), issues: issuesByOrder.get(order.orderId)?.length ?? 0 });
   const groups = days
-    .map((day) => ({ title: tab === "current" ? null : dayLabel(day.date), lines: day.orders.filter(keep).map(line) }))
-    .filter((g) => tab === "current" || g.lines.length > 0);
+    .map((day) => ({
+      title: tab !== "current" ? dayLabel(day.date) : day.date === today ? `Today · ${dayLabel(day.date)}` : `Next run · ${dayLabel(day.date)}`,
+      date: day.date,
+      lines: day.orders.filter(keep).map(line),
+    }))
+    // Today stays even when empty, so Current always says what is on the road.
+    .filter((g) => (tab === "current" && g.date === today) || g.lines.length > 0)
+    // With nothing for tomorrow yet, Current is today alone and needs no heading.
+    .map((g, _, all) => (tab === "current" && all.length === 1 ? { ...g, title: null } : g));
   const shown = groups.reduce((n, g) => n + g.lines.length, 0);
   const chosen = selected ? days.flatMap((d) => d.orders).find((o) => o.orderId === selected) : undefined;
   const last: LastColumn = tab === "current" ? "eta" : tab === "upcoming" ? "placed" : "done";
@@ -118,7 +134,10 @@ export default function Orders({
         subtitle={`${scopeLabel} · cutoff ${ORDER_CUTOFF}`}
         online={online}
         lastSyncedAt={current.loadedAt}
-        onSync={current.refresh}
+        onSync={() => {
+          current.refresh();
+          next.refresh();
+        }}
         syncing={current.loading}
       />
 
@@ -129,7 +148,7 @@ export default function Orders({
           value={tab}
           onChange={(next) => (setTab(next), setSelected(null))}
           options={[
-            { value: "current", label: "Current", hint: `Today · ${current.data ? f.due : "…"}` },
+            { value: "current", label: "Current", hint: `Today · ${current.data ? f.due : "…"} · next run ${next.data ? next.data.length : "…"}` },
             { value: "upcoming", label: "Upcoming", hint: upcomingDates.map((d) => dayLabel(d).split(" ").slice(0, 2).join(" ")).join(" · ") },
             { value: "past", label: "Past", hint: `Last ${PAST_DAYS} days` },
           ]}
