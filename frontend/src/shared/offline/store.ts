@@ -23,6 +23,12 @@ export type StoredEntry<T = unknown> = {
   problemCode?: string;
   /** The held operation's version on the server, which discarding or redoing it names. */
   serverVersion?: number;
+  /**
+   * Uploads this write names, such as a voice note's audio (issue #136). It is
+   * not sent while any of them is still on the device, and neither is anything
+   * after it, so the server never sees a write before what it refers to.
+   */
+  waitsFor?: string[];
 };
 
 function databaseName(accountId: string): string {
