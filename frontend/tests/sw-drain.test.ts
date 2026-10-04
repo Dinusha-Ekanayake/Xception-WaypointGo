@@ -105,3 +105,24 @@ test("the worker keeps the device's order for writes recorded in the same millis
   await drainAccount(io);
   assert.deepEqual(posts[0]!.operations.map((o) => [o.command.commandId, o.sequence]), [["aa", base + 1], ["mm", base + 2], ["zz", base + 3]]);
 });
+
+test("a write naming an upload still on the device waits for the page, and so does what follows it (issue #136)", async () => {
+  const voice = { ...entry("post", "2026-10-04T05:00:00Z", "message:Post"), waitsFor: ["voice-1"] };
+  const later = entry("later", "2026-10-04T05:01:00Z");
+  const first = entry("first", "2026-10-04T04:59:00Z");
+  const { io, posts } = fakeIo([first, voice, later] as Entry[], results({}));
+  const waiting = { ...io, uploadIds: async () => ["voice-1"] };
+  assert.equal(await drainAccount(waiting), "needs-page");
+  assert.deepEqual(posts[0]!.operations.map((o) => o.command.commandId), ["first"]);
+
+  const { io: sent, posts: after } = fakeIo([voice, later] as Entry[], results({}));
+  assert.equal(await drainAccount({ ...sent, uploadIds: async () => [] }), "sent");
+  assert.deepEqual(after[0]!.operations.map((o) => o.command.commandId), ["post", "later"]);
+});
+
+test("a write naming the loader operating a shared device waits for the page", async () => {
+  const onDevice = { ...entry("msg", "2026-10-04T05:00:00Z", "message:Post"), payload: { commandId: "msg", kind: "message:Post", actingUserId: "loader-2", payload: {} } };
+  const { io, posts } = fakeIo([onDevice], results({}));
+  assert.equal(await drainAccount(io), "needs-page");
+  assert.equal(posts.length, 0);
+});

@@ -12,7 +12,12 @@
 //
 // A queue holding loader work waits for a page: a shared loader device replays
 // its offline operator switches first (setBeforeDrain), and that log is in
-// localStorage. Sending the checks before the switches would refuse them.
+// localStorage. Sending the checks before the switches would refuse them. Any
+// write naming its operator (actingUserId) waits the same way.
+//
+// A write that names an upload still on the device (waitsFor, such as a voice
+// note's audio, issue #136) is not sent, nor anything after it: the page sends
+// the upload first.
 
 export const DEVICE_KEY = "waypoint.deviceId";
 const BATCH = 100;
@@ -31,7 +36,8 @@ function recordedOrder(entry) {
 
 /**
  * One account's queue. `io` reaches storage and the network:
- * entries(), deviceId(), post(body) -> {status, json}, put(entry), remove(id).
+ * entries(), deviceId(), post(body) -> {status, json}, put(entry), remove(id),
+ * and optionally uploadIds(): the uploads still waiting on the device.
  * Answers "empty", "sent", "kept" (signed out), "needs-page" or "no-device";
  * throws when the server could not be reached, so the browser tries again.
  */
@@ -42,7 +48,11 @@ export async function drainAccount(io) {
     .sort((a, b) => recordedOrder(a) - recordedOrder(b) || a.commandId.localeCompare(b.commandId))
     .slice(0, BATCH);
   if (ready.length === 0) return "empty";
-  if (ready.some((e) => typeof e.kind === "string" && e.kind.startsWith("loading:"))) return "needs-page";
+  if (ready.some((e) => (typeof e.kind === "string" && e.kind.startsWith("loading:")) || e.payload?.actingUserId)) return "needs-page";
+  const uploads = new Set(io.uploadIds ? await io.uploadIds() : []);
+  const blocked = ready.findIndex((e) => (e.waitsFor || []).some((id) => uploads.has(id)));
+  if (blocked === 0) return "needs-page";
+  if (blocked > 0) ready.length = blocked;
   const deviceId = await io.deviceId();
   if (!deviceId) return "no-device";
 
@@ -73,7 +83,7 @@ export async function drainAccount(io) {
       break;
     }
   }
-  return "sent";
+  return blocked > 0 ? "needs-page" : "sent";
 }
 
 // ---- IndexedDB, as src/shared/offline/store.ts lays it out -------------------
@@ -107,6 +117,10 @@ export async function drainWithoutPage(idb, fetchFn) {
           });
           return { status: res.status, json: res.ok ? await res.json() : null };
         },
+        uploadIds: async () =>
+          db.objectStoreNames.contains("uploads")
+            ? (await request(store("uploads", "readonly").getAll())).filter((u) => !u.needsReview).map((u) => u.id)
+            : [],
         put: (entry) => request(store("outbox", "readwrite").put(entry)),
         remove: (id) => request(store("outbox", "readwrite").delete(id)),
       });
