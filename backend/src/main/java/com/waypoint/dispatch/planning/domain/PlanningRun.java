@@ -565,7 +565,7 @@ public record PlanningRun(
               x.orderId().equals(orderId)
                   ? new OrderDecision(
                       orderId, AllocationDecision.DEFERRED, Optional.empty(), Optional.empty(), x.bindingRule(),
-                      x.reason() + " Kept deferred by the dispatcher: " + reason, x.checks())
+                      sentence(x.reason()) + " Kept deferred by the dispatcher: " + reason, x.checks())
                   : x);
       by.put(orderId, actor);
       hand.put(orderId, new Mark(Source.KEPT, actor, false));
@@ -896,5 +896,11 @@ public record PlanningRun(
       }
     }
     return out;
+  }
+
+  /** A reason as a sentence, so another can follow it: "... cap. Kept deferred ...". */
+  static String sentence(String reason) {
+    String r = reason == null ? "" : reason.strip();
+    return r.isEmpty() || r.endsWith(".") || r.endsWith("!") || r.endsWith("?") ? r : r + ".";
   }
 }

@@ -659,7 +659,9 @@ public class PlanDataQuery implements PlanQuery {
           : "No order does better: " + after.lateStops() + " of " + stops + " stops still arrive after their window.";
     }
     if (before.feasible() != after.feasible()) {
-      return "This order passes every rule; the current one does not.";
+      return "Your order breaks a rule (see the checks); this one passes every rule"
+          + (after.lateStops() < before.lateStops() ? ", with " + (before.lateStops() - after.lateStops()) + " fewer late stops" : "")
+          + (saved > 0 ? " and is back " + saved + " min sooner." : ".");
     }
     if (after.lateStops() < before.lateStops()) {
       return after.lateStops() == 0
