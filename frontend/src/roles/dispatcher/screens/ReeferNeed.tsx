@@ -27,7 +27,7 @@ export default function ReeferNeed({
 
   if (forecast.error && !combined) return <p className="text-[13px] text-go-secondary">The forecast could not be reached.</p>;
   if (!combined || available === null) return <p className="text-[13px] text-go-secondary">Loading…</p>;
-  if (needs.length === 0) return <p className="text-[13px] text-go-secondary">No forecast yet for the coming weeks.</p>;
+  if (needs.length === 0) return <p className="text-[13px] text-go-secondary">No forecast yet for the coming weeks. The weekly run makes one; Forecast shows when.</p>;
 
   const top = Math.max(available, ...needs.map((n) => n.refrigeratedNeeded), 1);
   const short = needs.find((n) => n.refrigeratedNeeded > available);

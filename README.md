@@ -80,11 +80,13 @@ The Figma file (pages 04 to 17) is the specification. Where the design shows som
   - Late risk is shown only on a published plan, once the time predictor has scored it. A draft says it is scored once published, and an estimate says so.
 - **Loader:**
   - Vehicle interchange and dispatcher handover are not built.
+  - When the trips on the board leave after tomorrow (a weekend), "Tonight's departures" names the day they leave.
   - Sinhala and Tamil are drafts awaiting a native speaker.
 - **Store manager:**
   - Call options are not built (no contact numbers on record); a delivery's Message is used instead.
   - Draft orders are not built.
   - The Next delivery card shows the driver and a predicted arrival once the trip leaves. Before that, it shows the next planned or confirmed delivery and the outlet's window.
+  - Below 440 px the header hides the Store chip and uses smaller round buttons so the sync time fits. The bottom bar stays icon-only, as designed.
 - **All roles:**
   - Notifications arrive in every role's screens with a live count.
   - Push to a closed phone works only where the server has VAPID keys, and says so otherwise.
