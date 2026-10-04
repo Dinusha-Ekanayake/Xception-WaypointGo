@@ -94,6 +94,8 @@ A-11, A-42 and P-31 in [ASSUMPTIONS](../../architecture/ASSUMPTIONS.md); module 
 
 - Screenshots against the Figma frames were not taken; the layout follows the issue's visual spec.
 - No road-snapped route (D6) and no turn by turn inside the app (D4), by design.
+- No age check on a position the server has not flagged offline: an old fix still reads "Live".
+- Map markers keep fixed light colours (white labels, dark ink), so the driver's dark theme shows light markers.
 - The road conditions chip (Figma 05) and the 05c "Notify store" confirmation are not on the map:
   no source is wired for either. The 05e conflict modal does not exist yet; the selected vehicle's
   trail and point count stand in for "Review on map".
