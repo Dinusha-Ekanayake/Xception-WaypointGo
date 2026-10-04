@@ -32,7 +32,7 @@ export default function TripMessages({
   const title = "vehicleId" in open ? `Messages · ${open.vehicleId}` : "Trip messages";
   return (
     <Sheet label={title} onClose={onClose}>
-      <header className="flex items-start justify-between gap-3">
+      <header className="flex items-start justify-between gap-3 pr-11">
         <div className="flex flex-col gap-1">
           <h2 className="text-[20px] font-medium text-go-ink">{title}</h2>
           <p className="text-[13px] text-go-secondary">You see what is written to your store or to everyone on the trip. Replies go to the dispatcher.</p>

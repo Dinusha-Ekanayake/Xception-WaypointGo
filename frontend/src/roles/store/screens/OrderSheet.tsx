@@ -55,7 +55,7 @@ export default function OrderSheet({
 
   return (
     <Sheet label={order.orderRef} onClose={onClose}>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 pr-11">
         <h2 className="flex-1 text-[24px] font-medium text-black">{order.orderRef}</h2>
         <Chip tone={s.tone}>{s.label}</Chip>
       </div>
