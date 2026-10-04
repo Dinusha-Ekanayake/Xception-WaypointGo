@@ -83,7 +83,7 @@ const TITLES: Record<Tab, [string, string]> = {
 
 const initials = (name: string) => name.trim().split(/\s+/).filter(Boolean).map((part) => part[0]).slice(0, 2).join("").toUpperCase() || "?";
 
-export default function AccessDemo({ displayName = "Administrator" }: { displayName?: string }) {
+export default function AccessDemo({ userId, displayName = "Administrator" }: { userId?: string; displayName?: string }) {
   const [state, setState] = useState<DemoState>(freshState);
   const [route, setRoute] = useState<Route>({ tab: "people", member: null, persona: null });
   const [peopleOpen, setPeopleOpen] = useState(false);
@@ -290,7 +290,7 @@ export default function AccessDemo({ displayName = "Administrator" }: { displayN
       {route.tab === "catalogue" && <CatalogueScreen state={state} actions={{ onDetails: showDetails, onEdit: openEditor }} />}
       {route.tab === "history" && <AuditConsole key="permission-history" changes={state.history} viewer={viewer} focused />}
       {route.tab === "audit" && <AuditConsole key="audit-console" changes={state.history} viewer={viewer} />}
-      {route.tab === "assistants" && <AssistantsConsole />}
+      {route.tab === "assistants" && <AssistantsConsole userId={userId} />}
       {route.tab === "depots" && <DepotsScreen state={state} onNavigateTab={(target) => navigate(target)} onSelectMember={(id) => navigate("people", id)} />}
       {route.tab === "outlets" && <OutletsScreen state={state} onNavigateTab={(target) => navigate(target)} />}
       {route.tab === "orders" && <OrdersScreen state={state} onNavigateTab={(target) => navigate(target)} />}

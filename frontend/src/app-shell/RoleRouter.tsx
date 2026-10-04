@@ -27,7 +27,7 @@ export default function RoleRouter({ session, role }: { session: Session; role: 
       // The access console is an interactive sample that says on screen its data
       // is mock until live admin APIs exist (#22); the AI assistants console
       // beside it is live (#177). Both stay behind the session and role gate.
-      return <AdminConsole displayName={session.displayName} />;
+      return <AdminConsole userId={session.userId} displayName={session.displayName} />;
     case "auditor":
       // Built in #22 and #23.
       return (

@@ -3,6 +3,12 @@
 @kavindamihiran's entries, newest first. Only @kavindamihiran adds to this file; how to write an entry is in the [log's index](../development-log.md).
 
 ---
+## 2026-10-04 - feat: Admins switch assistants per person and role
+
+`feat/admin-mcp-people` · @kavindamihiran · #177
+
+The AI assistants screen could only block a whole app, though per person and per role switches already existed as policies (R-IAM-37). It now lists roles and people with three switches (assistants, changes, personal details) sent as the existing versioned `iam:AttachPolicy` and `iam:DetachPolicy`, and ends one person's connections with a reason through new `mcp:RevokeUserConnections` (R-IAM-38, SEC-44). The reads are `GET /api/mcp/access/roles` and keyset paged `/api/mcp/access/people`.
+Verified: `McpEnterpriseIntegrationTest` (10, none skipped) on a local database, typecheck, `npm test`, build, `mcp-admin.spec.ts` (2).
 ## 2026-10-04 - feat: Tech stores see which nearby day a trip already serves
 
 `feat/ride-along-suggestion` · @kavindamihiran · #199 ([walkthrough](../../issues/199-ride-along/WALKTHROUGH.md))
