@@ -22,11 +22,12 @@ OUT = ROOT / "docs" / "data-model.md"
 
 # Module schemas in the order data flows through the day, then the support schemas.
 ORDER = ["ref", "iam", "ordering", "warehouse", "planning", "loading", "execution", "receipt",
-         "issues", "notification", "sync", "ml", "integration"]
+         "issues", "messaging", "notification", "sync", "ml", "demo", "integration"]
 OWNER = {
     "ref": "Reference data", "iam": "Identity and access", "ordering": "Ordering", "warehouse": "Warehouse",
     "planning": "Planning", "loading": "Loading", "execution": "Execution", "receipt": "Receipt",
-    "issues": "Issues", "notification": "Notification", "sync": "Sync", "ml": "Intelligence",
+    "issues": "Issues", "messaging": "Messaging", "notification": "Notification", "sync": "Sync", "ml": "Intelligence",
+    "demo": "Demo (opt-in judge scenarios)",
     "integration": "Platform (outbox, inbox, receipts, audit, jobs)",
 }
 
@@ -115,7 +116,19 @@ def main(url):
         "[DATA-MODEL-REVIEW.md](architecture/DATA-MODEL-REVIEW.md); the components that own each schema are in "
         "[architecture.md](architecture.md).",
         "",
+        "## The day's data in one picture",
+        "",
+        "![How an order travels through the data](diagrams/06-data-lifecycle.png)",
+        "",
+        "One order is carried from schema to schema by id and by event, never by a foreign key: "
+        "`ordering.orders` is allocated to a stop on a `planning.trips` row, copied into `loading.stops` when the plan "
+        "is published, into `execution.delivery_records` when the trip is released, and answered by "
+        "`receipt.confirmations`; anything that goes wrong is an `issues` row. Every write leaves a receipt, an audit "
+        "row and outbox events in `integration`.",
+        "",
         "## How the schemas connect",
+        "",
+        "![Schemas and foreign keys](diagrams/07-schema-map.png)",
         "",
         "Each module owns one schema and is the only writer to it. Foreign keys point only into `ref` and `iam`; "
         "every other reference between modules is by id with no foreign key, so one module's migration never waits "
