@@ -5,6 +5,7 @@ import { Icon, cx } from "@shared/ui";
 import type { Usual } from "../../data/lines.ts";
 import { Muted, Stepper } from "../../ui.tsx";
 import ItemPicker from "./ItemPicker.tsx";
+import { useT } from "../../i18n.tsx";
 
 // The order's lines, as in "03 Place order" and "03d Item added": a tab per
 // class, the picker, then one row per item beside its usual quantity. A count
@@ -42,10 +43,11 @@ export default function OrderLines({
   onLine: (productId: string, quantity: number) => void;
   onAdd: (productId: string) => void;
 }): React.JSX.Element {
+  const tr = useT();
   return (
     <div className="flex min-w-0 flex-col gap-4 lg:rounded-[26px] lg:bg-white lg:p-6">
       {classes.length > 1 && (
-        <div className="flex gap-2 rounded-full bg-white/60 p-1 lg:self-start lg:bg-go-canvas" role="tablist" aria-label="Temperature">
+        <div className="flex gap-2 rounded-full bg-white/60 p-1 lg:self-start lg:bg-go-canvas" role="tablist" aria-label={tr("Temperature")}>
           {classes.map((t) => {
             const n = itemCount(t);
             return (
@@ -62,8 +64,8 @@ export default function OrderLines({
               >
                 <Icon name={t === "chilled" ? "chilled" : "box"} />
                 <span>
-                  {t === "chilled" ? "Chilled" : "Ambient"}
-                  <span className="hidden lg:inline"> order</span> · {n} {n === 1 ? "item" : "items"}
+                  {tr(t === "chilled" ? "Chilled" : "Ambient")}
+                  <span className="hidden lg:inline">{tr(" order")}</span> · {tr(n === 1 ? "{n} item" : "{n} items", { n })}
                 </span>
               </button>
             );
@@ -75,9 +77,9 @@ export default function OrderLines({
 
       {/* Desktop column heads, as in "03 Place order". */}
       <div aria-hidden className="hidden grid-cols-[minmax(0,1fr)_72px_168px] gap-2 px-4 text-[13px] text-go-muted lg:grid">
-        <span>Item</span>
-        <span>Usual</span>
-        <span className="text-center">Order</span>
+        <span>{tr("Item")}</span>
+        <span>{tr("Usual")}</span>
+        <span className="text-center">{tr("Order")}</span>
       </div>
       <ul className="flex flex-col gap-2.5">
         {rows.map((id) => {
@@ -98,17 +100,17 @@ export default function OrderLines({
               <div className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate text-[16px] font-medium text-black">{id}</span>
                 <span className="text-[13px] text-go-muted">
-                  {inferred && <span title="Reconstructed from order totals, not a confirmed product">inferred</span>}
+                  {inferred && <span title={tr("Reconstructed from order totals, not a confirmed product")}>{tr("inferred")}</span>}
                   <span className="lg:hidden">
                     {inferred && " · "}
-                    {u !== undefined ? `usual ${u}` : "not ordered before"}
+                    {u !== undefined ? tr("usual {n}", { n: u }) : tr("not ordered before")}
                   </span>
                 </span>
                 {s && (
                   <span className="text-[13px] font-medium text-go-danger-strong">
-                    Only {s.available} available ·{" "}
+                    {tr("Only {n} available", { n: s.available })} ·{" "}
                     <button type="button" className="underline" onClick={() => onLine(id, s.available)}>
-                      use {s.available}
+                      {tr("use {n}", { n: s.available })}
                     </button>
                   </span>
                 )}
@@ -120,9 +122,9 @@ export default function OrderLines({
         })}
       </ul>
       {rows.length === 0 ? (
-        <Muted>{loading ? "Loading the catalogue…" : "Nothing of this kind ordered before. Search above to add an item."}</Muted>
+        <Muted>{tr(loading ? "Loading the catalogue…" : "Nothing of this kind ordered before. Search above to add an item.")}</Muted>
       ) : (
-        <p className="text-[13px] text-go-muted">Teal = above usual</p>
+        <p className="text-[13px] text-go-muted">{tr("Teal = above usual")}</p>
       )}
     </div>
   );

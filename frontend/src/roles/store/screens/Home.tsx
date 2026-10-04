@@ -9,7 +9,7 @@ import { isOpenIssue, issueCard, loaderShortUnits } from "../data/issues.ts";
 import { aheadLabel, nextDelivery } from "../data/nextDelivery.ts";
 import NextStop from "./NextStop.tsx";
 import { Button, Card, Chip, Muted } from "../ui.tsx";
-import { useT, type Translate } from "../i18n.tsx";
+import { cutoffWords, useT } from "../i18n.tsx";
 
 // Figma "02 Home": the next delivery, what needs attention, and tomorrow's order
 // against the 16:00 cutoff. ETA before a plan is published is the outlet's
@@ -39,13 +39,6 @@ export function Progress({ status }: { status: OrderStatus }): React.JSX.Element
       ))}
     </ol>
   );
-}
-
-/** The countdown of `cutoffLabel`, in the manager's language. */
-function cutoffWords(ms: number, t: Translate): string {
-  if (ms <= 0) return t("closed for today");
-  const m = Math.floor(ms / 60_000);
-  return m >= 60 ? t("{h} h {m} m left", { h: Math.floor(m / 60), m: m % 60 }) : t("{m} m left", { m });
 }
 
 export default function Home({

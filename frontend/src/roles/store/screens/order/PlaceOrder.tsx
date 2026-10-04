@@ -6,7 +6,7 @@ import { useResource } from "@shared/api/useResource";
 import { OrderCommandKind, type LineAvailability, type OrderView, type PlacedOrder, type OutletView, type Temperature } from "@shared/domain/types";
 import { Notice, cx } from "@shared/ui";
 import type { StoreGateway } from "../../data/gateway.ts";
-import { addDays, clock, cutoffLabel, dayLabel, depotToday, hhmm, longDay, untilCutoff, units } from "../../data/format.ts";
+import { addDays, clock, dayLabel, depotToday, hhmm, longDay, untilCutoff, units } from "../../data/format.ts";
 import { clearDraft, loadDraft, saveDraft } from "../../data/draft.ts";
 import { classOf, rowsOf, usualOf } from "../../data/lines.ts";
 import { conflictMessage, type useCommands } from "../../data/useCommands.ts";
@@ -17,6 +17,7 @@ import OrderSummary from "./OrderSummary.tsx";
 import DateStrip from "./DateStrip.tsx";
 import RideAlongHint from "./RideAlongHint.tsx";
 import { businessNow } from "@shared/wording";
+import { cutoffWords, useT } from "../../i18n.tsx";
 
 // Figma "03 Place order", "03b chilled", "03c add item", "03d item added" and
 // "03e draft saved". Chilled and ambient are separate orders (R-ORD-06), so one
@@ -51,6 +52,7 @@ export default function PlaceOrder({
   onEdit: (orderId: string) => void;
   onBack: () => void;
 }): React.JSX.Element {
+  const tr = useT();
   const today = depotToday();
   const left = untilCutoff();
   const first = addDays(today, left > 0 ? 1 : 2);
@@ -89,14 +91,14 @@ export default function PlaceOrder({
     const draft = loadDraft(outletKey);
     if (!draft) return;
     setQty(draft.quantities);
-    setRestored(`Draft from ${clock(draft.savedAt)} restored`);
+    setRestored(tr("Draft from {time} restored", { time: clock(draft.savedAt) }));
   }, [amend, outletKey]);
 
   const saveAsDraft = () => {
     setNote(
       saveDraft(outletKey, qty)
-        ? { title: `Draft saved · ${clock(businessNow())}`, detail: left > 0 ? "Submit before 16:00 to send it" : "Nothing is sent until you submit" }
-        : { title: "This device cannot keep a draft", detail: "Submit the order to keep it", tone: "danger" },
+        ? { title: tr("Draft saved · {time}", { time: clock(businessNow()) }), detail: tr(left > 0 ? "Submit before 16:00 to send it" : "Nothing is sent until you submit") }
+        : { title: tr("This device cannot keep a draft"), detail: tr("Submit the order to keep it"), tone: "danger" },
     );
   };
 
@@ -146,7 +148,14 @@ export default function PlaceOrder({
         if (availability?.length) {
           setShort(availability);
           setTemp(t);
-          setError(`The warehouse cannot supply ${availability.length === 1 ? "one line" : `${availability.length} lines`}. Nothing was saved for the ${t} order; adjust and send again.`);
+          setError(
+            tr(
+              availability.length === 1
+                ? "The warehouse cannot supply one line. Nothing was saved for the {kind} order; adjust and send again."
+                : "The warehouse cannot supply {n} lines. Nothing was saved for the {kind} order; adjust and send again.",
+              { n: availability.length, kind: tr(t) },
+            ),
+          );
         } else setError(conflictMessage(e));
         // What went through already stays placed; take it out of the draft.
         if (placed.length || queued) setSent({ orders: placed, queued, requestedDate: date });
@@ -172,16 +181,16 @@ export default function PlaceOrder({
     setAdded((a) => (a.includes(id) ? a : [...a, id]));
     setLine(id, n);
     setFresh(id);
-    setNote({ title: `${id} added · ${units(n)}`, detail: "Use − and + to change the amount" });
+    setNote({ title: tr("{item} added · {units}", { item: id, units: units(n) }), detail: tr("Use − and + to change the amount") });
   };
 
   return (
     <div className="flex flex-col gap-4 pb-44 lg:pb-0">
       <BackButton onClick={onBack} />
       <div className="flex flex-col gap-1">
-        <h1 className="text-[32px] leading-tight font-medium text-black">{amend ? `Change ${amend.orderRef}` : "Place order"}</h1>
+        <h1 className="text-[32px] leading-tight font-medium text-black">{amend ? tr("Change {ref}", { ref: amend.orderRef }) : tr("Place order")}</h1>
         <Muted>
-          {longDay(today)} · orders close 16:00 · {cutoffLabel(left)}
+          {longDay(today)} · {tr("orders close 16:00")} · {cutoffWords(left, tr)}
         </Muted>
         {restored && (
           <p role="status" className="text-[13px] text-go-teal">
@@ -195,23 +204,23 @@ export default function PlaceOrder({
         <div className="flex min-w-0 flex-col gap-4">
           {!amend && <DateStrip gateway={gateway} outletId={outletId} first={first} date={date} shared={shared} onPick={setDate} />}
           {rolled && !amend && (
-            <Notice tone="warning" live title={`This order will arrive ${dayLabel(rolled)}, not ${dayLabel(date)}.`}>
-              {reasons.includes("cutoff") && "Orders for that day closed at 16:00. "}
-              {reasons.includes("closed") && "The depot has closed ordering for that day. "}
-              {reasons.includes("non_operating") && `Depots are closed that day${festival ? ` (${festival})` : ""}. `}
-              You can still order now; it goes on the next run.
+            <Notice tone="warning" live title={tr("This order will arrive {day}, not {asked}.", { day: dayLabel(rolled), asked: dayLabel(date) })}>
+              {reasons.includes("cutoff") && tr("Orders for that day closed at 16:00. ")}
+              {reasons.includes("closed") && tr("The depot has closed ordering for that day. ")}
+              {reasons.includes("non_operating") && tr("Depots are closed that day{festival}. ", { festival: festival ? ` (${festival})` : "" })}
+              {tr("You can still order now; it goes on the next run.")}
             </Notice>
           )}
           {!amend && <RideAlongHint gateway={gateway} outletId={outletId} brandCode={brand} date={date} onPick={setDate} onDays={setShared} />}
           {warehouseDown && (
-            <Notice tone="warning" title="Stock can't be checked right now">
-              The order is kept as &ldquo;stock not checked&rdquo; until the warehouse answers. It is not confirmed yet.
+            <Notice tone="warning" title={tr("Stock can't be checked right now")}>
+              {tr("The order is kept as “stock not checked” until the warehouse answers. It is not confirmed yet.")}
             </Notice>
           )}
           {error && <Notice tone="danger" live title={error} />}
           {catalogue.error && (
-            <Notice tone="warning" title="Could not load the catalogue">
-              Your usual items are listed; new items can be added once it loads. {friendlyError(catalogue.error)}
+            <Notice tone="warning" title={tr("Could not load the catalogue")}>
+              {tr("Your usual items are listed; new items can be added once it loads.")} {friendlyError(catalogue.error)}
             </Notice>
           )}
 

@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-04 - feat: Sinhala and Tamil for the store manager
+
+`feat/store-language` · @Dinusha-Ekanayake
+
+The language buttons in the store's account menu now switch the screens. Strings are hardcoded in `store/data/strings.ts` (English is the key, a missing one falls back to English), read through `store/i18n.tsx`, as the loader does; the choice stays under the device key Settings already used. Covered: navigation, top bar, account menu, Home, Orders, Deliveries, Issues and placing an order.
+Left in English: Receive, Track, the order sheet, notifications, reporting an issue, the handover PIN, the profile and store dialogs, messages, and sentences built in the data layer (issue card titles, make-up timeline). Dates, times and unit counts come from the shared wording and stay English. The Sinhala and Tamil are drafts awaiting a native speaker.
+Verified: typecheck, `npm test` 284 (new `store-i18n.test.ts` holds every translation to its English placeholders). Not seen in a browser.
+
+---
+
 ## 2026-10-04 - fix: the store manager has no "Switch user" button
 
 `fix/store-no-switch-user` · @Dinusha-Ekanayake

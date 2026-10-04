@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useResource } from "@shared/api/useResource";
 import type { StoreGateway } from "../../data/gateway.ts";
 import { dayLabel } from "../../data/format.ts";
+import { useT } from "../../i18n.tsx";
 
 // Issue #199 (R-ORD-13): a Tech store choosing a day is told when a nearby day
 // already has a trip to its district, so it can join it. Advice only; the order
@@ -25,6 +26,7 @@ export default function RideAlongHint({
   /** The days offered, so the date strip can prefer them when it suggests a day (#224). */
   onDays?: (dates: string[]) => void;
 }): React.JSX.Element | null {
+  const t = useT();
   const asked = brandCode.toLowerCase() === "tech" && outletId !== "";
   const hint = useResource(asked ? (s) => gateway.rideAlong(outletId, date, s) : null, `${outletId}|${date}`);
   const offered = (hint.data?.offered ? hint.data.days : []).map((d) => d.date).join(",");
@@ -34,34 +36,34 @@ export default function RideAlongHint({
   if (hint.error) {
     return (
       <p role="status" className="text-[13px] text-go-muted">
-        Shared trip suggestions are unavailable right now.
+        {t("Shared trip suggestions are unavailable right now.")}
       </p>
     );
   }
   const days = hint.data?.offered ? hint.data.days : [];
   if (days.length === 0) return null;
   return (
-    <section aria-label="Shared trip" className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
-      <h2 className="text-[15px] font-medium text-black">A trip already goes to your area</h2>
+    <section aria-label={t("Shared trip")} className="flex flex-col gap-2 rounded-[18px] bg-white p-4">
+      <h2 className="text-[15px] font-medium text-black">{t("A trip already goes to your area")}</h2>
       {days.map((d) => (
         <div key={d.date} className="flex items-center justify-between gap-3">
           <p className="text-[13px] text-go-muted">
-            {dayLabel(d.date)} · {d.stopsBooked === 1 ? "1 other store" : `${d.stopsBooked} other stores`} booked
-            {hint.data?.roomChecked && " · room on the vehicle"}
+            {dayLabel(d.date)} · {t(d.stopsBooked === 1 ? "1 other store booked" : "{n} other stores booked", { n: d.stopsBooked })}
+            {hint.data?.roomChecked && t(" · room on the vehicle")}
           </p>
           <button
             type="button"
             onClick={() => onPick(d.date)}
             className="min-h-10 rounded-[14px] bg-[#031a0c] px-3 text-[13px] font-medium text-white"
           >
-            Deliver {dayLabel(d.date)}
+            {t("Deliver {day}", { day: dayLabel(d.date) })}
           </button>
         </div>
       ))}
       <p className="text-[12px] text-go-muted">
         {hint.data?.roomChecked
-          ? "Room is estimated from your usual order. Sharing a trip frees a vehicle; the dispatcher still confirms the load."
-          : "Sharing a trip frees a vehicle. The dispatcher still confirms the load."}
+          ? t("Room is estimated from your usual order. Sharing a trip frees a vehicle; the dispatcher still confirms the load.")
+          : t("Sharing a trip frees a vehicle. The dispatcher still confirms the load.")}
       </p>
     </section>
   );

@@ -43,6 +43,13 @@ export function useLang(): { lang: Lang; setLang: (lang: Lang) => void } {
   return useContext(LangContext);
 }
 
+/** "12 h 29 m left", or "closed for today", in the manager's language. */
+export function cutoffWords(ms: number, t: Translate): string {
+  if (ms <= 0) return t("closed for today");
+  const m = Math.floor(ms / 60_000);
+  return m >= 60 ? t("{h} h {m} m left", { h: Math.floor(m / 60), m: m % 60 }) : t("{m} m left", { m });
+}
+
 export function useT(): Translate {
   const { lang } = useContext(LangContext);
   return useCallback((english: string, vars?: Vars) => translate(lang, english, vars), [lang]);

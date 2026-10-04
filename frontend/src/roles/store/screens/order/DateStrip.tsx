@@ -6,6 +6,7 @@ import { Notice, Pill, cx } from "@shared/ui";
 import type { StoreGateway } from "../../data/gateway.ts";
 import { addDays, dayLabel } from "../../data/format.ts";
 import { BOOKING_DAYS, needsWarning, outlookChip, suggestDay } from "../../data/outlook.ts";
+import { useT } from "../../i18n.tsx";
 
 // Issue #224 (R-ML-07): four weeks of delivery days, each with how likely it is
 // to be kept, so "next Friday" can be chosen and a busy day is said before the
@@ -30,6 +31,7 @@ export default function DateStrip({
   shared: string[];
   onPick: (date: string) => void;
 }): React.JSX.Element {
+  const t = useT();
   const last = addDays(first, BOOKING_DAYS - 1);
   const dates = Array.from({ length: BOOKING_DAYS }, (_, i) => addDays(first, i));
   const outlook = useResource(outletId ? (s) => gateway.outlook(outletId, first, last, s) : null, `${outletId}|${first}`);
@@ -44,7 +46,7 @@ export default function DateStrip({
 
   return (
     <fieldset className="flex min-w-0 flex-col gap-2">
-      <legend className="mb-2 text-[13px] text-go-muted">Delivery day</legend>
+      <legend className="mb-2 text-[13px] text-go-muted">{t("Delivery day")}</legend>
       <div ref={strip} className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
         {dates.map((d) => {
           const day = days.find((x) => x.date === d);
@@ -54,7 +56,7 @@ export default function DateStrip({
               key={d}
               type="button"
               aria-pressed={d === date}
-              aria-label={chip ? `${dayLabel(d)} · ${chip.label}` : dayLabel(d)}
+              aria-label={chip ? `${dayLabel(d)} · ${t(chip.label)}` : dayLabel(d)}
               onClick={() => onPick(d)}
               className={cx(
                 "flex min-h-16 w-[92px] shrink-0 flex-col items-center justify-center gap-1 rounded-[18px] px-2 text-[15px] font-medium",
@@ -62,28 +64,28 @@ export default function DateStrip({
               )}
             >
               {dayLabel(d)}
-              {chip && <Pill tone={chip.tone}>{chip.label}</Pill>}
+              {chip && <Pill tone={chip.tone}>{t(chip.label)}</Pill>}
             </button>
           );
         })}
       </div>
       {outlook.error && (
         <p role="status" className="text-[13px] text-go-muted">
-          Outlook unavailable right now. Every day can still be chosen.
+          {t("Outlook unavailable right now. Every day can still be chosen.")}
         </p>
       )}
       {chosen && needsWarning(chosen) && (
-        <Notice tone="warning" live title={`${dayLabel(date)} is ${chosen.status === "AT_RISK" ? "at risk" : "busy"}: your order may move a day.`}>
+        <Notice tone="warning" live title={t(chosen.status === "AT_RISK" ? "{day} is at risk: your order may move a day." : "{day} is busy: your order may move a day.", { day: dayLabel(date) })}>
           {chosen.reason}.{" "}
           {suggestion ? (
             <>
-              {dayLabel(suggestion)} is on track.{" "}
+              {t("{day} is on track.", { day: dayLabel(suggestion) })}{" "}
               <button type="button" onClick={() => onPick(suggestion)} className="font-medium underline">
-                Deliver {dayLabel(suggestion)}
+                {t("Deliver {day}", { day: dayLabel(suggestion) })}
               </button>
             </>
           ) : (
-            "Dispatch plans each day the afternoon before and tells you at once if it moves."
+            t("Dispatch plans each day the afternoon before and tells you at once if it moves.")
           )}
         </Notice>
       )}
