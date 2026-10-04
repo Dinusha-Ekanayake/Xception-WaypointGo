@@ -370,6 +370,8 @@ export const STRINGS: Record<string, [string, string]> = {
   "Shared trip": ["හවුල් ගමන", "பகிரப்பட்ட பயணம்"],
   "Chilled goods (mixed)": ["ශීත භාණ්ඩ (මිශ්‍ර)", "குளிர் பொருட்கள் (கலப்பு)"],
   "Dry goods (mixed)": ["වියළි භාණ්ඩ (මිශ්‍ර)", "உலர் பொருட்கள் (கலப்பு)"],
+  "Planned arrival": ["සැලසුම් කළ පැමිණීම", "திட்டமிட்ட வருகை"],
+  "stop {n} · ": ["නැවතුම {n} · ", "நிறுத்தம் {n} · "],
   "A better day for this order": ["මෙම ඇණවුමට වඩා හොඳ දිනයක්", "இந்த ஆர்டருக்கு சிறந்த நாள்"],
   "{day}: {trip} already goes to {district}": ["{day}: {district} වෙත {trip} දැනටමත් යයි", "{day}: {district} க்கு {trip} ஏற்கனவே செல்கிறது"],
   "a refrigerated trip": ["ශීතකරණ ගමනක්", "குளிர்சாதனப் பயணம்"],
