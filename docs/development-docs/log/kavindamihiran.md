@@ -3,6 +3,12 @@
 @kavindamihiran's entries, newest first. Only @kavindamihiran adds to this file; how to write an entry is in the [log's index](../development-log.md).
 
 ---
+## 2026-10-04 - ci: release pull request reuses the dev checks
+
+`ci/release-pr-reuses-dev-checks` · @kavindamihiran
+
+Every push to dev ran Checks twice (preview deploy and the open dev to main pull request), about 26 jobs, and runs queued ~2 minutes for runners. The release pull request now runs one job that waits for the preview deploy's checks of the same commit and takes their result; the deploys gained `actions: read` for it. Verified by the pull request's own checks.
+
 ## 2026-10-04 - ci: check only what a change touches
 
 `ci/checks-only-what-changed` · @kavindamihiran
