@@ -20,7 +20,12 @@ export function scopeLabel(filter: DepotFilter, scope: string[]): string {
 /** R-ORD-01: a run's ordering closes at 16:00, depot time, on the calendar day before it (A-22). */
 export const CUTOFF_HOUR = 16;
 
-/** The run being planned: today's until the 16:00 cutoff, then tomorrow's. */
-export function nextRun(today: string, hour: number): string {
-  return hour >= CUTOFF_HOUR ? addDays(today, 1) : today;
+/**
+ * The run being planned: tomorrow's. An order placed today before the 16:00
+ * cutoff is for tomorrow (R-ORD-01), and tomorrow's plan also takes earlier
+ * orders never planned (R-ORD-16), so planning tomorrow plans the whole Current
+ * set. Today's run is already planned and on the road.
+ */
+export function nextRun(today: string): string {
+  return addDays(today, 1);
 }

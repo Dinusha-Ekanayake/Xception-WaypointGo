@@ -29,6 +29,7 @@ import type { PlanActions } from "./planActions.ts";
 export default function SwapWindow({
   plan,
   incoming,
+  tripId: firstTrip,
   orders,
   fleet,
   actions,
@@ -37,13 +38,15 @@ export default function SwapWindow({
   plan: PlanView;
   /** The deferred order that wants a place. */
   incoming: OrderView;
+  /** The trip the dispatcher clicked; otherwise the first trip it could swap onto. */
+  tripId?: string;
   orders: Map<string, OrderView>;
   fleet: VehicleView[];
   actions: PlanActions;
   onClose: () => void;
 }): React.JSX.Element {
   const trips = useMemo(() => swapTrips(plan, incoming), [plan, incoming]);
-  const [tripId, setTripId] = useState(trips[0]?.tripId ?? "");
+  const [tripId, setTripId] = useState(trips.find((t) => t.tripId === firstTrip)?.tripId ?? trips[0]?.tripId ?? "");
   const trip = trips.find((t) => t.tripId === tripId) ?? trips[0] ?? null;
   const vehicle = fleet.find((v) => v.vehicleId === trip?.vehicleId);
   const [outId, setOutId] = useState<string | null>(null);

@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-04 - feat: the attention watch, increment 1 (issue #268): the rule, the tables, the job and the read
+
+`feat/268-attention-watch` · @Dinusha-Ekanayake
+
+A scheduled job in `intelligence` watches every live trip each minute through Planning's and Execution's contracts and records what needs the dispatcher: a failed stop, a stop that will miss its window, a stop running late, a delivery with no proof. `AttentionPolicy` is the one definition of those rules (pure, the time a parameter); thresholds are data per depot with defaults in code; an item is raised once, refreshed, then cleared, never deleted; a heartbeat says when the watch last looked, and the read marks the list stale after three missed runs. `GET /api/ml/attention?depot=&date=` under `ml:Read`, another depot is 403. Plan in [PLAN.md](../../issues/268-attention-watch/PLAN.md).
+Left for increment 2: acknowledge (command, action catalogue row, authorisation test), reminders and their events through the outbox, the notification subscriber, and the Live screen reading from the endpoint.
+Verified: 11 domain and mapping unit tests, `ModuleBoundaryTest` and `EventCatalogueTest` pass. The two integration tests compile but were NOT run: no database was available locally, so the SQL and the migration are unproven until CI runs them.
+
+---
+
 ## 2026-10-04 - feat: an optional language model rewords the plan explanations
 
 `feat/explain-groq` · @Dinusha-Ekanayake
@@ -30,6 +40,16 @@ Verified: see the PR. `npm test` 281; `explain.spec.ts` and the generate spec in
 
 The store's top bar and sidebar no longer show "Switch user": Sign out is already in the account menu behind the profile picture. `ShellActions` takes `switchUser` (default on), so the other roles keep the button; the sync badge and the role switcher of an account with several roles still show for the store.
 Verified: typecheck, `npm test`. Browser suites in CI.
+
+---
+
+## 2026-10-04 - feat: suggested steps and a ready message on what needs the dispatcher (issue #269, first slice)
+
+`feat/269-suggestions` · @Dinusha-Ekanayake
+
+Each card under Live's "Needs you" opens **Suggested steps**: the playbook for that situation (window closing, driver offline, not delivered, proof owed, an issue) and a message filled with the vehicle, the store, the expected arrival and the window, which opens in the trip's thread for the dispatcher to edit and send. Playbooks are data in `dispatcher/data/playbooks.ts`, matched by scenario, so the same situation gets the same advice; a message with a blank it cannot fill is not offered. Frontend only, no model.
+Left for #269 and #268: playbooks an administrator can edit, the server-side watch with reminders and a heartbeat. Both need backend work.
+Verified: see the PR. `npm test` 275; new `e2e-dispatcher/suggestions.spec.ts`. Not seen on the preview: no trip was on the road there today.
 
 ---
 

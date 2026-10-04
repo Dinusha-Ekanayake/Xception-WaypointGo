@@ -98,6 +98,7 @@ class IntelligenceIntegrationTest {
   @Autowired PlanScoringJob scoring;
   @Autowired ForecastJob forecasts;
   @Autowired OutlookWatchJob watch;
+  @Autowired com.waypoint.dispatch.intelligence.infrastructure.JdbcAttentionRepository attentionItems;
 
   private String run;
   private String depot;
@@ -558,6 +559,56 @@ class IntelligenceIntegrationTest {
       if (inbox.claim(consumer, eventId)) {
         subscriber.on(envelope);
       }
+    });
+  }
+
+  // ---- the attention watch (issue #268) ---------------------------------------------
+
+  @Test
+  void anAttentionItemIsRaisedOnceRefreshedAndThenClearedWhenItNoLongerHolds() throws Exception {
+    UUID delivery = UUID.randomUUID();
+    UUID trip = UUID.randomUUID();
+    Instant first = Instant.parse("2031-03-03T04:00:00Z");
+    LocalDate day = LocalDate.of(2031, 3, 3);
+
+    boolean raised = raiseAttention(delivery, trip, day, first);
+    boolean again = raiseAttention(delivery, trip, day, first.plusSeconds(60));
+    assertTrue(raised, "the first sighting raises the item");
+    assertFalse(again, "the second refreshes it and raises nothing new");
+
+    JsonNode board = read(dispatcher, "/api/ml/attention?depot=" + depot + "&date=" + day, 200);
+    assertEquals(1, board.get("items").size());
+    assertEquals("WINDOW_AT_RISK", board.at("/items/0/kind").asText());
+    assertEquals("CRITICAL", board.at("/items/0/severity").asText());
+    assertEquals(48, board.at("/items/0/minutesLeft").asInt());
+    assertFalse(board.get("checkedAt").isNull(), "the watch says when it last looked");
+
+    // The next look does not find it: it ends, and is never deleted.
+    Instant later = first.plusSeconds(120);
+    database.asSystem(ModuleRole.ML, () -> {
+      attentionItems.clearUnseen(depot, day, later);
+      attentionItems.beat(depot, 0, later);
+    });
+    assertEquals(0, read(dispatcher, "/api/ml/attention?depot=" + depot + "&date=" + day, 200).get("items").size());
+    Map<String, Object> kept = database.asSystem(ModuleRole.ML, () -> database.queryOne(
+        "SELECT count(*) AS n FROM ml.attention_items WHERE delivery_id = ? AND cleared_at IS NOT NULL", delivery));
+    assertEquals(1L, ((Number) kept.get("n")).longValue());
+  }
+
+  @Test
+  void attentionForADepotOutsideTheReadersScopeIsRefusedNotEmpty() throws Exception {
+    read(stranger, "/api/ml/attention?depot=" + depot + "&date=2031-03-04", 403);
+  }
+
+  private boolean raiseAttention(UUID delivery, UUID trip, LocalDate day, Instant at) {
+    return database.asSystem(ModuleRole.ML, () -> {
+      boolean raised = attentionItems.raise(
+          delivery,
+          com.waypoint.dispatch.intelligence.contract.AttentionViews.AttentionKind.WINDOW_AT_RISK,
+          com.waypoint.dispatch.intelligence.contract.AttentionViews.AttentionSeverity.CRITICAL,
+          depot, day, "VEH037", trip, outlet.outletId(), Optional.of(48), at);
+      attentionItems.beat(depot, 1, at);
+      return raised;
     });
   }
 
