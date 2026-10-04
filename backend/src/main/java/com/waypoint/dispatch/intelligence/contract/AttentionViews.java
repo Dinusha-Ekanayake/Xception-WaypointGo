@@ -10,6 +10,9 @@ import java.util.UUID;
 public final class AttentionViews {
   private AttentionViews() {}
 
+  /** The command kind, and the action a policy grants: {@code depotCode}, {@code deliveryId}, {@code kind}, {@code reason}. */
+  public static final String ACKNOWLEDGE = "ml:AcknowledgeAttention";
+
   public enum AttentionKind {
     FAILED_STOP,
     WINDOW_AT_RISK,
