@@ -87,7 +87,7 @@ export default function TripWindow({
   right: { title: string; hint: string; body?: ReactNode };
   chips: Chip[];
   footer: ReactNode;
-  accept: { label: string; disabled: boolean; onClick: () => void };
+  accept: { label: string; disabled: boolean; onClick: () => void; busy?: boolean };
 }): React.JSX.Element {
   const [dragging, setDragging] = useState<number | null>(null);
   const [over, setOver] = useState(false);
@@ -282,8 +282,8 @@ export default function TripWindow({
       <footer className="flex flex-wrap items-center gap-3 border-t border-go-rule px-6 py-3.5">
         <div className="min-w-0 flex-1 text-[13px] text-go-secondary">{footer}</div>
         <SecondaryButton onClick={onClose}>Cancel</SecondaryButton>
-        <PrimaryButton disabled={accept.disabled} onClick={accept.onClick}>
-          {accept.label}
+        <PrimaryButton disabled={accept.disabled} busy={accept.busy} onClick={accept.onClick}>
+          {accept.busy ? "Sending…" : accept.label}
         </PrimaryButton>
       </footer>
     </Sheet>

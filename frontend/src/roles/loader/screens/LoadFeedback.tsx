@@ -181,8 +181,8 @@ export function HandBack({
       <BigButton tone="grey" size="l" onClick={onClose}>
         {tr("Keep loading")}
       </BigButton>
-      <BigButton tone="ink" size="l" disabled={busy} onClick={onConfirm}>
-        {tr("Hand back")}
+      <BigButton tone="ink" size="l" busy={busy} onClick={onConfirm}>
+        {tr(busy ? "Sending…" : "Hand back")}
       </BigButton>
     </Confirm>
   );

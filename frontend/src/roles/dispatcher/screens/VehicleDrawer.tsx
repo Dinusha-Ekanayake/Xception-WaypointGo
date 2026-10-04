@@ -114,7 +114,7 @@ export default function VehicleDrawer({
               It leaves the next planning run for that day. Plans already made stay as they are (R-FLT-04).
             </p>
             <div className="flex gap-2">
-              <PrimaryButton type="submit" disabled={!online || sending || !reason.trim()}>
+              <PrimaryButton type="submit" disabled={!online || !reason.trim()} busy={sending}>
                 {sending ? "Sending…" : `Send ${vehicle.vehicleId} to workshop`}
               </PrimaryButton>
               <SecondaryButton onClick={() => setConfirming(false)} disabled={sending}>

@@ -481,7 +481,7 @@ export default function RouteNextStop({
           <div
             style={{
               transform: `translate3d(0, ${pullY}px, 0)`,
-              transition: isPulling ? "none" : "transform 500ms cubic-bezier(0.18, 1.12, 0.32, 1.0)",
+              transition: isPulling ? "none" : "transform 250ms cubic-bezier(0.18, 1.12, 0.32, 1.0)",
             }}
             className="flex flex-col will-change-transform"
           >

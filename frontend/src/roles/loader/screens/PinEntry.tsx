@@ -112,7 +112,7 @@ export default function PinEntry({
             {tr("Ask supervisor to reset")}
           </BigButton>
         ) : (
-          <BigButton tone="ink" size="l" type="submit" disabled={busy}>
+          <BigButton tone="ink" size="l" type="submit" busy={busy}>
             {busy ? tr("Checking…") : submitLabel}
           </BigButton>
         )}

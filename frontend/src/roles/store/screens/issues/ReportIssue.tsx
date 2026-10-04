@@ -200,7 +200,7 @@ export default function ReportIssue({
             <Button tone="plain" large onClick={onClose}>
               Cancel
             </Button>
-            <Button tone="danger" large disabled={commands.busy} onClick={() => void send()}>
+            <Button tone="danger" large busy={commands.busy} onClick={() => void send()}>
               {commands.busy ? "Sending…" : "Send to dispatcher"}
             </Button>
           </div>

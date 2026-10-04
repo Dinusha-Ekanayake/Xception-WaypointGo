@@ -138,7 +138,7 @@ export function Ring({ percent }: { percent: number }): React.JSX.Element {
           strokeWidth="12"
           strokeDasharray={c}
           strokeDashoffset={c * (1 - percent / 100)}
-          className="transition-[stroke-dashoffset] duration-500"
+          className="transition-[stroke-dashoffset] duration-[250ms]"
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">

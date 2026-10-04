@@ -218,7 +218,8 @@ export default function SwapWindow({
       }
       accept={{
         label: "Accept changes",
-        disabled: actions.busy || !feasible || !reasonReady(reason),
+        disabled: !feasible || !reasonReady(reason),
+        busy: actions.busy,
         onClick: () =>
           outId &&
           void actions.swap(outId, incoming.orderId, reason.trim(), sequence ?? undefined).then((ok) => ok && onClose()),

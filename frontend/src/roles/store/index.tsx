@@ -264,11 +264,12 @@ export default function Store({
         onPlace={place}
         onReceive={receive}
         onTrack={() => setView({ kind: "track" })}
+        onRetry={orders.refresh}
         notifications={<NotificationsCard inbox={inbox} onSubject={openSubject} onAll={() => setInboxOpen(true)} />}
       />
     );
   } else if (tab === "orders") {
-    body = <Orders orders={all} loading={orders.loading} error={orders.error} onOpen={setOpenOrder} onPlace={place} />;
+    body = <Orders orders={all} loading={orders.loading} error={orders.error} onOpen={setOpenOrder} onPlace={place} onRetry={orders.refresh} />;
   } else if (tab === "issues") {
     body = (
       <Issues
@@ -281,6 +282,7 @@ export default function Store({
         commands={commands}
         onOpenOrder={setOpenOrder}
         onSent={refresh}
+        onRetry={issues.refresh}
       />
     );
   } else {

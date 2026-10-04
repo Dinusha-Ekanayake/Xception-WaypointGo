@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useResource } from "@shared/api/useResource";
 import type { DeliveryRecordView, IssueView, OrderView, OutletView, PendingReceiptView } from "@shared/domain/types";
-import { Icon, Notice, Pending, cx } from "@shared/ui";
+import { Icon, Notice, Pending, SkeletonRows, cx } from "@shared/ui";
 import type { StoreGateway } from "../data/gateway.ts";
 import { ORDER_STATUS, units, clock, depotToday, hhmm, longDay, onTheWay, temperatureLabel } from "../data/format.ts";
 import { ISSUE_TYPE, isOpenIssue } from "../data/issues.ts";
@@ -105,7 +105,7 @@ export default function Track({
 
             <Card label="Timeline">
               <h2 className="text-[18px] font-medium text-black">Timeline</h2>
-              {history.error && <Notice tone="danger" title="Could not load the timeline">{history.error.message}</Notice>}
+              {history.error && <Notice tone="danger" title="Could not load the timeline" onRetry={history.refresh}>{history.error.message}</Notice>}
               <ol className="flex flex-col gap-3">
                 {(history.data ?? []).map((h) => (
                   <li key={`${h.to}-${h.at}`} className="flex gap-3">
@@ -129,7 +129,7 @@ export default function Track({
                   </li>
                 )}
               </ol>
-              {history.loading && !history.data && <Muted>Loading…</Muted>}
+              {history.loading && !history.data && <SkeletonRows label="Loading…" />}
             </Card>
           </div>
 

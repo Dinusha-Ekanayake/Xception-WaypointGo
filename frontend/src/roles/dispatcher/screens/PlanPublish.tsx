@@ -178,7 +178,7 @@ export default function PlanPublish({
             <p className="min-w-[220px] flex-1 text-[13px] font-medium text-go-ink">
               {revises ? "Send this change to the loaders and drivers?" : `Publish for ${depot} on ${dayLabel(date)}? It cannot be edited afterwards, only revised.`}
             </p>
-            <PrimaryButton disabled={!online || busy || blocked} onClick={onPublish}>
+            <PrimaryButton disabled={!online || blocked} busy={busy} onClick={onPublish}>
               {busy ? "Sending…" : revises ? "Send update" : "Confirm publish"}
             </PrimaryButton>
             <SecondaryButton onClick={() => onConfirming(false)}>Cancel</SecondaryButton>
@@ -202,8 +202,8 @@ export default function PlanPublish({
             </p>
             <ReasonPicker label="Why is the plan being revised?" value={reviseReason} onChange={onReviseReason} placeholder="For example: a vehicle broke down, new orders were confirmed" />
             <div className="flex gap-2">
-              <PrimaryButton disabled={!online || busy || !reasonReady(reviseReason)} onClick={onRevise}>
-                Start a revision
+              <PrimaryButton disabled={!online || !reasonReady(reviseReason)} busy={busy} onClick={onRevise}>
+                {busy ? "Sending…" : "Start a revision"}
               </PrimaryButton>
               <SecondaryButton onClick={() => onRevising(false)}>Cancel</SecondaryButton>
             </div>

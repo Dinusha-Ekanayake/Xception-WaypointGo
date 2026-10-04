@@ -106,7 +106,7 @@ function ShortfallNotice({ order, onAccept }: { order: PlacedOrder; onAccept: (o
       live
       title={`${order.orderRef}: held until ${clock(short.expiresAt)}`}
       action={
-        <Button large onClick={() => void accept()}>
+        <Button large busy={state.busy} onClick={() => void accept()}>
           {state.busy ? "Accepting…" : "Accept reserved"}
         </Button>
       }

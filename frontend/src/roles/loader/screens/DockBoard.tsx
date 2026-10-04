@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { Resource } from "@shared/api/useResource";
 import type { ReadyTripView } from "@shared/domain/types";
-import { Icon, Notice, cx, usePersistentState } from "@shared/ui";
+import { Icon, Notice, SkeletonRows, cx, usePersistentState } from "@shared/ui";
 import { depotToday, holdLapsed } from "../data/manifest.ts";
 import { addDays, dayLabel } from "../../../shared/wording/index.ts";
 import { BigButton } from "../ui.tsx";
@@ -149,7 +149,7 @@ export default function DockBoard({
           {trips.error.message}
         </Notice>
       )}
-      {!trips.data && !trips.error && <p className="py-8 text-center text-[15px] text-go-muted">{tr("Loading trips…")}</p>}
+      {!trips.data && !trips.error && <SkeletonRows label={tr("Loading trips…")} />}
       {trips.data && shown.length === 0 && (
         <div className="flex flex-col items-center gap-3 rounded-[32px] bg-go-card px-6 py-12 text-center text-go-ink shadow-go-card">
           <span className="flex size-14 items-center justify-center rounded-full bg-go-surface text-go-muted"><TruckIcon /></span>

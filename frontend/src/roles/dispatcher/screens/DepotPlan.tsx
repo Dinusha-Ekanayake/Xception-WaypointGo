@@ -236,7 +236,7 @@ export default function DepotPlan({
               <PrimaryButton onClick={() => onDate(nextDay.data!.date)}>Plan {dayLabel(nextDay.data.date)}</PrimaryButton>
             </>
           ) : (
-            <PrimaryButton disabled={!online || busy || planning !== null} onClick={() => void generate(false)}>
+            <PrimaryButton disabled={!online || planning !== null} busy={busy} onClick={() => void generate(false)}>
               {planning ?? (busy ? "Generating…" : "Generate draft")}
             </PrimaryButton>
           )}
