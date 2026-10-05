@@ -4,6 +4,28 @@
 
 ---
 
+## 2026-10-06 - docs: handover audit and phased roadmap
+
+`main` · @Oxshadha
+
+Added [docs/roadmap/](../../roadmap/README.md):
+- the audit at handover;
+- the normal flows with technical and business baselines;
+- the foundation fixes;
+- the infrastructure decisions (no broker, no Redis, no partitioning; R2 behind per-module ports);
+- the field features (shared damaged-goods report, ops inquiry, live trip channel, reply templates, transcription, Fuel Pass);
+- the Datathon models in real decisions;
+- the Jev and LLM features;
+- the business policies;
+- the business case.
+
+STATUS points to it; the auditor console row and the EXE-04 claim are corrected there.
+Why: the system was handed over and an intelligence layer was requested; the audit found foundation gaps that must be fixed first, and an unmerged branch.
+Verified: links resolve, no em or en dashes, every tracker ID is defined. No code changed.
+Open: rule and ADR proposals move into the canonical documents with the pull requests that build them; Phase 0 (H-00 to H-05) is next.
+
+---
+
 ## 2026-10-04 - fix: driver arrival and problem reports are a slide, not a tap
 
 `fix/field-ui-polish` · @Oxshadha

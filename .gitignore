@@ -161,6 +161,7 @@ artifacts/
 !docs/submission-checklist.md
 !docs/verification.md
 !docs/issues/**/*.md
+!docs/roadmap/*.md
 
 # Java / Maven build output (including nested modules)
 target/
