@@ -9,6 +9,7 @@ import com.waypoint.dispatch.demo.application.SimulationJob;
 import com.waypoint.dispatch.identity.application.AccountAdminUseCase;
 import com.waypoint.dispatch.referencedata.application.ImportReferenceDataHandler;
 import com.waypoint.dispatch.referencedata.contract.ReferenceQuery;
+import com.waypoint.dispatch.platform.config.DataConfig;
 import com.waypoint.dispatch.platform.db.Database;
 import com.waypoint.dispatch.platform.db.Migrator;
 import com.waypoint.dispatch.platform.db.ModuleRole;
@@ -21,6 +22,12 @@ import com.waypoint.dispatch.support.TestDatabase;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.nio.file.Path;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -57,6 +64,11 @@ class DemoIntegrationTest {
         "demo-admin-" + suffix + "@test.local", "Demo admin", "DemoPassword2026!", "admin"));
     Actor driver = Actor.user(accounts.createAccount(
         "demo-driver-" + suffix + "@test.local", "Demo driver", "DemoPassword2026!", "driver"));
+    clearClosesBeyondTheDemoWindow();
+    // The test database is shared: another test may have left demo mode on.
+    if (settings.view().enabled()) {
+      bus.dispatch(admin, command("Disable", settings.view().rowVersion(), Map.of("reason", "Start from normal operation")));
+    }
     var initial = settings.view();
     assertFalse(initial.enabled());
     Command enable = command("Enable", initial.rowVersion(), Map.of("reason", "Test demo enable"));
@@ -68,9 +80,12 @@ class DemoIntegrationTest {
         command("SetClock", initial.rowVersion(), Map.of(
             "target", Instant.now().plusSeconds(3600).toString(), "reason", "Stale clock change"))));
     Instant real = clock.realTime().now();
+    // Other tests may have closed a later day; the clock may not go back before that close.
+    Instant target = latestClose().map(c -> c.plusSeconds(60)).filter(c -> c.isAfter(real.plusSeconds(3600)))
+        .orElse(real.plusSeconds(3600));
     bus.dispatch(admin, command("SetClock", settings.view().rowVersion(), Map.of(
-        "target", real.plusSeconds(3600).toString(), "reason", "After cutoff test")));
-    assertTrue(clock.now().isAfter(real.plusSeconds(3590)));
+        "target", target.toString(), "reason", "After cutoff test")));
+    assertTrue(clock.now().isAfter(target.minusSeconds(10)));
     assertTrue(clock.realTime().now().isBefore(real.plusSeconds(30)));
     bus.dispatch(admin, command("Disable", settings.view().rowVersion(),
         Map.of("reason", "Restore normal operation")));
@@ -109,8 +124,15 @@ class DemoIntegrationTest {
       bus.dispatch(admin, command("Enable", settings.view().rowVersion(),
           Map.of("reason", "Prepare isolated demo day")));
     }
-    LocalDate day = reference.nextOperatingDay(clock.now().atZone(Clock.OPERATING_ZONE)
-        .toLocalDate().plusDays(1));
+    // Other tests place orders on the next operating days of the shared database,
+    // so take the first day in the seven-day window that is still empty.
+    clearClosesBeyondTheDemoWindow();
+    LocalDate today = clock.now().atZone(Clock.OPERATING_ZONE).toLocalDate();
+    LocalDate candidate = reference.nextOperatingDay(today.plusDays(1));
+    while (taken(candidate) && !candidate.isAfter(today.plusDays(7))) {
+      candidate = reference.nextOperatingDay(candidate.plusDays(1));
+    }
+    LocalDate day = candidate;
     Command reset = command("ResetDay", settings.view().rowVersion(),
         Map.of("reason", "Prepare peak demo day", "serviceDate", day.toString()));
     bus.dispatch(admin, reset);
@@ -182,5 +204,51 @@ class DemoIntegrationTest {
   private Command command(String verb, Long version, Map<String, Object> payload) {
     return new Command(UUID.randomUUID(), "demo:" + verb, version,
         json.valueToTree(payload), Instant.now());
+  }
+
+  /**
+   * Other suites close days years ahead to stay clear of real dates. No clock this
+   * system runs can reach those closes (the demo clock stays within seven days), but
+   * they would hold the demo clock back, so they are cleared as the owner.
+   */
+  private static void clearClosesBeyondTheDemoWindow() {
+    try (Connection owner = ownerConnection(); Statement statement = owner.createStatement()) {
+      statement.executeUpdate("DELETE FROM ordering.day_closures WHERE closed_at > now() + interval '7 days'");
+    } catch (SQLException e) {
+      throw new IllegalStateException(e);
+    }
+  }
+
+  /** Whether Peliyagoda already has orders or a close on that day, read past row-level security. */
+  private static boolean taken(LocalDate day) {
+    try (Connection owner = ownerConnection();
+        PreparedStatement query = owner.prepareStatement(
+            "SELECT EXISTS (SELECT 1 FROM ordering.orders WHERE depot_code = 'Peliyagoda' AND delivery_date = ?)"
+                + " OR EXISTS (SELECT 1 FROM ordering.day_closures WHERE depot_code = 'Peliyagoda' AND service_date = ?)")) {
+      query.setObject(1, day);
+      query.setObject(2, day);
+      try (ResultSet rows = query.executeQuery()) {
+        rows.next();
+        return rows.getBoolean(1);
+      }
+    } catch (SQLException e) {
+      throw new IllegalStateException(e);
+    }
+  }
+
+  /** The latest close of any depot, as the clock guard sees it. */
+  private static java.util.Optional<Instant> latestClose() {
+    try (Connection owner = ownerConnection(); Statement statement = owner.createStatement();
+        ResultSet rows = statement.executeQuery("SELECT max(closed_at) FROM ordering.day_closures")) {
+      rows.next();
+      return java.util.Optional.ofNullable(rows.getTimestamp(1)).map(java.sql.Timestamp::toInstant);
+    } catch (SQLException e) {
+      throw new IllegalStateException(e);
+    }
+  }
+
+  private static Connection ownerConnection() throws SQLException {
+    String url = TestDatabase.url();
+    return DriverManager.getConnection(DataConfig.toJdbcUrl(url), DataConfig.username(url), DataConfig.password(url));
   }
 }

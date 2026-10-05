@@ -112,6 +112,17 @@ public class JdbcIssueRepository {
         limit);
   }
 
+  /** A depot's issues resolved or closed since {@code since}, most recently resolved first. */
+  public List<Stored> settledForDepot(String depotCode, Instant since, int limit) {
+    return many(
+        "SELECT " + COLUMNS + " FROM issues.issues i"
+            + " WHERE i.depot_code = ? AND i.status IN ('resolved','closed') AND i.resolved_at >= ?"
+            + " ORDER BY i.resolved_at DESC, i.issue_id LIMIT ?",
+        depotCode,
+        Timestamp.from(since),
+        limit);
+  }
+
   /** Every issue about a subject, newest first, whatever its status. */
   public List<Stored> about(SubjectRef subject) {
     return many(

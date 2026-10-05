@@ -72,6 +72,21 @@ public class IssueDataQuery implements IssueQuery {
     return read(actor.userId(), () -> open(depotCode, cursor, Page.limit(limit)));
   }
 
+  /** How far back the Resolved list reaches: a working week of decisions. */
+  public static final java.time.Duration SETTLED_WINDOW = java.time.Duration.ofDays(7);
+
+  /**
+   * A depot's issues resolved or closed in the last {@link #SETTLED_WINDOW}, newest
+   * first, so a resolved issue can still be found and closed after the dispatcher
+   * has moved on (R-ISS-09).
+   */
+  public List<IssueView> settledIssues(Actor actor, String depotCode, Instant now) {
+    requireDepot(actor, depotCode);
+    return read(actor.userId(), () -> issues.settledForDepot(depotCode, now.minus(SETTLED_WINDOW), Page.limit(Integer.MAX_VALUE)).stream()
+        .map(IssueDataQuery::toView)
+        .toList());
+  }
+
   public IssueView issue(Actor actor, UUID issueId) {
     return read(actor.userId(), () -> issues.find(issueId).map(IssueDataQuery::toView))
         .orElseThrow(() -> notFound(issueId));

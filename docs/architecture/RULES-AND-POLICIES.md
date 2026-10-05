@@ -309,6 +309,7 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-ISS-06 | **Escalation timer.** An issue still OPEN and unassigned past its severity's deadline (P-20 to P-23) is stamped escalated once, with a history row, a metric and `issue.escalated` for Notification to route to the depot's dispatchers | Policy | Policy |
 | R-ISS-07 | **Who may raise what is policy data.** `issue:Raise` is evaluated on `wpt:issue:type:<TYPE>`, and the role policies name each role's types; scope is the issue's depot, the outlet it names, or for a driver the depot of the vehicle they drive today (R-IAM-13, `driverVehicleOn`). Store: damaged goods, late delivery, other. Loader: loading shortfall, damaged goods, other. Driver: failed delivery, vehicle fault, road disruption, late delivery, damaged goods, other. Dispatcher: all | Policy, issue #13 decision 2 | Policy |
 | R-ISS-08 | An issue is assigned only to someone scoped to its depot, so it never lands with a person who cannot see it | Policy | Policy |
+| R-ISS-09 | **A resolved issue stays findable.** The Issues inbox lists open and assigned issues; resolved and closed ones from the last seven days are read separately, newest first, so the dispatcher can close what they resolved earlier | Policy | Policy |
 
 ## 7. Fleet, calendar and notification
 

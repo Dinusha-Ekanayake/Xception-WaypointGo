@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Pending, Pill, Segmented, cx, usePersistentState } from "@shared/ui";
-import { clock, businessNow } from "@shared/wording";
+import { Pill, Segmented, cx, usePersistentState } from "@shared/ui";
+import { clock, businessNow, issueText } from "@shared/wording";
 import PageHeader from "../PageHeader.tsx";
-import { SEVERITY, TYPE, byUrgency, shortId } from "../data/issues.ts";
-import { useIssues } from "../data/useDay.ts";
+import { SEVERITY, TYPE, byUrgency } from "../data/issues.ts";
+import { useIssues, useSettledIssues } from "../data/useDay.ts";
 import IssueDetail from "./IssueDetail.tsx";
 import { Retry } from "./Orders.tsx";
 import Refusal from "./Refusal.tsx";
@@ -38,6 +38,7 @@ export default function Issues({
 }): React.JSX.Element {
   const issues = useIssues(depots);
   const [tab, setTab] = usePersistentState<Tab>("dispatcher:issues:tab", "open");
+  const settled = useSettledIssues(depots, tab === "resolved");
   const [selectedId, setSelectedId] = useState<string | null>(focusIssueId);
   useEffect(() => {
     if (focusIssueId) setSelectedId(focusIssueId);
@@ -52,7 +53,7 @@ export default function Issues({
   const all = useMemo(() => byUrgency(issues.data ?? []), [issues.data]);
   const open = all.filter((issue) => issue.status === "OPEN");
   const progress = all.filter((issue) => issue.status === "ASSIGNED");
-  const shown = tab === "open" ? open : tab === "progress" ? progress : [];
+  const shown = tab === "open" ? open : tab === "progress" ? progress : (settled.data ?? []);
   const selected = selectedId ?? shown[0]?.issueId ?? null;
 
   // Hold the first issue once shown, so resolving it, which takes it off the
@@ -87,20 +88,22 @@ export default function Issues({
 
       <div className="flex min-h-0 w-full flex-1 gap-[18px] max-lg:flex-col">
         <section aria-label="Open issues" className="flex min-w-0 flex-1 flex-col gap-1 self-start rounded-go-panel bg-go-card p-2">
-          {tab === "resolved" && (
-            <div className="p-3">
-              <Pending what="the resolved issues" waitingOn="a read of resolved and closed issues in the Issues module" />
-            </div>
+          {tab === "resolved" && settled.error && (
+            <Refusal error={settled.error} what="the resolved issues" action={<Retry onClick={settled.refresh} />} />
           )}
-          {issues.data && tab !== "resolved" && shown.length === 0 && (
+          {(tab === "resolved" ? settled.data : issues.data) && shown.length === 0 && (
             <p className="py-8 text-center text-[13px] text-go-secondary">
-              {tab === "open" ? `No open issue at ${scopeLabel}.` : "Nobody is working on an issue right now."}
+              {tab === "open"
+                ? `No open issue at ${scopeLabel}.`
+                : tab === "progress"
+                  ? "Nobody is working on an issue right now."
+                  : "Nothing resolved in the last 7 days."}
             </p>
           )}
           <ul className="flex flex-col gap-1">
             {shown.map((issue) => {
               const active = issue.issueId === selected;
-              const where = [issue.outletId, ...issue.subjects.filter((ref) => ref.type !== "order").map((ref) => shortId(ref.id))].filter(Boolean).join(" · ");
+              const where = [issue.outletId].filter(Boolean).join(" · ");
               return (
                 <li key={issue.issueId}>
                   <button
@@ -118,12 +121,16 @@ export default function Issues({
                       <span className="block truncate text-[13px] text-go-secondary">{`${issue.depotCode}${where ? ` · ${where}` : ""}`}</span>
                     </span>
                     <span className="min-w-[160px] text-[13px]">
-                      <span className="block truncate text-go-ink">{issue.description}</span>
+                      <span className="block truncate text-go-ink">{issueText(issue.description)}</span>
                       <span className="block text-xs text-go-secondary">{`Reported ${clock(issue.raisedAt)}`}</span>
                     </span>
-                    <Pill tone={issue.status === "OPEN" ? "danger" : issue.assignee === userId ? "success" : "warning"}>
-                      {issue.status === "OPEN" ? "New" : issue.assignee === userId ? "Yours" : "In progress"}
-                    </Pill>
+                    {issue.status === "RESOLVED" || issue.status === "CLOSED" ? (
+                      <Pill tone={issue.status === "RESOLVED" ? "warning" : "neutral"}>{issue.status === "RESOLVED" ? "To close" : "Closed"}</Pill>
+                    ) : (
+                      <Pill tone={issue.status === "OPEN" ? "danger" : issue.assignee === userId ? "success" : "warning"}>
+                        {issue.status === "OPEN" ? "New" : issue.assignee === userId ? "Yours" : "In progress"}
+                      </Pill>
+                    )}
                   </button>
                 </li>
               );
@@ -133,7 +140,7 @@ export default function Issues({
 
         <div className="flex w-full flex-col gap-[18px] lg:w-[380px] lg:shrink-0">
           {selected ? (
-            <IssueDetail key={selected} issueId={selected} userId={userId} online={online} now={now} onChanged={issues.refresh} />
+            <IssueDetail key={selected} issueId={selected} userId={userId} online={online} now={now} onChanged={() => (issues.refresh(), settled.refresh())} />
           ) : shown.length === 0 ? null : (
             <section aria-label="Selected issue" className="rounded-go-panel bg-go-card px-6 py-8 text-center text-[13px] text-go-secondary">
               Choose an issue to see its history and act on it.

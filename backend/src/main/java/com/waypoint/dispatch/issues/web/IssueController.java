@@ -11,6 +11,7 @@ import com.waypoint.dispatch.platform.web.RequestAuthorizer;
 import com.waypoint.dispatch.shared.domain.Page;
 import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
+import com.waypoint.dispatch.shared.util.Clock;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Optional;
@@ -43,11 +44,14 @@ public class IssueController {
   private final IssueDataQuery issues;
   private final IssueAttachments attachments;
   private final RequestAuthorizer authorizer;
+  private final Clock clock;
 
-  public IssueController(IssueDataQuery issues, IssueAttachments attachments, RequestAuthorizer authorizer) {
+  public IssueController(
+      IssueDataQuery issues, IssueAttachments attachments, RequestAuthorizer authorizer, Clock clock) {
     this.issues = issues;
     this.attachments = attachments;
     this.authorizer = authorizer;
+    this.clock = clock;
   }
 
   /**
@@ -93,6 +97,13 @@ public class IssueController {
       HttpServletRequest request) {
     var actor = authorizer.require(request, READ, "wpt:issue:depot:" + depot);
     return issues.openIssues(actor, depot, Optional.ofNullable(after), limit);
+  }
+
+  /** A depot's issues resolved or closed in the last week, newest first (R-ISS-09). */
+  @GetMapping("/settled")
+  public List<IssueView> settled(@RequestParam String depot, HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:issue:depot:" + depot);
+    return issues.settledIssues(actor, depot, clock.now());
   }
 
   /** Every issue about one order, trip, delivery, receipt, shortfall or vehicle that the actor can see. */

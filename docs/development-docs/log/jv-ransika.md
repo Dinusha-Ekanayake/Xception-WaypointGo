@@ -4,6 +4,30 @@
 
 ---
 
+## 2026-10-05 - fix: a live walk of every role, and what it found
+
+`claude/role-ui-intelligence` · @jv-ransika
+
+Walked the README judge walkthrough against a running stack, every role, with the edge cases on the way:
+- **Store:** placing, a partial reservation accepted, cancel, a stale version, another outlet, nothing in stock, mixed temperatures, zero units, a past date.
+- **Loader:** a wrong PIN, loading out of stop order, a shortfall, release blocked until the checklist is ticked.
+- **Driver:** a handover with no signal kept through a reload and sent once, proof of delivery, the store's handover PIN (wrong, expired and reissued, right, repeated, another order's).
+- **Store receipt:** the loader's shortfall carried through, a damage report with a photo.
+- **Dispatcher:** Issues taken, a replacement recorded, a dispute resolved; Live.
+
+Fixed what the walk found:
+- **Resolved issues (R-ISS-09, ISS-15).** The Resolved tab said "Not available yet", so a resolved issue could not be found again to close. `GET /api/issues/settled` lists the depot's resolved and closed issues of the last seven days, newest first.
+- **Words, not codes.** The loader's load list and issue sheet, and the store's reported list, now say "Dry goods (mixed)" instead of `SEED-Fresh-ambient`. The dispatcher's issues read "Short at loading: 1 unit." and "Shortage to check: ...", and History says where an issue came from and who it was assigned to instead of an event name and a user id. The stored descriptions are unchanged, because the store parses them.
+- **Store Home.** Two orders of one temperature showed one reference with the units of both. They now read "2 orders" and open the Orders list.
+- **Legacy removed.** `compose.prod.yaml` and the root `nginx/` were the single-host path from before the VPS, unused since; they are gone with their CI parse step, `.env.example` settings and deployment sections, as is the unused Vercel outline. `scripts/account.sh` now runs on the VPS compose files. The README links this repository; issue numbers in `docs/issues/` still refer to the earlier one.
+- **`DemoIntegrationTest`.** It assumed an empty database, so it failed in every full run: the reset picked tomorrow, which other tests had filled; other suites close days in 2028 and 2127, which hold the demo clock back; and the emptiness check ran under row-level security. Each test now sets up its own starting state, clears closes no demo clock can reach, and reads past row-level security as the owner.
+
+Why: the judges follow the walkthrough on a fresh copy, and these are the points where it broke or read as internals.
+Verified: backend 1063 tests, 0 failures, on a fresh PostgreSQL 16 database as CI runs it; frontend typecheck, unit tests 297 of 297; browser suites store 59 of 59, loader 31 of 31, dispatcher 67 of 74 (the 7 depend on the time of day and fail the same on the untouched base). A warehouse stand-in was needed locally because the warehouse API is unreachable from this machine.
+Open: the driver's delivery record keeps the planned units even when the loader flagged one short; the store's count is the one that is right.
+
+---
+
 ## 2026-10-05 - feat: smarter planning help for the store and the dispatcher, and seeded-day fixes
 
 `claude/role-ui-intelligence` · @jv-ransika
