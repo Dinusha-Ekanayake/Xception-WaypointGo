@@ -1,5 +1,6 @@
 import type { CheckStatus, HolderView, IssueKind, ItemView, ManifestLineView, OutletView, SessionStatus, Temperature } from "@shared/domain/types";
-import { businessNow, clock, durationText } from "../../../shared/wording/index.ts";
+import { businessNow, clock, durationText, productLabel } from "../../../shared/wording/index.ts";
+import type { Translate } from "./strings.ts";
 export { clock, depotToday, durationText, hhmm } from "../../../shared/wording/index.ts";
 
 // Pure helpers over a manifest. Capacity reads order totals only (AGENTS.md,
@@ -144,4 +145,13 @@ export function paceOf(checked: number, total: number, since: string, departure:
   if (!(span > 0)) return null;
   const elapsed = Math.max(0, Math.min(1, (now.getTime() - start) / span));
   return checked / total + 0.1 < elapsed ? "behind" : "on";
+}
+
+/**
+ * An item's product as the loader reads it. A seeded line stands for mixed goods
+ * and reads as such; a real product keeps its name, marked inferred.
+ */
+export function productName(productId: string, tr: Translate): string {
+  const label = productLabel(productId);
+  return label === productId ? `${productId} ${tr("(inferred)")}` : tr(label);
 }

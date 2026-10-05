@@ -1,5 +1,6 @@
 import { Icon } from "@shared/ui";
 import type { Report } from "../../data/receive.ts";
+import { productLabel } from "../../data/format.ts";
 import { Card, Chip } from "../../ui.tsx";
 
 // "Reported · N packages" (Figma 06-3, 06-5). The store's own reports can be
@@ -27,12 +28,12 @@ export default function ReportedList({
         {reports.map((x, i) => (
           <li key={`${x.productId}-${x.kind}-${i}`} className="flex items-center gap-2 text-[14px] text-black">
             <span className="min-w-0 flex-1 truncate">
-              {x.productId}
+              {productLabel(x.productId)}
               {x.units > 0 && ` · ${x.units}`}
               {x.photoIds.length > 0 && ` · ${x.photoIds.length} ${x.photoIds.length === 1 ? "photo" : "photos"}`}
             </span>
             <Chip tone={x.kind === "Missing" || x.kind === "Other" ? "warn" : "danger"}>{x.kind}</Chip>
-            <button type="button" aria-label={`Remove ${x.kind} for ${x.productId}`} onClick={() => onRemove(i)} className="flex size-12 items-center justify-center">
+            <button type="button" aria-label={`Remove ${x.kind} for ${productLabel(x.productId)}`} onClick={() => onRemove(i)} className="flex size-12 items-center justify-center">
               <Icon name="close" />
             </button>
           </li>
@@ -40,7 +41,7 @@ export default function ReportedList({
         {keptBack.map(([productId, units]) => (
           <li key={`known-${productId}`} className="flex items-center gap-2 text-[14px] text-go-muted">
             <span className="min-w-0 flex-1 truncate">
-              {productId} · {units}
+              {productLabel(productId)} · {units}
             </span>
             <Chip tone="muted">Short at loading</Chip>
             <span className="size-12" aria-hidden />

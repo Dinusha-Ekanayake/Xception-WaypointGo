@@ -15,3 +15,14 @@ export const stops = (n: number): string => `${n} ${n === 1 ? "stop" : "stops"}`
 
 /** "1 trip", "2 trips". */
 export const trips = (n: number): string => `${n} ${n === 1 ? "trip" : "trips"}`;
+
+/**
+ * A product line as people read it. The delivery-day seed books each order as
+ * one line named `SEED-<brand>-<temperature>` (it has totals, not products), so
+ * that line reads as the mixed goods it stands for rather than as a code.
+ */
+export function productLabel(productId: string): string {
+  const seed = /^SEED-[A-Za-z]+-(ambient|chilled)$/.exec(productId);
+  if (seed) return seed[1] === "chilled" ? "Chilled goods (mixed)" : "Dry goods (mixed)";
+  return productId;
+}

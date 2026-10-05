@@ -55,6 +55,7 @@ export default function Home({
   issues,
   onOpen,
   onPlace,
+  onOrders,
   onReceive,
   onTrack,
   onRetry,
@@ -70,6 +71,8 @@ export default function Home({
   issues: IssueView[];
   onOpen: (orderId: string) => void;
   onPlace: () => void;
+  /** Several orders for one temperature: the list shows them all. */
+  onOrders?: () => void;
   onReceive: (orderId: string) => void;
   onTrack: () => void;
   /** Read the orders again after a failure. */
@@ -175,12 +178,12 @@ export default function Home({
                   <button
                     type="button"
                     disabled={!first}
-                    onClick={() => first && onOpen(first.orderId)}
+                    onClick={() => (placed.length > 1 && onOrders ? onOrders() : first && onOpen(first.orderId))}
                     className="flex min-h-[72px] w-full flex-col gap-0.5 rounded-[16px] bg-go-canvas px-3.5 py-2.5 text-left disabled:cursor-default"
                   >
                     <span className="text-[15px] font-medium">{t(temperatureLabel(temp))}</span>
                     <span className="text-[13px] text-go-muted">
-                      {first ? `${first.orderRef} · ${units(total)}${placed.some((o) => editable(o.status)) ? t(" · change") : ""}` : t("Not placed")}
+                      {first ? `${placed.length > 1 ? t("{n} orders", { n: placed.length }) : first.orderRef} · ${units(total)}${placed.some((o) => editable(o.status)) ? t(" · change") : ""}` : t("Not placed")}
                     </span>
                   </button>
                 </li>
