@@ -53,6 +53,14 @@ export default function OrderSheet({
     else onClose();
   };
 
+  const accept = async () => {
+    const outcome = await commands.run(OrderCommandKind.acceptShortfall, { orderId: order.orderId }, order.rowVersion);
+    if (!outcome.ok) setError(conflictMessage(outcome.error));
+    else if (outcome.queued) setQueued(true);
+    else onClose();
+  };
+  const requested = order.lines.reduce((n, l) => n + l.quantity, 0);
+
   return (
     <Sheet label={order.orderRef} onClose={onClose}>
       <div className="flex items-center gap-2 pr-11">
@@ -105,6 +113,17 @@ export default function OrderSheet({
         )}
       </section>
 
+      {/* STK-01: a partly reserved order can be accepted from here too, not only from "Order sent". */}
+      {order.status === "PARTIALLY_RESERVED" && (
+        <Notice tone="warning" title={`Only ${units(order.itemCount)} of ${units(requested)} could be reserved`}>
+          <p>Accept what the warehouse holds and the rest is dropped, or change or cancel the order.</p>
+          <div className="mt-2">
+            <Button busy={commands.busy} onClick={() => void accept()}>
+              Accept reserved
+            </Button>
+          </div>
+        </Notice>
+      )}
       {order.status === "DEFERRED" && (
         <Button tone="plain" onClick={onDeferred}>
           Why it moved
