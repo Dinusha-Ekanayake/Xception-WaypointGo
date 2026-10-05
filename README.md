@@ -47,7 +47,7 @@ Each role also has an address of its own: `dispatcher.`, `loader.`, `driver.` an
 
 ## Repository and runtime
 
-`dev` is the integration branch: work branches from it and merges into it, and every push to it deploys the preview. `main` is what production runs and moves by a release pull request from `dev`, so it lags `dev` between releases. The repository is [Xception-WaypointGo](https://github.com/kavindamihiran/Xception-WaypointGo).
+`dev` is the integration branch: work branches from it and merges into it, and every push to it deploys the preview. `main` is what production runs and moves by a release pull request from `dev`, so it lags `dev` between releases. The repository is [yi-yi](https://github.com/jv-ransika/yi-yi); issue numbers in `docs/issues/` refer to the earlier Xception-WaypointGo repository.
 
 - `frontend/`: Next.js UI, same-origin API proxy, offline storage and browser tests.
 - `backend/`: Spring Boot REST API, authentication, planning, account administration and PostgreSQL access.
@@ -63,8 +63,8 @@ Maven `target/` directories and compiled Java classes are ignored and are rebuil
 The complete stack (PostgreSQL, the backend, the model service, the frontend and the seed data) starts with one command. It needs Docker Engine 24+ with Compose v2 and nothing else installed:
 
 ```sh
-git clone https://github.com/Dinusha-Ekanayake/Xception-WaypointGo.git
-cd Xception-WaypointGo
+git clone https://github.com/jv-ransika/yi-yi.git
+cd yi-yi
 git lfs pull                # the trained model files
 cp .env.example .env        # SEED_PASSWORD in it is the password of every seeded account
 docker compose up --build
@@ -121,9 +121,9 @@ The seed places the Task 2B peak day: 85 confirmed Peliyagoda orders across all 
 6. **Loader: load in stop order.** Sign in as `peliyagoda@waypoint.local`, choose a loader and enter PIN `2468` on the dock screen. The dock board lists the published trips: it shows the first day, from today, with a trip still to load, so on the evening before (or a weekend before Monday's run) it is the seeded day's. Open the trip that carries OUT001: items are listed in reverse stop order, so the first stop is loaded last. Check items off one by one.
 7. **Loader: flag a shortfall (degradation).** Mark one item short by a unit, or missing or damaged. The shortfall is recorded before departure and reaches the dispatcher's **Issues** inbox. Complete the release checklist and **release** the trip.
 8. **Driver: follow the run.** Sign in as `rashmikadilshan@waypoint.local`. Home shows the vehicle, the run's stop count (today's, or the first day within the next week with a released trip, so on install day the seeded day's) and the driver's notifications (plan published, trip released). **Start trip** opens the run sheet: the next stop with its expected arrival, window and units, and the other stops in order.
-9. **Driver: deliver with no signal (degradation).** In the browser's developer tools set the network to Offline. At OUT001 tap **I've arrived**, then **Open delivery report** and **Record delivery**, and record the delivery with receiver name, count, photo and signature. If a unit was short at loading, record a partial delivery: the screen asks what happened to the goods that did not arrive. The record is kept on the phone and the screen says it is waiting to sync. Reload the page: it is still there. Set the network back to Online and the queue drains on its own; the server applies each record once.
+9. **Driver: deliver with no signal (degradation).** In the browser's developer tools set the network to Offline. At OUT001 slide **I've arrived**, unload, then slide **Hand over**. The handover is kept on the phone and the screen says how many changes are waiting to send. Reload the page: it is still there. Set the network back to Online and the queue drains on its own; the server applies each record once. Open the stop again from the run sheet to add **proof of delivery**: the receiver's name and a signature or photo (an empty proof is refused).
 10. **Dispatcher: watch progress.** **Live** lists vehicles most urgent first, with the delivered stop and anything that still needs the dispatcher.
-11. **Store manager: confirm receipt.** Back as the store manager, the delivery shows as arrived. **Receive this delivery**, confirm what arrived per item, or report a problem (missing, damaged, wrong item) with a photo. The report reaches the dispatcher's **Issues** inbox, where it can be taken, resolved and closed. The answer shows a four-digit handover PIN; the driver can enter it from **Enter store manager PIN** after saving the delivery, as evidence the two met. A wrong PIN says how many tries are left, and skipping it never holds the delivery up.
+11. **Store manager: confirm receipt.** Back as the store manager, the delivery shows as arrived. **Receive this delivery**, confirm what arrived per item, or report a problem (missing, damaged, wrong item) with a photo. The report reaches the dispatcher's **Issues** inbox, where it can be taken, resolved and closed. The answer shows a four-digit handover PIN; the driver enters it on their phone after the handover, as evidence the two met. A wrong PIN says how many tries are left, a PIN lasts 15 minutes and the store can ask for a new one, and skipping it never holds the delivery up. Resolved issues stay under **Issues › Resolved** for a week, to be closed.
 
 To start again from an empty database: `docker compose down -v && docker compose up --build`.
 
