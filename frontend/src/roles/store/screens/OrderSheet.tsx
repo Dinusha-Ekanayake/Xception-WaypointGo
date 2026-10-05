@@ -5,7 +5,7 @@ import { useResource } from "@shared/api/useResource";
 import { OrderCommandKind, type OrderView } from "@shared/domain/types";
 import { Notice, SkeletonRows } from "@shared/ui";
 import type { StoreGateway } from "../data/gateway.ts";
-import { ORDER_STATUS, units, clock, dayLabel, depotToday, editable, planNote, temperatureLabel } from "../data/format.ts";
+import { ORDER_STATUS, units, clock, dayLabel, depotToday, editable, planNote, temperatureLabel, productLabel } from "../data/format.ts";
 import { awaitingPlan, needsWarning, warningWords } from "../data/outlook.ts";
 import { conflictMessage, type useCommands } from "../data/useCommands.ts";
 import { Button, Chip, Sheet } from "../ui.tsx";
@@ -53,9 +53,17 @@ export default function OrderSheet({
     else onClose();
   };
 
+  const accept = async () => {
+    const outcome = await commands.run(OrderCommandKind.acceptShortfall, { orderId: order.orderId }, order.rowVersion);
+    if (!outcome.ok) setError(conflictMessage(outcome.error));
+    else if (outcome.queued) setQueued(true);
+    else onClose();
+  };
+  const requested = order.lines.reduce((n, l) => n + l.quantity, 0);
+
   return (
     <Sheet label={order.orderRef} onClose={onClose}>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 pr-11">
         <h2 className="flex-1 text-[24px] font-medium text-black">{order.orderRef}</h2>
         <Chip tone={s.tone}>{s.label}</Chip>
       </div>
@@ -75,7 +83,7 @@ export default function OrderSheet({
       <ul className="flex flex-col gap-1 rounded-[20px] bg-go-canvas p-4 text-[15px]">
         {order.lines.map((l) => (
           <li key={l.productId} className="flex justify-between gap-3">
-            <span>{l.productId}</span>
+            <span>{productLabel(l.productId)}</span>
             <span className="font-medium">{l.quantity}</span>
           </li>
         ))}
@@ -105,6 +113,17 @@ export default function OrderSheet({
         )}
       </section>
 
+      {/* STK-01: a partly reserved order can be accepted from here too, not only from "Order sent". */}
+      {order.status === "PARTIALLY_RESERVED" && (
+        <Notice tone="warning" title={`Only ${units(order.itemCount)} of ${units(requested)} could be reserved`}>
+          <p>Accept what the warehouse holds and the rest is dropped, or change or cancel the order.</p>
+          <div className="mt-2">
+            <Button busy={commands.busy} onClick={() => void accept()}>
+              Accept reserved
+            </Button>
+          </div>
+        </Notice>
+      )}
       {order.status === "DEFERRED" && (
         <Button tone="plain" onClick={onDeferred}>
           Why it moved

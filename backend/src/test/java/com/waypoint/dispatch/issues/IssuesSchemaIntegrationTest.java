@@ -56,6 +56,21 @@ class IssuesSchemaIntegrationTest extends ReceiptIssuesSupport {
   }
 
   @Test
+  void aResolvedIssueLeavesTheInboxAndStaysFindableToClose() throws Exception {
+    Issue open = raised(IssueType.LATE_DELIVERY, IssueSeverity.LOW, Optional.empty(), Actor.SYSTEM_ID);
+    Issue settled = raised(IssueType.VEHICLE_FAULT, IssueSeverity.HIGH, Optional.empty(), Actor.SYSTEM_ID);
+    Issue resolved =
+        settled.assign(dispatcher.id()).resolve(ResolutionAction.NO_FAULT_FOUND, "checked at the depot", dispatcher.id(), Instant.now());
+    database.asSystem(ModuleRole.ISSUES, () -> issues.update(resolved, settled.rowVersion(), Instant.now()));
+
+    List<String> listed = new ArrayList<>();
+    read(dispatcher, "/api/issues/settled?depot=" + depot, 200).forEach(i -> listed.add(i.get("issueId").asText()));
+    assertTrue(listed.contains(settled.issueId().toString()), "a resolved issue is listed to be closed");
+    assertFalse(listed.contains(open.issueId().toString()), "an open issue is not");
+    read(farDispatcher, "/api/issues/settled?depot=" + depot, 403);
+  }
+
+  @Test
   void anotherDepotsInboxIsForbiddenAndAudited() throws Exception {
     long before = denials(farDispatcher.id(), IssueDataQuery.READ);
     read(farDispatcher, "/api/issues?depot=" + depot, 403);

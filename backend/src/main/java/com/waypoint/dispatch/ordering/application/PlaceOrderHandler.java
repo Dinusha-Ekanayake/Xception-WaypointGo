@@ -64,6 +64,11 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class PlaceOrderHandler implements CommandHandler {
+  /** The hold's end as the store reads it, in depot time ("Tue 6 Oct 11:20"). */
+  private static final java.time.format.DateTimeFormatter HELD_UNTIL =
+      java.time.format.DateTimeFormatter.ofPattern("EEE d MMM HH:mm", java.util.Locale.ENGLISH)
+          .withZone(com.waypoint.dispatch.shared.util.Clock.OPERATING_ZONE);
+
   private final Database database;
   private final JdbcOrderRepository orders;
   private final ReferenceQuery reference;
@@ -198,7 +203,7 @@ public class PlaceOrderHandler implements CommandHandler {
         Optional.empty(),
         order.status(),
         partial.isPresent()
-            ? "placed; partly reserved until " + partial.get().expiresAt()
+            ? "placed; partly reserved until " + HELD_UNTIL.format(partial.get().expiresAt())
             : degraded == null ? "placed" : "placed; stock unknown: " + degraded,
         actor.userId(),
         Optional.empty(),

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { CheckStatus, FlagShortfall, ItemView, OutletView } from "@shared/domain/types";
 import { Notice, cx } from "@shared/ui";
-import { ISSUE_KIND_LABEL, isFlagged, orderLabel, placeName } from "../data/manifest.ts";
+import { ISSUE_KIND_LABEL, isFlagged, orderLabel, placeName, productName } from "../data/manifest.ts";
 import type { Line } from "../data/useTrip.ts";
 import { BigButton, Sheet } from "../ui.tsx";
 import { useT } from "../i18n.tsx";
@@ -143,7 +143,7 @@ export default function IssueSheet({
 
         <Picker
           label={tr("Which item?")}
-          title={item ? `${tr("Item {n}", { n: item.lineNo })} · ${item.productId} ${tr("(inferred)")}` : tr("Whole order")}
+          title={item ? `${tr("Item {n}", { n: item.lineNo })} · ${productName(item.productId, tr)}` : tr("Whole order")}
           detail={
             item
               ? `${tr(item.units === 1 ? "{n} unit" : "{n} units", { n: item.units })} · ${tr("or pick \u201cWhole order\u201d")}`
@@ -159,7 +159,7 @@ export default function IssueSheet({
           <option value={0}>{tr("Whole order")}</option>
           {(line?.items ?? []).map((i) => (
             <option key={i.lineNo} value={i.lineNo}>
-              {tr("Item {n}", { n: i.lineNo })} · {i.productId} {tr("(inferred)")} · {tr(i.units === 1 ? "{n} unit" : "{n} units", { n: i.units })}
+              {tr("Item {n}", { n: i.lineNo })} · {productName(i.productId, tr)} · {tr(i.units === 1 ? "{n} unit" : "{n} units", { n: i.units })}
             </option>
           ))}
         </Picker>

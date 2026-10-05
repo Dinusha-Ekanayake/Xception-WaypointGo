@@ -107,12 +107,7 @@ function ShortfallNotice({ order, onAccept }: { order: PlacedOrder; onAccept: (o
     <Notice
       tone="warning"
       live
-      title={t("{ref}: held until {time}", { ref: order.orderRef, time: clock(short.expiresAt) })}
-      action={
-        <Button large busy={state.busy} onClick={() => void accept()}>
-          {t(state.busy ? "Accepting…" : "Accept reserved")}
-        </Button>
-      }
+      title={t("{ref}: held until {time}", { ref: order.orderRef, time: heldUntil(short.expiresAt) })}
     >
       <ul className="flex flex-col gap-0.5">
         {short.lines
@@ -125,6 +120,19 @@ function ShortfallNotice({ order, onAccept }: { order: PlacedOrder; onAccept: (o
       </ul>
       {state.error && <p className="mt-1 font-medium text-go-danger-strong">{state.error}</p>}
       <p className="mt-1">{t("Accept before then, or cancel the order from Orders.")}</p>
+      {/* Under the text, not beside it: a full-width button beside it leaves the text no width on a phone. */}
+      <div className="mt-2">
+        <Button large busy={state.busy} onClick={() => void accept()}>
+          {t(state.busy ? "Accepting…" : "Accept reserved")}
+        </Button>
+      </div>
     </Notice>
   );
+}
+
+/** The hold's end: the time alone today, with its day otherwise ("Tue 6 Oct 11:20"). */
+function heldUntil(expiresAt: string): string {
+  const at = new Date(expiresAt);
+  const day = at.toLocaleDateString("en-CA", { timeZone: "Asia/Colombo" });
+  return day === depotToday() ? clock(expiresAt) : `${dayLabel(day)} ${clock(expiresAt)}`;
 }

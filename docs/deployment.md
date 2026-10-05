@@ -72,33 +72,9 @@ cd /opt/waypoint/app && docker compose -f compose.yaml -f deploy/vps/compose.vps
 
 `SITE_ADDRESS` is `waypointgo.live`, the preview is always `preview.` in front of it, and `www.` redirects to the bare name. To move to another domain, point its two A records at the server, change `SITE_ADDRESS` in both `.env` files and deploy production, then preview; the previous hostnames stop answering at once. `SEED_PASSWORD` only applies when an account is first created; changing it later does not rotate the six demo accounts.
 
-## Production host
-
-Not the running deployment. This is the single-host path with `compose.prod.yaml` and the root `nginx/` folder, which predates the VPS setup above. CI keeps the file parsing, but nobody has deployed with it since the VPS went live, so treat the steps as unverified.
-
-Configure `DOMAIN` and `DATABASE_URL` in root `.env`; production Compose sets `COOKIE_SECURE=1` and `LOG_FORMAT=ecs` on Spring automatically. Its `init` service runs `migrate` and `import-reference` before the backend starts; it never creates accounts. Create staff accounts with `scripts/account.sh` (below). The image includes the tracked reference CSVs and migrations; replace synthetic business reference data with validated production records before real operations.
-
-```sh
-docker compose -f compose.prod.yaml build
-docker compose -f compose.prod.yaml up -d nginx backend frontend   # init runs first
-docker compose -f compose.prod.yaml run --rm --entrypoint certbot certbot \
-  certonly --webroot -w /var/www/certbot \
-  --email "$CERTBOT_EMAIL" --agree-tos --no-eff-email -d "$DOMAIN"
-docker compose -f compose.prod.yaml restart nginx
-docker compose -f compose.prod.yaml --profile renewal up -d certbot
-```
-
-Export DOMAIN and CERTBOT_EMAIL in the shell for the issuance command. Nginx validates and reloads its configuration every 12 hours to pick up renewed certificates. Check `/health/readiness` on the backend and sign in after deployment. Take a database backup before migrations and verify a restore on a separate database. Monitor HTTP failures, database availability, disk space and unsynchronized device work.
+## Operating calendar
 
 Past the end of the supplied calendar, operating days come from the extension policy (Monday to Saturday, R-CAL-03). Closures and special operating days are set by an administrator with the `calendar:Override` command, recorded with an actor and a reason; there is no calendar file. The policy does not invent public-holiday closures; operations must supply them. `waypoint_reference_calendar_days_remaining` warns before the supplied calendar runs out.
-
-## Vercel frontend
-
-Not in use. Kept as the outline of a split deployment; it has not been tried against the current build.
-
-Deploy `frontend/` and set BACKEND_URL to the separately hosted Spring service. Database settings on Vercel do not configure Spring. Use HTTPS for the backend link and COOKIE_SECURE=1 on Spring. The browser continues to call the frontend's same-origin `/api` routes. The earlier all-Node Vercel deployment instructions no longer apply.
-
-For a judge deployment, run `migrate`, `import-reference` and `account-create` explicitly against the hosted Spring/PostgreSQL instance before serving requests, then verify sign-in through the frontend URL; configuring Vercel or Neon alone does not verify the deployment.
 
 ## Verification
 
@@ -117,14 +93,14 @@ This runs the frontend boundary tests, TypeScript checks, the production build a
 
 If tests report `database "waypoint_test" does not exist`, create the dedicated database or correct its URL; never substitute the application database.
 
-Docker configuration can be checked with `docker compose config --quiet` and `docker compose -f compose.prod.yaml config --quiet` after supplying the required variables. Actual fresh-volume container startup, public TLS and physical-device trials remain release checks; local browser emulation does not establish those properties.
+Docker configuration can be checked with `docker compose config --quiet` and `docker compose -f compose.yaml -f deploy/vps/compose.vps.yaml --profile edge config --quiet` with `SITE_ADDRESS` set. Actual fresh-volume container startup, public TLS and physical-device trials remain release checks; local browser emulation does not establish those properties.
 
 ## Logs
 
 The backend logs ECS JSON (`LOG_FORMAT=ecs` in both compose files). To store and search them, set `GRAFANA_ADMIN_PASSWORD` and enable the opt-in profile:
 
 ```sh
-docker compose -f compose.prod.yaml --profile observability up -d
+docker compose --profile observability up -d
 ```
 
 Alloy reads every container labelled `com.waypoint.logs=true` through the read-only Docker socket and ships to Loki, which keeps 14 days on the `loki-data` volume (budget roughly 1 GB per week at pilot volume). Grafana listens on `127.0.0.1:3001` only and is never routed through nginx; reach it with `ssh -L 3001:127.0.0.1:3001 <host>` and open http://127.0.0.1:3001. Grafana refuses to start without `GRAFANA_ADMIN_PASSWORD`. The application does not depend on the log store: with Loki down, Alloy retries and requests are served normally.
@@ -147,7 +123,7 @@ Run a measured fleet pilot before general rollout.
 
 ## Staff accounts
 
-The first administrator cannot come from an endpoint that requires one, so it is created from the host. On the local Compose path the `init` step does this from `ADMIN_EMAIL` and `ADMIN_PASSWORD`. On the `compose.prod.yaml` path, which creates no accounts:
+The first administrator cannot come from an endpoint that requires one, so it is created from the host. On the Compose path the `init` step does this from `ADMIN_EMAIL` and `ADMIN_PASSWORD`. Any other account, from the checkout on the host:
 
 ```sh
 scripts/account.sh admin@example.com "Full Name" admin

@@ -41,7 +41,7 @@ export type StoreGateway = {
   /** The server's rule for where a requested day lands: cutoff, closures, calendar. */
   deliveryDate: (outletId: string, requestedDate: string, signal: AbortSignal) => Promise<DeliveryDateAnswer>;
   /** Nearby days a trip already serves the district (R-ORD-13); advice only. */
-  rideAlong: (outletId: string, requestedDate: string, signal: AbortSignal) => Promise<RideAlongView>;
+  rideAlong: (outletId: string, requestedDate: string, signal: AbortSignal, temperature?: string) => Promise<RideAlongView>;
   /** How likely each day is to be kept (R-ML-07); advice from the depot's totals. */
   outlook: (outletId: string, from: string, to: string, signal: AbortSignal) => Promise<DateOutlookView>;
   pendingReceipts: (outletId: string, signal: AbortSignal) => Promise<PendingReceiptView[]>;
@@ -97,8 +97,8 @@ function liveGateway(accountId: string): StoreGateway {
     calendar: (date, signal) => kept(`calendar:${date}`, () => request(`/api/reference/calendar/${q(date)}`, { signal })),
     deliveryDate: (outletId, requestedDate, signal) =>
       request(`/api/orders/delivery-date?outlet=${q(outletId)}&requestedDate=${q(requestedDate)}`, { signal }),
-    rideAlong: (outletId, requestedDate, signal) =>
-      request(`/api/orders/ride-along?outlet=${q(outletId)}&requestedDate=${q(requestedDate)}`, { signal }),
+    rideAlong: (outletId, requestedDate, signal, temperature) =>
+      request(`/api/orders/ride-along?outlet=${q(outletId)}&requestedDate=${q(requestedDate)}${temperature ? `&temperature=${q(temperature)}` : ""}`, { signal }),
     // Not kept: an outlook from yesterday would mislead; offline, the strip says it is unavailable.
     outlook: (outletId, from, to, signal) =>
       request(`/api/ml/outlook?outlet=${q(outletId)}&from=${q(from)}&to=${q(to)}`, { signal }),

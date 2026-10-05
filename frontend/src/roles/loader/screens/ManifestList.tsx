@@ -5,6 +5,7 @@ import type { ItemView, OutletView } from "@shared/domain/types";
 import { Icon, cx } from "@shared/ui";
 import { byStop, CHECK_LABEL, clock, isChecked, isFlagged, kg, orderLabel, placeName } from "../data/manifest.ts";
 import type { Line } from "../data/useTrip.ts";
+import { productLabel } from "@shared/wording";
 import { useT } from "../i18n.tsx";
 
 // Figma "02 Load sheet", load list: stops in loading order, last stop first
@@ -170,7 +171,7 @@ function ItemRow({
       </button>
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="truncate text-[15px] font-medium text-go-ink">
-          {item.productId} <span className="text-[12px] font-normal text-go-muted">{tr("(inferred)")}</span>
+          {productLabel(item.productId) === item.productId ? <>{item.productId} <span className="text-[12px] font-normal text-go-muted">{tr("(inferred)")}</span></> : tr(productLabel(item.productId))}
         </span>
         <span className="text-[13px] text-go-muted">
           {tr(item.units === 1 ? "{n} unit" : "{n} units", { n: item.units })} ·{" "}

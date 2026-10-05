@@ -150,6 +150,17 @@ export function Sheet({ label, onClose, children }: { label: string; onClose: ()
         aria-label={label}
         className="go-panel go-panel-sheet relative flex max-h-[92dvh] w-full max-w-[520px] flex-col gap-4 overflow-y-auto rounded-t-[32px] bg-white px-6 pt-6 pb-8 outline-none md:max-h-[85dvh] md:rounded-[32px]"
       >
+        {/* A sheet closes by swipe or the backdrop, and by this button for anyone who cannot swipe. */}
+        <button
+          type="button"
+          aria-label="Close"
+          onClick={requestClose}
+          className="absolute top-4 right-4 z-10 flex size-9 items-center justify-center rounded-full bg-go-surface text-go-ink transition-transform active:scale-95"
+        >
+          <svg aria-hidden viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
         {children}
       </div>
     </div>

@@ -19,6 +19,23 @@ export default function NextStop({
 }): React.JSX.Element {
   const t = useT();
   const window = outlet ? `${hhmm(outlet.windowOpen)}-${hhmm(outlet.windowClose)}` : "-";
+  // A published plan gives the stop and its planned arrival before the trip is
+  // released (R-NOT-15): the time the manager needs to plan staff, so it leads.
+  if (!stop && order.plannedArrival) {
+    return (
+      <div className="flex flex-col items-center rounded-[20px] bg-go-canvas px-4 pt-3 pb-3.5 text-center">
+        <span className="text-[15px] text-black">{t("Planned arrival")}</span>
+        <span className="text-[44px] leading-tight font-semibold text-black">{hhmm(order.plannedArrival)}</span>
+        <span className="text-[13px] text-go-muted">
+          {order.plannedStop ? t("stop {n} · ", { n: order.plannedStop }) : ""}
+          {t("window {window}", { window })}
+        </span>
+        <span className="text-[12px] text-go-muted">
+          {order.orderRef} · {units(order.itemCount)}
+        </span>
+      </div>
+    );
+  }
   if (!stop) {
     return (
       <div className="flex flex-col items-center rounded-[20px] bg-go-canvas px-4 pt-3 pb-3.5">

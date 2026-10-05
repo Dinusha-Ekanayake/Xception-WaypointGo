@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { cx } from "@shared/ui";
-import { hhmm } from "@shared/wording";
+import { hhmm, stops } from "@shared/wording";
 import { lateBy, tripOf, updateText, useOpenTripThread } from "../data/threads.ts";
 import { depotSummaries, etaOf, progress, routeLabel, summaryText, type NeedCard, type Run } from "../data/liveDesk.ts";
 import { suggestionFor, type Suggestion } from "../data/playbooks.ts";
@@ -194,7 +194,7 @@ export function TripBoard({ runs, onOpenTrip }: { runs: Run[]; onOpenTrip: (vehi
               >
                 <span className="flex min-w-0 flex-col">
                   <span className="text-[13px] font-semibold text-go-ink">{run.day.vehicleId}</span>
-                  <span className="truncate text-[11.5px] text-go-secondary">{routeLabel(run) || `${run.day.stops.length} stops`}</span>
+                  <span className="truncate text-[11.5px] text-go-secondary">{routeLabel(run) || stops(run.day.stops.length)}</span>
                 </span>
                 <Bar share={progress(run)} className={status.bar} thick />
                 <span className={cx("text-right text-[12.5px] font-medium", status.text)}>{status.label}</span>

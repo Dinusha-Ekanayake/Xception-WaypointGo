@@ -269,6 +269,29 @@ export type StopOrderProposal = {
   /** The model and version that proposed it, for the record. */
   source: string;
 };
+/**
+ * The stop order that fits a trip's delivery windows best (R-PLN-43), beside
+ * how the order asked for runs. Served by `GET /api/plans/preview/suggested-sequence`.
+ * Advice only: applying it is the dispatcher's own order, judged like any other.
+ */
+export type StopOrderSuggestion = {
+  orderIds: Uuid[];
+  /** True when the suggested order is strictly better than the one asked about. */
+  improves: boolean;
+  lateStopsBefore: number;
+  lateStopsAfter: number;
+  minutesLateBefore: string;
+  minutesLateAfter: string;
+  finishBefore: string;
+  finishAfter: string;
+  minutesSaved: number;
+  /** One line on why, for the card. */
+  summary: string;
+  /** How it was found, for the record. */
+  source: string;
+  ordersTried: number;
+  preview: TripPreview;
+};
 /** Decide that deferred orders stay deferred. */
 export type KeepDeferred = { planId: Uuid; orderIds: Uuid[]; reason: string };
 /** Hold a served order on its trip (`plan:Lock`) or let it go (`plan:Unlock`). */

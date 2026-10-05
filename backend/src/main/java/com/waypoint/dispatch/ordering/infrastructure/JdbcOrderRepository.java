@@ -106,6 +106,18 @@ public class JdbcOrderRepository {
       String exceptOutletId,
       LocalDate from,
       LocalDate to) {
+    return bookedStops(depotCode, brandCode, districtName, exceptOutletId, from, to, null);
+  }
+
+  /** As above, counting only orders of one temperature when {@code temperature} is not null. */
+  public Map<LocalDate, Integer> bookedStops(
+      String depotCode,
+      String brandCode,
+      String districtName,
+      String exceptOutletId,
+      LocalDate from,
+      LocalDate to,
+      String temperature) {
     Map<LocalDate, Integer> stops = new java.util.HashMap<>();
     for (Map<String, Object> row :
         database.query(
@@ -115,6 +127,7 @@ public class JdbcOrderRepository {
              WHERE depot_code = ? AND brand_code = ? AND district_name = ? AND outlet_id <> ?
                AND delivery_date BETWEEN ? AND ?
                AND status IN ('stock_unknown','confirmed','allocated','deferred')
+               AND (CAST(? AS text) IS NULL OR temperature = CAST(? AS text))
              GROUP BY delivery_date
             """,
             depotCode,
@@ -122,7 +135,9 @@ public class JdbcOrderRepository {
             districtName,
             exceptOutletId,
             Date.valueOf(from),
-            Date.valueOf(to))) {
+            Date.valueOf(to),
+            temperature,
+            temperature)) {
       stops.put(
           ((Date) row.get("delivery_date")).toLocalDate(), ((Number) row.get("stops")).intValue());
     }
@@ -140,6 +155,12 @@ public class JdbcOrderRepository {
    */
   public List<BookedLoad> bookedLoads(
       String depotCode, String brandCode, String districtName, String exceptOutletId, LocalDate from, LocalDate to) {
+    return bookedLoads(depotCode, brandCode, districtName, exceptOutletId, from, to, null);
+  }
+
+  public List<BookedLoad> bookedLoads(
+      String depotCode, String brandCode, String districtName, String exceptOutletId, LocalDate from, LocalDate to,
+      String temperature) {
     return database.query(
             """
             SELECT delivery_date, outlet_id, temperature, weight_kg, volume_m3
@@ -148,9 +169,10 @@ public class JdbcOrderRepository {
                AND delivery_date BETWEEN ? AND ?
                AND status IN ('confirmed','allocated','deferred')
                AND weight_kg IS NOT NULL AND volume_m3 IS NOT NULL AND temperature IS NOT NULL
+               AND (CAST(? AS text) IS NULL OR temperature = CAST(? AS text))
              ORDER BY delivery_date, order_id
             """,
-            depotCode, brandCode, districtName, exceptOutletId, Date.valueOf(from), Date.valueOf(to))
+            depotCode, brandCode, districtName, exceptOutletId, Date.valueOf(from), Date.valueOf(to), temperature, temperature)
         .stream()
         .map(r -> new BookedLoad(((Date) r.get("delivery_date")).toLocalDate(), (String) r.get("outlet_id"),
             (String) r.get("temperature"), (BigDecimal) r.get("weight_kg"), (BigDecimal) r.get("volume_m3")))

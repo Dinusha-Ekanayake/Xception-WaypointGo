@@ -97,3 +97,5 @@ export const dockLabel = (code: string) => DOCKS[code]?.label ?? code.replace(/_
 
 /** "at your rear dock", for a sentence about where a vehicle stands. */
 export const dockWhere = (code: string | null | undefined) => (code ? (DOCKS[code]?.where ?? `at your ${code.replace(/_/g, " ")}`) : "at your store");
+
+export { productLabel } from "../../../shared/wording/index.ts";

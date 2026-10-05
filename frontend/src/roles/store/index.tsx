@@ -276,6 +276,7 @@ function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Ele
         issues={allIssues}
         onOpen={setOpenOrder}
         onPlace={place}
+        onOrders={() => showTab("orders")}
         onReceive={receive}
         onTrack={() => openView({ kind: "track" })}
         onRetry={orders.refresh}

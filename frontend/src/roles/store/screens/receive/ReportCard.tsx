@@ -1,6 +1,6 @@
 import type { OrderView, ReceiptLineView } from "@shared/domain/types";
 import { Icon, cx } from "@shared/ui";
-import { temperatureLabel, units as unitsText } from "../../data/format.ts";
+import { temperatureLabel, units as unitsText, productLabel } from "../../data/format.ts";
 import { KINDS, LOWERS_COUNT, type Kind, type Report } from "../../data/receive.ts";
 import { Card, Stepper } from "../../ui.tsx";
 
@@ -106,7 +106,7 @@ export default function ReportCard({
                   {keptBack > 0 && ` · Short at loading (${keptBack})`}
                   {flagged.length > 0 && ` · ${flagged.map((x) => x.kind).join(", ")}`}
                 </span>
-                <span className="truncate text-[14px] font-medium text-black">{l.productId}</span>
+                <span className="truncate text-[14px] font-medium text-black">{productLabel(l.productId)}</span>
               </button>
             </li>
           );

@@ -45,6 +45,8 @@ import com.waypoint.dispatch.planning.domain.PlanningRun;
 import com.waypoint.dispatch.planning.domain.PlanningRun.Placement;
 import com.waypoint.dispatch.planning.domain.PlanningRun.Proposed;
 import com.waypoint.dispatch.planning.domain.PlanningRun.TripMove;
+import com.waypoint.dispatch.planning.domain.StopOrderSearch;
+import com.waypoint.dispatch.planning.domain.StopTravel;
 import com.waypoint.dispatch.planning.domain.TripTimeline;
 import com.waypoint.dispatch.planning.infrastructure.JdbcGenerationJobs;
 import com.waypoint.dispatch.planning.infrastructure.JdbcPlanRepository;
@@ -339,6 +341,11 @@ public class PlanDataQuery implements PlanQuery {
     return read(actor.userId(), () -> sequencePreview(tripId, orderIds));
   }
 
+  /** The stop order that fits the trip's windows best for the orders given (R-PLN-43). */
+  public PlanViews.StopOrderSuggestion suggestStopOrder(Actor actor, UUID tripId, List<UUID> orderIds) {
+    return read(actor.userId(), () -> stopOrderSuggestion(tripId, orderIds));
+  }
+
   @Override
   public List<DeferralView> deferralsFor(String depotCode, LocalDate serviceDate) {
     return read(ambient(), () -> deferrals(depotCode, serviceDate));
@@ -536,7 +543,7 @@ public class PlanDataQuery implements PlanQuery {
 
   private TripPreview sequencePreview(UUID tripId, List<UUID> orderIds) {
     RunRow row =
-        plans.runsWithTrip(tripId).stream().findFirst()
+        draftWithTrip(tripId)
             .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No live plan carries trip " + tripId));
     if (row.status() != PlanStatus.DRAFT) {
       throw new DomainException(
@@ -551,7 +558,7 @@ public class PlanDataQuery implements PlanQuery {
 
   private TripPreview tripEditPreview(UUID tripId, List<UUID> orderIds) {
     RunRow row =
-        plans.runsWithTrip(tripId).stream().findFirst()
+        draftWithTrip(tripId)
             .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No live plan carries trip " + tripId));
     if (row.status() != PlanStatus.DRAFT) {
       throw new DomainException(
@@ -570,6 +577,112 @@ public class PlanDataQuery implements PlanQuery {
       orders.add(order);
     }
     return tripPreview(run.proposeTripEdit(place.vehicleId(), place.tripNumber(), orders, registry, context), context);
+  }
+
+  /** How many candidate orders one suggestion may time; 6! = 720 covers every short trip whole. */
+  private static final int SUGGESTION_BUDGET = 760;
+
+  private PlanViews.StopOrderSuggestion stopOrderSuggestion(UUID tripId, List<UUID> orderIds) {
+    RunRow row =
+        draftWithTrip(tripId)
+            .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No live plan carries trip " + tripId));
+    if (row.status() != PlanStatus.DRAFT) {
+      throw new DomainException(
+          ErrorCode.CONFLICT, "plan " + row.planId() + " is " + row.status() + "; only a draft changes", List.of("R-PLN-28"));
+    }
+    Opened opened = drafts.rebuild(row);
+    PlanningRun run = drafts.run(opened);
+    Place place = revisions.locate(row.planId(), tripId, run);
+    PlanContext context = opened.built().problem().context();
+    List<PlanOrder> current = new ArrayList<>();
+    for (UUID id : orderIds) {
+      PlanOrder order = opened.built().orders().get(id);
+      if (order == null) {
+        throw new DomainException(ErrorCode.CONSTRAINT_VIOLATED, "order " + id + " is no longer in the demand", List.of("PLN-07"));
+      }
+      current.add(order);
+    }
+    if (current.isEmpty()) {
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, "a trip with no stops has no order to suggest");
+    }
+    Map<List<PlanOrder>, Proposed> seen = new java.util.HashMap<>();
+    java.util.function.Function<List<PlanOrder>, Proposed> propose = order -> seen.computeIfAbsent(order,
+        o -> run.proposeTripEdit(place.vehicleId(), place.tripNumber(), o, registry, context));
+    java.util.function.Function<List<PlanOrder>, StopOrderSearch.Score> score = order -> {
+      Proposed proposed = propose.apply(order);
+      TripTimeline.TripSchedule schedule = TripTimeline.schedule(proposed.day(), context.travel(), context.rules()).stream()
+          .filter(s -> s.tripNumber() == proposed.tripNumber()).findFirst().orElseThrow();
+      int late = 0;
+      java.math.BigDecimal minutesLate = java.math.BigDecimal.ZERO;
+      for (TripTimeline.StopTime stop : schedule.stops()) {
+        if (stop.late()) {
+          late++;
+          minutesLate = minutesLate.add(stop.minutesToClose().negate().max(java.math.BigDecimal.ZERO));
+        }
+      }
+      return new StopOrderSearch.Score(proposed.feasible(), late, minutesLate, schedule.endMinute());
+    };
+    java.util.Comparator<PlanOrder> byClose = java.util.Comparator.comparing(
+        (PlanOrder o) -> o.windowClose().orElse(java.time.LocalTime.MAX)).thenComparing(o -> o.orderId().toString());
+    java.util.Comparator<PlanOrder> byOpen = java.util.Comparator.comparing(
+        (PlanOrder o) -> o.windowOpen().orElse(java.time.LocalTime.MIN)).thenComparing(o -> o.orderId().toString());
+    List<List<PlanOrder>> seeds = new ArrayList<>();
+    seeds.add(current.stream().sorted(byClose).toList());
+    seeds.add(current.stream().sorted(byOpen).toList());
+    if (StopTravel.located(current)) {
+      seeds.add(StopTravel.shortestPath(current.stream().min(byClose).orElseThrow(), current));
+    }
+    StopOrderSearch.Result<PlanOrder> result = StopOrderSearch.best(current, seeds, score, SUGGESTION_BUDGET);
+    List<PlanOrder> chosen = result.improves() ? result.order() : current;
+    StopOrderSearch.Score after = result.improves() ? result.score() : result.current();
+    StopOrderSearch.Score before = result.current();
+    int saved = before.endMinute().subtract(after.endMinute()).setScale(0, java.math.RoundingMode.HALF_UP).intValue();
+    return new PlanViews.StopOrderSuggestion(
+        chosen.stream().map(PlanOrder::orderId).toList(),
+        result.improves(),
+        before.lateStops(), after.lateStops(),
+        before.minutesLate().setScale(0, java.math.RoundingMode.HALF_UP),
+        after.minutesLate().setScale(0, java.math.RoundingMode.HALF_UP),
+        TripTimeline.clockOf(before.endMinute()), TripTimeline.clockOf(after.endMinute()),
+        Math.max(0, saved),
+        suggestionSummary(result.improves(), before, after, chosen.size(), saved),
+        "Waypoint stop order search v1 · " + (chosen.size() <= StopOrderSearch.EXHAUSTIVE_UP_TO ? "every order tried" : "local search"),
+        result.evaluated(),
+        tripPreview(propose.apply(chosen), context));
+  }
+
+  private static String suggestionSummary(
+      boolean improves, StopOrderSearch.Score before, StopOrderSearch.Score after, int stops, int saved) {
+    if (!improves) {
+      return after.lateStops() == 0
+          ? "This order is already the best fit: every stop arrives inside its window."
+          : "No order does better: " + after.lateStops() + " of " + stops + " stops still arrive after their window.";
+    }
+    if (before.feasible() != after.feasible()) {
+      return "Your order breaks a rule (see the checks); this one passes every rule"
+          + (after.lateStops() < before.lateStops() ? ", with " + (before.lateStops() - after.lateStops()) + " fewer late stops" : "")
+          + (saved > 0 ? " and is back " + saved + " min sooner." : ".");
+    }
+    if (after.lateStops() < before.lateStops()) {
+      return after.lateStops() == 0
+          ? "Every stop arrives inside its window (" + before.lateStops() + " late now)" + (saved > 0 ? ", and the trip is back " + saved + " min sooner." : ".")
+          : (before.lateStops() - after.lateStops()) + " fewer late stops (" + after.lateStops() + " of " + stops + " still late).";
+    }
+    if (after.minutesLate().compareTo(before.minutesLate()) < 0) {
+      return "Late stops arrive " + before.minutesLate().subtract(after.minutesLate()).setScale(0, java.math.RoundingMode.HALF_UP) + " min closer to their windows.";
+    }
+    return "Same windows kept, and the trip is back " + saved + " min sooner.";
+  }
+
+  /**
+   * The run a draft-only preview works on: the newest draft carrying the trip
+   * when there is one, so a revision of a published plan previews its own
+   * draft rather than the published plan that shares the trip's id (which the
+   * draft check below would refuse); else whatever live run carries it.
+   */
+  private Optional<RunRow> draftWithTrip(UUID tripId) {
+    List<RunRow> runs = plans.runsWithTrip(tripId);
+    return runs.stream().filter(r -> r.status() == PlanStatus.DRAFT).findFirst().or(() -> runs.stream().findFirst());
   }
 
   /** The proposed trip as it would run: stops in order with their arrivals, and the registry's checks. */

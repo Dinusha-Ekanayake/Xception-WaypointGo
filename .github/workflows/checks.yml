@@ -383,7 +383,3 @@ jobs:
           SITE_ADDRESS: ci.example.test
       # The role landing depends on this build argument reaching the frontend.
       - run: grep -q 'NEXT_PUBLIC_ROLE_ADDRESSES' vps.yaml
-      - run: docker compose -f compose.prod.yaml config -q
-        env:
-          DOMAIN: ci.example.test
-          DATABASE_URL: postgresql://ci@localhost/ci

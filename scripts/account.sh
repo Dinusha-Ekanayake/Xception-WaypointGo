@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Creates an account on the production stack from the host. The first
+# Creates an account from the host, on the stack of the checkout this script is in
+# (run it from /opt/waypoint/app or /opt/waypoint/preview on the VPS). The first
 # administrator cannot come from an endpoint that requires one; every later
 # account change is a command through the API (iam:CreateUser, iam:UpdateUser...).
 set -euo pipefail
@@ -12,4 +13,4 @@ read -r -s -p 'Password (at least 12 characters): ' ACCOUNT_PASSWORD
 echo
 export ACCOUNT_PASSWORD
 trap 'unset ACCOUNT_PASSWORD' EXIT
-docker compose -f "$root/compose.prod.yaml" run --rm --no-deps   -e ACCOUNT_EMAIL -e ACCOUNT_NAME -e ACCOUNT_ROLE -e ACCOUNT_PASSWORD   backend java -jar /app/backend.jar account-create
+docker compose --project-directory "$root" -f "$root/compose.yaml" -f "$root/deploy/vps/compose.vps.yaml" run --rm --no-deps   -e ACCOUNT_EMAIL -e ACCOUNT_NAME -e ACCOUNT_ROLE -e ACCOUNT_PASSWORD   backend java -jar /app/backend.jar account-create
