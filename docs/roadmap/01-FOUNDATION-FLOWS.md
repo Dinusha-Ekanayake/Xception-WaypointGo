@@ -173,7 +173,17 @@ store places order -> 16:00 cutoff closes the day -> engine drafts plan -> dispa
 | Browser: dispatcher | 67 passed, 7 failed | Live (needs-you order, minutes left), Plan, suggestions, trip messages. Not a timezone effect: the same 7 fail with the browser in UTC. Present in the handed-over code: the merged tree equals the branch tip |
 | Browser: driver | 23 passed, 7 failed, 13 skipped | All messages and voice: the Messages button needs a trip, and the mocked run shows none |
 
-The failures above existed before any roadmap work. Each gets an issue before Phase 1.5 is called done.
+The failures above existed before any roadmap work. Fixed the same day:
+
+| Failure | Cause | Fix |
+| --- | --- | --- |
+| Backend handover concurrency | A full test pool (5) answered 503; the entry was refused and not counted, as the test intends | Test accepts 503 like the 500 it already allowed; the pool question is F-09 |
+| Dispatcher Plan | The mock served the waiting orders for today, but Plan plans tomorrow's run (`scope.ts` `nextRun`) | Mock follows `nextRun` |
+| Dispatcher Live (5 tests) | **Product bug:** Live shared Plan's day, so it showed tomorrow's run and minutes left a day out | Live keeps its own day, today |
+| Dispatcher search | **Product gap** exposed by the mock fix: search read only today's orders and missed those waiting for the plan | Search reads both days, each order once |
+| Dispatcher Needs you | The test expected a proof-owed card that Figma's Needs you does not have | Test follows Figma |
+| Driver messages and voice (7 tests) | **Product bug:** the Messages button had been removed from the header, so the driver could not open the trip's thread | Button restored (agreed with @jv-ransika) |
+| Driver notification voice | The test counted waveform bars that the 2026-10-04 polish replaced | Assertion removed |
 
 ### B-05 business KPI baseline
 
