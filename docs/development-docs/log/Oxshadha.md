@@ -23,11 +23,7 @@ Why: Phase 2 of the [roadmap](../../roadmap/02-FOUNDATION-FIXES.md); planning ke
 - Partial indexes on published outbox events and unredacted position payloads; no partitioning beyond the audit log, recorded in SYSTEM-ARCHITECTURE §9.3.
 
 Why: Phase 2 of the [roadmap](../../roadmap/02-FOUNDATION-FIXES.md); one batch a night never caught up with a day's positions.
-Verified: see the pull request.
-
----
-
-
+Verified: on the combined dev, backend 1,088 on a fresh test database, none skipped; Node 340; build; browser shell 17, driver 36, loader 31, store 59, dispatcher 76.
 
 ---
 
