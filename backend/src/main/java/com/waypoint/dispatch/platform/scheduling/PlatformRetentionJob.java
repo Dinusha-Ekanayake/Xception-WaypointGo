@@ -24,13 +24,16 @@ import org.springframework.stereotype.Component;
  * </ul>
  *
  * <p>The audit log is not here: it ages out by detaching a partition
- * ({@link AuditPartitionJob}). Each table is deleted in bounded batches, so a
- * backlog after an outage does not hold one long lock.
+ * ({@link AuditPartitionJob}). Each table is deleted in bounded batches, each
+ * its own transaction, until a batch comes back short (F-12), so a backlog after
+ * an outage is cleared without holding one long lock.
  */
 @Component
 public class PlatformRetentionJob implements ScheduledJob {
   private static final Logger log = LoggerFactory.getLogger(PlatformRetentionJob.class);
   static final int BATCH = 5_000;
+  /** At most this many batches per table a night (F-12); a backlog beyond it is said, and the next run continues. */
+  static final int MAX_BATCHES = 200;
 
   private final Database database;
   private final RetentionProperties retention;
@@ -99,10 +102,16 @@ public class PlatformRetentionJob implements ScheduledJob {
   }
 
   private void purge(String table, String sql, Timestamp cutoff) {
-    int removed = database.asSystem(ModuleRole.INTEGRATION, () -> database.update(sql, cutoff));
-    if (removed > 0) {
-      metrics.count("waypoint.retention.purged", removed, "table", table);
-      log.info("Retention removed {} row(s) from integration.{}", removed, table);
+    Batches.Outcome outcome =
+        Batches.untilDone(
+            BATCH, MAX_BATCHES, () -> database.asSystem(ModuleRole.INTEGRATION, () -> database.update(sql, cutoff)));
+    if (outcome.total() > 0) {
+      metrics.count("waypoint.retention.purged", outcome.total(), "table", table);
+      log.info("Retention removed {} row(s) from integration.{}", outcome.total(), table);
+    }
+    if (outcome.backlog()) {
+      metrics.increment("waypoint.retention.backlog", "table", table);
+      log.warn("Retention stopped at {} batches on integration.{}; the next run continues", MAX_BATCHES, table);
     }
   }
 

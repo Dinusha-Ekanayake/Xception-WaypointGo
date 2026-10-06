@@ -161,6 +161,8 @@ When a lost reefer's chilled trip finds no reefer, the replan defers it; it neve
 
 ### F-12 Retention and indexes
 
+**Built 2026-10-07** (PLT-17). The SYSTEM-ARCHITECTURE §9.3 amendment records why only the audit log is partitioned.
+
 - **Retention jobs:** loop in batches until done, instead of 5,000 rows a night (`B/platform/scheduling/PlatformRetentionJob.java:33`).
 - **Partial indexes** for the retention predicates:
   - published outbox rows by `occurred_at`;

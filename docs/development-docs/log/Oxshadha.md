@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-10-07 - ops: retention catches up in one night, with indexes for it (F-12)
+
+`dev` · @Oxshadha
+
+- Retention repeats its batch, each its own transaction, until one comes back short (up to 200 a night) for receipts, outbox, consumed events, job runs, position thinning and position payloads; a larger backlog is counted and continued next night (PLT-17).
+- Partial indexes on published outbox events and unredacted position payloads; no partitioning beyond the audit log, recorded in SYSTEM-ARCHITECTURE §9.3.
+
+Why: Phase 2 of the [roadmap](../../roadmap/02-FOUNDATION-FIXES.md); one batch a night never caught up with a day's positions.
+Verified: see the pull request.
+
+---
+
 ## 2026-10-07 - ops: a memory ceiling on every container (F-15)
 
 `dev` · @Oxshadha
@@ -13,6 +25,9 @@
 
 Why: Phase 2 of the [roadmap](../../roadmap/02-FOUNDATION-FIXES.md); without a ceiling the JVM sized itself from the whole host and one service could starve the rest.
 Verified: the merged VPS configuration parses with every profile; the check passes, and fails when a ceiling is removed.
+
+---
+
 ## 2026-10-07 - fix: a planning worker that lost its claim writes nothing (F-11)
 
 `dev` · @Oxshadha

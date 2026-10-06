@@ -1,5 +1,6 @@
 package com.waypoint.dispatch.sync.application;
 
+import com.waypoint.dispatch.platform.scheduling.Batches;
 import com.waypoint.dispatch.platform.db.Database;
 import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.platform.observability.Metrics;
@@ -51,9 +52,12 @@ public class PositionPayloadRetentionJob implements ScheduledJob {
   }
 
   public int runAt(Instant now) {
-    int redacted =
-        database.asSystem(ModuleRole.SYNC, () -> operations.redactPositionPayloads(now.minus(AGE), BATCH));
-    metrics.count("waypoint.sync.position_payloads_redacted", redacted);
-    return redacted;
+    // F-12: batch after batch, each its own transaction, until one comes back short.
+    var outcome =
+        Batches.untilDone(
+            BATCH, 200, () -> database.asSystem(ModuleRole.SYNC, () -> operations.redactPositionPayloads(now.minus(AGE), BATCH)));
+    metrics.count("waypoint.sync.position_payloads_redacted", outcome.total());
+    if (outcome.backlog()) metrics.increment("waypoint.retention.backlog", "table", "sync_operations");
+    return outcome.total();
   }
 }
