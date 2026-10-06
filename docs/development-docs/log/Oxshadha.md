@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-07 - fix: an outlet or calendar edit reaches planning without a restart (F-10)
+
+`dev` · @Oxshadha
+
+- In-place reference edits bump `ref.generation`; every process reloads when it moves (within 30 s, at once where the edit was made), after the commit rather than inside it (REF-08).
+- Planning's reference cache keys on the generation through `ReferenceQuery.generation()`, never Reference's tables.
+
+Why: Phase 2 of the [roadmap](../../roadmap/02-FOUNDATION-FIXES.md); planning kept an outlet's old window until a restart, and other replicas kept it for good.
+
+---
+
 ## 2026-10-07 - ops: retention catches up in one night, with indexes for it (F-12)
 
 `dev` · @Oxshadha
@@ -13,6 +24,10 @@
 
 Why: Phase 2 of the [roadmap](../../roadmap/02-FOUNDATION-FIXES.md); one batch a night never caught up with a day's positions.
 Verified: see the pull request.
+
+---
+
+
 
 ---
 

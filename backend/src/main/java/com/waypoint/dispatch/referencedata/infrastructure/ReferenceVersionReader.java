@@ -50,6 +50,19 @@ public class ReferenceVersionReader {
     return row == null ? Optional.empty() : Optional.of((UUID) row.get("reference_version_id"));
   }
 
+  /** The in-place edit counter (F-10); 0 before any edit. */
+  public long generation() {
+    Map<String, Object> row = database.queryOne("SELECT value FROM ref.generation WHERE id = 1");
+    return row == null ? 0L : ((Number) row.get("value")).longValue();
+  }
+
+  /** Bumps the counter in the caller's transaction, with the edit it records. */
+  public long bumpGeneration() {
+    Map<String, Object> row =
+        database.queryOne("UPDATE ref.generation SET value = value + 1 WHERE id = 1 RETURNING value");
+    return row == null ? 0L : ((Number) row.get("value")).longValue();
+  }
+
   public Optional<ReferenceSnapshot> load(UUID versionId) {
     if (versionId == null) {
       return Optional.empty();

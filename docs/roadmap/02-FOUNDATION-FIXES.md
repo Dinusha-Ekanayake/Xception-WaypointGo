@@ -147,6 +147,8 @@ When a lost reefer's chilled trip finds no reefer, the replan defers it; it neve
 
 ### F-10 Reference generation counter
 
+**Built 2026-10-07** (REF-08). The snapshot is rebuilt after the edit commits instead of inside its transaction, so it is never ahead of the database.
+
 - **Change:**
   - Add a reference generation number, bumped by any in-place edit (calendar override, outlet details).
   - Publish it **after** commit, not inside the transaction.

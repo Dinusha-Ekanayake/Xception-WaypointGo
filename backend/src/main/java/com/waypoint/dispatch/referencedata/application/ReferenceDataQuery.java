@@ -66,6 +66,12 @@ public class ReferenceDataQuery implements ReferenceQuery {
     return cache.loadedVersionId();
   }
 
+  @Override
+  public long generation() {
+    bootstrap.refreshIfStale();
+    return cache.loadedGeneration();
+  }
+
   private ReferenceSnapshot snapshot(UUID versionId) {
     if (versionId == null) {
       bootstrap.refreshIfStale();

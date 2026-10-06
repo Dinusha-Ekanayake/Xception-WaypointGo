@@ -16,9 +16,11 @@ import org.springframework.stereotype.Component;
 
 /**
  * Reference data as Planning reads it to build a problem, kept in memory by
- * reference version (planning v2). A published reference version never
- * changes, so an answer for a version is the answer for good: there is nothing
- * to invalidate and no stale read to fear. A new version is simply a new key.
+ * reference version (planning v2) and by the edit generation (F-10). A version
+ * is published once, but an outlet's window or dock and the calendar can be
+ * edited in place within it; each such edit moves {@link ReferenceQuery#generation()},
+ * and a moved generation empties this cache, so the next plan reads the edit on
+ * every replica without a restart.
  *
  * <p>Only what is fixed by the version is kept: outlets, allowances, travel
  * profiles and a depot's vehicles. Which vehicles are available on a day is
@@ -34,6 +36,8 @@ public class ReferenceSnapshotCache {
   private final ReferenceQuery reference;
   private final Metrics metrics;
   private final Map<String, Object> entries = new ConcurrentHashMap<>();
+  /** The generation the entries were read at. */
+  private final java.util.concurrent.atomic.AtomicLong generation = new java.util.concurrent.atomic.AtomicLong(Long.MIN_VALUE);
 
   public ReferenceSnapshotCache(ReferenceQuery reference, Metrics metrics) {
     this.reference = reference;
@@ -58,6 +62,12 @@ public class ReferenceSnapshotCache {
 
   @SuppressWarnings("unchecked")
   private <T> T get(String key, Supplier<T> read) {
+    long now = reference.generation();
+    long seen = generation.get();
+    if (now != seen && generation.compareAndSet(seen, now)) {
+      entries.clear();
+      metrics.increment("waypoint.planning.reference_cache", "result", "generation");
+    }
     Object hit = entries.get(key);
     if (hit != null) {
       metrics.increment("waypoint.planning.reference_cache", "result", "hit");

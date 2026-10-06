@@ -82,20 +82,47 @@ public class ReferenceBootstrap {
     }
     try {
       Optional<UUID> current = database.readAs(ModuleRole.REF, null, reader::currentVersionId);
-      if (current.isEmpty() || current.equals(cache.loadedVersionId())) {
+      long generation = database.readAs(ModuleRole.REF, null, reader::generation);
+      // F-10: an in-place edit (outlet details, a calendar override) keeps the
+      // version and moves the generation, so both are compared.
+      if (current.isEmpty() || (current.equals(cache.loadedVersionId()) && generation == cache.loadedGeneration())) {
         return;
       }
-      database
-          .readAs(ModuleRole.REF, null, () -> reader.load(current.get()))
-          .ifPresent(
-              snapshot -> {
-                cache.publish(snapshot);
-                metrics.increment("waypoint.reference.cache.refreshed");
-              });
+      reload(current.get(), generation);
     } catch (RuntimeException e) {
       // The snapshot in memory is still a published version; keep serving it.
       log.warn("Could not check for a newer reference version: {}", e.getMessage());
     }
+  }
+
+  /**
+   * F-10: called by an in-place edit once its transaction has committed, so this
+   * process sees the edit at once (and never ahead of the database, as a
+   * republish inside the transaction did); other processes see it within
+   * {@link #CHECK_EVERY} through {@link #refreshIfStale}.
+   */
+  public void reloadAfterCommit() {
+    database.afterCommit(
+        () -> {
+          try {
+            Optional<UUID> current = database.readAs(ModuleRole.REF, null, reader::currentVersionId);
+            long generation = database.readAs(ModuleRole.REF, null, reader::generation);
+            current.ifPresent(version -> reload(version, generation));
+          } catch (RuntimeException e) {
+            // The next refreshIfStale picks it up.
+            log.warn("Could not reload reference data after an edit: {}", e.getMessage());
+          }
+        });
+  }
+
+  private void reload(UUID version, long generation) {
+    database
+        .readAs(ModuleRole.REF, null, () -> reader.load(version))
+        .ifPresent(
+            snapshot -> {
+              cache.publish(snapshot, generation);
+              metrics.increment("waypoint.reference.cache.refreshed");
+            });
   }
 
   @EventListener(ApplicationReadyEvent.class)
@@ -105,9 +132,9 @@ public class ReferenceBootstrap {
           .asModule(
               ModuleRole.REF,
               null,
-              () -> reader.currentVersionId().flatMap(reader::load))
+              () -> reader.currentVersionId().flatMap(reader::load).map(s -> java.util.Map.entry(s, reader.generation())))
           .ifPresentOrElse(
-              cache::publish,
+              loaded -> cache.publish(loaded.getKey(), loaded.getValue()),
               () -> log.warn("No current reference version. Run import-reference before planning."));
     } catch (RuntimeException e) {
       log.warn(
