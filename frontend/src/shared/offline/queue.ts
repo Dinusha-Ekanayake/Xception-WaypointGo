@@ -3,9 +3,10 @@ import type { Command } from "@shared/api/commands";
 import { ApiError } from "@shared/api/problem";
 import type { OperationView, SubmitBatch, SyncAck } from "@shared/domain/sync";
 import { outcomeAction } from "./outcome.ts";
-import { discardCommand, inRecordedOrder, nextOrder, readyToSend, recordedOrder, redoCommands } from "./review.ts";
+import { discardCommand, nextOrder, recordedOrder, redoCommands } from "./review.ts";
 import type { RedoBasis } from "./resolvers.ts";
 import { all, allUploads, put, putSnapshot, remove, type StoredEntry } from "./store.ts";
+import { inSendOrder } from "./lanes.ts";
 import { nextAttemptAt, retryAfterOf, waiting } from "./retry.ts";
 import { drainUploads } from "./uploads.ts";
 import { queuesWrites, type Role } from "./tiers.ts";
@@ -179,7 +180,8 @@ async function drainOnce(accountId: string): Promise<DrainReport> {
   }
   // In the order they were recorded, so a batch never sends a later write
   // without an earlier one (storage returns them by id).
-  const ready = readyToSend(inRecordedOrder(entries.filter((e) => !e.needsReview)), waitingUploads).slice(0, BATCH);
+  // Business writes first, positions after them (lanes.ts, roadmap F-03).
+  const ready = inSendOrder(entries.filter((e) => !e.needsReview), waitingUploads).slice(0, BATCH);
   let sent = 0;
   let heldForReview = entries.length - entries.filter((e) => !e.needsReview).length;
   if (ready.length === 0) return { sent, heldForReview, remaining: entries.length };
