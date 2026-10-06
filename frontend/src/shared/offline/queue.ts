@@ -82,6 +82,22 @@ export { backoffMs } from "./retry.ts";
 export type DrainReport = { sent: number; heldForReview: number; remaining: number };
 
 const running = new Map<string, Promise<DrainReport>>();
+const retryTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+/**
+ * A backoff must try again on its own: without this a write held back for a
+ * second would wait for the next trigger, which can be the 30 s interval. One
+ * timer per account, at the time the waiting write may go.
+ */
+function retryAt(accountId: string, at: number): void {
+  const existing = retryTimers.get(accountId);
+  if (existing !== undefined) clearTimeout(existing);
+  const timer = setTimeout(() => {
+    retryTimers.delete(accountId);
+    void drain(accountId).catch(() => undefined);
+  }, Math.max(0, at - Date.now()));
+  retryTimers.set(accountId, timer);
+}
 const beforeDrain = new Map<string, () => Promise<void>>();
 
 /**
@@ -169,7 +185,10 @@ async function drainOnce(accountId: string): Promise<DrainReport> {
   if (ready.length === 0) return { sent, heldForReview, remaining: entries.length };
   // A recent failure set a time before which nothing is sent (retry.ts). Every
   // trigger lands here, so the backoff holds whichever one fired.
-  if (waiting(ready[0]!, Date.now())) return { sent, heldForReview, remaining: entries.length };
+  if (waiting(ready[0]!, Date.now())) {
+    retryAt(accountId, ready[0]!.nextAttemptAt!);
+    return { sent, heldForReview, remaining: entries.length };
+  }
 
   const device = deviceId();
   await keepDeviceForWorker(accountId, device);
@@ -190,7 +209,9 @@ async function drainOnce(accountId: string): Promise<DrainReport> {
     const first = ready[0]!;
     if (!(error instanceof ApiError && error.status === 401)) {
       const attempts = first.attempts + 1;
-      await put(accountId, { ...first, attempts, lastError: String(error), nextAttemptAt: nextAttemptAt(Date.now(), attempts, retryAfterOf(error)) });
+      const at = nextAttemptAt(Date.now(), attempts, retryAfterOf(error));
+      await put(accountId, { ...first, attempts, lastError: String(error), nextAttemptAt: at });
+      retryAt(accountId, at);
     }
     return { sent, heldForReview, remaining: entries.length };
   }
@@ -216,7 +237,9 @@ async function drainOnce(accountId: string): Promise<DrainReport> {
       heldForReview++;
     } else {
       const attempts = entry.attempts + 1;
-      await put(accountId, { ...entry, attempts, lastError: result.detail ?? "Not applied yet", nextAttemptAt: nextAttemptAt(Date.now(), attempts) });
+      const at = nextAttemptAt(Date.now(), attempts);
+      await put(accountId, { ...entry, attempts, lastError: result.detail ?? "Not applied yet", nextAttemptAt: at });
+      retryAt(accountId, at);
       break;
     }
   }
