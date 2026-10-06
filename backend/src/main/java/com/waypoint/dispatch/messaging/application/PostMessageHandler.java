@@ -34,7 +34,8 @@ import org.springframework.stereotype.Component;
  * row-level security: a thread they do not belong to is a 403 plus an audit row,
  * never "not found" (security rules). How they belong decides what they may
  * write (R-MSG-02, R-MSG-03); the message and its {@code message.posted} commit
- * together, and Notification tells only the people it is for (R-NOT-14).
+ * together, and Notification tells only the people it is for (R-NOT-14). A
+ * post to the trip's channel reaches the stores still active in it (R-MSG-08).
  */
 @Component
 public class PostMessageHandler implements CommandHandler {
@@ -120,7 +121,8 @@ public class PostMessageHandler implements CommandHandler {
     LocalDate today = now.atZone(Clock.OPERATING_ZONE).toLocalDate();
     String body =
         MessagePolicy.check(
-            role, post, thread.outletIds(), thread.vehicleId().isPresent(),
+            role, post, thread.outletIds(), thread.vehicleId().isPresent(), thread.channelOpen(),
+            role == Role.STORE_MANAGER && post.to() == To.CHANNEL && threads.inChannel(threadId),
             thread.serviceDate().orElse(today), today);
 
     UUID messageId = UuidV7.generate(now, random);
@@ -134,6 +136,8 @@ public class PostMessageHandler implements CommandHandler {
         switch (post.to()) {
           case OUTLET -> List.of(post.outletId().orElseThrow());
           case ALL -> thread.outletIds();
+          // R-MSG-08: only the stores still active hear a channel post.
+          case CHANNEL -> threads.activeChannelOutlets(threadId);
           default -> List.of();
         };
     String author = people.person(actor.userId()).map(PersonQuery.PersonView::displayName).orElse(role.code());

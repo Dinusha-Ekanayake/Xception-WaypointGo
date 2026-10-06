@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-07 - feat: the trip's channel for the dispatcher and the stores still waiting (FF-04)
+
+`dev` · @Oxshadha
+
+- A trip's thread has a channel (R-MSG-08). It opens when the driver starts the trip, after loading; a store is on it while any of its orders on the trip is open, then read only, never back. The driver and the loaders are not on it.
+- A post naming another store's code or an order number is asked about first (send to the dispatcher only, or to every store); the dispatcher can take a post off the channel with a reason (`message:Redirect`), the message itself never changes.
+- Routing version 9: a channel post notifies only the stores still waiting. The driver's gate on writing while moving is FF-04b, next.
+
+Why: Phase 3 of the [roadmap](../../roadmap/04-FIELD-FEATURES.md#ff-04-live-trip-channel); stores phoned the dispatcher for news every store on the trip needed.
+Verified: backend 1,108 on a fresh test database, none skipped; Node 350; build; browser shell 20, driver 36, loader 32, store 60, dispatcher 78.
+
 ## 2026-10-07 - feat: Operations inquiries and write-off approval (FF-03)
 
 `dev` · @Oxshadha

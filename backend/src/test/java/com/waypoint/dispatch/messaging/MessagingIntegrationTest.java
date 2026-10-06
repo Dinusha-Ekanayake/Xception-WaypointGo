@@ -9,6 +9,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryCompleted;
+import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryFailed;
+import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryStarted;
+import com.waypoint.dispatch.execution.contract.ExecutionViews.DeliveryOutcome;
 import com.waypoint.dispatch.identity.application.AccountAdminUseCase;
 import com.waypoint.dispatch.identity.application.LoginHandler;
 import com.waypoint.dispatch.identity.web.AuthController;
@@ -39,6 +43,7 @@ import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -110,6 +115,8 @@ class MessagingIntegrationTest {
   UUID loaderId;
   UUID tripId;
   UUID threadId;
+  /** The order each outlet has on the trip, as the last plan named it. */
+  Map<String, UUID> orders = new HashMap<>();
 
   @DynamicPropertySource
   static void databaseUrl(DynamicPropertyRegistry registry) {
@@ -484,12 +491,156 @@ class MessagingIntegrationTest {
     return r.getResponse().getContentAsString();
   }
 
+  // ---- the trip's live channel (FF-04, R-MSG-08) ----
+
+  @Test
+  void theChannelOpensWhenTheDriverStartsTheTripAfterLoading() throws Exception {
+    assertFalse(members(dispatcher).contains("channel"));
+    assertFalse(members(manager).contains("channel"));
+    assertFalse(json(read(manager, "/api/threads/" + threadId, 200)).get("channelOpen").asBoolean());
+    say(dispatcher, "{\"to\":\"channel\",\"body\":\"Too early\"}", 409);
+    say(manager, "{\"to\":\"channel\",\"body\":\"Too early\"}", 409);
+
+    startTrip();
+    assertTrue(json(read(manager, "/api/threads/" + threadId, 200)).get("channelOpen").asBoolean());
+    assertTrue(members(dispatcher).contains("channel"));
+    assertTrue(members(manager).contains("channel"));
+    assertFalse(members(loader).contains("channel"), "the loaders are not on the channel");
+    say(manager, "{\"to\":\"channel\",\"body\":\"Gate is open\"}", 200);
+    // The second stop's start, or the same event again, changes nothing.
+    startTrip();
+    assertTrue(members(manager).contains("channel"));
+  }
+
+  @Test
+  void aStoreReadsTheChannelWhileItsGoodsAreOnTheTripAndTheDriverNever() throws Exception {
+    startTrip();
+    say(dispatcher, "{\"to\":\"channel\",\"body\":\"Truck left the depot\"}", 200);
+    say(manager, "{\"to\":\"channel\",\"body\":\"Gate opens at 05:00\"}", 200);
+    say(driver, "{\"to\":\"channel\",\"body\":\"Driving\"}", 422);
+    say(loader, "{\"to\":\"channel\",\"body\":\"Loaded\"}", 422);
+    assertEquals(
+        List.of("Gate opens at 05:00", "Truck left the depot"), sorted(bodies(secondManager)),
+        "every store still waiting reads the channel");
+    assertFalse(bodies(driver).contains("Truck left the depot"), "the driver is driving and not on the channel");
+    assertFalse(bodies(loader).contains("Truck left the depot"));
+    assertTrue(members(manager).contains("channel"));
+    assertTrue(members(dispatcher).contains("channel"));
+    assertFalse(members(driver).contains("channel"));
+
+    // The first store's order is delivered: its part of the channel is read only.
+    at("11:00");
+    publish(
+        ModuleRole.EXECUTION,
+        new DeliveryCompleted(
+            UUID.randomUUID(), orders.get(OUTLET), tripId, OUTLET, DeliveryOutcome.DELIVERED, Optional.of(10),
+            clock.now(), Optional.empty()));
+    drain();
+    at("11:05");
+    say(dispatcher, "{\"to\":\"channel\",\"body\":\"Next stop in 20 min\"}", 200);
+    say(manager, "{\"to\":\"channel\",\"body\":\"Thanks\"}", 409);
+    assertFalse(members(manager).contains("channel"));
+    assertFalse(bodies(manager).contains("Next stop in 20 min"), "nothing new after its deliveries are done");
+    assertTrue(bodies(manager).contains("Truck left the depot"), "what it could read before stays");
+    assertTrue(bodies(secondManager).contains("Next stop in 20 min"));
+
+    // Applying the same delivery twice, or a revision naming the outlet again, changes nothing.
+    publish(
+        ModuleRole.PLANNING,
+        new PlanRevised(
+            UUID.randomUUID(), depot, day, 2, UUID.randomUUID(), "moved a stop",
+            List.of(trip(OUTLET, SECOND_OUTLET)), Optional.empty(), Optional.empty()));
+    drain();
+    assertFalse(members(manager).contains("channel"), "read only never reverts");
+
+    // A failed delivery finishes the second store too.
+    publish(
+        ModuleRole.EXECUTION,
+        new DeliveryFailed(
+            UUID.randomUUID(), orders.get(SECOND_OUTLET), tripId, SECOND_OUTLET, depot, "closed", clock.now()));
+    drain();
+    assertFalse(members(secondManager).contains("channel"));
+  }
+
+  @Test
+  void aChannelPostReachesTheBellsOfTheStoresStillWaiting() throws Exception {
+    startTrip();
+    publish(
+        ModuleRole.EXECUTION,
+        new DeliveryCompleted(
+            UUID.randomUUID(), orders.get(OUTLET), tripId, OUTLET, DeliveryOutcome.DELIVERED, Optional.of(10),
+            clock.now(), Optional.empty()));
+    drain();
+    say(dispatcher, "{\"to\":\"channel\",\"body\":\"Rain ahead\"}", 200);
+    say(secondManager, "{\"to\":\"channel\",\"body\":\"Noted\"}", 200);
+    drain();
+    assertEquals(0, notified(managerId), "a store whose goods are delivered is not told");
+    assertEquals(1, notified(secondManagerId), "the dispatcher's post; never its own");
+    assertEquals(1, notified(dispatcherId), "the store's post");
+    assertEquals(0, notified(driverId));
+  }
+
+  @Test
+  void theDispatcherMovesAPostOffTheChannel() throws Exception {
+    startTrip();
+    UUID posted =
+        UUID.fromString(
+            json(say(manager, "{\"to\":\"channel\",\"body\":\"Where is order 4411 for OUT002?\"}", 200))
+                .get("result").get("messageId").asText());
+    assertTrue(bodies(secondManager).contains("Where is order 4411 for OUT002?"));
+
+    redirect(manager, posted, "Not yours to move", 403);
+    redirect(farDispatcher, posted, "Not my depot", 403);
+    redirect(dispatcher, posted, "no", 422);
+    assertFalse(json(redirect(dispatcher, posted, "Names another store's order", 200))
+        .get("result").get("alreadyRedirected").asBoolean());
+    assertTrue(json(redirect(dispatcher, posted, "Names another store's order", 200))
+        .get("result").get("alreadyRedirected").asBoolean());
+
+    assertFalse(bodies(secondManager).contains("Where is order 4411 for OUT002?"), "the other store no longer sees it");
+    assertTrue(bodies(manager).contains("Where is order 4411 for OUT002?"), "its author still does");
+    JsonNode seen = null;
+    for (JsonNode m : json(read(dispatcher, "/api/threads/" + threadId + "/messages", 200)).get("items")) {
+      if (m.get("messageId").asText().equals(posted.toString())) seen = m;
+    }
+    assertEquals("Names another store's order", seen.get("redirectReason").asText());
+
+    UUID direct =
+        UUID.fromString(
+            json(say(manager, "{\"to\":\"dispatch\",\"body\":\"Private\"}", 200)).get("result").get("messageId").asText());
+    redirect(dispatcher, direct, "Only channel posts move", 422);
+  }
+
+  private String redirect(String who, UUID messageId, String reason, int expected) throws Exception {
+    String envelope =
+        "{\"commandId\":\"" + UUID.randomUUID() + "\",\"kind\":\"message:Redirect\",\"expectedVersion\":null,"
+            + "\"payload\":{\"messageId\":\"" + messageId + "\",\"reason\":\"" + reason + "\"},"
+            + "\"clientRecordedAt\":\"" + clock.now() + "\"}";
+    MvcResult r = http.perform(post("/api/commands").cookie(session(who)).contentType(MediaType.APPLICATION_JSON)
+        .content(envelope)).andReturn();
+    assertEquals(expected, r.getResponse().getStatus(), r.getResponse().getContentAsString());
+    return r.getResponse().getContentAsString();
+  }
+
+  /** The driver's Start on the first stop, after loading released the trip. */
+  private void startTrip() {
+    publish(ModuleRole.EXECUTION, new DeliveryStarted(UUID.randomUUID(), orders.get(OUTLET), tripId, OUTLET));
+    drain();
+  }
+
+  private List<String> members(String who) throws Exception {
+    List<String> out = new ArrayList<>();
+    json(read(who, "/api/threads/" + threadId + "/members", 200)).forEach(m -> out.add(m.get("to").asText()));
+    return out;
+  }
+
   // ---- helpers ----
 
   private PlannedTrip trip(String... outlets) {
     List<PlannedStop> stops = new ArrayList<>();
     for (int i = 0; i < outlets.length; i++) {
-      stops.add(new PlannedStop(i + 1, UUID.randomUUID(), outlets[i], LocalTime.of(5, 20 + i * 10)));
+      UUID order = orders.computeIfAbsent(outlets[i], o -> UUID.randomUUID());
+      stops.add(new PlannedStop(i + 1, order, outlets[i], LocalTime.of(5, 20 + i * 10)));
     }
     return new PlannedTrip(tripId, vehicleId, 1, "Fresh", "Colombo", "ambient", LocalTime.of(4, 30), stops);
   }

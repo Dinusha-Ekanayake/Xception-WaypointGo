@@ -1,6 +1,6 @@
 import type { Page, Route } from "@playwright/test";
 import type { PostMessagePayload } from "../../src/shared/domain/messaging.ts";
-import { postToThread, resolveInThread, threadRead, type ThreadMock } from "../thread-mocks.ts";
+import { postToThread, redirectInThread, resolveInThread, threadRead, type ThreadMock } from "../thread-mocks.ts";
 import { nextRun } from "../../src/roles/dispatcher/data/scope.ts";
 import type { RunSheetStopView, RunSheetView } from "../../src/shared/domain/execution.ts";
 import type { ReadyTripView } from "../../src/shared/domain/loading.ts";
@@ -156,6 +156,9 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
     }
     if (command.kind === "message:Resolve") {
       return resolveInThread(desk.threads ?? [], payload as unknown as { messageId: string; note?: string }, SESSION.displayName, new Date().toISOString());
+    }
+    if (command.kind === "message:Redirect") {
+      return redirectInThread(desk.threads ?? [], payload as unknown as { messageId: string; reason: string }, new Date().toISOString());
     }
     if (command.kind === "message:Post") {
       return postToThread(desk.threads ?? [], payload as unknown as PostMessagePayload, { name: SESSION.displayName, role: "dispatcher" }, new Date().toISOString());

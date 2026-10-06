@@ -5,6 +5,7 @@ import type { MessageView } from "../domain/messaging.ts";
 import { audienceLabel, byDay, plain, REPORT_LABEL, ROLE_LABEL, voiceLength, type Translate } from "../messaging/thread.ts";
 import { voiceUrl } from "../messaging/useThread.ts";
 import { clock, dayLabel } from "../wording/time.ts";
+import { ChannelRedirect } from "./ChannelRedirect.tsx";
 import { cx } from "./primitives.tsx";
 import { VoiceNote } from "./VoiceNote.tsx";
 
@@ -21,6 +22,7 @@ export function ThreadMessages({
   compact,
   tr = plain,
   onResolve,
+  onRedirect,
 }: {
   messages: MessageView[];
   /** Scrolled to and marked, when a warning sign or a notification opened the thread. */
@@ -31,6 +33,8 @@ export function ThreadMessages({
   tr?: Translate;
   /** The dispatcher's way to resolve a report (R-MSG-07); absent for everyone else. */
   onResolve?: (messageId: string, note: string) => Promise<void>;
+  /** The dispatcher's way to move a post off the trip's channel (R-MSG-08). */
+  onRedirect?: (messageId: string, reason: string) => Promise<void>;
 }): React.JSX.Element {
   const end = useRef<HTMLDivElement>(null);
   const focused = useRef<string | null>(null);
@@ -76,6 +80,7 @@ export function ThreadMessages({
                 compact={compact}
                 tr={tr}
                 {...(onResolve ? { onResolve } : {})}
+                {...(onRedirect ? { onRedirect } : {})}
               />
             ))}
           </ol>
@@ -92,12 +97,14 @@ function Message({
   compact,
   tr,
   onResolve,
+  onRedirect,
 }: {
   message: MessageView;
   focused: boolean;
   compact: boolean;
   tr: Translate;
   onResolve?: (messageId: string, note: string) => Promise<void>;
+  onRedirect?: (messageId: string, reason: string) => Promise<void>;
 }): React.JSX.Element {
   const report = m.kind === "report";
   const resolved = report && m.resolvedAt !== null;
@@ -214,6 +221,9 @@ function Message({
           </form>
         )}
       </div>
+      {m.audience === "channel" && (m.redirectedAt !== null || (onRedirect && !m.mine)) && (
+        <ChannelRedirect message={m} tr={tr} {...(onRedirect && !m.mine ? { onRedirect } : {})} />
+      )}
       <span className="px-1 text-[11px] text-go-secondary">{audienceLabel(m.audience, m.audienceOutlet, tr)}</span>
     </li>
   );

@@ -16,6 +16,7 @@ public final class MessagingViews {
    * @param memberRole dispatcher, loader, driver or store_manager: the reader's
    *     part here, which decides who they may write to (R-MSG-02)
    * @param myOutlets the reader's own outlets among the subject's, for a store manager
+   * @param channelOpen the driver has started the trip, so its channel takes posts (R-MSG-08)
    */
   public record ThreadView(
       UUID threadId,
@@ -27,7 +28,8 @@ public final class MessagingViews {
       List<String> outletIds,
       String memberRole,
       List<String> myOutlets,
-      boolean open) {
+      boolean open,
+      boolean channelOpen) {
 
     public ThreadView {
       outletIds = List.copyOf(outletIds);
@@ -39,13 +41,15 @@ public final class MessagingViews {
    * One message the reader may see (R-MSG-01).
    *
    * @param authorName the person's name, or the role for a report made from an event
-   * @param audience dispatch, driver, loader, outlet or all
+   * @param audience dispatch, driver, loader, outlet, all or channel
    * @param voiceNoteId set for a voice message or report, played from
    *     {@code /api/threads/{threadId}/voice/{voiceNoteId}}
    * @param mine written by the reader
    * @param voicePeaks the voice note's waveform, 0 to 100 a bar, as the recording
    *     phone measured it; empty when unknown
    * @param resolvedAt when the dispatcher resolved this report (R-MSG-07)
+   * @param redirectedAt when the dispatcher moved this post off the trip's
+   *     channel (R-MSG-08); stores other than its author no longer see it
    */
   public record MessageView(
       UUID messageId,
@@ -64,7 +68,9 @@ public final class MessagingViews {
       List<Integer> voicePeaks,
       Optional<Instant> resolvedAt,
       Optional<String> resolvedByName,
-      Optional<String> resolutionNote) {
+      Optional<String> resolutionNote,
+      Optional<Instant> redirectedAt,
+      Optional<String> redirectReason) {
     public MessageView {
       voicePeaks = List.copyOf(voicePeaks);
     }
@@ -97,7 +103,7 @@ public final class MessagingViews {
   /**
    * Someone the reader may write to on this thread.
    *
-   * @param to dispatch, driver, loader, outlet or all
+   * @param to dispatch, driver, loader, outlet, all or channel
    * @param outletId set when {@code to} is outlet
    * @param label what the screen shows: a name, "Loaders at Kandy", an outlet
    */

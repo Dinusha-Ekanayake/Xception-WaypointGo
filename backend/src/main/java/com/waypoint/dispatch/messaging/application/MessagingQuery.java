@@ -109,7 +109,8 @@ public class MessagingQuery {
               m.messageId(), m.threadId(), name(m, names), m.authorRole(), m.kind(), m.reportType(), m.audience(),
               m.audienceOutlet(), m.body(), m.voiceNoteId(), m.voiceDurationMs(), m.createdAt(),
               m.authorUserId().equals(actor.userId()), m.voicePeaks(), m.resolvedAt(),
-              m.resolvedBy().map(by -> resolver(by, names)), m.resolutionNote()));
+              m.resolvedBy().map(by -> resolver(by, names)), m.resolutionNote(), m.redirectedAt(),
+              m.redirectReason()));
     }
     return new MessagePage(items, page.nextCursor());
   }
@@ -132,10 +133,20 @@ public class MessagingQuery {
         out.add(new MemberView("loader", Optional.empty(), "Loaders at " + t.depotCode()));
         t.outletIds().forEach(o -> out.add(new MemberView("outlet", Optional.of(o), o)));
         out.add(new MemberView("all", Optional.empty(), "Everyone on the trip"));
+        // R-MSG-08: the stores still waiting on the trip, together.
+        if (t.channelOpen()) {
+          out.add(new MemberView("channel", Optional.empty(), "Stores still waiting"));
+        }
       }
       case "driver" -> {
         out.add(new MemberView("dispatch", Optional.empty(), "Dispatcher"));
         t.outletIds().forEach(o -> out.add(new MemberView("outlet", Optional.of(o), o)));
+      }
+      case "store_manager" -> {
+        out.add(new MemberView("dispatch", Optional.empty(), "Dispatcher"));
+        if (t.channelOpen() && read(actor, () -> Optional.of(threads.inChannel(threadId))).orElse(false)) {
+          out.add(new MemberView("channel", Optional.empty(), "Dispatcher and stores still waiting"));
+        }
       }
       default -> out.add(new MemberView("dispatch", Optional.empty(), "Dispatcher"));
     }
@@ -192,7 +203,7 @@ public class MessagingQuery {
         new ThreadView(
             t.threadId(), t.subjectType(), t.subjectId(), t.depotCode(), t.vehicleId(), t.serviceDate(),
             t.outletIds(), role.get().code(), b.get().outlets(),
-            MessagePolicy.open(t.serviceDate().orElse(today()), today())));
+            MessagePolicy.open(t.serviceDate().orElse(today()), today()), t.channelOpen()));
   }
 
   /** A report made from an event names the role; a person's message names the person. */

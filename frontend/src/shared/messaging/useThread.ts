@@ -219,3 +219,13 @@ export async function resolveReport(messageId: string, note: string): Promise<vo
   }
   globalThis.dispatchEvent?.(new CustomEvent(REPORT_RESOLVED_EVENT, { detail: { messageId } }));
 }
+
+/** The dispatcher moves a post off the trip's channel (R-MSG-08); the message itself never changes. */
+export async function redirectMessage(messageId: string, reason: string): Promise<void> {
+  try {
+    await send(newCommand(MessageCommandKind.redirect, { messageId, reason }));
+  } catch (failure) {
+    if (failure instanceof ApiError) throw new Error(failure.problem.violations[0]?.message ?? failure.message);
+    throw failure;
+  }
+}

@@ -34,7 +34,8 @@ public class JdbcThreadRepository {
       String depotCode,
       Optional<String> vehicleId,
       Optional<LocalDate> serviceDate,
-      List<String> outletIds) {}
+      List<String> outletIds,
+      boolean channelOpen) {}
 
   /** How the current actor belongs to a thread, decided by the scope predicates. */
   public record Belonging(boolean dispatcher, boolean loader, boolean driver, List<String> outlets) {}
@@ -56,7 +57,9 @@ public class JdbcThreadRepository {
       List<Integer> voicePeaks,
       Optional<Instant> resolvedAt,
       Optional<UUID> resolvedBy,
-      Optional<String> resolutionNote) {}
+      Optional<String> resolutionNote,
+      Optional<Instant> redirectedAt,
+      Optional<String> redirectReason) {}
 
   /** A stored voice note, without its bytes. */
   public record VoiceNote(
@@ -141,6 +144,129 @@ public class JdbcThreadRepository {
             Boolean.TRUE.equals(row.get("loader")),
             Boolean.TRUE.equals(row.get("driver")),
             strings(row.get("outlets"))));
+  }
+
+  // ---- the trip's live channel (FF-04) ----------------------------------------
+
+  /**
+   * The trip's outlets join its channel with the orders they have on it (FF-04).
+   * An active outlet takes the plan's latest orders, and goes read only at once
+   * when they are all done already; an outlet a revision moved off the trip goes
+   * read only. Read only never reverts, so applying a plan twice changes nothing.
+   */
+  public void joinChannel(String tripId, Map<String, List<UUID>> ordersByOutlet, Instant now) {
+    Timestamp at = Timestamp.from(now);
+    for (Map.Entry<String, List<UUID>> e : ordersByOutlet.entrySet()) {
+      database.update(
+          """
+          INSERT INTO messaging.thread_outlets (thread_id, outlet_id, planned_orders, activated_at)
+          SELECT t.thread_id, ?, ?::uuid[], ?
+            FROM messaging.threads t
+           WHERE t.subject_type = 'trip' AND t.subject_id = ?
+          ON CONFLICT (thread_id, outlet_id) DO UPDATE
+             SET planned_orders = EXCLUDED.planned_orders,
+                 state = CASE WHEN cardinality(EXCLUDED.planned_orders) > 0
+                                   AND EXCLUDED.planned_orders <@ messaging.thread_outlets.done_orders
+                              THEN 'read_only' ELSE 'active' END,
+                 read_only_at = CASE WHEN cardinality(EXCLUDED.planned_orders) > 0
+                                          AND EXCLUDED.planned_orders <@ messaging.thread_outlets.done_orders
+                                     THEN EXCLUDED.activated_at END
+           WHERE messaging.thread_outlets.state = 'active'
+          """,
+          e.getKey(), uuidArray(e.getValue()), at, tripId);
+    }
+    database.update(
+        """
+        UPDATE messaging.thread_outlets o SET state = 'read_only', read_only_at = ?
+          FROM messaging.threads t
+         WHERE t.thread_id = o.thread_id AND t.subject_type = 'trip' AND t.subject_id = ?
+           AND o.state = 'active' AND NOT (o.outlet_id = ANY (?::text[]))
+        """,
+        at, tripId, "{" + String.join(",", ordersByOutlet.keySet()) + "}");
+  }
+
+  /**
+   * An order of the outlet on the trip is delivered or failed. Once every planned
+   * order is done the outlet goes read only, and never back; applying the same
+   * event twice changes nothing.
+   */
+  public void orderDone(String tripId, String outletId, UUID orderId, Instant now) {
+    // Heard before the plan: the row waits with the order done, and the plan's
+    // orders decide whether that was the last one.
+    database.update(
+        """
+        INSERT INTO messaging.thread_outlets (thread_id, outlet_id, activated_at)
+        SELECT t.thread_id, ?, ? FROM messaging.threads t WHERE t.subject_type = 'trip' AND t.subject_id = ?
+        ON CONFLICT (thread_id, outlet_id) DO NOTHING
+        """,
+        outletId, Timestamp.from(now), tripId);
+    database.update(
+        """
+        UPDATE messaging.thread_outlets o
+           SET done_orders = CASE WHEN ? = ANY (o.done_orders) THEN o.done_orders ELSE array_append(o.done_orders, ?) END,
+               state = CASE
+                   WHEN o.state = 'read_only' THEN 'read_only'
+                   WHEN cardinality(o.planned_orders) > 0
+                        AND o.planned_orders <@ array_append(o.done_orders, ?) THEN 'read_only'
+                   ELSE 'active' END,
+               read_only_at = CASE
+                   WHEN o.state = 'read_only' THEN o.read_only_at
+                   WHEN cardinality(o.planned_orders) > 0
+                        AND o.planned_orders <@ array_append(o.done_orders, ?) THEN ?
+                   ELSE NULL END
+          FROM messaging.threads t
+         WHERE t.thread_id = o.thread_id AND t.subject_type = 'trip' AND t.subject_id = ? AND o.outlet_id = ?
+        """,
+        orderId, orderId, orderId, orderId, Timestamp.from(now), tripId, outletId);
+  }
+
+  /** The driver started the trip: its channel takes posts from now. Only the first start counts. */
+  public void openChannel(String tripId, Instant now) {
+    database.update(
+        "UPDATE messaging.threads SET channel_opened_at = ?"
+            + " WHERE subject_type = 'trip' AND subject_id = ? AND channel_opened_at IS NULL",
+        Timestamp.from(now), tripId);
+  }
+
+  /** The outlets still active in the thread's channel: who a channel post reaches. */
+  public List<String> activeChannelOutlets(UUID threadId) {
+    return database
+        .query("SELECT outlet_id FROM messaging.thread_outlets WHERE thread_id = ? AND state = 'active' ORDER BY outlet_id", threadId)
+        .stream()
+        .map(r -> (String) r.get("outlet_id"))
+        .toList();
+  }
+
+  /** Whether one of the actor's outlets is active in the thread's channel, so the store may post there. */
+  public boolean inChannel(UUID threadId) {
+    return Boolean.TRUE.equals(
+        database
+            .queryOne(
+                "SELECT EXISTS (SELECT 1 FROM messaging.thread_outlets WHERE thread_id = ? AND state = 'active'"
+                    + " AND app.actor_has_outlet(outlet_id)) AS ok",
+                threadId)
+            .get("ok"));
+  }
+
+  /** A channel post moved off the channel by a dispatcher (FF-04); zero when it already was. */
+  public int redirect(UUID messageId, UUID by, String reason, Instant at, UUID commandId) {
+    return database.update(
+        "INSERT INTO messaging.message_redirects (message_id, redirected_by, reason, redirected_at, command_id)"
+            + " VALUES (?, ?, ?, ?, ?) ON CONFLICT (message_id) DO NOTHING",
+        messageId, by, reason, Timestamp.from(at), commandId);
+  }
+
+  /** The message's thread, audience and depot, for a redirect; empty when the actor cannot see it. */
+  public Optional<Map<String, Object>> messageForRedirect(UUID messageId) {
+    return Optional.ofNullable(
+        database.queryOne(
+            "SELECT m.message_id, m.thread_id, m.audience, t.depot_code FROM messaging.messages m"
+                + " JOIN messaging.threads t ON t.thread_id = m.thread_id WHERE m.message_id = ?",
+            messageId));
+  }
+
+  private static String uuidArray(List<UUID> ids) {
+    return "{" + String.join(",", ids.stream().map(UUID::toString).toList()) + "}";
   }
 
   /** Whether the actor oversees the depot, which is what reading every report of a day needs. */
@@ -259,16 +385,18 @@ public class JdbcThreadRepository {
         beforeAt.isPresent()
             ? database.query(
                 """
-                SELECT m.*, v.duration_ms, v.peaks FROM messaging.messages m
+                SELECT m.*, v.duration_ms, v.peaks, r.redirected_at, r.reason AS redirect_reason FROM messaging.messages m
                   LEFT JOIN messaging.voice_notes v ON v.voice_note_id = m.voice_note_id
+                  LEFT JOIN messaging.message_redirects r ON r.message_id = m.message_id
                  WHERE m.thread_id = ? AND (m.created_at, m.message_id) < (?, ?)
                  ORDER BY m.created_at DESC, m.message_id DESC LIMIT ?
                 """,
                 threadId, Timestamp.from(beforeAt.get()), beforeId.orElseThrow(), limit)
             : database.query(
                 """
-                SELECT m.*, v.duration_ms, v.peaks FROM messaging.messages m
+                SELECT m.*, v.duration_ms, v.peaks, r.redirected_at, r.reason AS redirect_reason FROM messaging.messages m
                   LEFT JOIN messaging.voice_notes v ON v.voice_note_id = m.voice_note_id
+                  LEFT JOIN messaging.message_redirects r ON r.message_id = m.message_id
                  WHERE m.thread_id = ?
                  ORDER BY m.created_at DESC, m.message_id DESC LIMIT ?
                 """,
@@ -299,7 +427,8 @@ public class JdbcThreadRepository {
         (String) row.get("depot_code"),
         Optional.ofNullable((String) row.get("vehicle_id")),
         Optional.ofNullable(row.get("service_date")).map(d -> ((java.sql.Date) d).toLocalDate()),
-        strings(row.get("outlet_ids")));
+        strings(row.get("outlet_ids")),
+        row.get("channel_opened_at") != null);
   }
 
   private static Message message(Map<String, Object> row) {
@@ -319,7 +448,9 @@ public class JdbcThreadRepository {
         ints(row.get("peaks")),
         Optional.ofNullable((Timestamp) row.get("resolved_at")).map(Timestamp::toInstant),
         Optional.ofNullable((UUID) row.get("resolved_by")),
-        Optional.ofNullable((String) row.get("resolution_note")));
+        Optional.ofNullable((String) row.get("resolution_note")),
+        Optional.ofNullable((Timestamp) row.get("redirected_at")).map(Timestamp::toInstant),
+        Optional.ofNullable((String) row.get("redirect_reason")));
   }
 
   // ---- reports ------------------------------------------------------------------
@@ -328,8 +459,9 @@ public class JdbcThreadRepository {
   public Optional<Message> message(UUID messageId) {
     return Optional.ofNullable(
             database.queryOne(
-                "SELECT m.*, v.duration_ms, v.peaks FROM messaging.messages m"
-                    + " LEFT JOIN messaging.voice_notes v ON v.voice_note_id = m.voice_note_id WHERE m.message_id = ?",
+                "SELECT m.*, v.duration_ms, v.peaks, r.redirected_at, r.reason AS redirect_reason FROM messaging.messages m"
+                    + " LEFT JOIN messaging.voice_notes v ON v.voice_note_id = m.voice_note_id"
+                    + " LEFT JOIN messaging.message_redirects r ON r.message_id = m.message_id WHERE m.message_id = ?",
                 messageId))
         .map(JdbcThreadRepository::message);
   }

@@ -21,6 +21,11 @@ import java.util.Set;
  *   <li>R-MSG-03: every report, from whoever, is for the dispatcher alone.
  *   <li>R-MSG-04: a trip's thread takes posts until the end of the day after its
  *       service date, for late replies; then it is read only.
+ *   <li>R-MSG-08: the trip's live channel (FF-04) opens when the driver starts
+ *       the trip, after loading, and is the dispatcher's and the stores' whose
+ *       orders on the trip are not all done. The dispatcher writes
+ *       to it; a store writes to it only while its outlet is active. The driver
+ *       and the loaders neither write to it nor read it.
  * </ul>
  */
 public final class MessagePolicy {
@@ -45,7 +50,8 @@ public final class MessagePolicy {
     DRIVER,
     LOADER,
     OUTLET,
-    ALL;
+    ALL,
+    CHANNEL;
 
     public String code() {
       return name().toLowerCase(Locale.ROOT);
@@ -55,7 +61,7 @@ public final class MessagePolicy {
       try {
         return valueOf(value.trim().toUpperCase(Locale.ROOT));
       } catch (RuntimeException e) {
-        throw invalid("to must be one of dispatch, driver, loader, outlet, all");
+        throw invalid("to must be one of dispatch, driver, loader, outlet, all, channel");
       }
     }
   }
@@ -96,6 +102,18 @@ public final class MessagePolicy {
    */
   public static String check(
       Role role, Post post, List<String> threadOutlets, boolean hasVehicle, LocalDate serviceDate, LocalDate today) {
+    return check(role, post, threadOutlets, hasVehicle, false, false, serviceDate, today);
+  }
+
+  /**
+   * As above, for a thread with a live channel.
+   *
+   * @param channelOpen the driver has started the trip, so its channel takes posts
+   * @param inChannel one of the store's outlets is still active in the trip's channel
+   */
+  public static String check(
+      Role role, Post post, List<String> threadOutlets, boolean hasVehicle, boolean channelOpen, boolean inChannel,
+      LocalDate serviceDate, LocalDate today) {
     String body = post.voice() ? optionalBody(post.body()) : body(post.body());
     if (!open(serviceDate, today)) {
       throw new DomainException(
@@ -126,8 +144,18 @@ public final class MessagePolicy {
         switch (role) {
           case DISPATCHER -> post.to() != To.DISPATCH && (post.to() != To.DRIVER || hasVehicle);
           case DRIVER -> post.to() == To.DISPATCH || post.to() == To.OUTLET;
-          case LOADER, STORE_MANAGER -> post.to() == To.DISPATCH;
+          case LOADER -> post.to() == To.DISPATCH;
+          case STORE_MANAGER -> post.to() == To.DISPATCH || post.to() == To.CHANNEL;
         };
+    if (allowed && post.to() == To.CHANNEL && !channelOpen) {
+      throw new DomainException(
+          ErrorCode.CONFLICT, "the trip's channel opens when the driver starts the trip", List.of("R-MSG-08"));
+    }
+    if (allowed && role == Role.STORE_MANAGER && post.to() == To.CHANNEL && !inChannel) {
+      throw new DomainException(
+          ErrorCode.CONFLICT, "your deliveries on this trip are done, so its channel is read only for you",
+          List.of("R-MSG-08"));
+    }
     if (!allowed) {
       throw rule("a " + role.code().replace('_', ' ') + " cannot write to " + post.to().code(), "R-MSG-02");
     }
@@ -182,6 +210,15 @@ public final class MessagePolicy {
       throw invalid("body is longer than " + BODY_MAX + " characters");
     }
     return body;
+  }
+
+  /** A dispatcher's reason for moving a post off the channel (R-MSG-08): 3 to 500 characters. */
+  public static String redirectReason(String raw) {
+    String reason = raw == null ? "" : raw.strip();
+    if (reason.length() < 3 || reason.length() > 500) {
+      throw rule("reason is 3 to 500 characters", "R-MSG-08");
+    }
+    return reason;
   }
 
   /** Longest note a dispatcher may give when resolving a report (R-MSG-07). */

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { MemberView, MessageView } from "../src/shared/domain/messaging.ts";
-import { audienceLabel, byDay, chronological, defaultAddress, parseMention, REPORTS_BY_ROLE, voiceLength } from "../src/shared/messaging/thread.ts";
+import { audienceLabel, byDay, channelLeaks, chronological, defaultAddress, parseMention, REPORTS_BY_ROLE, voiceLength } from "../src/shared/messaging/thread.ts";
 
 // Issue #136: the pure half of a trip's thread.
 
@@ -33,6 +33,8 @@ function message(id: string, at: string, over: Partial<MessageView> = {}): Messa
     resolvedAt: null,
     resolvedByName: null,
     resolutionNote: null,
+    redirectedAt: null,
+    redirectReason: null,
     ...over,
   };
 }
@@ -94,4 +96,19 @@ test("a voice note's length reads as minutes and seconds", () => {
   assert.equal(voiceLength(42_000), "0:42");
   assert.equal(voiceLength(120_000), "2:00");
   assert.equal(voiceLength(null), "");
+});
+
+test("the trip's channel: a label, a mention, and what a post would give away (R-MSG-08)", () => {
+  assert.equal(audienceLabel("channel", null), "To the stores still waiting");
+  const store: MemberView[] = [
+    { to: "dispatch", outletId: null, label: "Dispatcher" },
+    { to: "channel", outletId: null, label: "Dispatcher and stores still waiting" },
+  ];
+  assert.deepEqual(parseMention("@stores gate is open", store), { address: { to: "channel", outletId: null }, body: "gate is open" });
+  assert.equal(parseMention("@stores hi", STORE_MEMBERS).address, null, "only a store still waiting may");
+
+  assert.deepEqual(channelLeaks("Is OUT063 done? We are OUT071", ["OUT071"]), { outlets: ["OUT063"], order: false });
+  assert.deepEqual(channelLeaks("Where is order 4411?", []), { outlets: [], order: true });
+  assert.deepEqual(channelLeaks("Order no. S1-000 for out063 and OUT063", []), { outlets: ["OUT063"], order: true });
+  assert.deepEqual(channelLeaks("Gate opens at 05:00", ["OUT071"]), { outlets: [], order: false });
 });

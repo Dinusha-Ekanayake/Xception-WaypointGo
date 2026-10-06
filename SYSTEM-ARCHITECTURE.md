@@ -129,6 +129,8 @@ A trip's thread joins the depot's **dispatcher**, the depot's **loaders**, the v
 - Everyone else reads messages for everyone, messages addressed to them, and their own.
 - Reports and replies go to the dispatcher only.
 
+**Amended 2026-10-07 (FF-04, R-MSG-08).** A trip's thread also has a **channel** where the dispatcher and the stores whose goods are still on the trip coordinate together. It opens when the driver starts the trip, after loading. A store leaves it, read only, once all its orders on the trip are done. The driver is driving and is not on it; the loaders keep their own lane. A dispatcher can take a post off the channel; the post is never changed.
+
 The thread opens when the plan is published, so a loader's shortfall has somewhere to go before release. Every membership question is answered by the thread's own row through the scope predicates, so Messaging reads no other module's tables.
 
 ## 4. Layers

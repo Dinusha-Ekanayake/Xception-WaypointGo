@@ -7,10 +7,12 @@ export const MessageCommandKind = {
   post: "message:Post",
   /** The dispatcher resolves a report (R-MSG-07). */
   resolve: "message:Resolve",
+  /** The dispatcher moves a post off the trip's channel (R-MSG-08). */
+  redirect: "message:Redirect",
 } as const;
 
 /** Who a message is for, besides the dispatcher, who reads everything (R-MSG-01). */
-export type MessageAudience = "dispatch" | "driver" | "loader" | "outlet" | "all";
+export type MessageAudience = "dispatch" | "driver" | "loader" | "outlet" | "all" | "channel";
 
 /** How someone belongs to a thread, and so who they may write to (R-MSG-02). */
 export type MemberRole = "dispatcher" | "loader" | "driver" | "store_manager";
@@ -40,6 +42,8 @@ export type ThreadView = {
   myOutlets: string[];
   /** False once the day after the trip is over: read only (R-MSG-04). */
   open: boolean;
+  /** The driver has started the trip, after loading: its channel takes posts (R-MSG-08). */
+  channelOpen: boolean;
 };
 
 export type MessageView = {
@@ -64,6 +68,9 @@ export type MessageView = {
   resolvedAt: IsoInstant | null;
   resolvedByName: string | null;
   resolutionNote: string | null;
+  /** The dispatcher moved this post off the trip's channel: when and why (R-MSG-08). */
+  redirectedAt: IsoInstant | null;
+  redirectReason: string | null;
 };
 
 /** Newest first; nextCursor reads older messages. */
@@ -100,3 +107,6 @@ export type PostMessagePayload = {
 
 /** message:Resolve: the dispatcher marks a report resolved; its sign leaves the timeline. */
 export type ResolveReportPayload = { messageId: Uuid; note?: string };
+
+/** message:Redirect: the post leaves the channel; the other stores stop seeing it. Reason 3 to 500 characters. */
+export type RedirectMessagePayload = { messageId: Uuid; reason: string };

@@ -53,3 +53,33 @@ test("a delivery's row opens its trip's thread, where the store reports a proble
   await expect(sheet.getByText("Report · Stock problem")).toBeVisible();
   expect(sent.find((c) => c.kind === "message:Post")?.payload).toMatchObject({ to: "dispatch", report: "stock_discrepancy" });
 });
+
+test("a store still waiting writes to the stores' channel, and is asked before naming another store (R-MSG-08)", async ({ page }) => {
+  const t = thread();
+  t.members = [
+    { to: "dispatch", outletId: null, label: "Dispatcher" },
+    { to: "channel", outletId: null, label: "Dispatcher and stores still waiting" },
+  ];
+  const { sent } = await mockStore(page, { threads: [t] });
+  await page.goto("/");
+  await page.getByRole("button", { name: /^Deliveries/ }).click();
+  await page.getByRole("region", { name: "Today" }).getByRole("article", { name: "VEH043" }).getByRole("button", { name: "Message" }).click();
+
+  const sheet = page.getByRole("dialog", { name: "Messages · VEH043" });
+  // The private line to the dispatcher stays the default.
+  await expect(sheet.getByRole("radio", { name: "Dispatcher", exact: true })).toHaveAttribute("aria-checked", "true");
+  const message = sheet.getByRole("textbox", { name: "Message" });
+  await sheet.getByRole("radio", { name: "Dispatcher and stores still waiting" }).click();
+  await message.fill("Is OUT063 before us today?");
+  await sheet.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(sheet.getByTestId("channel-nudge")).toContainText("names OUT063");
+  await sheet.getByRole("button", { name: "Send to the dispatcher only" }).click();
+  await expect(sheet.getByText("Is OUT063 before us today?")).toBeVisible();
+  expect(sent.find((c) => c.kind === "message:Post")?.payload).toMatchObject({ to: "dispatch" });
+
+  await sheet.getByRole("radio", { name: "Dispatcher and stores still waiting" }).click();
+  await message.fill("Our gate opens at 05:00");
+  await sheet.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(sheet.getByText("To the stores still waiting")).toBeVisible();
+  expect(sent.filter((c) => c.kind === "message:Post").at(-1)?.payload).toMatchObject({ to: "channel" });
+});

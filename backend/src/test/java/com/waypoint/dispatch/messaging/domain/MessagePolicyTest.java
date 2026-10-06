@@ -54,6 +54,41 @@ class MessagePolicyTest {
   }
 
   @Test
+  void theChannelIsTheDispatchersAndTheStoresStillWaiting() {
+    // R-MSG-08 (FF-04)
+    assertEquals("Running late", MessagePolicy.check(Role.DISPATCHER, post(To.CHANNEL), OUTLETS, true, true, false, DAY, DAY));
+    assertEquals("Running late", MessagePolicy.check(Role.STORE_MANAGER, post(To.CHANNEL), OUTLETS, true, true, true, DAY, DAY));
+    DomainException done =
+        assertThrows(
+            DomainException.class,
+            () -> MessagePolicy.check(Role.STORE_MANAGER, post(To.CHANNEL), OUTLETS, true, true, false, DAY, DAY));
+    assertEquals(ErrorCode.CONFLICT, done.code());
+    assertEquals("R-MSG-08", done.violations().get(0).rule());
+    // Before the driver starts the trip there is no channel, for anyone.
+    for (Role role : List.of(Role.DISPATCHER, Role.STORE_MANAGER)) {
+      DomainException early =
+          assertThrows(
+              DomainException.class,
+              () -> MessagePolicy.check(role, post(To.CHANNEL), OUTLETS, true, false, true, DAY, DAY));
+      assertEquals(ErrorCode.CONFLICT, early.code());
+    }
+    // The driver is driving and the loaders are not on it.
+    refused(Role.DRIVER, post(To.CHANNEL), "R-MSG-02");
+    refused(Role.LOADER, post(To.CHANNEL), "R-MSG-02");
+    // A report stays the dispatcher's alone, even from a store in the channel.
+    refused(Role.STORE_MANAGER, report(To.CHANNEL, "receipt_dispute"), "R-MSG-03");
+  }
+
+  @Test
+  void aRedirectGivesItsReason() {
+    assertEquals("Names another store's order", MessagePolicy.redirectReason("  Names another store's order "));
+    for (String bad : new String[] {null, "", "ok", "x".repeat(501)}) {
+      DomainException e = assertThrows(DomainException.class, () -> MessagePolicy.redirectReason(bad));
+      assertEquals("R-MSG-08", e.violations().get(0).rule());
+    }
+  }
+
+  @Test
   void anOutletMustBeOnTheTrip() {
     refused(Role.DISPATCHER, toOutlet("OUT099"), "R-MSG-02");
   }

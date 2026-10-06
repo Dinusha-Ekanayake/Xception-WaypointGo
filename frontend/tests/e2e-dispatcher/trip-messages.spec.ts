@@ -172,3 +172,39 @@ test("a store's report takes the place of its stop on the run's line", async ({ 
   expect(Math.abs(line.y + line.height / 2 - (stopSign.y + stopSign.height / 2))).toBeLessThan(2);
   await page.screenshot({ path: "test-results/voice-look/d4-signs-on-the-line.png" });
 });
+
+test("the dispatcher takes a store's post off the stores' channel, with a reason (R-MSG-08)", async ({ page }) => {
+  await page.clock.install({ time: new Date(LIVE_NOW) });
+  const thread = tripThread("t-VEH020", "VEH020", ["OUT061", "OUT063"], "dispatcher", [
+    said("c1", at("10:30"), { body: "Is order 4411 for OUT063 on this truck?", authorName: "Store One", authorRole: "store_manager", audience: "channel" }),
+  ]);
+  const desk = await serve(page, { ...liveDay(), threads: [thread] });
+  await page.goto("/#/live");
+  await page.getByRole("button", { name: "Timeline", exact: true }).click();
+  await page.getByRole("button", { name: "VEH020 · Style · Matara, At risk" }).click();
+  await page.getByRole("button", { name: "All messages ›" }).click();
+  const sheet = page.getByRole("dialog", { name: "Trip messages" });
+  const post = sheet.locator("#message-c1");
+  await expect(post).toContainText("To the stores still waiting");
+
+  await post.getByRole("button", { name: "Take off the stores' channel" }).click();
+  await post.getByRole("textbox", { name: "Why" }).fill("Names another store's order");
+  await post.getByRole("button", { name: "Take off", exact: true }).click();
+  await expect(post.getByTestId("redirected")).toContainText("Names another store's order");
+  expect(desk.commands.find((c) => c.kind === "message:Redirect")?.payload).toMatchObject({ messageId: "c1", reason: "Names another store's order" });
+});
+
+test("a channel post naming a store is asked about before it goes", async ({ page }) => {
+  const desk = await open(page);
+  await page.getByRole("button", { name: "Timeline", exact: true }).click();
+  await page.getByRole("region", { name: "Timeline" }).getByTestId("report-sign").first().click();
+  const sheet = page.getByRole("dialog", { name: "Trip messages" });
+  await sheet.getByRole("radio", { name: "Stores still waiting" }).click();
+  await sheet.getByRole("textbox", { name: "Message" }).fill("OUT063 is delayed by 20 min");
+  await sheet.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(sheet.getByTestId("channel-nudge")).toContainText("names OUT063");
+  expect(desk.commands.some((c) => c.kind === "message:Post")).toBe(false);
+  await sheet.getByRole("button", { name: "Send to every store" }).click();
+  await expect(sheet.getByTestId("channel-nudge")).toHaveCount(0);
+  expect(desk.commands.find((c) => c.kind === "message:Post")?.payload).toMatchObject({ to: "channel" });
+});

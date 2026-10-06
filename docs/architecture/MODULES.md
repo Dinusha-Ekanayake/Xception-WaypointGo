@@ -479,8 +479,10 @@ The trip is found through the issue's trip, delivery or order subject (`Executio
 
 **Resolving a report (R-MSG-07).** `message:Resolve` by a dispatcher who oversees the depot, with a note; or `issue.resolved` for a report made from that issue. A resolved report leaves `/api/threads/reports` and stays on the thread. A report names the stop it is about (`outletId`: a store's own outlet, or the issue's), and the timeline draws its sign on that stop.
 
-**Publishes:** `message.posted` (never the body; an excerpt for the notification).
-**Consumes:** `plan.published`, `plan.revised` (open or widen each trip's thread; never narrowed), `issue.raised`, `issue.resolved` (resolves the report made from the issue).
+**The trip's channel (R-MSG-08, FF-04).** `to: channel` is the dispatcher and the stores still waiting. It opens when the driver starts the trip, after loading (`threads.channel_opened_at`, from the first `delivery.started`). Membership is in `messaging.thread_outlets` per outlet: active from the plan, read only once every order of the outlet on the trip is delivered or failed, never back. A store reads the channel while active, plus what came before; the driver and the loaders do not read it. `message:Redirect` takes a post off the channel with a reason (`messaging.message_redirects`); the message never changes.
+
+**Publishes:** `message.posted` (never the body; an excerpt for the notification; `outletIds` of a channel post are the stores still active).
+**Consumes:** `plan.published`, `plan.revised` (open or widen each trip's thread, and set its channel's outlets: an outlet moved off the trip goes read only in the channel, the thread itself is never narrowed), `issue.raised`, `issue.resolved` (resolves the report made from the issue), `delivery.started` (the first opens the channel), `delivery.completed`, `delivery.failed` (an order done for the channel).
 **Queries used:** `IssueQuery.issue`, `ExecutionQuery.deliveryRecord`, `ExecutionQuery.deliveryForOrder`, `IdentityQuery` (`driverOn`, `scopeOf`), `PersonQuery`.
 
 **Invariants.**

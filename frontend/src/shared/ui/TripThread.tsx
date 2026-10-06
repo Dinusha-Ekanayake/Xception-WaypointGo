@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ApiError } from "../api/problem.ts";
-import { resolveReport, useThread, useWaiting } from "../messaging/useThread.ts";
+import { redirectMessage, resolveReport, useThread, useWaiting } from "../messaging/useThread.ts";
 import { audienceLabel, plain, type Translate } from "../messaging/thread.ts";
 import type { Sender } from "../messaging/senders.ts";
 import { clock } from "../wording/time.ts";
@@ -76,6 +76,10 @@ export function TripThread({
                     await resolveReport(messageId, note);
                     t.refresh();
                   },
+                  onRedirect: async (messageId: string, reason: string) => {
+                    await redirectMessage(messageId, reason);
+                    t.refresh();
+                  },
                 }
               : {})}
           />
@@ -111,6 +115,7 @@ export function TripThread({
           threadId={threadId}
           role={thread.memberRole}
           members={members}
+          myOutlets={thread.myOutlets}
           online={online}
           keepsOffline={keepsOffline}
           tr={tr}

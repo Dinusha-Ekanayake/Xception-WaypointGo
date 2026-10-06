@@ -11,6 +11,7 @@ const ROLE_MEMBERS: Record<MemberRole, (outlets: string[]) => MemberView[]> = {
     { to: "loader", outletId: null, label: "Loaders at Kandy" },
     ...outlets.map((o) => ({ to: "outlet" as const, outletId: o, label: o })),
     { to: "all", outletId: null, label: "Everyone on the trip" },
+    { to: "channel", outletId: null, label: "Stores still waiting" },
   ],
   driver: (outlets) => [{ to: "dispatch", outletId: null, label: "Dispatcher" }, ...outlets.map((o) => ({ to: "outlet" as const, outletId: o, label: o }))],
   loader: () => [{ to: "dispatch", outletId: null, label: "Dispatcher" }],
@@ -28,7 +29,7 @@ export function tripThread(
   return {
     thread: {
       threadId, subjectType: "trip", subjectId: tripId, depotCode: "Kandy", vehicleId, serviceDate: "2027-03-01",
-      outletIds: outlets, memberRole: role, myOutlets: role === "store_manager" ? outlets.slice(0, 1) : [], open: true,
+      outletIds: outlets, memberRole: role, myOutlets: role === "store_manager" ? outlets.slice(0, 1) : [], open: true, channelOpen: true,
     },
     members: ROLE_MEMBERS[role](outlets),
     messages: messages.map((m) => ({ ...m, threadId })),
@@ -39,7 +40,7 @@ export function said(id: string, at: string, over: Partial<MessageView> = {}): M
   return {
     messageId: id, threadId: "", authorName: "Dinusha Bawantha", authorRole: "dispatcher", kind: "message", reportType: null,
     audience: "all", audienceOutlet: null, body: id, voiceNoteId: null, voiceDurationMs: null, createdAt: at, mine: false,
-    voicePeaks: [], resolvedAt: null, resolvedByName: null, resolutionNote: null, ...over,
+    voicePeaks: [], resolvedAt: null, resolvedByName: null, resolutionNote: null, redirectedAt: null, redirectReason: null, ...over,
   };
 }
 
@@ -82,7 +83,7 @@ export function postToThread(threads: ThreadMock[], payload: PostMessagePayload,
     messageId, threadId: payload.threadId, authorName: author.name, authorRole: author.role, kind: payload.report ? "report" : "message",
     reportType: payload.report ?? null, audience: payload.to, audienceOutlet: payload.outletId ?? null, body: payload.body,
     voiceNoteId: payload.voiceNoteId ?? null, voiceDurationMs: null, createdAt: at, mine: true,
-    voicePeaks: [], resolvedAt: null, resolvedByName: null, resolutionNote: null,
+    voicePeaks: [], resolvedAt: null, resolvedByName: null, resolutionNote: null, redirectedAt: null, redirectReason: null,
   });
   return { messageId, threadId: payload.threadId, alreadySent: false };
 }
@@ -95,6 +96,18 @@ export function resolveInThread(threads: ThreadMock[], payload: { messageId: str
     const already = m.resolvedAt !== null;
     if (!already) Object.assign(m, { resolvedAt: at, resolvedByName: by, resolutionNote: payload.note ?? null });
     return { messageId: m.messageId, threadId: t.thread.threadId, alreadyResolved: already };
+  }
+  return {};
+}
+
+/** Applies message:Redirect as the server would: a channel post, once (R-MSG-08). */
+export function redirectInThread(threads: ThreadMock[], payload: { messageId: string; reason: string }, at: string): unknown {
+  for (const t of threads) {
+    const m = t.messages.find((x) => x.messageId === payload.messageId);
+    if (!m) continue;
+    const already = m.redirectedAt !== null;
+    if (!already) Object.assign(m, { redirectedAt: at, redirectReason: payload.reason });
+    return { messageId: m.messageId, threadId: t.thread.threadId, alreadyRedirected: already };
   }
   return {};
 }

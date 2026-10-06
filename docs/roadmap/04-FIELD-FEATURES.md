@@ -88,6 +88,8 @@ Order inside the phase:
 
 ## FF-04 Live trip channel
 
+**Built 2026-10-07** (R-MSG-08, MSG-16, MSG-17), except the driver safety gate, which is FF-04b next. Built as below with four differences: the channel opens when the driver starts the trip after loading, not at publication (decided with the product owner 2026-10-07); the loaders keep their own lane on the thread rather than leaving it (the loader screens change only to close a gap), an outlet that a revision moves off the trip goes read only in the channel, and the thread still refreshes as it did until the single event stream carries it. Routing version 9 sends a channel post to the stores still active. The draft check looks for another store's code (`OUT063`) and for an order number; the data has no store names to match.
+
 **Goal.** During a trip, the dispatcher and the stores still waiting for their goods coordinate in one place, by text or voice. The driver is driving, so the driver is **not** part of that conversation: the driver reads and hears only what is addressed to the driver (decided 2026-10-06).
 
 ### Proposed amendment to ADR-004 and MODULES §13
