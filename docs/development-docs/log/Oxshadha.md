@@ -4,6 +4,26 @@
 
 ---
 
+## 2026-10-06 - fix(security): proxy sample session; positions lane (F-03); WebP sign-in (M-03)
+
+`dev` · @Oxshadha
+
+**Security.** With the backend unreachable, `frontend/app/api/[...path]/route.ts` answered every visitor with the development sample session (every role, every depot), in production too. Sample data is now allowed only outside a production build, as the loader's sample data already was. A production build with no backend now answers `/api/session` with 503.
+**F-03.** The page and the service worker send delivery, receipt and issue writes before positions, so a GPS backlog never holds up a business write.
+**M-03.** The sign-in skylines are WebP: 1.4 MB down to about 70 KB each. A test guards `public/assets`.
+
+Why: found while checking the sign-in screen; F-03 and M-03 are Phase 1.5 items.
+Verified:
+- Node 310.
+- Shell, driver, loader and store browser suites.
+- `/api/session` on a production build with no backend.
+
+Open:
+- Thinning the position backlog (F-08).
+- Whether any deployment ever ran a non-production build, which would still show the sample session when the backend is down.
+
+---
+
 ## 2026-10-06 - fix: Phase 1 baseline green, and offline retry (F-01, F-02)
 
 `dev` · @Oxshadha
