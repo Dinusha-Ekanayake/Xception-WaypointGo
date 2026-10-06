@@ -110,6 +110,13 @@ export async function getSnapshot<T>(accountId: string, key: string): Promise<Sn
   return found ?? null;
 }
 
+/** Deletes every snapshot whose key starts with {@code prefix}. */
+export async function removeSnapshots(accountId: string, prefix: string): Promise<void> {
+  const db = await open(accountId);
+  await tx(db, "readwrite", (store) => store.delete(IDBKeyRange.bound(prefix, `${prefix}\uffff`)), SNAPSHOT_STORE);
+  db.close();
+}
+
 // ---- uploads -----------------------------------------------------------------
 
 export type StoredUpload = {

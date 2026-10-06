@@ -164,6 +164,7 @@ export async function serve(
     if (server.expired) return route.fulfill(problem(401, "UNAUTHENTICATED", "Sign in to continue"));
 
     if (pathname === "/api/session") return route.fulfill(json(SESSION));
+    if (pathname === "/api/session/end" && method === "POST") return route.fulfill({ status: 204, body: "" });
     if (pathname === "/api/execution/vehicles") return route.fulfill(json(["VEH043"]));
     if (pathname === "/api/execution/vehicles/VEH043/fuel-pass") {
       return route.fulfill(

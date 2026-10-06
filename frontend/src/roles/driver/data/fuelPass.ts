@@ -6,7 +6,8 @@ import type { FuelPassView } from "../../../shared/domain/execution.ts";
 //
 // The image is a bearer credential, so the phone keeps it only to the end of its
 // last valid day, drops it the moment the server says the driver may no longer
-// have it, and never caches it anywhere else (not in the service worker).
+// have it, deletes it when the driver signs out, and never caches it anywhere
+// else (not in the service worker).
 
 export type FuelPassState =
   /** The pass to show; `fromDevice` when read from the phone with no signal. */
@@ -18,7 +19,8 @@ export type FuelPassState =
   /** No signal and no valid copy on the phone. */
   | { kind: "unavailable" };
 
-export const fuelPassKey = (vehicleId: string): string => `fuel-pass:${vehicleId}`;
+/** Under the credential prefix (shared/offline), so signing out deletes it. */
+export const fuelPassKey = (vehicleId: string): string => `credential:fuel-pass:${vehicleId}`;
 
 /** The pass may be shown up to the end of its `validUntil` day; both are yyyy-mm-dd depot dates. */
 export function stillValid(pass: Pick<FuelPassView, "validUntil">, today: string): boolean {

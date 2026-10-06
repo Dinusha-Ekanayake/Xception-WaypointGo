@@ -1,4 +1,4 @@
-import { getSnapshot, putSnapshot, type Snapshot } from "./store.ts";
+import { getSnapshot, putSnapshot, removeSnapshots, type Snapshot } from "./store.ts";
 
 // A full-tier role's working set, kept on the device each time it is read so
 // the screens still have it when the server cannot be reached. A snapshot is
@@ -19,5 +19,21 @@ export async function kept<T>(accountId: string, key: string): Promise<Snapshot<
     return await getSnapshot<T>(accountId, key);
   } catch {
     return null;
+  }
+}
+
+/**
+ * Kept reads that are credentials, such as a vehicle's Fuel Pass QR (FF-06b),
+ * live under this prefix so signing out can delete them at once: a phone handed
+ * to the next driver must not still carry the last one's pass.
+ */
+export const CREDENTIAL_PREFIX = "credential:";
+
+/** Deletes every credential kept for the account. Never throws: sign-out goes on. */
+export async function forgetCredentials(accountId: string): Promise<void> {
+  try {
+    await removeSnapshots(accountId, CREDENTIAL_PREFIX);
+  } catch {
+    // A device that cannot open its store has nothing kept to delete.
   }
 }

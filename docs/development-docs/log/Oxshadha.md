@@ -10,6 +10,7 @@
 
 - The administrator uploads, replaces or withdraws each vehicle's official National Fuel Pass QR from the vehicle screen; the driver of that vehicle gets it with the run and can show it at a pump with no signal (R-EXE-27, EXE-34, EXE-35).
 - The old Fuel QR drew a code from the vehicle id that no pump would accept; with no pass added, the popup now says to ask the depot.
+- Signing out deletes the Fuel Pass from the phone, so a shared phone never carries the last driver's pass; the unused QR drawing package is removed.
 - The fuel log (FF-06a) is dropped: the booklet's fuel rule is a planning constraint, and the government enforces the real quota.
 
 Why: drivers carry no paper copy; the QR is a bearer credential, so only the assigned driver reads it, every read is audited, and the phone keeps it one day.

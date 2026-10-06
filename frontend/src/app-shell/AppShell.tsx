@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useOnline } from "@shared/api/useResource";
-import { queuesWrites, useSync, type Role } from "@shared/offline";
+import { forgetCredentials, queuesWrites, useSync, type Role } from "@shared/offline";
 import { keepStorage, watchInstall } from "@shared/pwa";
 import { Notice, ShellProvider, SkipLink, StructuredError, cx, setStateScope, type ShellControls } from "@shared/ui";
 import { roleForHost } from "./hostRole.ts";
@@ -243,6 +243,8 @@ export default function AppShell(): React.JSX.Element {
     setSigningOut(true);
     try {
       await signOut();
+      // A shared phone must not carry the last person's Fuel Pass (FF-06b).
+      await forgetCredentials(session.userId);
       setPending(null);
       setNotice("You are signed out.");
       setState({ kind: "signed-out" });
