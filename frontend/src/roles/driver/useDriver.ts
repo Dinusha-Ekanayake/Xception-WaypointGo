@@ -6,7 +6,9 @@ import { ApiError } from "@shared/api/problem";
 import { useOnline } from "@shared/api/useResource";
 import type { HandoverEntryResult } from "@shared/domain/receipt";
 import { ExecutionCommandKind, IssueCommandKind, ReceiptCommandKind, type FailureReason, type ReportedVehicleStatus, type StoreAnswerWaiverReason } from "@shared/domain/types";
-import { discardUpload, useSync } from "@shared/offline";
+import { discardUpload, registerResolver, useSync } from "@shared/offline";
+import { deliveryOf, redoVersion } from "./data/redo.ts";
+import { isEvening, outletPoints } from "./data/prefetch.ts";
 import { useShell, withTransition } from "@shared/ui";
 import { keepTiles, num, tilesFor, type LatLon } from "@shared/ui/map";
 import { createGateway } from "./data/gateway.ts";
@@ -20,7 +22,7 @@ import type { HandoverAnswer } from "./screens/DeliveryPinConfirmModal.tsx";
 import type { Report } from "./screens/DeliveryReport.tsx";
 import type { ProofDraft } from "./screens/ProofCapture.tsx";
 import type { Problem } from "./screens/Sheets.tsx";
-import { businessNow } from "@shared/wording";
+import { addDays, businessNow, depotHour, depotToday } from "@shared/wording";
 
 // What the driver's screens do, as commands. Every write goes through useRun,
 // which keeps it on the phone when it cannot be sent, so a day with no signal
@@ -98,6 +100,18 @@ export function useDriver(userId: string, depot: string | null = null) {
   }, [online, fuelVehicle, gateway]);
   const fuelPass = useCallback((vehicleId: string) => gateway.fuelPass(vehicleId), [gateway]);
 
+  // F-06: a stop write held because the stop moved on is redone on its current
+  // version. A write with no stop has no version to redo against.
+  useEffect(
+    () =>
+      registerResolver("delivery:", async (entry, waiting) => {
+        const deliveryId = deliveryOf(entry);
+        if (!deliveryId) throw new Error("This change can only be discarded.");
+        return { expectedVersion: redoVersion(deliveryId, await gateway.deliveryVersion(deliveryId), waiting) };
+      }),
+    [gateway],
+  );
+
   const [view, setView] = useState<View>({ name: "home" });
   const stillToDo = nextStop(run.stops);
   // Messages on the trip's thread keep on the phone with no signal, like every driver write (issue #136).
@@ -110,6 +124,30 @@ export function useDriver(userId: string, depot: string | null = null) {
   const nextLon = num(nextOutlet?.location?.longitude);
   const nextPoint: LatLon | null = nextLat !== null && nextLon !== null ? { lat: nextLat, lon: nextLon } : null;
   const [now, setNow] = useState(() => businessNow());
+
+  // F-06: the evening before, keep the map of tomorrow's planned stops, so it
+  // draws with no signal. Once a day; checked again every ten minutes until then.
+  const tomorrow = addDays(depotToday(now), 1);
+  const evening = isEvening(depotHour(now));
+  const mapKeptFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!online || !evening || !depot || mapKeptFor.current === tomorrow) return;
+    const stop = new AbortController();
+    gateway
+      .plannedOutlets(tomorrow, depot, stop.signal)
+      .then((outlets) => {
+        if (stop.signal.aborted) return;
+        const points = outletPoints(outlets);
+        if (points.length === 0) return;
+        mapKeptFor.current = tomorrow;
+        return keepTiles(tilesFor(points), stop.signal);
+      })
+      .catch(() => {
+        // No plan yet or no signal: tried again on the next check.
+      });
+    return () => stop.abort();
+  }, [online, evening, depot, tomorrow, gateway, Math.floor(now.getTime() / 600_000)]);
+
 
   // GPS from Start run until the vehicle is back at its depot (issue #161, R-EXE-23).
   const depotPoint = useDepotPoint(depot);

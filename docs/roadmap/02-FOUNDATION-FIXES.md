@@ -106,6 +106,8 @@ When a lost reefer's chilled trip finds no reefer, the replan defers it; it neve
 
 ### F-06 Driver redo and prefetch
 
+**Built 2026-10-07** (EXE-38). A run sheet reaches the phone only once the trip is released after loading, often at night, so the evening prefetch reads tomorrow's published plan instead: from 16:00 the phone keeps the map tiles of the driver's planned stops. The released run is still read and kept as soon as it exists (the look-ahead already did this).
+
 - **Redo:** register a driver resolver (`registerResolver`), so a held write can be redone, not only discarded.
 - **Prefetch:** use `prefetchesWorkingSet` to download tomorrow's run, outlets and map tiles on the evening before.
 

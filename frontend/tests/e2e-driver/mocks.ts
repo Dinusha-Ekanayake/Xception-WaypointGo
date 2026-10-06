@@ -181,6 +181,11 @@ export async function serve(
       return route.fulfill(json({ vehicleId: "VEH043", depotCode: "KDY", refrigerated: true, van: false }));
     }
     if (pathname.startsWith("/api/execution/trips/")) return route.fulfill(json({ items: [], nextCursor: null }));
+    const record = pathname.match(/^\/api\/execution\/deliveries\/([^/]+)$/);
+    if (record && method === "GET") {
+      const found = server.stops.find((s) => s.deliveryId === decodeURIComponent(record[1]!));
+      return route.fulfill(found ? json({ ...found }) : problem(404, "NOT_FOUND", "No such stop"));
+    }
     if (pathname.startsWith("/api/reference/outlets/")) {
       const outletId = pathname.split("/").pop()!;
       // Issue #161: OUT0101 has a supplied exact point; the rest share the district centroid.

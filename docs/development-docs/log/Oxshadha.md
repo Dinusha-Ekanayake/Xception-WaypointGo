@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-10-07 - feat: driver redo and tomorrow's map ahead (F-06)
+
+`dev` · @Oxshadha
+
+- A driver's stop write refused because the stop moved on can be redone on the stop's current version from "to review", not only discarded (EXE-38).
+- From 16:00 the phone keeps the map of tomorrow's planned stops, read from the published plan, so it draws with no signal.
+
+Why: Phase 2 of the [roadmap](../../roadmap/02-FOUNDATION-FIXES.md); a refused stop write could only be thrown away.
+Verified: Node 337; typecheck; build; driver browser 35 (13 existing fixme skips).
+
+---
+
 ## 2026-10-07 - feat: a safer service worker (F-05)
 
 `dev` · @Oxshadha
