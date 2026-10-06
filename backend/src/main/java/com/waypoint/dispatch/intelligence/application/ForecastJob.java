@@ -84,6 +84,11 @@ public class ForecastJob implements ScheduledJob {
     return "ml.demand-forecast";
   }
 
+  @Override
+  public String bulkhead() {
+    return "ml";
+  }
+
   /** Hourly, but it runs only when {@link #due} says so: in practice once a week, Monday's first hour. */
   @Override
   public String cron() {

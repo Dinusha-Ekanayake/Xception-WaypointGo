@@ -93,6 +93,11 @@ public class StockUnknownRetryJob implements ScheduledJob {
   }
 
   @Override
+  public String bulkhead() {
+    return "warehouse";
+  }
+
+  @Override
   public String cron() {
     return "0 * * * * *";
   }

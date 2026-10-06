@@ -261,6 +261,73 @@ class SchedulerIntegrationTest {
     }
   }
 
+  /** A job that waits on something outside the process (roadmap F-09a). */
+  private static ScheduledJob job(String name, String bulkhead, Runnable body) {
+    return new ScheduledJob() {
+      public String name() {
+        return name;
+      }
+
+      public String cron() {
+        return "0 0 0 1 1 *";
+      }
+
+      public ModuleRole moduleRole() {
+        return ModuleRole.INTEGRATION;
+      }
+
+      public void run(Instant now) {
+        body.run();
+      }
+
+      public String bulkhead() {
+        return bulkhead;
+      }
+    };
+  }
+
+  @Test
+  void aSlowOutsideCallWaitsOnItsOwnThreadAndNeverHoldsTheOthers() throws Exception {
+    CountDownLatch inside = new CountDownLatch(1);
+    CountDownLatch release = new CountDownLatch(1);
+    int[] slowRuns = {0};
+    int[] cutoffRuns = {0};
+    String suffix = UUID.randomUUID().toString();
+    ScheduledJob model =
+        job("test.model-" + suffix, "ml", () -> {
+          slowRuns[0]++;
+          inside.countDown();
+          try {
+            release.await(20, TimeUnit.SECONDS);
+          } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+          }
+        });
+    ScheduledJob cutoff = job("test.cutoff-" + suffix, null, () -> cutoffRuns[0]++);
+    var runner =
+        new ScheduledJobRunner(
+            List.of(model, cutoff), dataSource, database, com.waypoint.dispatch.shared.util.Clock.system(), metrics);
+    try {
+      // The model job is handed to its bulkhead and the caller returns at once.
+      assertTrue(runner.dispatch(model), "the run starts on the ml bulkhead");
+      assertTrue(inside.await(20, TimeUnit.SECONDS), "the model job is waiting on the outside call");
+
+      // While it waits, an in-process job still runs, on the caller's thread.
+      assertTrue(runner.dispatch(cutoff));
+      assertEquals(1, cutoffRuns[0], "the cutoff ran while the model call was still waiting");
+
+      // A second run of the same job while the first waits is skipped, not queued.
+      assertFalse(runner.dispatch(model), "a run due while the last one waits is skipped");
+      assertEquals(
+          1.0,
+          meters.get("waypoint.job.skipped").tag("job", model.name()).tag("reason", "still_running").counter().count());
+    } finally {
+      release.countDown();
+      runner.destroy();
+    }
+    assertEquals(1, slowRuns[0]);
+  }
+
   // ---- helpers ----
 
   /**

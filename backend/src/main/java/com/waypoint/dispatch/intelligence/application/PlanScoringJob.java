@@ -125,6 +125,11 @@ public class PlanScoringJob implements ScheduledJob {
   }
 
   @Override
+  public String bulkhead() {
+    return "ml";
+  }
+
+  @Override
   public String cron() {
     return "*/30 * * * * *";
   }
