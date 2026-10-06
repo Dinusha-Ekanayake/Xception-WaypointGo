@@ -81,6 +81,11 @@ public class ModelServingAdapter {
     return properties.configured();
   }
 
+  /** Whether a model trained on the competition data may answer here (R-ML-09). */
+  public boolean allowsCompetitionModels() {
+    return properties.allowCompetitionModels();
+  }
+
   public CircuitBreaker.State circuitState() {
     return circuit.state(clock.now());
   }

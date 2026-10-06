@@ -104,6 +104,8 @@ services:
       # The model service (issue #16). Not a dependency: with it down the
       # backend uses its deterministic estimates and says so on every plan.
       ML_BASE_URL: ${ML_BASE_URL:-http://ml:8000}
+      # False in production: competition-trained models never answer there (R-ML-09).
+      ML_ALLOW_DATATHON: ${ML_ALLOW_DATATHON:-true}
       LOG_FORMAT: ecs
     volumes:
       - ./data:/app/data:ro

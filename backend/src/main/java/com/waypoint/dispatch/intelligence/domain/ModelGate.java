@@ -24,6 +24,27 @@ public final class ModelGate {
     }
   }
 
+  /** The name prefix of models trained on the competition data (R-ML-09). */
+  public static final String COMPETITION_PREFIX = "datathon-";
+
+  /** True for a model trained on the competition data, by its {@code name} or {@code name@version}. */
+  public static boolean competitionModel(String nameOrLabel) {
+    return nameOrLabel != null && nameOrLabel.startsWith(COMPETITION_PREFIX);
+  }
+
+  /**
+   * As {@link #decide(String, boolean, Optional, Served)}, and where models
+   * trained on the competition data are not allowed (production), such a model
+   * never answers: the deterministic estimate does, and says why (R-ML-09).
+   */
+  public static Decision decide(
+      String kind, boolean configured, Optional<String> activeLabel, Served served, boolean allowCompetitionModels) {
+    if (!allowCompetitionModels && activeLabel.isPresent() && competitionModel(activeLabel.get())) {
+      return Decision.degrade("models trained on the competition data are not allowed here");
+    }
+    return decide(kind, configured, activeLabel, served);
+  }
+
   /**
    * @param activeLabel the registry's active model of this kind, {@code name@version}
    * @param served what the serving process reports for this kind, or the reason it could not be asked

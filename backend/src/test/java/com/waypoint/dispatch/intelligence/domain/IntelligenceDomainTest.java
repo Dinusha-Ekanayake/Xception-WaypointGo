@@ -130,6 +130,21 @@ class IntelligenceDomainTest {
         "has m@2 but the active model is m@1");
   }
 
+  @Test
+  void whereCompetitionModelsAreNotAllowedOneNeverAnswersButOthersDo() {
+    // R-ML-09, roadmap MF-01: production sets ML_ALLOW_DATATHON=false.
+    String datathon = "datathon-task2a@2026.1.1";
+    assertGate(ModelGate.decide("demand_forecast", true, Optional.of(datathon), Served.loaded(datathon), false),
+        "competition data are not allowed");
+    assertTrue(ModelGate.decide("demand_forecast", true, Optional.of(datathon), Served.loaded(datathon), true).useModel(),
+        "allowed on the judge build, CI and preview");
+    String ours = "waypoint-forecast@2027.1.0";
+    assertTrue(ModelGate.decide("demand_forecast", true, Optional.of(ours), Served.loaded(ours), false).useModel(),
+        "a model trained on our own deliveries is not affected");
+    assertTrue(ModelGate.competitionModel("datathon-task1-blend"));
+    assertFalse(ModelGate.competitionModel("waypoint-forecast"));
+  }
+
   private static void assertGate(Decision d, String reason) {
     assertFalse(d.useModel());
     assertTrue(d.reason().orElseThrow().contains(reason), d.reason().orElseThrow());

@@ -249,7 +249,7 @@ public class PlanScoringJob implements ScheduledJob {
           .map(m -> Optional.ofNullable(m.get(ModelViews.DELIVERY_RISK)).map(Served::loaded).orElse(Served.none()))
           .orElseGet(() -> Served.unavailable(loaded.failure().orElse("unknown")));
     }
-    return ModelGate.decide(ModelViews.DELIVERY_RISK, adapter.configured(), active, served);
+    return ModelGate.decide(ModelViews.DELIVERY_RISK, adapter.configured(), active, served, adapter.allowsCompetitionModels());
   }
 
   /** Inside one read as the process: the plan, its stops and every input the model needs. */

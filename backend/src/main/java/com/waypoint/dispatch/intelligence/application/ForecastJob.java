@@ -229,7 +229,7 @@ public class ForecastJob implements ScheduledJob {
           .map(m -> Optional.ofNullable(m.get(ModelViews.DEMAND_FORECAST)).map(Served::loaded).orElse(Served.none()))
           .orElseGet(() -> Served.unavailable(loaded.failure().orElse("unknown")));
     }
-    return ModelGate.decide(ModelViews.DEMAND_FORECAST, adapter.configured(), label, served);
+    return ModelGate.decide(ModelViews.DEMAND_FORECAST, adapter.configured(), label, served, adapter.allowsCompetitionModels());
   }
 
   /** The weekday mean of the eight weeks before the origin, for every depot, brand and week. */
