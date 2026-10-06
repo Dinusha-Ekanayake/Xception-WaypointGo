@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-10-06 - fix: a lost vehicle no longer discards the dispatcher's open revision
+
+`dev` · @Oxshadha
+
+- A vehicle lost while the dispatcher is revising that published plan is replanned inside their draft, keeping their edits; their stale screen is told on the next edit (PLN-41). Before, the draft was cancelled unseen.
+- The automatic reefer swap after a lost vehicle was reviewed and deferred, with the conditions to build it ([02](../../roadmap/02-FOUNDATION-FIXES.md)).
+
+Why: rule 8 and rule 9; a person's work is never discarded without being told.
+Verified: backend 1,072 on a fresh test database, none skipped.
+
+---
+
 ## 2026-10-06 - feat: tight windows shown before a plan is published (T1-01)
 
 `dev` · @Oxshadha

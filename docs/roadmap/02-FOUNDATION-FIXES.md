@@ -74,6 +74,10 @@ The following items are defined in their own documents:
 - T2-01, early capacity plan, in [05](05-DATATHON-MODELS.md#task-2a-demand-forecast).
 - FF-06a, the fuel log, in [04](04-FIELD-FEATURES.md#ff-06-fuel-log-and-fuel-pass-qr).
 
+### Deferred: reefer swap after a lost vehicle
+
+When a lost reefer's chilled trip finds no reefer, the replan defers it; it never moves an ambient trip off another reefer to free it. Reviewed 2026-10-06 and deferred: ambient rides a reefer on 0.04% of historical reefer routes, and on a day short of reefers every reefer already runs chilled, so the case barely occurs; the dispatcher can do it by hand with two trip moves. Build it only as a suggestion the dispatcher accepts, once Planning knows when a trip's loading has started, with re-loading time and the 08:00 windows in the check, both moves in one revision, released trips frozen (R-PLN-44), and the offer counted so it can be dropped if it fires less than monthly.
+
 ## Phase 2: foundation fixes
 
 ### F-04 Snapshots, eviction, sign-out and storage quota
