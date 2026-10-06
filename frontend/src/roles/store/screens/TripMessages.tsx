@@ -7,7 +7,8 @@ import { SecondaryButton, Sheet, SkeletonRows, TripThread } from "@shared/ui";
 
 // A trip's thread for the store (issue #136): what the dispatcher or the driver
 // wrote to this store or to everyone on the trip, and the store's own replies
-// and reports, which go to the dispatcher alone (R-MSG-01 to R-MSG-03). Opened
+// and reports, which go to the dispatcher alone (R-MSG-01 to R-MSG-03), and,
+// once the driver has started the trip, the stores' channel (R-MSG-08). Opened
 // from a message notification, or from a delivery's row by its trip. With no
 // signal a message, voice included, is kept on the phone (resilient tier).
 
@@ -35,7 +36,7 @@ export default function TripMessages({
       <header className="flex items-start justify-between gap-3 pr-11">
         <div className="flex flex-col gap-1">
           <h2 className="text-[20px] font-medium text-go-ink">{title}</h2>
-          <p className="text-[13px] text-go-secondary">You see what is written to your store or to everyone on the trip. Replies go to the dispatcher.</p>
+          <p className="text-[13px] text-go-secondary">You see what is written to your store or to everyone on the trip. Replies go to the dispatcher alone, unless you choose the stores still waiting once the truck has left.</p>
         </div>
         <button type="button" onClick={onClose} className="min-h-11 shrink-0 rounded-full bg-go-surface px-4 text-sm font-medium text-go-teal">
           Close
