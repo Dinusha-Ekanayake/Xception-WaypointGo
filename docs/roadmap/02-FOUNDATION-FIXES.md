@@ -113,6 +113,8 @@ When a lost reefer's chilled trip finds no reefer, the replan defers it; it neve
 
 ### F-07 Less polling, conditional reads, one stream
 
+**F-07a built 2026-10-07** (PLT-16): the driver screen dropped from about 170 requests a minute on a two-stop run (about 450 on twelve stops) to about 31, held by a browser test at 60 or fewer; polled reads carry an ETag and answer 304 when unchanged (`CacheablePaths`, `ConditionalReadsFilter`); sign-out sends `Clear-Site-Data: "cache"`. **F-07b, still to do:** the dispatcher on server-sent events with a 15 s fallback, and one stream per session with topics.
+
 - **Conditional reads:**
   - ETag and `If-None-Match` on every polled read.
   - Replace the blanket `no-store` (`B/platform/web/SecurityHeadersFilter.java:23`) with `private, no-cache` on those reads, so a 304 is possible.

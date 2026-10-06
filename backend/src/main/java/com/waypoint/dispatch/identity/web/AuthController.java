@@ -84,7 +84,12 @@ public class AuthController {
     if (token != null) {
       sessions.revoke(token);
     }
-    return ResponseEntity.noContent().header(HttpHeaders.SET_COOKIE, cookie.cleared()).build();
+    // F-07: reads the browser kept for revalidation go with the session, so a
+    // shared phone keeps none of the last person's answers.
+    return ResponseEntity.noContent()
+        .header(HttpHeaders.SET_COOKIE, cookie.cleared())
+        .header("Clear-Site-Data", "\"cache\"")
+        .build();
   }
 
   private static Map<String, Object> toBody(

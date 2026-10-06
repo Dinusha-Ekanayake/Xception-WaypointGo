@@ -19,6 +19,8 @@ const FORWARD_REQUEST = [
   // Media plays and seeks through byte ranges (Safari needs them to replay a voice note).
   "range",
   "if-range",
+  // F-07: a polled read the browser holds is asked about again; an unchanged one comes back 304.
+  "if-none-match",
   "user-agent",
   "traceparent",
   "tracestate",
@@ -41,6 +43,10 @@ const FORWARD_RESPONSE = [
   "retry-after",
   "www-authenticate",
   "x-correlation-id",
+  // F-07: the backend decides what may be revalidated (CacheablePaths); sign-out clears it.
+  "etag",
+  "cache-control",
+  "clear-site-data",
 ];
 
 // The sample session and data below are for development only, never a
@@ -167,6 +173,7 @@ async function proxy(request: NextRequest): Promise<Response> {
     return problem(503, "DEPENDENCY_UNAVAILABLE", "Service unavailable", "Backend unavailable. Saved commands can be retried.", path);
   }
 
+  // No-store unless the backend said otherwise for a read it tagged (F-07).
   const outgoing = new Headers({ "Cache-Control": "no-store" });
   for (const name of FORWARD_RESPONSE) {
     const value = response.headers.get(name);
@@ -179,7 +186,8 @@ async function proxy(request: NextRequest): Promise<Response> {
   // get("set-cookie") joins several cookies into one comma-separated header,
   // which the browser then reads as one broken cookie. Forward each one.
   for (const cookie of response.headers.getSetCookie()) outgoing.append("set-cookie", cookie);
-  return new Response(response.body, { status: response.status, headers: outgoing });
+  // A 304 carries no body, and a Response with one refuses to build.
+  return new Response(response.status === 304 ? null : response.body, { status: response.status, headers: outgoing });
 }
 // Every write is a POST to /api/commands today. The other methods are forwarded
 // so that what the browser can reach and what curl can reach against the backend

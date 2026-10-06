@@ -20,7 +20,11 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
     response.setHeader("X-Frame-Options", "DENY");
     response.setHeader("Referrer-Policy", "same-origin");
     response.setHeader("Cross-Origin-Opener-Policy", "same-origin");
-    response.setHeader("Cache-Control", "no-store");
+    // F-07: a polled read is revalidated every time (never served unasked) so an
+    // unchanged answer can come back as a 304; everything else is never kept.
+    response.setHeader(
+        "Cache-Control",
+        CacheablePaths.cacheable(request.getMethod(), request.getRequestURI()) ? "private, no-cache" : "no-store");
     chain.doFilter(request, response);
   }
 }

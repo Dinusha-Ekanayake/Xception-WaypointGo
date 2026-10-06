@@ -4,6 +4,19 @@
 
 ---
 
+## 2026-10-07 - feat: fewer requests from the phone, and 304 for unchanged reads (F-07a)
+
+`dev` · @Oxshadha
+
+- The driver screen re-reads only the run sheet every 2 s; vehicle and outlet details are kept 10 minutes. About 170 requests a minute on two stops (450 on twelve) down to about 31, held at 60 or fewer by a browser test.
+- Polled reads carry an ETag and answer 304 when unchanged; sessions, credentials, evidence, streams and administration stay never-kept; sign-out clears the browser cache (PLT-16).
+- Still to do: the dispatcher on server-sent events and one stream per session (F-07b).
+
+Why: Phase 2 of the [roadmap](../../roadmap/02-FOUNDATION-FIXES.md); mobile data and battery in the field.
+Verified: backend 1,084 on a fresh test database, none skipped; Node 338; typecheck; build; browser shell 17, driver 36, loader 31, store 59, dispatcher 76.
+
+---
+
 ## 2026-10-07 - feat: driver redo and tomorrow's map ahead (F-06)
 
 `dev` · @Oxshadha
