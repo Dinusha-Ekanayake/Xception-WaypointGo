@@ -160,6 +160,21 @@ store places order -> 16:00 cutoff closes the day -> engine drafts plan -> dispa
 | Rows per day in `sync.operations`, `integration.command_receipts`, `integration.audit_log`, `execution.vehicle_positions` | `pg_stat_user_tables` | Retention backlog 0 |
 | Test counts (Java, Node, browser) and Task 2B validator result | B-01, B-02, CI | No regression |
 
+### Baseline recorded 2026-10-06 (local `dev`, macOS, Docker)
+
+| Suite | Result | Notes |
+| --- | --- | --- |
+| Backend `mvn verify` with `TEST_DATABASE_URL` set as in CI | 1,063 run, 1 failure, 0 errors, 0 skipped | `ReceiptHandoverIntegrationTest.parallelWrongEntriesNeverGiveMoreThanFiveGuesses:310`: under parallel wrong PIN entries one request got 503 instead of a refusal |
+| Backend `mvn verify` without `TEST_DATABASE_URL` | 88 skipped, 48 errors | Nine integration classes require the variable instead of using the Docker fallback in `support/TestDatabase`, and the planning tests put that condition on an abstract parent class, which JUnit does not inherit, so they start with no database. A test-harness defect, not a product one |
+| Official Task 2B validator | PASSED, every rule satisfied | After restoring `tools/check_allocation/data` as a symlink (the handover copy had flattened it) |
+| Frontend Node tests | 304 of 304 | Includes the F-01 and F-02 tests |
+| Typecheck, production build | pass | Offline shell: 94 immutable assets |
+| Browser: shell, loader, store | 17, 31, 59 passed | |
+| Browser: dispatcher | 67 passed, 7 failed | Live (needs-you order, minutes left), Plan, suggestions, trip messages. Not a timezone effect: the same 7 fail with the browser in UTC. Present in the handed-over code: the merged tree equals the branch tip |
+| Browser: driver | 23 passed, 7 failed, 13 skipped | All messages and voice: the Messages button needs a trip, and the mocked run shows none |
+
+The failures above existed before any roadmap work. Each gets an issue before Phase 1.5 is called done.
+
 ### B-05 business KPI baseline
 
 Runs in parallel with Phase 1.5 and Phase 2 and blocks neither. Where the app is not yet used, the figures come from Kandy's paper run sheets, spreadsheets and phone logs.
