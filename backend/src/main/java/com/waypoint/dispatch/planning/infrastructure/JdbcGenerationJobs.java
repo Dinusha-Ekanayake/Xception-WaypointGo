@@ -94,26 +94,32 @@ public class JdbcGenerationJobs {
     return rows.stream().findFirst().map(JdbcGenerationJobs::row);
   }
 
-  public void done(UUID jobId, UUID planId, String result, Instant now) {
-    database.update(
+  // F-11: the attempt a worker claimed is its claim token. A worker whose lease
+  // ran out and whose job another worker claimed again finds zero rows here, so
+  // it can never overwrite the other's result. Each returns the rows it changed.
+
+  /** @return 1 when this claim still held the job, else 0 */
+  public int done(UUID jobId, int attempt, UUID planId, String result, Instant now) {
+    return database.update(
         "UPDATE planning.generation_jobs SET status = 'done', plan_id = ?, result = ?::jsonb, error = NULL,"
-            + " lease_until = NULL, finished_at = ?, row_version = row_version + 1 WHERE job_id = ?",
-        planId, result, Timestamp.from(now), jobId);
+            + " lease_until = NULL, finished_at = ?, row_version = row_version + 1"
+            + " WHERE job_id = ? AND status = 'running' AND attempts = ?",
+        planId, result, Timestamp.from(now), jobId, attempt);
   }
 
   /** Back to the queue, for another attempt, with why the last one did not finish. */
-  public void requeue(UUID jobId, String why) {
-    database.update(
+  public int requeue(UUID jobId, int attempt, String why) {
+    return database.update(
         "UPDATE planning.generation_jobs SET status = 'queued', error = ?, lease_until = NULL,"
-            + " row_version = row_version + 1 WHERE job_id = ?",
-        why, jobId);
+            + " row_version = row_version + 1 WHERE job_id = ? AND status = 'running' AND attempts = ?",
+        why, jobId, attempt);
   }
 
-  public void failed(UUID jobId, String why, Instant now) {
-    database.update(
+  public int failed(UUID jobId, int attempt, String why, Instant now) {
+    return database.update(
         "UPDATE planning.generation_jobs SET status = 'failed', error = ?, lease_until = NULL, finished_at = ?,"
-            + " row_version = row_version + 1 WHERE job_id = ?",
-        why, Timestamp.from(now), jobId);
+            + " row_version = row_version + 1 WHERE job_id = ? AND status = 'running' AND attempts = ?",
+        why, Timestamp.from(now), jobId, attempt);
   }
 
   public int waiting() {
