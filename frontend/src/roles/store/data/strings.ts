@@ -316,7 +316,7 @@ export const STRINGS: Record<string, [string, string]> = {
   "Totals follow once stock is checked": ["තොග පරීක්ෂා කළ පසු එකතු ලැබේ", "இருப்பு சரிபார்க்கப்பட்டதும் மொத்தங்கள் வரும்"],
   "Delivery window": ["බෙදාහැරීමේ කාල සීමාව", "விநியோக நேரம்"],
   "You can change it until": ["මෙතෙක් වෙනස් කළ හැක", "இதுவரை மாற்றலாம்"],
-  "Moved from {day}, which is not a delivery day.": ["බෙදාහැරීමේ දිනයක් නොවන {day} සිට ගෙන ආවා.", "விநியோக நாள் அல்லாத {day}-இலிருந்து மாற்றப்பட்டது."],
+  "Moved from {day}: no deliveries that day.": ["බෙදාහැරීමේ දිනයක් නොවන {day} සිට ගෙන ආවා.", "விநியோக நாள் அல்லாத {day}-இலிருந்து மாற்றப்பட்டது."],
   "Part of this order is saved on this phone and sent when the connection returns.": [
     "මෙම ඇණවුමේ කොටසක් මෙම දුරකථනයේ සුරැකී ඇති අතර සම්බන්ධතාව ආ විට යැවේ.",
     "இந்த ஆர்டரின் ஒரு பகுதி இந்தத் தொலைபேசியில் சேமிக்கப்பட்டு, இணைப்பு திரும்பியதும் அனுப்பப்படும்.",

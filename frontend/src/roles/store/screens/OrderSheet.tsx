@@ -5,7 +5,7 @@ import { useResource } from "@shared/api/useResource";
 import { OrderCommandKind, type OrderView } from "@shared/domain/types";
 import { Notice, SkeletonRows } from "@shared/ui";
 import type { StoreGateway } from "../data/gateway.ts";
-import { ORDER_STATUS, units, clock, dayLabel, depotToday, editable, planNote, temperatureLabel, productLabel } from "../data/format.ts";
+import { ORDER_STATUS, units, clock, dayLabel, depotToday, editable, movedWhy, planNote, temperatureLabel, productLabel } from "../data/format.ts";
 import { awaitingPlan, needsWarning, warningWords } from "../data/outlook.ts";
 import { conflictMessage, type useCommands } from "../data/useCommands.ts";
 import { Button, Chip, Sheet } from "../ui.tsx";
@@ -69,8 +69,8 @@ export default function OrderSheet({
       </div>
       <p className="text-[15px] text-go-muted">
         {temperatureLabel(order.temperature)} · {units(order.itemCount)} · {order.weightKg} kg · {order.volumeM3} m³ · delivery {dayLabel(order.deliveryDate)}
-        {order.dateRolled && ` (moved from ${dayLabel(order.requestedDate)}, not a delivery day)`}
       </p>
+      {movedWhy(order) && <Notice tone="info" title={movedWhy(order)!} />}
       {planNote(order) && <Notice tone="info" title={planNote(order)!}>Dispatch has put your order on a vehicle for that day.</Notice>}
       {watched && outlookDay && needsWarning(outlookDay) && (
         <Notice tone="warning" title={`${dayLabel(order.deliveryDate)} is ${warningWords(outlookDay.status)}`}>

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { OutletView, PlacedOrder } from "@shared/domain/types";
 import { Icon, Notice } from "@shared/ui";
-import { units, changeDeadline, clock, dayLabel, depotToday, hhmm, temperatureLabel } from "../../data/format.ts";
+import { units, changeDeadline, clock, dayLabel, depotToday, hhmm, movedReason, temperatureLabel } from "../../data/format.ts";
 import { Badge, Button, Facts, Modal } from "../../ui.tsx";
 import { useT } from "../../i18n.tsx";
 
@@ -67,7 +67,13 @@ export default function OrderSent({
           ]}
         />
       )}
-      {rolled && <p className="text-[13px] text-go-warning-text">{t("Moved from {day}, which is not a delivery day.", { day: dayLabel(rolled.requestedDate) })}</p>}
+      {rolled && (
+        <p className="text-[13px] text-go-warning-text">
+          {movedReason(rolled) === "cutoff"
+            ? t("Moved from {day}: your order arrived after the 16:00 cutoff.", { day: dayLabel(rolled.requestedDate) })
+            : t("Moved from {day}: no deliveries that day.", { day: dayLabel(rolled.requestedDate) })}
+        </p>
+      )}
       {onAccept && orders.filter((o) => o.shortfall).map((o) => <ShortfallNotice key={o.orderId} order={o} onAccept={onAccept} />)}
       {queued && orders.length > 0 && <p className="text-[14px] text-go-warning-text">{t("Part of this order is saved on this phone and sent when the connection returns.")}</p>}
       <div className="flex gap-2.5">

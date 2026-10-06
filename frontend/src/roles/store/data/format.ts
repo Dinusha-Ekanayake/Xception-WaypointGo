@@ -99,3 +99,28 @@ export const dockLabel = (code: string) => DOCKS[code]?.label ?? code.replace(/_
 export const dockWhere = (code: string | null | undefined) => (code ? (DOCKS[code]?.where ?? `at your ${code.replace(/_/g, " ")}`) : "at your store");
 
 export { productLabel } from "../../../shared/wording/index.ts";
+
+/**
+ * Why an order's delivery day moved, in the store's words, or null when it did
+ * not move. Orders for a day close at 16:00 the day before (R-ORD-01): an order
+ * placed at or after that time arrived after the cutoff, for example one saved
+ * on the phone with no signal and sent later. Otherwise the asked-for day had no
+ * deliveries (R-ORD-08). Depot time is Asia/Colombo, UTC+05:30 all year.
+ */
+export function movedWhy(order: MovedOrder): string | null {
+  const reason = movedReason(order);
+  if (!reason) return null;
+  const from = dayLabel(order.requestedDate);
+  return reason === "cutoff" ? `Moved from ${from}: your order arrived after the 16:00 cutoff.` : `Moved from ${from}: no deliveries that day.`;
+}
+
+type MovedOrder = { dateRolled: boolean; requestedDate: IsoDate; placedAt?: string | null; rolledBecause?: string[] };
+
+/** "cutoff" or "closed-day" for a moved order: the order's own reason when it has one, else from when it was placed. */
+export function movedReason(order: MovedOrder): "cutoff" | "closed-day" | null {
+  if (!order.dateRolled) return null;
+  if (order.rolledBecause) return order.rolledBecause.includes("cutoff") ? "cutoff" : "closed-day";
+  const closed = Date.parse(`${addDays(order.requestedDate, -1)}T16:00:00+05:30`);
+  const placed = order.placedAt ? Date.parse(order.placedAt) : NaN;
+  return placed >= closed ? "cutoff" : "closed-day";
+}
