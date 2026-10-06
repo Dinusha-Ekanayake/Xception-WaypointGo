@@ -318,6 +318,30 @@ class IntelligenceIntegrationTest {
   }
 
   @Test
+  void aVehicleInTheWorkshopIsNotCountedOnItsWorkshopDay() throws Exception {
+    // Roadmap T2-01: capacity is each day's own fleet, so a reefer booked into the
+    // workshop for a day of the forecast leaves that week's refrigerated capacity.
+    java.time.LocalDate monday = java.time.LocalDate.now(com.waypoint.dispatch.shared.util.Clock.OPERATING_ZONE)
+        .with(java.time.temporal.TemporalAdjusters.next(java.time.DayOfWeek.MONDAY));
+    var reefer = reference.vehiclesOfDepot(depot, null).stream().filter(v -> v.refrigerated()).findFirst().orElseThrow();
+    java.time.LocalDate day = reference.calendarDays(monday, monday.plusDays(6)).stream()
+        .filter(c -> c.operating()).map(c -> c.date()).findFirst().orElseThrow();
+    JsonNode before = read(dispatcher, "/api/ml/forecast/overview?depot=" + depot + "&weeks=1", 200).get("weeks").get(0);
+
+    database.asModule(ModuleRole.REF, null, () -> database.update(
+        "INSERT INTO ref.vehicle_day_status (vehicle_id, service_date, status, reason) VALUES (?, ?, 'in_workshop', 'service')",
+        reefer.vehicleId(), java.sql.Date.valueOf(day)));
+
+    JsonNode after = read(dispatcher, "/api/ml/forecast/overview?depot=" + depot + "&weeks=1", 200).get("weeks").get(0);
+    double lost = reefer.volumeCapM3().multiply(BigDecimal.valueOf(2)).doubleValue();
+    assertEquals(before.at("/capacity/refrigeratedM3").asDouble() - lost, after.at("/capacity/refrigeratedM3").asDouble(), 1e-6,
+        "the reefer's two trips that day are gone from the week");
+    assertEquals(before.at("/capacity/fleetM3").asDouble() - lost, after.at("/capacity/fleetM3").asDouble(), 1e-6);
+    assertEquals(before.at("/capacity/refrigeratedVehicles").asInt() - 1, after.at("/capacity/refrigeratedVehicles").asInt(),
+        "the week's reefers are the fewest free on any operating day");
+  }
+
+  @Test
   void aDepotOutsideScopeIsRefusedAndRecorded() throws Exception {
     UUID strangerId = accounts.createAccount("mlx-" + run + "@intelligence.test", "mlx", PASSWORD, "dispatcher");
     Cookie outsider = session("mlx-" + run);

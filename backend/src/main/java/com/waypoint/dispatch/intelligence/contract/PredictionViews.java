@@ -150,8 +150,11 @@ public final class PredictionViews {
   public record BrandVolumeView(String brandCode, BigDecimal totalM3, BigDecimal chilledM3) {}
 
   /**
-   * What the depot's reference fleet can carry in the week: every vehicle, two
-   * trips a day, each operating day (A-40). An upper bound, not availability.
+   * What the depot can carry in the week with each day's own fleet: vehicles in
+   * the workshop or unavailable that day carry nothing, each available vehicle
+   * runs that day's trip limit (A-40, roadmap T2-01). The counts are the fewest
+   * available on any operating day. Days with no status set count every vehicle,
+   * so weeks far ahead are still an upper bound until workshop days are booked.
    */
   public record WeekCapacityView(
       int vehicles, int refrigeratedVehicles, BigDecimal fleetM3, BigDecimal refrigeratedM3) {}

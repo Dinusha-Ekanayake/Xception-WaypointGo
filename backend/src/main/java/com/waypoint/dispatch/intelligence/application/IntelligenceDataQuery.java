@@ -233,9 +233,6 @@ public class IntelligenceDataQuery implements PredictionQuery, ModelQuery, Trave
     List<Map<String, Object>> rows =
         read(actor.userId(), () -> repository.latestDepotForecasts(depot, fromKey, toKey));
     List<CalendarDayView> days = reference.calendarDays(origin, end);
-    List<FleetCapacity.Vehicle> fleet = reference.vehiclesOfDepot(depot, null).stream()
-        .map(v -> new FleetCapacity.Vehicle(v.volumeCapM3(), v.refrigerated()))
-        .toList();
 
     Optional<Instant> generatedAt = rows.stream()
         .map(r -> JdbcIntelligenceRepository.instant(r.get("generated_at")))
@@ -260,9 +257,14 @@ public class IntelligenceDataQuery implements PredictionQuery, ModelQuery, Trave
           .sorted(java.util.Comparator.comparing(BrandVolumeView::brandCode))
           .toList();
       int operating = (int) week.stream().filter(CalendarDayView::operating).count();
-      FleetCapacity.Week capacity = FleetCapacity.weekly(fleet, week.stream()
+      // Each day's own fleet: a vehicle in the workshop that day carries nothing (T2-01).
+      FleetCapacity.Week capacity = FleetCapacity.weeklyByDay(week.stream()
           .filter(CalendarDayView::operating)
-          .map(day -> plans.maxTripsFor(day.date()))
+          .map(day -> new FleetCapacity.Day(
+              reference.availableVehicles(depot, day.date(), null).stream()
+                  .map(v -> new FleetCapacity.Vehicle(v.volumeCapM3(), v.refrigerated()))
+                  .toList(),
+              plans.maxTripsFor(day.date())))
           .toList());
       out.add(new ForecastWeekView(
           year, isoWeek, weekStart, operating,

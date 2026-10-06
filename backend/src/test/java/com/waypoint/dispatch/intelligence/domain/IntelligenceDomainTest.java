@@ -123,6 +123,23 @@ class IntelligenceDomainTest {
   }
 
   @Test
+  void aWeeksCapacityIsEachDaysOwnFleetAndItsFewestVehicles() {
+    var reefer = new FleetCapacity.Vehicle(d("20"), true);
+    var dry = new FleetCapacity.Vehicle(d("30"), false);
+    // Monday every vehicle, Tuesday the reefer is in the workshop; two trips a day.
+    FleetCapacity.Week w = FleetCapacity.weeklyByDay(List.of(
+        new FleetCapacity.Day(List.of(reefer, dry), 2),
+        new FleetCapacity.Day(List.of(dry), 2)));
+    assertEquals(d("160.00"), w.fleetM3(), "(20 + 30) x 2 on Monday, 30 x 2 on Tuesday");
+    assertEquals(d("40.00"), w.refrigeratedM3(), "the reefer only on Monday");
+    assertEquals(1, w.vehicles(), "the fewest free on any day");
+    assertEquals(0, w.refrigeratedVehicles(), "no reefer on Tuesday, so the week cannot count on one");
+    FleetCapacity.Week none = FleetCapacity.weeklyByDay(List.of());
+    assertEquals(0, none.vehicles());
+    assertEquals(d("0.00"), none.fleetM3());
+  }
+
+  @Test
   void aClosedDayContributesNothing() {
     LocalDate origin = LocalDate.of(2026, 10, 5);
     List<DailyVolume> history = new ArrayList<>();
