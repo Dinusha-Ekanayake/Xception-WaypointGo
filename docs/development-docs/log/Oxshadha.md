@@ -4,6 +4,25 @@
 
 ---
 
+## 2026-10-06 - chore: roadmap Phase 0, local part
+
+`dev` · @Oxshadha
+
+- **H-00:** merged the 19 unmerged commits of `claude/role-ui-intelligence` into `main` with no conflicts, and cut `dev`.
+- **H-01:** restored the README from `961d89a` without the deployed accounts table, which held the production admin password.
+- **H-02:** gitleaks scan of all history; the one finding, an RFC 8291 test vector, is in `.gitleaksignore`. Added a Secret scan CI job.
+- **H-04:** STATUS refreshed.
+- **H-05:** `deploy/vps/backup.sh` (daily dump, read back, rclone copy off the server) and its runbook in [deployment.md](../../deployment.md).
+
+Why: Phase 0 of the [roadmap](../../roadmap/README.md).
+Verified: gitleaks clean; workflow YAML parses; `bash -n` on the script. Nothing pushed.
+Open:
+- H-03 (GitHub Environments) needs admin on the repository.
+- Rotating the admin password and setting a fixed `PROOF_URL_SECRET` need the server.
+- The backup cron and the restore drill run on the server.
+
+---
+
 ## 2026-10-06 - docs: handover audit and phased roadmap
 
 `main` · @Oxshadha
