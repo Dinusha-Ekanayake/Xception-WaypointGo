@@ -289,8 +289,6 @@ function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Ele
     );
   } else if (tab === "home") {
     body = (
-      <div className="flex flex-col gap-5">
-      <Decisions decisions={decisions.data ?? []} accountId={userId} sender={decisionSender} online={online} onAnswer={answerDecision} />
       <Home
         orders={all}
         loading={orders.loading}
@@ -306,8 +304,8 @@ function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Ele
         onReceive={receive}
         onTrack={() => openView({ kind: "track" })}
         onRetry={orders.refresh}
+        questions={<Decisions decisions={decisions.data ?? []} accountId={userId} sender={decisionSender} online={online} onAnswer={answerDecision} />}
       />
-      </div>
     );
   } else if (tab === "orders") {
     body = <Orders orders={all} loading={orders.loading} error={orders.error} onOpen={setOpenOrder} onPlace={place} onRetry={orders.refresh} />;

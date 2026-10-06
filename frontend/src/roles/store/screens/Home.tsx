@@ -59,6 +59,7 @@ export default function Home({
   onReceive,
   onTrack,
   onRetry,
+  questions,
 }: {
   orders: OrderView[];
   loading: boolean;
@@ -77,6 +78,8 @@ export default function Home({
   onTrack: () => void;
   /** Read the orders again after a failure. */
   onRetry?: () => void;
+  /** FF-09: the dispatcher's questions, first under the greeting. */
+  questions?: React.ReactNode;
 }): React.JSX.Element {
   const t = useT();
   const [left, setLeft] = useState(() => untilCutoff());
@@ -107,6 +110,7 @@ export default function Home({
       </div>
 
       <div className="flex min-w-0 flex-col gap-5">
+        {questions}
         {error && <Notice tone="danger" title={t("Could not load your orders")} onRetry={onRetry}>{friendlyError(error)}</Notice>}
 
         {/* Moves into Track's first card when the delivery is tracked (shared element, UX polish 4). */}
