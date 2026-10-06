@@ -107,7 +107,7 @@ function ReviewDialog({ sync, onClose }: { sync: SyncState; onClose: () => void 
         aria-label="Changes to review"
         className="go-panel go-panel-dialog relative flex max-h-[85dvh] w-full max-w-[520px] flex-col gap-4 overflow-y-auto rounded-t-[32px] bg-white px-6 pt-6 pb-8 font-go outline-none sm:rounded-[32px]"
       >
-        <h2 className="text-[22px] font-medium text-black">Changes the server refused</h2>
+        <h2 className="text-[22px] font-medium text-black">Changes Waypoint refused</h2>
         <p className="text-[14px] text-go-muted">
           These were saved on this device but could not be applied, usually because the record changed while you were offline. Check the screen they came from, then redo them on the current version or discard them.
         </p>

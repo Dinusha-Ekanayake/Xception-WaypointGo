@@ -339,7 +339,7 @@ export function SignOutSheet({
           <p className="mt-1 text-[16px] text-go-ink">
             {waiting} {waiting === 1 ? "record is" : "records are"} still only on this phone.{" "}
             {online
-              ? `Wait for ${waiting === 1 ? "it" : "them"} to be sent, or review anything the server refused, before you sign out.`
+              ? `Wait for ${waiting === 1 ? "it" : "them"} to be sent, or review anything Waypoint refused, before you sign out.`
               : `Reconnect so ${waiting === 1 ? "it" : "they"} can be sent before you sign out.`}
           </p>
         ) : (

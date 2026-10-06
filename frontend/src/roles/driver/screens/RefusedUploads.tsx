@@ -21,7 +21,7 @@ export default function RefusedUploads({
   const refused = uploads.filter((upload) => upload.needsReview);
   if (refused.length === 0) return null;
   return (
-    <Panel label="Proof files the server refused">
+    <Panel label="Proof files Waypoint refused">
       <h2 className="text-[19px] font-medium text-go-ink">
         {refused.length === 1 ? "A proof file was refused" : `${refused.length} proof files were refused`}
       </h2>
@@ -36,7 +36,7 @@ export default function RefusedUploads({
                   {upload.path.includes("kind=signature") ? "Signature" : "Photo"}
                   {stop ? ` · stop ${String(stop.sequence).padStart(2, "0")} ${stop.outletId}` : ""}
                 </span>
-                <span className="block text-[13px] text-go-muted">{upload.lastError ?? "Refused by the server"}</span>
+                <span className="block text-[13px] text-go-muted">{upload.lastError ?? "Refused by Waypoint"}</span>
               </span>
               <button type="button" onClick={() => onDiscard(upload.id)} className="min-h-12 shrink-0 px-3 text-[15px] font-medium text-go-danger-strong">
                 Remove

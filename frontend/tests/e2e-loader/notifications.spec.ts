@@ -103,6 +103,6 @@ test("Settings says plainly when this server cannot send alerts", async ({ page 
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ enabled: false, publicKey: null, reason: "push is not configured on this server" }) }));
   await page.goto("/");
   await page.getByRole("button", { name: "Settings", exact: true }).click();
-  await expect(page.getByText("Alerts are not set up on this server")).toBeVisible();
+  await expect(page.getByText("Alerts are not set up yet")).toBeVisible();
   await expect(page.getByRole("button", { name: "On", exact: true })).toHaveCount(0);
 });

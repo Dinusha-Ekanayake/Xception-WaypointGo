@@ -81,7 +81,7 @@ test.fixme("a proof file the server refuses stays on the phone until the driver 
   await page.getByRole("button", { name: "Back to home" }).click();
 
   // The delivery stands; the file is shown with the server's reason, not dropped and not resent.
-  const refused = page.getByRole("region", { name: "Proof files the server refused" });
+  const refused = page.getByRole("region", { name: "Proof files Waypoint refused" });
   await expect(refused).toContainText("Signature · stop 01 OUT0101");
   await expect(refused).toContainText("The file is not a JPEG, PNG or WebP image");
   expect(server.commands.map((c) => c.kind)).toContain("delivery:CaptureProof");

@@ -51,7 +51,7 @@ function classify(error: unknown): SessionState {
   return {
     kind: "unreachable",
     status,
-    message: offline ? "This device is offline." : error instanceof ApiError ? `The server answered ${error.status}.` : "The server did not answer.",
+    message: offline ? "This device is offline." : error instanceof ApiError ? `Waypoint answered with an error (${error.status}).` : "Waypoint did not answer.",
   };
 }
 

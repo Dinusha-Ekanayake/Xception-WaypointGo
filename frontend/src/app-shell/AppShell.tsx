@@ -350,7 +350,7 @@ export default function AppShell(): React.JSX.Element {
                   </span>
                 }
               >
-                {online ? "Send them first: tap sync now, or review any the server refused." : "Reconnect so they can be sent. If you sign out now, they wait here until you sign in again."}
+                {online ? "Send them first: tap sync now, or review any Waypoint refused." : "Reconnect so they can be sent. If you sign out now, they wait here until you sign in again."}
               </Notice>
             )}
           </div>

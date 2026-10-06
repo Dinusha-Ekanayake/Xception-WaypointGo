@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-10-07 - fix: no "server" on screen; secrets rotation runbook
+
+`dev` · @Oxshadha
+
+- Every message that said "the server" now says Waypoint or plain words ("Can't reach Waypoint", "Not set up yet"), with the Sinhala and Tamil strings; the wording test now fails on "server" on screen ([GLOSSARY](../../architecture/GLOSSARY.md)).
+- The rotation runbook for every password and secret is in [deployment.md](../../deployment.md#rotating-passwords-and-secrets). Not rotated yet: it needs the VPS and the repository settings.
+
+Why: field users read "server" as jargon; the old README exposed account passwords, so rotation is the only fix.
+Verified: Node 330; typecheck; build; browser driver 34, loader 31, store 59, dispatcher 76, shell 17.
+
+---
+
 ## 2026-10-07 - feat: the phone keeps less, and nothing after sign-out (F-04)
 
 `dev` · @Oxshadha

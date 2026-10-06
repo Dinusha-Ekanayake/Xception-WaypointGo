@@ -172,7 +172,7 @@ export default function NotificationsPanel({ onNavigate }: { onNavigate: (view: 
 const PUSH_NOTE: Record<PushState["kind"], string> = {
   checking: "Checking…",
   unsupported: "This browser cannot show alerts",
-  "server-off": "Not set up on this server",
+  "server-off": "Not set up yet",
   blocked: "Blocked in this browser's settings",
   off: "Off",
   on: "On, even with Waypoint closed",

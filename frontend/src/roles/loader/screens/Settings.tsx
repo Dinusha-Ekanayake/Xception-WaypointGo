@@ -128,7 +128,7 @@ function pushNote(state: PushState): string {
     case "unsupported":
       return "This browser cannot show alerts";
     case "server-off":
-      return "Alerts are not set up on this server";
+      return "Alerts are not set up yet";
     case "blocked":
       return "Blocked in this browser's settings";
     default:

@@ -35,7 +35,7 @@ const STRINGS: Record<string, [string, string]> = {
   "Offline · {n} saved on this device": ["නොබැඳි · මෙම උපාංගයේ {n}ක් සුරැකිණි", "இணைப்பில்லை · இந்தச் சாதனத்தில் {n} சேமிக்கப்பட்டது"],
   "Offline · showing last sync": ["නොබැඳි · අවසන් සමමුහුර්තය පෙන්වයි", "இணைப்பில்லை · கடைசி ஒத்திசைவு காட்டப்படுகிறது"],
   "Offline · showing {time}": ["නොබැඳි · {time} දත්ත පෙන්වයි", "இணைப்பில்லை · {time} தரவு காட்டப்படுகிறது"],
-  "Server unreachable · showing {time}": ["සේවාදායකය නොලැබේ · {time} දත්ත පෙන්වයි", "சேவையகம் கிடைக்கவில்லை · {time} தரவு காட்டப்படுகிறது"],
+  "Can't reach Waypoint · showing {time}": ["Waypoint වෙත සම්බන්ධ විය නොහැක · {time} දත්ත පෙන්වයි", "Waypoint-ஐ அணுக முடியவில்லை · {time} தரவு காட்டப்படுகிறது"],
   "Sending {n}…": ["{n}ක් යවමින්…", "{n} அனுப்பப்படுகிறது…"],
   "Synced {time}": ["සමමුහුර්ත කළේ {time}", "ஒத்திசைந்தது {time}"],
   "Connecting…": ["සම්බන්ධ වෙමින්…", "இணைக்கிறது…"],
@@ -409,7 +409,7 @@ const STRINGS: Record<string, [string, string]> = {
   "On": ["සක්‍රියයි", "இயக்கு"],
   "Off": ["අක්‍රියයි", "அணை"],
   "This browser cannot show alerts": ["මෙම බ්‍රව්සරයට ඇඟවීම් පෙන්විය නොහැක", "இந்த உலாவியால் விழிப்பூட்டல்களைக் காட்ட முடியாது"],
-  "Alerts are not set up on this server": ["මෙම සේවාදායකයේ ඇඟවීම් සකසා නැත", "இந்த சேவையகத்தில் விழிப்பூட்டல்கள் அமைக்கப்படவில்லை"],
+  "Alerts are not set up yet": ["ඇඟවීම් තවම සකසා නැත", "விழிப்பூட்டல்கள் இன்னும் அமைக்கப்படவில்லை"],
   "Blocked in this browser's settings": ["මෙම බ්‍රව්සරයේ සැකසුම්වල අවහිර කර ඇත", "இந்த உலாவியின் அமைப்புகளில் தடுக்கப்பட்டுள்ளது"],
   "Alerts on this device, even with the app closed": ["යෙදුම වසා තිබුණත් මෙම උපාංගයට ඇඟවීම්", "செயலி மூடியிருந்தாலும் இந்தச் சாதனத்தில் விழிப்பூட்டல்கள்"],
   // The loader's notification messages, filled from their facts (data/messages.ts).

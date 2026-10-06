@@ -203,7 +203,7 @@ export default function RunCompleteScreen({
           )}
         >
           {writesHeld > 0
-            ? `${writesHeld} ${writesHeld === 1 ? "record was" : "records were"} refused by the server and ${writesHeld === 1 ? "waits" : "wait"} for you under "to review".`
+            ? `${writesHeld} ${writesHeld === 1 ? "record was" : "records were"} refused by Waypoint and ${writesHeld === 1 ? "waits" : "wait"} for you under "to review".`
             : onPhone > 0
               ? `${onPhone} ${onPhone === 1 ? "record is" : "records are"} still on this phone and will be sent when the connection is back.`
               : `Next: return ${vehicleId} to the depot.`}

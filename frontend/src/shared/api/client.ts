@@ -22,7 +22,7 @@ export const READ_TIMEOUT_MS = 8_000;
 export const WRITE_TIMEOUT_MS = 15_000;
 
 function timeoutError(): DOMException {
-  return new DOMException("The server did not answer in time", "TimeoutError");
+  return new DOMException("Waypoint did not answer in time", "TimeoutError");
 }
 
 // UUID-shaped, because the backend replaces anything else with an id of its own,

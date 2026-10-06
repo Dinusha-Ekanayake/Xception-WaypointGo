@@ -61,7 +61,7 @@ export class ApiError extends Error {
  */
 export function friendlyError(error: unknown): string {
   if (error instanceof ApiError) {
-    if (error.status >= 500) return "The server had a problem. Try again.";
+    if (error.status >= 500) return "Waypoint had a problem. Try again.";
     if (error.problem.detail) return error.problem.detail;
     return "Something went wrong. Try again.";
   }

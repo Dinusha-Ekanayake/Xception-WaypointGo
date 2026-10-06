@@ -182,7 +182,7 @@ export default function AccessDemo({ userId, displayName = "Administrator" }: { 
     if (member?.source === "live" && member.rowVersion !== undefined) {
       setEditingMember(member); setMemberName(member.name); setMemberEmail(member.email); setMemberError(""); return;
     }
-    setToast("Permission editing is unavailable until policy attachments and versioned commands are exposed by the server.");
+    setToast("Permission editing is not available yet: policy attachments and versioned commands are still to come.");
   }
 
   async function saveMember() {
@@ -235,7 +235,7 @@ export default function AccessDemo({ userId, displayName = "Administrator" }: { 
     const targetName = draftMember?.name ?? labelFor(draft.id as Persona);
     const description = (choice: Decision, member: boolean) => choice === "inherit" ? member ? "Use persona access" : "Use published default" : choice === "allow" ? member ? "Allow for this member" : "Allow" : choice === "deny" ? member ? "Block for this member" : "Block" : "Do not grant";
 
-    setToast("Permission editing is unavailable until the server exposes a versioned policy command.");
+    setToast("Permission editing is not available yet: a versioned policy command is still to come.");
   }
 
   async function createMember(input: NewMember): Promise<string | null> {

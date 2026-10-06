@@ -29,6 +29,7 @@ Status: **decided** on issue #126 (2026-10-03). The shared labels and formatters
 | **vehicle** | Any truck or van | `vehicleId`, `ref.vehicles` | lorry, fleet unit | Use truck or van only when the type matters |
 | **truck**, **van** | The vehicle type | `vehicleType` (`truck`, `van`) | | Van-only outlets need a van (R-PLN-03) |
 | **refrigerated** | Can carry chilled goods | `temperatureCapability = reefer`, `refrigerated` | reefer, cold truck, chiller | "Reefer" stays in code and docs, never on screen |
+| **Waypoint** | The system itself, when a message says it answered, refused or could not be reached | backend, API | server, the system | "Server" stays in code and docs, never on screen; the one exception is another product's own menu name (the MCP setup steps) |
 | **plan** | The day's allocation of orders to trips for one depot | `PlanView` | schedule, roster | **draft** until published, **published** after, **revision** when changed after publishing |
 | **trip** | One vehicle's outing: one brand, one district, one temperature; at most two a day | `TripView`, `tripId`, `tripNumber` | route, run, load (as an outing) | "VEH043 · Trip 1" |
 | **stop** | A place in a trip's order: one outlet visited | `StopView`, `RunSheetStopView.sequence` | drop, visit, run (as a visit) | "Stop 3 of 8" |

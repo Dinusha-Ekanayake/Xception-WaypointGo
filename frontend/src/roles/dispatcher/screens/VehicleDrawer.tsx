@@ -163,8 +163,8 @@ function SubmitError({ error }: { error: Error }): React.JSX.Element {
     );
   }
   return (
-    <Notice tone="danger" title="The change did not reach the server" live>
-      Check the connection and send again. Sending again is safe: the server applies it once.
+    <Notice tone="danger" title="The change did not reach Waypoint" live>
+      Check the connection and send again. Sending again is safe: Waypoint applies it once.
     </Notice>
   );
 }

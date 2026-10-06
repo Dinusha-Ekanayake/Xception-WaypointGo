@@ -142,7 +142,7 @@ export default function AccountMenu({
 const PUSH_NOTE: Record<PushState["kind"], string> = {
   checking: "Checking…",
   unsupported: "This browser cannot show alerts",
-  "server-off": "Not set up on this server",
+  "server-off": "Not set up yet",
   blocked: "Blocked in this browser's settings",
   off: "Off · deliveries and deferrals even with the app closed",
   on: "On · deliveries and deferrals even with the app closed",

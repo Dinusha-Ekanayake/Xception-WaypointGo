@@ -135,6 +135,33 @@ Every later change is a command an administrator sends through `POST /api/comman
 
 Three backend commands cover what a fresh instance needs before anyone can send a command: `account-grant-depot`, `operator-pin` for a loader's PIN on a shared dock device, and `demo-accounts` for one account per role. Their variables are in the [README](../README.md#backend-commands).
 
+## Rotating passwords and secrets
+
+Roadmap H-02. A README of an earlier commit (`961d89a`) listed the deployed accounts with their passwords, and the demo accounts were created from a `SEED_PASSWORD` that was public. History keeps them, so the only fix is to change them. Rotate one at a time, check the site works after each, and record in the development log what was rotated and when, never the value. Generate every new value with `openssl rand -base64 32` (passwords for people: at least 16 characters, kept in the team's password manager).
+
+| Secret | Where it lives | How to rotate | What it breaks |
+| --- | --- | --- | --- |
+| Production administrator password | the account | Sign in as the administrator and send `iam:ResetPassword` for the administrator's own `userId` (below). Do this first | Ends that account's sessions |
+| The six demo accounts | the accounts | `iam:ResetPassword` for each, or disable the ones nobody uses (`iam:DisableUser`). Changing `SEED_PASSWORD` alone does nothing to existing accounts | Ends their sessions |
+| `SEED_PASSWORD` | `.env` on the VPS | Set a new private value so accounts created later do not get the public one | Nothing |
+| `APP_DB_PASSWORD` | `.env` on the VPS | Change it and deploy: `migrate` sets `waypoint_app`'s password on every run | Nothing; the pool reconnects |
+| `POSTGRES_PASSWORD` | `.env` on the VPS, and the database | `docker compose exec db psql -U postgres -c "ALTER ROLE postgres PASSWORD '<new>'"`, then change `.env` to match | `init` and `migrate` fail until both match |
+| `PROOF_URL_SECRET` | `.env` on the VPS | Set a fixed value of at least 16 characters per environment, then deploy. Blank gives each process its own random key, so proof links break across replicas | Proof links already handed out (they last minutes) |
+| `GRAFANA_ADMIN_PASSWORD` | `.env` on the VPS | Change and restart Grafana | Grafana sessions |
+| `WAREHOUSE_API_KEY`, `WAREHOUSE_WEBHOOK_SECRET` | `.env`, and the warehouse provider | Issue new ones with the provider, change `.env`, deploy, then revoke the old ones | Catalogue sync and webhooks between the two steps |
+| `GROQ_API_KEY` | `.env`, and the provider | Create a new key, change `.env`, deploy, delete the old key | Nothing |
+| `PUSH_VAPID_PUBLIC_KEY`, `PUSH_VAPID_PRIVATE_KEY` | `.env` | Only if exposed: every phone must turn alerts on again | All push subscriptions |
+| `VPS_SSH_KEY`, `VPS_PREVIEW_SSH_KEY` | GitHub secrets (H-03: an Environment each), and `authorized_keys` on the VPS | Make a new key pair, add the public key on the VPS, replace the GitHub secret, run a deploy, then remove the old public key | Deploys between the two steps. Needs admin on the repository |
+
+Resetting a password from the host, with the administrator's session cookie (`__Host-waypoint_session` over HTTPS) in `SESSION` and the account's `userId` and row version from `GET /api/accounts`:
+
+```sh
+curl -sS https://waypointgo.live/api/commands -H 'content-type: application/json' --cookie "__Host-waypoint_session=$SESSION" \
+  -d '{"commandId":"'"$(uuidgen | tr A-Z a-z)"'","kind":"iam:ResetPassword","expectedVersion":<rowVersion>,"payload":{"userId":"<userId>","password":"<new>"}}'
+```
+
+The command never echoes the password, writes an audit row, and ends the account's other sessions. Run it from a shell whose history is off (`set +o history`), or type the password into a file read with `$(cat file)` and delete the file.
+
 ## Backup and recovery
 
 ### On the VPS

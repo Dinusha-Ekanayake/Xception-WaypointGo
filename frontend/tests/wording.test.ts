@@ -28,6 +28,7 @@ export const RULES: Record<string, RegExp> = {
   "retired: ETA (say expected arrival)": /\bETA\b/,
   "retired: drop or shop": /(?<![-\w])(drops?|shops?)(?![-\w])/i,
   "retired: route for a trip (say trip)": /(?<![-\w])routes?(?![-\w])/i,
+  "retired: server (say Waypoint)": /(?<![-\w])servers?(?![-\w])/i,
   "raw code on screen": /\b(rear_dock|mall_bay|van_only|mall_dock)\b/,
   "12-hour clock": /\b\d{1,2}(:\d{2})?\s?(AM|PM)\b/,
 };

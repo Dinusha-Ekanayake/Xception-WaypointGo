@@ -77,7 +77,7 @@ export function getErrorDefaults(code?: string | number | null): {
   if (norm === 500 || norm === "500" || norm === "INTERNAL_SERVER_ERROR") {
     return {
       title: "Something went wrong",
-      message: "An unexpected server error occurred while loading this view.\nDon't worry: your work is saved safely on this phone.",
+      message: "Something went wrong at Waypoint while loading this screen.\nDon't worry: your work is saved safely on this phone.",
       actionLabel: "Try again",
       defaultAction: () => {
         if (typeof window !== "undefined") window.location.reload();
@@ -87,8 +87,8 @@ export function getErrorDefaults(code?: string | number | null): {
 
   if (norm === 502 || norm === "502" || norm === 504 || norm === "504" || norm === "GATEWAY_TIMEOUT") {
     return {
-      title: "We can't reach the server",
-      message: "The server took too long to answer or could not be reached.\nDon't worry: your work is saved safely on this phone.",
+      title: "We can't reach Waypoint",
+      message: "Waypoint took too long to answer, or there is no connection.\nDon't worry: your work is saved safely on this phone.",
       actionLabel: "Try again",
       defaultAction: () => {
         if (typeof window !== "undefined") window.location.reload();
@@ -109,8 +109,8 @@ export function getErrorDefaults(code?: string | number | null): {
 
   if (norm === 503 || norm === "503") {
     return {
-      title: "We can't reach the server",
-      message: "The server took too long to answer or could not be reached.\nDon't worry: your work is saved safely on this phone.",
+      title: "We can't reach Waypoint",
+      message: "Waypoint took too long to answer, or there is no connection.\nDon't worry: your work is saved safely on this phone.",
       actionLabel: "Try again",
       defaultAction: () => {
         if (typeof window !== "undefined") window.location.reload();
@@ -120,8 +120,8 @@ export function getErrorDefaults(code?: string | number | null): {
 
   if (typeof norm === "number" && norm >= 500) {
     return {
-      title: "The server had a problem",
-      message: "An unexpected server error occurred while loading this view.\nDon't worry: your work is saved safely on this phone.",
+      title: "Waypoint had a problem",
+      message: "Something went wrong at Waypoint while loading this screen.\nDon't worry: your work is saved safely on this phone.",
       actionLabel: "Try again",
       defaultAction: () => {
         if (typeof window !== "undefined") window.location.reload();

@@ -27,7 +27,7 @@ test("a network failure reads as a short, plain sentence", () => {
 
 test("a server error (status 500 and over) reads as a server problem", () => {
   const error = new ApiError(problem({ status: 503, detail: "" }));
-  assert.equal(friendlyError(error), "The server had a problem. Try again.");
+  assert.equal(friendlyError(error), "Waypoint had a problem. Try again.");
 });
 
 test("an ApiError with a detail (4xx, a problem body) shows that detail as is", () => {
