@@ -2,7 +2,7 @@
 
 One page that answers "how far has this got, and what can I pick up". It is a map, not a record: the reasons live in the [development log](development-log.md), the detail in each issue's `WALKTHROUGH.md`, and the rules in [AGENTS.md](../../AGENTS.md).
 
-Last reviewed: 2026-10-02, against `dev` at `7442e5d` (pull request #70 merged).
+Last reviewed: 2026-10-06, against local `dev` at `301cdf2` (the unmerged branch reconciled, roadmap H-00 and H-04).
 
 **Keeping it true.** A pull request that changes a row's state updates that row in the same pull request, beside its development log entry. A row that disagrees with the code is a bug in this page: fix the row, do not work around it.
 
@@ -35,7 +35,6 @@ State words: **built** (merged to `dev` with tests), **partial** (merged, with n
 | Loading | #10 open | partial | Start, check, shortfall, hand back and release are built. Left: vehicle interchange, dispatcher handover, driver-assignment gating | [walkthrough](../issues/010-loading/WALKTHROUGH.md) |
 | Execution | #12 open | built; GPS positions (#161), pushed live over `positions/stream` with the travel heading (R-EXE-22, R-EXE-23) | A read for the last reported vehicle status. Virus scan. ETA through the #16 estimator once #16 has a travel-time method | [walkthrough](../issues/012-execution/WALKTHROUGH.md) |
 | Receipt and Issues | #13 closed | built; handover PIN (R-RCP-09) and issue photos added 2026-10-02 | Partial redelivery, shared with Ordering and Warehouse | [walkthrough](../issues/013-receipt-issues/WALKTHROUGH.md) |
-| Receipt and Issues | #13 closed | built | Partial redelivery, shared with Ordering and Warehouse | [walkthrough](../issues/013-receipt-issues/WALKTHROUGH.md) |
 | Sync | #15 closed, #28 closed | built | Batch ingest, acknowledge, discard and resolve (owner only, D-O), queue age and time to drain. Background Sync drains with or without a page open, except a loader queue, which waits for a page (A-39) | [walkthrough](../issues/028-offline-sync-followups/WALKTHROUGH.md) |
 | Notification | #14 open, #118 | built: backend, routing version 2 (R-NOT-10, R-NOT-11), facts kept with each message, the inbox in the dispatcher, loader, store and driver screens with a live badge and polling fallback, and phone and desktop push (switch in each role's settings; the service worker shows pushes) | Push works only where the server has VAPID keys (`PUSH_VAPID_PUBLIC_KEY`, `PUSH_VAPID_PRIVATE_KEY`), and says so otherwise; no admin API to publish a routing version; dock in `trip.released` (R-EXE-08) and next planned date in `order.deferred` wait on Loading and Planning | [walkthrough](../issues/118-notifications-inbox/WALKTHROUGH.md) |
 | Intelligence | #16 open | built (backend); Forecast screen built | The screens: late risk (#19), supply probability (#18), model registry (#22). The two models are not yet registered and activated on preview or production, so forecasts there are the fallback. No retraining pipeline (the training export is its input). Road conditions end 2026-06-28, so later dates use the fallback model. Execution ETA still has no travel-time method | [walkthrough](../issues/016-intelligence/WALKTHROUGH.md) |
