@@ -304,6 +304,7 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
             online={online}
             dark={d.dark}
             sender={d.postMessage}
+            motion={d.location.motion}
             onBack={() => setTalking(false)}
           />
         )}

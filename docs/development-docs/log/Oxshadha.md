@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-07 - feat: the driver's messages are covered while the vehicle moves (FF-04b)
+
+`dev` · @Oxshadha
+
+- R-EXE-28: while a trip is recorded and the vehicle moves (8 km/h or more over the last three readings), the Messages screen is covered and cannot be used; a draft waits underneath. With no location the driver taps "I have stopped" (2 minutes). Report problem is never covered.
+- A phone standing still that repeats its last location counts as stopped; one that goes quiet for 30 seconds is unknown.
+
+Why: Motor Traffic Act s.152A bans phone use while driving; [roadmap FF-04](../../roadmap/04-FIELD-FEATURES.md#ff-04-live-trip-channel).
+Verified: Node 353; build; browser shell 20, driver 38, loader 32, store 60, dispatcher 78. Backend unchanged.
+
 ## 2026-10-07 - feat: the trip's channel for the dispatcher and the stores still waiting (FF-04)
 
 `dev` · @Oxshadha

@@ -4,6 +4,7 @@ import { request } from "@shared/api/client";
 import { useResource } from "@shared/api/useResource";
 import { ExecutionCommandKind, type DemoView, type PositionPoint, type RecordPositionsPayload } from "@shared/domain/types";
 import { SAMPLE_MS, takeSample, travelBearing, type LatLon } from "@shared/ui/map/geo";
+import { FRESH_MS, motion as motionOf, type Motion, type MotionFix } from "./motion.ts";
 import { batches, toPoint } from "./points.ts";
 import type { DriverGateway } from "./gateway.ts";
 import type { TrailPoint } from "@shared/ui/map/trail";
@@ -90,6 +91,11 @@ export type PositionRecorder = {
    */
   simulate: ((to: LatLon) => void) | null;
   simulating: boolean;
+  /**
+   * Whether the vehicle is moving, for the gate on messages (R-EXE-28):
+   * "stopped" when no trip is being recorded, "unknown" with no recent fix.
+   */
+  motion: Motion;
 };
 
 export function usePositionRecorder(gateway: DriverGateway, vehicleId: string | null, tripId: string | null, active: boolean): PositionRecorder {
@@ -101,6 +107,9 @@ export function usePositionRecorder(gateway: DriverGateway, vehicleId: string | 
   const lastKept = useRef<number | null>(null);
   const latestFix = useRef<Fix | null>(null);
   const recent = useRef<LatLon[]>([]);
+  const fixes = useRef<MotionFix[]>([]);
+  const lastHeard = useRef<number | null>(null);
+  const [moving, setMoving] = useState<Motion>("unknown");
   const target = useRef({ vehicleId, tripId });
   target.current = { vehicleId, tripId };
 
@@ -145,6 +154,7 @@ export function usePositionRecorder(gateway: DriverGateway, vehicleId: string | 
     // The watch only remembers the newest fix; the five-second tick below decides what is kept.
     const heard = (pos: GeolocationPosition) => {
       setState("on");
+      lastHeard.current = Date.now();
       if (latestFix.current && pos.timestamp <= latestFix.current.at) return;
       latestFix.current = { coords: pos.coords, at: pos.timestamp };
       const where = { lat: pos.coords.latitude, lon: pos.coords.longitude };
@@ -164,6 +174,16 @@ export function usePositionRecorder(gateway: DriverGateway, vehicleId: string | 
       if (ask && (!latestFix.current || Date.now() - latestFix.current.at > SAMPLE_MS)) {
         navigator.geolocation.getCurrentPosition(heard, failed, { enableHighAccuracy: true, maximumAge: 0, timeout: SAMPLE_MS - 500 });
       }
+      // Where the phone says it is at each tick, as heard now: a phone standing
+      // still may repeat its last fix, which still says "not moving". When the
+      // phone has said nothing for a while, nothing is added and motion turns unknown.
+      const heardFix = latestFix.current;
+      const now = Date.now();
+      if (heardFix && lastHeard.current !== null && now - lastHeard.current <= FRESH_MS) {
+        const c = heardFix.coords;
+        fixes.current = [...fixes.current.slice(-5), { at: now, lat: c.latitude, lon: c.longitude, speedKmh: c.speed == null ? null : c.speed * 3.6 }];
+      }
+      setMoving(motionOf(fixes.current, now));
       const fix = latestFix.current;
       if (!fix || !takeSample(lastKept.current, fix.at, Date.now())) return;
       lastKept.current = fix.at;
@@ -190,6 +210,9 @@ export function usePositionRecorder(gateway: DriverGateway, vehicleId: string | 
       lastKept.current = null;
       latestFix.current = null;
       recent.current = [];
+      fixes.current = [];
+      lastHeard.current = null;
+      setMoving("unknown");
     };
   }, [active, answer, vehicleId, flush, flushMs, simulating]);
 
@@ -248,6 +271,7 @@ export function usePositionRecorder(gateway: DriverGateway, vehicleId: string | 
 
   return {
     state,
+    motion: !active ? "stopped" : simulating ? "moving" : state !== "on" ? "unknown" : moving,
     needsConsent: active && answer === null,
     here,
     trail,
