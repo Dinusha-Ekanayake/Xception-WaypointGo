@@ -1,6 +1,7 @@
 import type { Page, Route } from "@playwright/test";
 import type { PostMessagePayload } from "../../src/shared/domain/messaging.ts";
 import { postToThread, resolveInThread, threadRead, type ThreadMock } from "../thread-mocks.ts";
+import { nextRun } from "../../src/roles/dispatcher/data/scope.ts";
 import type { RunSheetStopView, RunSheetView } from "../../src/shared/domain/execution.ts";
 import type { ReadyTripView } from "../../src/shared/domain/loading.ts";
 import type { OrderStatus, OrderView } from "../../src/shared/domain/ordering.ts";
@@ -229,9 +230,10 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
     if (pathname === "/api/session") return route.fulfill(json(SESSION));
     if (pathname === "/api/reference/vehicles") return route.fulfill(json({ items: [vehicle("VEH043"), vehicle("VEH044")], nextCursor: null }));
     if (pathname === "/api/orders/day") {
-      // The desk's orders are today's; tomorrow's run (also on Current) has none unless a test adds them.
+      // The desk's orders wait for the run being planned, which is tomorrow's (scope.ts nextRun, R-ORD-01);
+      // today's run is already planned and on the road, and has none unless a test adds them.
       const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Colombo" }).format(new Date());
-      return route.fulfill(json(url.searchParams.get("date") === today ? desk.orders : []));
+      return route.fulfill(json(url.searchParams.get("date") === nextRun(today) ? desk.orders : []));
     }
     const byId = /^\/api\/orders\/(order-[^/]+)$/.exec(pathname);
     if (byId) {
