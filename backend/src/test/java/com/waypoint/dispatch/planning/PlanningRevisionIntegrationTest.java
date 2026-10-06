@@ -92,6 +92,32 @@ class PlanningRevisionIntegrationTest extends PlanningIntegrationSupport {
   }
 
   @Test
+  void aTripThatHasLeftTheDepotCannotBeChangedByARevision() throws Exception {
+    // R-PLN-44: Loading released the trip, so its truck is on the road.
+    demand("ambient");
+    demand("ambient");
+    UUID original = publishedPlan();
+    JsonNode trip = plan(original).get("trips").get(0);
+    UUID tripId = UUID.fromString(trip.get("tripId").asText());
+    deliver("planning.on-trip-released", new com.waypoint.dispatch.loading.contract.LoadingEvents.TripReleased(
+        tripId, original, 1, trip.get("vehicleId").asText(), depot, serviceDate, List.of()));
+
+    // A revision that leaves the released trip as it is publishes as before.
+    UUID nothing =
+        UUID.fromString(mapper.readTree(send(dispatcher, revise(original, 2L, "a second look"), 200)).get("result").get("planId").asText());
+    send(dispatcher, publish(nothing, 1L), 200);
+
+    // Moving the released trip to another vehicle is refused, naming the rule.
+    String replacement = spareTruck(nothing);
+    UUID revision = UUID.fromString(
+        mapper.readTree(send(dispatcher, replan(nothing, 2L, tripId, replacement, "tyre puncture"), 200)).get("result").get("planId").asText());
+    String refused = send(dispatcher, publish(revision, 1L), 409);
+    assertTrue(refused.contains("R-PLN-44"), refused);
+    assertTrue(refused.contains("already left the depot"), refused);
+    assertEquals("PUBLISHED", plan(nothing).get("status").asText(), "the plan on the road stays the published one");
+  }
+
+  @Test
   void replanningAPublishedTripMovesItWholeAndKeepsItsId() throws Exception {
     demand("ambient");
     demand("ambient");

@@ -3,6 +3,8 @@ package com.waypoint.dispatch.planning.application;
 import com.waypoint.dispatch.platform.db.Database;
 import com.waypoint.dispatch.planning.infrastructure.JdbcGenerationJobs;
 import com.waypoint.dispatch.loading.contract.LoadingEvents.InterchangeRequested;
+import com.waypoint.dispatch.loading.contract.LoadingEvents.TripReleased;
+import com.waypoint.dispatch.planning.infrastructure.JdbcReleasedTrips;
 import com.waypoint.dispatch.ordering.contract.OrderEvents.OrderAmended;
 import com.waypoint.dispatch.ordering.contract.OrderEvents.OrderCancelled;
 import com.waypoint.dispatch.ordering.contract.OrderEvents.OrderPlaced;
@@ -138,6 +140,38 @@ final class PlanningConsumers {
         metrics.increment("waypoint.plan.auto_generate_failed", "code", e.code().name());
         log.warn("No draft generated for {} on {}: {}", closed.depotCode(), closed.serviceDate(), e.getMessage());
       }
+    }
+  }
+
+  /**
+   * A truck left with this trip (R-PLN-44): Planning records it, so publishing a
+   * revision refuses to change a trip that is on the road. Applying it twice
+   * changes nothing.
+   */
+  @Component
+  static class OnTripReleased extends PlanningConsumer<TripReleased> {
+    private final JdbcReleasedTrips released;
+    private final Clock clock;
+
+    OnTripReleased(JdbcReleasedTrips released, Clock clock) {
+      this.released = released;
+      this.clock = clock;
+    }
+
+    @Override
+    public String consumerName() {
+      return "planning.on-trip-released";
+    }
+
+    @Override
+    public Class<TripReleased> eventType() {
+      return TripReleased.class;
+    }
+
+    @Override
+    public void on(EventEnvelope<TripReleased> envelope) {
+      TripReleased e = envelope.payload();
+      released.record(e.tripId(), e.planId(), e.depotCode(), e.serviceDate(), e.vehicleId(), clock.now());
     }
   }
 

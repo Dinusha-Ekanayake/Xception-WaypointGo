@@ -1,5 +1,7 @@
 package com.waypoint.dispatch.planning.application;
 
+import com.waypoint.dispatch.planning.domain.ReleasedTripFreeze;
+import com.waypoint.dispatch.planning.infrastructure.JdbcReleasedTrips;
 import com.waypoint.dispatch.planning.application.PlanningDrafts.Opened;
 import com.waypoint.dispatch.planning.contract.PlanEvents.OrderDeferred;
 import com.waypoint.dispatch.planning.contract.PlanEvents.OrderUnservable;
@@ -56,6 +58,7 @@ class PlanPublication {
   private final EventPublisher events;
   private final Metrics metrics;
   private final PlanDataQuery view;
+  private final JdbcReleasedTrips released;
 
   PlanPublication(
       PlanningDrafts drafts,
@@ -64,7 +67,8 @@ class PlanPublication {
       ConstraintRegistry registry,
       EventPublisher events,
       Metrics metrics,
-      PlanDataQuery view) {
+      PlanDataQuery view,
+      JdbcReleasedTrips released) {
     this.drafts = drafts;
     this.plans = plans;
     this.reference = reference;
@@ -72,6 +76,7 @@ class PlanPublication {
     this.events = events;
     this.metrics = metrics;
     this.view = view;
+    this.released = released;
   }
 
   Map<String, Object> publish(Actor actor, UUID planId, long expected, Instant now) {
@@ -115,6 +120,18 @@ class PlanPublication {
             "plan " + published.planId() + " is already published for " + row.depotCode() + " on "
                 + row.serviceDate() + "; revise it instead",
             List.of("R-PLN-28"));
+      }
+      // R-PLN-44: a revision never changes or removes a trip whose truck has left.
+      List<UUID> frozen = ReleasedTripFreeze.touched(
+          view.draftView(published), view.draftView(row), released.forDay(row.depotCode(), row.serviceDate()));
+      if (!frozen.isEmpty()) {
+        metrics.increment("waypoint.plan.publication_blocked", "rule", "R-PLN-44");
+        throw new DomainException(
+            ErrorCode.CONFLICT,
+            "this revision changes " + (frozen.size() == 1 ? "a trip that has" : frozen.size() + " trips that have")
+                + " already left the depot (" + frozen.stream().map(UUID::toString).collect(Collectors.joining(", "))
+                + "); a trip on the road cannot be changed",
+            List.of("R-PLN-44"));
       }
       plans.supersede(published.planId(), published.rowVersion(), now);
     } else if (row.supersedes().isPresent()) {
