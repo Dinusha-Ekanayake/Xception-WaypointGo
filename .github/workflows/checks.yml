@@ -124,6 +124,22 @@ jobs:
           echo "::error::Timed out waiting for the checks of $SHA on dev."
           exit 1
 
+  # A secret can land in any file, docs included, so this runs on every change
+  # and scans the whole history (about a second). Known safe findings, such as
+  # published test vectors, are listed with their reason in .gitleaksignore.
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Gitleaks over the full history
+        run: |
+          docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/gitleaks/gitleaks:v8.30.1 \
+            git . --log-opts="--all" --redact --no-banner --exit-code 1
+
   mcp:
     name: Read-only MCP checks
     needs: changes
