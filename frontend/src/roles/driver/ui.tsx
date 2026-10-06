@@ -165,6 +165,8 @@ export function DriverMorphHeader({
   onSignOut,
   onToggleTheme,
   isNight = false,
+  onMessages,
+  unreadMessages = 0,
 }: {
   activeScreen: "home" | "route-next-stop" | "route-map";
   /** Whether this phone is in step with the server, in words. */
@@ -268,6 +270,29 @@ export function DriverMorphHeader({
         </div>
 
         {/* Messages on the trip's thread, with the count of new ones (issue #136). */}
+        {onMessages && (
+          <button
+            type="button"
+            onClick={onMessages}
+            className={cx(
+              "relative w-[43px] h-[43px] rounded-full flex items-center justify-center border shadow-[0_5px_20px_rgba(0,0,0,0.09)] active:scale-95 transition-all shrink-0",
+              isNight
+                ? "bg-[#292929] border-[#383838] text-white hover:bg-[#333333]"
+                : "bg-white border-[#dfe7e6] text-black hover:bg-slate-50"
+            )}
+            title="Messages"
+            aria-label={unreadMessages ? `Messages, ${unreadMessages} new` : "Messages"}
+          >
+            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.9A8 8 0 1 1 21 12Z" />
+            </svg>
+            {unreadMessages ? (
+              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[#e5484d] text-white text-[11px] font-semibold leading-[18px] text-center" aria-hidden>
+                {unreadMessages > 9 ? "9+" : unreadMessages}
+              </span>
+            ) : null}
+          </button>
+        )}
         {/* 3. Theme toggle button - strictly stationary, NO slide, NO scale */}
         <button
           type="button"

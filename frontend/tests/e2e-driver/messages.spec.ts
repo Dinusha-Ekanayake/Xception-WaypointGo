@@ -100,7 +100,8 @@ test("a voice message under the driver's notifications plays the voice itself, n
 
   const note = page.getByRole("group", { name: /^Voice message from/ });
   await expect(note).toBeVisible();
-  await expect(note.locator("[role=slider] > span")).toHaveCount(4);
+  // No waveform bars: the play button fills as it plays and the words sit where
+  // the waveform was (field UI polish, 2026-10-04).
   await note.getByRole("button", { name: "Play", exact: true }).click();
   await expect(note.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
   // The position moves with the audio, then rests at the start when it ends.
