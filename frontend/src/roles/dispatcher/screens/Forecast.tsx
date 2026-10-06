@@ -7,6 +7,7 @@ import Refusal from "./Refusal.tsx";
 import ForecastChart, { seriesColour } from "./ForecastChart.tsx";
 import ForecastRuns from "./ForecastRuns.tsx";
 import { DayNeeds, ForecastActions } from "./ForecastSide.tsx";
+import { ForecastDecisions } from "./ForecastDecisions.tsx";
 import {
   WEEKS,
   actions,
@@ -139,6 +140,7 @@ export default function Forecast({
             <div className="flex min-w-[300px] flex-col gap-5 lg:max-w-[380px]">
               <DayNeeds rows={dayNeeds(weeks)} />
               <ForecastActions actions={actions(weeks)} />
+              <ForecastDecisions depots={depots} weeks={weeks} />
             </div>
           </div>
         </>

@@ -296,24 +296,27 @@ class IntelligenceIntegrationTest {
             .atStartOfDay(com.waypoint.dispatch.shared.util.Clock.OPERATING_ZONE),
         nextRun,
         "a model run this week means the next one is Monday's first hour (P-29)");
-    BigDecimal reeferM3PerDay = BigDecimal.ZERO;
-    BigDecimal fleetM3PerDay = BigDecimal.ZERO;
-    for (var v : reference.vehiclesOfDepot(depot, null)) {
-      fleetM3PerDay = fleetM3PerDay.add(v.volumeCapM3().multiply(BigDecimal.valueOf(2)));
-      if (v.refrigerated()) {
-        reeferM3PerDay = reeferM3PerDay.add(v.volumeCapM3().multiply(BigDecimal.valueOf(2)));
-      }
-    }
     for (JsonNode w : o.get("weeks")) {
+      // Each operating day's own fleet, twice a day (A-40, T2-01): a vehicle another
+      // test booked into the workshop is not counted on that day.
+      java.time.LocalDate start = java.time.LocalDate.parse(w.get("weekStart").asText());
+      BigDecimal fleetM3 = BigDecimal.ZERO;
+      BigDecimal reeferM3 = BigDecimal.ZERO;
+      for (var day : reference.calendarDays(start, start.plusDays(6))) {
+        if (!day.operating()) continue;
+        for (var v : reference.availableVehicles(depot, day.date(), null)) {
+          fleetM3 = fleetM3.add(v.volumeCapM3().multiply(BigDecimal.valueOf(2)));
+          if (v.refrigerated()) reeferM3 = reeferM3.add(v.volumeCapM3().multiply(BigDecimal.valueOf(2)));
+        }
+      }
       assertEquals(reference.brandCodes().size(), w.get("brands").size());
       assertEquals(10.5 * reference.brandCodes().size(), w.get("totalM3").asDouble(), 1e-9);
       assertEquals(2.25, w.get("chilledM3").asDouble(), 1e-9, "only Fresh has chilled demand");
       int days = w.get("operatingDays").asInt();
       assertTrue(days >= 0 && days <= 7);
-      assertEquals(fleetM3PerDay.multiply(BigDecimal.valueOf(days)).doubleValue(),
-          w.at("/capacity/fleetM3").asDouble(), 1e-6, "A-40: the fleet twice a day on each operating day");
-      assertEquals(reeferM3PerDay.multiply(BigDecimal.valueOf(days)).doubleValue(),
-          w.at("/capacity/refrigeratedM3").asDouble(), 1e-6);
+      assertEquals(fleetM3.doubleValue(), w.at("/capacity/fleetM3").asDouble(), 1e-6,
+          "A-40: each day's own fleet twice a day on each operating day");
+      assertEquals(reeferM3.doubleValue(), w.at("/capacity/refrigeratedM3").asDouble(), 1e-6);
     }
   }
 
@@ -350,6 +353,38 @@ class IntelligenceIntegrationTest {
     read(outsider, "/api/ml/forecast/overview?depot=" + depot, 403);
 
     assertEquals(before + 1, denials(strangerId, "ml:Read"));
+  }
+
+  @Test
+  void aCapacityDecisionIsRecordedWithWhoAndWhyAndOnlyInScope() throws Exception {
+    // Roadmap T2-01: the dispatcher records what they decided about a short week.
+    java.time.LocalDate next = java.time.LocalDate.now(com.waypoint.dispatch.shared.util.Clock.OPERATING_ZONE).plusWeeks(2);
+    int year = next.get(java.time.temporal.IsoFields.WEEK_BASED_YEAR);
+    int week = next.get(java.time.temporal.IsoFields.WEEK_OF_WEEK_BASED_YEAR);
+    String hire = "{\"depotCode\":\"" + depot + "\",\"isoYear\":" + year + ",\"isoWeek\":" + week
+        + ",\"action\":\"HIRE_VEHICLES\",\"vehicles\":2,\"refrigerated\":true,\"reason\":\"Festival week, five reefers in service\"}";
+    send(dispatcher, envelope("ml:RecordCapacityDecision", null, hire), 200);
+
+    JsonNode decisions = read(dispatcher, "/api/ml/capacity/decisions?depot=" + depot, 200);
+    JsonNode d = decisions.get(0);
+    assertEquals("HIRE_VEHICLES", d.get("action").asText());
+    assertEquals(2, d.get("vehicles").asInt());
+    assertTrue(d.get("refrigerated").asBoolean());
+    assertEquals(week, d.get("isoWeek").asInt());
+    assertEquals("Festival week, five reefers in service", d.get("reason").asText());
+    assertFalse(d.get("decidedBy").isNull(), "who decided is recorded (rule 8)");
+
+    // A reason is required, and hiring names how many vehicles.
+    send(dispatcher, envelope("ml:RecordCapacityDecision", null, hire.replace("Festival week, five reefers in service", "")), 422);
+    send(dispatcher, envelope("ml:RecordCapacityDecision", null, hire.replace(",\"vehicles\":2", "")), 422);
+
+    // A depot outside the dispatcher's scope is refused and recorded as a denial.
+    UUID strangerId = accounts.createAccount("mlc-" + run + "@intelligence.test", "mlc", PASSWORD, "dispatcher");
+    Cookie outsider = session("mlc-" + run);
+    long before = denials(strangerId, "ml:RecordCapacityDecision");
+    send(outsider, envelope("ml:RecordCapacityDecision", null, hire), 403);
+    assertEquals(before + 1, denials(strangerId, "ml:RecordCapacityDecision"));
+    read(outsider, "/api/ml/capacity/decisions?depot=" + depot, 403);
   }
 
   @Test

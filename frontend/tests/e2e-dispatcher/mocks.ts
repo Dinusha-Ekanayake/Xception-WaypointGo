@@ -102,6 +102,8 @@ export type Desk = {
   predictions?: unknown;
   /** What /api/ml/forecast/overview answers for the depot. */
   forecast: ForecastOverviewView;
+  /** Capacity decisions recorded on short weeks (roadmap T2-01), newest first. */
+  capacityDecisions?: Array<Record<string, unknown>>;
   /** Saved plans, newest first, and the plan each one holds. */
   snapshots: SnapshotView[];
   savedPlans: Record<string, PlanView>;
@@ -144,6 +146,14 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
   const apply = (command: Sent) => {
     const { payload } = command;
     if (command.kind.startsWith("issue:")) return applyIssue(desk, command);
+    if (command.kind === "ml:RecordCapacityDecision") {
+      const decisionId = `cap-${(desk.capacityDecisions ?? []).length + 1}`;
+      desk.capacityDecisions = [
+        { decisionId, ...payload, vehicles: payload.vehicles ?? null, decidedBy: SESSION.userId, decidedAt: new Date().toISOString() },
+        ...(desk.capacityDecisions ?? []),
+      ];
+      return { decisionId };
+    }
     if (command.kind === "message:Resolve") {
       return resolveInThread(desk.threads ?? [], payload as unknown as { messageId: string; note?: string }, SESSION.displayName, new Date().toISOString());
     }
@@ -314,6 +324,7 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
         { name: "datathon-task2a", version: "2026.1", kind: "demand_forecast", status: "ACTIVE", metrics: { total_wape: "0.0415", chilled_wape: "0.0439" } },
       ]));
     }
+    if (pathname === "/api/ml/capacity/decisions") return route.fulfill(json(desk.capacityDecisions ?? []));
     if (pathname === "/api/ml/forecast/overview") {
       const weeks = Number(url.searchParams.get("weeks") ?? "10");
       return route.fulfill(json({ ...desk.forecast, weeks: desk.forecast.weeks.slice(0, weeks) }));

@@ -96,3 +96,25 @@ test("with the fleet far above demand the bars follow demand and the fleet is st
   await expect(chart).toContainText("Capacity 2,490 m³/wk · 9 vehicles");
   await expect(chart).toContainText("2 of 9");
 });
+
+test("a decision about a short week is recorded with its reason and listed (roadmap T2-01)", async ({ page }) => {
+  const desk = await serve(page);
+  await page.goto("/#/forecast");
+
+  const card = page.getByRole("region", { name: "Decisions" });
+  await expect(card).toContainText("No decisions recorded for the weeks ahead.");
+  await card.getByRole("button", { name: "Record a decision" }).click();
+
+  const form = card.getByRole("form", { name: "Record a decision" });
+  await form.getByLabel("Week").selectOption({ index: 1 });
+  await form.getByLabel("How many vehicles").fill("2");
+  // Without a reason nothing can be recorded (rule 8).
+  await expect(form.getByRole("button", { name: "Record" })).toBeDisabled();
+  await form.getByLabel("Why").fill("Five reefers in service before Poson");
+  await form.getByRole("button", { name: "Record" }).click();
+
+  await expect(card).toContainText("Hire 2 refrigerated vehicles · week");
+  await expect(card).toContainText("Five reefers in service before Poson");
+  const sent = desk.commands.find((c) => c.kind === "ml:RecordCapacityDecision");
+  expect(sent).toMatchObject({ expectedVersion: null, payload: { action: "HIRE_VEHICLES", vehicles: 2, refrigerated: true } });
+});

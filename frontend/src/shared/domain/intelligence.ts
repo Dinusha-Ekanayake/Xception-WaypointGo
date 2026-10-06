@@ -150,3 +150,31 @@ export type ForecastOverviewView = {
   /** When the forecast job next runs, as things stand (P-29): hourly in depot time, only when a run is owed. */
   nextRunAt: IsoInstant;
 };
+
+/** Roadmap T2-01: what the dispatcher decided about a week the capacity plan shows short. */
+export type CapacityAction = "HIRE_VEHICLES" | "MOVE_WORKSHOP" | "ADVISE_STORES" | "ACCEPT_SHORTFALL" | "OTHER";
+
+/** Append only: a change of mind is a second decision, so the trail keeps both. */
+export type CapacityDecisionView = {
+  decisionId: Uuid;
+  depotCode: string;
+  isoYear: number;
+  isoWeek: number;
+  action: CapacityAction;
+  vehicles: number | null;
+  refrigerated: boolean;
+  reason: string;
+  decidedBy: Uuid;
+  decidedAt: IsoInstant;
+};
+
+/** ml:RecordCapacityDecision. vehicles is required for HIRE_VEHICLES; reason is 3 to 500 characters. */
+export type RecordCapacityDecision = {
+  depotCode: string;
+  isoYear: number;
+  isoWeek: number;
+  action: CapacityAction;
+  vehicles?: number;
+  refrigerated: boolean;
+  reason: string;
+};

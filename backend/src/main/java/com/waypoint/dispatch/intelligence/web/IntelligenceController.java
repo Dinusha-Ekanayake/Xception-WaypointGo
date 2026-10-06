@@ -1,6 +1,8 @@
 package com.waypoint.dispatch.intelligence.web;
 
 import com.waypoint.dispatch.intelligence.application.AttentionQuery;
+import com.waypoint.dispatch.intelligence.application.CapacityDecisionQuery;
+import com.waypoint.dispatch.intelligence.contract.CapacityViews.CapacityDecisionView;
 import com.waypoint.dispatch.intelligence.application.DateOutlookQuery;
 import com.waypoint.dispatch.intelligence.application.IntelligenceDataQuery;
 import com.waypoint.dispatch.intelligence.contract.AttentionViews.AttentionBoardView;
@@ -41,16 +43,19 @@ public class IntelligenceController {
   private final IntelligenceDataQuery intelligence;
   private final DateOutlookQuery outlook;
   private final AttentionQuery attention;
+  private final CapacityDecisionQuery capacityDecisions;
   private final RequestAuthorizer authorizer;
 
   public IntelligenceController(
       IntelligenceDataQuery intelligence,
       DateOutlookQuery outlook,
       AttentionQuery attention,
+      CapacityDecisionQuery capacityDecisions,
       RequestAuthorizer authorizer) {
     this.intelligence = intelligence;
     this.outlook = outlook;
     this.attention = attention;
+    this.capacityDecisions = capacityDecisions;
     this.authorizer = authorizer;
   }
 
@@ -64,6 +69,12 @@ public class IntelligenceController {
       @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
       HttpServletRequest request) {
     return attention.board(read(request, "wpt:ml:attention:" + depot), depot, date);
+  }
+
+  /** What the dispatcher decided about short weeks from this week on (roadmap T2-01), under the forecast's read. */
+  @GetMapping("/capacity/decisions")
+  public List<CapacityDecisionView> capacityDecisions(@RequestParam String depot, HttpServletRequest request) {
+    return capacityDecisions.fromThisWeek(read(request, "wpt:ml:forecast:" + depot), depot);
   }
 
   @GetMapping("/models")
