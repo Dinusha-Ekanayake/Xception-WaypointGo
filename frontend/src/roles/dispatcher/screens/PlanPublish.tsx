@@ -3,9 +3,9 @@
 import { useState } from "react";
 import type { OrderView, PlanView } from "@shared/domain/types";
 import { PrimaryButton, SecondaryButton, cx } from "@shared/ui";
-import { clock, dayLabel, ruleLabel } from "@shared/wording";
+import { clock, dayLabel, hhmm, ruleLabel } from "@shared/wording";
 import { leftOutLine, type PlanSummary, type Working } from "../data/plan.ts";
-import { daysBetween, publishBlocker, type DecisionRow } from "../data/planViews.ts";
+import { SLACK_TIGHT_MINUTES, SLACK_WATCH_MINUTES, daysBetween, publishBlocker, slackLabel, tightStops, type DecisionRow } from "../data/planViews.ts";
 import { useComparison } from "../data/usePlanReads.ts";
 import PublishAudience from "./PublishAudience.tsx";
 import ReasonPicker, { reasonReady } from "./ReasonPicker.tsx";
@@ -17,7 +17,9 @@ import ReasonPicker, { reasonReady } from "./ReasonPicker.tsx";
 // the draft was made, it refuses and names every reason (PLN-07, PLN-14). A
 // published plan is immutable; changing it starts a revision, and sending that
 // revision tells only the drivers and stores it changes (R-NOT-12). The step
-// bar holds the button; this is what it will do.
+// bar holds the button; this is what it will do. Before publishing it also
+// names the stops with little time before their window closes (T1-01), so a
+// dispatcher can look at them while the plan can still change; it never blocks.
 
 const WAITING_DAYS = 3;
 
@@ -67,6 +69,7 @@ export default function PlanPublish({
   onDecide: (orderId: string) => void;
 }): React.JSX.Element {
   const [showAll, setShowAll] = useState(false);
+  const [showTight, setShowTight] = useState(false);
   const blocker = publishBlocker(rows);
   const blocked = state.stage === "draft" && blocker.open > 0;
   const revises = state.stage === "draft" ? state.revises : null;
@@ -77,6 +80,8 @@ export default function PlanPublish({
   const changes = useComparison(revises ? revises.planId : null, revises ? plan.planId : null);
   const told = changes.data ? changes.data.changedTrips.length : null;
   const published = state.stage === "published";
+  const tight = state.stage === "draft" ? tightStops(plan) : [];
+  const tightChilled = tight.filter((t) => t.trip.temperature === "chilled").length;
   const outletCount = new Set(deferred.map((a) => orders.get(a.orderId)?.outletId).filter(Boolean)).size;
 
   const headline = published
@@ -92,7 +97,7 @@ export default function PlanPublish({
     ? "Sent · you can still edit and publish again"
     : blocked
       ? `${blocker.open} ${blocker.open === 1 ? "order still needs" : "orders still need"} a decision`
-      : "The server checks every rule again when you publish";
+      : "Every rule is checked again when you publish";
 
   return (
     <div className="flex w-full gap-[18px] max-lg:flex-col">
@@ -152,6 +157,25 @@ export default function PlanPublish({
               note={`${waiting.map((a) => orders.get(a.orderId)?.outletId ?? "").filter(Boolean).join(", ")} · the store manager is told the reason`}
               action={!published ? { label: "Review", onClick: () => onDecide(waiting[0]!.orderId) } : undefined}
             />
+          )}
+          {tight.length > 0 && (
+            <Row
+              tone={tight.some((t) => t.slack.tone === "high") ? "danger" : "warning"}
+              title={`${tight.length} ${tight.length === 1 ? "stop has" : "stops have"} under ${SLACK_WATCH_MINUTES} min before the window closes`}
+              note={`${tightChilled ? `${tightChilled} chilled · ` : ""}under ${SLACK_TIGHT_MINUTES} min shown red · from the planned times, publishing is not blocked`}
+              action={{ label: showTight ? "Hide" : "Show", onClick: () => setShowTight((v) => !v) }}
+            />
+          )}
+          {showTight && tight.length > 0 && (
+            <li aria-label="Tight stops" className="flex flex-col pb-2 pl-11">
+              {tight.map(({ trip, stop, slack }) => (
+                <p key={stop.orderId} className="flex flex-wrap gap-x-3 border-t border-go-rule py-1.5 text-xs text-go-ink">
+                  <span className="w-[100px] font-medium">{stop.outletId}</span>
+                  <span className="flex-1 text-go-secondary">{`${trip.vehicleId} Trip ${trip.tripNumber} · ${trip.temperature === "chilled" ? "Chilled" : "Ambient"} · arrives ${hhmm(stop.plannedArrival)}, closes ${hhmm(stop.windowClose)}`}</span>
+                  <span className={slack.tone === "high" ? "text-go-danger-strong" : "text-go-warning-text"}>{slackLabel(slack)}</span>
+                </p>
+              ))}
+            </li>
           )}
           {revises && (
             <Row

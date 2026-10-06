@@ -16,10 +16,17 @@ import {
   largestVehicleM3,
   lastServedText,
   lateRisk,
+  minutesOfDay,
   riskLabel,
   riskTone,
   scoredByEstimate,
+  slackByStop,
+  slackByTrip,
+  slackLabel,
   stopRisks,
+  stopSlack,
+  tightStops,
+  tightTrips,
   tripRisks,
   lowLoad,
   publishBlocker,
@@ -232,4 +239,38 @@ test("every rule the engine names reads as words, never as a code", () => {
   }
   assert.equal(ruleLabel("R-NOPE-99"), "Another rule", "an unknown rule is not shown raw");
   assert.equal(ruleLabel(null), "");
+});
+
+// ---- time to spare before a window closes (roadmap T1-01) ---------------------
+
+test("a stop's spare time is the minutes from planned arrival to window close, toned at 30 and 15", () => {
+  const at = (plannedArrival: string, windowClose: string) => ({ plannedArrival, windowClose });
+  assert.deepEqual(stopSlack(at("04:10:00", "08:00:00")), { minutes: 230, tone: "low" });
+  assert.deepEqual(stopSlack(at("07:31:00", "08:00:00")), { minutes: 29, tone: "watch" });
+  assert.deepEqual(stopSlack(at("07:45:00", "08:00:00")), { minutes: 15, tone: "watch" });
+  assert.deepEqual(stopSlack(at("07:46:00", "08:00:00")), { minutes: 14, tone: "high" });
+  assert.deepEqual(stopSlack(at("08:05:00", "08:00:00")), { minutes: -5, tone: "high" });
+  assert.equal(stopSlack(at("04:10:00", "")), null);
+  assert.equal(minutesOfDay("23:59"), 1439);
+});
+
+test("a trip has as little to spare as its tightest stop, and the tight stops list chilled first", () => {
+  const s = (orderId: string, arrival: string, close: string): StopView => ({ ...stop(orderId, `OUT-${orderId}`, 1), plannedArrival: arrival, windowClose: close });
+  const p = plan(
+    [
+      trip("t-amb", "VEH001", 1, "5", { temperature: "ambient", stops: [s("a", "06:00:00", "06:10:00")] }),
+      trip("t-chl", "VEH002", 1, "5", { stops: [s("b", "04:00:00", "08:00:00"), s("c", "07:40:00", "08:00:00")] }),
+    ],
+    [],
+  );
+  assert.deepEqual(slackByTrip(p).get("t-chl"), { minutes: 20, tone: "watch" });
+  assert.equal(slackByStop(p).get("b")?.minutes, 240);
+  assert.deepEqual(tightStops(p).map((t) => t.stop.orderId), ["c", "a"]);
+  assert.deepEqual(tightTrips(p), { tight: 1, watch: 1 });
+});
+
+test("spare time reads in plain words", () => {
+  assert.equal(slackLabel({ minutes: 12, tone: "high" }), "12 min to spare");
+  assert.equal(slackLabel({ minutes: 0, tone: "high" }), "No time to spare");
+  assert.equal(slackLabel({ minutes: -5, tone: "high" }), "Past the window by 5 min");
 });

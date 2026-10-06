@@ -4,6 +4,19 @@
 
 ---
 
+## 2026-10-06 - feat: tight windows shown before a plan is published (T1-01)
+
+`dev` · @Oxshadha
+
+- A draft plan shows each stop's minutes between planned arrival and window close: amber under 30, red under 15, on the board, the open trip and the Publish step, which lists the tight stops (chilled first) and never blocks.
+- Read from the plan's own times, no model call; once the published plan is scored the model's late risk takes its place.
+- The Publish step no longer says "server".
+
+Why: the dispatcher needs to see lateness risk while the plan can still change; the model only scores a published plan ([02](../../roadmap/02-FOUNDATION-FIXES.md)).
+Verified: Node 321, typecheck, build, dispatcher browser suite 76.
+
+---
+
 ## 2026-10-06 - feat: Phase 1.5 (F-09a, MF-01, T2-01), store cutoff wording, Task 2B policy
 
 `dev` · @Oxshadha

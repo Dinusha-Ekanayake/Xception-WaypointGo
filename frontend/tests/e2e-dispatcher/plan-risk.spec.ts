@@ -47,6 +47,33 @@ test("a draft is not scored and shows no risk figures, never 0%", async ({ page 
   await serve(page, { draft: draftPlan(1) });
   await viewPlan(page);
 
-  await expect(page.getByText("A draft is scored once it is published")).toBeVisible();
+  await expect(page.getByText("Tight windows")).toBeVisible();
   await expect(page.getByText(/^Late( risk)? \d+%/)).toHaveCount(0);
+});
+
+// Roadmap T1-01: before publishing, the minutes each stop has before its window
+// closes, read from the plan's own times, on the board, the trip and the Publish step.
+test("a draft names the stops with little time before their window closes, before it is published", async ({ page }) => {
+  const draft = draftPlan(1);
+  const stops = draft.trips[0]!.stops;
+  stops[0] = { ...stops[0]!, windowClose: "04:20:00" };
+  stops[1] = { ...stops[1]!, windowClose: "05:35:00" };
+  await serve(page, { draft });
+  await viewPlan(page);
+
+  await expect(page.getByText("1 trip", { exact: true })).toBeVisible();
+  const board = page.getByRole("region", { name: "Trips by vehicle" });
+  await expect(board.getByText("10 min to spare")).toBeVisible();
+  await board.getByRole("button", { name: /trip 1:/ }).first().click();
+  const list = page.getByRole("list", { name: "Stops in order" });
+  await expect(list.getByText("10 min to spare")).toBeVisible();
+  await expect(list.getByText("25 min to spare")).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await page.getByRole("tab", { name: /Publish/ }).click();
+  await expect(page.getByText("2 stops have under 30 min before the window closes")).toBeVisible();
+  await page.getByRole("button", { name: "Show ›" }).click();
+  const tight = page.getByRole("listitem", { name: "Tight stops" });
+  await expect(tight.getByText("OUT051")).toBeVisible();
+  await expect(tight.getByText(/arrives 04:10, closes 04:20/)).toBeVisible();
 });

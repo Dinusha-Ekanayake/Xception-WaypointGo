@@ -293,8 +293,8 @@ test("the board marks a tight trip, filters by temperature and labels a free tri
   await page.getByRole("tab", { name: /View plan/ }).click();
 
   await expect(page.getByText("Free · refrigerated").first()).toBeVisible();
-  await expect(page.getByText("Late risk")).toBeVisible();
-  await expect(page.getByText("A draft is scored once it is published")).toBeVisible();
+  await expect(page.getByText("Tight windows")).toBeVisible();
+  await expect(page.getByText(/from the planned times/)).toBeVisible();
   await page.getByRole("button", { name: "Filter" }).click();
   await page.getByRole("menuitem", { name: "Ambient" }).click();
   await expect(page.getByText("No trip matches this filter.")).toBeVisible();

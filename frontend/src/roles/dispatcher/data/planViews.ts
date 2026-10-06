@@ -1,4 +1,4 @@
-import type { AllocationView, ConstraintResultView, OrderView, PlanPredictionsView, PlanView, TripView, VehicleView } from "@shared/domain/types";
+import type { AllocationView, ConstraintResultView, OrderView, PlanPredictionsView, PlanView, StopView, TripView, VehicleView } from "@shared/domain/types";
 import type { VehicleRow } from "./plan.ts";
 import { TIGHT_PERCENT, percent } from "./plan.ts";
 
@@ -258,3 +258,96 @@ export function riskLabel(risk: StopRisk, lead = "Late"): string {
 /** True when any stop was scored by the deterministic estimate rather than the model. */
 export const scoredByEstimate = (predictions: PlanPredictionsView): boolean =>
   predictions.scoring.status === "DEGRADED" || predictions.stops.some((stop) => stop.degraded);
+
+// ---- time to spare before a window closes (roadmap T1-01) --------------------
+//
+// A draft is never scored by the time predictor, so before publishing the
+// screen reads the plan's own times: how long after each planned arrival the
+// stop's window closes. It is arithmetic on the plan, not a prediction, so it
+// is never labelled an estimate. Once the plan is published and scored, the
+// predictor's chance of running late is shown instead where it exists.
+
+/** Under this many minutes between planned arrival and window close a stop is tight: red. */
+export const SLACK_TIGHT_MINUTES = 15;
+/** Under this many minutes it is worth a look: amber. */
+export const SLACK_WATCH_MINUTES = 30;
+
+export type Slack = { minutes: number; tone: RiskTone };
+
+/** Minutes after midnight of "HH:MM" or "HH:MM:SS"; null for an empty or unreadable time. */
+export function minutesOfDay(time: string | null | undefined): number | null {
+  const match = /^(\d{1,2}):(\d{2})/.exec(time ?? "");
+  if (!match) return null;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+export function slackTone(minutes: number): RiskTone {
+  return minutes < SLACK_TIGHT_MINUTES ? "high" : minutes < SLACK_WATCH_MINUTES ? "watch" : "low";
+}
+
+/** The minutes a stop has to spare before its window closes; null when it has no window. */
+export function stopSlack(stop: Pick<StopView, "plannedArrival" | "windowClose">): Slack | null {
+  const arrival = minutesOfDay(stop.plannedArrival);
+  const close = minutesOfDay(stop.windowClose);
+  if (arrival === null || close === null) return null;
+  const minutes = close - arrival;
+  return { minutes, tone: slackTone(minutes) };
+}
+
+/** Each stop's spare time, keyed by order id. */
+export function slackByStop(plan: PlanView): Map<string, Slack> {
+  const out = new Map<string, Slack>();
+  for (const trip of plan.trips) {
+    for (const stop of trip.stops) {
+      const slack = stopSlack(stop);
+      if (slack) out.set(stop.orderId, slack);
+    }
+  }
+  return out;
+}
+
+/** Each trip's tightest stop, keyed by trip id: a trip has as little to spare as its tightest stop. */
+export function slackByTrip(plan: PlanView): Map<string, Slack> {
+  const out = new Map<string, Slack>();
+  for (const trip of plan.trips) {
+    for (const stop of trip.stops) {
+      const slack = stopSlack(stop);
+      const seen = out.get(trip.tripId);
+      if (slack && (!seen || slack.minutes < seen.minutes)) out.set(trip.tripId, slack);
+    }
+  }
+  return out;
+}
+
+export type TightStop = { trip: TripView; stop: StopView; slack: Slack };
+
+/** Stops under {@link SLACK_WATCH_MINUTES} to spare, chilled first, then the tightest first. */
+export function tightStops(plan: PlanView): TightStop[] {
+  const out: TightStop[] = [];
+  for (const trip of plan.trips) {
+    for (const stop of trip.stops) {
+      const slack = stopSlack(stop);
+      if (slack && slack.tone !== "low") out.push({ trip, stop, slack });
+    }
+  }
+  const chilled = (t: TightStop) => (t.trip.temperature === "chilled" ? 0 : 1);
+  return out.sort((a, b) => chilled(a) - chilled(b) || a.slack.minutes - b.slack.minutes || a.stop.outletId.localeCompare(b.stop.outletId));
+}
+
+/** Trips by their tightest stop, for the board's card. */
+export function tightTrips(plan: PlanView): { tight: number; watch: number } {
+  let tight = 0;
+  let watch = 0;
+  for (const slack of slackByTrip(plan).values()) {
+    if (slack.tone === "high") tight += 1;
+    else if (slack.tone === "watch") watch += 1;
+  }
+  return { tight, watch };
+}
+
+/** "12 min to spare", "No time to spare", or "Past the window by 5 min" when the plan already arrives after it closes. */
+export function slackLabel(slack: Slack): string {
+  if (slack.minutes < 0) return `Past the window by ${-slack.minutes} min`;
+  if (slack.minutes === 0) return "No time to spare";
+  return `${slack.minutes} min to spare`;
+}

@@ -17,9 +17,14 @@ import {
   riskLabel,
   riskTone,
   scoredByEstimate,
+  slackByStop,
+  slackByTrip,
+  slackLabel,
   stopRisks,
+  tightTrips,
   tripMatches,
   tripRisks,
+  type Slack,
   type StopRisk,
   type BoardFilter as Filter,
 } from "../data/planViews.ts";
@@ -31,8 +36,9 @@ import PlanTrip from "./PlanTrip.tsx";
 
 // Figma "Plan · 2 View plan": what the day adds up to, the orders it leaves out,
 // every vehicle's two trips side by side, and one trip opened beside them with
-// its timeline. Late risk is read from the scoring of a published plan; a draft
-// is never scored, and the card says so instead of showing a zero.
+// its timeline. Late risk is read from the scoring of a published plan. A draft
+// is never scored, so before publishing the board reads the plan's own times
+// instead: how many minutes each stop has before its window closes (T1-01).
 
 export default function PlanBoard({
   about = [],
@@ -70,6 +76,9 @@ export default function PlanBoard({
   const trips = useMemo(() => (predictions.data ? tripRisks(predictions.data) : null), [predictions.data]);
   const stops = useMemo(() => (predictions.data ? stopRisks(predictions.data) : null), [predictions.data]);
   const estimate = predictions.data ? scoredByEstimate(predictions.data) : false;
+  const tripSlack = useMemo(() => slackByTrip(plan), [plan]);
+  const stopSlack = useMemo(() => slackByStop(plan), [plan]);
+  const tight = useMemo(() => tightTrips(plan), [plan]);
   const shown = useMemo(() => filterBoard(rows, filter), [rows, filter]);
   const loads = rows.flatMap((row) => row.trips).filter((load): load is TripLoad => load !== null);
   // A trip's details open in a drawer on a click; the board keeps the full width.
@@ -93,13 +102,17 @@ export default function PlanBoard({
           value={low.trips}
           note={low.trips > 0 ? `${low.trips === 1 ? "trip" : "trips"} · ${low.spareM3} m³ spare` : "trips · none to merge"}
         />
-        <Kpi
-          label="Late risk"
-          tag={risk ? "over 35% chance" : undefined}
-          tone="danger"
-          value={risk ? `${risk.high} high` : "Not scored"}
-          note={risk ? `${risk.low} low${estimate ? " · estimated" : ""}` : published ? (predictions.loading ? "Reading the scoring…" : "The time predictor has not scored this plan") : "A draft is scored once it is published"}
-        />
+        {risk ? (
+          <Kpi label="Late risk" tag="over 35% chance" tone="danger" value={`${risk.high} high`} note={`${risk.low} low${estimate ? " · estimated" : ""}`} />
+        ) : (
+          <Kpi
+            label="Tight windows"
+            tag="under 15 min to spare"
+            tone="danger"
+            value={`${tight.tight} ${tight.tight === 1 ? "trip" : "trips"}`}
+            note={`${tight.watch} under 30 min · ${published && predictions.loading ? "reading the late risk…" : "from the planned times"}`}
+          />
+        )}
       </div>
 
       <div className="flex min-h-0 w-full flex-1 gap-[18px] max-lg:flex-col">
@@ -154,6 +167,7 @@ export default function PlanBoard({
                               load={load}
                               added={addedByHand(plan, load.trip)}
                               risk={trips?.get(load.trip.tripId)}
+                              slack={tripSlack.get(load.trip.tripId)}
                               dim={!tripMatches(load.trip, filter)}
                               active={open?.trip.tripId === load.trip.tripId}
                               onOpen={() => setOpenId(load.trip.tripId)}
@@ -174,7 +188,7 @@ export default function PlanBoard({
         </section>
 
         {open && (
-          <PlanTrip key={open.trip.tripId} plan={plan} load={open} fleet={fleet} orders={orders} editable={editable} canReplan={canReplan} actions={actions} risks={stops} onClose={() => setOpenId(null)} />
+          <PlanTrip key={open.trip.tripId} plan={plan} load={open} fleet={fleet} orders={orders} editable={editable} canReplan={canReplan} actions={actions} risks={stops} slack={stopSlack} onClose={() => setOpenId(null)} />
         )}
       </div>
     </>
@@ -202,6 +216,7 @@ function TripCell({
   active,
   onOpen,
   risk,
+  slack,
 }: {
   load: TripLoad;
   added: boolean;
@@ -209,6 +224,8 @@ function TripCell({
   active: boolean;
   onOpen: () => void;
   risk?: StopRisk;
+  /** The trip's tightest stop, read from the planned times; shown when the predictor has not scored it. */
+  slack?: Slack;
 }): React.JSX.Element {
   const { trip } = load;
   const chilled = trip.temperature === "chilled";
@@ -238,6 +255,7 @@ function TripCell({
         {added && <Pill tone="success">Added</Pill>}
         {load.tight && <Pill tone="warning">Tight</Pill>}
         {riskShown && <Pill tone={riskTone(risk!.percent) === "high" ? "danger" : "warning"}>{riskLabel(risk!, "Late risk")}</Pill>}
+        {!risk && slack && slack.tone !== "low" && <Pill tone={slack.tone === "high" ? "danger" : "warning"}>{slackLabel(slack)}</Pill>}
       </span>
     </button>
   );

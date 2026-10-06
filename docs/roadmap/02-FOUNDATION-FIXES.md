@@ -70,7 +70,7 @@ Value straight after the baselines, before the larger fixes.
 
 The following items are defined in their own documents:
 - MF-01, Admin Models screen and environment guard, in [05](05-DATATHON-MODELS.md#foundation).
-- T1-01, Publish risk section, in [05](05-DATATHON-MODELS.md#task-1-service-time-and-lateness).
+- T1-01, Publish risk section, in [05](05-DATATHON-MODELS.md#task-1-service-time-and-lateness). Built first as a check on the draft's own times: each stop's minutes between planned arrival and window close, amber under 30 and red under 15, on the board, the trip and the Publish step, which lists them and never blocks. No model call before publishing; the model's late risk replaces it once the published plan is scored.
 - T2-01, early capacity plan, in [05](05-DATATHON-MODELS.md#task-2a-demand-forecast).
 - FF-06a, the fuel log, in [04](04-FIELD-FEATURES.md#ff-06-fuel-log-and-fuel-pass-qr).
 
