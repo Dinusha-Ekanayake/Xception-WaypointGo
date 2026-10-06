@@ -162,6 +162,7 @@ artifacts/
 !docs/verification.md
 !docs/issues/**/*.md
 !docs/roadmap/*.md
+!docs/datathon/*.md
 
 # Java / Maven build output (including nested modules)
 target/
