@@ -1,5 +1,7 @@
 # ─── Dependencies ───
 node_modules/
+# A link named node_modules too, not only the folder (a worktree may link to another checkout's).
+node_modules
 .pnp
 .pnp.*
 .yarn/*
