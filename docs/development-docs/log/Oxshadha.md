@@ -4,6 +4,32 @@
 
 ---
 
+## 2026-10-06 - fix: Phase 1 baseline green, and offline retry (F-01, F-02)
+
+`dev` · @Oxshadha
+
+Baseline (Phase 1): backend 1,063 tests with `TEST_DATABASE_URL` set as in CI, and the Task 2B validator passing after restoring its data symlink, which the handover copy had flattened. Fixed every failure found ([01-FOUNDATION-FLOWS](../../roadmap/01-FOUNDATION-FLOWS.md#baseline-recorded-2026-10-06-local-dev-macos-docker)), including three product bugs:
+
+- **Dispatcher Live** showed tomorrow's run.
+- **Dispatcher search** missed the orders waiting for the plan.
+- **Driver app** had lost its Messages button, so a driver could not open the trip's thread. Changed under the role UI rule, agreed with @jv-ransika.
+
+F-01: a failed send waits a jittered backoff (capped at 20 s) or the server's Retry-After, and tries again on its own; the service worker respects the wait.
+F-02: reads time out after 8 s and writes after 15 s, as an outage, so kept data shows quickly on a dead line.
+
+Why: the safety net must be green before features, and EXE-04 claimed a backoff the client did not use.
+Verified:
+- Node 304.
+- Browser suites: shell 17, dispatcher 74, driver 30 (13 skipped by design), loader 31, store 59.
+- Backend handover tests 15 of 15.
+- Typecheck and build.
+
+Open:
+- Why a command holds its connection long enough to starve a pool of 5 (F-09).
+- Nine integration test classes need `TEST_DATABASE_URL` and ignore the Docker fallback.
+
+---
+
 ## 2026-10-06 - chore: roadmap Phase 0, local part
 
 `dev` · @Oxshadha
