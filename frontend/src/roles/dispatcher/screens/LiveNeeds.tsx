@@ -1,11 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import { request } from "@shared/api/client";
+import { useResource } from "@shared/api/useResource";
+import type { DecisionView } from "@shared/domain/types";
 import { cx } from "@shared/ui";
 import { hhmm, stops } from "@shared/wording";
 import { lateBy, tripOf, updateText, useOpenTripThread } from "../data/threads.ts";
 import { depotSummaries, etaOf, progress, routeLabel, summaryText, type NeedCard, type Run } from "../data/liveDesk.ts";
 import { suggestionFor, type Suggestion } from "../data/playbooks.ts";
+import DecisionAsk from "./DecisionAsk.tsx";
 import { Action, Bar, Chip, NOT_AVAILABLE_NOTE, STATUS } from "./LiveParts.tsx";
 
 // Figma "05 Live · Needs you" (189:20983): what needs the dispatcher on the
@@ -32,6 +36,19 @@ export default function LiveNeeds({
   onViewAll: () => void;
 }): React.JSX.Element {
   const unavailableShown = cards.some((c) => c.kind === "offline");
+  // FF-09: the day's questions asked of stores, for every depot this dispatcher oversees.
+  const decisions = useResource(
+    (signal: AbortSignal) => request<DecisionView[]>(`/api/issues/decisions?date=${encodeURIComponent(date)}`, { signal }),
+    `decisions|${date}`,
+    10_000,
+  );
+  // The stop a window or failed card is about, for the question to its store.
+  const stopOf = (card: NeedCard) => {
+    const run = runs.find((r) => r.day.vehicleId === card.vehicleId);
+    if (!run) return null;
+    const stop = card.kind === "window" ? run.day.current : card.kind === "failed" ? run.day.stops.find((s) => s.outcome === "FAILED") : null;
+    return stop ? { stop, stops: run.day.stops } : null;
+  };
   const openThread = useOpenTripThread();
   const [note, setNote] = useState<string | null>(null);
   // "Notify store" opens the trip's thread written to the store, with the new expected arrival.
@@ -108,6 +125,17 @@ export default function LiveNeeds({
                   </Action>
                 )}
               </span>
+              {(card.kind === "window" || card.kind === "failed") && stopOf(card) && (
+                <DecisionAsk
+                  kind={card.kind}
+                  stop={stopOf(card)!.stop}
+                  stops={stopOf(card)!.stops}
+                  decisions={decisions.data ?? []}
+                  online={online}
+                  now={new Date()}
+                  onChanged={decisions.refresh}
+                />
+              )}
               <Suggested {...suggest(card)} online={online} showMessage={card.kind !== "window"} onWrite={write} />
             </li>
           ))}

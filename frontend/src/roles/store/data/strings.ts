@@ -406,6 +406,26 @@ export const STRINGS: Record<string, [string, string]> = {
     "நீங்கள் இன்னும் ஆர்டர் இடலாம். அவை “இருப்பு சரிபார்க்கப்படவில்லை” என வைக்கப்பட்டு, கிடங்கு திரும்பிய பிறகே உறுதிசெய்யப்படும்.",
   ],
   "Dismiss": ["ඉවත් කරන්න", "நிராகரி"],
+
+  // Live decisions (FF-09): drafts for the native-speaker review (FF-00).
+  "The dispatcher needs your answer": ["යැවීම් නිලධාරීට ඔබේ පිළිතුර අවශ්‍යයි", "அனுப்புநருக்கு உங்கள் பதில் தேவை"],
+  "Answer by {time}": ["{time} ට පෙර පිළිතුරු දෙන්න", "{time}க்குள் பதில் அளியுங்கள்"],
+  "Past {time}. You can still answer.": ["{time} පසු විය. ඔබට තවමත් පිළිතුරු දිය හැක.", "{time} கடந்துவிட்டது. நீங்கள் இன்னும் பதில் அளிக்கலாம்."],
+  "Can someone receive the delivery at about {time}?": ["{time} පමණ වන විට බෙදාහැරීම භාර ගැනීමට කෙනෙකු සිටිනවාද?", "சுமார் {time} மணிக்கு விநியோகத்தைப் பெற யாராவது இருப்பார்களா?"],
+  "Goods for {outlet} ({units}) are in front of yours. Can the crew unload them at your dock to reach your goods, and reload them?": [
+    "{outlet} සඳහා භාණ්ඩ ({units}) ඔබේ භාණ්ඩ ඉදිරියේ ඇත. ඔබේ භාණ්ඩ ගැනීමට කණ්ඩායමට ඒවා ඔබේ ඩොක් එකේ බාගෙන නැවත පටවා ගත හැකිද?",
+    "{outlet}க்கான பொருட்கள் ({units}) உங்கள் பொருட்களுக்கு முன்னால் உள்ளன. உங்கள் பொருட்களை எடுக்க, குழுவினர் அவற்றை உங்கள் இறக்குமிடத்தில் இறக்கி மீண்டும் ஏற்றலாமா?",
+  ],
+  "Reason (optional)": ["හේතුව (අත්‍යවශ්‍ය නැත)", "காரணம் (விருப்பத்தேர்வு)"],
+  "Say why (voice)": ["හේතුව කියන්න (හඬ)", "காரணத்தைச் சொல்லுங்கள் (குரல்)"],
+  "Recording · tap to stop": ["පටිගත වෙමින් · නැවැත්වීමට තට්ටු කරන්න", "பதிவாகிறது · நிறுத்த தட்டவும்"],
+  "Voice reason · {length} · tap to remove": ["හඬ හේතුව · {length} · ඉවත් කිරීමට තට්ටු කරන්න", "குரல் காரணம் · {length} · நீக்க தட்டவும்"],
+  "Yes": ["ඔව්", "ஆம்"],
+  "No": ["නැත", "இல்லை"],
+  "Offline. Your answer is kept on this phone and sent when the connection returns.": [
+    "නොබැඳි. ඔබේ පිළිතුර මෙම දුරකථනයේ තබා සම්බන්ධතාවය ආපසු ආ විට යවනු ලැබේ.",
+    "இணைப்பில்லை. உங்கள் பதில் இந்தத் தொலைபேசியில் வைக்கப்பட்டு, இணைப்பு திரும்பியதும் அனுப்பப்படும்.",
+  ],
 };
 
 export type Vars = Record<string, string | number>;

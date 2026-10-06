@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-07 - feat: live decisions between the dispatcher and a store (FF-09)
+
+`dev` · @Oxshadha
+
+- From a "Needs you" card the dispatcher asks one store one question instead of phoning: "Can someone receive at about HH:MM?" (never a mall) or, for goods that stayed on the vehicle (loaded last stop first), the next store "can the crew unload them at your dock to reach your goods, and reload them?". Every name and number comes from the run sheet (R-ISS-12).
+- The store answers Yes or No at the top of its home, with an optional typed or spoken reason (the voice note goes to the dispatcher on the trip's thread). The answer is due 10 minutes before arrival; with none, the dispatcher is told to phone and records the answer by phone (R-ISS-13, R-ISS-14).
+- A Yes tells the driver on the trip's thread and settles the window-at-risk item. Routing version 10. Goods are never held at another store, so no chilled hold time is needed (P-37).
+
+Why: the product owner's requirement that live problems are decided by the people concerned without phone calls; reviewed by research, design and critique ([roadmap](../../roadmap/04-FIELD-FEATURES.md#ff-09-live-decisions)).
+Verified: backend 1,117 on a fresh test database, none skipped; Node 358; build; browser shell 20, loader 32, store 62, dispatcher 80 (the offline-plan test passed on rerun); driver 36 of 38: the two voice playback tests fail on this machine on `dev` without these changes too, and passed in CI at `a038e30`.
+
 ## 2026-10-07 - feat: the driver's messages are covered while the vehicle moves (FF-04b)
 
 `dev` · @Oxshadha

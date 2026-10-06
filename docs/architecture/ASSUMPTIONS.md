@@ -112,6 +112,8 @@ Values that are correct today and will change. **None of them is a literal in co
 | **P-34** | How far ahead a store chooses a delivery day | 28 days (`BOOKING_DAYS` in `store/data/outlook.ts`; an outlook request covers at most 31, `DateOutlookQuery.MAX_DAYS`) | Product decision 2026-10-04, issue #224 | The store's date strip. Not a server refusal: an order for a later day is still accepted |
 | **P-35** | Date outlook thresholds | Busy from 80% of the day's room, at risk above 100% (`DateOutlookPolicy.BUSY_AT`, `AT_RISK_ABOVE`) | Our policy, issue #224 | Which days warn a store (R-ML-07) |
 | **P-36** | Date outlook watch | Tomorrow to 14 days ahead, hourly 06:00-15:00 depot time, Monday to Saturday (`OutlookWatchJob.WINDOW_DAYS`, its cron) | Our policy, issue #224 | How early a store hears its booked day turned busy; after the 16:00 cutoff the plan decides |
+| **P-37** | Chilled goods held away from cold | Never: on a live trip chilled goods stay in the refrigerated vehicle or go back to the depot cold room; no store is asked to keep another store's goods (`DecisionRules`, `dock_help` asks unload and reload only), so no hold time limit is needed | Product decision 2026-10-07, FF-09; the Challenge Booklet sets no time limit, only that chilled goods ride in refrigerated vehicles | If Operations wants goods held at a store, a time limit must be set first (R-ISS-12) |
+| **P-38** | When a store's answer is due | 10 minutes before the expected arrival, at least 5 and at most 20 minutes from asking; a store is asked about the next 4 hours only (`DecisionRules.BEFORE_ARRIVAL`, `MIN_DEADLINE`, `MAX_DEADLINE`, `LATEST_RECEIVE`) | Our policy, FF-09 | How long the dispatcher waits before phoning (R-ISS-13) |
 
 ### How a parameter changes
 

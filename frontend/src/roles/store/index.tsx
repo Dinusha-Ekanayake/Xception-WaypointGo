@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useOnline, useResource } from "@shared/api/useResource";
-import type { OrderView } from "@shared/domain/types";
+import { IssueCommandKind, type DecisionView, type OrderView } from "@shared/domain/types";
+import { friendlyError } from "@shared/api/problem";
+import { queuedSender } from "@shared/messaging/senders";
 import { Notice, useScrollMemory, withTransition } from "@shared/ui";
 import TopBar from "./TopBar.tsx";
 import { LangProvider, useT } from "./i18n.tsx";
@@ -13,6 +15,7 @@ import { useCommands } from "./data/useCommands.ts";
 import { deferralRead, markDeferralRead } from "./data/deferral.ts";
 import DeferredOrder from "./screens/DeferredOrder.tsx";
 import Deliveries from "./screens/deliveries/Deliveries.tsx";
+import Decisions, { type Answer } from "./screens/Decisions.tsx";
 import Home from "./screens/Home.tsx";
 import Issues from "./screens/issues/Issues.tsx";
 import OrderSheet from "./screens/OrderSheet.tsx";
@@ -110,6 +113,23 @@ function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Ele
   }, [refreshOrders, refreshPending, refreshDeliveries, refreshIssues]);
   const queued = useCallback(() => setWaiting((n) => n + 1), []);
   const commands = useCommands(gateway, online, queued, refresh);
+  // FF-09: the dispatcher's questions to this store, read often while a vehicle is coming.
+  const decisions = useResource((s) => gateway.decisions(today, s), `decisions|${today}`, 10_000);
+  const decisionSender = useMemo(() => queuedSender({ accountId: userId, role: "store_manager", online, onQueued: queued }), [userId, online, queued]);
+  const { run: runCommand } = commands;
+  const { refresh: refreshDecisions } = decisions;
+  const answerDecision = useCallback<Answer>(
+    async (d: DecisionView, answer, reason, voiceNoteId) => {
+      const outcome = await runCommand(
+        IssueCommandKind.answerDecision,
+        { requestId: d.requestId, answer, ...(reason ? { reason } : {}), ...(voiceNoteId ? { voiceNoteId } : {}) },
+        d.rowVersion,
+      );
+      refreshDecisions();
+      return outcome.ok ? null : friendlyError(outcome.error);
+    },
+    [runCommand, refreshDecisions],
+  );
 
   // Send kept writes as soon as the connection returns, whichever screen is open.
   useEffect(() => {
@@ -145,7 +165,7 @@ function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Ele
       .catch(() => undefined)
       .finally(() => setSyncing(false));
   };
-  // A notification opens what it is about: the order, the deliveries or the issues.
+  // A notification opens what it is about: the order, the deliveries, the issues or a question.
   const openSubject = (n: NotificationView) => {
     if (n.subjectType === "thread" && n.subjectId) {
       setInboxOpen(false);
@@ -156,6 +176,10 @@ function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Ele
     if (n.subjectType === "order" && n.subjectId) {
       setTab("orders");
       setOpenOrder(n.subjectId);
+    } else if (n.subjectType === "decision") {
+      // FF-09: the question is answered on the home screen, at the top.
+      setTab("home");
+      refreshDecisions();
     } else if (n.subjectType === "issue") {
       setTab("issues");
     } else if (n.subjectType === "delivery" || n.subjectType === "trip" || n.subjectType === "receipt") {
@@ -265,6 +289,8 @@ function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Ele
     );
   } else if (tab === "home") {
     body = (
+      <div className="flex flex-col gap-5">
+      <Decisions decisions={decisions.data ?? []} accountId={userId} sender={decisionSender} online={online} onAnswer={answerDecision} />
       <Home
         orders={all}
         loading={orders.loading}
@@ -281,6 +307,7 @@ function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Ele
         onTrack={() => openView({ kind: "track" })}
         onRetry={orders.refresh}
       />
+      </div>
     );
   } else if (tab === "orders") {
     body = <Orders orders={all} loading={orders.loading} error={orders.error} onOpen={setOpenOrder} onPlace={place} onRetry={orders.refresh} />;

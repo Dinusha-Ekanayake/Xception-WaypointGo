@@ -18,8 +18,7 @@ import type {
   ProductView,
   ProfileView,
   ReceiptView,
-  StatusChangeView,
-} from "@shared/domain/types";
+  StatusChangeView, DecisionView } from "@shared/domain/types";
 import { sampleGateway } from "./fixtures.ts";
 
 // Everything the store screens read and write, behind one seam. The real
@@ -56,6 +55,11 @@ export type StoreGateway = {
   handover: (orderId: string, signal: AbortSignal) => Promise<HandoverView>;
   /** What is coming to, or has reached, the outlet on a day (Execution, `delivery:Read`). */
   deliveries: (outletId: string, date: string, signal: AbortSignal) => Promise<DeliveryRecordView[]>;
+  /**
+   * FF-09: the day's questions the dispatcher asked this store's outlets. Never
+   * kept on the phone: a question is only worth answering while the vehicle is coming.
+   */
+  decisions: (date: string, signal: AbortSignal) => Promise<DecisionView[]>;
   /** The signed-in person's own account: name, phone and its version (R-IAM-32). */
   profile: (signal: AbortSignal) => Promise<ProfileView>;
   /** What the store says about itself: its own window and dock, and its contacts (R-REF-01). */
@@ -117,6 +121,7 @@ function liveGateway(accountId: string): StoreGateway {
     sendPhotos: () => drainUploads(accountId),
     deliveries: (outletId, date, signal) =>
       kept(`deliveries:${outletId}:${date}`, () => request(`/api/execution/deliveries?outlet=${q(outletId)}&date=${q(date)}`, { signal })),
+    decisions: (date, signal) => request(`/api/issues/decisions?date=${q(date)}`, { signal }),
     issuesFor: (orderId, signal) => kept(`issues:${orderId}`, () => request(`/api/issues/by-subject?type=order&id=${q(orderId)}`, { signal })),
     profile: (signal) => kept("profile", () => request(`/api/profile`, { signal })),
     outletDetails: (outletId, signal) => kept(`details:${outletId}`, () => request(`/api/reference/outlets/${q(outletId)}/details`, { signal })),

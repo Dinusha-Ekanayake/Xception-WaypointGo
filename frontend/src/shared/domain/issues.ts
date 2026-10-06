@@ -70,7 +70,56 @@ export const IssueCommandKind = {
   recordInquiry: "issue:RecordInquiry",
   /** FF-03: Operations approves or rejects a recorded write-off (P-DG-1). */
   approveWriteOff: "issue:ApproveWriteOff",
+  /** FF-09: the dispatcher asks one store one question on a live trip (R-ISS-12). */
+  askDecision: "issue:AskDecision",
+  /** FF-09: the store answers, or the dispatcher records an answer given by phone (R-ISS-14). */
+  answerDecision: "issue:AnswerDecision",
 } as const;
+
+/**
+ * FF-09: `receive_late` asks whether someone can receive at about a time (never a
+ * mall); `dock_help` asks the next store to let the crew unload a stop's goods at
+ * its dock to reach its own, and reload them (loaded last stop first).
+ */
+export type DecisionKind = "receive_late" | "dock_help";
+export type DecisionState = "sent" | "answered" | "expired" | "withdrawn";
+
+/** GET /api/issues/decisions?date=&depot=: a depot's for the dispatcher, a store's own for its manager. */
+export type DecisionView = {
+  requestId: Uuid;
+  kind: DecisionKind;
+  depotCode: string;
+  serviceDate: string;
+  tripId: Uuid;
+  vehicleId: string;
+  deliveryId: Uuid;
+  outletId: string;
+  aboutDeliveryId: Uuid | null;
+  aboutOutletId: string | null;
+  aboutUnits: number | null;
+  receiveAt: IsoInstant | null;
+  /** When the vehicle was expected at the store when it was asked. */
+  arrivalAt: IsoInstant | null;
+  deadline: IsoInstant;
+  state: DecisionState;
+  answer: "yes" | "no" | null;
+  answeredVia: "app" | "phone" | null;
+  answeredAt: IsoInstant | null;
+  /** Given after the deadline. */
+  answeredLate: boolean;
+  reason: string | null;
+  voiceNoteId: Uuid | null;
+  askedAt: IsoInstant;
+  rowVersion: number;
+};
+
+/** `issue:AskDecision`. Every name and number is read from the run sheet on the server. */
+export type AskDecision =
+  | { kind: "receive_late"; deliveryId: Uuid; receiveAt: IsoInstant }
+  | { kind: "dock_help"; deliveryId: Uuid; aboutDeliveryId: Uuid };
+
+/** `issue:AnswerDecision`, with the question's `rowVersion` as expected version. */
+export type AnswerDecision = { requestId: Uuid; answer: "yes" | "no"; reason?: string; voiceNoteId?: Uuid; byPhone?: boolean };
 
 /** `issue:RecordInquiry`. `writeOffLkr` is rupees as text, for exact decimals; absent when nothing is written off. */
 export type RecordInquiry = { issueId: Uuid; outcome: string; writeOffLkr?: string; attachmentIds?: Uuid[] };

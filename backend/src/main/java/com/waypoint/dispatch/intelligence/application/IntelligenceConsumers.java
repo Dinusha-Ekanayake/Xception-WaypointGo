@@ -1,11 +1,15 @@
 package com.waypoint.dispatch.intelligence.application;
 
+import com.waypoint.dispatch.intelligence.contract.AttentionViews.AttentionKind;
+import com.waypoint.dispatch.intelligence.infrastructure.JdbcAttentionRepository;
 import com.waypoint.dispatch.intelligence.infrastructure.JdbcIntelligenceRepository;
+import com.waypoint.dispatch.issues.contract.IssueEvents.DecisionAnswered;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlanPublished;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlanRevised;
 import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.platform.messaging.EventSubscriber;
 import com.waypoint.dispatch.platform.observability.Metrics;
+import com.waypoint.dispatch.shared.domain.Actor;
 import com.waypoint.dispatch.shared.event.EventEnvelope;
 import com.waypoint.dispatch.shared.util.Clock;
 import org.springframework.stereotype.Component;
@@ -96,6 +100,54 @@ final class IntelligenceConsumers {
     public void on(EventEnvelope<PlanRevised> envelope) {
       PlanRevised e = envelope.payload();
       queue.request(e.planId(), e.depotCode(), e.serviceDate(), e.planVersion());
+    }
+  }
+
+  /**
+   * FF-09: a store said Yes to receiving late. The window-at-risk item on that
+   * stop is settled with the store's answer as the reason, so it leaves the
+   * queue and is not reminded of. Applying the event twice changes nothing.
+   */
+  @Component
+  static class OnDecisionAnswered implements EventSubscriber<DecisionAnswered> {
+    private final JdbcAttentionRepository attention;
+    private final Clock clock;
+
+    OnDecisionAnswered(JdbcAttentionRepository attention, Clock clock) {
+      this.attention = attention;
+      this.clock = clock;
+    }
+
+    @Override
+    public String consumerName() {
+      return "ml.on-decision-answered";
+    }
+
+    @Override
+    public Class<DecisionAnswered> eventType() {
+      return DecisionAnswered.class;
+    }
+
+    @Override
+    public ModuleRole moduleRole() {
+      return ModuleRole.ML;
+    }
+
+    @Override
+    public void on(EventEnvelope<DecisionAnswered> envelope) {
+      DecisionAnswered e = envelope.payload();
+      if (!"receive_late".equals(e.kind()) || !"yes".equals(e.answer())) {
+        return;
+      }
+      attention.state(e.depotCode(), e.deliveryId(), AttentionKind.WINDOW_AT_RISK)
+          .filter(s -> !s.acknowledged())
+          .ifPresent(s -> attention.acknowledge(
+              e.deliveryId(), AttentionKind.WINDOW_AT_RISK, Actor.SYSTEM_ID,
+              e.outletId() + " can receive at about "
+                  + java.time.LocalTime.ofInstant(e.receiveAt().orElseThrow(), Clock.OPERATING_ZONE)
+                      .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+                  + ("phone".equals(e.via()) ? " (by phone)" : ""),
+              clock.now(), s.rowVersion()));
     }
   }
 }

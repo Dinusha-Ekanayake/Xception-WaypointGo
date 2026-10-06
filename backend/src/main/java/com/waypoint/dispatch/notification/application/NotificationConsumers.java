@@ -8,6 +8,9 @@ import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryStarted;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.EtaChanged;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.RoadDisruptionReported;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.VehicleFaultReported;
+import com.waypoint.dispatch.issues.contract.IssueEvents.DecisionAnswered;
+import com.waypoint.dispatch.issues.contract.IssueEvents.DecisionExpired;
+import com.waypoint.dispatch.issues.contract.IssueEvents.DecisionRequested;
 import com.waypoint.dispatch.issues.contract.IssueEvents.IssueEscalated;
 import com.waypoint.dispatch.issues.contract.IssueEvents.IssueRaised;
 import com.waypoint.dispatch.messaging.contract.MessagingEvents.MessagePosted;
@@ -860,6 +863,90 @@ final class NotificationConsumers {
         case "store_manager" -> "Store";
         default -> "Dispatcher";
       };
+    }
+  }
+
+  /** FF-09: the dispatcher asked a store a question on a live trip; the store is told. */
+  @Component
+  static class OnDecisionRequested extends NotificationConsumer<DecisionRequested> {
+    OnDecisionRequested(Notifier notifier) {
+      super(notifier);
+    }
+
+    @Override
+    public String consumerName() {
+      return "notification.on-decision-requested";
+    }
+
+    @Override
+    public Class<DecisionRequested> eventType() {
+      return DecisionRequested.class;
+    }
+
+    @Override
+    Routed route(DecisionRequested e) {
+      return new Routed()
+          .fact("question", e.question()).fact("outletId", e.outletId()).fact("vehicleId", e.vehicleId())
+          .fact("deadline", java.time.LocalTime.ofInstant(e.deadline(), Clock.OPERATING_ZONE)
+              .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")))
+          .on(e.serviceDate())
+          .to(ScopeKind.OUTLET, e.outletId(), "decision", e.requestId());
+    }
+  }
+
+  /** FF-09: a store answered (in the app, or by phone through the dispatcher); the dispatcher is told. */
+  @Component
+  static class OnDecisionAnswered extends NotificationConsumer<DecisionAnswered> {
+    OnDecisionAnswered(Notifier notifier) {
+      super(notifier);
+    }
+
+    @Override
+    public String consumerName() {
+      return "notification.on-decision-answered";
+    }
+
+    @Override
+    public Class<DecisionAnswered> eventType() {
+      return DecisionAnswered.class;
+    }
+
+    @Override
+    Routed route(DecisionAnswered e) {
+      return new Routed()
+          .fact("question", e.question()).fact("outletId", e.outletId())
+          .fact("answer", "yes".equals(e.answer()) ? "Yes" : "No").fact("reason", e.reason())
+          .fact("driverNote", e.driverNote())
+          .on(e.serviceDate())
+          .to(ScopeKind.DEPOT, e.depotCode(), "decision", e.requestId())
+          // A Yes changes the driver's stop; the routing rule tells the driver of a Yes only.
+          .to(ScopeKind.VEHICLE, e.vehicleId(), "trip", e.tripId());
+    }
+  }
+
+  /** FF-09: no answer by the deadline; the dispatcher is told to phone the store. */
+  @Component
+  static class OnDecisionExpired extends NotificationConsumer<DecisionExpired> {
+    OnDecisionExpired(Notifier notifier) {
+      super(notifier);
+    }
+
+    @Override
+    public String consumerName() {
+      return "notification.on-decision-expired";
+    }
+
+    @Override
+    public Class<DecisionExpired> eventType() {
+      return DecisionExpired.class;
+    }
+
+    @Override
+    Routed route(DecisionExpired e) {
+      return new Routed()
+          .fact("question", e.question()).fact("outletId", e.outletId())
+          .on(e.serviceDate())
+          .to(ScopeKind.DEPOT, e.depotCode(), "decision", e.requestId());
     }
   }
 

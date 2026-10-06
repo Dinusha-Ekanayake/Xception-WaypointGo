@@ -157,7 +157,23 @@ Order inside the phase:
 
 **KPI:** calls to the dispatcher per trip; zero cross-store data leaks.
 
-## FF-08 Dispatcher reply suggestions
+## FF-09 Live decisions
+
+**Built 2026-10-07, PRs 1 and 2** (R-ISS-12 to R-ISS-14, ISS-18 to ISS-20, P-37, P-38). The dispatcher asks from the "Needs you" cards on Live: a closing window offers three times from the expected arrival; a stop not delivered offers to ask the next store on its trip to help at the dock. The store's question waits at the top of its home with Yes and No, a typed reason and a spoken one (posted to the dispatcher on the trip's thread, where it plays). Not yet: the attention watch raising the question by itself, code-filled message templates (FF-08), a case summary, and the Sinhala and Tamil review of the new store strings (FF-00).
+
+**Goal.** A problem on the road is settled by the people it concerns in a minute, with a tap, not by phone calls. Decided with the product owner 2026-10-07 after three reviews (research, design, critique); the research found no delivery product that asks a store for a decision.
+
+**Plan (written before code):**
+- **The queue already exists.** The attention watch (#268) ranks live stops by severity and minutes left (`FAILED_STOP`, `WINDOW_AT_RISK`, `RUNNING_LATE`, `PROOF_OWED`) and the dispatcher acknowledges items. Decision cards hang off those items; no second queue.
+- **Decision requests are Issues' aggregate** (`issues.decision_requests`), one store asked one question, with a code-computed deadline. States `SENT`, `ANSWERED`, `EXPIRED`, `WITHDRAWN`; asking again withdraws the open one. The store answers in the app; the dispatcher may record an answer given by phone. An answer after the deadline is still recorded, marked late.
+- **Kinds (v1):**
+  - `RECEIVE_LATE`: "Can someone receive at about HH:MM?" Yes or No, never for a mall (its window is fixed: it gets the failed-delivery path).
+  - `DOCK_HELP`: the depot loads the last stop first (R-LOD-08), so goods for a stop that was not delivered sit in front of the next stop's. "Can the crew unload them at your dock to reach your goods, and reload them?" Yes or No. Never "keep them": chilled goods stay in the refrigerated vehicle, so no hold time is needed (assumption recorded).
+- **Every name and number is filled by code** from the run sheet: store, units, expected arrival. A reason is optional, typed or spoken (a voice reason goes on the trip thread to the dispatcher, with its play button).
+- **Effects:** `decision.requested` notifies the store; `decision.answered` and `decision.expired` notify the dispatcher; a Yes tells the driver on the trip thread and, for `RECEIVE_LATE`, acknowledges the window-at-risk item with the store's answer as the reason. No answer by the deadline: the dispatcher phones and records it, else today's rule applies (deliver late at an ordinary store, R-EXE-05; redeliver at a mall).
+- **PRs:** (1) backend: aggregate, commands, expiry job, events, consumers, routing v10, policy; (2) dispatcher: ask from the attention item, answers, record by phone; store: the card with Yes or No and a reason; (3) later: code-filled templates (FF-08), a case summary from the recorded steps, then AI ranking in shadow.
+
+
 
 **Goal.** Between 03:30 and 08:00 the dispatcher is the bottleneck. When they pick who to answer (the driver, one store or the whole channel), the screen offers the three most likely approved replies with the facts already filled in.
 

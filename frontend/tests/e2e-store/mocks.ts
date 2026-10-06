@@ -1,6 +1,8 @@
 import type { Page, Route } from "@playwright/test";
 import type { PostMessagePayload } from "../../src/shared/domain/messaging.ts";
 import { postToThread, threadRead, type ThreadMock } from "../thread-mocks.ts";
+import { answerInMock } from "../decision-mocks.ts";
+import type { AnswerDecision, DecisionView } from "../../src/shared/domain/issues.ts";
 import type { DeliveryRecordView } from "../../src/shared/domain/execution.ts";
 import type { IssueView } from "../../src/shared/domain/issues.ts";
 import type { OrderView } from "../../src/shared/domain/ordering.ts";
@@ -226,9 +228,10 @@ export type Handover = { status: "AWAITING" | "CONFIRMED" | "LOCKED" | "EXPIRED"
 /** Routes every call the store makes; a delivered order is waiting to be received. */
 export async function mockStore(
   page: Page,
-  options: { answered?: Handover | null; loadingShort?: boolean; week?: boolean; deferred?: boolean; positions?: unknown[]; threads?: ThreadMock[]; rideAlong?: { date: string; stopsBooked: number }[] | "down"; roomChecked?: boolean; outlook?: Record<string, "ON_TRACK" | "BUSY" | "AT_RISK" | "TOO_EARLY" | "CLOSED"> | "down" } = {},
-): Promise<{ sent: Sent; handover: { current: Handover | null }; uploads: string[] }> {
+  options: { answered?: Handover | null; loadingShort?: boolean; week?: boolean; deferred?: boolean; positions?: unknown[]; threads?: ThreadMock[]; decisions?: DecisionView[]; rideAlong?: { date: string; stopsBooked: number }[] | "down"; roomChecked?: boolean; outlook?: Record<string, "ON_TRACK" | "BUSY" | "AT_RISK" | "TOO_EARLY" | "CLOSED"> | "down" } = {},
+): Promise<{ sent: Sent; handover: { current: Handover | null }; uploads: string[]; decisions: DecisionView[] }> {
   const threads = options.threads ?? [];
+  const decisions = options.decisions ?? [];
   const sent: Sent = [];
   /** Photo uploads, as the paths they were PUT to. */
   const uploads: string[] = [];
@@ -335,6 +338,7 @@ export async function mockStore(
       const date = url.searchParams.get("date");
       return json(date === today ? [DELIVERY] : options.week && date === PAST_DAY ? [PAST_DELIVERY] : []);
     }
+    if (pathname === "/api/issues/decisions") return json(decisions);
     if (pathname === "/api/issues/by-subject") return json(url.searchParams.get("id") === ORIGINAL.orderId ? [REDELIVERED] : [SHORTFALL]);
     if (pathname === "/api/warehouse/catalogue/status") return json({ syncedAt: new Date().toISOString(), ageSeconds: 5, stale: false, productCount: 3, circuitState: "closed" });
     if (pathname === "/api/warehouse/catalogue") return json({ items: PRODUCTS, nextCursor: null });
@@ -346,6 +350,9 @@ export async function mockStore(
     if (pathname === "/api/commands" && route.request().method() === "POST") {
       const body = route.request().postDataJSON() as { commandId: string; kind: string; payload: unknown; expectedVersion: number | null };
       sent.push({ kind: body.kind, payload: body.payload, expectedVersion: body.expectedVersion });
+      if (body.kind === "issue:AnswerDecision") {
+        return json({ commandId: body.commandId, kind: body.kind, replayed: false, result: answerInMock(decisions, body.payload as AnswerDecision) });
+      }
       if (body.kind === "message:Post") {
         const result = postToThread(threads, body.payload as PostMessagePayload, { name: SESSION.displayName, role: "store_manager" }, new Date().toISOString());
         return json({ commandId: body.commandId, kind: body.kind, replayed: false, result });
@@ -386,7 +393,7 @@ export async function mockStore(
     if (thread) return route.fulfill({ status: thread.status, contentType: "application/json", body: JSON.stringify(thread.body) });
     return route.fulfill({ status: 404, body: "not mocked" });
   });
-  return { sent, handover, uploads };
+  return { sent, handover, uploads, decisions };
 }
 
 /** A real 2x2 PNG, for a photo taken in a test. */

@@ -1,5 +1,7 @@
 import type { Page, Route } from "@playwright/test";
 import type { PostMessagePayload } from "../../src/shared/domain/messaging.ts";
+import { answerInMock, askInMock } from "../decision-mocks.ts";
+import type { AnswerDecision, DecisionView } from "../../src/shared/domain/issues.ts";
 import { postToThread, redirectInThread, resolveInThread, threadRead, type ThreadMock } from "../thread-mocks.ts";
 import { nextRun } from "../../src/roles/dispatcher/data/scope.ts";
 import type { RunSheetStopView, RunSheetView } from "../../src/shared/domain/execution.ts";
@@ -84,6 +86,8 @@ export type Desk = {
   draft: PlanView | null;
   published: PlanView | null;
   sheets: RunSheetView[];
+  /** FF-09: questions asked of stores today. */
+  decisions?: DecisionView[];
   /** Live map (issue #161): last fixes and the selected trip's trail. */
   positions?: unknown[];
   trail?: unknown[];
@@ -145,6 +149,16 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
 
   const apply = (command: Sent) => {
     const { payload } = command;
+    if (command.kind === "issue:AskDecision") {
+      const p = payload as unknown as { kind: DecisionView["kind"]; deliveryId: string; receiveAt?: string; aboutDeliveryId?: string };
+      const all = desk.sheets.flatMap((s) => s.stops.map((stop) => ({ stop, vehicleId: s.vehicleId })));
+      const asked = all.find((x) => x.stop.deliveryId === p.deliveryId)!;
+      const about = p.aboutDeliveryId ? all.find((x) => x.stop.deliveryId === p.aboutDeliveryId)?.stop : undefined;
+      desk.decisions = desk.decisions ?? [];
+      return askInMock(desk.decisions, p, { outletId: asked.stop.outletId, tripId: asked.stop.tripId, vehicleId: asked.vehicleId },
+        about ? { outletId: about.outletId, units: about.itemCount } : null, new Date(LIVE_NOW));
+    }
+    if (command.kind === "issue:AnswerDecision") return answerInMock(desk.decisions ?? [], payload as unknown as AnswerDecision);
     if (command.kind.startsWith("issue:")) return applyIssue(desk, command);
     if (command.kind === "ml:RecordCapacityDecision") {
       const decisionId = `cap-${(desk.capacityDecisions ?? []).length + 1}`;
@@ -313,6 +327,7 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
       return route.fulfill(json({ depotCode: code, displayName: code, location: { latitude: "6.960000", longitude: "79.880000", precision: "approximate" } }));
     }
     if (pathname === "/api/loading/trips") return route.fulfill(json(desk.dock));
+    if (pathname === "/api/issues/decisions") return route.fulfill(json(desk.decisions ?? []));
     if (pathname === "/api/issues") return route.fulfill(json({ items: desk.issues.filter((i) => i.status === "OPEN" || i.status === "ASSIGNED"), nextCursor: null }));
     if (pathname === "/api/issues/settled") return route.fulfill(json(desk.issues.filter((i) => i.status === "RESOLVED" || i.status === "CLOSED")));
     const one = /^\/api\/issues\/([^/]+)(\/history)?$/.exec(pathname);

@@ -6,6 +6,7 @@ import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryStarted;
 import com.waypoint.dispatch.execution.contract.ExecutionQuery;
 import com.waypoint.dispatch.execution.contract.ExecutionViews.DeliveryRecordView;
 import com.waypoint.dispatch.identity.contract.IdentityQuery;
+import com.waypoint.dispatch.issues.contract.IssueEvents.DecisionAnswered;
 import com.waypoint.dispatch.issues.contract.IssueEvents.IssueRaised;
 import com.waypoint.dispatch.issues.contract.IssueEvents.IssueResolved;
 import com.waypoint.dispatch.issues.contract.IssueQuery;
@@ -142,6 +143,64 @@ final class MessagingConsumers {
     public void on(EventEnvelope<PlanRevised> envelope) {
       PlanRevised e = envelope.payload();
       openTrips(threads, clock, random, e.depotCode(), e.serviceDate(), e.trips(), metrics);
+    }
+  }
+
+  /**
+   * FF-09: a store said Yes; the driver is told on the trip's thread, written by
+   * the system from the answer, so nobody types the store or the time. A No is
+   * the dispatcher's to act on. Once per event: the event id is kept on the
+   * message. The driver's bell is rung by Notification from the same event.
+   */
+  @Component
+  static class OnDecisionAnswered implements EventSubscriber<DecisionAnswered> {
+    private final JdbcThreadRepository threads;
+    private final Clock clock;
+    private final Metrics metrics;
+    private final SecureRandom random = new SecureRandom();
+
+    OnDecisionAnswered(JdbcThreadRepository threads, Clock clock, Metrics metrics) {
+      this.threads = threads;
+      this.clock = clock;
+      this.metrics = metrics;
+    }
+
+    @Override
+    public String consumerName() {
+      return "messaging.on-decision-answered";
+    }
+
+    @Override
+    public Class<DecisionAnswered> eventType() {
+      return DecisionAnswered.class;
+    }
+
+    @Override
+    public ModuleRole moduleRole() {
+      return ModuleRole.MESSAGING;
+    }
+
+    @Override
+    public void on(EventEnvelope<DecisionAnswered> envelope) {
+      DecisionAnswered e = envelope.payload();
+      if (!"yes".equals(e.answer())) {
+        return;
+      }
+      Optional<Thread> thread = threads.bySubject("trip", e.tripId().toString());
+      if (thread.isEmpty()) {
+        return;
+      }
+      String body = e.driverNote();
+      Instant now = clock.now();
+      UUID messageId = UuidV7.generate(now, random);
+      boolean posted =
+          threads.insert(
+              messageId, thread.get().threadId(), Actor.SYSTEM_ID, Role.DISPATCHER.code(), "message", Optional.empty(),
+              "driver", Optional.empty(), body, Optional.empty(), Optional.empty(), Optional.of(envelope.eventId()),
+              Optional.empty(), Optional.empty(), Optional.empty(), now);
+      if (posted) {
+        metrics.increment("waypoint.message.decision_told", "kind", e.kind());
+      }
     }
   }
 

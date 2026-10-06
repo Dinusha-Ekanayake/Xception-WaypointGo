@@ -43,13 +43,16 @@ public class IssueDataQuery implements IssueQuery {
   private final AuditLog audit;
 
   private final com.waypoint.dispatch.issues.infrastructure.JdbcWriteOffs writeOffs;
+  private final com.waypoint.dispatch.issues.infrastructure.JdbcDecisionRequests decisions;
 
   public IssueDataQuery(Database database, JdbcIssueRepository issues, AuditLog audit,
-      com.waypoint.dispatch.issues.infrastructure.JdbcWriteOffs writeOffs) {
+      com.waypoint.dispatch.issues.infrastructure.JdbcWriteOffs writeOffs,
+      com.waypoint.dispatch.issues.infrastructure.JdbcDecisionRequests decisions) {
     this.database = database;
     this.issues = issues;
     this.audit = audit;
     this.writeOffs = writeOffs;
+    this.decisions = decisions;
   }
 
   // ---- contract: as the ambient actor --------------------------------------
@@ -141,6 +144,16 @@ public class IssueDataQuery implements IssueQuery {
 
   private UUID ambient() {
     return database.ambientActor().orElse(null);
+  }
+
+  /**
+   * FF-09: the day's questions asked of stores, newest first. Row-level security
+   * decides the rows: a depot's for the dispatcher who oversees it, a store's own
+   * outlet's for its manager, nothing for anyone else.
+   */
+  public List<com.waypoint.dispatch.issues.contract.IssueViews.DecisionView> decisions(
+      Actor actor, java.time.LocalDate serviceDate, java.util.Optional<String> depotCode) {
+    return read(actor.userId(), () -> decisions.ofDay(serviceDate, depotCode));
   }
 
   private <T> T read(UUID actorId, Supplier<T> work) {

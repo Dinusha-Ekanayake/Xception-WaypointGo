@@ -146,4 +146,115 @@ public final class IssueEvents {
       return issueId.toString();
     }
   }
+
+  /**
+   * FF-09: the dispatcher asked a store a question on a live trip. Notification
+   * tells the store; {@code question} is the words, every name and number filled
+   * by the system.
+   *
+   * @param kind receive_late or dock_help
+   */
+  public record DecisionRequested(
+      UUID requestId,
+      String kind,
+      String depotCode,
+      LocalDate serviceDate,
+      UUID tripId,
+      String vehicleId,
+      UUID deliveryId,
+      String outletId,
+      Optional<String> aboutOutletId,
+      Optional<Instant> receiveAt,
+      Instant deadline,
+      String question)
+      implements DomainEvent {
+    public static final String TYPE = "decision.requested";
+
+    @Override
+    public String type() {
+      return TYPE;
+    }
+
+    @Override
+    public String aggregateType() {
+      return "decision";
+    }
+
+    @Override
+    public String aggregateId() {
+      return requestId.toString();
+    }
+  }
+
+  /**
+   * FF-09: the store answered, in the app or by phone through the dispatcher.
+   * Notification tells the dispatcher; Messaging tells the driver of a Yes;
+   * Intelligence takes a Yes to receive late as the reason the window-at-risk
+   * item is settled.
+   *
+   * @param answer yes or no
+   * @param via app or phone
+   * @param late given after the deadline
+   * @param driverNote what the driver is told of a Yes, written by the system
+   */
+  public record DecisionAnswered(
+      UUID requestId,
+      String kind,
+      String depotCode,
+      LocalDate serviceDate,
+      UUID tripId,
+      String vehicleId,
+      UUID deliveryId,
+      String outletId,
+      Optional<UUID> aboutDeliveryId,
+      Optional<String> aboutOutletId,
+      Optional<Instant> receiveAt,
+      String answer,
+      String via,
+      boolean late,
+      Optional<String> reason,
+      Instant answeredAt,
+      String question,
+      String driverNote)
+      implements DomainEvent {
+    public static final String TYPE = "decision.answered";
+
+    @Override
+    public String type() {
+      return TYPE;
+    }
+
+    @Override
+    public String aggregateType() {
+      return "decision";
+    }
+
+    @Override
+    public String aggregateId() {
+      return requestId.toString();
+    }
+  }
+
+  /** FF-09: no answer came by the deadline. Notification tells the dispatcher to phone the store. */
+  public record DecisionExpired(
+      UUID requestId, String kind, String depotCode, LocalDate serviceDate, UUID deliveryId, String outletId,
+      Instant deadline, String question)
+      implements DomainEvent {
+    public static final String TYPE = "decision.expired";
+
+    @Override
+    public String type() {
+      return TYPE;
+    }
+
+    @Override
+    public String aggregateType() {
+      return "decision";
+    }
+
+    @Override
+    public String aggregateId() {
+      return requestId.toString();
+    }
+  }
 }

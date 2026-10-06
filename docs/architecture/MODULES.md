@@ -299,13 +299,15 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 | infrastructure | `JdbcIssueRepository`, `JdbcIssueAttachments` |
 | web | `IssueController`: reads, and the one binary write, a photo upload |
 
-**Owns:** `issues.issues`, `issues.issue_subjects`, `issues.issue_history`, `issues.parameters`, `issues.attachments`, `issues.attachment_content`, `issues.issue_attachments`.
+**Owns:** `issues.issues`, `issues.issue_subjects`, `issues.issue_history`, `issues.parameters`, `issues.attachments`, `issues.attachment_content`, `issues.issue_attachments`, `issues.write_offs`, `issues.decision_requests`.
+
+**Live decisions (FF-09, R-ISS-12 to R-ISS-14).** The dispatcher asks one store one question on a live trip (`issue:AskDecision`): `receive_late` ("can someone receive at about HH:MM?", never a mall) or `dock_help` (the next store lets the crew unload a stop's goods at its dock to reach its own, and reload them; the depot loads the last stop first, R-LOD-08). The stop, the store, the units and the expected arrival are read from `ExecutionQuery.runSheet`, never from the caller. The answer is due before the vehicle arrives, 5 to 20 minutes from asking; `DecisionExpiryJob` marks a question with no answer expired, once. The store answers in the app, or the dispatcher records what it said by phone (`issue:AnswerDecision`); an answer after the deadline is kept and marked late. Read at `/api/issues/decisions?date=&depot=`.
 
 **Photos.** A store manager uploads a photo of a delivery problem for its order (`PUT /api/issues/attachments/{id}?order=&receipt=`, action `issue:AttachPhoto`): id minted on the phone, content addressed by SHA-256, type read from the bytes, 3 MB cap, kept in the database and cleared past P-14. `RaiseIssue` names photos in `attachmentIds`; a photo taken while counting names the receipt and joins its shortage investigation. A link is made whichever arrives first, so an offline phone can send the photo and the report in either order. Read through `/{issueId}/attachments/{attachmentId}/content` by anyone who can see the issue.
 
 **Commands:** `RaiseIssue`, `AssignIssue`, `ResolveIssue`, `RecordReplacement`, `ScheduleRedelivery`, `CloseIssue`, `CancelIssue`. Raise rights by type are policy data (R-ISS-07).
 **Queries:** `openIssues(depot)` (most severe first, keyset), `issuesFor(subject)`. Web: `/api/issues?depot=`, `/by-subject?type=&id=`, `/{id}`, `/{id}/history`, `/{id}/attachments/{attachmentId}/content`.
-**Publishes:** `issue.raised`, `issue.resolved`, `issue.escalated`, `shortfall.resolved` (naming the shortfall when the issue came from one), `redelivery.requested`.
+**Publishes:** `issue.raised`, `issue.resolved`, `issue.escalated`, `shortfall.resolved` (naming the shortfall when the issue came from one), `redelivery.requested`, `decision.requested`, `decision.answered`, `decision.expired`.
 **Consumes:** `loading.shortfall`, `delivery.failed`, `vehicle.fault_reported`, `road.disruption_reported`, `receipt.disputed`, `receipt.confirmed` (partial only), `warehouse.discrepancy_found`. One issue per source event.
 
 **Redelivery.** Only when nothing reached the outlet (failed delivery, stock discrepancy), at most once per issue, and the new order carries a skip so the next plan serves it first (R-ISS-04, R-ISS-05, ORD-15).
@@ -351,6 +353,9 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 | `eta.changed` | Store manager, dispatcher | yes | Staffing at the outlet, lateness at the depot (R-RCP-02, R-EXE-15) |
 | `issue.raised` | Dispatcher; store manager when an outlet is named | yes | Fault, delay, damage, access problem (R-NOT-03) |
 | `issue.escalated` | Dispatcher | yes | Waited unassigned past its severity's deadline (R-ISS-06) |
+| `decision.requested` | The store manager of the outlet asked | yes | The dispatcher needs an answer before the vehicle arrives (FF-09, R-ISS-12) |
+| `decision.answered` | Dispatcher; the driver of a Yes | yes | The store's answer; a Yes changes the driver's stop (R-ISS-14) |
+| `decision.expired` | Dispatcher | yes | No answer by the deadline: phone the store (R-ISS-13) |
 | `vehicle.fault_reported`, `road.disruption_reported` | Dispatcher | yes | The dispatcher decides the vehicle's status |
 | `receipt.disputed` | Dispatcher | yes | The store disagrees with what arrived |
 | `vehicle.status_changed` | Dispatcher | no | Fleet availability changed. Reference does not publish it yet |
@@ -611,6 +616,7 @@ Modules connect three ways: a contract query (synchronous, read only), an event 
 | `issue.raised`, `issue.resolved`, `issue.escalated` | Issues | Notification, Messaging (`issue.raised`, `issue.resolved`) |
 | `shortfall.resolved` | Issues | Loading |
 | `redelivery.requested` | Issues | Ordering |
+| `decision.requested`, `decision.answered`, `decision.expired` | Issues | Notification, Messaging and Intelligence (`decision.answered`) |
 | `warehouse.order_status_changed` | Warehouse | Ordering, Notification |
 | `warehouse.discrepancy_found` | Warehouse | Issues |
 | `catalogue.synced` | Warehouse | Ordering |
