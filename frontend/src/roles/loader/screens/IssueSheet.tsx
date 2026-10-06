@@ -8,7 +8,7 @@ import type { Line } from "../data/useTrip.ts";
 import { BigButton, Sheet } from "../ui.tsx";
 import { QUALITY_HINT, checkPhoto, encodePhoto } from "../../../shared/media/photo.ts";
 import { useT } from "../i18n.tsx";
-import { ChevronDownIcon, CloseIcon, IssueIcon } from "../icons.tsx";
+import { CameraIcon, ChevronDownIcon, CloseIcon, IssueIcon } from "../icons.tsx";
 
 // Figma "03 Report an issue": flag a missing, damaged or ill-fitting item before
 // the vehicle leaves (R-LOD-02). The flagged item is not loaded, the dispatcher
@@ -261,7 +261,8 @@ export default function IssueSheet({
               </button>
             </div>
           ) : (
-            <button type="button" onClick={() => camera.current?.click()} className="min-h-12 rounded-[16px] border border-dashed border-go-rule px-4 text-[15px] text-go-muted">
+            <button type="button" onClick={() => camera.current?.click()} className="flex min-h-12 items-center justify-center gap-2 rounded-[16px] border border-dashed border-go-rule px-4 text-[15px] text-go-muted">
+              <CameraIcon />
               {tr("Add photo (optional)")}
             </button>
           )}

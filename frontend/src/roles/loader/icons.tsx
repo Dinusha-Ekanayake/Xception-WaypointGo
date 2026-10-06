@@ -65,6 +65,16 @@ export function SearchIcon({ size = 22 }: Props): React.JSX.Element {
   );
 }
 
+/** FF-02: the camera on "Add photo" of a reported item. */
+export function CameraIcon({ size = 22 }: Props): React.JSX.Element {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" {...stroke}>
+      <path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2.2l1.4-2h5.8l1.4 2h2.2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z" />
+      <circle cx="12" cy="13" r="3.5" />
+    </svg>
+  );
+}
+
 export function CloseIcon({ size = 18 }: Props): React.JSX.Element {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" {...stroke}>
