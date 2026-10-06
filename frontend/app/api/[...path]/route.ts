@@ -43,6 +43,13 @@ const FORWARD_RESPONSE = [
   "x-correlation-id",
 ];
 
+// The sample session and data below are for development only, never a
+// production build (the same rule as the loader's sample data, D-D). Without
+// this guard, a production backend that was down answered every visitor with a
+// signed-in session holding every role and depot: deny by default broken, and
+// an outage dressed up as a working screen (architecture rule 9).
+const MOCKS_ALLOWED = process.env.NODE_ENV !== "production";
+
 function mockFallback(request: NextRequest, path: string): Response | null {
   const json = (data: unknown, status = 200) =>
     new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
@@ -150,12 +157,12 @@ async function proxy(request: NextRequest): Promise<Response> {
     } as RequestInit);
 
     // If backend is unreachable or returns 404/502/503 for session, fall back to standalone mock in dev mode
-    if (!response.ok && (response.status === 404 || response.status >= 500) && (process.env.NEXT_PUBLIC_LOADER_FIXTURES === "1" || process.env.NODE_ENV !== "production")) {
+    if (!response.ok && (response.status === 404 || response.status >= 500) && MOCKS_ALLOWED) {
       const fallback = mockFallback(request, path);
       if (fallback) return fallback;
     }
   } catch {
-    const fallback = mockFallback(request, path);
+    const fallback = MOCKS_ALLOWED ? mockFallback(request, path) : null;
     if (fallback) return fallback;
     return problem(503, "DEPENDENCY_UNAVAILABLE", "Service unavailable", "Backend unavailable. Saved commands can be retried.", path);
   }
