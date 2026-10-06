@@ -18,6 +18,7 @@ import { Icon, Notice } from "@shared/ui";
 import type { StoreGateway } from "../../data/gateway.ts";
 import { clock, dockWhere, temperatureLabel } from "../../data/format.ts";
 import { shrinkPhoto } from "../../data/photo.ts";
+import { QUALITY_HINT, checkPhoto } from "@shared/media/photo";
 import { answerFor, counted, knownShortages, LOWERS_COUNT, room as roomFor, type Kind, type Report } from "../../data/receive.ts";
 import { conflictMessage, type useCommands } from "../../data/useCommands.ts";
 import { BackButton, Badge, Button, Modal, Muted } from "../../ui.tsx";
@@ -38,7 +39,7 @@ import { businessNow } from "@shared/wording";
 // carries the one-time handover PIN (R-RCP-09), evidence that never holds
 // anything up.
 
-type Photo = { id: string; blob: Blob; url: string };
+type Photo = { id: string; blob: Blob; url: string; hint: string | null };
 type Done = { queued: boolean; disputed: boolean; units: number; at: string; sent: boolean; pin: IssuedPin | null; confirmedAt: string | null };
 
 export default function Receive({
@@ -115,7 +116,9 @@ export default function Receive({
     if (!file) return;
     try {
       const blob = await shrinkPhoto(file);
-      const photo = { id: crypto.randomUUID(), blob, url: URL.createObjectURL(blob) };
+      // M-02: a blurred or dark photo is pointed out before it is sent; it can still be kept.
+      const quality = await checkPhoto(blob);
+      const photo = { id: crypto.randomUUID(), blob, url: URL.createObjectURL(blob), hint: quality === "ok" ? null : QUALITY_HINT[quality] };
       urls.current.push(photo.url);
       setPhotos((all) => ({ ...all, [photo.id]: photo }));
       setPending((ids) => [...ids, photo.id]);
@@ -298,7 +301,7 @@ export default function Receive({
           e.target.value = "";
         }}
       />
-      {viewed && <PhotoDialog url={viewed.url} onRetake={() => retake(viewed.id)} onClose={() => setViewing(null)} />}
+      {viewed && <PhotoDialog url={viewed.url} hint={viewed.hint} onRetake={() => retake(viewed.id)} onClose={() => setViewing(null)} />}
 
       {done && done.pin && !done.confirmedAt && (
         <HandoverModal

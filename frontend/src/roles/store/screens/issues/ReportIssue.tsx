@@ -8,6 +8,7 @@ import type { StoreGateway } from "../../data/gateway.ts";
 import { units as unitsText, dayLabel, temperatureLabel } from "../../data/format.ts";
 import { REPORT_KINDS, type ReportKind } from "../../data/issues.ts";
 import { shrinkPhoto } from "../../data/photo.ts";
+import { QUALITY_HINT, checkPhoto } from "@shared/media/photo";
 import { LOWERS_COUNT, noteOf } from "../../data/receive.ts";
 import type { useCommands } from "../../data/useCommands.ts";
 import { Badge, Button, Field, Modal, Stepper } from "../../ui.tsx";
@@ -18,7 +19,7 @@ import PhotoDialog from "../receive/PhotoDialog.tsx";
 // go through the same offline queue as the count's, and the issue links them
 // whichever reaches the server first.
 
-type Photo = { id: string; blob: Blob; url: string };
+type Photo = { id: string; blob: Blob; url: string; hint: string | null };
 
 export default function ReportIssue({
   gateway,
@@ -59,7 +60,9 @@ export default function ReportIssue({
     if (!file) return;
     try {
       const blob = await shrinkPhoto(file);
-      const photo = { id: crypto.randomUUID(), blob, url: URL.createObjectURL(blob) };
+      // M-02: a blurred or dark photo is pointed out on the phone, before it is sent; it can still be kept.
+      const quality = await checkPhoto(blob);
+      const photo = { id: crypto.randomUUID(), blob, url: URL.createObjectURL(blob), hint: quality === "ok" ? null : QUALITY_HINT[quality] };
       setPhotos((all) => [...all, photo]);
       setViewing(photo.id);
     } catch (failure) {
@@ -232,6 +235,7 @@ export default function ReportIssue({
       {viewed && (
         <PhotoDialog
           url={viewed.url}
+          hint={viewed.hint}
           onRetake={() => {
             setPhotos((all) => all.filter((p) => p.id !== viewed.id));
             setViewing(null);

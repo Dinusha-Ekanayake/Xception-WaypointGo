@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-10-07 - feat: one photo encoder, and a blur and darkness hint (M-02)
+
+`dev` · @Oxshadha
+
+- Every photo goes through `shared/media/photo.ts`: 1600 px, WebP where the browser really makes it (Safari falls back to JPEG), under 3 MB, EXIF and GPS dropped. The store and driver copies now use it.
+- The store's report and receive screens say when a photo looks blurry or dark, beside Retake; it can still be kept (EXE-40). The driver's proof screen and voice notes in Opus are still to do.
+
+Why: Phase 2b of the [roadmap](../../roadmap/02-FOUNDATION-FIXES.md); two copies of the same encoder, JPEG only, and unreadable evidence found only after it was sent.
+Verified: see the pull request.
+
+---
+
 ## 2026-10-07 - feat: the dispatcher's board updates on change, not every 2 s (F-07b)
 
 `dev` · @Oxshadha
