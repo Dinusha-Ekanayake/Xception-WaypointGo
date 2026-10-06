@@ -4,6 +4,31 @@
 
 ---
 
+## 2026-10-06 - feat: Phase 1.5 (F-09a, MF-01, T2-01), store cutoff wording, Task 2B policy
+
+`dev` · @Oxshadha
+
+- **F-09a:** jobs that wait on the model service, the warehouse or web push run on their own thread, so they cannot delay the 16:00 cutoff.
+- **MF-01:** an admin Models screen to put a model in use or retire it, and `ML_ALLOW_DATATHON=false` in production so competition-trained models never answer there (R-ML-09).
+- **T2-01:** the fallback weekly forecast divides by the weeks of orders a depot really has, not eight (ML-15). Capacity counts only the vehicles free each day, so workshop bookings show. A Decisions card records hire, workshop, advise or accept decisions with a reason (`ml:RecordCapacityDecision`).
+- **Store:** a moved order says why in plain words: after the 16:00 cutoff, or no deliveries that day.
+- **Task 2B:** the written allocation policy for S1, checked against the engine output ([TASK-2B-POLICY](../../datathon/TASK-2B-POLICY.md)).
+
+Why: Phase 1.5 of the [roadmap](../../roadmap/README.md); the cutoff wording named the wrong reason; Task 2B's written policy was missing.
+Verified:
+- Backend 1,069 on a fresh test database.
+- Node 318.
+- Dispatcher 75 and store 59 browser suites.
+- The Models screen seen in a browser.
+
+Open:
+- T1-01 and FF-06a.
+- "Based on N weeks of orders" on the Forecast.
+- The plain-words pass on the other places that say "server".
+- Some integration tests assume an empty database.
+
+---
+
 ## 2026-10-06 - fix(security): proxy sample session; positions lane (F-03); WebP sign-in (M-03)
 
 `dev` · @Oxshadha
