@@ -62,6 +62,8 @@ Order inside the phase:
 
 ## FF-03 Operations inquiry
 
+**Built 2026-10-07** (R-ISS-11, ISS-17). Roles `ops_inquiry` and `ops_head` with policy `WaypointOpsInquiry` (issue:Read and the two commands only); the Inquiries workspace lists the depot's damaged, short and disputed goods with photos, history and write-offs. No new SQL function was needed: issues and their photos are already read by depot scope, while trips, deliveries and messages need `app.actor_oversees_depot`, which these roles are not part of, and every other action is outside their policy. The depot limit is a parameter, LKR 25,000 until Finance confirms (P-DG-1). Not yet: the audit trail panel and a role address (`ops.`), which needs the nginx and certificate change.
+
 - **Goal:** an operations person reviews a damaged-goods case with its photos, history and audit trail, and records the outcome. The inquiry itself happens between people; the system records it.
 - **Access:**
   - New role `ops_inquiry`, depot-scoped.

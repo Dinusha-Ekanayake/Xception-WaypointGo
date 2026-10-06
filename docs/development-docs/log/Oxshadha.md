@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-10-07 - feat: Operations inquiries and write-off approval (FF-03)
+
+`dev` · @Oxshadha
+
+- New roles `ops_inquiry` (depot operations) and `ops_head` (Head of Distribution) with an Inquiries workspace: the depot's damaged, short and disputed goods with photos, history and write-offs.
+- `issue:RecordInquiry` records what an inquiry found and any write-off value; `issue:ApproveWriteOff` lets someone else approve or reject it: never the recorder or the issue's decider, above LKR 25,000 or a Tech line only the Head (R-ISS-11, ISS-17). The dispatcher's policy denies both.
+- The limit is a parameter until Finance confirms it (P-DG-1). The loader's Add photo has a camera icon.
+- Decided with the product owner: the driver takes no photo and no signature; the store manager's PIN at handover is the proof. Photos are for loaders and store managers, so the blur hint is off the driver's proof screen.
+
+Why: Phase 3 of the [roadmap](../../roadmap/04-FIELD-FEATURES.md); damaged goods had evidence but no recorded decision on the loss.
+Verified: backend 1,102 on a fresh test database, none skipped; Node 349; build; browser shell 20, driver 36, loader 32, store 59, dispatcher 76.
+
+---
+
 ## 2026-10-07 - feat: a loader's photo of a damaged line reaches the issue (FF-02)
 
 `dev` · @Oxshadha

@@ -222,7 +222,7 @@ Not on the pilot's critical path. FF-02, FF-03 and FF-06 ship first on the exist
 
 ### M-02 One photo encoder
 
-**Built 2026-10-07, in part.** `shared/media/photo.ts` encodes every photo (1600 px, WebP checked by its type, else JPEG, under 3 MB, EXIF dropped, a 320 px thumbnail), and the store's report and receive screens and the driver's proof screen say when a photo looks blurry or dark, the photo kept unless retaken (EXE-40). The Fuel Pass needs no change: it is uploaded as is, lossless. Voice notes are recorded at 32 kbps in Opus and 48 kbps in AAC (Chromium's AAC encoder fails below that), a quarter to a half of the browser's default 128; re-encoding to Opus on every phone is not needed for that saving.
+**Built 2026-10-07, in part.** `shared/media/photo.ts` encodes every photo (1600 px, WebP checked by its type, else JPEG, under 3 MB, EXIF dropped, a 320 px thumbnail), and the store's report and receive screens say when a photo looks blurry or dark, the photo kept unless retaken (EXE-40). Decided 2026-10-07: the driver takes no photo and no signature; the store manager's PIN at handover is the proof. Photos are for loaders and store managers, so the driver's proof screen has no hint. The Fuel Pass needs no change: it is uploaded as is, lossless. Voice notes are recorded at 32 kbps in Opus and 48 kbps in AAC (Chromium's AAC encoder fails below that), a quarter to a half of the browser's default 128; re-encoding to Opus on every phone is not needed for that saving.
 
 - **One encoder:** `frontend/src/shared/media/photo.ts` replaces `roles/store/data/photo.ts` and `roles/driver/data/image.ts`.
 - **Encoding:**

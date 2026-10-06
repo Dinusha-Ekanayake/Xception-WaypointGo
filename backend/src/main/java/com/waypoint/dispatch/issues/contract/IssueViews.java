@@ -94,4 +94,24 @@ public final class IssueViews {
       String reason,
       Optional<UUID> actorId,
       Instant at) {}
+
+  /**
+   * FF-03: a write-off recorded by an inquiry, and its decision. {@code needsHead}
+   * says the Head of Distribution must approve it (above the depot limit, or a Tech line).
+   */
+  public record WriteOffView(
+      UUID writeOffId,
+      UUID issueId,
+      String outcome,
+      java.math.BigDecimal valueLkr,
+      boolean techLine,
+      boolean needsHead,
+      List<UUID> attachmentIds,
+      UUID recordedBy,
+      Instant recordedAt,
+      String status,
+      Optional<UUID> decidedBy,
+      Optional<Instant> decidedAt,
+      Optional<String> decisionNote,
+      long rowVersion) {}
 }

@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { MAX_ATTACHMENT_BYTES, shrink } from "../data/image.ts";
-import { QUALITY_HINT, checkPhoto } from "../../../shared/media/photo.ts";
 import { Banner, Field, input } from "../ui.tsx";
 import SignaturePad from "./SignaturePad.tsx";
 
@@ -28,14 +27,11 @@ export function proofMissing(proof: ProofDraft): string | null {
 
 export default function ProofCapture({ proof, onChange }: { proof: ProofDraft; onChange: (proof: ProofDraft) => void }): React.JSX.Element {
   const [photoError, setPhotoError] = useState<string | null>(null);
-  // M-02: said when the photo looks blurry or dark; the photo is kept, the driver decides.
-  const [photoHint, setPhotoHint] = useState<string | null>(null);
   const [cannot, setCannot] = useState(false);
 
   const pick = async (file: File | undefined) => {
     if (!file) return;
     setPhotoError(null);
-    setPhotoHint(null);
     try {
       const small = await shrink(file);
       if (small.size > MAX_ATTACHMENT_BYTES) {
@@ -45,8 +41,6 @@ export default function ProofCapture({ proof, onChange }: { proof: ProofDraft; o
         return;
       }
       onChange({ ...proof, photo: small });
-      const quality = await checkPhoto(small);
-      if (quality !== "ok") setPhotoHint(QUALITY_HINT[quality]);
     } catch {
       setPhotoError("This phone could not read the photo. Try again, or record why there is no photo.");
       onChange({ ...proof, photo: null });
@@ -81,7 +75,6 @@ export default function ProofCapture({ proof, onChange }: { proof: ProofDraft; o
         />
       </Field>
       {photoError && <Banner tone="warn" title={photoError} live />}
-      {!photoError && photoHint && <Banner tone="warn" title={photoHint} live />}
 
       <label className="flex min-h-12 items-center gap-3 text-[15px] text-go-ink">
         <input

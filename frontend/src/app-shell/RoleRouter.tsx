@@ -6,6 +6,7 @@ import Driver from "@roles/driver";
 import Loader from "@roles/loader";
 import Store from "@roles/store";
 import AdminConsole from "@roles/admin/AdminConsole";
+import Inquiries from "@roles/inquiry";
 
 /**
  * One responsive application serving every role, as the brief requires. The
@@ -28,6 +29,10 @@ export default function RoleRouter({ session, role }: { session: Session; role: 
       // is mock until live admin APIs exist (#22); the AI assistants console
       // beside it is live (#177). Both stay behind the session and role gate.
       return <AdminConsole userId={session.userId} displayName={session.displayName} />;
+    case "ops_inquiry":
+    case "ops_head":
+      // FF-03: damaged-goods inquiries belong to Operations (P-DG-4).
+      return <Inquiries userId={session.userId} displayName={session.displayName} scope={depots} head={role === "ops_head"} />;
     case "auditor":
       // Built in #22 and #23.
       return (

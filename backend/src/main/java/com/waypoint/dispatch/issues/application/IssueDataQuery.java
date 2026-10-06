@@ -42,10 +42,14 @@ public class IssueDataQuery implements IssueQuery {
   private final JdbcIssueRepository issues;
   private final AuditLog audit;
 
-  public IssueDataQuery(Database database, JdbcIssueRepository issues, AuditLog audit) {
+  private final com.waypoint.dispatch.issues.infrastructure.JdbcWriteOffs writeOffs;
+
+  public IssueDataQuery(Database database, JdbcIssueRepository issues, AuditLog audit,
+      com.waypoint.dispatch.issues.infrastructure.JdbcWriteOffs writeOffs) {
     this.database = database;
     this.issues = issues;
     this.audit = audit;
+    this.writeOffs = writeOffs;
   }
 
   // ---- contract: as the ambient actor --------------------------------------
@@ -101,6 +105,25 @@ public class IssueDataQuery implements IssueQuery {
           }
           return issues.history(issueId).stream()
               .map(h -> new IssueHistoryView(h.from(), h.to(), h.action(), h.reason(), h.actorId(), h.at()))
+              .toList();
+        });
+  }
+
+  /** FF-03: the write-offs recorded against an issue the actor can see, oldest first. */
+  public List<com.waypoint.dispatch.issues.contract.IssueViews.WriteOffView> writeOffs(Actor actor, UUID issueId) {
+    return read(
+        actor.userId(),
+        () -> {
+          if (issues.find(issueId).isEmpty()) {
+            throw notFound(issueId);
+          }
+          java.math.BigDecimal limit = InquiryHandlers.depotLimit(issues, Instant.now());
+          return writeOffs.ofIssue(issueId).stream()
+              .map(w -> new com.waypoint.dispatch.issues.contract.IssueViews.WriteOffView(
+                  w.writeOffId(), w.issueId(), w.outcome(), w.valueLkr(), w.techLine(),
+                  com.waypoint.dispatch.issues.domain.WriteOffRules.needsHead(w.valueLkr(), w.techLine(), limit),
+                  w.attachmentIds(), w.recordedBy(), w.recordedAt(), w.status(), w.decidedBy(), w.decidedAt(),
+                  w.decisionNote(), w.rowVersion()))
               .toList();
         });
   }

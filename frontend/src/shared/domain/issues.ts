@@ -66,7 +66,38 @@ export const IssueCommandKind = {
   scheduleRedelivery: "issue:ScheduleRedelivery",
   close: "issue:Close",
   cancel: "issue:Cancel",
+  /** FF-03: Operations records what an inquiry found, with any write-off value and photos. */
+  recordInquiry: "issue:RecordInquiry",
+  /** FF-03: Operations approves or rejects a recorded write-off (P-DG-1). */
+  approveWriteOff: "issue:ApproveWriteOff",
 } as const;
+
+/** `issue:RecordInquiry`. `writeOffLkr` is rupees as text, for exact decimals; absent when nothing is written off. */
+export type RecordInquiry = { issueId: Uuid; outcome: string; writeOffLkr?: string; attachmentIds?: Uuid[] };
+
+/** `issue:ApproveWriteOff`; expectedVersion is the write-off's rowVersion. */
+export type ApproveWriteOff = { writeOffId: Uuid; approve: boolean; note: string };
+
+/**
+ * A write-off recorded by an inquiry (FF-03), from `GET /api/issues/{id}/write-offs`.
+ * `needsHead`: above the depot limit, or a Tech line, so the Head of Distribution decides.
+ */
+export type WriteOffView = {
+  writeOffId: Uuid;
+  issueId: Uuid;
+  outcome: string;
+  valueLkr: string;
+  techLine: boolean;
+  needsHead: boolean;
+  attachmentIds: Uuid[];
+  recordedBy: Uuid;
+  recordedAt: IsoInstant;
+  status: "recorded" | "approved" | "rejected";
+  decidedBy: Uuid | null;
+  decidedAt: IsoInstant | null;
+  decisionNote: string | null;
+  rowVersion: number;
+};
 
 export type RaiseIssue = {
   type: IssueType;

@@ -21,6 +21,10 @@ public final class IssueCommands {
   public static final String SCHEDULE_REDELIVERY = "issue:ScheduleRedelivery";
   public static final String CLOSE = "issue:Close";
   public static final String CANCEL = "issue:Cancel";
+  /** FF-03: Operations records what an inquiry found, with any write-off value and photos. */
+  public static final String RECORD_INQUIRY = "issue:RecordInquiry";
+  /** FF-03: Operations approves or rejects a recorded write-off, within P-DG-1. */
+  public static final String APPROVE_WRITE_OFF = "issue:ApproveWriteOff";
 
   /**
    * @param attachmentIds photos uploaded for the problem (issue:AttachPhoto), by id. A photo still on

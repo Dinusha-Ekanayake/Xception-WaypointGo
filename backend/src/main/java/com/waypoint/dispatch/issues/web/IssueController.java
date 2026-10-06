@@ -120,6 +120,13 @@ public class IssueController {
     return issues.issue(actor, issueId);
   }
 
+  /** FF-03: the write-offs an inquiry recorded against the issue, and their decisions. */
+  @GetMapping("/{issueId}/write-offs")
+  public List<com.waypoint.dispatch.issues.contract.IssueViews.WriteOffView> writeOffs(@PathVariable UUID issueId, HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:issue:issue:" + issueId);
+    return issues.writeOffs(actor, issueId);
+  }
+
   @GetMapping("/{issueId}/history")
   public List<IssueHistoryView> history(@PathVariable UUID issueId, HttpServletRequest request) {
     var actor = authorizer.require(request, READ, "wpt:issue:issue:" + issueId);

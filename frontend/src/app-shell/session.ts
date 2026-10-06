@@ -6,7 +6,7 @@ import { forgetCrew } from "./offlinePin.ts";
 // Who is signed in, according to the server. The client never decides this: it
 // asks, and renders what it is told. Mirrors identity's SessionView.
 
-export type ShellRole = "dispatcher" | "loader" | "driver" | "store_manager" | "admin" | "auditor";
+export type ShellRole = "dispatcher" | "loader" | "driver" | "store_manager" | "admin" | "auditor" | "ops_inquiry" | "ops_head";
 
 export type Session = {
   userId: string;
@@ -164,4 +164,6 @@ export const ROLE_LABEL: Record<ShellRole, string> = {
   store_manager: "Store",
   admin: "Admin",
   auditor: "Auditor",
+  ops_inquiry: "Operations",
+  ops_head: "Head of Distribution",
 };

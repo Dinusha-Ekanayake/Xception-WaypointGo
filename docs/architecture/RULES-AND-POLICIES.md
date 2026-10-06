@@ -313,6 +313,7 @@ Binding for the delivered system even though Task 2B does not score them.
 | R-ISS-08 | An issue is assigned only to someone scoped to its depot, so it never lands with a person who cannot see it | Policy | Policy |
 | R-ISS-09 | **A resolved issue stays findable.** The Issues inbox lists open and assigned issues; resolved and closed ones from the last seven days are read separately, newest first, so the dispatcher can close what they resolved earlier | Policy | Policy |
 | R-ISS-10 | **A loader's photo is evidence for the shortfall.** A loader may photograph a damaged or short line of an order of their depot; the shortfall names the photo and its issue shows it to whoever may read the issue, whether the photo arrives before or after the issue. A driver, who also holds the depot, may not attach one | Roadmap FF-02, policy P-DG-2, 2026-10-07 | Policy |
+| R-ISS-11 | **A write-off is recorded by one person and decided by another.** Operations (`ops_inquiry`, depot-scoped) records an inquiry's outcome on an issue, with a write-off value in rupees entered by hand; someone else approves or rejects it, never its recorder nor whoever decided the issue. A depot manager approves up to the depot limit (`write_off.depot_limit_lkr`, LKR 25,000); above it, and any Tech line, only the Head of Distribution (`ops_head`). A rejection is never limited by value. The dispatcher's policy denies both actions: inquiries are Operations' | Roadmap FF-03, P-DG-1, P-DG-4; limit to be confirmed by Finance | Policy |
 
 ## 7. Fleet, calendar and notification
 
