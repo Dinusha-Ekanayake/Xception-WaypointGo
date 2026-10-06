@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useOnline } from "@shared/api/useResource";
 import { forgetSaved, queuesWrites, sweepSaved, useSync, type Role } from "@shared/offline";
 import { keepStorage, storageNearlyFull, watchInstall } from "@shared/pwa";
@@ -85,6 +85,8 @@ export default function AppShell(): React.JSX.Element {
   const [pending, setPending] = useState<number | null>(null);
   const [signOutError, setSignOutError] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
+  const [update, setUpdate] = useState<ServiceWorker | null>(null);
+  const updateAsked = useRef(false);
   const sync = useSync(state?.kind === "signed-in" ? state.session.userId : null);
   // Kept screen choices (tabs, filters, scroll) belong to the account signed in.
   setStateScope(state?.kind === "signed-in" ? state.session.userId : null);
@@ -144,19 +146,30 @@ export default function AppShell(): React.JSX.Element {
     // the build it first loaded. Ask for a new worker when the screen comes
     // back and every 30 minutes; when one takes over, reload into its build.
     // Queued work lives in IndexedDB, so the reload loses nothing.
-    const hadController = sw.controller !== null;
+    // F-05: a new build waits until the person taps Reload, so nobody loses a
+    // half-filled form to a reload they did not ask for. Only the tab that asked
+    // reloads; another open tab keeps its screen.
     let reloaded = false;
     const onControllerChange = () => {
-      if (!hadController || reloaded) return;
+      if (!updateAsked.current || reloaded) return;
       reloaded = true;
       window.location.reload();
+    };
+    const offer = (reg: ServiceWorkerRegistration) => {
+      if (reg.waiting && sw.controller) setUpdate(reg.waiting);
+      reg.addEventListener("updatefound", () => {
+        const next = reg.installing;
+        next?.addEventListener("statechange", () => {
+          if (next.state === "installed" && sw.controller) setUpdate(next);
+        });
+      });
     };
     const check = () => void sw.getRegistration().then((reg) => reg?.update()).catch(() => {});
     const onVisible = () => document.visibilityState === "visible" && check();
     sw.addEventListener("controllerchange", onControllerChange);
     document.addEventListener("visibilitychange", onVisible);
     const timer = window.setInterval(check, UPDATE_CHECK_MS);
-    sw.register("/sw.js").catch(() => {
+    sw.register("/sw.js").then(offer).catch(() => {
       // An unavailable service worker degrades offline support; it must not
       // stop the application loading.
     });
@@ -313,6 +326,26 @@ export default function AppShell(): React.JSX.Element {
             >
               {signingOut ? "Signing out…" : "Sign out"}
             </button>
+          </div>
+        )}
+        {update && (
+          <div className="mx-auto w-full max-w-[720px] px-4 pt-2 font-go">
+            <Notice
+              tone="info"
+              title="A new version of Waypoint is ready."
+              action={
+                <button
+                  type="button"
+                  className="min-h-12 px-2 text-[13px] font-medium text-go-teal"
+                  onClick={() => {
+                    updateAsked.current = true;
+                    update.postMessage({ type: "waypoint:skip-waiting" });
+                  }}
+                >
+                  Reload
+                </button>
+              }
+            />
           </div>
         )}
         {spaceLow && (

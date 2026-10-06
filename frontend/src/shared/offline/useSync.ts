@@ -73,7 +73,21 @@ export function useSync(accountId: string | null): SyncState {
     document.addEventListener("visibilitychange", onVisible);
     const timer = setInterval(syncNow, INTERVAL_MS);
     const onWorker = (event: MessageEvent) => {
-      if ((event.data as { type?: unknown } | null)?.type === DRAIN_MESSAGE) syncNow();
+      if ((event.data as { type?: unknown } | null)?.type !== DRAIN_MESSAGE) return;
+      const port = event.ports[0];
+      if (!port) return syncNow();
+      // F-05: Background Sync waits for this answer, and retries later while work is left.
+      setSyncing(true);
+      drain(accountId)
+        .then((report) => {
+          if (report.remaining === report.heldForReview) setLastSyncedAt(businessNow());
+          port.postMessage({ done: report.remaining === report.heldForReview });
+        })
+        .catch(() => port.postMessage({ done: false }))
+        .finally(() => {
+          setSyncing(false);
+          void read();
+        });
     };
     const worker = typeof navigator !== "undefined" && "serviceWorker" in navigator ? navigator.serviceWorker : null;
     worker?.addEventListener("message", onWorker);

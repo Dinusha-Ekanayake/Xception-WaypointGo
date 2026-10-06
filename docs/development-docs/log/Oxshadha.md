@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-10-07 - feat: a safer service worker (F-05)
+
+`dev` · @Oxshadha
+
+- A new version waits for the person to tap Reload instead of reloading under a half-filled form; only that tab reloads.
+- Opening the app shows the kept shell after 6 s of a hanging network; one failed file no longer blocks the install.
+- Background Sync waits for the open pages' drain results, so the browser retries while work is left (EXE-37).
+- Per-role precache deferred: the roles share one bundle today ([02](../../roadmap/02-FOUNDATION-FIXES.md)).
+
+Why: Phase 2 of the roadmap; the worker reloaded without asking and told the browser a sync was done before it was.
+Verified: Node 335; typecheck; build; browser shell 17, driver 34, loader 31, store 59, dispatcher 76.
+
+---
+
 ## 2026-10-07 - fix: no "server" on screen; secrets rotation runbook
 
 `dev` · @Oxshadha

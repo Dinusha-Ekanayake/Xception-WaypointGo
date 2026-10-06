@@ -96,6 +96,8 @@ When a lost reefer's chilled trip finds no reefer, the replan defers it; it neve
 
 ### F-05 Service worker
 
+**Built 2026-10-07** (EXE-37), except the per-role precache: the four roles are imported into one bundle, so there is nothing per role to precache until they are split with dynamic imports (the whole precache is 3.3 MB). Kept as a later item, measured first on a real phone.
+
 - **Precache per role:** each role address caches only its own bundles. One failed file no longer blocks install.
 - **Updates:** show "Update ready, reload" instead of reloading under a half-filled form.
 - **Background Sync:** the `sync` handler waits for the page's drain result, so the browser retries on failure.
