@@ -9,10 +9,10 @@
 `dev` · @Oxshadha
 
 - Every photo goes through `shared/media/photo.ts`: 1600 px, WebP where the browser really makes it (Safari falls back to JPEG), under 3 MB, EXIF and GPS dropped. The store and driver copies now use it.
-- The store's report and receive screens and the driver's proof screen say when a photo looks blurry or dark; it can still be kept (EXE-40). Voice notes in Opus are still to do.
+- The store's report and receive screens and the driver's proof screen say when a photo looks blurry or dark; it can still be kept (EXE-40). Voice notes record at 32 kbps in Opus and 48 in AAC (Chromium fails below that), a quarter to a half of the default size.
 
 Why: Phase 2b of the [roadmap](../../roadmap/02-FOUNDATION-FIXES.md); two copies of the same encoder, JPEG only, and unreadable evidence found only after it was sent.
-Verified: see the pull request.
+Verified: Node 346; typecheck; build; browser shell 17, driver 36, loader 31, store 59, dispatcher 76.
 
 ---
 

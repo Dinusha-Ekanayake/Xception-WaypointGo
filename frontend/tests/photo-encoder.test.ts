@@ -35,3 +35,11 @@ test("sharp edges score high, a smeared or flat photo low, and a dark one is cal
   assert.equal(judge(image("dark"), 32, 32), "dark");
   assert.equal(Math.round(brightness(image("flat"))), 128);
 });
+
+test("voice notes ask for a speech bitrate the format can really encode", async () => {
+  const { voiceBitsPerSecond } = await import("../src/shared/messaging/recorder.ts");
+  assert.equal(voiceBitsPerSecond("audio/webm;codecs=opus"), 32_000);
+  assert.equal(voiceBitsPerSecond("audio/ogg;codecs=opus"), 32_000);
+  assert.equal(voiceBitsPerSecond("audio/mp4;codecs=mp4a.40.2"), 48_000, "Chromium's AAC fails at 32");
+  assert.equal(voiceBitsPerSecond("audio/x-unknown"), undefined);
+});
