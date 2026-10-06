@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { request } from "./client.ts";
+import { LIVE_FALLBACK_MS, concerns, listenForChanges } from "./changes.ts";
 import { ApiError } from "./problem.ts";
 import { businessNow } from "../wording/now.ts";
 
@@ -40,11 +41,15 @@ export function useOnline(): boolean {
  * @param load the read to run; `null` skips it, for a read that is not possible yet.
  * @param key reruns the read when it changes, such as a depot or a date.
  * @param pollMs refetch interval while visible and online; 0 disables polling.
+ * @param live F-07b: re-read when a change to one of these topics commits at one
+ *     of these depots, and poll only every LIVE_FALLBACK_MS while that stream is
+ *     up; with it down, poll at `pollMs` as before.
  */
 export function useResource<T>(
   load: ((signal: AbortSignal) => Promise<T>) | null,
   key: string,
   pollMs = 0,
+  live?: { depots: string[]; topics: string[] },
 ): Resource<T> {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<ApiError | Error | null>(null);
@@ -99,13 +104,31 @@ export function useResource<T>(
     };
   }, [key, tick]);
 
+  // F-07b: listen for the topics this read shows, and slow the poll while the stream is up.
+  const [streaming, setStreaming] = useState(false);
+  const liveDepots = live?.depots.join(",") ?? "";
+  const liveTopics = live?.topics.join(",") ?? "";
   useEffect(() => {
-    if (!pollMs) return;
+    if (!liveDepots || !liveTopics || load === null) return;
+    const topics = liveTopics.split(",");
+    return listenForChanges(
+      liveDepots.split(","),
+      (change) => {
+        if (concerns(topics, change)) refreshQuietly();
+      },
+      setStreaming,
+    );
+    // `load === null` only switches listening on and off; the loader itself changes every render.
+  }, [liveDepots, liveTopics, load === null, refreshQuietly]);
+  const every = pollMs && streaming ? Math.max(pollMs, LIVE_FALLBACK_MS) : pollMs;
+
+  useEffect(() => {
+    if (!every) return;
     const id = window.setInterval(() => {
       if (document.visibilityState === "visible" && navigator.onLine) refreshQuietly();
-    }, pollMs);
+    }, every);
     return () => window.clearInterval(id);
-  }, [pollMs, refreshQuietly]);
+  }, [every, refreshQuietly]);
 
   // Back on screen, back in focus or back online: read again at once. A phone
   // that slept, or a tab left in the background, otherwise shows old data until

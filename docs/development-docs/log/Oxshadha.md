@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-10-07 - feat: the dispatcher's board updates on change, not every 2 s (F-07b)
+
+`dev` · @Oxshadha
+
+- Every committed event signals its topic and depot to open boards over `/api/changes/stream` (no data, scope checked, 403 and audit for another depot); a read re-reads on its topics and polls every 15 s as a safety net, back to 2 s if the stream goes quiet (PLT-18).
+- Still to do: the notification and position streams as topics on the same connection.
+
+Why: Phase 2 of the [roadmap](../../roadmap/02-FOUNDATION-FIXES.md); the board read about ten things every 2 s per depot.
+Verified: see the pull request.
+
+---
+
 ## 2026-10-07 - fix: an outlet or calendar edit reaches planning without a restart (F-10)
 
 `dev` · @Oxshadha

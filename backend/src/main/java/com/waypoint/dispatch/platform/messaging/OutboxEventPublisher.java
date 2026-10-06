@@ -36,15 +36,18 @@ public class OutboxEventPublisher implements EventPublisher {
   private final Clock clock;
   private final Metrics metrics;
   private final RelaySignal relay;
+  private final ChangeSignals changes;
   private final SecureRandom random = new SecureRandom();
 
   public OutboxEventPublisher(
-      Database database, ObjectMapper mapper, Clock clock, Metrics metrics, RelaySignal relay) {
+      Database database, ObjectMapper mapper, Clock clock, Metrics metrics, RelaySignal relay,
+      ChangeSignals changes) {
     this.database = database;
     this.mapper = mapper;
     this.clock = clock.realTime();
     this.metrics = metrics;
     this.relay = relay;
+    this.changes = changes;
   }
 
   @Override
@@ -77,6 +80,9 @@ public class OutboxEventPublisher implements EventPublisher {
         actorId);
     // Only once the event is really there: a relay woken before the commit finds nothing.
     database.afterCommit(relay::signal);
+    // F-07b: open screens of the event's depot re-read what it changed, once it committed.
+    String depot = depotOf(event);
+    database.afterCommit(() -> changes.committed(event.type(), depot));
     metrics.increment("waypoint.event.published", "type", event.type());
   }
 
@@ -91,6 +97,16 @@ public class OutboxEventPublisher implements EventPublisher {
           event.getClass().getName() + " is not in a module's contract package");
     }
     return m.group(1);
+  }
+
+  /** The depot an event's payload names, if any; read generically so platform imports no module. */
+  private String depotOf(DomainEvent event) {
+    try {
+      com.fasterxml.jackson.databind.JsonNode node = mapper.valueToTree(event).get("depotCode");
+      return node == null || node.isNull() ? null : node.asText();
+    } catch (IllegalArgumentException e) {
+      return null;
+    }
   }
 
   private String toJson(DomainEvent event) {

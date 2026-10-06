@@ -29,7 +29,7 @@ const FORWARD_REQUEST = [
 
 // Response headers a client acts on. Everything else stays on this side.
 /** Long-lived responses: tied to the browser's connection instead of the 25 second limit. */
-const STREAMS = new Set(["/api/notifications/stream", "/api/execution/positions/stream"]);
+const STREAMS = new Set(["/api/notifications/stream", "/api/execution/positions/stream", "/api/changes/stream"]);
 
 const FORWARD_RESPONSE = [
   "content-type",

@@ -152,4 +152,19 @@ class PlanGenerationQueueIntegrationTest extends PlanningIntegrationSupport {
     read(elsewhere, "/api/plans/jobs/" + jobId + "?depot=" + depot, 403);
     read(elsewhere, "/api/plans/jobs?depot=" + depot + "&date=" + serviceDate, 403);
   }
+
+  @Test
+  void theLiveBoardStreamOpensForTheDispatchersDepotAndRefusesAnother() throws Exception {
+    // F-07b: a depot outside the reader's scope is 403 and an audit row, never a silent stream.
+    org.springframework.test.web.servlet.MvcResult open =
+        http.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/changes/stream?depot=" + depot).cookie(dispatcher))
+            .andReturn();
+    assertEquals(200, open.getResponse().getStatus());
+    assertTrue(open.getRequest().isAsyncStarted(), "the stream stays open");
+
+    org.springframework.test.web.servlet.MvcResult refused =
+        http.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/changes/stream?depot=" + depot).cookie(elsewhere))
+            .andReturn();
+    assertEquals(403, refused.getResponse().getStatus(), refused.getResponse().getContentAsString());
+  }
 }
