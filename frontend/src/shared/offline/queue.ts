@@ -6,6 +6,7 @@ import { outcomeAction } from "./outcome.ts";
 import { discardCommand, inRecordedOrder, nextOrder, readyToSend, recordedOrder, redoCommands } from "./review.ts";
 import type { RedoBasis } from "./resolvers.ts";
 import { all, allUploads, put, putSnapshot, remove, type StoredEntry } from "./store.ts";
+import { nextAttemptAt, retryAfterOf, waiting } from "./retry.ts";
 import { drainUploads } from "./uploads.ts";
 import { queuesWrites, type Role } from "./tiers.ts";
 
@@ -18,8 +19,9 @@ import { queuesWrites, type Role } from "./tiers.ts";
 //   2. A conflict is never auto-merged. It is held for a person to look at
 //      against the current server record.
 //
-// Draining uses exponential backoff with jitter. Without jitter a regional
-// reconnect arrives in lockstep and the recovery becomes the outage.
+// Draining uses exponential backoff with jitter and honours the server's
+// Retry-After (retry.ts). Without jitter a regional reconnect arrives in
+// lockstep and the recovery becomes the outage.
 
 export const QUEUED_EVENT = "waypoint:queued";
 
@@ -75,11 +77,7 @@ function requestBackgroundSync(): void {
   }
 }
 
-export function backoffMs(attempt: number): number {
-  const base = Math.min(1000 * 2 ** attempt, 60_000);
-  const jitter = base * 0.5 * (Math.random() * 2 - 1);
-  return Math.max(250, Math.round(base + jitter));
-}
+export { backoffMs } from "./retry.ts";
 
 export type DrainReport = { sent: number; heldForReview: number; remaining: number };
 
@@ -169,6 +167,9 @@ async function drainOnce(accountId: string): Promise<DrainReport> {
   let sent = 0;
   let heldForReview = entries.length - entries.filter((e) => !e.needsReview).length;
   if (ready.length === 0) return { sent, heldForReview, remaining: entries.length };
+  // A recent failure set a time before which nothing is sent (retry.ts). Every
+  // trigger lands here, so the backoff holds whichever one fired.
+  if (waiting(ready[0]!, Date.now())) return { sent, heldForReview, remaining: entries.length };
 
   const device = deviceId();
   await keepDeviceForWorker(accountId, device);
@@ -188,7 +189,8 @@ async function drainOnce(accountId: string): Promise<DrainReport> {
     // is marked for review, because nothing was decided.
     const first = ready[0]!;
     if (!(error instanceof ApiError && error.status === 401)) {
-      await put(accountId, { ...first, attempts: first.attempts + 1, lastError: String(error) });
+      const attempts = first.attempts + 1;
+      await put(accountId, { ...first, attempts, lastError: String(error), nextAttemptAt: nextAttemptAt(Date.now(), attempts, retryAfterOf(error)) });
     }
     return { sent, heldForReview, remaining: entries.length };
   }
@@ -213,7 +215,8 @@ async function drainOnce(accountId: string): Promise<DrainReport> {
       });
       heldForReview++;
     } else {
-      await put(accountId, { ...entry, attempts: entry.attempts + 1, lastError: result.detail ?? "Not applied yet" });
+      const attempts = entry.attempts + 1;
+      await put(accountId, { ...entry, attempts, lastError: result.detail ?? "Not applied yet", nextAttemptAt: nextAttemptAt(Date.now(), attempts) });
       break;
     }
   }

@@ -9,7 +9,21 @@ export type RequestOptions = {
   body?: unknown;
   signal?: AbortSignal;
   correlationId?: string;
+  /** Give up after this long; 0 waits as long as the browser does. Defaults to READ_TIMEOUT_MS or WRITE_TIMEOUT_MS. */
+  timeoutMs?: number;
 };
+
+// A line that is connected but carries nothing (a weak signal in the hills) can
+// keep a request open for minutes, and the kept answer only appears once the
+// browser gives up. A timeout ends the wait as a TimeoutError, which kept reads
+// treat as an outage; a caller's own cancel stays an AbortError, which they do
+// not (roadmap F-02).
+export const READ_TIMEOUT_MS = 8_000;
+export const WRITE_TIMEOUT_MS = 15_000;
+
+function timeoutError(): DOMException {
+  return new DOMException("The server did not answer in time", "TimeoutError");
+}
 
 // UUID-shaped, because the backend replaces anything else with an id of its own,
 // and then the id the client logged would not match the one the server did.
@@ -42,15 +56,43 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   };
   if (options.body !== undefined) headers["content-type"] = "application/json";
 
-  const response = await fetch(path, {
-    method: options.method ?? "GET",
-    headers,
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
-    credentials: "same-origin",
-    signal: options.signal,
-  });
+  const method = options.method ?? "GET";
+  const timeoutMs = options.timeoutMs ?? (method === "GET" ? READ_TIMEOUT_MS : WRITE_TIMEOUT_MS);
+  // One controller for both the caller's cancel and the timeout, written out
+  // rather than AbortSignal.any, which older iPhones lack.
+  const controller = new AbortController();
+  let timedOut = false;
+  const onCallerAbort = () => controller.abort(options.signal?.reason);
+  if (options.signal?.aborted) controller.abort(options.signal.reason);
+  else options.signal?.addEventListener("abort", onCallerAbort, { once: true });
+  const timer =
+    timeoutMs > 0
+      ? setTimeout(() => {
+          timedOut = true;
+          controller.abort(timeoutError());
+        }, timeoutMs)
+      : undefined;
 
-  const text = await response.text();
+  let response: Response;
+  let text: string;
+  try {
+    response = await fetch(path, {
+      method,
+      headers,
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      credentials: "same-origin",
+      signal: controller.signal,
+    });
+    text = await response.text();
+  } catch (error) {
+    // Browsers differ in what an abort with a reason rejects with; the flag
+    // decides, so a timeout is always a TimeoutError.
+    if (timedOut) throw timeoutError();
+    throw error;
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+    options.signal?.removeEventListener("abort", onCallerAbort);
+  }
   const payload = parseBody(text);
 
   if (!response.ok) {

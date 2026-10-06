@@ -17,6 +17,8 @@ export type StoredEntry<T = unknown> = {
   order?: number;
   attempts: number;
   lastError?: string;
+  /** Epoch ms before which no pass sends: a jittered backoff or the server's Retry-After (retry.ts). */
+  nextAttemptAt?: number;
   /** Held for human review after a conflict. Never retried automatically. */
   needsReview?: boolean;
   /** Why the server held it, such as VERSION_CONFLICT. */
