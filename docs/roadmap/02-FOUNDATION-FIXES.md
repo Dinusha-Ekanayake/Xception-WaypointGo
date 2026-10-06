@@ -82,6 +82,8 @@ When a lost reefer's chilled trip finds no reefer, the replan defers it; it neve
 
 ### F-04 Snapshots, eviction, sign-out and storage quota
 
+**Built 2026-10-07** (EXE-36). Writes skip unchanged content for a minute, rather than hashing on every poll forever, so the saved time shown offline stays honest. Sign-out deletes every saved read; queued writes and uploads stay, because they are work for the same account, and the sign-out sheet already warns about them. `persist()` was already asked for by queuing roles (EXE-33).
+
 - **Snapshots:** write only when the content hash changes, not on every poll.
 - **Eviction:** by age (7 days for dated keys) and by count per prefix.
 - **Sign-out:** after the outbox drains, clear the account's IndexedDB: saved reads, uploads, crew list.

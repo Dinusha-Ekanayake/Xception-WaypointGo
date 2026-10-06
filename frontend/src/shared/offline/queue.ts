@@ -10,6 +10,7 @@ import { inSendOrder } from "./lanes.ts";
 import { nextAttemptAt, retryAfterOf, waiting } from "./retry.ts";
 import { drainUploads } from "./uploads.ts";
 import { queuesWrites, type Role } from "./tiers.ts";
+import { storageFailure } from "./retention.ts";
 
 // The write queue.
 //
@@ -45,7 +46,7 @@ export async function enqueue(
   } catch (error) {
     // Private windows, cleared site data and blocked storage all land here. The
     // user must be told, because the promise of a durable save was not kept.
-    return { durable: false, reason: String(error) };
+    return { durable: false, reason: storageFailure(error) };
   }
 }
 

@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useOnline } from "@shared/api/useResource";
-import { forgetCredentials, queuesWrites, useSync, type Role } from "@shared/offline";
-import { keepStorage, watchInstall } from "@shared/pwa";
+import { forgetSaved, queuesWrites, sweepSaved, useSync, type Role } from "@shared/offline";
+import { keepStorage, storageNearlyFull, watchInstall } from "@shared/pwa";
 import { Notice, ShellProvider, SkipLink, StructuredError, cx, setStateScope, type ShellControls } from "@shared/ui";
 import { roleForHost } from "./hostRole.ts";
 import RoleRouter from "./RoleRouter.tsx";
@@ -88,6 +88,11 @@ export default function AppShell(): React.JSX.Element {
   const sync = useSync(state?.kind === "signed-in" ? state.session.userId : null);
   // Kept screen choices (tabs, filters, scroll) belong to the account signed in.
   setStateScope(state?.kind === "signed-in" ? state.session.userId : null);
+  const userId = state?.kind === "signed-in" ? state.session.userId : null;
+  // Saved reads older than a week, or beyond the cap, go once per sign-in (F-04).
+  useEffect(() => {
+    if (userId) void sweepSaved(userId);
+  }, [userId]);
 
   const check = useCallback(() => {
     setState(null);
@@ -123,8 +128,13 @@ export default function AppShell(): React.JSX.Element {
 
   // A role that queues writes keeps them on the device; ask the browser not to
   // clear that storage when space runs low (issue #201).
+  // And warns while there is still room, so recorded work is not refused at a stop (F-04).
+  const [spaceLow, setSpaceLow] = useState(false);
   useEffect(() => {
-    if (role && role !== "admin" && role !== "auditor" && queuesWrites(role as Role)) void keepStorage();
+    if (role && role !== "admin" && role !== "auditor" && queuesWrites(role as Role)) {
+      void keepStorage();
+      void storageNearlyFull().then(setSpaceLow);
+    }
   }, [role]);
 
   useEffect(() => {
@@ -243,8 +253,9 @@ export default function AppShell(): React.JSX.Element {
     setSigningOut(true);
     try {
       await signOut();
-      // A shared phone must not carry the last person's Fuel Pass (FF-06b).
-      await forgetCredentials(session.userId);
+      // A shared phone carries nothing of the last person's saved reads, their
+      // Fuel Pass included (F-04, FF-06b). Queued work stays for their next sign-in.
+      await forgetSaved(session.userId);
       setPending(null);
       setNotice("You are signed out.");
       setState({ kind: "signed-out" });
@@ -302,6 +313,15 @@ export default function AppShell(): React.JSX.Element {
             >
               {signingOut ? "Signing out…" : "Sign out"}
             </button>
+          </div>
+        )}
+        {spaceLow && (
+          <div className="mx-auto w-full max-w-[720px] px-4 pt-2 font-go">
+            <Notice
+              tone="warning"
+              title="This phone is nearly out of storage space. Free some space so work recorded with no signal can be saved."
+              action={<button type="button" className="min-h-12 px-2 text-[13px] font-medium text-go-teal" onClick={() => setSpaceLow(false)}>Dismiss</button>}
+            />
           </div>
         )}
         {(pending !== null || signOutError) && (

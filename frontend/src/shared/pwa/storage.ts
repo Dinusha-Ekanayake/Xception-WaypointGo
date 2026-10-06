@@ -37,3 +37,23 @@ export function lastPersistence(): Persistence {
     return null;
   }
 }
+
+// Roadmap F-04: warn before the phone is full, not after a save fails.
+
+/** At this share of the browser's allowance, the role says the phone is nearly full. */
+export const NEARLY_FULL = 0.8;
+
+/** Whether usage has reached {@link NEARLY_FULL} of the quota; false when the browser gives no figures. */
+export function nearlyFull(estimate: { usage?: number; quota?: number } | null): boolean {
+  if (!estimate?.quota || estimate.usage === undefined) return false;
+  return estimate.usage / estimate.quota >= NEARLY_FULL;
+}
+
+/** Asks the browser how full this site's storage is. Never throws. */
+export async function storageNearlyFull(): Promise<boolean> {
+  try {
+    return nearlyFull((await navigator.storage?.estimate?.()) ?? null);
+  } catch {
+    return false;
+  }
+}

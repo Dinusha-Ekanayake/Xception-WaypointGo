@@ -48,12 +48,12 @@ test("a withdrawn pass is removed from the phone and not shown again", async ({ 
   await expect(page.getByText(/No signal, and the Fuel Pass is not saved on this phone/)).toBeVisible();
 });
 
-test("signing out deletes the Fuel Pass from the phone", async ({ page }) => {
+test("signing out deletes the Fuel Pass and every saved read from the phone", async ({ page }) => {
   const server = await serve(page);
   server.fuelPass = PNG;
   await page.goto("/");
   await expect.poll(() => server.calls.filter((c) => c.endsWith("/fuel-pass")).length).toBeGreaterThan(0);
-  const keptKeys = () =>
+  const savedKeys = () =>
     page.evaluate(
       () =>
         new Promise<string[]>((resolve) => {
@@ -62,14 +62,15 @@ test("signing out deletes the Fuel Pass from the phone", async ({ page }) => {
             const db = open.result;
             if (!db.objectStoreNames.contains("snapshots")) return resolve([]);
             const keys = db.transaction("snapshots").objectStore("snapshots").getAllKeys();
-            keys.onsuccess = () => resolve((keys.result as string[]).filter((k) => k.startsWith("credential:")));
+            keys.onsuccess = () => resolve((keys.result as string[]).filter((k) => !k.startsWith("waypoint.")).sort());
           };
         }),
     );
-  await expect.poll(keptKeys).toEqual(["credential:fuel-pass:VEH043"]);
+  await expect.poll(savedKeys).toContain("credential:fuel-pass:VEH043");
+  expect((await savedKeys()).some((k) => k.startsWith("driver-run:"))).toBe(true);
 
   await page.getByRole("button", { name: /Settings:/ }).click();
   await page.getByRole("dialog", { name: "Settings" }).getByRole("button", { name: "Sign out" }).click();
   await page.getByRole("dialog", { name: "Sign out" }).getByRole("button", { name: "Sign out" }).click();
-  await expect.poll(keptKeys).toEqual([]);
+  await expect.poll(savedKeys).toEqual([]);
 });

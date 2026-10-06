@@ -110,10 +110,35 @@ export async function getSnapshot<T>(accountId: string, key: string): Promise<Sn
   return found ?? null;
 }
 
-/** Deletes every snapshot whose key starts with {@code prefix}. */
-export async function removeSnapshots(accountId: string, prefix: string): Promise<void> {
+/** Every saved read's key and time, without its value. */
+export async function snapshotTimes(accountId: string): Promise<Array<{ key: string; savedAt: string }>> {
   const db = await open(accountId);
-  await tx(db, "readwrite", (store) => store.delete(IDBKeyRange.bound(prefix, `${prefix}\uffff`)), SNAPSHOT_STORE);
+  const out: Array<{ key: string; savedAt: string }> = [];
+  await new Promise<void>((resolve, reject) => {
+    const cursor = db.transaction(SNAPSHOT_STORE, "readonly").objectStore(SNAPSHOT_STORE).openCursor();
+    cursor.onsuccess = () => {
+      const at = cursor.result;
+      if (!at) return resolve();
+      const value = at.value as Snapshot;
+      out.push({ key: value.key, savedAt: value.savedAt });
+      at.continue();
+    };
+    cursor.onerror = () => reject(cursor.error);
+  });
+  db.close();
+  return out;
+}
+
+export async function removeSnapshotKeys(accountId: string, keys: string[]): Promise<void> {
+  if (keys.length === 0) return;
+  const db = await open(accountId);
+  await new Promise<void>((resolve, reject) => {
+    const transaction = db.transaction(SNAPSHOT_STORE, "readwrite");
+    const store = transaction.objectStore(SNAPSHOT_STORE);
+    for (const key of keys) store.delete(key);
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+  });
   db.close();
 }
 

@@ -1,5 +1,6 @@
 import { ApiError, parseProblem } from "@shared/api/problem";
 import { allUploads, putUpload, removeUpload, type StoredUpload } from "./store.ts";
+import { storageFailure } from "./retention.ts";
 
 // Binary artifacts (proof photos, signatures) on their way to the server.
 //
@@ -21,7 +22,7 @@ export async function saveUpload(
     globalThis.dispatchEvent?.(new Event(UPLOADS_EVENT));
     return { durable: true };
   } catch (error) {
-    return { durable: false, reason: String(error) };
+    return { durable: false, reason: storageFailure(error) };
   }
 }
 

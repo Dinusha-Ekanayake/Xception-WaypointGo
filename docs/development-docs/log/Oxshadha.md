@@ -4,6 +4,19 @@
 
 ---
 
+## 2026-10-07 - feat: the phone keeps less, and nothing after sign-out (F-04)
+
+`dev` · @Oxshadha
+
+- Saved reads: an unchanged answer is written again at most once a minute instead of on every poll; older than a week or beyond 400 per account, deleted once per sign-in.
+- Signing out deletes every saved read, the Fuel Pass included; queued work stays for the same account.
+- A queuing role warns when the phone is 80% full, and a save refused for space says so in plain words (EXE-36).
+
+Why: Phase 2 of the [roadmap](../../roadmap/02-FOUNDATION-FIXES.md); a 2-second poll wrote to the phone every time and nothing was ever deleted.
+Verified: Node 330; typecheck; build; browser driver 34 (13 existing fixme skips), loader 31, store 59, dispatcher 76, shell 17.
+
+---
+
 ## 2026-10-07 - feat: the vehicle's Fuel Pass QR on the driver's phone (FF-06b)
 
 `dev` · @Oxshadha
