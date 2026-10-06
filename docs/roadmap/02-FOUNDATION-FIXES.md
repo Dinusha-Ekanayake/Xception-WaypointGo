@@ -222,7 +222,7 @@ Not on the pilot's critical path. FF-02, FF-03 and FF-06 ship first on the exist
 
 ### M-02 One photo encoder
 
-**Built 2026-10-07, in part.** `shared/media/photo.ts` encodes every photo (1600 px, WebP checked by its type, else JPEG, under 3 MB, EXIF dropped, a 320 px thumbnail), and the store's report and receive screens say when a photo looks blurry or dark, with Retake beside it (EXE-40). Still to do: the same prompt on the driver's proof screen, keeping the Fuel Pass lossless needs no change (it is uploaded as is), and the voice notes in Opus.
+**Built 2026-10-07, in part.** `shared/media/photo.ts` encodes every photo (1600 px, WebP checked by its type, else JPEG, under 3 MB, EXIF dropped, a 320 px thumbnail), and the store's report and receive screens and the driver's proof screen say when a photo looks blurry or dark, the photo kept unless retaken (EXE-40). The Fuel Pass needs no change: it is uploaded as is, lossless. Still to do: voice notes in Opus.
 
 - **One encoder:** `frontend/src/shared/media/photo.ts` replaces `roles/store/data/photo.ts` and `roles/driver/data/image.ts`.
 - **Encoding:**
