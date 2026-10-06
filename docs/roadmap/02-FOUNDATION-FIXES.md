@@ -129,6 +129,7 @@ The following items are defined in their own documents:
 
 - **When:** split the Hikari pool into request and worker pools only if B-04 shows pending connections above zero after F-09a.
 - **Why it waits:** a second data source touches `Database`, `SET LOCAL` and transaction handling everywhere.
+- **Evidence so far (2026-10-06 baseline):** twelve parallel handover PIN entries against the test pool of 5 left 7 requests waiting past the 3 s connection timeout ("total=5, active=5, idle=0, waiting=7"), answered 503. The PIN check itself is a fast SHA-256, so find out first why a command holds its connection that long. A command that takes a second connection (`REQUIRES_NEW`) while holding its first would deadlock a small pool.
 
 ### F-10 Reference generation counter
 
