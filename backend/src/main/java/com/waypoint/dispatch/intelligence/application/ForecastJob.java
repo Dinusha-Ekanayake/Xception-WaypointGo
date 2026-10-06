@@ -239,18 +239,27 @@ public class ForecastJob implements ScheduledJob {
     LocalDate end = mondays.get(mondays.size() - 1).plusDays(6);
     List<CalendarDayView> days = reference.calendarDays(origin, end);
     for (String d : depots) {
+      // Each brand's history first, so the depot's first order over every brand
+      // sets how many weeks of history there really are (weekForecast).
+      Map<String, List<DailyVolume>> byBrand = new LinkedHashMap<>();
       for (String b : brands) {
-        List<DailyVolume> history = database.asSystem(ModuleRole.ML, () -> orders
+        byBrand.put(b, database.asSystem(ModuleRole.ML, () -> orders
             .dailyVolumes(d, b, origin.minusWeeks(8), origin.minusDays(1)).stream()
             .map(v -> new DailyVolume(v.date(), v.totalM3(), v.chilledM3()))
-            .toList());
+            .toList()));
+      }
+      LocalDate ordersSince = byBrand.values().stream().flatMap(List::stream)
+          .filter(v -> v.totalM3().signum() > 0)
+          .map(DailyVolume::date).min(LocalDate::compareTo).orElse(null);
+      for (String b : brands) {
+        List<DailyVolume> history = byBrand.get(b);
         for (LocalDate monday : mondays) {
           List<LocalDate> operating = days.stream()
               .filter(c -> !c.date().isBefore(monday) && c.date().isBefore(monday.plusDays(7)) && c.operating())
               .map(CalendarDayView::date)
               .toList();
           out.put(new Key(d, b, monday.get(IsoFields.WEEK_BASED_YEAR), monday.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR)),
-              DeterministicEstimator.weekForecast(history, origin, operating));
+              DeterministicEstimator.weekForecast(history, origin, operating, ordersSince));
         }
       }
     }

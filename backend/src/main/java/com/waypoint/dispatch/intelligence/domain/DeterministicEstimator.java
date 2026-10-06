@@ -91,7 +91,26 @@ public final class DeterministicEstimator {
    */
   public static WeekVolume weekForecast(
       List<DailyVolume> history, LocalDate origin, List<LocalDate> operatingDaysOfWeek) {
+    return weekForecast(history, origin, operatingDaysOfWeek, origin.minusWeeks(8));
+  }
+
+  /**
+   * As above, for a depot that has taken orders only since {@code ordersSince}:
+   * the weekday sums are divided by the weeks actually behind it (one to eight),
+   * not by eight. Dividing by eight on a new installation with one week of
+   * orders gave an eighth of real demand, and the capacity plan then showed
+   * spare vehicles it did not have. {@code ordersSince} is the depot's first
+   * order in the window, over every brand, so a brand that orders rarely is not
+   * inflated. With no orders at all the week is zero.
+   */
+  public static WeekVolume weekForecast(
+      List<DailyVolume> history, LocalDate origin, List<LocalDate> operatingDaysOfWeek, LocalDate ordersSince) {
+    if (ordersSince == null) {
+      return new WeekVolume(BigDecimal.ZERO.setScale(4), BigDecimal.ZERO.setScale(4));
+    }
     LocalDate from = origin.minusWeeks(8);
+    long days = java.time.temporal.ChronoUnit.DAYS.between(ordersSince.isBefore(from) ? from : ordersSince, origin);
+    long weeksBehind = Math.max(1, Math.min(8, (days + 6) / 7));
     Map<DayOfWeek, BigDecimal[]> sums = new EnumMap<>(DayOfWeek.class);
     for (DailyVolume d : history) {
       if (d.date().isBefore(from) || !d.date().isBefore(origin)) {
@@ -101,7 +120,7 @@ public final class DeterministicEstimator {
       s[0] = s[0].add(d.totalM3());
       s[1] = s[1].add(d.chilledM3());
     }
-    BigDecimal weeks = BigDecimal.valueOf(8);
+    BigDecimal weeks = BigDecimal.valueOf(weeksBehind);
     BigDecimal total = BigDecimal.ZERO;
     BigDecimal chilled = BigDecimal.ZERO;
     for (LocalDate day : new ArrayList<>(operatingDaysOfWeek)) {
