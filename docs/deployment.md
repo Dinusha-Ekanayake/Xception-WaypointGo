@@ -157,6 +157,33 @@ sudo -u deploy env DEPLOY_REF=<commit> /opt/waypoint/app/deploy/vps/deploy.sh
 
 Everything written after the dump was taken is in `waypoint_damaged` and not in the restored database; drop that database only once nothing is needed from it. Roles are cluster-wide and are not in the dump, so it restores into the cluster it came from, not into an empty one. These steps have not been exercised on the VPS: rehearse them on preview before relying on them.
 
+### Daily off-server backup
+
+The deploy dumps above survive a bad migration, not a lost disk. [deploy/vps/backup.sh](../deploy/vps/backup.sh) takes a daily dump the same way, reads it back, keeps the newest 7 on the server under `/opt/waypoint/backups/daily-<environment>/`, and copies each one with its sha256 to a second provider through rclone, keeping 30 days there. Proofs, issue photos and voice notes are in the database by default, so the dump covers them.
+
+Set it up once, as root, then as `deploy`:
+
+```sh
+apt-get install -y rclone
+sudo -u deploy rclone config            # create a remote, e.g. "offsite" (Backblaze B2 or a Hetzner Storage Box)
+sudo -u deploy crontab -e               # add the two lines below
+```
+
+```cron
+BACKUP_REMOTE=offsite:waypoint-backups
+15 2 * * * /opt/waypoint/app/deploy/vps/backup.sh production >> /opt/waypoint/backups/backup.log 2>&1
+45 2 * * * /opt/waypoint/preview/deploy/vps/backup.sh preview >> /opt/waypoint/backups/backup.log 2>&1
+```
+
+The rclone credentials stay in `deploy`'s rclone config, never in the repository. A run fails loudly if the dump cannot be read back, if `BACKUP_REMOTE` is unset, or if the remote copy does not match. Each success writes `/opt/waypoint/backups/daily-<environment>/last-success`: a timestamp older than 26 hours means the backup has stopped.
+
+**Restore drill.** Run it on preview first, and time it. The targets are a recovery point of 24 hours or less and a recovery time of 4 hours or less (roadmap H-05).
+
+1. Download the newest preview dump from the remote with `rclone copy`, and check its sha256.
+2. Restore it with the steps under "On the VPS" above.
+3. Sign in and walk one role.
+4. Record the times in the development log.
+
 ### Elsewhere
 
 Install PostgreSQL client tools matching the server major version. Export DATABASE_URL_UNPOOLED securely, then:
