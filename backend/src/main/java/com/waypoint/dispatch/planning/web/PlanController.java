@@ -1,6 +1,7 @@
 package com.waypoint.dispatch.planning.web;
 
 import com.waypoint.dispatch.planning.application.PlanDataQuery;
+import com.waypoint.dispatch.planning.contract.PlanViews;
 import com.waypoint.dispatch.planning.contract.PlanViews.AllocationPageView;
 import com.waypoint.dispatch.planning.contract.PlanViews.AllocationView;
 import com.waypoint.dispatch.planning.contract.PlanViews.PlanSummaryView;
@@ -182,6 +183,18 @@ public class PlanController {
       @RequestParam UUID trip, @RequestParam List<UUID> orders, HttpServletRequest request) {
     var actor = authorizer.require(request, READ, "wpt:plan:trip:" + trip);
     return plans.previewSequence(actor, trip, orders);
+  }
+
+  /**
+   * The stop order that fits the trip's delivery windows best for the orders
+   * given (comma separated, the order the dispatcher has now), beside how that
+   * order runs (R-PLN-43). Advice: nothing changes until the order is applied.
+   */
+  @GetMapping("/preview/suggested-sequence")
+  public PlanViews.StopOrderSuggestion suggestSequence(
+      @RequestParam UUID trip, @RequestParam List<UUID> orders, HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:plan:trip:" + trip);
+    return plans.suggestStopOrder(actor, trip, orders);
   }
 
   /** The saved plans of a depot and day, newest first. */

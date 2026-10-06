@@ -33,6 +33,21 @@ test("the inbox lists the most severe first, and a dispatcher takes an issue and
   expect(desk.commands.at(-1)).toMatchObject({ kind: "issue:Close", expectedVersion: 3 });
 });
 
+test("a resolved issue stays findable under Resolved and is closed from there", async ({ page }) => {
+  const desk = await serve(page, {
+    issues: [issue(1, { status: "RESOLVED", resolvedAt: "2026-03-01T04:00:00Z", description: "SHORT at loading: 1 units. One case short" })],
+  });
+  await page.goto("/#/issues");
+  await expect(page.getByRole("region", { name: "Open issues" })).toContainText("No open issue");
+
+  await page.getByRole("radio", { name: "Resolved" }).click();
+  const list = page.getByRole("region", { name: "Open issues" });
+  await expect(list).toContainText("Short at loading: 1 unit. One case short");
+  await expect(list).toContainText("To close");
+  await page.getByRole("region", { name: "Selected issue" }).getByRole("button", { name: "Close" }).click();
+  expect(desk.commands.at(-1)).toMatchObject({ kind: "issue:Close", payload: { issueId: "issue-1" } });
+});
+
 test("a redelivery is offered only when nothing arrived, and a stale issue is refused and read again", async ({ page }) => {
   const desk = await serve(page, {
     issues: [issue(1, { type: "FAILED_DELIVERY", severity: "HIGH" }), issue(2, { type: "RECEIPT_DISPUTE", severity: "LOW" })],

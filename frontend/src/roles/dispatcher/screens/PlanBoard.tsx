@@ -1,5 +1,6 @@
 "use client";
 
+import { stops } from "@shared/wording";
 import { useMemo, useState } from "react";
 import type { OrderView, PlanView, VehicleView } from "@shared/domain/types";
 import { Pill, Popover, cx, usePersistentState } from "@shared/ui";
@@ -217,7 +218,7 @@ function TripCell({
     <button
       type="button"
       aria-pressed={active}
-      aria-label={`${trip.vehicleId} trip ${trip.tripNumber}: ${trip.brandCode} ${trip.districtName}, ${trip.stops.length} stops`}
+      aria-label={`${trip.vehicleId} trip ${trip.tripNumber}: ${trip.brandCode} ${trip.districtName}, ${stops(trip.stops.length)}`}
       onClick={onOpen}
       className={cx(
         "flex min-h-[58px] w-full flex-col gap-1 rounded-go-input border px-3 py-2 text-left",

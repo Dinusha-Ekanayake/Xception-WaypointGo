@@ -7,11 +7,12 @@ import { size } from "../data/orders.ts";
 import { after, type TripLoad } from "../data/plan.ts";
 import { lastServedText } from "../data/planViews.ts";
 import { checkChips, stopRows, tripTiles } from "../data/tripWindow.ts";
-import { useInterchange, useTripEditPreview } from "../data/usePlanReads.ts";
+import { useInterchange, useStopOrderSuggestion, useTripEditPreview } from "../data/usePlanReads.ts";
 import VehiclePicker from "./VehiclePicker.tsx";
 import { tripChecks } from "./PlanTrip.tsx";
 import ReasonPicker, { reasonReady } from "./ReasonPicker.tsx";
 import Refusal from "./Refusal.tsx";
+import StopOrderAdvice, { SUGGESTED_REASON } from "./StopOrderAdvice.tsx";
 import TripWindow, { draggableOrder, moveItem, sameOrder } from "./TripWindow.tsx";
 import type { PlanActions } from "./planActions.ts";
 
@@ -77,6 +78,11 @@ export default function EditTrip({
   );
   const waiting = candidates.filter((c) => !ids.includes(c.order.orderId));
   const canEdit = editable && moveTo === null;
+  const suggestion = useStopOrderSuggestion(canEdit && ids.length > 1 ? trip.tripId : null, canEdit ? ids : null, plan.planId);
+  const applySuggestion = (orderIds: string[]) => {
+    setIds(orderIds);
+    if (!reasonReady(reason)) setReason(SUGGESTED_REASON);
+  };
 
   const insert = (orderId: string, index: number) =>
     setIds((list) => {
@@ -116,6 +122,7 @@ export default function EditTrip({
       title={`${trip.vehicleId} Trip ${trip.tripNumber} · ${trip.brandCode} ${trip.districtName} · departs ${hhmm(trip.plannedDeparture)}`}
       onClose={leave}
       banner={
+        <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-3 rounded-go-input bg-go-surface px-4 py-2.5 text-[13px] text-go-ink">
           <span className="min-w-0 flex-1">
             {moveTo !== null
@@ -142,6 +149,8 @@ export default function EditTrip({
               Undo all
             </button>
           )}
+        </div>
+        {canEdit && <StopOrderAdvice suggestion={suggestion} current={ids} orders={orders} onApply={applySuggestion} />}
         </div>
       }
       left={{

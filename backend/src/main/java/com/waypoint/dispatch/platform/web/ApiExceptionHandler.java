@@ -118,6 +118,22 @@ public class ApiExceptionHandler {
    * race the application-level check lost (SEC-03, POL-09): someone else got there
    * first. Anything else is a broken reference or check, which the caller sent.
    */
+  /**
+   * Every database connection busy: an overload, not a fault. Answered 503 with
+   * Retry-After so a screen says to try again (rule 9) instead of showing an
+   * internal error, and counted so a pool too small for the load is visible.
+   */
+  @ExceptionHandler(org.springframework.transaction.CannotCreateTransactionException.class)
+  public ResponseEntity<Map<String, Object>> onNoConnection(
+      org.springframework.transaction.CannotCreateTransactionException e, HttpServletRequest req) {
+    metrics.increment("waypoint.db.connection_unavailable", "path", templateOf(req));
+    log.warn("No database connection for {} {}: {}", req.getMethod(), templateOf(req), e.getMessage());
+    HttpHeaders headers = new HttpHeaders();
+    headers.set(HttpHeaders.RETRY_AFTER, "2");
+    return respond(503, ErrorCode.DEPENDENCY_UNAVAILABLE.name(),
+        "The database is busy. Try again in a moment.", req, java.util.List.of(), headers, java.util.Map.of());
+  }
+
   @ExceptionHandler(DataIntegrityViolationException.class)
   public ResponseEntity<Map<String, Object>> onIntegrity(
       DataIntegrityViolationException e, HttpServletRequest req) {

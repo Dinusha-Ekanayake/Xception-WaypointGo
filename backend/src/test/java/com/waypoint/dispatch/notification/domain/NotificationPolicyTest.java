@@ -89,7 +89,7 @@ class NotificationPolicyTest {
     Addressed a = r.notifications().get(0);
     assertEquals(MANAGER, a.recipient());
     assertEquals("Order deferred", a.title());
-    assertEquals("Your order planned for 2026-10-03 was deferred: vehicle capacity", a.body());
+    assertEquals("Your order planned for Sat 3 Oct was deferred: vehicle capacity", a.body());
     assertTrue(a.push());
     assertEquals(Optional.of(new Subject("order", "o-1")), a.target().subject());
     assertTrue(a.missingFacts().isEmpty());
@@ -230,5 +230,13 @@ class NotificationPolicyTest {
 
     assertTrue(r.notifications().isEmpty());
     assertTrue(r.unrouted().isEmpty());
+  }
+
+  @Test
+  void factsReadAsPeopleWriteThem() {
+    Template.Rendered r = Template.render(
+        "Your trip for {serviceDate}: departing {plannedDeparture}, {stopCount} stops.",
+        java.util.Map.of("serviceDate", "2026-10-06", "plannedDeparture", "05:30:00", "stopCount", "1"));
+    org.junit.jupiter.api.Assertions.assertEquals("Your trip for Tue 6 Oct: departing 05:30, 1 stop.", r.text());
   }
 }

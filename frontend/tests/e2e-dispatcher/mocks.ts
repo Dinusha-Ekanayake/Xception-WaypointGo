@@ -299,6 +299,7 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
     }
     if (pathname === "/api/loading/trips") return route.fulfill(json(desk.dock));
     if (pathname === "/api/issues") return route.fulfill(json({ items: desk.issues.filter((i) => i.status === "OPEN" || i.status === "ASSIGNED"), nextCursor: null }));
+    if (pathname === "/api/issues/settled") return route.fulfill(json(desk.issues.filter((i) => i.status === "RESOLVED" || i.status === "CLOSED")));
     const one = /^\/api\/issues\/([^/]+)(\/history)?$/.exec(pathname);
     if (one) {
       const found = desk.issues.find((i) => i.issueId === one[1]);

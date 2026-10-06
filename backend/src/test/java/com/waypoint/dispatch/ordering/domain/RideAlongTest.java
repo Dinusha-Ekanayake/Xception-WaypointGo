@@ -33,6 +33,16 @@ class RideAlongTest {
   }
 
   @Test
+  void aFreshChilledOrderIsOfferedTheSharedRefrigeratedTrip() {
+    Map<LocalDate, Integer> chilledBooked = Map.of(TUE, 3);
+    assertEquals(
+        List.of(new Suggestion(TUE, 3)),
+        RideAlong.suggest("Fresh", "chilled", MON, OPEN, chilledBooked, d -> true));
+    assertTrue(RideAlong.suggest("Fresh", "ambient", MON, OPEN, chilledBooked, d -> true).isEmpty());
+    assertEquals("chilled", RideAlong.matchedTemperature("Fresh", "chilled"));
+  }
+
+  @Test
   void aDayNoBusierThanTheChosenOneIsNotOffered() {
     assertTrue(RideAlong.suggest("Tech", MON, OPEN, Map.of(MON, 2, TUE, 2)).isEmpty());
   }

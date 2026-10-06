@@ -12,6 +12,7 @@ import type {
   SnapshotDetailView,
   SnapshotView,
   StopOrderProposal,
+  StopOrderSuggestion,
   TripPreview,
 } from "@shared/domain/types";
 import { addDays } from "@shared/wording";
@@ -48,6 +49,12 @@ export function useComparison(a: string | null, b: string | null): Resource<Comp
  * Every place each deferred order could take, one read each, as the order's
  * panel and its row's suggestion both need them. Keyed by plan version, so an
  * edit that makes a new draft reads them again.
+ *
+ * Each read rebuilds the draft on the server, so they go two at a time rather
+ * than all at once: a peak day defers a dozen orders, and a dozen parallel
+ * rebuilds held every database connection and failed the rest. One read that
+ * still fails is tried once more and then left out, so one order's panel says
+ * it could not be read while every other order keeps its places.
  */
 export function usePlacements(planId: string, orderIds: string[]): Resource<Record<string, PlacementView[]>> {
   const key = `placements|${planId}|${orderIds.join(",")}`;
@@ -55,12 +62,40 @@ export function usePlacements(planId: string, orderIds: string[]): Resource<Reco
     orderIds.length === 0
       ? null
       : async (signal: AbortSignal) => {
-          const entries = await Promise.all(
-            orderIds.map(async (id) => [id, await request<PlacementView[]>(`/api/plans/preview/placements?order=${q(id)}`, { signal })] as const),
-          );
-          return Object.fromEntries(entries);
+          const read = (id: string) => request<PlacementView[]>(`/api/plans/preview/placements?order=${q(id)}`, { signal });
+          const out: Record<string, PlacementView[]> = {};
+          let failures = 0;
+          let firstError: unknown = null;
+          await inBatches(orderIds, PLACEMENT_READS_AT_ONCE, async (id) => {
+            try {
+              out[id] = await read(id).catch((e: unknown) => {
+                if (signal.aborted) throw e;
+                return read(id);
+              });
+            } catch (e) {
+              if (signal.aborted) throw e;
+              failures++;
+              firstError ??= e;
+            }
+          });
+          if (failures === orderIds.length) throw firstError;
+          return out;
         };
   return useResource(load, key);
+}
+
+const PLACEMENT_READS_AT_ONCE = 2;
+
+/** Runs `work` over `items`, at most `limit` at a time, in order of start. */
+async function inBatches<T>(items: T[], limit: number, work: (item: T) => Promise<void>): Promise<void> {
+  let next = 0;
+  const lane = async () => {
+    while (next < items.length) {
+      const item = items[next++]!;
+      await work(item);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, lane));
 }
 
 /**
@@ -97,6 +132,19 @@ export function useStopOrderProposal(
   void outOrderId;
   void inOrderId;
   return { available: false };
+}
+
+/**
+ * The stop order that fits the trip's windows best for the orders the dispatcher
+ * has now (R-PLN-43); null skips the read. Asked again whenever the orders change.
+ */
+export function useStopOrderSuggestion(tripId: string | null, orderIds: string[] | null, planId: string): Resource<StopOrderSuggestion> {
+  return useResource(
+    tripId === null || orderIds === null || orderIds.length < 2
+      ? null
+      : (signal) => request<StopOrderSuggestion>(`/api/plans/preview/suggested-sequence?trip=${q(tripId)}&orders=${orderIds.map(q).join(",")}`, { signal }),
+    `suggested|${planId}|${tripId ?? ""}|${(orderIds ?? []).join(",")}`,
+  );
 }
 
 /** A trip with its stops in the order asked, timed and checked; null skips the read. */

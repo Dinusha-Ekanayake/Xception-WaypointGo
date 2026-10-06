@@ -33,6 +33,10 @@ Documentation: `SYSTEM-ARCHITECTURE.md` at the root; `docs/architecture/` for mo
 
 Versioned SQL migrations live in root `migrations/`. The target schema under `docs/architecture/schema/migrations/` is a design under review and is deliberately not applied: the migrator reads `*.sql` directly inside `migrations/` and does not recurse. Spring defaults to `../migrations` from `backend/` and accepts `MIGRATIONS_DIR`. Migrations apply atomically through the backend `migrate` command with a transaction-scoped advisory lock. New migration files are named `YYYYMMDDTHHMM_<module>_<what>.sql` (they sort after `001`-`009`); each module writes its own, and because modules share no foreign keys, one module's migration never waits for another's.
 
+## Role UI Scope
+
+The driver and loader UIs are nearly finished: change them only to fix a broken flow or a shared wording rule, with the smallest change that does it. The dispatcher and store manager UIs are where UI work goes. Keep the role subdomains and main URL paths, one theme and one vocabulary across roles, and decide disagreements from the side of the person using the role. The full rule is in `.agent/rules/role-ui-scope.md`; read it before changing anything under `frontend/src/roles/`.
+
 ## Local Development
 
 PostgreSQL runs in Docker, the application runs natively: `docker compose up -d db`, then `mvn spring-boot:run` from `backend/` and `npm run dev` from `frontend/`. `scripts/dev.sh setup` does the first-time database, migration, import, demo accounts and `npm ci` in one command, and `scripts/dev.sh` starts all three afterwards; it always targets the local Docker database, never the `DATABASE_URL` in `.env`. `compose.yaml` builds production images and is the deployment path, not a development environment; do not add source bind mounts to it. Full setup and the map of which process reads which configuration file is in [docs/development-docs/development.md](docs/development-docs/development.md).

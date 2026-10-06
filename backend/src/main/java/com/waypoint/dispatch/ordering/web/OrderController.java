@@ -106,6 +106,7 @@ public class OrderController {
   public DeliveryDate deliveryDate(
       @RequestParam String outlet,
       @RequestParam LocalDate requestedDate,
+      @RequestParam(required = false) String temperature,
       HttpServletRequest request) {
     var actor = authorizer.require(request, READ, "wpt:order:outlet:" + outlet);
     OutletView o =
@@ -123,12 +124,13 @@ public class OrderController {
   public RideAlongView rideAlong(
       @RequestParam String outlet,
       @RequestParam LocalDate requestedDate,
+      @RequestParam(required = false) String temperature,
       HttpServletRequest request) {
     var actor = authorizer.require(request, READ, "wpt:order:outlet:" + outlet);
     OutletView o =
         reference
             .outlet(outlet, null)
             .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No outlet " + outlet));
-    return rideAlong.suggest(actor, o, requestedDate, clock.now());
+    return rideAlong.suggest(actor, o, requestedDate, clock.now(), temperature);
   }
 }

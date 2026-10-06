@@ -82,7 +82,7 @@ services:
     environment:
       DATABASE_URL: postgresql://waypoint_app:${APP_DB_PASSWORD:-local-testing-only-app}@db:5432/waypoint
       # Off by default here because this file is also the local Docker stack on
-      # plain HTTP. The VPS overlay and compose.prod.yaml force it on.
+      # plain HTTP. The VPS overlay forces it on.
       COOKIE_SECURE: ${COOKIE_SECURE:-0}
       MCP_ENABLED: ${MCP_ENABLED:-false}
       MCP_PUBLIC_URL: ${MCP_PUBLIC_URL:-}

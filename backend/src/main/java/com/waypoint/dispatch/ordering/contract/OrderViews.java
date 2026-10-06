@@ -136,10 +136,22 @@ public final class OrderViews {
    *     (issue #199), from the store's usual order; false when the store has no
    *     measured order yet, and the days are offered on bookings alone
    */
+  /**
+   * @param stopsOnChosen other outlets of the brand and district already booked
+   *     on the delivery day asked for (matching temperature for a chilled order),
+   *     so the screen can say why another day is better
+   * @param temperature the temperature the days were matched on, or null for any
+   */
   public record RideAlongView(
-      LocalDate requestedDate, LocalDate deliveryDate, boolean offered, List<RideAlongDay> days, boolean roomChecked) {
+      LocalDate requestedDate, LocalDate deliveryDate, boolean offered, List<RideAlongDay> days, boolean roomChecked,
+      int stopsOnChosen, String temperature) {
     public RideAlongView(LocalDate requestedDate, LocalDate deliveryDate, boolean offered, List<RideAlongDay> days) {
-      this(requestedDate, deliveryDate, offered, days, false);
+      this(requestedDate, deliveryDate, offered, days, false, 0, null);
+    }
+
+    public RideAlongView(
+        LocalDate requestedDate, LocalDate deliveryDate, boolean offered, List<RideAlongDay> days, boolean roomChecked) {
+      this(requestedDate, deliveryDate, offered, days, roomChecked, 0, null);
     }
   }
 

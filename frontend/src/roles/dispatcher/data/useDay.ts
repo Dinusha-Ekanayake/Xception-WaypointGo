@@ -147,6 +147,18 @@ export function useIssues(depots: string[]): Resource<IssueView[]> {
   return useResource(load, `issues|${depots.join(",")}`, POLL_MS);
 }
 
+/** Issues resolved or closed at these depots in the last week, most recently resolved first. */
+export function useSettledIssues(depots: string[], enabled: boolean): Resource<IssueView[]> {
+  const load =
+    depots.length === 0 || !enabled
+      ? null
+      : async (signal: AbortSignal) =>
+          (await Promise.all(depots.map((depot) => request<IssueView[]>(`/api/issues/settled?depot=${q(depot)}`, { signal }))))
+            .flat()
+            .sort((a, b) => (b.resolvedAt ?? "").localeCompare(a.resolvedAt ?? ""));
+  return useResource(load, `issues:settled|${depots.join(",")}`, POLL_MS);
+}
+
 export type IssueRecord = { issue: IssueView; history: IssueHistoryView[] };
 
 /** One issue and every decision on it, read by id so a resolved issue stays on screen. */

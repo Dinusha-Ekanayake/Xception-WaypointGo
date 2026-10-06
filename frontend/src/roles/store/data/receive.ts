@@ -1,4 +1,5 @@
 import type { ItemView, ReceiptLineView } from "@shared/domain/types";
+import { productLabel } from "../../../shared/wording/index.ts";
 
 // The store's count, as Figma "06 Receive delivery" builds it. Pure, so the rules
 // are tested without a browser.
@@ -67,7 +68,7 @@ export function noteOf(reports: readonly Report[], extra = ""): string | null {
   for (const kind of KINDS) {
     const items = reports.filter((r) => r.kind === kind);
     if (items.length === 0) continue;
-    parts.push(`${kind}: ${items.map((r) => (LOWERS_COUNT[kind] ? `${r.productId} x${r.units}` : r.productId)).join(", ")}`);
+    parts.push(`${kind}: ${items.map((r) => (LOWERS_COUNT[kind] ? `${productLabel(r.productId)} x${r.units}` : productLabel(r.productId))).join(", ")}`);
   }
   const photos = reports.reduce((s, r) => s + r.photoIds.length, 0);
   if (photos > 0) parts.push(`${photos} ${photos === 1 ? "photo" : "photos"}`);

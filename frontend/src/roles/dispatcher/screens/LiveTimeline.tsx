@@ -1,5 +1,6 @@
 "use client";
 
+import { stops } from "@shared/wording";
 import type { ReportMarkView, RunSheetStopView } from "@shared/domain/types";
 import { REPORT_LABEL, ROLE_LABEL } from "@shared/messaging/thread";
 import { ChatIcon, cx } from "@shared/ui";
@@ -209,7 +210,7 @@ export default function LiveTimeline({
                   <Chip tone={look.tone}>{look.label}</Chip>
                 </span>
                 <span>
-                  {[routeLabel(run), run.trip ? `T${run.trip.tripNumber}` : null].filter(Boolean).join(" · ") || `${day.stops.length} stops`}
+                  {[routeLabel(run), run.trip ? `T${run.trip.tripNumber}` : null].filter(Boolean).join(" · ") || stops(day.stops.length)}
                 </span>
                 <span className="text-go-secondary">
                   {run.status === "offline" && run.position

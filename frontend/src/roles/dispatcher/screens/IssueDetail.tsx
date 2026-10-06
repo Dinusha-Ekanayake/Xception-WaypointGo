@@ -1,6 +1,7 @@
 "use client";
 
 import { Pill } from "@shared/ui";
+import { SYSTEM_ACTOR_ID, issueText } from "@shared/wording";
 import { SEVERITY, STATUS, TYPE, age, shortId } from "../data/issues.ts";
 import { useIssue } from "../data/useDay.ts";
 import IssueActions from "./IssueActions.tsx";
@@ -10,6 +11,19 @@ import Refusal from "./Refusal.tsx";
 // One issue: what it is about, who has it, every decision on it with the
 // person and the reason (rule 8), and what can be done now. Read by id, so a
 // resolved issue stays here to be closed after it leaves the open list.
+
+// Where an issue came from, in the words of the person who reported it.
+const SOURCE: Record<string, string> = {
+  "loading.shortfall": "the loader's shortfall report",
+  "receipt.disputed": "the store's count",
+  "receipt.confirmed": "the store's count",
+  "delivery.failed": "the driver's failed delivery",
+  "road.disruption_reported": "the driver's road report",
+  "vehicle.fault_reported": "the driver's vehicle report",
+  "warehouse.discrepancy_found": "a warehouse stock check",
+  "order.unservable": "the plan: no vehicle can carry the order",
+};
+const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g;
 
 const WHEN = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Colombo", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
@@ -29,7 +43,14 @@ export default function IssueDetail({
 }): React.JSX.Element {
   const record = useIssue(issueId);
   const issue = record.data?.issue ?? null;
-  const person = (id: string | null) => (id === null ? "the system" : id === userId ? "you" : shortId(id));
+  const reasonText = (reason: string) => {
+    const from = /^raised from ([a-z_.]+)$/.exec(reason);
+    if (from) return `From ${SOURCE[from[1]!] ?? from[1]!.replace(/[._]/g, " ")}`;
+    const coded = /^([A-Z][A-Z_]+): /.exec(reason);
+    const words = coded ? `${coded[1]!.charAt(0)}${coded[1]!.slice(1).toLowerCase().replaceAll("_", " ")}: ${reason.slice(coded[0].length)}` : reason;
+    return words.replace(UUID, (id) => person(id));
+  };
+  const person = (id: string | null) => (id === null || id === SYSTEM_ACTOR_ID ? "the system" : id === userId ? "you" : shortId(id));
 
   return (
     <section aria-label="Selected issue" className="flex flex-col gap-3 rounded-go-panel bg-go-card p-5">
@@ -49,7 +70,7 @@ export default function IssueDetail({
               <span>{`Raised by ${person(issue.raisedBy)}`}</span>
               <span>{`${age(issue.raisedAt, now)} ago`}</span>
             </p>
-            <p className="text-[14px] font-medium text-go-ink">{issue.description}</p>
+            <p className="text-[14px] font-medium text-go-ink">{issueText(issue.description)}</p>
           </div>
           <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[13px]">
             <dt className="text-go-secondary">Where</dt>
@@ -69,7 +90,7 @@ export default function IssueDetail({
               <>
                 <dt className="text-go-secondary">Resolved</dt>
                 <dd className="text-go-ink">
-                  {issue.resolutionAction.toLowerCase().replaceAll("_", " ")}
+                  {`${issue.resolutionAction.charAt(0)}${issue.resolutionAction.slice(1).toLowerCase().replaceAll("_", " ")}`}
                   {issue.resolutionNote ? `: ${issue.resolutionNote}` : ""}
                 </dd>
               </>
@@ -95,7 +116,7 @@ export default function IssueDetail({
                     <span className="font-medium">{entry.action}</span> by {person(entry.actorId)}
                     <span className="text-go-secondary"> · {WHEN.format(new Date(entry.at))}</span>
                   </span>
-                  {entry.reason && <span className="text-xs text-go-secondary">{entry.reason}</span>}
+                  {entry.reason && <span className="text-xs text-go-secondary">{reasonText(entry.reason)}</span>}
                 </li>
               ))}
             </ol>

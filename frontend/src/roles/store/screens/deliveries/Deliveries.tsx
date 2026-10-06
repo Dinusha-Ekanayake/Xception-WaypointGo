@@ -195,7 +195,10 @@ export default function Deliveries({
           {heading(t("Upcoming"), t("planned after 16:00"))}
           {days.map((d) => {
             const first = d.orders[0];
+            // One order opens over Deliveries, so closing it comes back here;
+            // several go to the Orders list, which shows them together.
             const handleViewOrder = () => {
+              if (d.orders.length === 1 && first) return onOpen(first.orderId);
               onOrders();
               if (first) onOpen(first.orderId);
             };
