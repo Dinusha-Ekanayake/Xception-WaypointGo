@@ -92,7 +92,8 @@ public class FlagShortfallHandler implements CommandHandler {
     events.publish(
         actor,
         new LoadingShortfall(
-            shortfallId, tripId, orderId, loaded.trip().depotCode(), kind, affected, reason));
+            shortfallId, tripId, orderId, loaded.trip().depotCode(), kind, affected, reason,
+            photo.map(java.util.List::of).orElse(java.util.List.of())));
     metrics.increment("waypoint.loading.shortfall", "kind", JdbcLoadingRepository.code(kind));
     return LoadingMessages.result(tripId, version, change.session());
   }

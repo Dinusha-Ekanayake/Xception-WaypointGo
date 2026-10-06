@@ -30,6 +30,11 @@ public final class LoadingEvents {
     }
   }
 
+  /**
+   * @param photoAttachmentIds FF-02: the photos the loader took of the line, minted
+   *     on the device and uploaded through the issue photos; empty for none, and
+   *     for an event written before photos were carried.
+   */
   public record LoadingShortfall(
       UUID shortfallId,
       UUID tripId,
@@ -37,9 +42,19 @@ public final class LoadingEvents {
       String depotCode,
       CheckStatus kind,
       int missingUnits,
-      String reason)
+      String reason,
+      List<UUID> photoAttachmentIds)
       implements DomainEvent {
     public static final String TYPE = "loading.shortfall";
+
+    public LoadingShortfall {
+      photoAttachmentIds = photoAttachmentIds == null ? List.of() : List.copyOf(photoAttachmentIds);
+    }
+
+    public LoadingShortfall(
+        UUID shortfallId, UUID tripId, UUID orderId, String depotCode, CheckStatus kind, int missingUnits, String reason) {
+      this(shortfallId, tripId, orderId, depotCode, kind, missingUnits, reason, List.of());
+    }
 
     @Override
     public String type() {

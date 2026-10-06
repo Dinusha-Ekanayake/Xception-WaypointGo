@@ -87,7 +87,20 @@ final class IssuesConsumers {
       String description,
       boolean investigation,
       String sourceKey,
-      Optional<UUID> photosOf) {
+      Optional<UUID> photosOf,
+      List<UUID> photos) {
+
+    Raised(
+        IssueType type,
+        String depotCode,
+        Optional<String> outletId,
+        List<SubjectRef> subjects,
+        String description,
+        boolean investigation,
+        String sourceKey,
+        Optional<UUID> photosOf) {
+      this(type, depotCode, outletId, subjects, description, investigation, sourceKey, photosOf, List.of());
+    }
 
     Raised(
         IssueType type,
@@ -141,6 +154,9 @@ final class IssuesConsumers {
           Actor.SYSTEM_ID, Optional.of(envelope.eventId()), now);
       // Photos the store took while counting this receipt; one that arrives later links itself.
       r.photosOf().ifPresent(receipt -> attachments.link(issue.issueId(), attachments.ofReceipt(receipt), now));
+      // FF-02: photos named by id, such as a loader's of a damaged line. The link needs no photo
+      // yet: one still on its way from the phone shows once it arrives (R-ISS-10).
+      if (!r.photos().isEmpty()) attachments.link(issue.issueId(), r.photos(), now);
       events.publish(
           Actor.SYSTEM,
           new IssueRaised(issue.issueId(), r.type(), severity, r.depotCode(), r.outletId(), issue.subjects()));
@@ -182,7 +198,7 @@ final class IssuesConsumers {
               IssueType.LOADING_SHORTFALL, e.depotCode(), orders.order(e.orderId()).map(OrderView::outletId),
               List.of(subject("shortfall", e.shortfallId()), subject("trip", e.tripId()), subject("order", e.orderId())),
               e.kind() + " at loading: " + e.missingUnits() + " units. " + e.reason(), false,
-              "loading.shortfall:" + e.shortfallId()),
+              "loading.shortfall:" + e.shortfallId(), Optional.empty(), e.photoAttachmentIds()),
           envelope);
     }
   }

@@ -43,7 +43,8 @@ export type Trip = {
   start: () => Promise<Outcome>;
   /** Tick or untick one item, or with no item every unchecked item of the order. */
   check: (line: ManifestLineView, item: ItemView | null, status: "LOADED" | "PENDING") => Promise<Outcome>;
-  flag: (payload: Omit<FlagShortfall, "tripId">) => Promise<Outcome>;
+  /** @param photo FF-02: a photo of the line, kept on the device and sent before the issue needs it. */
+  flag: (payload: Omit<FlagShortfall, "tripId">, photo?: Blob | null) => Promise<Outcome>;
   release: (checklist: Omit<ReleaseTrip, "tripId">) => Promise<Outcome>;
   handBack: () => Promise<Outcome>;
 };
@@ -179,7 +180,13 @@ export function useTrip(
         setItems(line.orderId, targets.map((i) => ({ lineNo: i.lineNo, status, loadedUnits: status === "LOADED" ? i.units : 0 }))),
       );
     },
-    flag: (payload) => {
+    flag: async (payload, photo) => {
+      if (photo && gateway.savePhoto) {
+        const attachmentId = crypto.randomUUID();
+        const kept = await gateway.savePhoto(attachmentId, payload.orderId, photo);
+        if (!kept.durable) return { ok: false, error: new Error(kept.reason ?? "The photo could not be kept on this device.") };
+        payload = { ...payload, photoAttachmentId: attachmentId };
+      }
       const items = current(payload.orderId)?.items ?? [];
       const changes =
         payload.lineNo !== null

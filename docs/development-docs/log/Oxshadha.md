@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-10-07 - feat: a loader's photo of a damaged line reaches the issue (FF-02)
+
+`dev` · @Oxshadha
+
+- The loader's issue sheet takes an optional photo (the shared encoder, with the blur hint); it is kept on the tablet, sent to the order's issue photos, and named by the shortfall, so the issue shows it whichever arrives first (R-ISS-10, ISS-16).
+- Loaders may attach issue photos for their depot's orders (new policy version); a driver of the same depot is refused and audited. The shortfall event now carries the photo id it used to drop.
+
+Why: Phase 3 of the [roadmap](../../roadmap/04-FIELD-FEATURES.md); a loader had no way to record that a line left the dock damaged.
+Verified: backend 1,095 on a fresh test database, none skipped; Node 346; build; browser shell 17, driver 36, loader 32, store 59, dispatcher 76.
+
+---
+
 ## 2026-10-07 - feat: one photo encoder, and a blur and darkness hint (M-02)
 
 `dev` · @Oxshadha

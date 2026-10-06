@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CheckStatus, FlagShortfall, ItemView, OutletView } from "@shared/domain/types";
 import { Notice, cx } from "@shared/ui";
 import { ISSUE_KIND_LABEL, isFlagged, orderLabel, placeName, productName } from "../data/manifest.ts";
 import type { Line } from "../data/useTrip.ts";
 import { BigButton, Sheet } from "../ui.tsx";
+import { QUALITY_HINT, checkPhoto, encodePhoto } from "../../../shared/media/photo.ts";
 import { useT } from "../i18n.tsx";
 import { ChevronDownIcon, CloseIcon, IssueIcon } from "../icons.tsx";
 
@@ -75,7 +76,8 @@ export default function IssueSheet({
   initial: { line: Line; item: ItemView | null } | null;
   outlets: Map<string, OutletView>;
   busy: boolean;
-  onSend: (payload: Omit<FlagShortfall, "tripId">) => Promise<boolean>;
+  /** @param photo FF-02: an optional photo of the line, the "left the dock" evidence. */
+  onSend: (payload: Omit<FlagShortfall, "tripId">, photo: Blob | null) => Promise<boolean>;
   onClose: () => void;
 }): React.JSX.Element {
   const tr = useT();
@@ -85,6 +87,24 @@ export default function IssueSheet({
   const [kind, setKind] = useState<Kind>("DAMAGED");
   const [units, setUnits] = useState(1);
   const [reason, setReason] = useState("");
+  // FF-02: an optional photo of the damaged or short line, made small on the tablet.
+  const [photo, setPhoto] = useState<{ blob: Blob; url: string; hint: string | null } | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const camera = useRef<HTMLInputElement>(null);
+  useEffect(() => () => {
+    if (photo) URL.revokeObjectURL(photo.url);
+  }, [photo]);
+  const takePhoto = async (file: File | undefined) => {
+    if (!file) return;
+    setPhotoError(null);
+    try {
+      const { blob } = await encodePhoto(file);
+      const quality = await checkPhoto(blob);
+      setPhoto({ blob, url: URL.createObjectURL(blob), hint: quality === "ok" ? null : QUALITY_HINT[quality] });
+    } catch (failure) {
+      setPhotoError(failure instanceof Error ? failure.message : "The photo could not be used.");
+    }
+  };
   const line = lines.find((l) => l.orderId === orderId);
   const item = line?.items.find((i) => i.lineNo === lineNo) ?? null;
   // The whole order flags every item not already flagged, in full (the server's rule).
@@ -113,7 +133,7 @@ export default function IssueSheet({
       missingUnits: missing,
       reason: reason.trim(),
       photoAttachmentId: null,
-    });
+    }, photo?.blob ?? null);
     if (ok) onClose();
   };
 
@@ -229,6 +249,37 @@ export default function IssueSheet({
             className="rounded-[16px] border border-go-rule px-4 py-3 text-base"
           />
         </label>
+
+        <div className="flex flex-col gap-2">
+          {photo ? (
+            <div className="flex items-center gap-3">
+              {/* A local object URL of a photo just taken; nothing for next/image to optimise. */}
+              <img src={photo.url} alt={tr("Photo of the item")} className="size-16 rounded-[12px] object-cover" />
+              <span className="flex-1 text-[15px]">{tr("Photo added")}</span>
+              <button type="button" onClick={() => setPhoto(null)} className="min-h-12 rounded-full bg-go-surface px-4 text-[15px]">
+                {tr("Remove photo")}
+              </button>
+            </div>
+          ) : (
+            <button type="button" onClick={() => camera.current?.click()} className="min-h-12 rounded-[16px] border border-dashed border-go-rule px-4 text-[15px] text-go-muted">
+              {tr("Add photo (optional)")}
+            </button>
+          )}
+          {photo?.hint && <p role="status" className="text-[14px] text-go-warning-text">{tr(photo.hint)}</p>}
+          {photoError && <p role="alert" className="text-[14px] text-go-danger">{tr(photoError)}</p>}
+          <input
+            ref={camera}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            aria-label={tr("Take a photo of the item")}
+            className="hidden"
+            onChange={(e) => {
+              void takePhoto(e.target.files?.[0]);
+              e.target.value = "";
+            }}
+          />
+        </div>
 
         {item !== null && isFlagged(item.status) && (
           <Notice tone="info" title={tr("This item is already reported")}>

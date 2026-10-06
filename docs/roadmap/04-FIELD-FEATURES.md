@@ -46,6 +46,8 @@ Order inside the phase:
 
 ## FF-02 Loader damaged-goods photos
 
+**Built 2026-10-07** (R-ISS-10, ISS-16). An optional photo on the loader's existing issue sheet, rather than a new shared sheet: the loader screens change only to close a gap (AGENTS.md, role UI scope), so FF-01 is kept to the store until a loader redesign is agreed. One photo per report today; the rule allows up to 10. The Sinhala and Tamil strings are drafts for the FF-00 review.
+
 - **Goal:** a loader's damaged or short line carries photo evidence into the issue. This is the "left the dock intact" record for disputes.
 - **Change:**
   - Migration grants `issue:AttachPhoto` to the loader policy.

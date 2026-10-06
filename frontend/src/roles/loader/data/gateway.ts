@@ -1,6 +1,6 @@
 import { request, requestAll } from "@shared/api/client";
 import { send, type Command, type CommandAck } from "@shared/api/commands";
-import { enqueue, readThrough } from "@shared/offline";
+import { drainUploads, enqueue, readThrough, saveUpload } from "@shared/offline";
 import type { ManifestView, OutletView, ReadyTripView } from "@shared/domain/types";
 import { sampleGateway } from "./fixtures.ts";
 
@@ -19,6 +19,11 @@ export type LoadingGateway = {
   send: (command: Command) => Promise<CommandAck>;
   /** Keep a write on this device until the connection returns (resilient tier). */
   queue: (command: Command) => Promise<{ durable: boolean; reason?: string }>;
+  /**
+   * FF-02: keep a photo of a damaged or short line on this device until it can be
+   * sent to the order's issue photos. Absent on the sample gateway.
+   */
+  savePhoto?: (attachmentId: string, orderId: string, photo: Blob) => Promise<{ durable: boolean; reason?: string }>;
   /** Sample only: publish a new plan version under the loader, to show R-LOD-03. */
   revisePlan?: (tripId: string) => void;
 };
@@ -39,6 +44,18 @@ function liveGateway(accountId: string): LoadingGateway {
       readThrough(accountId, `loader:outlets:${depot}`, () => requestAll(`/api/reference/outlets?depot=${encodeURIComponent(depot)}`, { signal })),
     send: (command) => send(command),
     queue: (command) => enqueue(accountId, "loader", command),
+    savePhoto: async (attachmentId, orderId, photo) => {
+      const kept = await saveUpload(accountId, {
+        id: attachmentId,
+        path: `/api/issues/attachments/${encodeURIComponent(attachmentId)}?order=${encodeURIComponent(orderId)}`,
+        subject: orderId,
+        contentType: photo.type || "application/octet-stream",
+        blob: photo,
+      });
+      // Sent at once with a signal; with none it waits on the tablet and goes with the next sync.
+      if (kept.durable) void drainUploads(accountId).catch(() => undefined);
+      return kept;
+    },
   };
 }
 

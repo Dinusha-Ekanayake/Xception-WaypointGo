@@ -232,8 +232,8 @@ export default function LoadSheet({
           initial={issueFor}
           outlets={outlets}
           busy={t.busy}
-          onSend={async (payload) => {
-            const outcome = await t.flag(payload);
+          onSend={async (payload, photo) => {
+            const outcome = await t.flag(payload, photo);
             if (outcome.ok && outcome.queued) {
               setToast({
                 kind: "saved",
