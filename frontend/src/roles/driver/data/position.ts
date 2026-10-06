@@ -13,14 +13,15 @@ import type { TrailPoint } from "@shared/ui/map/trail";
 // (see recording.ts for when). Foreground only: a closed or backgrounded app
 // records nothing, and the dispatcher sees "Last seen"; while recording, the
 // screen is kept awake so the phone does not sleep in its cradle. Points go
-// through the same durable queue as every driver write, sent every five seconds
+// through the same durable queue as every driver write, sent every ten seconds
 // so the dispatcher's map moves as the vehicle does; a trail recorded with no
-// signal survives a reload and arrives in order.
+// signal survives a reload, arrives in order, and is sent in large batches (F-08).
 // Nothing here is logged: a position is personal data.
 
 export type LocationState = "off" | "on" | "denied" | "unsupported";
 
-const FLUSH_MS = SAMPLE_MS;
+/** F-08: fixes are taken every 5 s and sent every 10 s, two to a batch; the map still moves every 10 s. */
+const FLUSH_MS = 10_000;
 const FLUSH_POINTS = 20;
 
 type Fix = { coords: GeolocationCoordinates; at: number };
@@ -159,7 +160,7 @@ export function usePositionRecorder(gateway: DriverGateway, vehicleId: string | 
     const watch = navigator.geolocation.watchPosition(heard, failed, { enableHighAccuracy: true, maximumAge: 0 });
     const sample = (ask = true) => {
       // A phone standing still may stop reporting through the watch: ask it outright,
-      // so a vehicle waiting at a store still sends a fix every five seconds.
+      // so a vehicle waiting at a store still records a fix every five seconds.
       if (ask && (!latestFix.current || Date.now() - latestFix.current.at > SAMPLE_MS)) {
         navigator.geolocation.getCurrentPosition(heard, failed, { enableHighAccuracy: true, maximumAge: 0, timeout: SAMPLE_MS - 500 });
       }

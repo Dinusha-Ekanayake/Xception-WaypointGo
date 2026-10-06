@@ -30,3 +30,28 @@ export function inSendOrder(entries: StoredEntry[], waitingUploads: Set<string>)
   const positions = inRecordedOrder(entries.filter(isPosition));
   return [...business, ...positions];
 }
+
+/** The server takes at most this many points in one batch (R-EXE-18). */
+export const MAX_POINTS = 100;
+
+type PositionCommand = { payload: { vehicleId: string; tripId?: string; points: unknown[] } };
+
+/**
+ * Roadmap F-08: with no signal, a new batch of fixes is added to the last batch
+ * still waiting, instead of queuing one command every 10 s, so the backlog sent
+ * when the signal returns is a few large batches, each one receipt and one audit
+ * row. Only a batch that was never tried is extended: one that may have reached
+ * the server keeps its exact payload. Returns the extended entry, or null to
+ * queue the new batch on its own.
+ */
+export function extendBacklog(entries: StoredEntry[], next: { kind: string; payload: unknown }): StoredEntry | null {
+  if (next.kind !== POSITION_KIND) return null;
+  const incoming = (next.payload as PositionCommand).payload;
+  const last = inRecordedOrder(entries.filter(isPosition)).at(-1);
+  if (!last || last.attempts > 0 || last.needsReview) return null;
+  const held = (last.payload as PositionCommand).payload;
+  if (held.vehicleId !== incoming.vehicleId || held.tripId !== incoming.tripId) return null;
+  if (held.points.length + incoming.points.length > MAX_POINTS) return null;
+  const command = last.payload as Record<string, unknown>;
+  return { ...last, payload: { ...command, payload: { ...held, points: [...held.points, ...incoming.points] } } };
+}

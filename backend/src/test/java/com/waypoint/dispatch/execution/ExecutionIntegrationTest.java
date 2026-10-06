@@ -891,6 +891,16 @@ class ExecutionIntegrationTest {
     JsonNode first = json(command(driver, body, 200));
     assertEquals(3, first.get("result").get("stored").asInt(), "the exact repeat is stored once");
     assertTrue(json(command(driver, body, 200)).get("replayed").asBoolean(), "a replay is answered from its receipt");
+    // F-08: a batch of fixes is an observation; its audit row names who, what and when, with no copy of the points.
+    Map<String, Object> audit =
+        database.asSystemSeparately(
+            ModuleRole.INTEGRATION,
+            () -> database.queryOne(
+                "SELECT decision, before_state::text AS b, after_state::text AS a FROM integration.audit_log WHERE command_id = ?",
+                commandId));
+    assertEquals("ALLOW", audit.get("decision"));
+    assertEquals(null, audit.get("b"));
+    assertEquals(null, audit.get("a"));
 
     // R-EXE-19: the last good fix, never the poor one.
     JsonNode live = json(read(dispatcher, "/api/execution/positions?date=" + day + "&depot=" + depot, 200));

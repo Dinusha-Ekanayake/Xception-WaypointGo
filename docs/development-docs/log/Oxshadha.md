@@ -4,6 +4,30 @@
 
 ---
 
+## 2026-10-07 - fix: a planning worker that lost its claim writes nothing (F-11)
+
+`dev` · @Oxshadha
+
+- The claimed attempt is the claim token; done, requeue and failed apply only while the job runs under it, and the plan write rolls back with a refused done (PLN-42).
+- Integration tests now take a whole week each, with a free week either side, so tests no longer share a vehicle's weekly fuel quota and change each other's results by run order.
+
+Why: Phase 2 of the [roadmap](../../roadmap/02-FOUNDATION-FIXES.md); a slow worker could overwrite the result of the worker that took over its job.
+Verified: backend 1,094 on a fresh test database, none skipped (one transaction timeout under load, green alone); Node 340; build; browser driver 36, shell 17, loader 31, store 59, dispatcher 76.
+
+---
+
+## 2026-10-07 - feat: positions sent every 10 s, merged offline, lightly audited (F-08)
+
+`dev` · @Oxshadha
+
+- The phone still records a fix every 5 s but sends every 10 s; offline, new fixes join the last unsent batch, up to 100 points (EXE-39, R-EXE-23 amended).
+- An accepted position batch is audited without a copy of its points; a refused one keeps the full audit (`CommandHandler.auditsState`).
+
+Why: Phase 2 of the [roadmap](../../roadmap/02-FOUNDATION-FIXES.md); positions were most of the day's commands, receipts and audit rows.
+Verified: backend 1,094 on a fresh test database, none skipped (one transaction timeout under load, green alone); Node 340; build; browser driver 36, shell 17, loader 31, store 59, dispatcher 76.
+
+---
+
 ## 2026-10-07 - feat: fewer requests from the phone, and 304 for unchanged reads (F-07a)
 
 `dev` · @Oxshadha

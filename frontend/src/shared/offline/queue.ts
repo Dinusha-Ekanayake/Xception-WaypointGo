@@ -6,7 +6,7 @@ import { outcomeAction } from "./outcome.ts";
 import { discardCommand, nextOrder, recordedOrder, redoCommands } from "./review.ts";
 import type { RedoBasis } from "./resolvers.ts";
 import { all, allUploads, put, putSnapshot, remove, type StoredEntry } from "./store.ts";
-import { inSendOrder } from "./lanes.ts";
+import { extendBacklog, inSendOrder } from "./lanes.ts";
 import { nextAttemptAt, retryAfterOf, waiting } from "./retry.ts";
 import { drainUploads } from "./uploads.ts";
 import { queuesWrites, type Role } from "./tiers.ts";
@@ -316,7 +316,15 @@ async function withServerVersion(entry: StoredEntry, forRedo = false): Promise<S
 let lastOrder = 0;
 
 async function keepCommand(accountId: string, command: Command, waitsFor: string[] = []): Promise<void> {
-  const order = nextOrder(command.clientRecordedAt, await all(accountId), lastOrder);
+  const entries = await all(accountId);
+  // F-08: offline, fixes join the last batch still waiting rather than queue one command each.
+  const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+  const extended = offline ? extendBacklog(entries, { kind: command.kind, payload: command }) : null;
+  if (extended) {
+    await put(accountId, extended);
+    return;
+  }
+  const order = nextOrder(command.clientRecordedAt, entries, lastOrder);
   lastOrder = order;
   await put(accountId, {
     commandId: command.commandId,

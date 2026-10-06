@@ -272,8 +272,10 @@ public class CommandBus {
                   .withTargetFromResource()
                   .withCorrelation(correlationId)
                   .withState(
-                      snapshot(auditContext.capturedBefore().orElse(null)),
-                      snapshot(auditContext.capturedAfter().orElseGet(() -> valueToTree(value))))
+                      handler.auditsState() ? snapshot(auditContext.capturedBefore().orElse(null)) : null,
+                      handler.auditsState()
+                          ? snapshot(auditContext.capturedAfter().orElseGet(() -> valueToTree(value)))
+                          : null)
                   .withPolicyGeneration(policyGeneration()));
           metrics.increment("waypoint.command.applied", "kind", command.kind());
           return CommandResult.executed(value);

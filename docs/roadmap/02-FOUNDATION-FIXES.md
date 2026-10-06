@@ -127,6 +127,8 @@ When a lost reefer's chilled trip finds no reefer, the replan defers it; it neve
 
 ### F-08 Position cadence and light audit
 
+**Built 2026-10-07** (EXE-39). Position commands per vehicle-hour fall from 720 to 360 online, and to a few per outage offline. The receipt stays one per command, which is now one per batch.
+
 - **Cadence:**
   - Online: send the latest fix every 10 s.
   - Offline: coalesce the backlog.
@@ -152,6 +154,8 @@ When a lost reefer's chilled trip finds no reefer, the replan defers it; it neve
 - **Done:** an outlet window edit reaches planning on every replica without a restart.
 
 ### F-11 Planning claim token
+
+**Built 2026-10-07** (PLN-42). The attempt a worker claimed is its token: done, requeue and failed change the job only while it is still running under that attempt, and a worker that lost its claim writes no plan.
 
 - **Change:** `JdbcGenerationJobs.done()` and `requeue()` check the claim token, so a worker whose claim expired cannot overwrite another worker's result.
 
