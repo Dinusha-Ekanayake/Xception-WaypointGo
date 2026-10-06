@@ -14,7 +14,9 @@ import { TYPE_LABEL, actionLabel, mayDecide, parseRupees, photoUrl, readCase, ru
 // a write-off value when goods are lost, and approve or reject a write-off
 // someone else recorded (P-DG-1). Every step keeps its actor, reason and time.
 
-const field = "rounded-go-input border border-go-rule bg-white px-3 py-2.5 text-[14px] outline-none focus:border-go-teal";
+const field = "min-h-11 rounded-go-input border border-go-rule bg-go-surface px-3 py-2.5 text-[14px] text-go-ink outline-none focus:border-go-teal";
+/** On the grey write-off panel a field is white, so it stands out. */
+const onPanel = field.replace("bg-go-surface", "bg-white");
 const at = (iso: string) => `${dayLabel(iso.slice(0, 10))} · ${clock(iso)}`;
 
 export default function CaseDetail({ issueId, userId, isHead }: { issueId: string; userId: string; isHead: boolean }): React.JSX.Element {
@@ -144,7 +146,7 @@ function WriteOff({ w, canDecide, onDone }: { w: WriteOffView; canDecide: boolea
       {w.decisionNote && <p className="text-[13px] text-go-secondary">Decision: {w.decisionNote}</p>}
       {canDecide && (
         <div className="flex flex-col gap-2">
-          <input className={field} value={note} maxLength={500} onChange={(e) => setNote(e.target.value)} placeholder="Why approve or reject" aria-label="Why approve or reject" />
+          <input className={onPanel} value={note} maxLength={500} onChange={(e) => setNote(e.target.value)} placeholder="Why approve or reject" aria-label="Why approve or reject" />
           <div className="flex gap-2">
             <PrimaryButton busy={busy} disabled={note.trim().length < 3} onClick={() => void decide(true)}>
               Approve
