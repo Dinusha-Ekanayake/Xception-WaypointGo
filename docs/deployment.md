@@ -109,6 +109,18 @@ The same profile runs Prometheus, which scrapes the backend's `/prometheus` ever
 
 ## Operational limits
 
+**Memory (F-15).** Every container has a ceiling, so production, preview and the log store fit one 16 GB server; CI fails a service without one (`deploy/vps/check-memory-limits.py`). The backend's heap is 75% of its ceiling and it exits on running out, so Docker restarts it. Raise a ceiling in `.env` (`DB_MEM`, `BACKEND_MEM`, `ML_MEM`, `WEB_MEM`, `MCP_MEM`, `INIT_MEM`); scale the server up before adding replicas.
+
+| Per stack | Ceiling | | Shared | Ceiling |
+| --- | --- | --- | --- | --- |
+| db | 1 GB | | loki, prometheus | 512 MB each |
+| backend | 2 GB | | grafana, alloy | 256 MB each |
+| ml | 1.5 GB | | nginx | 128 MB |
+| waypoint | 512 MB | | node-exporter, certbot | 64 MB each |
+| mcp | 256 MB | | init (runs once) | 1 GB |
+
+Two stacks and the log store come to about 12.4 GB at steady state, leaving room for the operating system and the page cache.
+
 What a rollout beyond the competition would have to change, as things stand on 2026-10-02. The full list per module is in [STATUS.md](development-docs/STATUS.md).
 
 - **Proofs live in the database.** Photos and signatures are stored in `execution.proof_content` by `DatabaseProofStore` (`PROOF_STORE=database`, the default) and read back through signed five-minute links, so they are in the database backup and every replica sees them (A-33). They count toward the database's storage: watch `waypoint.execution.proof_bytes_held`. A nightly job clears them past `retain_until` (P-14). Files written to `PROOF_DIR` before the switch are still read from there, so keep that volume until they age out. With `PROOF_URL_SECRET` unset the links die at a restart; the VPS deploy writes one to `.env` so they do not.

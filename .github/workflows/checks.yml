@@ -399,3 +399,7 @@ jobs:
           SITE_ADDRESS: ci.example.test
       # The role landing depends on this build argument reaching the frontend.
       - run: grep -q 'NEXT_PUBLIC_ROLE_ADDRESSES' vps.yaml
+      # F-15: every service has a memory ceiling, observability included.
+      - run: docker compose -f compose.yaml -f deploy/vps/compose.vps.yaml --profile edge --profile observability config > all.yaml && python3 deploy/vps/check-memory-limits.py all.yaml
+        env:
+          SITE_ADDRESS: ci.example.test

@@ -171,6 +171,8 @@ When a lost reefer's chilled trip finds no reefer, the replan defers it; it neve
 
 ### F-15 Container memory limits
 
+**Built 2026-10-07.** Ceilings and the JVM options are in `compose.yaml` and the VPS overlay, the budget in [deployment.md](../deployment.md#operational-limits), and CI fails a service with no ceiling.
+
 - **Change:**
   - Memory limits per container in `compose.yaml` and `deploy/vps/compose.vps.yaml`.
   - JVM `-XX:MaxRAMPercentage` for the backend.

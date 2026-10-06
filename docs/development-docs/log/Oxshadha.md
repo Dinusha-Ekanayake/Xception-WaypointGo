@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-10-07 - ops: a memory ceiling on every container (F-15)
+
+`dev` · @Oxshadha
+
+- Every service in both compose files has a memory ceiling; the backend's heap is 75% of its ceiling and it exits on running out so Docker restarts it. Production, preview and the log store fit one 16 GB server at about 12.4 GB.
+- CI fails a service without a ceiling (`deploy/vps/check-memory-limits.py`); the budget is in [deployment.md](../../deployment.md#operational-limits).
+
+Why: Phase 2 of the [roadmap](../../roadmap/02-FOUNDATION-FIXES.md); without a ceiling the JVM sized itself from the whole host and one service could starve the rest.
+Verified: the merged VPS configuration parses with every profile; the check passes, and fails when a ceiling is removed.
 ## 2026-10-07 - fix: a planning worker that lost its claim writes nothing (F-11)
 
 `dev` · @Oxshadha

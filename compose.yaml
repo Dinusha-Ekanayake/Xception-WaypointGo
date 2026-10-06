@@ -9,6 +9,7 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    mem_limit: ${MCP_MEM:-256m}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:8081/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
@@ -27,6 +28,9 @@ services:
       - "127.0.0.1:${DB_PORT:-5432}:5432"
     volumes:
       - waypoint-postgres:/var/lib/postgresql/data
+    # F-15: every service has a ceiling, so the two stacks and the log store fit one
+    # 16 GB server (budget in docs/deployment.md). Raise one in .env, never remove it.
+    mem_limit: ${DB_MEM:-1g}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U waypoint -d waypoint"]
       interval: 5s
@@ -48,6 +52,7 @@ services:
       DATABASE_URL: postgresql://waypoint_app:${APP_DB_PASSWORD:-local-testing-only-app}@db:5432/waypoint
       MIGRATION_DATABASE_URL: postgresql://waypoint:${POSTGRES_PASSWORD:-local-testing-only}@db:5432/waypoint
       SEED_PASSWORD: ${SEED_PASSWORD:-123456789123}
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError
     command: ["sh", "/app/compose-init.sh"]
     volumes:
       - ./scripts/compose-init.sh:/app/compose-init.sh:ro
@@ -56,6 +61,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    mem_limit: ${INIT_MEM:-1g}
     restart: "no"
   # Local demo data the init commands do not cover: see scripts/seed-demo.sql.
   seed:
@@ -68,6 +74,7 @@ services:
     depends_on:
       init:
         condition: service_completed_successfully
+    mem_limit: 256m
     restart: "no"
   backend:
     labels:
@@ -107,6 +114,9 @@ services:
       # False in production: competition-trained models never answer there (R-ML-09).
       ML_ALLOW_DATATHON: ${ML_ALLOW_DATATHON:-true}
       LOG_FORMAT: ecs
+      # F-15: the heap is sized from the container's limit, not the host's memory,
+      # and a JVM out of memory exits so Docker restarts it instead of limping on.
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError
     volumes:
       - ./data:/app/data:ro
       - ./migrations:/app/migrations:ro
@@ -118,6 +128,7 @@ services:
         condition: service_completed_successfully
       seed:
         condition: service_completed_successfully
+    mem_limit: ${BACKEND_MEM:-2g}
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health/readiness | grep -q UP"]
@@ -136,6 +147,7 @@ services:
       com.waypoint.logs: "true"
     build:
       context: ./ml-server
+    mem_limit: ${ML_MEM:-1536m}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4)"]
@@ -159,6 +171,7 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    mem_limit: ${WEB_MEM:-512m}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
@@ -180,6 +193,7 @@ services:
     volumes:
       - ./observability/loki/config.yaml:/etc/loki/config.yaml:ro
       - loki-data:/loki
+    mem_limit: 512m
     restart: unless-stopped
   alloy:
     image: grafana/alloy:v1.7.1
@@ -194,6 +208,7 @@ services:
       - alloy-data:/var/lib/alloy/data
     depends_on:
       - loki
+    mem_limit: 256m
     restart: unless-stopped
   grafana:
     image: grafana/grafana:11.5.2
@@ -211,6 +226,7 @@ services:
     depends_on:
       - loki
       - prometheus
+    mem_limit: 256m
     restart: unless-stopped
   # Metrics: scrapes the backend's /prometheus every 15 s and keeps 15 days.
   # Grafana reads it as the Prometheus datasource; it publishes no port.
@@ -226,6 +242,7 @@ services:
     volumes:
       - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
+    mem_limit: 512m
     restart: unless-stopped
 volumes:
   waypoint-postgres:
