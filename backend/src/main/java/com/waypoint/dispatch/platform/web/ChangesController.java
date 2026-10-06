@@ -1,10 +1,7 @@
 package com.waypoint.dispatch.platform.web;
 
-import com.waypoint.dispatch.platform.audit.AuditEntry;
-import com.waypoint.dispatch.platform.audit.AuditLog;
-import com.waypoint.dispatch.platform.db.Database;
-import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.platform.messaging.ChangeSignals;
+import com.waypoint.dispatch.platform.messaging.ChangeWatchers;
 import com.waypoint.dispatch.shared.domain.Actor;
 import com.waypoint.dispatch.shared.error.DomainException;
 import com.waypoint.dispatch.shared.error.ErrorCode;
@@ -39,16 +36,12 @@ public class ChangesController {
   private static final Duration STREAM_LIFETIME = Duration.ofMinutes(30);
   private static final int MAX_DEPOTS = 20;
 
-  private final ChangeSignals signals;
+  private final ChangeWatchers watchers;
   private final RequestAuthorizer authorizer;
-  private final Database database;
-  private final AuditLog audit;
 
-  public ChangesController(ChangeSignals signals, RequestAuthorizer authorizer, Database database, AuditLog audit) {
-    this.signals = signals;
+  public ChangesController(ChangeWatchers watchers, RequestAuthorizer authorizer) {
+    this.watchers = watchers;
     this.authorizer = authorizer;
-    this.database = database;
-    this.audit = audit;
   }
 
   @GetMapping(path = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -67,25 +60,13 @@ public class ChangesController {
     for (String depot : depots) {
       actor = authorizer.require(request, "plan:Read", "wpt:plan:depot:" + depot);
     }
-    Actor reader = actor;
-    for (String depot : depots) {
-      Map<String, Object> row =
-          database.readAs(
-              ModuleRole.PLANNING,
-              reader.userId(),
-              () -> database.queryOne("SELECT app.actor_is_system() OR app.actor_has_depot(?) AS ok", depot));
-      if (row == null || !Boolean.TRUE.equals(row.get("ok"))) {
-        audit.recordStandalone(
-            AuditEntry.denied(
-                reader.userId(), reader.deviceId(), "plan:Read", "wpt:plan:depot:" + depot, "outside the actor's scope"));
-        throw new DomainException(ErrorCode.FORBIDDEN, "Depot " + depot + " is outside the actor's scope");
-      }
-    }
     // nginx would otherwise buffer the small events and hold them back (issue #118).
     response.setHeader("X-Accel-Buffering", "no");
     SseEmitter emitter = new SseEmitter(STREAM_LIFETIME.toMillis());
     Runnable stop =
-        signals.listen(
+        watchers.open(
+            actor,
+            "plan:Read",
             depots,
             new ChangeSignals.Listener() {
               @Override

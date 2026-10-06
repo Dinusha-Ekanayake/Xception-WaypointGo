@@ -12,7 +12,7 @@
 - Still to do: the notification and position streams as topics on the same connection.
 
 Why: Phase 2 of the [roadmap](../../roadmap/02-FOUNDATION-FIXES.md); the board read about ten things every 2 s per depot.
-Verified: see the pull request.
+Verified: backend 1,093 on a fresh test database, none skipped; Node 342; build; browser shell 17, driver 36, loader 31, store 59, dispatcher 76.
 
 ---
 
