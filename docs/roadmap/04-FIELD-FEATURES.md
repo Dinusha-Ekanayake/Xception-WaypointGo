@@ -84,7 +84,7 @@ Order inside the phase:
 
 ## FF-04 Live trip channel
 
-**Goal.** During a trip, the dispatcher and the stores still waiting for their goods coordinate in one place, by text or voice. The driver hears and reads it without having to chat.
+**Goal.** During a trip, the dispatcher and the stores still waiting for their goods coordinate in one place, by text or voice. The driver is driving, so the driver is **not** part of that conversation: the driver reads and hears only what is addressed to the driver (decided 2026-10-06).
 
 ### Proposed amendment to ADR-004 and MODULES §13
 
@@ -111,7 +111,9 @@ Order inside the phase:
 | --- | --- | --- |
 | Dispatcher | Yes | To a single outlet or to the driver |
 | Active store manager | Yes | To the dispatcher (`dispatch` audience, unchanged) |
-| Driver | No | An issue to the dispatcher only, typed or voice. Decisions come back to the driver |
+| Driver | No, and does not read it either | An issue to the dispatcher only, typed or voice. Reads and hears only messages addressed to the driver, dispatcher messages to everyone on the trip, the decisions on the driver's own issues, and the driver's own posts |
+
+**Driver reading**, enforced in the same row-level security: `channel` posts are **not** visible to the driver. The store and dispatcher coordination stays between them; the dispatcher passes on to the driver only what the driver must act on, addressed to the driver. This keeps the driver's phone quiet while driving and matches today's R-MSG-01, where the driver already sees only `driver` and `all` messages and their own.
 
 **Reading**, enforced in row-level security on `messages` and on transcripts, joined the same way as `voice_notes_read`:
 - A store reads `channel` messages only while its outlet row is active, plus those created before its `read_only_at`.
