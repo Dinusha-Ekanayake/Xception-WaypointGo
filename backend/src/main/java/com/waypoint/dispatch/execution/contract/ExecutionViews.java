@@ -216,4 +216,25 @@ public final class ExecutionViews {
   /** One point of a trip's recorded trail, oldest first. */
   public record TrailPointView(
       Instant recordedAt, java.math.BigDecimal latitude, java.math.BigDecimal longitude, boolean lowQuality) {}
+
+  /**
+   * The vehicle's Fuel Pass QR for the driver's phone (FF-06b). {@code image} is
+   * the official image, base64; the phone keeps it until the end of
+   * {@code validUntil} in depot time and then deletes it.
+   */
+  public record FuelPassView(
+      String vehicleId, UUID passId, String contentType, String sha256, String image, LocalDate validUntil) {}
+
+  /**
+   * What an administrator sees of a vehicle's pass: never the image. {@code version}
+   * counts every pass the vehicle ever had, the expected version of the next upload;
+   * {@code passRowVersion} is the expected version of a revocation.
+   */
+  public record FuelPassStatusView(
+      String vehicleId,
+      long version,
+      Optional<UUID> passId,
+      Optional<Instant> uploadedAt,
+      Optional<Integer> sizeBytes,
+      Optional<Long> passRowVersion) {}
 }

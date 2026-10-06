@@ -221,29 +221,18 @@ Order inside the phase:
 
 ## FF-06 Fuel log and Fuel Pass QR
 
-### FF-06a Fuel log (Phase 1.5)
+### FF-06a Fuel log (dropped 2026-10-07)
 
-- **Command:** Execution owns `execution:LogFuel`, with two fields: litres and odometer.
-- **When:** prompted right after the Fuel Pass is shown. It never blocks the run; a missing entry is flagged.
-- **Report:** a weekly reconciliation per vehicle compares litres with distance, against `planning.fuel_usage`. It does not claim to detect fuel pumped into another vehicle.
-- **KPI:** litres per 100 km; weekly quota overruns.
+Dropped. The booklet's fuel rule is a planning constraint (R-PLN-16, R-PLN-24), already built from planned distance; it never asks for actual litres pumped. The government's Fuel Pass enforces the real quota at the pump and changes it from time to time, so a second quota record here would only go stale and disagree with it.
 
-### FF-06b Fuel Pass QR (after step 0)
+### FF-06b Fuel Pass QR (built 2026-10-07)
 
-- **Step 0:** confirm with Finance that the National Fuel Pass is enforced for fleet vehicles. Also resolve the quota conflict: the data says 340-620 L a week per vehicle, while the national cap is 200 L per lorry and 50 L per van.
-- **Admin:**
-  - Uploads the official QR image per vehicle in the vehicle directory (`roles/admin/access/operations.tsx`).
-  - Commands `reference:SetFuelPass` and `reference:RevokeFuelPass`.
-  - The image is stored lossless.
-- **The QR is a bearer credential:**
-  - The new `ref` table revokes the default module read grants in the same migration file, with a test.
-  - The image is streamed through the backend only, never cached by the service worker, never exposed to MCP or the LLM, and every download is audited.
-- **Driver:**
-  - Gets it for their vehicle today or tomorrow, fetched with the run.
-  - It is kept in the account's IndexedDB with a hard expiry at the end of the service date, so it clears even on a phone that stays offline. It is also cleared on sign-out.
-  - There is no share button.
-  - It is shown with the weekly quota used and remaining (`GET /api/plans/fuel`).
-- **Policies:** P-FP-1 (lost or changed QR) and P-FP-2 (a laminated card stays in the vehicle).
+- **Step 0, answered:** the government issues one QR per vehicle and enforces the quota at the pump. Waypoint carries the official image only, so a driver needs no paper copy; it holds no quota.
+- **Admin:** adds, replaces or withdraws the image per vehicle from the vehicle screen (`roles/admin/access/FuelPassDialog.tsx`). The upload is a PUT with a screen-minted pass id and the vehicle's pass count as expected version (`vehicle:SetFuelPass`); withdrawing is the command `vehicle:RevokeFuelPass` with a reason. A replaced or withdrawn pass is revoked, never deleted. The image is never shown back to the administrator.
+- **Stored in** `execution.fuel_passes` (PostgreSQL, like proof photos), moving with them when M-01 adds object storage.
+- **A bearer credential (R-EXE-27):** only the driver assigned to the vehicle today or tomorrow reads it (`delivery:ReadFuelPass`), every read and refusal is audited, it is sent `no-store` and never cached by the service worker.
+- **Driver:** read with the run while there is a signal and kept in the account's IndexedDB to the end of its last valid day, so it shows at a pump with none; a withdrawn pass or a refusal deletes the kept copy. With no pass, the popup says to ask the depot instead of drawing a code the pump would refuse (EXE-34, EXE-35). Clearing on sign-out comes with F-04.
+- **Policies:** P-FP-1 (lost or changed QR: withdraw, upload the new one) and P-FP-2 (a laminated card stays in the vehicle).
 
 ## FF-07 Profile photos
 

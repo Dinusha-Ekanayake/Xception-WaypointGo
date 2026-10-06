@@ -89,6 +89,15 @@ export function useDriver(userId: string, depot: string | null = null) {
     // Keyed on tileKey, not stopPoints: a new run sheet read with the same stops fetches nothing again.
   }, [online, tileKey]);
 
+  // The Fuel Pass is read while there is a signal and kept on the phone, so it
+  // shows at a pump with none (FF-06b). Once per vehicle and connection.
+  const fuelVehicle = run.vehicle?.vehicleId ?? null;
+  useEffect(() => {
+    if (!online || !fuelVehicle) return;
+    void gateway.fuelPass(fuelVehicle);
+  }, [online, fuelVehicle, gateway]);
+  const fuelPass = useCallback((vehicleId: string) => gateway.fuelPass(vehicleId), [gateway]);
+
   const [view, setView] = useState<View>({ name: "home" });
   const stillToDo = nextStop(run.stops);
   // Messages on the trip's thread keep on the phone with no signal, like every driver write (issue #136).
@@ -454,6 +463,7 @@ export function useDriver(userId: string, depot: string | null = null) {
   return {
     online,
     location,
+    fuelPass,
     /** Today's trip waits for the loader: the driver can say they are at the depot (R-EXE-24). */
     depotCheckIn: waitingToday ? { vehicleId: waitingToday, done: atDepot, report: reportAtDepot } : null,
     run,

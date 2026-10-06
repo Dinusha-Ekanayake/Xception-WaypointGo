@@ -182,6 +182,7 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
               <HomeNoVehicle
                 {...(d.tripId ? { onOpenMessages: openMessages } : {})}
                 driverName={displayName}
+                loadFuelPass={d.fuelPass}
                 depotName={depot}
                 vehicle={run.vehicle}
                 nextRun={run.nextRun}

@@ -2,7 +2,9 @@ import { request } from "@shared/api/client";
 import { ApiError } from "@shared/api/problem";
 import { send, type Command, type CommandAck } from "@shared/api/commands";
 import { enqueue, keep, kept, saveUpload } from "@shared/offline";
-import type { OutletView, PlanView, RunSheetView, VehicleView } from "@shared/domain/types";
+import type { FuelPassView, OutletView, PlanView, RunSheetView, VehicleView } from "@shared/domain/types";
+import { depotToday } from "@shared/wording";
+import { fuelPassKey, loadFuelPass, type FuelPassState } from "./fuelPass.ts";
 import type { DayProbe } from "./run.ts";
 
 // Everything the driver screens read and write, behind one seam. Reads come
@@ -37,6 +39,8 @@ export type DriverGateway = {
    * loader has not released yet (plan:Read on the depot).
    */
   probeDay: (date: string, depot: string | null, signal: AbortSignal) => Promise<DayProbe>;
+  /** The vehicle's Fuel Pass (FF-06b): from the server and kept on this phone, or the kept copy with no signal. */
+  fuelPass: (vehicleId: string) => Promise<FuelPassState>;
 };
 
 const q = encodeURIComponent;
@@ -86,6 +90,13 @@ export function createGateway(accountId: string): DriverGateway {
     keepRun: async (date, data) => {
       await keep(accountId, key(date), data);
     },
+    fuelPass: (vehicleId) =>
+      loadFuelPass({
+        read: () => request<FuelPassView>(`/api/execution/vehicles/${q(vehicleId)}/fuel-pass`),
+        kept: async () => (await kept<FuelPassView | null>(accountId, fuelPassKey(vehicleId)))?.value ?? null,
+        keep: (pass) => keep(accountId, fuelPassKey(vehicleId), pass),
+        today: depotToday(),
+      }),
     send: (command) => send(command),
     queue: (command) => enqueue(accountId, "driver", command),
     saveArtifact: (deliveryId, attachmentId, kind, blob) =>

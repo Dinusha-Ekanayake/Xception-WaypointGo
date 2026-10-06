@@ -1,28 +1,43 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cx } from "@shared/ui";
-import qrcode from "qrcode-generator";
+import { dayLabel } from "@shared/wording";
+import { fuelPassSrc, type FuelPassState } from "../data/fuelPass.ts";
 
 const EXIT_MS = 200;
 
 /**
- * Figma "Fuel QR Popup (Light)": the vehicle's fuel pass as a code to scan at
- * the pump, centred over the phone. The code carries the vehicle id; the
- * pass number and fuel type of the design are not in the data the phone holds.
+ * Figma "Fuel QR Popup (Light)": the vehicle's official National Fuel Pass QR,
+ * as the depot uploaded it, to scan at the pump (FF-06b). With no pass, the
+ * popup says so in words rather than draw a code the pump would refuse.
  * Always light, in dark mode too: a code is scanned dark on white.
  */
 export default function FuelPassSheet({
   vehicleId,
   kind,
+  load,
   onClose,
 }: {
   vehicleId: string;
   /** "Truck" or "Van". */
   kind: string;
+  /** Reads the pass from the server, or the copy kept on this phone. */
+  load: (vehicleId: string) => Promise<FuelPassState>;
   onClose: () => void;
 }): React.JSX.Element {
+  const [state, setState] = useState<FuelPassState | null>(null);
+  useEffect(() => {
+    let live = true;
+    void load(vehicleId)
+      .then((next) => live && setState(next))
+      .catch(() => live && setState({ kind: "unavailable" }));
+    return () => {
+      live = false;
+    };
+  }, [load, vehicleId]);
+
   // Closing plays the way out first, then tells the owner to unmount.
   const [leaving, setLeaving] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -47,20 +62,6 @@ export default function FuelPassSheet({
     },
     []
   );
-
-  const { size, dark } = useMemo(() => {
-    const code = qrcode(0, "M");
-    code.addData(vehicleId);
-    code.make();
-    const count = code.getModuleCount();
-    const cells: Array<[number, number]> = [];
-    for (let row = 0; row < count; row += 1) {
-      for (let column = 0; column < count; column += 1) {
-        if (code.isDark(row, column)) cells.push([column, row]);
-      }
-    }
-    return { size: count, dark: cells };
-  }, [vehicleId]);
 
   // Drawn over the whole phone, header included, so one blur covers everything
   // behind it at once and lifts at once. Inside the home screen it sat under the
@@ -91,22 +92,29 @@ export default function FuelPassSheet({
             {vehicleId} · {kind}
           </p>
         </div>
-        <div className="w-full rounded-[28px] border-2 border-[#B7F2ED] bg-white p-3.5">
-          <svg
-            role="img"
-            aria-label={`Fuel pass code for ${vehicleId}`}
-            viewBox={`0 0 ${size} ${size}`}
-            shapeRendering="crispEdges"
-            className="block aspect-square w-full"
-          >
-            <rect width={size} height={size} fill="#fff" />
-            {dark.map(([x, y]) => (
-              <rect key={`${x}-${y}`} x={x} y={y} width="1" height="1" fill="#000" />
-            ))}
-          </svg>
-        </div>
+        {state?.kind === "ready" ? (
+          <>
+            <div className="w-full rounded-[28px] border-2 border-[#B7F2ED] bg-white p-3.5">
+              <img src={fuelPassSrc(state.pass)} alt={`Fuel pass code for ${vehicleId}`} className="block aspect-square w-full object-contain [image-rendering:pixelated]" />
+            </div>
+            {state.fromDevice && (
+              <p className="text-center text-[12px] leading-[16px] text-[#8A94A6]">Saved on this phone · for {dayLabel(state.pass.validUntil)}</p>
+            )}
+          </>
+        ) : (
+          <p role="status" className="flex min-h-[160px] w-full items-center justify-center rounded-[28px] border-2 border-[#B7F2ED] bg-white p-5 text-center text-[15px] leading-[21px]">
+            {state === null ? "Getting the Fuel Pass…" : PASS_MISSING[state.kind]}
+          </p>
+        )}
       </div>
     </div>,
     host
   );
 }
+
+/** What the popup says when there is no code to show, in plain words. */
+const PASS_MISSING = {
+  none: "No Fuel Pass has been added for this vehicle yet. Ask the depot.",
+  refused: "This Fuel Pass is only for the driver of this vehicle today.",
+  unavailable: "No signal, and the Fuel Pass is not saved on this phone. Open it once with signal before you leave.",
+} as const;

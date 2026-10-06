@@ -106,6 +106,44 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
 }
 
 /**
+ * Sends a file as the request body (PUT), for an endpoint that takes an image
+ * rather than JSON. Refusals come back as the same ApiError as any request.
+ */
+export async function putFile<T>(path: string, file: Blob, options: Pick<RequestOptions, "signal" | "timeoutMs"> = {}): Promise<T> {
+  const controller = new AbortController();
+  const onCallerAbort = () => controller.abort(options.signal?.reason);
+  options.signal?.addEventListener("abort", onCallerAbort, { once: true });
+  let timedOut = false;
+  const timeoutMs = options.timeoutMs ?? WRITE_TIMEOUT_MS;
+  const timer = timeoutMs > 0 ? setTimeout(() => ((timedOut = true), controller.abort(timeoutError())), timeoutMs) : undefined;
+  let response: Response;
+  let text: string;
+  try {
+    response = await fetch(path, {
+      method: "PUT",
+      headers: {
+        accept: "application/json, application/problem+json",
+        "content-type": file.type || "application/octet-stream",
+        "x-correlation-id": newCorrelationId(),
+      },
+      body: file,
+      credentials: "same-origin",
+      signal: controller.signal,
+    });
+    text = await response.text();
+  } catch (error) {
+    if (timedOut) throw timeoutError();
+    throw error;
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+    options.signal?.removeEventListener("abort", onCallerAbort);
+  }
+  const payload = parseBody(text);
+  if (!response.ok) throw new ApiError(parseProblem(response.status, payload));
+  return payload as T;
+}
+
+/**
  * Every item of a keyset-paginated list, following `nextCursor` until it is null.
  * For lists bounded by the domain, such as one depot's outlets or fleet; an
  * unbounded list is paged on screen instead. `cursorParam` is the query

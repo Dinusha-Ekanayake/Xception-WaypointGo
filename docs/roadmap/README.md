@@ -175,7 +175,7 @@ State is in the GitHub Project. This table never records progress.
 | MF-01 | P1.5 | Admin Models screen, environment guard | F-09a | [05](05-DATATHON-MODELS.md#foundation) |
 | T1-01 | P1.5 | Publish risk section (dispatcher, flag) | MF-01 | [05](05-DATATHON-MODELS.md#task-1-service-time-and-lateness) |
 | T2-01 | P1.5, P4 | Capacity plan (early, then full) | B-04 | [05](05-DATATHON-MODELS.md#task-2a-demand-forecast) |
-| FF-06a | P1.5 | Fuel log | B-02 | [04](04-FIELD-FEATURES.md#ff-06-fuel-log-and-fuel-pass-qr) |
+| FF-06a | P1.5 | Fuel log (dropped: the government enforces the quota) | B-02 | [04](04-FIELD-FEATURES.md#ff-06a-fuel-log-dropped-2026-10-07) |
 | F-04 | P2 | Snapshots, eviction, sign-out, quota | F-01 | [02](02-FOUNDATION-FIXES.md#phase-2-foundation-fixes) |
 | F-05 | P2 | Service worker per role, update prompt | F-04 | [02](02-FOUNDATION-FIXES.md#phase-2-foundation-fixes) |
 | F-06 | P2 | Driver redo, prefetch tomorrow | F-04 | [02](02-FOUNDATION-FIXES.md#phase-2-foundation-fixes) |
@@ -195,7 +195,7 @@ State is in the GitHub Project. This table never records progress.
 | FF-04 | P3 | Live trip channel | F-07 | [04](04-FIELD-FEATURES.md#ff-04-live-trip-channel) |
 | FF-08 | P3 | Dispatcher reply suggestions | FF-04, FF-00 | [04](04-FIELD-FEATURES.md#ff-08-dispatcher-reply-suggestions) |
 | FF-05 | P3 spike, build later | Voice transcription | F-09a, P-PD-1 | [04](04-FIELD-FEATURES.md#ff-05-voice-transcription) |
-| FF-06b | P3 | Fuel Pass QR on the driver phone | FF-06a, step 0 | [04](04-FIELD-FEATURES.md#ff-06-fuel-log-and-fuel-pass-qr) |
+| FF-06b | P1.5 | Fuel Pass QR on the driver phone (built) | step 0 | [04](04-FIELD-FEATURES.md#ff-06b-fuel-pass-qr-built-2026-10-07) |
 | FF-07 | after pilot | Profile photos | M-01, P-PD-1 | [04](04-FIELD-FEATURES.md#ff-07-profile-photos) |
 | D-00 | ML stream | Datathon package | none | [05](05-DATATHON-MODELS.md#d-00-datathon-package) |
 | MF-02 to MF-08 | P4 | Outcomes, metrics, backtest, retrain, intervals, freshness, reasons | MF-01 | [05](05-DATATHON-MODELS.md#foundation) |

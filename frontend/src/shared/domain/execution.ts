@@ -145,6 +145,8 @@ export const ExecutionCommandKind = {
   arriveAtDepot: "delivery:ArriveAtDepot",
   /** Move on from a handed-over stop before the store answered, with the reason (issue #21, R-EXE-26). */
   leaveWithoutStoreAnswer: "delivery:LeaveWithoutStoreAnswer",
+  /** FF-06b: an administrator withdraws a vehicle's Fuel Pass QR, with a reason. The upload is a PUT, not a command. */
+  revokeFuelPass: "vehicle:RevokeFuelPass",
 } as const;
 
 export type ArriveAtDepot = { vehicleId: string };
@@ -223,3 +225,34 @@ export type PositionPoint = {
 
 /** `delivery:RecordPositions`: 1-100 points, oldest first. Append only, so no expectedVersion. */
 export type RecordPositionsPayload = { vehicleId: string; tripId?: Uuid; points: PositionPoint[] };
+
+/**
+ * FF-06b: the vehicle's official National Fuel Pass QR for the driver's phone.
+ * `image` is base64. The phone keeps it to the end of `validUntil` in depot time,
+ * then deletes it. A bearer credential: only the assigned driver reads it.
+ */
+export type FuelPassView = {
+  vehicleId: string;
+  passId: Uuid;
+  contentType: "image/png" | "image/jpeg" | "image/webp";
+  sha256: string;
+  image: string;
+  validUntil: IsoDate;
+};
+
+/**
+ * What an administrator sees of a vehicle's pass, never the image. `version` is
+ * the expected version of the next upload (passes the vehicle ever had);
+ * `passRowVersion` the expected version of a withdrawal.
+ */
+export type FuelPassStatusView = {
+  vehicleId: string;
+  version: number;
+  passId: Uuid | null;
+  uploadedAt: IsoInstant | null;
+  sizeBytes: number | null;
+  passRowVersion: number | null;
+};
+
+/** `vehicle:RevokeFuelPass`; expectedVersion is the pass's row version. */
+export type RevokeFuelPass = { vehicleId: string; passId: Uuid; reason: string };

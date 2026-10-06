@@ -4,6 +4,19 @@
 
 ---
 
+## 2026-10-07 - feat: the vehicle's Fuel Pass QR on the driver's phone (FF-06b)
+
+`dev` · @Oxshadha
+
+- The administrator uploads, replaces or withdraws each vehicle's official National Fuel Pass QR from the vehicle screen; the driver of that vehicle gets it with the run and can show it at a pump with no signal (R-EXE-27, EXE-34, EXE-35).
+- The old Fuel QR drew a code from the vehicle id that no pump would accept; with no pass added, the popup now says to ask the depot.
+- The fuel log (FF-06a) is dropped: the booklet's fuel rule is a planning constraint, and the government enforces the real quota.
+
+Why: drivers carry no paper copy; the QR is a bearer credential, so only the assigned driver reads it, every read is audited, and the phone keeps it one day.
+Verified: backend 1,080 on a fresh test database, none skipped; Node 326; typecheck; build; driver browser 33, dispatcher 76.
+
+---
+
 ## 2026-10-06 - fix: a lost vehicle no longer discards the dispatcher's open revision
 
 `dev` · @Oxshadha

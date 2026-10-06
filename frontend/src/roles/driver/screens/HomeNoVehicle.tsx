@@ -9,6 +9,7 @@ import { voiceUrl } from "@shared/messaging/useThread";
 import { clock, countdown, dayLabel, hhmm } from "../../../shared/wording/index.ts";
 import type { TripStatus } from "../data/stopView.ts";
 import type { NextRun } from "../data/run.ts";
+import type { FuelPassState } from "../data/fuelPass.ts";
 import { DriverHeader, VoiceMessagePlayer } from "../ui.tsx";
 import FuelPassSheet from "./FuelPassSheet.tsx";
 import { useCappedScroll } from "./cappedScroll.ts";
@@ -407,6 +408,8 @@ export type DriverHomeProps = {
   hideHeader?: boolean;
   /** Opens the trip's thread, for a message notification (issue #136). */
   onOpenMessages?: () => void;
+  /** Reads the vehicle's Fuel Pass, or the copy kept on this phone (FF-06b). */
+  loadFuelPass: (vehicleId: string) => Promise<FuelPassState>;
 };
 
 
@@ -458,6 +461,7 @@ export default function HomeNoVehicle({
   onToggleTheme,
   hideHeader = false,
   onOpenMessages,
+  loadFuelPass,
 }: DriverHomeProps): React.JSX.Element {
   const [lang, setLang] = useDeviceLang();
   const [activeAudioId, setActiveAudioId] = useState<string | null>(null);
@@ -815,7 +819,7 @@ export default function HomeNoVehicle({
         </div>
       </div>
       {fuelQr && vehicle && (
-        <FuelPassSheet vehicleId={vehicle.vehicleId} kind={vehicle.van ? "Van" : "Truck"} onClose={() => setFuelQr(false)} />
+        <FuelPassSheet vehicleId={vehicle.vehicleId} kind={vehicle.van ? "Van" : "Truck"} load={loadFuelPass} onClose={() => setFuelQr(false)} />
       )}
     </div>
   );
