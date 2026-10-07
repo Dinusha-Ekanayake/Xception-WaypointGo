@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-10-08 - feat: finished stops step back like a dial; one shared list scroll for the phones
+
+`dev` · @Oxshadha
+
+- Driver route: finished stops above the card are dulled with a small tick and when they were done ("Delivered 05:57"); rows above and below shrink and fade the further they are from the card, like a dial (`dialStyle`). Agreed with J.V. Ransika for the driver UI.
+- The rubber-band scroll, the edge fades and the rows easing out were copied in two driver screens; they are one component now, `shared/ui/scrollReveal.tsx`, used by the driver's home feed and stops and by the store's notifications on the phone. The loader's inbox can take it with J.V.'s agreement. The iOS-style card stack and the message threads were left as they are.
+
+Why: one place for the phone lists' feel keeps the roles consistent; the driver's eye goes to the stop in hand.
+Verified: browser driver 43 and store 62; Node tests (dialStyle new); typecheck; build; screenshots of every changed screen, day and night.
+
+---
+
 ## 2026-10-08 - feat: the driver sees how long a stop is expected to take (T1-04)
 
 `dev` · @Oxshadha

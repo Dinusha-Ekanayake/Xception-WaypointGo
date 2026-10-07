@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { cx, useScrollMemory } from "@shared/ui";
+import { ScrollRevealCard, useRubberBandScroll } from "@shared/ui/scrollReveal";
 import type { RouteStop } from "../data/stopView.ts";
 import { SlideToConfirm } from "../ui.tsx";
 
@@ -26,313 +27,14 @@ export type RouteNextStopProps = {
 
 const MOVING = { viewTransitionName: "vt-stop" };
 
-/**
- * Apple UIScrollView rubber-band resistance formula:
- * f(x) = (x * dimension * c) / (dimension + c * x)
- * where c is Apple's standard rubber band coefficient (0.55).
- */
-function appleRubberBand(offset: number, dimension = 600, coefficient = 0.55): number {
-  const abs = Math.abs(offset);
-  const damped = (abs * dimension * coefficient) / (dimension + coefficient * abs);
-  return offset < 0 ? -damped : damped;
-}
 
-function useRubberBandScroll() {
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-  const [pullY, setPullY] = useState(0);
-  const [isPulling, setIsPulling] = useState(false);
-  const [topFadeSize, setTopFadeSize] = useState(0);
+/** A finished row's words: grey, a step back from the card. */
+const DONE_TEXT = (night: boolean): string => (night ? "text-white/45" : "text-black/40");
 
-  // Gesture tracking
-  const overshootStartY = useRef<number | null>(null);
-  const isMouseDown = useRef(false);
-  const rawWheelOvershoot = useRef(0);
-  const wheelReleaseTimer = useRef<NodeJS.Timeout | null>(null);
-
-  const updateMask = (el: HTMLElement) => {
-    const FADE_DISTANCE = 40;
-    const top = Math.min(FADE_DISTANCE, Math.max(0, el.scrollTop));
-    setTopFadeSize((prev) => (prev !== top ? top : prev));
-  };
-
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    updateMask(el);
-
-    const ro = new ResizeObserver(() => {
-      updateMask(el);
-    });
-    ro.observe(el);
-    return () => {
-      ro.disconnect();
-      if (wheelReleaseTimer.current) clearTimeout(wheelReleaseTimer.current);
-    };
-  }, []);
-
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    updateMask(e.currentTarget);
-  };
-
-  // 1. Touch Gesture Handling
-  const handleTouchStart = () => {
-    overshootStartY.current = null;
-    setIsPulling(false);
-  };
-
-  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
-    const el = scrollRef.current;
-    if (!el || !e.touches[0]) return;
-    const currentY = e.touches[0].clientY;
-    const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight);
-
-    if (el.scrollTop <= 0) {
-      if (overshootStartY.current === null) {
-        overshootStartY.current = currentY;
-      }
-      const rawOvershoot = currentY - overshootStartY.current;
-      if (rawOvershoot > 0) {
-        const damped = appleRubberBand(rawOvershoot, el.clientHeight, 0.55);
-        setIsPulling(true);
-        setPullY(damped);
-        return;
-      } else if (pullY !== 0) {
-        setPullY(0);
-        setIsPulling(false);
-      }
-    } else if (el.scrollTop >= maxScroll - 1) {
-      if (overshootStartY.current === null) {
-        overshootStartY.current = currentY;
-      }
-      const rawOvershoot = currentY - overshootStartY.current;
-      if (rawOvershoot < 0) {
-        const damped = appleRubberBand(rawOvershoot, el.clientHeight, 0.55);
-        setIsPulling(true);
-        setPullY(damped);
-        return;
-      } else if (pullY !== 0) {
-        setPullY(0);
-        setIsPulling(false);
-      }
-    } else {
-      overshootStartY.current = null;
-      if (pullY !== 0) {
-        setPullY(0);
-        setIsPulling(false);
-      }
-    }
-  };
-
-  const handleTouchEnd = () => {
-    overshootStartY.current = null;
-    setIsPulling(false);
-    setPullY(0);
-  };
-
-  // 2. Mouse Drag Handling
-  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return;
-    isMouseDown.current = true;
-    overshootStartY.current = null;
-    setIsPulling(false);
-  };
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isMouseDown.current) return;
-    const el = scrollRef.current;
-    if (!el) return;
-    const currentY = e.clientY;
-    const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight);
-
-    if (el.scrollTop <= 0) {
-      if (overshootStartY.current === null) {
-        overshootStartY.current = currentY;
-      }
-      const rawOvershoot = currentY - overshootStartY.current;
-      if (rawOvershoot > 0) {
-        const damped = appleRubberBand(rawOvershoot, el.clientHeight, 0.55);
-        setIsPulling(true);
-        setPullY(damped);
-        return;
-      } else if (pullY !== 0) {
-        setPullY(0);
-        setIsPulling(false);
-      }
-    } else if (el.scrollTop >= maxScroll - 1) {
-      if (overshootStartY.current === null) {
-        overshootStartY.current = currentY;
-      }
-      const rawOvershoot = currentY - overshootStartY.current;
-      if (rawOvershoot < 0) {
-        const damped = appleRubberBand(rawOvershoot, el.clientHeight, 0.55);
-        setIsPulling(true);
-        setPullY(damped);
-        return;
-      } else if (pullY !== 0) {
-        setPullY(0);
-        setIsPulling(false);
-      }
-    } else {
-      overshootStartY.current = null;
-      if (pullY !== 0) {
-        setPullY(0);
-        setIsPulling(false);
-      }
-    }
-  };
-
-  const handleMouseUp = () => {
-    if (!isMouseDown.current) return;
-    isMouseDown.current = false;
-    overshootStartY.current = null;
-    setIsPulling(false);
-    setPullY(0);
-  };
-
-  // 3. Mouse Wheel / Trackpad Handling
-  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight);
-
-    if (wheelReleaseTimer.current) {
-      clearTimeout(wheelReleaseTimer.current);
-    }
-
-    if (el.scrollTop <= 0 && e.deltaY < 0) {
-      rawWheelOvershoot.current += -e.deltaY * 0.85;
-      const damped = appleRubberBand(rawWheelOvershoot.current, el.clientHeight, 0.45);
-      setIsPulling(true);
-      setPullY(damped);
-
-      wheelReleaseTimer.current = setTimeout(() => {
-        setIsPulling(false);
-        setPullY(0);
-        rawWheelOvershoot.current = 0;
-      }, 70);
-    } else if (el.scrollTop >= maxScroll - 1 && e.deltaY > 0) {
-      rawWheelOvershoot.current += -e.deltaY * 0.85;
-      const damped = appleRubberBand(rawWheelOvershoot.current, el.clientHeight, 0.45);
-      setIsPulling(true);
-      setPullY(damped);
-
-      wheelReleaseTimer.current = setTimeout(() => {
-        setIsPulling(false);
-        setPullY(0);
-        rawWheelOvershoot.current = 0;
-      }, 70);
-    } else if (rawWheelOvershoot.current !== 0) {
-      rawWheelOvershoot.current = 0;
-      setIsPulling(false);
-      setPullY(0);
-    }
-  };
-
-  const topStop = topFadeSize > 0 ? `transparent 0px, black ${topFadeSize}px` : `black 0px`;
-  const maskStyle: React.CSSProperties = {
-    WebkitMaskImage: `linear-gradient(to bottom, ${topStop}, black 100%)`,
-    maskImage: `linear-gradient(to bottom, ${topStop}, black 100%)`,
-  };
-
-  return {
-    scrollRef,
-    pullY,
-    isPulling,
-    maskStyle,
-    handlers: {
-      onScroll: handleScroll,
-      onTouchStart: handleTouchStart,
-      onTouchMove: handleTouchMove,
-      onTouchEnd: handleTouchEnd,
-      onTouchCancel: handleTouchEnd,
-      onMouseDown: handleMouseDown,
-      onMouseMove: handleMouseMove,
-      onMouseUp: handleMouseUp,
-      onMouseLeave: handleMouseUp,
-      onWheel: handleWheel,
-    },
-  };
-}
-
-function ScrollRevealCard({
-  scrollContainerRef,
-  pullY = 0,
-  children,
-}: {
-  scrollContainerRef: React.RefObject<HTMLDivElement | null>;
-  pullY?: number;
-  children: React.ReactNode;
-}) {
-  const cardRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    const el = cardRef.current;
-    const root = scrollContainerRef.current;
-    if (!el || !root) return;
-
-    let rafId: number | null = null;
-
-    const update = () => {
-      const rootRect = root.getBoundingClientRect();
-      const elRect = el.getBoundingClientRect();
-      const y = elRect.top - rootRect.top;
-      const H = rootRect.height;
-
-      // Top Exit Zone: only as card scrolls up past the top edge (y < 0)
-      let topProgress = 1;
-      if (y < 0) {
-        topProgress = Math.max(0, Math.min(1, (y + 50) / 50));
-      }
-
-      // Bottom Exit/Entrance Zone: as item scrolls near the bottom edge
-      let bottomProgress = 1;
-      if (y > H - 80) {
-        bottomProgress = Math.max(0, Math.min(1, (H - y) / 80));
-      }
-
-      if (topProgress < 1) {
-        const scale = 0.90 + 0.10 * topProgress;
-        const opacity = 0.50 + 0.50 * topProgress;
-        el.style.opacity = opacity.toFixed(3);
-        el.style.transform = `scale3d(${scale.toFixed(3)}, ${scale.toFixed(3)}, 1)`;
-        el.style.transformOrigin = "center top";
-      } else if (bottomProgress < 1) {
-        const scale = 0.90 + 0.10 * bottomProgress;
-        const opacity = 0.50 + 0.50 * bottomProgress;
-        el.style.opacity = opacity.toFixed(3);
-        el.style.transform = `scale3d(${scale.toFixed(3)}, ${scale.toFixed(3)}, 1)`;
-        el.style.transformOrigin = "center bottom";
-      } else {
-        el.style.opacity = "1";
-        el.style.transform = "scale3d(1, 1, 1)";
-        el.style.transformOrigin = "center center";
-      }
-    };
-
-    const onScroll = () => {
-      if (rafId) cancelAnimationFrame(rafId);
-      rafId = requestAnimationFrame(update);
-    };
-
-    update();
-    root.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll, { passive: true });
-
-    return () => {
-      root.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
-      if (rafId) cancelAnimationFrame(rafId);
-    };
-  }, [scrollContainerRef, pullY]);
-
-  return (
-    <div
-      ref={cardRef}
-      className="w-full will-change-[transform,opacity]"
-    >
-      {children}
-    </div>
-  );
+/** A finished stop: its outcome and when, "Delivered 05:42", and whether it is still only on this phone. */
+function doneState(stop: RouteStop): string {
+  const state = stopState(stop);
+  return stop.doneAt && !stop.onPhone ? `${state} ${stop.doneAt}` : state;
 }
 
 /** What a stop in the list says: its outcome, or still to do, and whether it is only on this phone. */
@@ -495,27 +197,33 @@ export default function RouteNextStop({
             {completedStops.length > 0 && (
               <div className="flex flex-col gap-3 mb-5 px-2 animate-fade-in">
                 {completedStops.map((stop, i) => (
-                  <ScrollRevealCard key={stop.id} scrollContainerRef={scrollRef} pullY={pullY}>
+                  <ScrollRevealCard
+                    key={stop.id}
+                    scrollContainerRef={scrollRef}
+                    pullY={pullY}
+                    depth={completedStops.length - i}
+                    towardCard="bottom"
+                  >
                     <button
                       type="button"
                       onClick={() => onSelectStop?.(stop.stopIndex)}
-                      aria-label={`Stop ${stop.stopNumber} ${stop.name} · ${stopState(stop)}`}
+                      aria-label={`Stop ${stop.stopNumber} ${stop.name} · ${doneState(stop)}`}
                       className="w-full flex flex-col gap-3 text-left cursor-pointer active:opacity-70 transition-opacity"
                     >
                       <div className="flex items-center justify-between text-[14px] font-light leading-[18px]">
                       <div className="flex items-center gap-3" style={stop.id === movingStop ? MOVING : undefined}>
-                        <span className={cx(isNight ? "text-white" : "text-black")}>{stop.stopNumber}</span>
-                        <span className={cx(isNight ? "text-white" : "text-black")}>{stop.name}</span>
+                        <span className={DONE_TEXT(isNight)}>{stop.stopNumber}</span>
+                        <span className={DONE_TEXT(isNight)}>{stop.name}</span>
                       </div>
-                      {stop.windowStatus === "Delivered" && !stop.onPhone ? (
-                        <div className="w-[22px] h-[22px] rounded-full bg-[#00BF6A] flex items-center justify-center shrink-0 shadow-sm">
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round">
+                      {/* Done: dulled, with when it was recorded, so the eye goes to the card. */}
+                      <span className={cx("flex items-center gap-1.5", DONE_TEXT(isNight))}>
+                        {stop.windowStatus === "Delivered" && !stop.onPhone && (
+                          <svg aria-hidden width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={isNight ? "#4ADE80" : "#00BF6A"} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                             <polyline points="20 6 9 17 4 12" />
                           </svg>
-                        </div>
-                      ) : (
-                        <span className={cx(isNight ? "text-white" : "text-black")}>{stopState(stop)}</span>
-                      )}
+                        )}
+                        {doneState(stop)}
+                      </span>
                       </div>
                       {/* The same rule as between the stops still to come, below the card. */}
                       {i < completedStops.length - 1 && (
@@ -727,7 +435,7 @@ export default function RouteNextStop({
           {upcomingStops.length > 0 && (
             <div className="mt-7 px-2 flex flex-col gap-3">
               {upcomingStops.map((stop, i) => (
-                <ScrollRevealCard key={stop.id} scrollContainerRef={scrollRef} pullY={pullY}>
+                <ScrollRevealCard key={stop.id} scrollContainerRef={scrollRef} pullY={pullY} depth={i + 1} towardCard="top">
                   <button
                     type="button"
                     onClick={() => onSelectStop?.(stop.stopIndex)}

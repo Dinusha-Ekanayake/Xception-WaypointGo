@@ -6,6 +6,7 @@ import type { Inbox } from "@shared/notifications/useInbox";
 import { isUnread, kindOf, toneOf, TONE_STYLE } from "@shared/notifications/inbox";
 import { Icon, SkeletonRows, cx } from "@shared/ui";
 import { Drawer } from "../ui.tsx";
+import { ScrollRevealCard, useRubberBandScroll } from "@shared/ui/scrollReveal";
 import { clock, dayLabel, depotToday, businessNow } from "@shared/wording";
 
 // The store manager's notifications (issue #118), Figma "14 Store Manager ·
@@ -27,32 +28,38 @@ export function when(createdAt: string, now: Date = businessNow()): string {
 export type OpenSubject = (n: NotificationView) => void;
 
 function Row({ n, onOpen }: { n: NotificationView; onOpen: (n: NotificationView) => void }): React.JSX.Element {
+  return (
+    <li>
+      <RowButton n={n} onOpen={onOpen} />
+    </li>
+  );
+}
+
+function RowButton({ n, onOpen }: { n: NotificationView; onOpen: (n: NotificationView) => void }): React.JSX.Element {
   const kind = kindOf(n.eventType);
   const fresh = isUnread(n);
   const tone = TONE_STYLE[toneOf(n)];
   return (
-    <li>
-      <button
-        type="button"
-        onClick={() => onOpen(n)}
-        aria-label={`${fresh ? "Unread. " : ""}${kind.label}. ${n.title}. ${n.body}`}
-        className={cx(
-          "flex w-full flex-col gap-1 rounded-[16px] border-l-4 px-3.5 py-3 text-left",
-          tone.edge,
-          fresh ? tone.tint : "border-y border-r border-y-go-rule border-r-go-rule bg-white",
-        )}
-      >
-        <span className="flex items-center justify-between gap-2 text-[13px]">
-          <span className={cx("flex items-center gap-1.5 font-medium", tone.label)}>
-            <span aria-hidden className={cx("size-2 rounded-full", tone.dot)} />
-            {kind.label}
-          </span>
-          <span className="text-go-muted">{when(n.createdAt)}</span>
+    <button
+      type="button"
+      onClick={() => onOpen(n)}
+      aria-label={`${fresh ? "Unread. " : ""}${kind.label}. ${n.title}. ${n.body}`}
+      className={cx(
+        "flex w-full flex-col gap-1 rounded-[16px] border-l-4 px-3.5 py-3 text-left",
+        tone.edge,
+        fresh ? tone.tint : "border-y border-r border-y-go-rule border-r-go-rule bg-white",
+      )}
+    >
+      <span className="flex items-center justify-between gap-2 text-[13px]">
+        <span className={cx("flex items-center gap-1.5 font-medium", tone.label)}>
+          <span aria-hidden className={cx("size-2 rounded-full", tone.dot)} />
+          {kind.label}
         </span>
-        <span className="text-[16px] font-semibold text-black">{n.title}</span>
-        <span className="text-[14px] text-go-muted">{n.body}</span>
-      </button>
-    </li>
+        <span className="text-go-muted">{when(n.createdAt)}</span>
+      </span>
+      <span className="text-[16px] font-semibold text-black">{n.title}</span>
+      <span className="text-[14px] text-go-muted">{n.body}</span>
+    </button>
   );
 }
 
@@ -78,6 +85,7 @@ export function NotificationsDrawer({
   onSubject: OpenSubject;
   onClose: () => void;
 }): React.JSX.Element {
+  const feed = useRubberBandScroll();
   const [readIds, setReadIds] = useState<Set<string>>(() => new Set());
   const [lookedAt] = useState(() => businessNow());
   const [actionError, setActionError] = useState<string | null>(null);
@@ -155,11 +163,30 @@ export function NotificationsDrawer({
           <p className="py-8 text-center text-[15px] text-go-muted">No notifications yet. Order confirmations, deferrals and deliveries on the way appear here.</p>
         )
       ) : (
-        <ul className="flex flex-col gap-3">
-          {visibleItems.map((n) => (
-            <Row key={n.notificationId} n={n} onOpen={handleOpen} />
-          ))}
-        </ul>
+        // The phones' shared list scroll (rubber band, fades, rows easing out), as on the driver's feed.
+        <div style={feed.maskStyle} className="relative min-h-0 overflow-hidden">
+          <div
+            ref={feed.scrollRef}
+            {...feed.handlers}
+            className="max-h-[58dvh] overflow-y-auto overscroll-contain lg:max-h-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
+            <ul
+              style={{
+                transform: `translate3d(0, ${feed.pullY}px, 0)`,
+                transition: feed.isPulling ? "none" : "transform 250ms cubic-bezier(0.18, 1.12, 0.32, 1.0)",
+              }}
+              className="flex flex-col gap-3 will-change-transform"
+            >
+              {visibleItems.map((n) => (
+                <li key={n.notificationId}>
+                  <ScrollRevealCard scrollContainerRef={feed.scrollRef} pullY={feed.pullY}>
+                    <RowButton n={n} onOpen={handleOpen} />
+                  </ScrollRevealCard>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
       )}
       {inbox.hasMore && (
         <button type="button" onClick={inbox.more} disabled={inbox.loading} className="min-h-11 text-[15px] font-medium text-go-teal">

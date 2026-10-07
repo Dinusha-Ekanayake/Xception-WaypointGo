@@ -127,3 +127,10 @@ test("the next stop says how long it is expected to take to unload (T1-04)", asy
   assert.equal(unloadText(undefined), "");
   assert.equal(unloadText(0), "");
 });
+
+test("rows further from the card are smaller and fainter, like a dial, within limits", async () => {
+  const { dialStyle } = await import("../src/roles/driver/data/stopView.ts");
+  assert.deepEqual(dialStyle(1), { scale: 1, opacity: 1 });
+  assert.ok(dialStyle(2).scale < 1 && dialStyle(2).opacity < 1);
+  assert.deepEqual(dialStyle(30), { scale: 0.84, opacity: 0.4 });
+});

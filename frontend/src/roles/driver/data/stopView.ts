@@ -32,6 +32,8 @@ export type RouteStop = {
   finished: boolean;
   /** One or more writes for this stop are still only on this phone. */
   onPhone: boolean;
+  /** When the stop was recorded, in depot time; null until it is. */
+  doneAt: string | null;
   expectedUnits: number;
   deliveredItems: Array<{ code: string; category: string; qty: number }>;
 };
@@ -81,6 +83,7 @@ export function toRouteStops(
       mapButtonType: "split",
       finished: isFinished(stop),
       onPhone: stop.waiting,
+      doneAt: stop.completedAt ? clock(stop.completedAt) : null,
       expectedUnits: stop.itemCount,
       // The catalogue is reconstructed from order totals: a product is never shown as a real SKU.
       deliveredItems: stop.lines.map((line) => ({ code: line.productId, category: "Inferred product", qty: line.orderedUnits })),
@@ -93,6 +96,8 @@ export function unloadText(minutes: number | string | null | undefined): string 
   const m = minutes == null ? NaN : Math.round(Number(minutes));
   return Number.isFinite(m) && m > 0 ? ` · about ${m} min to unload` : "";
 }
+
+export { dialStyle } from "../../../shared/ui/dial.ts";
 
 /** Where the route screen opens: the first stop still to do, else the last one. */
 export function activeIndex(stops: Stop[]): number {
