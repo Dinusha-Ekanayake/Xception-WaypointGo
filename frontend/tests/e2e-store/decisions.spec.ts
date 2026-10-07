@@ -16,7 +16,7 @@ test("the store answers the dispatcher's question with a tap and an optional rea
   await card.getByRole("textbox", { name: "Reason (optional)" }).fill("Night staff stay until 09:00");
   await card.getByRole("button", { name: "Yes", exact: true }).click();
 
-  expect(sent.find((c) => c.kind === "issue:AnswerDecision")).toMatchObject({
+  await expect.poll(() => sent.find((c) => c.kind === "issue:AnswerDecision")).toMatchObject({
     payload: { requestId: "q1", answer: "yes", reason: "Night staff stay until 09:00" },
     expectedVersion: 1,
   });
@@ -34,5 +34,5 @@ test("the next store is asked to let the crew reach its goods, every name and nu
     "Goods for OUT084 (24 units) are in front of yours. Can the crew unload them at your dock to reach your goods, and reload them?",
   );
   await card.getByRole("button", { name: "No", exact: true }).click();
-  expect(sent.find((c) => c.kind === "issue:AnswerDecision")?.payload).toEqual({ requestId: "q2", answer: "no" });
+  await expect.poll(() => sent.find((c) => c.kind === "issue:AnswerDecision")?.payload).toEqual({ requestId: "q2", answer: "no" });
 });

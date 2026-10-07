@@ -99,6 +99,8 @@ class IntelligenceIntegrationTest {
   @Autowired ForecastJob forecasts;
   @Autowired OutlookWatchJob watch;
   @Autowired com.waypoint.dispatch.intelligence.infrastructure.JdbcAttentionRepository attentionItems;
+  @Autowired AttentionWatchJob attentionWatch;
+  @Autowired com.waypoint.dispatch.planning.contract.PlanQuery planQuery;
 
   private String run;
   private String depot;
@@ -622,6 +624,37 @@ class IntelligenceIntegrationTest {
   }
 
   // ---- the attention watch (issue #268) ---------------------------------------------
+
+  @Test
+  void theWatchFindsAStopThatWillMissItsWindowOnAReleasedTripOfThePublishedPlan() throws Exception {
+    publishedPlan();
+    var plan = database.asSystem(ModuleRole.ML, () -> planQuery.publishedPlan(depot, serviceDate)).orElseThrow();
+    var trip = plan.trips().get(0);
+    deliver("execution.on-trip-released", UUID.randomUUID(),
+        new com.waypoint.dispatch.loading.contract.LoadingEvents.TripReleased(
+            trip.tripId(), plan.planId(), plan.planVersion(), trip.vehicleId(), depot, serviceDate,
+            trip.stops().stream()
+                .map(s -> new com.waypoint.dispatch.loading.contract.LoadingEvents.ReleasedStop(
+                    s.sequence(), s.orderId(), s.outletId(), s.plannedArrival()))
+                .toList()));
+    var first = trip.stops().get(0);
+
+    // Before the window closes on a stop not reached, nothing is critical about it yet.
+    Instant late = serviceDate.atTime(first.windowClose()).plusMinutes(5)
+        .atZone(com.waypoint.dispatch.shared.util.Clock.OPERATING_ZONE).toInstant();
+    int open = attentionWatch.watch(depot, serviceDate, late);
+    assertTrue(open >= 1, "the watch read the published plan's vehicle and its run sheet");
+    JsonNode board = read(dispatcher, "/api/ml/attention?depot=" + depot + "&date=" + serviceDate, 200);
+    boolean found = false;
+    for (JsonNode item : board.get("items")) {
+      if (item.get("outletId").asText().equals(first.outletId()) && item.get("kind").asText().equals("WINDOW_AT_RISK")) {
+        found = true;
+      }
+    }
+    assertTrue(found, "the first stop is past its window and not delivered: " + board);
+    assertFalse(board.get("checkedAt").isNull(), "the watch says when it last looked");
+    assertEquals(open, attentionWatch.watch(depot, serviceDate, late.plusSeconds(60)), "a second look raises nothing new");
+  }
 
   @Test
   void anAttentionItemIsRaisedOnceRefreshedAndThenClearedWhenItNoLongerHolds() throws Exception {

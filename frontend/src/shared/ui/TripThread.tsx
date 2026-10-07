@@ -26,6 +26,7 @@ export function TripThread({
   keepsOffline = false,
   accountId,
   draft,
+  replies,
   tr = plain,
 }: {
   threadId: string;
@@ -38,6 +39,8 @@ export function TripThread({
   /** Keeps the thread on this device for a role that reads it with no signal. */
   accountId?: string;
   draft?: Draft;
+  /** FF-08: the dispatcher's ready replies for the trip's state. */
+  replies?: import("../messaging/templates.ts").Reply[];
   /** The reader's language; English when absent. */
   tr?: Translate;
 }): React.JSX.Element {
@@ -116,6 +119,7 @@ export function TripThread({
           role={thread.memberRole}
           members={members}
           myOutlets={thread.myOutlets}
+          {...(replies ? { replies } : {})}
           online={online}
           keepsOffline={keepsOffline}
           tr={tr}

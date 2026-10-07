@@ -58,25 +58,94 @@ final class DecisionHandlers {
     return lines > 0 ? lines : s.itemCount();
   }
 
-  /** {@code issue:AskDecision}: R-ISS-12, R-ISS-13. */
+  /**
+   * Asks one store one question (R-ISS-12, R-ISS-13): the one definition, used by
+   * the dispatcher's command and by the system when the attention watch finds a
+   * stop at risk. Every name and number is read from the run sheet.
+   */
   @Component
-  static class AskDecisionHandler implements CommandHandler {
+  static class DecisionAsker {
     private final JdbcDecisionRequests decisions;
     private final ExecutionQuery execution;
     private final ReferenceQuery reference;
     private final EventPublisher events;
     private final Metrics metrics;
-    private final Clock clock;
     private final SecureRandom random = new SecureRandom();
 
-    AskDecisionHandler(
+    DecisionAsker(
         JdbcDecisionRequests decisions, ExecutionQuery execution, ReferenceQuery reference, EventPublisher events,
-        Metrics metrics, Clock clock) {
+        Metrics metrics) {
       this.decisions = decisions;
       this.execution = execution;
       this.reference = reference;
       this.events = events;
       this.metrics = metrics;
+    }
+
+    /** The stops of the vehicle the delivery is on, and that delivery's stop; empty when the asker cannot see it. */
+    Optional<Trip> trip(UUID deliveryId) {
+      return execution.deliveryRecord(deliveryId).flatMap(record -> {
+        List<RunSheetStopView> stops =
+            execution.runSheet(record.vehicleId(), record.serviceDate()).map(r -> r.stops()).orElse(List.of());
+        return find(stops, deliveryId).map(stop -> new Trip(record, stops, stop));
+      });
+    }
+
+    String depotOf(String outletId) {
+      return reference.outlet(outletId, null).map(o -> o.depotCode()).orElseThrow();
+    }
+
+    /** Asks, replacing any open question of the kind about the stop. */
+    Map<String, Object> ask(
+        Actor actor, Kind kind, Trip trip, Optional<Instant> receiveAt, Optional<RunSheetStopView> about, Instant now,
+        UUID sourceId) {
+      RunSheetStopView asked = trip.stop();
+      String depot = depotOf(asked.outletId());
+      switch (kind) {
+        case RECEIVE_LATE -> DecisionRules.receiveLate(stop(asked), receiveAt.orElseThrow(), now);
+        case DOCK_HELP -> {
+          RunSheetStopView blocked = about.orElseThrow();
+          DecisionRules.dockHelp(
+              stop(asked), asked.sequence(), stop(blocked), blocked.sequence(), blocked.tripId().equals(asked.tripId()));
+        }
+      }
+      Instant deadline = DecisionRules.deadline(now, asked.expectedArrival());
+      Optional<String> aboutOutlet = about.map(RunSheetStopView::outletId);
+      Optional<Integer> aboutUnits = about.map(DecisionHandlers::units);
+      decisions.withdrawOpen(asked.deliveryId(), kind.code(), now);
+      UUID requestId = UuidV7.generate(now, random);
+      decisions.insert(
+          requestId, kind.code(), depot, trip.record().serviceDate(), asked.tripId(), trip.record().vehicleId(),
+          asked.deliveryId(), asked.outletId(), about.map(RunSheetStopView::deliveryId), aboutOutlet, aboutUnits,
+          receiveAt, asked.expectedArrival(), deadline, actor.userId(), now, sourceId);
+      String question = DecisionRules.question(kind, receiveAt, aboutOutlet, aboutUnits, Clock.OPERATING_ZONE);
+      events.publish(
+          actor,
+          new DecisionRequested(
+              requestId, kind.code(), depot, trip.record().serviceDate(), asked.tripId(), trip.record().vehicleId(),
+              asked.deliveryId(), asked.outletId(), aboutOutlet, receiveAt, deadline, question));
+      metrics.increment("waypoint.issue.decision_asked", "kind", kind.code(),
+          "by", Actor.SYSTEM_ID.equals(actor.userId()) ? "system" : "dispatcher");
+      return Map.of("requestId", requestId.toString(), "deadline", deadline.toString(), "question", question);
+    }
+
+    static Optional<RunSheetStopView> find(List<RunSheetStopView> stops, UUID deliveryId) {
+      return stops.stream().filter(s -> s.deliveryId().equals(deliveryId)).findFirst();
+    }
+  }
+
+  record Trip(DeliveryRecordView record, List<RunSheetStopView> stops, RunSheetStopView stop) {}
+
+  /** {@code issue:AskDecision}: the dispatcher who oversees the depot asks (R-ISS-12). */
+  @Component
+  static class AskDecisionHandler implements CommandHandler {
+    private final DecisionAsker asker;
+    private final JdbcDecisionRequests decisions;
+    private final Clock clock;
+
+    AskDecisionHandler(DecisionAsker asker, JdbcDecisionRequests decisions, Clock clock) {
+      this.asker = asker;
+      this.decisions = decisions;
       this.clock = clock;
     }
 
@@ -107,54 +176,21 @@ final class DecisionHandlers {
       Kind kind = Kind.parse(p.requiredText("kind"));
       UUID deliveryId = p.uuid("deliveryId");
       Instant now = clock.now();
-
-      DeliveryRecordView record = execution.deliveryRecord(deliveryId).orElseThrow(() -> unknown(deliveryId));
-      List<RunSheetStopView> stops =
-          execution.runSheet(record.vehicleId(), record.serviceDate()).map(r -> r.stops()).orElse(List.of());
-      RunSheetStopView asked = find(stops, deliveryId).orElseThrow(() -> unknown(deliveryId));
-      String depot = reference.outlet(asked.outletId(), null)
-          .orElseThrow(() -> unknown(deliveryId)).depotCode();
+      Trip trip = asker.trip(deliveryId).orElseThrow(() -> unknown(deliveryId));
+      String depot = asker.depotOf(trip.stop().outletId());
       if (!decisions.oversees(depot)) {
         throw new DomainException(
             ErrorCode.FORBIDDEN, "depot " + depot + " is outside the actor's scope", List.of("R-ISS-12"));
       }
-
       Optional<Instant> receiveAt = Optional.empty();
       Optional<RunSheetStopView> about = Optional.empty();
-      switch (kind) {
-        case RECEIVE_LATE -> receiveAt = Optional.of(
-            DecisionRules.receiveLate(stop(asked), Instant.parse(p.requiredText("receiveAt")), now));
-        case DOCK_HELP -> {
-          UUID aboutId = p.uuid("aboutDeliveryId");
-          RunSheetStopView blocked = find(stops, aboutId).orElseThrow(() -> unknown(aboutId));
-          DecisionRules.dockHelp(
-              stop(asked), asked.sequence(), stop(blocked), blocked.sequence(), blocked.tripId().equals(asked.tripId()));
-          about = Optional.of(blocked);
-        }
+      if (kind == Kind.RECEIVE_LATE) {
+        receiveAt = Optional.of(Instant.parse(p.requiredText("receiveAt")));
+      } else {
+        UUID aboutId = p.uuid("aboutDeliveryId");
+        about = Optional.of(DecisionAsker.find(trip.stops(), aboutId).orElseThrow(() -> unknown(aboutId)));
       }
-      Instant deadline = DecisionRules.deadline(now, asked.expectedArrival());
-      Optional<String> aboutOutlet = about.map(RunSheetStopView::outletId);
-      Optional<Integer> aboutUnits = about.map(DecisionHandlers::units);
-
-      // Asking again about the same stop replaces the open question (R-ISS-14).
-      decisions.withdrawOpen(deliveryId, kind.code(), now);
-      UUID requestId = UuidV7.generate(now, random);
-      decisions.insert(
-          requestId, kind.code(), depot, record.serviceDate(), asked.tripId(), record.vehicleId(), deliveryId,
-          asked.outletId(), about.map(RunSheetStopView::deliveryId), aboutOutlet, aboutUnits, receiveAt,
-          asked.expectedArrival(), deadline, actor.userId(), now, command.commandId());
-      String question = DecisionRules.question(kind, receiveAt, aboutOutlet, aboutUnits, Clock.OPERATING_ZONE);
-      events.publish(
-          actor,
-          new DecisionRequested(
-              requestId, kind.code(), depot, record.serviceDate(), asked.tripId(), record.vehicleId(), deliveryId,
-              asked.outletId(), aboutOutlet, receiveAt, deadline, question));
-      metrics.increment("waypoint.issue.decision_asked", "kind", kind.code());
-      return Map.of("requestId", requestId.toString(), "deadline", deadline.toString(), "question", question);
-    }
-
-    private static Optional<RunSheetStopView> find(List<RunSheetStopView> stops, UUID deliveryId) {
-      return stops.stream().filter(s -> s.deliveryId().equals(deliveryId)).findFirst();
+      return asker.ask(actor, kind, trip, receiveAt, about, now, command.commandId());
     }
   }
 

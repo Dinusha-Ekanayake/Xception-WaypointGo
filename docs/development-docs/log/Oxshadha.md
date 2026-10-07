@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-07 - fix: the attention watch sees live trips; the system asks stores by itself (FF-09, FF-08)
+
+`feat/live-decisions-watch` · @Oxshadha
+
+- The attention watch saw nothing in production: a scheduled job has no actor, so its plan and run sheet reads returned no rows while its heartbeat said it had looked (ML-16). It now reads as the system. A stop past its closed window with no delay seen yet was not flagged (ML-17).
+- The watch now rings the dispatcher (`attention.raised` for a window at risk, `attention.reminded` capped; routing version 11), and Issues asks the store by itself, once per stop, never a mall, off by `decision.auto_ask` (R-ISS-15).
+- Each case shows "What happened" from the record alone; the dispatcher's message box offers ready replies filled by code (FF-08 first version).
+
+Why: the watch is what lets one dispatcher cover many trips; checking it end to end found it blind.
+Verified: backend 1,122 on a fresh test database, none skipped; Node 361; build; browser shell 20, driver 38, loader 32, store 62, dispatcher 82. Not pushed to `dev`: it goes by pull request for J.V. Ransika's approval.
+
 ## 2026-10-07 - feat: live decisions between the dispatcher and a store (FF-09)
 
 `dev` · @Oxshadha

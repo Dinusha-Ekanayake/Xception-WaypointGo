@@ -57,6 +57,16 @@ class DecisionRulesTest {
   }
 
   @Test
+  void theSystemAsksAboutTheExpectedArrivalRoundedUpToFiveMinutesAndNeverPastFourHours() {
+    // NOW is 07:10 in Colombo.
+    assertEquals(Optional.of(Instant.parse("2026-10-07T02:15:00Z")),
+        DecisionRules.autoReceiveAt(Optional.of(Instant.parse("2026-10-07T02:11:30Z")), NOW));
+    assertEquals(Optional.of(NOW.plus(Duration.ofMinutes(5))), DecisionRules.autoReceiveAt(Optional.empty(), NOW),
+        "with no expected arrival, or one already past, five minutes from now");
+    assertEquals(Optional.empty(), DecisionRules.autoReceiveAt(Optional.of(NOW.plus(Duration.ofHours(5))), NOW));
+  }
+
+  @Test
   void oneAnswerAndOneAfterTheDeadlineIsMarkedLate() {
     Instant deadline = NOW.plus(Duration.ofMinutes(10));
     assertFalse(DecisionRules.answerIsLate(State.SENT, deadline, NOW));

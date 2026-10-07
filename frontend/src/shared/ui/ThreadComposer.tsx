@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ApiError } from "../api/problem.ts";
 import type { MemberRole, MemberView, ReportType } from "../domain/messaging.ts";
+import type { Reply } from "../messaging/templates.ts";
 import { channelLeaks, defaultAddress, parseMention, plain, REPORT_LABEL, REPORTS_BY_ROLE, sameAddress, type Address, type Translate } from "../messaging/thread.ts";
 import { useRecorder, type Recording } from "../messaging/recorder.ts";
 import { newId, postCommand } from "../messaging/useThread.ts";
@@ -24,6 +25,7 @@ export function ThreadComposer({
   role,
   members,
   myOutlets = [],
+  replies = [],
   online,
   sender = sendNow,
   keepsOffline = false,
@@ -36,6 +38,8 @@ export function ThreadComposer({
   members: MemberView[];
   /** The writer's own outlets on the trip: a store may name them on the channel. */
   myOutlets?: string[];
+  /** FF-08: ready replies for the trip's state, every value filled by code; a tap fills the draft. */
+  replies?: Reply[];
   online: boolean;
   sender?: Sender;
   /** The sender keeps a message, voice included, on the device with no signal. */
@@ -120,6 +124,26 @@ export function ThreadComposer({
         void submit();
       }}
     >
+      {replies.length > 0 && !report && body.trim() === "" && (
+        <div role="group" aria-label={tr("Suggested replies")} className="flex flex-wrap gap-1.5">
+          {replies
+            .filter((r) => members.some((m) => sameAddress({ to: m.to, outletId: m.outletId }, { to: r.to, outletId: r.outletId })))
+            .map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                data-template={`${r.id}@${r.version}`}
+                onClick={() => {
+                  setAddress({ to: r.to, outletId: r.outletId });
+                  setBody(r.body);
+                }}
+                className="min-h-8 rounded-full border border-go-divider bg-go-card px-3 text-[13px] font-medium text-go-teal"
+              >
+                {tr(r.label)}
+              </button>
+            ))}
+        </div>
+      )}
       {members.length > 1 && !report && (
         <div role="radiogroup" aria-label={tr("Send to")} className="flex flex-wrap gap-1.5">
           {members.map((m) => {

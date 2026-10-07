@@ -63,6 +63,15 @@ class AttentionPolicyTest {
   }
 
   @Test
+  void aStopNotReachedOnceItsWindowHasClosedIsAtRiskEvenWithNoDelaySeen() {
+    // Planned and expected an hour ago, the window closed 5 minutes ago, not delivered:
+    // the vehicle cannot arrive before now, so the stop will miss its window.
+    Finding f = AttentionPolicy.assess(open(-60, Optional.empty(), -5), T, NOW).orElseThrow();
+    assertEquals(Kind.WINDOW_AT_RISK, f.kind());
+    assertEquals(Severity.CRITICAL, f.severity());
+  }
+
+  @Test
   void aStopLateButInsideItsWindowIsWorthKnowing() {
     Finding finding = AttentionPolicy.assess(open(30, Optional.of(50L), 120), T, NOW).orElseThrow();
     assertEquals(Kind.RUNNING_LATE, finding.kind());

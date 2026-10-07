@@ -258,6 +258,12 @@ class LiveDecisionIntegrationTest {
 
   @Test
   void noAnswerByTheDeadlineTellsTheDispatcherToPhoneWhoRecordsWhatTheStoreSaid() throws Exception {
+    // The expiry job looks at every depot and day: settle what other tests left before counting.
+    at("07:40");
+    expiry.runAt(clock.now());
+    drain();
+    long told = notified(dispatcherId, "decision.expired");
+    at("07:10");
     UUID first = UUID.fromString(json(ask(dispatcher, "{\"kind\":\"receive_late\",\"deliveryId\":\"" + stopOne
         + "\",\"receiveAt\":\"" + instant("08:20") + "\"}", 200)).get("result").get("requestId").asText());
     // Asking again about the same stop replaces the open question.
@@ -271,7 +277,7 @@ class LiveDecisionIntegrationTest {
     assertEquals(0, expiry.runAt(clock.now()), "once");
     drain();
     assertEquals("expired", decision(dispatcher, requestId).get("state").asText());
-    assertEquals(1, notified(dispatcherId, "decision.expired"));
+    assertEquals(told + 1, notified(dispatcherId, "decision.expired"));
 
     // The dispatcher phones and records the store's answer; it came after the deadline.
     answer(storeOne, requestId, 2, "{\"answer\":\"no\",\"byPhone\":true}", 403);
@@ -282,6 +288,45 @@ class LiveDecisionIntegrationTest {
     assertEquals("no", seen.get("answer").asText());
     drain();
     assertFalse(driverThreadSays(OUTLET + " will receive at about 08:30."), "a No is the dispatcher's to act on");
+  }
+
+  // ---- the system asks by itself (R-ISS-15) ----
+
+  @Test
+  void whenTheWatchFindsAWindowAtRiskTheSystemAsksTheStoreOnceAndTellsTheDispatcher() throws Exception {
+    raised(stopOne, OUTLET, "WINDOW_AT_RISK");
+    drain();
+    JsonNode asked = decisions(storeOne);
+    assertEquals(1, asked.size(), "asked by the system, nobody pressed anything");
+    assertEquals("receive_late", asked.get(0).get("kind").asText());
+    assertEquals(1, notified(storeOneId, "decision.requested"));
+    assertEquals(1, notified(dispatcherId, "attention.raised"), "the dispatcher's bell, Live screen open or not");
+
+    // Found again, or refound after an answer: never asked twice.
+    raised(stopOne, OUTLET, "WINDOW_AT_RISK");
+    drain();
+    assertEquals(1, decisions(storeOne).size());
+
+    // A mall is never asked: its window is fixed.
+    raised(mallStop, MALL_OUTLET, "WINDOW_AT_RISK");
+    drain();
+    assertEquals(1, decisions(dispatcher).size());
+  }
+
+  @Test
+  void whenTheWatchFindsAStopNotDeliveredTheNextStoreIsAskedToHelpAtItsDock() throws Exception {
+    raised(stopOne, OUTLET, "FAILED_STOP");
+    drain();
+    JsonNode asked = decisions(storeTwo);
+    assertEquals(1, asked.size());
+    assertEquals("dock_help", asked.get(0).get("kind").asText());
+    assertEquals(OUTLET, asked.get(0).get("aboutOutletId").asText());
+    assertEquals(0, notified(dispatcherId, "attention.raised"), "a failed stop is told by delivery.failed, not twice");
+  }
+
+  private void raised(UUID deliveryId, String outletId, String kind) {
+    publish(ModuleRole.ML, new com.waypoint.dispatch.intelligence.contract.AttentionEvents.AttentionRaised(
+        deliveryId, kind, "CRITICAL", depot, day, vehicleId, tripId, outletId, Optional.of(-5), clock.now()));
   }
 
   // ---- helpers ----

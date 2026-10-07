@@ -8,7 +8,7 @@ export function decisionOf(over: Partial<DecisionView> & Pick<DecisionView, "req
     kind: "receive_late", depotCode: "Kandy", serviceDate: "2027-03-01", tripId: "trip-1", vehicleId: "VEH043",
     aboutDeliveryId: null, aboutOutletId: null, aboutUnits: null, receiveAt: new Date(Date.now() + 70 * 60_000).toISOString(),
     arrivalAt: null, deadline: new Date(Date.now() + 15 * 60_000).toISOString(), state: "sent", answer: null, answeredVia: null,
-    answeredAt: null, answeredLate: false, reason: null, voiceNoteId: null, askedAt: new Date().toISOString(), rowVersion: 1, ...over,
+    answeredAt: null, answeredLate: false, reason: null, voiceNoteId: null, askedAt: new Date().toISOString(), rowVersion: 1, askedBySystem: false, ...over,
   };
 }
 

@@ -22,7 +22,7 @@ public class JdbcDecisionRequests {
   private static final String COLUMNS =
       "request_id, kind, depot_code, service_date, trip_id, vehicle_id, delivery_id, outlet_id, about_delivery_id,"
           + " about_outlet_id, about_units, receive_at, arrival_at, deadline, state, answer, answered_via, answered_at,"
-          + " answered_late, reason, voice_note_id, asked_at, row_version";
+          + " answered_late, reason, voice_note_id, asked_at, row_version, asked_by";
 
   private final Database database;
 
@@ -57,6 +57,13 @@ public class JdbcDecisionRequests {
     return Optional.ofNullable(
             database.queryOne("SELECT " + COLUMNS + " FROM issues.decision_requests WHERE request_id = ?", requestId))
         .map(JdbcDecisionRequests::view);
+  }
+
+  /** Whether this stop was ever asked this kind of question: the system asks once (R-ISS-15). */
+  public boolean everAsked(UUID deliveryId, String kind) {
+    return database.queryOne(
+            "SELECT 1 AS one FROM issues.decision_requests WHERE delivery_id = ? AND kind = ? LIMIT 1", deliveryId, kind)
+        != null;
   }
 
   /** Whether the actor may answer for this request's store: the store manager of the outlet. */
@@ -138,7 +145,8 @@ public class JdbcDecisionRequests {
         Optional.ofNullable((String) r.get("reason")),
         Optional.ofNullable((UUID) r.get("voice_note_id")),
         ((Timestamp) r.get("asked_at")).toInstant(),
-        ((Number) r.get("row_version")).longValue());
+        ((Number) r.get("row_version")).longValue(),
+        com.waypoint.dispatch.shared.domain.Actor.SYSTEM_ID.equals(r.get("asked_by")));
   }
 
   private static Optional<Instant> instant(Object value) {

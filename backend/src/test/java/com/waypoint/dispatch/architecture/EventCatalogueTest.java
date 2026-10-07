@@ -59,6 +59,8 @@ class EventCatalogueTest {
           "decision.requested",
           "decision.answered",
           "decision.expired",
+          "attention.raised",
+          "attention.reminded",
           "warehouse.order_status_changed",
           "warehouse.discrepancy_found",
           "catalogue.synced",

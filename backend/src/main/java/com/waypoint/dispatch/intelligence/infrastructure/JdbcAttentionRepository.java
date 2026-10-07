@@ -153,12 +153,14 @@ public class JdbcAttentionRepository {
   }
 
   /** What is open and critical, for the reminder rule: when it was raised, and how often it has been chased. */
-  public record Chase(UUID deliveryId, AttentionKind kind, Instant raisedAt, Optional<Instant> lastRemindedAt, int remindedCount) {}
+  public record Chase(
+      UUID deliveryId, AttentionKind kind, Instant raisedAt, Optional<Instant> lastRemindedAt, int remindedCount,
+      String outletId) {}
 
   public List<Chase> openCritical(String depotCode, LocalDate serviceDate) {
     return database.query(
             """
-            SELECT delivery_id, kind, raised_at, last_reminded_at, reminded_count
+            SELECT delivery_id, kind, raised_at, last_reminded_at, reminded_count, outlet_id
               FROM ml.attention_items
              WHERE depot_code = ? AND service_date = ? AND severity = 'CRITICAL'
                AND cleared_at IS NULL AND acknowledged_at IS NULL
@@ -170,7 +172,8 @@ public class JdbcAttentionRepository {
             AttentionKind.valueOf((String) r.get("kind")),
             JdbcIntelligenceRepository.instant(r.get("raised_at")),
             Optional.ofNullable(r.get("last_reminded_at")).map(JdbcIntelligenceRepository::instant),
-            number(r, "reminded_count")))
+            number(r, "reminded_count"),
+            (String) r.get("outlet_id")))
         .toList();
   }
 

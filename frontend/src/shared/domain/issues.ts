@@ -111,6 +111,8 @@ export type DecisionView = {
   voiceNoteId: Uuid | null;
   askedAt: IsoInstant;
   rowVersion: number;
+  /** Asked by the system when the attention watch found the stop at risk (R-ISS-15). */
+  askedBySystem: boolean;
 };
 
 /** `issue:AskDecision`. Every name and number is read from the run sheet on the server. */

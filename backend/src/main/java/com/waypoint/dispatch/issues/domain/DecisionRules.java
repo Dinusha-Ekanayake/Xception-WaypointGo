@@ -27,6 +27,8 @@ import java.util.Optional;
  *   <li>R-ISS-14: the store answers its own outlet's question; the dispatcher may
  *       record an answer the store gave by phone. One answer; an answer after the
  *       deadline is recorded and marked late. A withdrawn question takes none.
+ *   <li>R-ISS-15: when the attention watch finds a stop at risk, the system asks
+ *       by itself, once per stop and question, unless the depot turned it off.
  * </ul>
  */
 public final class DecisionRules {
@@ -127,6 +129,19 @@ public final class DecisionRules {
     if (blocked.outletId().equals(helper.outletId())) {
       throw invalid("a store is not asked to help with its own goods", "R-ISS-12");
     }
+  }
+
+  /**
+   * R-ISS-15: the time the system asks a store about by itself: the expected
+   * arrival, at least 5 minutes from now, rounded up to 5 minutes; nothing past
+   * {@link #LATEST_RECEIVE}.
+   */
+  public static Optional<Instant> autoReceiveAt(Optional<Instant> expected, Instant now) {
+    Instant earliest = now.plus(MIN_DEADLINE);
+    Instant from = expected.filter(e -> e.isAfter(earliest)).orElse(earliest);
+    long step = Duration.ofMinutes(5).toMillis();
+    Instant at = Instant.ofEpochMilli(((from.toEpochMilli() + step - 1) / step) * step);
+    return at.isAfter(now.plus(LATEST_RECEIVE)) ? Optional.empty() : Optional.of(at);
   }
 
   /** R-ISS-13: when the answer is due. */

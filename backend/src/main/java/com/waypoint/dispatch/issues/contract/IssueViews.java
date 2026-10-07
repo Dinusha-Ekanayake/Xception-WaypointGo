@@ -124,6 +124,7 @@ public final class IssueViews {
    * @param state sent, answered, expired or withdrawn
    * @param aboutUnits units of the stop whose goods are in front, for dock_help
    * @param arrivalAt when the vehicle was expected at the store when asked
+   * @param askedBySystem asked by the system when the attention watch found the stop at risk (R-ISS-15)
    */
   public record DecisionView(
       UUID requestId,
@@ -148,5 +149,6 @@ public final class IssueViews {
       Optional<String> reason,
       Optional<UUID> voiceNoteId,
       Instant askedAt,
-      long rowVersion) {}
+      long rowVersion,
+      boolean askedBySystem) {}
 }

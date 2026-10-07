@@ -82,3 +82,34 @@ export function dockHelper(stops: RunSheetStopView[], blocked: RunSheetStopView)
       .sort((a, b) => a.sequence - b.sequence)[0] ?? null
   );
 }
+
+/** One line of what happened on a stop, oldest first. */
+export type CaseLine = { at: string | null; text: string };
+
+/**
+ * What happened on a stop, built only from what was recorded: the run sheet
+ * and the questions asked about it or because of it. No model writes it, so
+ * every time and name is the record's. The dispatcher's summary of a case.
+ */
+export function caseSummary(stop: RunSheetStopView, decisions: DecisionView[], serviceDate: string): CaseLine[] {
+  const lines: CaseLine[] = [];
+  if (stop.expectedArrival) {
+    lines.push({ at: null, text: `Expected ${clock(stop.expectedArrival)}, window closes ${clock(`${serviceDate}T${stop.windowClose.slice(0, 5)}:00+05:30`)}` });
+  }
+  if (stop.outcome === "FAILED") lines.push({ at: stop.completedAt, text: `${stop.outletId} not delivered` });
+  const related = decisions
+    .filter((d) => d.deliveryId === stop.deliveryId || d.aboutDeliveryId === stop.deliveryId)
+    .sort((a, b) => a.askedAt.localeCompare(b.askedAt));
+  for (const d of related) {
+    if (d.state === "withdrawn") continue;
+    const what = d.kind === "receive_late" ? `receive at about ${clock(d.receiveAt)}?` : `help at the dock with ${d.aboutOutletId ?? "the goods"}?`;
+    lines.push({ at: d.askedAt, text: `${d.askedBySystem ? "Waypoint" : "Dispatcher"} asked ${d.outletId}: ${what}` });
+    if (d.answer !== null) {
+      const notes = [d.reason, d.answeredVia === "phone" ? "by phone" : null, d.answeredLate ? "after the deadline" : null].filter(Boolean);
+      lines.push({ at: d.answeredAt, text: `${d.outletId}: ${d.answer === "yes" ? "Yes" : "No"}${notes.length ? ` · ${notes.join(" · ")}` : ""}` });
+    } else if (d.state === "expired") {
+      lines.push({ at: d.deadline, text: `No answer from ${d.outletId} by ${clock(d.deadline)}` });
+    }
+  }
+  return lines;
+}

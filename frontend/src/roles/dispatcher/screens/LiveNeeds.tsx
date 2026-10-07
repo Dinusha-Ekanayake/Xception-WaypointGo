@@ -133,6 +133,7 @@ export default function LiveNeeds({
                   decisions={decisions.data ?? []}
                   online={online}
                   now={new Date()}
+                  date={date}
                   onChanged={decisions.refresh}
                 />
               )}

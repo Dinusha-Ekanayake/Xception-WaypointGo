@@ -8,6 +8,8 @@ import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryStarted;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.EtaChanged;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.RoadDisruptionReported;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.VehicleFaultReported;
+import com.waypoint.dispatch.intelligence.contract.AttentionEvents.AttentionRaised;
+import com.waypoint.dispatch.intelligence.contract.AttentionEvents.AttentionReminded;
 import com.waypoint.dispatch.issues.contract.IssueEvents.DecisionAnswered;
 import com.waypoint.dispatch.issues.contract.IssueEvents.DecisionExpired;
 import com.waypoint.dispatch.issues.contract.IssueEvents.DecisionRequested;
@@ -863,6 +865,67 @@ final class NotificationConsumers {
         case "store_manager" -> "Store";
         default -> "Dispatcher";
       };
+    }
+  }
+
+  /** Issue #268: the attention watch found a stop at risk; the depot's dispatchers are told, screen open or not. */
+  @Component
+  static class OnAttentionRaised extends NotificationConsumer<AttentionRaised> {
+    OnAttentionRaised(Notifier notifier) {
+      super(notifier);
+    }
+
+    @Override
+    public String consumerName() {
+      return "notification.on-attention-raised";
+    }
+
+    @Override
+    public Class<AttentionRaised> eventType() {
+      return AttentionRaised.class;
+    }
+
+    @Override
+    Routed route(AttentionRaised e) {
+      String left = e.minutesLeft()
+          .map(m -> m > 0 ? "window closes in " + m + " min" : "window closed " + (-m) + " min ago")
+          .orElse("window at risk");
+      return new Routed()
+          .fact("kind", e.kind()).fact("outletId", e.outletId()).fact("vehicleId", e.vehicleId()).fact("left", left)
+          .on(e.serviceDate())
+          .to(ScopeKind.DEPOT, e.depotCode(), "delivery", e.deliveryId());
+    }
+  }
+
+  /** Issue #268: a critical item nobody acknowledged; the dispatchers are reminded, capped by the watch. */
+  @Component
+  static class OnAttentionReminded extends NotificationConsumer<AttentionReminded> {
+    OnAttentionReminded(Notifier notifier) {
+      super(notifier);
+    }
+
+    @Override
+    public String consumerName() {
+      return "notification.on-attention-reminded";
+    }
+
+    @Override
+    public Class<AttentionReminded> eventType() {
+      return AttentionReminded.class;
+    }
+
+    @Override
+    Routed route(AttentionReminded e) {
+      String what = switch (e.kind()) {
+        case "FAILED_STOP" -> "a stop not delivered";
+        case "WINDOW_AT_RISK" -> "a window about to be missed";
+        case "PROOF_OWED" -> "proof of delivery";
+        default -> "a late stop";
+      };
+      return new Routed()
+          .fact("kind", e.kind()).fact("what", what).fact("outletId", e.outletId())
+          .on(e.serviceDate())
+          .to(ScopeKind.DEPOT, e.depotCode(), "delivery", e.deliveryId());
     }
   }
 

@@ -356,6 +356,8 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 | `decision.requested` | The store manager of the outlet asked | yes | The dispatcher needs an answer before the vehicle arrives (FF-09, R-ISS-12) |
 | `decision.answered` | Dispatcher; the driver of a Yes | yes | The store's answer; a Yes changes the driver's stop (R-ISS-14) |
 | `decision.expired` | Dispatcher | yes | No answer by the deadline: phone the store (R-ISS-13) |
+| `attention.raised` | Dispatcher, for a window about to be missed only (a failed stop is told by `delivery.failed`) | yes | The watch found it, Live screen open or not (issue #268) |
+| `attention.reminded` | Dispatcher | yes | A critical item nobody acted on, capped by the watch (issue #268) |
 | `vehicle.fault_reported`, `road.disruption_reported` | Dispatcher | yes | The dispatcher decides the vehicle's status |
 | `receipt.disputed` | Dispatcher | yes | The store disagrees with what arrived |
 | `vehicle.status_changed` | Dispatcher | no | Fleet availability changed. Reference does not publish it yet |
@@ -623,3 +625,4 @@ Modules connect three ways: a contract query (synchronous, read only), an event 
 | `reference.version_published`, `vehicle.status_changed`, `calendar.overridden` | Reference | Planning, Notification |
 | `message.posted` | Messaging | Notification |
 | `order.outlook_changed` | Intelligence | Notification |
+| `attention.raised`, `attention.reminded` | Intelligence | Notification; Issues (`attention.raised`: asks the store, R-ISS-15) |

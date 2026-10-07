@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { dockHelper, latestFor, question, receiveTimes, standing, toAnswer } from "../src/shared/decisions/decisions.ts";
+import { caseSummary, dockHelper, latestFor, question, receiveTimes, standing, toAnswer } from "../src/shared/decisions/decisions.ts";
 import type { DecisionView } from "../src/shared/domain/issues.ts";
 import type { RunSheetStopView } from "../src/shared/domain/execution.ts";
 
@@ -12,7 +12,7 @@ function decision(over: Partial<DecisionView> = {}): DecisionView {
     deliveryId: "d4", outletId: "OUT004", aboutDeliveryId: null, aboutOutletId: null, aboutUnits: null,
     receiveAt: "2027-03-01T02:50:00Z", arrivalAt: null, deadline: "2027-03-01T02:20:00Z", state: "sent", answer: null,
     answeredVia: null, answeredAt: null, answeredLate: false, reason: null, voiceNoteId: null, askedAt: "2027-03-01T02:00:00Z",
-    rowVersion: 1, ...over,
+    rowVersion: 1, askedBySystem: false, ...over,
   };
 }
 
@@ -58,4 +58,20 @@ test("the store asked to help at the dock is the next stop of the same trip stil
   const stops = [stop(1, "DELIVERED"), stop(2, "FAILED"), stop(3, "DELIVERED"), stop(4, "PENDING"), stop(5, "PENDING"), stop(6, "PENDING", "t2")];
   assert.equal(dockHelper(stops, stops[1]!)?.outletId, "OUT004");
   assert.equal(dockHelper(stops, stops[4]!), null, "no later stop on the trip");
+});
+
+test("the case summary is built from the record alone, oldest first", () => {
+  const stop = { deliveryId: "d4", outletId: "OUT004", outcome: "PENDING", expectedArrival: "2027-03-01T02:45:00Z", windowClose: "07:30:00", completedAt: null } as RunSheetStopView;
+  const lines = caseSummary(stop, [
+    decision({ requestId: "a", askedBySystem: true, state: "answered", answer: "no", answeredVia: "app", answeredAt: "2027-03-01T02:06:00Z", reason: "Staff leave at 08:00" }),
+    decision({ requestId: "b", askedAt: "2027-03-01T02:10:00Z", state: "expired" }),
+    decision({ requestId: "other", deliveryId: "d9" }),
+  ], "2027-03-01");
+  assert.deepEqual(lines.map((l) => l.text), [
+    "Expected 08:15, window closes 07:30",
+    "Waypoint asked OUT004: receive at about 08:20?",
+    "OUT004: No · Staff leave at 08:00",
+    "Dispatcher asked OUT004: receive at about 08:20?",
+    "No answer from OUT004 by 07:50",
+  ]);
 });

@@ -1,5 +1,9 @@
 package com.waypoint.dispatch.intelligence.application;
 
+import com.waypoint.dispatch.intelligence.contract.AttentionEvents.AttentionRaised;
+import com.waypoint.dispatch.intelligence.contract.AttentionEvents.AttentionReminded;
+import com.waypoint.dispatch.platform.messaging.EventPublisher;
+import com.waypoint.dispatch.shared.domain.Actor;
 import com.waypoint.dispatch.execution.contract.ExecutionQuery;
 import com.waypoint.dispatch.execution.contract.ExecutionViews.RunSheetStopView;
 import com.waypoint.dispatch.execution.contract.ExecutionViews.RunSheetView;
@@ -50,6 +54,7 @@ public class AttentionWatchJob implements ScheduledJob {
   private final ReferenceQuery reference;
   private final Metrics metrics;
   private final AttentionScorer scorer;
+  private final EventPublisher events;
 
   public AttentionWatchJob(
       Database database,
@@ -58,8 +63,10 @@ public class AttentionWatchJob implements ScheduledJob {
       ExecutionQuery execution,
       ReferenceQuery reference,
       Metrics metrics,
-      AttentionScorer scorer) {
+      AttentionScorer scorer,
+      EventPublisher events) {
     this.scorer = scorer;
+    this.events = events;
     this.database = database;
     this.repository = repository;
     this.plans = plans;
@@ -98,14 +105,16 @@ public class AttentionWatchJob implements ScheduledJob {
 
   /** @return how many items are open for the depot after this look */
   int watch(String depot, LocalDate day, Instant now) {
-    List<String> vehicles = plans.publishedPlan(depot, day)
-        .map(plan -> plan.trips().stream().map(TripView::vehicleId).distinct().sorted().toList())
-        .orElse(List.of());
-    List<RunSheetView> sheets = new ArrayList<>();
-    for (String vehicle : vehicles) {
-      execution.runSheet(vehicle, day).ifPresent(sheets::add);
-    }
     return database.asSystem(ModuleRole.ML, () -> {
+      // The contracts read as the ambient actor. A scheduled job has none, and
+      // row-level security then shows nothing: read as the system, as a consumer does.
+      List<String> vehicles = plans.publishedPlan(depot, day)
+          .map(plan -> plan.trips().stream().map(TripView::vehicleId).distinct().sorted().toList())
+          .orElse(List.of());
+      List<RunSheetView> sheets = new ArrayList<>();
+      for (String vehicle : vehicles) {
+        execution.runSheet(vehicle, day).ifPresent(sheets::add);
+      }
       AttentionThresholds thresholds = repository.thresholds(depot);
       int open = 0;
       for (RunSheetView sheet : sheets) {
@@ -121,6 +130,10 @@ public class AttentionWatchJob implements ScheduledJob {
               found.minutesLeft().map(Long::intValue), now);
           if (raised) {
             metrics.increment("waypoint.ml.attention_raised", "kind", found.kind().name().toLowerCase(java.util.Locale.ROOT));
+            // Told once, when first found: the bell, and Issues, which may ask the store (FF-09).
+            events.publish(Actor.SYSTEM, new AttentionRaised(
+                stop.deliveryId(), found.kind().name(), found.severity().name(), depot, day, sheet.vehicleId(),
+                stop.tripId(), stop.outletId(), found.minutesLeft().map(Long::intValue), now));
           }
           open++;
         }
@@ -130,6 +143,8 @@ public class AttentionWatchJob implements ScheduledJob {
         if (ReminderPolicy.due(
             AttentionPolicy.Severity.CRITICAL, chase.raisedAt(), chase.lastRemindedAt(), chase.remindedCount(), thresholds, now)) {
           repository.reminded(chase.deliveryId(), chase.kind(), now);
+          events.publish(Actor.SYSTEM, new AttentionReminded(
+              chase.deliveryId(), chase.kind().name(), depot, day, chase.outletId(), chase.remindedCount() + 1, now));
           metrics.increment("waypoint.ml.attention_reminded", "kind", chase.kind().name().toLowerCase(java.util.Locale.ROOT));
         }
       }

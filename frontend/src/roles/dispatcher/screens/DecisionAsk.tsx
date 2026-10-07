@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { friendlyError } from "@shared/api/problem";
-import { dockHelper, latestFor, question, receiveTimes, standing } from "@shared/decisions/decisions";
+import { caseSummary, dockHelper, latestFor, question, receiveTimes, standing } from "@shared/decisions/decisions";
 import { IssueCommandKind, type AnswerDecision, type AskDecision, type DecisionView, type RunSheetStopView } from "@shared/domain/types";
 import { cx } from "@shared/ui";
 import { clock, units } from "@shared/wording";
@@ -26,6 +26,7 @@ export default function DecisionAsk({
   decisions,
   online,
   now,
+  date,
   onChanged,
 }: {
   /** window: the stop's window is closing; failed: its goods stayed on the vehicle. */
@@ -36,6 +37,8 @@ export default function DecisionAsk({
   decisions: DecisionView[];
   online: boolean;
   now: Date;
+  /** The service day, for the window's time in the summary. */
+  date: string;
   onChanged: () => void;
 }): React.JSX.Element | null {
   const { run, busy } = useCommand();
@@ -111,7 +114,26 @@ export default function DecisionAsk({
         </>
       )}
       {error && <p role="alert" className="text-go-danger-strong">{error}</p>}
+      <Summary lines={caseSummary(stop, decisions, date)} />
     </div>
+  );
+}
+
+/** What happened on the stop, from the record alone, so the dispatcher picks up a case without reading the thread. */
+function Summary({ lines }: { lines: ReturnType<typeof caseSummary> }): React.JSX.Element | null {
+  if (lines.length < 2) return null;
+  return (
+    <details data-testid="case-summary" className="text-[12px] text-go-secondary">
+      <summary className="cursor-pointer font-medium text-go-ink">What happened</summary>
+      <ol className="mt-1 flex flex-col gap-0.5">
+        {lines.map((l, i) => (
+          <li key={i}>
+            {l.at ? `${clock(l.at)} · ` : ""}
+            {l.text}
+          </li>
+        ))}
+      </ol>
+    </details>
   );
 }
 
