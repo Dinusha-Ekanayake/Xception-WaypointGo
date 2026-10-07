@@ -40,7 +40,7 @@ export function said(id: string, at: string, over: Partial<MessageView> = {}): M
   return {
     messageId: id, threadId: "", authorName: "Dinusha Bawantha", authorRole: "dispatcher", kind: "message", reportType: null,
     audience: "all", audienceOutlet: null, body: id, voiceNoteId: null, voiceDurationMs: null, createdAt: at, mine: false,
-    voicePeaks: [], resolvedAt: null, resolvedByName: null, resolutionNote: null, redirectedAt: null, redirectReason: null, ...over,
+    voicePeaks: [], resolvedAt: null, resolvedByName: null, resolutionNote: null, redirectedAt: null, redirectReason: null, seenByDriver: null, seenByDriverAt: null, ...over,
   };
 }
 

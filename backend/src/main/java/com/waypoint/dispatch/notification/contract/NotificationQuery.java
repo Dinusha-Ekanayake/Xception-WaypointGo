@@ -12,4 +12,12 @@ public interface NotificationQuery {
   Page<NotificationView> inbox(UUID userId, Optional<String> cursor, int limit);
 
   long unreadCount(UUID userId);
+
+  /**
+   * R-MSG-14: when the driver read the notification of each message, for the
+   * dispatcher's "Seen" mark. Only messages the driver was told about are in
+   * the map; read or not, an absent one is unknown. The caller passes only
+   * messages its reader may see: this answers read times, never content.
+   */
+  java.util.Map<UUID, Optional<java.time.Instant>> driverReads(java.util.Collection<UUID> messageIds);
 }

@@ -208,3 +208,21 @@ test("a channel post naming a store is asked about before it goes", async ({ pag
   await expect(sheet.getByTestId("channel-nudge")).toHaveCount(0);
   expect(desk.commands.find((c) => c.kind === "message:Post")?.payload).toMatchObject({ to: "channel" });
 });
+
+test("the dispatcher sees whether the driver has read each message for the driver (R-MSG-14)", async ({ page }) => {
+  await page.clock.install({ time: new Date(LIVE_NOW) });
+  const thread = tripThread("t-VEH020", "VEH020", ["OUT061", "OUT063"], "dispatcher", [
+    said("d1", at("09:10"), { body: "Take the bypass", audience: "driver", mine: true, seenByDriver: true, seenByDriverAt: at("09:16") }),
+    said("d2", at("10:30"), { body: "Call me when you stop", audience: "driver", mine: true, seenByDriver: false }),
+    said("s1", at("10:31"), { body: "Running late", audience: "outlet", audienceOutlet: "OUT063", mine: true }),
+  ]);
+  await serve(page, { ...liveDay(), threads: [thread] });
+  await page.goto("/#/live");
+  await page.getByRole("button", { name: "Timeline", exact: true }).click();
+  await page.getByRole("button", { name: "VEH020 · Style · Matara, At risk" }).click();
+  await page.getByRole("button", { name: "All messages ›" }).click();
+  const sheet = page.getByRole("dialog", { name: "Trip messages" });
+  await expect(sheet.locator("#message-d1")).toContainText("Seen 14:46");
+  await expect(sheet.locator("#message-d2")).toContainText("Not seen yet");
+  await expect(sheet.locator("#message-s1")).not.toContainText("seen");
+});

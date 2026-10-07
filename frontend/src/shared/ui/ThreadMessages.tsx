@@ -148,6 +148,8 @@ function Message({
       <span className="px-1 text-xs text-go-secondary">
         {m.mine ? tr("You") : m.authorName === ROLE_LABEL[m.authorRole] ? tr(m.authorName) : m.authorName}
         {!m.mine && m.authorName !== ROLE_LABEL[m.authorRole] ? ` · ${tr(ROLE_LABEL[m.authorRole])}` : ""} · {clock(m.createdAt)}
+        {m.seenByDriver === true && m.seenByDriverAt ? ` · ${tr("Seen {time}", { time: clock(m.seenByDriverAt) })}` : ""}
+        {m.seenByDriver === false ? ` · ${tr("Not seen yet")}` : ""}
       </span>
       <div
         className={cx(

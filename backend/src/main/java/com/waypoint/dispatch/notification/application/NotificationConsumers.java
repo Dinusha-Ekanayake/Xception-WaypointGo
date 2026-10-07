@@ -846,6 +846,8 @@ final class NotificationConsumers {
       Routed r =
           new Routed()
               .fact("audience", e.audience()).fact("heading", heading).fact("excerpt", e.excerpt())
+              // R-MSG-14: which message, so the dispatcher can see whether the driver has read it.
+              .fact("messageId", e.messageId())
               .fact("vehicleId", e.vehicleId()).fact("depotCode", e.depotCode())
               // A voice message plays its own audio in the inbox, never read aloud by text to speech.
               .fact("voiceNoteId", e.voiceNoteId()).fact("voiceDurationMs", e.voiceDurationMs())

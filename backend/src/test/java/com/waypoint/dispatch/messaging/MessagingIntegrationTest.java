@@ -241,6 +241,35 @@ class MessagingIntegrationTest {
   }
 
   @Test
+  void theDispatcherSeesWhetherTheDriverHasReadAMessageAndNoOneElseDoes() throws Exception {
+    // R-MSG-14: the driver's notification of the message, read when Messages is opened.
+    say(dispatcher, "{\"to\":\"driver\",\"body\":\"Take the bypass\"}", 200);
+    say(dispatcher, "{\"to\":\"outlet\",\"outletId\":\"" + OUTLET + "\",\"body\":\"Running late\"}", 200);
+    drain();
+    JsonNode toDriver = message(dispatcher, "Take the bypass");
+    assertFalse(toDriver.get("seenByDriver").asBoolean(), "not read yet");
+    assertTrue(toDriver.get("seenByDriverAt").isNull());
+    assertTrue(message(dispatcher, "Running late").get("seenByDriver").isNull(), "not for the driver: no mark");
+
+    database.asSystemSeparately(ModuleRole.NOTIFICATION, () -> database.update(
+        "UPDATE notification.notifications SET read_at = created_at WHERE recipient_user_id = ?"
+            + " AND event_type = 'message.posted'", driverId));
+    toDriver = message(dispatcher, "Take the bypass");
+    assertTrue(toDriver.get("seenByDriver").asBoolean());
+    assertFalse(toDriver.get("seenByDriverAt").isNull());
+    assertTrue(message(driver, "Take the bypass").get("seenByDriver").isNull(), "the mark is the dispatcher's");
+  }
+
+  private JsonNode message(String who, String body) throws Exception {
+    for (JsonNode m : json(read(who, "/api/threads/" + threadId + "/messages", 200)).get("items")) {
+      if (body.equals(m.get("body").asText())) {
+        return m;
+      }
+    }
+    throw new AssertionError("no message " + body);
+  }
+
+  @Test
   void aPostFromAReadyReplyRecordsWhichOneAndWhetherItWasChanged() throws Exception {
     say(dispatcher, "{\"to\":\"driver\",\"body\":\"Noted, carry on.\",\"templateId\":\"driver.noted\","
         + "\"templateVersion\":1,\"templateRank\":3,\"templateEdited\":false}", 200);

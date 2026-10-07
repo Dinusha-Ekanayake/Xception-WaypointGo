@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-07 - feat: the dispatcher sees whether the driver has read a message
+
+`dev` · @Oxshadha
+
+- The driver's message notification now names its message; `NotificationQuery.driverReads` answers when it was read, and the dispatcher's thread shows "Seen HH:MM" or "Not seen yet" on messages for the driver (R-MSG-14, MSG-25). Older messages show no mark.
+
+Why: with the unseen alert (R-NOT-18) the dispatcher also needs to see, per message, what the driver has and has not read.
+Verified: the full backend suite and every browser suite, run before the push; messaging 21 and notification 21 on a fresh test database; Node 371.
+
+---
+
 ## 2026-10-07 - feat: each model's day is measured (MF-03, first slice)
 
 `dev` · @Oxshadha

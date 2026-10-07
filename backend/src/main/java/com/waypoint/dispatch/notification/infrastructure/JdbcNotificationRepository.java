@@ -177,6 +177,29 @@ public class JdbcNotificationRepository {
         .toList();
   }
 
+  /**
+   * R-MSG-14: per message, when its driver read the notification of it. Drivers
+   * are told on the vehicle's target; a message told to more than one driver
+   * counts as read when any has read it. Run as the system.
+   */
+  public Map<UUID, Optional<Instant>> driverReads(java.util.Collection<UUID> messageIds) {
+    Map<UUID, Optional<Instant>> out = new java.util.HashMap<>();
+    database
+        .query(
+            """
+            SELECT facts ->> 'messageId' AS message_id, min(read_at) AS read_at, bool_and(read_at IS NULL) AS unread
+              FROM notification.notifications
+             WHERE event_type = 'message.posted' AND target_key LIKE 'vehicle:%'
+               AND facts ->> 'messageId' = ANY (?::text[])
+             GROUP BY facts ->> 'messageId'
+            """,
+            (Object) ids(List.copyOf(messageIds)))
+        .forEach(r -> out.put(
+            UUID.fromString((String) r.get("message_id")),
+            Boolean.TRUE.equals(r.get("unread")) ? Optional.empty() : Optional.of(instant(r.get("read_at")))));
+    return out;
+  }
+
   public long unreadCount(UUID recipient) {
     return ((Number)
             database

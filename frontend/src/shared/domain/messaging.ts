@@ -71,6 +71,9 @@ export type MessageView = {
   /** The dispatcher moved this post off the trip's channel: when and why (R-MSG-08). */
   redirectedAt: IsoInstant | null;
   redirectReason: string | null;
+  /** R-MSG-14, the dispatcher's only: whether the driver has read it, and when; null when unknown or not for the driver. */
+  seenByDriver?: boolean | null;
+  seenByDriverAt?: IsoInstant | null;
 };
 
 /** Newest first; nextCursor reads older messages. */

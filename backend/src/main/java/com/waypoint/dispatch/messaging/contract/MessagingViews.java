@@ -70,7 +70,14 @@ public final class MessagingViews {
       Optional<String> resolvedByName,
       Optional<String> resolutionNote,
       Optional<Instant> redirectedAt,
-      Optional<String> redirectReason) {
+      Optional<String> redirectReason,
+      /**
+       * R-MSG-14, for the dispatcher only: whether the driver has read this
+       * message for the driver or for everyone, and when. Empty when unknown or
+       * not for the driver.
+       */
+      Optional<Boolean> seenByDriver,
+      Optional<Instant> seenByDriverAt) {
     public MessageView {
       voicePeaks = List.copyOf(voicePeaks);
     }

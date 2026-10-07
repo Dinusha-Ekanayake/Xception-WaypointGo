@@ -11,6 +11,7 @@ import com.waypoint.dispatch.messaging.contract.MessagingViews.ThreadView;
 import com.waypoint.dispatch.messaging.domain.MessagePolicy;
 import com.waypoint.dispatch.messaging.domain.MessagePolicy.Role;
 import com.waypoint.dispatch.messaging.infrastructure.JdbcThreadRepository;
+import com.waypoint.dispatch.notification.contract.NotificationQuery;
 import com.waypoint.dispatch.messaging.infrastructure.JdbcThreadRepository.Belonging;
 import com.waypoint.dispatch.messaging.infrastructure.JdbcThreadRepository.Message;
 import com.waypoint.dispatch.messaging.infrastructure.JdbcThreadRepository.Thread;
@@ -52,10 +53,12 @@ public class MessagingQuery {
   private final IdentityQuery identity;
   private final AuditLog audit;
   private final Clock clock;
+  private final NotificationQuery notifications;
 
   public MessagingQuery(
       Database database, JdbcThreadRepository threads, PersonQuery people, IdentityQuery identity, AuditLog audit,
-      Clock clock) {
+      Clock clock, NotificationQuery notifications) {
+    this.notifications = notifications;
     this.database = database;
     this.threads = threads;
     this.people = people;
@@ -67,6 +70,23 @@ public class MessagingQuery {
   public ThreadView thread(Actor actor, UUID threadId) {
     return read(actor, () -> view(threads.thread(threadId), threadId))
         .orElseThrow(() -> denied(actor, "wpt:message:thread:" + threadId));
+  }
+
+  /**
+   * R-MSG-14: for the dispatcher, when the driver read each message for the
+   * driver or for everyone on this page. Only messages the dispatcher has just
+   * read under row-level security are asked about.
+   */
+  private Map<UUID, Optional<Instant>> driverReads(Actor actor, UUID threadId, List<Message> page) {
+    List<UUID> toDriver =
+        page.stream()
+            .filter(m -> "driver".equals(m.audience()) || "all".equals(m.audience()))
+            .map(Message::messageId)
+            .toList();
+    if (toDriver.isEmpty() || !"dispatcher".equals(thread(actor, threadId).memberRole())) {
+      return Map.of();
+    }
+    return notifications.driverReads(toDriver);
   }
 
   /** The thread of a subject, for a screen that knows the trip, not the thread. */
@@ -102,15 +122,17 @@ public class MessagingQuery {
     Page<Message> page =
         Page.fromOverfetch(rows, size, m -> Cursor.encode(m.createdAt().toString(), m.messageId().toString()));
     Map<UUID, String> names = new HashMap<>();
+    Map<UUID, Optional<Instant>> seen = driverReads(actor, threadId, page.items());
     List<MessageView> items = new ArrayList<>();
     for (Message m : page.items()) {
+      Optional<Optional<Instant>> read = Optional.ofNullable(seen.get(m.messageId()));
       items.add(
           new MessageView(
               m.messageId(), m.threadId(), name(m, names), m.authorRole(), m.kind(), m.reportType(), m.audience(),
               m.audienceOutlet(), m.body(), m.voiceNoteId(), m.voiceDurationMs(), m.createdAt(),
               m.authorUserId().equals(actor.userId()), m.voicePeaks(), m.resolvedAt(),
               m.resolvedBy().map(by -> resolver(by, names)), m.resolutionNote(), m.redirectedAt(),
-              m.redirectReason()));
+              m.redirectReason(), read.map(Optional::isPresent), read.flatMap(r -> r)));
     }
     return new MessagePage(items, page.nextCursor());
   }
