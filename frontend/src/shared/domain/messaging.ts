@@ -103,6 +103,11 @@ export type PostMessagePayload = {
   report?: ReportType;
   voiceNoteId?: Uuid;
   clientMessageId?: Uuid;
+  /** FF-08: the ready reply the words came from, its place in the list (1 first) and whether they were changed. */
+  templateId?: string;
+  templateVersion?: number;
+  templateRank?: number;
+  templateEdited?: boolean;
 };
 
 /** message:Resolve: the dispatcher marks a report resolved; its sign leaves the timeline. */

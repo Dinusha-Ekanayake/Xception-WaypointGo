@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-10-07 - feat: a ready reply's use is recorded (FF-08)
+
+`dev` · @Oxshadha
+
+- A post sent from a ready reply carries its id, version, rank in the list and whether it was edited; kept in `messaging.reply_uses` (append-only, RLS with the message) and counted by `waypoint.message.reply_used` (R-MSG-13, MSG-24).
+- Not yet: a screen or report of the measures (share from a template, edits, rank taken).
+
+Why: FF-08's KPIs (70% of replies from a template) and the later ranker (AI-J5) need the use logged from day one.
+Verified: messaging 20 and policy 19 on a fresh test database, boundaries; Node 370; build; browser dispatcher 82.
+
+---
+
 ## 2026-10-07 - feat: arrival times by propagation (T1-03, first slice)
 
 `dev` · @Oxshadha
@@ -13,7 +25,7 @@
 - Not yet: service minutes from history (T1-04), `ml.eta_predictions` and its endpoint.
 
 Why: the estimate only carried the delay seen at the last arrival, so a long unload or a stop on the road was invisible until the next arrival.
-Verified: see the pull request checks.
+Verified: backend 1,145 on a fresh test database, none skipped (with the unseen-message escalation).
 
 ---
 

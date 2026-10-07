@@ -125,12 +125,24 @@ public class PostMessageHandler implements CommandHandler {
             role == Role.STORE_MANAGER && post.to() == To.CHANNEL && threads.inChannel(threadId),
             thread.serviceDate().orElse(today), today);
 
+    Optional<MessagePolicy.ReplyUse> reply =
+        MessagePolicy.replyUse(
+            payload.text("templateId"), payload.optionalInt("templateVersion"), payload.optionalInt("templateRank"),
+            payload.flag("templateEdited", false), post.reportType().isPresent());
+
     UUID messageId = UuidV7.generate(now, random);
     String kind = post.reportType().isPresent() ? "report" : "message";
     threads.insert(
         messageId, threadId, actor.userId(), role.code(), kind, post.reportType(), post.to().code(), post.outletId(),
         body, voiceNoteId, clientId, Optional.empty(), Optional.empty(), aboutOutlet(role, kind, post, b),
         Optional.of(command.commandId()), now);
+    // FF-08: which ready reply it came from, for measuring the replies' use.
+    reply.ifPresent(r -> {
+      threads.recordReplyUse(messageId, r, actor.userId(), now);
+      metrics.increment(
+          "waypoint.message.reply_used", "template", r.templateId(), "edited", String.valueOf(r.edited()),
+          "rank", String.valueOf(r.rank()));
+    });
 
     List<String> reaches =
         switch (post.to()) {

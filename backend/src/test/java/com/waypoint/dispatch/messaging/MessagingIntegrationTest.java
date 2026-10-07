@@ -241,6 +241,20 @@ class MessagingIntegrationTest {
   }
 
   @Test
+  void aPostFromAReadyReplyRecordsWhichOneAndWhetherItWasChanged() throws Exception {
+    say(dispatcher, "{\"to\":\"driver\",\"body\":\"Noted, carry on.\",\"templateId\":\"driver.noted\","
+        + "\"templateVersion\":1,\"templateRank\":3,\"templateEdited\":false}", 200);
+    say(dispatcher, "{\"to\":\"driver\",\"body\":\"Hi\",\"templateId\":\"Not a template\",\"templateVersion\":1,"
+        + "\"templateRank\":1}", 422);
+    Map<String, Object> use = database.asSystem(ModuleRole.MESSAGING, () -> database.queryOne(
+        "SELECT u.template_id, u.rank, u.edited FROM messaging.reply_uses u"
+            + " JOIN messaging.messages m ON m.message_id = u.message_id WHERE m.thread_id = ?", threadId));
+    assertEquals("driver.noted", use.get("template_id"));
+    assertEquals(3, ((Number) use.get("rank")).intValue());
+    assertEquals(false, use.get("edited"));
+  }
+
+  @Test
   void aLoaderLeavesTheDriverANoteAboutTheLoadThatNoStoreReads() throws Exception {
     assertEquals(List.of("dispatch", "driver"), members(loader), "R-MSG-12: the dispatcher, or the driver of the trip");
     say(loader, "{\"to\":\"driver\",\"body\":\"Chilled crates at the back, left side\"}", 200);

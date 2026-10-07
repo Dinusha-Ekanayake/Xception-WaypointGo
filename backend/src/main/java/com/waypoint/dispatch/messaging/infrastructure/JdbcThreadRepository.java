@@ -1,5 +1,6 @@
 package com.waypoint.dispatch.messaging.infrastructure;
 
+import com.waypoint.dispatch.messaging.domain.MessagePolicy;
 import com.waypoint.dispatch.platform.db.Database;
 import java.sql.Array;
 import java.sql.SQLException;
@@ -297,6 +298,18 @@ public class JdbcThreadRepository {
             sourceEventId.orElse(null), sourceIssueId.orElse(null), aboutOutlet.orElse(null), commandId.orElse(null),
             Timestamp.from(now))
         > 0;
+  }
+
+  /** FF-08: the ready reply a message came from. Append-only. */
+  public void recordReplyUse(UUID messageId, MessagePolicy.ReplyUse use, UUID authorUserId, Instant at) {
+    database.update(
+        """
+        INSERT INTO messaging.reply_uses
+            (message_id, template_id, template_version, rank, edited, author_user_id, used_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT (message_id) DO NOTHING
+        """,
+        messageId, use.templateId(), use.version(), use.rank(), use.edited(), authorUserId, Timestamp.from(at));
   }
 
   // ---- voice notes --------------------------------------------------------------

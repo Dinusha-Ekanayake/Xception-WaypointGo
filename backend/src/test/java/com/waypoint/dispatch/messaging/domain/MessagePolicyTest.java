@@ -130,6 +130,22 @@ class MessagePolicyTest {
   }
 
   @Test
+  void aReadyReplyIsNamedByItsIdVersionAndRankAndNeverOnAReport() {
+    assertEquals(Optional.empty(), MessagePolicy.replyUse(null, null, null, false, false));
+    assertEquals(
+        Optional.of(new MessagePolicy.ReplyUse("driver.bring_back", 1, 2, true)),
+        MessagePolicy.replyUse("driver.bring_back", 1, 2, true, false));
+    for (Runnable bad : List.<Runnable>of(
+        () -> MessagePolicy.replyUse("Bring back", 1, 1, false, false),
+        () -> MessagePolicy.replyUse("driver.bring_back", 0, 1, false, false),
+        () -> MessagePolicy.replyUse("driver.bring_back", 1, 11, false, false),
+        () -> MessagePolicy.replyUse("driver.bring_back", null, 1, false, false),
+        () -> MessagePolicy.replyUse("driver.bring_back", 1, 1, false, true))) {
+      assertThrows(DomainException.class, bad::run);
+    }
+  }
+
+  @Test
   void theThreadTakesPostsUntilTheEndOfTheNextDay() {
     assertTrue(MessagePolicy.open(DAY, DAY));
     assertTrue(MessagePolicy.open(DAY, DAY.plusDays(1)));

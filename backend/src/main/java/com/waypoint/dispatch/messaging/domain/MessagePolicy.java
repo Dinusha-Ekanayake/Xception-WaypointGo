@@ -226,6 +226,35 @@ public final class MessagePolicy {
   /** Longest note a dispatcher may give when resolving a report (R-MSG-07). */
   public static final int RESOLUTION_MAX = 500;
 
+  /** FF-08: the ready reply a post came from, and whether its words were changed before sending. */
+  public record ReplyUse(String templateId, int version, int rank, boolean edited) {}
+
+  private static final java.util.regex.Pattern TEMPLATE_ID = java.util.regex.Pattern.compile("^[a-z_]+(\\.[a-z_]+)+$");
+
+  /**
+   * The ready reply named on a post, or empty when none is. A report never
+   * comes from one: its words are the person's own.
+   */
+  public static Optional<ReplyUse> replyUse(
+      String templateId, Integer version, Integer rank, boolean edited, boolean report) {
+    if (templateId == null && version == null && rank == null) {
+      return Optional.empty();
+    }
+    if (report) {
+      throw invalid("a report is written, not taken from a ready reply");
+    }
+    if (templateId == null || templateId.length() > 64 || !TEMPLATE_ID.matcher(templateId).matches()) {
+      throw invalid("templateId must name a ready reply, such as driver.bring_back");
+    }
+    if (version == null || version < 1 || version > 1000) {
+      throw invalid("templateVersion must be between 1 and 1000");
+    }
+    if (rank == null || rank < 1 || rank > 10) {
+      throw invalid("templateRank must be between 1 and 10");
+    }
+    return Optional.of(new ReplyUse(templateId, version, rank, edited));
+  }
+
   /** The note on a resolved report: optional, trimmed, at most {@link #RESOLUTION_MAX}. */
   public static Optional<String> resolutionNote(String raw) {
     String note = raw == null ? "" : raw.strip();

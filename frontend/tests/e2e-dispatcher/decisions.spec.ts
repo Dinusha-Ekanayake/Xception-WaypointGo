@@ -56,6 +56,10 @@ test("the trip's thread offers ready replies filled from the run sheet, and a ta
   await expect(sheet.getByRole("radio", { name: "OUT063" })).toHaveAttribute("aria-checked", "true");
   await sheet.getByRole("button", { name: "Send", exact: true }).click();
   await expect.poll(() => desk.commands.find((c) => c.kind === "message:Post")?.payload).toMatchObject({ to: "outlet", outletId: "OUT063", body: "Running 36 min late. Now expected at 17:06." });
+  // FF-08: the post says which ready reply it came from, so its use can be measured.
+  expect(desk.commands.find((c) => c.kind === "message:Post")?.payload).toMatchObject({
+    templateId: "store.running_late", templateVersion: 1, templateEdited: false,
+  });
 });
 
 test("what happened on a stop is listed from the record", async ({ page }) => {

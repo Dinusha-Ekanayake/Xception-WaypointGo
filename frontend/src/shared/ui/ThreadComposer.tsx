@@ -53,6 +53,10 @@ export function ThreadComposer({
   const [chosen, setAddress] = useState<Address | null>(draft?.address ?? null);
   const address = chosen ?? defaultAddress(role, members);
   const [body, setBody] = useState(draft?.body ?? "");
+  // FF-08: the ready reply tapped, so the post says which one and whether its words were changed.
+  const [picked, setPicked] = useState<{ reply: Reply; rank: number } | null>(null);
+  // Emptied and written afresh: no longer that reply.
+  if (picked && body.trim() === "") setPicked(null);
   const [report, setReport] = useState<ReportType | null>(draft?.report && reports.length > 0 ? reports[0]! : null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -99,11 +103,20 @@ export function ThreadComposer({
           ...(address.to === "outlet" && address.outletId ? { outletId: address.outletId } : {}),
           ...(report ? { report } : {}),
           ...(voiceNoteId ? { voiceNoteId } : {}),
+          ...(picked && !report && !voice
+            ? {
+                templateId: picked.reply.id,
+                templateVersion: picked.reply.version,
+                templateRank: picked.rank,
+                templateEdited: text.trim() !== picked.reply.body.trim(),
+              }
+            : {}),
           clientMessageId,
         }),
         voice && voiceNoteId ? { threadId, voiceNoteId, blob: voice.blob, durationMs: voice.durationMs, peaks: voice.peaks } : undefined,
       );
       if (!voice) setBody("");
+      setPicked(null);
       setAsked(null);
       setReport(null);
       recorder.discard();
@@ -128,7 +141,7 @@ export function ThreadComposer({
         <div role="group" aria-label={tr("Suggested replies")} className="flex flex-wrap gap-1.5">
           {replies
             .filter((r) => members.some((m) => sameAddress({ to: m.to, outletId: m.outletId }, { to: r.to, outletId: r.outletId })))
-            .map((r) => (
+            .map((r, i) => (
               <button
                 key={r.id}
                 type="button"
@@ -136,6 +149,7 @@ export function ThreadComposer({
                 onClick={() => {
                   setAddress({ to: r.to, outletId: r.outletId });
                   setBody(r.body);
+                  setPicked({ reply: r, rank: i + 1 });
                 }}
                 className="min-h-8 rounded-full border border-go-divider bg-go-card px-3 text-[13px] font-medium text-go-teal"
               >
