@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-10-07 - feat: outcomes kept beside predictions (MF-02, first slice)
+
+`dev` · @Oxshadha
+
+- `OutcomeJob` reads Execution's actuals for today and yesterday every 10 minutes and keeps each stop in `ml.delivery_outcomes` with the newest prediction for its order; the late label comes only from an arrival recorded on time, else none (R-ML-12, ML-21); label coverage per depot is a gauge.
+- Not yet: filling missing arrivals from positions with a geofence; weekly volumes; the daily metrics that read this (MF-03).
+
+Why: no model can be measured or trusted without its outcomes, and a skipped tap must not count as "on time".
+Verified: the full backend suite on a fresh test database, run before the push (OutcomeLabelTest, the new execution case, boundaries).
+
+---
+
 ## 2026-10-07 - feat: Needs you holds at a thousand trips
 
 `dev` · @Oxshadha

@@ -84,6 +84,7 @@ class ExecutionIntegrationTest {
   static final byte[] PNG = png(40);
 
   @Autowired com.waypoint.dispatch.execution.application.EtaRefreshJob etaJob;
+  @Autowired com.waypoint.dispatch.intelligence.application.OutcomeJob outcomeJob;
   @Autowired MockMvc http;
   @Autowired ObjectMapper mapper;
   @Autowired Migrator migrator;
@@ -649,6 +650,34 @@ class ExecutionIntegrationTest {
     at("06:15");
     etaJob.runAt(clock.now());
     assertEquals(1, outbox("eta.changed", stopB), "told again only on a ten-minute move");
+  }
+
+  @Test
+  void eachStopsOutcomeIsKeptBesideItsPredictionAndAMissingArrivalIsNoLabel() throws Exception {
+    // MF-02, R-ML-12: stop A arrived on time and delivered; stop B failed with no arrival recorded.
+    at("05:20");
+    send(driver, "delivery:RecordArrival", 1L, stop(stopA), 200);
+    at("05:25");
+    send(driver, "delivery:Record", 2L, record(stopA, "DELIVERED", null, null, null), 200);
+    at("06:30");
+    send(driver, "delivery:Record", 1L, record(stopB, "FAILED", null, "refused", "Returned to the depot"), 200);
+
+    outcomeJob.runAt(clock.now());
+    outcomeJob.runAt(clock.now());
+    Map<String, Object> a = outcome(stopA);
+    assertEquals(false, a.get("late_label"));
+    assertEquals("device", a.get("label_source"));
+    assertEquals("delivered", a.get("outcome"));
+    Map<String, Object> b = outcome(stopB);
+    assertEquals(null, b.get("late_label"), "no arrival: no label, never not late");
+    assertEquals("none", b.get("label_source"));
+  }
+
+  private Map<String, Object> outcome(UUID deliveryId) {
+    return database.asSystem(
+        com.waypoint.dispatch.platform.db.ModuleRole.ML,
+        () -> database.queryOne(
+            "SELECT late_label, label_source, outcome FROM ml.delivery_outcomes WHERE delivery_id = ?", deliveryId));
   }
 
   // ---- who may record ----

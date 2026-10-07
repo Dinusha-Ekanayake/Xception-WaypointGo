@@ -78,6 +78,8 @@ Jev may appear only as a proposed deployment, never inside the scored pipeline.
 
 ### MF-02 Outcome store
 
+**First slice built 2026-10-07** (R-ML-12, ML-21): `ml.delivery_outcomes` keeps each stop's outcome beside the newest prediction for its order, from Execution's actuals every 10 minutes; the late label only from an on-time arrival; label coverage per depot as a gauge. Not yet: positions with a geofence to fill missing arrivals, and weekly volumes from Ordering.
+
 **What it stores.** `ml.prediction_outcomes` joins every stored prediction to what happened.
 
 **Where the actuals come from:**
