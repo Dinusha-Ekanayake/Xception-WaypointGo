@@ -36,6 +36,7 @@ It is advice: R-ML-05 stays, and predictions never change an allocation.
   - Validation groups by route (`ml-server/datathon/src/task1_a.py:29`), so routes from the same date sit on both sides.
   - `disruption_index` is the realised road condition.
   - The fallback model (log loss 0.2385 against 0.1516) is the honest production figure after road conditions end on 2026-06-28.
+  - **Measured by MF-05 (2026-10-08):** the split costs only 0.002 of AUC (0.977 route folds, 0.975 on the last 6 weeks in date order). The road index is the real gap: without it AUC is 0.957 and log loss 0.168 against 0.133, 26% worse. Figures in `ml-server/README.md`.
 - **Outputs.** The models return service minutes and P(late), not an arrival time.
 - **Gaps.** Nothing is active on any deployment, and nothing compares predictions with actuals.
 
@@ -147,6 +148,8 @@ Equal-bin calibration error is too noisy at this volume and is not used.
 - Produces artifacts and a manifest with metrics, through a pull request.
 - `ml-server` tests and the backtest gate run before activation.
 - Model versions are pinned.
+
+**Built (first slice, 2026-10-08).** `ml-server/training/leakage.py` runs the leakage check on whatever data the runner holds and reports the four figures with findings in words (R-ML-17, ML-28); the measured result on the Datathon data is above. Open: the retraining step (step 2 of the ladder, LightGBM on planning-time features from our own training export) and its pull request with the manifest.
 
 ### MF-06 Prediction intervals
 

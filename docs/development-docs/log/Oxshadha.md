@@ -4,6 +4,19 @@
 
 ---
 
+## 2026-10-08 - feat: the leakage check, measured on the Datathon data (MF-05, first slice)
+
+`dev` · @Oxshadha
+
+- `ml-server/training/leakage.py` scores the late-risk features on route folds, the last 6 weeks in date order, and the same without road conditions, beside the slack alone, with findings in words (R-ML-17, ML-28). Runs locally on the licensed data; nothing leaves the machine.
+- Result: the split is not the problem (0.977 against 0.975 AUC); the road index is (log loss 0.133 to 0.168 without it, 26% worse). The audit's suspicion of the split is corrected in roadmap 05.
+- Not yet: retraining on our own export.
+
+Why: the 0.979 had to be measured, not argued about, before any model is trusted.
+Verified: test_leakage 5; the full ml-server suite with the pinned versions; the report on the full Datathon training data.
+
+---
+
 ## 2026-10-08 - feat: a model is backtested on what it predicted (MF-04, first slice)
 
 `dev` · @Oxshadha

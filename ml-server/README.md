@@ -35,6 +35,25 @@ uvicorn app.main:app --port 8000
 
 The Task 1 tests score four real routes and require the API to equal the vendored `inference.predict_task1` on the same rows. The forecast test requires the Datathon Task 2A submission to be reproduced exactly.
 
+## Leakage check (roadmap MF-05)
+
+`training/leakage.py` scores the late-risk feature set three ways on the same rows and reports them side by side (R-ML-17): route-grouped folds, as the original validation did; the last 6 weeks held out in date order; and the same holdout without the realised road conditions. It also gives the AUC of the window's slack alone. It reads only what it is given and sends nothing anywhere, so it runs on our own machine against the licensed data or our own training export, never in GitHub Actions.
+
+```bash
+python -m training.leakage --datathon "/path/to/Datasets/data" --out leakage-report.json
+```
+
+Findings are written in words when a gap is material: 0.02 of AUC for the split or the road index, or a log loss 10% worse without the road index. Run on the full Datathon training data (2026-10-08; holdout 2026-01-05 to 2026-02-14, 5,035 stops):
+
+| Validation | AUC | Log loss |
+| --- | --- | --- |
+| Route-grouped folds | 0.977 | 0.152 |
+| Last 6 weeks, date order | 0.975 | 0.133 |
+| Last 6 weeks, no road conditions (the production figure) | 0.957 | 0.168 |
+| Window slack alone | 0.880 | |
+
+The split is not where the optimism is (0.002 of AUC). The road index is: without it log loss is 26% worse, and it does not exist when a plan is published. The figure to expect in production is the third row, and a model is only trusted on our own deliveries through the backtest (R-ML-16).
+
 ## Reproducibility
 
 - Every random seed is fixed, so the same request always gives the same answer.
