@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-10-08 - feat: forecast error and prediction drift (MF-03, second slice)
+
+`dev` · @Oxshadha
+
+- `ModelQualityJob` (nightly 03:50): each of the last four finished weeks' demand forecast, as made before the week began, beside what was ordered (`ml.forecast_accuracy`, WAPE gauge per depot); and the PSI of the last 7 days' predicted late probabilities against the 28 before (`ml.prediction_drift_daily`, gauge per depot and model). Alerts `ForecastOff` and `PredictionsDrifted`, tested with promtool (R-ML-13, ML-24).
+- Not yet: drift on input features (only predictions are stored).
+
+Why: forecast and drift are known before late labels arrive, so a broken model shows up in days, not weeks.
+Verified: the full backend suite, the Node tests and every browser suite, run before the push; ModelMetricsTest 6, the new intelligence case, promtool test rules.
+
+---
+
 ## 2026-10-08 - fix: what the live check of one delivery day found
 
 `dev` · @Oxshadha

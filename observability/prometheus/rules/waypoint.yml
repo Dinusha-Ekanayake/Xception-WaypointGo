@@ -80,6 +80,24 @@ groups:
         annotations:
           summary: "{{ $labels.depot }}: only {{ $value }}% of today's stops have a trustworthy arrival."
 
+      # R-ML-13: the last finished week's forecast off by more than a quarter of what was ordered.
+      - alert: ForecastOff
+        expr: waypoint_ml_forecast_wape > 0.25
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.depot }}: last week's demand forecast was off by {{ $value | humanizePercentage }}."
+
+      # PSI over 0.25: the predictions this week are not the population of the month before.
+      - alert: PredictionsDrifted
+        expr: waypoint_ml_prediction_psi > 0.25
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.model }} at {{ $labels.depot }}: predicted lateness drifted, PSI {{ $value | printf \"%.2f\" }}."
+
       - alert: ServiceMinutesOff
         expr: waypoint_ml_service_mae_minutes > 15
         for: 1h

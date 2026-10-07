@@ -152,6 +152,7 @@ class IntelligenceIntegrationTest {
   @Autowired JevShadow.Job jevJob;
   @Autowired ModelMetricsJob metricsJob;
   @Autowired FallbackTuningJob tuningJob;
+  @Autowired ModelQualityJob qualityJob;
   @Autowired com.waypoint.dispatch.intelligence.infrastructure.JdbcOutcomes outcomeStore;
   @Autowired com.waypoint.dispatch.planning.contract.PlanQuery planQuery;
 
@@ -190,6 +191,61 @@ class IntelligenceIntegrationTest {
   }
 
   // ---- scoring a published plan ---------------------------------------------------
+
+  @Test
+  void aWeeksForecastIsJudgedAsMadeBeforeTheWeekAndDriftIsMeasuredOnPredictions() {
+    // MF-03, R-ML-13. A Monday long past (2019-05-06), so these rows are never the newest forecast run.
+    java.time.LocalDate monday = java.time.LocalDate.of(2019, 5, 6);
+    java.time.Instant now = monday.plusDays(14).atTime(3, 50).atZone(com.waypoint.dispatch.shared.util.Clock.OPERATING_ZONE).toInstant();
+    java.time.Instant before = monday.minusDays(3).atStartOfDay(com.waypoint.dispatch.shared.util.Clock.OPERATING_ZONE).toInstant();
+    java.time.Instant late = monday.plusDays(2).atStartOfDay(com.waypoint.dispatch.shared.util.Clock.OPERATING_ZONE).toInstant();
+    int week = monday.get(java.time.temporal.IsoFields.WEEK_OF_WEEK_BASED_YEAR);
+    String brand = reference.brandCodes().get(0);
+    // Made before the week: 40 m3. Made during it: 99 m3, which must not be the one judged.
+    for (Object[] f : new Object[][] {{before, "40"}, {late, "99"}}) {
+      database.asSystem(ModuleRole.ML, () -> database.update(
+          """
+          INSERT INTO ml.demand_forecasts
+              (forecast_id, run_id, depot_code, brand_code, iso_year, iso_week, total_m3, chilled_m3, model_label,
+               degraded, generated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?::numeric, 0, 'deterministic', true, ?)
+          """,
+          UUID.randomUUID(), UUID.randomUUID(), depot, brand, 2019, (short) week, f[1],
+          java.sql.Timestamp.from((java.time.Instant) f[0])));
+    }
+    // Drift: a reference month of low probabilities, then a week of high ones.
+    UUID plan = UUID.randomUUID();
+    database.asSystem(ModuleRole.ML, () -> database.update(
+        "INSERT INTO ml.plan_scorings (plan_id, depot_code, service_date, plan_version, status, reason, requested_at, scored_at)"
+            + " VALUES (?, ?, ?, 1, 'degraded', 'test', ?, ?)",
+        plan, depot, java.sql.Date.valueOf(monday), java.sql.Timestamp.from(now), java.sql.Timestamp.from(now)));
+    java.util.Random random = new java.util.Random(4);
+    java.time.LocalDate today = monday.plusDays(14);
+    for (int i = 0; i < 300; i++) {
+      boolean current = i >= 150;
+      double p = current ? 0.4 + 0.5 * random.nextDouble() : 0.05 + 0.3 * random.nextDouble();
+      java.time.Instant at = (current ? today.minusDays(3) : today.minusDays(20))
+          .atStartOfDay(com.waypoint.dispatch.shared.util.Clock.OPERATING_ZONE).toInstant().plusSeconds(i);
+      database.asSystem(ModuleRole.ML, () -> database.update(
+          """
+          INSERT INTO ml.delivery_predictions
+              (prediction_id, plan_id, order_id, trip_id, stop_sequence, outlet_id, depot_code, model_label,
+               service_min, late_prob, degraded, generated_at)
+          VALUES (?, ?, ?, ?, 1, 'OUT001', ?, 'deterministic', 12, ?, true, ?)
+          """,
+          UUID.randomUUID(), plan, UUID.randomUUID(), UUID.randomUUID(), depot,
+          java.math.BigDecimal.valueOf(p).setScale(4, java.math.RoundingMode.HALF_UP), java.sql.Timestamp.from(at)));
+    }
+
+    ModelQualityJob.Measured m = qualityJob.runAt(now);
+
+    Map<String, Object> judged = database.asSystem(ModuleRole.ML, () -> database.queryOne(
+        "SELECT forecast_total_m3, actual_total_m3 FROM ml.forecast_accuracy"
+            + " WHERE depot_code = ? AND brand_code = ? AND iso_year = 2019 AND iso_week = ?", depot, brand, (short) week));
+    assertEquals(0, new java.math.BigDecimal("40").compareTo((java.math.BigDecimal) judged.get("forecast_total_m3")),
+        "the forecast made before the week, not the later one");
+    assertTrue(m.psi().get(depot + "|deterministic") > 0.25, "drift seen: " + m.psi());
+  }
 
   @Test
   void theFallbackRelearnsFromTheStopsItScoredAndStaysTheRuleWithoutThem() {

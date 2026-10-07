@@ -57,4 +57,26 @@ class ModelMetricsTest {
   void meanAbsoluteErrorOfServiceMinutes() {
     assertEquals(3.0, ModelMetrics.meanAbsoluteError(List.of(new double[] {10, 12}, new double[] {20, 16})).orElseThrow());
   }
+
+  @Test
+  void wapeIsTheErrorOverWhatWasOrderedAndAnEmptyWeekIsNotPerfect() {
+    assertEquals(0.1, ModelMetrics.wape(List.of(new double[] {110, 100}, new double[] {90, 100})).orElseThrow(), 1e-12);
+    assertTrue(ModelMetrics.wape(List.of(new double[] {5, 0})).isEmpty());
+  }
+
+  @Test
+  void psiIsNearZeroForTheSameDistributionAndLargeForAShiftedOne() {
+    Random random = new Random(3);
+    List<Double> reference = new ArrayList<>();
+    List<Double> same = new ArrayList<>();
+    List<Double> shifted = new ArrayList<>();
+    for (int i = 0; i < 5000; i++) {
+      reference.add(random.nextDouble() * 0.5);
+      same.add(random.nextDouble() * 0.5);
+      shifted.add(0.2 + random.nextDouble() * 0.5);
+    }
+    assertTrue(ModelMetrics.psi(reference, same).orElseThrow() < 0.02);
+    assertTrue(ModelMetrics.psi(reference, shifted).orElseThrow() > 0.25);
+    assertTrue(ModelMetrics.psi(reference.subList(0, 99), same).isEmpty());
+  }
 }

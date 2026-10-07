@@ -17,6 +17,10 @@ tests:
         values: '0.18x90'
       - series: 'up{job="backend", stack="app"}'
         values: '0x10'
+      - series: 'waypoint_ml_forecast_wape{depot="KDY"}'
+        values: '0.4x90'
+      - series: 'waypoint_ml_prediction_psi{depot="KDY", model="blend"}'
+        values: '0.05x90'
       - series: 'waypoint_outbox_lag_seconds{stack="app"}'
         values: '5 5 300x20'
       - series: 'waypoint_job_run_total{stack="app", job="notification.push", outcome="failed"}'
@@ -61,3 +65,12 @@ tests:
           - exp_labels: { severity: warning, stack: app, job: notification.push, outcome: failed }
             exp_annotations:
               summary: "app: job notification.push failed 5 times in 30 minutes."
+      - eval_time: 70m
+        alertname: ForecastOff
+        exp_alerts:
+          - exp_labels: { severity: warning, depot: KDY }
+            exp_annotations:
+              summary: "KDY: last week's demand forecast was off by 40%."
+      - eval_time: 70m
+        alertname: PredictionsDrifted
+        exp_alerts: []

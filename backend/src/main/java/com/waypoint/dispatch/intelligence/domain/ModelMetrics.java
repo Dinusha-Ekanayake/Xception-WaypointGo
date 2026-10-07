@@ -104,4 +104,62 @@ public final class ModelMetrics {
   private static double logit(double p) {
     return Math.log(p / (1 - p));
   }
+
+  /**
+   * Weighted absolute percentage error of forecasts against actuals:
+   * {@code sum|f - a| / sum a}. Empty when nothing was ordered, so an empty week
+   * never reads as perfect.
+   */
+  public static Optional<Double> wape(List<double[]> forecastActual) {
+    double error = 0;
+    double actual = 0;
+    for (double[] fa : forecastActual) {
+      error += Math.abs(fa[0] - fa[1]);
+      actual += Math.abs(fa[1]);
+    }
+    return actual <= 0 ? Optional.empty() : Optional.of(error / actual);
+  }
+
+  /** Fewer values than this on either side and drift is not measured. */
+  public static final int MIN_FOR_PSI = 100;
+
+  /**
+   * The population stability index of {@code current} against {@code reference},
+   * on ten bins cut at the reference's deciles. Under 0.1 is stable, 0.1 to 0.25
+   * worth a look, over 0.25 a shift to act on. Empty below {@link #MIN_FOR_PSI}
+   * values on either side.
+   */
+  public static Optional<Double> psi(List<Double> reference, List<Double> current) {
+    if (reference.size() < MIN_FOR_PSI || current.size() < MIN_FOR_PSI) {
+      return Optional.empty();
+    }
+    double[] sorted = reference.stream().mapToDouble(Double::doubleValue).sorted().toArray();
+    double[] cuts = new double[9];
+    for (int i = 1; i <= 9; i++) {
+      cuts[i - 1] = sorted[(int) Math.floor(i * sorted.length / 10.0)];
+    }
+    double[] ref = shares(reference, cuts);
+    double[] cur = shares(current, cuts);
+    double psi = 0;
+    for (int i = 0; i < 10; i++) {
+      psi += (cur[i] - ref[i]) * Math.log(cur[i] / ref[i]);
+    }
+    return Optional.of(psi);
+  }
+
+  private static double[] shares(List<Double> values, double[] cuts) {
+    double[] counts = new double[10];
+    for (double v : values) {
+      int bin = 0;
+      while (bin < cuts.length && v > cuts[bin]) {
+        bin++;
+      }
+      counts[bin]++;
+    }
+    for (int i = 0; i < 10; i++) {
+      // A bin with nothing in it would make the log infinite; a small floor keeps it finite.
+      counts[i] = Math.max(counts[i] / values.size(), 1e-4);
+    }
+    return counts;
+  }
 }
