@@ -56,3 +56,17 @@ export const CHIME_GAP_MS = 5 * 60_000;
 export function mayChime(lastChimeAt: number | null, now: number, urgent: boolean): boolean {
   return urgent || lastChimeAt === null || now - lastChimeAt >= CHIME_GAP_MS;
 }
+
+/** An unread message chimes again this often (R-NOT-18), at most REMIND_TIMES times. */
+export const REMIND_EVERY_MS = 5 * 60_000;
+export const REMIND_TIMES = 3;
+
+/**
+ * Whether the oldest unread message should chime again: the phone first heard
+ * it at `heardAt` and has reminded `reminded` times. After the last reminder
+ * the dispatcher has been told (the server's unseen-message job) and the phone
+ * stays quiet.
+ */
+export function remindDue(heardAt: number, reminded: number, now: number): boolean {
+  return reminded < REMIND_TIMES && now - heardAt >= REMIND_EVERY_MS * (reminded + 1);
+}

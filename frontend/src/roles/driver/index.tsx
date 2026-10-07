@@ -14,7 +14,7 @@ import StopHandover from "./screens/StopHandover.tsx";
 import DrivingModeScreen from "./screens/DrivingModeScreen.tsx";
 import { metres } from "@shared/ui/map/geo";
 import { chime, unlockSoundOnFirstTap } from "./data/chime.ts";
-import { mayChime, OFF, onMotion, openByHand, slideOut, type DrivingState } from "./data/drivingMode.ts";
+import { mayChime, OFF, onMotion, openByHand, remindDue, slideOut, type DrivingState } from "./data/drivingMode.ts";
 import HomeNoVehicle from "./screens/HomeNoVehicle.tsx";
 import Messages from "./screens/Messages.tsx";
 import { unreadMessages } from "./data/messages.ts";
@@ -88,6 +88,24 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
   // The stop row last tapped on the route, one shared element with the stop's header (UX polish 4).
   const [movingStop, setMovingStop] = useState<string | null>(null);
   const unread = unreadMessages(inbox.items);
+  // R-NOT-18: an unread message chimes again, a few times, until it is seen.
+  const reminders = useRef(new Map<string, { heardAt: number; reminded: number }>());
+  const oldestUnread = unread.length > 0 ? unread.reduce((a, b) => (a.createdAt <= b.createdAt ? a : b)).notificationId : null;
+  useEffect(() => {
+    if (oldestUnread === null) return;
+    const look = () => {
+      const now = Date.now();
+      const r = reminders.current.get(oldestUnread) ?? { heardAt: now, reminded: 0 };
+      reminders.current.set(oldestUnread, r);
+      if (!remindDue(r.heardAt, r.reminded, now)) return;
+      r.reminded += 1;
+      lastChime.current = now;
+      chime("message");
+    };
+    look();
+    const timer = window.setInterval(look, 30_000);
+    return () => window.clearInterval(timer);
+  }, [oldestUnread]);
   // R-MSG-11: the trip's messages can be heard later with no signal.
   useKeptTripAudio(userId, d.tripId, online, unread.map((n) => n.notificationId).join(","));
   const openMessages = () => {

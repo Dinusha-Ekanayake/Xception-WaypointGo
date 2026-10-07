@@ -30,6 +30,7 @@ const KINDS: Record<string, { label: string; tone: Tone }> = {
   "receipt.disputed": { label: "Receipt disputed", tone: "warning" },
   "vehicle.status_changed": { label: "Vehicle status", tone: "info" },
   "message.posted": { label: "Message", tone: "info" },
+  "message.unseen": { label: "Message not seen", tone: "warning" },
 };
 
 export function kindOf(eventType: string): { label: string; tone: Tone } {

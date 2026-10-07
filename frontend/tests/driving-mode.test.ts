@@ -42,3 +42,12 @@ test("a message chimes at most once in five minutes; a changed plan always", () 
   assert.equal(mayChime(0, CHIME_GAP_MS - 1, true), true);
   assert.equal(mayChime(0, CHIME_GAP_MS, false), true);
 });
+
+test("an unread message chimes again every five minutes, three times at most", async () => {
+  const { remindDue, REMIND_EVERY_MS } = await import("../src/roles/driver/data/drivingMode.ts");
+  assert.equal(remindDue(0, 0, REMIND_EVERY_MS - 1), false);
+  assert.equal(remindDue(0, 0, REMIND_EVERY_MS), true);
+  assert.equal(remindDue(0, 1, REMIND_EVERY_MS + 1), false);
+  assert.equal(remindDue(0, 1, 2 * REMIND_EVERY_MS), true);
+  assert.equal(remindDue(0, 3, 60 * REMIND_EVERY_MS), false);
+});

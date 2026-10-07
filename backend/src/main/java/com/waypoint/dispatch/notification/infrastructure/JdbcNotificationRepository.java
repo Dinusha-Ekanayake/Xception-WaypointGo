@@ -11,6 +11,7 @@ import com.waypoint.dispatch.notification.domain.Delivery.Status;
 import com.waypoint.dispatch.notification.domain.RoutingRule;
 import com.waypoint.dispatch.notification.domain.RoutingTable;
 import com.waypoint.dispatch.notification.domain.ScopeKind;
+import com.waypoint.dispatch.notification.domain.UnseenMessages;
 import com.waypoint.dispatch.platform.db.Database;
 import java.sql.Array;
 import java.sql.SQLException;
@@ -133,6 +134,47 @@ public class JdbcNotificationRepository {
                 beforeId.orElseThrow(),
                 limit);
     return rows.stream().map(this::view).toList();
+  }
+
+  /**
+   * Drivers' notifications of a message for them, unread since before
+   * {@code dueBefore} and after {@code givenUpBefore}, whose dispatchers have
+   * not been told yet (R-NOT-18). Run as the system.
+   */
+  public List<UnseenMessages.Unseen> unseenByDrivers(Instant dueBefore, Instant givenUpBefore, int limit) {
+    return database
+        .query(
+            """
+            SELECT n.notification_id, n.created_at, n.subject_id,
+                   n.facts ->> 'depotCode' AS depot_code, n.facts ->> 'vehicleId' AS vehicle_id,
+                   n.facts ->> 'heading' AS heading, n.facts ->> 'excerpt' AS excerpt
+              FROM notification.notifications n
+             WHERE n.event_type = 'message.posted'
+               AND n.read_at IS NULL
+               AND n.target_key LIKE 'vehicle:%'
+               AND n.created_at <= ? AND n.created_at > ?
+               AND n.facts ->> 'audience' = ANY (?::text[])
+               AND n.facts ->> 'depotCode' IS NOT NULL
+               AND NOT EXISTS (SELECT 1 FROM notification.notifications e WHERE e.event_id = n.notification_id)
+             ORDER BY n.created_at, n.notification_id
+             LIMIT ?
+            """,
+            Timestamp.from(dueBefore),
+            Timestamp.from(givenUpBefore),
+            UnseenMessages.AUDIENCES.toArray(String[]::new),
+            limit)
+        .stream()
+        .map(
+            r ->
+                new UnseenMessages.Unseen(
+                    (UUID) r.get("notification_id"),
+                    instant(r.get("created_at")),
+                    (String) r.get("depot_code"),
+                    Optional.ofNullable((String) r.get("vehicle_id")),
+                    Optional.ofNullable((String) r.get("heading")).orElse("A message"),
+                    Optional.ofNullable((String) r.get("excerpt")).orElse(""),
+                    Optional.ofNullable((String) r.get("subject_id"))))
+        .toList();
   }
 
   public long unreadCount(UUID recipient) {
