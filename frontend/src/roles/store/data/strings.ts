@@ -419,7 +419,10 @@ export const STRINGS: Record<string, [string, string]> = {
   "Reason (optional)": ["හේතුව (අත්‍යවශ්‍ය නැත)", "காரணம் (விருப்பத்தேர்வு)"],
   "Say why (voice)": ["හේතුව කියන්න (හඬ)", "காரணத்தைச் சொல்லுங்கள் (குரல்)"],
   "Recording · tap to stop": ["පටිගත වෙමින් · නැවැත්වීමට තට්ටු කරන්න", "பதிவாகிறது · நிறுத்த தட்டவும்"],
-  "Voice reason · {length} · tap to remove": ["හඬ හේතුව · {length} · ඉවත් කිරීමට තට්ටු කරන්න", "குரல் காரணம் · {length} · நீக்க தட்டவும்"],
+  "Voice reason · {length}": ["හඬ හේතුව · {length}", "குரல் காரணம் · {length}"],
+  "Remove the voice reason": ["හඬ හේතුව ඉවත් කරන්න", "குரல் காரணத்தை நீக்கு"],
+  "Stop recording": ["පටිගත කිරීම නවත්වන්න", "பதிவை நிறுத்து"],
+  "Record the reason again": ["හේතුව නැවත පටිගත කරන්න", "காரணத்தை மீண்டும் பதிவு செய்"],
   "Yes": ["ඔව්", "ஆம்"],
   "No": ["නැත", "இல்லை"],
   "Offline. Your answer is kept on this phone and sent when the connection returns.": [

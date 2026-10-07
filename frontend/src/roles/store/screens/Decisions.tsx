@@ -8,6 +8,7 @@ import type { Sender } from "@shared/messaging/senders";
 import { newId, postCommand, useTripThread } from "@shared/messaging/useThread";
 import { clock } from "../data/format.ts";
 import { useT } from "../i18n.tsx";
+import { MicIcon, StopIcon, TrashIcon, cx } from "@shared/ui";
 import { Button, Card, Chip } from "../ui.tsx";
 
 // Live decisions on the store's home (roadmap FF-09, R-ISS-14): the dispatcher
@@ -109,32 +110,42 @@ function DecisionCard({
       <p data-testid="decision-question" className="text-[19px] leading-snug font-medium text-black">
         {t(words.text, words.vars)}
       </p>
-      <div className="flex flex-col gap-2">
-        <input
-          aria-label={t("Reason (optional)")}
-          value={reason}
-          maxLength={500}
-          onChange={(e) => setReason(e.target.value)}
-          placeholder={t("Reason (optional)")}
-          className="min-h-11 rounded-[16px] border border-[#dfe7e6] bg-go-surface px-3.5 text-[15px] text-black outline-none focus:border-go-teal"
-        />
-        {recorder.state.status === "unavailable" ? (
-          <p className="text-[13px] text-go-warning-text">{t(recorder.state.reason)}</p>
-        ) : (
-          <button
-            type="button"
-            disabled={!thread.data || busy !== null}
-            onClick={() => (recording ? void recorder.stop() : ready ? recorder.discard() : void recorder.start())}
-            className="flex min-h-11 items-center justify-center gap-2 rounded-[16px] border border-[#dfe7e6] bg-white text-[15px] font-medium text-black disabled:opacity-50"
-          >
-            <span aria-hidden className={recording ? "size-2.5 animate-pulse rounded-full bg-[#ea2525]" : "size-2.5 rounded-full bg-go-teal"} />
-            {recording
-              ? t("Recording · tap to stop")
-              : ready
-                ? t("Voice reason · {length} · tap to remove", { length: `0:${String(Math.round(ready.durationMs / 1000)).padStart(2, "0")}` })
-                : t("Say why (voice)")}
-          </button>
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-center gap-2">
+          <input
+            aria-label={t("Reason (optional)")}
+            value={reason}
+            maxLength={500}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder={t("Reason (optional)")}
+            className="min-h-12 min-w-0 flex-1 rounded-[16px] border border-[#dfe7e6] bg-go-surface px-3.5 text-[15px] text-black outline-none focus:border-go-teal"
+          />
+          {recorder.state.status !== "unavailable" && (
+            <button
+              type="button"
+              aria-label={t(recording ? "Stop recording" : ready ? "Record the reason again" : "Say why (voice)")}
+              aria-pressed={recording ? true : undefined}
+              disabled={!thread.data || busy !== null}
+              onClick={() => (recording ? void recorder.stop() : (recorder.discard(), void recorder.start()))}
+              className={cx(
+                "flex size-12 shrink-0 items-center justify-center rounded-full disabled:opacity-50",
+                recording ? "bg-[#ea2525] text-white" : "bg-go-mint text-black",
+              )}
+            >
+              {recording ? <StopIcon className="size-5" /> : <MicIcon className="size-5" />}
+            </button>
+          )}
+        </div>
+        {recording && <p role="status" className="px-1 text-[13px] text-[#c81e1e]">{t("Recording · tap to stop")}</p>}
+        {ready && !recording && (
+          <p className="flex items-center gap-2 px-1 text-[13px] text-go-muted">
+            {t("Voice reason · {length}", { length: `0:${String(Math.round(ready.durationMs / 1000)).padStart(2, "0")}` })}
+            <button type="button" aria-label={t("Remove the voice reason")} onClick={() => recorder.discard()} className="flex size-8 items-center justify-center rounded-full text-go-muted">
+              <TrashIcon className="size-4" />
+            </button>
+          </p>
         )}
+        {recorder.state.status === "unavailable" && <p className="px-1 text-[13px] text-go-warning-text">{t(recorder.state.reason)}</p>}
       </div>
       <div className="grid grid-cols-2 gap-2.5">
         <Button large tone="mint" busy={busy === "yes"} disabled={busy !== null} onClick={() => void answer("yes")}>
