@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-08 - fix: one notification palette and wording for every role
+
+`dev` · @Oxshadha
+
+- The driver's home feed had its own colours and words (`driverKind`: "Run published", "Vehicle loaded", hard-coded hex); it now uses the shared kinds and tones of `shared/notifications/inbox.ts` like the store and the loader: the kind's colour, a coloured edge, a tint while unread, as theme variables so night mode takes the same palette's night shades. The play button stays.
+
+Why: a driver, a loader and a store manager reading the same event should see the same colour and the same word.
+Verified: browser driver 43 (one spec updated to the shared wording); typecheck; build; screenshots in day and night.
+
+---
+
 ## 2026-10-08 - feat: the Forecast screen shows how the last weeks were forecast (T2-03)
 
 `dev` · @Oxshadha

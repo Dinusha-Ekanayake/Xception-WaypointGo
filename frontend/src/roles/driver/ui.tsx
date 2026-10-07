@@ -446,7 +446,7 @@ export type VoiceMessagePlayerProps = {
   text?: string;
   /** Sits on the same row as the play button, under the status. */
   heading?: string;
-  /** The short status, such as "Vehicle loaded", on the right of the play button. */
+  /** The short status, such as "Vehicle left", on the right of the play button. */
   status?: string;
   statusColor?: string;
   /** The time of the notice, opposite the status. */

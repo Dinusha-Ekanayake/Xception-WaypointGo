@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { type ReportedVehicleStatus, type VehicleView } from "@shared/domain/types";
-import { isUnread, kindOf } from "@shared/notifications/inbox";
+import { isUnread, kindOf, toneOf, TONE_STYLE } from "@shared/notifications/inbox";
 import type { Inbox } from "@shared/notifications/useInbox";
 import { cx, useDeviceLang, useScrollMemory, VoiceNote } from "@shared/ui";
 import { ScrollRevealCard, useRubberBandScroll } from "@shared/ui/scrollReveal";
@@ -50,26 +50,15 @@ export type DriverHomeProps = {
 
 
 /**
- * Figma "Driver: Home" notification cards: the label and its colour by what
- * happened. A driver is routed plan published, plan revised and trip released
- * (R-NOT-08); anything else falls back to the shared label, coloured by urgency.
+ * The colour of a notification's kind, the same palette every role's inbox uses
+ * (TONE_STYLE), as a theme variable so the night shades follow the dark theme.
  */
-function driverKind(eventType: string, isNight: boolean): { label: string; color: string } {
-  const teal = isNight ? "#00BF6A" : "#0E766D";
-  switch (eventType) {
-    case "plan.published":
-      return { label: "Run published", color: "#A9A9A9" };
-    case "plan.revised":
-      return { label: "Run updated", color: teal };
-    case "trip.released":
-      return { label: "Vehicle loaded", color: teal };
-    default: {
-      const kind = kindOf(eventType);
-      const color = kind.tone === "urgent" ? "#E5484D" : kind.tone === "warning" ? "#B7791F" : kind.tone === "good" ? teal : isNight ? "#7FB3E6" : "#16324F";
-      return { label: kind.tone === "urgent" ? "Action needed" : kind.label, color };
-    }
-  }
-}
+const TONE_COLOR: Record<ReturnType<typeof toneOf>, string> = {
+  urgent: "var(--color-go-danger-strong)",
+  warning: "var(--color-go-warning-text)",
+  good: "var(--color-go-teal)",
+  info: "var(--color-go-info)",
+};
 
 /** About how long the phone takes to read a notification aloud. */
 function readingTime(text: string): string {
@@ -403,14 +392,17 @@ export default function HomeNoVehicle({
               </p>
             )}
             {inbox.items.map((item) => {
-              const kind = driverKind(item.eventType, isNight);
+              // One palette and one wording for every role's inbox (shared/notifications/inbox.ts).
+              const tone = toneOf(item);
+              const kind = { label: kindOf(item.eventType).label, color: TONE_COLOR[tone] };
               const id = `msg-${item.notificationId}`;
               return (
                 <ScrollRevealCard key={item.notificationId} scrollContainerRef={scrollRef} pullY={pullY}>
                   <div
                       className={cx(
-                      "rounded-[20px] p-[14px_20px] flex flex-col gap-1 transition-all duration-200",
-                      card
+                      "rounded-[20px] p-[14px_20px] flex flex-col gap-1 transition-all duration-200 border-l-4",
+                      TONE_STYLE[tone].edge,
+                      isUnread(item) ? TONE_STYLE[tone].tint : card
                     )}
                   >
                     {item.eventType === "message.posted" && item.facts?.voiceNoteId && item.subjectId ? (
