@@ -12,6 +12,8 @@ import DeliveryPinConfirmModal from "./screens/DeliveryPinConfirmModal.tsx";
 import DeliveryReport from "./screens/DeliveryReport.tsx";
 import StopHandover from "./screens/StopHandover.tsx";
 import DrivingModeScreen from "./screens/DrivingModeScreen.tsx";
+import { chime, unlockSoundOnFirstTap } from "./data/chime.ts";
+import { mayChime, OFF, onMotion, openByHand, slideOut, type DrivingState } from "./data/drivingMode.ts";
 import HomeNoVehicle from "./screens/HomeNoVehicle.tsx";
 import Messages from "./screens/Messages.tsx";
 import { unreadMessages } from "./data/messages.ts";
@@ -45,7 +47,36 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
   const sync = syncLabel(online, run.uploadsWaiting.length, run.syncedAt, run.keptAt);
 
   const [lang, setLang] = useDeviceLang();
-  const [driving, setDriving] = useState(false);
+  // The driving screen: on by itself when the vehicle moves, off after it stands still a while (R-EXE-28).
+  const [drive, setDrive] = useState<DrivingState>(OFF);
+  const driving = drive.on;
+  const motion = d.location.motion;
+  const underWay = nextStop(stops) !== null;
+  useEffect(() => {
+    const look = () => setDrive((s) => onMotion(s, motion, Date.now(), underWay));
+    look();
+    const timer = window.setInterval(look, 5_000);
+    return () => window.clearInterval(timer);
+  }, [motion, underWay]);
+  useEffect(() => unlockSoundOnFirstTap(), []);
+  // While driving, a new notification chimes (a changed plan always, a message at most every 5 minutes).
+  const lastChime = useRef<number | null>(null);
+  const heard = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const ids = inbox.items.filter((n) => n.readAt === null).map((n) => n.notificationId);
+    if (heard.current === null) {
+      if (!inbox.loading) heard.current = new Set(ids);
+      return;
+    }
+    const fresh = inbox.items.filter((n) => n.readAt === null && !heard.current!.has(n.notificationId));
+    ids.forEach((id) => heard.current!.add(id));
+    if (!driving || fresh.length === 0) return;
+    const urgent = fresh.some((n) => n.eventType === "plan.revised");
+    if (mayChime(lastChime.current, Date.now(), urgent)) {
+      lastChime.current = Date.now();
+      chime(urgent ? "plan" : "message");
+    }
+  }, [inbox.items, inbox.loading, driving]);
   const [formFor, setFormFor] = useState<string | null>(null);
   const [pinFor, setPinFor] = useState<Stop | null>(null);
   // Stable, because the PIN popup closes itself on a timer that restarts whenever this changes.
@@ -87,7 +118,7 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
       if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || target instanceof HTMLButtonElement) return;
       if ((event.code === "Space" || event.key === " ") && nextStop(stops)) {
         event.preventDefault();
-        setDriving(true);
+        setDrive(openByHand);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -439,7 +470,7 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
         {driving && (
           <div className="absolute inset-0 z-50 animate-fade-in">
             <DrivingModeScreen
-              onExit={() => setDriving(false)}
+              onExit={() => setDrive((s) => slideOut(s, motion))}
               isNight={d.dark}
               stops={routeStops}
               stopIndex={activeIndex(stops)}
