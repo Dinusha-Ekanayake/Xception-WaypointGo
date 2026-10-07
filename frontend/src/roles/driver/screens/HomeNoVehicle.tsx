@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { type ReportedVehicleStatus, type VehicleView } from "@shared/domain/types";
-import { isUnread, kindOf, toneOf, TONE_STYLE } from "@shared/notifications/inbox";
+import { isUnread, kindOf, noteColor } from "@shared/notifications/inbox";
 import type { Inbox } from "@shared/notifications/useInbox";
 import { cx, useDeviceLang, useScrollMemory, VoiceNote } from "@shared/ui";
 import { ScrollRevealCard, useRubberBandScroll } from "@shared/ui/scrollReveal";
@@ -49,16 +49,6 @@ export type DriverHomeProps = {
 };
 
 
-/**
- * The colour of a notification's kind, the same palette every role's inbox uses
- * (TONE_STYLE), as a theme variable so the night shades follow the dark theme.
- */
-const TONE_COLOR: Record<ReturnType<typeof toneOf>, string> = {
-  urgent: "var(--color-go-danger-strong)",
-  warning: "var(--color-go-warning-text)",
-  good: "var(--color-go-teal)",
-  info: "var(--color-go-info)",
-};
 
 /** About how long the phone takes to read a notification aloud. */
 function readingTime(text: string): string {
@@ -392,17 +382,15 @@ export default function HomeNoVehicle({
               </p>
             )}
             {inbox.items.map((item) => {
-              // One palette and one wording for every role's inbox (shared/notifications/inbox.ts).
-              const tone = toneOf(item);
-              const kind = { label: kindOf(item.eventType).label, color: TONE_COLOR[tone] };
+              // One wording and one look for every role's inbox (shared/notifications/inbox.ts).
+              const kind = { label: kindOf(item.eventType).label, color: noteColor(item) };
               const id = `msg-${item.notificationId}`;
               return (
                 <ScrollRevealCard key={item.notificationId} scrollContainerRef={scrollRef} pullY={pullY}>
                   <div
                       className={cx(
-                      "rounded-[20px] p-[14px_20px] flex flex-col gap-1 transition-all duration-200 border-l-4",
-                      TONE_STYLE[tone].edge,
-                      isUnread(item) ? TONE_STYLE[tone].tint : card
+                      "rounded-[20px] p-[14px_20px] flex flex-col gap-1 transition-all duration-200",
+                      card
                     )}
                   >
                     {item.eventType === "message.posted" && item.facts?.voiceNoteId && item.subjectId ? (

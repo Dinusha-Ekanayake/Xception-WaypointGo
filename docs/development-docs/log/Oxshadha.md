@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-10-08 - fix: notifications as in the Figma, on every role and screen; images checked
+
+`dev` · @Oxshadha
+
+- Every inbox (driver feed, store sheet on phone, tablet and desktop, loader inbox on phone and tablet, dispatcher panel) now follows the Figma notification: one card colour (the canvas tint on a sheet, white on the driver's canvas), one accent dot and label (teal by day, green at night), red only for an alarm, grey once read. No kind colours, fills or edges: `noteColor()` and three theme tokens (`--color-go-note-accent`, `-alarm`, `-read`); the old multicolour `TONE_STYLE` is removed.
+- Images: the sign-in skylines and the error trucks are WebP and load only for the current theme; photos are WebP from the phone's encoder; icons SVG; install icons and the Fuel Pass QR stay PNG by necessity. Two unused sample PNGs removed; photo thumbnails load lazily and decode off the main thread.
+
+Why: one system should read the same everywhere, and colour should mean something only when it is an alarm.
+Verified: browser driver 43, dispatcher 85, store 62, loader 33; Node notifications-inbox (noteColor new), assets-size and sw-cache; typecheck; build; screenshots of all four roles, phone, tablet and desktop.
+
+---
+
 ## 2026-10-08 - fix: one notification palette and wording for every role
 
 `dev` · @Oxshadha

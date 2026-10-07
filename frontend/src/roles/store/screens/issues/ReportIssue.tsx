@@ -201,7 +201,7 @@ export default function ReportIssue({
           <div className="flex flex-wrap items-center gap-2">
             {photos.map((p, i) => (
               <button key={p.id} type="button" aria-label={`Photo ${i + 1}`} onClick={() => setViewing(p.id)} className="size-14 overflow-hidden rounded-[12px]">
-                <img src={p.url} alt="" className="size-full object-cover" />
+                <img src={p.url} alt="" loading="lazy" decoding="async" className="size-full object-cover" />
               </button>
             ))}
             <button type="button" onClick={takePhoto} className="min-h-12 rounded-[14px] border border-dashed border-[#b9c6c4] px-4 text-[14px] text-go-muted">

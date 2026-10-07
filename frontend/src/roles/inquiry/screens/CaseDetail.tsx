@@ -62,7 +62,7 @@ export default function CaseDetail({ issueId, userId, isHead }: { issueId: strin
             {(issue.attachments ?? []).map((a) => (
               <a key={a.attachmentId} href={photoUrl(issueId, a.attachmentId)} target="_blank" rel="noreferrer" className="block size-28 overflow-hidden rounded-go-card-s bg-go-surface">
                 {/* A photo served by the API to those who can see the issue; nothing for next/image to optimise. */}
-                <img src={photoUrl(issueId, a.attachmentId)} alt="Photo of the problem" className="size-full object-cover" />
+                <img src={photoUrl(issueId, a.attachmentId)} alt="Photo of the problem" loading="lazy" decoding="async" className="size-full object-cover" />
               </a>
             ))}
           </div>

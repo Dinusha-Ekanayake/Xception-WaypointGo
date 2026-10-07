@@ -142,7 +142,7 @@ export default function ReportCard({
             {photos.map((p, i) => (
               <button key={p.id} type="button" aria-label={`Photo ${i + 1}`} onClick={() => onOpenPhoto(p.id)} className="size-12 overflow-hidden rounded-[10px]">
                 {/* A local object URL of a photo just taken; nothing for next/image to optimise. */}
-                <img src={p.url} alt="" className="size-full object-cover" />
+                <img src={p.url} alt="" loading="lazy" decoding="async" className="size-full object-cover" />
               </button>
             ))}
             {kind && LOWERS_COUNT[kind] && selected && (

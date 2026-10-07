@@ -254,7 +254,7 @@ export default function IssueSheet({
           {photo ? (
             <div className="flex items-center gap-3">
               {/* A local object URL of a photo just taken; nothing for next/image to optimise. */}
-              <img src={photo.url} alt={tr("Photo of the item")} className="size-16 rounded-[12px] object-cover" />
+              <img src={photo.url} alt={tr("Photo of the item")} loading="lazy" decoding="async" className="size-16 rounded-[12px] object-cover" />
               <span className="flex-1 text-[15px]">{tr("Photo added")}</span>
               <button type="button" onClick={() => setPhoto(null)} className="min-h-12 rounded-full bg-go-surface px-4 text-[15px]">
                 {tr("Remove photo")}

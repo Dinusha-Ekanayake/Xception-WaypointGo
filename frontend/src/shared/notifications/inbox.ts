@@ -48,17 +48,6 @@ export function toneOf(n: Pick<NotificationView, "eventType" | "subjectType"> & 
   return kindOf(n.eventType).tone;
 }
 
-/**
- * The classes for each tone, so every role's inbox colours the same way: the
- * left edge and dot in the tone's colour, an unread row on its tint, the label
- * in its text colour. Only good news is green.
- */
-export const TONE_STYLE: Record<Tone, { edge: string; tint: string; dot: string; label: string }> = {
-  urgent: { edge: "border-l-go-danger", tint: "bg-go-danger-tint", dot: "bg-go-danger", label: "text-go-danger-strong" },
-  warning: { edge: "border-l-go-warning", tint: "bg-go-warning-tint", dot: "bg-go-warning", label: "text-go-warning-text" },
-  good: { edge: "border-l-go-success", tint: "bg-go-success-tint", dot: "bg-go-success", label: "text-go-teal" },
-  info: { edge: "border-l-go-info", tint: "bg-go-info-tint", dot: "bg-go-info", label: "text-go-info" },
-};
 
 /** The bell's count: nothing at zero or unknown, then the number, capped at "99+". */
 export function badgeText(count: number | null | undefined): string | null {
@@ -107,4 +96,15 @@ export function markedAllRead(items: NotificationView[], upTo: string): Notifica
 export function appended(items: NotificationView[], more: NotificationView[]): NotificationView[] {
   const seen = new Set(items.map((n) => n.notificationId));
   return [...items, ...more.filter((n) => !seen.has(n.notificationId))];
+}
+
+/**
+ * The one colour of a notification's dot and label (Figma notifications):
+ * the accent while unread, red only for an alarm while unread, grey once read.
+ * Every kind looks the same otherwise; the card is never tinted. A theme
+ * variable, so night mode takes its own shade.
+ */
+export function noteColor(n: Pick<NotificationView, "eventType" | "subjectType" | "readAt"> & { title?: string }): string {
+  if (n.readAt !== null) return "var(--color-go-note-read)";
+  return toneOf(n) === "urgent" ? "var(--color-go-note-alarm)" : "var(--color-go-note-accent)";
 }

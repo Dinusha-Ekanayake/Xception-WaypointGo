@@ -9,8 +9,8 @@ import test from "node:test";
 
 const DIR = join(import.meta.dirname, "..", "public", "assets");
 const LIMIT_BYTES = 300 * 1024;
-// Kept PNG on purpose: a signature must stay lossless, and both are a few KB.
-const PNG_ALLOWED = new Set(["proof-sample.png", "signature-sample.png"]);
+// None kept as PNG: the two sample PNGs were unused and removed (2026-10-08).
+const PNG_ALLOWED = new Set<string>();
 
 const raster = /\.(png|jpe?g|webp|gif|avif)$/i;
 

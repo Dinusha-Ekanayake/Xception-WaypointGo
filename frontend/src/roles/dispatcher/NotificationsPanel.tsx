@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { cx, SkeletonRows, useEscape } from "@shared/ui";
-import { ago, isUnread, kindOf, toneOf, TONE_STYLE } from "@shared/notifications/inbox";
+import { ago, isUnread, kindOf, noteColor } from "@shared/notifications/inbox";
 import type { NotificationView } from "@shared/domain/types";
 import { useDispatcherInbox } from "./inbox.tsx";
 import type { ViewId } from "./navigation.ts";
@@ -42,19 +42,16 @@ export function NotificationRows({
           const fresh = isUnread(n);
           const view = viewOf(n);
           const thread = n.subjectType === "thread" && n.subjectId ? n.subjectId : null;
-          const tone = TONE_STYLE[toneOf(n)];
+          // One look for every role (Figma): the canvas tint, one accent, red only for an alarm, grey once read.
+          const color = noteColor(n);
           return (
             <li
               key={n.notificationId}
-              className={cx(
-                "flex flex-col gap-1 rounded-go-card-s border-l-4 px-3.5 py-3",
-                tone.edge,
-                fresh ? tone.tint : "border-y border-r border-y-go-divider border-r-go-divider bg-go-card",
-              )}
+              className="flex flex-col gap-1 rounded-go-card-s px-3.5 py-3 bg-go-canvas"
             >
               <span className="flex items-center justify-between gap-2 text-xs">
-                <span className={cx("flex items-center gap-1.5 font-medium", tone.label)}>
-                  <span aria-hidden className={cx("size-2 rounded-full", tone.dot)} />
+                <span className="flex items-center gap-1.5 font-medium" style={{ color }}>
+                  <span aria-hidden className="size-2 rounded-full" style={{ background: color }} />
                   {kindOf(n.eventType).label}
                   {fresh && <span className="sr-only">, unread</span>}
                 </span>

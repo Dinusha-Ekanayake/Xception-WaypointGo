@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { NotificationView } from "@shared/domain/types";
 import type { Inbox } from "@shared/notifications/useInbox";
-import { isUnread, kindOf, toneOf, TONE_STYLE } from "@shared/notifications/inbox";
+import { isUnread, kindOf, noteColor } from "@shared/notifications/inbox";
 import { Icon, SkeletonRows, cx } from "@shared/ui";
 import { Drawer } from "../ui.tsx";
 import { ScrollRevealCard, useRubberBandScroll } from "@shared/ui/scrollReveal";
@@ -38,26 +38,23 @@ function Row({ n, onOpen }: { n: NotificationView; onOpen: (n: NotificationView)
 function RowButton({ n, onOpen }: { n: NotificationView; onOpen: (n: NotificationView) => void }): React.JSX.Element {
   const kind = kindOf(n.eventType);
   const fresh = isUnread(n);
-  const tone = TONE_STYLE[toneOf(n)];
+  // One look for every role (Figma): the canvas tint, one accent, red only for an alarm, grey once read.
+  const color = noteColor(n);
   return (
     <button
       type="button"
       onClick={() => onOpen(n)}
       aria-label={`${fresh ? "Unread. " : ""}${kind.label}. ${n.title}. ${n.body}`}
-      className={cx(
-        "flex w-full flex-col gap-1 rounded-[16px] border-l-4 px-3.5 py-3 text-left",
-        tone.edge,
-        fresh ? tone.tint : "border-y border-r border-y-go-rule border-r-go-rule bg-white",
-      )}
+      className="flex w-full flex-col gap-1 rounded-[22px] bg-go-canvas px-[18px] py-4 text-left"
     >
       <span className="flex items-center justify-between gap-2 text-[13px]">
-        <span className={cx("flex items-center gap-1.5 font-medium", tone.label)}>
-          <span aria-hidden className={cx("size-2 rounded-full", tone.dot)} />
+        <span className="flex items-center gap-1.5 font-medium" style={{ color }}>
+          <span aria-hidden className="size-2 rounded-full" style={{ background: color }} />
           {kind.label}
         </span>
         <span className="text-go-muted">{when(n.createdAt)}</span>
       </span>
-      <span className="text-[16px] font-semibold text-black">{n.title}</span>
+      <span className={cx("text-[16px] text-black", fresh && "font-semibold")}>{n.title}</span>
       <span className="text-[14px] text-go-muted">{n.body}</span>
     </button>
   );

@@ -229,6 +229,7 @@ export function StructuredError({
             width={786}
             height={443}
             loading="eager"
+            decoding="async"
           />
         </div>
       </div>

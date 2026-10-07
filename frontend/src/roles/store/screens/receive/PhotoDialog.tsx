@@ -9,7 +9,7 @@ export default function PhotoDialog({ url, hint, onRetake, onClose }: { url: str
     <Modal label="Product photo" onClose={onClose}>
       <h2 className="text-[22px] font-medium text-black">Product photo</h2>
       {/* A local object URL of a photo just taken; nothing for next/image to optimise. */}
-      <img src={url} alt="The photo of the problem" className="max-h-[50dvh] w-full rounded-[16px] object-contain bg-go-canvas" />
+      <img src={url} alt="The photo of the problem" decoding="async" className="max-h-[50dvh] w-full rounded-[16px] object-contain bg-go-canvas" />
       {hint && <p role="status" className="text-[14px] text-go-warning-text">{hint}</p>}
       <div className="flex gap-2.5">
         <Button tone="plain" large onClick={onRetake}>
