@@ -113,6 +113,14 @@ services:
       ML_BASE_URL: ${ML_BASE_URL:-http://ml:8000}
       # False in production: competition-trained models never answer there (R-ML-09).
       ML_ALLOW_DATATHON: ${ML_ALLOW_DATATHON:-true}
+      # The language model gateway (roadmap AI-0): off unless AI_ENABLED=true.
+      # Only the backend holds the key; facts are allow-listed and masked first.
+      AI_ENABLED: ${AI_ENABLED:-false}
+      AI_PROVIDER: ${AI_PROVIDER:-groq}
+      AI_MODEL: ${AI_MODEL:-}
+      AI_DAILY_CALLS: ${AI_DAILY_CALLS:-300}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       LOG_FORMAT: ecs
       # F-15: the heap is sized from the container's limit, not the host's memory,
       # and a JVM out of memory exits so Docker restarts it instead of limping on.
@@ -164,8 +172,6 @@ services:
       - "${PORT:-3000}:3000"
     environment:
       BACKEND_URL: http://backend:8080
-      GROQ_API_KEY: ${GROQ_API_KEY:-}
-      GROQ_MODEL: ${GROQ_MODEL:-}
       MAP_TILE_URL: ${MAP_TILE_URL:-}
       MCP_INTERNAL_URL: http://mcp:8081
     depends_on:

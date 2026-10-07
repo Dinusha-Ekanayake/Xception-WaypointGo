@@ -61,6 +61,7 @@ import org.springframework.test.web.servlet.MvcResult;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ExtendWith(TestDatabase.class)
+@org.springframework.context.annotation.Import(IntelligenceIntegrationTest.StubLanguage.class)
 class IntelligenceIntegrationTest {
   private static final String PASSWORD = "Intelligence2026!";
   private static final StubModelServer STUB;
@@ -81,6 +82,40 @@ class IntelligenceIntegrationTest {
     // Every failure test trips it otherwise, and the next test would find it open.
     registry.add("app.ml.circuit-failures", () -> "20");
     registry.add("app.ml.circuit-open-for", () -> "1s");
+    // The language model gateway on, answering from the stand-in below: no call leaves the test.
+    registry.add("app.ai.enabled", () -> "true");
+    registry.add("app.ai.groq-key", () -> "test-only");
+  }
+
+  /** A stand-in language model: records the facts it was sent and answers what the test sets. */
+  @org.springframework.boot.test.context.TestConfiguration
+  static class StubLanguage {
+    static final java.util.concurrent.atomic.AtomicReference<String> ANSWER = new java.util.concurrent.atomic.AtomicReference<>();
+    static final java.util.concurrent.atomic.AtomicReference<String> SENT = new java.util.concurrent.atomic.AtomicReference<>();
+    static final java.util.concurrent.atomic.AtomicInteger CALLS = new java.util.concurrent.atomic.AtomicInteger();
+
+    @org.springframework.context.annotation.Bean
+    @org.springframework.context.annotation.Primary
+    LanguageModel stubLanguageModel() {
+      return new LanguageModel() {
+        @Override
+        public String provider() {
+          return "groq";
+        }
+
+        @Override
+        public String model() {
+          return "stub";
+        }
+
+        @Override
+        public Optional<String> complete(String instruction, String facts) {
+          CALLS.incrementAndGet();
+          SENT.set(facts);
+          return Optional.ofNullable(ANSWER.get());
+        }
+      };
+    }
   }
 
   @Autowired MockMvc http;
@@ -621,6 +656,54 @@ class IntelligenceIntegrationTest {
         subscriber.on(envelope);
       }
     });
+  }
+
+  // ---- the language model gateway (roadmap AI-0, R-ML-10) ---------------------------
+
+  @Test
+  void aPlanIsWordedThroughTheGatewayWithOnlyAllowedMaskedFactsAndOnce() throws Exception {
+    UUID planId = publishedPlan();
+    String key = "plan:" + planId + ":1";
+    String facts = "{\"headline\":\"Plan for the day\",\"carries\":\"2 orders\",\"cannotBeServed\":0,"
+        + "\"notes\":[\"Call Kasun on 0771234567\"],\"driverName\":\"Dilan R.\"}";
+    StubLanguage.ANSWER.set("The plan carries **2 orders**.");
+    int before = StubLanguage.CALLS.get();
+    JsonNode answer = explain(dispatcher, key, facts, 200);
+    assertEquals("worded", answer.get("state").asText());
+    assertEquals("The plan carries **2 orders**.", answer.get("text").asText());
+    String sent = StubLanguage.SENT.get();
+    assertTrue(sent.contains("[phone]"), "the phone number was masked: " + sent);
+    assertFalse(sent.contains("0771234567"));
+    assertFalse(sent.contains("driverName"), "a field off the list never leaves");
+
+    // Asked again: served from the record, not asked twice.
+    assertEquals("worded", explain(dispatcher, key, facts, 200).get("state").asText());
+    assertEquals(before + 1, StubLanguage.CALLS.get());
+    assertEquals("used", aiCall(key).get("outcome"));
+  }
+
+  @Test
+  void anAnswerWithAnInventedFigureIsDroppedAndAnotherDepotIsRefused() throws Exception {
+    UUID planId = publishedPlan();
+    StubLanguage.ANSWER.set("The plan carries 7 orders.");
+    JsonNode answer = explain(dispatcher, "plan:" + planId + ":2", "{\"headline\":\"2 orders\"}", 200);
+    assertEquals("rules_only", answer.get("state").asText());
+    assertEquals("unfaithful", aiCall("plan:" + planId + ":2").get("outcome"));
+    explain(stranger, "plan:" + planId + ":3", "{\"headline\":\"x\"}", 403);
+    explain(dispatcher, "anything:" + planId, "{}", 422);
+  }
+
+  private JsonNode explain(Cookie who, String key, String facts, int expected) throws Exception {
+    MvcResult r = http.perform(post("/api/ml/explain").cookie(who).contentType(MediaType.APPLICATION_JSON)
+        .content("{\"key\":\"" + key + "\",\"facts\":" + facts + "}")).andReturn();
+    String body = r.getResponse().getContentAsString();
+    assertEquals(expected, r.getResponse().getStatus(), body);
+    return body.isEmpty() ? mapper.nullNode() : mapper.readTree(body);
+  }
+
+  private Map<String, Object> aiCall(String key) {
+    return database.asSystem(ModuleRole.ML, () -> database.queryOne(
+        "SELECT outcome FROM ml.ai_calls WHERE cache_key = ? ORDER BY asked_at DESC LIMIT 1", key));
   }
 
   // ---- the attention watch (issue #268) ---------------------------------------------

@@ -16,6 +16,13 @@ export DEMO_MODE=1
 # Plain HTTP on localhost: a Secure cookie would not be sent back by every browser.
 export COOKIE_SECURE=0
 export SEED_PASSWORD="${SEED_PASSWORD:-Waypoint2026!}"
+# The language model gateway (roadmap AI-0) reads its switch and keys from the
+# root .env when it has them. Only these names: the database above stays local.
+if [[ -f "$ROOT/.env" ]]; then
+  while IFS='=' read -r name value; do
+    export "$name=$value"
+  done < <(grep -E '^(AI_ENABLED|AI_PROVIDER|AI_MODEL|AI_DAILY_CALLS|GROQ_API_KEY|OPENROUTER_API_KEY)=' "$ROOT/.env" || true)
+fi
 
 docker_cmd() {
   if docker info >/dev/null 2>&1; then docker "$@"; else sudo docker "$@"; fi

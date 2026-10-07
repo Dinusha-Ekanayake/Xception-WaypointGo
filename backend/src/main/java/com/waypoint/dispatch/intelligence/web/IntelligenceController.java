@@ -45,18 +45,41 @@ public class IntelligenceController {
   private final AttentionQuery attention;
   private final CapacityDecisionQuery capacityDecisions;
   private final RequestAuthorizer authorizer;
+  private final com.waypoint.dispatch.intelligence.application.AiExplainer explainer;
 
   public IntelligenceController(
       IntelligenceDataQuery intelligence,
       DateOutlookQuery outlook,
       AttentionQuery attention,
       CapacityDecisionQuery capacityDecisions,
-      RequestAuthorizer authorizer) {
+      RequestAuthorizer authorizer,
+      com.waypoint.dispatch.intelligence.application.AiExplainer explainer) {
+    this.explainer = explainer;
     this.intelligence = intelligence;
     this.outlook = outlook;
     this.attention = attention;
     this.capacityDecisions = capacityDecisions;
     this.authorizer = authorizer;
+  }
+
+  /** What a screen asks the gateway to reword: its key and the explanation the rules already wrote. */
+  public record ExplainRequest(String key, java.util.Map<String, Object> facts) {}
+
+  /** {@code state} off, worded or rules_only; {@code text} the model's words when worded. */
+  public record ExplainAnswer(String state, String text) {}
+
+  /**
+   * A plan's or an order's explanation in friendlier words, through the language
+   * model gateway (roadmap AI-0, R-ML-10). Needs {@code plan:Read} on that plan;
+   * off unless {@code AI_ENABLED=true}, and the screen keeps the rules' text.
+   */
+  @org.springframework.web.bind.annotation.PostMapping("/explain")
+  public ExplainAnswer explain(
+      @org.springframework.web.bind.annotation.RequestBody ExplainRequest body, HttpServletRequest request) {
+    java.util.UUID planId = com.waypoint.dispatch.intelligence.application.AiExplainer.planOf(body.key());
+    Actor actor = authorizer.require(request, "plan:Read", "wpt:plan:plan:" + planId);
+    var worded = explainer.explain(actor, body.key(), body.facts());
+    return new ExplainAnswer(worded.state(), worded.text().orElse(null));
   }
 
   /**

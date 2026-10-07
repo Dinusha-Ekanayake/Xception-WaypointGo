@@ -72,6 +72,8 @@ Where language and decision models help, and where they do not.
 
 ## AI-0 The gateway
 
+**First slice built 2026-10-07** (R-ML-10, ML-19): the backend gateway with port `LanguageModel` and one OpenAI-compatible adapter for Groq or OpenRouter, the allow-list and masking, a fixed instruction, a daily call cap, `ml.ai_calls`, and the number check. Its first use is the plan and order explanations, which moved off the frontend route that sent browser-built facts straight to Groq. Off by default; production stays off until the business owner agrees. Not yet: Jev's `DecisionPort`, a per-provider circuit metric on screen, and an admin view of `ml.ai_calls`.
+
 Recorded as ADR-005.
 
 **Ports.**

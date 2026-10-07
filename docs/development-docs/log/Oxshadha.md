@@ -4,6 +4,19 @@
 
 ---
 
+## 2026-10-07 - feat: the language model gateway; plan explanations go through it (AI-0)
+
+`dev` · @Oxshadha
+
+- One backend gateway for language models (R-ML-10): port `LanguageModel`, an OpenAI-compatible adapter for Groq or OpenRouter, off unless `AI_ENABLED=true`. Facts are allow-listed and masked (phones, identity numbers, e-mails, links), the instruction is fixed, the reader must be able to read the plan, calls are capped a day and recorded in `ml.ai_calls`, and an answer with a figure the facts do not hold is dropped.
+- The plan and order explanations now go through it; the frontend route that sent browser-built facts straight to Groq is removed, and the key moved from the web container to the backend.
+- Preview deploys only when the workflow is run by hand; a push to `dev` runs the checks (J.V. Ransika approves deploys).
+
+Why: the roadmap's AI-0 before any AI use; the old route could send anything a signed-in user posted.
+Verified: see the commit's checks.
+
+---
+
 ## 2026-10-07 - feat: the driving screen comes on by itself while moving
 
 `dev` · @Oxshadha
