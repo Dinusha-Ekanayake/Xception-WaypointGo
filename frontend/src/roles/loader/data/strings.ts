@@ -439,9 +439,9 @@ const STRINGS: Record<string, [string, string]> = {
   // Trip messages (issue #136)
   "Messages": ["පණිවිඩ", "செய்திகள்"],
   "Messages for {vehicle}": ["{vehicle} සඳහා පණිවිඩ", "{vehicle} க்கான செய்திகள்"],
-  "Write to the dispatcher. A report of missing or damaged items goes to the dispatcher only.": [
-    "යැවීම් භාරකරුට ලියන්න. අඩු හෝ හානි වූ භාණ්ඩ ගැන වාර්තාවක් යන්නේ යැවීම් භාරකරුට පමණි.",
-    "அனுப்புநருக்கு எழுதுங்கள். காணாமல் போன அல்லது சேதமான பொருட்களின் அறிக்கை அனுப்புநருக்கு மட்டுமே செல்லும்.",
+  "Write to the dispatcher, or leave the driver a note about the load. A report of missing or damaged items goes to the dispatcher only.": [
+    "යැවීම් භාරකරුට ලියන්න, නැතහොත් පැටවීම ගැන රියදුරුට සටහනක් තබන්න. අඩු හෝ හානි වූ භාණ්ඩ ගැන වාර්තාවක් යන්නේ යැවීම් භාරකරුට පමණි.",
+    "அனுப்புநருக்கு எழுதுங்கள், அல்லது ஏற்றுதல் பற்றி ஓட்டுநருக்கு ஒரு குறிப்பு விடுங்கள். காணாமல் போன அல்லது சேதமான பொருட்களின் அறிக்கை அனுப்புநருக்கு மட்டுமே செல்லும்.",
   ],
   "This trip has no messages yet.": ["මෙම ගමනට තවම පණිවිඩ නැත.", "இந்தப் பயணத்திற்கு இன்னும் செய்திகள் இல்லை."],
   // The trip's thread, shared with the other roles (issue #136)

@@ -50,6 +50,40 @@ test("the load sheet opens the trip's messages, and a missing-items report goes 
   expect(acting).toEqual([OPERATOR.userId]);
 });
 
+test("the loader leaves the driver a note about the load (R-MSG-12)", async ({ page }) => {
+  const posts: PostMessagePayload[] = [];
+  const loaded = manifest("trip-test", true, 4);
+  const threads = [tripThread("trip-test", loaded.vehicleId, ["OUT0101"], "loader")];
+  await page.route("**/api/**", async (route) => {
+    const url = new URL(route.request().url());
+    const json = (body: unknown, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
+    if (url.pathname === "/api/session") return json(SESSION);
+    if (url.pathname === "/api/loading/trips") return json(board(loaded));
+    if (url.pathname === "/api/reference/outlets") return json([]);
+    if (url.pathname === "/api/loading/trips/trip-test/manifest") return json(loaded);
+    if (url.pathname === "/api/commands" && route.request().method() === "POST") {
+      const command = route.request().postDataJSON() as { commandId: string; kind: string; payload: PostMessagePayload };
+      if (command.kind !== "message:Post") return json({ commandId: command.commandId, kind: command.kind, replayed: false, result: {} });
+      posts.push(command.payload);
+      const result = postToThread(threads, command.payload, { name: "Isuru", role: "loader" }, new Date().toISOString());
+      return json({ commandId: command.commandId, kind: command.kind, replayed: false, result });
+    }
+    const thread = route.request().method() === "GET" ? threadRead(threads, url) : undefined;
+    if (thread) return json(thread.body, thread.status);
+    return route.fulfill({ status: 404, body: "not mocked" });
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Messages" }).click();
+  const sheet = page.getByRole("dialog", { name: `Messages for ${loaded.vehicleId}` });
+  await sheet.getByRole("radiogroup", { name: "Send to" }).getByRole("radio", { name: "Driver" }).click();
+  await sheet.getByRole("textbox", { name: "Message" }).fill("Chilled crates at the back, left side");
+  await sheet.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(sheet.getByText("Chilled crates at the back, left side")).toBeVisible();
+  await expect.poll(() => posts).toEqual([expect.objectContaining({ to: "driver", body: "Chilled crates at the back, left side" })]);
+});
+
 test("the thread reads in the loader's language", async ({ page }) => {
   const loaded = manifest("trip-test", true, 4);
   const threads = [tripThread("trip-test", loaded.vehicleId, ["OUT0101"], "loader", [said("m1", new Date().toISOString(), { body: "Load the chilled crates last", audience: "loader" })])];

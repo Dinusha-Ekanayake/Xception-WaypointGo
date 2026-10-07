@@ -148,6 +148,13 @@ public class MessagingQuery {
           out.add(new MemberView("channel", Optional.empty(), "Dispatcher and stores still waiting"));
         }
       }
+      case "loader" -> {
+        out.add(new MemberView("dispatch", Optional.empty(), "Dispatcher"));
+        // R-MSG-12: a note about the load for the driver who will carry it.
+        if (t.vehicleId().isPresent()) {
+          out.add(new MemberView("driver", Optional.empty(), "Driver"));
+        }
+      }
       default -> out.add(new MemberView("dispatch", Optional.empty(), "Dispatcher"));
     }
     return out;

@@ -241,10 +241,21 @@ class MessagingIntegrationTest {
   }
 
   @Test
+  void aLoaderLeavesTheDriverANoteAboutTheLoadThatNoStoreReads() throws Exception {
+    assertEquals(List.of("dispatch", "driver"), members(loader), "R-MSG-12: the dispatcher, or the driver of the trip");
+    say(loader, "{\"to\":\"driver\",\"body\":\"Chilled crates at the back, left side\"}", 200);
+
+    assertTrue(bodies(driver).contains("Chilled crates at the back, left side"));
+    assertTrue(bodies(dispatcher).contains("Chilled crates at the back, left side"));
+    assertTrue(bodies(loader).contains("Chilled crates at the back, left side"), "the loader sees what it wrote");
+    assertFalse(bodies(manager).contains("Chilled crates at the back, left side"), "a store never reads the crew's notes");
+  }
+
+  @Test
   void whoMayWriteToWhomAndWhoMayNotReadAtAll() throws Exception {
     say(manager, "{\"to\":\"all\",\"body\":\"Hello everyone\"}", 422);
     say(driver, "{\"to\":\"all\",\"body\":\"Hello everyone\"}", 422);
-    say(loader, "{\"to\":\"driver\",\"body\":\"Hi\"}", 422);
+    say(loader, "{\"to\":\"outlet\",\"outletId\":\"" + OFF_TRIP_OUTLET + "\",\"body\":\"Hi\"}", 422);
     say(dispatcher, "{\"to\":\"outlet\",\"outletId\":\"" + OFF_TRIP_OUTLET + "\",\"body\":\"Hi\"}", 422);
     say(driver, "{\"to\":\"dispatch\",\"report\":\"vehicle_fault\",\"body\":\"Brakes\"}", 200);
 

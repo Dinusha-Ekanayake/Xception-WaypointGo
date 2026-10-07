@@ -102,13 +102,21 @@ class MessagePolicyTest {
   }
 
   @Test
-  void aLoaderAndAStoreManagerWriteToTheDispatcherOnly() {
+  void aLoaderAndAStoreManagerWriteToTheDispatcher() {
     for (Role role : List.of(Role.LOADER, Role.STORE_MANAGER)) {
       assertEquals("Running late", check(role, post(To.DISPATCH)));
       refused(role, post(To.ALL), "R-MSG-02");
-      refused(role, post(To.DRIVER), "R-MSG-02");
       refused(role, toOutlet("OUT061"), "R-MSG-02");
     }
+    refused(Role.STORE_MANAGER, post(To.DRIVER), "R-MSG-02");
+  }
+
+  @Test
+  void aLoaderLeavesTheDriverANoteAboutTheLoadWhenTheTripHasAVehicle() {
+    assertEquals("Running late", check(Role.LOADER, post(To.DRIVER)));
+    DomainException e = assertThrows(
+        DomainException.class, () -> MessagePolicy.check(Role.LOADER, post(To.DRIVER), OUTLETS, false, DAY, DAY));
+    assertTrue(e.violations().stream().anyMatch(v -> v.rule().equals("R-MSG-02")), e.getMessage());
   }
 
   @Test

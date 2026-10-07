@@ -17,7 +17,9 @@ import java.util.Set;
  *       for everyone, those addressed to them, and their own (row-level security).
  *   <li>R-MSG-02: the dispatcher writes to the driver, the loaders, one outlet or
  *       everyone. The driver writes to the dispatcher or to an outlet on its trip.
- *       A loader and a store manager write to the dispatcher only.
+ *       A loader writes to the dispatcher or, when the trip has a vehicle, to its
+ *       driver (a note about the load, R-MSG-12). A store manager writes to the
+ *       dispatcher only.
  *   <li>R-MSG-03: every report, from whoever, is for the dispatcher alone.
  *   <li>R-MSG-04: a trip's thread takes posts until the end of the day after its
  *       service date, for late replies; then it is read only.
@@ -144,7 +146,7 @@ public final class MessagePolicy {
         switch (role) {
           case DISPATCHER -> post.to() != To.DISPATCH && (post.to() != To.DRIVER || hasVehicle);
           case DRIVER -> post.to() == To.DISPATCH || post.to() == To.OUTLET;
-          case LOADER -> post.to() == To.DISPATCH;
+          case LOADER -> post.to() == To.DISPATCH || (post.to() == To.DRIVER && hasVehicle);
           case STORE_MANAGER -> post.to() == To.DISPATCH || post.to() == To.CHANNEL;
         };
     if (allowed && post.to() == To.CHANNEL && !channelOpen) {

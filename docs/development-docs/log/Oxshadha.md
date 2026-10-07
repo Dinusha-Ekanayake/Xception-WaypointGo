@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-10-07 - feat: a loader leaves the driver a note about the load
+
+`dev` · @Oxshadha
+
+- A loader may now write to the trip's driver, typed or a voice note of up to 2 minutes, from the load sheet's Messages (R-MSG-12, MSG-22; R-MSG-02 amended). The driver hears it like any message, offline too; no store reads it. The loader screen gains only the "Driver" choice in the existing send-to row and a reworded subtitle (si, ta), the smallest change for a requested flow.
+- Not yet: playing a note when the driver reaches the stop it is about; that needs a stop on the message.
+
+Why: phoning a driver on the road is unsafe, and the loader knows where the goods sit.
+Verified: backend 1,135 on a fresh test database, none skipped; typecheck; build; browser loader 33.
+
+---
+
 ## 2026-10-07 - feat: the driver hears messages with no signal
 
 `dev` · @Oxshadha

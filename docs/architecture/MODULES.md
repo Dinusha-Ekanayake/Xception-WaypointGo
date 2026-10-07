@@ -468,7 +468,8 @@ People write to each other there, and every field report about the trip lands on
 **Who writes to whom (R-MSG-02, R-MSG-03).**
 - **The dispatcher** writes to the driver, the loaders, one outlet or everyone.
 - **The driver** writes to the dispatcher, or to an outlet on the trip.
-- **A loader or a store manager** writes to the dispatcher only.
+- **A loader** writes to the dispatcher, or to the trip's driver about the load (R-MSG-12).
+- **A store manager** writes to the dispatcher only.
 - **A report**, typed or voice, goes to the dispatcher alone.
 
 **Reports from the field (R-MSG-05).** `issue.raised` becomes a report on its trip's thread, once per event, naming the role that reported it:

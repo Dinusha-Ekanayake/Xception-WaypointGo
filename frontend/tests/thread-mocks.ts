@@ -14,7 +14,7 @@ const ROLE_MEMBERS: Record<MemberRole, (outlets: string[]) => MemberView[]> = {
     { to: "channel", outletId: null, label: "Stores still waiting" },
   ],
   driver: (outlets) => [{ to: "dispatch", outletId: null, label: "Dispatcher" }, ...outlets.map((o) => ({ to: "outlet" as const, outletId: o, label: o }))],
-  loader: () => [{ to: "dispatch", outletId: null, label: "Dispatcher" }],
+  loader: () => [{ to: "dispatch", outletId: null, label: "Dispatcher" }, { to: "driver", outletId: null, label: "Driver" }],
   store_manager: () => [{ to: "dispatch", outletId: null, label: "Dispatcher" }],
 };
 
