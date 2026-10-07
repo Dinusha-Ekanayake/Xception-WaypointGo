@@ -44,6 +44,8 @@ export type RunSheetStopView = {
   lines: DeliveryLineView[];
   /** Why the driver moved on before the store answered, when they did (issue #21). */
   storeAnswerWaived: StoreAnswerWaiverReason | null;
+  /** Roadmap T1-04: how long the stop is expected to take, in minutes, from the plan's stored prediction. */
+  expectedServiceMinutes?: number | string | null;
 };
 
 export type RunSheetView = {
@@ -95,6 +97,8 @@ export type DeliveryRecordView = {
   startedAt: IsoInstant | null;
   /** Filled in on the outlet and single-delivery reads; null when nobody is assigned or Identity could not answer. */
   driver: DriverView | null;
+  /** Roadmap T1-04: how long the stop is expected to take, in minutes, from the plan's stored prediction. */
+  expectedServiceMinutes?: number | string | null;
 };
 
 /** A name and the badge shown on screen, never an email or a phone number. */

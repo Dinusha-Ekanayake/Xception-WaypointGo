@@ -69,6 +69,10 @@ export default function NextStop({
         <span className="text-[34px] leading-tight font-semibold text-black">{clock(arrived ?? eta)}</span>
         {!arrived && <span className="text-[13px] text-go-muted">{t("in {time}", { time: t(minutesLabel(eta)) })}</span>}
         <span className="text-[12px] text-go-muted">{t("window {window}", { window })}</span>
+        {/* Roadmap T1-04: how long to hold a person at the dock, from the plan's prediction. */}
+        {stop.expectedServiceMinutes != null && Number(stop.expectedServiceMinutes) > 0 && (
+          <span className="text-[12px] text-go-muted">{t("unloading about {n} min", { n: Math.round(Number(stop.expectedServiceMinutes)) })}</span>
+        )}
       </div>
     </div>
   );

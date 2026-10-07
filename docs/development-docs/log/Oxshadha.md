@@ -4,6 +4,19 @@
 
 ---
 
+## 2026-10-08 - feat: predicted minutes in arrival times (T1-04); a fallback that learns; the model hand-off guide
+
+`dev` · @Oxshadha
+
+- T1-04: at release each stop takes the plan's predicted minutes (model, else fallback); the arrival estimate uses them and the store sees "unloading about N min" (R-EXE-30, EXE-42).
+- The fallback, used whenever no model answers, now blends outlet history with the allowance and is calibrated nightly on its own labelled stops with a shrunk per-outlet offset; under 200 labels it is the documented rule (R-ML-14, ML-23, `FallbackTuningJob`, `ml.fallback_tuning`).
+- `ml-server/README.md` "Handing over a new model": where the team's files go, the `inference.py` contract (the submission columns), the steps to wire and activate, and what happens when it fails.
+
+Why: the product must run well with or without the team's models; the Datathon models connect, but production cannot rely on them.
+Verified: the full backend suite, the Node tests and every browser suite, run before the push; FallbackTuningTest, EtaPropagationTest, the new integration cases on a fresh test database.
+
+---
+
 ## 2026-10-07 - chore: the first alert rules (B-04, MF-03)
 
 `dev` · @Oxshadha

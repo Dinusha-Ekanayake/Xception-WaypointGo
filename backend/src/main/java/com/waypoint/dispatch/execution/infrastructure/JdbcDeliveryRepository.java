@@ -180,13 +180,18 @@ public class JdbcDeliveryRepository {
   }
 
   /** One stop of a trip with what its estimate needs (roadmap T1-03). */
-  public record TripStop(DeliveryRecord record, Optional<Integer> plannedServiceMinutes, Optional<Instant> expectedArrival) {}
+  public record TripStop(
+      DeliveryRecord record,
+      Optional<Integer> plannedServiceMinutes,
+      Optional<Instant> expectedArrival,
+      Optional<java.math.BigDecimal> expectedServiceMinutes) {}
 
   /** Every stop of a trip in order, with the plan's minutes and the arrival its store was last told. */
   public List<TripStop> tripStops(UUID tripId) {
     return database
         .query(
-            "SELECT " + COLUMNS + ", planned_service_minutes, expected_arrival FROM execution.delivery_records"
+            "SELECT " + COLUMNS + ", planned_service_minutes, expected_arrival, expected_service_minutes"
+                + " FROM execution.delivery_records"
                 + " WHERE trip_id = ? ORDER BY stop_sequence, delivery_id",
             tripId)
         .stream()
@@ -195,7 +200,8 @@ public class JdbcDeliveryRepository {
                 new TripStop(
                     record(r),
                     integer(r.get("planned_service_minutes")),
-                    instant(r.get("expected_arrival"))))
+                    instant(r.get("expected_arrival")),
+                    Optional.ofNullable((java.math.BigDecimal) r.get("expected_service_minutes"))))
         .toList();
   }
 
@@ -283,6 +289,14 @@ public class JdbcDeliveryRepository {
   public void planService(UUID deliveryId, int minutes) {
     database.update(
         "UPDATE execution.delivery_records SET planned_service_minutes = ? WHERE delivery_id = ?", minutes, deliveryId);
+  }
+
+  /** Set once at release: the minutes the stored prediction expects at the stop (roadmap T1-04). */
+  public void expectService(UUID deliveryId, java.math.BigDecimal minutes, String basis) {
+    database.update(
+        "UPDATE execution.delivery_records SET expected_service_minutes = ?, expected_service_basis = ?"
+            + " WHERE delivery_id = ?",
+        minutes.min(java.math.BigDecimal.valueOf(600)).max(java.math.BigDecimal.ZERO), basis, deliveryId);
   }
 
   /** The expected arrival moved; this is a projection of the trip's delay, not a step of the stop. */

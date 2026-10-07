@@ -18,7 +18,7 @@ public class JdbcExecutionReads {
       """
       SELECT d.delivery_id, d.trip_id, d.order_id, d.outlet_id, d.depot_code, d.vehicle_id, d.service_date,
              d.stop_sequence, d.item_count, d.planned_arrival, d.window_open, d.window_close, d.mall_outlet,
-             d.outcome, d.expected_arrival, d.started_at, d.arrived_at, d.service_started_at, d.completed_at,
+             d.outcome, d.expected_arrival, d.expected_service_minutes, d.started_at, d.arrived_at, d.service_started_at, d.completed_at,
              d.wait_minutes, d.late_minutes, d.late_reason, d.timing_uncertain, d.delivered_units,
              d.failure_reason, d.disposition_note, d.low_evidence, d.proof_id, d.client_recorded_at,
              d.server_recorded_at, d.row_version, d.released_at, d.trip_stop_count,

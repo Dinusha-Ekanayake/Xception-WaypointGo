@@ -44,8 +44,10 @@ public final class EtaPolicy {
   /**
    * One stop of a trip as the estimate needs it.
    *
-   * @param serviceMinutes the plan's minutes at the stop, when carried
+   * @param serviceMinutes the plan's minutes at the stop, when carried: they give the planned drive
    * @param finished delivered or failed: the vehicle has left it
+   * @param expectedService how long the stop is expected to take (roadmap T1-04: the model's or the
+   *     estimate's prediction), used for the time spent there; the plan's minutes when absent
    */
   public record StopTimes(
       UUID deliveryId,
@@ -54,7 +56,20 @@ public final class EtaPolicy {
       Optional<Integer> serviceMinutes,
       Optional<Instant> arrivedAt,
       Optional<Instant> leftAt,
-      boolean finished) {}
+      boolean finished,
+      Optional<Duration> expectedService) {
+
+    public StopTimes(
+        UUID deliveryId,
+        Instant plannedArrival,
+        Instant windowOpen,
+        Optional<Integer> serviceMinutes,
+        Optional<Instant> arrivedAt,
+        Optional<Instant> leftAt,
+        boolean finished) {
+      this(deliveryId, plannedArrival, windowOpen, serviceMinutes, arrivedAt, leftAt, finished, Optional.empty());
+    }
+  }
 
   /**
    * The expected arrival at each stop not reached yet, in stop order. Empty
@@ -89,7 +104,7 @@ public final class EtaPolicy {
       Instant expected = latest(reach, s.plannedArrival());
       out.put(s.deliveryId(), expected);
       prev = s;
-      prevLeave = latest(expected, s.windowOpen()).plus(service(s));
+      prevLeave = latest(expected, s.windowOpen()).plus(stay(s));
     }
     return out;
   }
@@ -100,8 +115,8 @@ public final class EtaPolicy {
       return s.leftAt().get();
     }
     Instant start = latest(s.arrivedAt().orElse(now), s.windowOpen());
-    // Still there: with the plan's minutes it leaves when they are up, and not before now.
-    return s.serviceMinutes().isPresent() ? latest(start.plus(service(s)), now) : start;
+    // Still there: with known minutes it leaves when they are up, and not before now.
+    return s.serviceMinutes().isPresent() || s.expectedService().isPresent() ? latest(start.plus(stay(s)), now) : start;
   }
 
   /** The planned drive between two stops: the next arrival less the planned departure. */
@@ -111,8 +126,18 @@ public final class EtaPolicy {
     return d.isNegative() ? Duration.ZERO : d;
   }
 
+  /**
+   * The plan's minutes at the stop, which with its arrival give the planned
+   * drive. Without them, the expected minutes stand in, so the stay is not
+   * counted twice inside the planned gap between arrivals.
+   */
   private static Duration service(StopTimes s) {
-    return Duration.ofMinutes(s.serviceMinutes().orElse(0));
+    return s.serviceMinutes().map(m -> Duration.ofMinutes(m)).orElse(s.expectedService().orElse(Duration.ZERO));
+  }
+
+  /** How long the vehicle is expected to stay: the prediction, else the plan's minutes. */
+  private static Duration stay(StopTimes s) {
+    return s.expectedService().orElse(service(s));
   }
 
   private static Instant latest(Instant a, Instant b) {

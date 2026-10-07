@@ -28,9 +28,11 @@ public class JdbcOutcomes {
       java.util.Optional<Double> serviceMae, int serviceN) {}
 
   private final Database database;
+  private final com.fasterxml.jackson.databind.ObjectMapper json;
 
-  public JdbcOutcomes(Database database) {
+  public JdbcOutcomes(Database database, com.fasterxml.jackson.databind.ObjectMapper json) {
     this.database = database;
+    this.json = json;
   }
 
   /**
@@ -108,5 +110,59 @@ public class JdbcOutcomes {
         m.depotCode(), Date.valueOf(m.day()), m.modelLabel(), m.stops(), m.labelled(),
         m.brier().orElse(null), m.logLoss().orElse(null), m.calSlope().orElse(null), m.calIntercept().orElse(null),
         m.serviceMae().orElse(null), m.serviceN(), Timestamp.from(at));
+  }
+
+  /** R-ML-14: the stops the fallback scored, with a trustworthy label, between two service dates. */
+  public java.util.List<com.waypoint.dispatch.intelligence.domain.FallbackTuning.Labelled> fallbackLabelled(
+      LocalDate from, LocalDate to) {
+    return database
+        .query(
+            "SELECT outlet_id, predicted_late_prob, late_label FROM ml.delivery_outcomes"
+                + " WHERE model_label = 'deterministic' AND late_label IS NOT NULL AND predicted_late_prob IS NOT NULL"
+                + " AND service_date BETWEEN ? AND ?",
+            Date.valueOf(from), Date.valueOf(to))
+        .stream()
+        .map(r -> new com.waypoint.dispatch.intelligence.domain.FallbackTuning.Labelled(
+            (String) r.get("outlet_id"), ((Number) r.get("predicted_late_prob")).doubleValue(),
+            Boolean.TRUE.equals(r.get("late_label"))))
+        .toList();
+  }
+
+  public void saveTuning(
+      java.util.UUID tuningId, com.waypoint.dispatch.intelligence.domain.FallbackTuning.LateTuning t,
+      LocalDate from, LocalDate to, Instant at) {
+    String offsets;
+    try {
+      offsets = json.writeValueAsString(new java.util.TreeMap<>(t.outletOffsets()));
+    } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+      throw new IllegalStateException("outlet offsets could not be written", e);
+    }
+    database.update(
+        "INSERT INTO ml.fallback_tuning (tuning_id, fitted_at, window_from, window_to, labels, intercept, slope,"
+            + " outlet_offsets) VALUES (?, ?, ?, ?, ?, ?, ?, ?::jsonb)",
+        tuningId, Timestamp.from(at), Date.valueOf(from), Date.valueOf(to), t.labels(), t.intercept(), t.slope(),
+        offsets);
+  }
+
+  /** The newest fit, or the identity when there is none. */
+  public com.waypoint.dispatch.intelligence.domain.FallbackTuning.LateTuning currentTuning() {
+    return database
+        .query(
+            "SELECT labels, intercept, slope, outlet_offsets::text AS offsets FROM ml.fallback_tuning"
+                + " ORDER BY fitted_at DESC LIMIT 1")
+        .stream()
+        .findFirst()
+        .map(r -> new com.waypoint.dispatch.intelligence.domain.FallbackTuning.LateTuning(
+            ((Number) r.get("intercept")).doubleValue(), ((Number) r.get("slope")).doubleValue(),
+            offsets((String) r.get("offsets")), ((Number) r.get("labels")).intValue()))
+        .orElse(com.waypoint.dispatch.intelligence.domain.FallbackTuning.LateTuning.IDENTITY);
+  }
+
+  private Map<String, Double> offsets(String text) {
+    try {
+      return json.readValue(text, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Double>>() {});
+    } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+      return Map.of();
+    }
   }
 }

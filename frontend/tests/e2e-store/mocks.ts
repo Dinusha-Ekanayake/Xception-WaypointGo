@@ -103,6 +103,7 @@ export const DELIVERY: DeliveryRecordView = {
   releasedAt: `${today}T00:00:00Z`,
   startedAt: null,
   driver: { displayName: "Rashmika Dilshan", employeeCode: "DRV-00021" },
+  expectedServiceMinutes: "17.60",
 };
 
 export const RECEIPT: ReceiptView = {

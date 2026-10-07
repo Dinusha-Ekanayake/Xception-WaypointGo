@@ -98,4 +98,24 @@ class EtaPropagationTest {
     assertTrue(EtaPolicy.worthAnnouncing(at(50), at(40)));
     assertTrue(EtaPolicy.worthAnnouncing(at(30), at(40)), "back on time is news too");
   }
+
+  @Test
+  void theExpectedMinutesAtAStopDriveTheEstimateAndThePlansMinutesTheDrive() {
+    // T1-04: A is expected to take 35 min, not the plan's 20. Arrived on time at 0: leaves at 35, B at 55.
+    StopTimes slowA = new StopTimes(A, at(0), at(0), Optional.of(20), Optional.of(at(0)), Optional.empty(), false,
+        Optional.of(java.time.Duration.ofMinutes(35)));
+    Map<UUID, Instant> eta = EtaPolicy.propagate(List.of(slowA, b, c), at(1));
+    assertEquals(at(55), eta.get(B));
+    // B expected 15 as planned: C at 55 + 15 + 25.
+    assertEquals(at(95), eta.get(C));
+  }
+
+  @Test
+  void withoutThePlansMinutesTheExpectedOnesAreNotCountedTwice() {
+    StopTimes a0 = new StopTimes(A, at(0), at(0), Optional.empty(), Optional.of(at(0)), Optional.empty(), false,
+        Optional.of(java.time.Duration.ofMinutes(20)));
+    StopTimes b0 = planned(B, 40, 0, null);
+    // Leaves at 20 (its expected minutes), drives the gap less those minutes (20): B at 40, on plan.
+    assertEquals(at(40), EtaPolicy.propagate(List.of(a0, b0), at(1)).get(B));
+  }
 }

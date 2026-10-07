@@ -3,8 +3,10 @@ package com.waypoint.dispatch.execution.application;
 import com.waypoint.dispatch.execution.domain.DeliveryLines;
 import com.waypoint.dispatch.execution.domain.DeliveryRecord;
 import com.waypoint.dispatch.execution.domain.ServiceWindow;
-import com.waypoint.dispatch.execution.infrastructure.JdbcDeliveryRepository;
 import com.waypoint.dispatch.execution.infrastructure.JdbcDeliveryRepository.TripRow;
+import com.waypoint.dispatch.execution.infrastructure.JdbcDeliveryRepository;
+import com.waypoint.dispatch.intelligence.contract.PredictionQuery;
+import com.waypoint.dispatch.intelligence.contract.PredictionViews.StopPredictionView;
 import com.waypoint.dispatch.loading.contract.LoadingEvents.ReleasedStop;
 import com.waypoint.dispatch.loading.contract.LoadingEvents.TripReleased;
 import com.waypoint.dispatch.ordering.contract.OrderQuery;
@@ -17,6 +19,9 @@ import com.waypoint.dispatch.shared.util.UuidV7;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.LocalTime;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
 
@@ -42,6 +47,7 @@ public class RunSheetBuilder {
   private final ReferenceQuery reference;
   private final Metrics metrics;
   private final Clock clock;
+  private final org.springframework.beans.factory.ObjectProvider<PredictionQuery> predictions;
   private final SecureRandom random = new SecureRandom();
 
   public RunSheetBuilder(
@@ -49,7 +55,9 @@ public class RunSheetBuilder {
       OrderQuery orders,
       ReferenceQuery reference,
       Metrics metrics,
-      Clock clock) {
+      Clock clock,
+      org.springframework.beans.factory.ObjectProvider<PredictionQuery> predictions) {
+    this.predictions = predictions;
     this.deliveries = deliveries;
     this.orders = orders;
     this.reference = reference;
@@ -70,6 +78,7 @@ public class RunSheetBuilder {
       return 0;
     }
     int tripStops = (int) released.stops().stream().map(ReleasedStop::sequence).distinct().count();
+    Map<UUID, StopPredictionView> expected = expectedService(released.planId());
     for (ReleasedStop stop : released.stops()) {
       OrderView order =
           orders.order(stop.orderId())
@@ -97,6 +106,9 @@ public class RunSheetBuilder {
       }
       // Roadmap T1-03: the planned minutes at the stop, for the estimate of the stops after it.
       stop.serviceMinutes().ifPresent(minutes -> deliveries.planService(deliveryId, minutes));
+      // Roadmap T1-04: the minutes the stored prediction expects, the model's or the estimate's.
+      Optional.ofNullable(expected.get(stop.orderId()))
+          .ifPresent(p -> deliveries.expectService(deliveryId, p.serviceMinutes(), p.modelLabel()));
       // The products the stop is held to, so a delivery can be recorded product by product.
       deliveries.insertLines(
           deliveryId,
@@ -104,5 +116,20 @@ public class RunSheetBuilder {
     }
     metrics.increment("waypoint.execution.run_sheets_built", "depot", released.depotCode());
     return released.stops().size();
+  }
+
+  /**
+   * The plan's stored prediction per order (roadmap T1-04), read through
+   * Intelligence's contract. Empty when Intelligence is not deployed or the plan
+   * was not scored yet: the estimate then uses the plan's own minutes, as before.
+   */
+  private Map<UUID, StopPredictionView> expectedService(UUID planId) {
+    PredictionQuery query = predictions.getIfAvailable();
+    if (query == null || planId == null) {
+      return Map.of();
+    }
+    Map<UUID, StopPredictionView> out = new HashMap<>();
+    query.predictionsFor(planId).ifPresent(p -> p.stops().forEach(s -> out.put(s.orderId(), s)));
+    return out;
   }
 }

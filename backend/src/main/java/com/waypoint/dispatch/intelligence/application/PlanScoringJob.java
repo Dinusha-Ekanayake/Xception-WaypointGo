@@ -93,6 +93,8 @@ public class PlanScoringJob implements ScheduledJob {
   private final SecureRandom random = new SecureRandom();
   private final AtomicLong pending = new AtomicLong();
 
+  private final com.waypoint.dispatch.intelligence.infrastructure.JdbcOutcomes outcomes;
+
   PlanScoringJob(
       Database database,
       JdbcIntelligenceRepository repository,
@@ -104,7 +106,9 @@ public class PlanScoringJob implements ScheduledJob {
       ReferencePayload payload,
       IntelligenceProperties properties,
       Metrics metrics,
-      Clock clock) {
+      Clock clock,
+      com.waypoint.dispatch.intelligence.infrastructure.JdbcOutcomes outcomes) {
+    this.outcomes = outcomes;
     this.database = database;
     this.repository = repository;
     this.adapter = adapter;
@@ -261,6 +265,8 @@ public class PlanScoringJob implements ScheduledJob {
     PlanView plan = found.get();
     UUID version = plan.referenceVersionId();
     Map<String, List<BigDecimal>> history = serviceHistory(plan.depotCode(), plan.serviceDate());
+    // R-ML-14: what the fallback learned from Waypoint's own outcomes; the identity before there is enough.
+    com.waypoint.dispatch.intelligence.domain.FallbackTuning.LateTuning tuning = outcomes.currentTuning();
     List<StopPlan> stops = new ArrayList<>();
     List<Route> routes = new ArrayList<>();
     for (TripView trip : plan.trips()) {
@@ -270,9 +276,9 @@ public class PlanScoringJob implements ScheduledJob {
       int index = 0;
       for (StopView s : trip.stops().stream().sorted(java.util.Comparator.comparingInt(StopView::sequence)).toList()) {
         DeterministicEstimator.ServiceEstimate svc =
-            DeterministicEstimator.serviceMinutes(history.getOrDefault(s.outletId(), List.of()), s.serviceMinutes());
+            DeterministicEstimator.blendedServiceMinutes(history.getOrDefault(s.outletId(), List.of()), s.serviceMinutes());
         stops.add(new StopPlan(s.orderId(), trip.tripId(), s.sequence(), s.outletId(), svc.minutes(),
-            DeterministicEstimator.lateProbability(s.plannedArrival(), s.windowClose(), index++)));
+            DeterministicEstimator.lateProbability(s.plannedArrival(), s.windowClose(), index++, tuning, s.outletId())));
         facts.add(new StopFacts(s.sequence(), s.orderId(), s.outletId(), s.plannedArrival(), s.windowOpen(),
             s.windowClose(), orders.order(s.orderId()).flatMap(PlanScoringJob::orderFacts)));
       }

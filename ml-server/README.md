@@ -40,3 +40,52 @@ The Task 1 tests score four real routes and require the API to equal the vendore
 - Every random seed is fixed, so the same request always gives the same answer.
 - The route simulator draws its random numbers over the whole request. So scoring one day on its own can differ slightly from scoring the same day inside a larger batch: up to 0.8 minutes of service time and 0.02 of P(late) in the measured case.
 - The backend stores each prediction with the model that produced it.
+
+## Handing over a new model
+
+For the data-science team. A model reaches the product through this service only: the backend never loads a model file. The product does not need a model to run. With none active, or with this service down, every screen uses the backend's own estimate and says so (R-ML-04), so a new model can be wired in at any time without anything else waiting on it.
+
+### What the team hands over
+
+| Item | Where it goes | Notes |
+| --- | --- | --- |
+| The saved model files (`.joblib`, `.json`, `.cbm`, ...) | `ml-server/models/` | Stored in Git LFS (`git lfs track` already covers `models/*`). Trained with Python 3.11 and the versions in `requirements.txt`, or that file is updated in the same change |
+| The Python package that builds the features and predicts | `ml-server/datathon/src/` | Replaces the current package. Pickles refer to their classes as `src.<module>`, so the folder stays `datathon/src` |
+| `inference.py` inside that package | `ml-server/datathon/src/inference.py` | The contract below. It is the notebook's final cell as functions |
+| Name, version, training range, holdout metrics, SHA-256 of every file | `ml-server/manifest.json` | One entry per kind. A new version every time: a retired version can never be activated again |
+| The submission files for the test inputs | `ml-server/tests/fixtures/` | The proof: the service must reproduce them exactly |
+
+### The contract in `inference.py`
+
+The functions take the same tables, with the same column names, as the CSVs in `data/` (the backend sends `outlets`, `vehicles`, `service_allowance`, `district_travel`, `traffic_speed`, `calendar` and `road_conditions` with every request, as `g`):
+
+```python
+def load_models(models_dir) -> dict: ...
+# orders: rows like task1_test_inputs.csv; legs: their route legs (planned times only)
+def predict_task1(orders, legs, models, g, use_fallback=False) -> DataFrame:
+    # columns delivery_id, pred_service_min, pred_late_prob (0 to 1), one row per order
+def predict_task2a(rows, models, g) -> DataFrame:
+    # rows: depot, brand, iso_year, iso_week; adds pred_total_volume_m3, pred_chilled_volume_m3 (0 unless Fresh)
+```
+
+`use_fallback=True` scores routes on dates with no road-conditions row (after 2026-06-28); a model that does not use road conditions can ignore it. The output columns are the submission templates' own, so a model that fills `submission_task1.csv` and `submission_task2a.csv` already meets them.
+
+### Wiring it in
+
+1. Put the files and the package in place, and fill `manifest.json` with the new version and each file's SHA-256 (`shasum -a 256 models/*`).
+2. If the files or the steps differ from the current ones (two Task 1 pipelines blended 0.4/0.6 and 0.3/0.7, and one Task 2A model), change `app/registry.py` (`load`) and `app/scoring.py` (`_blend`, `delivery_risk`, `demand_forecast`) to call the new `inference` functions with the models already in memory. This is the only code that knows the team's pipeline.
+3. Replace `tests/fixtures/task2a_expected.csv` with the team's Task 2A submission rows for `task2a_weeks.csv`, and check `tests/test_service.py` against the new Task 1 output. Run `pytest`: the API must equal `inference.predict_task1` and `predict_task2a` exactly, repeat the same answer for the same request, and refuse an altered file.
+4. Start the service and read `GET /health`: it names the loaded models and versions.
+5. As an administrator, register the version (`ml:RegisterModel` with the manifest's name, version and kind; see `docs/issues/016-intelligence/WALKTHROUGH.md`), then activate it on the admin Models screen. The backend uses a model only when the served name and version equal the active entry.
+6. Publish a plan: within 30 seconds `GET /api/ml/plans/{planId}/predictions` shows the new label on every stop, and the dispatcher's late risk no longer reads "estimated". The forecast follows at its next run, or at once with `forecast-run`.
+
+### What happens when it fails
+
+| Failure | What the product does |
+| --- | --- |
+| The service is down, slow (past the timeout) or erroring | The circuit breaker opens; the plan is scored in the backend by its own estimate, marked degraded with the reason, and the screens say "estimated". That estimate is not a bare rule: it blends each outlet's history with the allowance and is recalibrated nightly on its own outcomes, with an offset per outlet (R-ML-14). Scoring retries with backoff, and a plan is scored again when the model returns |
+| A model file differs from the manifest | The service refuses to start, so no prediction is ever recorded against the wrong version |
+| The served version is not the active one | The backend does not use it and falls back, as above |
+| Competition-data models in production | Blocked by `ML_ALLOW_DATATHON=false`: they serve preview and judge only, as the data licence requires |
+
+Every prediction is stored with the model that made it, and its outcome is kept beside it (R-ML-12), so the new version's Brier score, calibration and service-minute error appear in `ml.model_metrics_daily` and on the alert rules from the first day (R-ML-13).

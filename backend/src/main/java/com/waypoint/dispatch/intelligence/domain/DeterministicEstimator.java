@@ -77,6 +77,48 @@ public final class DeterministicEstimator {
     return BigDecimal.valueOf(p).setScale(4, RoundingMode.HALF_UP);
   }
 
+  /**
+   * The late probability with what the fallback learned from Waypoint's own
+   * outcomes (R-ML-14): calibrated, and adjusted for the outlet. The identity
+   * tuning gives exactly {@link #lateProbability(LocalTime, LocalTime, int)}.
+   */
+  public static BigDecimal lateProbability(
+      LocalTime plannedArrival, LocalTime windowClose, int stopIndex, FallbackTuning.LateTuning tuning, String outletId) {
+    double base = lateProbability(plannedArrival, windowClose, stopIndex).doubleValue();
+    if (tuning == null || tuning.labels() == 0) {
+      return BigDecimal.valueOf(base).setScale(4, RoundingMode.HALF_UP);
+    }
+    double p = Math.min(1 - FLOOR, Math.max(FLOOR, tuning.apply(base, outletId)));
+    return BigDecimal.valueOf(p).setScale(4, RoundingMode.HALF_UP);
+  }
+
+  /** Pseudo-visits of the allowance in the blended service estimate. */
+  static final int ALLOWANCE_WEIGHT = MIN_HISTORY;
+
+  /**
+   * The outlet's median service blended with the allowance by how much history
+   * there is (R-ML-14): {@code (n * median + 5 * allowance) / (n + 5)}. One slow
+   * visit no longer flips a new outlet from the allowance to its own figure, and
+   * a long history ends up almost entirely the outlet's own. Basis
+   * {@code allowance} with no history, else {@code history}.
+   */
+  public static ServiceEstimate blendedServiceMinutes(List<BigDecimal> recentServiceMinutes, BigDecimal allowance) {
+    List<BigDecimal> sorted =
+        recentServiceMinutes.stream().filter(m -> m != null && m.signum() >= 0).sorted().toList();
+    if (sorted.isEmpty()) {
+      return new ServiceEstimate(allowance.setScale(2, RoundingMode.HALF_UP), "allowance");
+    }
+    int mid = sorted.size() / 2;
+    BigDecimal median =
+        sorted.size() % 2 == 1
+            ? sorted.get(mid)
+            : sorted.get(mid - 1).add(sorted.get(mid)).divide(BigDecimal.valueOf(2), 4, RoundingMode.HALF_UP);
+    BigDecimal n = BigDecimal.valueOf(sorted.size());
+    BigDecimal k = BigDecimal.valueOf(ALLOWANCE_WEIGHT);
+    BigDecimal blended = median.multiply(n).add(allowance.multiply(k)).divide(n.add(k), 4, RoundingMode.HALF_UP);
+    return new ServiceEstimate(blended.setScale(2, RoundingMode.HALF_UP), "history");
+  }
+
   /** One day of placed demand. */
   public record DailyVolume(LocalDate date, BigDecimal totalM3, BigDecimal chilledM3) {}
 

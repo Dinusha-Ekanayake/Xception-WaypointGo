@@ -68,6 +68,7 @@ public class EtaPropagation {
         stop.plannedServiceMinutes(),
         r.arrivedAt(),
         r.isFinished() ? r.completedAt() : java.util.Optional.empty(),
-        r.isFinished());
+        r.isFinished(),
+        stop.expectedServiceMinutes().map(m -> java.time.Duration.ofSeconds(Math.round(m.doubleValue() * 60))));
   }
 }

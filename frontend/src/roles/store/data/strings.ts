@@ -120,6 +120,7 @@ export const STRINGS: Record<string, [string, string]> = {
   "late": ["ප්‍රමාදයි", "தாமதம்"],
   "now": ["දැන්", "இப்போது"],
   "window {window}": ["කාල සීමාව {window}", "நேரம் {window}"],
+  "unloading about {n} min": ["බෑම මිනිත්තු {n} ක් පමණ", "இறக்குதல் சுமார் {n} நிமிடம்"],
 
   // Orders
   "+ New order": ["+ නව ඇණවුමක්", "+ புதிய ஆர்டர்"],

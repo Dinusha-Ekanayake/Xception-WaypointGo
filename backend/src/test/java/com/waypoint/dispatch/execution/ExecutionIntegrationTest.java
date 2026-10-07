@@ -653,6 +653,20 @@ class ExecutionIntegrationTest {
   }
 
   @Test
+  void theExpectedMinutesAtAStopMoveTheStopsAfterItAndReachTheStore() throws Exception {
+    // T1-04: the prediction expects stop A to take 45 minutes; the plan carried none.
+    database.asSystem(ModuleRole.EXECUTION, () -> database.update(
+        "UPDATE execution.delivery_records SET expected_service_minutes = 45, expected_service_basis = 'test-model@1'"
+            + " WHERE delivery_id = ?", stopA));
+    at("05:20");
+    send(driver, "delivery:RecordArrival", 1L, stop(stopA), 200);
+    // Arrived on time at 05:20, there 45 minutes: B (planned 05:40, 20 after A) is expected 06:05, 25 late.
+    JsonNode eta = payload("eta.changed", stopB);
+    assertEquals(instant("06:05"), eta.get("expectedArrival").asText());
+    assertEquals(45.0, runSheet(driver).get("stops").get(0).get("expectedServiceMinutes").asDouble(), 1e-9);
+  }
+
+  @Test
   void eachStopsOutcomeIsKeptBesideItsPredictionAndAMissingArrivalIsNoLabel() throws Exception {
     // MF-02, R-ML-12: stop A arrived on time and delivered; stop B failed with no arrival recorded.
     at("05:20");

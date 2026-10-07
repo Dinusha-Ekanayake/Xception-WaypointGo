@@ -151,6 +151,8 @@ class IntelligenceIntegrationTest {
   @Autowired AttentionWatchJob attentionWatch;
   @Autowired JevShadow.Job jevJob;
   @Autowired ModelMetricsJob metricsJob;
+  @Autowired FallbackTuningJob tuningJob;
+  @Autowired com.waypoint.dispatch.intelligence.infrastructure.JdbcOutcomes outcomeStore;
   @Autowired com.waypoint.dispatch.planning.contract.PlanQuery planQuery;
 
   private String run;
@@ -188,6 +190,40 @@ class IntelligenceIntegrationTest {
   }
 
   // ---- scoring a published plan ---------------------------------------------------
+
+  @Test
+  void theFallbackRelearnsFromTheStopsItScoredAndStaysTheRuleWithoutThem() {
+    // R-ML-14: a fallback that says 0.2 everywhere, on stops that ran late half the time.
+    java.time.LocalDate day = java.time.LocalDate.of(2032, 3, 10);
+    java.time.Instant now = day.plusDays(1).atTime(3, 40).atZone(com.waypoint.dispatch.shared.util.Clock.OPERATING_ZONE).toInstant();
+    com.waypoint.dispatch.intelligence.domain.FallbackTuning.LateTuning before =
+        database.asSystem(ModuleRole.ML, outcomeStore::currentTuning);
+    java.util.Random random = new java.util.Random(9);
+    for (int i = 0; i < 300; i++) {
+      double p = 0.1 + 0.3 * random.nextDouble();
+      boolean late = random.nextDouble() < 0.5;
+      database.asSystem(ModuleRole.ML, () -> database.update(
+          """
+          INSERT INTO ml.delivery_outcomes
+              (delivery_id, order_id, outlet_id, depot_code, service_date, stop_sequence, outcome, late_label,
+               label_source, predicted_late_prob, model_label, recorded_at)
+          VALUES (?, ?, 'OUT001', ?, ?, 1, 'delivered', ?, 'device', ?, 'deterministic', now())
+          """,
+          UUID.randomUUID(), UUID.randomUUID(), depot, java.sql.Date.valueOf(day), late, p));
+    }
+    var fitted = tuningJob.runAt(now);
+    assertTrue(fitted.labels() >= 300, "fitted on the labelled stops: " + fitted.labels());
+    var current = database.asSystem(ModuleRole.ML, outcomeStore::currentTuning);
+    assertEquals(fitted.labels(), current.labels());
+    assertTrue(current.apply(0.2, "OUT-NEW") > 0.35, "the rule said 0.2; the stops were late half the time");
+    assertTrue(before.labels() == 0 || before.labels() > 0, "read before any fit without failing");
+
+    // Nothing to learn from in an empty window: nothing written, the newest fit stays.
+    var empty = tuningJob.runAt(java.time.LocalDate.of(2040, 1, 1).atStartOfDay(
+        com.waypoint.dispatch.shared.util.Clock.OPERATING_ZONE).toInstant());
+    assertEquals(0, empty.labels());
+    assertEquals(fitted.labels(), database.asSystem(ModuleRole.ML, outcomeStore::currentTuning).labels());
+  }
 
   @Test
   void eachModelsDayIsMeasuredFromItsLabelledOutcomesOnly() {

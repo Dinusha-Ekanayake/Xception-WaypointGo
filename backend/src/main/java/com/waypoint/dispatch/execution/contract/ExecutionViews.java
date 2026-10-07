@@ -64,7 +64,21 @@ public final class ExecutionViews {
       long rowVersion,
       List<DeliveryLineView> lines,
       /** Why the driver moved on before the store answered, when they did (issue #21): store_absent, no_signal, disagree. */
-      Optional<String> storeAnswerWaived) {
+      Optional<String> storeAnswerWaived,
+      /** Roadmap T1-04: how long the stop is expected to take, from the plan's stored prediction. */
+      Optional<java.math.BigDecimal> expectedServiceMinutes) {
+
+    public RunSheetStopView(
+        UUID deliveryId, UUID tripId, int sequence, UUID orderId, String outletId, int itemCount, boolean mallOutlet,
+        LocalTime plannedArrival, LocalTime windowOpen, LocalTime windowClose, Optional<Instant> expectedArrival,
+        Optional<Instant> startedAt, Optional<Instant> arrivedAt, Optional<Instant> completedAt,
+        Optional<Integer> waitMinutes, Optional<Integer> lateMinutes, DeliveryOutcome outcome,
+        Optional<Integer> deliveredUnits, boolean proofCaptured, long rowVersion, List<DeliveryLineView> lines,
+        Optional<String> storeAnswerWaived) {
+      this(deliveryId, tripId, sequence, orderId, outletId, itemCount, mallOutlet, plannedArrival, windowOpen,
+          windowClose, expectedArrival, startedAt, arrivedAt, completedAt, waitMinutes, lateMinutes, outcome,
+          deliveredUnits, proofCaptured, rowVersion, lines, storeAnswerWaived, Optional.empty());
+    }
 
     public RunSheetStopView {
       lines = List.copyOf(lines);
@@ -128,7 +142,9 @@ public final class ExecutionViews {
       Optional<Instant> expectedArrival,
       Instant releasedAt,
       Optional<Instant> startedAt,
-      Optional<DriverView> driver) {
+      Optional<DriverView> driver,
+      /** Roadmap T1-04: how long the stop is expected to take, from the plan's stored prediction. */
+      Optional<java.math.BigDecimal> expectedServiceMinutes) {
 
     public DeliveryRecordView {
       lines = List.copyOf(lines);
@@ -141,7 +157,7 @@ public final class ExecutionViews {
           serviceStartedAt, completedAt, waitMinutes, lateMinutes, lateReason, timingUncertain,
           deliveredUnits, failureReason, dispositionNote, lowEvidence, proofId, clientRecordedAt,
           serverRecordedAt, rowVersion, lines, stopSequence, tripStopCount, plannedArrival,
-          expectedArrival, releasedAt, startedAt, driver);
+          expectedArrival, releasedAt, startedAt, driver, expectedServiceMinutes);
     }
   }
 
