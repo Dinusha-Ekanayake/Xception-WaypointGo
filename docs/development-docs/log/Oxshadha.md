@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-07 - feat: the driver hears messages with no signal
+
+`dev` · @Oxshadha
+
+- The driver's phone keeps the audio of the trip's newest messages while online (voice notes and the server's spoken copy), and Listen, Play messages and the voice note player use the kept copy first (R-MSG-11, MSG-21). At most 60 clips; cleared at sign-out.
+
+Why: drivers lose signal in valleys, and they listen only when stopped, often there.
+Verified: Node 369; typecheck; build; browser shell 20, driver 42, loader 32, store 62, dispatcher 82.
+
+---
+
 ## 2026-10-07 - feat: messages spoken on our own server; the driving screen as designed
 
 `dev` · @Oxshadha

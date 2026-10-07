@@ -145,3 +145,13 @@ export function defaultAddress(role: MemberRole, members: MemberView[]): Address
   const found = members.find((m) => m.to === preferred) ?? members[0];
   return found ? { to: found.to, outletId: found.outletId } : { to: "dispatch", outletId: null };
 }
+
+/** Where a voice note is played from. */
+export function voiceUrl(threadId: string, voiceNoteId: string): string {
+  return `/api/threads/${encodeURIComponent(threadId)}/voice/${encodeURIComponent(voiceNoteId)}`;
+}
+
+/** Where the server's spoken copy of a typed message is played from (R-MSG-10). */
+export function speechUrl(threadId: string, messageId: string): string {
+  return `/api/threads/${encodeURIComponent(threadId)}/messages/${encodeURIComponent(messageId)}/speech`;
+}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { cannotSpeak, playServerSpeech, speak, stopSpeaking } from "../messaging/speech.ts";
+import { playableUrl, speechUrl } from "../messaging/audioCache.ts";
 import { plain, type Translate } from "../messaging/thread.ts";
 import { cx } from "./primitives.tsx";
 
@@ -14,6 +15,7 @@ export function ListenButton({
   text,
   threadId,
   messageId,
+  accountId,
   tr = plain,
   className,
 }: {
@@ -21,6 +23,8 @@ export function ListenButton({
   /** With these, the server's audio of the message is played first (R-MSG-10). */
   threadId?: string;
   messageId?: string;
+  /** With this, a copy kept on the phone plays first, so it works with no signal (R-MSG-11). */
+  accountId?: string;
   tr?: Translate;
   className?: string;
 }): React.JSX.Element {
@@ -39,7 +43,8 @@ export function ListenButton({
     setNote(null);
     setState("speaking");
     // Our server's voice first, in every language; the phone's own voice when it is not ready.
-    if (threadId && messageId && (await playServerSpeech(threadId, messageId, setAudio)) === "done") {
+    const kept = threadId && messageId ? await playableUrl(accountId, speechUrl(threadId, messageId)) : undefined;
+    if (threadId && messageId && (await playServerSpeech(threadId, messageId, setAudio, kept)) === "done") {
       setState("idle");
       return;
     }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ApiError } from "../api/problem.ts";
 import { redirectMessage, resolveReport, useThread, useWaiting } from "../messaging/useThread.ts";
 import { audienceLabel, plain, type Translate } from "../messaging/thread.ts";
@@ -10,6 +10,7 @@ import { Notice } from "./Notice.tsx";
 import { cx } from "./primitives.tsx";
 import { ThreadComposer, type Draft } from "./ThreadComposer.tsx";
 import { ThreadMessages } from "./ThreadMessages.tsx";
+import { keepThreadAudio } from "../messaging/audioCache.ts";
 import { PlayMessages } from "./PlayMessages.tsx";
 
 // One trip's thread (issue #136, ADR-004): its messages and a place to write.
@@ -51,6 +52,13 @@ export function TripThread({
   const t = useThread(threadId, accountId);
   const [note, setNote] = useState<string | null>(null);
   const [sentCount, setSentCount] = useState(0);
+  // R-MSG-11: a driver's phone keeps the audio of the newest messages while there is signal.
+  const latestId = t.messages[t.messages.length - 1]?.messageId ?? "";
+  useEffect(() => {
+    if (playAll && accountId && online && t.messages.length > 0) void keepThreadAudio(accountId, t.messages);
+    // The newest message stands for the list: a new one is what is worth fetching for.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playAll, accountId, online, latestId]);
   const waiting = useWaiting(threadId, accountId, `${sentCount}|${t.loadedAt?.getTime() ?? 0}`);
   const thread = t.thread.data;
   const members = t.members.data ?? [];
@@ -66,7 +74,7 @@ export function TripThread({
           {t.loadedAt ? tr("Showing what arrived at {time}.", { time: clock(t.loadedAt) }) : tr("Check the connection and try again.")}
         </Notice>
       )}
-      {playAll && t.loadedAt !== null && <PlayMessages threadId={threadId} messages={t.messages} tr={tr} />}
+      {playAll && t.loadedAt !== null && <PlayMessages threadId={threadId} messages={t.messages} tr={tr} {...(accountId ? { accountId } : {})} />}
       <div className="min-h-0 flex-1 overflow-y-auto pr-1" aria-live="polite" aria-busy={t.thread.loading}>
         {t.loadedAt === null && t.error === null ? (
           <p className="py-8 text-center text-sm text-go-secondary">{tr("Loading messages…")}</p>
@@ -78,6 +86,7 @@ export function TripThread({
             onOlder={t.loadOlder}
             compact={variant === "phone"}
             tr={tr}
+            {...(accountId ? { accountId } : {})}
             {...(thread?.memberRole === "dispatcher"
               ? {
                   onResolve: async (messageId: string, note: string) => {

@@ -6,13 +6,25 @@ import { heardUpTo, markHeard, unheard } from "../messaging/playlist.ts";
 import { playServerSpeech, speak, stopSpeaking } from "../messaging/speech.ts";
 import { plain, type Translate } from "../messaging/thread.ts";
 import { voiceUrl } from "../messaging/useThread.ts";
+import { playableUrl, speechUrl } from "../messaging/audioCache.ts";
 
 // "Play messages" (roadmap: listen to every message): the messages not heard yet,
 // one after another, a voice note as its own recording and a typed message read
 // aloud in its language. For a driver it shows only when the Messages screen is
 // not covered for driving (R-EXE-28), so it plays only while stopped.
 
-export function PlayMessages({ threadId, messages, tr = plain }: { threadId: string; messages: MessageView[]; tr?: Translate }): React.JSX.Element | null {
+export function PlayMessages({
+  threadId,
+  messages,
+  accountId,
+  tr = plain,
+}: {
+  threadId: string;
+  messages: MessageView[];
+  /** Plays the copies kept on this phone first, so it works with no signal (R-MSG-11). */
+  accountId?: string;
+  tr?: Translate;
+}): React.JSX.Element | null {
   const [playing, setPlaying] = useState<number | null>(null);
   const [skipped, setSkipped] = useState(0);
   const stop = useRef(false);
@@ -20,10 +32,11 @@ export function PlayMessages({ threadId, messages, tr = plain }: { threadId: str
   const queue = unheard(messages, heardUpTo(threadId));
   if (queue.length === 0 && playing === null) return null;
 
-  const playOne = (m: MessageView): Promise<boolean> => {
+  const playOne = async (m: MessageView): Promise<boolean> => {
     if (m.voiceNoteId) {
+      const src = await playableUrl(accountId, voiceUrl(threadId, m.voiceNoteId));
       return new Promise((resolve) => {
-        const a = new Audio(voiceUrl(threadId, m.voiceNoteId!));
+        const a = new Audio(src);
         audio.current = a;
         a.onended = () => resolve(true);
         a.onerror = () => resolve(false);
@@ -31,8 +44,9 @@ export function PlayMessages({ threadId, messages, tr = plain }: { threadId: str
       });
     }
     // Our server's voice first; the phone's own voice when it is not ready.
-    return playServerSpeech(threadId, m.messageId, (a) => (audio.current = a)).then((r) =>
-      r === "done" ? true : speak(m.body).then((s) => s === "done"));
+    const src = await playableUrl(accountId, speechUrl(threadId, m.messageId));
+    const played = await playServerSpeech(threadId, m.messageId, (a) => (audio.current = a), src);
+    return played === "done" ? true : speak(m.body).then((s) => s === "done");
   };
 
   const start = async () => {

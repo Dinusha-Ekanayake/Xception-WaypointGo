@@ -2,8 +2,10 @@
 // (roadmap: listen to every message). The language comes from the script: a
 // Sinhala letter means Sinhala, a Tamil letter Tamil, else English. A phone
 // with no voice for that language says so; a Sinhala message is never read with
-// an English voice. Server-made audio for every language comes later; this is
-// the phone's own voice, labelled as such.
+// an English voice. Our server's audio of each message (R-MSG-10) is played
+// first; this is the phone's own voice when that is not ready.
+
+import { speechUrl } from "./thread.ts";
 
 export type SpeechLang = "si" | "ta" | "en";
 
@@ -76,10 +78,16 @@ export function cannotSpeak(text: string, why: Exclude<Spoken, "done" | "stopped
  * else "missing" so the caller can use the phone's voice instead. Resolves when
  * the audio ends.
  */
-export function playServerSpeech(threadId: string, messageId: string, onAudio?: (a: HTMLAudioElement) => void): Promise<"done" | "missing"> {
+export function playServerSpeech(
+  threadId: string,
+  messageId: string,
+  onAudio?: (a: HTMLAudioElement) => void,
+  /** A copy kept on the phone (audioCache.ts), played instead of the network's. */
+  src?: string,
+): Promise<"done" | "missing"> {
   if (typeof window === "undefined" || typeof Audio === "undefined") return Promise.resolve("missing");
   return new Promise((resolve) => {
-    const a = new Audio(`/api/threads/${encodeURIComponent(threadId)}/messages/${encodeURIComponent(messageId)}/speech`);
+    const a = new Audio(src ?? speechUrl(threadId, messageId));
     onAudio?.(a);
     a.onended = () => resolve("done");
     a.onerror = () => resolve("missing");

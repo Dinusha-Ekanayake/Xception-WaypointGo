@@ -18,6 +18,7 @@ import { mayChime, OFF, onMotion, openByHand, slideOut, type DrivingState } from
 import HomeNoVehicle from "./screens/HomeNoVehicle.tsx";
 import Messages from "./screens/Messages.tsx";
 import { unreadMessages } from "./data/messages.ts";
+import { useKeptTripAudio } from "@shared/messaging/audioCache";
 import RefusedUploads from "./screens/RefusedUploads.tsx";
 import RouteChangedBottomSheet from "./screens/RouteChangedBottomSheet.tsx";
 import RouteMap from "./screens/RouteMap.tsx";
@@ -87,6 +88,8 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
   // The stop row last tapped on the route, one shared element with the stop's header (UX polish 4).
   const [movingStop, setMovingStop] = useState<string | null>(null);
   const unread = unreadMessages(inbox.items);
+  // R-MSG-11: the trip's messages can be heard later with no signal.
+  useKeptTripAudio(userId, d.tripId, online, unread.map((n) => n.notificationId).join(","));
   const openMessages = () => {
     setTalking(true);
     if (unread.length > 0 && online) void inbox.markRead(unread.map((n) => n.notificationId)).catch(() => undefined);

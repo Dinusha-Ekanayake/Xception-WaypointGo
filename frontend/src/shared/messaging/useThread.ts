@@ -160,9 +160,7 @@ export function voicePath(threadId: string, voiceNoteId: string, durationMs: num
   return `/api/threads/${q(threadId)}/voice/${q(voiceNoteId)}?durationMs=${Math.round(durationMs)}${bars}`;
 }
 
-export function voiceUrl(threadId: string, voiceNoteId: string): string {
-  return `/api/threads/${q(threadId)}/voice/${q(voiceNoteId)}`;
-}
+export { voiceUrl } from "./thread.ts";
 
 /** A message still on this device, waiting for a connection. */
 export type Waiting = { commandId: string; body: string; to: PostMessagePayload["to"]; outletId: string | null; report: boolean; voice: boolean; at: string };

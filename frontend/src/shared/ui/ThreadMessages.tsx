@@ -9,6 +9,7 @@ import { ChannelRedirect } from "./ChannelRedirect.tsx";
 import { ListenButton } from "./ListenButton.tsx";
 import { cx } from "./primitives.tsx";
 import { VoiceNote } from "./VoiceNote.tsx";
+import { usePlayableUrl } from "../messaging/audioCache.ts";
 
 // The messages of a trip's thread (issue #136), oldest first under a line for
 // each day. A report reads as a warning, red like the timeline sign that opens
@@ -24,6 +25,7 @@ export function ThreadMessages({
   tr = plain,
   onResolve,
   onRedirect,
+  accountId,
 }: {
   messages: MessageView[];
   /** Scrolled to and marked, when a warning sign or a notification opened the thread. */
@@ -36,6 +38,8 @@ export function ThreadMessages({
   onResolve?: (messageId: string, note: string) => Promise<void>;
   /** The dispatcher's way to move a post off the trip's channel (R-MSG-08). */
   onRedirect?: (messageId: string, reason: string) => Promise<void>;
+  /** Plays the audio kept on this phone first (R-MSG-11). */
+  accountId?: string;
 }): React.JSX.Element {
   const end = useRef<HTMLDivElement>(null);
   const focused = useRef<string | null>(null);
@@ -82,6 +86,7 @@ export function ThreadMessages({
                 tr={tr}
                 {...(onResolve ? { onResolve } : {})}
                 {...(onRedirect ? { onRedirect } : {})}
+                {...(accountId ? { accountId } : {})}
               />
             ))}
           </ol>
@@ -99,6 +104,7 @@ function Message({
   tr,
   onResolve,
   onRedirect,
+  accountId,
 }: {
   message: MessageView;
   focused: boolean;
@@ -106,7 +112,9 @@ function Message({
   tr: Translate;
   onResolve?: (messageId: string, note: string) => Promise<void>;
   onRedirect?: (messageId: string, reason: string) => Promise<void>;
+  accountId?: string;
 }): React.JSX.Element {
+  const voiceSrc = usePlayableUrl(accountId, m.voiceNoteId ? voiceUrl(m.threadId, m.voiceNoteId) : "");
   const report = m.kind === "report";
   const resolved = report && m.resolvedAt !== null;
   const open = report && !resolved;
@@ -165,7 +173,7 @@ function Message({
         )}
         {m.voiceNoteId && (
           <VoiceNote
-            src={voiceUrl(m.threadId, m.voiceNoteId)}
+            src={voiceSrc}
             durationMs={m.voiceDurationMs}
             {...(m.voicePeaks?.length ? { peaks: m.voicePeaks.map((p) => p / 100) } : {})}
             seed={m.voiceNoteId}
@@ -175,7 +183,7 @@ function Message({
           />
         )}
         {m.body && <p className="whitespace-pre-wrap break-words">{m.body}</p>}
-        {m.body && !m.voiceNoteId && !m.mine && <ListenButton text={m.body} threadId={m.threadId} messageId={m.messageId} tr={tr} className="-ml-2 -mb-1" />}
+        {m.body && !m.voiceNoteId && !m.mine && <ListenButton text={m.body} threadId={m.threadId} messageId={m.messageId} {...(accountId ? { accountId } : {})} tr={tr} className="-ml-2 -mb-1" />}
         {resolved && (
           <p data-testid="resolution" className="flex flex-col gap-0.5 border-t border-go-divider pt-2 text-xs text-go-secondary">
             <span className="flex items-center gap-1.5 font-semibold text-go-teal">

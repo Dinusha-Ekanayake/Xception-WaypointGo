@@ -12,3 +12,11 @@ test("play the messages not heard yet, oldest first, never my own", () => {
   assert.deepEqual(unheard(list, null).map((x) => x.messageId), ["a", "c", "voice"]);
   assert.deepEqual(unheard(list, "2027-03-01T02:01:00Z").map((x) => x.messageId), ["c", "voice"], "heard up to a, so a is not played again");
 });
+
+test("a message's audio is its voice note, else the server's spoken copy of its words", async () => {
+  const { audioUrlOf } = await import("../src/shared/messaging/audioCache.ts");
+  const base = { threadId: "t 1", messageId: "m1", voiceNoteId: null, body: "On the way" };
+  assert.equal(audioUrlOf(base), "/api/threads/t%201/messages/m1/speech");
+  assert.equal(audioUrlOf({ ...base, voiceNoteId: "v1" }), "/api/threads/t%201/voice/v1");
+  assert.equal(audioUrlOf({ ...base, body: "  " }), null);
+});
