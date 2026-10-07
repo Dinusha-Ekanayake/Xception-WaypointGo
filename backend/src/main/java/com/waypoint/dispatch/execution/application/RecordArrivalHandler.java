@@ -62,7 +62,8 @@ public class RecordArrivalHandler extends DeliveryCommandHandler {
         actor,
         new DeliveryArrived(
             arrived.deliveryId(), arrived.orderId(), arrived.tripId(), arrived.outletId(), arrived.vehicleId(),
-            arrived.arrivedAt().orElse(now)));
+            arrived.arrivedAt().orElse(now)),
+        arrived.depotCode());
 
     if (!arrived.timingUncertain()) {
       announceDelay(actor, arrived, now);

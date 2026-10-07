@@ -94,7 +94,8 @@ public class RecordDeliveryHandler extends DeliveryCommandHandler {
           actor,
           new DeliveryCompleted(
               deliveryId, after.orderId(), after.tripId(), after.outletId(), outcome, after.deliveredUnits(),
-              now, after.lateMinutes().filter(m -> m > 0)));
+              now, after.lateMinutes().filter(m -> m > 0)),
+          after.depotCode());
     }
     // Roadmap T1-03: the vehicle left this stop; the stops after it from its actual departure.
     if (!after.timingUncertain()) {

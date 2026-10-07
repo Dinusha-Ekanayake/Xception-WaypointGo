@@ -4,6 +4,24 @@
 
 ---
 
+## 2026-10-08 - fix: what the live check of one delivery day found
+
+`dev` · @Oxshadha
+
+- A full day driven through the real APIs (plan, publish, load, release, positions, arrival, delivery, receipt, messages) synced every role within about a second. It found these, now fixed:
+  - the first stop's store never heard the vehicle was late before it arrived; now it is expected now once its planned time passes (R-EXE-29, EXE-43);
+  - a store was told "104 minutes late" for an arrival inside its window; the delay now counts from the window opening when the plan was earlier;
+  - the dispatcher's live stream sent nothing for up to 25 s after opening; it now answers at once;
+  - a browser closing a live stream was logged as an ERROR; now debug and a counter;
+  - delivery, arrival-estimate and loading-started changes named no depot, so every depot's board re-read; the handler now names it (`EventPublisher.publish(actor, event, depot)`);
+  - a finished plan draft now signals its depot's board.
+- By design, not changed: the loader operator's "since" uses the security clock; an arrival replayed without its device time waits for the 2-minute refresh.
+
+Why: a dispatcher at scale and the store at the first stop rely on these live updates.
+Verified: the full backend suite, the Node tests and every browser suite, run before the push; execution 38, loading 22, planning queue 7, outbox 5 on a fresh test database.
+
+---
+
 ## 2026-10-08 - feat: predicted minutes in arrival times (T1-04); a fallback that learns; the model hand-off guide
 
 `dev` · @Oxshadha

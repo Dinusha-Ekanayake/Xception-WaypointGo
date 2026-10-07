@@ -157,6 +157,23 @@ public class ApiExceptionHandler {
    * example 405 or 415, so keep it, with a generic detail rather than Spring's
    * message. A genuine 500 is logged once, with its stack.
    */
+  /**
+   * A browser that closes a live stream (a tab closed, a phone asleep) breaks the
+   * connection under a send. That is how such streams end, not a server error:
+   * counted and logged at debug, with no response, since none can be written.
+   * Any other I/O failure is still an error.
+   */
+  @ExceptionHandler({java.io.IOException.class, org.springframework.web.context.request.async.AsyncRequestNotUsableException.class})
+  public ResponseEntity<Map<String, Object>> onClientGone(Exception e, HttpServletRequest req) {
+    boolean stream = req.getRequestURI() != null && req.getRequestURI().endsWith("/stream");
+    if (stream || e instanceof org.springframework.web.context.request.async.AsyncRequestNotUsableException) {
+      log.debug("Client left {} {}: {}", req.getMethod(), templateOf(req), e.getMessage());
+      metrics.increment("waypoint.http.client_gone");
+      return null;
+    }
+    return onUnexpected(e, req);
+  }
+
   @ExceptionHandler(Exception.class)
   public ResponseEntity<Map<String, Object>> onUnexpected(Exception e, HttpServletRequest req) {
     if (e instanceof ErrorResponse spring) {

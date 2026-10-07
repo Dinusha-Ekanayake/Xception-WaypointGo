@@ -45,8 +45,25 @@ class EtaPropagationTest {
   private final StopTimes c = planned(C, 80, 0, 10);
 
   @Test
-  void beforeTheFirstStopThePlanStands() {
-    assertTrue(EtaPolicy.propagate(List.of(a, b, c), at(30)).isEmpty());
+  void beforeTheFirstStopsPlannedTimeThePlanStands() {
+    // A is planned at 0: at 0 nothing is late yet.
+    assertTrue(EtaPolicy.propagate(List.of(a, b, c), at(0)).isEmpty());
+  }
+
+  @Test
+  void aFirstStopPastItsTimeWithNoArrivalIsExpectedNowAndTheRestFollow() {
+    // At 30 the vehicle has not reached A (planned 0): A now, B at 30 + 20 + 20, C at 70 + 15 + 25.
+    Map<UUID, Instant> eta = EtaPolicy.propagate(List.of(a, b, c), at(30));
+    assertEquals(at(30), eta.get(A));
+    assertEquals(at(70), eta.get(B));
+    assertEquals(at(110), eta.get(C));
+  }
+
+  @Test
+  void theDelayAStoreIsToldCountsFromItsWindowWhenThePlanWasEarlier() {
+    // Planned 04:23 (minute 0 + 0), window opens at minute 37; expected at minute 104: 67 late, not 104.
+    assertEquals(67, EtaPolicy.delayMinutes(at(104), at(0), at(37)));
+    assertEquals(104, EtaPolicy.delayMinutes(at(104), at(0), at(0)));
   }
 
   @Test

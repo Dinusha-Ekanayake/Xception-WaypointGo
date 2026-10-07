@@ -26,6 +26,14 @@ public final class EtaPolicy {
 
   private EtaPolicy() {}
 
+  /**
+   * The delay a store feels: against the later of the planned arrival and the
+   * window opening, since a vehicle planned before the window waits for it anyway.
+   */
+  public static int delayMinutes(Instant expected, Instant plannedArrival, Instant windowOpen) {
+    return delayMinutes(expected, plannedArrival.isAfter(windowOpen) ? plannedArrival : windowOpen);
+  }
+
   public static int delayMinutes(Instant arrivedAt, Instant plannedArrival) {
     if (!arrivedAt.isAfter(plannedArrival)) {
       return 0;
@@ -94,6 +102,17 @@ public final class EtaPolicy {
         continue;
       }
       if (prev == null) {
+        // Not at any stop yet. Once the first stop's planned time has passed with no
+        // arrival, it is expected now at the earliest (the vehicle left late or is held
+        // up on the way), and the stops after it follow from there. Before that the
+        // plan stands.
+        if (!now.isAfter(s.plannedArrival())) {
+          return out;
+        }
+        out.put(s.deliveryId(), now);
+        prev = s;
+        prevLeave = latest(now, s.windowOpen()).plus(stay(s));
+        firstAhead = false;
         continue;
       }
       Instant reach = prevLeave.plus(drive(prev, s));

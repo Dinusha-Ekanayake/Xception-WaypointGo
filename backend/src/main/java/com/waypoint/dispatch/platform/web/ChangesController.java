@@ -82,6 +82,13 @@ public class ChangesController {
     emitter.onCompletion(stop);
     emitter.onTimeout(stop);
     emitter.onError(e -> stop.run());
+    // Answer at once: without a first event the headers wait for the 25 s ping,
+    // and the board polls as if the stream were down until then.
+    try {
+      emitter.send(SseEmitter.event().name("ping").data(""));
+    } catch (java.io.IOException gone) {
+      stop.run();
+    }
     return emitter;
   }
 }

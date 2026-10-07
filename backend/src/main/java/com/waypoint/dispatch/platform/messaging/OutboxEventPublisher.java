@@ -52,6 +52,11 @@ public class OutboxEventPublisher implements EventPublisher {
 
   @Override
   public void publish(Actor actor, DomainEvent event) {
+    publish(actor, event, null);
+  }
+
+  @Override
+  public void publish(Actor actor, DomainEvent event, String depotHint) {
     if (!TransactionSynchronizationManager.isActualTransactionActive()) {
       throw new IllegalStateException(
           "Event " + event.type() + " published outside a transaction; it could announce a change"
@@ -81,7 +86,8 @@ public class OutboxEventPublisher implements EventPublisher {
     // Only once the event is really there: a relay woken before the commit finds nothing.
     database.afterCommit(relay::signal);
     // F-07b: open screens of the event's depot re-read what it changed, once it committed.
-    String depot = depotOf(event);
+    String named = depotOf(event);
+    String depot = named != null ? named : depotHint;
     database.afterCommit(() -> changes.committed(event.type(), depot));
     metrics.increment("waypoint.event.published", "type", event.type());
   }

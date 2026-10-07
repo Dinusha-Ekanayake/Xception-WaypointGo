@@ -84,6 +84,7 @@ class ExecutionIntegrationTest {
   static final byte[] PNG = png(40);
 
   @Autowired com.waypoint.dispatch.execution.application.EtaRefreshJob etaJob;
+  @Autowired com.waypoint.dispatch.platform.messaging.ChangeSignals changeSignals;
   @Autowired com.waypoint.dispatch.intelligence.application.OutcomeJob outcomeJob;
   @Autowired MockMvc http;
   @Autowired ObjectMapper mapper;
@@ -629,6 +630,52 @@ class ExecutionIntegrationTest {
     at("06:19");
     send(driver, "delivery:RecordArrival", 1L, stop(stopB), 200);
     assertEquals(1, outbox("eta.changed", mallStop));
+  }
+
+  @Test
+  void aDriversStepReachesTheLiveScreensOfItsDepotOnly() throws Exception {
+    // F-07b: a delivery event names no depot itself; the handler names it, so only this depot re-reads.
+    java.util.List<String> mine = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+    java.util.List<String> others = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+    Runnable stopMine = changeSignals.listen(java.util.Set.of(depot), listener(mine));
+    Runnable stopOthers = changeSignals.listen(java.util.Set.of("NOT-" + depot), listener(others));
+    try {
+      at("05:20");
+      send(driver, "delivery:RecordArrival", 1L, stop(stopA), 200);
+      long until = System.currentTimeMillis() + 3000;
+      while (!mine.contains("delivery|" + depot) && System.currentTimeMillis() < until) {
+        Thread.sleep(50);
+      }
+      assertTrue(mine.contains("delivery|" + depot), "heard: " + mine);
+      assertFalse(others.stream().anyMatch(c -> c.startsWith("delivery|")), "another depot re-read: " + others);
+    } finally {
+      stopMine.run();
+      stopOthers.run();
+    }
+  }
+
+  private static com.waypoint.dispatch.platform.messaging.ChangeSignals.Listener listener(java.util.List<String> heard) {
+    return new com.waypoint.dispatch.platform.messaging.ChangeSignals.Listener() {
+      @Override
+      public void changed(String topic, String depot) {
+        heard.add(topic + "|" + depot);
+      }
+
+      @Override
+      public void heartbeat() {}
+    };
+  }
+
+  @Test
+  void theFirstStopsStoreHearsTheVehicleIsLateBeforeItArrives() throws Exception {
+    // R-EXE-29: stop A planned 05:20; at 05:50 nothing recorded on the trip.
+    at("05:50");
+    etaJob.runAt(clock.now());
+    assertEquals(instant("05:50"), payload("eta.changed", stopA).get("expectedArrival").asText());
+    assertEquals(1, outbox("eta.changed", stopB), "the stops after it follow");
+    at("05:52");
+    etaJob.runAt(clock.now());
+    assertEquals(1, outbox("eta.changed", stopA), "told again only on a ten-minute move");
   }
 
   @Test

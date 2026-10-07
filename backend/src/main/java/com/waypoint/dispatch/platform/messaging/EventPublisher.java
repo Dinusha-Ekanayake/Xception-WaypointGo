@@ -22,4 +22,13 @@ public interface EventPublisher {
    *     the scheduler
    */
   void publish(Actor actor, DomainEvent event);
+
+  /**
+   * As {@link #publish(Actor, DomainEvent)}, naming the depot the change is at
+   * when the event's own payload does not (F-07b): the live screens of that depot
+   * re-read, and no other depot's do.
+   */
+  default void publish(Actor actor, DomainEvent event, String depotCode) {
+    publish(actor, event);
+  }
 }

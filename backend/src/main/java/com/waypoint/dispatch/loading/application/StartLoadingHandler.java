@@ -81,7 +81,8 @@ public class StartLoadingHandler implements CommandHandler {
     long version = trips.updateSession(next, expected, now, Optional.empty());
     if (first) {
       events.publish(
-          actor, new LoadingStarted(tripId, loaded.trip().planId(), loaded.trip().vehicleId()));
+          actor, new LoadingStarted(tripId, loaded.trip().planId(), loaded.trip().vehicleId()),
+          loaded.trip().depotCode());
     }
     metrics.increment(
         "waypoint.loading.taken", "first", String.valueOf(first), "lapsed", String.valueOf(lapsed));

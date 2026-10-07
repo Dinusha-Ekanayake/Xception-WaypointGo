@@ -50,7 +50,9 @@ public class EtaPropagation {
       deliveries.expect(r.deliveryId(), eta);
       events.publish(
           actor,
-          new EtaChanged(r.deliveryId(), r.orderId(), r.outletId(), eta, EtaPolicy.delayMinutes(eta, r.plannedArrivalAt())));
+          new EtaChanged(r.deliveryId(), r.orderId(), r.outletId(), eta,
+              EtaPolicy.delayMinutes(eta, r.plannedArrivalAt(), windowOpen(r))),
+          r.depotCode());
       told++;
     }
     if (told > 0) {
@@ -59,12 +61,16 @@ public class EtaPropagation {
     return told;
   }
 
+  private static Instant windowOpen(DeliveryRecord r) {
+    return r.serviceDate().atTime(r.window().open()).atZone(Clock.OPERATING_ZONE).toInstant();
+  }
+
   static StopTimes times(TripStop stop) {
     DeliveryRecord r = stop.record();
     return new StopTimes(
         r.deliveryId(),
         r.plannedArrivalAt(),
-        r.serviceDate().atTime(r.window().open()).atZone(Clock.OPERATING_ZONE).toInstant(),
+        windowOpen(r),
         stop.plannedServiceMinutes(),
         r.arrivedAt(),
         r.isFinished() ? r.completedAt() : java.util.Optional.empty(),

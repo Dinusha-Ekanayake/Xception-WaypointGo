@@ -65,6 +65,8 @@ public class PlanGenerationWorker implements SmartLifecycle {
   private final List<Thread> workers = new ArrayList<>();
   private volatile boolean running;
 
+  private final com.waypoint.dispatch.platform.messaging.ChangeSignals changes;
+
   public PlanGenerationWorker(
       GeneratePlanHandler generator,
       JdbcGenerationJobs jobs,
@@ -75,7 +77,9 @@ public class PlanGenerationWorker implements SmartLifecycle {
       ObjectMapper json,
       ApplicationArguments arguments,
       @Value("${app.planning.worker.enabled:true}") boolean enabled,
-      @Value("${PLANNING_WORKERS:2}") int threads) {
+      @Value("${PLANNING_WORKERS:2}") int threads,
+      com.waypoint.dispatch.platform.messaging.ChangeSignals changes) {
+    this.changes = changes;
     this.generator = generator;
     this.jobs = jobs;
     this.database = database;
@@ -127,6 +131,8 @@ public class PlanGenerationWorker implements SmartLifecycle {
       metrics.record("waypoint.planning.job.duration", ms(writeStart), "stage", "write");
       if (run.isPresent()) {
         metrics.increment("waypoint.planning.job.done");
+        // F-07b: the board of that depot re-reads at once; a draft is not an event of its own.
+        changes.committed("plan.generated", job.depotCode());
         return;
       }
       settle(job, "the orders for the day changed while the plan was being made");
@@ -138,6 +144,7 @@ public class PlanGenerationWorker implements SmartLifecycle {
       // A refusal from the rules does not change on a retry: say why and stop.
       database.asSystem(ModuleRole.PLANNING, () -> jobs.failed(job.jobId(), job.attempts(), e.getMessage(), clock.now()));
       metrics.increment("waypoint.planning.job.failed", "code", e.code().name());
+      changes.committed("plan.generation_failed", job.depotCode());
     } catch (RuntimeException e) {
       log.warn("Plan generation {} for {} on {} failed", job.jobId(), job.depotCode(), job.serviceDate(), e);
       settle(job, "planning failed: " + e.getClass().getSimpleName());

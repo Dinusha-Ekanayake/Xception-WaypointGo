@@ -205,18 +205,23 @@ public class JdbcDeliveryRepository {
         .toList();
   }
 
-  /** Trips of the day the vehicle is out on: a stop reached, a stop still to come. */
-  public List<UUID> tripsUnderWay(LocalDate serviceDate) {
+  /**
+   * Released trips of the day with a stop still to come that is either after a
+   * stop reached, or already past its planned time (the first stop's store must
+   * hear of a vehicle that never arrived).
+   */
+  public List<UUID> tripsUnderWay(LocalDate serviceDate, java.time.LocalTime now) {
     return database
         .query(
             """
             SELECT trip_id FROM execution.delivery_records
              WHERE service_date = ?
              GROUP BY trip_id
-            HAVING bool_or(arrived_at IS NOT NULL OR completed_at IS NOT NULL)
-               AND bool_or(outcome = 'pending')
+            HAVING bool_or(outcome = 'pending')
+               AND (bool_or(arrived_at IS NOT NULL OR completed_at IS NOT NULL)
+                    OR min(planned_arrival) FILTER (WHERE outcome = 'pending') < ?)
             """,
-            Date.valueOf(serviceDate))
+            Date.valueOf(serviceDate), java.sql.Time.valueOf(now))
         .stream()
         .map(r -> (UUID) r.get("trip_id"))
         .toList();

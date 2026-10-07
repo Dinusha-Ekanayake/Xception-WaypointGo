@@ -52,7 +52,9 @@ public class EtaRefreshJob implements ScheduledJob {
   public int runAt(Instant now) {
     List<UUID> trips =
         database.asSystem(
-            ModuleRole.EXECUTION, () -> deliveries.tripsUnderWay(now.atZone(Clock.OPERATING_ZONE).toLocalDate()));
+            ModuleRole.EXECUTION,
+            () -> deliveries.tripsUnderWay(
+                now.atZone(Clock.OPERATING_ZONE).toLocalDate(), now.atZone(Clock.OPERATING_ZONE).toLocalTime()));
     int told = 0;
     for (UUID trip : trips) {
       told += database.asSystem(ModuleRole.EXECUTION, () -> propagation.refresh(Actor.SYSTEM, trip, now));
