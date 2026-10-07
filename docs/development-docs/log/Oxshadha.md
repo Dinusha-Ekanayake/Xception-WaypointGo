@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-10-07 - feat: Jev in shadow guesses issue types (AI-J1)
+
+`dev` · @Oxshadha
+
+- `DecisionPort` with a Jev adapter on OpenRouter's Decisions API, pinned to `typesafe/jev-1.13`, off unless `JEV_ENABLED=true` (R-ML-11, ML-20).
+- Each new issue a person raised in their own words is queued once; a job asks Jev outside any transaction which type the masked words describe, options shuffled per issue, and the guess is kept beside the real type in `ml.jev_shadow`. Nobody sees it; it measures Jev before it may advise.
+
+Why: the plan's gate for Jev needs its record on our own data, not the vendor's claims.
+Verified: backend 1,130 on a fresh test database, none skipped; Node 365; build; browser shell 20, driver 40, loader 32, store 62, dispatcher 82.
+
+---
+
 ## 2026-10-07 - feat: the language model gateway; plan explanations go through it (AI-0)
 
 `dev` · @Oxshadha

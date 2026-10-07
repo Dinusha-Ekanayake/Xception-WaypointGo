@@ -85,6 +85,8 @@ class IntelligenceIntegrationTest {
     // The language model gateway on, answering from the stand-in below: no call leaves the test.
     registry.add("app.ai.enabled", () -> "true");
     registry.add("app.ai.groq-key", () -> "test-only");
+    registry.add("app.ai.jev-enabled", () -> "true");
+    registry.add("app.ai.openrouter-key", () -> "test-only");
   }
 
   /** A stand-in language model: records the facts it was sent and answers what the test sets. */
@@ -93,6 +95,18 @@ class IntelligenceIntegrationTest {
     static final java.util.concurrent.atomic.AtomicReference<String> ANSWER = new java.util.concurrent.atomic.AtomicReference<>();
     static final java.util.concurrent.atomic.AtomicReference<String> SENT = new java.util.concurrent.atomic.AtomicReference<>();
     static final java.util.concurrent.atomic.AtomicInteger CALLS = new java.util.concurrent.atomic.AtomicInteger();
+    static final java.util.concurrent.atomic.AtomicReference<String> JEV_ANSWER = new java.util.concurrent.atomic.AtomicReference<>();
+    static final java.util.concurrent.atomic.AtomicReference<String> JEV_STATE = new java.util.concurrent.atomic.AtomicReference<>();
+
+    @org.springframework.context.annotation.Bean
+    @org.springframework.context.annotation.Primary
+    DecisionPort stubJev() {
+      return (state, instructions, options) -> {
+        JEV_STATE.set(state);
+        return Optional.ofNullable(JEV_ANSWER.get())
+            .map(choice -> new DecisionPort.Choice(choice, 0.9, Map.of(choice, 0.9), "typesafe/jev-1.13-stub"));
+      };
+    }
 
     @org.springframework.context.annotation.Bean
     @org.springframework.context.annotation.Primary
@@ -135,6 +149,7 @@ class IntelligenceIntegrationTest {
   @Autowired OutlookWatchJob watch;
   @Autowired com.waypoint.dispatch.intelligence.infrastructure.JdbcAttentionRepository attentionItems;
   @Autowired AttentionWatchJob attentionWatch;
+  @Autowired JevShadow.Job jevJob;
   @Autowired com.waypoint.dispatch.planning.contract.PlanQuery planQuery;
 
   private String run;
@@ -704,6 +719,34 @@ class IntelligenceIntegrationTest {
   private Map<String, Object> aiCall(String key) {
     return database.asSystem(ModuleRole.ML, () -> database.queryOne(
         "SELECT outcome FROM ml.ai_calls WHERE cache_key = ? ORDER BY asked_at DESC LIMIT 1", key));
+  }
+
+  // ---- Jev in shadow (roadmap AI-J1, R-ML-11) ----------------------------------------
+
+  @Test
+  void jevGuessesAPersonsIssueFromItsMaskedWordsAndTheGuessIsKeptBesideTheRealType() throws Exception {
+    UUID order = demandOf("0.6000");
+    JsonNode raised = mapper.readTree(send(dispatcher, envelope("issue:Raise", null,
+        "{\"type\":\"ROAD_DISRUPTION\",\"severity\":\"MEDIUM\",\"depotCode\":\"" + depot + "\",\"outletId\":\""
+            + outlet.outletId() + "\",\"subjects\":[{\"type\":\"order\",\"id\":\"" + order + "\"}],\"description\":\"Road flooded near the bridge, call me on 0771234567\"}"),
+        200));
+    UUID issueId = UUID.fromString(raised.at("/result/issueId").asText());
+    com.waypoint.dispatch.issues.contract.IssueEvents.IssueRaised event = new com.waypoint.dispatch.issues.contract.IssueEvents.IssueRaised(
+        issueId, com.waypoint.dispatch.issues.contract.IssueViews.IssueType.ROAD_DISRUPTION,
+        com.waypoint.dispatch.issues.contract.IssueViews.IssueSeverity.MEDIUM, depot, Optional.of(outlet.outletId()), List.of());
+    UUID eventId = UUID.randomUUID();
+    deliver("ml.on-issue-raised-jev", eventId, event);
+    deliver("ml.on-issue-raised-jev", eventId, event);
+
+    StubLanguage.JEV_ANSWER.set("road_disruption");
+    jevJob.runAt(Instant.now());
+    Map<String, Object> row = database.asSystem(ModuleRole.ML, () -> database.queryOne(
+        "SELECT status, jev_choice, agrees, masked_text FROM ml.jev_shadow WHERE issue_id = ?", issueId));
+    assertEquals("answered", row.get("status"));
+    assertEquals("road_disruption", row.get("jev_choice"));
+    assertEquals(Boolean.TRUE, row.get("agrees"));
+    assertTrue(((String) row.get("masked_text")).contains("[phone]"), "the phone number never left: " + row);
+    assertFalse(StubLanguage.JEV_STATE.get().contains("0771234567"));
   }
 
   // ---- the attention watch (issue #268) ---------------------------------------------

@@ -21,7 +21,7 @@ class PromptFactsTest {
         "cannotBeServed", 2,
         "driverName", "Dilan Rajapaksa",
         "raw", Map.of("anything", "else")));
-    assertEquals(List.of("headline", "leftOff", "cannotBeServed"), List.copyOf(sent.keySet()));
+    assertEquals(java.util.Set.of("headline", "leftOff", "cannotBeServed"), sent.keySet());
     assertEquals(List.of(Map.of("label", "No room", "count", 3, "example", "OUT063")), sent.get("leftOff"));
     assertTrue(PromptFacts.allowed(Kind.ORDER, Map.of("headline", "x")).containsKey("headline"));
     assertFalse(PromptFacts.allowed(Kind.ORDER, Map.of("carries", "x")).containsKey("carries"), "a plan's field is not an order's");

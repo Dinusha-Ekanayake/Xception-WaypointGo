@@ -105,6 +105,8 @@ Recorded as ADR-005.
 
 ### AI-J1 Issue triage
 
+**Shadow built 2026-10-07** (R-ML-11, ML-20): `DecisionPort` with the Jev adapter on OpenRouter's Decisions API, pinned; each person's new issue is guessed from its masked words by a job and kept beside the real type in `ml.jev_shadow`, with option orders shuffled per issue. Nothing is shown or changed. Not yet: the labelled set, the TF-IDF baseline to beat, and a screen for the agreement rate.
+
 **Where the type comes from.** The kind card in the report sheet (FF-01). Jev classifies only voice transcripts or free text with no kind chosen. Choice over the issue types.
 
 **Severity.** "Needs the dispatcher now" comes from code rules: vehicle fault, emergency, Tech goods, chilled goods. No model can lower an emergency.
