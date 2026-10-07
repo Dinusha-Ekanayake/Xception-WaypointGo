@@ -12,6 +12,7 @@ import DeliveryPinConfirmModal from "./screens/DeliveryPinConfirmModal.tsx";
 import DeliveryReport from "./screens/DeliveryReport.tsx";
 import StopHandover from "./screens/StopHandover.tsx";
 import DrivingModeScreen from "./screens/DrivingModeScreen.tsx";
+import { metres } from "@shared/ui/map/geo";
 import { chime, unlockSoundOnFirstTap } from "./data/chime.ts";
 import { mayChime, OFF, onMotion, openByHand, slideOut, type DrivingState } from "./data/drivingMode.ts";
 import HomeNoVehicle from "./screens/HomeNoVehicle.tsx";
@@ -124,6 +125,16 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [stops]);
+
+  // The straight-line distance to the next stop, for the driving screen; null with no location or no exact store point.
+  const distanceToNext = (): string | null => {
+    const next = nextStop(stops);
+    const here = d.location.here;
+    const point = next ? run.outlets[next.outletId]?.location : null;
+    if (!here || !point) return null;
+    const km = metres(here, { lat: Number(point.latitude), lon: Number(point.longitude) }) / 1000;
+    return `${km.toFixed(2)} km`;
+  };
 
   const arrivedAt = (target: RouteStop) => {
     const stop = byId(target.id);
@@ -474,8 +485,8 @@ export default function Driver({ userId, displayName, scope }: { userId: string;
               isNight={d.dark}
               stops={routeStops}
               stopIndex={activeIndex(stops)}
-              onToggleTheme={d.theme}
               unread={inbox.unread}
+              distance={distanceToNext()}
             />
           </div>
         )}

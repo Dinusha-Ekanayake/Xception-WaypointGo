@@ -4,6 +4,31 @@
 
 ---
 
+## 2026-10-07 - feat: messages spoken on our own server; the driving screen as designed
+
+`dev` · @Oxshadha
+
+- A speech service (`speech/`, Piper, GPL-3.0 as its own process) speaks every typed message in English, Sinhala or Tamil; the backend queues it, a job speaks it once per text and language outside any transaction, and the audio follows the message's read rule (R-MSG-10, MSG-20). Off unless `SPEECH_URL` is set; compose profile `speech`. Listen and Play messages play it first, else the phone's voice.
+- The driving screen matches the Figma: the place and the brand from the outlet, "Next", the time in the app font, the distance from the phone to the store; no theme button. Values come from the run sheet, Reference and the live position.
+
+Why: iPhones have no Sinhala voice; a server voice works on every phone and offline once fetched.
+Verified: backend 1,133 on a fresh test database, none skipped; Node 368; build; browser shell 20, driver 41, loader 32, store 62, dispatcher 82; compose memory limits with and without the speech profile.
+
+---
+
+## 2026-10-07 - feat: every message can be listened to; the driver plays new ones when stopped
+
+`dev` · @Oxshadha
+
+- A typed message has a Listen button that reads it with the phone's voice in its own language (from the script); with no voice for it the screen says so, never an English voice for Sinhala. The driver's old read-aloud always used US English; fixed (R-MSG-09, MSG-19).
+- "Play new messages" on the driver's Messages screen, only when not covered for driving: the unheard ones in order, voice notes as recordings, typed ones read aloud.
+- Server-made audio for every language (Piper, then a cloud voice after the agreement) is the next step.
+
+Why: field staff listen more easily than they read, and a driver should catch up on what came while driving in one tap.
+Verified: backend 1,133 on a fresh test database, none skipped; Node 368; build; browser shell 20, driver 41, loader 32, store 62, dispatcher 82; compose memory limits with and without the speech profile.
+
+---
+
 ## 2026-10-07 - feat: Jev in shadow guesses issue types (AI-J1)
 
 `dev` · @Oxshadha
@@ -25,7 +50,7 @@ Verified: backend 1,130 on a fresh test database, none skipped; Node 365; build;
 - Preview deploys only when the workflow is run by hand; a push to `dev` runs the checks (J.V. Ransika approves deploys).
 
 Why: the roadmap's AI-0 before any AI use; the old route could send anything a signed-in user posted.
-Verified: see the commit's checks.
+Verified: backend 1,133 on a fresh test database, none skipped; Node 368; build; browser shell 20, driver 41, loader 32, store 62, dispatcher 82; compose memory limits with and without the speech profile.
 
 ---
 

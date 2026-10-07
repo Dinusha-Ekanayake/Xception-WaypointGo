@@ -13,6 +13,8 @@ export type DrivingModeScreenProps = {
   onToggleTheme?: () => void;
   /** Unread notifications for the bell's badge (issue #118). */
   unread?: number | null;
+  /** Straight-line distance from the phone to the next stop, "3.2 km"; null with no location. */
+  distance?: string | null;
 };
 
 export default function DrivingModeScreen({
@@ -22,6 +24,7 @@ export default function DrivingModeScreen({
   stops,
   onToggleTheme,
   unread,
+  distance = null,
 }: DrivingModeScreenProps): React.JSX.Element {
   const badge = unread ?? 0;
   const safeIndex = Math.min(Math.max(0, stopIndex), Math.max(0, stops.length - 1));
@@ -184,7 +187,7 @@ export default function DrivingModeScreen({
         {/* Component 1: Next Stop Card (Figma: height: 105px, radius: 25px) */}
         <div
           className={cx(
-            "w-full h-[105px] rounded-[25px] px-[25px] py-[20px] flex items-center justify-between shrink-0 transition-colors",
+            "w-full h-[105px] rounded-[25px] px-[25px] py-[20px] flex items-end justify-between shrink-0 transition-colors",
             isNight
               ? "bg-black border border-[#525252]"
               : "bg-white shadow-[0px_5px_20px_7px_rgba(0,0,0,0.09)]"
@@ -217,7 +220,7 @@ export default function DrivingModeScreen({
               isNight ? "text-white" : "text-black"
             )}
           >
-            Fresh
+            {activeStop.brand ?? ""}
           </span>
         </div>
 
@@ -230,7 +233,7 @@ export default function DrivingModeScreen({
               isNight ? "text-white" : "text-black"
             )}
           >
-            {activeStop.name}
+            {activeStop.place ?? activeStop.name}
           </h1>
 
           {/* Component 2: Giant ETA Digits + Distance/Status */}
@@ -238,7 +241,7 @@ export default function DrivingModeScreen({
           <div className="flex flex-col items-center mt-6">
             <span
               className={cx(
-                "text-[76px] font-medium leading-[95px] tracking-tight text-center font-mono sm:font-go",
+                "text-[76px] font-medium leading-[95px] tracking-tight text-center font-go tabular-nums",
                 isNight ? "text-white" : "text-black"
               )}
             >
@@ -250,7 +253,7 @@ export default function DrivingModeScreen({
                 isNight ? "text-white" : "text-black"
               )}
             >
-              {activeStop.etaDistanceTime} · {activeStop.windowStatus}
+              {distance ?? activeStop.etaDistanceTime} · {activeStop.windowStatus}
             </span>
           </div>
         </div>

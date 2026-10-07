@@ -16,6 +16,26 @@ class MessagingTestConfig {
     return new MovableClock();
   }
 
+  /** A stand-in speech service: on, and counts what it was asked to speak. */
+  static final java.util.concurrent.atomic.AtomicInteger SPOKEN = new java.util.concurrent.atomic.AtomicInteger();
+
+  @Bean
+  @Primary
+  com.waypoint.dispatch.messaging.application.SpeechSynthesis stubSpeech() {
+    return new com.waypoint.dispatch.messaging.application.SpeechSynthesis() {
+      @Override
+      public boolean enabled() {
+        return true;
+      }
+
+      @Override
+      public java.util.Optional<byte[]> speak(String text, String lang) {
+        SPOKEN.incrementAndGet();
+        return java.util.Optional.of(("AUDIO:" + lang + ":" + text).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+      }
+    };
+  }
+
   static final class MovableClock implements Clock {
     private volatile Instant now;
 

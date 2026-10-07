@@ -112,7 +112,7 @@ export default function Messages({
           <p className="py-8 text-center text-sm text-go-secondary">This trip has no messages yet.</p>
         ) : (
           <div inert={blocked} aria-hidden={blocked || undefined} className="flex min-h-0 flex-1 flex-col">
-            <TripThread threadId={threadId} online={online} variant="phone" sender={sender} keepsOffline accountId={accountId} />
+            <TripThread threadId={threadId} online={online} variant="phone" sender={sender} keepsOffline accountId={accountId} playAll={!blocked} />
           </div>
         )}
       </div>

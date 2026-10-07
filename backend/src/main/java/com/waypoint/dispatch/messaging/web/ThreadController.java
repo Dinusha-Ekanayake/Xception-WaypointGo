@@ -46,7 +46,12 @@ public class ThreadController {
   private final VoiceNotes voice;
   private final RequestAuthorizer authorizer;
 
-  public ThreadController(MessagingQuery query, VoiceNotes voice, RequestAuthorizer authorizer) {
+  private final com.waypoint.dispatch.messaging.application.MessageSpeech.Reader speech;
+
+  public ThreadController(
+      MessagingQuery query, VoiceNotes voice, RequestAuthorizer authorizer,
+      com.waypoint.dispatch.messaging.application.MessageSpeech.Reader speech) {
+    this.speech = speech;
     this.query = query;
     this.voice = voice;
     this.authorizer = authorizer;
@@ -123,6 +128,26 @@ public class ThreadController {
       @PathVariable UUID threadId, @PathVariable UUID voiceNoteId, HttpServletRequest request) {
     var actor = authorizer.require(request, READ, "wpt:message:thread:" + threadId);
     VoiceNotes.Audio audio = voice.audio(actor, threadId, voiceNoteId);
+    return ResponseEntity.ok()
+        .contentType(MediaType.parseMediaType(audio.contentType()))
+        .cacheControl(CacheControl.noStore())
+        .header("X-Content-Type-Options", "nosniff")
+        .header("Accept-Ranges", "bytes")
+        .body(new ByteArrayResource(audio.content()));
+  }
+
+  /**
+   * A typed message spoken on our own server (R-MSG-10), with byte ranges like a
+   * voice note. 404 while it is not ready or the service is off: the phone then
+   * reads it with its own voice and says so.
+   */
+  @GetMapping("/{threadId}/messages/{messageId}/speech")
+  public ResponseEntity<Resource> speech(
+      @PathVariable UUID threadId, @PathVariable UUID messageId, HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:message:thread:" + threadId);
+    // A thread outside the reader's scope is refused and audited, never "not found" (security rules).
+    query.thread(actor, threadId);
+    VoiceNotes.Audio audio = speech.audio(actor, threadId, messageId);
     return ResponseEntity.ok()
         .contentType(MediaType.parseMediaType(audio.contentType()))
         .cacheControl(CacheControl.noStore())

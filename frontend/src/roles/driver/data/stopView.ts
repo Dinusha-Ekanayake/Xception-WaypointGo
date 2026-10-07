@@ -14,6 +14,10 @@ export type RouteStop = {
   totalStops: number;
   name: string;
   address: string;
+  /** The outlet's place (its district, from Reference); null when the outlet is not known yet. */
+  place: string | null;
+  /** The brand the trip carries (Fresh, Style or Tech), from Reference; null when not known yet. */
+  brand: string | null;
   dockTag: string;
   /** Expected arrival in depot time: planned, moved by any delay already seen. */
   eta: string;
@@ -64,6 +68,8 @@ export function toRouteStops(
       totalStops: stops.length,
       name: stop.outletId,
       address: outlet ? `${outlet.districtName} · ${outlet.brandCode}` : "",
+      place: outlet?.districtName ?? null,
+      brand: outlet?.brandCode ?? null,
       dockTag: outlet ? codeLabel(DOCK_TYPE, outlet.dockType) : "",
       eta: clock(stop.expectedArrival ?? stop.plannedArrival),
       etaDistanceTime: stop.expectedArrival ? `Planned ${hhmm(stop.plannedArrival)}` : "As planned",

@@ -95,6 +95,7 @@ class MessagingIntegrationTest {
   @Autowired OutboxRelay relay;
   @Autowired OperatorRegistry operators;
   @Autowired com.waypoint.dispatch.messaging.application.VoiceRetentionJob voiceRetention;
+  @Autowired com.waypoint.dispatch.messaging.application.MessageSpeech.Job speechJob;
 
   String depot;
   LocalDate day;
@@ -489,6 +490,38 @@ class MessagingIntegrationTest {
         .content(envelope)).andReturn();
     assertEquals(expected, r.getResponse().getStatus(), r.getResponse().getContentAsString());
     return r.getResponse().getContentAsString();
+  }
+
+  // ---- every message can be heard (R-MSG-10) ----
+
+  @Test
+  void aTypedMessageIsSpokenOnceOnOurServerAndHeardOnlyByThoseWhoMayReadIt() throws Exception {
+    // The job speaks every thread's waiting messages: settle what other tests left before counting.
+    drain();
+    speechJob.runAt(clock.now());
+    // Spoken audio is kept once per text across runs, so each run speaks a text of its own.
+    String sinhala = "OUT001 \u0dc0\u0dd2\u0db1\u0dcf\u0da9\u0dd2 " + java.util.concurrent.ThreadLocalRandom.current().nextInt(1_000, 999_999);
+    UUID first = UUID.fromString(json(say(dispatcher, "{\"to\":\"driver\",\"body\":\"" + sinhala + "\"}", 200))
+        .get("result").get("messageId").asText());
+    UUID again = UUID.fromString(json(say(dispatcher, "{\"to\":\"driver\",\"body\":\"" + sinhala + "\"}", 200))
+        .get("result").get("messageId").asText());
+    drain();
+    read(driver, "/api/threads/" + threadId + "/messages/" + first + "/speech", 404);
+
+    int before = MessagingTestConfig.SPOKEN.get();
+    speechJob.runAt(clock.now());
+    assertEquals(before + 1, MessagingTestConfig.SPOKEN.get(), "the same text in the same language is spoken once");
+    for (UUID id : List.of(first, again)) {
+      MvcResult r = http.perform(get("/api/threads/" + threadId + "/messages/" + id + "/speech").cookie(session(driver)))
+          .andReturn();
+      assertEquals(200, r.getResponse().getStatus());
+      assertEquals("audio/mp4", r.getResponse().getContentType());
+      assertTrue(r.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8).startsWith("AUDIO:si:"),
+          "Sinhala, from the script");
+    }
+    // A store the message was not for hears nothing, and another depot is refused.
+    read(manager, "/api/threads/" + threadId + "/messages/" + first + "/speech", 404);
+    read(farDispatcher, "/api/threads/" + threadId + "/messages/" + first + "/speech", 403);
   }
 
   // ---- the trip's live channel (FF-04, R-MSG-08) ----

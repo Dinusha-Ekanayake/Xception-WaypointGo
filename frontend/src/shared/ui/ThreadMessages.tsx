@@ -6,6 +6,7 @@ import { audienceLabel, byDay, plain, REPORT_LABEL, ROLE_LABEL, voiceLength, typ
 import { voiceUrl } from "../messaging/useThread.ts";
 import { clock, dayLabel } from "../wording/time.ts";
 import { ChannelRedirect } from "./ChannelRedirect.tsx";
+import { ListenButton } from "./ListenButton.tsx";
 import { cx } from "./primitives.tsx";
 import { VoiceNote } from "./VoiceNote.tsx";
 
@@ -174,6 +175,7 @@ function Message({
           />
         )}
         {m.body && <p className="whitespace-pre-wrap break-words">{m.body}</p>}
+        {m.body && !m.voiceNoteId && !m.mine && <ListenButton text={m.body} threadId={m.threadId} messageId={m.messageId} tr={tr} className="-ml-2 -mb-1" />}
         {resolved && (
           <p data-testid="resolution" className="flex flex-col gap-0.5 border-t border-go-divider pt-2 text-xs text-go-secondary">
             <span className="flex items-center gap-1.5 font-semibold text-go-teal">

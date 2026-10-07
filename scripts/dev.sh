@@ -24,7 +24,7 @@ export SEED_PASSWORD="${SEED_PASSWORD:-Waypoint2026!}"
 if [[ -f "$ROOT/.env" ]]; then
   while IFS='=' read -r name value; do
     export "$name=$value"
-  done < <(grep -E '^(AI_ENABLED|AI_PROVIDER|AI_MODEL|AI_DAILY_CALLS|GROQ_API_KEY|OPENROUTER_API_KEY|JEV_ENABLED|JEV_MODEL)=' "$ROOT/.env" || true)
+  done < <(grep -E '^(AI_ENABLED|AI_PROVIDER|AI_MODEL|AI_DAILY_CALLS|GROQ_API_KEY|OPENROUTER_API_KEY|JEV_ENABLED|JEV_MODEL|SPEECH_URL)=' "$ROOT/.env" || true)
 fi
 
 docker_cmd() {

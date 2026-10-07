@@ -124,6 +124,8 @@ services:
       # Jev in shadow (roadmap AI-J1): guesses issue types, nobody sees it. Off unless true.
       JEV_ENABLED: ${JEV_ENABLED:-false}
       JEV_MODEL: ${JEV_MODEL:-typesafe/jev-1.13}
+      # The speech service (R-MSG-10): http://speech:8090 with the "speech" profile; blank turns it off.
+      SPEECH_URL: ${SPEECH_URL:-}
       LOG_FORMAT: ecs
       # F-15: the heap is sized from the container's limit, not the host's memory,
       # and a JVM out of memory exits so Docker restarts it instead of limping on.
@@ -153,6 +155,20 @@ services:
   # Serves the trained models to the backend (issue #16, ADR-001). Reached only
   # from inside the compose network; it publishes no port. Its model files come
   # from Git LFS, so a checkout needs `git lfs pull` before building.
+  # Text to speech on our own server (R-MSG-10): Piper, English, Sinhala and
+  # Tamil. Off unless started with the "speech" profile and SPEECH_URL is set.
+  speech:
+    profiles: ["speech"]
+    labels:
+      com.waypoint.logs: "true"
+    build:
+      context: ./speech
+    # This machine only, for a backend run natively in development; the backend in compose uses http://speech:8090.
+    ports:
+      - "127.0.0.1:${SPEECH_PORT:-8090}:8090"
+    mem_limit: ${SPEECH_MEM:-1g}
+    restart: unless-stopped
+
   ml:
     labels:
       com.waypoint.logs: "true"

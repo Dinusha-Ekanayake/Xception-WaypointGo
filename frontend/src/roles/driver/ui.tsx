@@ -1,5 +1,6 @@
 "use client";
 
+import { languageOf, pickVoice } from "@shared/messaging/speech";
 import { useEffect, useState, useCallback, useRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { PRESS, SettingsPanel, Spinner, cx, initialsOf } from "@shared/ui";
@@ -570,26 +571,16 @@ export function VoiceMessagePlayer({
     if (text && typeof window !== "undefined" && "speechSynthesis" in window) {
       try {
         const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = "en-US";
+        // In the message's own language; a Sinhala message is never read with an English voice.
+        const voice = pickVoice(window.speechSynthesis.getVoices(), languageOf(text));
+        if (!voice) {
+          stopPlayback();
+          return;
+        }
+        utterance.voice = voice;
+        utterance.lang = voice.lang;
         utterance.rate = 0.95;
         utterance.pitch = 1.0;
-
-        const voices = window.speechSynthesis.getVoices();
-        const preferredVoice =
-          voices.find(
-            (v) =>
-              v.lang.startsWith("en") &&
-              (v.name.includes("Natural") ||
-                v.name.includes("Google") ||
-                v.name.includes("Samantha") ||
-                v.name.includes("Daniel") ||
-                v.name.includes("Karen") ||
-                v.name.includes("Moira"))
-          ) || voices.find((v) => v.lang.startsWith("en"));
-
-        if (preferredVoice) {
-          utterance.voice = preferredVoice;
-        }
 
         utterance.onend = () => {
           utteranceRef.current = null;

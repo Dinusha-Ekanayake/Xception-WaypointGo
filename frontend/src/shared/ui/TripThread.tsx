@@ -10,6 +10,7 @@ import { Notice } from "./Notice.tsx";
 import { cx } from "./primitives.tsx";
 import { ThreadComposer, type Draft } from "./ThreadComposer.tsx";
 import { ThreadMessages } from "./ThreadMessages.tsx";
+import { PlayMessages } from "./PlayMessages.tsx";
 
 // One trip's thread (issue #136, ADR-004): its messages and a place to write.
 // Every role draws the same thread; what each reader sees and may write is the
@@ -27,6 +28,7 @@ export function TripThread({
   accountId,
   draft,
   replies,
+  playAll = false,
   tr = plain,
 }: {
   threadId: string;
@@ -41,6 +43,8 @@ export function TripThread({
   draft?: Draft;
   /** FF-08: the dispatcher's ready replies for the trip's state. */
   replies?: import("../messaging/templates.ts").Reply[];
+  /** A "Play messages" bar for the messages not heard yet (the driver's, when stopped). */
+  playAll?: boolean;
   /** The reader's language; English when absent. */
   tr?: Translate;
 }): React.JSX.Element {
@@ -62,6 +66,7 @@ export function TripThread({
           {t.loadedAt ? tr("Showing what arrived at {time}.", { time: clock(t.loadedAt) }) : tr("Check the connection and try again.")}
         </Notice>
       )}
+      {playAll && t.loadedAt !== null && <PlayMessages threadId={threadId} messages={t.messages} tr={tr} />}
       <div className="min-h-0 flex-1 overflow-y-auto pr-1" aria-live="polite" aria-busy={t.thread.loading}>
         {t.loadedAt === null && t.error === null ? (
           <p className="py-8 text-center text-sm text-go-secondary">{tr("Loading messages…")}</p>
