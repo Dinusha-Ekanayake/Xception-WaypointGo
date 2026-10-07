@@ -75,7 +75,8 @@ export function toRouteStops(
       etaDistanceTime: stop.expectedArrival ? `Planned ${hhmm(stop.plannedArrival)}` : "As planned",
       window: hhmm(stop.windowClose),
       windowStatus: status(serviceDate, stop, now),
-      cargoText: units(stop.itemCount),
+      // Roadmap T1-04: how long the stop is expected to take, from the plan's prediction.
+      cargoText: units(stop.itemCount) + unloadText(stop.expectedServiceMinutes),
       instructions: access(outlet),
       mapButtonType: "split",
       finished: isFinished(stop),
@@ -85,6 +86,12 @@ export function toRouteStops(
       deliveredItems: stop.lines.map((line) => ({ code: line.productId, category: "Inferred product", qty: line.orderedUnits })),
     };
   });
+}
+
+/** " · about 18 min to unload", or nothing when the plan carried no prediction. */
+export function unloadText(minutes: number | string | null | undefined): string {
+  const m = minutes == null ? NaN : Math.round(Number(minutes));
+  return Number.isFinite(m) && m > 0 ? ` · about ${m} min to unload` : "";
 }
 
 /** Where the route screen opens: the first stop still to do, else the last one. */

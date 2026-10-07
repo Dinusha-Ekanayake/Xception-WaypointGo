@@ -119,3 +119,11 @@ test("a partial stop counts the units it was recorded with, not its whole order"
   ];
   assert.deepEqual(summaryRows(stops, 0).find(([label]) => label === "Units delivered"), ["Units delivered", "71 of 120"]);
 });
+
+test("the next stop says how long it is expected to take to unload (T1-04)", async () => {
+  const { unloadText } = await import("../src/roles/driver/data/stopView.ts");
+  assert.equal(unloadText("17.60"), " · about 18 min to unload");
+  assert.equal(unloadText(null), "");
+  assert.equal(unloadText(undefined), "");
+  assert.equal(unloadText(0), "");
+});

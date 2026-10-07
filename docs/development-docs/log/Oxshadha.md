@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-08 - feat: the driver sees how long a stop is expected to take (T1-04)
+
+`dev` · @Oxshadha
+
+- The driver's next stop reads "40 units · about 18 min to unload" from the plan's prediction (R-EXE-30); nothing extra when there is none. The smallest change: the existing cargo line, no new layout. Agreed with J.V. Ransika, as the driver UI changes only with his agreement.
+
+Why: the driver plans the unload and the next leg with it, as the store plans its staff.
+Verified: driver browser suite 43 (unload-time.spec.ts new); Node driver-stop-view and wording tests; typecheck; build; screenshots of the driver and store cards.
+
+---
+
 ## 2026-10-08 - feat: arrivals the driver did not tap are read from the GPS (MF-02)
 
 `dev` · @Oxshadha

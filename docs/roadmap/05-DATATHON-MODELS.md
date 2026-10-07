@@ -228,7 +228,7 @@ The model gives service minutes and P(late), not times.
 
 ### T1-04 Expected handling time
 
-**Built 2026-10-08** (R-EXE-30, EXE-42): each stop takes the plan's predicted minutes at release (model, else fallback); the arrival estimate uses them, and the store's next delivery shows "unloading about N min". Not yet on the driver's screen (the driver UI changes only for broken flows).
+**Built 2026-10-08** (R-EXE-30, EXE-42): each stop takes the plan's predicted minutes at release (model, else fallback); the arrival estimate uses them, and the store's next delivery shows "unloading about N min". The driver's next stop shows "about N min to unload" on its cargo line (2026-10-08, agreed with J.V. Ransika).
 
 | Who | Sees |
 | --- | --- |
