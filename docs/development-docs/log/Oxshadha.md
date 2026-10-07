@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-10-07 - feat: each model's day is measured (MF-03, first slice)
+
+`dev` · @Oxshadha
+
+- `ModelMetricsJob` (03:20 nightly, last three days) writes `ml.model_metrics_daily` per depot, day and model: Brier, log loss, calibration slope and intercept (Newton fit, only on 30+ labelled stops with both outcomes), service-minute MAE; gauges per depot and model, NaN when not measured (R-ML-13, ML-22).
+- Not yet: forecast WAPE, PSI drift, alert rules.
+
+Why: the trust gates (05) need Brier, calibration and error measured on our own outcomes before any model is on by default.
+Verified: the full backend suite on a fresh test database, run before the push (ModelMetricsTest, the new intelligence case).
+
+---
+
 ## 2026-10-07 - feat: outcomes kept beside predictions (MF-02, first slice)
 
 `dev` · @Oxshadha

@@ -15,6 +15,18 @@ import org.springframework.stereotype.Repository;
 public class JdbcOutcomes {
   public record Coverage(long stops, long labelled, long late) {}
 
+  /** One stop's prediction and outcome, for the day's metrics. */
+  public record Row(
+      String modelLabel, java.util.Optional<Double> lateProb, java.util.Optional<Boolean> late,
+      java.util.Optional<Double> predictedService, java.util.Optional<Double> serviceMinutes) {}
+
+  /** One day's metrics for a depot and model (roadmap MF-03). */
+  public record DailyMetrics(
+      String depotCode, LocalDate day, String modelLabel, int stops, int labelled,
+      java.util.Optional<Double> brier, java.util.Optional<Double> logLoss,
+      java.util.Optional<Double> calSlope, java.util.Optional<Double> calIntercept,
+      java.util.Optional<Double> serviceMae, int serviceN) {}
+
   private final Database database;
 
   public JdbcOutcomes(Database database) {
@@ -62,5 +74,39 @@ public class JdbcOutcomes {
     return new Coverage(
         ((Number) r.get("stops")).longValue(), ((Number) r.get("labelled")).longValue(),
         ((Number) r.get("late")).longValue());
+  }
+
+  /** A depot's day of stops that had a prediction. */
+  public java.util.List<Row> predicted(String depotCode, LocalDate day) {
+    return database
+        .query(
+            "SELECT model_label, predicted_late_prob, late_label, predicted_service, service_minutes"
+                + " FROM ml.delivery_outcomes WHERE depot_code = ? AND service_date = ? AND model_label IS NOT NULL",
+            depotCode, Date.valueOf(day))
+        .stream()
+        .map(r -> new Row(
+            (String) r.get("model_label"),
+            java.util.Optional.ofNullable((Number) r.get("predicted_late_prob")).map(Number::doubleValue),
+            java.util.Optional.ofNullable((Boolean) r.get("late_label")),
+            java.util.Optional.ofNullable((Number) r.get("predicted_service")).map(Number::doubleValue),
+            java.util.Optional.ofNullable((Number) r.get("service_minutes")).map(Number::doubleValue)))
+        .toList();
+  }
+
+  public void saveMetrics(DailyMetrics m, Instant at) {
+    database.update(
+        """
+        INSERT INTO ml.model_metrics_daily
+            (depot_code, service_date, model_label, stops, labelled, brier, log_loss, cal_slope, cal_intercept,
+             service_mae, service_n, computed_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT (depot_code, service_date, model_label) DO UPDATE SET
+            stops = EXCLUDED.stops, labelled = EXCLUDED.labelled, brier = EXCLUDED.brier,
+            log_loss = EXCLUDED.log_loss, cal_slope = EXCLUDED.cal_slope, cal_intercept = EXCLUDED.cal_intercept,
+            service_mae = EXCLUDED.service_mae, service_n = EXCLUDED.service_n, computed_at = EXCLUDED.computed_at
+        """,
+        m.depotCode(), Date.valueOf(m.day()), m.modelLabel(), m.stops(), m.labelled(),
+        m.brier().orElse(null), m.logLoss().orElse(null), m.calSlope().orElse(null), m.calIntercept().orElse(null),
+        m.serviceMae().orElse(null), m.serviceN(), Timestamp.from(at));
   }
 }

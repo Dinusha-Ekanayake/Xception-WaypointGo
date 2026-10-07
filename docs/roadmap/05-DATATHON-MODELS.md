@@ -98,6 +98,8 @@ Jev may appear only as a proposed deployment, never inside the scored pipeline.
 
 ### MF-03 Daily metrics
 
+**First slice built 2026-10-07** (R-ML-13, ML-22): `ModelMetricsJob` writes Brier, log loss, calibration slope and intercept, service-minute MAE and the labelled count per depot, day and model, and keeps them as gauges. Not yet: WAPE of the weekly forecast, PSI drift, and the Prometheus alert rules.
+
 **Job output.** A daily job writes `ml.model_metrics_daily`:
 
 | Metric | Measures |

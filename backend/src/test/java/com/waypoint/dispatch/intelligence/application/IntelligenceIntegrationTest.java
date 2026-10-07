@@ -150,6 +150,7 @@ class IntelligenceIntegrationTest {
   @Autowired com.waypoint.dispatch.intelligence.infrastructure.JdbcAttentionRepository attentionItems;
   @Autowired AttentionWatchJob attentionWatch;
   @Autowired JevShadow.Job jevJob;
+  @Autowired ModelMetricsJob metricsJob;
   @Autowired com.waypoint.dispatch.planning.contract.PlanQuery planQuery;
 
   private String run;
@@ -187,6 +188,41 @@ class IntelligenceIntegrationTest {
   }
 
   // ---- scoring a published plan ---------------------------------------------------
+
+  @Test
+  void eachModelsDayIsMeasuredFromItsLabelledOutcomesOnly() {
+    // MF-03, R-ML-13: 40 labelled stops and 5 with no arrival, on a day far from the others.
+    java.time.LocalDate day = java.time.LocalDate.of(2031, 1, 10);
+    java.util.Random random = new java.util.Random(3);
+    for (int i = 0; i < 45; i++) {
+      double p = 0.1 + 0.8 * random.nextDouble();
+      Boolean late = i < 40 ? random.nextDouble() < p : null;
+      database.asSystem(ModuleRole.ML, () -> database.update(
+          """
+          INSERT INTO ml.delivery_outcomes
+              (delivery_id, order_id, outlet_id, depot_code, service_date, stop_sequence, outcome, late_label,
+               label_source, predicted_late_prob, predicted_service, service_minutes, model_label, recorded_at)
+          VALUES (?, ?, 'OUT001', ?, ?, 1, 'delivered', ?, ?, ?, 12, 15, 'test-model', now())
+          """,
+          UUID.randomUUID(), UUID.randomUUID(), depot, java.sql.Date.valueOf(day), late, late == null ? "none" : "device",
+          p));
+    }
+    java.time.Instant now = day.plusDays(1).atTime(3, 20).atZone(com.waypoint.dispatch.shared.util.Clock.OPERATING_ZONE).toInstant();
+    metricsJob.runAt(now);
+    metricsJob.runAt(now);
+
+    Map<String, Object> m = database.asSystem(ModuleRole.ML, () -> database.queryOne(
+        "SELECT stops, labelled, brier, log_loss, cal_slope, service_mae, service_n FROM ml.model_metrics_daily"
+            + " WHERE depot_code = ? AND service_date = ? AND model_label = 'test-model'",
+        depot, java.sql.Date.valueOf(day)));
+    assertEquals(45, ((Number) m.get("stops")).intValue());
+    assertEquals(40, ((Number) m.get("labelled")).intValue(), "a stop with no arrival is not measured");
+    double brier = ((Number) m.get("brier")).doubleValue();
+    assertTrue(brier > 0 && brier < 0.35, "brier " + brier);
+    assertTrue(m.get("cal_slope") != null, "fitted from 40 labelled stops");
+    assertEquals(3.0, ((Number) m.get("service_mae")).doubleValue(), 1e-9);
+    assertEquals(45, ((Number) m.get("service_n")).intValue());
+  }
 
   @Test
   void aPublishedPlanIsScoredByTheActiveModelAndStampedWithIt() throws Exception {
