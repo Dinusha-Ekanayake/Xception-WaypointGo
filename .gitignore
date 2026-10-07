@@ -165,6 +165,7 @@ artifacts/
 !docs/issues/**/*.md
 !docs/roadmap/*.md
 !docs/datathon/*.md
+!scripts/live-check/README.md
 
 # Java / Maven build output (including nested modules)
 target/

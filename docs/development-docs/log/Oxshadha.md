@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-10-08 - chore: a repeatable live check of one delivery day across the roles
+
+`dev` · @Oxshadha
+
+- `scripts/live-check/live_check.py` (README beside it) drives a real day through the command endpoint of a local stack (plan, publish, load, release, positions, arrival, delivery, receipt, messages, the first stop's late estimate) and times how each step reaches the dispatcher, the driver, the stores and the loader: PASS within 3 s, SLOW, FAIL, exit 0 only with no FAIL.
+- Local only unless `--allow-remote` (it resets a day, grants scopes and moves the demo clock). It respects the demo clock's 7-day limit and says when the near days are used up.
+
+Why: the browser suites mock the API, so only a run on the real stack proves the roles stay in sync; the first run found the six issues fixed in `7225a47`.
+Verified: on the local stack before `7225a47`, 67 PASS, 1 SLOW, 5 FAIL, every non-pass one of the issues that commit fixes; a full run on current code waits for a fresh demo day.
+
+---
+
 ## 2026-10-08 - feat: forecast error and prediction drift (MF-03, second slice)
 
 `dev` · @Oxshadha
