@@ -355,3 +355,47 @@ export function forecastError(models: ModelMetrics[], modelLabel: string | null,
   if (!total && !chilled) return "Forecast error not reported by the model";
   return ["Forecast error", total && `${total} total`, chilled && `${chilled} chilled`].filter(Boolean).join(" · ");
 }
+
+/** One finished week across the depots in scope (T2-03). */
+export type AccuracyRow = { key: string; monday: string; forecast: number; ordered: number; off: number | null };
+
+/** The Monday of an ISO week, as yyyy-mm-dd. */
+export function isoMonday(isoYear: number, isoWeek: number): string {
+  const jan4 = new Date(Date.UTC(isoYear, 0, 4));
+  const monday = new Date(jan4.getTime() - ((jan4.getUTCDay() + 6) % 7) * 86_400_000 + (isoWeek - 1) * 7 * 86_400_000);
+  return monday.toISOString().slice(0, 10);
+}
+
+/**
+ * The depots' finished weeks summed, oldest first, each with how far the
+ * forecast was off (WAPE over its brands), and the error over all of them.
+ * An empty week (nothing ordered) has no figure rather than a perfect one.
+ */
+export function combineAccuracy(views: Array<Pick<import("@shared/domain/types").ForecastAccuracyView, "weeks">>): {
+  rows: AccuracyRow[];
+  off: number | null;
+} {
+  const byWeek = new Map<string, { monday: string; pairs: Array<[number, number]> }>();
+  for (const v of views) {
+    for (const w of v.weeks) {
+      const key = `${w.isoYear}-${String(w.isoWeek).padStart(2, "0")}`;
+      const entry = byWeek.get(key) ?? { monday: isoMonday(w.isoYear, w.isoWeek), pairs: [] };
+      for (const b of w.brands) entry.pairs.push([Number(b.forecastM3), Number(b.orderedM3)]);
+      byWeek.set(key, entry);
+    }
+  }
+  const wape = (pairs: Array<[number, number]>): number | null => {
+    const ordered = pairs.reduce((s, [, a]) => s + Math.abs(a), 0);
+    return ordered > 0 ? pairs.reduce((s, [f, a]) => s + Math.abs(f - a), 0) / ordered : null;
+  };
+  const rows = [...byWeek.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, e]) => ({
+      key,
+      monday: e.monday,
+      forecast: e.pairs.reduce((s, [f]) => s + f, 0),
+      ordered: e.pairs.reduce((s, [, a]) => s + a, 0),
+      off: wape(e.pairs),
+    }));
+  return { rows, off: wape([...byWeek.values()].flatMap((e) => e.pairs)) };
+}

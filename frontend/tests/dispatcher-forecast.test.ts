@@ -187,3 +187,21 @@ test("the error chip says what the demand model measured, and never per brand it
   assert.equal(forecastError(models, null, false), "Recent averages · forecast error not measured");
   assert.equal(forecastError([], "demand@2026.1", false), "Forecast error not reported by the model");
 });
+
+test("the finished weeks of the depots are summed, with how far the forecast was off (T2-03)", async () => {
+  const { combineAccuracy, isoMonday } = await import("../src/roles/dispatcher/data/forecast.ts");
+  assert.equal(isoMonday(2026, 40), "2026-09-28");
+  const week = (isoWeek: number, brands: Array<[string, number, number]>) => ({
+    isoYear: 2026, isoWeek, modelLabel: "deterministic", forecastM3: 0, orderedM3: 0, wape: null,
+    brands: brands.map(([brandCode, f, a]) => ({ brandCode, forecastM3: f, orderedM3: a })),
+  });
+  const { rows, off } = combineAccuracy([
+    { weeks: [week(40, [["Fresh", 110, 100]]), week(39, [["Fresh", 90, 100]])] },
+    { weeks: [week(40, [["Style", 45, 50]]), week(41, [["Tech", 5, 0]])] },
+  ]);
+  assert.deepEqual(rows.map((r) => [r.key, r.forecast, r.ordered]), [["2026-39", 90, 100], ["2026-40", 155, 150], ["2026-41", 5, 0]]);
+  assert.equal(rows[1]!.off, 15 / 150);
+  assert.equal(rows[2]!.off, null, "nothing ordered is not a perfect week");
+  // 10 + 10 + 5 + 5 off, over 250 ordered: an empty week still counts its forecast as error.
+  assert.equal(off, 30 / 250);
+});

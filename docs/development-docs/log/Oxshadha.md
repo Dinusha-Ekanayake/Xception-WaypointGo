@@ -4,6 +4,19 @@
 
 ---
 
+## 2026-10-08 - feat: the Forecast screen shows how the last weeks were forecast (T2-03)
+
+`dev` · @Oxshadha
+
+- `GET /api/ml/forecast/accuracy?depot=&weeks=` reads the judged weeks of MF-03 (the forecast made before each week, beside what was ordered, per brand) for the reader's depots, 403 outside scope. The Forecast screen gains "How the forecast did": each finished week, forecast against ordered, off by how much (marked over 25%), and the figure over all of them; several depots are summed.
+- Not yet: the comparison with the 8-week same-weekday mean, which needs both forecasts kept for the same week.
+
+Why: a dispatcher deciding on hires should see how far last month's forecasts were right before trusting next month's.
+- The loader's inbox now uses the shared phone list scroll too (agreed with J.V. Ransika), so the driver, store and loader inboxes feel the same.
+Verified: dispatcher 85, loader 33; Node 374 (combineAccuracy new); the accuracy endpoint and its 403 on a fresh test database; screenshots of the Forecast panel and the loader inbox; the full backend suite before the push.
+
+---
+
 ## 2026-10-08 - feat: finished stops step back like a dial; one shared list scroll for the phones
 
 `dev` · @Oxshadha

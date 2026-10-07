@@ -106,6 +106,8 @@ export type Desk = {
   predictions?: unknown;
   /** What /api/ml/forecast/overview answers for the depot. */
   forecast: ForecastOverviewView;
+  /** What /api/ml/forecast/accuracy answers (T2-03): the depot's finished weeks; none means not checked yet. */
+  accuracy?: { weeks: Array<Record<string, unknown>>; wape: number | null };
   /** Capacity decisions recorded on short weeks (roadmap T2-01), newest first. */
   capacityDecisions?: Array<Record<string, unknown>>;
   /** Saved plans, newest first, and the plan each one holds. */
@@ -343,6 +345,9 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
       ]));
     }
     if (pathname === "/api/ml/capacity/decisions") return route.fulfill(json(desk.capacityDecisions ?? []));
+    if (pathname === "/api/ml/forecast/accuracy") {
+      return route.fulfill(json({ depotCode: url.searchParams.get("depot"), ...(desk.accuracy ?? { weeks: [], wape: null }) }));
+    }
     if (pathname === "/api/ml/forecast/overview") {
       const weeks = Number(url.searchParams.get("weeks") ?? "10");
       return route.fulfill(json({ ...desk.forecast, weeks: desk.forecast.weeks.slice(0, weeks) }));

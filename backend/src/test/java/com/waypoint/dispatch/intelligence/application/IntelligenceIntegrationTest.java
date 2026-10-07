@@ -525,6 +525,41 @@ class IntelligenceIntegrationTest {
   }
 
   @Test
+  void theForecastScreenShowsHowTheLastFinishedWeeksDid() throws Exception {
+    // T2-03: two finished weeks, judged as the nightly job keeps them.
+    java.time.LocalDate monday = java.time.LocalDate.now(com.waypoint.dispatch.shared.util.Clock.OPERATING_ZONE)
+        .with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY));
+    Object[][] rows = {{monday.minusWeeks(2), "Fresh", "110", "100"}, {monday.minusWeeks(2), "Style", "45", "50"},
+        {monday.minusWeeks(1), "Fresh", "90", "100"}};
+    for (Object[] r : rows) {
+      java.time.LocalDate m = (java.time.LocalDate) r[0];
+      database.asSystem(ModuleRole.ML, () -> database.update(
+          """
+          INSERT INTO ml.forecast_accuracy
+              (depot_code, brand_code, iso_year, iso_week, model_label, forecast_generated_at, forecast_total_m3,
+               actual_total_m3, forecast_chilled_m3, actual_chilled_m3, computed_at)
+          VALUES (?, ?, ?, ?, 'deterministic', now(), ?::numeric, ?::numeric, 0, 0, now())
+          ON CONFLICT (depot_code, brand_code, iso_year, iso_week) DO UPDATE SET
+              forecast_total_m3 = EXCLUDED.forecast_total_m3, actual_total_m3 = EXCLUDED.actual_total_m3
+          """,
+          depot, r[1], m.get(java.time.temporal.IsoFields.WEEK_BASED_YEAR),
+          (short) m.get(java.time.temporal.IsoFields.WEEK_OF_WEEK_BASED_YEAR), r[2], r[3]));
+    }
+    JsonNode a = read(dispatcher, "/api/ml/forecast/accuracy?depot=" + depot + "&weeks=4", 200);
+    assertEquals(2, a.get("weeks").size());
+    JsonNode first = a.get("weeks").get(0);
+    assertEquals(155.0, first.get("forecastM3").asDouble(), 1e-9);
+    assertEquals(150.0, first.get("orderedM3").asDouble(), 1e-9);
+    assertEquals(2, first.get("brands").size());
+    // (10 + 5 + 10) / (100 + 50 + 100) over the two weeks.
+    assertEquals(0.1, a.get("wape").asDouble(), 1e-4);
+
+    UUID strangerId = accounts.createAccount("mfa-" + run + "@intelligence.test", "mfa", PASSWORD, "dispatcher");
+    read(session("mfa-" + run), "/api/ml/forecast/accuracy?depot=" + depot, 403);
+    assertTrue(strangerId != null);
+  }
+
+  @Test
   void aDepotOutsideScopeIsRefusedAndRecorded() throws Exception {
     UUID strangerId = accounts.createAccount("mlx-" + run + "@intelligence.test", "mlx", PASSWORD, "dispatcher");
     Cookie outsider = session("mlx-" + run);

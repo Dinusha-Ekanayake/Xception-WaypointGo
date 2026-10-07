@@ -1,7 +1,7 @@
 "use client";
 
 import { Card, CardHead, cx } from "@shared/ui";
-import { weekLabel, type Action, type DayNeed } from "../data/forecast.ts";
+import { m3, pct, weekLabel, type AccuracyRow, type Action, type DayNeed } from "../data/forecast.ts";
 
 // The Forecast screen's right column: what an operating day of the heaviest
 // weeks needs from the fleet, and what the numbers suggest doing. Both are
@@ -76,6 +76,57 @@ export function ForecastActions({ actions }: { actions: Action[] }): React.JSX.E
             </li>
           ))}
         </ul>
+      )}
+    </Card>
+  );
+}
+
+const MONTH = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** "28 Sep", a week's Monday. */
+function mondayLabel(monday: string): string {
+  const [, m, d] = monday.split("-").map(Number);
+  return `${d} ${MONTH[m - 1]}`;
+}
+
+/**
+ * Roadmap T2-03: how the forecast did on the last finished weeks, as it stood
+ * before each week began, beside what the stores ordered.
+ */
+export function ForecastAccuracy({ rows, off }: { rows: AccuracyRow[]; off: number | null }): React.JSX.Element {
+  return (
+    <Card label="How the forecast did">
+      <CardHead
+        title="How the forecast did"
+        meta={off === null ? "The last finished weeks, as forecast before each began" : `Off by ${pct(off)} over the last ${rows.length} ${rows.length === 1 ? "week" : "weeks"}`}
+      />
+      {rows.length === 0 ? (
+        <p className="m-0 text-[13px] text-go-secondary">No finished week has been checked yet. Each week is checked the night after it ends.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[320px] border-collapse text-[13px]">
+            <thead>
+              <tr className="text-left text-[11px] tracking-wide text-go-secondary uppercase">
+                <th scope="col" className="py-1.5 font-medium">Week of</th>
+                <th scope="col" className="py-1.5 font-medium">Forecast</th>
+                <th scope="col" className="py-1.5 font-medium">Ordered</th>
+                <th scope="col" className="py-1.5 font-medium">Off by</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.key} className="border-t border-go-surface">
+                  <th scope="row" className="py-2 text-left font-medium text-go-ink">{mondayLabel(r.monday)}</th>
+                  <td className="py-2">{m3(r.forecast)}</td>
+                  <td className="py-2">{m3(r.ordered)}</td>
+                  <td className={cx("py-2", r.off !== null && r.off > 0.25 && "font-semibold text-go-danger")}>
+                    {r.off === null ? "Nothing ordered" : pct(r.off)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </Card>
   );

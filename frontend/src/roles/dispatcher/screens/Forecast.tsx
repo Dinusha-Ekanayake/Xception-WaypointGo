@@ -6,12 +6,13 @@ import PageHeader from "../PageHeader.tsx";
 import Refusal from "./Refusal.tsx";
 import ForecastChart, { seriesColour } from "./ForecastChart.tsx";
 import ForecastRuns from "./ForecastRuns.tsx";
-import { DayNeeds, ForecastActions } from "./ForecastSide.tsx";
+import { DayNeeds, ForecastAccuracy, ForecastActions } from "./ForecastSide.tsx";
 import { ForecastDecisions } from "./ForecastDecisions.tsx";
 import {
   WEEKS,
   actions,
   combine,
+  combineAccuracy,
   dayNeeds,
   forecastError,
   forBrand,
@@ -22,7 +23,7 @@ import {
   weekLabel,
   type BrandFilter,
 } from "../data/forecast.ts";
-import { useForecast, useModels } from "../data/useForecast.ts";
+import { useForecast, useForecastAccuracy, useModels } from "../data/useForecast.ts";
 
 // Figma "Forecast": the next ten weeks of demand for the depots in view, against
 // what the fleet can carry. Read from /api/ml/forecast/overview (#16). Container
@@ -38,6 +39,8 @@ export default function Forecast({
   online: boolean;
 }): React.JSX.Element {
   const resource = useForecast(depots);
+  // T2-03: how the last finished weeks were forecast; a refusal or an outage just hides the panel.
+  const accuracy = useForecastAccuracy(depots);
   const models = useModels(depots.length > 0);
   const [brand, setBrand] = useState<BrandFilter>("all");
   const forecast = useMemo(() => (resource.data ? combine(resource.data) : null), [resource.data]);
@@ -139,6 +142,7 @@ export default function Forecast({
             </section>
             <div className="flex min-w-[300px] flex-col gap-5 lg:max-w-[380px]">
               <DayNeeds rows={dayNeeds(weeks)} />
+              {accuracy.data && <ForecastAccuracy {...combineAccuracy(accuracy.data)} />}
               <ForecastActions actions={actions(weeks)} />
               <ForecastDecisions depots={depots} weeks={weeks} />
             </div>

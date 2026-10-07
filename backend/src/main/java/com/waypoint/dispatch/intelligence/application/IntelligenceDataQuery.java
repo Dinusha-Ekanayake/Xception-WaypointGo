@@ -1,5 +1,6 @@
 package com.waypoint.dispatch.intelligence.application;
 
+import com.waypoint.dispatch.intelligence.domain.ModelMetrics;
 import com.waypoint.dispatch.execution.contract.ExecutionQuery;
 import com.waypoint.dispatch.execution.contract.ExecutionViews.DeliveryOutcome;
 import com.waypoint.dispatch.execution.contract.ExecutionViews.StopActualView;
@@ -75,6 +76,7 @@ public class IntelligenceDataQuery implements PredictionQuery, ModelQuery, Trave
 
   private final Database database;
   private final JdbcIntelligenceRepository repository;
+  private final com.waypoint.dispatch.intelligence.infrastructure.JdbcModelQuality quality;
   private final PlanQuery plans;
   private final OrderQuery orders;
   private final ExecutionQuery execution;
@@ -92,7 +94,9 @@ public class IntelligenceDataQuery implements PredictionQuery, ModelQuery, Trave
       ReferenceQuery reference,
       Metrics metrics,
       Clock clock,
-      com.waypoint.dispatch.platform.audit.AuditLog audit) {
+      com.waypoint.dispatch.platform.audit.AuditLog audit,
+      com.waypoint.dispatch.intelligence.infrastructure.JdbcModelQuality quality) {
+    this.quality = quality;
     this.database = database;
     this.repository = repository;
     this.plans = plans;
@@ -294,6 +298,53 @@ public class IntelligenceDataQuery implements PredictionQuery, ModelQuery, Trave
    * empty forecast: rows would be hidden by row-level security, but the calendar
    * and fleet beside them are not, and "no forecast" would be a false answer.
    */
+  /**
+   * Roadmap T2-03: how the last {@code weeks} finished weeks' forecasts did, as
+   * made before each week began, beside what was ordered. A depot outside scope is 403.
+   */
+  public PredictionViews.ForecastAccuracyView forecastAccuracy(Actor actor, String depot, int weeks) {
+    if (weeks < 1 || weeks > 12) {
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, "weeks must be from 1 to 12");
+    }
+    requireDepot(actor, depot);
+    LocalDate thisMonday = clock.now().atZone(Clock.OPERATING_ZONE).toLocalDate()
+        .with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY));
+    int fromKey = weekKey(thisMonday.minusWeeks(weeks));
+    int toKey = weekKey(thisMonday.minusWeeks(1));
+    List<Map<String, Object>> rows = read(actor.userId(), () -> quality.accuracy(depot, fromKey, toKey));
+    Map<Integer, List<Map<String, Object>>> byWeek = new java.util.TreeMap<>();
+    for (Map<String, Object> r : rows) {
+      int key = ((Number) r.get("iso_year")).intValue() * 100 + ((Number) r.get("iso_week")).intValue();
+      byWeek.computeIfAbsent(key, k -> new java.util.ArrayList<>()).add(r);
+    }
+    List<PredictionViews.WeekAccuracyView> out = new java.util.ArrayList<>();
+    List<double[]> all = new java.util.ArrayList<>();
+    for (List<Map<String, Object>> week : byWeek.values()) {
+      List<PredictionViews.BrandAccuracyView> brands = new java.util.ArrayList<>();
+      List<double[]> pairs = new java.util.ArrayList<>();
+      BigDecimal forecast = BigDecimal.ZERO;
+      BigDecimal ordered = BigDecimal.ZERO;
+      for (Map<String, Object> r : week) {
+        BigDecimal f = (BigDecimal) r.get("forecast_total_m3");
+        BigDecimal a = (BigDecimal) r.get("actual_total_m3");
+        brands.add(new PredictionViews.BrandAccuracyView((String) r.get("brand_code"), f, a));
+        pairs.add(new double[] {f.doubleValue(), a.doubleValue()});
+        forecast = forecast.add(f);
+        ordered = ordered.add(a);
+      }
+      all.addAll(pairs);
+      Map<String, Object> first = week.get(0);
+      out.add(new PredictionViews.WeekAccuracyView(
+          ((Number) first.get("iso_year")).intValue(), ((Number) first.get("iso_week")).intValue(),
+          (String) first.get("model_label"), forecast, ordered, ratio(ModelMetrics.wape(pairs)), brands));
+    }
+    return new PredictionViews.ForecastAccuracyView(depot, out, ratio(ModelMetrics.wape(all)));
+  }
+
+  private static Optional<BigDecimal> ratio(Optional<Double> value) {
+    return value.map(v -> BigDecimal.valueOf(v).setScale(4, java.math.RoundingMode.HALF_UP));
+  }
+
   private void requireDepot(Actor actor, String depot) {
     boolean inScope = read(actor.userId(), () -> Boolean.TRUE.equals(
         database.queryOne("SELECT app.actor_has_depot(?) AS ok", depot).get("ok")));

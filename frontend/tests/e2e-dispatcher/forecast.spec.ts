@@ -5,7 +5,7 @@ test("the forecast shows ten weeks against the fleet, with the peak and what it 
   await serve(page);
   await page.goto("/#/forecast");
 
-  await expect(page.getByRole("heading", { name: "Forecast" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Forecast", exact: true })).toBeVisible();
   await expect(page.getByText("Peak week · Wk 2 Poson")).toBeVisible();
   await expect(page.getByText("612 m³").first()).toBeVisible();
 
@@ -117,4 +117,21 @@ test("a decision about a short week is recorded with its reason and listed (road
   await expect(card).toContainText("Five reefers in service before Poson");
   const sent = desk.commands.find((c) => c.kind === "ml:RecordCapacityDecision");
   expect(sent).toMatchObject({ expectedVersion: null, payload: { action: "HIRE_VEHICLES", vehicles: 2, refrigerated: true } });
+});
+
+test("how the forecast did on the last finished weeks, beside what was ordered (T2-03)", async ({ page }) => {
+  const week = (isoWeek: number, brands: Array<[string, number, number]>) => ({
+    isoYear: 2027, isoWeek, modelLabel: "datathon-task2a@2026.1", forecastM3: 0, orderedM3: 0, wape: null,
+    brands: brands.map(([brandCode, forecastM3, orderedM3]) => ({ brandCode, forecastM3, orderedM3 })),
+  });
+  await serve(page, { accuracy: { weeks: [week(7, [["Fresh", 410, 400], ["Style", 95, 100]]), week(8, [["Fresh", 300, 420]])], wape: null } });
+  await page.goto("/#/forecast");
+
+  const panel = page.getByRole("region", { name: "How the forecast did" });
+  await expect(panel).toContainText("Off by 15% over the last 2 weeks");
+  await expect(panel.getByRole("row", { name: /15 Feb/ })).toContainText("505 m³");
+  await expect(panel.getByRole("row", { name: /15 Feb/ })).toContainText("3%");
+  // A week off by more than a quarter is marked.
+  await expect(panel.getByRole("row", { name: /22 Feb/ })).toContainText("29%");
+  await expect(page.locator("main")).not.toContainText("datathon");
 });

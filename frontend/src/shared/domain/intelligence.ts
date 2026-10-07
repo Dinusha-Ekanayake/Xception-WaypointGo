@@ -178,3 +178,17 @@ export type RecordCapacityDecision = {
   refrigerated: boolean;
   reason: string;
 };
+
+/** GET /api/ml/forecast/accuracy (roadmap T2-03): the last finished weeks, as forecast before each began. */
+export type BrandAccuracyView = { brandCode: string; forecastM3: number | string; orderedM3: number | string };
+export type WeekAccuracyView = {
+  isoYear: number;
+  isoWeek: number;
+  modelLabel: string;
+  forecastM3: number | string;
+  orderedM3: number | string;
+  /** Empty when nothing was ordered that week. */
+  wape: number | string | null;
+  brands: BrandAccuracyView[];
+};
+export type ForecastAccuracyView = { depotCode: string; weeks: WeekAccuracyView[]; wape: number | string | null };

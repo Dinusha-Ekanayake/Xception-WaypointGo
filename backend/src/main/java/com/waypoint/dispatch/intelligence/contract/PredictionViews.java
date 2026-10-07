@@ -184,6 +184,29 @@ public final class PredictionViews {
     }
   }
 
+  /** One brand of a finished week: the forecast made before the week, beside what was ordered (T2-03). */
+  public record BrandAccuracyView(String brandCode, BigDecimal forecastM3, BigDecimal orderedM3) {}
+
+  /**
+   * A finished ISO week of a depot (roadmap T2-03, R-ML-13): its brands' forecasts
+   * as made before the week began, and what was ordered; {@code wape} is empty
+   * when nothing was ordered.
+   */
+  public record WeekAccuracyView(
+      int isoYear, int isoWeek, String modelLabel, BigDecimal forecastM3, BigDecimal orderedM3,
+      Optional<BigDecimal> wape, List<BrandAccuracyView> brands) {
+    public WeekAccuracyView {
+      brands = List.copyOf(brands);
+    }
+  }
+
+  /** The last finished weeks, oldest first, and the error over all of them. */
+  public record ForecastAccuracyView(String depotCode, List<WeekAccuracyView> weeks, Optional<BigDecimal> wape) {
+    public ForecastAccuracyView {
+      weeks = List.copyOf(weeks);
+    }
+  }
+
   /**
    * The Forecast screen's read for one depot: the newest run, week by week,
    * with calendar and fleet capacity alongside.

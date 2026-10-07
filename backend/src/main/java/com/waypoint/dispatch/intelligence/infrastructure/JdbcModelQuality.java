@@ -97,4 +97,16 @@ public class JdbcModelQuality {
   private static Instant instant(Object value) {
     return value instanceof Timestamp t ? t.toInstant() : ((java.time.OffsetDateTime) value).toInstant();
   }
+
+  /** A depot's judged weeks between two week keys (year * 100 + week), oldest first, as the reader may see. */
+  public List<java.util.Map<String, Object>> accuracy(String depot, int fromKey, int toKey) {
+    return database.query(
+        """
+        SELECT iso_year, iso_week, brand_code, model_label, forecast_total_m3, actual_total_m3
+          FROM ml.forecast_accuracy
+         WHERE depot_code = ? AND iso_year * 100 + iso_week BETWEEN ? AND ?
+         ORDER BY iso_year, iso_week, brand_code
+        """,
+        depot, fromKey, toKey);
+  }
 }

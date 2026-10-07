@@ -123,6 +123,15 @@ public class IntelligenceController {
     return intelligence.forecast(actor, depot, brand, week(from, "from"), week(to, "to"));
   }
 
+  /** Roadmap T2-03: how the last finished weeks' forecasts did against what was ordered. */
+  @GetMapping("/forecast/accuracy")
+  public com.waypoint.dispatch.intelligence.contract.PredictionViews.ForecastAccuracyView forecastAccuracy(
+      @RequestParam String depot,
+      @RequestParam(required = false, defaultValue = "4") int weeks,
+      HttpServletRequest request) {
+    return intelligence.forecastAccuracy(read(request, "wpt:ml:forecast:" + depot), depot, weeks);
+  }
+
   /**
    * The Forecast screen: the next {@code weeks} weeks for a depot, all brands,
    * with the calendar and fleet capacity alongside. A depot outside scope is 403.
