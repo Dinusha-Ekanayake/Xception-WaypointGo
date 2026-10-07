@@ -197,3 +197,21 @@ export type WeekAccuracyView = {
   brands: BrandAccuracyView[];
 };
 export type ForecastAccuracyView = { depotCode: string; weeks: WeekAccuracyView[]; wape: number | string | null };
+
+/** Roadmap MF-04, R-ML-16: one finished week of a model's backtest. */
+export type BacktestWeekView = { isoYear: number; isoWeek: number; stops: number; labelled: number; brier: number | string | null };
+export type BacktestVerdict = "BETTER" | "WORSE" | "MIXED" | "NOT_ENOUGH" | "BASELINE";
+/** How one model did on what it predicted; {@code modelLabel} is name@version, or "deterministic" for the built-in estimate. */
+export type ModelBacktestView = {
+  modelLabel: string;
+  stops: number;
+  labelled: number;
+  coverage: number | string;
+  brier: number | string | null;
+  logLoss: number | string | null;
+  calibrationSlope: number | string | null;
+  calibrationIntercept: number | string | null;
+  verdict: BacktestVerdict;
+  weeks: BacktestWeekView[];
+};
+export type BacktestView = { from: string; to: string; minLabels: number; models: ModelBacktestView[] };

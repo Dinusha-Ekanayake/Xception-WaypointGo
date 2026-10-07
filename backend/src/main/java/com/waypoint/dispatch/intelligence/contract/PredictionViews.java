@@ -213,6 +213,31 @@ public final class PredictionViews {
     }
   }
 
+  /** One finished ISO week of a model's backtest: its stops, the labelled ones, and its Brier score. */
+  public record BacktestWeekView(int isoYear, int isoWeek, int stops, int labelled, Optional<BigDecimal> brier) {}
+
+  /**
+   * How one model did on the predictions it made over the last finished weeks
+   * (roadmap MF-04, R-ML-16), and its verdict against the built-in estimate:
+   * {@code BETTER}, {@code WORSE}, {@code MIXED}, {@code NOT_ENOUGH} or, for the
+   * estimate itself, {@code BASELINE}.
+   */
+  public record ModelBacktestView(
+      String modelLabel, int stops, int labelled, BigDecimal coverage, Optional<BigDecimal> brier,
+      Optional<BigDecimal> logLoss, Optional<BigDecimal> calibrationSlope, Optional<BigDecimal> calibrationIntercept,
+      String verdict, List<BacktestWeekView> weeks) {
+    public ModelBacktestView {
+      weeks = List.copyOf(weeks);
+    }
+  }
+
+  /** The backtest window, Monday to Sunday inclusive, and each model that answered in it. */
+  public record BacktestView(LocalDate from, LocalDate to, int minLabels, List<ModelBacktestView> models) {
+    public BacktestView {
+      models = List.copyOf(models);
+    }
+  }
+
   /** The last finished weeks, oldest first, and the error over all of them. */
   public record ForecastAccuracyView(String depotCode, List<WeekAccuracyView> weeks, Optional<BigDecimal> wape) {
     public ForecastAccuracyView {

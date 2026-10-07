@@ -35,6 +35,7 @@ const ICONS = {
   "switch-user": { box: 20 },
   persona: { box: 20 },
   bolt: { box: 20 },
+  model: { box: 20 },
   calendar: { box: 20 },
   users: { box: 20 },
   "permission-list": { box: 20 },

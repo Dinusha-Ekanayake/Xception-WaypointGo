@@ -566,6 +566,52 @@ class IntelligenceIntegrationTest {
   }
 
   @Test
+  void aModelIsBacktestedOnWhatItPredictedAndJudgedAgainstTheEstimate() throws Exception {
+    // MF-04, R-ML-16: 250 stops each, two weeks ago. The estimate says 0.5 everywhere;
+    // the candidate is sharp. 20 of the candidate's stops have no arrival.
+    String sharp = "bt-sharp-" + run;
+    java.time.LocalDate monday = java.time.LocalDate.now(com.waypoint.dispatch.shared.util.Clock.OPERATING_ZONE)
+        .with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY)).minusWeeks(2);
+    for (int i = 0; i < 500; i++) {
+      boolean candidate = i % 2 == 0;
+      Boolean late = candidate && i < 40 ? null : (i / 2) % 3 == 0;
+      double p = candidate ? (late != null && late ? 0.95 : 0.05) : 0.5;
+      java.time.LocalDate day = monday.plusDays(i % 5);
+      database.asSystem(ModuleRole.ML, () -> database.update(
+          """
+          INSERT INTO ml.delivery_outcomes
+              (delivery_id, order_id, outlet_id, depot_code, service_date, stop_sequence, outcome, late_label,
+               label_source, predicted_late_prob, model_label, recorded_at)
+          VALUES (?, ?, 'OUT001', ?, ?, 1, 'delivered', ?, ?, ?, ?, now())
+          """,
+          UUID.randomUUID(), UUID.randomUUID(), depot, java.sql.Date.valueOf(day), late,
+          late == null ? "none" : "device", p, candidate ? sharp : "deterministic"));
+    }
+    JsonNode b = read(admin, "/api/ml/models/backtest?weeks=8", 200);
+    assertEquals(200, b.get("minLabels").asInt());
+    JsonNode m = null;
+    for (JsonNode x : b.get("models")) {
+      if (x.get("modelLabel").asText().equals(sharp)) {
+        m = x;
+      }
+    }
+    assertTrue(m != null, b.toString());
+    assertEquals(250, m.get("stops").asInt());
+    assertEquals(230, m.get("labelled").asInt(), "a stop with no arrival is not scored");
+    assertEquals(0.92, m.get("coverage").asDouble(), 1e-9);
+    assertEquals("BETTER", m.get("verdict").asText());
+    assertEquals(1, m.get("weeks").size());
+
+    read(admin, "/api/ml/models/backtest?weeks=13", 422);
+    MvcResult outside = http.perform(get("/api/ml/models/backtest").cookie(stranger)).andReturn();
+    if (outside.getResponse().getStatus() == 200) {
+      assertTrue(!outside.getResponse().getContentAsString().contains(sharp), "another depot's outcomes are not read");
+    } else {
+      assertEquals(403, outside.getResponse().getStatus());
+    }
+  }
+
+  @Test
   void theForecastScreenShowsHowTheLastFinishedWeeksDid() throws Exception {
     // T2-03: two finished weeks, judged as the nightly job keeps them.
     java.time.LocalDate monday = java.time.LocalDate.now(com.waypoint.dispatch.shared.util.Clock.OPERATING_ZONE)

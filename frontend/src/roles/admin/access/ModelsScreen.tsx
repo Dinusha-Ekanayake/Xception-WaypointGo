@@ -1,16 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { ModelKind, ModelVersionView } from "@shared/domain/intelligence";
+import type { BacktestView, ModelKind, ModelVersionView } from "@shared/domain/intelligence";
 import { friendlyError } from "@shared/api/problem";
 import { dayLabel } from "@shared/wording";
 import { Badge, card, field, primary, secondary } from "./components";
-import { activateModel, fetchModels, KIND_LABEL, metricLabel, metricValue, retireModel, trainingPeriod } from "../data/models";
+import { activateModel, backtestLine, BUILT_IN, fetchBacktest, fetchModels, KIND_LABEL, metricLabel, metricValue, retireModel, trainingPeriod } from "../data/models";
 
 // Roadmap MF-01: the model registry. One model per kind answers at a time
 // (R-ML-03); a retired model can never come back. Until a model trained on our
 // own deliveries passes its backtest, production answers with the built-in
 // estimate and says so on every screen that shows a prediction (R-ML-04).
+// Each late-risk model shows how its own predictions did over the last eight
+// finished weeks beside the estimate's (MF-04, R-ML-16), so the administrator
+// sees the evidence before choosing it.
 
 const KINDS: ModelKind[] = ["delivery_risk", "demand_forecast"];
 const STATUS: Record<ModelVersionView["status"], { text: string; tone: "green" | "neutral" | "red" }> = {
@@ -26,6 +29,7 @@ export function ModelsScreen() {
   const [retiring, setRetiring] = useState<ModelVersionView | null>(null);
   const [reason, setReason] = useState("");
   const [reload, setReload] = useState(0);
+  const [backtest, setBacktest] = useState<BacktestView | null | "unavailable">(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -37,8 +41,16 @@ export function ModelsScreen() {
       .catch((e: unknown) => {
         if (!controller.signal.aborted) setError(friendlyError(e));
       });
+    fetchBacktest(8, controller.signal)
+      .then(setBacktest)
+      .catch(() => {
+        if (!controller.signal.aborted) setBacktest("unavailable");
+      });
     return () => controller.abort();
   }, [reload]);
+
+  const judged = (label: string) =>
+    backtest === "unavailable" ? "Backtest unavailable right now: try again shortly." : backtest ? backtestLine(backtest, label) : "Loading backtest…";
 
   const act = async (key: string, run: () => Promise<unknown>) => {
     setBusy(key);
@@ -76,6 +88,11 @@ export function ModelsScreen() {
                 <p className="mt-1 text-sm">
                   {active ? `In use: ${active.name} ${active.version}` : "No model in use: the built-in estimate answers, and screens say so."}
                 </p>
+                {kind === "delivery_risk" && (
+                  <p className="mt-1 text-sm text-go-muted" data-testid="backtest-built-in">
+                    Built-in estimate: {judged(BUILT_IN)}
+                  </p>
+                )}
               </div>
               {versions.length === 0 && <p className="text-sm text-go-muted">No versions registered yet.</p>}
               <ul className="flex flex-col gap-3">
@@ -93,6 +110,11 @@ export function ModelsScreen() {
                         {m.activatedAt ? ` · in use since ${dayLabel(m.activatedAt.slice(0, 10))}` : ""}
                         {m.retiredReason ? ` · retired: ${m.retiredReason}` : ""}
                       </p>
+                      {kind === "delivery_risk" && (
+                        <p className="mt-1 text-sm" data-testid="backtest">
+                          {judged(key)}
+                        </p>
+                      )}
                       {Object.keys(m.metrics).length > 0 && (
                         <dl className="mt-3 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
                           {Object.entries(m.metrics).map(([name, value]) => (

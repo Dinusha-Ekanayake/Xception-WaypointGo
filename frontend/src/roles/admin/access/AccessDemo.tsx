@@ -53,7 +53,7 @@ const NAV: Array<{ tab: Tab; label: string; icon: IconName; also?: Tab[] }> = [
   { tab: "orders", label: "Orders", icon: "box" },
   { tab: "vehicles", label: "Vehicles", icon: "truck" },
   { tab: "forecasts", label: "Forecasts", icon: "chart-line" },
-  { tab: "models", label: "Models", icon: "chart-line" },
+  { tab: "models", label: "Models", icon: "model" },
   { tab: "audit", label: "Audit console", icon: "grid" },
   { tab: "constraints", label: "System constraints", icon: "permission-list" },
   { tab: "demo", label: "Demo control room", icon: "live" },

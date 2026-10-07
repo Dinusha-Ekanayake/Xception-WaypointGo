@@ -125,6 +125,8 @@ Equal-bin calibration error is too noisy at this volume and is not used.
 
 **Not done.** Live shadow models are not used. At about 200 stops a day there is too little data for a live comparison to mean anything.
 
+**Built (first slice, 2026-10-08).** `GET /api/ml/models/backtest?weeks=8` returns, per model label and the built-in estimate, the stops it answered, the labelled ones and their coverage, Brier score, log loss, calibration, a Brier score per ISO week, and a verdict against the estimate (R-ML-16, ML-27). The admin Models screen shows it beside each late-risk model. Open: a model only has a backtest for the weeks it was in use, so a registered model that never answered says "no predictions yet"; scoring a candidate on the stored plan features (features as at publication) is the next slice, and the threshold τ is frozen from it.
+
 ### MF-05 Leakage check and retraining
 
 **Leakage check:**

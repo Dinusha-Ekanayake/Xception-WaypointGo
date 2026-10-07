@@ -1,6 +1,6 @@
 import { request } from "../../../shared/api/client.ts";
 import { newCommand, send } from "../../../shared/api/commands.ts";
-import type { ModelKind, ModelVersionView } from "../../../shared/domain/intelligence.ts";
+import type { BacktestView, ModelBacktestView, ModelKind, ModelVersionView } from "../../../shared/domain/intelligence.ts";
 
 // The model registry (roadmap MF-01): which trained model answers each kind of
 // prediction. Reads GET /api/ml/models; activating and retiring go through the
@@ -9,6 +9,42 @@ import type { ModelKind, ModelVersionView } from "../../../shared/domain/intelli
 
 export function fetchModels(signal?: AbortSignal) {
   return request<ModelVersionView[]>("/api/ml/models", { signal });
+}
+
+/** Roadmap MF-04: each model's stored predictions over the last finished weeks beside what happened. */
+export function fetchBacktest(weeks = 8, signal?: AbortSignal) {
+  return request<BacktestView>(`/api/ml/models/backtest?weeks=${weeks}`, { signal });
+}
+
+export const BUILT_IN = "deterministic";
+
+const VERDICT: Record<ModelBacktestView["verdict"], string> = {
+  BETTER: "better than the built-in estimate",
+  WORSE: "worse than the built-in estimate",
+  MIXED: "neither clearly better nor worse than the built-in estimate",
+  NOT_ENOUGH: "not enough labelled stops to judge",
+  BASELINE: "the figure every model is judged against",
+};
+
+/**
+ * One line for a model's backtest, in words: how many stops it answered, how
+ * many had a trustworthy arrival, its late error beside the estimate's, and
+ * the verdict. A model that answered nothing says so rather than showing zeros.
+ */
+export function backtestLine(view: BacktestView, label: string): string {
+  const weeks = Math.round((Date.parse(view.to) - Date.parse(view.from)) / (7 * 86_400_000));
+  const m = view.models.find((x) => x.modelLabel === label);
+  if (!m) return `Last ${weeks} weeks · no predictions yet, so nothing to judge`;
+  const base = view.models.find((x) => x.modelLabel === BUILT_IN);
+  const pct = Math.round(Number(m.coverage) * 100);
+  const parts = [`Last ${weeks} weeks`, `${m.labelled} of ${m.stops} stops labelled (${pct}%)`];
+  if (m.brier !== null) {
+    const own = Number(m.brier).toFixed(3);
+    parts.push(base && base !== m && base.brier !== null ? `late error ${own} (estimate ${Number(base.brier).toFixed(3)})` : `late error ${own}`);
+  }
+  const verdict = m.verdict === "NOT_ENOUGH" ? `${VERDICT.NOT_ENOUGH} (needs ${view.minLabels})` : VERDICT[m.verdict];
+  parts.push(verdict.charAt(0).toUpperCase() + verdict.slice(1));
+  return parts.join(" · ");
 }
 
 export function activateModel(model: Pick<ModelVersionView, "name" | "version" | "rowVersion">) {

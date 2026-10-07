@@ -167,6 +167,18 @@ public class JdbcOutcomes {
   }
 
   /** Per outlet: [late, labelled] visits between two service dates, as the reader may see (MF-08). */
+  /**
+   * Every stop of the window that a model or the estimate scored (MF-04): its
+   * day, what was predicted and, when it has one, its label. Rows are limited
+   * to the reader's depots by row-level security.
+   */
+  public java.util.List<Map<String, Object>> scoredOutcomes(LocalDate from, LocalDate to) {
+    return database.query(
+        "SELECT model_label, service_date, predicted_late_prob, late_label FROM ml.delivery_outcomes"
+            + " WHERE service_date BETWEEN ? AND ? AND model_label IS NOT NULL AND predicted_late_prob IS NOT NULL",
+        Date.valueOf(from), Date.valueOf(to));
+  }
+
   public Map<String, int[]> lateCounts(java.util.List<String> outletIds, LocalDate from, LocalDate to) {
     Map<String, int[]> out = new java.util.HashMap<>();
     if (outletIds.isEmpty()) {

@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-10-08 - feat: a model is backtested on what it predicted (MF-04, first slice)
+
+`dev` · @Oxshadha
+
+- `Backtest` (domain) judges each model's stored predictions over the last 8 finished weeks against the built-in estimate: better only when Brier and log loss are both lower on 200 or more labels each (R-ML-16, ML-27). `GET /api/ml/models/backtest`, read in the reader's depots only; the admin Models screen shows a line per late-risk model and says so when the backtest cannot be read.
+- Not yet: replaying a candidate that never answered on stored plan features, and freezing τ from it.
+
+Why: training figures flatter a model (the leaked 0.979); the figure that counts is how it did on our own stops.
+Verified: BacktestTest 3, the new intelligence case on a fresh test database, admin-models Node and browser tests, the full backend suite before the push.
+
+---
+
 ## 2026-10-08 - feat: why a stop is at risk, in plain words (MF-08, first slice)
 
 `dev` · @Oxshadha

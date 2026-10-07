@@ -1,5 +1,6 @@
 package com.waypoint.dispatch.intelligence.application;
 
+import com.waypoint.dispatch.intelligence.domain.Backtest;
 import com.waypoint.dispatch.intelligence.domain.ModelMetrics;
 import com.waypoint.dispatch.execution.contract.ExecutionQuery;
 import com.waypoint.dispatch.execution.contract.ExecutionViews.DeliveryOutcome;
@@ -301,6 +302,41 @@ public class IntelligenceDataQuery implements PredictionQuery, ModelQuery, Trave
    * empty forecast: rows would be hidden by row-level security, but the calendar
    * and fleet beside them are not, and "no forecast" would be a false answer.
    */
+  /**
+   * Roadmap MF-04, R-ML-16: each model's stored predictions over the last
+   * {@code weeks} finished weeks beside what happened, judged against the
+   * built-in estimate. Only the reader's depots count.
+   */
+  public PredictionViews.BacktestView backtest(Actor actor, int weeks) {
+    if (weeks < 1 || weeks > 12) {
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, "weeks must be from 1 to 12");
+    }
+    LocalDate thisMonday = clock.now().atZone(Clock.OPERATING_ZONE).toLocalDate()
+        .with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY));
+    LocalDate from = thisMonday.minusWeeks(weeks);
+    LocalDate to = thisMonday.minusDays(1);
+    List<Map<String, Object>> rows = read(actor.userId(), () -> outcomes.scoredOutcomes(from, to));
+    Map<String, List<Backtest.Outcome>> byModel = new java.util.HashMap<>();
+    for (Map<String, Object> r : rows) {
+      Object late = r.get("late_label");
+      byModel.computeIfAbsent((String) r.get("model_label"), k -> new java.util.ArrayList<>())
+          .add(new Backtest.Outcome(((java.sql.Date) r.get("service_date")).toLocalDate(),
+              Optional.of(((BigDecimal) r.get("predicted_late_prob")).doubleValue()),
+              Optional.ofNullable((Boolean) late)));
+    }
+    List<PredictionViews.ModelBacktestView> models = Backtest.run(byModel).stream()
+        .map(b -> new PredictionViews.ModelBacktestView(b.modelLabel(), b.stops(), b.labelled(),
+            BigDecimal.valueOf(b.coverage()).setScale(4, java.math.RoundingMode.HALF_UP),
+            ratio(b.brier()), ratio(b.logLoss()),
+            ratio(b.calibration().map(ModelMetrics.Calibration::slope)),
+            ratio(b.calibration().map(ModelMetrics.Calibration::intercept)),
+            b.verdict().name(),
+            b.weeks().stream().map(w -> new PredictionViews.BacktestWeekView(
+                w.isoYear(), w.isoWeek(), w.stops(), w.labelled(), ratio(w.brier()))).toList()))
+        .toList();
+    return new PredictionViews.BacktestView(from, to, Backtest.MIN_LABELS, models);
+  }
+
   /**
    * Roadmap T2-03: how the last {@code weeks} finished weeks' forecasts did, as
    * made before each week began, beside what was ordered. A depot outside scope is 403.

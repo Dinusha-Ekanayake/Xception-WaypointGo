@@ -105,6 +105,17 @@ public class IntelligenceController {
     return intelligence.models(read(request, "wpt:ml:model:*"));
   }
 
+  /**
+   * Roadmap MF-04: each model's predictions over the last finished weeks beside
+   * what happened, and whether it beat the built-in estimate. Shown when an
+   * administrator chooses a model.
+   */
+  @GetMapping("/models/backtest")
+  public com.waypoint.dispatch.intelligence.contract.PredictionViews.BacktestView backtest(
+      @RequestParam(required = false, defaultValue = "8") int weeks, HttpServletRequest request) {
+    return intelligence.backtest(read(request, "wpt:ml:model:*"), weeks);
+  }
+
   /** Every stop's expected service minutes and P(late), and whether a model or the fallback answered. */
   @GetMapping("/plans/{planId}/predictions")
   public PlanPredictionsView predictions(@PathVariable UUID planId, HttpServletRequest request) {
