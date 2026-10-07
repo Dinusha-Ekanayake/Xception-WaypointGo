@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-10-07 - feat: Needs you holds at a thousand trips
+
+`dev` · @Oxshadha
+
+- Live "Needs you" folds a trip's cards under its most urgent one ("+N more on this trip"), shows the first twelve trips with "Show N more trips", and counts the items in its heading (`groupByTrip`, `NEEDS_SHOWN`).
+- Not yet: a load test of the Live reads at 1,280 trips, and a cap on the attention watch's alerts per dispatcher.
+
+Why: at 80 to 1,280 trips a dispatcher acts on trips, not lines; one long list hides the worst one.
+Verified: Node 371; build; browser dispatcher 83 (`needs-scale.spec.ts` new).
+
+---
+
 ## 2026-10-07 - feat: a ready reply's use is recorded (FF-08)
 
 `dev` · @Oxshadha

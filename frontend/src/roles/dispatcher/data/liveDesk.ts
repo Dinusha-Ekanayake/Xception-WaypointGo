@@ -286,3 +286,34 @@ export function filterRuns(runs: Run[], depot: string, filter: RunFilter): { run
     offline: inDepot.filter((r) => r.status === "offline").length,
   };
 }
+
+/** One trip's cards together, its most urgent first, or one issue on its own. */
+export type NeedGroup = { key: string; lead: NeedCard; more: NeedCard[] };
+
+/** How many groups "Needs you" shows before "Show more": enough for a shift's worst minute, not a wall. */
+export const NEEDS_SHOWN = 12;
+
+/**
+ * At 80 to 1,280 trips a dispatcher acts on trips, not lines: the cards of one
+ * vehicle become one group, led by its most urgent card, in the order of that
+ * lead. Cards come in already ranked by needCards.
+ */
+export function groupByTrip(cards: NeedCard[]): NeedGroup[] {
+  const groups: NeedGroup[] = [];
+  const byVehicle = new Map<string, NeedGroup>();
+  for (const card of cards) {
+    if (card.vehicleId === null) {
+      groups.push({ key: card.id, lead: card, more: [] });
+      continue;
+    }
+    const known = byVehicle.get(card.vehicleId);
+    if (known) {
+      known.more.push(card);
+      continue;
+    }
+    const group = { key: `trip-${card.vehicleId}`, lead: card, more: [] as NeedCard[] };
+    byVehicle.set(card.vehicleId, group);
+    groups.push(group);
+  }
+  return groups;
+}

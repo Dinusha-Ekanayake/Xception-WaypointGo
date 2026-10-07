@@ -7,7 +7,7 @@ import type { DecisionView } from "@shared/domain/types";
 import { cx } from "@shared/ui";
 import { hhmm, stops } from "@shared/wording";
 import { lateBy, tripOf, updateText, useOpenTripThread } from "../data/threads.ts";
-import { depotSummaries, etaOf, progress, routeLabel, summaryText, type NeedCard, type Run } from "../data/liveDesk.ts";
+import { depotSummaries, etaOf, groupByTrip, NEEDS_SHOWN, progress, routeLabel, summaryText, type NeedCard, type Run } from "../data/liveDesk.ts";
 import { suggestionFor, type Suggestion } from "../data/playbooks.ts";
 import DecisionAsk from "./DecisionAsk.tsx";
 import { Action, Bar, Chip, NOT_AVAILABLE_NOTE, STATUS } from "./LiveParts.tsx";
@@ -77,70 +77,116 @@ export default function LiveNeeds({
     setNote(null);
     void openThread(tripId, { address: { to, outletId: to === "outlet" ? outletId : null }, body }).then(setNote);
   };
+  // At 80 to 1,280 trips: one group per trip, the first NEEDS_SHOWN, the rest on request.
+  const groups = groupByTrip(cards);
+  const [showAll, setShowAll] = useState(false);
+  const [open, setOpen] = useState<Set<string>>(new Set());
+  const toggle = (key: string) =>
+    setOpen((was) => {
+      const next = new Set(was);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  const shownGroups = showAll ? groups : groups.slice(0, NEEDS_SHOWN);
+  const hiddenGroups = groups.length - shownGroups.length;
+  const renderCard = (card: NeedCard): React.JSX.Element => (
+    <>
+      <span className="flex items-center justify-between gap-2">
+        <Chip tone={card.chip.tone}>{card.chip.text}</Chip>
+        <span className="text-[12px] text-go-secondary">{card.meta}</span>
+      </span>
+      <span className="text-[15px] font-semibold text-go-ink">{card.title}</span>
+      <span className="text-[12.5px] text-go-secondary">{card.detail}</span>
+      <span className="mt-1.5 flex gap-2">
+        {card.kind === "window" && (
+          <>
+            <Action primary disabled={!online} className="flex-1" onClick={() => notify(card.vehicleId)}>Notify store</Action>
+            {card.vehicleId && <Action onClick={() => onOpenTrip(card.vehicleId!)}>Open trip</Action>}
+          </>
+        )}
+        {card.kind === "offline" && (
+          <>
+            <Action primary unavailable className="flex-1">Call driver</Action>
+            {card.vehicleId && <Action onClick={() => onOpenTrip(card.vehicleId!)}>Open trip</Action>}
+          </>
+        )}
+        {card.kind === "issue" && card.issueId && (
+          <Action primary className="flex-1" onClick={() => onOpenIssue(card.issueId!)}>
+            Book make-up
+          </Action>
+        )}
+        {(card.kind === "failed" || card.kind === "left") && card.vehicleId && (
+          <Action primary className="flex-1" onClick={() => onOpenTrip(card.vehicleId!)}>
+            Open trip
+          </Action>
+        )}
+      </span>
+      {(card.kind === "window" || card.kind === "failed") && stopOf(card) && (
+        <DecisionAsk
+          kind={card.kind}
+          stop={stopOf(card)!.stop}
+          stops={stopOf(card)!.stops}
+          decisions={decisions.data ?? []}
+          online={online}
+          now={new Date()}
+          date={date}
+          onChanged={decisions.refresh}
+        />
+      )}
+      <Suggested {...suggest(card)} online={online} showMessage={card.kind !== "window"} onWrite={write} />
+    </>
+  );
   return (
     <div className="flex w-full items-start gap-[18px] max-lg:flex-col">
       <section aria-label="Needs you" className="flex w-full flex-col gap-3 lg:max-w-[372px]">
         <h2 className="flex items-baseline gap-2 text-[15px] font-medium text-go-ink">
-          Needs you <span className="text-[12px] font-normal text-go-secondary">most urgent first</span>
+          Needs you{" "}
+          <span className="text-[12px] font-normal text-go-secondary">
+            {groups.length > 0 ? `${groups.length} ${groups.length === 1 ? "item" : "items"} · most urgent first` : "most urgent first"}
+          </span>
         </h2>
         {cards.length === 0 && (
           <p className="rounded-[20px] bg-white px-[18px] py-6 text-center text-[13px] text-go-secondary shadow-go-card">Nothing needs you right now.</p>
         )}
         <ul className="flex flex-col gap-3">
-          {cards.map((card, i) => (
+          {shownGroups.map((group, i) => (
             <li
-              key={card.id}
+              key={group.key}
               className={cx(
                 "flex flex-col gap-1.5 rounded-[20px] bg-white px-[18px] py-4 shadow-go-card",
-                i === 0 && card.chip.tone === "danger" && "ring-2 ring-[#c08a3e]/70",
+                i === 0 && group.lead.chip.tone === "danger" && "ring-2 ring-[#c08a3e]/70",
               )}
             >
-              <span className="flex items-center justify-between gap-2">
-                <Chip tone={card.chip.tone}>{card.chip.text}</Chip>
-                <span className="text-[12px] text-go-secondary">{card.meta}</span>
-              </span>
-              <span className="text-[15px] font-semibold text-go-ink">{card.title}</span>
-              <span className="text-[12.5px] text-go-secondary">{card.detail}</span>
-              <span className="mt-1.5 flex gap-2">
-                {card.kind === "window" && (
-                  <>
-                    <Action primary disabled={!online} className="flex-1" onClick={() => notify(card.vehicleId)}>Notify store</Action>
-                    {card.vehicleId && <Action onClick={() => onOpenTrip(card.vehicleId!)}>Open trip</Action>}
-                  </>
-                )}
-                {card.kind === "offline" && (
-                  <>
-                    <Action primary unavailable className="flex-1">Call driver</Action>
-                    {card.vehicleId && <Action onClick={() => onOpenTrip(card.vehicleId!)}>Open trip</Action>}
-                  </>
-                )}
-                {card.kind === "issue" && card.issueId && (
-                  <Action primary className="flex-1" onClick={() => onOpenIssue(card.issueId!)}>
-                    Book make-up
-                  </Action>
-                )}
-                {(card.kind === "failed" || card.kind === "left") && card.vehicleId && (
-                  <Action primary className="flex-1" onClick={() => onOpenTrip(card.vehicleId!)}>
-                    Open trip
-                  </Action>
-                )}
-              </span>
-              {(card.kind === "window" || card.kind === "failed") && stopOf(card) && (
-                <DecisionAsk
-                  kind={card.kind}
-                  stop={stopOf(card)!.stop}
-                  stops={stopOf(card)!.stops}
-                  decisions={decisions.data ?? []}
-                  online={online}
-                  now={new Date()}
-                  date={date}
-                  onChanged={decisions.refresh}
-                />
+              {renderCard(group.lead)}
+              {group.more.length > 0 && (
+                <button
+                  type="button"
+                  aria-expanded={open.has(group.key)}
+                  onClick={() => toggle(group.key)}
+                  className="mt-1 self-start text-[12.5px] font-medium text-go-teal"
+                >
+                  {open.has(group.key) ? "Show less" : `+${group.more.length} more on this trip`}
+                </button>
               )}
-              <Suggested {...suggest(card)} online={online} showMessage={card.kind !== "window"} onWrite={write} />
+              {open.has(group.key) &&
+                group.more.map((card) => (
+                  <div key={card.id} className="mt-2 flex flex-col gap-1.5 border-t border-go-divider pt-3">
+                    {renderCard(card)}
+                  </div>
+                ))}
             </li>
           ))}
         </ul>
+        {hiddenGroups > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowAll(true)}
+            className="min-h-11 rounded-[20px] bg-white px-[18px] text-[13px] font-medium text-go-teal shadow-go-card"
+          >
+            Show {hiddenGroups} more {hiddenGroups === 1 ? "trip" : "trips"}
+          </button>
+        )}
         {note && <p role="status" className="px-1 text-[11px] text-go-warning-text">{note}</p>}
         {unavailableShown && <p className="px-1 text-[11px] text-go-secondary">{NOT_AVAILABLE_NOTE}</p>}
         {!online && <p className="px-1 text-[11px] text-go-warning-text">Offline: actions are paused.</p>}
