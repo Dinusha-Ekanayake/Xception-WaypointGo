@@ -213,6 +213,12 @@ function Row({
       <span className="min-w-0 flex-1 py-1.5">
         <span className="block truncate text-[14px] leading-5 font-medium text-go-ink">{title}</span>
         {note && <span className="block text-xs text-go-secondary">{note}</span>}
+        {/* MF-08: why it is at risk, when it is, in plain words. */}
+        {risk && riskTone(risk.percent) !== "low" && risk.reasons && risk.reasons.length > 0 && (
+          <span className="block text-xs text-go-secondary" data-testid="risk-reasons">
+            {`Why: ${risk.reasons.join(" · ")}`}
+          </span>
+        )}
       </span>
       <span className="flex shrink-0 items-start gap-1.5 py-1.5">
         {risk && (

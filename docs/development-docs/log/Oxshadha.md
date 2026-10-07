@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-10-08 - feat: why a stop is at risk, in plain words (MF-08, first slice)
+
+`dev` · @Oxshadha
+
+- `LateReasons` (domain) gives up to three reasons per stop, strongest first: a tight window, far down the trip, the store's late record from the outcomes kept beside predictions (R-ML-15, ML-26). The predictions read returns them with each stop; the Plan screen shows "Why: only 14 min before the window closes · late on 3 of its last 6 visits" under an amber or red stop.
+- Not yet: start delay as a reason.
+
+Why: "Late 41%" alone does not tell a dispatcher what to change; a reason does.
+Verified: LateReasonsTest 5 and the new intelligence case on a fresh test database; Node plan views (reasonText new); browser dispatcher; the full backend suite before the push.
+
+---
+
 ## 2026-10-08 - fix: notifications as in the Figma, on every role and screen; images checked
 
 `dev` · @Oxshadha

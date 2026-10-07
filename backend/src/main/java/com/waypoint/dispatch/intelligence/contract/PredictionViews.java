@@ -53,6 +53,14 @@ public final class PredictionViews {
   }
 
   /** One stop's expected service minutes and probability of arriving after its window closes. */
+  /**
+   * One reason a stop is at risk (roadmap MF-08, R-ML-15): {@code TIGHT_WINDOW}
+   * with the minutes left, {@code LATE_IN_ROUTE} with the stop's number,
+   * {@code OUTLET_HISTORY} with late visits {@code value} of {@code of}.
+   */
+  public record LateReasonView(String code, int value, int of) {}
+
+  /** @param reasons why it is at risk, strongest first, at most three; empty when nothing stands out */
   public record StopPredictionView(
       UUID orderId,
       UUID tripId,
@@ -61,7 +69,12 @@ public final class PredictionViews {
       BigDecimal serviceMinutes,
       BigDecimal lateProbability,
       String modelLabel,
-      boolean degraded) {}
+      boolean degraded,
+      List<LateReasonView> reasons) {
+    public StopPredictionView {
+      reasons = reasons == null ? List.of() : List.copyOf(reasons);
+    }
+  }
 
   public record PlanPredictionsView(PlanScoringView scoring, List<StopPredictionView> stops) {
 

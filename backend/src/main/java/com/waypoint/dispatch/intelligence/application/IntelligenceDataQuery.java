@@ -77,6 +77,7 @@ public class IntelligenceDataQuery implements PredictionQuery, ModelQuery, Trave
   private final Database database;
   private final JdbcIntelligenceRepository repository;
   private final com.waypoint.dispatch.intelligence.infrastructure.JdbcModelQuality quality;
+  private final com.waypoint.dispatch.intelligence.infrastructure.JdbcOutcomes outcomes;
   private final PlanQuery plans;
   private final OrderQuery orders;
   private final ExecutionQuery execution;
@@ -95,7 +96,9 @@ public class IntelligenceDataQuery implements PredictionQuery, ModelQuery, Trave
       Metrics metrics,
       Clock clock,
       com.waypoint.dispatch.platform.audit.AuditLog audit,
-      com.waypoint.dispatch.intelligence.infrastructure.JdbcModelQuality quality) {
+      com.waypoint.dispatch.intelligence.infrastructure.JdbcModelQuality quality,
+      com.waypoint.dispatch.intelligence.infrastructure.JdbcOutcomes outcomes) {
+    this.outcomes = outcomes;
     this.quality = quality;
     this.database = database;
     this.repository = repository;
@@ -365,14 +368,52 @@ public class IntelligenceDataQuery implements PredictionQuery, ModelQuery, Trave
   // ---- internals --------------------------------------------------------------------------
 
   private Optional<PlanPredictionsView> predictions(UUID planId) {
-    return repository.scoring(planId).map(row -> new PlanPredictionsView(
-        scoring(row),
-        repository.predictions(planId).stream()
-            .map(p -> new StopPredictionView(
-                (UUID) p.get("order_id"), (UUID) p.get("trip_id"), ((Number) p.get("stop_sequence")).intValue(),
-                (String) p.get("outlet_id"), (BigDecimal) p.get("service_min"), (BigDecimal) p.get("late_prob"),
-                (String) p.get("model_label"), (Boolean) p.get("degraded")))
-            .toList()));
+    return repository.scoring(planId).map(row -> {
+      Map<UUID, List<PredictionViews.LateReasonView>> reasons = lateReasons(planId);
+      return new PlanPredictionsView(
+          scoring(row),
+          repository.predictions(planId).stream()
+              .map(p -> new StopPredictionView(
+                  (UUID) p.get("order_id"), (UUID) p.get("trip_id"), ((Number) p.get("stop_sequence")).intValue(),
+                  (String) p.get("outlet_id"), (BigDecimal) p.get("service_min"), (BigDecimal) p.get("late_prob"),
+                  (String) p.get("model_label"), (Boolean) p.get("degraded"),
+                  reasons.getOrDefault((UUID) p.get("order_id"), List.of())))
+              .toList());
+    });
+  }
+
+  /** How far back a store's late visits are counted for its reason. */
+  static final int HISTORY_WEEKS = 8;
+
+  /**
+   * Roadmap MF-08: each stop's reasons, from the plan's own times and the
+   * store's labelled visits of the last eight weeks (R-ML-12). Empty when the
+   * plan cannot be read.
+   */
+  private Map<UUID, List<PredictionViews.LateReasonView>> lateReasons(UUID planId) {
+    Optional<com.waypoint.dispatch.planning.contract.PlanViews.PlanView> plan = plans.plan(planId);
+    if (plan.isEmpty()) {
+      return Map.of();
+    }
+    LocalDate day = plan.get().serviceDate();
+    List<String> outlets = plan.get().trips().stream().flatMap(t -> t.stops().stream())
+        .map(com.waypoint.dispatch.planning.contract.PlanViews.StopView::outletId).distinct().toList();
+    Map<String, int[]> history = outcomes.lateCounts(outlets, day.minusWeeks(HISTORY_WEEKS), day.minusDays(1));
+    Map<UUID, List<PredictionViews.LateReasonView>> out = new java.util.HashMap<>();
+    for (var trip : plan.get().trips()) {
+      List<com.waypoint.dispatch.planning.contract.PlanViews.StopView> stops = trip.stops().stream()
+          .sorted(java.util.Comparator.comparingInt(com.waypoint.dispatch.planning.contract.PlanViews.StopView::sequence))
+          .toList();
+      for (int i = 0; i < stops.size(); i++) {
+        var s = stops.get(i);
+        long slack = java.time.Duration.between(s.plannedArrival(), s.windowClose()).toMinutes();
+        int[] h = history.getOrDefault(s.outletId(), new int[2]);
+        out.put(s.orderId(), com.waypoint.dispatch.intelligence.domain.LateReasons.of(slack, i, h[0], h[1]).stream()
+            .map(r -> new PredictionViews.LateReasonView(r.code(), r.value(), r.of()))
+            .toList());
+      }
+    }
+    return out;
   }
 
   private List<DemandForecast> forecasts(String depot, String brand, int fromKey, int toKey) {

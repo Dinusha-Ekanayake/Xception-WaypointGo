@@ -221,13 +221,39 @@ export function lateRisk(plan: PlanView, predictions: PlanPredictionsView): Late
 export const LATE_WATCH_PERCENT = 20;
 
 /** One stop's chance of arriving after its window, and whether a model or the estimate said so. */
-export type StopRisk = { percent: number; estimate: boolean };
+/** reasons: why it is at risk, in words, strongest first (MF-08). */
+export type StopRisk = { percent: number; estimate: boolean; reasons?: string[] };
+
+/** A reason in the dispatcher's words; an unknown code says nothing rather than a raw code. */
+export function reasonText(r: { code: string; value: number; of: number }): string | null {
+  switch (r.code) {
+    case "TIGHT_WINDOW":
+      return r.value === 0 ? "planned at or after the window closes" : `only ${r.value} min before the window closes`;
+    case "LATE_IN_ROUTE":
+      return `stop ${r.value} of the trip, where delays build up`;
+    case "OUTLET_HISTORY":
+      return `late on ${r.value} of its last ${r.of} visits`;
+    default:
+      return null;
+  }
+}
 
 const asPercent = (p: string | number): number => Math.round(Number(p) * 100);
 
+/** A risk with its reasons, when it has any; without the key when it has none. */
+const withReasons = (risk: StopRisk, reasons: string[]): StopRisk => (reasons.length > 0 ? { ...risk, reasons } : risk);
+
 /** Each order's late risk on the published plan, keyed by order id. */
 export function stopRisks(predictions: PlanPredictionsView): Map<string, StopRisk> {
-  return new Map(predictions.stops.map((stop) => [stop.orderId, { percent: asPercent(stop.lateProbability), estimate: stop.degraded }]));
+  return new Map(
+    predictions.stops.map((stop) => [
+      stop.orderId,
+      withReasons(
+        { percent: asPercent(stop.lateProbability), estimate: stop.degraded },
+        (stop.reasons ?? []).map(reasonText).filter((t): t is string => t !== null),
+      ),
+    ]),
+  );
 }
 
 /** Each trip's worst stop, keyed by trip id: a trip is as late as its latest stop. */

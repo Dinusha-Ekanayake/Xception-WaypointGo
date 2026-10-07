@@ -10,7 +10,8 @@ const scoring = (degraded: boolean) => ({
   scoring: { planId: "plan-v1", depotCode: "Kandy", serviceDate: "2027-03-01", status: degraded ? "DEGRADED" : "SCORED", modelLabel: degraded ? null : "risk@1", roadConditions: "used", reason: null, scoredAt: "2027-02-28T17:00:30Z" },
   stops: [
     { orderId: "order-1", tripId: "trip-VEH043-1", sequence: 1, outletId: "OUT051", serviceMinutes: "20", lateProbability: "0.12", modelLabel: "risk@1", degraded },
-    { orderId: "order-2", tripId: "trip-VEH043-1", sequence: 2, outletId: "OUT052", serviceMinutes: "20", lateProbability: "0.41", modelLabel: "risk@1", degraded },
+    { orderId: "order-2", tripId: "trip-VEH043-1", sequence: 2, outletId: "OUT052", serviceMinutes: "20", lateProbability: "0.41", modelLabel: "risk@1", degraded,
+      reasons: [{ code: "TIGHT_WINDOW", value: 14, of: 0 }, { code: "OUTLET_HISTORY", value: 3, of: 6 }] },
   ],
 });
 
@@ -31,6 +32,9 @@ test("a scored published plan tags its risky trip on the board and every stop on
   const stops = page.getByRole("list", { name: "Stops in order" });
   await expect(stops.getByText("Late 12%", { exact: true })).toBeVisible();
   await expect(stops.getByText("Late 41%", { exact: true })).toBeVisible();
+  // MF-08: a risky stop says why, in plain words; a quiet one says nothing more.
+  await expect(stops.getByTestId("risk-reasons")).toHaveText("Why: only 14 min before the window closes · late on 3 of its last 6 visits");
+  await expect(stops.getByTestId("risk-reasons")).toHaveCount(1);
 });
 
 test("when the time predictor was not running the risk reads as an estimate", async ({ page }) => {

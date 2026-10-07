@@ -274,3 +274,12 @@ test("spare time reads in plain words", () => {
   assert.equal(slackLabel({ minutes: 0, tone: "high" }), "No time to spare");
   assert.equal(slackLabel({ minutes: -5, tone: "high" }), "Past the window by 5 min");
 });
+
+test("a risk's reasons read as words, and a code the screen does not know says nothing (MF-08)", async () => {
+  const { reasonText } = await import("../src/roles/dispatcher/data/planViews.ts");
+  assert.equal(reasonText({ code: "TIGHT_WINDOW", value: 14, of: 0 }), "only 14 min before the window closes");
+  assert.equal(reasonText({ code: "TIGHT_WINDOW", value: 0, of: 0 }), "planned at or after the window closes");
+  assert.equal(reasonText({ code: "LATE_IN_ROUTE", value: 6, of: 0 }), "stop 6 of the trip, where delays build up");
+  assert.equal(reasonText({ code: "OUTLET_HISTORY", value: 3, of: 6 }), "late on 3 of its last 6 visits");
+  assert.equal(reasonText({ code: "SOMETHING_NEW", value: 1, of: 0 }), null);
+});

@@ -165,6 +165,8 @@ The screen states "Road conditions known until DATE". Later dates use the fallba
 
 ### MF-08 Reasons people can read
 
+**First slice built 2026-10-08** (R-ML-15, ML-26): up to three reasons per stop (tight window, late in the route, the store's late record), shown under a risky stop on the Plan screen. Not yet: start delay as a reason, and reasons in Sinhala and Tamil for any role but the dispatcher.
+
 **What is shown.** Each flag shows its top three reasons, built by decomposition:
 
 - slack against the window;

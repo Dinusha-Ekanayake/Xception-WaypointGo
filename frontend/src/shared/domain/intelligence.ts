@@ -59,7 +59,12 @@ export type StopPredictionView = {
   lateProbability: Decimal;
   modelLabel: string;
   degraded: boolean;
+  /** MF-08: why it is at risk, strongest first, at most three; empty or absent when nothing stands out. */
+  reasons?: LateReasonView[];
 };
+
+/** One reason a stop is at risk (R-ML-15): the words come from the code and its numbers. */
+export type LateReasonView = { code: "TIGHT_WINDOW" | "LATE_IN_ROUTE" | "OUTLET_HISTORY" | string; value: number; of: number };
 
 /** GET /api/ml/plans/{planId}/predictions */
 export type PlanPredictionsView = { scoring: PlanScoringView; stops: StopPredictionView[] };

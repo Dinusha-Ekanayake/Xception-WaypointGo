@@ -165,4 +165,21 @@ public class JdbcOutcomes {
       return Map.of();
     }
   }
+
+  /** Per outlet: [late, labelled] visits between two service dates, as the reader may see (MF-08). */
+  public Map<String, int[]> lateCounts(java.util.List<String> outletIds, LocalDate from, LocalDate to) {
+    Map<String, int[]> out = new java.util.HashMap<>();
+    if (outletIds.isEmpty()) {
+      return out;
+    }
+    database
+        .query(
+            "SELECT outlet_id, count(*) FILTER (WHERE late_label) AS late, count(late_label) AS labelled"
+                + " FROM ml.delivery_outcomes WHERE outlet_id = ANY (?::text[]) AND service_date BETWEEN ? AND ?"
+                + " GROUP BY outlet_id",
+            (Object) outletIds.toArray(String[]::new), Date.valueOf(from), Date.valueOf(to))
+        .forEach(r -> out.put((String) r.get("outlet_id"),
+            new int[] {((Number) r.get("late")).intValue(), ((Number) r.get("labelled")).intValue()}));
+    return out;
+  }
 }

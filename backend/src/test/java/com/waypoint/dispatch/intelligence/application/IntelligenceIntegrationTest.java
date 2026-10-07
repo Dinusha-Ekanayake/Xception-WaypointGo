@@ -344,6 +344,47 @@ class IntelligenceIntegrationTest {
   }
 
   @Test
+  void eachStopsPredictionSaysWhyItIsAtRiskInPlainReasons() throws Exception {
+    // MF-08, R-ML-15: a store late on 3 of its last 4 labelled visits is a reason on its stop.
+    String label = activate("delivery_risk");
+    STUB.riskLabel.set(label);
+    UUID planId = publishedPlan();
+    JsonNode plan = read(dispatcher, "/api/plans/" + planId, 200);
+    java.time.LocalDate day = java.time.LocalDate.parse(plan.get("serviceDate").asText());
+    String outlet = plan.at("/trips/0/stops/0/outletId").asText();
+    for (int i = 0; i < 4; i++) {
+      boolean late = i < 3;
+      java.time.LocalDate visit = day.minusDays(7L * (i + 1));
+      database.asSystem(ModuleRole.ML, () -> database.update(
+          """
+          INSERT INTO ml.delivery_outcomes
+              (delivery_id, order_id, outlet_id, depot_code, service_date, stop_sequence, outcome, late_label,
+               label_source, recorded_at)
+          VALUES (?, ?, ?, ?, ?, 1, 'delivered', ?, 'device', now())
+          """,
+          UUID.randomUUID(), UUID.randomUUID(), outlet, depot, java.sql.Date.valueOf(visit), late));
+    }
+    scoreUntilDone(planId);
+
+    JsonNode body = read(dispatcher, "/api/ml/plans/" + planId + "/predictions", 200);
+    boolean found = false;
+    for (JsonNode s : body.get("stops")) {
+      assertTrue(s.get("reasons").isArray(), "every stop carries its reasons, empty or not");
+      assertTrue(s.get("reasons").size() <= 3);
+      if (s.get("outletId").asText().equals(outlet)) {
+        for (JsonNode r : s.get("reasons")) {
+          if (r.get("code").asText().equals("OUTLET_HISTORY")) {
+            assertEquals(3, r.get("value").asInt());
+            assertEquals(4, r.get("of").asInt());
+            found = true;
+          }
+        }
+      }
+    }
+    assertTrue(found, "the store's late record is a reason: " + body.get("stops"));
+  }
+
+  @Test
   void withTheModelServiceDownThePlanIsScoredDeterministicallyAndSaysSo() throws Exception {
     activate("delivery_risk");
     STUB.failing = true;
