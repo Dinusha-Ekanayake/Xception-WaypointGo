@@ -11,7 +11,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MODE="${1:-up}"
 
-export DATABASE_URL='postgresql://waypoint:local-testing-only@127.0.0.1:5432/waypoint'
+# DB_PORT from the root .env moves the database off 5432 when another PostgreSQL holds it.
+DB_PORT="$( (grep -E '^DB_PORT=' "$ROOT/.env" 2>/dev/null || true) | tail -1 | cut -d= -f2 )"
+export DB_PORT="${DB_PORT:-5432}"
+export DATABASE_URL="postgresql://waypoint:local-testing-only@127.0.0.1:${DB_PORT}/waypoint"
 export DEMO_MODE=1
 # Plain HTTP on localhost: a Secure cookie would not be sent back by every browser.
 export COOKIE_SECURE=0
