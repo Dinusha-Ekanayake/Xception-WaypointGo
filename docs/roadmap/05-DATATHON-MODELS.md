@@ -78,7 +78,7 @@ Jev may appear only as a proposed deployment, never inside the scored pipeline.
 
 ### MF-02 Outcome store
 
-**First slice built 2026-10-07** (R-ML-12, ML-21): `ml.delivery_outcomes` keeps each stop's outcome beside the newest prediction for its order, from Execution's actuals every 10 minutes; the late label only from an on-time arrival; label coverage per depot as a gauge. Not yet: positions with a geofence to fill missing arrivals, and weekly volumes from Ordering.
+**First slice built 2026-10-07** (R-ML-12, ML-21): `ml.delivery_outcomes` keeps each stop's outcome beside the newest prediction for its order, from Execution's actuals every 10 minutes; the late label only from an on-time arrival; label coverage per depot as a gauge. Geofence added 2026-10-08 (ML-25): a stop with no trustworthy tap is labelled from the vehicle's GPS at an outlet with an exact location. Most imported outlets have only a district centre, so coverage grows as exact points are set. Weekly volumes are measured by MF-03's forecast accuracy.
 
 **What it stores.** `ml.prediction_outcomes` joins every stored prediction to what happened.
 

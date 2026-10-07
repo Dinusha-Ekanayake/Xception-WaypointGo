@@ -86,6 +86,8 @@ class ExecutionIntegrationTest {
   @Autowired com.waypoint.dispatch.execution.application.EtaRefreshJob etaJob;
   @Autowired com.waypoint.dispatch.platform.messaging.ChangeSignals changeSignals;
   @Autowired com.waypoint.dispatch.intelligence.application.OutcomeJob outcomeJob;
+  @Autowired com.waypoint.dispatch.referencedata.infrastructure.ReferenceCache referenceCache;
+  @Autowired com.waypoint.dispatch.referencedata.application.ReferenceBootstrap referenceBootstrap;
   @Autowired MockMvc http;
   @Autowired ObjectMapper mapper;
   @Autowired Migrator migrator;
@@ -732,6 +734,39 @@ class ExecutionIntegrationTest {
     Map<String, Object> b = outcome(stopB);
     assertEquals(null, b.get("late_label"), "no arrival: no label, never not late");
     assertEquals("none", b.get("label_source"));
+  }
+
+  @Test
+  void aStopWithNoArrivalTapIsLabelledFromTheVehiclesGpsAtAnExactOutlet() throws Exception {
+    // R-ML-12: the outlet's point is exact; the driver never taps Arrived at stop B.
+    database.asSystem(ModuleRole.REF, () -> database.update(
+        "UPDATE ref.outlets SET latitude = 6.950000, longitude = 79.900000, location_precision = 'exact' WHERE outlet_id = ?",
+        OUTLET));
+    referenceCache.clear();
+    referenceBootstrap.loadCurrentVersion();
+    try {
+      at("05:20");
+      send(driver, "delivery:RecordArrival", 1L, stop(stopA), 200);
+      at("05:25");
+      send(driver, "delivery:Record", 2L, record(stopA, "DELIVERED", null, null, null), 200);
+      at("06:25");
+      // On the road at 05:40 (about 2 km out), at the outlet at 06:20 (about 30 m).
+      send(driver, "delivery:RecordPositions", null,
+          positions(tripId, fix("05:40", "6.968000", "79.900000", 10), fix("06:20", "6.950200", "79.900150", 10)), 200);
+      at("06:30");
+      send(driver, "delivery:Record", 1L, record(stopB, "FAILED", null, "refused", "Returned to the depot"), 200);
+
+      outcomeJob.runAt(clock.now());
+      Map<String, Object> b = outcome(stopB);
+      assertEquals("geofence", b.get("label_source"));
+      assertEquals(false, b.get("late_label"), "at the outlet at 06:20, before its 07:30 close");
+      assertEquals("device", outcome(stopA).get("label_source"), "a trustworthy tap still wins");
+    } finally {
+      database.asSystem(ModuleRole.REF, () -> database.update(
+          "UPDATE ref.outlets SET location_precision = NULL WHERE outlet_id = ?", OUTLET));
+      referenceCache.clear();
+      referenceBootstrap.loadCurrentVersion();
+    }
   }
 
   private Map<String, Object> outcome(UUID deliveryId) {

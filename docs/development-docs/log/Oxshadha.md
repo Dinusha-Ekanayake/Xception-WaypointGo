@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-10-08 - feat: arrivals the driver did not tap are read from the GPS (MF-02)
+
+`dev` · @Oxshadha
+
+- A stop with no trustworthy arrival tap is labelled from the vehicle's GPS at an outlet with an exact location: the first good fix within 150 m between leaving the previous stop and finishing this one (`label_source = geofence`); a trustworthy tap still wins (R-ML-12, ML-25). New contract read `ExecutionQuery.vehicleFixes`.
+- Coverage depends on exact outlet points: the imported reference has none yet, only district centres.
+
+Why: rushed drivers skip the tap, so missing labels lean late; the GPS recovers many of them honestly.
+Verified: the full backend suite, run before the push; OutcomeLabelTest 5 and the new execution case on a fresh test database.
+
+---
+
 ## 2026-10-08 - chore: a repeatable live check of one delivery day across the roles
 
 `dev` · @Oxshadha

@@ -105,6 +105,19 @@ public class JdbcPositions {
         tripId, Timestamp.from(after == null ? Instant.EPOCH : after), limit);
   }
 
+  /** A vehicle's fixes in [from, to], oldest first. */
+  public List<Map<String, Object>> between(String vehicleId, Instant from, Instant to, int limit) {
+    return database.query(
+        """
+        SELECT recorded_at, latitude, longitude, low_quality
+          FROM execution.vehicle_positions
+         WHERE vehicle_id = ? AND recorded_at >= ? AND recorded_at <= ?
+         ORDER BY recorded_at
+         LIMIT ?
+        """,
+        vehicleId, Timestamp.from(from), Timestamp.from(to), limit);
+  }
+
   /** Whether the actor may see the trip at all: a driver or dispatcher sees it, a store sees its stops. */
   public boolean tripVisible(UUID tripId) {
     return Boolean.TRUE.equals(
