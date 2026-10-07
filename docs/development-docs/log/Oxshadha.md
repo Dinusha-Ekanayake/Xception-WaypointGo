@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-10-07 - chore: the first alert rules (B-04, MF-03)
+
+`dev` · @Oxshadha
+
+- `observability/prometheus/rules/waypoint.yml`, loaded by both Prometheus configs and mounted by `compose.yaml`: backend down; outbox lag and dead letters; failing jobs; database pool waits; model calibration outside 0.8 to 1.2, Brier above 0.25, label coverage under 90%, service-minute error; unread driver messages. Tested with promtool (`observability/prometheus/tests/`).
+- Not yet: Alertmanager or any paging, table growth, panels, a promtool step in CI.
+
+Why: the audit found no alert rules, and the trust gates mean nothing unless a breach is seen.
+Verified: `promtool test rules` and `promtool check config` on both configs; `docker compose config`.
+
+---
+
 ## 2026-10-07 - feat: the dispatcher sees whether the driver has read a message
 
 `dev` · @Oxshadha

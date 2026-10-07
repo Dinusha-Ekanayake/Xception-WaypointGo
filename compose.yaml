@@ -266,6 +266,7 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/prometheus/rules:/etc/prometheus/rules:ro
       - prometheus-data:/prometheus
     mem_limit: 512m
     restart: unless-stopped

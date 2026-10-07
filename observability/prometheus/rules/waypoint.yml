@@ -1,0 +1,99 @@
+# Alert rules (roadmap B-04, MF-03). Thresholds follow the trust gates in
+# docs/roadmap/05-DATATHON-MODELS.md; each names the rule it watches. Checked
+# with `promtool test rules observability/prometheus/tests/waypoint.test.yml`.
+# No Alertmanager yet: firing alerts show on Prometheus's Alerts page and in
+# Grafana.
+
+groups:
+  - name: waypoint-backend
+    rules:
+      - alert: BackendDown
+        expr: up{job="backend", stack!="native", stack!="local"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "The {{ $labels.stack }} backend has not answered /prometheus for 5 minutes."
+
+  - name: waypoint-platform
+    rules:
+      # PLT-02: the oldest undelivered event; a stuck relay delays every notification.
+      - alert: OutboxLagging
+        expr: waypoint_outbox_lag_seconds > 60
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.stack }}: the oldest undelivered event is {{ $value | printf \"%.0f\" }} s old."
+
+      # PLT-03: an event that kept failing; replay it with platform:ReplayEvent.
+      - alert: DeadLetters
+        expr: waypoint_outbox_dead > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.stack }}: {{ $value }} dead-lettered events waiting for a replay."
+
+      - alert: JobFailing
+        expr: increase(waypoint_job_run_total{outcome="failed"}[30m]) > 2
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.stack }}: job {{ $labels.job }} failed {{ $value | printf \"%.0f\" }} times in 30 minutes."
+
+      # F-09b: split the pool only on this evidence.
+      - alert: DatabasePoolWaiting
+        expr: hikaricp_connections_pending > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.stack }}: requests have waited for a database connection for 5 minutes."
+
+  - name: waypoint-models
+    rules:
+      # R-ML-13: a calibrated model fits slope 1; the trust gate is 0.8 to 1.2.
+      - alert: ModelCalibrationOutOfRange
+        expr: (waypoint_ml_calibration_slope < 0.8 or waypoint_ml_calibration_slope > 1.2)
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.model }} at {{ $labels.depot }}: calibration slope {{ $value | printf \"%.2f\" }}, outside 0.8 to 1.2."
+
+      # A Brier score above 0.25 is no better than saying 50% for every stop.
+      - alert: ModelNoBetterThanACoin
+        expr: waypoint_ml_brier > 0.25
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.model }} at {{ $labels.depot }}: Brier {{ $value | printf \"%.3f\" }}, above 0.25."
+
+      # R-ML-12: below 90% of stops labelled, the metrics above cannot be trusted.
+      - alert: LabelCoverageLow
+        expr: waypoint_ml_label_coverage_percent < 90
+        for: 2h
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.depot }}: only {{ $value }}% of today's stops have a trustworthy arrival."
+
+      - alert: ServiceMinutesOff
+        expr: waypoint_ml_service_mae_minutes > 15
+        for: 1h
+        labels:
+          severity: info
+        annotations:
+          summary: "{{ $labels.model }} at {{ $labels.depot }}: service minutes off by {{ $value | printf \"%.1f\" }} on average."
+
+  - name: waypoint-field
+    rules:
+      # R-NOT-18: many messages the drivers have not read in an hour.
+      - alert: DriversNotReadingMessages
+        expr: increase(waypoint_notification_unseen_message_total[1h]) > 10
+        labels:
+          severity: info
+        annotations:
+          summary: "{{ $value | printf \"%.0f\" }} messages to drivers went unread for 10 minutes in the last hour."

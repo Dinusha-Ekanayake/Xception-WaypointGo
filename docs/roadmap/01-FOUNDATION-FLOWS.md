@@ -148,6 +148,8 @@ store places order -> 16:00 cutoff closes the day -> engine drafts plan -> dispa
 | B-04 | Alert rules and panels **first** (outbox lag and dead letters, Hikari pending, job failures, table growth), then record the technical baseline below | Table filled, alerts pass `promtool test rules` |
 | B-05 | Business KPI baseline, below | 4 weeks of data per depot, owned by the depot managers |
 
+**Alert rules first slice, 2026-10-07:** `observability/prometheus/rules/waypoint.yml`, loaded by the local and server Prometheus, tested by `promtool test rules observability/prometheus/tests/waypoint.test.yml`: backend down, outbox lag and dead letters, failing jobs, database pool waits, model calibration, Brier, label coverage and service-minute error (the trust gates), and unread driver messages. Not yet: Alertmanager (alerts show on Prometheus and Grafana only), table growth, panels, and the promtool step in CI.
+
 ### B-04 technical baseline
 
 | Measure | How | Target after Phase 2 |
