@@ -95,6 +95,8 @@ public class RunSheetBuilder {
       if (!inserted) {
         continue;
       }
+      // Roadmap T1-03: the planned minutes at the stop, for the estimate of the stops after it.
+      stop.serviceMinutes().ifPresent(minutes -> deliveries.planService(deliveryId, minutes));
       // The products the stop is held to, so a delivery can be recorded product by product.
       deliveries.insertLines(
           deliveryId,

@@ -204,6 +204,8 @@ SHAP is not used: a SHAP value on one part of a blend plus a simulator does not 
 
 ### T1-03 Live arrival times
 
+**First slice built 2026-10-07** (R-EXE-29, EXE-41): the plan's minutes at each stop now travel with the plan and the released trip; Execution propagates from the last actual arrival or departure at each arrival, each recorded delivery and every 2 minutes, stores the time on the delivery record and tells the store through `eta.changed`. Not yet: expected service minutes from history (T1-04) in place of the plan's and `ml.eta_predictions` with its endpoint. The attention watch and the store already read the stored time from the run sheet.
+
 **How it is computed.** In code, by propagation:
 
 > last actual departure + planned travel + expected service minutes for each remaining stop.

@@ -348,6 +348,11 @@ class LoadingIntegrationTest {
     assertEquals("COMPLETED", done.get("status").asText());
     assertTrue(done.get("holder").isNull() || done.get("holder").isMissingNode() || done.get("holder").isEmpty());
     assertEquals(1, outbox("trip.released"));
+    // Roadmap T1-03: the plan's minutes at each stop travel on to Execution.
+    String released = database.asModule(ModuleRole.INTEGRATION, null, () -> (String) database.queryOne(
+        "SELECT payload::text AS p FROM integration.outbox_events WHERE aggregate_id = ? AND event_type = 'trip.released'",
+        tripId.toString()).get("p"));
+    assertTrue(released.contains("\"serviceMinutes\": 12"), released);
     String postReleaseVehicle = reference.availableVehicles(depot, serviceDate, null).stream()
         .filter(v -> !v.vehicleId().equals(vehicleId)).findFirst().orElseThrow().vehicleId();
     deliver("loading.on-plan-revised", new PlanRevised(planId, depot, serviceDate, 2, planId,
@@ -533,7 +538,8 @@ class LoadingIntegrationTest {
   }
 
   private static PlannedStop stop(int sequence, UUID orderId) {
-    return new PlannedStop(sequence, orderId, OUTLET, LocalTime.of(5, 0).plusMinutes(sequence * 20L));
+    return new PlannedStop(
+        sequence, orderId, OUTLET, LocalTime.of(5, 0).plusMinutes(sequence * 20L), java.util.Optional.of(12));
   }
 
   private UUID place(String lines) throws Exception {

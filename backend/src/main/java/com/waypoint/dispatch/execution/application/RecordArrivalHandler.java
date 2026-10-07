@@ -2,9 +2,7 @@ package com.waypoint.dispatch.execution.application;
 
 import com.waypoint.dispatch.execution.contract.ExecutionCommands;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryArrived;
-import com.waypoint.dispatch.execution.contract.ExecutionEvents.EtaChanged;
 import com.waypoint.dispatch.execution.domain.DeliveryRecord;
-import com.waypoint.dispatch.execution.domain.EtaPolicy;
 import com.waypoint.dispatch.execution.infrastructure.JdbcDeliveryRepository;
 import com.waypoint.dispatch.platform.messaging.Command;
 import com.waypoint.dispatch.platform.messaging.CommandPayload;
@@ -33,14 +31,16 @@ public class RecordArrivalHandler extends DeliveryCommandHandler {
   private final EventPublisher events;
   private final Metrics metrics;
   private final Clock clock;
+  private final EtaPropagation eta;
 
   public RecordArrivalHandler(
-      JdbcDeliveryRepository deliveries, EventPublisher events, Metrics metrics, Clock clock) {
+      JdbcDeliveryRepository deliveries, EventPublisher events, Metrics metrics, Clock clock, EtaPropagation eta) {
     super(ExecutionCommands.RECORD_ARRIVAL);
     this.deliveries = deliveries;
     this.events = events;
     this.metrics = metrics;
     this.clock = clock;
+    this.eta = eta;
   }
 
   @Override
@@ -79,18 +79,8 @@ public class RecordArrivalHandler extends DeliveryCommandHandler {
   }
 
   private void announceDelay(Actor actor, DeliveryRecord arrived, Instant now) {
-    int delay = EtaPolicy.delayMinutes(now, arrived.plannedArrivalAt());
-    if (!EtaPolicy.worthAnnouncing(delay, deliveries.announcedDelay(arrived.tripId()))) {
-      return;
-    }
-    deliveries.announceDelay(arrived.tripId(), delay);
-    for (DeliveryRecord ahead : deliveries.pendingOfTrip(arrived.tripId())) {
-      Instant expectedArrival = EtaPolicy.expectedArrival(ahead.plannedArrivalAt(), delay);
-      deliveries.expect(ahead.deliveryId(), expectedArrival);
-      events.publish(
-          actor,
-          new EtaChanged(ahead.deliveryId(), ahead.orderId(), ahead.outletId(), expectedArrival, delay));
-    }
-    metrics.increment("waypoint.execution.eta_changed");
+    // Roadmap T1-03: every stop after this one, by propagation from this arrival.
+    eta.refresh(actor, arrived.tripId(), now);
   }
+
 }

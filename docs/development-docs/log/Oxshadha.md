@@ -4,6 +4,31 @@
 
 ---
 
+## 2026-10-07 - feat: arrival times by propagation (T1-03, first slice)
+
+`dev` · @Oxshadha
+
+- The plan's minutes at each stop now travel with `plan.published`/`plan.revised` and `trip.released` (optional field; older events read as before) into `loading.stops` and `execution.delivery_records` (expand-only migrations).
+- `EtaPolicy.propagate` works out each stop still to come from the last actual arrival or departure plus the planned drive, never before now; run at each arrival, each recorded delivery and every 2 minutes by `EtaRefreshJob`, telling a store only on a 10-minute move (R-EXE-29, EXE-41). A vehicle held up on the road now shows late before it arrives anywhere.
+- Not yet: service minutes from history (T1-04), `ml.eta_predictions` and its endpoint.
+
+Why: the estimate only carried the delay seen at the last arrival, so a long unload or a stop on the road was invisible until the next arrival.
+Verified: see the pull request checks.
+
+---
+
+## 2026-10-07 - feat: the dispatcher hears of a message the driver has not seen
+
+`dev` · @Oxshadha
+
+- A job in Notification finds drivers' message notifications unread after 10 minutes and tells the depot's dispatchers once (routing v12, `message.unseen`; R-NOT-18, MSG-23). No new command: opening Messages already reads them. The driver's phone chimes again every 5 minutes, three times, while one stays unread (sound only, no layout change).
+- Not yet: a "Seen" mark on each message in the dispatcher's thread.
+
+Why: a driver who is driving cannot open Messages; the person who can act is the dispatcher, by phone.
+Verified: backend on a fresh test database (see the T1-03 entry above for the combined run); browser driver 42, dispatcher 82; Node 370; build.
+
+---
+
 ## 2026-10-07 - feat: a loader leaves the driver a note about the load
 
 `dev` · @Oxshadha

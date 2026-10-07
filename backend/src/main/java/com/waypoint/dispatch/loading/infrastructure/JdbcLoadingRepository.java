@@ -151,7 +151,7 @@ public class JdbcLoadingRepository {
     return database
         .query(
             """
-            SELECT st.stop_sequence, st.order_id, st.outlet_id, st.planned_arrival
+            SELECT st.stop_sequence, st.order_id, st.outlet_id, st.planned_arrival, st.planned_service_minutes
             FROM loading.trips t
             JOIN loading.stops st ON st.trip_id = t.trip_id AND st.plan_version = t.plan_version
             WHERE t.trip_id = ? AND t.superseded_at IS NULL
@@ -167,7 +167,8 @@ public class JdbcLoadingRepository {
                     (String) r.get("outlet_id"),
                     r.get("planned_arrival") == null
                         ? null
-                        : ((java.sql.Time) r.get("planned_arrival")).toLocalTime()))
+                        : ((java.sql.Time) r.get("planned_arrival")).toLocalTime(),
+                    Optional.ofNullable((Number) r.get("planned_service_minutes")).map(Number::intValue)))
         .toList();
   }
 

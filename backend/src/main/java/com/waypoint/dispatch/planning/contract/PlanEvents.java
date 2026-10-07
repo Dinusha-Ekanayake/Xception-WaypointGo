@@ -18,8 +18,22 @@ import java.util.UUID;
 public final class PlanEvents {
   private PlanEvents() {}
 
+  /**
+   * @param serviceMinutes the planned time at the stop, rounded up, so Execution can
+   *     work out when the vehicle will reach the next one (roadmap T1-03); empty in
+   *     events written before it was carried
+   */
   public record PlannedStop(
-      int sequence, UUID orderId, String outletId, LocalTime plannedArrival) {}
+      int sequence, UUID orderId, String outletId, LocalTime plannedArrival, Optional<Integer> serviceMinutes) {
+
+    public PlannedStop {
+      serviceMinutes = serviceMinutes == null ? Optional.empty() : serviceMinutes;
+    }
+
+    public PlannedStop(int sequence, UUID orderId, String outletId, LocalTime plannedArrival) {
+      this(sequence, orderId, outletId, plannedArrival, Optional.empty());
+    }
+  }
 
   public record PlannedTrip(
       UUID tripId,

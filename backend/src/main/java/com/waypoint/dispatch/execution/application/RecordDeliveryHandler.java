@@ -36,14 +36,16 @@ public class RecordDeliveryHandler extends DeliveryCommandHandler {
   private final EventPublisher events;
   private final Metrics metrics;
   private final Clock clock;
+  private final EtaPropagation eta;
 
   public RecordDeliveryHandler(
-      JdbcDeliveryRepository deliveries, EventPublisher events, Metrics metrics, Clock clock) {
+      JdbcDeliveryRepository deliveries, EventPublisher events, Metrics metrics, Clock clock, EtaPropagation eta) {
     super(ExecutionCommands.RECORD);
     this.deliveries = deliveries;
     this.events = events;
     this.metrics = metrics;
     this.clock = clock;
+    this.eta = eta;
   }
 
   @Override
@@ -93,6 +95,10 @@ public class RecordDeliveryHandler extends DeliveryCommandHandler {
           new DeliveryCompleted(
               deliveryId, after.orderId(), after.tripId(), after.outletId(), outcome, after.deliveredUnits(),
               now, after.lateMinutes().filter(m -> m > 0)));
+    }
+    // Roadmap T1-03: the vehicle left this stop; the stops after it from its actual departure.
+    if (!after.timingUncertain()) {
+      eta.refresh(actor, after.tripId(), now);
     }
     metrics.increment(
         "waypoint.execution.outcome",

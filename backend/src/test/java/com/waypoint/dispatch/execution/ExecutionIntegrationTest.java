@@ -83,6 +83,7 @@ class ExecutionIntegrationTest {
   static final String PASSWORD = "OnTheRoad2026!";
   static final byte[] PNG = png(40);
 
+  @Autowired com.waypoint.dispatch.execution.application.EtaRefreshJob etaJob;
   @Autowired MockMvc http;
   @Autowired ObjectMapper mapper;
   @Autowired Migrator migrator;
@@ -627,6 +628,27 @@ class ExecutionIntegrationTest {
     at("06:19");
     send(driver, "delivery:RecordArrival", 1L, stop(stopB), 200);
     assertEquals(1, outbox("eta.changed", mallStop));
+  }
+
+  @Test
+  void aVehicleHeldUpOnTheRoadIsSeenLateBeforeItArrivesAnywhere() throws Exception {
+    // R-EXE-29: left the first stop on time, then nothing recorded for half an hour.
+    at("05:20");
+    send(driver, "delivery:RecordArrival", 1L, stop(stopA), 200);
+    at("05:25");
+    send(driver, "delivery:Record", 2L, record(stopA, "DELIVERED", null, null, null), 200);
+    assertEquals(0, outbox("eta.changed", stopB), "five minutes is not news");
+
+    at("06:10");
+    etaJob.runAt(clock.now());
+    JsonNode eta = payload("eta.changed", stopB);
+    assertEquals(instant("06:10"), eta.get("expectedArrival").asText(), "the next stop, no earlier than now");
+    assertEquals(30, eta.get("delayMinutes").asInt());
+    assertEquals(instant("06:10"), runSheet(driver).get("stops").get(1).get("expectedArrival").asText());
+
+    at("06:15");
+    etaJob.runAt(clock.now());
+    assertEquals(1, outbox("eta.changed", stopB), "told again only on a ten-minute move");
   }
 
   // ---- who may record ----

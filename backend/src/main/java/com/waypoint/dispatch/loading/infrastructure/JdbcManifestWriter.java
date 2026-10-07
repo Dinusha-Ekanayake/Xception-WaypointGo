@@ -67,7 +67,8 @@ public class JdbcManifestWriter {
       int itemCount,
       BigDecimal weightKg,
       BigDecimal volumeM3,
-      LocalTime plannedArrival) {}
+      LocalTime plannedArrival,
+      Integer plannedServiceMinutes) {}
 
   public boolean versionExists(UUID tripId, int planVersion) {
     return database.queryOne(
@@ -105,12 +106,13 @@ public class JdbcManifestWriter {
         """
         INSERT INTO loading.stops
             (trip_id, plan_version, order_id, stop_sequence, order_ref, outlet_id, temperature,
-             item_count, weight_kg, volume_m3, planned_arrival)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             item_count, weight_kg, volume_m3, planned_arrival, planned_service_minutes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         tripId, planVersion, s.orderId(), s.stopSequence(), s.orderRef(), s.outletId(),
         s.temperature(), s.itemCount(), s.weightKg(), s.volumeM3(),
-        s.plannedArrival() == null ? null : Time.valueOf(s.plannedArrival()));
+        s.plannedArrival() == null ? null : Time.valueOf(s.plannedArrival()),
+        s.plannedServiceMinutes());
   }
 
   public void insertItem(UUID tripId, int planVersion, UUID orderId, int lineNo, String productId, int units) {

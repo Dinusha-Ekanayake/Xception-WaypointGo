@@ -5,6 +5,7 @@ import com.waypoint.dispatch.shared.event.DomainEvent;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /** Events Loading publishes. Consumers: Planning, Execution, Ordering, Warehouse, Issues, Notification. */
@@ -97,8 +98,18 @@ public final class LoadingEvents {
     }
   }
 
+  /** @param serviceMinutes the planned time at the stop (roadmap T1-03); empty when the plan did not carry it */
   public record ReleasedStop(
-      int sequence, UUID orderId, String outletId, LocalTime plannedArrival) {}
+      int sequence, UUID orderId, String outletId, LocalTime plannedArrival, Optional<Integer> serviceMinutes) {
+
+    public ReleasedStop {
+      serviceMinutes = serviceMinutes == null ? Optional.empty() : serviceMinutes;
+    }
+
+    public ReleasedStop(int sequence, UUID orderId, String outletId, LocalTime plannedArrival) {
+      this(sequence, orderId, outletId, plannedArrival, Optional.empty());
+    }
+  }
 
   /**
    * The trip left the dock. Carries its stops so Execution builds the run sheet

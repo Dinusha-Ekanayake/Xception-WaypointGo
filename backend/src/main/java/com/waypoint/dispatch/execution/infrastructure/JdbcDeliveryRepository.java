@@ -179,6 +179,43 @@ public class JdbcDeliveryRepository {
         .toList();
   }
 
+  /** One stop of a trip with what its estimate needs (roadmap T1-03). */
+  public record TripStop(DeliveryRecord record, Optional<Integer> plannedServiceMinutes, Optional<Instant> expectedArrival) {}
+
+  /** Every stop of a trip in order, with the plan's minutes and the arrival its store was last told. */
+  public List<TripStop> tripStops(UUID tripId) {
+    return database
+        .query(
+            "SELECT " + COLUMNS + ", planned_service_minutes, expected_arrival FROM execution.delivery_records"
+                + " WHERE trip_id = ? ORDER BY stop_sequence, delivery_id",
+            tripId)
+        .stream()
+        .map(
+            r ->
+                new TripStop(
+                    record(r),
+                    integer(r.get("planned_service_minutes")),
+                    instant(r.get("expected_arrival"))))
+        .toList();
+  }
+
+  /** Trips of the day the vehicle is out on: a stop reached, a stop still to come. */
+  public List<UUID> tripsUnderWay(LocalDate serviceDate) {
+    return database
+        .query(
+            """
+            SELECT trip_id FROM execution.delivery_records
+             WHERE service_date = ?
+             GROUP BY trip_id
+            HAVING bool_or(arrived_at IS NOT NULL OR completed_at IS NOT NULL)
+               AND bool_or(outcome = 'pending')
+            """,
+            Date.valueOf(serviceDate))
+        .stream()
+        .map(r -> (UUID) r.get("trip_id"))
+        .toList();
+  }
+
   /** Stops nobody has reached on the released trips of one depot and day. */
   public List<DeliveryRecord> pendingOfDay(String depotCode, LocalDate serviceDate) {
     return database
@@ -240,6 +277,12 @@ public class JdbcDeliveryRepository {
     database.update(
         "UPDATE execution.delivery_records SET client_arrived_at = ? WHERE delivery_id = ?",
         Timestamp.from(deviceArrivedAt), deliveryId);
+  }
+
+  /** Set once at release: the plan's minutes at the stop (roadmap T1-03). Not a step of the stop. */
+  public void planService(UUID deliveryId, int minutes) {
+    database.update(
+        "UPDATE execution.delivery_records SET planned_service_minutes = ? WHERE delivery_id = ?", minutes, deliveryId);
   }
 
   /** The expected arrival moved; this is a projection of the trip's delay, not a step of the stop. */
