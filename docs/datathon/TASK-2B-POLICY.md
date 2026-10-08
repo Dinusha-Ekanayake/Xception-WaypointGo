@@ -28,9 +28,9 @@ Of the 38 vehicles in the scenario, **10 are in the workshop**. That includes **
 
 ## 2. What limited service: refrigerated trips before 08:00
 
-Chilled goods ride only in reefers, and every chilled window closes at 08:00, so the Fresh budget of **270 minutes per vehicle** (03:30 to 08:00) applies. Each trip carries one brand to one district. That leaves **8 reefer trips** (4 vehicles × 2) for **7 chilled districts**. The farthest district is 173 minutes from the depot one way (Puttalam), so a vehicle cannot fit two distant trips in 270 minutes.
+Chilled goods ride only in reefers, and all chilled windows close by 08:00 (9 at 07:30, 4 at 07:45, 13 at 08:00; each earlier deadline is also checked), so the Fresh budget of **270 minutes per vehicle** (03:30 to 08:00) applies. Each trip carries one brand to one district. That leaves **8 reefer trips** (4 vehicles × 2) for **7 chilled districts**. The farthest district is 173 minutes from the depot one way (Puttalam), so a vehicle cannot fit two distant trips in 270 minutes.
 
-What the engine did with the 8 trips, all within the budget (trip minutes = outbound + stops + handling, no return):
+What the engine did with the 8 trips, all within the budget (trip minutes = outbound + stops + handling, no return). For example, VEH003's Gampaha trip carries two Fresh rear-dock orders: 37 + 9 × (2 − 1) + 15 + 15 = **76 minutes**.
 
 | Reefer | Trip 1 | Trip 2 | Fresh minutes used |
 | --- | --- | --- | --- |
@@ -46,12 +46,14 @@ What the engine did with the 8 trips, all within the budget (trip minutes = outb
 - **73 of 85 orders served.** 11 deferred and 1 unservable.
 - 13 vehicles and 25 trips used.
 - **All 10 outlets deferred yesterday are served today**, so no outlet is skipped twice in a row.
+- In the CSV, the oversized S1-078 is written as `deferred` (the template allows only served or deferred), so the file reads **73 served and 12 deferred**.
+- **Stricter than the checker, by choice.** The booklet's seven rules and `check_allocation.py` do not check each outlet's own delivery window. Our engine does (a late Fresh delivery misses morning sales, and receiving staff may have moved on), and it runs one temperature class per trip. A plan that ignores outlet windows can serve more orders and still pass the checker; we keep every window, and that costs some orders on this day.
 
 ## 4. Which deferrals were unavoidable, and which were a choice
 
 **Unavoidable:**
-- **S1-078** (Style, Kurunegala) is **40.66 m³**, larger than the largest vehicle (38 m³). It cannot be served by any vehicle on any day without splitting, which the rules forbid. It is marked unservable and needs the store to split the order.
-- **The amount of chilled goods deferred.** Demand is 181.6 m³ against a hard ceiling of 172.4 m³ even if every reefer ran two full trips. With one district per trip and the 270-minute window, about 72 m³ cannot go today whatever the choice.
+- **S1-078** (Style, Kurunegala) is **40.66 m³**, larger than the largest vehicle (38 m³). It cannot be served by any vehicle on any day without splitting, which the rules forbid. It is marked unservable: serving it needs a revised order from the store, as two orders under 38 m³; it cannot be split within this allocation.
+- **Some chilled deferral.** Demand is 181.629 m³ against a ceiling of 172.4 m³ even if every reefer ran two full trips, so at least 9.229 m³ must wait whatever the plan. Under our chosen priority policy and our stricter rules (below), this allocation defers **72.432 m³**; we do not claim this is the minimum possible.
 
 **A choice: which chilled orders wait.** With only 8 reefer trips, the engine decides which districts and stops get them, by this fixed priority order:
 1. deferred yesterday (`deferred_yesterday`);
@@ -66,8 +68,8 @@ What the engine did with the 8 trips, all within the budget (trip minutes = outb
 | --- | --- | --- |
 | Matara, S1-064 and S1-067 (12.0 m³) | 137 minutes each way: a Matara trip would take a reefer's budget that serves more volume nearer | Two stores without chilled stock for a day; last served yesterday, so this is their first miss |
 | Gampaha, 4 of 6 (S1-028, S1-031, S1-033, S1-035, 26.9 m³) | The Gampaha trip filled VEH003 to 21.2 of 26.4 m³; the next four do not fit the trip, and no reefer trip is left | Four stores short of chilled goods a week before the festival. They are first in line tomorrow under rule 1 |
-| Colombo, S1-003 (van-only), S1-007, S1-012 (16.5 m³) | Colombo's reefer truck is full (30.9 of 33.4 m³). S1-003 needs a van, and the only reefer van would go over its **weight** limit (1,096 of 1,040 kg) though it has room in volume; S1-007 is over the van's volume and weight | Three stores; Colombo has the most chilled outlets (9), so the shortfall is spread |
-| Kalutara S1-048, Kurunegala S1-071 (17.1 m³) | S1-048 would take VEH007 to 282 of its 270 Fresh minutes, and is over the reefer van's caps; S1-071 (12.0 m³) does not fit the 6.4 m³ left on the Kurunegala trip | Two stores |
+| Colombo, S1-003 (van-only), S1-007, S1-012 (16.5 m³) | Colombo's reefer truck is full (30.9 of 33.4 m³). S1-003 needs a van, and adding it to the reefer van's Colombo load (2 orders, 4.17 m³, 766.7 kg) would take the van to 1,095.7 of 1,040 kg though volume would fit; S1-007 (2.925 m³, 567.7 kg) fits the van on its own, but added to that load it exceeds both caps (7.095 of 7.0 m³, 1,334.4 of 1,040 kg) | Three stores; Colombo has the most chilled outlets (9), so the shortfall is spread |
+| Kalutara S1-048, Kurunegala S1-071 (17.1 m³) | S1-048 would take VEH007 to 282 of its 270 Fresh minutes, and added to the reefer van's Kalutara load (5.075 m³, 951 kg) it would exceed both caps (10.1 of 7.0 m³, 1,858 of 1,040 kg); S1-071 (12.0 m³) does not fit the 6.4 m³ left on the Kurunegala trip | Two stores |
 
 The second pass on the reefers raised served orders from 70 (simple first fit) to 73. It only drops an order when a higher-ranked one takes its place.
 
@@ -77,17 +79,17 @@ The second pass on the reefers raised served orders from 70 (simple first fit) t
 | --- | --- |
 | `deferred_yesterday` | Ranked first: 10 of 10 served |
 | `days_since_last_served` | Tie-break among equals. Every deferred order was served 1 or 2 days ago, so none goes long without stock |
-| Chilled and perishable goods before the festival | Fresh and chilled are ranked above all other brands, and the reefers are re-planned as a whole to carry the most chilled volume |
+| Chilled and perishable goods before the festival | Fresh and chilled are ranked above all other brands, and the reefers are re-planned as a whole to improve service under the chosen priority ranking (it served 3 more orders and 30.4 m³ more chilled goods than the first pass) |
 | 8 AM Fresh deadline | The 270-minute Fresh budget per vehicle, and earliest window close as a key |
 
 ## 6. What would serve more
 
 - **Get reefers out of the workshop**, or hire reefers for the festival week. Each extra reefer adds two trips before 08:00; 6 reefers give 12 trips for the 7 chilled districts instead of 8, which addresses the binding constraint directly (the exact gain needs a rerun of the engine with that fleet).
-- **Ask OUT070 to split S1-078** into two orders under 38 m³.
+- **Ask OUT070 to send S1-078 again as two orders** under 38 m³ each, for a later day; this allocation cannot split it.
 
 After that, the remaining shortfall is time before 08:00, not trucks: the far districts (Puttalam, Matara, Kurunegala) need an early first trip.
 
-The same engine also chose the vehicles and trips at lowest cost: **13 vehicles and 611 litres** of fuel, against 16 vehicles and 725 litres for the first feasible plan. The served set is unchanged.
+The engine's cost stage then reduced estimated fuel from 724.8 to **610.6 litres** and vehicles from 16 to **13**, while retaining the same served orders. It is a bounded search (2,000 iterations), so this is an improvement, not a proven minimum.
 
 ---
 
