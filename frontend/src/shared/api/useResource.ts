@@ -42,8 +42,9 @@ export function useOnline(): boolean {
  * @param key reruns the read when it changes, such as a depot or a date.
  * @param pollMs refetch interval while visible and online; 0 disables polling.
  * @param live F-07b: re-read when a change to one of these topics commits at one
- *     of these depots, and poll only every LIVE_FALLBACK_MS while that stream is
- *     up; with it down, poll at `pollMs` as before.
+ *     of these depots (or outlets, written with `outletWatch`), and poll only
+ *     every LIVE_FALLBACK_MS while that stream is up; with it down, poll at
+ *     `pollMs` as before.
  */
 export function useResource<T>(
   load: ((signal: AbortSignal) => Promise<T>) | null,

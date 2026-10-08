@@ -1,6 +1,7 @@
 package com.waypoint.dispatch.platform.messaging;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.waypoint.dispatch.platform.db.Database;
 import com.waypoint.dispatch.platform.observability.Metrics;
@@ -11,6 +12,8 @@ import com.waypoint.dispatch.shared.util.UuidV7;
 import java.security.SecureRandom;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -88,7 +91,8 @@ public class OutboxEventPublisher implements EventPublisher {
     // F-07b: open screens of the event's depot re-read what it changed, once it committed.
     String named = depotOf(event);
     String depot = named != null ? named : depotHint;
-    database.afterCommit(() -> changes.committed(event.type(), depot));
+    Set<String> outlets = outletsOf(event);
+    database.afterCommit(() -> changes.committed(event.type(), depot, outlets));
     metrics.increment("waypoint.event.published", "type", event.type());
   }
 
@@ -108,10 +112,25 @@ public class OutboxEventPublisher implements EventPublisher {
   /** The depot an event's payload names, if any; read generically so platform imports no module. */
   private String depotOf(DomainEvent event) {
     try {
-      com.fasterxml.jackson.databind.JsonNode node = mapper.valueToTree(event).get("depotCode");
+      JsonNode node = mapper.valueToTree(event).get("depotCode");
       return node == null || node.isNull() ? null : node.asText();
     } catch (IllegalArgumentException e) {
       return null;
+    }
+  }
+
+  /** The outlets an event's payload names, in {@code outletId} or {@code outletIds}, for a store's open screens. */
+  private Set<String> outletsOf(DomainEvent event) {
+    try {
+      JsonNode tree = mapper.valueToTree(event);
+      Set<String> outlets = new LinkedHashSet<>();
+      JsonNode one = tree.get("outletId");
+      if (one != null && one.isTextual()) outlets.add(one.asText());
+      JsonNode many = tree.get("outletIds");
+      if (many != null && many.isArray()) many.forEach(node -> outlets.add(node.asText()));
+      return outlets;
+    } catch (IllegalArgumentException e) {
+      return Set.of();
     }
   }
 

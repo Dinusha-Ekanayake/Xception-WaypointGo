@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useOnline, useResource } from "@shared/api/useResource";
+import { outletWatch } from "@shared/api/changes";
 import { IssueCommandKind, type DecisionView, type OrderView } from "@shared/domain/types";
 import { friendlyError } from "@shared/api/problem";
 import { queuedSender } from "@shared/messaging/senders";
@@ -91,13 +92,21 @@ function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Ele
 
   const forOutlet = <T,>(fn: (id: string, s: AbortSignal) => Promise<T>) => (outletId ? (s: AbortSignal) => fn(outletId, s) : null);
   const outlet = useResource(forOutlet(gateway.outlet), outletId);
-  const orders = useResource(forOutlet(gateway.orders), outletId, 2_000);
-  const pending = useResource(forOutlet(gateway.pendingReceipts), outletId, 2_000);
+  // B-04: re-read when a change names this outlet, else every 15 s; 2 s only with the
+  // live stream down. Three reads every 2 s were 109 requests a minute per store.
+  const live = (topics: string[]) => (outletId ? { depots: [outletWatch(outletId)], topics } : undefined);
+  const orders = useResource(forOutlet(gateway.orders), outletId, 2_000, live(["order", "plan", "trip", "delivery", "receipt"]));
+  const pending = useResource(forOutlet(gateway.pendingReceipts), outletId, 2_000, live(["delivery", "receipt"]));
   const warehouse = useResource((s) => gateway.catalogueStatus(s), "catalogue", 60_000);
   // Today on the business clock, which demo mode can move.
   useClockOffset();
   const today = depotToday();
-  const deliveries = useResource(outletId ? (s) => gateway.deliveries(outletId, today, s) : null, `${outletId}|${today}`, 2_000);
+  const deliveries = useResource(
+    outletId ? (s) => gateway.deliveries(outletId, today, s) : null,
+    `${outletId}|${today}`,
+    2_000,
+    live(["delivery", "eta", "trip", "plan", "receipt"]),
+  );
   const orderIds = recentOrderIds(orders.data ?? [], today);
   const issues = useResource(orderIds.length ? (s) => issuesForOrders(gateway, orderIds, s) : null, orderIds.join(","), 60_000);
 
@@ -114,7 +123,7 @@ function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Ele
   const queued = useCallback(() => setWaiting((n) => n + 1), []);
   const commands = useCommands(gateway, online, queued, refresh);
   // FF-09: the dispatcher's questions to this store, read often while a vehicle is coming.
-  const decisions = useResource((s) => gateway.decisions(today, s), `decisions|${today}`, 10_000);
+  const decisions = useResource((s) => gateway.decisions(today, s), `decisions|${today}`, 10_000, live(["decision"]));
   const decisionSender = useMemo(() => queuedSender({ accountId: userId, role: "store_manager", online, onQueued: queued }), [userId, online, queued]);
   const { run: runCommand } = commands;
   const { refresh: refreshDecisions } = decisions;

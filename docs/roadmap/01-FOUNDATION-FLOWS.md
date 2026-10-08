@@ -164,6 +164,17 @@ store places order -> 16:00 cutoff closes the day -> engine drafts plan -> dispa
 | Rows per day in `sync.operations`, `integration.command_receipts`, `integration.audit_log`, `execution.vehicle_positions` | `pg_stat_user_tables` | Retention backlog 0 |
 | Test counts (Java, Node, browser) and Task 2B validator result | B-01, B-02, CI | No regression |
 
+### Requests per minute recorded 2026-10-08 (dev stack, demo data, one browser per role, 60 s after 10 s to settle)
+
+| Role | Before | After | What changed |
+| --- | --- | --- | --- |
+| Driver, nothing released today | 85 (run sheet 46, vehicles 17, plan 16 answered 404) | 37, about 47 averaged with the look-ahead | The week ahead (8 days, 3 reads each) is asked every 2.5 minutes, not every 30 s; a release today still shows on the 2 s run read. Gate: `request-rate.spec.ts` |
+| Store manager | 109 (orders, pending receipts, deliveries every 2 s) | 29 | Re-reads when a change names its outlet, else every 15 s (PLT-19) |
+| Loader | 34 | | Trips every 2 s; within the driver's budget |
+| Dispatcher | 57 | | Live screen on the change stream since F-07b; its 16 404s a minute are a day with no plan yet |
+
+Pool and outbox on the dev stack: `hikaricp_connections_pending` 0 of 8, outbox lag 0 s, 0 dead. The production figures (command p95, generation time, rows per day) come from the server's Prometheus, which now alerts and has the table panels; they wait on access to it (H-03).
+
 ### Baseline recorded 2026-10-06 (local `dev`, macOS, Docker)
 
 | Suite | Result | Notes |

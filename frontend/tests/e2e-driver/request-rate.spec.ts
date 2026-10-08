@@ -17,3 +17,17 @@ test("the driver screen stays at 60 requests a minute or fewer", async ({ page }
   expect(reads.length, reads.join("\n")).toBeLessThanOrEqual(20);
   expect(reads.filter((c) => c.includes("/api/reference/"))).toHaveLength(0);
 });
+
+// B-04 baseline, 2026-10-08: a driver with nothing released today measured 85 a
+// minute on the dev stack, because the week ahead (8 days, 3 reads each) was
+// asked every 30 s on top of the 2 s run read.
+test("with nothing today, looking ahead keeps the screen under the same budget", async ({ page }) => {
+  const server = await serve(page, []);
+  await page.goto("/");
+  await expect.poll(() => server.calls.filter((c) => c.includes("/api/plans/published")).length, { timeout: 15_000 }).toBeGreaterThan(0);
+  await page.waitForTimeout(3000);
+  const start = server.calls.length;
+  await page.waitForTimeout(30_000);
+  const reads = server.calls.slice(start).filter((c) => !c.endsWith("/notifications/stream"));
+  expect(reads.length, reads.join("\n")).toBeLessThanOrEqual(30);
+});

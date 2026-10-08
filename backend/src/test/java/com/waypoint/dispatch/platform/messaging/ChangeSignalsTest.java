@@ -53,6 +53,29 @@ class ChangeSignalsTest {
   }
 
   @Test
+  void aStoreHearsTheTopicOfAChangeThatNamesItsOutletAndNothingElse() {
+    List<String> store = new ArrayList<>();
+    List<String> otherStore = new ArrayList<>();
+    List<String> dispatcher = new ArrayList<>();
+    signals.listen(Set.of(), Set.of("OUT0101"), listener(store));
+    signals.listen(Set.of(), Set.of("OUT0202"), listener(otherStore));
+    signals.listen(Set.of("KDY"), listener(dispatcher));
+
+    signals.committed("delivery.arrived", "KDY", Set.of("OUT0101"));
+    signals.committed("delivery.arrived", "KDY", Set.of("OUT0303"));
+    signals.committed("plan.revised", "KDY");
+    signals.committed("trip.released", null, Set.of("OUT0101", "OUT0303"));
+    signals.flushNow();
+
+    assertEquals(List.of("delivery@null", "trip@null"), store.stream().sorted().toList(), "the topic, never the depot");
+    assertTrue(otherStore.isEmpty(), "a store hears nothing of another's outlets or of its depot: " + otherStore);
+    assertEquals(
+        List.of("delivery@KDY", "plan@KDY", "trip@null"),
+        dispatcher.stream().sorted().toList(),
+        "two arrivals at two outlets, one signal; a change naming no depot still reaches the depot");
+  }
+
+  @Test
   void aListenerThatFailsIsDropped() {
     signals.listen(Set.of("KDY"), new ChangeSignals.Listener() {
       @Override

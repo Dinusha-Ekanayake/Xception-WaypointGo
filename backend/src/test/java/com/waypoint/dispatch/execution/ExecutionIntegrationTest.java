@@ -657,6 +657,33 @@ class ExecutionIntegrationTest {
     }
   }
 
+  @Test
+  void anArrivalReachesTheLiveScreenOfItsStoreOnly() throws Exception {
+    // B-04: a store re-reads when a change names its outlet, and hears the topic alone.
+    java.util.List<String> mine = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+    java.util.List<String> elsewhere = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+    Runnable stopMine = changeSignals.listen(java.util.Set.of(), java.util.Set.of(OUTLET), listener(mine));
+    Runnable stopElsewhere = changeSignals.listen(java.util.Set.of(), java.util.Set.of(OTHER_DEPOT_OUTLET), listener(elsewhere));
+    try {
+      at("05:20");
+      send(driver, "delivery:RecordArrival", 1L, stop(stopA), 200);
+      long until = System.currentTimeMillis() + 3000;
+      while (!mine.contains("delivery|null") && System.currentTimeMillis() < until) {
+        Thread.sleep(50);
+      }
+      assertTrue(mine.contains("delivery|null"), "heard, without the depot: " + mine);
+      assertTrue(elsewhere.isEmpty(), "another store re-read: " + elsewhere);
+    } finally {
+      stopMine.run();
+      stopElsewhere.run();
+    }
+
+    // The stream itself: an outlet outside the manager's scope is refused, never a silent stream.
+    read(manager, "/api/changes/stream?outlet=" + OTHER_DEPOT_OUTLET, 403);
+    read(manager, "/api/changes/stream?outlet=" + OUTLET + "&depot=" + depot, 422);
+    read(manager, "/api/changes/stream?outlet=" + OUTLET, 200);
+  }
+
   private static com.waypoint.dispatch.platform.messaging.ChangeSignals.Listener listener(java.util.List<String> heard) {
     return new com.waypoint.dispatch.platform.messaging.ChangeSignals.Listener() {
       @Override

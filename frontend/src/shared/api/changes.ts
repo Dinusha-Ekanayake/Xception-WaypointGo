@@ -31,6 +31,19 @@ export function streamKey(depots: string[]): string {
   return [...new Set(depots)].sort().join(",");
 }
 
+/** A store watches its outlet instead of a depot: it hears the topic of a change that names it. */
+export function outletWatch(outletId: string): string {
+  return `outlet:${outletId}`;
+}
+
+/** The stream's query: `depot=` for a depot, `outlet=` for an outlet watched with {@link outletWatch}. */
+export function streamQuery(key: string): string {
+  return key
+    .split(",")
+    .map((place) => (place.startsWith("outlet:") ? `outlet=${encodeURIComponent(place.slice(7))}` : `depot=${encodeURIComponent(place)}`))
+    .join("&");
+}
+
 /** Whether a change concerns a read of these topics. */
 export function concerns(topics: string[], change: Change): boolean {
   return topics.includes(change.topic);
@@ -45,8 +58,7 @@ function setLive(stream: Stream, live: boolean): void {
 function open(key: string): Stream {
   const stream: Stream = { source: null, listeners: new Set(), status: new Set(), live: false, lastHeard: 0, watchdog: null };
   if (typeof EventSource === "undefined") return stream;
-  const query = key.split(",").map((d) => `depot=${encodeURIComponent(d)}`).join("&");
-  const source = new EventSource(`/api/changes/stream?${query}`);
+  const source = new EventSource(`/api/changes/stream?${streamQuery(key)}`);
   const heard = () => {
     stream.lastHeard = Date.now();
     setLive(stream, true);

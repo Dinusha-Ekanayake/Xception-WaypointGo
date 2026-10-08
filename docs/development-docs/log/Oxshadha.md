@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-10-08 - fix: the driver and the store within their request budget (B-04)
+
+`dev` · @Oxshadha
+
+- Measured every role on the dev stack (table in [B-04](../../roadmap/01-FOUNDATION-FLOWS.md#phase-1-verify-and-baseline)). A driver with nothing released today made 85 requests a minute against the gate of 60: the week ahead was probed every 30 s. Now every 2.5 minutes (37 a minute); the smallest change in the driver's data layer, no change to its screens, with a browser test for that day.
+- The store made 109 a minute. It now watches its outlet on the change stream: `outlet=` with `receipt:Read` and the outlet scope, 403 and audit outside it; a change naming the outlet re-reads, as its topic only (PLT-19). 29 a minute.
+
+---
+
 ## 2026-10-08 - feat: alerts reach a channel; table growth watched (B-04)
 
 `dev` · @Oxshadha

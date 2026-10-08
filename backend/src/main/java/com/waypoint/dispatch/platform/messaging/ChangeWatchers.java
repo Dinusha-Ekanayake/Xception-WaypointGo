@@ -45,4 +45,26 @@ public class ChangeWatchers {
     }
     return signals.listen(depots, listener);
   }
+
+  /**
+   * A store's watch on its outlets: each checked against the actor's outlet
+   * scope, refused and audited when outside it, like a depot above.
+   *
+   * @return what stops watching
+   */
+  public Runnable openOutlets(Actor actor, String action, Set<String> outlets, ChangeSignals.Listener listener) {
+    for (String outlet : outlets) {
+      Map<String, Object> row =
+          database.readAs(
+              ModuleRole.RECEIPT,
+              actor.userId(),
+              () -> database.queryOne("SELECT app.actor_is_system() OR app.actor_has_outlet(?) AS ok", outlet));
+      if (row == null || !Boolean.TRUE.equals(row.get("ok"))) {
+        audit.recordStandalone(
+            AuditEntry.denied(actor.userId(), actor.deviceId(), action, "wpt:receipt:outlet:" + outlet, "outside the actor's scope"));
+        throw new DomainException(ErrorCode.FORBIDDEN, "Outlet " + outlet + " is outside the actor's scope");
+      }
+    }
+    return signals.listen(Set.of(), outlets, listener);
+  }
 }
