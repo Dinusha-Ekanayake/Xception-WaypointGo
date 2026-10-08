@@ -1,7 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { SettingsPanel, cx, useDeviceLang, useShell } from "@shared/ui";
+import { request } from "@shared/api/client";
+import { useResource } from "@shared/api/useResource";
+import { McpButton, SettingsPanel, cx, useDeviceLang, useShell } from "@shared/ui";
+
+/** Where an assistant connects (RFC 9728); refused, and so no button, when MCP is not set up here. */
+type ProtectedResource = { resource: string };
 
 /**
  * The dispatcher's picture: opens Settings (language, the assistant connection,
@@ -13,6 +18,11 @@ export default function ProfileButton({ displayName, depots, placement }: { disp
   const [open, setOpen] = useState(false);
   const [lang, setLang] = useDeviceLang();
   const shell = useShell();
+  // Issue #177: read only when Settings is open; the server names its own address.
+  const mcp = useResource(
+    open ? (signal: AbortSignal) => request<ProtectedResource>("/api/oauth/protected-resource", { signal }) : null,
+    open ? "mcp-resource" : "",
+  );
   return (
     <>
       <button
@@ -60,6 +70,10 @@ export default function ProfileButton({ displayName, depots, placement }: { disp
               ))}
             </div>
           )}
+          <McpButton
+            url={mcp.data?.resource ?? null}
+            className="flex min-h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-go-surface text-[15px] font-medium text-go-ink"
+          />
           {shell && (
             <button
               type="button"
