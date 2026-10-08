@@ -240,8 +240,9 @@ class IntelligenceIntegrationTest {
     ModelQualityJob.Measured m = qualityJob.runAt(now);
 
     Map<String, Object> judged = database.asSystem(ModuleRole.ML, () -> database.queryOne(
-        "SELECT forecast_total_m3, actual_total_m3 FROM ml.forecast_accuracy"
+        "SELECT forecast_total_m3, actual_total_m3, baseline_total_m3 FROM ml.forecast_accuracy"
             + " WHERE depot_code = ? AND brand_code = ? AND iso_year = 2019 AND iso_week = ?", depot, brand, (short) week));
+    assertTrue(judged.get("baseline_total_m3") == null, "T2-03: no orders in the 8 weeks before, so no baseline");
     assertEquals(0, new java.math.BigDecimal("40").compareTo((java.math.BigDecimal) judged.get("forecast_total_m3")),
         "the forecast made before the week, not the later one");
     assertTrue(m.psi().get(depot + "|deterministic") > 0.25, "drift seen: " + m.psi());
@@ -659,8 +660,9 @@ class IntelligenceIntegrationTest {
     // T2-03: two finished weeks, judged as the nightly job keeps them.
     java.time.LocalDate monday = java.time.LocalDate.now(com.waypoint.dispatch.shared.util.Clock.OPERATING_ZONE)
         .with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY));
-    Object[][] rows = {{monday.minusWeeks(2), "Fresh", "110", "100"}, {monday.minusWeeks(2), "Style", "45", "50"},
-        {monday.minusWeeks(1), "Fresh", "90", "100"}};
+    // T2-03: the 8-week mean beside each, missing for Style (too little history).
+    Object[][] rows = {{monday.minusWeeks(2), "Fresh", "110", "100", "80"}, {monday.minusWeeks(2), "Style", "45", "50", null},
+        {monday.minusWeeks(1), "Fresh", "90", "100", "130"}};
     for (Object[] r : rows) {
       java.time.LocalDate m = (java.time.LocalDate) r[0];
       database.asSystem(ModuleRole.ML, () -> database.update(
@@ -674,6 +676,11 @@ class IntelligenceIntegrationTest {
           """,
           depot, r[1], m.get(java.time.temporal.IsoFields.WEEK_BASED_YEAR),
           (short) m.get(java.time.temporal.IsoFields.WEEK_OF_WEEK_BASED_YEAR), r[2], r[3]));
+      database.asSystem(ModuleRole.ML, () -> database.update(
+          "UPDATE ml.forecast_accuracy SET baseline_total_m3 = ?::numeric"
+              + " WHERE depot_code = ? AND brand_code = ? AND iso_year = ? AND iso_week = ?",
+          r[4], depot, r[1], m.get(java.time.temporal.IsoFields.WEEK_BASED_YEAR),
+          (short) m.get(java.time.temporal.IsoFields.WEEK_OF_WEEK_BASED_YEAR)));
     }
     JsonNode a = read(dispatcher, "/api/ml/forecast/accuracy?depot=" + depot + "&weeks=4", 200);
     assertEquals(2, a.get("weeks").size());
@@ -683,6 +690,10 @@ class IntelligenceIntegrationTest {
     assertEquals(2, first.get("brands").size());
     // (10 + 5 + 10) / (100 + 50 + 100) over the two weeks.
     assertEquals(0.1, a.get("wape").asDouble(), 1e-4);
+    // On the Fresh weeks that have a baseline: forecast (10 + 10) / 200, 8-week mean (20 + 30) / 200.
+    assertEquals(0.1, a.get("comparedWape").asDouble(), 1e-4);
+    assertEquals(0.25, a.get("baselineWape").asDouble(), 1e-4);
+    assertEquals(0.2, first.get("baselineWape").asDouble(), 1e-4);
 
     UUID strangerId = accounts.createAccount("mfa-" + run + "@intelligence.test", "mfa", PASSWORD, "dispatcher");
     read(session("mfa-" + run), "/api/ml/forecast/accuracy?depot=" + depot, 403);

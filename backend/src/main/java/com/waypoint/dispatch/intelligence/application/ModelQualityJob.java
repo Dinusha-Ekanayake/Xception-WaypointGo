@@ -1,5 +1,6 @@
 package com.waypoint.dispatch.intelligence.application;
 
+import com.waypoint.dispatch.intelligence.domain.ForecastBaseline;
 import com.waypoint.dispatch.intelligence.domain.ModelMetrics;
 import com.waypoint.dispatch.intelligence.infrastructure.JdbcModelQuality;
 import com.waypoint.dispatch.intelligence.infrastructure.JdbcModelQuality.WeekForecast;
@@ -107,8 +108,20 @@ public class ModelQualityJob implements ScheduledJob {
               database.asSystem(ModuleRole.ML, () -> orders.dailyVolumes(depot, brand, monday, monday.plusDays(6)));
           BigDecimal total = days.stream().map(DailyVolumeView::totalM3).reduce(BigDecimal.ZERO, BigDecimal::add);
           BigDecimal chilled = days.stream().map(DailyVolumeView::chilledM3).reduce(BigDecimal.ZERO, BigDecimal::add);
+          // T2-03: the 8 weeks before, the simplest forecast this one has to beat.
+          List<DailyVolumeView> before = database.asSystem(ModuleRole.ML, () -> orders.dailyVolumes(
+              depot, brand, monday.minusWeeks(ForecastBaseline.WEEKS), monday.minusDays(1)));
+          List<Double> weekly = new ArrayList<>();
+          for (int w = ForecastBaseline.WEEKS; w >= 1; w--) {
+            LocalDate from = monday.minusWeeks(w);
+            weekly.add(before.stream()
+                .filter(d -> !d.date().isBefore(from) && d.date().isBefore(from.plusWeeks(1)))
+                .mapToDouble(d -> d.totalM3().doubleValue()).sum());
+          }
+          Optional<BigDecimal> baseline = ForecastBaseline.of(weekly)
+              .map(v -> BigDecimal.valueOf(v).setScale(4, java.math.RoundingMode.HALF_UP));
           database.asSystem(ModuleRole.ML,
-              () -> quality.saveAccuracy(depot, brand, year, week, forecast.get(), total, chilled, now));
+              () -> quality.saveAccuracy(depot, brand, year, week, forecast.get(), total, chilled, baseline, now));
           if (back == 1) {
             lastWeek.add(new double[] {forecast.get().totalM3().doubleValue(), total.doubleValue()});
           }

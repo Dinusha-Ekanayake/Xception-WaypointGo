@@ -200,7 +200,13 @@ export type RecordCapacityDecision = {
 };
 
 /** GET /api/ml/forecast/accuracy (roadmap T2-03): the last finished weeks, as forecast before each began. */
-export type BrandAccuracyView = { brandCode: string; forecastM3: number | string; orderedM3: number | string };
+export type BrandAccuracyView = {
+  brandCode: string;
+  forecastM3: number | string;
+  orderedM3: number | string;
+  /** T2-03: the mean weekly volume of the 8 weeks before; null with too little history. */
+  baselineM3?: number | string | null;
+};
 export type WeekAccuracyView = {
   isoYear: number;
   isoWeek: number;
@@ -210,8 +216,16 @@ export type WeekAccuracyView = {
   /** Empty when nothing was ordered that week. */
   wape: number | string | null;
   brands: BrandAccuracyView[];
+  baselineWape?: number | string | null;
 };
-export type ForecastAccuracyView = { depotCode: string; weeks: WeekAccuracyView[]; wape: number | string | null };
+export type ForecastAccuracyView = {
+  depotCode: string;
+  weeks: WeekAccuracyView[];
+  wape: number | string | null;
+  /** T2-03: the forecast's and the 8-week mean's error on the same brand-weeks (those with a baseline). */
+  comparedWape?: number | string | null;
+  baselineWape?: number | string | null;
+};
 
 /** Roadmap MF-04, R-ML-16: one finished week of a model's backtest. */
 export type BacktestWeekView = { isoYear: number; isoWeek: number; stops: number; labelled: number; brier: number | string | null };

@@ -93,13 +93,28 @@ function mondayLabel(monday: string): string {
  * Roadmap T2-03: how the forecast did on the last finished weeks, as it stood
  * before each week began, beside what the stores ordered.
  */
-export function ForecastAccuracy({ rows, off }: { rows: AccuracyRow[]; off: number | null }): React.JSX.Element {
+export function ForecastAccuracy({
+  rows,
+  off,
+  versus,
+}: {
+  rows: AccuracyRow[];
+  off: number | null;
+  versus: { forecast: number; average: number } | null;
+}): React.JSX.Element {
   return (
     <Card label="How the forecast did">
       <CardHead
         title="How the forecast did"
         meta={off === null ? "The last finished weeks, as forecast before each began" : `Off by ${pct(off)} over the last ${rows.length} ${rows.length === 1 ? "week" : "weeks"}`}
       />
+      {/* T2-03: the forecast against the simplest one it has to beat, on the same weeks. */}
+      {versus && (
+        <p className="m-0 text-[13px] text-go-secondary" data-testid="forecast-versus-average">
+          {versus.forecast < versus.average ? "Better than" : versus.forecast > versus.average ? "Worse than" : "The same as"} the 8-week
+          average: off by {pct(versus.forecast)} against {pct(versus.average)} on the same weeks
+        </p>
+      )}
       {rows.length === 0 ? (
         <p className="m-0 text-[13px] text-go-secondary">No finished week has been checked yet. Each week is checked the night after it ends.</p>
       ) : (
@@ -111,6 +126,7 @@ export function ForecastAccuracy({ rows, off }: { rows: AccuracyRow[]; off: numb
                 <th scope="col" className="py-1.5 font-medium">Forecast</th>
                 <th scope="col" className="py-1.5 font-medium">Ordered</th>
                 <th scope="col" className="py-1.5 font-medium">Off by</th>
+                <th scope="col" className="py-1.5 font-medium">8-week avg</th>
               </tr>
             </thead>
             <tbody>
@@ -122,6 +138,7 @@ export function ForecastAccuracy({ rows, off }: { rows: AccuracyRow[]; off: numb
                   <td className={cx("py-2", r.off !== null && r.off > 0.25 && "font-semibold text-go-danger")}>
                     {r.off === null ? "Nothing ordered" : pct(r.off)}
                   </td>
+                  <td className="py-2 text-go-secondary">{r.baselineOff === null ? "-" : pct(r.baselineOff)}</td>
                 </tr>
               ))}
             </tbody>

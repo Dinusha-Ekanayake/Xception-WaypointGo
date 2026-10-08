@@ -394,26 +394,38 @@ public class IntelligenceDataQuery implements PredictionQuery, ModelQuery, Trave
     }
     List<PredictionViews.WeekAccuracyView> out = new java.util.ArrayList<>();
     List<double[]> all = new java.util.ArrayList<>();
+    List<double[]> compared = new java.util.ArrayList<>();
+    List<double[]> baselineAll = new java.util.ArrayList<>();
     for (List<Map<String, Object>> week : byWeek.values()) {
       List<PredictionViews.BrandAccuracyView> brands = new java.util.ArrayList<>();
       List<double[]> pairs = new java.util.ArrayList<>();
       BigDecimal forecast = BigDecimal.ZERO;
       BigDecimal ordered = BigDecimal.ZERO;
+      List<double[]> baselinePairs = new java.util.ArrayList<>();
       for (Map<String, Object> r : week) {
         BigDecimal f = (BigDecimal) r.get("forecast_total_m3");
         BigDecimal a = (BigDecimal) r.get("actual_total_m3");
-        brands.add(new PredictionViews.BrandAccuracyView((String) r.get("brand_code"), f, a));
+        Optional<BigDecimal> b = Optional.ofNullable((BigDecimal) r.get("baseline_total_m3"));
+        brands.add(new PredictionViews.BrandAccuracyView((String) r.get("brand_code"), f, a, b));
         pairs.add(new double[] {f.doubleValue(), a.doubleValue()});
+        // T2-03: the forecast and the 8-week mean, on the same brand-weeks only.
+        b.ifPresent(base -> {
+          compared.add(new double[] {f.doubleValue(), a.doubleValue()});
+          baselinePairs.add(new double[] {base.doubleValue(), a.doubleValue()});
+        });
         forecast = forecast.add(f);
         ordered = ordered.add(a);
       }
       all.addAll(pairs);
+      baselineAll.addAll(baselinePairs);
       Map<String, Object> first = week.get(0);
       out.add(new PredictionViews.WeekAccuracyView(
           ((Number) first.get("iso_year")).intValue(), ((Number) first.get("iso_week")).intValue(),
-          (String) first.get("model_label"), forecast, ordered, ratio(ModelMetrics.wape(pairs)), brands));
+          (String) first.get("model_label"), forecast, ordered, ratio(ModelMetrics.wape(pairs)), brands,
+          ratio(ModelMetrics.wape(baselinePairs))));
     }
-    return new PredictionViews.ForecastAccuracyView(depot, out, ratio(ModelMetrics.wape(all)));
+    return new PredictionViews.ForecastAccuracyView(depot, out, ratio(ModelMetrics.wape(all)),
+        ratio(ModelMetrics.wape(compared)), ratio(ModelMetrics.wape(baselineAll)));
   }
 
   private static Optional<BigDecimal> ratio(Optional<Double> value) {

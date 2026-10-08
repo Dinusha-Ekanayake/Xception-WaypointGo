@@ -41,21 +41,21 @@ public class JdbcModelQuality {
 
   public void saveAccuracy(
       String depot, String brand, int isoYear, int isoWeek, WeekForecast f, BigDecimal actualTotal,
-      BigDecimal actualChilled, Instant at) {
+      BigDecimal actualChilled, Optional<BigDecimal> baselineTotal, Instant at) {
     database.update(
         """
         INSERT INTO ml.forecast_accuracy
             (depot_code, brand_code, iso_year, iso_week, model_label, forecast_generated_at, forecast_total_m3,
-             actual_total_m3, forecast_chilled_m3, actual_chilled_m3, computed_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             actual_total_m3, forecast_chilled_m3, actual_chilled_m3, computed_at, baseline_total_m3)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT (depot_code, brand_code, iso_year, iso_week) DO UPDATE SET
             model_label = EXCLUDED.model_label, forecast_generated_at = EXCLUDED.forecast_generated_at,
             forecast_total_m3 = EXCLUDED.forecast_total_m3, actual_total_m3 = EXCLUDED.actual_total_m3,
             forecast_chilled_m3 = EXCLUDED.forecast_chilled_m3, actual_chilled_m3 = EXCLUDED.actual_chilled_m3,
-            computed_at = EXCLUDED.computed_at
+            computed_at = EXCLUDED.computed_at, baseline_total_m3 = EXCLUDED.baseline_total_m3
         """,
         depot, brand, isoYear, (short) isoWeek, f.modelLabel(), Timestamp.from(f.generatedAt()), f.totalM3(),
-        actualTotal, f.chilledM3(), actualChilled, Timestamp.from(at));
+        actualTotal, f.chilledM3(), actualChilled, Timestamp.from(at), baselineTotal.orElse(null));
   }
 
   /** Predicted late probabilities of a depot and model generated in [from, to). */
@@ -114,7 +114,7 @@ public class JdbcModelQuality {
   public List<java.util.Map<String, Object>> accuracy(String depot, int fromKey, int toKey) {
     return database.query(
         """
-        SELECT iso_year, iso_week, brand_code, model_label, forecast_total_m3, actual_total_m3
+        SELECT iso_year, iso_week, brand_code, model_label, forecast_total_m3, actual_total_m3, baseline_total_m3
           FROM ml.forecast_accuracy
          WHERE depot_code = ? AND iso_year * 100 + iso_week BETWEEN ? AND ?
          ORDER BY iso_year, iso_week, brand_code

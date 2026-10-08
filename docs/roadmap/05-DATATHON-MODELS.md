@@ -282,7 +282,9 @@ Setting a vehicle "in workshop" on a forecast shortfall day shows a warning. Adv
 
 ### T2-03 Forecast accuracy
 
-**First slice built 2026-10-08:** the Forecast screen's "How the forecast did" panel reads the judged weeks of MF-03 (`GET /api/ml/forecast/accuracy`). The comparison with the 8-week mean is not yet shown.
+**First slice built 2026-10-08:** the Forecast screen's "How the forecast did" panel reads the judged weeks of MF-03 (`GET /api/ml/forecast/accuracy`).
+
+**Second slice built 2026-10-08:** each judged week stores the 8-week mean beside the forecast, and the panel says "Better than the 8-week average: off by 4% against 13% on the same weeks", with the average's error per week (R-ML-21, ML-33). Same week last year waits for a year of history.
 
 **What it shows.** The last 8 weeks, forecast against actual.
 

@@ -237,7 +237,12 @@ public final class PredictionViews {
   }
 
   /** One brand of a finished week: the forecast made before the week, beside what was ordered (T2-03). */
-  public record BrandAccuracyView(String brandCode, BigDecimal forecastM3, BigDecimal orderedM3) {}
+  public record BrandAccuracyView(
+      String brandCode, BigDecimal forecastM3, BigDecimal orderedM3, Optional<BigDecimal> baselineM3) {
+    public BrandAccuracyView {
+      baselineM3 = baselineM3 == null ? Optional.empty() : baselineM3;
+    }
+  }
 
   /**
    * A finished ISO week of a depot (roadmap T2-03, R-ML-13): its brands' forecasts
@@ -246,7 +251,7 @@ public final class PredictionViews {
    */
   public record WeekAccuracyView(
       int isoYear, int isoWeek, String modelLabel, BigDecimal forecastM3, BigDecimal orderedM3,
-      Optional<BigDecimal> wape, List<BrandAccuracyView> brands) {
+      Optional<BigDecimal> wape, List<BrandAccuracyView> brands, Optional<BigDecimal> baselineWape) {
     public WeekAccuracyView {
       brands = List.copyOf(brands);
     }
@@ -277,8 +282,15 @@ public final class PredictionViews {
     }
   }
 
-  /** The last finished weeks, oldest first, and the error over all of them. */
-  public record ForecastAccuracyView(String depotCode, List<WeekAccuracyView> weeks, Optional<BigDecimal> wape) {
+  /**
+   * The last finished weeks, oldest first, and the error over all of them. Over
+   * the brand-weeks that have a baseline (T2-03, R-ML-21), {@code comparedWape}
+   * is the forecast's error and {@code baselineWape} the 8-week mean's, on the
+   * same weeks, so the two can be compared.
+   */
+  public record ForecastAccuracyView(
+      String depotCode, List<WeekAccuracyView> weeks, Optional<BigDecimal> wape, Optional<BigDecimal> comparedWape,
+      Optional<BigDecimal> baselineWape) {
     public ForecastAccuracyView {
       weeks = List.copyOf(weeks);
     }

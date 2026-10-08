@@ -161,3 +161,17 @@ test("how the forecast did on the last finished weeks, beside what was ordered (
   await expect(panel.getByRole("row", { name: /22 Feb/ })).toContainText("29%");
   await expect(page.locator("main")).not.toContainText("datathon");
 });
+
+test("the forecast is compared with the 8-week average on the same weeks (T2-03)", async ({ page }) => {
+  const week = (isoWeek: number, brands: Array<[string, number, number, number | null]>) => ({
+    isoYear: 2027, isoWeek, modelLabel: "datathon-task2a@2026.1", forecastM3: 0, orderedM3: 0, wape: null,
+    brands: brands.map(([brandCode, forecastM3, orderedM3, baselineM3]) => ({ brandCode, forecastM3, orderedM3, baselineM3 })),
+  });
+  await serve(page, { accuracy: { weeks: [week(7, [["Fresh", 410, 400, 340]]), week(8, [["Fresh", 400, 420, 360]])], wape: null } });
+  await page.goto("/#/forecast");
+
+  const panel = page.getByRole("region", { name: "How the forecast did" });
+  // Forecast (10 + 20) / 820 = 4%; the average (60 + 60) / 820 = 15%.
+  await expect(panel.getByTestId("forecast-versus-average")).toHaveText("Better than the 8-week average: off by 4% against 15% on the same weeks");
+  await expect(panel.getByRole("row", { name: /15 Feb/ })).toContainText("15%");
+});

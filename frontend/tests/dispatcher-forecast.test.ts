@@ -208,6 +208,24 @@ test("the finished weeks of the depots are summed, with how far the forecast was
   assert.equal(off, 30 / 250);
 });
 
+test("the forecast is compared with the 8-week average on the same weeks only (T2-03)", async () => {
+  const { combineAccuracy } = await import("../src/roles/dispatcher/data/forecast.ts");
+  const week = (isoWeek: number, brands: Array<[string, number, number, number | null]>) => ({
+    isoYear: 2026, isoWeek, modelLabel: "deterministic", forecastM3: 0, orderedM3: 0, wape: null,
+    brands: brands.map(([brandCode, f, a, b]) => ({ brandCode, forecastM3: f, orderedM3: a, baselineM3: b })),
+  });
+  const { rows, off, versus } = combineAccuracy([
+    { weeks: [week(39, [["Fresh", 110, 100, 80], ["Style", 45, 50, null]]), week(40, [["Fresh", 90, 100, 130]])] },
+  ]);
+  // Week 39 has a brand with no baseline, so it shows none; week 40 has one.
+  assert.equal(rows[0]!.baselineOff, null);
+  assert.equal(rows[1]!.baselineOff, 30 / 100);
+  assert.equal(off, 25 / 250);
+  // On Fresh only (the weeks with a baseline): forecast 20 of 200, the average 50 of 200.
+  assert.deepEqual(versus, { forecast: 20 / 200, average: 50 / 200 });
+  assert.equal(combineAccuracy([{ weeks: [week(39, [["Fresh", 110, 100, null]])] }]).versus, null);
+});
+
 
 // Roadmap MF-06, R-ML-20: the likely range, summed over brands and depots, only when every part has one.
 test("the week's likely range sums its brands and depots, and says nothing when a part has none", () => {

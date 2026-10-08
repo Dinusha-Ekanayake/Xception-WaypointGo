@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-08 - feat: the forecast against the 8-week average (T2-03, second slice)
+
+`dev` · @Oxshadha
+
+- `ForecastBaseline` (domain): the mean of the 8 weeks before, from weeks with orders, 4 or more; the nightly judging stores it beside each week (`baseline_total_m3`). The accuracy read gives both errors on the same brand-weeks; the Forecast panel says better or worse than the 8-week average and adds a column (R-ML-21, ML-33).
+
+Why: a forecast is only worth its cost if it beats averaging the last weeks.
+Verified: ForecastBaselineTest 2, the judging and screen cases, forecast Node and browser tests, the full suites before the push.
+
+---
+
 ## 2026-10-08 - feat: unloading range for the driver, a range on the weekly forecast (MF-06)
 
 `dev` · @Oxshadha

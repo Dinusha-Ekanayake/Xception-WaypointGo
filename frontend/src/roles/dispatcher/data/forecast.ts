@@ -380,7 +380,15 @@ export function forecastError(models: ModelMetrics[], modelLabel: string | null,
 }
 
 /** One finished week across the depots in scope (T2-03). */
-export type AccuracyRow = { key: string; monday: string; forecast: number; ordered: number; off: number | null };
+export type AccuracyRow = {
+  key: string;
+  monday: string;
+  forecast: number;
+  ordered: number;
+  off: number | null;
+  /** T2-03: how far the 8-week mean was off that week, where every brand had one. */
+  baselineOff: number | null;
+};
 
 /** The Monday of an ISO week, as yyyy-mm-dd. */
 export function isoMonday(isoYear: number, isoWeek: number): string {
@@ -397,13 +405,18 @@ export function isoMonday(isoYear: number, isoWeek: number): string {
 export function combineAccuracy(views: Array<Pick<import("@shared/domain/types").ForecastAccuracyView, "weeks">>): {
   rows: AccuracyRow[];
   off: number | null;
+  /** T2-03: on the brand-weeks with a baseline, the forecast's error and the 8-week mean's. */
+  versus: { forecast: number; average: number } | null;
 } {
-  const byWeek = new Map<string, { monday: string; pairs: Array<[number, number]> }>();
+  type Pair = [number, number, number | null];
+  const byWeek = new Map<string, { monday: string; pairs: Pair[] }>();
   for (const v of views) {
     for (const w of v.weeks) {
       const key = `${w.isoYear}-${String(w.isoWeek).padStart(2, "0")}`;
       const entry = byWeek.get(key) ?? { monday: isoMonday(w.isoYear, w.isoWeek), pairs: [] };
-      for (const b of w.brands) entry.pairs.push([Number(b.forecastM3), Number(b.orderedM3)]);
+      for (const b of w.brands) {
+        entry.pairs.push([Number(b.forecastM3), Number(b.orderedM3), b.baselineM3 == null ? null : Number(b.baselineM3)]);
+      }
       byWeek.set(key, entry);
     }
   }
@@ -411,6 +424,8 @@ export function combineAccuracy(views: Array<Pick<import("@shared/domain/types")
     const ordered = pairs.reduce((s, [, a]) => s + Math.abs(a), 0);
     return ordered > 0 ? pairs.reduce((s, [f, a]) => s + Math.abs(f - a), 0) / ordered : null;
   };
+  const forecastPairs = (pairs: Pair[]) => pairs.map(([f, a]) => [f, a] as [number, number]);
+  const baselinePairs = (pairs: Pair[]) => pairs.filter((p) => p[2] !== null).map(([, a, b]) => [b as number, a] as [number, number]);
   const rows = [...byWeek.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([key, e]) => ({
@@ -418,7 +433,12 @@ export function combineAccuracy(views: Array<Pick<import("@shared/domain/types")
       monday: e.monday,
       forecast: e.pairs.reduce((s, [f]) => s + f, 0),
       ordered: e.pairs.reduce((s, [, a]) => s + a, 0),
-      off: wape(e.pairs),
+      off: wape(forecastPairs(e.pairs)),
+      baselineOff: e.pairs.every((p) => p[2] !== null) ? wape(baselinePairs(e.pairs)) : null,
     }));
-  return { rows, off: wape([...byWeek.values()].flatMap((e) => e.pairs)) };
+  const all = [...byWeek.values()].flatMap((e) => e.pairs);
+  const withBaseline = all.filter((p) => p[2] !== null);
+  const fc = wape(forecastPairs(withBaseline));
+  const avg = wape(baselinePairs(withBaseline));
+  return { rows, off: wape(forecastPairs(all)), versus: fc !== null && avg !== null ? { forecast: fc, average: avg } : null };
 }
