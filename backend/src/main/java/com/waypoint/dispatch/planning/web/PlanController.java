@@ -152,6 +152,30 @@ public class PlanController {
     return plans.previewPlacements(actor, order);
   }
 
+  /** Roadmap AI-1: the depot's vehicles the plan's day cannot use. */
+  @GetMapping("/{planId}/what-if/vehicles")
+  public List<com.waypoint.dispatch.planning.contract.PlanViews.WhatIfVehicleView> whatIfVehicles(
+      @PathVariable UUID planId, HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:plan:plan:" + planId);
+    return plans.unavailableVehicles(actor, planId);
+  }
+
+  /** Roadmap AI-1: what one vehicle being available that day would change, from two fresh runs; nothing stored. */
+  @GetMapping("/{planId}/what-if")
+  public com.waypoint.dispatch.planning.contract.PlanViews.WhatIfView whatIf(
+      @PathVariable UUID planId, @RequestParam String vehicle, HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:plan:plan:" + planId);
+    return plans.whatIf(actor, planId, vehicle);
+  }
+
+  /** Roadmap AI-2: why a deferred order cannot go, and the smallest change that would let it. */
+  @GetMapping("/preview/fit")
+  public com.waypoint.dispatch.planning.contract.PlanViews.FitView previewFit(
+      @RequestParam UUID order, HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:plan:order:" + order);
+    return plans.fit(actor, order);
+  }
+
   /** Whether a substitute vehicle could take a trip whole, checked against the whole registry. */
   @GetMapping("/preview/interchange")
   public InterchangePreview previewInterchange(

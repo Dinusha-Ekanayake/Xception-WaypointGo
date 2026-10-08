@@ -148,11 +148,34 @@ Recorded as ADR-005.
 
 **Shares with T2B.** The what-if runs, from the T2B backlog.
 
+**Specification (2026-10-08).**
+
+- **Question.** "What if VEH014 is available that day?", asked of a plan of the reader's depot, about a vehicle of that depot that the plan could not use.
+- **Solver.** The plan's own problem (the same orders, rules and priority version, rebuilt as the draft is) is run twice by the same engine: as it is, and with the vehicle available. Comparing two fresh runs isolates the vehicle's effect from the dispatcher's own edits to the stored plan. Nothing is stored or changed.
+- **Answer, computed by code.** Orders served in each run; the orders it would serve that are now deferred, and any it would defer that are now served (reference, outlet, brand, temperature, m³); chilled m³ served; vehicles and trips used.
+- **Words.** A sentence built by code is always shown. With the gateway on, it may be reworded under the plan kind's allow-list; every number in the answer must be in the facts, else the code's sentence stands (R-ML-10).
+- **Refused.** A vehicle of another depot, or one the plan can already use: 422. A plan outside the reader's depots: not found.
+- **Endpoint.** `GET /api/plans/{planId}/what-if?vehicle=VEH014`, `plan:Read`.
+
+**Built (2026-10-08).** As specified, with `GET /api/plans/{planId}/what-if/vehicles` for the choices, and a card on the Decide step (R-PLN-46, PLN-46). On the Task 2B peak day, any one reefer truck back serves 80 or 81 orders instead of 74 and 158.0 or 161.0 m³ chilled instead of 118.8; the reefer van serves 76 and 129.0 m³ (`WhatIfPeakDayTest`).
+
 ### AI-2 Why an order cannot fit
 
 **Who does what.** The solver finds which constraints the order breaks and the smallest change that would let it fit. The LLM only words it.
 
 **First.** A specification is written before building.
+
+**Specification (2026-10-08).**
+
+- **Question.** "Why can this deferred order not go, and what is the smallest change that would let it?", for an order of an open draft.
+- **Solver.** Every place for the order is checked against the whole constraint registry: each vehicle's existing trips and a new trip. The closest place has the fewest failed rules; ties go to joining an existing trip, then to vehicle and trip order.
+- **Smallest change.** On the closest place, if it joins a trip, each served order on that trip that ranks below the deferred one under the plan's priority version is tried as a swap, lowest-ranked first, through the engine's own swap check. The first swap that passes every rule is the smallest change. If none passes, the answer names the closest place's failed rules and says no single swap makes room.
+- **Answer, computed by code.** Whether any place fits; the closest place (vehicle, trip, joins or new) and its failed rules with the registry's own reasons; the swap if there is one (the order that would leave, its outlet). A sentence built by code is always shown.
+- **Words.** With the gateway on, the sentence may be reworded under the order kind's allow-list; every number in the answer must be in the facts (R-ML-10).
+- **Never acts.** It is a preview. A swap is made only by the dispatcher, through the existing swap command and its own checks.
+- **Endpoint.** `GET /api/plans/preview/fit?order=ID`, `plan:Read`; an order in no open draft is not found.
+
+**Built (2026-10-08).** As specified, in the deferred order's explanation: "Closest it came" and "Smallest change" (R-PLN-45, PLN-45). Building it showed that the fewest failed rules alone pointed at another district's trip, so places that break a structural rule (brand and district, temperature, access, depot, availability) now rank behind those short only of room or time. On the Task 2B peak day the engine's own deferrals offer no swap, since it places orders highest-ranked first; a swap appears when a higher-ranked order was deferred by hand.
 
 ### Later
 

@@ -26,9 +26,11 @@ public final class PromptFacts {
 
   /** The explanations the screens build (frontend roles/dispatcher/data/explain.ts), field by field. */
   public enum Kind {
-    ORDER(Set.of("headline", "rule", "reason", "stopped", "met", "canPlace", "fits", "refused", "next"),
+    ORDER(Set.of("headline", "rule", "reason", "stopped", "met", "canPlace", "fits", "refused", "next", "closest",
+        "change"),
         Set.of("label", "detail", "where", "why")),
-    PLAN(Set.of("headline", "carries", "leftOff", "cannotBeServed", "byHand", "notes", "next"),
+    PLAN(Set.of("headline", "carries", "leftOff", "cannotBeServed", "byHand", "notes", "next", "whatIf", "nowServed",
+        "nowDeferred"),
         Set.of("label", "count", "example"));
 
     final Set<String> keys;

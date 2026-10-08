@@ -100,6 +100,12 @@ export type Desk = {
   commands: Sent[];
   /** Answer the next command of this kind with this problem instead of applying it. */
   refuse: { kind: string; status: number; code: string; detail: string; rules?: string[] } | null;
+  /** Roadmap AI-2: no place fits, and what /api/plans/preview/fit answers. */
+  noPlace?: boolean;
+  fit?: unknown;
+  /** Roadmap AI-1: the vehicles out that day, and what /what-if answers. */
+  whatIfVehicles?: unknown[];
+  whatIf?: unknown;
   /** What /api/ml/models answers: the registry, for the forecast error chip (#119). */
   models?: unknown[];
   /** What /api/ml/plans/{id}/predictions answers for the published plan; none means not scored (#119). */
@@ -281,7 +287,12 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
       }));
     }
     if (pathname === "/api/plans/published") return route.fulfill(desk.published ? json(desk.published) : problem(404, "NOT_FOUND", "No published plan"));
-    if (pathname === "/api/plans/preview/placements") return route.fulfill(json(PLACES));
+    if (pathname === "/api/plans/preview/placements") {
+      return route.fulfill(json(desk.noPlace ? PLACES.map((p) => ({ ...p, feasible: false, bindingRule: p.bindingRule ?? "R-PLN-07", reason: p.feasible ? "no trip left on VEH044" : p.reason })) : PLACES));
+    }
+    if (pathname === "/api/plans/preview/fit") return route.fulfill(json(desk.fit ?? { fits: true, placesChecked: 2, closest: null, swap: null }));
+    if (/^\/api\/plans\/[^/]+\/what-if\/vehicles$/.test(pathname)) return route.fulfill(json(desk.whatIfVehicles ?? []));
+    if (/^\/api\/plans\/[^/]+\/what-if$/.test(pathname)) return route.fulfill(json(desk.whatIf));
     if (pathname === "/api/plans/preview/swap" || pathname === "/api/plans/preview/sequence" || pathname === "/api/plans/preview/trip") return route.fulfill(json(desk.preview));
     if (pathname === "/api/plans/snapshots") return route.fulfill(json(desk.snapshots));
     const saved = /^\/api\/plans\/snapshots\/([^/]+)$/.exec(pathname);

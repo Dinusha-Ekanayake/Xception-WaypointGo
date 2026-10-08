@@ -371,3 +371,33 @@ export type ComparisonView = {
 
 /** GET /api/plans/policies/{id} (roadmap T2B-01): the order deferrals are decided in, most important first. */
 export type PriorityPolicyView = { policyVersionId: Uuid; keys: string[] };
+
+/** GET /api/plans/preview/fit (roadmap AI-2): why a deferred order cannot go, and the smallest change that would let it. */
+export type FitView = {
+  orderId: Uuid;
+  orderRef: string;
+  outletId: string;
+  fits: boolean;
+  placesChecked: number;
+  closest: { vehicleId: string; tripNumber: number; joins: boolean; failed: ConstraintResultView[] } | null;
+  swap: { orderId: Uuid; orderRef: string; outletId: string; vehicleId: string; tripNumber: number } | null;
+};
+
+/** GET /api/plans/{planId}/what-if (roadmap AI-1): two fresh runs, as it is and with one more vehicle. */
+export type WhatIfOrderView = { orderId: Uuid; orderRef: string; outletId: string; brand: string; temperature: string; volumeM3: Decimal };
+export type WhatIfView = {
+  planId: Uuid;
+  vehicleId: string;
+  servedBefore: number;
+  servedAfter: number;
+  chilledM3Before: Decimal;
+  chilledM3After: Decimal;
+  vehiclesBefore: number;
+  vehiclesAfter: number;
+  tripsBefore: number;
+  tripsAfter: number;
+  nowServed: WhatIfOrderView[];
+  nowDeferred: WhatIfOrderView[];
+};
+/** GET /api/plans/{planId}/what-if/vehicles: the depot's vehicles the day cannot use. */
+export type WhatIfVehicleView = { vehicleId: string; van: boolean; refrigerated: boolean; volumeCapM3: Decimal };

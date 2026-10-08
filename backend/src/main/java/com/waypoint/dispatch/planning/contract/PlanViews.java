@@ -50,6 +50,45 @@ public final class PlanViews {
    * @param supersedes the published plan this version replaced
    */
   /**
+   * Roadmap AI-2: why a deferred order cannot go. {@code fits} when some place
+   * already passes every rule; else the closest place and the rules it breaks,
+   * and the smallest change that would let it in when one exists: a lower-ranked
+   * order on that trip whose swap the engine checked. A preview: nothing changes.
+   */
+  public record FitView(
+      UUID orderId, String orderRef, String outletId, boolean fits, int placesChecked,
+      Optional<FitPlaceView> closest, Optional<FitSwapView> swap) {}
+
+  public record FitPlaceView(String vehicleId, int tripNumber, boolean joins, List<ConstraintResultView> failed) {
+    public FitPlaceView {
+      failed = List.copyOf(failed);
+    }
+  }
+
+  public record FitSwapView(UUID orderId, String orderRef, String outletId, String vehicleId, int tripNumber) {}
+
+  /**
+   * Roadmap AI-1: two fresh runs of a plan's day, as it is and with one more
+   * vehicle available. {@code nowServed} are orders the second run serves that
+   * the first defers; {@code nowDeferred} the reverse.
+   */
+  public record WhatIfView(
+      UUID planId, String vehicleId, int servedBefore, int servedAfter, BigDecimal chilledM3Before,
+      BigDecimal chilledM3After, int vehiclesBefore, int vehiclesAfter, int tripsBefore, int tripsAfter,
+      List<WhatIfOrderView> nowServed, List<WhatIfOrderView> nowDeferred) {
+    public WhatIfView {
+      nowServed = List.copyOf(nowServed);
+      nowDeferred = List.copyOf(nowDeferred);
+    }
+  }
+
+  /** A vehicle of the plan's depot that cannot be used that day: the what-if's choices (roadmap AI-1). */
+  public record WhatIfVehicleView(String vehicleId, boolean van, boolean refrigerated, BigDecimal volumeCapM3) {}
+
+  public record WhatIfOrderView(
+      UUID orderId, String orderRef, String outletId, String brand, String temperature, BigDecimal volumeM3) {}
+
+  /**
    * The order deferrals are decided in (R-PLN-21, roadmap T2B-01): the keys of a
    * priority policy version, most important first, as the engine applies them.
    */

@@ -4,6 +4,19 @@
 
 ---
 
+## 2026-10-08 - feat: why an order cannot go (AI-2) and what a vehicle back would change (AI-1)
+
+`dev` · @Oxshadha
+
+- Specifications first, in roadmap 06. AI-2: `FitDiagnosis` names the closest place (room and time before structural rules) and the smallest change, a swap the engine checked; `GET /api/plans/preview/fit`; the explanation sheet adds "Closest it came" and "Smallest change" (R-PLN-45, PLN-45).
+- AI-1: `GET /api/plans/{planId}/what-if?vehicle=` runs the day twice with no transaction open and lists the difference; `/what-if/vehicles` gives the choices; a card on Decide (R-PLN-46, PLN-46). On S1 one reefer truck back serves 80 or 81 orders instead of 74.
+- Both are worded by code; the gateway may reword them under the allow-list (new keys `closest`, `change`, `whatIf`, `nowServed`, `nowDeferred`) with every number checked (R-ML-10).
+
+Why: the solver decides and computes; a model only puts its answer into words.
+Verified: FitDiagnosisTest 3, FitDiagnosisPeakDayTest, WhatIfPeakDayTest, the two planning cases, plan-view Node and explain browser tests, the full suites before the push.
+
+---
+
 ## 2026-10-08 - feat: deferral priority version 2, chosen by a replay of 80 days (R-PLN-21)
 
 `dev` · @Oxshadha

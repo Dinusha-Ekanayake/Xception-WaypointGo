@@ -305,3 +305,19 @@ test("each key of the deferral policy reads as a rule and why, in the order give
   assert.equal(lines[1]!.why, "perishable, and it sells in the morning");
   assert.deepEqual(lines[2], { rule: "Something new", why: null });
 });
+
+
+// Roadmap AI-1 and AI-2: the solver's answers in words, nothing worked out here.
+test("the closest place, the smallest change and a vehicle's what-if read as plain sentences", async () => {
+  const { fitWords } = await import("../src/roles/dispatcher/data/explain.ts");
+  const { whatIfWords } = await import("../src/roles/dispatcher/data/whatIf.ts");
+  const base = { orderId: "o", orderRef: "R", outletId: "OUT1", fits: false, placesChecked: 4,
+    closest: { vehicleId: "VEH036", tripNumber: 2, joins: true, failed: [{ ruleId: "R-PLN-06", passed: false, reason: "weight 1,095.7 kg exceeds 1,040 kg", slack: "-55.7" }] } };
+  const none = fitWords({ ...base, swap: null });
+  assert.match(none.closest ?? "", /^VEH036, trip 2, joining the trip already planned\. .*weight 1,095.7 kg exceeds 1,040 kg$/);
+  assert.equal(none.change, "No single swap makes room there: it needs more room on a vehicle, another vehicle, or a later day.");
+  assert.deepEqual(fitWords({ ...base, fits: true, closest: null, swap: null }), { closest: null, change: null });
+  const same = whatIfWords({ planId: "p", vehicleId: "VEH035", servedBefore: 74, servedAfter: 74, chilledM3Before: "118.8", chilledM3After: "118.8",
+    vehiclesBefore: 13, vehiclesAfter: 13, tripsBefore: 26, tripsAfter: 26, nowServed: [], nowDeferred: [] });
+  assert.equal(same.whatIf, "It changes nothing on this day: the same 74 orders are served.");
+});

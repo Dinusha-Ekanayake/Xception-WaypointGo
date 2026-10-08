@@ -9,6 +9,9 @@ import { daysBetween, lastServedText, type DecisionRow } from "../data/planViews
 import { useNextDelivery } from "../data/usePlanReads.ts";
 import { explainDeferral } from "../data/explain.ts";
 import { useFriendlyText } from "@shared/api/useFriendlyText";
+import { request } from "@shared/api/client";
+import { useResource } from "@shared/api/useResource";
+import type { FitView } from "@shared/domain/types";
 import CheckList from "./CheckList.tsx";
 import ExplainSheet from "./ExplainSheet.tsx";
 import type { PlanActions } from "./planActions.ts";
@@ -64,9 +67,13 @@ export default function DecisionPanel({
   const days = allocation.lastServedOn ? daysBetween(allocation.lastServedOn, plan.serviceDate) : null;
   const askReason = open && editable && (target !== null || keeping);
   const canPlace = open && editable;
-  const explanation = explainDeferral({ orderRef: order?.orderRef ?? null, outletId: order?.outletId ?? null, day: dayLabel(plan.serviceDate), allocation, places, canPlace });
-  // Asked once the places are known, so the wording is not of a half-loaded answer.
-  const friendly = useFriendlyText(explaining && (places !== null || !canPlace) ? `order:${plan.planId}:${plan.rowVersion}:${allocation.orderId}:decide` : null, explanation);
+  // Roadmap AI-2: asked of the solver only when no place fits, once the sheet is open.
+  const askFit = explaining && canPlace && places !== null && fits.length === 0;
+  const fit = useResource<FitView>(askFit ? (signal) => request<FitView>(`/api/plans/preview/fit?order=${encodeURIComponent(allocation.orderId)}`, { signal }) : null, `fit|${plan.planId}|${plan.rowVersion}|${allocation.orderId}|${askFit}`);
+  const explanation = explainDeferral({ orderRef: order?.orderRef ?? null, outletId: order?.outletId ?? null, day: dayLabel(plan.serviceDate), allocation, places, canPlace, fit: fit.data ?? null });
+  // Asked once the places (and, where none fits, the solver's answer) are known, so the wording is not of a half-loaded answer.
+  const settled = (places !== null || !canPlace) && (!askFit || fit.data != null || fit.error != null);
+  const friendly = useFriendlyText(explaining && settled ? `order:${plan.planId}:${plan.rowVersion}:${allocation.orderId}:decide${fit.data ? ":fit" : ""}` : null, explanation);
   // A swap needs a trip of the same brand, district and temperature; without one the window would have nothing to offer.
   const swappable = swapTrips(plan, order);
   const canSwap = swappable.length > 0;
