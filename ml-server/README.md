@@ -54,6 +54,30 @@ Findings are written in words when a gap is material: 0.02 of AUC for the split 
 
 The split is not where the optimism is (0.002 of AUC). The road index is: without it log loss is 26% worse, and it does not exist when a plan is published. The figure to expect in production is the third row, and a model is only trusted on our own deliveries through the backtest (R-ML-16).
 
+## Retraining on our own deliveries (roadmap MF-05)
+
+Step 2 of the production ladder: LightGBM on ten planning-time features (`training/planning.py`: the window's slack either side, planned arrival, the stop's place and the route's length, planned travel so far, route start, distance, volume, van or truck). The features come from the route exactly as the backend sent it to be scored, which the backend keeps per plan (`ml.scoring_inputs`, R-ML-18), so training and serving share one definition and nothing learned after publication goes in. Everything below runs on our own machine; nothing is sent anywhere.
+
+```bash
+# 1. The export, as an administrator (ml:ExportTrainingData). Plain HTTP only to localhost.
+WAYPOINT_SESSION='SESSION=...' python -m training.fetch --url http://localhost:8080 --depot Kandy \
+    --from 2026-08-01 --to 2026-10-04 --out export.jsonl
+# 2. Train, hold out the last 6 weeks, compare with the window slack alone.
+python -m training.retrain --export export.jsonl --version 2026.10.1 --out build/
+```
+
+`retrain` writes the model file, `manifest-entry.json` (with `"pipeline": "planning"`, the holdout metrics and the file's SHA-256) and `report.json`. It exits 2, and the model is not handed over, unless it beats the slack alone on both Brier score and log loss with 200 or more labelled stops held out. To hand it over: copy the file into `models/`, put the entry in `manifest.json` in place of the `delivery_risk` one, run `pytest`, then register and activate it as in "Wiring it in". The service loads a planning model instead of the Datathon blend and answers with `roadConditions: fallback`, since it never uses them. After a week in use, the admin Models screen shows its backtest beside the built-in estimate (R-ML-16).
+
+Dry run on the Datathon data, in the export's shape (`python -m training.datathon_export --datathon <dir> --out dt.jsonl`; 25,198 routes; holdout 2026-01-05 to 2026-02-14, 5,035 stops):
+
+| Model | AUC | Brier | Log loss |
+| --- | --- | --- | --- |
+| Ten planning features | 0.941 | 0.070 | 0.227 |
+| Window slack alone | 0.880 | 0.083 | 0.285 |
+| Datathon features without road conditions (for reference, from the leakage check) | 0.957 | | 0.168 |
+
+The gap to the Datathon features is reference data known at planning (each outlet's unloading allowance, traffic by hour, the calendar); adding those as features is the next step of the ladder.
+
 ## Reproducibility
 
 - Every random seed is fixed, so the same request always gives the same answer.

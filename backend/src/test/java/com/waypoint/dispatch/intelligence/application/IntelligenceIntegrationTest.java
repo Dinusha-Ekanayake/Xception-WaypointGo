@@ -413,12 +413,17 @@ class IntelligenceIntegrationTest {
     UUID planId = publishedPlan();
     scoreUntilDone(planId);
     STUB.failing = false;
+    Object kept = database.asSystem(ModuleRole.ML, () -> database.queryOne(
+        "SELECT count(*) AS n, max(recorded_at) AS at FROM ml.scoring_inputs WHERE plan_id = ?", planId));
 
     database.asSystem(ModuleRole.ML, () -> database.update(
         "UPDATE ml.plan_scorings SET next_attempt_at = now() - interval '1 minute' WHERE plan_id = ?", planId));
     for (int i = 0; i < 20 && !"scored".equals(scoringRow(planId).get("status")); i++) {
       scoring.runAt(Instant.now().plusSeconds(1));
     }
+    // R-ML-18: the rescoring keeps the routes as first scored.
+    assertEquals(kept, database.asSystem(ModuleRole.ML, () -> database.queryOne(
+        "SELECT count(*) AS n, max(recorded_at) AS at FROM ml.scoring_inputs WHERE plan_id = ?", planId)));
 
     JsonNode body = read(dispatcher, "/api/ml/plans/" + planId + "/predictions", 200);
     assertEquals("SCORED", body.at("/scoring/status").asText());
@@ -759,6 +764,57 @@ class IntelligenceIntegrationTest {
     assertEquals(12, reference.roadConditions(LocalDate.of(2024, 1, 1), LocalDate.of(2024, 1, 1)).size());
     assertTrue(reference.roadConditions(LocalDate.of(2026, 6, 29), LocalDate.of(2026, 6, 29)).isEmpty(),
         "the supplied series ends on 2026-06-28");
+  }
+
+  @Test
+  void aScoredRouteIsKeptAsTheModelReadItAndExportedWithItsOutcomes() throws Exception {
+    // MF-05, R-ML-18: the built-in estimate scores the plan; its routes are kept as sent.
+    UUID planId = publishedPlan();
+    scoreUntilDone(planId);
+    List<Map<String, Object>> predicted = database.asSystem(ModuleRole.ML, () -> database.query(
+        "SELECT prediction_id, order_id, trip_id, stop_sequence FROM ml.delivery_predictions WHERE plan_id = ?"
+            + " ORDER BY trip_id, stop_sequence", planId));
+    assertFalse(predicted.isEmpty());
+    long routes = ((Number) database.asSystem(ModuleRole.ML, () -> database.queryOne(
+        "SELECT count(*) AS n FROM ml.scoring_inputs WHERE plan_id = ?", planId)).get("n")).longValue();
+    long trips = predicted.stream().map(r -> r.get("trip_id")).distinct().count();
+    assertEquals(trips, routes, "one kept route per trip");
+
+    // The first stop arrived late; the second has no arrival, so no label.
+    for (int i = 0; i < Math.min(2, predicted.size()); i++) {
+      Map<String, Object> p = predicted.get(i);
+      Boolean late = i == 0 ? Boolean.TRUE : null;
+      database.asSystem(ModuleRole.ML, () -> database.update(
+          """
+          INSERT INTO ml.delivery_outcomes
+              (delivery_id, order_id, outlet_id, depot_code, service_date, stop_sequence, outcome, late_label,
+               late_minutes, label_source, prediction_id, predicted_late_prob, model_label, recorded_at)
+          VALUES (?, ?, 'OUT001', ?, ?, ?, 'delivered', ?, ?, ?, ?, 0.2, 'deterministic', now())
+          """,
+          UUID.randomUUID(), p.get("order_id"), depot, java.sql.Date.valueOf(serviceDate), p.get("stop_sequence"),
+          late, late == null ? null : 12, late == null ? "none" : "device", p.get("prediction_id")));
+    }
+    String path = "/api/ml/training/routes?depot=" + depot + "&from=" + serviceDate + "&to=" + serviceDate;
+    JsonNode page = read(admin, path, 200);
+    JsonNode mine = null;
+    for (JsonNode item : page.get("items")) {
+      if (item.get("planId").asText().equals(planId.toString())) {
+        mine = item;
+      }
+    }
+    assertTrue(mine != null, page.toString());
+    JsonNode stop = mine.at("/route/stops/0");
+    assertEquals("DEPOT", stop.get("fromPoint").asText(), "the route as the model server reads it");
+    assertTrue(stop.has("plannedArrivalTime") && stop.has("windowCloseTime"));
+    JsonNode labels = mine.get("labels");
+    assertTrue(labels.get(0).get("late").asBoolean());
+    assertEquals("device", labels.get(0).get("labelSource").asText());
+    if (labels.size() > 1) {
+      assertTrue(labels.get(1).get("late").isNull(), "no arrival is no label, never not late");
+    }
+
+    read(dispatcher, path, 403);
+    read(admin, "/api/ml/training/routes?depot=" + depot + "&from=2026-02-02&to=2026-02-01", 422);
   }
 
   @Test

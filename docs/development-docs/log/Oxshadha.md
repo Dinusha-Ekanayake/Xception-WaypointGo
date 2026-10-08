@@ -4,6 +4,19 @@
 
 ---
 
+## 2026-10-08 - feat: retraining on what the plan knew (MF-05, second slice)
+
+`dev` · @Oxshadha
+
+- Scoring keeps each route as the model read it (`ml.scoring_inputs`); `GET /api/ml/training/routes` pairs it with the outcomes of the plan that ran (R-ML-18, ML-29).
+- `ml-server/training`: `fetch`, `retrain` (ten planning-time features, last 6 weeks held out, must beat the slack alone), and the service serves a `planning` model through the same feature code. Dry run on the Datathon data: AUC 0.941, log loss 0.227 against 0.285 for the slack alone.
+- Not yet: reference features, a scheduled run, replay through the backtest.
+
+Why: a model must learn only what a plan knows when it is published, and be served from the same features it learned on.
+Verified: the new and changed intelligence cases on a fresh test database; ml-server 21 with the pinned versions; the full backend suite before the push.
+
+---
+
 ## 2026-10-08 - feat: the leakage check, measured on the Datathon data (MF-05, first slice)
 
 `dev` · @Oxshadha

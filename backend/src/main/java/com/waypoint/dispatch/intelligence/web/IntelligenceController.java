@@ -188,6 +188,19 @@ public class IntelligenceController {
     return intelligence.trainingDeliveries(actor, depot, from, to, Optional.ofNullable(after), limit);
   }
 
+  /** Roadmap MF-05: scored routes as the model read them, with their outcomes, for retraining. */
+  @GetMapping("/training/routes")
+  public Page<com.waypoint.dispatch.intelligence.contract.PredictionViews.TrainingRouteView> trainingRoutes(
+      @RequestParam String depot,
+      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+      @RequestParam(required = false) String after,
+      @RequestParam(required = false) Integer limit,
+      HttpServletRequest request) {
+    Actor actor = authorizer.require(request, IntelligenceDataQuery.EXPORT, "wpt:ml:training:" + depot);
+    return intelligence.trainingRoutes(actor, depot, from, to, Optional.ofNullable(after), limit);
+  }
+
   private Actor read(HttpServletRequest request, String resource) {
     return authorizer.require(request, IntelligenceDataQuery.READ, resource);
   }

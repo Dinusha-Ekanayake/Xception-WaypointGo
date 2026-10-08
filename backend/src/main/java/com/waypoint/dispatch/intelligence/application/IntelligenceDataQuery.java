@@ -28,6 +28,7 @@ import com.waypoint.dispatch.intelligence.contract.TravelAndServiceEstimator;
 import com.waypoint.dispatch.intelligence.domain.DeterministicEstimator;
 import com.waypoint.dispatch.intelligence.domain.SupplyPolicy;
 import com.waypoint.dispatch.intelligence.infrastructure.JdbcIntelligenceRepository;
+import com.waypoint.dispatch.intelligence.infrastructure.JdbcScoringInputs;
 import com.waypoint.dispatch.intelligence.infrastructure.JdbcIntelligenceRepository.ModelRow;
 import com.waypoint.dispatch.ordering.contract.OrderQuery;
 import com.waypoint.dispatch.ordering.contract.OrderStatus;
@@ -79,6 +80,7 @@ public class IntelligenceDataQuery implements PredictionQuery, ModelQuery, Trave
   private final JdbcIntelligenceRepository repository;
   private final com.waypoint.dispatch.intelligence.infrastructure.JdbcModelQuality quality;
   private final com.waypoint.dispatch.intelligence.infrastructure.JdbcOutcomes outcomes;
+  private final JdbcScoringInputs scoringInputs;
   private final PlanQuery plans;
   private final OrderQuery orders;
   private final ExecutionQuery execution;
@@ -98,8 +100,10 @@ public class IntelligenceDataQuery implements PredictionQuery, ModelQuery, Trave
       Clock clock,
       com.waypoint.dispatch.platform.audit.AuditLog audit,
       com.waypoint.dispatch.intelligence.infrastructure.JdbcModelQuality quality,
-      com.waypoint.dispatch.intelligence.infrastructure.JdbcOutcomes outcomes) {
+      com.waypoint.dispatch.intelligence.infrastructure.JdbcOutcomes outcomes,
+      JdbcScoringInputs scoringInputs) {
     this.outcomes = outcomes;
+    this.scoringInputs = scoringInputs;
     this.quality = quality;
     this.database = database;
     this.repository = repository;
@@ -220,6 +224,27 @@ public class IntelligenceDataQuery implements PredictionQuery, ModelQuery, Trave
     Page<StopActualView> page =
         read(actor.userId(), () -> execution.actuals(depot, from, to, cursor, Page.limit(limit)));
     return new Page<>(page.items().stream().map(IntelligenceDataQuery::training).toList(), page.nextCursor());
+  }
+
+  /**
+   * Roadmap MF-05: the depot's scored routes with their outcomes, keyset-paged
+   * on (day, plan, route), as the training input. Rows outside the reader's
+   * depots are filtered in SQL.
+   */
+  public Page<PredictionViews.TrainingRouteView> trainingRoutes(
+      Actor actor, String depot, LocalDate from, LocalDate to, Optional<String> cursor, Integer limit) {
+    if (from.isAfter(to)) {
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, "from is after to");
+    }
+    int size = Page.limit(limit);
+    Optional<List<String>> after = cursor.map(c -> com.waypoint.dispatch.shared.domain.Cursor.decode(c, 3));
+    List<JdbcScoringInputs.Row> rows = read(actor.userId(), () -> scoringInputs.page(depot, from, to, after, size));
+    Page<JdbcScoringInputs.Row> page = Page.fromOverfetch(rows, size, r -> com.waypoint.dispatch.shared.domain.Cursor
+        .encode(r.serviceDate().toString(), r.planId().toString(), r.routeId()));
+    return new Page<>(page.items().stream()
+        .map(r -> new PredictionViews.TrainingRouteView(
+            r.planId(), r.routeId(), r.serviceDate(), r.referenceVersionId(), r.route(), r.labels()))
+        .toList(), page.nextCursor());
   }
 
   /**

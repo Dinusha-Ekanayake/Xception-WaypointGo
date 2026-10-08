@@ -94,6 +94,7 @@ public class PlanScoringJob implements ScheduledJob {
   private final AtomicLong pending = new AtomicLong();
 
   private final com.waypoint.dispatch.intelligence.infrastructure.JdbcOutcomes outcomes;
+  private final com.waypoint.dispatch.intelligence.infrastructure.JdbcScoringInputs scoringInputs;
 
   PlanScoringJob(
       Database database,
@@ -107,8 +108,10 @@ public class PlanScoringJob implements ScheduledJob {
       IntelligenceProperties properties,
       Metrics metrics,
       Clock clock,
-      com.waypoint.dispatch.intelligence.infrastructure.JdbcOutcomes outcomes) {
+      com.waypoint.dispatch.intelligence.infrastructure.JdbcOutcomes outcomes,
+      com.waypoint.dispatch.intelligence.infrastructure.JdbcScoringInputs scoringInputs) {
     this.outcomes = outcomes;
+    this.scoringInputs = scoringInputs;
     this.database = database;
     this.repository = repository;
     this.adapter = adapter;
@@ -218,7 +221,12 @@ public class PlanScoringJob implements ScheduledJob {
         !scored && g.active().isPresent() && attempts < properties.maxAttempts()
             ? Optional.of(now.plus(backoff(attempts)))
             : Optional.empty();
+    List<Map<String, Object>> asScored = routes(g);
     database.asSystem(ModuleRole.ML, () -> {
+      for (Map<String, Object> r : asScored) {
+        scoringInputs.record(g.plan().planId(), (String) r.get("routeId"), g.plan().depotCode(),
+            g.plan().serviceDate(), Optional.ofNullable(g.plan().referenceVersionId()), r, now);
+      }
       for (StopPlan s : g.stops()) {
         StopRisk risk = byOrder.get(s.orderId().toString());
         repository.insertPrediction(
@@ -328,6 +336,15 @@ public class PlanScoringJob implements ScheduledJob {
   }
 
   private Map<String, Object> request(Gathered g) {
+    Map<String, Object> body = new LinkedHashMap<>();
+    body.put("routes", routes(g));
+    body.put("reference", payload.forDepotDay(g.plan().depotCode(), g.plan().serviceDate(),
+        g.plan().referenceVersionId()));
+    return body;
+  }
+
+  /** Each route as the model server reads it: kept with the plan as well as sent (R-ML-18). */
+  private static List<Map<String, Object>> routes(Gathered g) {
     List<Map<String, Object>> routes = new ArrayList<>();
     for (Route r : g.routes()) {
       TripFacts t = r.trip();
@@ -349,11 +366,7 @@ public class PlanScoringJob implements ScheduledJob {
           "vehicleId", t.vehicleId(), "vehicleType", t.vehicleType(), "vehicleTemp", t.vehicleTemp(),
           "brand", t.brandCode(), "district", t.districtName(), "stops", stops));
     }
-    Map<String, Object> body = new LinkedHashMap<>();
-    body.put("routes", routes);
-    body.put("reference", payload.forDepotDay(g.plan().depotCode(), g.plan().serviceDate(),
-        g.plan().referenceVersionId()));
-    return body;
+    return routes;
   }
 
   /** 1, 2, 4, 8 ... minutes, capped at 30. */

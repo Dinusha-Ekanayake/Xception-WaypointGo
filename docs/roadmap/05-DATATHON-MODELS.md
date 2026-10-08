@@ -149,7 +149,9 @@ Equal-bin calibration error is too noisy at this volume and is not used.
 - `ml-server` tests and the backtest gate run before activation.
 - Model versions are pinned.
 
-**Built (first slice, 2026-10-08).** `ml-server/training/leakage.py` runs the leakage check on whatever data the runner holds and reports the four figures with findings in words (R-ML-17, ML-28); the measured result on the Datathon data is above. Open: the retraining step (step 2 of the ladder, LightGBM on planning-time features from our own training export) and its pull request with the manifest.
+**Built (first slice, 2026-10-08).** `ml-server/training/leakage.py` runs the leakage check on whatever data the runner holds and reports the four figures with findings in words (R-ML-17, ML-28); the measured result on the Datathon data is above. 
+
+**Built (second slice, 2026-10-08).** Scoring keeps each route as the model server read it (`ml.scoring_inputs`), exported with the outcomes of the plan that ran at `GET /api/ml/training/routes` (R-ML-18, ML-29). `ml-server/training` fetches it, retrains step 2 of the ladder on ten planning-time features, compares with the window slack alone on the last 6 weeks, and writes the model with its manifest entry; the service serves such a model through the same feature code. Dry run on the Datathon data: AUC 0.941, log loss 0.227, against 0.880 and 0.285 for the slack alone. Open: reference features (allowance, traffic by hour, calendar), a scheduled run on our own runner, and replaying a candidate through the backtest before activation.
 
 ### MF-06 Prediction intervals
 

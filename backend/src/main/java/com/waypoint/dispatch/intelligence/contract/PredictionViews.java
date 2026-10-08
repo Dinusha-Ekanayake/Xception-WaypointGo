@@ -152,6 +152,21 @@ public final class PredictionViews {
       String outcome,
       boolean timingUncertain) {}
 
+  /**
+   * One route as the model server read it when its plan was scored, and each
+   * stop's outcome of that plan (roadmap MF-05, R-ML-18): {@code route} has the
+   * scoring request's own fields, so a model retrains on what it will be given.
+   * A label's {@code late} is null when the stop has no trustworthy arrival.
+   */
+  public record TrainingRouteView(
+      UUID planId, String routeId, LocalDate serviceDate, Optional<UUID> referenceVersionId,
+      java.util.Map<String, Object> route, List<java.util.Map<String, Object>> labels) {
+    public TrainingRouteView {
+      route = java.util.Map.copyOf(route);
+      labels = List.copyOf(labels);
+    }
+  }
+
   public enum OverviewStatus {
     /** A forecast run covers these weeks. */
     READY,
