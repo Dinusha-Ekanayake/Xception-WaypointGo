@@ -49,6 +49,16 @@ public final class PlanViews {
    * @param priorityPolicyVersionId the deferral priority table in force
    * @param supersedes the published plan this version replaced
    */
+  /**
+   * The order deferrals are decided in (R-PLN-21, roadmap T2B-01): the keys of a
+   * priority policy version, most important first, as the engine applies them.
+   */
+  public record PriorityPolicyView(UUID policyVersionId, List<String> keys) {
+    public PriorityPolicyView {
+      keys = List.copyOf(keys);
+    }
+  }
+
   public record PlanView(
       UUID planId,
       String depotCode,

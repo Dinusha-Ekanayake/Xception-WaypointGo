@@ -295,3 +295,13 @@ test("the road conditions are mentioned only for a day past them, or when none a
   assert.equal(roadConditionsNote(p(null), "2026-10-05"), "no road data");
   assert.equal(roadConditionsNote(p(undefined), "2026-10-05"), null, "an older server that does not say");
 });
+
+
+// Roadmap T2B-01: the deferral policy in words, never raw codes.
+test("each key of the deferral policy reads as a rule and why, in the order given", async () => {
+  const { policyLines } = await import("../src/roles/dispatcher/data/priority.ts");
+  const lines = policyLines(["PRIOR_SKIP", "FRESH", "SOMETHING_NEW"]);
+  assert.equal(lines[0]!.rule, "Deferred on an earlier run");
+  assert.equal(lines[1]!.why, "perishable, and it sells in the morning");
+  assert.deepEqual(lines[2], { rule: "Something new", why: null });
+});

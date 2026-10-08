@@ -336,3 +336,14 @@ test("a blocked publish names its blocker beside the button, and Decide warns in
 async function openTrip(page: Page): Promise<void> {
   await page.getByRole("region", { name: "Trips by vehicle" }).getByRole("button", { name: /trip 1:/ }).first().click();
 }
+
+// Roadmap T2B-01: the deferral policy the engine applied, in its order, on the Decide step.
+test("the Decide step shows how the engine decides what waits, in the order it applies", async ({ page }) => {
+  await serve(page, { draft: draftPlan() });
+  await page.goto("/#/plan");
+  const policy = page.getByRole("region", { name: "How the engine decides what waits" });
+  await expect(policy.getByRole("listitem")).toHaveCount(9);
+  await expect(policy.getByRole("listitem").first()).toHaveText("1.Deferred on an earlier run · no store is skipped twice in a row");
+  await expect(policy.getByRole("listitem").nth(1)).toContainText("Fresh before other brands");
+  await expect(policy).not.toContainText("PRIOR_SKIP");
+});

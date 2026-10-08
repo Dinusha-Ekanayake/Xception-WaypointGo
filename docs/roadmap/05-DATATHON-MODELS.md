@@ -282,6 +282,8 @@ The brief's store manager needs exactly this to schedule staff.
 
 Setting a vehicle "in workshop" on a forecast shortfall day shows a warning. Advice only.
 
+**Built (2026-10-08).** The vehicle drawer books a workshop day today or up to 10 weeks ahead; on a forecast week the vehicle's day leaves short, it warns with the week's demand against what is left, chilled for a reefer (R-FLT-05, PLN-43).
+
 ### T2-03 Forecast accuracy
 
 **First slice built 2026-10-08:** the Forecast screen's "How the forecast did" panel reads the judged weeks of MF-03 (`GET /api/ml/forecast/accuracy`).
@@ -301,6 +303,8 @@ LATER.
 ### T2B-01 Deferral policy in Decide
 
 The written deferral policy is shown in the dispatcher's Decide screen as the reasons the engine applies. It is kept in step with `PriorityPolicy`, and the validator stays in CI.
+
+**Built (2026-10-08).** "How the engine decides what waits" on the Decide step lists the plan's own policy version, read from `GET /api/plans/policies/{id}`, in plain words (R-PLN-21a, PLN-44).
 
 **Backlog:**
 

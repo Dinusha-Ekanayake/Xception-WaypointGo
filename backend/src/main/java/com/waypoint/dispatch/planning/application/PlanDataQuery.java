@@ -443,6 +443,13 @@ public class PlanDataQuery implements PlanQuery {
         .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No plan " + planId));
   }
 
+  /** Roadmap T2B-01: the priority policy a plan was made with, so the Decide screen shows the order the engine applied. */
+  public com.waypoint.dispatch.planning.contract.PlanViews.PriorityPolicyView priorityPolicy(Actor actor, UUID policyVersionId) {
+    return read(actor.userId(), () -> plans.policy(policyVersionId))
+        .map(p -> new com.waypoint.dispatch.planning.contract.PlanViews.PriorityPolicyView(p.id(), p.keys().stream().map(Enum::name).toList()))
+        .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No priority policy " + policyVersionId));
+  }
+
   public List<DeferralView> deferralsFor(Actor actor, String depotCode, LocalDate serviceDate) {
     requireDepot(actor, depotCode);
     return read(actor.userId(), () -> deferrals(depotCode, serviceDate));

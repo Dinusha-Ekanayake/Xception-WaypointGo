@@ -117,6 +117,14 @@ public class PlanController {
   }
 
   /** Any version, draft to superseded, with every allocation's constraint results. */
+  /** Roadmap T2B-01: a priority policy version's keys, most important first. */
+  @GetMapping("/policies/{policyVersionId}")
+  public com.waypoint.dispatch.planning.contract.PlanViews.PriorityPolicyView priorityPolicy(
+      @PathVariable UUID policyVersionId, HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:plan:policy:" + policyVersionId);
+    return plans.priorityPolicy(actor, policyVersionId);
+  }
+
   @GetMapping("/{planId}")
   public PlanView plan(@PathVariable UUID planId, HttpServletRequest request) {
     var actor = authorizer.require(request, READ, "wpt:plan:plan:" + planId);

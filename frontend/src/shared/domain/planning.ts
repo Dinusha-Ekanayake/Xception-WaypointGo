@@ -368,3 +368,6 @@ export type ComparisonView = {
   removedTrips: Uuid[];
   affectedOutlets: string[];
 };
+
+/** GET /api/plans/policies/{id} (roadmap T2B-01): the order deferrals are decided in, most important first. */
+export type PriorityPolicyView = { policyVersionId: Uuid; keys: string[] };

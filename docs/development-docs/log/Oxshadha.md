@@ -4,6 +4,30 @@
 
 ---
 
+## 2026-10-08 - feat: deferral priority version 2, chosen by a replay of 80 days (R-PLN-21)
+
+`dev` · @Oxshadha
+
+- Longest since last served moves from the last tie-break to just after Fresh and chilled. `PriorityReplayTest` replays the 40 busiest days of each depot (real orders and history, S1-like workshop losses): 4,975 served against 4,974, different on 3 of 80 days, never by more than one order; waiting time before Fresh was worse on 10 days and not adopted. On S1: 74 served and 118.8 m3 chilled against 73 and 109.2.
+- Migration closes version 1 on 2026-10-09 and adds version 2; `PriorityPolicy.DEFAULT_KEYS` matches it, so the product and the Task 2B submission use one order. The Task 2B write-up is rebuilt on the new allocation, each deferral checked against the data.
+
+Why: one policy for the product and the submission, chosen on evidence wider than one day.
+Verified: the planning tests, the replay, the official checker on the new CSV, the full suites before the push.
+
+---
+
+## 2026-10-08 - feat: workshop clash warning (T2-02) and the deferral order on Decide (T2B-01)
+
+`dev` · @Oxshadha
+
+- T2-02: the vehicle drawer books a workshop day up to 10 weeks ahead and warns when that day's forecast week would be left short, chilled for a reefer; advice only (R-FLT-05, PLN-43).
+- T2B-01: `GET /api/plans/policies/{id}`; the Decide step lists the plan's own priority order in plain words (R-PLN-21a, PLN-44).
+
+Why: a workshop booking on a short week should be a choice made knowingly; the deferral order shown must be the one applied.
+Verified: forecast and plan-view Node tests, the workshop and Decide browser specs, the planning policy case, the full suites before the push.
+
+---
+
 ## 2026-10-08 - feat: likely-late notices, the dispatcher first (T1-02)
 
 `dev` · @Oxshadha

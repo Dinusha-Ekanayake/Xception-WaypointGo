@@ -339,6 +339,9 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
       return route.fulfill(json(one[2] ? (desk.history[found.issueId] ?? []) : found));
     }
     if (pathname === "/api/plans/deferrals") return route.fulfill(json(desk.deferrals));
+    if (pathname.startsWith("/api/plans/policies/")) {
+      return route.fulfill(json({ policyVersionId: pathname.split("/").pop(), keys: ["PRIOR_SKIP", "FRESH", "CHILLED", "STRICT_WINDOW", "CADENCE", "EARLIEST_CLOSE", "LONGEST_DISTANCE", "LARGEST_VOLUME", "LONGEST_UNSERVED"] }));
+    }
     if (pathname === "/api/ml/models") {
       return route.fulfill(json(desk.models ?? [
         { name: "datathon-task2a", version: "2026.1", kind: "demand_forecast", status: "ACTIVE", metrics: { total_wape: "0.0415", chilled_wape: "0.0439" } },
