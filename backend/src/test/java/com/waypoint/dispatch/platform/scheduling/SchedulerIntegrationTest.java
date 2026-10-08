@@ -57,6 +57,7 @@ class SchedulerIntegrationTest {
 
   @Autowired PlatformRetentionJob retentionJob;
   @Autowired RetentionProperties retention;
+  @Autowired TableSizeJob tableSizes;
 
   @DynamicPropertySource
   static void databaseUrl(DynamicPropertyRegistry registry) {
@@ -380,6 +381,32 @@ class SchedulerIntegrationTest {
         commandId,
         UUID.randomUUID(),
         Timestamp.from(at));
+  }
+
+  /** B-04: every watched table is read, a partitioned one summed over its partitions. */
+  @Test
+  void theTableSizesCoverEveryWatchedTableAndTheAuditPartitions() {
+    partitionJob.run(Instant.parse("2031-03-10T09:00:00Z"));
+
+    tableSizes.run(Instant.now());
+
+    for (String table : TableSizeJob.WATCHED) {
+      assertTrue(tableSizes.bytesOf(table) > 0, table);
+      assertTrue(tableSizes.rowsOf(table) >= 0, table);
+      assertEquals(
+          (double) tableSizes.bytesOf(table),
+          meters.get("waypoint.table.bytes").tag("table", table).gauge().value());
+    }
+    long parentOnly =
+        ((Number)
+                database.asSystem(
+                        ModuleRole.INTEGRATION,
+                        () ->
+                            database.queryOne(
+                                "SELECT pg_total_relation_size('integration.audit_log') AS b"))
+                    .get("b"))
+            .longValue();
+    assertTrue(tableSizes.bytesOf("integration.audit_log") > parentOnly);
   }
 
   private void outbox(UUID eventId, String status, Instant at) {

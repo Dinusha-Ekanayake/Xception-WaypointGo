@@ -253,6 +253,23 @@ services:
       - prometheus
     mem_limit: 256m
     restart: unless-stopped
+  # Alerts: groups what Prometheus raises and sends it to the team's channel
+  # (observability/alertmanager/alertmanager.yml). The channel's address is the
+  # secret ALERT_WEBHOOK_URL in .env, written to a file only this container
+  # reads; without it the alerts still show on Prometheus and in Grafana.
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    profiles: ["observability"]
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - umask 077 && printf '%s' "$$ALERT_WEBHOOK_URL" > /tmp/webhook-url && exec /bin/alertmanager --config.file=/etc/alertmanager/alertmanager.yml --storage.path=/alertmanager
+    environment:
+      ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+    volumes:
+      - ./observability/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
+    mem_limit: 64m
+    restart: unless-stopped
   # Metrics: scrapes the backend's /prometheus every 15 s and keeps 15 days.
   # Grafana reads it as the Prometheus datasource; it publishes no port.
   prometheus:
@@ -277,3 +294,4 @@ volumes:
   alloy-data:
   grafana-data:
   prometheus-data:
+  alertmanager-data:

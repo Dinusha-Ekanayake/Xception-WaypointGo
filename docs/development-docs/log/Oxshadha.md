@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-08 - feat: alerts reach a channel; table growth watched (B-04)
+
+`dev` · @Oxshadha
+
+- Alertmanager in the observability profile: grouped by alert and environment, critical repeated hourly, `info` kept on its page, the rest of an environment held back while its backend is down. It posts to a Slack-compatible webhook from `ALERT_WEBHOOK_URL` in `.env`, empty until the team names a channel (with the H-03 secrets). Checked live: a warning reached a local listener, an `info` alert did not, and `DeadLetters` was held back behind `BackendDown`.
+- `TableSizeJob` publishes rows and bytes hourly for the eight tables that grow every day, from the catalogue, partitions summed; alerts `TableGrowing`, `RetentionBehind`, `DiskFillingUp` and the three assistant alerts `mcp/README.md` asked for; two dashboard panels.
+- CI's compose job now runs `promtool test rules` and `amtool` on any change under `observability/`.
+- Fixed: `JobFailing` named the scrape job instead of the failing one (Prometheus keeps the backend's `job` tag as `exported_job`); the test had fed the unrenamed label. Detail in [B-04](../../roadmap/01-FOUNDATION-FLOWS.md#phase-1-verify-and-baseline).
+
+---
+
 ## 2026-10-08 - fix: one rule, one number; the position lane proved in a browser (F-03)
 
 `dev` · @Oxshadha

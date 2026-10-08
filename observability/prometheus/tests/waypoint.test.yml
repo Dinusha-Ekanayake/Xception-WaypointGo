@@ -23,8 +23,12 @@ tests:
         values: '0.05x90'
       - series: 'waypoint_outbox_lag_seconds{stack="app"}'
         values: '5 5 300x20'
-      - series: 'waypoint_job_run_total{stack="app", job="notification.push", outcome="failed"}'
+      - series: 'waypoint_job_run_total{stack="app", job="backend", exported_job="notification.push", outcome="failed"}'
         values: '0 1 2 3 4 5'
+      - series: 'waypoint_mcp_calls_total{stack="app", tool="trips", outcome="denied", transport="http"}'
+        values: '0+10x20'
+      - series: 'waypoint_mcp_writes_total{stack="app", tool="defer", step="rejected"}'
+        values: '0+1x20'
     alert_rule_test:
       - eval_time: 30m
         alertname: ModelCalibrationOutOfRange
@@ -62,9 +66,24 @@ tests:
       - eval_time: 5m
         alertname: JobFailing
         exp_alerts:
-          - exp_labels: { severity: warning, stack: app, job: notification.push, outcome: failed }
+          - exp_labels: { severity: warning, stack: app, job: backend, exported_job: notification.push, outcome: failed }
             exp_annotations:
               summary: "app: job notification.push failed 5 times in 30 minutes."
+      - eval_time: 3m
+        alertname: AssistantRefused
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: AssistantRefused
+        exp_alerts:
+          - exp_labels: { severity: warning, stack: app }
+            exp_annotations:
+              summary: "app: 100 assistant calls refused in 15 minutes."
+      - eval_time: 15m
+        alertname: AssistantWritesRejected
+        exp_alerts:
+          - exp_labels: { severity: warning, stack: app }
+            exp_annotations:
+              summary: "app: 15 assistant writes rejected in the last hour."
       - eval_time: 70m
         alertname: ForecastOff
         exp_alerts:
@@ -74,3 +93,51 @@ tests:
       - eval_time: 70m
         alertname: PredictionsDrifted
         exp_alerts: []
+
+  # Storage (B-04, F-12): hours, because the rules look back days.
+  - interval: 1h
+    input_series:
+      - series: 'waypoint_retention_backlog_total{stack="app", table="vehicle_positions"}'
+        values: '0x10 1x23 2x30'
+      - series: 'waypoint_retention_backlog_total{stack="app", table="audit_log"}'
+        values: '0x10 1x50'
+      - series: 'node_filesystem_avail_bytes{job="node", mountpoint="/"}'
+        values: '100000000000-1000000000x30'
+    alert_rule_test:
+      - eval_time: 20h
+        alertname: RetentionBehind
+        exp_alerts: []
+      - eval_time: 40h
+        alertname: RetentionBehind
+        exp_alerts:
+          - exp_labels: { severity: warning, stack: app, table: vehicle_positions }
+            exp_annotations:
+              summary: "app: retention of vehicle_positions stopped at its limit 2 times in two days."
+      - eval_time: 1h
+        alertname: DiskFillingUp
+        exp_alerts: []
+      - eval_time: 9h
+        alertname: DiskFillingUp
+        exp_alerts:
+          - exp_labels: { severity: critical, job: node, mountpoint: / }
+            exp_annotations:
+              summary: "The server's disk is full within a week at the rate of the last six hours."
+
+  # A rule with `for` needs a sample inside every five-minute lookback, as a
+  # real scrape gives; hourly samples would reset it between hours.
+  - interval: 1m
+    input_series:
+      - series: 'waypoint_table_rows{stack="app", table="sync.operations"}'
+        values: '1000000+100x11000'
+      - series: 'waypoint_table_rows{stack="app", table="messaging.messages"}'
+        values: '1000+20x11000'
+    alert_rule_test:
+      - eval_time: 170h
+        alertname: TableGrowing
+        exp_alerts: []
+      - eval_time: 176h
+        alertname: TableGrowing
+        exp_alerts:
+          - exp_labels: { severity: warning, stack: app, table: sync.operations }
+            exp_annotations:
+              summary: "app: sync.operations has 2.056M rows, half as many again as a week ago."

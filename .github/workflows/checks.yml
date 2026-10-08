@@ -79,7 +79,7 @@ jobs:
             echo "frontend=$(hit '^frontend/')"
             echo "mcp=$(hit '^mcp/')"
             echo "ml=$(hit '^ml-server/')"
-            echo "compose=$(hit '^(compose[^/]*\.yaml|deploy/)|Dockerfile')"
+            echo "compose=$(hit '^(compose[^/]*\.yaml|deploy/|observability/)|Dockerfile')"
           } | tee -a "$GITHUB_OUTPUT"
 
   # Passes only when the preview deploy's checks of the reused dev commit
@@ -403,3 +403,13 @@ jobs:
       - run: docker compose -f compose.yaml -f deploy/vps/compose.vps.yaml --profile edge --profile observability config > all.yaml && python3 deploy/vps/check-memory-limits.py all.yaml
         env:
           SITE_ADDRESS: ci.example.test
+      # B-04: the alert rules fire on the cases in their test file, and
+      # Alertmanager's configuration loads and routes by severity.
+      - name: Alert rules and routing
+        run: |
+          docker run --rm -v "$PWD/observability/prometheus:/p" --entrypoint promtool prom/prometheus:v3.2.1 test rules /p/tests/waypoint.test.yml
+          am() { docker run --rm -v "$PWD/observability/alertmanager:/a" --entrypoint amtool prom/alertmanager:v0.28.1 "$@"; }
+          am check-config /a/alertmanager.yml
+          am config routes test --config.file=/a/alertmanager.yml --verify.receivers=team severity=critical
+          am config routes test --config.file=/a/alertmanager.yml --verify.receivers=team severity=warning
+          am config routes test --config.file=/a/alertmanager.yml --verify.receivers=quiet severity=info

@@ -13,6 +13,12 @@ global:
 rule_files:
   - /etc/prometheus/rules/*.yml
 
+# Firing alerts go to Alertmanager in the same stack (compose.yaml).
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
 scrape_configs:
   - job_name: backend
     metrics_path: /prometheus

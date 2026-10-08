@@ -1,8 +1,8 @@
 # Alert rules (roadmap B-04, MF-03). Thresholds follow the trust gates in
 # docs/roadmap/05-DATATHON-MODELS.md; each names the rule it watches. Checked
 # with `promtool test rules observability/prometheus/tests/waypoint.test.yml`.
-# No Alertmanager yet: firing alerts show on Prometheus's Alerts page and in
-# Grafana.
+# Firing alerts go to Alertmanager (observability/alertmanager/alertmanager.yml),
+# which groups them by stack and sends them to the team's channel.
 
 groups:
   - name: waypoint-backend
@@ -35,12 +35,14 @@ groups:
         annotations:
           summary: "{{ $labels.stack }}: {{ $value }} dead-lettered events waiting for a replay."
 
+      # The backend's `job` tag meets the scrape's own `job` label, so Prometheus
+      # keeps it as `exported_job` (the dashboard reads the same label).
       - alert: JobFailing
         expr: increase(waypoint_job_run_total{outcome="failed"}[30m]) > 2
         labels:
           severity: warning
         annotations:
-          summary: "{{ $labels.stack }}: job {{ $labels.job }} failed {{ $value | printf \"%.0f\" }} times in 30 minutes."
+          summary: "{{ $labels.stack }}: job {{ $labels.exported_job }} failed {{ $value | printf \"%.0f\" }} times in 30 minutes."
 
       # F-09b: split the pool only on this evidence.
       - alert: DatabasePoolWaiting
@@ -50,6 +52,36 @@ groups:
           severity: warning
         annotations:
           summary: "{{ $labels.stack }}: requests have waited for a database connection for 5 minutes."
+
+  - name: waypoint-storage
+    rules:
+      # F-12: a nightly retention run stopped at its batch limit on two nights
+      # in the same two days; one night can be a busy day, two is falling behind.
+      - alert: RetentionBehind
+        expr: sum by (stack, table) (increase(waypoint_retention_backlog_total[2d])) >= 2
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.stack }}: retention of {{ $labels.table }} stopped at its limit {{ $value | printf \"%.0f\" }} times in two days."
+
+      # B-04 table growth: a watched table half as large again as a week ago.
+      # Under a million rows the growth of a new deployment is not a problem.
+      - alert: TableGrowing
+        expr: waypoint_table_rows > 1e6 and waypoint_table_rows > 1.5 * (waypoint_table_rows offset 7d)
+        for: 6h
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.stack }}: {{ $labels.table }} has {{ $value | humanize }} rows, half as many again as a week ago."
+
+      # The server's disk at the rate of the last six hours is full within a week.
+      - alert: DiskFillingUp
+        expr: predict_linear(node_filesystem_avail_bytes{job="node", mountpoint="/"}[6h], 7 * 86400) < 0
+        for: 1h
+        labels:
+          severity: critical
+        annotations:
+          summary: "The server's disk is full within a week at the rate of the last six hours."
 
   - name: waypoint-models
     rules:
@@ -115,3 +147,30 @@ groups:
           severity: info
         annotations:
           summary: "{{ $value | printf \"%.0f\" }} messages to drivers went unread for 10 minutes in the last hour."
+
+  # The assistant connection (mcp/README.md).
+  - name: waypoint-mcp
+    rules:
+      # An assistant keeps being refused: misconfigured or probing.
+      - alert: AssistantRefused
+        expr: sum by (stack) (increase(waypoint_mcp_calls_total{outcome="denied"}[15m])) > 50
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.stack }}: {{ $value | printf \"%.0f\" }} assistant calls refused in 15 minutes."
+
+      # Requests or writes reaching their limits.
+      - alert: AssistantRateLimited
+        expr: sum by (stack, bucket) (increase(waypoint_mcp_rate_limited_total[15m])) > 0
+        labels:
+          severity: info
+        annotations:
+          summary: "{{ $labels.stack }}: assistant {{ $labels.bucket }} limit reached in the last 15 minutes."
+
+      # Confirmed writes the command bus rejected (stale versions, scope).
+      - alert: AssistantWritesRejected
+        expr: sum by (stack) (increase(waypoint_mcp_writes_total{step="rejected"}[1h])) > 10
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.stack }}: {{ $value | printf \"%.0f\" }} assistant writes rejected in the last hour."
