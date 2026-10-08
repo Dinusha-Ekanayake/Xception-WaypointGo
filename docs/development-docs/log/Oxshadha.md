@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-10-08 - fix: the model service image installs no GPU library
+
+`dev` · @Oxshadha
+
+- Found on the fresh-install walk (B-03): on Linux `xgboost` 3.2.0 requires `nvidia-nccl-cu12` (a 352 MB download) that a CPU-only service never loads. Linux now installs `xgboost-cpu` 3.2.0, the same release and module without it; macOS keeps `xgboost`, which has no such dependency there.
+- Not yet verified by building the image: the walk stopped because this machine's disk is full, and CI is blocked by the account's billing. Both checks are on the B-03 list.
+
+---
+
 ## 2026-10-08 - test: the Live read at 1,280 trips; one stream per session decided against
 
 `dev` · @Oxshadha
