@@ -124,3 +124,23 @@ export function movedReason(order: MovedOrder): "cutoff" | "closed-day" | null {
   const placed = order.placedAt ? Date.parse(order.placedAt) : NaN;
   return placed >= closed ? "cutoff" : "closed-day";
 }
+
+/**
+ * Roadmap T1-04 and MF-06: how long to hold someone at the dock. A range when
+ * the prediction has one ("unloading 15 to 24 min"), else the minutes alone,
+ * else nothing. Returned as a string key and its values, for the store's t().
+ */
+export function unloadingLabel(stop: {
+  expectedServiceMinutes?: number | string | null;
+  expectedServiceLow?: number | string | null;
+  expectedServiceHigh?: number | string | null;
+}): { key: string; values: Record<string, number> } | null {
+  const n = Math.round(Number(stop.expectedServiceMinutes ?? 0));
+  if (!(n > 0)) return null;
+  const low = Math.round(Number(stop.expectedServiceLow ?? NaN));
+  const high = Math.round(Number(stop.expectedServiceHigh ?? NaN));
+  if (Number.isFinite(low) && Number.isFinite(high) && high > low) {
+    return { key: "unloading {low} to {high} min", values: { low: Math.max(1, low), high } };
+  }
+  return { key: "unloading about {n} min", values: { n } };
+}

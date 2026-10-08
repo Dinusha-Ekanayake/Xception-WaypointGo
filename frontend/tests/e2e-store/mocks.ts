@@ -229,7 +229,7 @@ export type Handover = { status: "AWAITING" | "CONFIRMED" | "LOCKED" | "EXPIRED"
 /** Routes every call the store makes; a delivered order is waiting to be received. */
 export async function mockStore(
   page: Page,
-  options: { answered?: Handover | null; loadingShort?: boolean; week?: boolean; deferred?: boolean; positions?: unknown[]; threads?: ThreadMock[]; decisions?: DecisionView[]; rideAlong?: { date: string; stopsBooked: number }[] | "down"; roomChecked?: boolean; outlook?: Record<string, "ON_TRACK" | "BUSY" | "AT_RISK" | "TOO_EARLY" | "CLOSED"> | "down" } = {},
+  options: { unloadingRange?: boolean; answered?: Handover | null; loadingShort?: boolean; week?: boolean; deferred?: boolean; positions?: unknown[]; threads?: ThreadMock[]; decisions?: DecisionView[]; rideAlong?: { date: string; stopsBooked: number }[] | "down"; roomChecked?: boolean; outlook?: Record<string, "ON_TRACK" | "BUSY" | "AT_RISK" | "TOO_EARLY" | "CLOSED"> | "down" } = {},
 ): Promise<{ sent: Sent; handover: { current: Handover | null }; uploads: string[]; decisions: DecisionView[] }> {
   const threads = options.threads ?? [];
   const decisions = options.decisions ?? [];
@@ -337,7 +337,8 @@ export async function mockStore(
     }
     if (pathname === "/api/execution/deliveries") {
       const date = url.searchParams.get("date");
-      return json(date === today ? [DELIVERY] : options.week && date === PAST_DAY ? [PAST_DELIVERY] : []);
+      const coming = options.unloadingRange ? { ...DELIVERY, expectedServiceLow: "14.60", expectedServiceHigh: "24.20" } : DELIVERY;
+      return json(date === today ? [coming] : options.week && date === PAST_DAY ? [PAST_DELIVERY] : []);
     }
     if (pathname === "/api/issues/decisions") return json(decisions);
     if (pathname === "/api/issues/by-subject") return json(url.searchParams.get("id") === ORIGINAL.orderId ? [REDELIVERED] : [SHORTFALL]);

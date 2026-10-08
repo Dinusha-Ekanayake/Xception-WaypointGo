@@ -768,6 +768,37 @@ class IntelligenceIntegrationTest {
   }
 
   @Test
+  void eachStopsUnloadingMinutesComeWithARangeFromEarlierMisses() throws Exception {
+    // MF-06, R-ML-20: 40 earlier stops of the depot, before the plan's day, took 0.8 to 1.6 times the estimate.
+    for (int i = 0; i < 40; i++) {
+      double ratio = 0.8 + 0.8 * i / 39;
+      database.asSystem(ModuleRole.ML, () -> database.update(
+          """
+          INSERT INTO ml.delivery_outcomes
+              (delivery_id, order_id, outlet_id, depot_code, service_date, stop_sequence, outcome, label_source,
+               predicted_service, service_minutes, model_label, recorded_at)
+          VALUES (?, ?, 'OUT-RANGE', ?, ?, 1, 'delivered', 'none', 10, ?, 'deterministic', now())
+          """,
+          UUID.randomUUID(), UUID.randomUUID(), depot, java.sql.Date.valueOf(serviceDate.minusDays(3)), 10 * ratio));
+    }
+    UUID planId = publishedPlan();
+    scoreUntilDone(planId);
+
+    JsonNode body = read(dispatcher, "/api/ml/plans/" + planId + "/predictions", 200);
+    assertFalse(body.get("stops").isEmpty());
+    for (JsonNode s : body.get("stops")) {
+      double minutes = s.get("serviceMinutes").asDouble();
+      double low = s.get("serviceLow").asDouble();
+      double high = s.get("serviceHigh").asDouble();
+      assertTrue(low <= minutes && minutes <= high, s.toString());
+      assertTrue(high > minutes, "earlier stops ran long, so the range reaches above the estimate: " + s);
+    }
+    String basis = (String) database.asSystem(ModuleRole.ML, () -> database.queryOne(
+        "SELECT min(service_range_basis) AS b FROM ml.delivery_predictions WHERE plan_id = ?", planId)).get("b");
+    assertTrue(List.of("outlet", "depot", "all").contains(basis), basis);
+  }
+
+  @Test
   void aScoredRouteIsKeptAsTheModelReadItAndExportedWithItsOutcomes() throws Exception {
     // MF-05, R-ML-18: the built-in estimate scores the plan; its routes are kept as sent.
     UUID planId = publishedPlan();

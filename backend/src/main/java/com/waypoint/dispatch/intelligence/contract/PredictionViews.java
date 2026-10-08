@@ -70,9 +70,13 @@ public final class PredictionViews {
       BigDecimal lateProbability,
       String modelLabel,
       boolean degraded,
-      List<LateReasonView> reasons) {
+      List<LateReasonView> reasons,
+      Optional<BigDecimal> serviceLow,
+      Optional<BigDecimal> serviceHigh) {
     public StopPredictionView {
       reasons = reasons == null ? List.of() : List.copyOf(reasons);
+      serviceLow = serviceLow == null ? Optional.empty() : serviceLow;
+      serviceHigh = serviceHigh == null ? Optional.empty() : serviceHigh;
     }
   }
 

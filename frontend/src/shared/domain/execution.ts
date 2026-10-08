@@ -99,6 +99,9 @@ export type DeliveryRecordView = {
   driver: DriverView | null;
   /** Roadmap T1-04: how long the stop is expected to take, in minutes, from the plan's stored prediction. */
   expectedServiceMinutes?: number | string | null;
+  /** Roadmap MF-06: about four stops in five take between these minutes; null with too little history. */
+  expectedServiceLow?: number | string | null;
+  expectedServiceHigh?: number | string | null;
 };
 
 /** A name and the badge shown on screen, never an email or a phone number. */

@@ -144,10 +144,15 @@ public final class ExecutionViews {
       Optional<Instant> startedAt,
       Optional<DriverView> driver,
       /** Roadmap T1-04: how long the stop is expected to take, from the plan's stored prediction. */
-      Optional<java.math.BigDecimal> expectedServiceMinutes) {
+      Optional<java.math.BigDecimal> expectedServiceMinutes,
+      /** Roadmap MF-06: about four stops in five take between these minutes; empty with too little history. */
+      Optional<java.math.BigDecimal> expectedServiceLow,
+      Optional<java.math.BigDecimal> expectedServiceHigh) {
 
     public DeliveryRecordView {
       lines = List.copyOf(lines);
+      expectedServiceLow = expectedServiceLow == null ? Optional.empty() : expectedServiceLow;
+      expectedServiceHigh = expectedServiceHigh == null ? Optional.empty() : expectedServiceHigh;
     }
 
     /** The same record with the driver named; the driver is read from Identity, not from this record. */
@@ -157,7 +162,8 @@ public final class ExecutionViews {
           serviceStartedAt, completedAt, waitMinutes, lateMinutes, lateReason, timingUncertain,
           deliveredUnits, failureReason, dispositionNote, lowEvidence, proofId, clientRecordedAt,
           serverRecordedAt, rowVersion, lines, stopSequence, tripStopCount, plannedArrival,
-          expectedArrival, releasedAt, startedAt, driver, expectedServiceMinutes);
+          expectedArrival, releasedAt, startedAt, driver, expectedServiceMinutes, expectedServiceLow,
+          expectedServiceHigh);
     }
   }
 

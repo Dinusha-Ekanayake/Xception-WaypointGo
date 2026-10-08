@@ -10,6 +10,7 @@ import com.waypoint.dispatch.intelligence.domain.ModelGate;
 import com.waypoint.dispatch.intelligence.domain.ModelGate.Decision;
 import com.waypoint.dispatch.intelligence.domain.ModelGate.Served;
 import com.waypoint.dispatch.intelligence.domain.PlannedRoutes;
+import com.waypoint.dispatch.intelligence.domain.ServiceRange;
 import com.waypoint.dispatch.intelligence.domain.PlannedRoutes.Leg;
 import com.waypoint.dispatch.intelligence.domain.PlannedRoutes.OrderFacts;
 import com.waypoint.dispatch.intelligence.domain.PlannedRoutes.Route;
@@ -222,6 +223,15 @@ public class PlanScoringJob implements ScheduledJob {
             ? Optional.of(now.plus(backoff(attempts)))
             : Optional.empty();
     List<Map<String, Object>> asScored = routes(g);
+    // MF-06: each label's earlier misses, before the plan's day only, so the range is out of time.
+    LocalDate day = g.plan().serviceDate();
+    Map<String, ServiceRange.Misses> misses = new HashMap<>();
+    database.asSystem(ModuleRole.ML, () -> {
+      for (String l : new java.util.LinkedHashSet<>(List.of(modelLabel, PredictionViews.DETERMINISTIC))) {
+        misses.put(l, ServiceRange.Misses.of(
+            outcomes.serviceMisses(l, day.minusDays(HISTORY.toDays()), day.minusDays(1))));
+      }
+    });
     database.asSystem(ModuleRole.ML, () -> {
       for (Map<String, Object> r : asScored) {
         scoringInputs.record(g.plan().planId(), (String) r.get("routeId"), g.plan().depotCode(),
@@ -233,10 +243,12 @@ public class PlanScoringJob implements ScheduledJob {
             UuidV7.generate(now, random),
             risk != null
                 ? new Prediction(g.plan().planId(), s.orderId(), s.tripId(), s.sequence(), s.outletId(),
-                    g.plan().depotCode(), modelId, modelLabel, risk.serviceMinutes(), risk.lateProbability(), false)
+                    g.plan().depotCode(), modelId, modelLabel, risk.serviceMinutes(), risk.lateProbability(), false,
+                    range(risk.serviceMinutes(), s, g, misses.get(modelLabel)))
                 : new Prediction(g.plan().planId(), s.orderId(), s.tripId(), s.sequence(), s.outletId(),
                     g.plan().depotCode(), Optional.empty(), PredictionViews.DETERMINISTIC, s.serviceMinutes(),
-                    s.lateProbability(), true),
+                    s.lateProbability(), true,
+                    range(s.serviceMinutes(), s, g, misses.get(PredictionViews.DETERMINISTIC))),
             now);
       }
       repository.completeScoring(
@@ -367,6 +379,13 @@ public class PlanScoringJob implements ScheduledJob {
           "brand", t.brandCode(), "district", t.districtName(), "stops", stops));
     }
     return routes;
+  }
+
+  private static Optional<ServiceRange.Range> range(
+      BigDecimal minutes, StopPlan s, Gathered g, ServiceRange.Misses misses) {
+    return misses == null
+        ? Optional.empty()
+        : ServiceRange.of(minutes.doubleValue(), s.outletId(), g.plan().depotCode(), misses);
   }
 
   /** 1, 2, 4, 8 ... minutes, capped at 30. */

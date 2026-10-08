@@ -84,6 +84,7 @@ class ExecutionIntegrationTest {
   static final byte[] PNG = png(40);
 
   @Autowired com.waypoint.dispatch.execution.application.EtaRefreshJob etaJob;
+  @Autowired com.waypoint.dispatch.execution.infrastructure.JdbcDeliveryRepository deliveryRepository;
   @Autowired com.waypoint.dispatch.platform.messaging.ChangeSignals changeSignals;
   @Autowired com.waypoint.dispatch.intelligence.application.OutcomeJob outcomeJob;
   @Autowired com.waypoint.dispatch.referencedata.infrastructure.ReferenceCache referenceCache;
@@ -713,6 +714,30 @@ class ExecutionIntegrationTest {
     JsonNode eta = payload("eta.changed", stopB);
     assertEquals(instant("06:05"), eta.get("expectedArrival").asText());
     assertEquals(45.0, runSheet(driver).get("stops").get(0).get("expectedServiceMinutes").asDouble(), 1e-9);
+  }
+
+  @Test
+  void theRangeAroundTheExpectedMinutesReachesTheStore() throws Exception {
+    // MF-06, R-ML-20: released with a range from the plan's prediction; the store reads it beside the minutes.
+    database.asSystem(ModuleRole.EXECUTION, () -> deliveryRepository.expectService(stopA, new java.math.BigDecimal("20"),
+        "deterministic", java.util.Optional.of(new java.math.BigDecimal("14.5")),
+        java.util.Optional.of(new java.math.BigDecimal("27"))));
+    JsonNode coming = json(read(manager, "/api/execution/deliveries?outlet=" + OUTLET + "&date=" + day, 200));
+    JsonNode a = null;
+    for (JsonNode d : coming) {
+      if (d.get("deliveryId").asText().equals(stopA.toString())) {
+        a = d;
+      }
+    }
+    assertTrue(a != null, coming.toString());
+    assertEquals(20.0, a.get("expectedServiceMinutes").asDouble(), 1e-9);
+    assertEquals(14.5, a.get("expectedServiceLow").asDouble(), 1e-9);
+    assertEquals(27.0, a.get("expectedServiceHigh").asDouble(), 1e-9);
+    // A range that would not hold the minutes is widened to hold them.
+    database.asSystem(ModuleRole.EXECUTION, () -> deliveryRepository.expectService(stopA, new java.math.BigDecimal("30"),
+        "deterministic", java.util.Optional.of(new java.math.BigDecimal("14.5")),
+        java.util.Optional.of(new java.math.BigDecimal("27"))));
+    assertEquals(30.0, json(read(driver, "/api/execution/deliveries/" + stopA, 200)).get("expectedServiceHigh").asDouble(), 1e-9);
   }
 
   @Test

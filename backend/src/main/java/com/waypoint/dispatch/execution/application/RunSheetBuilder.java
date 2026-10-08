@@ -108,7 +108,8 @@ public class RunSheetBuilder {
       stop.serviceMinutes().ifPresent(minutes -> deliveries.planService(deliveryId, minutes));
       // Roadmap T1-04: the minutes the stored prediction expects, the model's or the estimate's.
       Optional.ofNullable(expected.get(stop.orderId()))
-          .ifPresent(p -> deliveries.expectService(deliveryId, p.serviceMinutes(), p.modelLabel()));
+          .ifPresent(p -> deliveries.expectService(
+              deliveryId, p.serviceMinutes(), p.modelLabel(), p.serviceLow(), p.serviceHigh()));
       // The products the stop is held to, so a delivery can be recorded product by product.
       deliveries.insertLines(
           deliveryId,

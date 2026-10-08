@@ -61,6 +61,9 @@ export type StopPredictionView = {
   degraded: boolean;
   /** MF-08: why it is at risk, strongest first, at most three; empty or absent when nothing stands out. */
   reasons?: LateReasonView[];
+  /** MF-06: about four stops in five take between these minutes; null with too little history. */
+  serviceLow?: Decimal | null;
+  serviceHigh?: Decimal | null;
 };
 
 /** One reason a stop is at risk (R-ML-15): the words come from the code and its numbers. */

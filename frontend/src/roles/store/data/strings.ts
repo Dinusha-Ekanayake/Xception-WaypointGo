@@ -121,6 +121,7 @@ export const STRINGS: Record<string, [string, string]> = {
   "now": ["දැන්", "இப்போது"],
   "window {window}": ["කාල සීමාව {window}", "நேரம் {window}"],
   "unloading about {n} min": ["බෑම මිනිත්තු {n} ක් පමණ", "இறக்குதல் சுமார் {n} நிமிடம்"],
+  "unloading {low} to {high} min": ["බෑම මිනිත්තු {low} සිට {high} දක්වා", "இறக்குதல் {low} முதல் {high} நிமிடம்"],
 
   // Orders
   "+ New order": ["+ නව ඇණවුමක්", "+ புதிய ஆர்டர்"],

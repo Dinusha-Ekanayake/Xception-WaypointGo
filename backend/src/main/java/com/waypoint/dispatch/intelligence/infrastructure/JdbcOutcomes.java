@@ -179,6 +179,23 @@ public class JdbcOutcomes {
         Date.valueOf(from), Date.valueOf(to));
   }
 
+  /**
+   * How the predictor labelled {@code modelLabel} missed on unloading minutes
+   * over these days (MF-06): taken over predicted, per stop, where both exist.
+   */
+  public java.util.List<com.waypoint.dispatch.intelligence.domain.ServiceRange.Miss> serviceMisses(
+      String modelLabel, LocalDate from, LocalDate to) {
+    return database.query(
+            "SELECT outlet_id, depot_code, service_minutes / predicted_service AS ratio FROM ml.delivery_outcomes"
+                + " WHERE model_label = ? AND service_date BETWEEN ? AND ?"
+                + " AND predicted_service > 0 AND service_minutes > 0",
+            modelLabel, Date.valueOf(from), Date.valueOf(to))
+        .stream()
+        .map(r -> new com.waypoint.dispatch.intelligence.domain.ServiceRange.Miss(
+            (String) r.get("outlet_id"), (String) r.get("depot_code"), ((Number) r.get("ratio")).doubleValue()))
+        .toList();
+  }
+
   public Map<String, int[]> lateCounts(java.util.List<String> outletIds, LocalDate from, LocalDate to) {
     Map<String, int[]> out = new java.util.HashMap<>();
     if (outletIds.isEmpty()) {

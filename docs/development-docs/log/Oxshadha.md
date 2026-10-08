@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-10-08 - feat: a range around the unloading time (MF-06, first slice)
+
+`dev` · @Oxshadha
+
+- `ServiceRange` (domain): the 10th to 90th percentile of the predictor's own misses before the plan's day, outlet then depot then all, 30 or more each, else none (R-ML-20, ML-31). Stored on the prediction, released onto the delivery, read by the store as "unloading 15 to 24 min".
+- Not yet: the forecast's range; the driver screen (needs J.V.); si and ta wording needs the native-speaker review.
+
+Why: one number reads as exact; a range says how much to plan for.
+Verified: ServiceRangeTest 3, the new intelligence and execution cases, store Node and browser tests, the full suites before the push.
+
+---
+
 ## 2026-10-08 - feat: how fresh the road conditions are, on the Plan screen (MF-07)
 
 `dev` · @Oxshadha

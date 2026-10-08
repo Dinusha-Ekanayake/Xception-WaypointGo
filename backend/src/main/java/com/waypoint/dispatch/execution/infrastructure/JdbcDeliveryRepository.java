@@ -298,10 +298,22 @@ public class JdbcDeliveryRepository {
 
   /** Set once at release: the minutes the stored prediction expects at the stop (roadmap T1-04). */
   public void expectService(UUID deliveryId, java.math.BigDecimal minutes, String basis) {
+    expectService(deliveryId, minutes, basis, Optional.empty(), Optional.empty());
+  }
+
+  /** As above, with the range around the minutes when the prediction has one (roadmap MF-06). */
+  public void expectService(UUID deliveryId, java.math.BigDecimal minutes, String basis,
+      Optional<java.math.BigDecimal> low, Optional<java.math.BigDecimal> high) {
+    java.math.BigDecimal cap = java.math.BigDecimal.valueOf(600);
+    java.math.BigDecimal m = minutes.min(cap).max(java.math.BigDecimal.ZERO);
+    boolean ranged = low.isPresent() && high.isPresent();
     database.update(
-        "UPDATE execution.delivery_records SET expected_service_minutes = ?, expected_service_basis = ?"
-            + " WHERE delivery_id = ?",
-        minutes.min(java.math.BigDecimal.valueOf(600)).max(java.math.BigDecimal.ZERO), basis, deliveryId);
+        "UPDATE execution.delivery_records SET expected_service_minutes = ?, expected_service_basis = ?,"
+            + " expected_service_low = ?, expected_service_high = ? WHERE delivery_id = ?",
+        m, basis,
+        ranged ? low.get().min(m).max(java.math.BigDecimal.ZERO) : null,
+        ranged ? high.get().max(m).min(cap) : null,
+        deliveryId);
   }
 
   /** The expected arrival moved; this is a projection of the trip's delay, not a step of the stop. */

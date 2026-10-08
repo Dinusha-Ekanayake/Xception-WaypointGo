@@ -59,7 +59,9 @@ final class ExecutionViewMapper {
         ((Timestamp) row.get("server_recorded_at")).toInstant(), r.rowVersion(), lines(row),
         r.sequence(), Optional.ofNullable((Integer) row.get("trip_stop_count")), r.plannedArrival(),
         instant(row.get("expected_arrival")), ((Timestamp) row.get("released_at")).toInstant(),
-        r.startedAt(), Optional.empty(), Optional.ofNullable((java.math.BigDecimal) row.get("expected_service_minutes")));
+        r.startedAt(), Optional.empty(), Optional.ofNullable((java.math.BigDecimal) row.get("expected_service_minutes")),
+        Optional.ofNullable((java.math.BigDecimal) row.get("expected_service_low")),
+        Optional.ofNullable((java.math.BigDecimal) row.get("expected_service_high")));
   }
 
   /** The products of a record, read as one JSON array with the record so a run sheet stays one query. */

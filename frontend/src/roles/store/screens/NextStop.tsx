@@ -1,5 +1,5 @@
 import type { DeliveryRecordView, OrderView, OutletView } from "@shared/domain/types";
-import { units, clock, expectedAt, hhmm, minutesLabel } from "../data/format.ts";
+import { units, clock, expectedAt, hhmm, minutesLabel, unloadingLabel } from "../data/format.ts";
 import { useT } from "../i18n.tsx";
 
 // The driver, the stop and the time of "02 Home" and "05 Delivery tracking". The
@@ -51,6 +51,7 @@ export default function NextStop({
   const arrived = stop.arrivedAt;
   const eta = expectedAt(stop);
   const moved = stop.expectedArrival !== null;
+  const unloading = unloadingLabel(stop);
   return (
     <div className="flex flex-col gap-3 rounded-[20px] bg-go-canvas p-4 sm:flex-row sm:items-center">
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -69,10 +70,8 @@ export default function NextStop({
         <span className="text-[34px] leading-tight font-semibold text-black">{clock(arrived ?? eta)}</span>
         {!arrived && <span className="text-[13px] text-go-muted">{t("in {time}", { time: t(minutesLabel(eta)) })}</span>}
         <span className="text-[12px] text-go-muted">{t("window {window}", { window })}</span>
-        {/* Roadmap T1-04: how long to hold a person at the dock, from the plan's prediction. */}
-        {stop.expectedServiceMinutes != null && Number(stop.expectedServiceMinutes) > 0 && (
-          <span className="text-[12px] text-go-muted">{t("unloading about {n} min", { n: Math.round(Number(stop.expectedServiceMinutes)) })}</span>
-        )}
+        {/* Roadmap T1-04, MF-06: how long to hold a person at the dock, from the plan's prediction. */}
+        {unloading && <span className="text-[12px] text-go-muted" data-testid="unloading">{t(unloading.key, unloading.values)}</span>}
       </div>
     </div>
   );
