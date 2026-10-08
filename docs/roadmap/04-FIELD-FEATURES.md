@@ -20,7 +20,7 @@ Order inside the phase:
   - The loader and store drafts already exist. A native speaker reviews them before the pilot.
 - **Reuse:** the per-role string tables (`roles/store/data/strings.ts`, the loader's i18n), and dates, times and counts from `frontend/src/shared/wording`.
 - **KPI:** share of stops recorded in the app.
-- **Done:** a native-speaker sign-off is recorded for each language.
+- **Done:** a native-speaker sign-off is recorded for each language. **Recorded 2026-10-09:** the driver, loader and store Sinhala and Tamil reviewed by a native speaker (confirmed by @Oxshadha).
 
 **Scope decided 2026-10-08 (@Oxshadha), revised 2026-10-09:** Sinhala and Tamil for the driver, the loader and the store manager, complete in each, because a screen half in one language is worse than either; the dispatcher stays in English.
 

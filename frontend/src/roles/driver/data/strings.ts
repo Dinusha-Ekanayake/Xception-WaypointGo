@@ -4,7 +4,7 @@
 // Hardcoded rather than loaded, so switching works offline and needs no server.
 // The English text is the key; a missing translation falls back to English, and
 // tests/driver-strings.test.ts fails on a key the screens use but this table
-// lacks. Sinhala and Tamil are drafts awaiting review by a native speaker; the
+// lacks. Sinhala and Tamil were reviewed by a native speaker (2026-10-09); the
 // terms follow the loader's and the store's (stop නැවතුම / நிறுத்தம், trip ගමන /
 // பயணம்). Times, dates and counts of units stay as the shared wording writes them.
 

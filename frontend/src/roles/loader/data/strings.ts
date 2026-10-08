@@ -1,7 +1,7 @@
 // Loader language: English, Sinhala and Tamil, hardcoded here rather than
 // loaded, so switching works offline and needs no server. The English text is
 // the key; a missing translation falls back to English. Sinhala and Tamil are
-// drafts awaiting review by a native speaker.
+// reviewed by a native speaker (2026-10-09).
 
 export type Lang = "en" | "si" | "ta";
 

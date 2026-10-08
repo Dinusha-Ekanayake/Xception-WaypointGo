@@ -1,7 +1,7 @@
 // Store manager language: English, Sinhala and Tamil, hardcoded here rather
 // than loaded, so switching works offline and needs no server. The English text
 // is the key; a missing translation falls back to English. Sinhala and Tamil
-// are drafts awaiting review by a native speaker. Dates, times, order
+// were reviewed by a native speaker (2026-10-09). Dates, times, order
 // references and counts of units stay as the shared wording writes them.
 
 export type Lang = "en" | "si" | "ta";
@@ -431,7 +431,7 @@ export const STRINGS: Record<string, [string, string]> = {
     "නොබැඳි. ඔබේ පිළිතුර මෙම දුරකථනයේ තබා සම්බන්ධතාවය ආපසු ආ විට යවනු ලැබේ.",
     "இணைப்பில்லை. உங்கள் பதில் இந்தத் தொலைபேசியில் வைக்கப்பட்டு, இணைப்பு திரும்பியதும் அனுப்பப்படும்.",
   ],
-  // Roadmap FF-00, completed 2026-10-09: every screen and helper text. Drafts for the native speaker, the
+  // Roadmap FF-00, completed 2026-10-09: every screen and helper text, reviewed by a native speaker; the
   // driver's and loader's wording where the English is the same.
   " · 1 photo": [" · ඡායාරූප 1", " · 1 புகைப்படம்"],
   " · Short at loading ({n})": [" · පැටවීමේදී අඩුයි ({n})", " · ஏற்றும்போது குறைவு ({n})"],

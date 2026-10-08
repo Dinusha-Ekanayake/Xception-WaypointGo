@@ -117,7 +117,7 @@ The Figma file (pages 04 to 17) is the specification. Where the design shows som
   - The Fuel Pass QR is built: an administrator uploads each vehicle's pass, and the assigned driver opens it offline until the end of the service day. Fuel logging is not built, by decision (the government's Fuel Pass already enforces the quota). Calls have no backend.
   - The map is the run's own trail and next stop. It hands off to the phone's maps app only for an exact store location.
   - With no released trip today, Home names the next trip ahead and says it is waiting for the loader. The design shows only a released run.
-  - Every screen follows the language chosen in Settings: Sinhala, Tamil or English (roadmap FF-00). Sinhala and Tamil are drafts awaiting a native speaker. Ready replies from dispatch arrive in English.
+  - Every screen follows the language chosen in Settings: Sinhala, Tamil or English (roadmap FF-00), reviewed by a native speaker. Ready replies from dispatch arrive in English.
 - **Dispatcher:**
   - Global search (the header, `/` or Ctrl+K) looks through what the screens have already loaded for the day and the depots in view: orders, vehicles, trips, issues and depots. It does not search other days.
   - In Plan, **Explain this plan** and, on a deferred order, **Explain this decision** open a pop-up that sets out what the plan carries, why orders were left off, what was checked and what can be done, from the facts the plan already holds. The plan's explanation also opens by itself when a plan is generated, and each order in the plan view's Deferred list has a question mark that opens its own. The design shows the reason on the panel only.
@@ -130,7 +130,7 @@ The Figma file (pages 04 to 17) is the specification. Where the design shows som
 - **Loader:**
   - Vehicle interchange and dispatcher handover are not built.
   - When the trips on the board leave after tomorrow (a weekend), "Tonight's departures" names the day they leave.
-  - Sinhala and Tamil are drafts awaiting a native speaker.
+  - Sinhala and Tamil reviewed by a native speaker.
 - **Store manager:**
   - Call options are not built (no contact numbers on record); a delivery's Message is used instead.
   - Draft orders are not built.

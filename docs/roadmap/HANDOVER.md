@@ -46,7 +46,7 @@ One driver change was made without asking, as a fix: a driver with nothing relea
 ## 5. Before the pilot starts
 
 - **B-03, the fresh-install walk, is not done.** It stopped because the development machine's disk is full (Docker could not unpack a layer). The walk found one real problem on the way, fixed in `1600978`: the model service image pulled NVIDIA's GPU library (352 MB) through `xgboost`; Linux now installs `xgboost-cpu` of the same version. Building that image has not been verified yet. Run on a machine with 10 GB free: a clean clone, `git lfs pull`, `cp .env.example .env`, `docker compose -p judge up --build`, then the [README walkthrough](../../README.md#judge-walkthrough) as the four named accounts.
-- **Native-speaker review** of the Sinhala and Tamil drafts in `frontend/src/roles/{driver,loader,store}/data/strings.ts` (FF-00).
+- **Native-speaker review:** done 2026-10-09 for the driver, loader and store (FF-00).
 - **B-05**: the depot managers start the 4-week KPI baseline (on-time Fresh, deferrals, disputes, write-offs, calls per trip, stops recorded in the app).
 - **D-00**: the team's Datathon package (notebook, video, AI disclosure). The Task 2B write-up and its evidence are done: [TASK-2B-POLICY.md](../datathon/TASK-2B-POLICY.md).
 
