@@ -106,7 +106,29 @@ export type ProfileView = {
 
 export const IdentityCommandKind = {
   updateOwnProfile: "iam:UpdateOwnProfile",
+  removeProfilePhoto: "iam:RemoveProfilePhoto",
 } as const;
+
+/**
+ * Roadmap FF-07: whether a person has a profile photo, for the administrator
+ * (GET /api/accounts/photos), mirrored from ProfilePhotoQuery.PhotoStatusView.
+ * Everyone who ever had a photo; the current one's fields are null after a removal. Never the image. `version` is how many photos the person has had: the
+ * expected version of the next upload. `photoRowVersion` guards a removal.
+ */
+export type PhotoStatusView = {
+  userId: string;
+  version: number;
+  photoId: string | null;
+  uploadedAt: string | null;
+  sizeBytes: number | null;
+  photoRowVersion: number | null;
+};
+
+/** iam:RemoveProfilePhoto: the image is deleted, the reason kept (P-PD-1). */
+export type RemoveProfilePhoto = {
+  userId: string;
+  reason: string;
+};
 
 /**
  * iam:UpdateOwnProfile. Always the actor's own account. The profile as it should

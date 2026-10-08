@@ -80,6 +80,11 @@ public class IdentityCommandHandlers {
     return new UpdateOwnProfileHandler(accounts);
   }
 
+  @Bean
+  RemoveProfilePhotoHandler removeProfilePhotoHandler(AccountAdminUseCase accounts, ProfilePhotos photos) {
+    return new RemoveProfilePhotoHandler(accounts, photos);
+  }
+
   // ---- the handlers ----
 
   /**
@@ -104,6 +109,28 @@ public class IdentityCommandHandlers {
           accounts.applyOwnProfile(
               actor, payload.text("displayName"), payload.text("phone"), command.expectedVersion());
       return Map.of("userId", actor.userId().toString(), "rowVersion", version);
+    }
+  }
+
+  /**
+   * FF-07, P-PD-1: a person asked for their photo to be taken down. The image is
+   * deleted; who removed it, when and why stay. The expected version is the
+   * photo's own revision, so a removal from a stale screen is a conflict.
+   */
+  static final class RemoveProfilePhotoHandler extends IdentityHandler {
+    private final ProfilePhotos photos;
+
+    RemoveProfilePhotoHandler(AccountAdminUseCase accounts, ProfilePhotos photos) {
+      super(accounts, "iam:RemoveProfilePhoto", "iam:RemoveProfilePhoto");
+      this.photos = photos;
+    }
+
+    @Override
+    public Object handle(Actor actor, Command command) {
+      CommandPayload payload = CommandPayload.of(command);
+      UUID userId = payload.uuid("userId");
+      photos.applyRemove(actor, userId, payload.text("reason"), command.expectedVersion());
+      return Map.of("userId", userId.toString(), "removed", true);
     }
   }
 

@@ -21,6 +21,7 @@ import DemoControlRoom from "../demo/DemoControlRoom";
 import { fetchRoles, fetchActions } from "../data/access";
 import { fetchAccounts, fetchAccount, accountToMember, submitCreateUser, submitGrantScope, submitUpdateUser, submitDisableUser } from "../data/accounts";
 import type { RoleView, ActionView } from "@shared/domain/identity";
+import { ProfilePhotoDialog } from "./ProfilePhotoDialog";
 import "./access-demo.css";
 
 type Tab = "people" | "personas" | "actions" | "catalogue" | "history" | "audit" | "assistants" | "forecasts" | "models" | "vehicles" | "depots" | "outlets" | "orders" | "trips" | "trips_planned" | "trips_live" | "constraints" | "demo";
@@ -132,6 +133,7 @@ export default function AccessDemo({ userId, displayName = "Administrator" }: { 
   const [toast, setToast] = useState("");
   const [pendingCreation, setPendingCreation] = useState<{ email: string; userId: string } | null>(null);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
+  const [photoMember, setPhotoMember] = useState<Member | null>(null);
   const [memberName, setMemberName] = useState("");
   const [memberEmail, setMemberEmail] = useState("");
   const [memberError, setMemberError] = useState("");
@@ -542,6 +544,8 @@ export default function AccessDemo({ userId, displayName = "Administrator" }: { 
   {editingMember && <Modal title={`Edit ${editingMember.name}`} onClose={() => setEditingMember(null)}><div className="space-y-4">
     <label className="block text-sm font-semibold">Full name<input className={`${field} mt-2`} value={memberName} maxLength={80} onChange={(event) => setMemberName(event.target.value)} /></label>
     <label className="block text-sm font-semibold">Email<input className={`${field} mt-2`} type="email" value={memberEmail} onChange={(event) => setMemberEmail(event.target.value)} /></label>
+    {/* Roadmap FF-07: a live account's photo, with consent on record. */}
+    {editingMember.rowVersion !== undefined && <button type="button" className={secondary} onClick={() => setPhotoMember(editingMember)}>Photo</button>}
     {memberError && <p role="alert" className="text-sm text-go-danger">{memberError}</p>}
     <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-go-subtle">
       {editingMember.active ? (
@@ -566,6 +570,7 @@ export default function AccessDemo({ userId, displayName = "Administrator" }: { 
       </div>
     </div>
   </div></Modal>}
+  {photoMember && <ProfilePhotoDialog userId={photoMember.id} name={photoMember.name} onClose={() => setPhotoMember(null)} />}
   {draft && <Modal title={draft.stage === "review" ? "Review access change" : draft.target === "member" ? "Member exception" : "Persona capability"} onClose={() => setDraft(null)} wide>
     {draft.stage === "edit" ? <div className="space-y-5"><div className="rounded-xl bg-go-subtle p-4 text-sm"><strong>{draftMember?.name ?? (draftPersona && labelFor(draftPersona))}</strong><p className="mt-1 text-go-secondary">{draft.target === "persona" ? `This shared choice applies to all ${assigned} assigned members, within their existing places.` : "This choice applies to one member within existing assigned places."}</p></div>
       <label className="block text-sm font-semibold">Capability<select className={`${field} mt-2`} value={draft.action} onChange={(event) => { const action = event.target.value; const ex = draftMember && activeException(state, draftMember.id, action); setDraft({ ...draft, action, choice: draftMember ? ex?.decision ?? "inherit" : personaChoice(state, draftPersona!, action), place: ex?.place ?? "", expires: ex?.expires ?? "" }); }}><option value="">Select a capability</option>{(draftMember ? editOptions : CAPABILITIES.filter((item) => item.implemented && item.relevant.includes(draftPersona!))).map((item) => <option key={item.action} value={item.action}>{item.module} · {item.label}</option>)}</select></label>

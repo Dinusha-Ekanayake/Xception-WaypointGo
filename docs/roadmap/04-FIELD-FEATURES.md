@@ -264,7 +264,9 @@ Dropped. The booklet's fuel rule is a planning constraint (R-PLN-16, R-PLN-24), 
 
 ## FF-07 Profile photos
 
-**Status.** After the pilot.
+**Status.** Built 2026-10-09, ahead of the pilot, on database storage (moves to the object store with M-01). The administrator adds a photo from a member's Edit sheet with the consent note; the store sees its driver's photo beside the name on the day of the delivery; everyone else sees initials. R-IAM-39, SEC-47. Not yet shown on the dispatcher's, driver's or loader's screens, and the browser's private five-minute cache stands in for the IndexedDB copy below.
+
+**As planned:**
 
 - **Upload:** the admin uploads a photo per account, cropped square and encoded to WebP. Stored through `AvatarStore`.
 - **Command:** `iam:SetProfilePhoto` and `iam:RemoveProfilePhoto`.

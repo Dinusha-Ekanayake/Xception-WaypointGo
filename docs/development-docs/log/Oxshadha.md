@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-09 - feat: profile photos, shown to the people who work with that person today (FF-07)
+
+`dev` · @Oxshadha
+
+- An administrator adds a member's photo from their Edit sheet with how the person consented (`PUT /api/accounts/{id}/photo/{photoId}`, `iam.profile_photos`, shrunk to WebP in the browser, 256 KB at most) and removes it on request (`iam:RemoveProfilePhoto`: the image is deleted, who, when and why are kept). P-PD-1.
+- Seen only by the person, an administrator, someone sharing a depot with them today, and the store their delivery reaches on its day (`/api/execution/deliveries/{id}/driver-photo`); anyone else gets 403, audited. The store's home shows the driver's photo beside the name, initials otherwise (`PersonPhoto` in `shared/ui`). R-IAM-39, SEC-47; roadmap 04 FF-07 updated.
+- Not on the dispatcher, driver or loader screens yet; database storage until M-01.
+
+---
+
 ## 2026-10-09 - feat: the pilot KPI baseline, week by week (B-05)
 
 `dev` · @Oxshadha

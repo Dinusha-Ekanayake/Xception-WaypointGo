@@ -1,4 +1,5 @@
 import type { DeliveryRecordView, OrderView, OutletView } from "@shared/domain/types";
+import { PersonPhoto } from "@shared/ui";
 import { clock, expectedAt, hhmm, minutesLabel, unloadingLabel } from "../data/format.ts";
 import { useT, useCounts } from "../i18n.tsx";
 
@@ -55,6 +56,10 @@ export default function NextStop({
   const unloading = unloadingLabel(stop);
   return (
     <div className="flex flex-col gap-3 rounded-[20px] bg-go-canvas p-4 sm:flex-row sm:items-center">
+      {/* Roadmap FF-07: who is at the door, on the day of the delivery only; initials otherwise. */}
+      {stop.driver && (
+        <PersonPhoto src={`/api/execution/deliveries/${encodeURIComponent(stop.deliveryId)}/driver-photo`} name={stop.driver.displayName} size={56} />
+      )}
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="text-[13px] text-go-muted">
           {t("Driver")}{stop.driver?.employeeCode ? ` · ${stop.driver.employeeCode}` : ""}
