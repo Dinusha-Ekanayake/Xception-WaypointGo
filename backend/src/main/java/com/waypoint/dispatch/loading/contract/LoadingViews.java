@@ -171,4 +171,12 @@ public final class LoadingViews {
       UUID reportedBy,
       Instant reportedAt,
       Optional<Instant> resolvedAt) {}
+
+  /**
+   * How long one reload took at the dock: a vehicle's second or later trip of the
+   * day, from the loader starting it to its release (R-PLN-47, the reload time the
+   * planner assumes between trips). The time between the vehicle's return and the
+   * loader starting is not in it.
+   */
+  public record ReloadSample(String depotCode, LocalDate serviceDate, int tripNumber, long minutes) {}
 }

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { createPlanningRuleSet, fetchCalendarDay, fetchPlanningRules, setCalendarOperatingDay,
   type CalendarDay, type PlanningCatalogue, type PlanningParameter } from "../data/constraints";
+import { measuredLine } from "../data/measured.ts";
 import { field, primary, secondary } from "./components";
 import { todayInColombo } from "./model";
 
@@ -93,7 +94,9 @@ export function SystemConstraintsScreen() {
     : todayInColombo();
   const planningItems: ConstraintItem[] = (base?.parameters ?? []).map((item) => ({
     id: item.key, category: "Planning", label: item.label,
-    description: item.key === "trips.max.per.vehicle" ? "Maximum trips assigned to one vehicle on one service day." : item.category,
+    description: item.key === "trips.max.per.vehicle"
+      ? "Maximum trips assigned to one vehicle on one service day."
+      : measuredLine(item.key, catalogue?.measured) ?? item.category,
     value: `${item.control === "time" ? minutesToTime(item.value) : item.value}${item.control === "time" ? "" : ` ${item.unit}`}`,
     control: item.control === "locked" ? "locked" : item.control,
     availability: item.editable ? "live" : "locked", unit: item.unit,

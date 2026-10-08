@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-09 - feat: the reload time measured; the dispatcher connects an assistant
+
+`dev` · @Oxshadha
+
+- R-PLN-47's 20-minute reload was a placeholder. The System constraints screen now shows each depot's measured reload beside it: the median and the minutes 3 in 4 stay within, from Loading's released trips 2 and later over 4 weeks, ten at least (`ReloadMeasure`, `LoadingQuery.reloadSamples`), read as the same person so a depot outside their scope stays out. A-26 updated.
+- Issue #177: the "Connect AI assistant" sheet existed but no screen used it; the dispatcher's Settings now show it, with the address the server names (`/api/oauth/protected-resource`), and hide it where MCP is not set up.
+- `.env.example` and compose carry the object store (`S3_*`) and transcription (`TRANSCRIBE_ENGINE`, `GEMINI_API_KEY`, Azure) settings; empty keeps today's behaviour.
+
+---
+
 ## 2026-10-09 - feat: the loader and the store manager complete in Sinhala and Tamil (FF-00)
 
 `dev` · @Oxshadha

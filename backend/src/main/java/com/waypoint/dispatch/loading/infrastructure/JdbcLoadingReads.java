@@ -32,6 +32,20 @@ public class JdbcLoadingReads {
       """;
 
   /** One row per current trip of a depot and day, with the counts the board shows. */
+  /** Trips 2 and later of a vehicle's day, released, with the minutes from start to release. */
+  public List<Map<String, Object>> reloads(LocalDate from, LocalDate to) {
+    return database.query(
+        "SELECT t.depot_code, t.service_date, t.trip_number,"
+            + " (extract(epoch FROM s.released_at - s.started_at) / 60)::bigint AS minutes"
+            + " FROM loading.trips t JOIN loading.sessions s ON s.trip_id = t.trip_id"
+            + " WHERE t.superseded_at IS NULL AND t.trip_number >= 2"
+            + " AND t.service_date BETWEEN ? AND ?"
+            + " AND s.status = 'released' AND s.started_at IS NOT NULL AND s.released_at > s.started_at"
+            + " ORDER BY t.depot_code, t.service_date",
+        Date.valueOf(from),
+        Date.valueOf(to));
+  }
+
   public List<Map<String, Object>> readyTrips(String depotCode, LocalDate serviceDate) {
     return database.query(
         """

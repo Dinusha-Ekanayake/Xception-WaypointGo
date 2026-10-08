@@ -22,7 +22,12 @@ export type PlanningRuleSet = {
   parameters: PlanningParameter[];
 };
 
-export type PlanningCatalogue = { active: PlanningRuleSet | null; scheduled: PlanningRuleSet | null };
+import type { PlanningMeasured } from "./measured.ts";
+
+export type { PlanningMeasured };
+
+export type PlanningCatalogue = { active: PlanningRuleSet | null; scheduled: PlanningRuleSet | null; measured?: PlanningMeasured[] };
+
 
 export function fetchPlanningRules(signal?: AbortSignal) {
   return request<PlanningCatalogue>("/api/admin/constraints/planning", { signal });

@@ -1,6 +1,8 @@
 package com.waypoint.dispatch.planning.application;
 
+import com.waypoint.dispatch.loading.contract.LoadingQuery;
 import com.waypoint.dispatch.planning.contract.PlanningRuleViews;
+import com.waypoint.dispatch.planning.domain.ReloadMeasure;
 import com.waypoint.dispatch.planning.domain.RuleSet;
 import com.waypoint.dispatch.platform.db.Database;
 import com.waypoint.dispatch.platform.db.ModuleRole;
@@ -16,6 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
 /** Planning's one catalogue of editable values and their validation ranges. */
@@ -44,10 +47,15 @@ public class PlanningRuleCatalogue {
   /** Parameters an older rule set may lack; absent reads as 0, the booklet's model (R-PLN-47). */
   private static final java.util.Set<String> OPTIONAL = java.util.Set.of(RuleSet.RETURN_COUNTED, RuleSet.RELOAD_MIN);
 
+  /** The weeks of reloads the measured value is taken from. */
+  static final int MEASURE_DAYS = 28;
+
   private final Database database;
   private final Clock clock;
+  private final ObjectProvider<LoadingQuery> loading;
 
-  public PlanningRuleCatalogue(Database database, Clock clock) {
+  public PlanningRuleCatalogue(Database database, Clock clock, ObjectProvider<LoadingQuery> loading) {
+    this.loading = loading;
     this.database = database;
     this.clock = clock;
   }
@@ -65,8 +73,28 @@ public class PlanningRuleCatalogue {
             FROM planning.rule_sets WHERE effective_from > ?
            ORDER BY effective_from DESC LIMIT 1
           """, Date.valueOf(today));
-      return new PlanningRuleViews.Catalogue(view(active), view(scheduled));
+      // Inside the read, so Loading's own read (a separate transaction under its
+      // role) sees the same person and keeps to their depots.
+      return new PlanningRuleViews.Catalogue(view(active), view(scheduled), measured(today));
     });
+  }
+
+  /**
+   * The reload time each depot in the reader's scope actually took, read through
+   * Loading's contract as the same person. Empty when Loading is not deployed or
+   * no depot has ten reloads yet; the screen then shows the rule alone.
+   */
+  List<PlanningRuleViews.Measured> measured(LocalDate today) {
+    LoadingQuery query = loading.getIfAvailable();
+    if (query == null) return List.of();
+    LocalDate from = today.minusDays(MEASURE_DAYS);
+    Map<String, List<Long>> byDepot = new LinkedHashMap<>();
+    for (var sample : query.reloadSamples(from, today)) {
+      byDepot.computeIfAbsent(sample.depotCode(), d -> new ArrayList<>()).add(sample.minutes());
+    }
+    return ReloadMeasure.byDepot(byDepot).stream()
+        .map(m -> new PlanningRuleViews.Measured(RuleSet.RELOAD_MIN, m.depotCode(), m.median(), m.p75(), m.samples(), from, today))
+        .toList();
   }
 
   private PlanningRuleViews.RuleSetView view(Map<String, Object> row) {
