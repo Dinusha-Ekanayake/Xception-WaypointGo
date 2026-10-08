@@ -17,6 +17,7 @@ import {
   riskLabel,
   riskTone,
   scoredByEstimate,
+  roadConditionsNote,
   slackByStop,
   slackByTrip,
   slackLabel,
@@ -76,6 +77,7 @@ export default function PlanBoard({
   const trips = useMemo(() => (predictions.data ? tripRisks(predictions.data) : null), [predictions.data]);
   const stops = useMemo(() => (predictions.data ? stopRisks(predictions.data) : null), [predictions.data]);
   const estimate = predictions.data ? scoredByEstimate(predictions.data) : false;
+  const road = predictions.data ? roadConditionsNote(predictions.data, plan.serviceDate) : null;
   const tripSlack = useMemo(() => slackByTrip(plan), [plan]);
   const stopSlack = useMemo(() => slackByStop(plan), [plan]);
   const tight = useMemo(() => tightTrips(plan), [plan]);
@@ -103,7 +105,7 @@ export default function PlanBoard({
           note={low.trips > 0 ? `${low.trips === 1 ? "trip" : "trips"} · ${low.spareM3} m³ spare` : "trips · none to merge"}
         />
         {risk ? (
-          <Kpi label="Late risk" tag="over 35% chance" tone="danger" value={`${risk.high} high`} note={`${risk.low} low${estimate ? " · estimated" : ""}`} />
+          <Kpi label="Late risk" tag="over 35% chance" tone="danger" value={`${risk.high} high`} note={`${risk.low} low${estimate ? " · estimated" : ""}${road ? ` · ${road}` : ""}`} />
         ) : (
           <Kpi
             label="Tight windows"

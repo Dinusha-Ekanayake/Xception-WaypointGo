@@ -80,6 +80,9 @@ public interface ReferenceQuery {
    */
   List<RoadConditionView> roadConditions(LocalDate from, LocalDate to);
 
+  /** The last day any district's road conditions are known; empty when none were supplied (MF-07). */
+  java.util.Optional<LocalDate> roadConditionsUntil();
+
   /** The depots of the current version, sorted. */
   List<String> depotCodes();
 

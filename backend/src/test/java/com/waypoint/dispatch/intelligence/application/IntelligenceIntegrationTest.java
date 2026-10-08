@@ -335,6 +335,7 @@ class IntelligenceIntegrationTest {
       assertFalse(s.get("degraded").asBoolean());
     }
     assertFalse(read(dispatcher, "/api/plans/" + planId, 200).get("plannedWithoutPredictor").asBoolean());
+    assertEquals("2026-06-28", body.get("roadConditionsUntil").asText(), "MF-07: the last day road conditions are known");
 
     JsonNode sent = STUB.lastRiskRequest.get();
     JsonNode leg = sent.at("/routes/0/stops/0");

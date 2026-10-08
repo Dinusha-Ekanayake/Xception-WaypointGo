@@ -439,7 +439,8 @@ public class IntelligenceDataQuery implements PredictionQuery, ModelQuery, Trave
                   (String) p.get("outlet_id"), (BigDecimal) p.get("service_min"), (BigDecimal) p.get("late_prob"),
                   (String) p.get("model_label"), (Boolean) p.get("degraded"),
                   reasons.getOrDefault((UUID) p.get("order_id"), List.of())))
-              .toList());
+              .toList(),
+          reference.roadConditionsUntil());
     });
   }
 

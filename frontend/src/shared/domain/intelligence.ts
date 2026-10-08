@@ -67,7 +67,12 @@ export type StopPredictionView = {
 export type LateReasonView = { code: "TIGHT_WINDOW" | "LATE_IN_ROUTE" | "OUTLET_HISTORY" | string; value: number; of: number };
 
 /** GET /api/ml/plans/{planId}/predictions */
-export type PlanPredictionsView = { scoring: PlanScoringView; stops: StopPredictionView[] };
+export type PlanPredictionsView = {
+  scoring: PlanScoringView;
+  stops: StopPredictionView[];
+  /** MF-07: the last day road conditions are known; later days are scored without them. */
+  roadConditionsUntil?: IsoDate | null;
+};
 
 /** GET /api/ml/orders/{orderId}/supply-probability (R-RCP-06). */
 export type SupplyProbabilityView = {

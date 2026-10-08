@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-10-08 - feat: how fresh the road conditions are, on the Plan screen (MF-07)
+
+`dev` · @Oxshadha
+
+- `ReferenceQuery.roadConditionsUntil`; the predictions read carries it; the late risk adds "road data ends Sun 28 Jun" on a later plan, or "no road data" (R-ML-19, ML-30).
+
+Why: after 2026-06-28 every plan is scored without road conditions, and the screen should say so.
+Verified: the scoring case; Node plan views; the dispatcher browser suite; the full backend suite before the push.
+
+---
+
 ## 2026-10-08 - docs: Task 2B method and the Task 1 leakage check, for the Datathon write-up
 
 `dev` · @Oxshadha

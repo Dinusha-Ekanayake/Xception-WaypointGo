@@ -172,6 +172,8 @@ Equal-bin calibration error is too noisy at this volume and is not used.
 
 The screen states "Road conditions known until DATE". Later dates use the fallback model, which already exists.
 
+**Built (2026-10-08).** The predictions read carries `roadConditionsUntil`, the last day in the reference data; the dispatcher's late risk adds "road data ends Sun 28 Jun" on a later plan, or "no road data" (R-ML-19, ML-30).
+
 ### MF-08 Reasons people can read
 
 **First slice built 2026-10-08** (R-ML-15, ML-26): up to three reasons per stop (tight window, late in the route, the store's late record), shown under a risky stop on the Plan screen. Not yet: start delay as a reason, and reasons in Sinhala and Tamil for any role but the dispatcher.

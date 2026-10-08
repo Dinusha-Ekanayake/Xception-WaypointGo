@@ -277,6 +277,16 @@ public class ReferenceDataQuery implements ReferenceQuery {
                 .toList());
   }
 
+  @Override
+  public java.util.Optional<LocalDate> roadConditionsUntil() {
+    return database.readAs(
+        ModuleRole.REF,
+        null,
+        () -> java.util.Optional.ofNullable(
+                database.queryOne("SELECT max(condition_date) AS last FROM ref.road_conditions").get("last"))
+            .map(d -> ((java.sql.Date) d).toLocalDate()));
+  }
+
   // ---- mapping to contract views ----
 
   private static OutletView toOutletView(ReferenceSnapshot s, Outlet o) {

@@ -47,6 +47,20 @@ test("when the time predictor was not running the risk reads as an estimate", as
   await expect(page.getByRole("list", { name: "Stops in order" }).getByText("Late 12% · estimate")).toBeVisible();
 });
 
+// Roadmap MF-07: a plan past the last day road conditions are known says so; one inside it says nothing.
+test("a plan past the last known road conditions says how far they go", async ({ page }) => {
+  await serve(page, { published: published(), predictions: { ...scoring(false), roadConditionsUntil: "2026-06-28" } });
+  await viewPlan(page);
+  await expect(page.getByText("0 low · road data ends Sun 28 Jun")).toBeVisible();
+});
+
+test("a plan within the known road conditions does not mention them", async ({ page }) => {
+  await serve(page, { published: published(), predictions: { ...scoring(false), roadConditionsUntil: "2027-06-30" } });
+  await viewPlan(page);
+  await expect(page.getByText("0 low", { exact: true })).toBeVisible();
+  await expect(page.getByText(/road data/)).toHaveCount(0);
+});
+
 test("a draft is not scored and shows no risk figures, never 0%", async ({ page }) => {
   await serve(page, { draft: draftPlan(1) });
   await viewPlan(page);

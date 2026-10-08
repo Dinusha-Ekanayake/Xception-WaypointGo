@@ -1,6 +1,8 @@
 import type { AllocationView, ConstraintResultView, OrderView, PlanPredictionsView, PlanView, StopView, TripView, VehicleView } from "@shared/domain/types";
 import type { VehicleRow } from "./plan.ts";
 import { TIGHT_PERCENT, percent } from "./plan.ts";
+import { dayLabel } from "../../../shared/wording/index.ts";
+import type { IsoDate } from "@shared/domain/types";
 
 // What the Plan screen reads out of a plan beyond the board itself: which orders
 // still need a decision, how the day compares to the design's low-load and
@@ -279,6 +281,18 @@ export function riskTone(percent: number): RiskTone {
 /** "Late 41%" ("Late <1%" below one), with "· estimate" when the time predictor was not running (degrade visibly). */
 export function riskLabel(risk: StopRisk, lead = "Late"): string {
   return `${lead} ${risk.percent < 1 ? "<1" : risk.percent}%${risk.estimate ? " · estimate" : ""}`;
+}
+
+/**
+ * MF-07, R-ML-19: how fresh the predictions' inputs are, said only when it
+ * matters. A plan on a day past the last known road conditions was scored
+ * without them; with none known at all, the screen says that instead.
+ */
+export function roadConditionsNote(predictions: PlanPredictionsView, serviceDate: IsoDate): string | null {
+  const until = predictions.roadConditionsUntil;
+  if (until === undefined) return null;
+  if (until === null) return "no road data";
+  return serviceDate > until ? `road data ends ${dayLabel(until)}` : null;
 }
 
 /** True when any stop was scored by the deterministic estimate rather than the model. */

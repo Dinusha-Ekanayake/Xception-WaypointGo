@@ -76,7 +76,13 @@ public final class PredictionViews {
     }
   }
 
-  public record PlanPredictionsView(PlanScoringView scoring, List<StopPredictionView> stops) {
+  /**
+   * A plan's scoring and its stops. {@code roadConditionsUntil} is the last day
+   * the road conditions are known (roadmap MF-07, R-ML-19): later days are
+   * scored without them, and the screen says so.
+   */
+  public record PlanPredictionsView(
+      PlanScoringView scoring, List<StopPredictionView> stops, Optional<LocalDate> roadConditionsUntil) {
 
     public PlanPredictionsView {
       stops = List.copyOf(stops);

@@ -6,6 +6,7 @@ import type { PlanPredictionsView } from "../src/shared/domain/intelligence.ts";
 import type { VehicleView } from "../src/shared/domain/referencedata.ts";
 import { board } from "../src/roles/dispatcher/data/plan.ts";
 import {
+  roadConditionsNote,
   NO_FILTER,
   addedByHand,
   daysBetween,
@@ -282,4 +283,15 @@ test("a risk's reasons read as words, and a code the screen does not know says n
   assert.equal(reasonText({ code: "LATE_IN_ROUTE", value: 6, of: 0 }), "stop 6 of the trip, where delays build up");
   assert.equal(reasonText({ code: "OUTLET_HISTORY", value: 3, of: 6 }), "late on 3 of its last 6 visits");
   assert.equal(reasonText({ code: "SOMETHING_NEW", value: 1, of: 0 }), null);
+});
+
+
+// Roadmap MF-07, R-ML-19: how fresh the road conditions behind the predictions are, said only when it matters.
+test("the road conditions are mentioned only for a day past them, or when none are known", () => {
+  const p = (until: string | null | undefined) =>
+    ({ scoring: {} as PlanPredictionsView["scoring"], stops: [], ...(until === undefined ? {} : { roadConditionsUntil: until }) }) as PlanPredictionsView;
+  assert.equal(roadConditionsNote(p("2026-06-28"), "2026-10-05"), "road data ends Sun 28 Jun");
+  assert.equal(roadConditionsNote(p("2026-06-28"), "2026-06-28"), null);
+  assert.equal(roadConditionsNote(p(null), "2026-10-05"), "no road data");
+  assert.equal(roadConditionsNote(p(undefined), "2026-10-05"), null, "an older server that does not say");
 });
