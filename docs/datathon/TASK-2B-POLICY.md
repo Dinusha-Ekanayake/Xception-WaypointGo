@@ -1,3 +1,12 @@
+<!--
+Note for the team, before submitting: the booklet asks for a written policy of
+about one page or less. Sections 1 to 6 are the policy; the appendices are
+supporting material. If the judges want only the policy, submit sections 1 to 6
+as the policy and include the appendices separately (for example as
+TASK-2B-METHOD.md). The appendices were written with an AI coding assistant, so
+the AI tool disclosure must say so if they are used.
+-->
+
 # Task 2B: peak-day allocation policy (Scenario S1, Peliyagoda)
 
 No trained model is used. The allocation is produced by Waypoint's planning engine:
