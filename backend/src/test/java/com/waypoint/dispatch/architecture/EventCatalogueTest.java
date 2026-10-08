@@ -68,7 +68,8 @@ class EventCatalogueTest {
           "vehicle.status_changed",
           "calendar.overridden",
           "message.posted",
-          "order.outlook_changed");
+          "order.outlook_changed",
+          "stop.likely_late");
 
   @Test
   void everyEventTypeIsUniqueWellFormedAndCatalogued() throws Exception {

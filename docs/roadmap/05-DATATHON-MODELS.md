@@ -223,6 +223,8 @@ SHAP is not used: a SHAP value on one part of a blend plus a simulator does not 
 
 **KPI.** "Where is my order" calls.
 
+**Built (2026-10-08).** `LateNoticeJob` every ten minutes over today's and tomorrow's published plans; `stop.likely_late` with its audience; routing version 13 tells the dispatcher ("OUT053 will likely be late · 80%") or the store ("Your delivery may be late", with the window's close). The store gate is the Wilson lower bound of the flag's precision over 28 days (R-ML-22, ML-34). τ is frozen once per model by `LateThresholdJob` from its last 8 finished weeks (the lowest threshold whose precision lower bound reaches 60%), 0.5 until then. The notice says "expected about 07:40" when the expected time before departure (planned arrival plus the predicted extra unloading of the stops before it) is after the window; otherwise it gives the window's close.
+
 ### T1-03 Live arrival times
 
 **First slice built 2026-10-07** (R-EXE-29, EXE-41): the plan's minutes at each stop now travel with the plan and the released trip; Execution propagates from the last actual arrival or departure at each arrival, each recorded delivery and every 2 minutes, stores the time on the delivery record and tells the store through `eta.changed`. Not yet: expected service minutes from history (T1-04) in place of the plan's and `ml.eta_predictions` with its endpoint. The attention watch and the store already read the stored time from the run sheet.

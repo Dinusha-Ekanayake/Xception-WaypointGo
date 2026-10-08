@@ -26,6 +26,8 @@ final class StubModelServer {
   final AtomicReference<String> demandLabel = new AtomicReference<>("stub-demand@1");
   /** When true every call answers 500, as a service that is down. */
   volatile boolean failing;
+  /** The late probability the stub answers; reset to {@link #LATE}. */
+  volatile double late = LATE;
   volatile String roadConditions = "used";
   final AtomicInteger riskCalls = new AtomicInteger();
   final AtomicReference<JsonNode> lastRiskRequest = new AtomicReference<>();
@@ -47,6 +49,7 @@ final class StubModelServer {
 
   void reset() {
     riskLabel.set("stub-risk@1");
+    late = LATE;
     demandLabel.set("stub-demand@1");
     failing = false;
     roadConditions = "used";
@@ -79,7 +82,7 @@ final class StubModelServer {
     for (JsonNode route : req.path("routes")) {
       for (JsonNode stop : route.path("stops")) {
         predictions.addObject().put("deliveryId", stop.path("deliveryId").asText()).put("serviceMin", SERVICE)
-            .put("lateProb", LATE).put("roadConditions", "used".equals(roadConditions) ? "used" : "fallback");
+            .put("lateProb", late).put("roadConditions", "used".equals(roadConditions) ? "used" : "fallback");
       }
     }
     send(ex, 200, json.writeValueAsString(body));

@@ -32,6 +32,7 @@ import com.waypoint.dispatch.planning.contract.PlanEvents.PlanPublished;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlanRevised;
 import com.waypoint.dispatch.planning.contract.PlanEvents.StoreContacted;
 import com.waypoint.dispatch.intelligence.contract.OutlookEvents.OrderOutlookChanged;
+import com.waypoint.dispatch.intelligence.contract.NoticeEvents.StopLikelyLate;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlannedStop;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlannedTrip;
 import com.waypoint.dispatch.platform.db.ModuleRole;
@@ -867,6 +868,45 @@ final class NotificationConsumers {
         case "store_manager" -> "Store";
         default -> "Dispatcher";
       };
+    }
+  }
+
+  /**
+   * Roadmap T1-02, R-ML-22: a published stop will likely be late. The routing
+   * table picks who hears it by its audience: the depot's dispatchers while the
+   * flag is learning, the store once it has earned it.
+   */
+  @Component
+  static class OnStopLikelyLate extends NotificationConsumer<StopLikelyLate> {
+    OnStopLikelyLate(Notifier notifier) {
+      super(notifier);
+    }
+
+    @Override
+    public String consumerName() {
+      return "notification.on-stop-likely-late";
+    }
+
+    @Override
+    public Class<StopLikelyLate> eventType() {
+      return StopLikelyLate.class;
+    }
+
+    @Override
+    Routed route(StopLikelyLate e) {
+      String closes = e.windowClose().toString().substring(0, 5);
+      Optional<String> expected = e.expectedArrival().map(t -> t.toString().substring(0, 5));
+      return new Routed()
+          .on(e.serviceDate())
+          .fact("audience", e.audience()).fact("outletId", e.outletId()).fact("percent", e.percent())
+          .fact("closes", closes)
+          .fact("expected", expected.map(t -> "expected about " + t)
+              .orElse("planned " + e.plannedArrival().toString().substring(0, 5)))
+          .fact("storeLine", "likely after your window closes at " + closes
+              + expected.map(t -> ", expected about " + t).orElse(""))
+          .fact("deliveryDay", day(e.serviceDate()))
+          .to(ScopeKind.DEPOT, e.depotCode(), "order", e.orderId())
+          .to(ScopeKind.OUTLET, e.outletId(), "order", e.orderId());
     }
   }
 

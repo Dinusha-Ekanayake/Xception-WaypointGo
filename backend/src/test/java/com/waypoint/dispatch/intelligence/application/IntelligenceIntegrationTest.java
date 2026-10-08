@@ -153,6 +153,8 @@ class IntelligenceIntegrationTest {
   @Autowired ModelMetricsJob metricsJob;
   @Autowired FallbackTuningJob tuningJob;
   @Autowired ModelQualityJob qualityJob;
+  @Autowired LateNoticeJob lateNotices;
+  @Autowired LateThresholdJob lateThresholds;
   @Autowired com.waypoint.dispatch.intelligence.infrastructure.JdbcOutcomes outcomeStore;
   @Autowired com.waypoint.dispatch.planning.contract.PlanQuery planQuery;
 
@@ -813,6 +815,105 @@ class IntelligenceIntegrationTest {
     assertEquals(12, reference.roadConditions(LocalDate.of(2024, 1, 1), LocalDate.of(2024, 1, 1)).size());
     assertTrue(reference.roadConditions(LocalDate.of(2026, 6, 29), LocalDate.of(2026, 6, 29)).isEmpty(),
         "the supplied series ends on 2026-06-28");
+  }
+
+  @Test
+  void aLikelyLateStopIsToldOnceToWhoTheFlagHasEarned() throws Exception {
+    // T1-02, R-ML-22: the model says every stop is likely late; the job runs the evening before.
+    String label = activate("delivery_risk");
+    STUB.riskLabel.set(label);
+    STUB.late = 0.8;
+    UUID planId = publishedPlan();
+    scoreUntilDone(planId);
+    Instant evening = serviceDate.minusDays(1).atTime(18, 0)
+        .atZone(com.waypoint.dispatch.shared.util.Clock.OPERATING_ZONE).toInstant();
+    int[] precision = database.asSystem(ModuleRole.ML, () -> database.queryOne(
+            "SELECT count(*) FILTER (WHERE late_label) AS late, count(*) AS flagged FROM ml.delivery_outcomes"
+                + " WHERE service_date BETWEEN ? AND ? AND late_label IS NOT NULL AND predicted_late_prob >= 0.5",
+            java.sql.Date.valueOf(serviceDate.minusDays(29)), java.sql.Date.valueOf(serviceDate.minusDays(2))))
+        .entrySet().stream().sorted(Map.Entry.comparingByKey()).mapToInt(e -> ((Number) e.getValue()).intValue())
+        .toArray();
+    // Sorted keys: flagged, late.
+    boolean storesOpen = com.waypoint.dispatch.intelligence.domain.LateNoticePolicy.storesOpen(precision[1], precision[0]);
+
+    lateNotices.runAt(evening);
+    List<Map<String, Object>> events = database.asModule(ModuleRole.INTEGRATION, null, () -> database.query(
+        "SELECT event_id, payload::text AS payload FROM integration.outbox_events"
+            + " WHERE event_type = 'stop.likely_late' AND payload->>'planId' = ?", planId.toString()));
+    long stops = ((Number) database.asSystem(ModuleRole.ML, () -> database.queryOne(
+        "SELECT count(*) AS n FROM ml.delivery_predictions WHERE plan_id = ?", planId)).get("n")).longValue();
+    assertFalse(events.isEmpty());
+    assertTrue(events.size() <= stops, "once per order at most");
+
+    // Each one reaches the audience it names.
+    for (Map<String, Object> row : events) {
+      var event = mapper.readValue((String) row.get("payload"),
+          com.waypoint.dispatch.intelligence.contract.NoticeEvents.StopLikelyLate.class);
+      assertEquals(80, event.percent());
+      // The expected time is given only when it is after the window.
+      event.expectedArrival().ifPresent(t -> assertTrue(t.isAfter(event.windowClose()), event.toString()));
+      UUID eventId = (UUID) row.get("event_id");
+      deliver("notification.on-stop-likely-late", eventId, event);
+      List<Map<String, Object>> told = database.asSystem(ModuleRole.NOTIFICATION, () -> database.query(
+          "SELECT recipient_user_id, title, body FROM notification.notifications WHERE event_id = ?", eventId));
+      if (event.audience().equals("DISPATCHER")) {
+        assertTrue(told.stream().anyMatch(n -> n.get("recipient_user_id").equals(dispatcherId)), told.toString());
+        assertTrue(told.stream().allMatch(n -> ((String) n.get("title")).contains("will likely be late")), told.toString());
+      } else {
+        assertTrue(storesOpen, "the store is told only once the flag has earned it");
+        assertTrue(told.stream().noneMatch(n -> n.get("recipient_user_id").equals(dispatcherId)));
+      }
+    }
+    if (!storesOpen) {
+      assertTrue(events.stream().allMatch(r -> ((String) r.get("payload")).contains("\"DISPATCHER\"")),
+          "while the flag is learning only the dispatcher hears");
+    }
+
+    // A second run tells nobody again.
+    assertEquals(0, lateNotices.runAt(evening.plusSeconds(600)));
+  }
+
+  @Test
+  void aModelsLateThresholdIsFrozenOnceFromItsBacktestAndThenUsed() throws Exception {
+    // MF-04, T1-02, R-ML-22: 300 labelled stops of one model in the last finished weeks, calibrated.
+    String model = "freeze-" + run + "@1";
+    java.time.LocalDate monday = java.time.LocalDate.now(com.waypoint.dispatch.shared.util.Clock.OPERATING_ZONE)
+        .with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY));
+    for (int i = 0; i < 300; i++) {
+      double p = 0.05 + 0.9 * (i % 20) / 19.0;
+      boolean late = (i / 20) < Math.round(p * 15);
+      java.sql.Date day = java.sql.Date.valueOf(monday.minusDays(3 + i % 30));
+      database.asSystem(ModuleRole.ML, () -> database.update(
+          """
+          INSERT INTO ml.delivery_outcomes
+              (delivery_id, order_id, outlet_id, depot_code, service_date, stop_sequence, outcome, late_label,
+               label_source, predicted_late_prob, model_label, recorded_at)
+          VALUES (?, ?, 'OUT001', ?, ?, 1, 'delivered', ?, 'device', ?, ?, now())
+          """,
+          UUID.randomUUID(), UUID.randomUUID(), depot, day, late,
+          BigDecimal.valueOf(p).setScale(4, java.math.RoundingMode.HALF_UP), model));
+    }
+    lateThresholds.runAt(Instant.now());
+    Map<String, Object> frozen = database.asSystem(ModuleRole.ML, () -> database.queryOne(
+        "SELECT threshold, precision_lower, flagged FROM ml.late_thresholds WHERE model_label = ?", model));
+    double threshold = ((Number) frozen.get("threshold")).doubleValue();
+    assertTrue(threshold >= 0.3 && threshold <= 0.9, frozen.toString());
+    assertTrue(((Number) frozen.get("precision_lower")).doubleValue() >= 0.6, frozen.toString());
+
+    // Never moved: more stops that would choose otherwise change nothing.
+    for (int i = 0; i < 100; i++) {
+      database.asSystem(ModuleRole.ML, () -> database.update(
+          """
+          INSERT INTO ml.delivery_outcomes
+              (delivery_id, order_id, outlet_id, depot_code, service_date, stop_sequence, outcome, late_label,
+               label_source, predicted_late_prob, model_label, recorded_at)
+          VALUES (?, ?, 'OUT001', ?, ?, 1, 'delivered', true, 'device', 0.31, ?, now())
+          """,
+          UUID.randomUUID(), UUID.randomUUID(), depot, java.sql.Date.valueOf(monday.minusDays(4)), model));
+    }
+    lateThresholds.runAt(Instant.now());
+    assertEquals(0, new BigDecimal(String.valueOf(threshold)).compareTo((BigDecimal) database.asSystem(ModuleRole.ML,
+        () -> database.queryOne("SELECT threshold FROM ml.late_thresholds WHERE model_label = ?", model)).get("threshold")));
   }
 
   @Test

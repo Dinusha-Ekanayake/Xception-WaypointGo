@@ -4,6 +4,19 @@
 
 ---
 
+## 2026-10-08 - feat: likely-late notices, the dispatcher first (T1-02)
+
+`dev` · @Oxshadha
+
+- `LateNoticePolicy` (domain): told once at P(late) 0.5 or more; the store only when the flag's precision lower bound (Wilson 95%) is 80% on 30 or more flagged stops over 28 days, at most 2 a week; else the dispatcher (R-ML-22, ML-34).
+- `LateNoticeJob` every 10 minutes, `ml.late_notices`, event `stop.likely_late` (catalogued), routing version 13.
+- τ frozen once per model from its backtest (`LateThreshold`, `LateThresholdJob`, `ml.late_thresholds`), 0.5 until then; the notice says "expected about 07:40" (`ExpectedArrival`: planned arrival plus the predicted extra unloading before it) when that is after the window.
+
+Why: a store warned by a flag that is often wrong stops reading warnings; the dispatcher filters until the flag has earned it.
+Verified: LateNoticePolicyTest 3, LateThresholdTest 3, the two new intelligence cases, the event catalogue, the full backend suite before the push.
+
+---
+
 ## 2026-10-08 - feat: the forecast against the 8-week average (T2-03, second slice)
 
 `dev` · @Oxshadha

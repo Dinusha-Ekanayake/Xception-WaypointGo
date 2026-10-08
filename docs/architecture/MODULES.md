@@ -343,6 +343,7 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 | `plan.store_contacted` | Store managers of the outlet | yes | The dispatcher's message about an order the plan did not serve |
 | `order.auto_deferred` | Store manager | yes | The warehouse never confirmed stock before the cutoff (STK-03) |
 | `order.outlook_changed` | Store manager | yes | A booked day worsened to busy or at risk, once per order and status (R-NOT-16) |
+| `stop.likely_late` | Dispatcher while the flag is learning or the store has had two this week; the store once the flag's precision has earned it | yes | A published stop will likely arrive after its window, told once (R-ML-22) |
 | `plan.published`, `plan.revised` | Loader; driver of each trip's vehicle on the service date; for a revision, only the drivers of trips that changed and the outlets reached differently (R-NOT-12) | yes | Work is available, or changed |
 | `trip.released` | Driver; dispatcher when the vehicle has no driver (LOD-05); the depot's other loaders (R-NOT-10); each outlet on the trip with its stop number and expected arrival (R-NOT-11) | yes | Vehicle ready; the dock is free; the store can staff the arrival |
 | `loading.shortfall` | Dispatcher | yes | Departure is blocked now (R-NOT-02) |
@@ -434,6 +435,7 @@ A driver is pushed only trip-level events (R-NOT-08), and whoever caused an even
 **Connections.**
 - Consumes `plan.published` and `plan.revised`.
 - Publishes `order.outlook_changed` when a day an order is booked for worsens to busy or at risk (`OutlookWatchJob`, R-ML-08).
+- Publishes `stop.likely_late` when a published stop will likely arrive after its window (`LateNoticeJob`, R-ML-22).
 - Reads Planning (`PlanQuery.plan`), Ordering (`order`, `dailyVolumes`, `bookedVolumes`, `openOrders`), Execution (`actuals`) and Reference (outlets, vehicles, travel, calendar, traffic speed, road conditions) through their contracts.
 - Planning reads `PredictionQuery.planScoring` for `plannedWithoutPredictor`, lazily, so it still works without this module.
 
@@ -626,4 +628,5 @@ Modules connect three ways: a contract query (synchronous, read only), an event 
 | `reference.version_published`, `vehicle.status_changed`, `calendar.overridden` | Reference | Planning, Notification |
 | `message.posted` | Messaging | Notification |
 | `order.outlook_changed` | Intelligence | Notification |
+| `stop.likely_late` | Intelligence | Notification |
 | `attention.raised`, `attention.reminded` | Intelligence | Notification; Issues (`attention.raised`: asks the store, R-ISS-15) |
