@@ -216,3 +216,5 @@ Runs in parallel with Phase 1.5 and Phase 2 and blocks neither. Where the app is
 | Adoption | Share of stops recorded in the app | Depot manager |
 
 Every later item names which of these it moves, and the business case ([08](08-BUSINESS-CASE.md)) replaces its estimates with these numbers.
+
+**Built 2026-10-09** (R-ML-23, ML-35): the dispatcher's **Pilot KPIs** screen. A depot records each week's eight figures (who and when kept, a correction kept beside the first); the app counts Fresh on time, Fresh before 08:00 and stops recorded on the phone from its own finished stops and shows them beside. Deferrals, disputes and write-offs are recorded by hand for now; counting them from Planning, Receipt and Issues is the next step.

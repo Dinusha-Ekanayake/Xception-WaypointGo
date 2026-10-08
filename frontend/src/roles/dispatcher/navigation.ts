@@ -7,7 +7,7 @@ import { withTransition, type IconName } from "@shared/ui";
 // lives in the URL hash so reload and the back button keep the dispatcher where
 // they were, without adding routes under app/.
 
-export type ViewId = "overview" | "orders" | "plan" | "live" | "vehicles" | "forecast" | "issues";
+export type ViewId = "overview" | "orders" | "plan" | "live" | "vehicles" | "forecast" | "issues" | "kpis";
 
 export const VIEWS: Array<{ id: ViewId; label: string; icon: IconName }> = [
   { id: "overview", label: "Overview", icon: "grid" },
@@ -17,6 +17,7 @@ export const VIEWS: Array<{ id: ViewId; label: string; icon: IconName }> = [
   { id: "vehicles", label: "Vehicles", icon: "truck" },
   { id: "forecast", label: "Forecast", icon: "chart-line" },
   { id: "issues", label: "Issues", icon: "alert" },
+  { id: "kpis", label: "Pilot KPIs", icon: "board" },
 ];
 
 function fromHash(): ViewId {

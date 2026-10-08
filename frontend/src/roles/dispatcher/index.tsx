@@ -23,6 +23,7 @@ import Orders from "./screens/Orders.tsx";
 import Plan from "./screens/Plan.tsx";
 import Issues from "./screens/Issues.tsx";
 import Forecast from "./screens/Forecast.tsx";
+import PilotKpis from "./screens/PilotKpis.tsx";
 import { businessNow } from "@shared/wording";
 import { useClockOffset } from "@shared/demo/useDemo";
 
@@ -175,6 +176,8 @@ export default function Dispatcher({
           />
         ) : view === "issues" ? (
           <Issues depots={depots} scopeLabel={label} userId={userId} online={online} focusIssueId={issueFocus} />
+        ) : view === "kpis" ? (
+          <PilotKpis depots={depots} online={online} />
         ) : (
           <Forecast depots={depots} scopeLabel={label} online={online} />
         )}

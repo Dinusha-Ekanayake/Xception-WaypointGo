@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-10-09 - feat: the pilot KPI baseline, week by week (B-05)
+
+`dev` · @Oxshadha
+
+- The dispatcher's new Pilot KPIs screen records a depot's week of the eight B-05 KPIs from run sheets, phone logs and Finance's write-off sheet (`ml:RecordKpiWeek`, `ml.kpi_entries`, append-only: a correction is a new row beside the first). Beside each recorded figure, what the app counted from its own finished stops (Fresh on time, before 08:00, stops recorded on the phone).
+- Only the depots the dispatcher oversees, read and written (RLS by depot; a refusal is 403 and audited). R-ML-23, ML-35; roadmap 01 B-05 updated.
+
+---
+
 ## 2026-10-09 - feat: the reload time measured; the dispatcher connects an assistant
 
 `dev` · @Oxshadha

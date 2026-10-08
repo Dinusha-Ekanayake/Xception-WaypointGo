@@ -13,6 +13,8 @@ import com.waypoint.dispatch.intelligence.contract.PredictionViews.PlanPredictio
 import com.waypoint.dispatch.intelligence.contract.PredictionViews.SupplyProbabilityView;
 import com.waypoint.dispatch.intelligence.contract.PredictionViews.TrainingDeliveryView;
 import com.waypoint.dispatch.intelligence.contract.TravelAndServiceEstimator.DemandForecast;
+import com.waypoint.dispatch.intelligence.application.KpiQuery;
+import com.waypoint.dispatch.intelligence.contract.KpiViews;
 import com.waypoint.dispatch.platform.web.RequestAuthorizer;
 import com.waypoint.dispatch.shared.domain.Actor;
 import com.waypoint.dispatch.shared.domain.Page;
@@ -44,6 +46,7 @@ public class IntelligenceController {
   private final DateOutlookQuery outlook;
   private final AttentionQuery attention;
   private final CapacityDecisionQuery capacityDecisions;
+  private final KpiQuery kpis;
   private final RequestAuthorizer authorizer;
   private final com.waypoint.dispatch.intelligence.application.AiExplainer explainer;
 
@@ -52,6 +55,7 @@ public class IntelligenceController {
       DateOutlookQuery outlook,
       AttentionQuery attention,
       CapacityDecisionQuery capacityDecisions,
+      KpiQuery kpis,
       RequestAuthorizer authorizer,
       com.waypoint.dispatch.intelligence.application.AiExplainer explainer) {
     this.explainer = explainer;
@@ -59,6 +63,7 @@ public class IntelligenceController {
     this.outlook = outlook;
     this.attention = attention;
     this.capacityDecisions = capacityDecisions;
+    this.kpis = kpis;
     this.authorizer = authorizer;
   }
 
@@ -95,6 +100,13 @@ public class IntelligenceController {
   }
 
   /** What the dispatcher decided about short weeks from this week on (roadmap T2-01), under the forecast's read. */
+  /** Roadmap B-05: the depot's pilot KPIs, recorded and counted, newest week first. */
+  @GetMapping("/kpis")
+  public KpiViews.KpiReportView kpis(
+      @RequestParam String depot, @RequestParam(defaultValue = "8") int weeks, HttpServletRequest request) {
+    return kpis.weeks(read(request, "wpt:ml:kpi:" + depot), depot, weeks);
+  }
+
   @GetMapping("/capacity/decisions")
   public List<CapacityDecisionView> capacityDecisions(@RequestParam String depot, HttpServletRequest request) {
     return capacityDecisions.fromThisWeek(read(request, "wpt:ml:forecast:" + depot), depot);

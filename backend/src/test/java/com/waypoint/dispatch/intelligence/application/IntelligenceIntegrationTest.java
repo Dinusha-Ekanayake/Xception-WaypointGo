@@ -746,6 +746,64 @@ class IntelligenceIntegrationTest {
   }
 
   @Test
+  void aWeeksKpisAreRecordedBesideWhatTheAppCountedAndOnlyInScope() throws Exception {
+    // Roadmap B-05: a week twenty weeks back, which no other test writes stops into.
+    java.time.LocalDate monday = com.waypoint.dispatch.intelligence.domain.KpiBaseline.weekOf(
+        java.time.LocalDate.now(com.waypoint.dispatch.shared.util.Clock.OPERATING_ZONE)).minusWeeks(20);
+    java.time.LocalDate wednesday = monday.plusDays(2);
+    outcome(wednesday, "delivered", 0, "06:30", "device");
+    outcome(wednesday, "delivered", 15, "08:30", "device");
+    outcome(wednesday, "delivered", 0, "07:00", "none");
+    outcome(wednesday, "failed", null, null, "device");
+
+    String week = "{\"depotCode\":\"" + depot + "\",\"weekStart\":\"" + monday + "\",\"note\":\"From the paper run sheets\","
+        + "\"values\":{\"calls_per_trip\":4.5,\"write_off_lkr\":12000}}";
+    send(dispatcher, envelope("ml:RecordKpiWeek", null, week), 200);
+    // A correction is a newer figure; the first stays on record.
+    send(dispatcher, envelope("ml:RecordKpiWeek", null, week.replace("4.5", "3.5")), 200);
+    // A share above 100 and a week not starting on a Monday are refused.
+    send(dispatcher, envelope("ml:RecordKpiWeek", null, week.replace("\"calls_per_trip\":4.5", "\"adoption_pct\":120")), 422);
+    send(dispatcher, envelope("ml:RecordKpiWeek", null, week.replace(monday.toString(), wednesday.toString())), 422);
+
+    JsonNode report = read(dispatcher, "/api/ml/kpis?depot=" + depot + "&weeks=26", 200);
+    JsonNode found = null;
+    for (JsonNode w : report.get("weeks")) if (w.get("weekStart").asText().equals(monday.toString())) found = w;
+    assertTrue(found != null, "the week is in the report");
+    assertEquals(0, new java.math.BigDecimal("3.50").compareTo(found.get("recorded").get("calls_per_trip").get("value").decimalValue()));
+    assertEquals("From the paper run sheets", found.get("recorded").get("calls_per_trip").get("note").asText());
+    assertFalse(found.get("recorded").get("calls_per_trip").get("enteredBy").isNull(), "who entered it is recorded (rule 8)");
+    JsonNode counted = found.get("counted");
+    assertEquals("66.7", counted.get("fresh_on_time_pct").get("value").asText());
+    assertEquals(3, counted.get("fresh_on_time_pct").get("stops").asInt());
+    assertEquals("66.7", counted.get("fresh_before_8_pct").get("value").asText());
+    assertEquals("75.0", counted.get("adoption_pct").get("value").asText());
+    long history = ((Number) database.asSystem(ModuleRole.ML, () -> database.queryOne(
+        "SELECT count(*) AS n FROM ml.kpi_entries WHERE depot_code = ? AND week_start = ? AND kpi = 'calls_per_trip'",
+        depot, java.sql.Date.valueOf(monday))).get("n")).longValue();
+    assertEquals(2, history, "both figures are kept");
+
+    // A depot outside the dispatcher's scope is refused and recorded, for writing and for reading.
+    UUID strangerId = accounts.createAccount("mlk-" + run + "@intelligence.test", "mlk", PASSWORD, "dispatcher");
+    Cookie outsider = session("mlk-" + run);
+    long before = denials(strangerId, "ml:RecordKpiWeek");
+    send(outsider, envelope("ml:RecordKpiWeek", null, week), 403);
+    assertEquals(before + 1, denials(strangerId, "ml:RecordKpiWeek"));
+    read(outsider, "/api/ml/kpis?depot=" + depot, 403);
+  }
+
+  /** A finished stop at OUT001 (Fresh) on a day, as the outcome job records it. */
+  private void outcome(java.time.LocalDate day, String outcome, Integer late, String arrived, String source) {
+    java.sql.Timestamp at = arrived == null ? null : java.sql.Timestamp.from(
+        day.atTime(java.time.LocalTime.parse(arrived)).atZone(com.waypoint.dispatch.shared.util.Clock.OPERATING_ZONE).toInstant());
+    database.asSystem(ModuleRole.ML, () -> database.update(
+        "INSERT INTO ml.delivery_outcomes (delivery_id, order_id, outlet_id, depot_code, service_date, stop_sequence,"
+            + " outcome, arrived_at, late_minutes, late_label, label_source, recorded_at)"
+            + " VALUES (?, ?, 'OUT001', ?, ?, 1, ?, ?, ?, ?, ?, now())",
+        UUID.randomUUID(), UUID.randomUUID(), depot, java.sql.Date.valueOf(day), outcome, at, late,
+        "none".equals(source) ? null : Boolean.valueOf(late != null && late > 0), source));
+  }
+
+  @Test
   void theForecastJobRunsOnceAWeekAndCatchesUpOnAFreshDeployment() {
     STUB.failing = true;
     forecasts.runAt(Instant.now());

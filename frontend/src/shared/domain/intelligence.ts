@@ -244,3 +244,34 @@ export type ModelBacktestView = {
   weeks: BacktestWeekView[];
 };
 export type BacktestView = { from: string; to: string; minLabels: number; models: ModelBacktestView[] };
+
+/** Roadmap B-05: the pilot's business KPIs, in screen order. */
+export type KpiKey =
+  | "fresh_on_time_pct"
+  | "fresh_before_8_pct"
+  | "deferrals_per_run"
+  | "repeat_deferrals"
+  | "disputes_per_100"
+  | "write_off_lkr"
+  | "calls_per_trip"
+  | "adoption_pct";
+
+/** A figure the depot recorded: append only, the newest per week and KPI is current. */
+export type KpiEntryView = { value: number; note: string | null; enteredBy: Uuid; enteredAt: IsoInstant };
+
+/** A figure the app counted from its own finished stops, and how many it rests on. */
+export type KpiCountedView = { value: number; stops: number };
+
+export type KpiWeekView = {
+  /** The Monday. */
+  weekStart: IsoDate;
+  recorded: Partial<Record<KpiKey, KpiEntryView>>;
+  counted: Partial<Record<KpiKey, KpiCountedView>>;
+};
+
+/** GET /api/ml/kpis?depot=&weeks=: newest week first. */
+export type KpiReportView = { depotCode: string; kpis: KpiKey[]; countedByApp: KpiKey[]; weeks: KpiWeekView[] };
+
+/** ml:RecordKpiWeek. values holds the figures to record; a share is 0 to 100. */
+export type RecordKpiWeek = { depotCode: string; weekStart: IsoDate; values: Partial<Record<KpiKey, number>>; note?: string };
+
