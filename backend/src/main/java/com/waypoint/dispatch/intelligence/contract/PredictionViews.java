@@ -156,7 +156,9 @@ public final class PredictionViews {
    * One route as the model server read it when its plan was scored, and each
    * stop's outcome of that plan (roadmap MF-05, R-ML-18): {@code route} has the
    * scoring request's own fields, so a model retrains on what it will be given.
-   * A label's {@code late} is null when the stop has no trustworthy arrival.
+   * A label's {@code late} is null when the stop has no trustworthy arrival;
+   * {@code answeredBy} and {@code answeredLateProb} are what was in use then,
+   * so a candidate is replayed against it on the same stops (MF-04).
    */
   public record TrainingRouteView(
       UUID planId, String routeId, LocalDate serviceDate, Optional<UUID> referenceVersionId,

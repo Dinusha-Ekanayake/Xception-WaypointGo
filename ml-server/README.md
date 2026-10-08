@@ -56,27 +56,38 @@ The split is not where the optimism is (0.002 of AUC). The road index is: withou
 
 ## Retraining on our own deliveries (roadmap MF-05)
 
-Step 2 of the production ladder: LightGBM on ten planning-time features (`training/planning.py`: the window's slack either side, planned arrival, the stop's place and the route's length, planned travel so far, route start, distance, volume, van or truck). The features come from the route exactly as the backend sent it to be scored, which the backend keeps per plan (`ml.scoring_inputs`, R-ML-18), so training and serving share one definition and nothing learned after publication goes in. Everything below runs on our own machine; nothing is sent anywhere.
+Step 2 of the production ladder: LightGBM on eighteen planning-time features (`training/planning.py`). Ten come from the route: the window's slack either side, planned arrival, the stop's place and the route's length, planned travel so far, route start, distance, volume, van or truck. Eight come from the reference tables, which arrive with every scoring request and are read from `data/General Data` when training: the outlet's unloading allowance and the allowances before it on the route, the traffic speed at the planned hour, monsoon, weekday, payday, festival ramp and holiday. The features come from the route exactly as the backend sent it to be scored, which the backend keeps per plan (`ml.scoring_inputs`, R-ML-18), so training and serving share one definition and nothing learned after publication goes in. Everything below runs on our own machine; nothing is sent anywhere.
 
 ```bash
 # 1. The export, as an administrator (ml:ExportTrainingData). Plain HTTP only to localhost.
 WAYPOINT_SESSION='SESSION=...' python -m training.fetch --url http://localhost:8080 --depot Kandy \
     --from 2026-08-01 --to 2026-10-04 --out export.jsonl
-# 2. Train, hold out the last 6 weeks, compare with the window slack alone.
+# 2. Train, hold out the last 6 weeks, compare with the window slack alone and with what answered then.
 python -m training.retrain --export export.jsonl --version 2026.10.1 --out build/
 ```
 
-`retrain` writes the model file, `manifest-entry.json` (with `"pipeline": "planning"`, the holdout metrics and the file's SHA-256) and `report.json`. It exits 2, and the model is not handed over, unless it beats the slack alone on both Brier score and log loss with 200 or more labelled stops held out. To hand it over: copy the file into `models/`, put the entry in `manifest.json` in place of the `delivery_risk` one, run `pytest`, then register and activate it as in "Wiring it in". The service loads a planning model instead of the Datathon blend and answers with `roadConditions: fallback`, since it never uses them. After a week in use, the admin Models screen shows its backtest beside the built-in estimate (R-ML-16).
+`retrain` writes the model file, `manifest-entry.json` (with `"pipeline": "planning"`, the holdout metrics and the file's SHA-256) and `report.json`. It exits 2, and the model is not handed over, unless it beats the slack alone on both Brier score and log loss with 200 or more labelled stops held out, and is not worse than what answered at the time on the same stops (the replay: each label carries `answeredBy` and `answeredLateProb`; better or worse means both scores, as on the Models screen, R-ML-16).
+
+**On a schedule.** `training.run` does both steps for every depot over the last 26 finished weeks and leaves `<out>/<date>/` with the export, model, manifest entry and report. It never touches `manifest.json` or `models/`: a model is handed over by a reviewed change. On our own server, as the user that runs the stack (the session cookie is an administrator's, kept in a file only that user reads):
+
+```bash
+# crontab: Sundays 02:30 depot time
+30 2 * * 0  cd /srv/waypoint/ml-server && WAYPOINT_SESSION="$(cat ~/.waypoint-session)" \
+  python -m training.run --url http://localhost:8080 --depot Peliyagoda --depot Kandy --out /srv/waypoint/retrain >> /var/log/waypoint-retrain.log 2>&1
+```
+
+Exit 0 means a candidate worth handing over was built, 2 means none was. The export holds operational data, so the build folder stays on that server. To hand it over: copy the file into `models/`, put the entry in `manifest.json` in place of the `delivery_risk` one, run `pytest`, then register and activate it as in "Wiring it in". The service loads a planning model instead of the Datathon blend and answers with `roadConditions: fallback`, since it never uses them. After a week in use, the admin Models screen shows its backtest beside the built-in estimate (R-ML-16).
 
 Dry run on the Datathon data, in the export's shape (`python -m training.datathon_export --datathon <dir> --out dt.jsonl`; 25,198 routes; holdout 2026-01-05 to 2026-02-14, 5,035 stops):
 
 | Model | AUC | Brier | Log loss |
 | --- | --- | --- | --- |
-| Ten planning features | 0.941 | 0.070 | 0.227 |
+| Eighteen planning features (route and reference) | 0.954 | 0.054 | 0.176 |
+| Ten route features only (`--reference none`) | 0.941 | 0.070 | 0.227 |
 | Window slack alone | 0.880 | 0.083 | 0.285 |
 | Datathon features without road conditions (for reference, from the leakage check) | 0.957 | | 0.168 |
 
-The gap to the Datathon features is reference data known at planning (each outlet's unloading allowance, traffic by hour, the calendar); adding those as features is the next step of the ladder.
+Eighteen plain features come within 0.008 of log loss of the Datathon pipeline without road conditions, with nothing learned after the plan. The reference tables a run trains on are the ones in `data/`; if production imports a newer reference version, retrain after it.
 
 ## Reproducibility
 

@@ -68,7 +68,8 @@ public class JdbcScoringInputs {
                 SELECT jsonb_agg(jsonb_build_object(
                            'deliveryId', o.order_id::text, 'outcome', o.outcome, 'late', o.late_label,
                            'labelSource', o.label_source, 'lateMinutes', o.late_minutes,
-                           'serviceMinutes', o.service_minutes) ORDER BY o.stop_sequence) AS labels
+                           'serviceMinutes', o.service_minutes, 'answeredBy', o.model_label,
+                           'answeredLateProb', o.predicted_late_prob) ORDER BY o.stop_sequence) AS labels
                   FROM ml.delivery_outcomes o
                   JOIN ml.delivery_predictions p ON p.prediction_id = o.prediction_id
                  WHERE p.plan_id = s.plan_id AND p.trip_id::text = s.route_id) l ON l.labels IS NOT NULL

@@ -809,6 +809,8 @@ class IntelligenceIntegrationTest {
     JsonNode labels = mine.get("labels");
     assertTrue(labels.get(0).get("late").asBoolean());
     assertEquals("device", labels.get(0).get("labelSource").asText());
+    assertEquals("deterministic", labels.get(0).get("answeredBy").asText(), "what answered then, for the replay");
+    assertEquals(0.2, labels.get(0).get("answeredLateProb").asDouble(), 1e-9);
     if (labels.size() > 1) {
       assertTrue(labels.get(1).get("late").isNull(), "no arrival is no label, never not late");
     }

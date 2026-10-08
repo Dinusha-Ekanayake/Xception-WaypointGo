@@ -95,7 +95,7 @@ def delivery_risk(loaded, routes, reference):
     g = general(reference)
     _check_known(routes, g)
     if loaded.planning is not None:
-        return _planning(loaded.planning, routes)
+        return _planning(loaded.planning, routes, g)
     cal = g['calendar'].set_index('date')
     covered = set(zip(g['road_conditions'].district, g['road_conditions'].date))
     with_rc = [r for r in routes if (r.district, r.date) in covered]
@@ -123,14 +123,15 @@ def delivery_risk(loaded, routes, reference):
     return result
 
 
-def _planning(model, routes):
+def _planning(model, routes, g):
     """A model retrained on our own deliveries: the shared planning-time features, no road conditions (R-ML-18).
 
     Its service model needs 200 labelled stops; until then each stop's planned
     allowance is not known here, so the service answer is the model's median
     of what it learned, never zero.
     """
-    x = planning.features([r.model_dump() for r in routes])
+    uses_reference = any(c in planning.REFERENCE for c in model['features'])
+    x = planning.features([r.model_dump() for r in routes], g if uses_reference else None)
     late = np.clip(model['late'].predict_proba(x[model['features']])[:, 1], 5e-4, 1 - 5e-4)
     if model.get('service') is not None:
         svc = np.exp(model['service'].predict(x[model['features']]))

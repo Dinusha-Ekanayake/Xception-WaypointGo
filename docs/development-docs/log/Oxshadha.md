@@ -4,6 +4,19 @@
 
 ---
 
+## 2026-10-08 - feat: reference features, replay against what answered, scheduled retraining (MF-05)
+
+`dev` · @Oxshadha
+
+- Eight reference features known at planning (allowance, allowance before, traffic at the hour, calendar): Datathon dry run AUC 0.954, log loss 0.176, near the Datathon pipeline without road data (0.168).
+- The export carries `answeredBy` and `answeredLateProb`; `retrain` replays the candidate against them and will not hand over one that is worse. `training.run` is the cron job on our own server; it never edits the served manifest.
+- Not yet: a run on our own deliveries (needs pilot labels).
+
+Why: a model has to beat what is in use on the same stops, not only a rule of thumb.
+Verified: ml-server 25 with the pinned versions; IntelligenceIntegrationTest 39; the full backend suite before the push.
+
+---
+
 ## 2026-10-08 - feat: retraining on what the plan knew (MF-05, second slice)
 
 `dev` · @Oxshadha

@@ -153,6 +153,8 @@ Equal-bin calibration error is too noisy at this volume and is not used.
 
 **Built (second slice, 2026-10-08).** Scoring keeps each route as the model server read it (`ml.scoring_inputs`), exported with the outcomes of the plan that ran at `GET /api/ml/training/routes` (R-ML-18, ML-29). `ml-server/training` fetches it, retrains step 2 of the ladder on ten planning-time features, compares with the window slack alone on the last 6 weeks, and writes the model with its manifest entry; the service serves such a model through the same feature code. Dry run on the Datathon data: AUC 0.941, log loss 0.227, against 0.880 and 0.285 for the slack alone. Open: reference features (allowance, traffic by hour, calendar), a scheduled run on our own runner, and replaying a candidate through the backtest before activation.
 
+**Built (third slice, 2026-10-08).** Eight reference features known at planning (the outlet's allowance and those before it, traffic speed at the planned hour, monsoon, weekday, payday, festival ramp, holiday): on the Datathon dry run AUC 0.954 and log loss 0.176, against 0.168 for the Datathon pipeline without road conditions. The export carries what answered at the time, and `retrain` replays the candidate against it on the same held-out stops; a candidate worse than the incumbent is not handed over (R-ML-16, R-ML-18). `training.run` is the scheduled run for cron on our own server; it builds a candidate and never changes the served manifest. Open: the first run on our own deliveries once the pilot has enough labelled stops (MF-02), and the threshold τ frozen from it.
+
 ### MF-06 Prediction intervals
 
 **Source.** Intervals come from out-of-time residuals per bucket:
