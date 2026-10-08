@@ -115,6 +115,33 @@ flowchart TD
   P["Versioned parameters and priority policy<br/>budgets, trip limit, priority keys"] -.-> C
 ```
 
+The same flow as plain text, for viewers that do not draw the diagram above:
+
+```text
+  Supplied CSVs (scenario orders, fleet status, vehicles, district travel, service allowance)
+        |
+        v
+  PeakDayScenario ........ reads the files, outlet and mall windows intersected,
+        |                  Peliyagoda vehicles only, workshop vehicles unavailable
+        v
+  1. PriorityInsertionEngine ... screens orders no vehicle can carry (unservable),
+        |                        then places orders in priority order, cheapest feasible place
+        v
+  2. ScarceFleetReplan ......... re-plans all 4 reefers together; kept only if
+        |                        strictly better by rank            (70 -> 73 served)
+        v
+  3. CostReplan ................ same served orders, fewer vehicles and litres
+        |                                         (16 -> 13 vehicles, 724.8 -> 610.6 L)
+        v
+  4. ValidatingEngine .......... re-checks every trip against every rule;
+        |                        an infeasible plan is rejected, never written
+        v
+  submission_task2b.csv --> official check_allocation.py (CI): FEASIBILITY: PASSED
+
+  Constraint registry (one definition of each rule) ...... read by stages 1 to 4
+  Versioned parameters and priority policy .............. read by stage 1
+```
+
 | Stage | Code | What it does |
 | --- | --- | --- |
 | Read | `planning/infrastructure/PeakDayScenario.java` | Loads the scenario as a planning problem. Each order id is derived from `order_ref`, so reruns are identical |
