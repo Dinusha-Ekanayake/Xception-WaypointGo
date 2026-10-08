@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-10-08 - test: the Live read at 1,280 trips; one stream per session decided against
+
+`dev` · @Oxshadha
+
+- `LiveReadLoadTest`: 1,280 trips (10,240 stops) over the depots in the database, read as the Live screen reads them: on two depots of 640 trips, one depot p95 836 ms and 3.6 MB, both together 837 ms. Row-level security is half the time (15 ms without, 338 ms with); hoisting the role check saved 42 ms, so the policies stay. Detail in [B-04](../../roadmap/01-FOUNDATION-FLOWS.md#phase-1-verify-and-baseline).
+- F-07's "one stream per session" is not built ([03](../../roadmap/03-INFRA-DECISIONS.md#one-live-stream-per-session-not-now-decided-2026-10-08)): production is HTTP/2, a tab holds at most three streams, and each already beats within 25 s.
+
+---
+
 ## 2026-10-08 - fix: the driver and the store within their request budget (B-04)
 
 `dev` · @Oxshadha

@@ -173,6 +173,8 @@ store places order -> 16:00 cutoff closes the day -> engine drafts plan -> dispa
 | Loader | 34 | | Trips every 2 s; within the driver's budget |
 | Dispatcher | 57 | | Live screen on the change stream since F-07b; its 16 404s a minute are a day with no plan yet |
 
+**Live read at 1,280 trips** (`LiveReadLoadTest`, every run of the suite): 1,280 trips spread over every depot in the database, 8 stops each, read by one dispatcher overseeing them all, one request per depot at once as the Live screen sends them, five rounds after a warm-up. On a fresh database (two depots, 640 trips and 5,120 stops each): one depot p95 836 ms and 3.6 MB of JSON, both together 837 ms. With a third depot left by another test (427 trips each): 730 ms and 2.4 MB. The ceilings in the test (3 s for one depot, 5 s together) are regression guards, not SLOs. Where the time goes, on one depot: the query takes 15 ms without row-level security and 338 ms with it (120 ms for the records' policy, about 35 µs a row, the rest for the lines' policy, which checks each line's record again); the other half is mapping and JSON. Evaluating the row-independent role check once per query saved only 42 ms, so the policies are left as they are. The cost is in the per-row depot, driver and outlet checks; rewrite those (a depot list read once per query) only if this read must get faster.
+
 Pool and outbox on the dev stack: `hikaricp_connections_pending` 0 of 8, outbox lag 0 s, 0 dead. The production figures (command p95, generation time, rows per day) come from the server's Prometheus, which now alerts and has the table panels; they wait on access to it (H-03).
 
 ### Baseline recorded 2026-10-06 (local `dev`, macOS, Docker)

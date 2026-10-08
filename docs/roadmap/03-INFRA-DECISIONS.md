@@ -41,6 +41,19 @@ Each decision states its evidence and the trigger that would reopen it. They are
 - Redis pub/sub for fan-out;
 - `LISTEN/NOTIFY` on one dedicated, unpooled connection. Postgres notifications do not reach standbys, and every listener holds a connection, so one listener per replica fans out to its clients.
 
+## One live stream per session: not now (decided 2026-10-08)
+
+**Decision.** Keep the three server-sent event streams separate: notifications (`/api/notifications/stream`), changes (`/api/changes/stream`, depots or a store's outlets) and positions (`/api/execution/positions/stream`). F-07's "one stream per session, as topics" is not built.
+
+**Evidence.**
+- A tab holds at most three: the dispatcher and the store have notifications, changes and, on a map, positions; the driver and the loader have notifications only.
+- Production is HTTP/2 (Cloudflare to the browser, `http2 on` at nginx), so the three share one connection and the browser's six-per-site limit of HTTP/1.1 is never reached.
+- Each already sends something every 25 s or less (changes 25, notifications 25, positions 20), under Cloudflare's 100 s idle limit, and each falls back to polling when silent.
+- One stream would reopen whenever the map's day, depot or trip changes, put three modules' scope checks behind one endpoint, and rewrite the inbox hook the driver and loader screens share.
+- Only local `next dev` is HTTP/1.1: two dispatcher tabs there can hold six streams and stall a seventh request. Use one tab, or `npm start`.
+
+**Reopen when** a tab needs a fourth stream, a client reaches the backend over HTTP/1.1 in production, or open streams per backend replica pass what one process holds comfortably (watch `waypoint.changes.listeners`, `waypoint.notification.live_listeners` and `waypoint.execution.position_listeners`).
+
 ## Indexing and partitioning
 
 **Decision.**

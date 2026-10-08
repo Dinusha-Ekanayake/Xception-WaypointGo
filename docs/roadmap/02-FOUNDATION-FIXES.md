@@ -115,7 +115,7 @@ When a lost reefer's chilled trip finds no reefer, the replan defers it; it neve
 
 ### F-07 Less polling, conditional reads, one stream
 
-**F-07a built 2026-10-07** (PLT-16): the driver screen dropped from about 170 requests a minute on a two-stop run (about 450 on twelve stops) to about 31, held by a browser test at 60 or fewer; polled reads carry an ETag and answer 304 when unchanged (`CacheablePaths`, `ConditionalReadsFilter`); sign-out sends `Clear-Site-Data: "cache"`. **F-07b built 2026-10-07** (PLT-18): the dispatcher's board re-reads on server-sent change topics and polls every 15 s as a safety net, back to 2 s when the stream is silent. **Still to do:** folding the notification and position streams into the same connection, as topics.
+**F-07a built 2026-10-07** (PLT-16): the driver screen dropped from about 170 requests a minute on a two-stop run (about 450 on twelve stops) to about 31, held by a browser test at 60 or fewer; polled reads carry an ETag and answer 304 when unchanged (`CacheablePaths`, `ConditionalReadsFilter`); sign-out sends `Clear-Site-Data: "cache"`. **F-07b built 2026-10-07** (PLT-18): the dispatcher's board re-reads on server-sent change topics and polls every 15 s as a safety net, back to 2 s when the stream is silent. Since 2026-10-08 a store watches its outlet on the same change stream (PLT-19). Folding the notification and position streams into one connection is **decided against for now** ([03](03-INFRA-DECISIONS.md#one-live-stream-per-session-not-now-decided-2026-10-08)): HTTP/2 already shares one connection, and each stream already beats within 25 s.
 
 - **Conditional reads:**
   - ETag and `If-None-Match` on every polled read.
