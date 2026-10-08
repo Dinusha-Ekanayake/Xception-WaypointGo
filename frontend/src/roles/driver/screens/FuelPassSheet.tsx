@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { cx } from "@shared/ui";
 import { dayLabel } from "@shared/wording";
 import { fuelPassSrc, type FuelPassState } from "../data/fuelPass.ts";
+import { useT } from "../i18n.tsx";
 
 const EXIT_MS = 200;
 
@@ -27,6 +28,7 @@ export default function FuelPassSheet({
   load: (vehicleId: string) => Promise<FuelPassState>;
   onClose: () => void;
 }): React.JSX.Element {
+  const t = useT();
   const [state, setState] = useState<FuelPassState | null>(null);
   useEffect(() => {
     let live = true;
@@ -71,7 +73,7 @@ export default function FuelPassSheet({
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Fuel QR"
+      aria-label={t("Fuel QR")}
       data-full-frame
       className={cx(
         "absolute inset-0 z-50 flex items-center justify-center bg-black/35 p-5 backdrop-blur-[6px]",
@@ -103,7 +105,7 @@ export default function FuelPassSheet({
           </>
         ) : (
           <p role="status" className="flex min-h-[160px] w-full items-center justify-center rounded-[28px] border-2 border-[#B7F2ED] bg-white p-5 text-center text-[15px] leading-[21px]">
-            {state === null ? "Getting the Fuel Pass…" : PASS_MISSING[state.kind]}
+            {state === null ? t("Getting the Fuel Pass…") : t(PASS_MISSING[state.kind])}
           </p>
         )}
       </div>
@@ -113,7 +115,8 @@ export default function FuelPassSheet({
 }
 
 /** What the popup says when there is no code to show, in plain words. */
-const PASS_MISSING = {
+/** Drawn translated; tests/driver-strings.test.ts checks each has its row. */
+export const PASS_MISSING = {
   none: "No Fuel Pass has been added for this vehicle yet. Ask the depot.",
   refused: "This Fuel Pass is only for the driver of this vehicle today.",
   unavailable: "No signal, and the Fuel Pass is not saved on this phone. Open it once with signal before you leave.",

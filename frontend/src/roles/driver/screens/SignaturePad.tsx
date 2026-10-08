@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useUndo } from "@shared/ui";
 import { toBlob } from "../data/image.ts";
+import { useT } from "../i18n.tsx";
 
 /**
  * The receiver signs with a finger. Pointer events, so a finger, a stylus and a
@@ -12,6 +13,7 @@ import { toBlob } from "../data/image.ts";
  * seconds, and the same button reads Undo and puts it back.
  */
 export default function SignaturePad({ onChange }: { onChange: (signature: Blob | null) => void }): React.JSX.Element {
+  const t = useT();
   const canvas = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
   const [signed, setSigned] = useState(false);
@@ -126,7 +128,7 @@ export default function SignaturePad({ onChange }: { onChange: (signature: Blob 
     <div className="flex flex-col gap-2">
       <canvas
         ref={canvas}
-        aria-label="Signature of the person receiving the goods"
+        aria-label={t("Signature of the person receiving the goods")}
         role="img"
         onPointerDown={down}
         onPointerMove={move}
@@ -135,14 +137,14 @@ export default function SignaturePad({ onChange }: { onChange: (signature: Blob 
         className="h-36 w-full touch-none rounded-[14px] border border-go-rule bg-white"
       />
       <div className="flex items-center justify-between text-[13px] text-go-muted">
-        <span>{signed ? "Signed" : "Sign inside the box"}</span>
+        <span>{t(signed ? "Signed" : "Sign inside the box")}</span>
         <button
           type="button"
           onClick={cleared.held ? undo : clear}
           disabled={!signed && !cleared.held}
           className="min-h-12 px-3 text-[15px] font-medium text-go-teal disabled:opacity-40"
         >
-          {cleared.held ? "Undo" : "Clear"}
+          {t(cleared.held ? "Undo" : "Clear")}
         </button>
       </div>
     </div>

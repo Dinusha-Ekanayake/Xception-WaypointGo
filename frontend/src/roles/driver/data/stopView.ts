@@ -1,6 +1,10 @@
 import type { OutletView } from "@shared/domain/types";
-import { clock, codeLabel, DOCK_TYPE, hhmm, units } from "../../../shared/wording/index.ts";
+import { clock, codeLabel, DOCK_TYPE, hhmm } from "../../../shared/wording/index.ts";
 import { isFinished, lateMinutes, summarize, unitsHandedOver, type Stop } from "./run.ts";
+import { translate, type Translate } from "./strings.ts";
+
+/** The functions below write English unless the screen passes its language (roadmap FF-00). */
+const english: Translate = (text, vars) => translate("en", text, vars);
 
 // The Figma driver screens (#174) draw a stop in this shape. It is filled from
 // the run sheet Execution serves, never from sample data (issue #117). Pure; the
@@ -30,6 +34,8 @@ export type RouteStop = {
   mapButtonType: "split" | "wide";
   /** Recorded or replanned: nothing left to do here. */
   finished: boolean;
+  /** Recorded as delivered in full; read this, never the status text, which is in the driver's language. */
+  delivered: boolean;
   /** One or more writes for this stop are still only on this phone. */
   onPhone: boolean;
   /** When the stop was recorded, in depot time; null until it is. */
@@ -38,21 +44,21 @@ export type RouteStop = {
   deliveredItems: Array<{ code: string; category: string; qty: number }>;
 };
 
-function access(outlet: OutletView | undefined): string {
+function access(outlet: OutletView | undefined, t: Translate): string {
   if (!outlet) return "";
-  const dock = codeLabel(DOCK_TYPE, outlet.dockType);
-  if (outlet.parkingConstraint === "mall_dock") return "Mall dock. Deliveries are taken only inside the window.";
-  if (outlet.parkingConstraint === "van_only") return `${dock} · vans only.`;
+  const dock = t(codeLabel(DOCK_TYPE, outlet.dockType));
+  if (outlet.parkingConstraint === "mall_dock") return t("Mall dock. Deliveries are taken only inside the window.");
+  if (outlet.parkingConstraint === "van_only") return t("{dock} · vans only.", { dock });
   return `${dock}.`;
 }
 
-function status(serviceDate: string, stop: Stop, now: Date): string {
-  if (stop.outcome === "DELIVERED") return "Delivered";
-  if (stop.outcome === "PARTIAL") return "Partly delivered";
-  if (stop.outcome === "FAILED") return "Not delivered";
-  if (stop.outcome === "SKIPPED") return "Replanned";
+function status(serviceDate: string, stop: Stop, now: Date, t: Translate): string {
+  if (stop.outcome === "DELIVERED") return t("Delivered");
+  if (stop.outcome === "PARTIAL") return t("Partly delivered");
+  if (stop.outcome === "FAILED") return t("Not delivered");
+  if (stop.outcome === "SKIPPED") return t("Replanned");
   const late = (stop.lateMinutes ?? 0) > 0 ? stop.lateMinutes! : lateMinutes(serviceDate, stop.windowClose, now);
-  return late > 0 ? `${late} min late` : "On time";
+  return late > 0 ? t("{n} min late", { n: late }) : t("On time");
 }
 
 export function toRouteStops(
@@ -60,6 +66,7 @@ export function toRouteStops(
   outlets: Record<string, OutletView>,
   serviceDate: string,
   now: Date,
+  t: Translate = english,
 ): RouteStop[] {
   return stops.map((stop, index) => {
     const outlet = outlets[stop.outletId];
@@ -72,21 +79,22 @@ export function toRouteStops(
       address: outlet ? `${outlet.districtName} · ${outlet.brandCode}` : "",
       place: outlet?.districtName ?? null,
       brand: outlet?.brandCode ?? null,
-      dockTag: outlet ? codeLabel(DOCK_TYPE, outlet.dockType) : "",
+      dockTag: outlet ? t(codeLabel(DOCK_TYPE, outlet.dockType)) : "",
       eta: clock(stop.expectedArrival ?? stop.plannedArrival),
-      etaDistanceTime: stop.expectedArrival ? `Planned ${hhmm(stop.plannedArrival)}` : "As planned",
+      etaDistanceTime: stop.expectedArrival ? t("Planned {time}", { time: hhmm(stop.plannedArrival) }) : t("As planned"),
       window: hhmm(stop.windowClose),
-      windowStatus: status(serviceDate, stop, now),
+      windowStatus: status(serviceDate, stop, now, t),
       // Roadmap T1-04: how long the stop is expected to take, from the plan's prediction.
-      cargoText: units(stop.itemCount) + unloadText(stop.expectedServiceMinutes, stop.expectedServiceLow, stop.expectedServiceHigh),
-      instructions: access(outlet),
+      cargoText: (stop.itemCount === 1 ? t("1 unit") : t("{n} units", { n: stop.itemCount })) + unloadText(stop.expectedServiceMinutes, stop.expectedServiceLow, stop.expectedServiceHigh, t),
+      instructions: access(outlet, t),
       mapButtonType: "split",
       finished: isFinished(stop),
+      delivered: stop.outcome === "DELIVERED",
       onPhone: stop.waiting,
       doneAt: stop.completedAt ? clock(stop.completedAt) : null,
       expectedUnits: stop.itemCount,
       // The catalogue is reconstructed from order totals: a product is never shown as a real SKU.
-      deliveredItems: stop.lines.map((line) => ({ code: line.productId, category: "Inferred product", qty: line.orderedUnits })),
+      deliveredItems: stop.lines.map((line) => ({ code: line.productId, category: t("Inferred product"), qty: line.orderedUnits })),
     };
   });
 }
@@ -99,14 +107,15 @@ export function unloadText(
   minutes: number | string | null | undefined,
   low?: number | string | null,
   high?: number | string | null,
+  t: Translate = english,
 ): string {
   const m = minutes == null ? NaN : Math.round(Number(minutes));
   if (!(Number.isFinite(m) && m > 0)) return "";
   const lo = low == null ? NaN : Math.round(Number(low));
   const hi = high == null ? NaN : Math.round(Number(high));
   return Number.isFinite(lo) && Number.isFinite(hi) && hi > lo
-    ? ` · ${Math.max(1, lo)} to ${hi} min to unload`
-    : ` · about ${m} min to unload`;
+    ? t(" · {low} to {high} min to unload", { low: Math.max(1, lo), high: hi })
+    : t(" · about {n} min to unload", { n: m });
 }
 
 export { dialStyle } from "../../../shared/ui/dial.ts";
@@ -126,30 +135,50 @@ export function tripStatus(stops: Stop[]): TripStatus {
 }
 
 /** The run complete card: label and value, the empty counts left out. */
-export function summaryRows(stops: Stop[], uploadsWaiting: number): Array<[string, string]> {
+/** The run summary's labels, translated where they are drawn (tests/driver-strings.test.ts reads this). */
+export const SUMMARY_LABELS = [
+  "Stops delivered",
+  "Units delivered",
+  "Partly delivered",
+  "Not delivered",
+  "Replanned by dispatch",
+  "Proof of delivery",
+] as const;
+
+export function summaryRows(stops: Stop[], uploadsWaiting: number, t: Translate = english): Array<[string, string]> {
   const summary = summarize(stops);
   const proofs = stops.filter((stop) => stop.proofCaptured).length;
   const units = unitsHandedOver(stops);
   const rows: Array<[string, string]> = [
-    ["Stops delivered", `${summary.delivered + summary.partial} of ${summary.total}`],
-    ["Units delivered", `${units.handed} of ${units.ordered}`],
+    ["Stops delivered", t("{done} of {total}", { done: summary.delivered + summary.partial, total: summary.total })],
+    ["Units delivered", t("{done} of {total}", { done: units.handed, total: units.ordered })],
     ["Partly delivered", String(summary.partial)],
     ["Not delivered", String(summary.failed)],
     ["Replanned by dispatch", String(summary.skipped)],
-    ["Proof of delivery", `${proofs} saved${uploadsWaiting > 0 ? ` · ${uploadsWaiting} still sending` : ""}`],
+    [
+      "Proof of delivery",
+      uploadsWaiting > 0 ? t("{n} saved · {waiting} still sending", { n: proofs, waiting: uploadsWaiting }) : t("{n} saved", { n: proofs }),
+    ],
   ];
-  return rows.filter(([label, value]) => value !== "0" || label === "Stops delivered" || label === "Units delivered");
+  return rows
+    .filter(([label, value]) => value !== "0" || label === "Stops delivered" || label === "Units delivered")
+    .map(([label, value]) => [t(label), value]);
 }
 
-/** When the last stop was recorded, or null before any was. */
 export function finishedAt(stops: Stop[]): string | null {
   return stops.map((stop) => stop.completedAt).filter((value): value is string => value !== null).sort().at(-1) ?? null;
 }
 
 /** The header pill: whether this phone is in step with the server, in words (EXE-01). */
-export function syncLabel(online: boolean, uploads: number, syncedAt: Date | null, keptAt: Date | null): string {
-  if (!online) return "Offline";
-  if (uploads > 0) return `Sending ${uploads} proof ${uploads === 1 ? "file" : "files"}`;
-  if (syncedAt) return `Synced ${clock(syncedAt)}`;
-  return keptAt ? `Saved copy ${clock(keptAt)}` : "Connecting";
+export function syncLabel(
+  online: boolean,
+  uploads: number,
+  syncedAt: Date | null,
+  keptAt: Date | null,
+  t: Translate = english,
+): string {
+  if (!online) return t("Offline");
+  if (uploads > 0) return uploads === 1 ? t("Sending 1 proof file") : t("Sending {n} proof files", { n: uploads });
+  if (syncedAt) return t("Synced {time}", { time: clock(syncedAt) });
+  return keptAt ? t("Saved copy {time}", { time: clock(keptAt) }) : t("Connecting");
 }

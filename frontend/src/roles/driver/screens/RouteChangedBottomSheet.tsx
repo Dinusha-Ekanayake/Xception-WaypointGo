@@ -3,6 +3,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { cx } from "@shared/ui";
 import { VoiceMessagePlayer } from "../ui.tsx";
+import { useT } from "../i18n.tsx";
+
+/** Marks a default text as a key of data/strings.ts; it is translated where drawn. */
+const t0 = (english: string): string => english;
 
 export type RouteChangedBottomSheetProps = {
   isOpen: boolean;
@@ -18,9 +22,10 @@ export default function RouteChangedBottomSheet({
   onClose,
   onViewRoute,
   isNight = false,
-  sender = "Sent by dispatch",
-  time = "Just now",
+  sender = t0("Sent by dispatch"),
+  time = t0("Just now"),
 }: RouteChangedBottomSheetProps): React.JSX.Element | null {
+  const t = useT();
   const [isRendered, setIsRendered] = useState(isOpen);
   const [isVisible, setIsVisible] = useState(false);
 
@@ -79,7 +84,7 @@ export default function RouteChangedBottomSheet({
   return (
     <div
       role={isVisible ? "dialog" : undefined}
-      aria-label={isVisible ? "Run sheet changed" : undefined}
+      aria-label={isVisible ? t("Run sheet changed") : undefined}
       aria-modal={isVisible ? "true" : undefined}
       aria-hidden={!isVisible}
       data-state={isVisible ? "open" : "closed"}
@@ -129,7 +134,7 @@ export default function RouteChangedBottomSheet({
                   isNight ? "text-[#00BF6A]" : "text-[#0E766D]"
                 )}
               >
-                Run sheet changed
+                {t("Run sheet changed")}
               </span>
             </div>
             <span
@@ -138,7 +143,7 @@ export default function RouteChangedBottomSheet({
                 isNight ? "text-[#A9A9A9]" : "text-[#6B6B6B]"
               )}
             >
-              {time}
+              {t(time)}
             </span>
           </div>
 
@@ -149,7 +154,7 @@ export default function RouteChangedBottomSheet({
               isNight ? "text-white" : "text-black"
             )}
           >
-            Your trip has been changed
+            {t("Your trip has been changed")}
           </h3>
 
           {/* Body */}
@@ -159,7 +164,7 @@ export default function RouteChangedBottomSheet({
               isNight ? "text-[#A9A9A9]" : "text-[#6B6B6B]"
             )}
           >
-            Stops were added or reordered. Check the new run sheet before you continue.
+            {t("Stops were added or reordered. Check the new run sheet before you continue.")}
           </p>
 
           {/* From sender */}
@@ -169,11 +174,11 @@ export default function RouteChangedBottomSheet({
               isNight ? "text-white" : "text-black"
             )}
           >
-            {sender}
+            {t(sender)}
           </span>
           <VoiceMessagePlayer
             duration="0:07"
-            text="Your trip has been changed. Stops were added or reordered. Check the new run sheet before you continue."
+            text={t("Your trip has been changed. Stops were added or reordered. Check the new run sheet before you continue.")}
             isNight={isNight}
             waveform
             className="pt-2"
@@ -191,7 +196,7 @@ export default function RouteChangedBottomSheet({
               : "bg-[#031B08] text-white hover:bg-[#031B08]/90"
           )}
         >
-          View run sheet
+          {t("View run sheet")}
         </button>
       </div>
     </div>

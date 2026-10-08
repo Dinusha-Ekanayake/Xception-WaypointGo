@@ -6,6 +6,7 @@ import { useTripThread } from "@shared/messaging/useThread";
 import { SecondaryButton, SkeletonRows, TripThread, cx } from "@shared/ui";
 import type { Motion } from "../data/motion.ts";
 import { BackIcon } from "../ui.tsx";
+import { useT } from "../i18n.tsx";
 
 // The trip's thread on the driver's phone (issue #136): what the dispatcher
 // wrote to the driver or to everyone, the driver's replies to the dispatcher
@@ -39,6 +40,7 @@ export default function Messages({
   motion: Motion;
   onBack: () => void;
 }): React.JSX.Element {
+  const t = useT();
   const thread = useTripThread(tripId, accountId);
   const threadId = thread.data?.threadId ?? null;
   const [saidStopped, setSaidStopped] = useState<number | null>(null);
@@ -55,7 +57,7 @@ export default function Messages({
 
   return (
     <section
-      aria-label="Messages"
+      aria-label={t("Messages")}
       className={cx("absolute inset-0 z-50 flex flex-col gap-3 px-5 pt-6 pb-5", dark ? "go-dark bg-[#161616] text-white" : "bg-[#E7F3F2] text-go-ink")}
     >
       <header className="flex items-center gap-3">
@@ -69,7 +71,7 @@ export default function Messages({
       </header>
       {!online && (
         <p role="status" className="rounded-go-card-s bg-go-warning-tint px-3.5 py-2.5 text-[13px] text-go-warning-text">
-          No signal. What you write or record is kept on this phone and sent when the connection is back.
+          {t("No signal. What you write or record is kept on this phone and sent when the connection is back.")}
         </p>
       )}
       <div className="relative flex min-h-0 flex-1 flex-col rounded-[24px] bg-go-card p-4">
@@ -79,11 +81,13 @@ export default function Messages({
             data-testid="driving-gate"
             className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 rounded-[24px] bg-go-card px-6 text-center"
           >
-            <h2 className="text-[22px] font-medium text-go-ink">{motion === "moving" ? "You are driving" : "Stop to read and write messages"}</h2>
+            <h2 className="text-[22px] font-medium text-go-ink">{t(motion === "moving" ? "You are driving" : "Stop to read and write messages")}</h2>
             <p className="text-[15px] text-go-muted">
-              {motion === "moving"
-                ? "Messages wait here. Stop the vehicle to read and write them."
-                : "Your location is not known, so Waypoint cannot tell whether you are driving."}
+              {t(
+                motion === "moving"
+                  ? "Messages wait here. Stop the vehicle to read and write them."
+                  : "Your location is not known, so Waypoint cannot tell whether you are driving.",
+              )}
             </p>
             {motion === "unknown" && (
               <SecondaryButton
@@ -93,7 +97,7 @@ export default function Messages({
                   setNow(at);
                 }}
               >
-                I have stopped
+                {t("I have stopped")}
               </SecondaryButton>
             )}
             <p className="text-[13px] text-go-secondary">A fault or an emergency: use Report problem. It always works.</p>
@@ -102,11 +106,11 @@ export default function Messages({
         {tripId === null ? (
           <p className="py-8 text-center text-sm text-go-secondary">No trip today, so there is no one to message here.</p>
         ) : thread.loading && !thread.data ? (
-          <SkeletonRows label="Loading messages…" />
+          <SkeletonRows label={t("Loading messages…")} />
         ) : threadId === null && thread.error ? (
           <div className="flex flex-col items-center gap-3 py-8">
             <p className="text-center text-sm text-go-secondary">Messages could not be loaded. They load when the connection is back.</p>
-            <SecondaryButton onClick={thread.refresh}>Try again</SecondaryButton>
+            <SecondaryButton onClick={thread.refresh}>{t("Try again")}</SecondaryButton>
           </div>
         ) : threadId === null ? (
           <p className="py-8 text-center text-sm text-go-secondary">This trip has no messages yet.</p>

@@ -4,6 +4,7 @@ import { languageOf, pickVoice } from "@shared/messaging/speech";
 import { useEffect, useState, useCallback, useRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { PRESS, SettingsPanel, Spinner, cx, initialsOf } from "@shared/ui";
+import { useT } from "./i18n.tsx";
 
 /** Waveform bar heights exactly copied from the Figma specification */
 export const WAVEFORM_HEIGHTS = [
@@ -26,6 +27,7 @@ function DriverProfileButton({
   onSignOut?: () => void;
   isNight: boolean;
 }): React.JSX.Element {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
   // The header scales its controls, and a transformed ancestor traps a fixed
@@ -39,7 +41,7 @@ function DriverProfileButton({
         type="button"
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label={`Settings: ${displayName}`}
+        aria-label={t("Settings: {name}", { name: displayName })}
         onClick={() => setOpen(true)}
         className={cx(
           "w-[42px] h-[42px] rounded-full flex items-center justify-center border text-[14px] font-semibold shadow-[0_5px_20px_rgba(0,0,0,0.05)] active:scale-95 transition-all",
@@ -50,7 +52,7 @@ function DriverProfileButton({
       </button>
       {host &&
         createPortal(
-          <SettingsPanel displayName={displayName} roleLabel="Driver" lang={lang} onLang={(l) => onLang?.(l)} placement="frame" showInstall={false} onClose={() => setOpen(false)}>
+          <SettingsPanel displayName={displayName} roleLabel={t("Driver")} lang={lang} onLang={(l) => onLang?.(l)} placement="frame" showInstall={false} onClose={() => setOpen(false)}>
             {onSignOut && (
               <button
                 type="button"
@@ -65,7 +67,7 @@ function DriverProfileButton({
                   <polyline points="16 17 21 12 16 7" />
                   <line x1="21" y1="12" x2="9" y2="12" />
                 </svg>
-                Sign out
+                {t("Sign out")}
               </button>
             )}
           </SettingsPanel>,
@@ -92,6 +94,7 @@ export function DriverHeader({
   onToggleTheme?: () => void;
   isNight?: boolean;
 }): React.JSX.Element {
+  const t = useT();
   // Show the other two languages that the user can switch to
 
   return (
@@ -121,8 +124,8 @@ export function DriverHeader({
               ? "bg-[#292929] border-[#383838] text-white hover:bg-[#333333]"
               : "bg-white border-[#dfe7e6] text-black hover:bg-slate-50"
           )}
-          title={isNight ? "Switch to day mode" : "Switch to night mode"}
-          aria-label={isNight ? "Switch to day mode" : "Switch to night mode"}
+          title={t(isNight ? "Switch to day mode" : "Switch to night mode")}
+          aria-label={t(isNight ? "Switch to day mode" : "Switch to night mode")}
         >
           {isNight ? (
             /* Moon icon */
@@ -184,6 +187,7 @@ export function DriverMorphHeader({
   onMessages?: () => void;
   unreadMessages?: number;
 }): React.JSX.Element {
+  const t = useT();
   const isHome = activeScreen === "home";
   const isRoute = activeScreen === "route-next-stop";
   const isMap = activeScreen === "route-map";
@@ -220,7 +224,7 @@ export function DriverMorphHeader({
               ? "text-white bg-transparent hover:opacity-80"
               : "text-black bg-transparent hover:opacity-80"
           )}
-          aria-label={isMap ? "Back to run sheet" : "Go back to home"}
+          aria-label={t(isMap ? "Back to run sheet" : "Go back to home")}
         >
           <svg width="9" height="14" viewBox="0 0 9 14" fill="none">
             <path
@@ -231,7 +235,7 @@ export function DriverMorphHeader({
               strokeLinejoin="round"
             />
           </svg>
-          <span>Back</span>
+          <span>{t("Back")}</span>
         </button>
       </div>
 
@@ -281,8 +285,8 @@ export function DriverMorphHeader({
                 ? "bg-[#292929] border-[#383838] text-white hover:bg-[#333333]"
                 : "bg-white border-[#dfe7e6] text-black hover:bg-slate-50"
             )}
-            title="Messages"
-            aria-label={unreadMessages ? `Messages, ${unreadMessages} new` : "Messages"}
+            title={t("Messages")}
+            aria-label={unreadMessages ? t("Messages, {n} new", { n: unreadMessages }) : t("Messages")}
           >
             <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.9A8 8 0 1 1 21 12Z" />
@@ -304,8 +308,8 @@ export function DriverMorphHeader({
               ? "bg-[#292929] border-[#383838] text-white hover:bg-[#333333]"
               : "bg-white border-[#dfe7e6] text-black hover:bg-slate-50"
           )}
-          title={isNight ? "Switch to day mode" : "Switch to night mode"}
-          aria-label={isNight ? "Switch to day mode" : "Switch to night mode"}
+          title={t(isNight ? "Switch to day mode" : "Switch to night mode")}
+          aria-label={t(isNight ? "Switch to day mode" : "Switch to night mode")}
         >
           {isNight ? (
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -351,6 +355,7 @@ export function SlideToConfirm({
   onConfirm: () => void;
   id?: string;
 }): React.JSX.Element {
+  const t = useT();
   const track = useRef<HTMLDivElement>(null);
   const [x, setX] = useState(0);
   const dragging = useRef(false);
@@ -386,7 +391,7 @@ export function SlideToConfirm({
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={limit() === 0 ? 0 : Math.round((x / limit()) * 100)}
-      aria-valuetext="Slide across to confirm"
+      aria-valuetext={t("Slide across to confirm")}
       tabIndex={0}
       onKeyDown={(e) => {
         if ((e.key === "ArrowRight" || e.key === "Enter") && !sent.current) {
@@ -491,6 +496,7 @@ export function VoiceMessagePlayer({
   waveform = false,
   initialBars,
 }: VoiceMessagePlayerProps): React.JSX.Element {
+  const t = useT();
   const [internalIsPlaying, setInternalIsPlaying] = useState(false);
   const isPlaying =
     id !== undefined && activeAudioId !== undefined
@@ -647,8 +653,8 @@ export function VoiceMessagePlayer({
           type="button"
           onClick={handleToggle}
           className="relative flex size-11 shrink-0 items-center justify-center active:scale-95"
-          aria-label={isPlaying ? "Pause message audio" : "Listen to message"}
-          title={isPlaying ? "Pause message" : "Listen to message"}
+          aria-label={t(isPlaying ? "Pause message audio" : "Listen to message")}
+          title={t(isPlaying ? "Pause message" : "Listen to message")}
         >
           <span
             aria-hidden

@@ -22,6 +22,10 @@ Order inside the phase:
 - **KPI:** share of stops recorded in the app.
 - **Done:** a native-speaker sign-off is recorded for each language.
 
+**Scope decided 2026-10-08 (@Oxshadha):** Sinhala and Tamil are required for the driver only. The loader keeps the drafts it has; the store's drafts stay but are not required for the pilot; the dispatcher stays in English.
+
+**Driver built 2026-10-08:** every driver screen follows the language chosen in Settings (the same choice that already picked the read-aloud voice): Home, the run sheet and map, a stop, arriving, the handover and PIN, the proof, the delivery report, the problem report, driving mode, the run summary and the sheets. 337 texts in `roles/driver/data/strings.ts`, English as the key, the loader's wording reused where the English is the same (stop නැවතුම / நிறுத்தம், trip ගමන / பயணம்). What the server writes stays as written: notification bodies, refusals in its own words, outlet and vehicle names. A text that is compared in code (a gap under its field, a stop's outcome) is compared in English and translated only where drawn. `tests/driver-strings.test.ts` fails on any text a driver screen translates without a Sinhala and a Tamil row, and on a translation that drops a value; `e2e-driver/language.spec.ts` works a stop in each language and checks the commands sent are unchanged. **Drafts awaiting the native speaker's review.** Left: reply templates in the reader's language (a reply is stored as English text, so a driver reads dispatch's ready replies in English).
+
 ## FF-01 Shared report sheet
 
 - **Goal:** loader and store report damaged, short or missing goods with the same screen. Each keeps its own business command.

@@ -5,6 +5,8 @@ import { cx, useScrollMemory } from "@shared/ui";
 import { ScrollRevealCard, useRubberBandScroll } from "@shared/ui/scrollReveal";
 import type { RouteStop } from "../data/stopView.ts";
 import { SlideToConfirm } from "../ui.tsx";
+import { useT } from "../i18n.tsx";
+import type { Translate } from "../data/strings.ts";
 
 export type RouteNextStopProps = {
   /** Whether this phone is in step with the server, in words. */
@@ -32,15 +34,15 @@ const MOVING = { viewTransitionName: "vt-stop" };
 const DONE_TEXT = (night: boolean): string => (night ? "text-white/45" : "text-black/40");
 
 /** A finished stop: its outcome and when, "Delivered 05:42", and whether it is still only on this phone. */
-function doneState(stop: RouteStop): string {
-  const state = stopState(stop);
+function doneState(stop: RouteStop, t: Translate): string {
+  const state = stopState(stop, t);
   return stop.doneAt && !stop.onPhone ? `${state} ${stop.doneAt}` : state;
 }
 
 /** What a stop in the list says: its outcome, or still to do, and whether it is only on this phone. */
-function stopState(stop: RouteStop): string {
-  const state = stop.finished ? stop.windowStatus : "To do";
-  return stop.onPhone ? `${state} · on phone` : state;
+function stopState(stop: RouteStop, t: Translate): string {
+  const state = stop.finished ? stop.windowStatus : t("To do");
+  return stop.onPhone ? t("{state} · on phone", { state }) : state;
 }
 
 export default function RouteNextStop({
@@ -57,6 +59,7 @@ export default function RouteNextStop({
   movingStop = null,
   hideHeader = false,
 }: RouteNextStopProps): React.JSX.Element {
+  const t = useT();
   const [hasArrived, setHasArrived] = useState(false);
 
   // Dynamic top fade on scroll & rubber band bounce (matching HomeNoVehicle message feed)
@@ -89,7 +92,7 @@ export default function RouteNextStop({
   if (!activeStop) {
     return (
       <div className={cx("flex h-full items-center justify-center px-8 text-center font-go text-[17px]", isNight ? "bg-[#161616] text-white" : "bg-[#E7F3F2] text-black")}>
-        No stops on today's run sheet.
+        {t("No stops on today's run sheet.")}
       </div>
     );
   }
@@ -114,7 +117,7 @@ export default function RouteNextStop({
               "flex items-center gap-[9px] text-[20px] font-medium leading-[25px] h-[30px] transition-opacity active:opacity-70",
               isNight ? "text-white" : "text-black"
             )}
-            aria-label="Go back"
+            aria-label={t("Go back")}
           >
             <svg width="9" height="14" viewBox="0 0 9 14" fill="none">
               <path
@@ -125,7 +128,7 @@ export default function RouteNextStop({
                 strokeLinejoin="round"
               />
             </svg>
-            <span>Back</span>
+            <span>{t("Back")}</span>
           </button>
 
           {/* Right header controls: Sync pill + Theme toggle */}
@@ -154,7 +157,7 @@ export default function RouteNextStop({
                   ? "bg-[#292929] text-white shadow-[0px_5px_20px_rgba(0,0,0,0.09)]"
                   : "bg-white text-black shadow-[0px_5px_20px_2px_rgba(0,0,0,0.09)]"
               )}
-              aria-label="Toggle theme"
+              aria-label={t("Toggle theme")}
             >
               {isNight ? (
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -207,7 +210,7 @@ export default function RouteNextStop({
                     <button
                       type="button"
                       onClick={() => onSelectStop?.(stop.stopIndex)}
-                      aria-label={`Stop ${stop.stopNumber} ${stop.name} · ${doneState(stop)}`}
+                      aria-label={t("Stop {n} {name} · {state}", { n: stop.stopNumber, name: stop.name, state: doneState(stop, t) })}
                       className="w-full flex flex-col gap-3 text-left cursor-pointer active:opacity-70 transition-opacity"
                     >
                       <div className="flex items-center justify-between text-[14px] font-light leading-[18px]">
@@ -217,12 +220,12 @@ export default function RouteNextStop({
                       </div>
                       {/* Done: dulled, with when it was recorded, so the eye goes to the card. */}
                       <span className={cx("flex items-center gap-1.5", DONE_TEXT(isNight))}>
-                        {stop.windowStatus === "Delivered" && !stop.onPhone && (
+                        {stop.delivered && !stop.onPhone && (
                           <svg aria-hidden width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={isNight ? "#4ADE80" : "#00BF6A"} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                             <polyline points="20 6 9 17 4 12" />
                           </svg>
                         )}
-                        {doneState(stop)}
+                        {doneState(stop, t)}
                       </span>
                       </div>
                       {/* The same rule as between the stops still to come, below the card. */}
@@ -252,7 +255,7 @@ export default function RouteNextStop({
                   isNight ? "text-[#7C7583]" : "text-[#A9A9A9]"
                 )}
               >
-                Next · stop {activeStop.stopNumber} of {String(activeStop.totalStops).padStart(2, "0")}
+                {t("Next · stop {n} of {total}", { n: activeStop.stopNumber, total: String(activeStop.totalStops).padStart(2, "0") })}
               </span>
 
               {/* Dock tag */}
@@ -298,7 +301,7 @@ export default function RouteNextStop({
                 )}
               >
                 <span className={cx("text-[12px] font-light leading-[15px]", isNight ? "text-white" : "text-black")}>
-                  Expected
+                  {t("Expected")}
                 </span>
                 <span className={cx("text-[42px] font-medium leading-[50px] tracking-tight", isNight ? "text-white" : "text-black")}>
                   {activeStop.eta}
@@ -313,7 +316,7 @@ export default function RouteNextStop({
                 className="h-[105px] rounded-[24px] border border-[#B7F2ED] flex flex-col items-center justify-center p-2"
               >
                 <span className={cx("text-[12px] font-light leading-[15px]", isNight ? "text-white" : "text-black")}>
-                  Window
+                  {t("Window")}
                 </span>
                 <span className={cx("text-[42px] font-medium leading-[50px] tracking-tight", isNight ? "text-white" : "text-black")}>
                   {activeStop.window}
@@ -356,13 +359,13 @@ export default function RouteNextStop({
                     <line x1="8" y1="2" x2="8" y2="18" />
                     <line x1="16" y1="6" x2="16" y2="22" />
                   </svg>
-                  <span className="text-[18px] font-medium leading-[23px]">Open map</span>
+                  <span className="text-[18px] font-medium leading-[23px]">{t("Open map")}</span>
                 </button>
 
                 <SlideToConfirm
                   id="arrived-btn"
-                  label="I've arrived"
-                  doneLabel="Arrived · Unloading"
+                  label={t("I've arrived")}
+                  doneLabel={t("Arrived · Unloading")}
                   done={hasArrived}
                   isNight={isNight}
                   onConfirm={() => {
@@ -391,7 +394,7 @@ export default function RouteNextStop({
                       <line x1="8" y1="2" x2="8" y2="18" />
                       <line x1="16" y1="6" x2="16" y2="22" />
                     </svg>
-                    <span className="text-[18px] font-medium leading-[23px]">Map</span>
+                    <span className="text-[18px] font-medium leading-[23px]">{t("Map")}</span>
                   </button>
 
                   {/* Report Problem button */}
@@ -405,15 +408,15 @@ export default function RouteNextStop({
                         : "bg-[#B7F2ED] text-black hover:bg-[#a8eae4]"
                     )}
                   >
-                    <span className="text-[18px] font-medium leading-[23px] truncate">Report problem</span>
+                    <span className="text-[18px] font-medium leading-[23px] truncate">{t("Report problem")}</span>
                   </button>
                 </div>
 
                 <div className="mt-3.5">
                   <SlideToConfirm
                     id="arrived-btn"
-                    label="I've arrived"
-                    doneLabel="Arrived · Unloading"
+                    label={t("I've arrived")}
+                    doneLabel={t("Arrived · Unloading")}
                     done={hasArrived}
                     isNight={isNight}
                     onConfirm={() => {
@@ -439,7 +442,7 @@ export default function RouteNextStop({
                   <button
                     type="button"
                     onClick={() => onSelectStop?.(stop.stopIndex)}
-                    aria-label={`Stop ${stop.stopNumber} ${stop.name} · ${stopState(stop)}`}
+                    aria-label={t("Stop {n} {name} · {state}", { n: stop.stopNumber, name: stop.name, state: stopState(stop, t) })}
                     className="w-full text-left flex flex-col gap-3 cursor-pointer active:opacity-70 transition-opacity"
                   >
                     <div className="flex items-center justify-between text-[14px] font-light leading-[18px]">
@@ -447,7 +450,7 @@ export default function RouteNextStop({
                         <span className={cx(isNight ? "text-white" : "text-black")}>{stop.stopNumber}</span>
                         <span className={cx(isNight ? "text-white" : "text-black")}>{stop.name}</span>
                       </div>
-                      <span className={cx(isNight ? "text-white" : "text-black")}>{stop.finished ? stopState(stop) : stop.eta}</span>
+                      <span className={cx(isNight ? "text-white" : "text-black")}>{stop.finished ? stopState(stop, t) : stop.eta}</span>
                     </div>
 
                     {i < upcomingStops.length - 1 && (

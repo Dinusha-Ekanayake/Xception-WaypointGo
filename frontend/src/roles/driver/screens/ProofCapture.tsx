@@ -4,6 +4,10 @@ import { useState } from "react";
 import { MAX_ATTACHMENT_BYTES, shrink } from "../data/image.ts";
 import { Banner, Field, input } from "../ui.tsx";
 import SignaturePad from "./SignaturePad.tsx";
+import { useT } from "../i18n.tsx";
+import { translate, type Translate } from "../data/strings.ts";
+
+const english: Translate = (text, vars) => translate("en", text, vars);
 
 // Proof of delivery (R-EXE-01): who received it, a signature, a photo. A phone
 // that cannot capture never blocks the work (R-EXE-11): the driver says why and
@@ -19,13 +23,14 @@ export type ProofDraft = {
 export const EMPTY_PROOF: ProofDraft = { recipientName: "", signature: null, photo: null, fallbackReason: "" };
 
 /** What the proof still needs before it can be saved, or null. */
-export function proofMissing(proof: ProofDraft): string | null {
+export function proofMissing(proof: ProofDraft, t: Translate = english): string | null {
   if (proof.signature || proof.photo) return null;
   if (proof.fallbackReason.trim()) return null;
-  return "Add a signature or a photo, or say why neither could be captured.";
+  return t("Add a signature or a photo, or say why neither could be captured.");
 }
 
 export default function ProofCapture({ proof, onChange }: { proof: ProofDraft; onChange: (proof: ProofDraft) => void }): React.JSX.Element {
+  const t = useT();
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [cannot, setCannot] = useState(false);
 
@@ -36,36 +41,39 @@ export default function ProofCapture({ proof, onChange }: { proof: ProofDraft; o
       const small = await shrink(file);
       if (small.size > MAX_ATTACHMENT_BYTES) {
         // EXE-09: too large even after shrinking. Offer the fallback, never block.
-        setPhotoError("The photo is too large to send. Take it again from further back, or record why there is no photo.");
+        setPhotoError(t("The photo is too large to send. Take it again from further back, or record why there is no photo."));
         onChange({ ...proof, photo: null });
         return;
       }
       onChange({ ...proof, photo: small });
     } catch {
-      setPhotoError("This phone could not read the photo. Try again, or record why there is no photo.");
+      setPhotoError(t("This phone could not read the photo. Try again, or record why there is no photo."));
       onChange({ ...proof, photo: null });
     }
   };
 
   return (
     <div className="flex flex-col gap-4">
-      <Field label="Received by">
+      <Field label={t("Received by")}>
         <input
           className={input}
           value={proof.recipientName}
           maxLength={120}
           autoComplete="off"
-          placeholder="Name of the person receiving"
+          placeholder={t("Name of the person receiving")}
           onChange={(event) => onChange({ ...proof, recipientName: event.target.value })}
         />
       </Field>
 
       <div className="flex flex-col gap-1.5">
-        <span className="text-[15px] font-medium text-go-ink">Signature</span>
+        <span className="text-[15px] font-medium text-go-ink">{t("Signature")}</span>
         <SignaturePad onChange={(signature) => onChange({ ...proof, signature })} />
       </div>
 
-      <Field label="Photo of the delivery" hint={proof.photo ? `Photo ready · ${Math.round(proof.photo.size / 1024)} KB` : "Optional when there is a signature."}>
+      <Field
+        label={t("Photo of the delivery")}
+        hint={proof.photo ? t("Photo ready · {kb} KB", { kb: Math.round(proof.photo.size / 1024) }) : t("Optional when there is a signature.")}
+      >
         <input
           type="file"
           accept="image/*"
@@ -86,15 +94,15 @@ export default function ProofCapture({ proof, onChange }: { proof: ProofDraft; o
             if (!event.target.checked) onChange({ ...proof, fallbackReason: "" });
           }}
         />
-        I can't capture a signature or a photo
+        {t("I can't capture a signature or a photo")}
       </label>
       {cannot && (
-        <Field label="Why not?" hint="The delivery is still recorded, marked as lower evidence.">
+        <Field label={t("Why not?")} hint={t("The delivery is still recorded, marked as lower evidence.")}>
           <input
             className={input}
             value={proof.fallbackReason}
             maxLength={300}
-            placeholder="For example: camera not working, receiver refused to sign"
+            placeholder={t("For example: camera not working, receiver refused to sign")}
             onChange={(event) => onChange({ ...proof, fallbackReason: event.target.value })}
           />
         </Field>

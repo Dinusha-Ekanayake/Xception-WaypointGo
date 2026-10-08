@@ -9,6 +9,7 @@ import { countdown } from "@shared/wording";
 import { Sheet } from "@shared/ui";
 import type { Stop } from "../data/run.ts";
 import { ActionButton, Banner, OutlineButton, SoftButton } from "../ui.tsx";
+import { useT } from "../i18n.tsx";
 
 // The driver's sheets: Figma "Driver: Report a problem", "Sign out: confirm"
 // and the confirmed popup. A row sends when it is slid across, so a tap does
@@ -26,7 +27,8 @@ const VOICE_MS = VOICE_MAX_MS;
 const HANDLE = 52;
 const INSET = 6;
 
-const CHOICES: Array<{ id: string; label: string; problem: () => Problem; onStop: boolean }> = [
+/** Labels drawn translated; tests/driver-strings.test.ts checks each has its row. */
+export const CHOICES: Array<{ id: string; label: string; problem: () => Problem; onStop: boolean }> = [
   { id: "late", label: "Running late", onStop: true, problem: () => ({ kind: "report", fault: "road", description: "Running late" }) },
   { id: "unload", label: "Cannot unload here", onStop: true, problem: () => ({ kind: "not-delivered", reason: "access_blocked" }) },
   { id: "nobody", label: "No one at the outlet", onStop: true, problem: () => ({ kind: "not-delivered", reason: "outlet_closed" }) },
@@ -36,6 +38,7 @@ const CHOICES: Array<{ id: string; label: string; problem: () => Problem; onStop
 
 /** A row that sends only when slid across. Arrow right or Enter does the same for a keyboard. */
 export function SlideRow({ label, disabled, onSend }: { label: string; disabled: boolean; onSend: () => Promise<boolean> }): React.JSX.Element {
+  const t = useT();
   const track = useRef<HTMLDivElement>(null);
   const [x, setX] = useState(0);
   const dragging = useRef(false);
@@ -67,7 +70,7 @@ export function SlideRow({ label, disabled, onSend }: { label: string; disabled:
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={limit() === 0 ? 0 : Math.round((x / limit()) * 100)}
-      aria-valuetext="Slide right to send"
+      aria-valuetext={t("Slide right to send")}
       aria-disabled={disabled}
       tabIndex={disabled ? -1 : 0}
       onKeyDown={(e) => {
@@ -144,6 +147,7 @@ export function ProblemSheet({
   onSend: (problem: Problem) => Promise<boolean>;
   onClose: () => void;
 }): React.JSX.Element {
+  const t = useT();
   const thread = useTripThread(tripId, accountId);
   const recorder = useRecorder();
   const [sent, setSent] = useState<string | null>(null);
@@ -178,7 +182,7 @@ export function ProblemSheet({
     const note = recorder.state.status === "recording" ? await recorder.stop() : recorder.state.status === "ready" ? recorder.state.recording : null;
     if (!note) {
       sending.current = false;
-      setVoiceError("That was too short to send. Tap and speak, then tap again to send it.");
+      setVoiceError(t("That was too short to send. Tap and speak, then tap again to send it."));
       return;
     }
     const threadId = thread.data?.threadId ?? null;
@@ -202,7 +206,7 @@ export function ProblemSheet({
       }
       setSent("Voice note");
     } catch (failure) {
-      setVoiceError(failure instanceof Error ? failure.message : "The voice note could not be sent.");
+      setVoiceError(failure instanceof Error ? failure.message : t("The voice note could not be sent."));
     } finally {
       sending.current = false;
     }
@@ -215,16 +219,16 @@ export function ProblemSheet({
 
   if (sent) {
     return (
-      <Sheet label="Report sent" onClose={onClose} placement="frame">
+      <Sheet label={t("Report sent")} onClose={onClose} placement="frame">
         <div role="status" aria-live="polite">
-          <h2 className="text-[26px] font-medium text-go-ink">Report sent</h2>
+          <h2 className="text-[26px] font-medium text-go-ink">{t("Report sent")}</h2>
           <p className="mt-1 text-[15px] text-go-muted">
-            {sent}
-            {stop ? ` · Stop ${String(stop.sequence).padStart(2, "0")} · ${stop.outletId}` : ""}
+            {t(sent)}
+            {stop ? ` · ${t("Stop {n} · {name}", { n: String(stop.sequence).padStart(2, "0"), name: stop.outletId })}` : ""}
           </p>
-          <p className="mt-2 text-[14px] text-go-muted">This closes on its own in a few seconds.</p>
+          <p className="mt-2 text-[14px] text-go-muted">{t("This closes on its own in a few seconds.")}</p>
         </div>
-        <ActionButton onClick={onClose}>Okay</ActionButton>
+        <ActionButton onClick={onClose}>{t("Okay")}</ActionButton>
       </Sheet>
     );
   }
@@ -233,17 +237,17 @@ export function ProblemSheet({
   const mic = recorder.state.status === "unavailable" ? recorder.state.reason : null;
 
   return (
-    <Sheet label="Report a problem" onClose={onClose} placement="frame">
+    <Sheet label={t("Report a problem")} onClose={onClose} placement="frame">
       <div>
-        <h2 className="text-[26px] font-medium text-go-ink">Report a problem</h2>
+        <h2 className="text-[26px] font-medium text-go-ink">{t("Report a problem")}</h2>
         <p className="text-[15px] text-go-muted">
-          {stop ? `Stop ${String(stop.sequence).padStart(2, "0")} · ${stop.outletId}` : "About the vehicle"}
-          {" · slide a row right to send it"}
+          {stop ? t("Stop {n} · {name}", { n: String(stop.sequence).padStart(2, "0"), name: stop.outletId }) : t("About the vehicle")}
+          {t(" · slide a row right to send it")}
         </p>
       </div>
       <div className="flex flex-col gap-2.5">
         {choices.map((c) => (
-          <SlideRow key={c.id} label={c.label} disabled={busy || sending.current} onSend={() => sendChoice(c)} />
+          <SlideRow key={c.id} label={t(c.label)} disabled={busy || sending.current} onSend={() => sendChoice(c)} />
         ))}
       </div>
       <p className="text-[14px] text-go-muted">None of these? Record a voice note to explain.</p>
@@ -266,7 +270,7 @@ export function ProblemSheet({
           </span>
         </span>
         <span className="text-[18px] font-medium text-go-ink">
-          {recording ? `Recording · ${countdown(Math.ceil((VOICE_MS - elapsed) / 1000))} left · tap to send` : "Tap to record"}
+          {recording ? t("Recording · {time} left · tap to send", { time: countdown(Math.ceil((VOICE_MS - elapsed) / 1000)) }) : t("Tap to record")}
         </span>
       </button>
       {mic && <p className="text-[14px] text-go-muted">{mic}</p>}
@@ -277,7 +281,7 @@ export function ProblemSheet({
         onClick={onClose}
         className="flex h-[64px] w-full max-w-[295px] items-center justify-center self-center rounded-[22px] border border-go-muted bg-transparent text-[20px] font-medium leading-[25px] text-go-ink transition-all active:scale-[0.99]"
       >
-        Close
+        {t("Close")}
       </button>
     </Sheet>
   );
@@ -302,19 +306,22 @@ export function SavedSheet({
   last: boolean;
   onNext: () => void;
 }): React.JSX.Element {
+  const t = useT();
   return (
     <Sheet label={title} onClose={onNext}>
       <div role="status" aria-live="polite">
         <h2 className="text-[26px] font-medium text-go-ink">{title}</h2>
         <p className="mt-1 text-[15px] text-go-muted">
-          {onPhone
-            ? "Saved on this phone. It is sent to dispatch as soon as the connection is back; keep the app installed until then."
-            : "Saved and sent to dispatch."}
+          {t(
+            onPhone
+              ? "Saved on this phone. It is sent to dispatch as soon as the connection is back; keep the app installed until then."
+              : "Saved and sent to dispatch.",
+          )}
         </p>
       </div>
       {warning && <Banner tone="warn" title={warning} />}
-      {onHandover && <OutlineButton onClick={onHandover}>Enter store manager PIN</OutlineButton>}
-      <ActionButton onClick={onNext}>{last ? "Finish run" : "Next stop"}</ActionButton>
+      {onHandover && <OutlineButton onClick={onHandover}>{t("Enter store manager PIN")}</OutlineButton>}
+      <ActionButton onClick={onNext}>{t(last ? "Finish run" : "Next stop")}</ActionButton>
     </Sheet>
   );
 }
@@ -331,23 +338,32 @@ export function SignOutSheet({
   onSignOut: () => void;
   onClose: () => void;
 }): React.JSX.Element {
+  const t = useT();
   return (
-    <Sheet label="Sign out" onClose={onClose}>
+    <Sheet label={t("Sign out")} onClose={onClose}>
       <div className="rounded-[22px] bg-go-surface p-5">
-        <h2 className="text-[24px] font-medium text-go-ink">Sign out of GO?</h2>
+        <h2 className="text-[24px] font-medium text-go-ink">{t("Sign out of GO?")}</h2>
         {waiting > 0 ? (
           <p className="mt-1 text-[16px] text-go-ink">
-            {waiting} {waiting === 1 ? "record is" : "records are"} still only on this phone.{" "}
-            {online
-              ? `Wait for ${waiting === 1 ? "it" : "them"} to be sent, or review anything Waypoint refused, before you sign out.`
-              : `Reconnect so ${waiting === 1 ? "it" : "they"} can be sent before you sign out.`}
+            {waiting === 1
+              ? t(
+                  online
+                    ? "1 record is still only on this phone. Wait for it to be sent, or review anything Waypoint refused, before you sign out."
+                    : "1 record is still only on this phone. Reconnect so it can be sent before you sign out.",
+                )
+              : t(
+                  online
+                    ? "{n} records are still only on this phone. Wait for them to be sent, or review anything Waypoint refused, before you sign out."
+                    : "{n} records are still only on this phone. Reconnect so they can be sent before you sign out.",
+                  { n: waiting },
+                )}
           </p>
         ) : (
-          <p className="mt-1 text-[16px] text-go-muted">You'll need your email and password to sign in again. Your work is saved and sent.</p>
+          <p className="mt-1 text-[16px] text-go-muted">{t("You'll need your email and password to sign in again. Your work is saved and sent.")}</p>
         )}
       </div>
-      {waiting === 0 ? <ActionButton onClick={onSignOut}>Sign out</ActionButton> : <SoftButton onClick={onClose}>Stay signed in</SoftButton>}
-      {waiting === 0 && <OutlineButton onClick={onClose}>Cancel</OutlineButton>}
+      {waiting === 0 ? <ActionButton onClick={onSignOut}>{t("Sign out")}</ActionButton> : <SoftButton onClick={onClose}>{t("Stay signed in")}</SoftButton>}
+      {waiting === 0 && <OutlineButton onClick={onClose}>{t("Cancel")}</OutlineButton>}
     </Sheet>
   );
 }

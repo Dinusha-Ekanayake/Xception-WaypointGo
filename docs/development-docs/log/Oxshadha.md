@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-08 - feat: the driver works in Sinhala and Tamil (FF-00)
+
+`dev` · @Oxshadha
+
+- Scope decided: Sinhala and Tamil for the driver only; the loader keeps its drafts, the store's stay unrequired, the dispatcher stays English.
+- Every driver screen follows the language already chosen in Settings: 337 texts in `roles/driver/data/strings.ts`, the loader's wording where the English matches. Only words change, no layout or flow (role UI rule: a translation, not a redesign). Text compared in code stays English and is translated where drawn; a stop's delivered tick reads a flag now, not its status text.
+- Guarded by `tests/driver-strings.test.ts` (every translated text has both rows, values kept) and `e2e-driver/language.spec.ts` (a stop worked in each language, the same commands sent). Drafts for the native speaker. Left: ready replies in the reader's language.
+
+---
+
 ## 2026-10-08 - fix: the model service image installs no GPU library
 
 `dev` · @Oxshadha

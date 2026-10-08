@@ -24,6 +24,13 @@ import type { ProofDraft } from "./screens/ProofCapture.tsx";
 import type { Problem } from "./screens/Sheets.tsx";
 import { addDays, businessNow, depotHour, depotToday } from "@shared/wording";
 
+/**
+ * Marks a fixed message as a key of data/strings.ts. The message is kept in
+ * English and translated where it is drawn, in the driver's language (FF-00);
+ * the server's own wording of a refusal is shown as the server wrote it.
+ */
+const t = (english: string): string => english;
+
 // What the driver's screens do, as commands. Every write goes through useRun,
 // which keeps it on the phone when it cannot be sent, so a day with no signal
 // loses nothing (EXE-01). The screens in index.tsx only draw what this returns.
@@ -290,7 +297,7 @@ export function useDriver(userId: string, depot: string | null = null) {
         setError(words(recorded));
         return false;
       }
-      if (recorded.queued) setNotice("Handover saved on this phone. The store is told when the connection is back.");
+      if (recorded.queued) setNotice(t("Handover saved on this phone. The store is told when the connection is back."));
       return true;
     } finally {
       setWorking(false);
@@ -331,7 +338,7 @@ export function useDriver(userId: string, depot: string | null = null) {
           setError(
             failure instanceof ApiError
               ? `You moved on, but the issue was not raised: ${failure.message}`
-              : "You moved on, but the issue could not be raised with no connection. Use Report problem when the signal is back.",
+              : t("You moved on, but the issue could not be raised with no connection. Use Report problem when the signal is back."),
           );
         }
       }
@@ -374,7 +381,7 @@ export function useDriver(userId: string, depot: string | null = null) {
       // The record moved the stop's version on by one, sent or waiting.
       const proven = report.proof ? await captureProof(stop, stop.rowVersion + 1, report.proof) : null;
       setSaved({
-        title: record.outcome === "DELIVERED" ? "Delivery confirmed" : record.outcome === "PARTIAL" ? "Partial delivery recorded" : "Recorded as not delivered",
+        title: record.outcome === "DELIVERED" ? t("Delivery confirmed") : record.outcome === "PARTIAL" ? t("Partial delivery recorded") : t("Recorded as not delivered"),
         onPhone: recorded.queued || (proven?.ok === true && proven.queued),
         last: stops.every((other) => other.deliveryId === stop.deliveryId || isFinished(other)),
         warning: proven && !proven.ok ? `The delivery is recorded, but its proof was not: ${proven.error.message} Open the stop from Home to add it.` : null,
@@ -392,7 +399,7 @@ export function useDriver(userId: string, depot: string | null = null) {
     try {
       const outcome = await captureProof(stop, stop.rowVersion, proof);
       if (!outcome.ok) return setError(words(outcome));
-      setNotice(outcome.queued ? "Proof saved on this phone. It is sent when the connection is back." : "Proof saved and sent.");
+      setNotice(outcome.queued ? t("Proof saved on this phone. It is sent when the connection is back.") : t("Proof saved and sent."));
     } finally {
       setWorking(false);
     }
@@ -428,7 +435,7 @@ export function useDriver(userId: string, depot: string | null = null) {
     }
     // The sheet stays up long enough to show Report sent, then closes itself; that
     // is the confirmation. Only a report still on the phone says so afterwards.
-    if (outcome.queued) setNotice("Report saved on this phone. Dispatch gets it when the connection is back.");
+    if (outcome.queued) setNotice(t("Report saved on this phone. Dispatch gets it when the connection is back."));
     return true;
   };
 
@@ -438,7 +445,7 @@ export function useDriver(userId: string, depot: string | null = null) {
     const outcome = await act(ExecutionCommandKind.reportVehicleStatus, { vehicleId: run.vehicle.vehicleId, status, note: null });
     if (!outcome.ok) return setError(words(outcome));
     setVehicleStatus(status);
-    setNotice(outcome.queued ? "Vehicle status saved on this phone." : "Vehicle status sent to dispatch.");
+    setNotice(outcome.queued ? t("Vehicle status saved on this phone.") : t("Vehicle status sent to dispatch."));
   };
 
   // R-EXE-24: today's trip is published and waiting for the loader; the driver
@@ -454,7 +461,7 @@ export function useDriver(userId: string, depot: string | null = null) {
     const outcome = await act(ExecutionCommandKind.arriveAtDepot, { vehicleId: waitingToday });
     if (!outcome.ok) return setError(words(outcome));
     setAtDepot();
-    setNotice(outcome.queued ? "Saved on this phone. The loader is told when the connection is back." : "The loader knows you are here.");
+    setNotice(outcome.queued ? t("Saved on this phone. The loader is told when the connection is back.") : t("The loader knows you are here."));
   };
 
   /**
@@ -469,10 +476,10 @@ export function useDriver(userId: string, depot: string | null = null) {
       return { outcome: result.outcome, attemptsLeft: result.attemptsLeft };
     } catch (failure) {
       if (failure instanceof ApiError && failure.code === "FORBIDDEN" && /no handover PIN/i.test(failure.message)) {
-        return { error: "The store manager has not confirmed the receipt yet, so there is no PIN to check. Ask them to confirm it, or skip." };
+        return { error: t("The store manager has not confirmed the receipt yet, so there is no PIN to check. Ask them to confirm it, or skip.") };
       }
       if (failure instanceof ApiError) return { error: failure.message };
-      return { error: "Waypoint is not answering. The delivery is recorded; you can skip the PIN." };
+      return { error: t("Waypoint is not answering. The delivery is recorded; you can skip the PIN.") };
     }
   };
 

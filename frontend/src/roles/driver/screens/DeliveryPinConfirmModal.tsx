@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { cx } from "@shared/ui";
+import { useT } from "../i18n.tsx";
 
 // The store's one-time handover PIN (R-RCP-09, issue #117). The store manager
 // reads it from their screen and the driver types it here; the server checks
@@ -23,11 +24,6 @@ export type DeliveryPinConfirmModalProps = {
   online: boolean;
 };
 
-const MESSAGE = {
-  WRONG: (left: number) => `That PIN is not right. ${left} ${left === 1 ? "try" : "tries"} left.`,
-  LOCKED: "Too many wrong tries. The store manager can issue a new PIN; the delivery is recorded either way.",
-  EXPIRED: "This PIN has expired. The store manager can issue a new one; the delivery is recorded either way.",
-};
 
 export default function DeliveryPinConfirmModal({
   isOpen,
@@ -37,6 +33,12 @@ export default function DeliveryPinConfirmModal({
   stopName,
   online,
 }: DeliveryPinConfirmModalProps): React.JSX.Element | null {
+  const t = useT();
+  const MESSAGE = {
+    WRONG: (left: number) => (left === 1 ? t("That PIN is not right. 1 try left.") : t("That PIN is not right. {n} tries left.", { n: left })),
+    LOCKED: t("Too many wrong tries. The store manager can issue a new PIN; the delivery is recorded either way."),
+    EXPIRED: t("This PIN has expired. The store manager can issue a new one; the delivery is recorded either way."),
+  };
   const [pin, setPin] = useState("");
   const [step, setStep] = useState<"pin" | "confirmed">("pin");
   const [checking, setChecking] = useState(false);
@@ -71,7 +73,7 @@ export default function DeliveryPinConfirmModal({
     setWrong(false);
     const answer = await onVerify(pin);
     setChecking(false);
-    if ("error" in answer) return setMessage(answer.error);
+    if ("error" in answer) return setMessage(t(answer.error));
     if (answer.outcome === "VERIFIED" || answer.outcome === "ALREADY_CONFIRMED") return setStep("confirmed");
     setPin("");
     window.setTimeout(() => input.current?.focus(), 30);
@@ -94,12 +96,12 @@ export default function DeliveryPinConfirmModal({
   );
 
   return (
-    <div role="dialog" aria-modal="true" aria-label="Store manager PIN" className="absolute inset-0 z-50 flex items-center justify-center p-6 animate-fade-in">
+    <div role="dialog" aria-modal="true" aria-label={t("Store manager PIN")} className="absolute inset-0 z-50 flex items-center justify-center p-6 animate-fade-in">
       <div className="absolute inset-0 bg-black/35 backdrop-blur-[7px]" onClick={onClose} />
 
       {step === "pin" && (
         <div onClick={(e) => e.stopPropagation()} className={cx(card, "pt-8 pb-7 gap-[18px]")}>
-          <h3 className="text-[20px] font-medium leading-[25px] text-center">Enter store manager PIN</h3>
+          <h3 className="text-[20px] font-medium leading-[25px] text-center">{t("Enter store manager PIN")}</h3>
           <p className={cx("text-[14px] font-light text-center", isNight ? "text-[#A9A9A9]" : "text-[#6B7280]")}>
             {stopName} · the PIN is on the store manager's screen
           </p>
@@ -132,14 +134,14 @@ export default function DeliveryPinConfirmModal({
               autoComplete="one-time-code"
               maxLength={4}
               disabled={finished || !online}
-              aria-label="Store manager PIN"
+              aria-label={t("Store manager PIN")}
               className="absolute inset-0 opacity-0"
             />
           </label>
 
           {!online && (
             <p role="status" className="text-[14px] text-center">
-              No signal: the PIN can be checked once you are back online. The delivery is already recorded.
+              {t("No signal: the PIN can be checked once you are back online. The delivery is already recorded.")}
             </p>
           )}
           {message && (
@@ -150,13 +152,13 @@ export default function DeliveryPinConfirmModal({
 
           {!finished && online && (
             <button type="button" onClick={() => void verify()} disabled={pin.length !== 4 || checking} className={primary}>
-              {checking ? "Checking…" : "Confirm"}
+              {t(checking ? "Checking…" : "Confirm")}
             </button>
           )}
           {/* Only when the PIN can no longer be entered here: locked, expired, or no signal. */}
           {(finished || !online) && (
             <button type="button" onClick={onClose} className="text-[16px] underline">
-              Close
+              {t("Close")}
             </button>
           )}
         </div>
@@ -169,10 +171,10 @@ export default function DeliveryPinConfirmModal({
               <polyline points="20 6 9 17 4 12" />
             </svg>
           </div>
-          <h3 className="text-[22px] font-medium leading-[28px] mt-[18px]">Handover confirmed</h3>
+          <h3 className="text-[22px] font-medium leading-[28px] mt-[18px]">{t("Handover confirmed")}</h3>
           <p className="text-[15px] font-light leading-[19px] mt-[6px]">{stopName}</p>
           <p className={cx("text-[13px] font-light leading-[16px] mt-[6px]", isNight ? "text-[#A9A9A9]" : "text-[#6B7280]")}>
-            The store manager's PIN matched
+            {t("The store manager's PIN matched")}
           </p>
         </div>
       )}

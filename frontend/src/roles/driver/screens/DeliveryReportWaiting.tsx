@@ -4,6 +4,7 @@ import type { ReceiptAnswerView } from "@shared/domain/types";
 import type { RouteStop } from "../data/stopView.ts";
 import type { HandoverPhase } from "../data/handover.ts";
 import { SlideToConfirm } from "../ui.tsx";
+import { useT } from "../i18n.tsx";
 
 export type DeliveryReportWaitingProps = {
   /** Whether this phone is in step with the server, in words. */
@@ -53,6 +54,7 @@ export default function DeliveryReportWaiting({
   onToggleTheme,
   stopIndex = 0,
 }: DeliveryReportWaitingProps): React.JSX.Element {
+  const t = useT();
   // The store's report replaces the waiting view as soon as it is in.
   const viewState = phase === "answered" || phase === "accepted" ? "report" : "waiting";
 
@@ -65,20 +67,21 @@ export default function DeliveryReportWaiting({
   // The catalogue is reconstructed from order totals: a product is never shown as a real SKU.
   const deliveredItems = lines.map((line) => ({
     code: line.productId,
-    category: "Inferred product",
+    category: t("Inferred product"),
     qty: line.receivedQuantity ?? line.expectedQuantity,
     expected: line.expectedQuantity,
   }));
   const handover = answer?.handover ?? null;
   const pinClosed = handover !== null && (handover.status === "LOCKED" || handover.status === "EXPIRED");
-  const verdict =
+  const verdict = t(
     answer?.status === "CONFIRMED"
       ? "All received"
       : answer?.status === "PARTIAL"
         ? "Part received"
         : answer?.status === "DISPUTED"
           ? "Disputed by the store"
-          : "The store's report";
+          : "The store's report",
+  );
 
   if (!currentStop) return <></>;
 
@@ -124,7 +127,7 @@ export default function DeliveryReportWaiting({
                   "flex items-center gap-[9px] text-[20px] font-medium leading-[25px] h-[30px] transition-opacity active:opacity-70",
                   isNight ? "text-white" : "text-black"
                 )}
-                aria-label="Go back"
+                aria-label={t("Go back")}
               >
                 <svg width="9" height="14" viewBox="0 0 9 14" fill="none">
                   <path
@@ -135,7 +138,7 @@ export default function DeliveryReportWaiting({
                     strokeLinejoin="round"
                   />
                 </svg>
-                <span>Back</span>
+                <span>{t("Back")}</span>
               </button>
 
               {/* Right controls */}
@@ -164,7 +167,7 @@ export default function DeliveryReportWaiting({
                       ? "bg-[#292929] text-white shadow-[0px_5px_20px_rgba(0,0,0,0.09)]"
                       : "bg-white text-black shadow-[0px_5px_20px_2px_rgba(0,0,0,0.09)]"
                   )}
-                  aria-label="Toggle theme"
+                  aria-label={t("Toggle theme")}
                 >
                   {isNight ? (
                     <svg
@@ -213,7 +216,7 @@ export default function DeliveryReportWaiting({
                   isNight ? "text-[#FFFFFF]" : "text-[#000000]"
                 )}
               >
-                Stop {currentStop.stopNumber} · Delivery
+                {t("Stop {n} · Delivery", { n: currentStop.stopNumber })}
               </span>
               <h1
                 className={cx(
@@ -265,7 +268,7 @@ export default function DeliveryReportWaiting({
                     isNight ? "text-[#FFFFFF]" : "text-[#000000]"
                   )}
                 >
-                  {phase === "arrived" ? "At the stop" : phase === "left" ? "You moved on" : "Waiting for store confirmation"}
+                  {t(phase === "arrived" ? "At the stop" : phase === "left" ? "You moved on" : "Waiting for store confirmation")}
                 </h2>
                 <p
                   className={cx(
@@ -274,12 +277,14 @@ export default function DeliveryReportWaiting({
                   )}
                 >
                   {phase === "arrived"
-                    ? "Unload the goods, then slide Hand over. The store checks what arrived and their report appears here."
+                    ? t("Unload the goods, then slide Hand over. The store checks what arrived and their report appears here.")
                     : phase === "left"
-                      ? `${leftBecause ?? "You moved on"}. The store can still answer, and dispatch sees why you left.`
-                      : reachable
-                        ? "The store is checking the load. Their report appears here as soon as they send it."
-                        : "This phone cannot reach Waypoint, so the store's report cannot be shown yet. You can carry on and say why."}
+                      ? t("{reason}. The store can still answer, and dispatch sees why you left.", { reason: t(leftBecause ?? "You moved on") })
+                      : t(
+                          reachable
+                            ? "The store is checking the load. Their report appears here as soon as they send it."
+                            : "This phone cannot reach Waypoint, so the store's report cannot be shown yet. You can carry on and say why.",
+                        )}
                 </p>
               </div>
             </div>
@@ -288,7 +293,7 @@ export default function DeliveryReportWaiting({
             {/* Figma: left:49px, right:49px, bottom:34px, h:64px, radius:22px */}
             <div className="px-[49px] pb-[34px] shrink-0 flex flex-col gap-3">
               {phase === "arrived" && (
-                <SlideToConfirm label="Hand over" doneLabel="Handed over" done={busy} isNight={isNight} onConfirm={() => onHandOver?.()} />
+                <SlideToConfirm label={t("Hand over")} doneLabel={t("Handed over")} done={busy} isNight={isNight} onConfirm={() => onHandOver?.()} />
               )}
               {phase === "waiting" && (
                 <button
@@ -300,7 +305,7 @@ export default function DeliveryReportWaiting({
                     isNight ? "border-[#A9A9A9] text-white" : "border-[#6B6B6B] text-black"
                   )}
                 >
-                  Continue to next stop
+                  {t("Continue to next stop")}
                 </button>
               )}
               {phase === "left" && (
@@ -312,7 +317,7 @@ export default function DeliveryReportWaiting({
                     isNight ? "bg-[#00BF6A] text-black" : "bg-[#031B08] text-white"
                   )}
                 >
-                  Next stop
+                  {t("Next stop")}
                 </button>
               )}
               <button
@@ -325,7 +330,7 @@ export default function DeliveryReportWaiting({
                     : "bg-[#B7F2ED] text-black hover:bg-[#a8eae4]"
                 )}
               >
-                Report problem
+                {t("Report problem")}
               </button>
             </div>
           </div>
@@ -345,7 +350,7 @@ export default function DeliveryReportWaiting({
                   "flex items-center gap-[9px] text-[20px] font-medium leading-[25px] h-[30px] transition-opacity active:opacity-70",
                   isNight ? "text-white" : "text-black"
                 )}
-                aria-label="Go back"
+                aria-label={t("Go back")}
               >
                 <svg width="9" height="14" viewBox="0 0 9 14" fill="none">
                   <path
@@ -356,7 +361,7 @@ export default function DeliveryReportWaiting({
                     strokeLinejoin="round"
                   />
                 </svg>
-                <span>Back</span>
+                <span>{t("Back")}</span>
               </button>
 
               <div className="flex items-center gap-4">
@@ -384,7 +389,7 @@ export default function DeliveryReportWaiting({
                       ? "bg-[#292929] text-white shadow-[0px_5px_20px_rgba(0,0,0,0.09)]"
                       : "bg-white text-black shadow-[0px_5px_20px_2px_rgba(0,0,0,0.09)]"
                   )}
-                  aria-label="Toggle theme"
+                  aria-label={t("Toggle theme")}
                 >
                   {isNight ? (
                     <svg
@@ -435,7 +440,7 @@ export default function DeliveryReportWaiting({
                     isNight ? "text-[#FFFFFF]" : "text-[#000000]"
                   )}
                 >
-                  Stop {currentStop.stopNumber} · Delivery
+                  {t("Stop {n} · Delivery", { n: currentStop.stopNumber })}
                 </span>
                 <h1
                   className={cx(
@@ -472,7 +477,7 @@ export default function DeliveryReportWaiting({
                       isNight ? "text-[#FFFFFF]" : "text-[#000000]"
                     )}
                   >
-                    Expected
+                    {t("Expected")}
                   </span>
                   <div className="flex items-baseline justify-center gap-1.5 mt-0.5">
                     <span
@@ -489,7 +494,7 @@ export default function DeliveryReportWaiting({
                         isNight ? "text-[#FFFFFF]" : "text-[#000000]"
                       )}
                     >
-                      Units
+                      {t("Units")}
                     </span>
                   </div>
                 </div>
@@ -510,7 +515,7 @@ export default function DeliveryReportWaiting({
                       isNight ? "text-[#FFFFFF]" : "text-[#000000]"
                     )}
                   >
-                    Received
+                    {t("Received")}
                   </span>
                   <div className="flex items-baseline justify-center gap-1.5 mt-0.5">
                     <span
@@ -527,7 +532,7 @@ export default function DeliveryReportWaiting({
                         isNight ? "text-[#FFFFFF]" : "text-[#000000]"
                       )}
                     >
-                      Units
+                      {t("Units")}
                     </span>
                   </div>
                 </div>
@@ -551,7 +556,7 @@ export default function DeliveryReportWaiting({
                       isNight ? "text-[#FFFFFF]" : "text-[#000000]"
                     )}
                   >
-                    Received items
+                    {t("Received items")}
                   </span>
                   <span
                     className={cx(
@@ -571,7 +576,7 @@ export default function DeliveryReportWaiting({
                       isNight ? "text-[#FFFFFF]" : "text-[#000000]"
                     )}
                   >
-                    Unit
+                    {t("Unit")}
                   </span>
                   <span
                     className={cx(
@@ -579,7 +584,7 @@ export default function DeliveryReportWaiting({
                       isNight ? "text-[#FFFFFF]" : "text-[#000000]"
                     )}
                   >
-                    Qty
+                    {t("Qty")}
                   </span>
                 </div>
 
@@ -622,7 +627,7 @@ export default function DeliveryReportWaiting({
                           item.qty < item.expected ? "text-[#E5484D]" : isNight ? "text-[#FFFFFF]" : "text-[#000000]"
                         )}
                       >
-                        {item.qty < item.expected ? `${item.qty} of ${item.expected}` : item.qty}
+                        {item.qty < item.expected ? t("{done} of {total}", { done: item.qty, total: item.expected }) : item.qty}
                       </span>
                     </div>
 
@@ -648,7 +653,7 @@ export default function DeliveryReportWaiting({
                   )}
                 >
                   <span className={cx("text-[13px] font-light leading-[16px] block", isNight ? "text-[#A9A9A9]" : "text-[#6B6B6B]")}>
-                    The store's note
+                    {t("The store's note")}
                   </span>
                   <p className={cx("mt-1 text-[15px] leading-[20px]", isNight ? "text-white" : "text-black")}>{answer.note}</p>
                 </div>
@@ -673,7 +678,7 @@ export default function DeliveryReportWaiting({
               {phase === "accepted" ? (
                 <>
                   <p role="status" className={cx("text-center text-[15px] font-medium", isNight ? "text-[#00BF6A]" : "text-[#0E766D]")}>
-                    Accepted with the store's PIN
+                    {t("Accepted with the store's PIN")}
                   </p>
                   <button
                     type="button"
@@ -683,14 +688,15 @@ export default function DeliveryReportWaiting({
                       isNight ? "bg-[#00BF6A] text-black" : "bg-[#031B08] text-white"
                     )}
                   >
-                    Next stop
+                    {t("Next stop")}
                   </button>
                 </>
               ) : (
                 <>
                   {pinClosed ? (
                     <p role="status" className={cx("text-center text-[14px]", isNight ? "text-[#A9A9A9]" : "text-[#6B6B6B]")}>
-                      {handover?.status === "LOCKED" ? "The PIN is locked after too many tries." : "The PIN has expired."} Ask the store for a new one, or carry on.
+                      {t(handover?.status === "LOCKED" ? "The PIN is locked after too many tries." : "The PIN has expired.")}{" "}
+                      {t("Ask the store for a new one, or carry on.")}
                     </p>
                   ) : (
                     <button
@@ -702,7 +708,7 @@ export default function DeliveryReportWaiting({
                         isNight ? "bg-[#00BF6A] text-black hover:bg-[#00BF6A]/90" : "bg-[#031B08] text-white hover:bg-[#031B08]/90"
                       )}
                     >
-                      Enter PIN to accept
+                      {t("Enter PIN to accept")}
                     </button>
                   )}
                   <button
@@ -714,7 +720,7 @@ export default function DeliveryReportWaiting({
                       isNight ? "border-[#A9A9A9] text-white" : "border-[#6B6B6B] text-black"
                     )}
                   >
-                    {pinClosed ? "Continue to next stop" : "I disagree"}
+                    {t(pinClosed ? "Continue to next stop" : "I disagree")}
                   </button>
                 </>
               )}

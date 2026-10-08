@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { cx } from "@shared/ui";
+import { useT } from "../i18n.tsx";
 
 export type LocationConsentBottomSheetProps = {
   isOpen: boolean;
@@ -23,6 +24,7 @@ export default function LocationConsentBottomSheet({
   onAllow,
   isNight = false,
 }: LocationConsentBottomSheetProps): React.JSX.Element | null {
+  const t = useT();
   const [isRendered, setIsRendered] = useState(isOpen);
   const [isVisible, setIsVisible] = useState(false);
 
@@ -62,7 +64,7 @@ export default function LocationConsentBottomSheet({
   return (
     <div
       role={isVisible ? "dialog" : undefined}
-      aria-label={isVisible ? "Share your location" : undefined}
+      aria-label={isVisible ? t("Share your location") : undefined}
       aria-modal={isVisible ? "true" : undefined}
       aria-hidden={!isVisible}
       data-state={isVisible ? "open" : "closed"}
@@ -95,10 +97,10 @@ export default function LocationConsentBottomSheet({
             <span className={cx("text-[13px] font-normal leading-[16px]", isNight ? "text-[#A9A9A9]" : "text-[#6B6B6B]")}>Now</span>
           </div>
           <h3 className={cx("mt-0.5 text-[24px] font-medium leading-[30px] tracking-tight", isNight ? "text-white" : "text-black")}>
-            Share your location while the run is open?
+            {t("Share your location while the run is open?")}
           </h3>
           <p className={cx("text-[15px] font-normal leading-[21px]", isNight ? "text-[#A9A9A9]" : "text-[#6B6B6B]")}>
-            So the dispatcher and the store can see where the truck is. Only while your run is open.
+            {t("So the dispatcher and the store can see where the truck is. Only while your run is open.")}
           </p>
         </div>
 
@@ -111,7 +113,7 @@ export default function LocationConsentBottomSheet({
               isNight ? "bg-[#00BF6A] text-black hover:bg-[#00BF6A]/90" : "bg-[#031B08] text-white hover:bg-[#031B08]/90"
             )}
           >
-            Share location
+            {t("Share location")}
           </button>
           <button
             type="button"
@@ -121,7 +123,7 @@ export default function LocationConsentBottomSheet({
               isNight ? "border-[#A9A9A9] text-white hover:bg-white/5" : "border-[#6B6B6B] text-black hover:bg-black/5"
             )}
           >
-            Not now
+            {t("Not now")}
           </button>
         </div>
       </div>

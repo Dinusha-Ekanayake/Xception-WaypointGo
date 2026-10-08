@@ -9,6 +9,7 @@ import { useStoreAnswer } from "../data/storeAnswer.ts";
 import { LEAVE_REASONS, handoverPhase, leftBecause } from "../data/handover.ts";
 import DeliveryReportWaiting from "./DeliveryReportWaiting.tsx";
 import { SlideRow } from "./Sheets.tsx";
+import { useT } from "../i18n.tsx";
 
 // Issue #21, store-led handover. At the door the driver hands over; the store
 // checks the load and answers; the driver sees the store's report and accepts it
@@ -48,6 +49,7 @@ export default function StopHandover({
   onNext: () => void;
   onProblem: () => void;
 }): React.JSX.Element {
+  const t = useT();
   const handedOver = stop.outcome === "DELIVERED" || stop.outcome === "PARTIAL";
   const store = useStoreAnswer(stop.orderId, handedOver && !stop.storeAnswerWaived, online);
   const answer = store.state === "answered" ? store.answer : null;
@@ -92,7 +94,7 @@ export default function StopHandover({
       />
       {asking !== null && (
         <Sheet
-          label={asking === "disagree" ? "Disagree with the store" : "Why are you moving on?"}
+          label={t(asking === "disagree" ? "Disagree with the store" : "Why are you moving on?")}
           onClose={() => {
             setAsking(null);
             setDetail("");
@@ -101,17 +103,19 @@ export default function StopHandover({
           dismissible={asking !== "disagree"}
         >
           <div>
-            <h2 className="text-[24px] font-medium text-go-ink">{asking === "disagree" ? "Disagree with the store" : "Why are you moving on?"}</h2>
+            <h2 className="text-[24px] font-medium text-go-ink">{t(asking === "disagree" ? "Disagree with the store" : "Why are you moving on?")}</h2>
             <p className="mt-1 text-[15px] text-go-muted">
-              {asking === "disagree"
-                ? "Dispatch gets an issue to sort it out. The stop stays delivered and you carry on."
-                : "The store can still answer after you leave. Dispatch sees why you moved on. Slide a row right to choose it."}
+              {t(
+                asking === "disagree"
+                  ? "Dispatch gets an issue to sort it out. The stop stays delivered and you carry on."
+                  : "The store can still answer after you leave. Dispatch sees why you moved on. Slide a row right to choose it.",
+              )}
             </p>
           </div>
           {asking === "disagree" ? (
             <>
               <label className="flex flex-col gap-1.5 text-[15px] text-go-ink">
-                <span className="font-medium">What is wrong? (optional)</span>
+                <span className="font-medium">{t("What is wrong? (optional)")}</span>
                 <textarea
                   value={detail}
                   maxLength={300}
@@ -126,7 +130,7 @@ export default function StopHandover({
                 onClick={() => void leave("disagree")}
                 className="flex h-[64px] w-full items-center justify-center rounded-[22px] bg-go-action text-[20px] font-medium text-go-on-action active:scale-[0.99] disabled:opacity-60"
               >
-                Raise issue and move on
+                {t("Raise issue and move on")}
               </button>
             </>
           ) : (
@@ -135,7 +139,7 @@ export default function StopHandover({
               {LEAVE_REASONS.map((option) => (
                 <SlideRow
                   key={option.reason}
-                  label={option.label}
+                  label={t(option.label)}
                   disabled={busy}
                   onSend={async () => {
                     if (option.reason !== "disagree") return leave(option.reason);
@@ -154,7 +158,7 @@ export default function StopHandover({
             }}
             className="flex h-[64px] w-full max-w-[295px] items-center justify-center self-center rounded-[22px] border border-go-muted bg-transparent text-[20px] font-medium text-go-ink active:scale-[0.99]"
           >
-            Cancel
+            {t("Cancel")}
           </button>
         </Sheet>
       )}

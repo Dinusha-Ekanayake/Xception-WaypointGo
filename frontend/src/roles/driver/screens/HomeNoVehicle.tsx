@@ -14,6 +14,7 @@ import type { FuelPassState } from "../data/fuelPass.ts";
 import { DriverHeader, VoiceMessagePlayer } from "../ui.tsx";
 import FuelPassSheet from "./FuelPassSheet.tsx";
 import { useCappedScroll } from "./cappedScroll.ts";
+import { useT } from "../i18n.tsx";
 
 
 export type DriverHomeProps = {
@@ -79,6 +80,7 @@ export default function HomeNoVehicle({
   loadFuelPass,
 }: DriverHomeProps): React.JSX.Element {
   const [lang, setLang] = useDeviceLang();
+  const t = useT();
   const [activeAudioId, setActiveAudioId] = useState<string | null>(null);
   const [fuelQr, setFuelQr] = useState(false);
   const [markingRead, setMarkingRead] = useState(false);
@@ -101,7 +103,7 @@ export default function HomeNoVehicle({
     .slice(0, 2)
     .join("") || "D";
 
-  const startLabel = tripStatus === "completed" ? "Trip summary" : tripStatus === "in-progress" ? "Continue trip" : "Start trip";
+  const startLabel = t(tripStatus === "completed" ? "Trip summary" : tripStatus === "in-progress" ? "Continue trip" : "Start trip");
   const card = isNight ? "bg-[#292929]" : "bg-white";
   const ink = isNight ? "text-white" : "text-black";
   const unread = inbox.unread ?? inbox.items.filter(isUnread).length;
@@ -145,7 +147,7 @@ export default function HomeNoVehicle({
               <div className="flex flex-col min-w-0 flex-1">
                 <h1 className={cx("truncate text-[26px] font-medium leading-[33px] tracking-tight", ink)}>{driverName}</h1>
                 <p className="truncate pt-0.5 text-[13px] font-light leading-none text-[#A9A9A9]">
-                  Driver{depotName ? ` · ${depotName} depot` : ""}
+                  {depotName ? t("Driver · {depot} depot", { depot: depotName }) : t("Driver")}
                 </p>
               </div>
               {compact && stopCount > 0 && (
@@ -182,12 +184,12 @@ export default function HomeNoVehicle({
             <div className="flex flex-col gap-3.5">
             {unavailable ? (
               <p role="status" className={cx("text-[14px] leading-[18px]", ink)}>
-                {online ? "Waypoint is not answering." : "This phone is offline."} Today's trip has not been downloaded to this phone
-                yet. It appears here as soon as the connection is back.
+                {t(online ? "Waypoint is not answering." : "This phone is offline.")}{" "}
+                {t("Today's trip has not been downloaded to this phone yet. It appears here as soon as the connection is back.")}
               </p>
             ) : !vehicle ? (
               <p role="status" className={cx("text-[14px] leading-[18px]", ink)}>
-                No vehicle assigned today. Dispatch assigns your vehicle; if you expected one, ask them.
+                {t("No vehicle assigned today. Dispatch assigns your vehicle; if you expected one, ask them.")}
               </p>
             ) : (
               <>
@@ -200,7 +202,7 @@ export default function HomeNoVehicle({
                 >
                   <div className="flex items-start justify-between w-full">
                     <div className="flex flex-col">
-                      <span className={cx("text-[12px] font-light leading-[15px]", ink)}>Vehicle</span>
+                      <span className={cx("text-[12px] font-light leading-[15px]", ink)}>{t("Vehicle")}</span>
                       <span className={cx("text-[28px] font-semibold leading-[35px] tracking-tight", ink)}>{vehicle.vehicleId}</span>
                     </div>
                     <button
@@ -211,7 +213,7 @@ export default function HomeNoVehicle({
                         isNight ? "bg-[#3A3A3A] text-white" : "bg-[#B7F2ED] text-black"
                       )}
                     >
-                      Report problem
+                      {t("Report problem")}
                     </button>
                   </div>
                   <div className="flex items-center justify-between gap-3">
@@ -219,7 +221,7 @@ export default function HomeNoVehicle({
                       type="button"
                       role="switch"
                       aria-checked={vehicleStatus !== "at_workshop" && vehicleStatus !== "fault"}
-                      aria-label="Available"
+                      aria-label={t("Available")}
                       onClick={() => onVehicleStatus((vehicleStatus === "at_workshop" || vehicleStatus === "fault" ? "available" : "at_workshop") as ReportedVehicleStatus)}
                       className="flex items-center gap-2"
                     >
@@ -232,7 +234,7 @@ export default function HomeNoVehicle({
                       >
                         <span className="size-6 rounded-full bg-white shadow" />
                       </span>
-                      <span className={cx("text-[15px] font-medium", ink)}>Available</span>
+                      <span className={cx("text-[15px] font-medium", ink)}>{t("Available")}</span>
                     </button>
                     <button
                       type="button"
@@ -251,7 +253,7 @@ export default function HomeNoVehicle({
                         <rect x="11" y="14.6" width="2.4" height="2.4" rx="0.4" />
                         <rect x="14.6" y="14.6" width="2.4" height="2.4" rx="0.4" />
                       </svg>
-                      Fuel QR
+                      {t("Fuel QR")}
                     </button>
                   </div>
                 </div>
@@ -274,8 +276,8 @@ export default function HomeNoVehicle({
                   <>
                     <p role="status" className={cx("text-[14px] leading-[18px]", ink)}>
                       {nextRun?.departure
-                        ? `Today's trip on ${depotCheckIn.vehicleId} departs ${hhmm(nextRun.departure)}. Collect the vehicle and tell the loader you are at the depot.`
-                        : `Today's trip on ${depotCheckIn.vehicleId} is planned. Collect the vehicle and tell the loader you are at the depot.`}
+                        ? t("Today's trip on {vehicle} departs {time}. Collect the vehicle and tell the loader you are at the depot.", { vehicle: depotCheckIn.vehicleId, time: hhmm(nextRun.departure) })
+                        : t("Today's trip on {vehicle} is planned. Collect the vehicle and tell the loader you are at the depot.", { vehicle: depotCheckIn.vehicleId })}
                     </p>
                     <button
                       type="button"
@@ -285,16 +287,16 @@ export default function HomeNoVehicle({
                         isNight ? "bg-[#00BF6A] text-black hover:bg-[#00d878]" : "bg-[#031B08] text-white hover:bg-[#062613]"
                       )}
                     >
-                      I&apos;m at the depot
+                      {t("I'm at the depot")}
                     </button>
                   </>
                 ) : (
                   <p role="status" className={cx("text-[14px] leading-[18px]", ink)}>
                     {depotCheckIn?.done
-                      ? `At the depot with ${depotCheckIn.vehicleId}. The loader is loading it; your stops appear here when it is released.`
+                      ? t("At the depot with {vehicle}. The loader is loading it; your stops appear here when it is released.", { vehicle: depotCheckIn.vehicleId })
                       : nextRun && !nextRun.released && nextRun.vehicleId && nextRun.departure
-                        ? `Next trip ${dayLabel(nextRun.date)} · ${nextRun.vehicleId} · departs ${hhmm(nextRun.departure)}. It is planned and waiting for the loader to release it; your stops appear here then.`
-                        : `No trip planned for ${vehicle.vehicleId} today. Your stops appear here when the loader releases the vehicle.`}
+                        ? t("Next trip {day} · {vehicle} · departs {time}. It is planned and waiting for the loader to release it; your stops appear here then.", { day: dayLabel(nextRun.date), vehicle: nextRun.vehicleId, time: hhmm(nextRun.departure) })
+                        : t("No trip planned for {vehicle} today. Your stops appear here when the loader releases the vehicle.", { vehicle: vehicle.vehicleId })}
                   </p>
                 )}
               </>
@@ -318,7 +320,7 @@ export default function HomeNoVehicle({
               />
               <path d="M8.3 16.2C8.3 17.1 9.1 17.8 10 17.8C10.9 17.8 11.7 17.1 11.7 16.2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            <h2 className={cx("text-[16px] font-medium leading-none", ink)}>Notifications</h2>
+            <h2 className={cx("text-[16px] font-medium leading-none", ink)}>{t("Notifications")}</h2>
           </div>
           {unread > 0 && (
             <button
@@ -328,14 +330,14 @@ export default function HomeNoVehicle({
                 setMarkingRead(true);
                 void inbox.markAllRead(now).finally(() => setMarkingRead(false));
               }}
-              aria-label={markingRead ? "Marking all read" : `${unread} new. Mark all read`}
+              aria-label={markingRead ? t("Marking all read") : t("{n} new. Mark all read", { n: unread })}
               aria-busy={markingRead || undefined}
               className={cx(
                 "text-[12px] font-medium px-2.5 py-0.5 rounded-[34px] transition-colors disabled:cursor-wait disabled:opacity-70",
                 isNight ? "bg-[#00BF6A] text-black" : "bg-[#B7F2ED] text-black"
               )}
             >
-              {markingRead ? "Marking…" : `${unread > 99 ? "99+" : unread} new`}
+              {markingRead ? t("Marking…") : t("{n} new", { n: unread > 99 ? "99+" : unread })}
             </button>
           )}
         </div>
@@ -346,7 +348,7 @@ export default function HomeNoVehicle({
         <div
           ref={scrollRef}
           {...handlers}
-          aria-label="Notifications"
+          aria-label={t("Notifications")}
           className="h-full touch-none overflow-y-auto overscroll-contain pb-6 short:h-auto short:touch-auto short:overflow-visible no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           <div
@@ -358,12 +360,12 @@ export default function HomeNoVehicle({
           >
             {inbox.savedAt && (
               <p role="status" className="px-2 text-[13px] font-light text-[#A9A9A9]">
-                Offline · showing notifications saved on this phone
+                {t("Offline · showing notifications saved on this phone")}
               </p>
             )}
             {!inbox.savedAt && !inbox.live && inbox.online && inbox.unread !== null && (
               <p role="status" className="px-2 text-[13px] font-light text-[#A9A9A9]">
-                Live updates paused · checking every 30 s
+                {t("Live updates paused · checking every 30 s")}
               </p>
             )}
             {inbox.error && (
@@ -373,17 +375,17 @@ export default function HomeNoVehicle({
             )}
             {inbox.loading && inbox.items.length === 0 && (
               <p role="status" className="px-2 text-[14px] font-light text-[#A9A9A9]">
-                Loading notifications…
+                {t("Loading notifications…")}
               </p>
             )}
             {!inbox.loading && !inbox.error && inbox.items.length === 0 && (
               <p className="px-2 text-[14px] font-light text-[#A9A9A9]">
-                Nothing yet. Dispatch's messages about your trip appear here.
+                {t("Nothing yet. Dispatch's messages about your trip appear here.")}
               </p>
             )}
             {inbox.items.map((item) => {
               // One wording and one look for every role's inbox (shared/notifications/inbox.ts).
-              const kind = { label: kindOf(item.eventType).label, color: noteColor(item) };
+              const kind = { label: t(kindOf(item.eventType).label), color: noteColor(item) };
               const id = `msg-${item.notificationId}`;
               return (
                 <ScrollRevealCard key={item.notificationId} scrollContainerRef={scrollRef} pullY={pullY}>
@@ -402,7 +404,7 @@ export default function HomeNoVehicle({
                           {...(item.facts.voicePeaks ? { peaks: item.facts.voicePeaks.split(",").map((p) => Number(p) / 100) } : {})}
                           seed={item.facts.voiceNoteId}
                           tone="theirs"
-                          label={`Voice message from ${item.title}`}
+                          label={t("Voice message from {name}", { name: item.title })}
                           heading={item.title}
                           caption={item.body}
                         />
@@ -428,7 +430,7 @@ export default function HomeNoVehicle({
             })}
             {inbox.hasMore && (
               <button type="button" onClick={inbox.more} className={cx("py-2 text-[14px] font-medium underline", ink)}>
-                Show older
+                {t("Show older")}
               </button>
             )}
           </div>
