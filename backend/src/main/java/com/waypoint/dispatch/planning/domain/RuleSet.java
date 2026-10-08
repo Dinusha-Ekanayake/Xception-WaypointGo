@@ -26,6 +26,10 @@ public record RuleSet(UUID id, Map<String, BigDecimal> parameters) {
   public static final String STRICT_WINDOW_MIN = "strict.window.min";
   public static final String CADENCE_DAYS_PREFIX = "cadence.days.";
   public static final String ENGINE_BUDGET_MS = "engine.budget.ms";
+  /** 1 to count the drive back from a trip's district before the next trip leaves; 0, the booklet's model (A-26). */
+  public static final String RETURN_COUNTED = "trip.return.counted";
+  /** Minutes at the depot between trips, reloading; 0 when absent. */
+  public static final String RELOAD_MIN = "trip.reload.min";
 
   public RuleSet {
     parameters = Map.copyOf(parameters);
@@ -103,6 +107,32 @@ public record RuleSet(UUID id, Map<String, BigDecimal> parameters) {
    */
   public java.util.Optional<BigDecimal> optional(String key) {
     return java.util.Optional.ofNullable(parameters.get(key));
+  }
+
+  /**
+   * Whether a second trip waits for the drive back from the first trip's
+   * district (R-PLN-47). Absent, as in the booklet's own parameters, means no:
+   * the booklet's trip time leaves the return out (A-26).
+   */
+  public boolean returnCounted() {
+    return optional(RETURN_COUNTED).map(v -> v.signum() > 0).orElse(false);
+  }
+
+  /** Minutes reloading at the depot before a second trip (R-PLN-47); 0 when absent. */
+  public BigDecimal reloadMinutes() {
+    return optional(RELOAD_MIN).orElse(BigDecimal.ZERO);
+  }
+
+  /**
+   * The depot's values: the booklet's, with a second trip leaving only after
+   * the drive back and a reload (R-PLN-47). The reload time is a placeholder
+   * until the depot gives its own.
+   */
+  public static Map<String, BigDecimal> depotParameters() {
+    Map<String, BigDecimal> out = new java.util.HashMap<>(bookletParameters());
+    out.put(RETURN_COUNTED, BigDecimal.ONE);
+    out.put(RELOAD_MIN, new BigDecimal("20"));
+    return Map.copyOf(out);
   }
 
   public long engineBudgetMillis() {

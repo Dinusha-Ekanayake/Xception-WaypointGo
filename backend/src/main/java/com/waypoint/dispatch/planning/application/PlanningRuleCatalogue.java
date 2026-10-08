@@ -36,7 +36,13 @@ public class PlanningRuleCatalogue {
       new Definition(RuleSet.CADENCE_DAYS_PREFIX + "Style", "Priority", "Style cadence", "days", "number", 1, 365, true),
       new Definition(RuleSet.CADENCE_DAYS_PREFIX + "Tech", "Priority", "Tech cadence", "days", "number", 1, 365, true),
       new Definition(RuleSet.ENGINE_BUDGET_MS, "Planning engine", "Allocation time budget", "ms", "number", 100, 600000, true),
+      // R-PLN-47: rule sets made before these existed read as the booklet's model (0).
+      new Definition(RuleSet.RETURN_COUNTED, "Trips and vehicle use", "Count the drive back before a second trip (1 yes, 0 no)", "on/off", "number", 0, 1, true),
+      new Definition(RuleSet.RELOAD_MIN, "Trips and vehicle use", "Reload time between trips", "min", "number", 0, 240, true),
       new Definition(RuleSet.CAPACITY_EPSILON, "Fixed safety rules", "Capacity tolerance", "ratio", "locked", 0, 0, false));
+
+  /** Parameters an older rule set may lack; absent reads as 0, the booklet's model (R-PLN-47). */
+  private static final java.util.Set<String> OPTIONAL = java.util.Set.of(RuleSet.RETURN_COUNTED, RuleSet.RELOAD_MIN);
 
   private final Database database;
   private final Clock clock;
@@ -74,6 +80,7 @@ public class PlanningRuleCatalogue {
     List<PlanningRuleViews.Parameter> parameters = new ArrayList<>();
     for (Definition definition : DEFINITIONS) {
       BigDecimal value = values.get(definition.key());
+      if (value == null && OPTIONAL.contains(definition.key())) value = BigDecimal.ZERO;
       if (value == null) throw new DomainException(ErrorCode.CONSTRAINT_VIOLATED,
           "Rule set is missing " + definition.key(), List.of("POL-10"));
       parameters.add(new PlanningRuleViews.Parameter(definition.key(), definition.category(),

@@ -20,9 +20,11 @@ import java.util.Map;
  *       vehicle waits (R-PLN-13). Delivery windows read this.
  * </ul>
  *
- * <p>The next trip leaves when the previous trip's last service ends, with no
- * return leg added, which is the model behind the booklet's 101 + 112 minute
- * example (assumption A-26). Stops are tried earliest-close first and
+ * <p>Under the booklet's parameters the next trip leaves when the previous
+ * trip's last service ends, with no return leg added, which is the model behind
+ * the booklet's 101 + 112 minute example (assumption A-26). Under the depot's
+ * parameters it leaves after the drive back from the previous trip's district
+ * and a reload (R-PLN-47); the time budgets read the booklet's formula either way. Stops are tried earliest-close first and
  * earliest-open first; the feasible order that finishes earlier wins, so the
  * result is deterministic (D-L). When every stop has an exact point, the
  * shortest path by road is tried too, and the drive between stops is measured
@@ -85,7 +87,13 @@ public final class TripTimeline {
       Trip trip = day.trips().get(i);
       DistrictTravel d = travelFor(travel, trip.district());
       BigDecimal base = minuteOf(trip.fresh() ? rules.freshDeparture() : rules.daytimeDeparture());
-      BigDecimal earliest = previousEnd == null ? base : base.max(previousEnd);
+      // R-PLN-47: with the depot's rules, the next trip leaves after the drive back and a reload.
+      BigDecimal ready = previousEnd == null
+          ? null
+          : previousEnd
+              .add(rules.returnCounted() ? travelFor(travel, day.trips().get(i - 1).district()).outboundMinutes() : BigDecimal.ZERO)
+              .add(rules.reloadMinutes());
+      BigDecimal earliest = ready == null ? base : base.max(ready);
       TripSchedule best = null;
       for (Comparator<PlanOrder> order : sequencesFor(trip, d)) {
         TripSchedule candidate = simulate(i + 1, trip, d, earliest, order);

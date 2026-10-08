@@ -94,6 +94,10 @@ class PriorityReplayTest {
         PriorityPolicy.Key.LONGEST_DISTANCE, PriorityPolicy.Key.LARGEST_VOLUME, PriorityPolicy.Key.LONGEST_UNSERVED));
     policies.put("version-2", PriorityPolicy.DEFAULT_KEYS);
     policies.put("unserved-second", move(PriorityPolicy.Key.PRIOR_SKIP));
+    // R-PLN-47: version 2 again, under the depot's clock (the drive back and a 20 minute reload before a second trip).
+    policies.put("version-2-depot-clock", PriorityPolicy.DEFAULT_KEYS);
+    com.waypoint.dispatch.planning.domain.RuleSet depotRules = new com.waypoint.dispatch.planning.domain.RuleSet(
+        UUID.nameUUIDFromBytes("rules-depot".getBytes()), com.waypoint.dispatch.planning.domain.RuleSet.depotParameters());
 
     StringBuilder rows = new StringBuilder("policy,depot,day,orders,served,chilled_m3,skipped_twice,deferred_waited_2plus,max_wait_deferred\n");
     Map<String, double[]> totals = new java.util.LinkedHashMap<>();
@@ -133,7 +137,8 @@ class PriorityReplayTest {
         }
         for (var p : policies.entrySet()) {
           PriorityPolicy policy = new PriorityPolicy(UUID.nameUUIDFromBytes(p.getKey().getBytes()), p.getValue());
-          Problem problem = new Problem(depot, day, orders, fleet, travel, PeakDayAllocationTest.RULES, policy);
+          Problem problem = new Problem(depot, day, orders, fleet, travel,
+              p.getKey().endsWith("depot-clock") ? depotRules : PeakDayAllocationTest.RULES, policy);
           AllocationResult r = PeakDayAllocationTest.engine().allocate(problem);
           Stats s = stats(orders, r);
           rows.append(String.join(",", p.getKey(), depot, day.toString(), String.valueOf(orders.size()),

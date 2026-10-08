@@ -41,6 +41,8 @@ What the engine did with the 8 trips, all within the budget (trip minutes = outb
 
 **118.8 m³ of chilled goods are carried: 16 of 26 chilled orders, 65.4% of chilled volume** (87.1% of all orders are served). Refrigerated trip availability and Fresh time budgets limit overall service; volume, weight and van access further restrict which orders fit. Every reefer runs both its trips, and the three trucks are within 27 minutes of the budget. Dry trucks, vans and the Style/Tech budget are not limiting: every Fresh ambient, Style and Tech order fits, except one (below).
 
+As the booklet instructs, trip time leaves out the drive back to the depot, and the second trip is timed from the end of the first. A real second trip waits for that drive and a reload, and then many second Fresh trips cannot arrive before their windows close; Appendix F measures it.
+
 ## 3. Result
 
 - **74 of 85 orders served.** 10 deferred and 1 unservable.
@@ -89,7 +91,16 @@ Tomorrow every one of these enters the highest priority category (deferred yeste
 
 ## 6. What would serve more
 
-- **Get reefers out of the workshop**, or hire reefers for the festival week. Each extra reefer adds up to two permitted trips before 08:00, not necessarily two feasible ones; the gain needs a rerun of the engine with that fleet.
+- **Get reefers out of the workshop**, or hire reefers for the festival week. Rerun with the same engine, rules and priority order, one reefer back at a time (`WhatIfPeakDayTest`):
+
+  | Reefer back from the workshop | Orders served | Chilled m³ served |
+  | --- | --- | --- |
+  | None (this allocation) | 74 | 118.8 |
+  | VEH001 truck (26.4 m³) or VEH002 truck (21.1 m³) | 80 | 158.0 |
+  | VEH004 or VEH005 truck (33.4 m³) | 81 | 161.0 |
+  | VEH035 van (7.0 m³) | 76 | 129.0 |
+
+  One reefer truck back serves six or seven more orders, all chilled, and 39 to 42 m³ more chilled goods; it is the single most valuable change on this day.
 - **Ask OUT070 to send S1-078 again as two orders** under 38 m³ each, for a later day; this allocation cannot split it.
 
 The engine's cost stage then reduced estimated fuel (trip distance over each vehicle's km per litre, return leg included) from 735.1 to **627.9 litres**, vehicles from 17 to **13** and trips from 32 to **26**, while retaining the same served orders. It is a bounded search (2,000 iterations), so this is an improvement, not a proven minimum.
@@ -247,3 +258,16 @@ cd .. && python tools/check_allocation/check_allocation.py backend/target/task2b
 ```
 
 `tools/check_allocation/check_allocation.py` is the organisers' checker, vendored unmodified. CI runs both commands on every pull request, so the allocation in the submission is the one the current code produces.
+
+## Appendix F. The drive back between trips
+
+The booklet's trip time "does not add the return journey to the depot; the stated budgets already allow for it", and this allocation follows it, as the checker does: a vehicle's second trip is timed from the end of its first (the booklet's own 101 + 112 minute example does the same). The 270-minute Fresh budget can absorb the drive back across the day, but it cannot make a second trip reach a store before its window closes. Re-timing this allocation with the drive back from the first trip's district before the second trip leaves (outbound minutes, from `district_travel.csv`), and a reload at the depot, which the booklet does not give:
+
+| A second trip leaves after | Stops arriving after their window closes | Worst |
+| --- | --- | --- |
+| The first trip's last unloading (the booklet's model, this allocation) | 0 | 14 minutes to spare |
+| The drive back | 20 | 158 minutes late |
+| The drive back and 15 minutes reloading | 20 | 173 minutes late |
+| The drive back and 30 minutes reloading | 21 | 188 minutes late |
+
+Every late stop is on a second trip. VEH003, for example, reaches Kurunegala (127 minutes out) first and cannot drive back, reload and reach Colombo by its 07:30 to 08:00 windows. In a real depot, second Fresh trips go to near districts (Colombo, Gampaha) or the far district's chilled goods wait. Waypoint's product plans this way: its depot rule set counts the drive back and a reload before a second trip (R-PLN-47), while the time budgets keep the booklet's formula. This submission keeps the booklet's model, because it is what the task defines and the checker judges.

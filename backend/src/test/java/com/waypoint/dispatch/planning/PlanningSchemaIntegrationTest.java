@@ -129,7 +129,8 @@ class PlanningSchemaIntegrationTest {
                             referenceVersion,
                             depot)
                         .get("depot_code"));
-    rules = database.asSystem(ModuleRole.PLANNING, () -> plans.effectiveRuleSet(LocalDate.now()).orElseThrow());
+    // The open-ended rule set, which governs every day from its start (the depot's values from 2026-10-09, R-PLN-47).
+    rules = database.asSystem(ModuleRole.PLANNING, () -> plans.effectiveRuleSet(LocalDate.now().plusYears(1)).orElseThrow());
     policy =
         // The open-ended version, which governs every day from its start (version 2 from 2026-10-09).
         database.asSystem(ModuleRole.PLANNING, () -> plans.effectivePolicy(depot, LocalDate.now().plusYears(1)).orElseThrow());
@@ -147,8 +148,9 @@ class PlanningSchemaIntegrationTest {
 
   @Test
   void theSeededRuleSetIsExactlyWhatTheDomainReads() {
-    Map<String, BigDecimal> booklet = RuleSet.bookletParameters();
+    Map<String, BigDecimal> booklet = RuleSet.depotParameters();
     assertEquals(booklet.keySet(), rules.parameters().keySet());
+    assertTrue(rules.returnCounted(), "R-PLN-47: a second trip waits for the drive back");
     booklet.forEach(
         (key, value) ->
             assertEquals(0, value.compareTo(rules.parameters().get(key)), key + " differs from the booklet"));

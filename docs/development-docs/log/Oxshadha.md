@@ -4,6 +4,19 @@
 
 ---
 
+## 2026-10-08 - feat: a second trip waits for the drive back and a reload (R-PLN-47)
+
+`dev` · @Oxshadha
+
+- Rule set version 2 (from 2026-10-09): `trip.return.counted` = 1 and `trip.reload.min` = 20 (placeholder), editable on System constraints; `TripTimeline` starts a second trip after the drive back from the first trip's district and the reload. Windows and shown arrival times read it; budgets keep the booklet's formula. The booklet's own parameters, used for Task 2B, keep A-26.
+- Replay of 80 stressed days: 4,891 served against 4,975 on the booklet's clock, the difference being second-trip stops that would have arrived after their windows.
+- Task 2B write-up: section 6 now measures one reefer back (80 or 81 orders against 74); appendix F re-times the allocation with the drive back (20 second-trip stops late) and says why the submission keeps the booklet's model.
+
+Why: a plan must not promise a second Fresh delivery the truck cannot make before 08:00.
+Verified: TripTimelineTest, the planning and S1 tests, the seeded rule set case, the replay, the full suites before the push.
+
+---
+
 ## 2026-10-08 - feat: why an order cannot go (AI-2) and what a vehicle back would change (AI-1)
 
 `dev` · @Oxshadha

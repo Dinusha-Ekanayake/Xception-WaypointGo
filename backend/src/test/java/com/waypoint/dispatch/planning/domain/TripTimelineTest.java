@@ -81,4 +81,32 @@ class TripTimelineTest {
     assertTrue(new Constraints.DeliveryWindow().check(new Constraint.Candidate(
         PlanningFixtures.oneTrip(truck("V1"), opensEarly, closesEarly), CONTEXT, java.util.Set.of())).passed());
   }
+
+  // ---- R-PLN-47: the depot's clock -------------------------------------------------
+
+  @Test
+  void underTheDepotsRulesASecondTripWaitsForTheDriveBackAndTheReload() {
+    VehicleDay day = PlanningFixtures.oneTrip(truck("VEH014"),
+        order().district("Gampaha").dock("rear_dock").build(), order().district("Gampaha").dock("rear_dock").build());
+    day = day.withNewTrip(order().build());
+    RuleSet depot = new RuleSet(java.util.UUID.randomUUID(), RuleSet.depotParameters());
+
+    TripSchedule bookletSecond = TripTimeline.schedule(day, TRAVEL, RULES).get(1);
+    TripSchedule depotSecond = TripTimeline.schedule(day, TRAVEL, depot).get(1);
+    TripSchedule first = TripTimeline.schedule(day, TRAVEL, depot).get(0);
+    // The drive back from Gampaha (its outbound minutes) and 20 minutes reloading.
+    long expectedGap = TRAVEL.get("Gampaha").outboundMinutes().longValue() + 20;
+    assertEquals(expectedGap,
+        java.time.Duration.between(bookletSecond.departure(), depotSecond.departure()).toMinutes(),
+        "the second trip leaves later by the drive back and the reload");
+    assertTrue(!depotSecond.departure().isBefore(first.stops().get(first.stops().size() - 1).arrival()));
+    // The budget reads the booklet's formula either way.
+    assertEquals(0, bookletSecond.formulaMinutes().compareTo(depotSecond.formulaMinutes()));
+  }
+
+  @Test
+  void theBookletsRulesKeepTheBookletsModelWithNoReturn() {
+    assertTrue(!RULES.returnCounted());
+    assertEquals(0, RULES.reloadMinutes().signum());
+  }
 }
