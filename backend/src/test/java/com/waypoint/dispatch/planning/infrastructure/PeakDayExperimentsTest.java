@@ -66,20 +66,28 @@ class PeakDayExperimentsTest {
   @Test
   void eachChoiceIsMeasuredOnTheSameEngineAndInputs() throws IOException {
     PriorityPolicy policy = PeakDayAllocationTest.POLICY;
-    List<PriorityPolicy.Key> unservedEarly = new ArrayList<>(PriorityPolicy.DEFAULT_KEYS);
-    unservedEarly.remove(PriorityPolicy.Key.LONGEST_UNSERVED);
-    unservedEarly.add(1, PriorityPolicy.Key.LONGEST_UNSERVED);
+    // Version 1, before the replay of 80 days moved "longest since last served" up (R-PLN-21).
+    List<PriorityPolicy.Key> version1 = List.of(
+        PriorityPolicy.Key.PRIOR_SKIP, PriorityPolicy.Key.FRESH, PriorityPolicy.Key.CHILLED,
+        PriorityPolicy.Key.STRICT_WINDOW, PriorityPolicy.Key.CADENCE, PriorityPolicy.Key.EARLIEST_CLOSE,
+        PriorityPolicy.Key.LONGEST_DISTANCE, PriorityPolicy.Key.LARGEST_VOLUME, PriorityPolicy.Key.LONGEST_UNSERVED);
+    List<PriorityPolicy.Key> unservedSecond = new ArrayList<>(PriorityPolicy.DEFAULT_KEYS);
+    unservedSecond.remove(PriorityPolicy.Key.LONGEST_UNSERVED);
+    unservedSecond.add(1, PriorityPolicy.Key.LONGEST_UNSERVED);
     List<Outcome> outcomes = List.of(
         run("submitted", ConstraintRegistry.standard(), policy),
         run("no-outlet-windows", without(Set.of("R-PLN-13")), policy),
         run("no-temperature-separation", without(Set.of("R-PLN-31")), policy),
         run("booklet-rules-only", without(Set.of("R-PLN-13", "R-PLN-31", "R-PLN-16")), policy),
+        run("priority-version-1", ConstraintRegistry.standard(),
+            new PriorityPolicy(UUID.nameUUIDFromBytes("policy-v1-keys".getBytes()), version1)),
         run("unserved-days-second", ConstraintRegistry.standard(),
-            new PriorityPolicy(UUID.nameUUIDFromBytes("policy-unserved-second".getBytes()), unservedEarly)));
+            new PriorityPolicy(UUID.nameUUIDFromBytes("policy-unserved-second".getBytes()), unservedSecond)));
     for (Outcome o : outcomes) {
       System.out.println("S1 experiment " + o);
     }
-    assertEquals(73, outcomes.get(0).served(), "the submitted plan");
+    assertEquals(74, outcomes.get(0).served(), "the submitted plan, priority version 2");
+    assertEquals(73, outcomes.get(4).served(), "priority version 1");
     // Fewer rules can never serve fewer orders by rank than more rules on the same inputs, only differently.
     assertTrue(outcomes.stream().allMatch(o -> o.served() > 0));
   }

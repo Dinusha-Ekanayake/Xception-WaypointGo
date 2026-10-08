@@ -131,7 +131,8 @@ class PlanningSchemaIntegrationTest {
                         .get("depot_code"));
     rules = database.asSystem(ModuleRole.PLANNING, () -> plans.effectiveRuleSet(LocalDate.now()).orElseThrow());
     policy =
-        database.asSystem(ModuleRole.PLANNING, () -> plans.effectivePolicy(depot, LocalDate.now()).orElseThrow());
+        // The open-ended version, which governs every day from its start (version 2 from 2026-10-09).
+        database.asSystem(ModuleRole.PLANNING, () -> plans.effectivePolicy(depot, LocalDate.now().plusYears(1)).orElseThrow());
 
     String run = UUID.randomUUID().toString().substring(0, 8);
     String here = "dsp-" + run + "@planning.test";

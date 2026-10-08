@@ -38,18 +38,19 @@ public record PriorityPolicy(UUID id, List<Key> keys) {
     LONGEST_UNSERVED
   }
 
-  /** The first policy, decision 1 of the issue #9 plan. */
+  /** The current policy, version 2 in {@code planning.policy_versions}; version 1 was decision 1 of the issue #9 plan. */
   public static final List<Key> DEFAULT_KEYS =
       List.of(
           Key.PRIOR_SKIP,
           Key.FRESH,
           Key.CHILLED,
+          // Version 2: among Fresh chilled orders, the store that has waited longer first (replayed over 80 days).
+          Key.LONGEST_UNSERVED,
           Key.STRICT_WINDOW,
           Key.CADENCE,
           Key.EARLIEST_CLOSE,
           Key.LONGEST_DISTANCE,
-          Key.LARGEST_VOLUME,
-          Key.LONGEST_UNSERVED);
+          Key.LARGEST_VOLUME);
 
   public PriorityPolicy {
     keys = List.copyOf(keys);

@@ -150,7 +150,7 @@ public final class PeakDayScenario {
     return refs.get(orderId);
   }
 
-  private record Window(Optional<LocalTime> open, Optional<LocalTime> close) {}
+  record Window(Optional<LocalTime> open, Optional<LocalTime> close) {}
 
   /** R-PLN-29: the outlet window intersected with the mall window; empty when they do not overlap. */
   static Window effectiveWindow(String open, String close, String mall) {

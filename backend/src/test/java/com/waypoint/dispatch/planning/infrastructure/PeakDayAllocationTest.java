@@ -139,9 +139,10 @@ class PeakDayAllocationTest {
 
     java.util.Set<UUID> before = served(first);
     java.util.Set<UUID> after = served(improved);
-    assertTrue(after.size() > before.size(), "issue #92: the reefers are planned again as a whole");
-    assertEquals(73, after.size(), "S1 measured: 70 to 73, every chilled order closing before 08:00 served");
     var summary = improved.improvement().orElseThrow();
+    assertTrue(after.size() >= before.size(), "issue #92: the reefers are planned again as a whole, never worse");
+    assertEquals(74, after.size(), "S1 measured under priority version 2: 74 served by both passes");
+    assertTrue(summary.chilledVolumeGainedM3().signum() > 0, "the second pass carries more chilled volume: " + summary);
     assertTrue(summary.improved());
     assertEquals(ScarceFleetReplan.Stop.NONE, summary.stoppedBy(), "the search finished; nothing was cut short");
 
