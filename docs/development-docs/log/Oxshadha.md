@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-10-08 - docs: Task 2B method and the Task 1 leakage check, for the Datathon write-up
+
+`dev` · @Oxshadha
+
+- `docs/datathon/TASK-2B-POLICY.md` gains appendices: how the allocation is made with no trained model (the four engine stages, with a flow diagram), the rules and the stricter product rules, assumptions and parameters, the measured experiments (70, then 73 served; 16 to 13 vehicles, 724.8 to 610.6 L), and how to reproduce it. Numbers rerun today; the official checker passes.
+- `docs/datathon/LEAKAGE-CHECK.md`: method, result and findings of the leakage check, with the AI tool disclosure note the team needs.
+
+---
+
 ## 2026-10-08 - feat: reference features, replay against what answered, scheduled retraining (MF-05)
 
 `dev` · @Oxshadha

@@ -80,3 +80,109 @@ The second pass on the reefers raised served orders from 70 (simple first fit) t
 After that, the remaining shortfall is time before 08:00, not trucks: the far districts (Puttalam, Matara, Kurunegala) need an early first trip.
 
 The same engine also chose the vehicles and trips at lowest cost: **13 vehicles and 611 litres** of fuel, against 16 vehicles and 725 litres for the first feasible plan. The served set is unchanged.
+
+---
+
+The policy itself is sections 1 to 6 above. The appendices below record how the allocation was produced, the rules and assumptions it rests on, the experiments behind it, and how to reproduce it.
+
+## Appendix A. How the allocation is produced, with no trained model
+
+The booklet says Task 2B "does not require a trained model", so none is used. The allocation is the output of a deterministic optimisation pipeline written in Java: the same planning engine that plans deliveries in the Waypoint product (`backend/.../planning`). It reads the supplied CSVs, applies every rule, chooses which orders to serve and on which vehicle and trip, and writes `submission_task2b.csv`. The deliverable is that CSV and this policy. The "model" is the engine's code and its versioned parameters, so the same inputs always give the same file.
+
+```mermaid
+flowchart TD
+  A["Supplied CSVs<br/>task2b_peak_day_scenarios, task2b_peak_day_fleet,<br/>vehicles, district_travel, service_allowance"] --> B["PeakDayScenario<br/>reads the files, intersects outlet and mall windows,<br/>keeps Peliyagoda vehicles, marks workshop vehicles unavailable"]
+  B --> C["1. PriorityInsertionEngine<br/>screens orders no vehicle can carry (unservable),<br/>then inserts orders in priority order at the cheapest feasible place"]
+  C --> D["2. ScarceFleetReplan<br/>ruins every reefer day, searches the best set of chilled orders by rank,<br/>recreates the rest; kept only if strictly better by rank"]
+  D --> E["3. CostReplan<br/>adaptive large neighbourhood search: the same served orders<br/>on fewer vehicles and less fuel; never changes who is served"]
+  E --> F["4. ValidatingEngine<br/>re-checks every trip against the constraint registry;<br/>an infeasible plan is rejected, never written"]
+  F --> G["submission_task2b.csv"]
+  G --> H["Official check_allocation.py<br/>run on every change in CI"]
+  R["Constraint registry<br/>one definition of every rule"] -.-> C
+  R -.-> D
+  R -.-> E
+  R -.-> F
+  P["Versioned parameters and priority policy<br/>budgets, trip limit, priority keys"] -.-> C
+```
+
+| Stage | Code | What it does |
+| --- | --- | --- |
+| Read | `planning/infrastructure/PeakDayScenario.java` | Loads the scenario as a planning problem. Each order id is derived from `order_ref`, so reruns are identical |
+| 1. Insert | `PriorityInsertionEngine`, `CheapestInsertion` | Screens unservable orders, sorts the rest by the priority policy, puts each at the cheapest feasible vehicle and trip. An order with no feasible place is deferred with the rule that blocked its closest candidate |
+| 2. Re-plan reefers | `ImprovingEngine`, `ScarceFleetReplan` | The first pass never revisits a reefer trip, so a reefer can spend its pre-dawn budget on one small far load. This pass plans all four reefers together: lists each reefer's feasible one- or two-trip days, then searches for the best chilled set admitting orders highest rank first. Deterministic, with a fixed search budget |
+| 3. Cost | `CostImprovingEngine`, `CostReplan` | Removes and reinserts orders (at random from a seeded stream, a whole vehicle, part of a district, the emptiest trip), preferring vehicles already out and fewer added litres. A plan is better only if it serves a better set by rank, then uses fewer vehicles, then fewer litres |
+| 4. Validate | `ValidatingEngine`, `ConstraintRegistry` | Checks every trip and order against every rule before the plan leaves the engine |
+| Write | `PeakDayScenario.submissionCsv` | One row per order in the template's order. An unservable order is written as `deferred`, since the template allows only served or deferred |
+
+## Appendix B. Rules applied
+
+Every rule is defined once in the constraint registry and read by every stage, so the four stages cannot disagree about what is feasible.
+
+| Booklet rule | Registry id | How it is checked |
+| --- | --- | --- |
+| 1 Brand and district | R-PLN-01 | Every order on a trip has the trip's brand and district |
+| 2 Refrigeration | R-PLN-02 | A chilled order rides only on a reefer |
+| 3 Vehicle access | R-PLN-03 | A `van_only` outlet gets a van |
+| 4 Home depot | R-PLN-04 | Only Peliyagoda vehicles are loaded at all |
+| 5 Whole orders | R-PLN-05 | One order, one vehicle, one trip; never split |
+| 6 Capacity | R-PLN-06 | Trip volume and weight within the caps, compared with the validator's own tolerance of 1e-6 |
+| 7 Trips and time | R-PLN-07, R-PLN-09, R-PLN-10 | At most 2 trips per vehicle; Fresh trips within 270 minutes in total, Style and Tech within 480, counted separately; trip minutes = outbound + inter-stop + handling, no return journey |
+| Workshop vehicles | (scenario) | Vehicles with status `in_workshop` are unavailable |
+
+The engine also applies rules of the Waypoint product that are stricter than the validator. They did not change the S1 result, but they are part of the method:
+
+| Rule | Id | Effect |
+| --- | --- | --- |
+| Oversized order | R-PLN-22 | An order larger than every vehicle is unservable, not deferred again and again |
+| Delivery window, mall window | R-PLN-13, R-PLN-29, R-PLN-30 | Arrival inside the outlet's window, intersected with the mall's; a window shorter than the handling time is unservable |
+| One temperature class per trip | R-PLN-31 | A reefer runs a chilled trip or an ambient trip, not both on one trip |
+| Weekly fuel quota | R-PLN-16 | Trip distance consumes the vehicle's quota |
+| A recorded reason for every deferral | R-PLN-19 | Each deferred order names the rule that blocked it |
+| Improving never trades priority | R-PLN-32, R-PLN-38 | Stages 2 and 3 can never defer a higher ranked order to serve a lower one |
+
+## Appendix C. Assumptions and parameters
+
+| Assumption | Value | Why |
+| --- | --- | --- |
+| Fresh window and budget | 03:30 to 08:00, 270 minutes per vehicle | Booklet |
+| Style and Tech budget | 480 minutes per vehicle, combined, separate from Fresh | Booklet |
+| Trips per vehicle | 2 | Booklet |
+| Trip time | Outbound once, inter-stop × (orders minus 1), handling per stop; no return | Booklet's three steps, exactly |
+| Capacity tolerance | 1e-6 | The same as the official validator, so a plan we call feasible is feasible to the judge |
+| Fuel | Every vehicle starts the week unused | The scenario gives no fuel history |
+| Service date | Monday 2026-10-05 | The scenario gives none; it only sets the fuel week and the brands' ordering cadence |
+| Ordering cadence | Fresh every day, Style weekly, Tech every day | Used as one priority key: an order of a brand ordered less often costs more to miss |
+| Strict window | 120 minutes or shorter | Used as one priority key |
+| Priority order | Deferred yesterday, Fresh, chilled, strict window, cadence, earliest close, then longest distance, largest volume, longest unserved | Team decision: keep stores from missing twice, then protect perishable stock before the festival |
+| Search budgets | Stage 2: fixed node budget; stage 3: 2,000 iterations; whole engine: 10 seconds as a safety stop | Part of the engine version, so the result is repeatable on any machine |
+
+## Appendix D. Experiments
+
+All measured on S1 by `PeakDayAllocationTest`, and repeatable.
+
+| Stage | Served | Deferred | Unservable | Vehicles | Trips | Fuel |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1. Priority insertion only | 70 | 14 | 1 | | | |
+| 1 + 2. Reefers re-planned as a whole | **73** | **11** | 1 | 16 | 32 | 724.8 L |
+| 1 + 2 + 3. Cost stage | **73**, the same orders | **11** | 1 | **13** | **25** | **610.6 L** |
+
+- **Stage 2** served 3 more orders and carried **30.4 m³ more chilled goods**. Its search covered all 26 chilled orders (127,623 search nodes) and finished within its budget. Every order it dropped was replaced by a higher ranked one.
+- **Stage 3** kept exactly the same served orders and used 3 fewer vehicles, 7 fewer trips and 114.2 L less fuel (16%).
+- **Why the 12 not served were not served,** by the rule that blocked each: capacity (R-PLN-06) 6, which includes the unservable S1-078; trips per vehicle (R-PLN-07) 5; the Fresh 270-minute budget (R-PLN-09) 1.
+- **Robustness checks**, each an automated test:
+  - the same inputs give a byte-identical CSV;
+  - all 10 outlets deferred yesterday are served;
+  - with the time budget exhausted, the engine still returns a decision for all 85 orders and marks the plan partial;
+  - a deliberately infeasible engine (every order on one truck) is rejected by stage 4 before anything is written.
+
+## Appendix E. Reproducing it
+
+From the repository root, with Java 17 and Maven. No database is needed.
+
+```bash
+cd backend && mvn test -Dtest=PeakDayAllocationTest      # writes backend/target/task2b/submission_task2b.csv
+cd .. && python tools/check_allocation/check_allocation.py backend/target/task2b/submission_task2b.csv
+# FEASIBILITY: PASSED - every rule satisfied.
+```
+
+`tools/check_allocation/check_allocation.py` is the organisers' checker, vendored unmodified. CI runs both commands on every pull request, so the allocation in the submission is the one the current code produces.
