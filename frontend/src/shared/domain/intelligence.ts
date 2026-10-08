@@ -125,7 +125,14 @@ export type RetireModel = { name: string; version: string; reason: string };
 export type OverviewStatus = "READY" | "NONE";
 
 /** One brand's demand in a week; chilled is zero for Style and Tech. */
-export type BrandVolumeView = { brandCode: string; totalM3: Decimal; chilledM3: Decimal };
+export type BrandVolumeView = {
+  brandCode: string;
+  totalM3: Decimal;
+  chilledM3: Decimal;
+  /** MF-06: about four weeks in five the volume ordered falls between these; null with too few finished weeks. */
+  lowM3?: Decimal | null;
+  highM3?: Decimal | null;
+};
 
 /** Each day's own fleet (workshop and unavailable vehicles carry nothing that day) under its trip limit; counts are the fewest available on any operating day (A-40, T2-01). */
 export type WeekCapacityView = {

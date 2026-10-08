@@ -11,6 +11,8 @@ import {
   dayNeeds,
   forBrand,
   kpis,
+  likelyLabel,
+  weekRange,
   segments,
   weekDate,
   weekLabel,
@@ -61,7 +63,7 @@ test("both depots are summed week by week, demand and capacity alike", () => {
   assert.equal(w.chilled, 60);
   assert.equal(w.fleetM3, 1200);
   assert.equal(w.vehicles, 20);
-  assert.deepEqual(w.brands.find((b) => b.code === "Fresh"), { code: "Fresh", total: 200, chilled: 60 });
+  assert.deepEqual(w.brands.find((b) => b.code === "Fresh"), { code: "Fresh", total: 200, chilled: 60, low: null, high: null });
   assert.deepEqual(f.brandCodes, ["Fresh", "Style"]);
   assert.equal(weekLabel(w), "Wk 1");
 });
@@ -204,4 +206,24 @@ test("the finished weeks of the depots are summed, with how far the forecast was
   assert.equal(rows[2]!.off, null, "nothing ordered is not a perfect week");
   // 10 + 10 + 5 + 5 off, over 250 ordered: an empty week still counts its forecast as error.
   assert.equal(off, 30 / 250);
+});
+
+
+// Roadmap MF-06, R-ML-20: the likely range, summed over brands and depots, only when every part has one.
+test("the week's likely range sums its brands and depots, and says nothing when a part has none", () => {
+  const ranged = (isoWeek: number) => week(isoWeek, {
+    brands: [
+      { brandCode: "Fresh", totalM3: "100", chilledM3: "30", lowM3: "90", highM3: "115" },
+      { brandCode: "Style", totalM3: "50", chilledM3: "0", lowM3: "44", highM3: "58" },
+    ],
+  });
+  const both = combine([overview("Kandy", [ranged(41)]), overview("Peliyagoda", [ranged(41)])]).weeks[0]!;
+  assert.deepEqual(weekRange(both), { low: 268, high: 346 });
+  assert.equal(likelyLabel(both), "likely 268 to 346");
+  const fresh = forBrand([both], "Fresh")[0]!;
+  assert.deepEqual(weekRange(fresh), { low: 180, high: 230 });
+  // One depot with too little history: the sum has no range.
+  const mixed = combine([overview("Kandy", [ranged(41)]), overview("Peliyagoda", [week(41)])]).weeks[0]!;
+  assert.equal(weekRange(mixed), null);
+  assert.equal(likelyLabel(mixed), null);
 });

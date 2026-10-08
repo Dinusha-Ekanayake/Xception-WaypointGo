@@ -170,6 +170,8 @@ Equal-bin calibration error is too noisy at this volume and is not used.
 
 **Built (first slice, 2026-10-08): unloading time.** Each stop's expected minutes get a range from the same predictor's misses before the plan's day (outlet, then depot, then all, 30 or more each), stored on the prediction and released onto the delivery; the store reads "unloading 15 to 24 min" (R-ML-20, ML-31). Open: the weekly forecast's range on the Forecast screen, and showing the range to the driver (driver UI, needs J.V.'s OK). The Sinhala and Tamil wording waits for the native-speaker review (FF-00).
 
+**Built (second slice, 2026-10-08).** The driver's next stop reads "15 to 24 min to unload" (J.V. agreed). The weekly forecast has a range from pooled log-ratios of the last 26 finished weeks across every series, attached when the Forecast screen reads it rather than stored, so it always uses the newest finished weeks; the screen shows "likely 443 to 590" beside the next and peak weeks (R-ML-20, ML-32). The store home also no longer squeezes its header or its progress steps in Tamil.
+
 ### MF-07 Feature freshness
 
 The screen states "Road conditions known until DATE". Later dates use the fallback model, which already exists.

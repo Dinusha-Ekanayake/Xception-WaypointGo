@@ -126,6 +126,10 @@ test("the next stop says how long it is expected to take to unload (T1-04)", asy
   assert.equal(unloadText(null), "");
   assert.equal(unloadText(undefined), "");
   assert.equal(unloadText(0), "");
+  // MF-06: a range when the prediction has one; one that rounds to a single number reads as the minutes.
+  assert.equal(unloadText("18.4", "14.6", "24.2"), " · 15 to 24 min to unload");
+  assert.equal(unloadText("18", "18.2", "18.4"), " · about 18 min to unload");
+  assert.equal(unloadText("18", null, null), " · about 18 min to unload");
 });
 
 test("rows further from the card are smaller and fainter, like a dial, within limits", async () => {

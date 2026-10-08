@@ -21,7 +21,8 @@ export type ForecastWeek = {
   paydays: number;
   festival: string | null;
   generatedDays: number;
-  brands: Array<{ code: string; total: number; chilled: number }>;
+  /** low and high are the MF-06 range, null when any part of the sum has none. */
+  brands: Array<{ code: string; total: number; chilled: number; low: number | null; high: number | null }>;
   total: number;
   chilled: number;
   fleetM3: number;
@@ -76,11 +77,15 @@ export function combine(overviews: ForecastOverviewView[]): Forecast {
       for (const b of w.brands) {
         brandCodes.add(b.brandCode);
         const existing = into.brands.find((x) => x.code === b.brandCode);
+        const low = b.lowM3 == null ? null : num(b.lowM3);
+        const high = b.highM3 == null ? null : num(b.highM3);
         if (existing) {
           existing.total += num(b.totalM3);
           existing.chilled += num(b.chilledM3);
+          existing.low = existing.low === null || low === null ? null : existing.low + low;
+          existing.high = existing.high === null || high === null ? null : existing.high + high;
         } else {
-          into.brands.push({ code: b.brandCode, total: num(b.totalM3), chilled: num(b.chilledM3) });
+          into.brands.push({ code: b.brandCode, total: num(b.totalM3), chilled: num(b.chilledM3), low, high });
         }
       }
       into.total += num(w.totalM3);
@@ -120,6 +125,24 @@ export function forBrand(weeks: ForecastWeek[], brand: BrandFilter): ForecastWee
       chilled: brands.reduce((s, b) => s + b.chilled, 0),
     };
   });
+}
+
+/**
+ * MF-06, R-ML-20: the week's likely range, the sum of its brands' ranges, or
+ * null when any brand has none (too few finished weeks to say).
+ */
+export function weekRange(week: ForecastWeek): { low: number; high: number } | null {
+  if (week.brands.length === 0 || week.brands.some((b) => b.low === null || b.high === null)) return null;
+  return {
+    low: week.brands.reduce((s, b) => s + (b.low ?? 0), 0),
+    high: week.brands.reduce((s, b) => s + (b.high ?? 0), 0),
+  };
+}
+
+/** "likely 380 to 450", shown beside the week's m³, or nothing without a range. */
+export function likelyLabel(week: ForecastWeek): string | null {
+  const r = weekRange(week);
+  return r && r.high > r.low ? `likely ${m3(r.low).replace(" m³", "")} to ${m3(r.high).replace(" m³", "")}` : null;
 }
 
 export type Segment = { id: string; label: string; m3: number };

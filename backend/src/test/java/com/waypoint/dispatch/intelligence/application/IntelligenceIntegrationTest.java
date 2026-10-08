@@ -506,6 +506,43 @@ class IntelligenceIntegrationTest {
   }
 
   @Test
+  void eachBrandsWeeklyForecastComesWithARangeFromPooledFinishedWeeks() throws Exception {
+    // MF-06, R-ML-20: 40 finished weeks of another series, ordered 0.9 to 1.1 times the forecast.
+    java.time.LocalDate monday = java.time.LocalDate.now(com.waypoint.dispatch.shared.util.Clock.OPERATING_ZONE)
+        .with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY));
+    String series = "RANGE-" + run;
+    for (int i = 0; i < 40; i++) {
+      java.time.LocalDate m = monday.minusWeeks(1 + i % 10);
+      double ordered = 100 * (0.9 + 0.2 * i / 39);
+      String brand = "B" + (i / 10);
+      database.asSystem(ModuleRole.ML, () -> database.update(
+          """
+          INSERT INTO ml.forecast_accuracy
+              (depot_code, brand_code, iso_year, iso_week, model_label, forecast_generated_at, forecast_total_m3,
+               actual_total_m3, forecast_chilled_m3, actual_chilled_m3, computed_at)
+          VALUES (?, ?, ?, ?, 'deterministic', now(), 100, ?, 0, 0, now())
+          ON CONFLICT (depot_code, brand_code, iso_year, iso_week) DO NOTHING
+          """,
+          series, brand, m.get(java.time.temporal.IsoFields.WEEK_BASED_YEAR),
+          (short) m.get(java.time.temporal.IsoFields.WEEK_OF_WEEK_BASED_YEAR), BigDecimal.valueOf(ordered)));
+    }
+    String label = activate("demand_forecast");
+    STUB.demandLabel.set(label);
+    forecasts.runAt(Instant.now());
+
+    JsonNode o = read(dispatcher, "/api/ml/forecast/overview?depot=" + depot + "&weeks=2", 200);
+    for (JsonNode w : o.get("weeks")) {
+      for (JsonNode b : w.get("brands")) {
+        double total = b.get("totalM3").asDouble();
+        assertTrue(b.get("lowM3").asDouble() <= total && total <= b.get("highM3").asDouble(), b.toString());
+        if (total > 0) {
+          assertTrue(b.get("highM3").asDouble() > b.get("lowM3").asDouble(), b.toString());
+        }
+      }
+    }
+  }
+
+  @Test
   void theOverviewGivesTenWeeksWithBrandsCalendarAndFleetCapacity() throws Exception {
     String label = activate("demand_forecast");
     STUB.demandLabel.set(label);

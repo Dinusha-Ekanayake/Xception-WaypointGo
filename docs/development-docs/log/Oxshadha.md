@@ -4,6 +4,19 @@
 
 ---
 
+## 2026-10-08 - feat: unloading range for the driver, a range on the weekly forecast (MF-06)
+
+`dev` · @Oxshadha
+
+- The driver's run sheet carries the unloading range; the next stop reads "15 to 24 min to unload" (J.V. agreed).
+- `ForecastRange` (domain): pooled log-ratios of the last 26 finished weeks, 30 or more, 10th to 90th percentile; each brand's week carries it, and the Forecast screen shows "likely 443 to 590" beside the next and peak weeks (R-ML-20, ML-32).
+- Store home in Tamil: the header's chips wrap instead of squeezing the label to one letter a line, and the progress steps no longer run into each other.
+
+Why: a forecast or an unloading time is a range in practice; one number reads as a promise.
+Verified: ForecastRangeTest 3, the new intelligence case, forecast and driver Node and browser tests, store 63, driver 44, the full backend suite before the push.
+
+---
+
 ## 2026-10-08 - feat: a range around the unloading time (MF-06, first slice)
 
 `dev` · @Oxshadha

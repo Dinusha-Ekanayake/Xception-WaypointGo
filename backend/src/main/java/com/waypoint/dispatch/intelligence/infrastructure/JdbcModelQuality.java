@@ -99,6 +99,18 @@ public class JdbcModelQuality {
   }
 
   /** A depot's judged weeks between two week keys (year * 100 + week), oldest first, as the reader may see. */
+  /** Every series' finished weeks in the range, for the forecast's range (MF-06): pooled, so no depot filter. */
+  public List<com.waypoint.dispatch.intelligence.domain.ForecastRange.Pair> pairs(int fromKey, int toKey) {
+    return database.query(
+            "SELECT forecast_total_m3, actual_total_m3 FROM ml.forecast_accuracy"
+                + " WHERE iso_year * 100 + iso_week BETWEEN ? AND ?",
+            fromKey, toKey)
+        .stream()
+        .map(r -> new com.waypoint.dispatch.intelligence.domain.ForecastRange.Pair(
+            ((Number) r.get("forecast_total_m3")).doubleValue(), ((Number) r.get("actual_total_m3")).doubleValue()))
+        .toList();
+  }
+
   public List<java.util.Map<String, Object>> accuracy(String depot, int fromKey, int toKey) {
     return database.query(
         """

@@ -23,6 +23,32 @@ test("the forecast shows ten weeks against the fleet, with the peak and what it 
   await expect(needs.getByRole("row", { name: /Wk 2/ })).toBeVisible();
 });
 
+// Roadmap MF-06: with enough finished weeks each week has a likely range, on the Next and Peak week cards.
+test("the next and peak weeks say how much is likely", async ({ page }) => {
+  const base = forecast();
+  const ranged = {
+    ...base,
+    weeks: base.weeks.map((w) => ({
+      ...w,
+      brands: w.brands.map((b) => ({ ...b, lowM3: String(Number(b.totalM3) * 0.9), highM3: String(Number(b.totalM3) * 1.2) })),
+    })),
+  };
+  await serve(page, { forecast: ranged });
+  await page.goto("/#/forecast");
+  const peak = Number(base.weeks[1]!.totalM3);
+  const ranges = page.getByTestId("likely-range");
+  await expect(ranges).toHaveCount(2);
+  await expect(ranges.nth(1)).toHaveText(`likely ${Math.round(peak * 0.9)} to ${Math.round(peak * 1.2)}`);
+  await expect(page.getByText("+24% on a typical week")).toBeVisible();
+});
+
+test("without enough finished weeks the forecast gives no range", async ({ page }) => {
+  await serve(page);
+  await page.goto("/#/forecast");
+  await expect(page.getByText("Peak week · Wk 2 Poson")).toBeVisible();
+  await expect(page.getByTestId("likely-range")).toHaveCount(0);
+});
+
 test("a brand filter shows only that brand's demand", async ({ page }) => {
   await serve(page);
   await page.goto("/#/forecast");

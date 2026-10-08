@@ -1,6 +1,7 @@
 package com.waypoint.dispatch.intelligence.application;
 
 import com.waypoint.dispatch.intelligence.domain.Backtest;
+import com.waypoint.dispatch.intelligence.domain.ForecastRange;
 import com.waypoint.dispatch.intelligence.domain.ModelMetrics;
 import com.waypoint.dispatch.execution.contract.ExecutionQuery;
 import com.waypoint.dispatch.execution.contract.ExecutionViews.DeliveryOutcome;
@@ -274,6 +275,10 @@ public class IntelligenceDataQuery implements PredictionQuery, ModelQuery, Trave
         .reduce((a, b) -> "mixed");
     boolean degraded = rows.stream().anyMatch(r -> (Boolean) r.get("degraded"));
 
+    // MF-06: how far the last 26 finished weeks missed, pooled across every series.
+    LocalDate thisMonday = origin.minusWeeks(1);
+    Optional<ForecastRange.Factors> factors = database.asSystemSeparately(ModuleRole.ML,
+        () -> ForecastRange.factors(quality.pairs(weekKey(thisMonday.minusWeeks(26)), weekKey(thisMonday.minusWeeks(1)))));
     List<ForecastWeekView> out = new ArrayList<>();
     for (LocalDate monday = origin; !monday.isAfter(end); monday = monday.plusWeeks(1)) {
       LocalDate weekStart = monday;
@@ -285,8 +290,14 @@ public class IntelligenceDataQuery implements PredictionQuery, ModelQuery, Trave
       List<BrandVolumeView> brands = rows.stream()
           .filter(r -> ((Number) r.get("iso_year")).intValue() == year
               && ((Number) r.get("iso_week")).intValue() == isoWeek)
-          .map(r -> new BrandVolumeView(
-              (String) r.get("brand_code"), (BigDecimal) r.get("total_m3"), (BigDecimal) r.get("chilled_m3")))
+          .map(r -> {
+            BigDecimal total = (BigDecimal) r.get("total_m3");
+            Optional<double[]> range = factors.map(f -> ForecastRange.apply(total.doubleValue(), f));
+            return new BrandVolumeView(
+                (String) r.get("brand_code"), total, (BigDecimal) r.get("chilled_m3"),
+                range.map(x -> BigDecimal.valueOf(x[0]).setScale(1, java.math.RoundingMode.HALF_UP)),
+                range.map(x -> BigDecimal.valueOf(x[1]).setScale(1, java.math.RoundingMode.HALF_UP)));
+          })
           .sorted(java.util.Comparator.comparing(BrandVolumeView::brandCode))
           .toList();
       int operating = (int) week.stream().filter(CalendarDayView::operating).count();

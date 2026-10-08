@@ -78,7 +78,7 @@ export function toRouteStops(
       window: hhmm(stop.windowClose),
       windowStatus: status(serviceDate, stop, now),
       // Roadmap T1-04: how long the stop is expected to take, from the plan's prediction.
-      cargoText: units(stop.itemCount) + unloadText(stop.expectedServiceMinutes),
+      cargoText: units(stop.itemCount) + unloadText(stop.expectedServiceMinutes, stop.expectedServiceLow, stop.expectedServiceHigh),
       instructions: access(outlet),
       mapButtonType: "split",
       finished: isFinished(stop),
@@ -91,10 +91,22 @@ export function toRouteStops(
   });
 }
 
-/** " · about 18 min to unload", or nothing when the plan carried no prediction. */
-export function unloadText(minutes: number | string | null | undefined): string {
+/**
+ * " · 15 to 24 min to unload" when the prediction has a range (roadmap MF-06),
+ * " · about 18 min to unload" when it has only the minutes, or nothing.
+ */
+export function unloadText(
+  minutes: number | string | null | undefined,
+  low?: number | string | null,
+  high?: number | string | null,
+): string {
   const m = minutes == null ? NaN : Math.round(Number(minutes));
-  return Number.isFinite(m) && m > 0 ? ` · about ${m} min to unload` : "";
+  if (!(Number.isFinite(m) && m > 0)) return "";
+  const lo = low == null ? NaN : Math.round(Number(low));
+  const hi = high == null ? NaN : Math.round(Number(high));
+  return Number.isFinite(lo) && Number.isFinite(hi) && hi > lo
+    ? ` · ${Math.max(1, lo)} to ${hi} min to unload`
+    : ` · about ${m} min to unload`;
 }
 
 export { dialStyle } from "../../../shared/ui/dial.ts";

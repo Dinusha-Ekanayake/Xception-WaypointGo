@@ -738,6 +738,10 @@ class ExecutionIntegrationTest {
         "deterministic", java.util.Optional.of(new java.math.BigDecimal("14.5")),
         java.util.Optional.of(new java.math.BigDecimal("27"))));
     assertEquals(30.0, json(read(driver, "/api/execution/deliveries/" + stopA, 200)).get("expectedServiceHigh").asDouble(), 1e-9);
+    // The driver's run sheet carries it too.
+    JsonNode sheetStop = runSheet(driver).get("stops").get(0);
+    assertEquals(14.5, sheetStop.get("expectedServiceLow").asDouble(), 1e-9);
+    assertEquals(30.0, sheetStop.get("expectedServiceHigh").asDouble(), 1e-9);
   }
 
   @Test

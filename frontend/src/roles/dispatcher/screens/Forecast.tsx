@@ -17,6 +17,7 @@ import {
   forecastError,
   forBrand,
   kpis,
+  likelyLabel,
   m3,
   pct,
   segments,
@@ -99,7 +100,7 @@ export default function Forecast({
           <div className="flex w-full gap-3.5 max-md:flex-col">
             <KpiCard
               label={k.next ? `Next week · ${weekLabel(k.next.week)}` : "Next week"}
-              value={k.next ? m3(k.next.week.total) : "…"}
+              value={k.next ? <WithRange m3Text={m3(k.next.week.total)} likely={likelyLabel(k.next.week)} /> : "…"}
               note={
                 k.next
                   ? `${pct(k.next.chilledShare)} chilled${k.next.topBrand ? ` · ${k.next.topBrand.code} ${pct(k.next.topBrand.share)}` : ""}`
@@ -108,7 +109,7 @@ export default function Forecast({
             />
             <KpiCard
               label={k.peak ? `Peak week · ${weekLabel(k.peak.week)}${k.peak.week.festival ? ` ${k.peak.week.festival}` : ""}` : "Peak week"}
-              value={k.peak ? m3(k.peak.week.total) : "…"}
+              value={k.peak ? <WithRange m3Text={m3(k.peak.week.total)} likely={likelyLabel(k.peak.week)} /> : "…"}
               valueClassName="text-go-danger"
               note={k.peak ? `+${pct(k.peak.overMedian)} on a typical week` : undefined}
             />
@@ -165,5 +166,15 @@ function Legend({ weeks }: { weeks: Parameters<typeof segments>[0][] }): React.J
         </li>
       ))}
     </ul>
+  );
+}
+
+/** Roadmap MF-06: the week's volume, with its likely range beside it when there is one. */
+function WithRange({ m3Text, likely }: { m3Text: string; likely: string | null }): React.JSX.Element {
+  return (
+    <>
+      {m3Text}
+      {likely && <span className="ml-2 text-xs font-normal text-go-secondary" data-testid="likely-range">{likely}</span>}
+    </>
   );
 }

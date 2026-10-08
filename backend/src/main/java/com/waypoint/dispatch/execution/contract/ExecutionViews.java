@@ -66,7 +66,10 @@ public final class ExecutionViews {
       /** Why the driver moved on before the store answered, when they did (issue #21): store_absent, no_signal, disagree. */
       Optional<String> storeAnswerWaived,
       /** Roadmap T1-04: how long the stop is expected to take, from the plan's stored prediction. */
-      Optional<java.math.BigDecimal> expectedServiceMinutes) {
+      Optional<java.math.BigDecimal> expectedServiceMinutes,
+      /** Roadmap MF-06: about four stops in five take between these minutes; empty with too little history. */
+      Optional<java.math.BigDecimal> expectedServiceLow,
+      Optional<java.math.BigDecimal> expectedServiceHigh) {
 
     public RunSheetStopView(
         UUID deliveryId, UUID tripId, int sequence, UUID orderId, String outletId, int itemCount, boolean mallOutlet,
@@ -77,11 +80,14 @@ public final class ExecutionViews {
         Optional<String> storeAnswerWaived) {
       this(deliveryId, tripId, sequence, orderId, outletId, itemCount, mallOutlet, plannedArrival, windowOpen,
           windowClose, expectedArrival, startedAt, arrivedAt, completedAt, waitMinutes, lateMinutes, outcome,
-          deliveredUnits, proofCaptured, rowVersion, lines, storeAnswerWaived, Optional.empty());
+          deliveredUnits, proofCaptured, rowVersion, lines, storeAnswerWaived, Optional.empty(), Optional.empty(),
+          Optional.empty());
     }
 
     public RunSheetStopView {
       lines = List.copyOf(lines);
+      expectedServiceLow = expectedServiceLow == null ? Optional.empty() : expectedServiceLow;
+      expectedServiceHigh = expectedServiceHigh == null ? Optional.empty() : expectedServiceHigh;
     }
   }
 

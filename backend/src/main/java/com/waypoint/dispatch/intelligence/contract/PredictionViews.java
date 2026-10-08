@@ -187,7 +187,19 @@ public final class PredictionViews {
   }
 
   /** One brand's demand in a week; chilled is zero for Style and Tech. */
-  public record BrandVolumeView(String brandCode, BigDecimal totalM3, BigDecimal chilledM3) {}
+  /**
+   * One brand's demand in a week; chilled is zero for Style and Tech. About four
+   * weeks in five the volume ordered falls between {@code lowM3} and
+   * {@code highM3} (MF-06, R-ML-20); both empty with too few finished weeks.
+   */
+  public record BrandVolumeView(
+      String brandCode, BigDecimal totalM3, BigDecimal chilledM3, Optional<BigDecimal> lowM3,
+      Optional<BigDecimal> highM3) {
+    public BrandVolumeView {
+      lowM3 = lowM3 == null ? Optional.empty() : lowM3;
+      highM3 = highM3 == null ? Optional.empty() : highM3;
+    }
+  }
 
   /**
    * What the depot can carry in the week with each day's own fleet: vehicles in

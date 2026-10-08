@@ -46,6 +46,9 @@ export type RunSheetStopView = {
   storeAnswerWaived: StoreAnswerWaiverReason | null;
   /** Roadmap T1-04: how long the stop is expected to take, in minutes, from the plan's stored prediction. */
   expectedServiceMinutes?: number | string | null;
+  /** Roadmap MF-06: about four stops in five take between these minutes; null with too little history. */
+  expectedServiceLow?: number | string | null;
+  expectedServiceHigh?: number | string | null;
 };
 
 export type RunSheetView = {
