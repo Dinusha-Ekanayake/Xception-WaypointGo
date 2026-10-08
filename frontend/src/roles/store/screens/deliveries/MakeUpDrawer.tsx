@@ -4,9 +4,10 @@ import { useResource } from "@shared/api/useResource";
 import type { DeliveryRecordView, IssueView, OrderView, OutletView } from "@shared/domain/types";
 import { Icon, cx } from "@shared/ui";
 import type { StoreGateway } from "../../data/gateway.ts";
-import { units, clock, depotToday, expectedAt, hhmm, temperatureLabel, productLabel } from "../../data/format.ts";
+import { clock, depotToday, expectedAt, hhmm, temperatureLabel, productLabel } from "../../data/format.ts";
 import { makeUpSteps } from "../../data/runs.ts";
 import { Button, Drawer } from "../../ui.tsx";
+import { useT, useCounts } from "../../i18n.tsx";
 
 // Figma "05b make-up delivery": what a redelivery carries and how far it has
 // got. A redelivery resends the whole original order (A-24), so the lines are
@@ -29,13 +30,15 @@ export default function MakeUpDrawer({
   outlet: OutletView | null;
   onClose: () => void;
 }): React.JSX.Element {
+  const { units } = useCounts();
+  const t = useT();
   const timeline = useResource((s) => gateway.history(order.orderId, s), order.orderId);
   const window = outlet ? `${hhmm(outlet.windowOpen)}-${hhmm(outlet.windowClose)}` : null;
-  const steps = makeUpSteps({ order, issue, timeline: timeline.data ?? [], record, dock: outlet?.dockType ?? null, window, today: depotToday() });
-  const title = record ? `${record.vehicleId} · make-up delivery` : "Make-up delivery";
+  const steps = makeUpSteps({ order, issue, timeline: timeline.data ?? [], record, dock: outlet?.dockType ?? null, window, today: depotToday() }, t);
+  const title = record ? t("{vehicle} · make-up delivery", { vehicle: record.vehicleId }) : t("Make-up delivery");
   const about = [
-    order.temperature === "chilled" ? "Refrigerated vehicle" : null,
-    record ? `Expected ${clock(expectedAt(record))}` : window ? `Window ${window}` : null,
+    order.temperature === "chilled" ? t("Refrigerated vehicle") : null,
+    record ? t("Expected {time}", { time: clock(expectedAt(record)) }) : window ? t("Window {window}", { window }) : null,
   ].filter(Boolean);
 
   return (
@@ -45,27 +48,27 @@ export default function MakeUpDrawer({
           <h2 className="text-[22px] font-medium text-black">{title}</h2>
           {about.length > 0 && <p className="text-[13px] text-go-muted">{about.join(" · ")}</p>}
         </div>
-        <button type="button" aria-label="Close" onClick={onClose} className="flex size-12 shrink-0 items-center justify-center rounded-full bg-go-canvas">
+        <button type="button" aria-label={t("Close")} onClick={onClose} className="flex size-12 shrink-0 items-center justify-center rounded-full bg-go-canvas">
           <Icon name="close" />
         </button>
       </div>
 
-      <section aria-label="What it carries" className="flex flex-col gap-2 rounded-[16px] bg-go-mint/40 px-4 py-3">
+      <section aria-label={t("What it carries")} className="flex flex-col gap-2 rounded-[16px] bg-go-mint/40 px-4 py-3">
         <span className="text-[15px] font-medium text-black">{order.orderRef}</span>
         <ul className="flex flex-col gap-1.5">
           {order.lines.map((l) => (
             <li key={l.productId} className="flex flex-col">
               <span className="text-[15px] text-black">{productLabel(l.productId)}</span>
               <span className="text-[13px] text-go-muted">
-                {units(l.quantity)} · {temperatureLabel(order.temperature)} · <span title="Reconstructed from order totals, not a confirmed product">inferred</span>
+                {units(l.quantity)} · {t(temperatureLabel(order.temperature))} · <span title={t("Reconstructed from order totals, not a confirmed product")}>{t("inferred")}</span>
               </span>
             </li>
           ))}
         </ul>
       </section>
 
-      <section aria-label="Timeline" className="flex flex-col gap-3">
-        <h3 className="text-[15px] font-medium text-black">Timeline</h3>
+      <section aria-label={t("Timeline")} className="flex flex-col gap-3">
+        <h3 className="text-[15px] font-medium text-black">{t("Timeline")}</h3>
         <ol className="flex flex-col gap-3">
           {steps.map((s) => (
             <li key={s.title} className="flex gap-3">
@@ -80,11 +83,11 @@ export default function MakeUpDrawer({
             </li>
           ))}
         </ol>
-        {timeline.error && <p className="text-[13px] text-go-muted">The loading time could not be read; the steps show what is known.</p>}
+        {timeline.error && <p className="text-[13px] text-go-muted">{t("The loading time could not be read; the steps show what is known.")}</p>}
       </section>
 
       <div className="mt-auto pt-2">
-        <Button onClick={onClose}>Close</Button>
+        <Button onClick={onClose}>{t("Close")}</Button>
       </div>
     </Drawer>
   );

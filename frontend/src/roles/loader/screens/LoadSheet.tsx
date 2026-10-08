@@ -152,7 +152,7 @@ export default function LoadSheet({
         <Notice
           tone="warning"
           live
-          title={`Plan changed: version ${t.planChangedFrom} → ${m.planVersion}`}
+          title={tr("Plan changed: version {from} → {to}", { from: t.planChangedFrom, to: m.planVersion })}
           action={
             <button type="button" onClick={t.acknowledgePlan} className="min-h-12 shrink-0 px-2 text-[13px] font-medium text-go-teal">
               {tr("Got it")}

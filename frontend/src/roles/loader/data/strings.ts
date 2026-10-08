@@ -13,7 +13,7 @@ export const LANGS: Array<{ value: Lang; label: string; short: string; html: str
 ];
 
 /** [Sinhala, Tamil] for each English string. `{name}` marks a value filled in at run time. */
-const STRINGS: Record<string, [string, string]> = {
+export const STRINGS: Record<string, [string, string]> = {
   // Install (issue #201)
   "Install app": ["යෙදුම ස්ථාපනය කරන්න", "செயலியை நிறுவு"],
   "In Safari, tap Share, then Add to Home Screen. The app then opens from its own icon and keeps working with no signal.": [
@@ -34,6 +34,14 @@ const STRINGS: Record<string, [string, string]> = {
   "Depot {depot}": ["ගබඩාව {depot}", "கிடங்கு {depot}"],
   "Offline · {n} saved on this device": ["නොබැඳි · මෙම උපාංගයේ {n}ක් සුරැකිණි", "இணைப்பில்லை · இந்தச் சாதனத்தில் {n} சேமிக்கப்பட்டது"],
   "Offline · showing last sync": ["නොබැඳි · අවසන් සමමුහුර්තය පෙන්වයි", "இணைப்பில்லை · கடைசி ஒத்திசைவு காட்டப்படுகிறது"],
+  "Offline": ["නොබැඳි", "இணைப்பில்லை"],
+  "Offline, {n} saved on this device": ["නොබැඳි, මෙම උපාංගයේ {n}ක් සුරැකිණි", "இணைப்பில்லை, இந்தச் சாதனத்தில் {n} சேமிக்கப்பட்டது"],
+  "Can't reach Waypoint": ["Waypoint වෙත ළඟා විය නොහැක", "Waypoint-ஐ அடைய முடியவில்லை"],
+  "Syncing": ["සමමුහුර්ත කරමින්", "ஒத்திசைக்கிறது"],
+  "Synced": ["සමමුහුර්තයි", "ஒத்திசைந்தது"],
+  "Undo loaded, {label}": ["පැටවූ බව අහෝසි කරන්න, {label}", "ஏற்றியதைச் செயல்தவிர், {label}"],
+  "Mark {label} loaded": ["{label} පැටවූ ලෙස සලකුණු කරන්න", "{label} ஏற்றப்பட்டதாகக் குறி"],
+  "Filter trips": ["ගමන් පෙරන්න", "பயணங்களை வடிகட்டு"],
   "Offline · showing {time}": ["නොබැඳි · {time} දත්ත පෙන්වයි", "இணைப்பில்லை · {time} தரவு காட்டப்படுகிறது"],
   "Can't reach Waypoint · showing {time}": ["Waypoint වෙත සම්බන්ධ විය නොහැක · {time} දත්ත පෙන්වයි", "Waypoint-ஐ அணுக முடியவில்லை · {time} தரவு காட்டப்படுகிறது"],
   "Sending {n}…": ["{n}ක් යවමින්…", "{n} அனுப்பப்படுகிறது…"],
@@ -114,6 +122,10 @@ const STRINGS: Record<string, [string, string]> = {
   "Could not load this trip's load sheet": ["මෙම ගමනේ පැටවුම් පත්‍රය පූරණය කළ නොහැකි විය", "இந்தப் பயணத்தின் ஏற்றுத் தாளை ஏற்ற முடியவில்லை"],
   "Loading the load sheet…": ["පැටවුම් පත්‍රය පූරණය වෙමින්…", "ஏற்றுத் தாள் ஏற்றப்படுகிறது…"],
   "Volume": ["පරිමාව", "கன அளவு"],
+  "Truck": ["ට්‍රක් රථය", "லாரி"],
+  "Your account has no depot in scope. Ask an administrator to grant one.": ["ඔබේ ගිණුමට ගබඩාවක් පවරා නැත. එකක් ලබා දෙන ලෙස පරිපාලකයෙකුගෙන් ඉල්ලන්න.", "உங்கள் கணக்குக்குக் கிடங்கு எதுவும் ஒதுக்கப்படவில்லை. ஒன்றை வழங்க நிர்வாகியிடம் கேளுங்கள்."],
+  "Plan changed: version {from} → {to}": ["සැලැස්ම වෙනස් විය: අනුවාදය {from} → {to}", "திட்டம் மாறியது: பதிப்பு {from} → {to}"],
+  "Sample data: publish a plan change": ["ආදර්ශ දත්ත: සැලැස්මේ වෙනසක් ප්‍රකාශ කරන්න", "மாதிரித் தரவு: திட்ட மாற்றத்தை வெளியிடு"],
   "Weight": ["බර", "எடை"],
   "{n} left": ["{n}ක් ඉතිරියි", "{n} மீதம்"],
   "All loaded": ["සියල්ල පටවා ඇත", "அனைத்தும் ஏற்றப்பட்டது"],
@@ -239,7 +251,7 @@ const STRINGS: Record<string, [string, string]> = {
   ],
   "Too many attempts. Try again in {n} seconds.": ["උත්සාහයන් වැඩියි. තත්පර {n} කින් නැවත උත්සාහ කරන්න.", "அதிக முயற்சிகள். {n} விநாடிகளில் மீண்டும் முயலவும்."],
   "Try again in {n}s": ["තත්. {n} කින් නැවත", "{n} வி. இல் மீண்டும்"],
-  "{n} try left.": ["තව එක් වරක් ඉතිරියි.", "இன்னும் {n} முயற்சி உள்ளது."],
+  "{n} try left.": ["තව {n} වරක් ඉතිරියි.", "இன்னும் {n} முயற்சி உள்ளது."],
   "{n} tries left.": ["තව වාර {n} ක් ඉතිරියි.", "இன்னும் {n} முயற்சிகள் உள்ளன."],
   "Connect to switch operator": ["ක්‍රියාකරු මාරු කිරීමට සම්බන්ධ වන්න", "இயக்குநரை மாற்ற இணைக்கவும்"],
 
@@ -262,7 +274,7 @@ const STRINGS: Record<string, [string, string]> = {
   "4-digit PIN": ["ඉලක්කම් 4ක PIN", "4 இலக்க PIN"],
   "PIN entry paused": ["PIN ඇතුළත් කිරීම නවතා ඇත", "PIN உள்ளீடு இடைநிறுத்தப்பட்டது"],
   "Too many tries. Wait {time}.": ["උත්සාහයන් වැඩියි. {time} රැඳී සිටින්න.", "அதிக முயற்சிகள். {time} காத்திருக்கவும்."],
-  "Incorrect PIN. {n} try left.": ["PIN වැරදියි. තව එක් වරක් ඉතිරියි.", "தவறான PIN. இன்னும் {n} முயற்சி உள்ளது."],
+  "Incorrect PIN. {n} try left.": ["PIN වැරදියි. තව {n} වරක් ඉතිරියි.", "தவறான PIN. இன்னும் {n} முயற்சி உள்ளது."],
   "Incorrect PIN. {n} tries left.": ["PIN වැරදියි. තව වාර {n} ක් ඉතිරියි.", "தவறான PIN. இன்னும் {n} முயற்சிகள் உள்ளன."],
   "Ask supervisor to reset": ["යළි සැකසීමට අධීක්ෂකගෙන් අසන්න", "மீட்டமைக்க மேற்பார்வையாளரிடம் கேளுங்கள்"],
   "Shared device. Find your name, then enter your PIN.": ["හවුල් උපාංගය. ඔබේ නම සොයා, PIN අංකය ඇතුළත් කරන්න.", "பகிரப்பட்ட சாதனம். உங்கள் பெயரைக் கண்டறிந்து PIN ஐ உள்ளிடவும்."],
@@ -518,6 +530,7 @@ const STRINGS: Record<string, [string, string]> = {
     "මෙම උපාංගයේ සුරැකිණි. සම්බන්ධතාවය ලැබුණු විට යැවේ.",
     "இந்தச் சாதனத்தில் சேமிக்கப்பட்டது. இணைப்பு வந்ததும் அனுப்பப்படும்.",
   ],
+  "Stop {n} · {place}": ["නැවතුම {n} · {place}", "நிறுத்தம் {n} · {place}"],
 };
 
 export type Vars = Record<string, string | number>;

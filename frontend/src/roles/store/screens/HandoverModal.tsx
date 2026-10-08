@@ -11,6 +11,7 @@ import { clock, minutesLabel } from "../data/format.ts";
 import { conflictMessage } from "../data/useCommands.ts";
 import { Badge, Button, Modal } from "../ui.tsx";
 import { businessNow } from "@shared/wording";
+import { useT } from "../i18n.tsx";
 
 // Figma "06b Enter PIN on driver's phone". The store's count is already on
 // record; the PIN is evidence that the handover happened here, never a gate
@@ -35,6 +36,7 @@ export default function HandoverModal({
   onConfirmed: (handover: HandoverView) => void;
   onClose: () => void;
 }): React.JSX.Element {
+  const t = useT();
   const [pin, setPin] = useState(issued);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -69,7 +71,7 @@ export default function HandoverModal({
       setPin({ pin: result.handoverPin, expiresAt: result.handoverExpiresAt });
     } catch (failure) {
       // Anything but an answer from Waypoint is the connection: nothing was issued.
-      setError(failure instanceof ApiError ? conflictMessage(failure) : "A new PIN needs a connection. Try again when you are back online.");
+      setError(failure instanceof ApiError ? conflictMessage(failure, t) : t("A new PIN needs a connection. Try again when you are back online."));
       handover.refresh();
     } finally {
       setBusy(false);
@@ -77,13 +79,13 @@ export default function HandoverModal({
   };
 
   return (
-    <Modal label="Enter this PIN on the driver's phone" onClose={onClose}>
+    <Modal label={t("Enter this PIN on the driver's phone")} onClose={onClose}>
       <Badge>
         <Icon name="lock" />
       </Badge>
       <div className="flex flex-col gap-1">
-        <h2 className="text-[26px] leading-tight font-medium text-black">Enter this PIN on the driver&rsquo;s phone</h2>
-        <p className="text-[14px] text-go-muted">{spent ? "This PIN no longer works." : "Type this PIN on the driver's phone"}</p>
+        <h2 className="text-[26px] leading-tight font-medium text-black">{t("Enter this PIN on the driver’s phone")}</h2>
+        <p className="text-[14px] text-go-muted">{t(spent ? "This PIN no longer works." : "Type this PIN on the driver's phone")}</p>
       </div>
       <p aria-label={`PIN ${pin.pin.split("").join(" ")}`} className="flex justify-center gap-2.5">
         {pin.pin.split("").map((digit, i) => (
@@ -99,11 +101,11 @@ export default function HandoverModal({
       <ul className="flex flex-col gap-2 rounded-[16px] bg-go-canvas px-4 py-3 text-[14px] text-black">
         <li className="flex items-center gap-2">
           <Icon name="check" />
-          One-time PIN for this delivery
+          {t("One-time PIN for this delivery")}
         </li>
         {spent ? (
           <li className="flex items-center gap-2 font-medium text-go-warning-text">
-            {h?.status === "LOCKED" ? "Locked after five wrong entries." : "Expired."} Ask for a new PIN below.
+            {t(h?.status === "LOCKED" ? "Locked after five wrong entries." : "Expired.")} {t("Ask for a new PIN below.")}
           </li>
         ) : (
           <li className="flex items-center gap-2">
@@ -117,17 +119,17 @@ export default function HandoverModal({
           </li>
         )}
       </ul>
-      {handover.error && !h && <Notice tone="warning" title="Can't check the PIN right now">Your count is recorded. The PIN still works on the driver's phone.</Notice>}
+      {handover.error && !h && <Notice tone="warning" title={t("Can't check the PIN right now")}>{t("Your count is recorded. The PIN still works on the driver's phone.")}</Notice>}
       {error && <Notice tone="danger" live title={error} />}
-      <p className="text-[13px] text-go-muted">Your count is already on record. The PIN only shows the driver handed over here; you can close this at any time.</p>
+      <p className="text-[13px] text-go-muted">{t("Your count is already on record. The PIN only shows the driver handed over here; you can close this at any time.")}</p>
       <div className="flex gap-2.5">
         {spent && (
           <Button large disabled={!h} busy={busy} onClick={() => void reissue()}>
-            {busy ? "Issuing…" : "New PIN"}
+            {t(busy ? "Issuing…" : "New PIN")}
           </Button>
         )}
         <Button tone="plain" large onClick={onClose}>
-          Close
+          {t("Close")}
         </Button>
       </div>
       {gateway.sample && !spent && (
@@ -139,7 +141,7 @@ export default function HandoverModal({
             handover.refresh();
           }}
         >
-          Sample data: the driver enters the PIN
+          {t("Sample data: the driver enters the PIN")}
         </button>
       )}
     </Modal>

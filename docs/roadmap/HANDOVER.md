@@ -39,14 +39,14 @@ The role rule keeps driver changes to fixes unless you agree. Two roadmap items 
 
 - **FF-00, reply templates in the reader's language.** Ready replies are stored as English text, so a driver working in Sinhala or Tamil still reads dispatch's ready replies in English. Showing them in the driver's language means the phone renders a reply from its template id and values.
 
-Language scope, decided by @Oxshadha on 2026-10-08: Sinhala and Tamil are required for the driver only; the loader keeps its drafts, the store's drafts stay but are not required, the dispatcher stays in English. **The driver's screens are now built in Sinhala and Tamil** (every screen, following the language chosen in Settings; [FF-00](04-FIELD-FEATURES.md#ff-00-language)). It changes no layout or flow, only the words, and the English screens are unchanged (driver suite 48 of 48).
+Language scope, decided by @Oxshadha (2026-10-08, revised 2026-10-09): Sinhala and Tamil for the driver, the loader and the store manager, each complete; the dispatcher stays in English. The store and loader were completed on 2026-10-09 (FF-00). **The driver's screens are now built in Sinhala and Tamil** (every screen, following the language chosen in Settings; [FF-00](04-FIELD-FEATURES.md#ff-00-language)). It changes no layout or flow, only the words, and the English screens are unchanged (driver suite 48 of 48).
 
 One driver change was made without asking, as a fix: a driver with nothing released today made 85 requests a minute against the gate of 60, so the week ahead is now checked every 2.5 minutes instead of every 30 s. Nothing on screen changed (`useRun.ts`, test `request-rate.spec.ts`).
 
 ## 5. Before the pilot starts
 
 - **B-03, the fresh-install walk, is not done.** It stopped because the development machine's disk is full (Docker could not unpack a layer). The walk found one real problem on the way, fixed in `1600978`: the model service image pulled NVIDIA's GPU library (352 MB) through `xgboost`; Linux now installs `xgboost-cpu` of the same version. Building that image has not been verified yet. Run on a machine with 10 GB free: a clean clone, `git lfs pull`, `cp .env.example .env`, `docker compose -p judge up --build`, then the [README walkthrough](../../README.md#judge-walkthrough) as the four named accounts.
-- **Native-speaker review** of the driver's Sinhala and Tamil (337 texts in `frontend/src/roles/driver/data/strings.ts`, required) and the loader's (FF-00).
+- **Native-speaker review** of the Sinhala and Tamil drafts in `frontend/src/roles/{driver,loader,store}/data/strings.ts` (FF-00).
 - **B-05**: the depot managers start the 4-week KPI baseline (on-time Fresh, deferrals, disputes, write-offs, calls per trip, stops recorded in the app).
 - **D-00**: the team's Datathon package (notebook, video, AI disclosure). The Task 2B write-up and its evidence are done: [TASK-2B-POLICY.md](../datathon/TASK-2B-POLICY.md).
 

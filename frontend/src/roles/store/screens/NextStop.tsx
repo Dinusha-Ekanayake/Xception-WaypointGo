@@ -1,6 +1,6 @@
 import type { DeliveryRecordView, OrderView, OutletView } from "@shared/domain/types";
-import { units, clock, expectedAt, hhmm, minutesLabel, unloadingLabel } from "../data/format.ts";
-import { useT } from "../i18n.tsx";
+import { clock, expectedAt, hhmm, minutesLabel, unloadingLabel } from "../data/format.ts";
+import { useT, useCounts } from "../i18n.tsx";
 
 // The driver, the stop and the time of "02 Home" and "05 Delivery tracking". The
 // time is the plan's, moved by the delay Execution has observed (R-EXE-15), and
@@ -17,6 +17,7 @@ export default function NextStop({
   order: OrderView;
   outlet: OutletView | null;
 }): React.JSX.Element {
+  const { units } = useCounts();
   const t = useT();
   const window = outlet ? `${hhmm(outlet.windowOpen)}-${hhmm(outlet.windowClose)}` : "-";
   // A published plan gives the stop and its planned arrival before the trip is

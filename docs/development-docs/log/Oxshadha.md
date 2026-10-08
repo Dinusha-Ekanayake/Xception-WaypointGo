@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-09 - feat: the loader and the store manager complete in Sinhala and Tamil (FF-00)
+
+`dev` · @Oxshadha
+
+- Scope revised: the loader and the store are completed rather than removed, since a half-translated screen is worse than either language. The dispatcher stays English.
+- Loader: the sync state, two labels and four texts that were English; two Sinhala rows that dropped the number of PIN tries fixed. Store: about 300 texts on 25 screens; the helpers that build a sentence with a value take the screen's language; unit and line counts through `useCounts()`.
+- `tests/role-strings.test.ts` (shared parser `tests/i18n-keys.ts`) holds both roles to the driver's rule; `e2e-store/language.spec.ts` receives a delivery in each language. Browser: store 65, loader 33, driver 48. CI still not started (billing).
+
+---
+
 ## 2026-10-08 - feat: the driver works in Sinhala and Tamil (FF-00)
 
 `dev` · @Oxshadha

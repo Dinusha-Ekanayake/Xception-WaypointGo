@@ -118,7 +118,7 @@ export default function DockBoard({
             className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-go-muted"
           />
         </label>
-        <div aria-label="Filter trips" className="-mx-5 flex gap-2 overflow-x-auto px-5 md:mx-0 md:px-0 lg:col-start-2 lg:row-start-2 lg:justify-self-end">
+        <div aria-label={tr("Filter trips")} className="-mx-5 flex gap-2 overflow-x-auto px-5 md:mx-0 md:px-0 lg:col-start-2 lg:row-start-2 lg:justify-self-end">
           {FILTERS.map((f) => (
             <button
               key={f.value}

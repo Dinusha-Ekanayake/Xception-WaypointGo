@@ -5,12 +5,13 @@ import { useResource } from "@shared/api/useResource";
 import type { DeliveryRecordView, IssueView, OrderView, OutletView, PendingReceiptView } from "@shared/domain/types";
 import { Icon, Notice, Pending, SkeletonRows, cx } from "@shared/ui";
 import type { StoreGateway } from "../data/gateway.ts";
-import { ORDER_STATUS, units, clock, depotToday, hhmm, longDay, onTheWay, temperatureLabel } from "../data/format.ts";
+import { ORDER_STATUS, clock, depotToday, hhmm, longDay, onTheWay, temperatureLabel } from "../data/format.ts";
 import { ISSUE_TYPE, isOpenIssue } from "../data/issues.ts";
 import { BackButton, Button, Card, Chip, Muted } from "../ui.tsx";
 import LiveMapCard from "./LiveMapCard.tsx";
 import NextStop from "./NextStop.tsx";
 import { Progress } from "./Home.tsx";
+import { useT, useCounts } from "../i18n.tsx";
 
 // Figma "05 Delivery tracking": one vehicle at a time, what it carries for this
 // outlet, how far it has got and, on the live map card (issue #161), where it
@@ -41,6 +42,8 @@ export default function Track({
   onOpen: (orderId: string) => void;
   onBack: () => void;
 }): React.JSX.Element {
+  const { units } = useCounts();
+  const t = useT();
   const vehicles = [...new Set(deliveries.map((d) => d.vehicleId))];
   const vehicle = vehicleId && vehicles.includes(vehicleId) ? vehicleId : (vehicles[0] ?? null);
   const stops = deliveries.filter((d) => d.vehicleId === vehicle);
@@ -67,8 +70,8 @@ export default function Track({
       </div>
 
       {vehicles.length > 1 && (
-        <div role="tablist" aria-label="Today's deliveries" className="flex flex-wrap items-center gap-2">
-          <span className="text-[13px] text-go-muted">Today&rsquo;s deliveries</span>
+        <div role="tablist" aria-label={t("Today's deliveries")} className="flex flex-wrap items-center gap-2">
+          <span className="text-[13px] text-go-muted">{t("Today’s deliveries")}</span>
           {vehicles.map((v) => (
             <button
               key={v}
@@ -85,17 +88,17 @@ export default function Track({
       )}
 
       {!vehicle || stops.length === 0 ? (
-        <Card label="Nothing on the road">
-          <p className="text-[15px] text-black">Nothing is on the road for your outlet today.</p>
-          <Muted>When a vehicle leaves the depot with your order it appears here.</Muted>
+        <Card label={t("Nothing on the road")}>
+          <p className="text-[15px] text-black">{t("Nothing is on the road for your outlet today.")}</p>
+          <Muted>{t("When a vehicle leaves the depot with your order it appears here.")}</Muted>
         </Card>
       ) : (
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
           <div className="flex min-w-0 flex-col gap-5">
-            <Card label="Where it is" style={{ viewTransitionName: "vt-delivery" }}>
+            <Card label={t("Where it is")} style={{ viewTransitionName: "vt-delivery" }}>
               <div className="flex items-center gap-2">
-                <Chip tone={arrived ? "ink" : "mint"}>{arrived ? "Arrived" : "On the way"}</Chip>
-                {refrigerated && <Chip outline>Refrigerated vehicle</Chip>}
+                <Chip tone={arrived ? "ink" : "mint"}>{t(arrived ? "Arrived" : "On the way")}</Chip>
+                {refrigerated && <Chip outline>{t("Refrigerated vehicle")}</Chip>}
               </div>
               {first && <NextStop stop={stops[0] ?? null} order={first} outlet={outlet} />}
               {first && <Progress status={first.status} />}
@@ -103,9 +106,9 @@ export default function Track({
 
             {stops[0] && <LiveMapCard outlet={outlet} stop={stops[0]} />}
 
-            <Card label="Timeline">
-              <h2 className="text-[18px] font-medium text-black">Timeline</h2>
-              {history.error && <Notice tone="danger" title="Could not load the timeline" onRetry={history.refresh}>{history.error.message}</Notice>}
+            <Card label={t("Timeline")}>
+              <h2 className="text-[18px] font-medium text-black">{t("Timeline")}</h2>
+              {history.error && <Notice tone="danger" title={t("Could not load the timeline")} onRetry={history.refresh}>{history.error.message}</Notice>}
               <ol className="flex flex-col gap-3">
                 {(history.data ?? []).map((h) => (
                   <li key={`${h.to}-${h.at}`} className="flex gap-3">
@@ -124,23 +127,26 @@ export default function Track({
                     <span className="mt-1 flex size-5 shrink-0 items-center justify-center rounded-full bg-go-success">
                       <Icon name="check-white" />
                     </span>
-                    <span className="flex-1 text-[15px] font-medium text-black">Reached your store</span>
+                    <span className="flex-1 text-[15px] font-medium text-black">{t("Reached your store")}</span>
                     <span className="text-[13px] text-go-muted">{clock(arrived)}</span>
                   </li>
                 )}
               </ol>
-              {history.loading && !history.data && <SkeletonRows label="Loading…" />}
+              {history.loading && !history.data && <SkeletonRows label={t("Loading…")} />}
             </Card>
           </div>
 
           <div className="flex flex-col gap-5">
-            <Card label="Need to talk">
-              <h2 className="text-[18px] font-medium text-black">Need to talk?</h2>
-              <Pending what="Calling the dispatcher or the driver" waitingOn="Contact numbers are not on record yet. Use Message on the delivery in Deliveries instead." />
+            <Card label={t("Need to talk")}>
+              <h2 className="text-[18px] font-medium text-black">{t("Need to talk?")}</h2>
+              <Pending
+                what={t("Calling the dispatcher or the driver")}
+                waitingOn={t("Contact numbers are not on record yet. Use Message on the delivery in Deliveries instead.")}
+              />
             </Card>
 
-            <Card label="Orders on this vehicle">
-              <h2 className="text-[18px] font-medium text-black">Orders on this vehicle</h2>
+            <Card label={t("Orders on this vehicle")}>
+              <h2 className="text-[18px] font-medium text-black">{t("Orders on this vehicle")}</h2>
               <ul className="flex flex-col gap-2">
                 {stops.map((d) => {
                   const o = orderOf(d);
@@ -156,12 +162,12 @@ export default function Track({
                         className={cx("flex w-full flex-col gap-0.5 rounded-[16px] px-3.5 py-3 text-left", short ? "bg-go-warning-tint" : "bg-go-canvas")}
                       >
                         <span className="text-[15px] font-medium text-black">
-                          {o?.orderRef ?? "Order"} · {o ? temperatureLabel(o.temperature) : ""}
+                          {o?.orderRef ?? t("Order")} · {o ? t(temperatureLabel(o.temperature)) : ""}
                         </span>
                         {/* The order's own volume, which the warehouse returned: never summed from lines. */}
                         <span className="text-[13px] text-go-muted">{o ? `${units(o.itemCount)} · ${o.volumeM3} m³` : `${d.lines.length} lines`}</span>
                         <span className={cx("text-[13px] font-medium", short ? "text-go-warning-text" : "text-go-success")}>
-                          {short ? ISSUE_TYPE[short.type] : o && onTheWay(o.status) ? "Loaded in full" : (o && ORDER_STATUS[o.status].label) ?? ""}
+                          {short ? t(ISSUE_TYPE[short.type]) : o && onTheWay(o.status) ? t("Loaded in full") : o ? t(ORDER_STATUS[o.status].label) : ""}
                         </span>
                       </button>
                     </li>
@@ -171,7 +177,7 @@ export default function Track({
             </Card>
 
             <Button large disabled={!receivable} onClick={() => receivable && onReceive(receivable.orderId)}>
-              Receive delivery
+              {t("Receive delivery")}
             </Button>
           </div>
         </div>

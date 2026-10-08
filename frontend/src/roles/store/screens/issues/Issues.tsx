@@ -58,7 +58,7 @@ export default function Issues({
 
   const card = (i: IssueView) => {
     const order = orderOf(i);
-    const c = issueCard(i, order, clock);
+    const c = issueCard(i, order, clock, t);
     return (
       <li key={i.issueId}>
         <article className="flex flex-col gap-1.5 rounded-[26px] bg-white p-5">

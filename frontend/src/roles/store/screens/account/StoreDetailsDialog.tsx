@@ -8,6 +8,7 @@ import type { StoreGateway } from "../../data/gateway.ts";
 import { dockLabel, hhmm } from "../../data/format.ts";
 import { conflictMessage, type useCommands } from "../../data/useCommands.ts";
 import { Button, Modal } from "../../ui.tsx";
+import { useT } from "../../i18n.tsx";
 
 // What the store says about itself (R-REF-01): its delivery window and dock,
 // which the next plan uses, and its contacts for dispatch and drivers. A mall bay
@@ -30,6 +31,7 @@ export default function StoreDetailsDialog({
   onSaved: (queued: boolean) => void;
   onClose: () => void;
 }): React.JSX.Element {
+  const t = useT();
   const details = useResource((s) => gateway.outletDetails(outlet.outletId, s), outlet.outletId);
   const mall = outlet.dockType === "mall_bay";
   const [open, setOpen] = useState(hhmm(outlet.windowOpen));
@@ -66,30 +68,30 @@ export default function StoreDetailsDialog({
       receivingNotes: notes.trim() || null,
     };
     const outcome = await commands.run(OutletCommandKind.updateDetails, payload, details.data.rowVersion);
-    if (!outcome.ok) return setError(conflictMessage(outcome.error));
+    if (!outcome.ok) return setError(conflictMessage(outcome.error, t));
     onSaved(outcome.queued);
   };
 
   return (
-    <Modal label="Store details" onClose={onClose}>
+    <Modal label={t("Store details")} onClose={onClose}>
       <div className="flex items-start gap-2">
         <div className="flex flex-1 flex-col">
-          <h2 className="text-[24px] font-medium text-black">Store details</h2>
+          <h2 className="text-[24px] font-medium text-black">{t("Store details")}</h2>
           <p className="text-[13px] text-go-secondary">
             {outlet.districtName} · {outlet.outletId}
           </p>
         </div>
-        <button type="button" aria-label="Close" onClick={onClose} className="flex size-12 items-center justify-center rounded-full bg-go-surface">
+        <button type="button" aria-label={t("Close")} onClick={onClose} className="flex size-12 items-center justify-center rounded-full bg-go-surface">
           <Icon name="close" />
         </button>
       </div>
-      {details.error && <Notice tone="danger" title="Could not load the store's details">{details.error.message}</Notice>}
+      {details.error && <Notice tone="danger" title={t("Could not load the store's details")}>{details.error.message}</Notice>}
 
       <fieldset className="flex flex-col gap-2">
-        <legend className="mb-1.5 text-[13px] text-go-secondary">Delivery window</legend>
+        <legend className="mb-1.5 text-[13px] text-go-secondary">{t("Delivery window")}</legend>
         <div className="flex items-center gap-2">
           <label className="flex flex-1 flex-col gap-1.5 text-[12px] text-go-secondary">
-            Opens at
+            {t("Opens at")}
             <input
               type="time"
               value={open}
@@ -104,7 +106,7 @@ export default function StoreDetailsDialog({
           </label>
           <span className="pt-5 text-go-secondary">to</span>
           <label className="flex flex-1 flex-col gap-1.5 text-[12px] text-go-secondary">
-            Closes at
+            {t("Closes at")}
             <input
               type="time"
               value={close}
@@ -118,7 +120,7 @@ export default function StoreDetailsDialog({
             />
           </label>
         </div>
-        {mall && <p className="text-[12px] text-go-secondary">The mall lets vehicles in only at its own hours; the window must overlap them.</p>}
+        {mall && <p className="text-[12px] text-go-secondary">{t("The mall lets vehicles in only at its own hours; the window must overlap them.")}</p>}
         {windowError && (
           <span id="store-window-error" role="alert" className="text-[13px] text-go-danger-strong">
             {windowError}
@@ -127,7 +129,7 @@ export default function StoreDetailsDialog({
       </fieldset>
 
       <label className="flex flex-col gap-1.5 text-[13px] text-go-secondary">
-        Where goods are received
+        {t("Where goods are received")}
         <select value={dock} disabled={mall} onChange={(e) => setDock(e.target.value)} className={field}>
           {mall ? (
             <option value="mall_bay">{dockLabel("mall_bay")}</option>
@@ -139,16 +141,16 @@ export default function StoreDetailsDialog({
             ))
           )}
         </select>
-        {mall && <span className="text-[12px]">A mall bay belongs to the building, so it cannot be changed here.</span>}
+        {mall && <span className="text-[12px]">{t("A mall bay belongs to the building, so it cannot be changed here.")}</span>}
       </label>
 
       <div className="grid gap-2 sm:grid-cols-2">
         <label className="flex flex-col gap-1.5 text-[13px] text-go-secondary">
-          Contact person
+          {t("Contact person")}
           <input name="contactName" value={contactName} onChange={(e) => setContactName(e.target.value)} maxLength={80} className={field} />
         </label>
         <label className="flex flex-col gap-1.5 text-[13px] text-go-secondary">
-          Store phone
+          {t("Store phone")}
           <input
             type="tel"
             inputMode="tel"
@@ -161,25 +163,25 @@ export default function StoreDetailsDialog({
         </label>
       </div>
       <label className="flex flex-col gap-1.5 text-[13px] text-go-secondary">
-        Notes for the driver (optional)
+        {t("Notes for the driver (optional)")}
         <textarea value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={300} rows={2} className="rounded-[16px] border border-go-rule bg-go-surface p-3 text-[15px] text-black" />
       </label>
 
       <p className="rounded-[14px] bg-go-canvas px-4 py-3 text-[13px] text-go-ink">
-        A new window or dock is used from the next plan. A plan already published does not change.
+        {t("A new window or dock is used from the next plan. A plan already published does not change.")}
       </p>
       {error && <Notice tone="danger" live title={error} />}
       {changedFromDepot && (
         <button type="button" disabled={commands.busy} onClick={() => void send(true)} className="min-h-12 self-start text-[14px] font-medium text-go-teal disabled:cursor-wait disabled:opacity-60">
-          {commands.busy ? "Saving…" : "Use the depot’s window and dock again"}
+          {t(commands.busy ? "Saving…" : "Use the depot’s window and dock again")}
         </button>
       )}
       <div className="flex gap-2.5">
         <Button tone="plain" onClick={onClose}>
-          Cancel
+          {t("Cancel")}
         </Button>
         <Button disabled={!details.data} busy={commands.busy} onClick={() => void send(false)}>
-          {commands.busy ? "Saving…" : "Save"}
+          {t(commands.busy ? "Saving…" : "Save")}
         </Button>
       </div>
     </Modal>

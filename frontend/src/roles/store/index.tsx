@@ -149,7 +149,11 @@ function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Ele
       .then((report) => {
         if (cancelled) return;
         if (report.heldForReview > 0) {
-          setFlushError(`${report.heldForReview} saved ${report.heldForReview === 1 ? "change was" : "changes were"} refused when sent. Check your orders.`);
+          setFlushError(
+            report.heldForReview === 1
+              ? t("1 saved change was refused when sent. Check your orders.")
+              : t("{n} saved changes were refused when sent. Check your orders.", { n: report.heldForReview }),
+          );
         }
         setWaiting(report.remaining - report.heldForReview);
         refresh();
@@ -223,7 +227,7 @@ function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Ele
 
   let body: React.JSX.Element;
   if (!outletId) {
-    body = <p className="text-[15px] text-go-muted">Your account has no outlet in scope. Ask an administrator to grant one.</p>;
+    body = <p className="text-[15px] text-go-muted">{t("Your account has no outlet in scope. Ask an administrator to grant one.")}</p>;
   } else if (view.kind === "place") {
     body = (
       <PlaceOrder
@@ -400,7 +404,7 @@ function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Ele
               warehouse.refresh();
             }}
           >
-            Sample data: {warehouseDown ? "bring the warehouse back" : "take the warehouse down"}
+            {t(warehouseDown ? "Sample data: bring the warehouse back" : "Sample data: take the warehouse down")}
           </button>
           {all.some((o) => o.status === "IN_TRANSIT") && (
             <button
@@ -411,7 +415,7 @@ function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Ele
                 refresh();
               }}
             >
-              Sample data: the truck arrives
+              {t("Sample data: the truck arrives")}
             </button>
           )}
         </div>
@@ -433,7 +437,7 @@ function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Ele
           onSaved={(saved, queued) => {
             setEditing(null);
             setSavedName(saved);
-            setNote(queued ? { title: "Profile saved on this phone", detail: "It is sent when the connection returns" } : { title: "Profile saved" });
+            setNote(queued ? { title: t("Profile saved on this phone"), detail: t("It is sent when the connection returns") } : { title: t("Profile saved") });
           }}
           onClose={() => setEditing(null)}
         />
@@ -448,8 +452,8 @@ function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Ele
             outlet.refresh();
             setNote(
               queued
-                ? { title: "Store details saved on this phone", detail: "They are sent when the connection returns" }
-                : { title: "Store details saved", detail: "A new window or dock is used from the next plan" },
+                ? { title: t("Store details saved on this phone"), detail: t("They are sent when the connection returns") }
+                : { title: t("Store details saved"), detail: t("A new window or dock is used from the next plan") },
             );
           }}
           onClose={() => setEditing(null)}

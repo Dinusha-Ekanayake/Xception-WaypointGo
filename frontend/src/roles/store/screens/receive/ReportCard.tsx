@@ -1,8 +1,9 @@
 import type { OrderView, ReceiptLineView } from "@shared/domain/types";
 import { Icon, cx } from "@shared/ui";
-import { temperatureLabel, units as unitsText, productLabel } from "../../data/format.ts";
+import { temperatureLabel, productLabel } from "../../data/format.ts";
 import { KINDS, LOWERS_COUNT, type Kind, type Report } from "../../data/receive.ts";
 import { Card, Stepper } from "../../ui.tsx";
+import { useT, useCounts } from "../../i18n.tsx";
 
 // "Report a package issue" (Figma 06, 06-1 to 06-7). An item line stands where
 // Figma shows a package: the receipt counts per product (D-E). What the loader
@@ -52,13 +53,15 @@ export default function ReportCard({
   addError: string | null;
   closed: boolean;
 }): React.JSX.Element {
+  const { units: unitsText } = useCounts();
+  const t = useT();
   const expected = lines.reduce((s, l) => s + l.expectedQuantity, 0);
   return (
-    <Card label="Report an issue">
-      <h2 className="text-[18px] font-medium text-black">Report a problem with a product line</h2>
+    <Card label={t("Report an issue")}>
+      <h2 className="text-[18px] font-medium text-black">{t("Report a problem with a product line")}</h2>
 
       <label className="flex flex-col gap-1.5 text-[13px] text-go-muted">
-        Order
+        {t("Order")}
         <span className="relative flex">
           <select
             value={orderId}
@@ -68,7 +71,7 @@ export default function ReportCard({
           >
             {siblings.map((o) => (
               <option key={o.orderId} value={o.orderId}>
-                {o.orderRef} · {temperatureLabel(o.temperature)} · {unitsText(o.itemCount)}
+                {o.orderRef} · {t(temperatureLabel(o.temperature))} · {unitsText(o.itemCount)}
               </option>
             ))}
           </select>
@@ -81,9 +84,9 @@ export default function ReportCard({
       </label>
 
       <p className="text-[13px] text-go-muted">
-        Product line · {unitsText(expected)}
+        {t("Product line · {units}", { units: unitsText(expected) })}
       </p>
-      <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3" aria-label="Items">
+      <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3" aria-label={t("Items")}>
         {lines.map((l) => {
           const flagged = reports.filter((x) => x.productId === l.productId);
           const keptBack = known.get(l.productId) ?? 0;
@@ -102,9 +105,9 @@ export default function ReportCard({
                 )}
               >
                 <span className={cx("text-[11px]", bad ? "text-go-danger-strong" : "text-go-muted")}>
-                  {l.expectedQuantity} expected
-                  {keptBack > 0 && ` · Short at loading (${keptBack})`}
-                  {flagged.length > 0 && ` · ${flagged.map((x) => x.kind).join(", ")}`}
+                  {t("{n} expected", { n: l.expectedQuantity })}
+                  {keptBack > 0 && t(" · Short at loading ({n})", { n: keptBack })}
+                  {flagged.length > 0 && ` · ${flagged.map((x) => t(x.kind)).join(", ")}`}
                 </span>
                 <span className="truncate text-[14px] font-medium text-black">{productLabel(l.productId)}</span>
               </button>
@@ -115,8 +118,8 @@ export default function ReportCard({
 
       {!closed && (
         <>
-          <p className="text-[13px] text-go-muted">Issue</p>
-          <div role="radiogroup" aria-label="Issue" className="flex flex-wrap gap-2">
+          <p className="text-[13px] text-go-muted">{t("Issue")}</p>
+          <div role="radiogroup" aria-label={t("Issue")} className="flex flex-wrap gap-2">
             {KINDS.map((k) => (
               <button
                 key={k}
@@ -126,7 +129,7 @@ export default function ReportCard({
                 onClick={() => onKind(k)}
                 className={cx("min-h-12 rounded-full px-4 text-[14px]", kind === k ? "bg-[#031a0c] text-white" : "bg-go-canvas text-black")}
               >
-                {k}
+                {t(k)}
               </button>
             ))}
           </div>
@@ -137,7 +140,7 @@ export default function ReportCard({
           )}
           <div className="flex flex-wrap items-center gap-3">
             <button type="button" onClick={onTakePhoto} className="min-h-12 rounded-full border border-dashed border-[#b9c6c4] px-4 text-[14px] text-go-muted">
-              + Photo (optional)
+              {t("+ Photo (optional)")}
             </button>
             {photos.map((p, i) => (
               <button key={p.id} type="button" aria-label={`Photo ${i + 1}`} onClick={() => onOpenPhoto(p.id)} className="size-12 overflow-hidden rounded-[10px]">
@@ -146,11 +149,11 @@ export default function ReportCard({
               </button>
             ))}
             {kind && LOWERS_COUNT[kind] && selected && (
-              <Stepper value={units} label="Units affected" onChange={(n) => onUnits(Math.min(Math.max(1, n), Math.max(1, room)))} />
+              <Stepper value={units} label={t("Units affected")} onChange={(n) => onUnits(Math.min(Math.max(1, n), Math.max(1, room)))} />
             )}
             <span className="flex-1" />
             <button type="button" onClick={onAdd} className="min-h-12 rounded-[22px] bg-go-mint px-6 text-[15px] font-medium text-black">
-              Add issue
+              {t("Add issue")}
             </button>
           </div>
         </>

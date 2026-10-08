@@ -4,12 +4,12 @@ import { useEffect, useState } from "react";
 import { type ApiError, friendlyError } from "@shared/api/problem";
 import type { DeliveryRecordView, IssueView, OrderStatus, OrderView, OutletView, PendingReceiptView } from "@shared/domain/types";
 import { Icon, Notice, SkeletonRows, cx } from "@shared/ui";
-import { units, addDays, clock, dayLabel, depotToday, editable, greeting, hhmm, onTheWay, temperatureLabel, untilCutoff } from "../data/format.ts";
+import { addDays, clock, dayLabel, depotToday, editable, greeting, hhmm, onTheWay, temperatureLabel, untilCutoff } from "../data/format.ts";
 import { isOpenIssue, issueCard, loaderShortUnits } from "../data/issues.ts";
 import { aheadLabel, nextDelivery } from "../data/nextDelivery.ts";
 import NextStop from "./NextStop.tsx";
 import { Button, Card, Chip, Muted } from "../ui.tsx";
-import { cutoffWords, useT } from "../i18n.tsx";
+import { cutoffWords, useT, useCounts } from "../i18n.tsx";
 
 // Figma "02 Home": the next delivery, what needs attention, and tomorrow's order
 // against the 16:00 cutoff. ETA before a plan is published is the outlet's
@@ -81,6 +81,7 @@ export default function Home({
   /** FF-09: the dispatcher's questions, first under the greeting. */
   questions?: React.ReactNode;
 }): React.JSX.Element {
+  const { units } = useCounts();
   const t = useT();
   const [left, setLeft] = useState(() => untilCutoff());
   useEffect(() => {
@@ -145,8 +146,12 @@ export default function Home({
                   </span>
                   <span className="text-[20px] font-medium text-black">
                     {loaderShortUnits(shortage) > 0
-                      ? `${units(loaderShortUnits(shortage))} short - ${Math.max(0, coming.itemCount - loaderShortUnits(shortage))} of ${coming.itemCount} coming`
-                      : issueCard(shortage, coming, clock).title}
+                      ? t("{units} short - {coming} of {total} coming", {
+                          units: units(loaderShortUnits(shortage)),
+                          coming: Math.max(0, coming.itemCount - loaderShortUnits(shortage)),
+                          total: coming.itemCount,
+                        })
+                      : issueCard(shortage, coming, clock, t).title}
                   </span>
                   <span className="text-[13px] text-go-secondary">{t("Reported at loading · comes next delivery")}</span>
                 </button>

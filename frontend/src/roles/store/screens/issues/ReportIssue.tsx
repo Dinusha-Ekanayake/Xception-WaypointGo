@@ -5,7 +5,7 @@ import { IssueCommandKind, type OrderView, type RaiseIssue } from "@shared/domai
 import { friendlyError } from "@shared/api/problem";
 import { Icon, Notice, cx } from "@shared/ui";
 import type { StoreGateway } from "../../data/gateway.ts";
-import { units as unitsText, dayLabel, temperatureLabel } from "../../data/format.ts";
+import { dayLabel, temperatureLabel } from "../../data/format.ts";
 import { REPORT_KINDS, type ReportKind } from "../../data/issues.ts";
 import { shrinkPhoto } from "../../data/photo.ts";
 import { QUALITY_HINT, checkPhoto } from "@shared/media/photo";
@@ -13,6 +13,7 @@ import { LOWERS_COUNT, noteOf } from "../../data/receive.ts";
 import type { useCommands } from "../../data/useCommands.ts";
 import { Badge, Button, Field, Modal, Stepper } from "../../ui.tsx";
 import PhotoDialog from "../receive/PhotoDialog.tsx";
+import { useT, useCounts } from "../../i18n.tsx";
 
 // "08b Report an issue" and "08c Issue sent": a problem found after unpacking.
 // The report names its order and item so the dispatcher can act on it; photos
@@ -37,6 +38,8 @@ export default function ReportIssue({
   onClose: () => void;
   onSent: () => void;
 }): React.JSX.Element {
+  const { units: unitsText } = useCounts();
+  const t = useT();
   // The orders can arrive after the dialog opens, so an unset choice falls back to the first.
   const [pickedOrder, setOrderId] = useState(orders[0]?.orderId ?? "");
   const order = orders.find((o) => o.orderId === pickedOrder) ?? orders[0] ?? null;
@@ -66,7 +69,7 @@ export default function ReportIssue({
       setPhotos((all) => [...all, photo]);
       setViewing(photo.id);
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : "The photo could not be used.");
+      setError(failure instanceof Error ? failure.message : t("The photo could not be used."));
     }
   };
 
@@ -79,7 +82,7 @@ export default function ReportIssue({
     setError(null);
     for (const p of photos) {
       const kept = await gateway.keepPhoto({ id: p.id, orderId: order.orderId, receiptId: null, blob: p.blob });
-      if (!kept.durable) return setError(`A photo could not be kept on this device: ${kept.reason ?? "storage unavailable"}.`);
+      if (!kept.durable) return setError(t("A photo could not be kept on this device: {reason}.", { reason: kept.reason ?? t("storage unavailable") }));
     }
     void gateway.sendPhotos().catch(() => undefined);
     const lowers = LOWERS_COUNT[kind.kind];
@@ -100,18 +103,18 @@ export default function ReportIssue({
 
   if (sent) {
     return (
-      <Modal label="Issue sent" onClose={onSent}>
+      <Modal label={t("Issue sent")} onClose={onSent}>
         <Badge>
           <Icon name={sent === "queued" ? "clock" : "check"} />
         </Badge>
         <div className="flex flex-col items-center gap-1 text-center">
-          <h2 className="text-[26px] font-medium text-black">{sent === "queued" ? "Saved on this phone" : "Issue sent"}</h2>
+          <h2 className="text-[26px] font-medium text-black">{t(sent === "queued" ? "Saved on this phone" : "Issue sent")}</h2>
           <p className="text-[14px] text-go-muted">
-            {sent === "queued" ? "It goes to the dispatcher when the connection returns." : "The dispatcher has it, and it is in your issues list."}
+            {t(sent === "queued" ? "It goes to the dispatcher when the connection returns." : "The dispatcher has it, and it is in your issues list.")}
           </p>
         </div>
         <Button large onClick={onSent}>
-          Done
+          {t("Done")}
         </Button>
       </Modal>
     );
@@ -119,22 +122,22 @@ export default function ReportIssue({
 
   const viewed = photos.find((p) => p.id === viewing) ?? null;
   return (
-    <Modal label="Report an issue" onClose={onClose}>
+    <Modal label={t("Report an issue")} onClose={onClose}>
       <div className="flex items-start gap-2">
         <div className="flex flex-1 flex-col">
-          <h2 className="text-[24px] font-medium text-black">Report an issue</h2>
-          <p className="text-[13px] text-go-muted">Orders from the last 48 hours.</p>
+          <h2 className="text-[24px] font-medium text-black">{t("Report an issue")}</h2>
+          <p className="text-[13px] text-go-muted">{t("Orders from the last 48 hours.")}</p>
         </div>
-        <button type="button" aria-label="Close" onClick={onClose} className="flex size-12 items-center justify-center rounded-full bg-go-canvas">
+        <button type="button" aria-label={t("Close")} onClick={onClose} className="flex size-12 items-center justify-center rounded-full bg-go-canvas">
           <Icon name="close" />
         </button>
       </div>
 
       {orders.length === 0 ? (
-        <Notice tone="info" title="No delivery in the last 48 hours to report on." />
+        <Notice tone="info" title={t("No delivery in the last 48 hours to report on.")} />
       ) : (
         <>
-          <Field label="Order" error={orderError ?? undefined} errorId="report-issue-order-error">
+          <Field label={t("Order")} error={orderError ?? undefined} errorId="report-issue-order-error">
             <select
               value={orderId}
               aria-invalid={orderError ? true : undefined}
@@ -149,12 +152,12 @@ export default function ReportIssue({
             >
               {orders.map((o) => (
                 <option key={o.orderId} value={o.orderId}>
-                  {o.orderRef} · {temperatureLabel(o.temperature)} · {dayLabel(o.deliveryDate)} · {unitsText(o.itemCount)}
+                  {o.orderRef} · {t(temperatureLabel(o.temperature))} · {dayLabel(o.deliveryDate)} · {unitsText(o.itemCount)}
                 </option>
               ))}
             </select>
           </Field>
-          <Field label="Product line" error={itemError ?? undefined} errorId="report-issue-item-error">
+          <Field label={t("Product line")} error={itemError ?? undefined} errorId="report-issue-item-error">
             <select
               value={productId}
               aria-invalid={itemError ? true : undefined}
@@ -173,8 +176,8 @@ export default function ReportIssue({
               ))}
             </select>
           </Field>
-          <p className="text-[13px] text-go-muted">What&rsquo;s wrong?</p>
-          <div role="radiogroup" aria-label="What's wrong?" className="flex flex-wrap gap-2">
+          <p className="text-[13px] text-go-muted">{t("What’s wrong?")}</p>
+          <div role="radiogroup" aria-label={t("What's wrong?")} className="flex flex-wrap gap-2">
             {REPORT_KINDS.map((k) => (
               <button
                 key={k.label}
@@ -190,12 +193,12 @@ export default function ReportIssue({
           </div>
           {kind && LOWERS_COUNT[kind.kind] && line && (
             <div className="flex items-center gap-3 text-[14px] text-go-muted">
-              How many units?
-              <Stepper value={units} label="Units affected" onChange={(n) => setUnits(Math.min(Math.max(1, n), line.quantity))} />
+              {t("How many units?")}
+              <Stepper value={units} label={t("Units affected")} onChange={(n) => setUnits(Math.min(Math.max(1, n), line.quantity))} />
             </div>
           )}
           <label className="flex flex-col gap-1.5 text-[13px] text-go-muted">
-            Comment (optional)
+            {t("Comment (optional)")}
             <textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={2} className="rounded-[16px] border border-[#dfe7e6] p-3 text-[15px] text-black" />
           </label>
           <div className="flex flex-wrap items-center gap-2">
@@ -211,10 +214,10 @@ export default function ReportIssue({
           {error && <Notice tone="danger" live title={error} />}
           <div className="flex gap-2.5">
             <Button tone="plain" large onClick={onClose}>
-              Cancel
+              {t("Cancel")}
             </Button>
             <Button tone="danger" large busy={commands.busy} onClick={() => void send()}>
-              {commands.busy ? "Sending…" : "Send to dispatcher"}
+              {t(commands.busy ? "Sending…" : "Send to dispatcher")}
             </Button>
           </div>
         </>
@@ -225,7 +228,7 @@ export default function ReportIssue({
         type="file"
         accept="image/*"
         capture="environment"
-        aria-label="Take a photo of the problem"
+        aria-label={t("Take a photo of the problem")}
         className="hidden"
         onChange={(e) => {
           void onPhoto(e.target.files?.[0]);

@@ -7,6 +7,7 @@ import { Icon, Notice } from "@shared/ui";
 import type { StoreGateway } from "../../data/gateway.ts";
 import { conflictMessage, type useCommands } from "../../data/useCommands.ts";
 import { Button, Field, Modal } from "../../ui.tsx";
+import { useT } from "../../i18n.tsx";
 
 // The manager's own name and phone number (R-IAM-32). The email is the sign-in
 // name and the password stays with the administrator, so neither is here.
@@ -25,6 +26,7 @@ export default function ProfileDialog({
   onSaved: (displayName: string, queued: boolean) => void;
   onClose: () => void;
 }): React.JSX.Element {
+  const t = useT();
   const profile = useResource((s) => gateway.profile(s), "profile");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -44,23 +46,23 @@ export default function ProfileDialog({
     setError(null);
     const payload: UpdateOwnProfile = { displayName: name, phone: phone.trim() ? phone : null };
     const outcome = await commands.run(IdentityCommandKind.updateOwnProfile, payload, profile.data.rowVersion);
-    if (!outcome.ok) return setError(conflictMessage(outcome.error));
+    if (!outcome.ok) return setError(conflictMessage(outcome.error, t));
     onSaved(name.trim().replace(/\s+/g, " "), outcome.queued);
   };
 
   return (
-    <Modal label="Your profile" onClose={onClose}>
+    <Modal label={t("Your profile")} onClose={onClose}>
       <div className="flex items-start gap-2">
         <div className="flex flex-1 flex-col">
-          <h2 className="text-[24px] font-medium text-black">Your profile</h2>
-          <p className="text-[13px] text-go-secondary">How dispatch and drivers see you.</p>
+          <h2 className="text-[24px] font-medium text-black">{t("Your profile")}</h2>
+          <p className="text-[13px] text-go-secondary">{t("How dispatch and drivers see you.")}</p>
         </div>
-        <button type="button" aria-label="Close" onClick={onClose} className="flex size-12 items-center justify-center rounded-full bg-go-surface">
+        <button type="button" aria-label={t("Close")} onClick={onClose} className="flex size-12 items-center justify-center rounded-full bg-go-surface">
           <Icon name="close" />
         </button>
       </div>
-      {profile.error && <Notice tone="danger" title="Could not load your profile">{profile.error.message}</Notice>}
-      <Field label="Name" error={nameError ?? undefined} errorId="profile-name-error">
+      {profile.error && <Notice tone="danger" title={t("Could not load your profile")}>{profile.error.message}</Notice>}
+      <Field label={t("Name")} error={nameError ?? undefined} errorId="profile-name-error">
         <input
           value={name}
           onChange={(e) => {
@@ -75,7 +77,7 @@ export default function ProfileDialog({
         />
       </Field>
       <label className="flex flex-col gap-1.5 text-[13px] text-go-secondary">
-        Phone number
+        {t("Phone number")}
         <input
           type="tel"
           inputMode="tel"
@@ -88,16 +90,16 @@ export default function ProfileDialog({
       </label>
       {profile.data && (
         <p className="text-[13px] text-go-secondary">
-          You sign in as {profile.data.email}; an administrator changes that and your password.
+          {t("You sign in as {email}; an administrator changes that and your password.", { email: profile.data.email })}
         </p>
       )}
       {error && <Notice tone="danger" live title={error} />}
       <div className="flex gap-2.5">
         <Button tone="plain" onClick={onClose}>
-          Cancel
+          {t("Cancel")}
         </Button>
         <Button disabled={!profile.data} busy={commands.busy} onClick={() => void save()}>
-          {commands.busy ? "Saving…" : "Save"}
+          {t(commands.busy ? "Saving…" : "Save")}
         </Button>
       </div>
     </Modal>

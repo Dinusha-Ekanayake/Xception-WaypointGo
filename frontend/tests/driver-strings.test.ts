@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { STRINGS, translate } from "../src/roles/driver/data/strings.ts";
 import { SUMMARY_LABELS } from "../src/roles/driver/data/stopView.ts";
 import { DOCK_TYPE } from "../src/shared/wording/labels.ts";
+import { keysIn, sourceFiles as files } from "./i18n-keys.ts";
 import { LEAVE_REASONS } from "../src/roles/driver/data/handover.ts";
 
 // Roadmap FF-00: every text the driver's screens pass through t() has a Sinhala
@@ -14,57 +15,13 @@ import { LEAVE_REASONS } from "../src/roles/driver/data/handover.ts";
 
 const ROOT = join(import.meta.dirname, "../src/roles/driver");
 
-function files(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
-    e.isDirectory() ? files(join(dir, e.name)) : /\.tsx?$/.test(e.name) ? [join(dir, e.name)] : [],
-  );
-}
-
-/** The string literals in the first argument of every `t(` call. */
-export function keysIn(source: string): string[] {
-  const keys: string[] = [];
-  // t( is the translation, tr( the same where the provider is not above it yet,
-  // and t0( marks a default drawn through t later.
-  const call = /(?<![\w.])(?:t|tr|t0)\(/g;
-  for (let m = call.exec(source); m; m = call.exec(source)) {
-    let depth = 1;
-    let i = m.index + m[0].length;
-    let quote: string | null = null;
-    let literal = "";
-    let compared = false;
-    while (i < source.length && depth > 0) {
-      const c = source[i]!;
-      if (quote) {
-        if (c === "\\") {
-          literal += source[i + 1];
-          i += 2;
-          continue;
-        }
-        if (c === quote) {
-          // A literal compared in the condition of a ternary is not text.
-          // An empty literal is a fallback, never text.
-          if (!compared && literal !== "") keys.push(literal);
-          quote = null;
-        } else literal += c;
-      } else if (c === '"') {
-        quote = c;
-        literal = "";
-        compared = /[!=]==?\s*$/.test(source.slice(Math.max(0, i - 6), i));
-      } else if (c === "(" || c === "{" || c === "[") depth++;
-      else if (c === ")" || c === "}" || c === "]") depth--;
-      else if (c === "," && depth === 1) break;
-      i++;
-    }
-  }
-  return keys;
-}
-
 test("a key is found in a plain call, a ternary and a call with values", () => {
-  assert.deepEqual(keysIn('t("Vehicle"); t(a === "done" ? "Start trip" : "Continue trip"); t("Trip {n}", { n: f(1, 2) })'), [
+  assert.deepEqual(keysIn('t("Vehicle"); t(a === "done" ? "Start trip" : "Continue trip"); tr("Trip {n}", { n: f(1, 2) }); t("or \\u201cthis\\u201d")'), [
     "Vehicle",
     "Start trip",
     "Continue trip",
     "Trip {n}",
+    "or \u201cthis\u201d",
   ]);
 });
 

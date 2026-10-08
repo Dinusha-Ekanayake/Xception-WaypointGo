@@ -8,6 +8,7 @@ import { LiveMap, num, withLive, type MapLine, type MapMarker } from "@shared/ui
 import { clock } from "@shared/wording";
 import { livePoll, useDemo } from "@shared/demo/useDemo";
 import { Card, Chip, Muted } from "../ui.tsx";
+import { useT } from "../i18n.tsx";
 
 // Figma "05 Delivery tracking" map card (11:113478): this vehicle only, the
 // trail it has driven, a dashed leg to this store and the store's pin. Other
@@ -16,6 +17,7 @@ import { Card, Chip, Muted } from "../ui.tsx";
 // done (R-EXE-20), and the card then says so.
 
 export default function LiveMapCard({ outlet, stop }: { outlet: OutletView | null; stop: DeliveryRecordView }): React.JSX.Element | null {
+  const t = useT();
   const demo = useDemo();
   // Pushed as each fix lands (R-EXE-23), polled when the push goes quiet.
   const positions = usePositionStream({ kind: "outlet", codes: outlet ? [outlet.outletId] : [] }, stop.serviceDate);
@@ -35,14 +37,14 @@ export default function LiveMapCard({ outlet, stop }: { outlet: OutletView | nul
   if (store) {
     markers.push({
       id: "store", kind: "store", ...store, badge: String(stop.stopSequence).padStart(2, "0"),
-      label: approximate ? `Your store · Approximate · ${outlet?.districtName}` : "Your store",
-      ariaLabel: "Your store", selectable: false,
+      label: approximate ? t("Your store · Approximate · {place}", { place: outlet?.districtName ?? "" }) : t("Your store"),
+      ariaLabel: t("Your store"), selectable: false,
     });
   }
   if (here && position) {
     markers.push({
       id: stop.vehicleId, kind: "vehicle", ...here, heading: num(position.headingDeg), status: position.offline ? "offline" : "on-time",
-      faded: position.offline, label: stop.vehicleId, ariaLabel: `${stop.vehicleId}, ${position.offline ? `last seen ${clock(position.recordedAt)}` : "live"}`, selectable: false,
+      faded: position.offline, label: stop.vehicleId, ariaLabel: position.offline ? t("{vehicle}, last seen {time}", { vehicle: stop.vehicleId, time: clock(position.recordedAt) }) : t("{vehicle}, live", { vehicle: stop.vehicleId }), selectable: false,
     });
   }
   const lines: MapLine[] = [];
@@ -58,29 +60,32 @@ export default function LiveMapCard({ outlet, stop }: { outlet: OutletView | nul
     [hasVehicle, store?.lat, store?.lon],
   );
 
-  const of = stop.tripStopCount ? ` of ${stop.tripStopCount}` : "";
+  const where = stop.tripStopCount
+    ? t("Stop {n} of {total}", { n: stop.stopSequence, total: stop.tripStopCount })
+    : t("Stop {n}", { n: stop.stopSequence });
   return (
-    <Card label={`Live map · ${stop.vehicleId}`}>
-      <h2 className="text-[17px] font-medium text-black">Live map · {stop.vehicleId}</h2>
+    <Card label={t("Live map · {vehicle}", { vehicle: stop.vehicleId })}>
+      <h2 className="text-[17px] font-medium text-black">{t("Live map · {vehicle}", { vehicle: stop.vehicleId })}</h2>
       <div className="flex flex-wrap items-center gap-2">
         {position ? (
-          position.offline ? <Chip outline>Last seen {clock(position.recordedAt)}</Chip> : <Chip tone="mint">Live</Chip>
+          position.offline ? <Chip outline>{t("Last seen {time}", { time: clock(position.recordedAt) })}</Chip> : <Chip tone="mint">{t("Live")}</Chip>
         ) : (
-          <Chip outline>{done ? "Delivered" : "No live location"}</Chip>
+          <Chip outline>{t(done ? "Delivered" : "No live location")}</Chip>
         )}
         <Muted>
-          Stop {stop.stopSequence}{of}{position ? ` · updated ${clock(position.recordedAt)}` : ""}
+          {where}
+          {position ? t(" · updated {time}", { time: clock(position.recordedAt) }) : ""}
         </Muted>
       </div>
       <div className="mt-3 h-[300px] w-full overflow-hidden rounded-[20px]">
         <LiveMap markers={markers} lines={lines} fit={fit} className="h-full w-full" background="#eef3ef" />
       </div>
-      {!position && !done && <Muted>The driver&rsquo;s position appears here while the vehicle is on its way. Until then the times above are the plan.</Muted>}
+      {!position && !done && <Muted>{t("The driver’s position appears here while the vehicle is on its way. Until then the times above are the plan.")}</Muted>}
       {positions.error && (
         <p role="status" className="text-[13px] font-light text-go-muted">
-          Position not updated{positions.loadedAt ? ` since ${clock(positions.loadedAt)}` : ""} ·{" "}
+          {positions.loadedAt ? t("Position not updated since {time}", { time: clock(positions.loadedAt) }) : t("Position not updated")} ·{" "}
           <button type="button" className="underline" onClick={positions.refresh}>
-            Retry
+            {t("Retry")}
           </button>
         </p>
       )}
