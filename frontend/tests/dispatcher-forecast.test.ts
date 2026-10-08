@@ -245,3 +245,27 @@ test("the week's likely range sums its brands and depots, and says nothing when 
   assert.equal(weekRange(mixed), null);
   assert.equal(likelyLabel(mixed), null);
 });
+
+// Roadmap T2-02: sending a vehicle to the workshop on a short week warns; advice only.
+test("a workshop day in a week the forecast already fills warns, and says if it was short before", async () => {
+  const { workshopClash, clashText } = await import("../src/roles/dispatcher/data/forecast.ts");
+  // Week 41 starts Mon 5 Oct: 120 m³ of refrigerated capacity, 600 m³ of fleet.
+  const reefer = { volumeCapM3: "33.4", refrigerated: true };
+  const dry = { volumeCapM3: "38", refrigerated: false };
+  // 90 m³ chilled: a reefer out for a day leaves 120 - 66.8 = 53.2, too little.
+  const chilled = [overview("Kandy", [week(41, { fresh: [100, 90] })])];
+  const c = workshopClash(chilled, reefer, "2026-10-07")!;
+  assert.equal(c.chilled, true);
+  assert.equal(c.alreadyShort, false);
+  assert.equal(Math.round(c.left * 10) / 10, 53.2);
+  assert.equal(clashText("VEH003", c), "The week of 5 Oct is forecast at 90 m³ of chilled demand; without VEH003 that day the week has 53 m³ of refrigerated capacity.");
+  // A dry truck does not touch refrigerated capacity, and 150 m³ is far under the fleet.
+  assert.equal(workshopClash(chilled, dry, "2026-10-07"), null);
+  // A week already over its fleet says so.
+  const full = [overview("Kandy", [week(41, { fresh: [500, 30], style: 120 })])];
+  const f = workshopClash(full, dry, "2026-10-07")!;
+  assert.equal(f.chilled, false);
+  assert.equal(f.alreadyShort, true);
+  // A day outside the forecast says nothing.
+  assert.equal(workshopClash(chilled, reefer, "2026-12-01"), null);
+});

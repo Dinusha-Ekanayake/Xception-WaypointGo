@@ -70,11 +70,11 @@ export default function Vehicles({
     reset();
   }, [reset]);
 
-  const sendToWorkshop = async (reason: string) => {
+  const sendToWorkshop = async (reason: string, day: string = date) => {
     if (!open) return;
-    const ok = await submit({ vehicleId: open.vehicleId, status: "in_workshop", serviceDate: date, reason });
+    const ok = await submit({ vehicleId: open.vehicleId, status: "in_workshop", serviceDate: day, reason });
     if (ok) {
-      toast({ title: "Workshop request sent", detail: `${open.vehicleId} leaves the next plan run on ${dayLabel(date)}.` });
+      toast({ title: "Workshop request sent", detail: `${open.vehicleId} leaves the next plan run on ${dayLabel(day)}.` });
       setOpenId(null);
       reset();
       fleet.refresh();

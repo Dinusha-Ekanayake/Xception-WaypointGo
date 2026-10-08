@@ -442,3 +442,41 @@ export function combineAccuracy(views: Array<Pick<import("@shared/domain/types")
   const avg = wape(baselinePairs(withBaseline));
   return { rows, off: wape(forecastPairs(all)), versus: fc !== null && avg !== null ? { forecast: fc, average: avg } : null };
 }
+
+/**
+ * Roadmap T2-02: what sending a vehicle to the workshop on a day does to that
+ * week's forecast. The vehicle carries nothing that day, so the week's fleet
+ * loses its volume over the day's trips (two, as the forecast's own capacity
+ * counts them); a week whose forecast demand, or for a refrigerated vehicle its
+ * chilled demand, is then over what is left is a clash. Advice only: the
+ * dispatcher can still send it. Null when the day is outside the forecast or
+ * nothing clashes.
+ */
+export function workshopClash(
+  overviews: ForecastOverviewView[],
+  vehicle: { volumeCapM3: Decimal | number; refrigerated: boolean },
+  date: string,
+  tripsPerDay = 2,
+): { week: ForecastWeek; demand: number; left: number; chilled: boolean; alreadyShort: boolean } | null {
+  const week = combine(overviews).weeks.find((w) => {
+    const start = Date.parse(`${w.start}T00:00:00Z`);
+    const day = Date.parse(`${date}T00:00:00Z`);
+    return day >= start && day < start + 7 * 86_400_000;
+  });
+  if (!week) return null;
+  const loss = num(vehicle.volumeCapM3) * tripsPerDay;
+  if (vehicle.refrigerated && week.chilled > week.refrigeratedM3 - loss) {
+    return { week, demand: week.chilled, left: week.refrigeratedM3 - loss, chilled: true, alreadyShort: week.chilled > week.refrigeratedM3 };
+  }
+  if (week.total > week.fleetM3 - loss) {
+    return { week, demand: week.total, left: week.fleetM3 - loss, chilled: false, alreadyShort: week.total > week.fleetM3 };
+  }
+  return null;
+}
+
+/** The warning, in words. */
+export function clashText(vehicleId: string, c: NonNullable<ReturnType<typeof workshopClash>>): string {
+  const what = c.chilled ? "chilled demand" : "demand";
+  const fleet = c.chilled ? "refrigerated capacity" : "fleet capacity";
+  return `The week of ${weekDate(c.week)} is forecast at ${m3(c.demand)} of ${what}; without ${vehicleId} that day the week has ${m3(Math.max(0, c.left))} of ${fleet}${c.alreadyShort ? ", already short before this" : ""}.`;
+}
