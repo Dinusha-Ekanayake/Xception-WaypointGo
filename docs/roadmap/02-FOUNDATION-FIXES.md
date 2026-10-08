@@ -39,6 +39,8 @@ Value straight after the baselines, before the larger fixes.
 
 ### F-03 A separate queue lane for positions
 
+**Built.** `shared/offline/lanes.ts` sends business writes first, in recorded order, then positions, coalesced (`extendBacklog`); the service worker drains in the same order (`offline-lanes.test.ts`). The browser test (2026-10-08, `e2e-driver/position-lane.spec.ts`) queues 2,000 fixes recorded an hour earlier and a trip start: the start reaches the server first, then every fix.
+
 - **Goal:** a GPS backlog never delays a delivery write.
 - **Change:**
   - Positions get their own lane in the offline store, coalesced: the latest fix plus a thinned backlog.

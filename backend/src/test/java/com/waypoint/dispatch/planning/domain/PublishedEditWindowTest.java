@@ -12,7 +12,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
 
-/** R-PLN-43: a published plan takes changes until 16:00 depot time on its service day. */
+/** R-PLN-48: a published plan takes changes until 16:00 depot time on its service day. */
 class PublishedEditWindowTest {
   private static final LocalDate DAY = LocalDate.of(2026, 10, 5);
 
@@ -30,6 +30,6 @@ class PublishedEditWindowTest {
     DomainException refused =
         assertThrows(DomainException.class, () -> PublishedEditWindow.requireOpen(DAY, Instant.parse("2026-10-05T11:00:00Z")));
     assertEquals(ErrorCode.CONFLICT, refused.code());
-    assertTrue(refused.rules().contains("R-PLN-43"));
+    assertTrue(refused.rules().contains("R-PLN-48"));
   }
 }

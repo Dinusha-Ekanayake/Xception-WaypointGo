@@ -69,7 +69,7 @@ export default function DepotPlan({
   const live = state.stage === "none" ? null : state.plan;
   // Once the day's plan is published, it is the only plan: the candidates saved
   // before it and Compare go away, and it takes changes only until 16:00 that
-  // day (R-PLN-43).
+  // day (R-PLN-48).
   const settled = state.stage === "published" || (state.stage === "draft" && state.revises !== null);
   const final = state.stage === "published" && !publishedEditOpen(state.plan.serviceDate);
   useEffect(() => {

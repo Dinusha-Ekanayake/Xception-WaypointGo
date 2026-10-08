@@ -59,7 +59,7 @@ export default function PlanPublish({
   /** The step bar's Edit plan was pressed on a published plan. */
   revising: boolean;
   onRevising: (revising: boolean) => void;
-  /** Past 16:00 on the service day: the published plan is final (R-PLN-43). */
+  /** Past 16:00 on the service day: the published plan is final (R-PLN-48). */
   final: boolean;
   reviseReason: string;
   onReviseReason: (reason: string) => void;

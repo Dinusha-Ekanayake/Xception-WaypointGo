@@ -10,7 +10,7 @@ import java.time.ZonedDateTime;
 import java.util.List;
 
 /**
- * How long a published plan takes changes (R-PLN-43). Once published it is the
+ * How long a published plan takes changes (R-PLN-48). Once published it is the
  * day's only plan; it can still be revised or have a trip moved until the next
  * daily cutoff, 16:00 depot time on its service day, when the next day's
  * ordering closes. After that it is final. Evaluated on the server clock in
@@ -36,7 +36,7 @@ public final class PublishedEditWindow {
       throw new DomainException(
           ErrorCode.CONFLICT,
           "the published plan for " + serviceDate + " took its last change at 16:00 that day; it is final",
-          List.of("R-PLN-43"));
+          List.of("R-PLN-48"));
     }
   }
 }

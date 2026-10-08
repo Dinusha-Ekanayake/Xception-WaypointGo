@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-08 - fix: one rule, one number; the position lane proved in a browser (F-03)
+
+`dev` · @Oxshadha
+
+- R-PLN-43 named two rules. The published plan's 16:00 edit window is now R-PLN-48 in the catalogue, its domain rule, its test and every comment; R-PLN-43 stays the suggested stop order.
+- F-03 was built without its browser test: `position-lane.spec.ts` queues 2,000 positions and a trip start offline, and the start lands first, then every fix. STATUS corrected: retraining exists (MF-05) and missing arrivals are filled from positions.
+- Rechecked: FF-06 is settled (the fuel log dropped by decision, the Fuel Pass built); F-07 is built but for folding notifications and positions into one stream.
+
+---
+
 ## 2026-10-08 - feat: a second trip waits for the drive back and a reload (R-PLN-47)
 
 `dev` · @Oxshadha
