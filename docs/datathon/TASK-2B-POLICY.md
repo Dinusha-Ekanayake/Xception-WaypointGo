@@ -13,7 +13,7 @@ No trained model is used. The allocation is produced by Waypoint's planning engi
 - orders are taken in a fixed priority order;
 - a second pass re-plans the refrigerated vehicles as a whole.
 
-Every number below comes from the engine's output (`submission_task2b.csv`, written by `PeakDayAllocationTest`) and from the supplied data files. The official `check_allocation.py` reports **"FEASIBILITY: PASSED - every rule satisfied"**, and runs on every change in CI.
+Every number below comes from the engine's output (`submission_task2b.csv`, written by `PeakDayAllocationTest`) and from the supplied data files. The official `check_allocation.py` reports **"FEASIBILITY: PASSED - every rule satisfied"**, and the relevant CI job checks the generated allocation on every pull request that touches the engine.
 
 ## 1. Demand against available capacity
 
@@ -21,7 +21,7 @@ Of the 38 vehicles in the scenario, **10 are in the workshop**. That includes **
 
 | | Demand | Available to carry it |
 | --- | --- | --- |
-| Fresh chilled | 26 orders, **181.6 m³**, 32,780 kg, in 7 districts | **4 reefers** (3 trucks, 1 van): 86.2 m³ per round, 172.4 m³ if every reefer ran two full trips |
+| Fresh chilled | 26 orders, **181.6 m³**, 32,780 kg, in 7 districts | **4 reefers** (3 trucks, 1 van): 86.2 m³ per round, 172.4 m³ nominal two-trip volume if every reefer ran two full trips (district separation, weight, access and time keep usable capacity lower) |
 | Fresh ambient | 49 orders, 133.0 m³ | 22 dry trucks, 2 dry vans, plus spare reefer room |
 | Style | 5 orders, 77.2 m³ | dry trucks (480-minute budget) |
 | Tech | 5 orders, 18.1 m³ | dry trucks (480-minute budget) |
@@ -39,7 +39,7 @@ What the engine did with the 8 trips, all within the budget (trip minutes = outb
 | VEH007 truck | Kurunegala, 13.0 m³ (176 min) | Kalutara, 5.9 m³ (79 min) | 255 / 270 |
 | VEH036 van | Colombo, 4.2 m³ (64 min) | Kalutara, 5.1 m³ (80 min) | 144 / 270 |
 
-**109.2 m³ of chilled goods are carried. The binding resource is reefer trips within the 270-minute window, not volume.** Every reefer runs both its trips, and three of the four are within 19 minutes of the budget. Dry trucks, vans and the Style/Tech budget are not limiting: every Fresh ambient, Style and Tech order fits, except one (below).
+**109.2 m³ of chilled goods are carried: 15 of 26 chilled orders, 60.1% of chilled volume** (85.9% of all orders are served). Refrigerated trip availability and Fresh time budgets limit overall service; volume, weight and van access further restrict which orders fit. Every reefer runs both its trips, and three of the four are within 19 minutes of the budget. Dry trucks, vans and the Style/Tech budget are not limiting: every Fresh ambient, Style and Tech order fits, except one (below).
 
 ## 3. Result
 
@@ -47,13 +47,13 @@ What the engine did with the 8 trips, all within the budget (trip minutes = outb
 - 13 vehicles and 25 trips used.
 - **All 10 outlets deferred yesterday are served today**, so no outlet is skipped twice in a row.
 - In the CSV, the oversized S1-078 is written as `deferred` (the template allows only served or deferred), so the file reads **73 served and 12 deferred**.
-- **Stricter than the checker, by choice.** The booklet's seven rules and `check_allocation.py` do not check each outlet's own delivery window. Our engine does (a late Fresh delivery misses morning sales, and receiving staff may have moved on), and it runs one temperature class per trip. A plan that ignores outlet windows can serve more orders and still pass the checker; we keep every window, and that costs some orders on this day.
+- **Our extra rules did not change this result.** The engine also checks each outlet's own window, one temperature class per trip and the weekly fuel quota, which the booklet's checker does not. Run with those switched off, the same engine and policy give the identical allocation: 73 served, 109.2 m³ chilled (Appendix D). A different allocation that serves more is a different search or priority order, not a looser rule set.
 
 ## 4. Which deferrals were unavoidable, and which were a choice
 
 **Unavoidable:**
-- **S1-078** (Style, Kurunegala) is **40.66 m³**, larger than the largest vehicle (38 m³). It cannot be served by any vehicle on any day without splitting, which the rules forbid. It is marked unservable: serving it needs a revised order from the store, as two orders under 38 m³; it cannot be split within this allocation.
-- **Some chilled deferral.** Demand is 181.629 m³ against a ceiling of 172.4 m³ even if every reefer ran two full trips, so at least 9.229 m³ must wait whatever the plan. Under our chosen priority policy and our stricter rules (below), this allocation defers **72.432 m³**; we do not claim this is the minimum possible.
+- **S1-078** (Style, Kurunegala) is **40.66 m³**, larger than the largest vehicle (38 m³). It cannot be served by any vehicle on any day without splitting, which the rules forbid. It is marked unservable. A revised order of two parts under 38 m³ is a necessary first step, not a guarantee: each part must still fit weight, time and a district trip.
+- **Some chilled deferral.** Demand is 181.629 m³ against a ceiling of 172.4 m³ even if every reefer ran two full trips, so at least 9.229 m³ must wait whatever the plan. Under our chosen priority policy, this allocation defers **72.432 m³**; we do not claim this is the minimum possible.
 
 **A choice: which chilled orders wait.** With only 8 reefer trips, the engine decides which districts and stops get them, by this fixed priority order:
 1. deferred yesterday (`deferred_yesterday`);
@@ -64,32 +64,31 @@ What the engine did with the 8 trips, all within the budget (trip minutes = outb
 6. earliest window close;
 7. then distance, volume and longest unserved (`days_since_last_served`) as tie-breaks.
 
-| Deferred | Why that one | What it costs |
+| Deferred (insertion barriers under the selected allocation) | Why it could not be added | What it costs |
 | --- | --- | --- |
-| Matara, S1-064 and S1-067 (12.0 m³) | 137 minutes each way: a Matara trip would take a reefer's budget that serves more volume nearer | Two stores without chilled stock for a day; last served yesterday, so this is their first miss |
-| Gampaha, 4 of 6 (S1-028, S1-031, S1-033, S1-035, 26.9 m³) | The Gampaha trip filled VEH003 to 21.2 of 26.4 m³; the next four do not fit the trip, and no reefer trip is left | Four stores short of chilled goods a week before the festival. They are first in line tomorrow under rule 1 |
+| Matara, S1-064 and S1-067 (12.0 m³) | No reefer trip was left once higher-ranked chilled orders were placed; a Matara trip (137 minutes each way) needs one of the 8 trips to itself | Chilled replenishment delayed a day for two stores, which still receive their ambient orders; last served yesterday |
+| Gampaha, 4 of 6 (S1-028, S1-031, S1-033, S1-035, 26.9 m³) | The Gampaha trip filled VEH003 to 21.2 of 26.4 m³; the next four do not fit the trip, and no reefer trip is left | Chilled replenishment delayed for four stores a week before the festival (each still receives its ambient order). Tomorrow they enter the highest priority category, alongside other previously deferred orders, subject to feasibility |
 | Colombo, S1-003 (van-only), S1-007, S1-012 (16.5 m³) | Colombo's reefer truck is full (30.9 of 33.4 m³). S1-003 needs a van, and adding it to the reefer van's Colombo load (2 orders, 4.17 m³, 766.7 kg) would take the van to 1,095.7 of 1,040 kg though volume would fit; S1-007 (2.925 m³, 567.7 kg) fits the van on its own, but added to that load it exceeds both caps (7.095 of 7.0 m³, 1,334.4 of 1,040 kg) | Three stores; Colombo has the most chilled outlets (9), so the shortfall is spread |
 | Kalutara S1-048, Kurunegala S1-071 (17.1 m³) | S1-048 would take VEH007 to 282 of its 270 Fresh minutes, and added to the reefer van's Kalutara load (5.075 m³, 951 kg) it would exceed both caps (10.1 of 7.0 m³, 1,858 of 1,040 kg); S1-071 (12.0 m³) does not fit the 6.4 m³ left on the Kurunegala trip | Two stores |
 
-The second pass on the reefers raised served orders from 70 (simple first fit) to 73. It only drops an order when a higher-ranked one takes its place.
+The second pass on the reefers raised served orders from 70 (simple first fit) to 73. It only drops an order when a higher-ranked one takes its place. All 11 outlets whose chilled order waits receive their ambient order today.
 
 ## 5. The signals the brief asks for
 
 | Signal | How it is used |
 | --- | --- |
 | `deferred_yesterday` | Ranked first: 10 of 10 served |
-| `days_since_last_served` | Tie-break among equals. Every deferred order was served 1 or 2 days ago, so none goes long without stock |
+| `days_since_last_served` | Tie-break among equals. Last in the order, after distance and volume; on S1 no ranking reached it. The outlets with a deferred chilled order were last served 1 or 2 days ago (7 and 4). Moving it to second place serves 74 orders and 118.8 m³ chilled (Appendix D), a trade-off we report rather than hide |
 | Chilled and perishable goods before the festival | Fresh and chilled are ranked above all other brands, and the reefers are re-planned as a whole to improve service under the chosen priority ranking (it served 3 more orders and 30.4 m³ more chilled goods than the first pass) |
 | 8 AM Fresh deadline | The 270-minute Fresh budget per vehicle, and earliest window close as a key |
 
 ## 6. What would serve more
 
-- **Get reefers out of the workshop**, or hire reefers for the festival week. Each extra reefer adds two trips before 08:00; 6 reefers give 12 trips for the 7 chilled districts instead of 8, which addresses the binding constraint directly (the exact gain needs a rerun of the engine with that fleet).
+- **Get reefers out of the workshop**, or hire reefers for the festival week. Each extra reefer adds up to two permitted trips before 08:00, not necessarily two feasible ones; the gain needs a rerun of the engine with that fleet.
 - **Ask OUT070 to send S1-078 again as two orders** under 38 m³ each, for a later day; this allocation cannot split it.
 
-After that, the remaining shortfall is time before 08:00, not trucks: the far districts (Puttalam, Matara, Kurunegala) need an early first trip.
 
-The engine's cost stage then reduced estimated fuel from 724.8 to **610.6 litres** and vehicles from 16 to **13**, while retaining the same served orders. It is a bounded search (2,000 iterations), so this is an improvement, not a proven minimum.
+The engine's cost stage then reduced estimated fuel (trip distance over each vehicle's km per litre, return leg included) from 724.8 to **610.6 litres** and vehicles from 16 to **13**, while retaining the same served orders. It is a bounded search (2,000 iterations), so this is an improvement, not a proven minimum.
 
 ---
 
@@ -104,10 +103,10 @@ flowchart TD
   A["Supplied CSVs<br/>task2b_peak_day_scenarios, task2b_peak_day_fleet,<br/>vehicles, district_travel, service_allowance"] --> B["PeakDayScenario<br/>reads the files, intersects outlet and mall windows,<br/>keeps Peliyagoda vehicles, marks workshop vehicles unavailable"]
   B --> C["1. PriorityInsertionEngine<br/>screens orders no vehicle can carry (unservable),<br/>then inserts orders in priority order at the cheapest feasible place"]
   C --> D["2. ScarceFleetReplan<br/>ruins every reefer day, searches the best set of chilled orders by rank,<br/>recreates the rest; kept only if strictly better by rank"]
-  D --> E["3. CostReplan<br/>adaptive large neighbourhood search: the same served orders<br/>on fewer vehicles and less fuel; never changes who is served"]
+  D --> E["3. CostReplan<br/>adaptive large neighbourhood search: fewer vehicles and less fuel;<br/>may accept only a set better by rank; on S1 the set was unchanged"]
   E --> F["4. ValidatingEngine<br/>re-checks every trip against the constraint registry;<br/>an infeasible plan is rejected, never written"]
   F --> G["submission_task2b.csv"]
-  G --> H["Official check_allocation.py<br/>run on every change in CI"]
+  G --> H["Official check_allocation.py<br/>run by the CI job on engine changes"]
   R["Constraint registry<br/>one definition of every rule"] -.-> C
   R -.-> D
   R -.-> E
@@ -130,7 +129,7 @@ The same flow as plain text, for viewers that do not draw the diagram above:
   2. ScarceFleetReplan ......... re-plans all 4 reefers together; kept only if
         |                        strictly better by rank            (70 -> 73 served)
         v
-  3. CostReplan ................ same served orders, fewer vehicles and litres
+  3. CostReplan ................ fewer vehicles and litres; on S1 the served set was unchanged
         |                                         (16 -> 13 vehicles, 724.8 -> 610.6 L)
         v
   4. ValidatingEngine .......... re-checks every trip against every rule;
@@ -166,7 +165,7 @@ Every rule is defined once in the constraint registry and read by every stage, s
 | 7 Trips and time | R-PLN-07, R-PLN-09, R-PLN-10 | At most 2 trips per vehicle; Fresh trips within 270 minutes in total, Style and Tech within 480, counted separately; trip minutes = outbound + inter-stop + handling, no return journey |
 | Workshop vehicles | (scenario) | Vehicles with status `in_workshop` are unavailable |
 
-The engine also applies rules of the Waypoint product that are stricter than the validator. They did not change the S1 result, but they are part of the method:
+The engine also applies rules of the Waypoint product that are stricter than the validator. Switching them off does not change the S1 result (Appendix D), but they are part of the method:
 
 | Rule | Id | Effect |
 | --- | --- | --- |
@@ -187,11 +186,11 @@ The engine also applies rules of the Waypoint product that are stricter than the
 | Trip time | Outbound once, inter-stop × (orders minus 1), handling per stop; no return | Booklet's three steps, exactly |
 | Capacity tolerance | 1e-6 | The same as the official validator, so a plan we call feasible is feasible to the judge |
 | Fuel | Every vehicle starts the week unused | The scenario gives no fuel history |
-| Service date | Monday 2026-10-05 | The scenario gives none; it only sets the fuel week and the brands' ordering cadence |
-| Ordering cadence | Fresh every day, Style weekly, Tech every day | Used as one priority key: an order of a brand ordered less often costs more to miss |
-| Strict window | 120 minutes or shorter | Used as one priority key |
+| Service date | Monday 2026-10-05 (bookkeeping only; S1's stated conditions, festival a week away, no payday, no monsoon, are used as given) | The scenario gives none; it only sets the fuel week and the brands' ordering cadence |
+| Ordering cadence | Fresh every day, Style weekly, Tech treated as daily (our proxy: the booklet says Tech orders as needed) | Used as one priority key: an order of a brand ordered less often costs more to miss |
+| Strict window | shorter than 120 minutes | Used as one priority key |
 | Priority order | Deferred yesterday, Fresh, chilled, strict window, cadence, earliest close, then longest distance, largest volume, longest unserved | Team decision: keep stores from missing twice, then protect perishable stock before the festival |
-| Search budgets | Stage 2: fixed node budget; stage 3: 2,000 iterations; whole engine: 10 seconds as a safety stop | Part of the engine version, so the result is repeatable on any machine |
+| Search budgets | Stage 2: fixed node budget; stage 3: 2,000 iterations; whole engine: 10 seconds as a safety stop | Fixed seed and fixed node and iteration budgets are part of the engine version; reruns are byte-identical when the search completes within the safety stop (tested) |
 
 ## Appendix D. Experiments
 
@@ -199,13 +198,25 @@ All measured on S1 by `PeakDayAllocationTest`, and repeatable.
 
 | Stage | Served | Deferred | Unservable | Vehicles | Trips | Fuel |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1. Priority insertion only | 70 | 14 | 1 | | | |
+| 1. Priority insertion only | 70 | 14 | 1 | not measured | not measured | not measured |
 | 1 + 2. Reefers re-planned as a whole | **73** | **11** | 1 | 16 | 32 | 724.8 L |
 | 1 + 2 + 3. Cost stage | **73**, the same orders | **11** | 1 | **13** | **25** | **610.6 L** |
 
 - **Stage 2** served 3 more orders and carried **30.4 m³ more chilled goods**. Its search covered all 26 chilled orders (127,623 search nodes) and finished within its budget. Every order it dropped was replaced by a higher ranked one.
 - **Stage 3** kept exactly the same served orders and used 3 fewer vehicles, 7 fewer trips and 114.2 L less fuel (16%).
 - **Why the 12 not served were not served,** by the rule that blocked each: capacity (R-PLN-06) 6, which includes the unservable S1-078; trips per vehicle (R-PLN-07) 5; the Fresh 270-minute budget (R-PLN-09) 1.
+- **Controlled comparisons** (`PeakDayExperimentsTest`): the same engine and inputs, one thing changed at a time. Every variant's CSV passes the official checker.
+
+  | Variant | Served | Chilled served | Chilled m³ | Vehicles | Trips |
+  | --- | --- | --- | --- | --- | --- |
+  | Submitted (all rules, policy as written) | 73 | 15 of 26 | 109.2 | 13 | 25 |
+  | Without outlet windows | 73 | 15 | 109.2 | 13 | 25 |
+  | Without one temperature class per trip | 73 | 15 | 109.2 | 13 | 25 |
+  | Booklet rules only (no windows, temperature separation or fuel quota) | 73 | 15 | 109.2 | 13 | 25 |
+  | Longest since last served moved to second place | 74 | 16 | 118.8 | 13 | 26 |
+
+  Our extra rules cost nothing on S1. The priority order does matter: putting time since last service right after "deferred yesterday" serves one more order and 9.6 m³ more chilled goods.
+- The binding-rule counts above describe failed candidate placements in this allocation; they do not prove that each deferral is unavoidable in every allocation.
 - **Robustness checks**, each an automated test:
   - the same inputs give a byte-identical CSV;
   - all 10 outlets deferred yesterday are served;
@@ -214,7 +225,7 @@ All measured on S1 by `PeakDayAllocationTest`, and repeatable.
 
 ## Appendix E. Reproducing it
 
-From the repository root, with Java 17 and Maven. No database is needed.
+From the repository root, with Java 17 and Maven for the engine, and Python 3 with pandas for the checker. No database is needed. On Windows, `tools/check_allocation/data` is a symbolic link to `data/`: clone with `git config core.symlinks true` (and Developer Mode on), or copy `data/` into `tools/check_allocation/data`. The comparisons in appendix D run with `mvn test -Dtest=PeakDayExperimentsTest` and write their CSVs to `backend/target/task2b/experiments/`.
 
 ```bash
 cd backend && mvn test -Dtest=PeakDayAllocationTest      # writes backend/target/task2b/submission_task2b.csv
