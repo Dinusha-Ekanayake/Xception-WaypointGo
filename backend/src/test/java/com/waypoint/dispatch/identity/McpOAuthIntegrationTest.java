@@ -9,6 +9,7 @@ import com.waypoint.dispatch.identity.application.SessionRegistry;
 import com.waypoint.dispatch.identity.domain.oauth.Pkce;
 import com.waypoint.dispatch.platform.db.*;
 import com.waypoint.dispatch.referencedata.application.ImportReferenceDataHandler;
+import com.waypoint.dispatch.support.McpGrants;
 import com.waypoint.dispatch.support.TestDatabase;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
@@ -45,6 +46,7 @@ class McpOAuthIntegrationTest {
     migrator.migrate(); reference.importFrom(Path.of("../data"), null);
     email = "oauth-" + UUID.randomUUID() + "@waypoint.test";
     user = accounts.createAccount(email, "OAuth store", PASSWORD, "store_manager");
+    McpGrants.allow(database, user);
     database.asModule(ModuleRole.IAM, null, () -> database.update("INSERT INTO iam.user_outlet_access (user_id, outlet_id) VALUES (?, 'OUT001')", user));
   }
   String register() throws Exception {

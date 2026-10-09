@@ -3,7 +3,7 @@
 import { languageOf, pickVoice } from "@shared/messaging/speech";
 import { useEffect, useState, useCallback, useRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { PRESS, SettingsPanel, Spinner, cx, initialsOf } from "@shared/ui";
+import { InstallApp, PRESS, SettingsPanel, Spinner, cx, initialsOf } from "@shared/ui";
 import { useT } from "./i18n.tsx";
 
 /** Waveform bar heights exactly copied from the Figma specification */
@@ -53,6 +53,8 @@ function DriverProfileButton({
       {host &&
         createPortal(
           <SettingsPanel displayName={displayName} roleLabel={t("Driver")} lang={lang} onLang={(l) => onLang?.(l)} placement="frame" showInstall={false} onClose={() => setOpen(false)}>
+            {/* Issue #201: the driver installs the app from here, so the run keeps working with no coverage. */}
+            <InstallApp t={t} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-go-surface text-[15px] font-medium text-go-ink" />
             {onSignOut && (
               <button
                 type="button"

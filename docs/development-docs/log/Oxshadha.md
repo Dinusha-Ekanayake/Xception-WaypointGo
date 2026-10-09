@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-10-09 - fix: MCP for the dispatcher only; the driver can install the app
+
+`dev` · @Oxshadha
+
+- Decision: an AI assistant over MCP is the dispatcher's. The driver, loader and store manager roles lose `WaypointMcpReader` and `WaypointMcpWriter` (migration `20261009T1300`), so they are refused; an administrator can still grant one named person. MCP tests that used those roles now grant their test user first (`support/McpGrants`). R-IAM-40, SEC-48.
+- Install: Chrome reports every role address installable (own name, three icons, active worker, no manifest errors). The driver's Settings had no "Install app" (`showInstall={false}` with no other way); it now has the shared row, in Sinhala and Tamil as the loader says it.
+
+---
+
 ## 2026-10-09 - feat: proofs in the S3-compatible object store when OBJECT_STORE=s3 (M-01, first step)
 
 `dev` · @Oxshadha

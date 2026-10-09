@@ -15,6 +15,7 @@ import com.waypoint.dispatch.platform.db.Database;
 import com.waypoint.dispatch.platform.db.Migrator;
 import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.referencedata.application.ImportReferenceDataHandler;
+import com.waypoint.dispatch.support.McpGrants;
 import com.waypoint.dispatch.support.TestDatabase;
 import jakarta.servlet.http.Cookie;
 import java.nio.file.Path;
@@ -60,6 +61,7 @@ class McpConnectionIntegrationTest {
     migrator.migrate();
     reference.importFrom(Path.of("../data"), null);
     UUID id = accounts.createAccount(email, "MCP Store", PASSWORD, "store_manager");
+    McpGrants.allow(database, id);
     grantOutlet(id);
   }
 
@@ -160,6 +162,7 @@ class McpConnectionIntegrationTest {
   void connectionPolicyDenyAffectsTheNextRequest() throws Exception {
     String ownEmail = "mcp-deny-" + UUID.randomUUID() + "@waypoint.test";
     UUID id = accounts.createAccount(ownEmail, "MCP Deny", PASSWORD, "store_manager");
+    McpGrants.allow(database, id);
     grantOutlet(id);
     String token = connect(ownEmail);
     database.asModule(ModuleRole.IAM, id, () -> {
@@ -180,6 +183,7 @@ class McpConnectionIntegrationTest {
   void accountDisableEndsExistingConnection() throws Exception {
     String ownEmail = "mcp-disabled-" + UUID.randomUUID() + "@waypoint.test";
     UUID id = accounts.createAccount(ownEmail, "MCP Disabled", PASSWORD, "driver");
+    McpGrants.allow(database, id);
     String token = connect(ownEmail);
     database.asModule(ModuleRole.IAM, id, () -> database.update("UPDATE iam.users SET is_active = false WHERE user_id = ?", id));
     http.perform(get("/api/mcp/context").header("Authorization", "Bearer " + token))
@@ -187,9 +191,8 @@ class McpConnectionIntegrationTest {
   }
 
   @Test
-  void allSixRolesConnectWithoutBorrowingAnotherPersonsIdentity() throws Exception {
-    var expected = java.util.Map.of("dispatcher", "plan:Read", "store_manager", "order:Read",
-        "loader", "loading:Read", "driver", "delivery:Read", "auditor", "audit:Read", "admin", "iam:ReadPolicy");
+  void theDispatcherAdministratorAndAuditorConnectWithoutBorrowingAnotherPersonsIdentity() throws Exception {
+    var expected = java.util.Map.of("dispatcher", "plan:Read", "auditor", "audit:Read", "admin", "iam:ReadPolicy");
     for (var role : expected.entrySet()) {
       String ownEmail = "mcp-role-" + UUID.randomUUID() + "@waypoint.test";
       UUID id = accounts.createAccount(ownEmail, "MCP Role", PASSWORD, role.getKey());
@@ -205,12 +208,27 @@ class McpConnectionIntegrationTest {
     }
   }
 
+  /** Decision 2026-10-09: MCP is the dispatcher's; the field roles do not connect unless granted one by one. */
+  @Test
+  void theDriverLoaderAndStoreManagerDoNotConnectByRole() throws Exception {
+    for (String role : java.util.List.of("driver", "loader", "store_manager")) {
+      String ownEmail = "mcp-field-" + UUID.randomUUID() + "@waypoint.test";
+      accounts.createAccount(ownEmail, "MCP Field", PASSWORD, role);
+      int refused = http.perform(post("/api/mcp/session").contentType(MediaType.APPLICATION_JSON)
+              .content(mapper.writeValueAsString(java.util.Map.of("email", ownEmail, "password", PASSWORD))))
+          .andReturn().getResponse().getStatus();
+      assertTrue(refused == 401 || refused == 403, role + " was answered " + refused);
+    }
+  }
+
   @Test
   void personalLoaderReadsDoNotBorrowThePinSwitchedBrowsersScope() throws Exception {
     String ownEmail = "mcp-loader-" + UUID.randomUUID() + "@waypoint.test";
     UUID ownId = accounts.createAccount(ownEmail, "Personal loader", PASSWORD, "loader");
+    McpGrants.allow(database, ownId);
     String switchedEmail = "mcp-switched-" + UUID.randomUUID() + "@waypoint.test";
     UUID switchedId = accounts.createAccount(switchedEmail, "Switched loader", PASSWORD, "loader");
+    McpGrants.allow(database, switchedId);
     var depots = database.readAs(ModuleRole.REF, null,
         () -> database.query("SELECT DISTINCT depot_code FROM ref.vehicles ORDER BY depot_code"));
     String ownDepot = (String) depots.get(0).get("depot_code");
@@ -242,6 +260,7 @@ class McpConnectionIntegrationTest {
   void driverDeliveryReadsRespectTheAssignmentDateInSql() throws Exception {
     String ownEmail = "mcp-date-" + UUID.randomUUID() + "@waypoint.test";
     UUID id = accounts.createAccount(ownEmail, "Assigned driver", PASSWORD, "driver");
+    McpGrants.allow(database, id);
     var vehicle = database.readAs(ModuleRole.REF, null, () -> database.queryOne(
         "SELECT vehicle_id, depot_code FROM ref.vehicles ORDER BY vehicle_id LIMIT 1"));
     String vehicleId = (String) vehicle.get("vehicle_id");
@@ -266,7 +285,7 @@ class McpConnectionIntegrationTest {
     String ownDepot = (String) depots.get(0).get("depot_code");
     String otherDepot = (String) depots.get(1).get("depot_code");
     String loaderEmail = "mcp-discovery-" + UUID.randomUUID() + "@waypoint.test";
-    accounts.createAccount(loaderEmail, "Discovery loader", PASSWORD, "loader");
+    McpGrants.allow(database, accounts.createAccount(loaderEmail, "Discovery loader", PASSWORD, "loader"));
     accounts.grantDepot(loaderEmail, ownDepot);
     String loader = connect(loaderEmail);
     http.perform(get("/api/loading/trips").param("depot", ownDepot).param("date", "2200-01-01")
@@ -274,7 +293,7 @@ class McpConnectionIntegrationTest {
     http.perform(get("/api/loading/trips").param("depot", otherDepot).param("date", "2200-01-01")
         .header("Authorization", "Bearer " + loader)).andExpect(status().isForbidden());
     String driverEmail = "mcp-runsheet-" + UUID.randomUUID() + "@waypoint.test";
-    accounts.createAccount(driverEmail, "Discovery driver", PASSWORD, "driver");
+    McpGrants.allow(database, accounts.createAccount(driverEmail, "Discovery driver", PASSWORD, "driver"));
     String driver = connect(driverEmail);
     http.perform(get("/api/execution/run-sheets").param("date", "2200-01-01")
         .header("Authorization", "Bearer " + driver)).andExpect(status().isOk());

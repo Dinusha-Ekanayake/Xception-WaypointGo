@@ -13,6 +13,7 @@ import com.waypoint.dispatch.platform.db.Migrator;
 import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.referencedata.application.ImportReferenceDataHandler;
 import com.waypoint.dispatch.referencedata.contract.ReferenceQuery;
+import com.waypoint.dispatch.support.McpGrants;
 import com.waypoint.dispatch.support.TestDatabase;
 import jakarta.servlet.http.Cookie;
 import java.nio.file.Path;
@@ -69,6 +70,7 @@ class McpEnterpriseIntegrationTest {
     migrator.migrate();
     reference.importFrom(Path.of("../data"), null);
     storeId = accounts.createAccount(store, "MCP Enterprise Store", PASSWORD, "store_manager");
+    McpGrants.allow(database, storeId);
     database.asModule(ModuleRole.IAM, storeId, () -> database.update(
         "INSERT INTO iam.user_outlet_access (user_id, outlet_id) VALUES (?, 'OUT001')", storeId));
     accounts.createAccount(admin, "MCP Enterprise Admin", PASSWORD, "admin");
@@ -180,6 +182,7 @@ class McpEnterpriseIntegrationTest {
   void anAdministratorTurnsWritesOffAndPersonalFieldsOnWithPolicyAlone() throws Exception {
     String email = "mcp-ent-policy-" + UUID.randomUUID() + "@waypoint.test";
     UUID id = accounts.createAccount(email, "MCP Policy", PASSWORD, "store_manager");
+    McpGrants.allow(database, id);
     String token = connect(email, null);
     attach("WaypointMcpNoWrites", id);
     attach("WaypointMcpPersonalReader", id);
@@ -198,7 +201,7 @@ class McpEnterpriseIntegrationTest {
   @Test
   void aPersonEndsTheirOwnConnectionFromTheBrowserButNotAnotherPersons() throws Exception {
     String email = "mcp-ent-own-" + UUID.randomUUID() + "@waypoint.test";
-    accounts.createAccount(email, "MCP Own Connections", PASSWORD, "store_manager");
+    McpGrants.allow(database, accounts.createAccount(email, "MCP Own Connections", PASSWORD, "store_manager"));
     String token = connect(email, "orders.read");
     connect(email, null);
     Cookie browser = browser(email);
@@ -233,6 +236,7 @@ class McpEnterpriseIntegrationTest {
             + " VALUES (?, 'Test assistant', '[\"https://assistant.test/cb\"]'::jsonb, now())", client));
     String email = "mcp-ent-blocked-" + UUID.randomUUID() + "@waypoint.test";
     UUID id = accounts.createAccount(email, "MCP Blocked Client User", PASSWORD, "store_manager");
+    McpGrants.allow(database, id);
     String token = connect(email, null);
     database.asModule(ModuleRole.IAM, null, () -> database.update(
         "UPDATE iam.sessions SET oauth_client_id = ?, oauth_resource = 'http://localhost/mcp'"
@@ -269,6 +273,7 @@ class McpEnterpriseIntegrationTest {
   void anAdministratorSwitchesOnePersonOffAndEndsTheirConnectionsWithAReason() throws Exception {
     String email = "mcp-ent-person-" + UUID.randomUUID() + "@waypoint.test";
     UUID id = accounts.createAccount(email, "Mcp Person Switched", PASSWORD, "store_manager");
+    McpGrants.allow(database, id);
     String first = connect(email, null);
     String second = connect(email, "orders.read");
     Cookie administrator = browser(admin);

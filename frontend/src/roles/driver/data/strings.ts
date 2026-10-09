@@ -15,6 +15,20 @@ export type Translate = (english: string, vars?: Vars) => string;
 
 /** [Sinhala, Tamil] for each English string. `{name}` marks a value filled in at run time. */
 export const STRINGS: Record<string, [string, string]> = {
+  // Install (issue #201), as the loader says it
+  "Install app": ["යෙදුම ස්ථාපනය කරන්න", "செயலியை நிறுவு"],
+  "In Safari, tap Share, then Add to Home Screen. The app then opens from its own icon and keeps working with no signal.": [
+    "Safari හි Share ඔබා, Add to Home Screen තෝරන්න. එවිට යෙදුම එහි අයිකනයෙන් විවෘත වන අතර සංඥා නැතිව ද ක්‍රියා කරයි.",
+    "Safari-இல் Share-ஐத் தட்டி, Add to Home Screen-ஐத் தேர்ந்தெடுக்கவும். பின்னர் செயலி அதன் சொந்த ஐகானிலிருந்து திறந்து, சிக்னல் இல்லாமலும் வேலை செய்யும்.",
+  ],
+  "This browser may clear work saved offline when the device runs low on space.": [
+    "උපාංගයේ ඉඩ අඩු වූ විට මෙම බ්‍රව්සරය නොබැඳිව සුරැකි වැඩ මකා දැමිය හැක.",
+    "சாதனத்தில் இடம் குறையும்போது இந்த உலாவி இணைப்பின்றிச் சேமித்த வேலையை அழிக்கக்கூடும்.",
+  ],
+  "Installing keeps work saved offline when the device runs low on space.": [
+    "ස්ථාපනය කළ විට, උපාංගයේ ඉඩ අඩු වූවද නොබැඳිව සුරැකි වැඩ රැකේ.",
+    "நிறுவினால், சாதனத்தில் இடம் குறைந்தாலும் இணைப்பின்றிச் சேமித்த வேலை காக்கப்படும்.",
+  ],
   " · about {n} min to unload": [" · බෑමට විනාඩි {n} පමණ", " · இறக்க சுமார் {n} நிமிடம்"],
   " · finished {time}": [" · {time}ට අවසන්", " · {time}-க்கு முடிந்தது"],
   " · slide a row right to send it": [" · යැවීමට පේළියක් දකුණට අදින්න", " · அனுப்ப ஒரு வரியை வலப்புறம் இழுக்கவும்"],
