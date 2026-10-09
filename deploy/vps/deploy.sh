@@ -163,6 +163,14 @@ main() {
     fi
   fi
 
+  # Text to speech (R-MSG-10) runs in an environment whose .env sets SPEECH_URL,
+  # which on this server is http://speech:8090, the container on the stack's own
+  # network. Without it messages stay text and voice notes still play.
+  if [[ -n "$(env_value SPEECH_URL)" ]]; then
+    compose+=(--profile speech)
+    services+=(speech)
+  fi
+
   local site
   site="$(env_value SITE_ADDRESS)"
   [[ -n "$site" ]] || die "SITE_ADDRESS is not set in .env"
