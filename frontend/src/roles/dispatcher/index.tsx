@@ -177,7 +177,7 @@ export default function Dispatcher({
         ) : view === "issues" ? (
           <Issues depots={depots} scopeLabel={label} userId={userId} online={online} focusIssueId={issueFocus} />
         ) : view === "kpis" ? (
-          <PilotKpis depots={depots} online={online} />
+          <PilotKpis depots={depots} online={online} onBack={() => navigate("overview")} />
         ) : (
           <Forecast depots={depots} scopeLabel={label} online={online} />
         )}

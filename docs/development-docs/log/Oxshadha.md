@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-10-09 - fix: the pilot KPIs are a card on Overview, not a sidebar tab (B-05)
+
+`dev` · @Oxshadha
+
+- The sidebar keeps the dispatcher's daily work. The pilot KPIs, a weekly task for the pilot's weeks, are a card on Overview (the latest week's headline figures beside the app's counts); "Record or view all weeks" opens the full page at `#/kpis`, which has a Back.
+
+---
+
 ## 2026-10-09 - decision: FF-01 done as two screens; the report button says Send
 
 `dev` · @Oxshadha

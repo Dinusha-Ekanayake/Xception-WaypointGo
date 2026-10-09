@@ -17,12 +17,16 @@ import { KPI_LABEL, KPI_ORDER, KPI_OWNER, kpiInputError, kpiValue, lastMondays }
 
 const input = "w-full rounded-go-input border border-go-rule bg-white px-3 py-2 text-[14px] font-normal outline-none focus:border-go-teal";
 
-export default function PilotKpis({ depots, online }: { depots: string[]; online: boolean }): React.JSX.Element {
+export default function PilotKpis({ depots, online, onBack }: { depots: string[]; online: boolean; onBack: () => void }): React.JSX.Element {
   const [depot, setDepot] = useState(depots[0] ?? "");
   const report = useKpis(depot || null);
   const weeks = report.data?.weeks ?? [];
   return (
     <>
+      {/* Opened from its card on Overview, not from the sidebar. */}
+      <button type="button" onClick={onBack} className="flex w-fit items-center gap-2 text-[16px] text-go-ink">
+        <span aria-hidden className="text-[20px] leading-none">‹</span> Back
+      </button>
       <PageHeader
         title="Pilot KPIs"
         subtitle={`Last ${KPI_WEEKS} weeks · ${depot || "no depot"}`}

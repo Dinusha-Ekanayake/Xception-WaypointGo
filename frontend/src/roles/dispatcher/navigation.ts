@@ -17,12 +17,17 @@ export const VIEWS: Array<{ id: ViewId; label: string; icon: IconName }> = [
   { id: "vehicles", label: "Vehicles", icon: "truck" },
   { id: "forecast", label: "Forecast", icon: "chart-line" },
   { id: "issues", label: "Issues", icon: "alert" },
-  { id: "kpis", label: "Pilot KPIs", icon: "table-columns" },
 ];
+
+/**
+ * Pages reached from another screen, not from the sidebar: the pilot KPIs open
+ * from their card on Overview (a weekly task during the pilot, not daily work).
+ */
+const LINKED: ViewId[] = ["kpis"];
 
 function fromHash(): ViewId {
   const id = window.location.hash.replace(/^#\/?/, "");
-  return VIEWS.some((view) => view.id === id) ? (id as ViewId) : "overview";
+  return VIEWS.some((view) => view.id === id) || LINKED.includes(id as ViewId) ? (id as ViewId) : "overview";
 }
 
 export function useView(): [ViewId, (view: ViewId) => void] {

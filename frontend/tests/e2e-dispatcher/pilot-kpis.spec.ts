@@ -70,3 +70,34 @@ test("the pilot KPIs show the depot's figures beside the app's, and a week is re
     note: "Phone log, week of the pilot",
   });
 });
+
+test("the pilot KPIs are a card on Overview, not a sidebar tab, and the card opens the full page", async ({ page }) => {
+  await serve(page);
+  await page.route("**/api/ml/kpis**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        depotCode: "Kandy",
+        kpis: ["fresh_on_time_pct", "adoption_pct", "calls_per_trip", "write_off_lkr"],
+        countedByApp: ["fresh_on_time_pct", "adoption_pct"],
+        weeks: [{
+          weekStart: monday,
+          recorded: { fresh_on_time_pct: { value: 71.0, note: null, enteredBy: "u-1", enteredAt: `${monday}T10:00:00Z` } },
+          counted: { fresh_on_time_pct: { value: 66.7, stops: 3 }, adoption_pct: { value: 75.0, stops: 4 } },
+        }],
+      }),
+    }),
+  );
+  await page.goto("/");
+  await expect(page.getByRole("link", { name: "Pilot KPIs" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Pilot KPIs" })).toHaveCount(0);
+  const card = page.getByRole("region", { name: "Pilot KPIs" });
+  await expect(card).toContainText("71.0%");
+  await expect(card).toContainText("App 66.7%");
+  await expect(card).toContainText("Not recorded");
+  await card.getByRole("button", { name: /Record or view all weeks/ }).click();
+  await expect(page.getByRole("heading", { name: "Pilot KPIs" })).toBeVisible();
+  await page.getByRole("button", { name: "Back" }).click();
+  await expect(page.getByRole("region", { name: "Pilot KPIs" })).toBeVisible();
+});
