@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ApiError } from "../api/problem.ts";
-import { resolveReport, useThread, useWaiting } from "../messaging/useThread.ts";
+import { redirectMessage, resolveReport, useThread, useWaiting } from "../messaging/useThread.ts";
 import { audienceLabel, plain, type Translate } from "../messaging/thread.ts";
 import type { Sender } from "../messaging/senders.ts";
 import { clock } from "../wording/time.ts";
@@ -10,6 +10,8 @@ import { Notice } from "./Notice.tsx";
 import { cx } from "./primitives.tsx";
 import { ThreadComposer, type Draft } from "./ThreadComposer.tsx";
 import { ThreadMessages } from "./ThreadMessages.tsx";
+import { keepThreadAudio } from "../messaging/audioCache.ts";
+import { PlayMessages } from "./PlayMessages.tsx";
 
 // One trip's thread (issue #136, ADR-004): its messages and a place to write.
 // Every role draws the same thread; what each reader sees and may write is the
@@ -26,6 +28,9 @@ export function TripThread({
   keepsOffline = false,
   accountId,
   draft,
+  replies,
+  repliesNote,
+  playAll = false,
   tr = plain,
 }: {
   threadId: string;
@@ -38,12 +43,25 @@ export function TripThread({
   /** Keeps the thread on this device for a role that reads it with no signal. */
   accountId?: string;
   draft?: Draft;
+  /** FF-08: the dispatcher's ready replies for the trip's state. */
+  replies?: import("../messaging/templates.ts").Reply[];
+  /** AI-J5: how the ready replies are ordered. */
+  repliesNote?: string;
+  /** A "Play messages" bar for the messages not heard yet (the driver's, when stopped). */
+  playAll?: boolean;
   /** The reader's language; English when absent. */
   tr?: Translate;
 }): React.JSX.Element {
   const t = useThread(threadId, accountId);
   const [note, setNote] = useState<string | null>(null);
   const [sentCount, setSentCount] = useState(0);
+  // R-MSG-11: a driver's phone keeps the audio of the newest messages while there is signal.
+  const latestId = t.messages[t.messages.length - 1]?.messageId ?? "";
+  useEffect(() => {
+    if (playAll && accountId && online && t.messages.length > 0) void keepThreadAudio(accountId, t.messages);
+    // The newest message stands for the list: a new one is what is worth fetching for.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playAll, accountId, online, latestId]);
   const waiting = useWaiting(threadId, accountId, `${sentCount}|${t.loadedAt?.getTime() ?? 0}`);
   const thread = t.thread.data;
   const members = t.members.data ?? [];
@@ -59,6 +77,7 @@ export function TripThread({
           {t.loadedAt ? tr("Showing what arrived at {time}.", { time: clock(t.loadedAt) }) : tr("Check the connection and try again.")}
         </Notice>
       )}
+      {playAll && t.loadedAt !== null && <PlayMessages threadId={threadId} messages={t.messages} tr={tr} {...(accountId ? { accountId } : {})} />}
       <div className="min-h-0 flex-1 overflow-y-auto pr-1" aria-live="polite" aria-busy={t.thread.loading}>
         {t.loadedAt === null && t.error === null ? (
           <p className="py-8 text-center text-sm text-go-secondary">{tr("Loading messages…")}</p>
@@ -70,10 +89,15 @@ export function TripThread({
             onOlder={t.loadOlder}
             compact={variant === "phone"}
             tr={tr}
+            {...(accountId ? { accountId } : {})}
             {...(thread?.memberRole === "dispatcher"
               ? {
                   onResolve: async (messageId: string, note: string) => {
                     await resolveReport(messageId, note);
+                    t.refresh();
+                  },
+                  onRedirect: async (messageId: string, reason: string) => {
+                    await redirectMessage(messageId, reason);
                     t.refresh();
                   },
                 }
@@ -111,6 +135,9 @@ export function TripThread({
           threadId={threadId}
           role={thread.memberRole}
           members={members}
+          myOutlets={thread.myOutlets}
+          {...(replies ? { replies } : {})}
+          {...(repliesNote ? { repliesNote } : {})}
           online={online}
           keepsOffline={keepsOffline}
           tr={tr}

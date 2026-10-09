@@ -77,7 +77,10 @@ public final class AttentionPolicy {
   }
 
   private static Optional<Finding> late(StopFacts stop, AttentionThresholds thresholds, Instant now) {
-    Instant arrival = stop.expectedArrival().orElse(stop.plannedArrival());
+    // A vehicle cannot arrive before now: a stop not reached once its window has
+    // closed is at risk even when no delay has been observed yet.
+    Instant estimate = stop.expectedArrival().orElse(stop.plannedArrival());
+    Instant arrival = estimate.isBefore(now) ? now : estimate;
     long minutesLeft = Duration.between(now, stop.windowClose()).toMinutes();
     if (arrival.isAfter(stop.windowClose())) {
       Severity severity = minutesLeft <= thresholds.windowWarnMinutes() ? Severity.CRITICAL : Severity.HIGH;

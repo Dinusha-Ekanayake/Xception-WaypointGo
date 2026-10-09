@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { request } from "./client.ts";
 
-// The explanation said more naturally by a language model, when the server has
-// one (app/explain/route.ts). Asked once for a plan version or an order and
+// The explanation said more naturally by a language model, through the backend's
+// gateway (POST /api/ml/explain, roadmap AI-0): off unless switched on, facts
+// allow-listed and masked, every call recorded. Asked once for a plan version or an order and
 // kept on this device after that, so opening it again costs nothing. Null
 // while it is on the way and whenever there is none: the screen then shows the
 // rule-based explanation alone.
@@ -37,8 +39,7 @@ export function useFriendlyText(key: string | null, facts: unknown): string | nu
     setText(had);
     if (had) return;
     const stop = new AbortController();
-    fetch("/explain", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key, facts }), signal: stop.signal })
-      .then((answer) => (answer.ok ? (answer.json() as Promise<{ text: string | null }>) : { text: null }))
+    request<{ state: string; text: string | null }>("/api/ml/explain", { method: "POST", body: { key, facts }, signal: stop.signal })
       .then((answer) => {
         if (!answer.text) return;
         write(key, answer.text);

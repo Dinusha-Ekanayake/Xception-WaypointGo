@@ -6,8 +6,11 @@ import type { VehicleView } from "@shared/domain/types";
 import { Icon, Notice, Pending, Pill, PrimaryButton, SecondaryButton } from "@shared/ui";
 import { capacityLabel, litres, typeLabel } from "../data/fleet.ts";
 import { dayLabel } from "../data/scope.ts";
+import { addDays } from "@shared/wording";
 import type { SubmitState } from "../data/useSetDayStatus.ts";
 import FuelWeek from "./FuelWeek.tsx";
+import { clashText, workshopClash } from "../data/forecast.ts";
+import { useForecast } from "../data/useForecast.ts";
 
 // Figma "06b Vehicle details": the drawer over the fleet table. Its one write
 // is Send to workshop, which is vehicle:SetDayStatus for the day being viewed.
@@ -26,13 +29,18 @@ export default function VehicleDrawer({
   serviceDate: string;
   online: boolean;
   submitState: SubmitState;
-  onSendToWorkshop: (reason: string) => void;
+  onSendToWorkshop: (reason: string, day: string) => void;
   onClose: () => void;
 }): React.JSX.Element {
   const [confirming, setConfirming] = useState(false);
   const [reason, setReason] = useState("");
+  // Today by default; a later day can be booked ahead, where the forecast can warn (T2-02).
+  const [day, setDay] = useState(serviceDate);
   const closeRef = useRef<HTMLButtonElement>(null);
   const sending = submitState.phase === "sending";
+  // Roadmap T2-02: read the depot's forecast only once a workshop day is being chosen.
+  const forecast = useForecast(confirming ? [vehicle.depotCode] : []);
+  const clash = forecast.data ? workshopClash(forecast.data, vehicle, day) : null;
 
   useEffect(() => {
     closeRef.current?.focus();
@@ -95,11 +103,24 @@ export default function VehicleDrawer({
             className="flex flex-col gap-2 rounded-go-card-s bg-go-surface p-3"
             onSubmit={(event) => {
               event.preventDefault();
-              if (reason.trim()) onSendToWorkshop(reason.trim());
+              if (reason.trim() && day) onSendToWorkshop(reason.trim(), day);
             }}
           >
+            <label htmlFor="workshop-day" className="text-[13px] font-medium text-go-ink">
+              Which day?
+            </label>
+            <input
+              id="workshop-day"
+              type="date"
+              required
+              min={serviceDate}
+              max={addDays(serviceDate, 70)}
+              value={day}
+              onChange={(event) => setDay(event.target.value)}
+              className="rounded-go-input bg-white px-3 py-2 text-sm text-go-ink outline-none"
+            />
             <label htmlFor="workshop-reason" className="text-[13px] font-medium text-go-ink">
-              Why is {vehicle.vehicleId} going to the workshop on {dayLabel(serviceDate)}?
+              Why is {vehicle.vehicleId} going to the workshop on {day ? dayLabel(day) : "that day"}?
             </label>
             <textarea
               id="workshop-reason"
@@ -110,6 +131,11 @@ export default function VehicleDrawer({
               placeholder="For example: brake noise reported by the driver"
               className="rounded-go-input bg-white px-3 py-2 text-sm text-go-ink outline-none placeholder:text-go-placeholder"
             />
+            {clash && (
+              <Notice tone="warning" title="That week is forecast short" live>
+                {clashText(vehicle.vehicleId, clash)} You can still send it; consider another day or a hired vehicle.
+              </Notice>
+            )}
             <p className="text-[11px] text-go-secondary">
               It leaves the next planning run for that day. Plans already made stay as they are (R-FLT-04).
             </p>
@@ -163,8 +189,8 @@ function SubmitError({ error }: { error: Error }): React.JSX.Element {
     );
   }
   return (
-    <Notice tone="danger" title="The change did not reach the server" live>
-      Check the connection and send again. Sending again is safe: the server applies it once.
+    <Notice tone="danger" title="The change did not reach Waypoint" live>
+      Check the connection and send again. Sending again is safe: Waypoint applies it once.
     </Notice>
   );
 }

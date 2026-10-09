@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useMemo, useEffect, useState, type ReactNode } from "react";
 import { translate, type Lang, type Translate, type Vars } from "./data/strings.ts";
 
 export type { Lang, Translate };
@@ -53,4 +53,20 @@ export function cutoffWords(ms: number, t: Translate): string {
 export function useT(): Translate {
   const { lang } = useContext(LangContext);
   return useCallback((english: string, vars?: Vars) => translate(lang, english, vars), [lang]);
+}
+
+/**
+ * "1 unit", "5 units", "3 product lines" in the manager's language (roadmap
+ * FF-00). The shared wording writes these in English; the store's screens use
+ * these instead.
+ */
+export function useCounts(): { units: (n: number) => string; productLines: (n: number) => string } {
+  const t = useT();
+  return useMemo(
+    () => ({
+      units: (n: number) => (n === 1 ? t("1 unit") : t("{n} units", { n })),
+      productLines: (n: number) => (n === 1 ? t("1 product line") : t("{n} product lines", { n })),
+    }),
+    [t],
+  );
 }

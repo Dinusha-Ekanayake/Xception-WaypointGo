@@ -119,3 +119,22 @@ test("a partial stop counts the units it was recorded with, not its whole order"
   ];
   assert.deepEqual(summaryRows(stops, 0).find(([label]) => label === "Units delivered"), ["Units delivered", "71 of 120"]);
 });
+
+test("the next stop says how long it is expected to take to unload (T1-04)", async () => {
+  const { unloadText } = await import("../src/roles/driver/data/stopView.ts");
+  assert.equal(unloadText("17.60"), " · about 18 min to unload");
+  assert.equal(unloadText(null), "");
+  assert.equal(unloadText(undefined), "");
+  assert.equal(unloadText(0), "");
+  // MF-06: a range when the prediction has one; one that rounds to a single number reads as the minutes.
+  assert.equal(unloadText("18.4", "14.6", "24.2"), " · 15 to 24 min to unload");
+  assert.equal(unloadText("18", "18.2", "18.4"), " · about 18 min to unload");
+  assert.equal(unloadText("18", null, null), " · about 18 min to unload");
+});
+
+test("rows further from the card are smaller and fainter, like a dial, within limits", async () => {
+  const { dialStyle } = await import("../src/roles/driver/data/stopView.ts");
+  assert.deepEqual(dialStyle(1), { scale: 1, opacity: 1 });
+  assert.ok(dialStyle(2).scale < 1 && dialStyle(2).opacity < 1);
+  assert.deepEqual(dialStyle(30), { scale: 0.84, opacity: 0.4 });
+});

@@ -23,6 +23,10 @@ import org.springframework.validation.annotation.Validated;
  * @param circuitOpenFor how long an open circuit refuses calls before one trial
  * @param maxAttempts tries to rescore a degraded plan while a model is active (P-28)
  * @param scoringBatch plans claimed per run of the scoring job
+ * @param allowCompetitionModels whether a model trained on the competition data
+ *     (named {@code datathon-...}) may answer. That data is licensed for the
+ *     competition only, so production sets {@code ML_ALLOW_DATATHON=false}; the
+ *     judge build, CI and preview keep the default (roadmap MF-01, R-ML-09)
  */
 @Validated
 @ConfigurationProperties(prefix = "app.ml")
@@ -33,7 +37,8 @@ public record IntelligenceProperties(
     @DefaultValue("3") @Min(1) @Max(20) int circuitFailures,
     @DefaultValue("60s") @NotNull Duration circuitOpenFor,
     @DefaultValue("6") @Min(1) @Max(50) int maxAttempts,
-    @DefaultValue("5") @Min(1) @Max(100) int scoringBatch) {
+    @DefaultValue("5") @Min(1) @Max(100) int scoringBatch,
+    @DefaultValue("true") boolean allowCompetitionModels) {
 
   public boolean configured() {
     return baseUrl != null && !baseUrl.isBlank();

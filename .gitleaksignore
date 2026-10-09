@@ -1,0 +1,6 @@
+# Findings gitleaks reports that are not secrets. One fingerprint per line,
+# each with the reason it is safe. Never add a real credential here: rotate it.
+
+# The RFC 8291 Appendix A test vector, a published example key used to check
+# push message encryption.
+0bf0cb914bd256170a389d3cfb3afc94c0f9ca55:backend/src/test/java/com/waypoint/dispatch/notification/infrastructure/WebPushEncryptionTest.java:generic-api-key:42

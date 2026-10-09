@@ -1,5 +1,8 @@
 package com.waypoint.dispatch.intelligence.application;
 
+import com.waypoint.dispatch.intelligence.domain.Backtest;
+import com.waypoint.dispatch.intelligence.domain.ForecastRange;
+import com.waypoint.dispatch.intelligence.domain.ModelMetrics;
 import com.waypoint.dispatch.execution.contract.ExecutionQuery;
 import com.waypoint.dispatch.execution.contract.ExecutionViews.DeliveryOutcome;
 import com.waypoint.dispatch.execution.contract.ExecutionViews.StopActualView;
@@ -26,6 +29,7 @@ import com.waypoint.dispatch.intelligence.contract.TravelAndServiceEstimator;
 import com.waypoint.dispatch.intelligence.domain.DeterministicEstimator;
 import com.waypoint.dispatch.intelligence.domain.SupplyPolicy;
 import com.waypoint.dispatch.intelligence.infrastructure.JdbcIntelligenceRepository;
+import com.waypoint.dispatch.intelligence.infrastructure.JdbcScoringInputs;
 import com.waypoint.dispatch.intelligence.infrastructure.JdbcIntelligenceRepository.ModelRow;
 import com.waypoint.dispatch.ordering.contract.OrderQuery;
 import com.waypoint.dispatch.ordering.contract.OrderStatus;
@@ -75,6 +79,9 @@ public class IntelligenceDataQuery implements PredictionQuery, ModelQuery, Trave
 
   private final Database database;
   private final JdbcIntelligenceRepository repository;
+  private final com.waypoint.dispatch.intelligence.infrastructure.JdbcModelQuality quality;
+  private final com.waypoint.dispatch.intelligence.infrastructure.JdbcOutcomes outcomes;
+  private final JdbcScoringInputs scoringInputs;
   private final PlanQuery plans;
   private final OrderQuery orders;
   private final ExecutionQuery execution;
@@ -92,7 +99,13 @@ public class IntelligenceDataQuery implements PredictionQuery, ModelQuery, Trave
       ReferenceQuery reference,
       Metrics metrics,
       Clock clock,
-      com.waypoint.dispatch.platform.audit.AuditLog audit) {
+      com.waypoint.dispatch.platform.audit.AuditLog audit,
+      com.waypoint.dispatch.intelligence.infrastructure.JdbcModelQuality quality,
+      com.waypoint.dispatch.intelligence.infrastructure.JdbcOutcomes outcomes,
+      JdbcScoringInputs scoringInputs) {
+    this.outcomes = outcomes;
+    this.scoringInputs = scoringInputs;
+    this.quality = quality;
     this.database = database;
     this.repository = repository;
     this.plans = plans;
@@ -215,6 +228,27 @@ public class IntelligenceDataQuery implements PredictionQuery, ModelQuery, Trave
   }
 
   /**
+   * Roadmap MF-05: the depot's scored routes with their outcomes, keyset-paged
+   * on (day, plan, route), as the training input. Rows outside the reader's
+   * depots are filtered in SQL.
+   */
+  public Page<PredictionViews.TrainingRouteView> trainingRoutes(
+      Actor actor, String depot, LocalDate from, LocalDate to, Optional<String> cursor, Integer limit) {
+    if (from.isAfter(to)) {
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, "from is after to");
+    }
+    int size = Page.limit(limit);
+    Optional<List<String>> after = cursor.map(c -> com.waypoint.dispatch.shared.domain.Cursor.decode(c, 3));
+    List<JdbcScoringInputs.Row> rows = read(actor.userId(), () -> scoringInputs.page(depot, from, to, after, size));
+    Page<JdbcScoringInputs.Row> page = Page.fromOverfetch(rows, size, r -> com.waypoint.dispatch.shared.domain.Cursor
+        .encode(r.serviceDate().toString(), r.planId().toString(), r.routeId()));
+    return new Page<>(page.items().stream()
+        .map(r -> new PredictionViews.TrainingRouteView(
+            r.planId(), r.routeId(), r.serviceDate(), r.referenceVersionId(), r.route(), r.labels()))
+        .toList(), page.nextCursor());
+  }
+
+  /**
    * The Forecast screen's read for one depot: the next {@code weeks} ISO weeks
    * from next Monday, each with the newest forecast per brand, the calendar
    * around it and what the depot's fleet can carry (A-40). One call per depot
@@ -233,9 +267,6 @@ public class IntelligenceDataQuery implements PredictionQuery, ModelQuery, Trave
     List<Map<String, Object>> rows =
         read(actor.userId(), () -> repository.latestDepotForecasts(depot, fromKey, toKey));
     List<CalendarDayView> days = reference.calendarDays(origin, end);
-    List<FleetCapacity.Vehicle> fleet = reference.vehiclesOfDepot(depot, null).stream()
-        .map(v -> new FleetCapacity.Vehicle(v.volumeCapM3(), v.refrigerated()))
-        .toList();
 
     Optional<Instant> generatedAt = rows.stream()
         .map(r -> JdbcIntelligenceRepository.instant(r.get("generated_at")))
@@ -244,6 +275,10 @@ public class IntelligenceDataQuery implements PredictionQuery, ModelQuery, Trave
         .reduce((a, b) -> "mixed");
     boolean degraded = rows.stream().anyMatch(r -> (Boolean) r.get("degraded"));
 
+    // MF-06: how far the last 26 finished weeks missed, pooled across every series.
+    LocalDate thisMonday = origin.minusWeeks(1);
+    Optional<ForecastRange.Factors> factors = database.asSystemSeparately(ModuleRole.ML,
+        () -> ForecastRange.factors(quality.pairs(weekKey(thisMonday.minusWeeks(26)), weekKey(thisMonday.minusWeeks(1)))));
     List<ForecastWeekView> out = new ArrayList<>();
     for (LocalDate monday = origin; !monday.isAfter(end); monday = monday.plusWeeks(1)) {
       LocalDate weekStart = monday;
@@ -255,14 +290,25 @@ public class IntelligenceDataQuery implements PredictionQuery, ModelQuery, Trave
       List<BrandVolumeView> brands = rows.stream()
           .filter(r -> ((Number) r.get("iso_year")).intValue() == year
               && ((Number) r.get("iso_week")).intValue() == isoWeek)
-          .map(r -> new BrandVolumeView(
-              (String) r.get("brand_code"), (BigDecimal) r.get("total_m3"), (BigDecimal) r.get("chilled_m3")))
+          .map(r -> {
+            BigDecimal total = (BigDecimal) r.get("total_m3");
+            Optional<double[]> range = factors.map(f -> ForecastRange.apply(total.doubleValue(), f));
+            return new BrandVolumeView(
+                (String) r.get("brand_code"), total, (BigDecimal) r.get("chilled_m3"),
+                range.map(x -> BigDecimal.valueOf(x[0]).setScale(1, java.math.RoundingMode.HALF_UP)),
+                range.map(x -> BigDecimal.valueOf(x[1]).setScale(1, java.math.RoundingMode.HALF_UP)));
+          })
           .sorted(java.util.Comparator.comparing(BrandVolumeView::brandCode))
           .toList();
       int operating = (int) week.stream().filter(CalendarDayView::operating).count();
-      FleetCapacity.Week capacity = FleetCapacity.weekly(fleet, week.stream()
+      // Each day's own fleet: a vehicle in the workshop that day carries nothing (T2-01).
+      FleetCapacity.Week capacity = FleetCapacity.weeklyByDay(week.stream()
           .filter(CalendarDayView::operating)
-          .map(day -> plans.maxTripsFor(day.date()))
+          .map(day -> new FleetCapacity.Day(
+              reference.availableVehicles(depot, day.date(), null).stream()
+                  .map(v -> new FleetCapacity.Vehicle(v.volumeCapM3(), v.refrigerated()))
+                  .toList(),
+              plans.maxTripsFor(day.date())))
           .toList());
       out.add(new ForecastWeekView(
           year, isoWeek, weekStart, operating,
@@ -292,6 +338,100 @@ public class IntelligenceDataQuery implements PredictionQuery, ModelQuery, Trave
    * empty forecast: rows would be hidden by row-level security, but the calendar
    * and fleet beside them are not, and "no forecast" would be a false answer.
    */
+  /**
+   * Roadmap MF-04, R-ML-16: each model's stored predictions over the last
+   * {@code weeks} finished weeks beside what happened, judged against the
+   * built-in estimate. Only the reader's depots count.
+   */
+  public PredictionViews.BacktestView backtest(Actor actor, int weeks) {
+    if (weeks < 1 || weeks > 12) {
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, "weeks must be from 1 to 12");
+    }
+    LocalDate thisMonday = clock.now().atZone(Clock.OPERATING_ZONE).toLocalDate()
+        .with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY));
+    LocalDate from = thisMonday.minusWeeks(weeks);
+    LocalDate to = thisMonday.minusDays(1);
+    List<Map<String, Object>> rows = read(actor.userId(), () -> outcomes.scoredOutcomes(from, to));
+    Map<String, List<Backtest.Outcome>> byModel = new java.util.HashMap<>();
+    for (Map<String, Object> r : rows) {
+      Object late = r.get("late_label");
+      byModel.computeIfAbsent((String) r.get("model_label"), k -> new java.util.ArrayList<>())
+          .add(new Backtest.Outcome(((java.sql.Date) r.get("service_date")).toLocalDate(),
+              Optional.of(((BigDecimal) r.get("predicted_late_prob")).doubleValue()),
+              Optional.ofNullable((Boolean) late)));
+    }
+    List<PredictionViews.ModelBacktestView> models = Backtest.run(byModel).stream()
+        .map(b -> new PredictionViews.ModelBacktestView(b.modelLabel(), b.stops(), b.labelled(),
+            BigDecimal.valueOf(b.coverage()).setScale(4, java.math.RoundingMode.HALF_UP),
+            ratio(b.brier()), ratio(b.logLoss()),
+            ratio(b.calibration().map(ModelMetrics.Calibration::slope)),
+            ratio(b.calibration().map(ModelMetrics.Calibration::intercept)),
+            b.verdict().name(),
+            b.weeks().stream().map(w -> new PredictionViews.BacktestWeekView(
+                w.isoYear(), w.isoWeek(), w.stops(), w.labelled(), ratio(w.brier()))).toList()))
+        .toList();
+    return new PredictionViews.BacktestView(from, to, Backtest.MIN_LABELS, models);
+  }
+
+  /**
+   * Roadmap T2-03: how the last {@code weeks} finished weeks' forecasts did, as
+   * made before each week began, beside what was ordered. A depot outside scope is 403.
+   */
+  public PredictionViews.ForecastAccuracyView forecastAccuracy(Actor actor, String depot, int weeks) {
+    if (weeks < 1 || weeks > 12) {
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, "weeks must be from 1 to 12");
+    }
+    requireDepot(actor, depot);
+    LocalDate thisMonday = clock.now().atZone(Clock.OPERATING_ZONE).toLocalDate()
+        .with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY));
+    int fromKey = weekKey(thisMonday.minusWeeks(weeks));
+    int toKey = weekKey(thisMonday.minusWeeks(1));
+    List<Map<String, Object>> rows = read(actor.userId(), () -> quality.accuracy(depot, fromKey, toKey));
+    Map<Integer, List<Map<String, Object>>> byWeek = new java.util.TreeMap<>();
+    for (Map<String, Object> r : rows) {
+      int key = ((Number) r.get("iso_year")).intValue() * 100 + ((Number) r.get("iso_week")).intValue();
+      byWeek.computeIfAbsent(key, k -> new java.util.ArrayList<>()).add(r);
+    }
+    List<PredictionViews.WeekAccuracyView> out = new java.util.ArrayList<>();
+    List<double[]> all = new java.util.ArrayList<>();
+    List<double[]> compared = new java.util.ArrayList<>();
+    List<double[]> baselineAll = new java.util.ArrayList<>();
+    for (List<Map<String, Object>> week : byWeek.values()) {
+      List<PredictionViews.BrandAccuracyView> brands = new java.util.ArrayList<>();
+      List<double[]> pairs = new java.util.ArrayList<>();
+      BigDecimal forecast = BigDecimal.ZERO;
+      BigDecimal ordered = BigDecimal.ZERO;
+      List<double[]> baselinePairs = new java.util.ArrayList<>();
+      for (Map<String, Object> r : week) {
+        BigDecimal f = (BigDecimal) r.get("forecast_total_m3");
+        BigDecimal a = (BigDecimal) r.get("actual_total_m3");
+        Optional<BigDecimal> b = Optional.ofNullable((BigDecimal) r.get("baseline_total_m3"));
+        brands.add(new PredictionViews.BrandAccuracyView((String) r.get("brand_code"), f, a, b));
+        pairs.add(new double[] {f.doubleValue(), a.doubleValue()});
+        // T2-03: the forecast and the 8-week mean, on the same brand-weeks only.
+        b.ifPresent(base -> {
+          compared.add(new double[] {f.doubleValue(), a.doubleValue()});
+          baselinePairs.add(new double[] {base.doubleValue(), a.doubleValue()});
+        });
+        forecast = forecast.add(f);
+        ordered = ordered.add(a);
+      }
+      all.addAll(pairs);
+      baselineAll.addAll(baselinePairs);
+      Map<String, Object> first = week.get(0);
+      out.add(new PredictionViews.WeekAccuracyView(
+          ((Number) first.get("iso_year")).intValue(), ((Number) first.get("iso_week")).intValue(),
+          (String) first.get("model_label"), forecast, ordered, ratio(ModelMetrics.wape(pairs)), brands,
+          ratio(ModelMetrics.wape(baselinePairs))));
+    }
+    return new PredictionViews.ForecastAccuracyView(depot, out, ratio(ModelMetrics.wape(all)),
+        ratio(ModelMetrics.wape(compared)), ratio(ModelMetrics.wape(baselineAll)));
+  }
+
+  private static Optional<BigDecimal> ratio(Optional<Double> value) {
+    return value.map(v -> BigDecimal.valueOf(v).setScale(4, java.math.RoundingMode.HALF_UP));
+  }
+
   private void requireDepot(Actor actor, String depot) {
     boolean inScope = read(actor.userId(), () -> Boolean.TRUE.equals(
         database.queryOne("SELECT app.actor_has_depot(?) AS ok", depot).get("ok")));
@@ -312,14 +452,55 @@ public class IntelligenceDataQuery implements PredictionQuery, ModelQuery, Trave
   // ---- internals --------------------------------------------------------------------------
 
   private Optional<PlanPredictionsView> predictions(UUID planId) {
-    return repository.scoring(planId).map(row -> new PlanPredictionsView(
-        scoring(row),
-        repository.predictions(planId).stream()
-            .map(p -> new StopPredictionView(
-                (UUID) p.get("order_id"), (UUID) p.get("trip_id"), ((Number) p.get("stop_sequence")).intValue(),
-                (String) p.get("outlet_id"), (BigDecimal) p.get("service_min"), (BigDecimal) p.get("late_prob"),
-                (String) p.get("model_label"), (Boolean) p.get("degraded")))
-            .toList()));
+    return repository.scoring(planId).map(row -> {
+      Map<UUID, List<PredictionViews.LateReasonView>> reasons = lateReasons(planId);
+      return new PlanPredictionsView(
+          scoring(row),
+          repository.predictions(planId).stream()
+              .map(p -> new StopPredictionView(
+                  (UUID) p.get("order_id"), (UUID) p.get("trip_id"), ((Number) p.get("stop_sequence")).intValue(),
+                  (String) p.get("outlet_id"), (BigDecimal) p.get("service_min"), (BigDecimal) p.get("late_prob"),
+                  (String) p.get("model_label"), (Boolean) p.get("degraded"),
+                  reasons.getOrDefault((UUID) p.get("order_id"), List.of()),
+                  Optional.ofNullable((BigDecimal) p.get("service_low")),
+                  Optional.ofNullable((BigDecimal) p.get("service_high"))))
+              .toList(),
+          reference.roadConditionsUntil());
+    });
+  }
+
+  /** How far back a store's late visits are counted for its reason. */
+  static final int HISTORY_WEEKS = 8;
+
+  /**
+   * Roadmap MF-08: each stop's reasons, from the plan's own times and the
+   * store's labelled visits of the last eight weeks (R-ML-12). Empty when the
+   * plan cannot be read.
+   */
+  private Map<UUID, List<PredictionViews.LateReasonView>> lateReasons(UUID planId) {
+    Optional<com.waypoint.dispatch.planning.contract.PlanViews.PlanView> plan = plans.plan(planId);
+    if (plan.isEmpty()) {
+      return Map.of();
+    }
+    LocalDate day = plan.get().serviceDate();
+    List<String> outlets = plan.get().trips().stream().flatMap(t -> t.stops().stream())
+        .map(com.waypoint.dispatch.planning.contract.PlanViews.StopView::outletId).distinct().toList();
+    Map<String, int[]> history = outcomes.lateCounts(outlets, day.minusWeeks(HISTORY_WEEKS), day.minusDays(1));
+    Map<UUID, List<PredictionViews.LateReasonView>> out = new java.util.HashMap<>();
+    for (var trip : plan.get().trips()) {
+      List<com.waypoint.dispatch.planning.contract.PlanViews.StopView> stops = trip.stops().stream()
+          .sorted(java.util.Comparator.comparingInt(com.waypoint.dispatch.planning.contract.PlanViews.StopView::sequence))
+          .toList();
+      for (int i = 0; i < stops.size(); i++) {
+        var s = stops.get(i);
+        long slack = java.time.Duration.between(s.plannedArrival(), s.windowClose()).toMinutes();
+        int[] h = history.getOrDefault(s.outletId(), new int[2]);
+        out.put(s.orderId(), com.waypoint.dispatch.intelligence.domain.LateReasons.of(slack, i, h[0], h[1]).stream()
+            .map(r -> new PredictionViews.LateReasonView(r.code(), r.value(), r.of()))
+            .toList());
+      }
+    }
+    return out;
   }
 
   private List<DemandForecast> forecasts(String depot, String brand, int fromKey, int toKey) {

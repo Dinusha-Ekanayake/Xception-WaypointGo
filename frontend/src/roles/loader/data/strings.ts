@@ -1,7 +1,9 @@
 // Loader language: English, Sinhala and Tamil, hardcoded here rather than
 // loaded, so switching works offline and needs no server. The English text is
 // the key; a missing translation falls back to English. Sinhala and Tamil are
-// drafts awaiting review by a native speaker.
+// reviewed by a native speaker (2026-10-09).
+
+import { THREAD_STRINGS } from "../../../shared/messaging/threadStrings.ts";
 
 export type Lang = "en" | "si" | "ta";
 
@@ -13,7 +15,7 @@ export const LANGS: Array<{ value: Lang; label: string; short: string; html: str
 ];
 
 /** [Sinhala, Tamil] for each English string. `{name}` marks a value filled in at run time. */
-const STRINGS: Record<string, [string, string]> = {
+export const STRINGS: Record<string, [string, string]> = {
   // Install (issue #201)
   "Install app": ["යෙදුම ස්ථාපනය කරන්න", "செயலியை நிறுவு"],
   "In Safari, tap Share, then Add to Home Screen. The app then opens from its own icon and keeps working with no signal.": [
@@ -34,8 +36,16 @@ const STRINGS: Record<string, [string, string]> = {
   "Depot {depot}": ["ගබඩාව {depot}", "கிடங்கு {depot}"],
   "Offline · {n} saved on this device": ["නොබැඳි · මෙම උපාංගයේ {n}ක් සුරැකිණි", "இணைப்பில்லை · இந்தச் சாதனத்தில் {n} சேமிக்கப்பட்டது"],
   "Offline · showing last sync": ["නොබැඳි · අවසන් සමමුහුර්තය පෙන්වයි", "இணைப்பில்லை · கடைசி ஒத்திசைவு காட்டப்படுகிறது"],
+  "Offline": ["නොබැඳි", "இணைப்பில்லை"],
+  "Offline, {n} saved on this device": ["නොබැඳි, මෙම උපාංගයේ {n}ක් සුරැකිණි", "இணைப்பில்லை, இந்தச் சாதனத்தில் {n} சேமிக்கப்பட்டது"],
+  "Can't reach Waypoint": ["Waypoint වෙත ළඟා විය නොහැක", "Waypoint-ஐ அடைய முடியவில்லை"],
+  "Syncing": ["සමමුහුර්ත කරමින්", "ஒத்திசைக்கிறது"],
+  "Synced": ["සමමුහුර්තයි", "ஒத்திசைந்தது"],
+  "Undo loaded, {label}": ["පැටවූ බව අහෝසි කරන්න, {label}", "ஏற்றியதைச் செயல்தவிர், {label}"],
+  "Mark {label} loaded": ["{label} පැටවූ ලෙස සලකුණු කරන්න", "{label} ஏற்றப்பட்டதாகக் குறி"],
+  "Filter trips": ["ගමන් පෙරන්න", "பயணங்களை வடிகட்டு"],
   "Offline · showing {time}": ["නොබැඳි · {time} දත්ත පෙන්වයි", "இணைப்பில்லை · {time} தரவு காட்டப்படுகிறது"],
-  "Server unreachable · showing {time}": ["සේවාදායකය නොලැබේ · {time} දත්ත පෙන්වයි", "சேவையகம் கிடைக்கவில்லை · {time} தரவு காட்டப்படுகிறது"],
+  "Can't reach Waypoint · showing {time}": ["Waypoint වෙත සම්බන්ධ විය නොහැක · {time} දත්ත පෙන්වයි", "Waypoint-ஐ அணுக முடியவில்லை · {time} தரவு காட்டப்படுகிறது"],
   "Sending {n}…": ["{n}ක් යවමින්…", "{n} அனுப்பப்படுகிறது…"],
   "Synced {time}": ["සමමුහුර්ත කළේ {time}", "ஒத்திசைந்தது {time}"],
   "Connecting…": ["සම්බන්ධ වෙමින්…", "இணைக்கிறது…"],
@@ -114,6 +124,10 @@ const STRINGS: Record<string, [string, string]> = {
   "Could not load this trip's load sheet": ["මෙම ගමනේ පැටවුම් පත්‍රය පූරණය කළ නොහැකි විය", "இந்தப் பயணத்தின் ஏற்றுத் தாளை ஏற்ற முடியவில்லை"],
   "Loading the load sheet…": ["පැටවුම් පත්‍රය පූරණය වෙමින්…", "ஏற்றுத் தாள் ஏற்றப்படுகிறது…"],
   "Volume": ["පරිමාව", "கன அளவு"],
+  "Truck": ["ට්‍රක් රථය", "லாரி"],
+  "Your account has no depot in scope. Ask an administrator to grant one.": ["ඔබේ ගිණුමට ගබඩාවක් පවරා නැත. එකක් ලබා දෙන ලෙස පරිපාලකයෙකුගෙන් ඉල්ලන්න.", "உங்கள் கணக்குக்குக் கிடங்கு எதுவும் ஒதுக்கப்படவில்லை. ஒன்றை வழங்க நிர்வாகியிடம் கேளுங்கள்."],
+  "Plan changed: version {from} → {to}": ["සැලැස්ම වෙනස් විය: අනුවාදය {from} → {to}", "திட்டம் மாறியது: பதிப்பு {from} → {to}"],
+  "Sample data: publish a plan change": ["ආදර්ශ දත්ත: සැලැස්මේ වෙනසක් ප්‍රකාශ කරන්න", "மாதிரித் தரவு: திட்ட மாற்றத்தை வெளியிடு"],
   "Weight": ["බර", "எடை"],
   "{n} left": ["{n}ක් ඉතිරියි", "{n} மீதம்"],
   "All loaded": ["සියල්ල පටවා ඇත", "அனைத்தும் ஏற்றப்பட்டது"],
@@ -166,6 +180,14 @@ const STRINGS: Record<string, [string, string]> = {
 
   // Report an issue
   "Report an issue": ["ගැටලුවක් වාර්තා කරන්න", "சிக்கலைப் புகாரளி"],
+  // FF-02: a photo of the line. Drafts, for the native-speaker review (FF-00).
+  "Add photo (optional)": ["ඡායාරූපයක් එක් කරන්න (විකල්ප)", "புகைப்படம் சேர் (விருப்பம்)"],
+  "Photo added": ["ඡායාරූපය එක් කළා", "புகைப்படம் சேர்க்கப்பட்டது"],
+  "Remove photo": ["ඡායාරූපය ඉවත් කරන්න", "புகைப்படத்தை நீக்கு"],
+  "Photo of the item": ["භාණ්ඩයේ ඡායාරූපය", "பொருளின் புகைப்படம்"],
+  "Take a photo of the item": ["භාණ්ඩයේ ඡායාරූපයක් ගන්න", "பொருளைப் புகைப்படம் எடு"],
+  "This photo looks blurry. Hold the phone still and take it again.": ["මෙම ඡායාරූපය බොඳ වී ඇති බව පෙනේ. දුරකථනය නොසෙල්වා තබා නැවත ගන්න.", "இந்தப் புகைப்படம் மங்கலாகத் தெரிகிறது. தொலைபேசியை அசையாமல் பிடித்து மீண்டும் எடுங்கள்."],
+  "This photo looks too dark. Find more light and take it again.": ["මෙම ඡායාරූපය ඉතා අඳුරු බව පෙනේ. වැඩි ආලෝකයක් ඇති තැනක නැවත ගන්න.", "இந்தப் புகைப்படம் மிகவும் இருட்டாகத் தெரிகிறது. அதிக வெளிச்சத்தில் மீண்டும் எடுங்கள்."],
   "Which order?": ["කුමන ඇණවුමද?", "எந்த ஆர்டர்?"],
   "Which item?": ["කුමන භාණ්ඩයද?", "எந்தப் பொருள்?"],
   "Whole order": ["සම්පූර්ණ ඇණවුම", "முழு ஆர்டர்"],
@@ -231,7 +253,7 @@ const STRINGS: Record<string, [string, string]> = {
   ],
   "Too many attempts. Try again in {n} seconds.": ["උත්සාහයන් වැඩියි. තත්පර {n} කින් නැවත උත්සාහ කරන්න.", "அதிக முயற்சிகள். {n} விநாடிகளில் மீண்டும் முயலவும்."],
   "Try again in {n}s": ["තත්. {n} කින් නැවත", "{n} வி. இல் மீண்டும்"],
-  "{n} try left.": ["තව එක් වරක් ඉතිරියි.", "இன்னும் {n} முயற்சி உள்ளது."],
+  "{n} try left.": ["තව {n} වරක් ඉතිරියි.", "இன்னும் {n} முயற்சி உள்ளது."],
   "{n} tries left.": ["තව වාර {n} ක් ඉතිරියි.", "இன்னும் {n} முயற்சிகள் உள்ளன."],
   "Connect to switch operator": ["ක්‍රියාකරු මාරු කිරීමට සම්බන්ධ වන්න", "இயக்குநரை மாற்ற இணைக்கவும்"],
 
@@ -254,7 +276,7 @@ const STRINGS: Record<string, [string, string]> = {
   "4-digit PIN": ["ඉලක්කම් 4ක PIN", "4 இலக்க PIN"],
   "PIN entry paused": ["PIN ඇතුළත් කිරීම නවතා ඇත", "PIN உள்ளீடு இடைநிறுத்தப்பட்டது"],
   "Too many tries. Wait {time}.": ["උත්සාහයන් වැඩියි. {time} රැඳී සිටින්න.", "அதிக முயற்சிகள். {time} காத்திருக்கவும்."],
-  "Incorrect PIN. {n} try left.": ["PIN වැරදියි. තව එක් වරක් ඉතිරියි.", "தவறான PIN. இன்னும் {n} முயற்சி உள்ளது."],
+  "Incorrect PIN. {n} try left.": ["PIN වැරදියි. තව {n} වරක් ඉතිරියි.", "தவறான PIN. இன்னும் {n} முயற்சி உள்ளது."],
   "Incorrect PIN. {n} tries left.": ["PIN වැරදියි. තව වාර {n} ක් ඉතිරියි.", "தவறான PIN. இன்னும் {n} முயற்சிகள் உள்ளன."],
   "Ask supervisor to reset": ["යළි සැකසීමට අධීක්ෂකගෙන් අසන්න", "மீட்டமைக்க மேற்பார்வையாளரிடம் கேளுங்கள்"],
   "Shared device. Find your name, then enter your PIN.": ["හවුල් උපාංගය. ඔබේ නම සොයා, PIN අංකය ඇතුළත් කරන්න.", "பகிரப்பட்ட சாதனம். உங்கள் பெயரைக் கண்டறிந்து PIN ஐ உள்ளிடவும்."],
@@ -409,7 +431,7 @@ const STRINGS: Record<string, [string, string]> = {
   "On": ["සක්‍රියයි", "இயக்கு"],
   "Off": ["අක්‍රියයි", "அணை"],
   "This browser cannot show alerts": ["මෙම බ්‍රව්සරයට ඇඟවීම් පෙන්විය නොහැක", "இந்த உலாவியால் விழிப்பூட்டல்களைக் காட்ட முடியாது"],
-  "Alerts are not set up on this server": ["මෙම සේවාදායකයේ ඇඟවීම් සකසා නැත", "இந்த சேவையகத்தில் விழிப்பூட்டல்கள் அமைக்கப்படவில்லை"],
+  "Alerts are not set up yet": ["ඇඟවීම් තවම සකසා නැත", "விழிப்பூட்டல்கள் இன்னும் அமைக்கப்படவில்லை"],
   "Blocked in this browser's settings": ["මෙම බ්‍රව්සරයේ සැකසුම්වල අවහිර කර ඇත", "இந்த உலாவியின் அமைப்புகளில் தடுக்கப்பட்டுள்ளது"],
   "Alerts on this device, even with the app closed": ["යෙදුම වසා තිබුණත් මෙම උපාංගයට ඇඟවීම්", "செயலி மூடியிருந்தாலும் இந்தச் சாதனத்தில் விழிப்பூட்டல்கள்"],
   // The loader's notification messages, filled from their facts (data/messages.ts).
@@ -431,9 +453,9 @@ const STRINGS: Record<string, [string, string]> = {
   // Trip messages (issue #136)
   "Messages": ["පණිවිඩ", "செய்திகள்"],
   "Messages for {vehicle}": ["{vehicle} සඳහා පණිවිඩ", "{vehicle} க்கான செய்திகள்"],
-  "Write to the dispatcher. A report of missing or damaged items goes to the dispatcher only.": [
-    "යැවීම් භාරකරුට ලියන්න. අඩු හෝ හානි වූ භාණ්ඩ ගැන වාර්තාවක් යන්නේ යැවීම් භාරකරුට පමණි.",
-    "அனுப்புநருக்கு எழுதுங்கள். காணாமல் போன அல்லது சேதமான பொருட்களின் அறிக்கை அனுப்புநருக்கு மட்டுமே செல்லும்.",
+  "Write to the dispatcher, or leave the driver a note about the load. A report of missing or damaged items goes to the dispatcher only.": [
+    "යැවීම් භාරකරුට ලියන්න, නැතහොත් පැටවීම ගැන රියදුරුට සටහනක් තබන්න. අඩු හෝ හානි වූ භාණ්ඩ ගැන වාර්තාවක් යන්නේ යැවීම් භාරකරුට පමණි.",
+    "அனுப்புநருக்கு எழுதுங்கள், அல்லது ஏற்றுதல் பற்றி ஓட்டுநருக்கு ஒரு குறிப்பு விடுங்கள். காணாமல் போன அல்லது சேதமான பொருட்களின் அறிக்கை அனுப்புநருக்கு மட்டுமே செல்லும்.",
   ],
   "This trip has no messages yet.": ["මෙම ගමනට තවම පණිවිඩ නැත.", "இந்தப் பயணத்திற்கு இன்னும் செய்திகள் இல்லை."],
   // The trip's thread, shared with the other roles (issue #136)
@@ -444,6 +466,10 @@ const STRINGS: Record<string, [string, string]> = {
   "Show earlier messages": ["පෙර පණිවිඩ පෙන්වන්න", "முந்தைய செய்திகளைக் காட்டு"],
   "Problem": ["ගැටලුව", "சிக்கல்"],
   "Voice note": ["හඬ සටහන", "குரல் குறிப்பு"],
+  // Not yet reviewed by a native speaker (2026-10-09).
+  "Add voice note (optional)": ["හඬ සටහනක් එක් කරන්න (අවශ්‍ය නම්)", "குரல் குறிப்பைச் சேர் (விரும்பினால்)"],
+  "Recording · tap to stop": ["පටිගත වෙමින් · නවත්වන්න ඔබන්න", "பதிவாகிறது · நிறுத்த தட்டவும்"],
+  "Remove voice note": ["හඬ සටහන ඉවත් කරන්න", "குரல் குறிப்பை நீக்கு"],
   "To the dispatcher": ["යැවීම් භාරකරුට", "அனுப்புநருக்கு"],
   "To the driver": ["රියදුරුට", "ஓட்டுநருக்கு"],
   "To the loaders": ["පටවන්නන්ට", "ஏற்றுபவர்களுக்கு"],
@@ -510,6 +536,7 @@ const STRINGS: Record<string, [string, string]> = {
     "මෙම උපාංගයේ සුරැකිණි. සම්බන්ධතාවය ලැබුණු විට යැවේ.",
     "இந்தச் சாதனத்தில் சேமிக்கப்பட்டது. இணைப்பு வந்ததும் அனுப்பப்படும்.",
   ],
+  "Stop {n} · {place}": ["නැවතුම {n} · {place}", "நிறுத்தம் {n} · {place}"],
 };
 
 export type Vars = Record<string, string | number>;
@@ -517,7 +544,8 @@ export type Translate = (english: string, vars?: Vars) => string;
 
 /** Pure: the text for `english` in `lang`, with `{name}` values filled in. */
 export function translate(lang: Lang, english: string, vars?: Vars): string {
-  const row = STRINGS[english];
+  // The shared trip thread's words are kept once, for every role (FF-00).
+  const row = STRINGS[english] ?? THREAD_STRINGS[english];
   const text = lang === "en" || !row ? english : row[lang === "si" ? 0 : 1];
   return vars ? text.replace(/\{(\w+)\}/g, (whole, key: string) => (key in vars ? String(vars[key]) : whole)) : text;
 }

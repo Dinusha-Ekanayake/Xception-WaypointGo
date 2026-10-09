@@ -129,6 +129,8 @@ A trip's thread joins the depot's **dispatcher**, the depot's **loaders**, the v
 - Everyone else reads messages for everyone, messages addressed to them, and their own.
 - Reports and replies go to the dispatcher only.
 
+**Amended 2026-10-07 (FF-04, R-MSG-08).** A trip's thread also has a **channel** where the dispatcher and the stores whose goods are still on the trip coordinate together. It opens when the driver starts the trip, after loading. A store leaves it, read only, once all its orders on the trip are done. The driver is driving and is not on it; the loaders keep their own lane. A dispatcher can take a post off the channel; the post is never changed.
+
 The thread opens when the plan is published, so a loader's shortfall has somewhere to go before release. Every membership question is answered by the thread's own row through the scope predicates, so Messaging reads no other module's tables.
 
 ## 4. Layers
@@ -454,7 +456,9 @@ Deployment is rolling with health gates; migrations run as a separate explicit s
 
 ### 9.3 Data lifecycle and privacy
 
-Signatures, recipient names, device identifiers and driver activity are personal data. Retention is defined per table, high-volume tables (`route_legs`, `delivery_records`, `audit_log`, `outbox_events`, `sync_operations`) are range-partitioned by date, and archival moves closed periods out of the hot path. Proof artifacts have an explicit retention period and are served only through short-lived signed URLs.
+Signatures, recipient names, device identifiers and driver activity are personal data. Retention is defined per table, high-volume tables (`route_legs`, `delivery_records`, `audit_log`, `outbox_events`, `sync_operations`) are range-partitioned by date, and archival moves closed periods out of the hot path.
+
+**Amended 2026-10-07 (roadmap F-12).** Only `audit_log` is partitioned (monthly, aged out by detaching a partition). The other tables are not: retention deletes in bounded batches, each its own transaction, until a batch comes back short, with partial indexes on the retention predicates. Partitioning `command_receipts` would put the month into its key, so a retry across a month boundary would miss its receipt and apply twice (architecture rule 6). Partitioning is revisited for `execution.vehicle_positions` if it still holds more than 50 million rows after F-08, and an index is dropped only with `pg_stat_user_indexes` and `EXPLAIN` evidence. Proof artifacts have an explicit retention period and are served only through short-lived signed URLs.
 
 ---
 

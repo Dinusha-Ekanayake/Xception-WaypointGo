@@ -3,6 +3,8 @@ package com.waypoint.dispatch.planning.application;
 import com.waypoint.dispatch.platform.db.Database;
 import com.waypoint.dispatch.planning.infrastructure.JdbcGenerationJobs;
 import com.waypoint.dispatch.loading.contract.LoadingEvents.InterchangeRequested;
+import com.waypoint.dispatch.loading.contract.LoadingEvents.TripReleased;
+import com.waypoint.dispatch.planning.infrastructure.JdbcReleasedTrips;
 import com.waypoint.dispatch.ordering.contract.OrderEvents.OrderAmended;
 import com.waypoint.dispatch.ordering.contract.OrderEvents.OrderCancelled;
 import com.waypoint.dispatch.ordering.contract.OrderEvents.OrderPlaced;
@@ -138,6 +140,38 @@ final class PlanningConsumers {
         metrics.increment("waypoint.plan.auto_generate_failed", "code", e.code().name());
         log.warn("No draft generated for {} on {}: {}", closed.depotCode(), closed.serviceDate(), e.getMessage());
       }
+    }
+  }
+
+  /**
+   * A truck left with this trip (R-PLN-44): Planning records it, so publishing a
+   * revision refuses to change a trip that is on the road. Applying it twice
+   * changes nothing.
+   */
+  @Component
+  static class OnTripReleased extends PlanningConsumer<TripReleased> {
+    private final JdbcReleasedTrips released;
+    private final Clock clock;
+
+    OnTripReleased(JdbcReleasedTrips released, Clock clock) {
+      this.released = released;
+      this.clock = clock;
+    }
+
+    @Override
+    public String consumerName() {
+      return "planning.on-trip-released";
+    }
+
+    @Override
+    public Class<TripReleased> eventType() {
+      return TripReleased.class;
+    }
+
+    @Override
+    public void on(EventEnvelope<TripReleased> envelope) {
+      TripReleased e = envelope.payload();
+      released.record(e.tripId(), e.planId(), e.depotCode(), e.serviceDate(), e.vehicleId(), clock.now());
     }
   }
 
@@ -324,6 +358,9 @@ final class PlanningConsumers {
       Instant now = clock.now();
       String reason = change.vehicleId() + " is " + change.status() + change.reason().map(r -> ": " + r).orElse("");
       for (RunRow published : plans.publishedUsing(change.vehicleId(), change.serviceDate())) {
+        if (intoOpenRevision(published, change.vehicleId(), reason, now, envelope.eventId())) {
+          continue;
+        }
         Revision revision =
             revisions.revise(
                 published, reason, Actor.SYSTEM_ID, drafts.newId(now),
@@ -333,6 +370,35 @@ final class PlanningConsumers {
         metrics.increment("waypoint.plan.vehicle_lost", "depot", published.depotCode());
         log.warn("Plan {} uses {}; revision draft {} awaits the dispatcher", published.planId(), reason, run.planId());
       }
+    }
+
+    /**
+     * A dispatcher already revising this published plan keeps their work: the
+     * lost vehicle's trips are replanned inside their open draft, which moves to
+     * a new version, so their next edit is refused with what changed (PLN-06,
+     * PLN-41) instead of their draft being cancelled unseen. A draft whose demand
+     * moved cannot be edited any more (PLN-07), so it is replaced as before.
+     */
+    private boolean intoOpenRevision(RunRow published, String vehicleId, String reason, Instant now, UUID eventId) {
+      Optional<RunRow> open = plans.latestDraft(published.depotCode(), published.serviceDate());
+      if (open.isEmpty() || !open.get().supersedes().equals(Optional.of(published.planId()))) {
+        return false;
+      }
+      PlanningDrafts.Opened opened = drafts.rebuild(open.get());
+      if (!opened.built().fingerprint().equals(open.get().demandFingerprint())) {
+        return false;
+      }
+      PlanningRun current = drafts.run(opened);
+      PlanningRun run =
+          revisions.replanVehicle(
+              current, opened.built(), vehicleId, reason, Actor.SYSTEM_ID, drafts.newId(now),
+              drafts.nextVersion(published.depotCode(), published.serviceDate()));
+      if (run != current) {
+        drafts.replace(opened, run, Actor.SYSTEM_ID, now, eventId);
+        metrics.increment("waypoint.plan.vehicle_lost", "depot", published.depotCode());
+        log.warn("Plan {} uses {}; replanned inside the open revision, now {}", published.planId(), reason, run.planId());
+      }
+      return true;
     }
   }
 

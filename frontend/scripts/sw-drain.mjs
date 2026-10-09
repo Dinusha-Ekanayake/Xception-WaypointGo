@@ -21,6 +21,8 @@
 
 export const DEVICE_KEY = "waypoint.deviceId";
 const BATCH = 100;
+/** The position command; must equal POSITION_KIND in src/shared/offline/lanes.ts. */
+export const POSITION_KIND = "delivery:RecordPositions";
 
 export function outcomeOf(status) {
   if (status === "APPLIED") return "sent";
@@ -43,11 +45,20 @@ function recordedOrder(entry) {
  */
 export async function drainAccount(io) {
   const entries = await io.entries();
+  // Business writes first, then positions, each in recorded order: the page's
+  // lanes (src/shared/offline/lanes.ts, roadmap F-03).
+  const lane = (e) => (e.kind === POSITION_KIND ? 1 : 0);
   const ready = entries
     .filter((e) => !e.needsReview)
-    .sort((a, b) => recordedOrder(a) - recordedOrder(b) || a.commandId.localeCompare(b.commandId))
+    .sort((a, b) => lane(a) - lane(b) || recordedOrder(a) - recordedOrder(b) || a.commandId.localeCompare(b.commandId))
     .slice(0, BATCH);
   if (ready.length === 0) return "empty";
+  // The page set a time before which nothing is sent: a jittered backoff or the
+  // server's Retry-After (src/shared/offline/retry.ts). Failing the sync makes
+  // the browser try again later on its own schedule.
+  if (typeof ready[0].nextAttemptAt === "number" && ready[0].nextAttemptAt > (io.now ? io.now() : Date.now())) {
+    throw new Error("waiting until " + new Date(ready[0].nextAttemptAt).toISOString());
+  }
   if (ready.some((e) => (typeof e.kind === "string" && e.kind.startsWith("loading:")) || e.payload?.actingUserId)) return "needs-page";
   const uploads = new Set(io.uploadIds ? await io.uploadIds() : []);
   const blocked = ready.findIndex((e) => (e.waitsFor || []).some((id) => uploads.has(id)));

@@ -64,10 +64,30 @@ public final class ExecutionViews {
       long rowVersion,
       List<DeliveryLineView> lines,
       /** Why the driver moved on before the store answered, when they did (issue #21): store_absent, no_signal, disagree. */
-      Optional<String> storeAnswerWaived) {
+      Optional<String> storeAnswerWaived,
+      /** Roadmap T1-04: how long the stop is expected to take, from the plan's stored prediction. */
+      Optional<java.math.BigDecimal> expectedServiceMinutes,
+      /** Roadmap MF-06: about four stops in five take between these minutes; empty with too little history. */
+      Optional<java.math.BigDecimal> expectedServiceLow,
+      Optional<java.math.BigDecimal> expectedServiceHigh) {
+
+    public RunSheetStopView(
+        UUID deliveryId, UUID tripId, int sequence, UUID orderId, String outletId, int itemCount, boolean mallOutlet,
+        LocalTime plannedArrival, LocalTime windowOpen, LocalTime windowClose, Optional<Instant> expectedArrival,
+        Optional<Instant> startedAt, Optional<Instant> arrivedAt, Optional<Instant> completedAt,
+        Optional<Integer> waitMinutes, Optional<Integer> lateMinutes, DeliveryOutcome outcome,
+        Optional<Integer> deliveredUnits, boolean proofCaptured, long rowVersion, List<DeliveryLineView> lines,
+        Optional<String> storeAnswerWaived) {
+      this(deliveryId, tripId, sequence, orderId, outletId, itemCount, mallOutlet, plannedArrival, windowOpen,
+          windowClose, expectedArrival, startedAt, arrivedAt, completedAt, waitMinutes, lateMinutes, outcome,
+          deliveredUnits, proofCaptured, rowVersion, lines, storeAnswerWaived, Optional.empty(), Optional.empty(),
+          Optional.empty());
+    }
 
     public RunSheetStopView {
       lines = List.copyOf(lines);
+      expectedServiceLow = expectedServiceLow == null ? Optional.empty() : expectedServiceLow;
+      expectedServiceHigh = expectedServiceHigh == null ? Optional.empty() : expectedServiceHigh;
     }
   }
 
@@ -128,10 +148,17 @@ public final class ExecutionViews {
       Optional<Instant> expectedArrival,
       Instant releasedAt,
       Optional<Instant> startedAt,
-      Optional<DriverView> driver) {
+      Optional<DriverView> driver,
+      /** Roadmap T1-04: how long the stop is expected to take, from the plan's stored prediction. */
+      Optional<java.math.BigDecimal> expectedServiceMinutes,
+      /** Roadmap MF-06: about four stops in five take between these minutes; empty with too little history. */
+      Optional<java.math.BigDecimal> expectedServiceLow,
+      Optional<java.math.BigDecimal> expectedServiceHigh) {
 
     public DeliveryRecordView {
       lines = List.copyOf(lines);
+      expectedServiceLow = expectedServiceLow == null ? Optional.empty() : expectedServiceLow;
+      expectedServiceHigh = expectedServiceHigh == null ? Optional.empty() : expectedServiceHigh;
     }
 
     /** The same record with the driver named; the driver is read from Identity, not from this record. */
@@ -141,7 +168,8 @@ public final class ExecutionViews {
           serviceStartedAt, completedAt, waitMinutes, lateMinutes, lateReason, timingUncertain,
           deliveredUnits, failureReason, dispositionNote, lowEvidence, proofId, clientRecordedAt,
           serverRecordedAt, rowVersion, lines, stopSequence, tripStopCount, plannedArrival,
-          expectedArrival, releasedAt, startedAt, driver);
+          expectedArrival, releasedAt, startedAt, driver, expectedServiceMinutes, expectedServiceLow,
+          expectedServiceHigh);
     }
   }
 
@@ -216,4 +244,25 @@ public final class ExecutionViews {
   /** One point of a trip's recorded trail, oldest first. */
   public record TrailPointView(
       Instant recordedAt, java.math.BigDecimal latitude, java.math.BigDecimal longitude, boolean lowQuality) {}
+
+  /**
+   * The vehicle's Fuel Pass QR for the driver's phone (FF-06b). {@code image} is
+   * the official image, base64; the phone keeps it until the end of
+   * {@code validUntil} in depot time and then deletes it.
+   */
+  public record FuelPassView(
+      String vehicleId, UUID passId, String contentType, String sha256, String image, LocalDate validUntil) {}
+
+  /**
+   * What an administrator sees of a vehicle's pass: never the image. {@code version}
+   * counts every pass the vehicle ever had, the expected version of the next upload;
+   * {@code passRowVersion} is the expected version of a revocation.
+   */
+  public record FuelPassStatusView(
+      String vehicleId,
+      long version,
+      Optional<UUID> passId,
+      Optional<Instant> uploadedAt,
+      Optional<Integer> sizeBytes,
+      Optional<Long> passRowVersion) {}
 }

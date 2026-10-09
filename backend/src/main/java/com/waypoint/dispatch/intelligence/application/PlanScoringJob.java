@@ -10,6 +10,7 @@ import com.waypoint.dispatch.intelligence.domain.ModelGate;
 import com.waypoint.dispatch.intelligence.domain.ModelGate.Decision;
 import com.waypoint.dispatch.intelligence.domain.ModelGate.Served;
 import com.waypoint.dispatch.intelligence.domain.PlannedRoutes;
+import com.waypoint.dispatch.intelligence.domain.ServiceRange;
 import com.waypoint.dispatch.intelligence.domain.PlannedRoutes.Leg;
 import com.waypoint.dispatch.intelligence.domain.PlannedRoutes.OrderFacts;
 import com.waypoint.dispatch.intelligence.domain.PlannedRoutes.Route;
@@ -93,6 +94,9 @@ public class PlanScoringJob implements ScheduledJob {
   private final SecureRandom random = new SecureRandom();
   private final AtomicLong pending = new AtomicLong();
 
+  private final com.waypoint.dispatch.intelligence.infrastructure.JdbcOutcomes outcomes;
+  private final com.waypoint.dispatch.intelligence.infrastructure.JdbcScoringInputs scoringInputs;
+
   PlanScoringJob(
       Database database,
       JdbcIntelligenceRepository repository,
@@ -104,7 +108,11 @@ public class PlanScoringJob implements ScheduledJob {
       ReferencePayload payload,
       IntelligenceProperties properties,
       Metrics metrics,
-      Clock clock) {
+      Clock clock,
+      com.waypoint.dispatch.intelligence.infrastructure.JdbcOutcomes outcomes,
+      com.waypoint.dispatch.intelligence.infrastructure.JdbcScoringInputs scoringInputs) {
+    this.outcomes = outcomes;
+    this.scoringInputs = scoringInputs;
     this.database = database;
     this.repository = repository;
     this.adapter = adapter;
@@ -122,6 +130,11 @@ public class PlanScoringJob implements ScheduledJob {
   @Override
   public String name() {
     return "ml.plan-scoring";
+  }
+
+  @Override
+  public String bulkhead() {
+    return "ml";
   }
 
   @Override
@@ -209,17 +222,33 @@ public class PlanScoringJob implements ScheduledJob {
         !scored && g.active().isPresent() && attempts < properties.maxAttempts()
             ? Optional.of(now.plus(backoff(attempts)))
             : Optional.empty();
+    List<Map<String, Object>> asScored = routes(g);
+    // MF-06: each label's earlier misses, before the plan's day only, so the range is out of time.
+    LocalDate day = g.plan().serviceDate();
+    Map<String, ServiceRange.Misses> misses = new HashMap<>();
     database.asSystem(ModuleRole.ML, () -> {
+      for (String l : new java.util.LinkedHashSet<>(List.of(modelLabel, PredictionViews.DETERMINISTIC))) {
+        misses.put(l, ServiceRange.Misses.of(
+            outcomes.serviceMisses(l, day.minusDays(HISTORY.toDays()), day.minusDays(1))));
+      }
+    });
+    database.asSystem(ModuleRole.ML, () -> {
+      for (Map<String, Object> r : asScored) {
+        scoringInputs.record(g.plan().planId(), (String) r.get("routeId"), g.plan().depotCode(),
+            g.plan().serviceDate(), Optional.ofNullable(g.plan().referenceVersionId()), r, now);
+      }
       for (StopPlan s : g.stops()) {
         StopRisk risk = byOrder.get(s.orderId().toString());
         repository.insertPrediction(
             UuidV7.generate(now, random),
             risk != null
                 ? new Prediction(g.plan().planId(), s.orderId(), s.tripId(), s.sequence(), s.outletId(),
-                    g.plan().depotCode(), modelId, modelLabel, risk.serviceMinutes(), risk.lateProbability(), false)
+                    g.plan().depotCode(), modelId, modelLabel, risk.serviceMinutes(), risk.lateProbability(), false,
+                    range(risk.serviceMinutes(), s, g, misses.get(modelLabel)))
                 : new Prediction(g.plan().planId(), s.orderId(), s.tripId(), s.sequence(), s.outletId(),
                     g.plan().depotCode(), Optional.empty(), PredictionViews.DETERMINISTIC, s.serviceMinutes(),
-                    s.lateProbability(), true),
+                    s.lateProbability(), true,
+                    range(s.serviceMinutes(), s, g, misses.get(PredictionViews.DETERMINISTIC))),
             now);
       }
       repository.completeScoring(
@@ -244,7 +273,7 @@ public class PlanScoringJob implements ScheduledJob {
           .map(m -> Optional.ofNullable(m.get(ModelViews.DELIVERY_RISK)).map(Served::loaded).orElse(Served.none()))
           .orElseGet(() -> Served.unavailable(loaded.failure().orElse("unknown")));
     }
-    return ModelGate.decide(ModelViews.DELIVERY_RISK, adapter.configured(), active, served);
+    return ModelGate.decide(ModelViews.DELIVERY_RISK, adapter.configured(), active, served, adapter.allowsCompetitionModels());
   }
 
   /** Inside one read as the process: the plan, its stops and every input the model needs. */
@@ -256,6 +285,8 @@ public class PlanScoringJob implements ScheduledJob {
     PlanView plan = found.get();
     UUID version = plan.referenceVersionId();
     Map<String, List<BigDecimal>> history = serviceHistory(plan.depotCode(), plan.serviceDate());
+    // R-ML-14: what the fallback learned from Waypoint's own outcomes; the identity before there is enough.
+    com.waypoint.dispatch.intelligence.domain.FallbackTuning.LateTuning tuning = outcomes.currentTuning();
     List<StopPlan> stops = new ArrayList<>();
     List<Route> routes = new ArrayList<>();
     for (TripView trip : plan.trips()) {
@@ -265,9 +296,9 @@ public class PlanScoringJob implements ScheduledJob {
       int index = 0;
       for (StopView s : trip.stops().stream().sorted(java.util.Comparator.comparingInt(StopView::sequence)).toList()) {
         DeterministicEstimator.ServiceEstimate svc =
-            DeterministicEstimator.serviceMinutes(history.getOrDefault(s.outletId(), List.of()), s.serviceMinutes());
+            DeterministicEstimator.blendedServiceMinutes(history.getOrDefault(s.outletId(), List.of()), s.serviceMinutes());
         stops.add(new StopPlan(s.orderId(), trip.tripId(), s.sequence(), s.outletId(), svc.minutes(),
-            DeterministicEstimator.lateProbability(s.plannedArrival(), s.windowClose(), index++)));
+            DeterministicEstimator.lateProbability(s.plannedArrival(), s.windowClose(), index++, tuning, s.outletId())));
         facts.add(new StopFacts(s.sequence(), s.orderId(), s.outletId(), s.plannedArrival(), s.windowOpen(),
             s.windowClose(), orders.order(s.orderId()).flatMap(PlanScoringJob::orderFacts)));
       }
@@ -317,6 +348,15 @@ public class PlanScoringJob implements ScheduledJob {
   }
 
   private Map<String, Object> request(Gathered g) {
+    Map<String, Object> body = new LinkedHashMap<>();
+    body.put("routes", routes(g));
+    body.put("reference", payload.forDepotDay(g.plan().depotCode(), g.plan().serviceDate(),
+        g.plan().referenceVersionId()));
+    return body;
+  }
+
+  /** Each route as the model server reads it: kept with the plan as well as sent (R-ML-18). */
+  private static List<Map<String, Object>> routes(Gathered g) {
     List<Map<String, Object>> routes = new ArrayList<>();
     for (Route r : g.routes()) {
       TripFacts t = r.trip();
@@ -338,11 +378,14 @@ public class PlanScoringJob implements ScheduledJob {
           "vehicleId", t.vehicleId(), "vehicleType", t.vehicleType(), "vehicleTemp", t.vehicleTemp(),
           "brand", t.brandCode(), "district", t.districtName(), "stops", stops));
     }
-    Map<String, Object> body = new LinkedHashMap<>();
-    body.put("routes", routes);
-    body.put("reference", payload.forDepotDay(g.plan().depotCode(), g.plan().serviceDate(),
-        g.plan().referenceVersionId()));
-    return body;
+    return routes;
+  }
+
+  private static Optional<ServiceRange.Range> range(
+      BigDecimal minutes, StopPlan s, Gathered g, ServiceRange.Misses misses) {
+    return misses == null
+        ? Optional.empty()
+        : ServiceRange.of(minutes.doubleValue(), s.outletId(), g.plan().depotCode(), misses);
   }
 
   /** 1, 2, 4, 8 ... minutes, capped at 30. */

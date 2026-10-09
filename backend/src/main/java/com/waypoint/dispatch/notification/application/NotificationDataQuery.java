@@ -54,6 +54,15 @@ public class NotificationDataQuery implements NotificationQuery {
     return read(ambient(), () -> notifications.unreadCount(userId));
   }
 
+  @Override
+  public java.util.Map<UUID, Optional<java.time.Instant>> driverReads(java.util.Collection<UUID> messageIds) {
+    if (messageIds.isEmpty()) {
+      return java.util.Map.of();
+    }
+    return database.asSystem(
+        com.waypoint.dispatch.platform.db.ModuleRole.NOTIFICATION, () -> notifications.driverReads(messageIds));
+  }
+
   // ---- web: as the authenticated actor -------------------------------------
 
   public Page<NotificationView> inbox(Actor actor, Optional<UUID> owner, Optional<String> cursor, Integer limit) {

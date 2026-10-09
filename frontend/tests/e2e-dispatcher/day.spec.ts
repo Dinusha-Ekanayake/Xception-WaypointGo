@@ -79,7 +79,9 @@ test("live lists vehicles most urgent first and what needs the dispatcher", asyn
 
   const needs = page.getByRole("region", { name: "Needs you" });
   await expect(needs.getByRole("listitem").nth(0)).toContainText("OUT053 · not delivered");
-  await expect(needs.getByRole("listitem").nth(1)).toContainText("proof of delivery owed");
+  // Figma "Needs you" has no proof-owed card (liveDesk.ts needCards): a missing
+  // photo or signature shows on the stop itself, so the failed stop stands alone.
+  await expect(needs.getByRole("listitem")).toHaveCount(1);
   await expect(page.getByText("1 at the dock")).toBeVisible();
 
   await needs.getByRole("listitem").nth(0).getByRole("button", { name: "Open trip" }).click();

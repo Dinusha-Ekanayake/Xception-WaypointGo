@@ -11,6 +11,8 @@ import {
   dayNeeds,
   forBrand,
   kpis,
+  likelyLabel,
+  weekRange,
   segments,
   weekDate,
   weekLabel,
@@ -61,7 +63,7 @@ test("both depots are summed week by week, demand and capacity alike", () => {
   assert.equal(w.chilled, 60);
   assert.equal(w.fleetM3, 1200);
   assert.equal(w.vehicles, 20);
-  assert.deepEqual(w.brands.find((b) => b.code === "Fresh"), { code: "Fresh", total: 200, chilled: 60 });
+  assert.deepEqual(w.brands.find((b) => b.code === "Fresh"), { code: "Fresh", total: 200, chilled: 60, low: null, high: null });
   assert.deepEqual(f.brandCodes, ["Fresh", "Style"]);
   assert.equal(weekLabel(w), "Wk 1");
 });
@@ -186,4 +188,84 @@ test("the error chip says what the demand model measured, and never per brand it
   assert.equal(forecastError(models, "demand@2026.1", true), "Recent averages · forecast error not measured");
   assert.equal(forecastError(models, null, false), "Recent averages · forecast error not measured");
   assert.equal(forecastError([], "demand@2026.1", false), "Forecast error not reported by the model");
+});
+
+test("the finished weeks of the depots are summed, with how far the forecast was off (T2-03)", async () => {
+  const { combineAccuracy, isoMonday } = await import("../src/roles/dispatcher/data/forecast.ts");
+  assert.equal(isoMonday(2026, 40), "2026-09-28");
+  const week = (isoWeek: number, brands: Array<[string, number, number]>) => ({
+    isoYear: 2026, isoWeek, modelLabel: "deterministic", forecastM3: 0, orderedM3: 0, wape: null,
+    brands: brands.map(([brandCode, f, a]) => ({ brandCode, forecastM3: f, orderedM3: a })),
+  });
+  const { rows, off } = combineAccuracy([
+    { weeks: [week(40, [["Fresh", 110, 100]]), week(39, [["Fresh", 90, 100]])] },
+    { weeks: [week(40, [["Style", 45, 50]]), week(41, [["Tech", 5, 0]])] },
+  ]);
+  assert.deepEqual(rows.map((r) => [r.key, r.forecast, r.ordered]), [["2026-39", 90, 100], ["2026-40", 155, 150], ["2026-41", 5, 0]]);
+  assert.equal(rows[1]!.off, 15 / 150);
+  assert.equal(rows[2]!.off, null, "nothing ordered is not a perfect week");
+  // 10 + 10 + 5 + 5 off, over 250 ordered: an empty week still counts its forecast as error.
+  assert.equal(off, 30 / 250);
+});
+
+test("the forecast is compared with the 8-week average on the same weeks only (T2-03)", async () => {
+  const { combineAccuracy } = await import("../src/roles/dispatcher/data/forecast.ts");
+  const week = (isoWeek: number, brands: Array<[string, number, number, number | null]>) => ({
+    isoYear: 2026, isoWeek, modelLabel: "deterministic", forecastM3: 0, orderedM3: 0, wape: null,
+    brands: brands.map(([brandCode, f, a, b]) => ({ brandCode, forecastM3: f, orderedM3: a, baselineM3: b })),
+  });
+  const { rows, off, versus } = combineAccuracy([
+    { weeks: [week(39, [["Fresh", 110, 100, 80], ["Style", 45, 50, null]]), week(40, [["Fresh", 90, 100, 130]])] },
+  ]);
+  // Week 39 has a brand with no baseline, so it shows none; week 40 has one.
+  assert.equal(rows[0]!.baselineOff, null);
+  assert.equal(rows[1]!.baselineOff, 30 / 100);
+  assert.equal(off, 25 / 250);
+  // On Fresh only (the weeks with a baseline): forecast 20 of 200, the average 50 of 200.
+  assert.deepEqual(versus, { forecast: 20 / 200, average: 50 / 200 });
+  assert.equal(combineAccuracy([{ weeks: [week(39, [["Fresh", 110, 100, null]])] }]).versus, null);
+});
+
+
+// Roadmap MF-06, R-ML-20: the likely range, summed over brands and depots, only when every part has one.
+test("the week's likely range sums its brands and depots, and says nothing when a part has none", () => {
+  const ranged = (isoWeek: number) => week(isoWeek, {
+    brands: [
+      { brandCode: "Fresh", totalM3: "100", chilledM3: "30", lowM3: "90", highM3: "115" },
+      { brandCode: "Style", totalM3: "50", chilledM3: "0", lowM3: "44", highM3: "58" },
+    ],
+  });
+  const both = combine([overview("Kandy", [ranged(41)]), overview("Peliyagoda", [ranged(41)])]).weeks[0]!;
+  assert.deepEqual(weekRange(both), { low: 268, high: 346 });
+  assert.equal(likelyLabel(both), "likely 268 to 346");
+  const fresh = forBrand([both], "Fresh")[0]!;
+  assert.deepEqual(weekRange(fresh), { low: 180, high: 230 });
+  // One depot with too little history: the sum has no range.
+  const mixed = combine([overview("Kandy", [ranged(41)]), overview("Peliyagoda", [week(41)])]).weeks[0]!;
+  assert.equal(weekRange(mixed), null);
+  assert.equal(likelyLabel(mixed), null);
+});
+
+// Roadmap T2-02: sending a vehicle to the workshop on a short week warns; advice only.
+test("a workshop day in a week the forecast already fills warns, and says if it was short before", async () => {
+  const { workshopClash, clashText } = await import("../src/roles/dispatcher/data/forecast.ts");
+  // Week 41 starts Mon 5 Oct: 120 m³ of refrigerated capacity, 600 m³ of fleet.
+  const reefer = { volumeCapM3: "33.4", refrigerated: true };
+  const dry = { volumeCapM3: "38", refrigerated: false };
+  // 90 m³ chilled: a reefer out for a day leaves 120 - 66.8 = 53.2, too little.
+  const chilled = [overview("Kandy", [week(41, { fresh: [100, 90] })])];
+  const c = workshopClash(chilled, reefer, "2026-10-07")!;
+  assert.equal(c.chilled, true);
+  assert.equal(c.alreadyShort, false);
+  assert.equal(Math.round(c.left * 10) / 10, 53.2);
+  assert.equal(clashText("VEH003", c), "The week of 5 Oct is forecast at 90 m³ of chilled demand; without VEH003 that day the week has 53 m³ of refrigerated capacity.");
+  // A dry truck does not touch refrigerated capacity, and 150 m³ is far under the fleet.
+  assert.equal(workshopClash(chilled, dry, "2026-10-07"), null);
+  // A week already over its fleet says so.
+  const full = [overview("Kandy", [week(41, { fresh: [500, 30], style: 120 })])];
+  const f = workshopClash(full, dry, "2026-10-07")!;
+  assert.equal(f.chilled, false);
+  assert.equal(f.alreadyShort, true);
+  // A day outside the forecast says nothing.
+  assert.equal(workshopClash(chilled, reefer, "2026-12-01"), null);
 });

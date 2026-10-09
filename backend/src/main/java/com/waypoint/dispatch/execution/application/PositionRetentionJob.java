@@ -1,6 +1,7 @@
 package com.waypoint.dispatch.execution.application;
 
 import com.waypoint.dispatch.execution.infrastructure.JdbcPositions;
+import com.waypoint.dispatch.platform.scheduling.Batches;
 import com.waypoint.dispatch.platform.db.Database;
 import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.platform.observability.Metrics;
@@ -54,8 +55,12 @@ public class PositionRetentionJob implements ScheduledJob {
   /** @return how many points were removed */
   int runAt(Instant now) {
     LocalDate before = now.atZone(Clock.OPERATING_ZONE).toLocalDate().minusDays(RETAIN_DAYS);
-    int removed = database.asSystem(ModuleRole.EXECUTION, () -> positions.thin(before, BATCH));
-    metrics.count("waypoint.execution.positions_thinned", removed);
-    return removed;
+    // F-12: batch after batch, each its own transaction, until one comes back short.
+    var outcome =
+        Batches.untilDone(
+            BATCH, 200, () -> database.asSystem(ModuleRole.EXECUTION, () -> positions.thin(before, BATCH)));
+    metrics.count("waypoint.execution.positions_thinned", outcome.total());
+    if (outcome.backlog()) metrics.increment("waypoint.retention.backlog", "table", "vehicle_positions");
+    return outcome.total();
   }
 }

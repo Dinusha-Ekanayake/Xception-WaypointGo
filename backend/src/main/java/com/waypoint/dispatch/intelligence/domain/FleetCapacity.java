@@ -20,6 +20,41 @@ public final class FleetCapacity {
 
   public record Week(int vehicles, int refrigeratedVehicles, BigDecimal fleetM3, BigDecimal refrigeratedM3) {}
 
+  /** One operating day: the vehicles available that day and the trips each may run. */
+  public record Day(List<Vehicle> available, int trips) {}
+
+  /**
+   * What a depot can carry in a week with each day's own fleet: a vehicle booked
+   * into the workshop or marked unavailable on a day carries nothing that day
+   * (roadmap T2-01). The counts are the fewest available on any operating day,
+   * because a week that needs every reefer daily is not covered when three are
+   * in the workshop on Wednesday. No operating days: nothing, and no vehicles.
+   */
+  public static Week weeklyByDay(List<Day> operatingDays) {
+    BigDecimal fleetM3 = BigDecimal.ZERO;
+    BigDecimal reeferM3 = BigDecimal.ZERO;
+    int fewest = Integer.MAX_VALUE;
+    int fewestReefers = Integer.MAX_VALUE;
+    for (Day day : operatingDays) {
+      BigDecimal trips = BigDecimal.valueOf(day.trips());
+      int reefers = 0;
+      for (Vehicle v : day.available()) {
+        fleetM3 = fleetM3.add(v.volumeM3().multiply(trips));
+        if (v.refrigerated()) {
+          reeferM3 = reeferM3.add(v.volumeM3().multiply(trips));
+          reefers++;
+        }
+      }
+      fewest = Math.min(fewest, day.available().size());
+      fewestReefers = Math.min(fewestReefers, reefers);
+    }
+    if (operatingDays.isEmpty()) {
+      fewest = 0;
+      fewestReefers = 0;
+    }
+    return new Week(fewest, fewestReefers, fleetM3.setScale(2, RoundingMode.HALF_UP), reeferM3.setScale(2, RoundingMode.HALF_UP));
+  }
+
   public static Week weekly(List<Vehicle> fleet, List<Integer> tripsByOperatingDay) {
     BigDecimal perDay = BigDecimal.ZERO;
     BigDecimal reeferPerDay = BigDecimal.ZERO;

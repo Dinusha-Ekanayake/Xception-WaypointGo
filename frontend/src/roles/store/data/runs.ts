@@ -2,6 +2,10 @@ import type { DeliveryRecordView, IssueType, IssueView, OrderView, ReceiptView, 
 import { addDays, clock, dayLabel, depotToday, dockWhere, expectedAt, type StatusTone } from "./format.ts";
 import type { StoreGateway } from "./gateway.ts";
 import { isOpenIssue, loaderShortUnits } from "./issues.ts";
+import { translate, type Translate } from "./strings.ts";
+
+/** These write English unless the screen passes its language (roadmap FF-00). */
+const english: Translate = (text, vars) => translate("en", text, vars);
 
 // The rows of "05a Deliveries" and the steps of "05b make-up delivery". A row is
 // one vehicle's visit: the outlet's orders on one trip. Cases are the orders'
@@ -79,7 +83,7 @@ export function runStatus(run: Run, waiting: ReadonlySet<string>, windowClose: s
 }
 
 /** What the store's count said about a run's orders: "Confirmed", "Confirmed · 1 short". */
-export function countStatus(receipts: (ReceiptView | null)[]): Status & { short: number; known: boolean } {
+export function countStatus(receipts: (ReceiptView | null)[], t: Translate = english): Status & { short: number; known: boolean } {
   const known = receipts.filter((r): r is ReceiptView => r !== null);
   const short = known.reduce((s, r) => s + r.lines.reduce((n, l) => n + Math.max(0, l.expectedQuantity - (l.receivedQuantity ?? l.expectedQuantity)), 0), 0);
   const of = (label: string, tone: StatusTone) => ({ label, tone, short, known: known.length > 0 });
@@ -87,7 +91,7 @@ export function countStatus(receipts: (ReceiptView | null)[]): Status & { short:
   if (known.some((r) => r.status === "DISPUTED")) return of("Disputed", "danger");
   if (known.some((r) => r.status === "PENDING")) return of("To receive", "ink");
   if (known.some((r) => r.status === "AUTO_CLOSED")) return of("Closed unconfirmed", "warn");
-  return short > 0 ? of(`Confirmed · ${short} short`, "danger") : of("Confirmed", "ok");
+  return short > 0 ? of(t("Confirmed · {n} short", { n: short }), "danger") : of("Confirmed", "ok");
 }
 
 const WAITING = new Set(["STOCK_UNKNOWN", "PARTIALLY_RESERVED", "CONFIRMED", "DEFERRED"]);
@@ -166,24 +170,30 @@ export function makeUpSteps(input: {
   dock: string | null;
   window: string | null;
   today: string;
-}): Step[] {
+}, t: Translate = english): Step[] {
   const { order, issue, timeline, record, dock, window, today } = input;
-  const day = (date: string) => (date === today ? "Today" : dayLabel(date));
+  const day = (date: string) => (date === today ? t("Today") : dayLabel(date));
   const at = (instant: string) => `${day(depotToday(new Date(instant)))} · ${clock(instant)}`;
   const loaded = timeline.find((h) => h.to === "LOADING" || h.to === "IN_TRANSIT");
   return [
-    { title: (issue && REPORTED[issue.type]) ?? "Problem reported", detail: issue ? at(issue.raisedAt) : "On the original order", done: true },
-    { title: "Make-up booked", detail: at(issue?.resolvedAt ?? order.placedAt), done: true },
+    { title: t((issue && REPORTED[issue.type]) ?? "Problem reported"), detail: issue ? at(issue.raisedAt) : t("On the original order"), done: true },
+    { title: t("Make-up booked"), detail: at(issue?.resolvedAt ?? order.placedAt), done: true },
     {
-      title: `Loading at depot ${order.depotCode}`,
-      detail: loaded ? at(loaded.at) : record ? at(record.releasedAt) : `${day(order.deliveryDate)} · before the run`,
+      title: t("Loading at depot {depot}", { depot: order.depotCode }),
+      detail: loaded ? at(loaded.at) : record ? at(record.releasedAt) : t("{day} · before the run", { day: day(order.deliveryDate) }),
       done: loaded !== undefined || record !== null,
     },
     {
-      title: `Arriving ${dockWhere(dock)}`,
-      detail: record?.arrivedAt ? `Arrived ${clock(record.arrivedAt)}` : record ? `Expected ${clock(expectedAt(record))}` : window ? `Window ${window}` : "Time set when it leaves",
+      title: t("Arriving {where}", { where: t(dockWhere(dock)) }),
+      detail: record?.arrivedAt
+        ? t("Arrived {time}", { time: clock(record.arrivedAt) })
+        : record
+          ? t("Expected {time}", { time: clock(expectedAt(record)) })
+          : window
+            ? t("Window {window}", { window })
+            : t("Time set when it leaves"),
       done: Boolean(record?.arrivedAt),
     },
-    { title: "You confirm what arrived", detail: order.status === "RECEIVED" ? "Counted" : "Count and confirm with PIN", done: order.status === "RECEIVED" },
+    { title: t("You confirm what arrived"), detail: t(order.status === "RECEIVED" ? "Counted" : "Count and confirm with PIN"), done: order.status === "RECEIVED" },
   ];
 }

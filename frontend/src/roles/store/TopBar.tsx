@@ -52,7 +52,7 @@ export default function TopBar({
         ? t("Offline · showing {time}", { time: clock(since) })
         : t("Offline · showing last sync")
     : since
-      ? t("Server unreachable · showing {time}", { time: clock(since) })
+      ? t("Can't reach Waypoint · showing {time}", { time: clock(since) })
       : waiting > 0
       ? t("Sending {n}…", { n: waiting })
       : syncing
@@ -80,7 +80,11 @@ export default function TopBar({
   const hasUnread = (unread ?? 0) > 0;
   // Only the connection STATE is announced to screen readers, not the clock inside
   // the visible text, so it does not re-announce on every poll (issue #118 follow-up).
-  const state = !online ? (waiting > 0 ? `Offline, ${waiting} saved on this phone` : "Offline") : since ? "Server unreachable" : waiting > 0 ? "Sending" : syncing ? "Syncing" : "Synced";
+  const state = !online
+    ? waiting > 0
+      ? t("Offline, {n} saved on this phone", { n: waiting })
+      : t("Offline")
+    : t(since ? "Can't reach Waypoint" : waiting > 0 ? "Sending" : syncing ? "Syncing" : "Synced");
   const announcement = useStateAnnouncement(state);
 
   return (

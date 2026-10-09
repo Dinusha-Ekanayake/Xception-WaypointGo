@@ -1,5 +1,7 @@
 # ─── Dependencies ───
 node_modules/
+# A link named node_modules too, not only the folder (a worktree may link to another checkout's).
+node_modules
 .pnp
 .pnp.*
 .yarn/*
@@ -161,6 +163,9 @@ artifacts/
 !docs/submission-checklist.md
 !docs/verification.md
 !docs/issues/**/*.md
+!docs/roadmap/*.md
+!docs/datathon/*.md
+!scripts/live-check/README.md
 
 # Java / Maven build output (including nested modules)
 target/

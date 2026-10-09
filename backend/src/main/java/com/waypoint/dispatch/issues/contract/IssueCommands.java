@@ -21,6 +21,25 @@ public final class IssueCommands {
   public static final String SCHEDULE_REDELIVERY = "issue:ScheduleRedelivery";
   public static final String CLOSE = "issue:Close";
   public static final String CANCEL = "issue:Cancel";
+  /** FF-03: Operations records what an inquiry found, with any write-off value and photos. */
+  public static final String RECORD_INQUIRY = "issue:RecordInquiry";
+  /** FF-03: Operations approves or rejects a recorded write-off, within P-DG-1. */
+  public static final String APPROVE_WRITE_OFF = "issue:ApproveWriteOff";
+  /**
+   * FF-09: the dispatcher asks one store a question on a live trip (R-ISS-12):
+   * {@code {"kind": "receive_late", "deliveryId": uuid, "receiveAt": instant}} or
+   * {@code {"kind": "dock_help", "deliveryId": uuid (the store asked),
+   * "aboutDeliveryId": uuid (the stop whose goods are in front)}}. Asking again
+   * about the same stop withdraws the open question.
+   */
+  public static final String ASK_DECISION = "issue:AskDecision";
+  /**
+   * FF-09: the store answers (R-ISS-14): {@code {"requestId": uuid, "answer":
+   * "yes" | "no", "reason": "optional, up to 500", "voiceNoteId": uuid (optional,
+   * a voice reason posted on the trip's thread), "byPhone": true (the dispatcher
+   * recording what the store said on a call)}}.
+   */
+  public static final String ANSWER_DECISION = "issue:AnswerDecision";
 
   /**
    * @param attachmentIds photos uploaded for the problem (issue:AttachPhoto), by id. A photo still on

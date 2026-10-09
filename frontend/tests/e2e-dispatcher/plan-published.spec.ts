@@ -3,7 +3,7 @@ import { draftPlan, serve } from "./mocks.ts";
 
 // Once the day's plan is published it is the only plan: no saved candidates,
 // no Compare. It changes only by moving a whole trip, picked from a pop-up with
-// a search and filters, and only until 16:00 depot time on its day (R-PLN-43).
+// a search and filters, and only until 16:00 depot time on its day (R-PLN-48).
 
 const published = () => ({ ...draftPlan(1), status: "PUBLISHED" as const, publishedAt: "2027-02-28T17:00:00Z" });
 

@@ -124,7 +124,7 @@ export function after(time: string, minutes: string | number): string {
 /** The plan the screen works on: the open draft when there is one, else what is published. */
 /**
  * Whether a published plan for this service day still takes changes: until
- * 16:00 depot time that day (R-PLN-43). Depot time is Asia/Colombo, which has
+ * 16:00 depot time that day (R-PLN-48). Depot time is Asia/Colombo, which has
  * no daylight saving, so the offset is fixed.
  */
 export function publishedEditOpen(serviceDate: string, now: Date = businessNow()): boolean {

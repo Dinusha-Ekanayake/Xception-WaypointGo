@@ -23,6 +23,7 @@ import Orders from "./screens/Orders.tsx";
 import Plan from "./screens/Plan.tsx";
 import Issues from "./screens/Issues.tsx";
 import Forecast from "./screens/Forecast.tsx";
+import PilotKpis from "./screens/PilotKpis.tsx";
 import { businessNow } from "@shared/wording";
 import { useClockOffset } from "@shared/demo/useDemo";
 
@@ -74,11 +75,25 @@ export default function Dispatcher({
     wasRun.current = run;
     setDate((d) => (d === before ? run : d));
   }, [run]);
+  // Live is the vehicles on the road, so it opens on today, not on the run
+  // being planned; it moves to the next day at midnight unless the dispatcher
+  // chose another day.
+  const [liveDate, setLiveDate] = useState(today);
+  const wasToday = useRef(today);
+  useEffect(() => {
+    if (wasToday.current === today) return;
+    const before = wasToday.current;
+    wasToday.current = today;
+    setLiveDate((d) => (d === before ? today : d));
+  }, [today]);
   const fleet = useFleet(depots, today);
 
   // The sidebar's counts: orders that need a person, and stops that do. Only a
   // read that arrived is counted, so a failed read shows no badge, not a zero.
   const dayOrders = useOrders(depots, today);
+  // The orders waiting for the run being planned, so search finds them too:
+  // Orders lists both days under Current, and search must not miss tomorrow's.
+  const runOrders = useOrders(depots, run);
   const dayLive = useLive(depots, today);
   const dayPlans = usePlans(depots, date);
   const planWord = dayPlans.data ? planBadge(dayPlans.data) : null;
@@ -92,7 +107,7 @@ export default function Dispatcher({
   // kind it searches is already held above for the sidebar's badges.
   const dayIssues = useIssues(depots);
   const searchSource: SearchSource = {
-    orders: dayOrders.data ?? [],
+    orders: uniqueOrders([...(dayOrders.data ?? []), ...(runOrders.data ?? [])]),
     vehicles: fleet.data ?? [],
     sheets: dayLive.data?.sheets ?? [],
     dock: dayLive.data?.dock ?? [],
@@ -149,8 +164,8 @@ export default function Dispatcher({
           <Live
             depots={depots}
             scopeLabel={label}
-            date={date}
-            onDate={setDate}
+            date={liveDate}
+            onDate={setLiveDate}
             online={online}
             depotFilter={depotFilter}
             onDepotFilter={setDepotFilter}
@@ -161,6 +176,8 @@ export default function Dispatcher({
           />
         ) : view === "issues" ? (
           <Issues depots={depots} scopeLabel={label} userId={userId} online={online} focusIssueId={issueFocus} />
+        ) : view === "kpis" ? (
+          <PilotKpis depots={depots} online={online} onBack={() => navigate("overview")} />
         ) : (
           <Forecast depots={depots} scopeLabel={label} online={online} />
         )}
@@ -182,4 +199,10 @@ function planBadge(plans: DepotPlans[]): string | null {
   const unsent = plans.filter((p) => p.draft !== null).length;
   if (unsent === 0) return null;
   return plans.some((p) => p.draft !== null && p.published !== null) ? "Not sent" : "Draft";
+}
+
+/** Each order once, in the order first seen: an order can sit on both days' reads while its date rolls. */
+function uniqueOrders<T extends { orderId: string }>(orders: T[]): T[] {
+  const seen = new Set<string>();
+  return orders.filter((o) => (seen.has(o.orderId) ? false : (seen.add(o.orderId), true)));
 }

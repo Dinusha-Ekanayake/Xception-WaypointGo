@@ -120,6 +120,26 @@ public class IssueController {
     return issues.issue(actor, issueId);
   }
 
+  /**
+   * FF-09: the day's questions asked of stores on live trips. With {@code depot}
+   * the dispatcher's view of a depot; without it, whatever the reader may see,
+   * which for a store manager is its own outlets'.
+   */
+  @GetMapping("/decisions")
+  public List<com.waypoint.dispatch.issues.contract.IssueViews.DecisionView> decisions(
+      @RequestParam java.time.LocalDate date, @RequestParam(required = false) String depot,
+      HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, depot == null ? "wpt:issue:decision:*" : "wpt:issue:depot:" + depot);
+    return issues.decisions(actor, date, java.util.Optional.ofNullable(depot));
+  }
+
+  /** FF-03: the write-offs an inquiry recorded against the issue, and their decisions. */
+  @GetMapping("/{issueId}/write-offs")
+  public List<com.waypoint.dispatch.issues.contract.IssueViews.WriteOffView> writeOffs(@PathVariable UUID issueId, HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:issue:issue:" + issueId);
+    return issues.writeOffs(actor, issueId);
+  }
+
   @GetMapping("/{issueId}/history")
   public List<IssueHistoryView> history(@PathVariable UUID issueId, HttpServletRequest request) {
     var actor = authorizer.require(request, READ, "wpt:issue:issue:" + issueId);

@@ -8,6 +8,7 @@ import { drivenLine, LiveMap, metres, num, readTripTrail, type LatLon, type MapL
 import type { Stop } from "../data/run.ts";
 import type { PositionRecorder } from "../data/position.ts";
 import { BackIcon } from "../ui.tsx";
+import { useT } from "../i18n.tsx";
 
 const TRAIL_POLL_MS = 15_000;
 
@@ -56,6 +57,7 @@ export default function RouteMap({
   /** Its size: below the header on the Map screen; the whole pane beside the run on a landscape tablet. */
   className?: string;
 }): React.JSX.Element {
+  const t = useT();
   const dest = exactPoint(outlet);
   const [server, setServer] = useState<TrailPoint[]>([]);
 
@@ -84,10 +86,10 @@ export default function RouteMap({
   const me = here ?? (last ? { lat: last.lat, lon: last.lon, heading: null } : null);
   const markers = useMemo(() => {
     const out: MapMarker[] = [];
-    if (dest) out.push({ id: "dest", kind: "store", ...dest, label: next.outletId, badge: String(next.sequence).padStart(2, "0"), ariaLabel: `Next stop ${next.outletId}`, selectable: false });
-    if (me) out.push({ id: "me", kind: "vehicle", lat: me.lat, lon: me.lon, heading: me.heading, status: "on-time", label: "You", ariaLabel: "Your position", selectable: false });
+    if (dest) out.push({ id: "dest", kind: "store", ...dest, label: next.outletId, badge: String(next.sequence).padStart(2, "0"), ariaLabel: t("Next stop {name}", { name: next.outletId }), selectable: false });
+    if (me) out.push({ id: "me", kind: "vehicle", lat: me.lat, lon: me.lon, heading: me.heading, status: "on-time", label: t("You"), ariaLabel: t("Your position"), selectable: false });
     return out;
-  }, [dest?.lat, dest?.lon, next.outletId, next.sequence, me?.lat, me?.lon, me?.heading]);
+  }, [dest?.lat, dest?.lon, next.outletId, next.sequence, me?.lat, me?.lon, me?.heading, t]);
   const lines = useMemo(() => {
     const out: MapLine[] = [{ id: "driven", points: driven, style: "driven" }];
     if (me && dest) out.push({ id: "leg", points: [me, dest], style: "planned" });
@@ -113,17 +115,17 @@ export default function RouteMap({
         <button
           type="button"
           onClick={onBack}
-          aria-label="Back to run sheet"
+          aria-label={t("Back to run sheet")}
           className="absolute top-4 left-4 z-[700] flex h-11 items-center gap-2 rounded-full bg-go-card px-4 text-[17px] font-medium text-go-ink shadow-md active:scale-95"
         >
           <BackIcon />
-          Back
+          {t("Back")}
         </button>
       )}
       <div className="absolute inset-x-3 bottom-[max(1rem,env(safe-area-inset-bottom))] z-[600] flex flex-col gap-2">
         {!here && (
           <p role="status" className="self-start rounded-full bg-go-card px-4 py-2 text-[13px] text-go-ink shadow">
-            {recorder.state === "denied" ? "Location off · the dispatcher sees your stops only" : "Finding your position"}
+            {t(recorder.state === "denied" ? "Location off · the dispatcher sees your stops only" : "Finding your position")}
           </p>
         )}
         <section aria-label="Next stop" className="flex flex-col gap-3 rounded-[24px] bg-go-card p-4 text-go-ink shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
@@ -141,7 +143,7 @@ export default function RouteMap({
           </div>
           {dest ? (
             <a href={navigateUrl(dest)} target="_blank" rel="noreferrer" className="flex h-14 items-center justify-center rounded-full bg-go-ink text-[17px] font-medium text-go-canvas active:scale-[0.98]">
-              Navigate to {next.outletId}
+              {t("Navigate to {name}", { name: next.outletId })}
             </a>
           ) : (
             <p className="text-[14px] text-go-muted">No exact location for this store yet · Approximate · {outlet?.districtName ?? "district"}</p>

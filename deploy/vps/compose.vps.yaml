@@ -81,6 +81,7 @@ services:
     pid: host
     volumes:
       - /:/host:ro,rslave
+    mem_limit: 64m
     restart: unless-stopped
 
   nginx:
@@ -104,6 +105,7 @@ services:
       interval: 15s
       timeout: 5s
       retries: 5
+    mem_limit: 128m
     restart: unless-stopped
 
   # Renews through the webroot nginx serves. First issuance is a one-off run of
@@ -116,6 +118,7 @@ services:
       - letsencrypt:/etc/letsencrypt
       - certbot-www:/var/www/certbot
     entrypoint: ["/bin/sh", "-c", "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done"]
+    mem_limit: 64m
     restart: unless-stopped
 
 networks:

@@ -299,13 +299,15 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 | infrastructure | `JdbcIssueRepository`, `JdbcIssueAttachments` |
 | web | `IssueController`: reads, and the one binary write, a photo upload |
 
-**Owns:** `issues.issues`, `issues.issue_subjects`, `issues.issue_history`, `issues.parameters`, `issues.attachments`, `issues.attachment_content`, `issues.issue_attachments`.
+**Owns:** `issues.issues`, `issues.issue_subjects`, `issues.issue_history`, `issues.parameters`, `issues.attachments`, `issues.attachment_content`, `issues.issue_attachments`, `issues.write_offs`, `issues.decision_requests`.
+
+**Live decisions (FF-09, R-ISS-12 to R-ISS-14).** The dispatcher asks one store one question on a live trip (`issue:AskDecision`): `receive_late` ("can someone receive at about HH:MM?", never a mall) or `dock_help` (the next store lets the crew unload a stop's goods at its dock to reach its own, and reload them; the depot loads the last stop first, R-LOD-08). The stop, the store, the units and the expected arrival are read from `ExecutionQuery.runSheet`, never from the caller. The answer is due before the vehicle arrives, 5 to 20 minutes from asking; `DecisionExpiryJob` marks a question with no answer expired, once. The store answers in the app, or the dispatcher records what it said by phone (`issue:AnswerDecision`); an answer after the deadline is kept and marked late. Read at `/api/issues/decisions?date=&depot=`.
 
 **Photos.** A store manager uploads a photo of a delivery problem for its order (`PUT /api/issues/attachments/{id}?order=&receipt=`, action `issue:AttachPhoto`): id minted on the phone, content addressed by SHA-256, type read from the bytes, 3 MB cap, kept in the database and cleared past P-14. `RaiseIssue` names photos in `attachmentIds`; a photo taken while counting names the receipt and joins its shortage investigation. A link is made whichever arrives first, so an offline phone can send the photo and the report in either order. Read through `/{issueId}/attachments/{attachmentId}/content` by anyone who can see the issue.
 
 **Commands:** `RaiseIssue`, `AssignIssue`, `ResolveIssue`, `RecordReplacement`, `ScheduleRedelivery`, `CloseIssue`, `CancelIssue`. Raise rights by type are policy data (R-ISS-07).
 **Queries:** `openIssues(depot)` (most severe first, keyset), `issuesFor(subject)`. Web: `/api/issues?depot=`, `/by-subject?type=&id=`, `/{id}`, `/{id}/history`, `/{id}/attachments/{attachmentId}/content`.
-**Publishes:** `issue.raised`, `issue.resolved`, `issue.escalated`, `shortfall.resolved` (naming the shortfall when the issue came from one), `redelivery.requested`.
+**Publishes:** `issue.raised`, `issue.resolved`, `issue.escalated`, `shortfall.resolved` (naming the shortfall when the issue came from one), `redelivery.requested`, `decision.requested`, `decision.answered`, `decision.expired`.
 **Consumes:** `loading.shortfall`, `delivery.failed`, `vehicle.fault_reported`, `road.disruption_reported`, `receipt.disputed`, `receipt.confirmed` (partial only), `warehouse.discrepancy_found`. One issue per source event.
 
 **Redelivery.** Only when nothing reached the outlet (failed delivery, stock discrepancy), at most once per issue, and the new order carries a skip so the next plan serves it first (R-ISS-04, R-ISS-05, ORD-15).
@@ -341,6 +343,7 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 | `plan.store_contacted` | Store managers of the outlet | yes | The dispatcher's message about an order the plan did not serve |
 | `order.auto_deferred` | Store manager | yes | The warehouse never confirmed stock before the cutoff (STK-03) |
 | `order.outlook_changed` | Store manager | yes | A booked day worsened to busy or at risk, once per order and status (R-NOT-16) |
+| `stop.likely_late` | Dispatcher while the flag is learning or the store has had two this week; the store once the flag's precision has earned it | yes | A published stop will likely arrive after its window, told once (R-ML-22) |
 | `plan.published`, `plan.revised` | Loader; driver of each trip's vehicle on the service date; for a revision, only the drivers of trips that changed and the outlets reached differently (R-NOT-12) | yes | Work is available, or changed |
 | `trip.released` | Driver; dispatcher when the vehicle has no driver (LOD-05); the depot's other loaders (R-NOT-10); each outlet on the trip with its stop number and expected arrival (R-NOT-11) | yes | Vehicle ready; the dock is free; the store can staff the arrival |
 | `loading.shortfall` | Dispatcher | yes | Departure is blocked now (R-NOT-02) |
@@ -351,6 +354,11 @@ If no compatible substitute exists, the trip is deferred as a unit and the order
 | `eta.changed` | Store manager, dispatcher | yes | Staffing at the outlet, lateness at the depot (R-RCP-02, R-EXE-15) |
 | `issue.raised` | Dispatcher; store manager when an outlet is named | yes | Fault, delay, damage, access problem (R-NOT-03) |
 | `issue.escalated` | Dispatcher | yes | Waited unassigned past its severity's deadline (R-ISS-06) |
+| `decision.requested` | The store manager of the outlet asked | yes | The dispatcher needs an answer before the vehicle arrives (FF-09, R-ISS-12) |
+| `decision.answered` | Dispatcher; the driver of a Yes | yes | The store's answer; a Yes changes the driver's stop (R-ISS-14) |
+| `decision.expired` | Dispatcher | yes | No answer by the deadline: phone the store (R-ISS-13) |
+| `attention.raised` | Dispatcher, for a window about to be missed only (a failed stop is told by `delivery.failed`) | yes | The watch found it, Live screen open or not (issue #268) |
+| `attention.reminded` | Dispatcher | yes | A critical item nobody acted on, capped by the watch (issue #268) |
 | `vehicle.fault_reported`, `road.disruption_reported` | Dispatcher | yes | The dispatcher decides the vehicle's status |
 | `receipt.disputed` | Dispatcher | yes | The store disagrees with what arrived |
 | `vehicle.status_changed` | Dispatcher | no | Fleet availability changed. Reference does not publish it yet |
@@ -427,6 +435,7 @@ A driver is pushed only trip-level events (R-NOT-08), and whoever caused an even
 **Connections.**
 - Consumes `plan.published` and `plan.revised`.
 - Publishes `order.outlook_changed` when a day an order is booked for worsens to busy or at risk (`OutlookWatchJob`, R-ML-08).
+- Publishes `stop.likely_late` when a published stop will likely arrive after its window (`LateNoticeJob`, R-ML-22).
 - Reads Planning (`PlanQuery.plan`), Ordering (`order`, `dailyVolumes`, `bookedVolumes`, `openOrders`), Execution (`actuals`) and Reference (outlets, vehicles, travel, calendar, traffic speed, road conditions) through their contracts.
 - Planning reads `PredictionQuery.planScoring` for `plannedWithoutPredictor`, lazily, so it still works without this module.
 
@@ -461,7 +470,8 @@ People write to each other there, and every field report about the trip lands on
 **Who writes to whom (R-MSG-02, R-MSG-03).**
 - **The dispatcher** writes to the driver, the loaders, one outlet or everyone.
 - **The driver** writes to the dispatcher, or to an outlet on the trip.
-- **A loader or a store manager** writes to the dispatcher only.
+- **A loader** writes to the dispatcher, or to the trip's driver about the load (R-MSG-12).
+- **A store manager** writes to the dispatcher only.
 - **A report**, typed or voice, goes to the dispatcher alone.
 
 **Reports from the field (R-MSG-05).** `issue.raised` becomes a report on its trip's thread, once per event, naming the role that reported it:
@@ -479,8 +489,10 @@ The trip is found through the issue's trip, delivery or order subject (`Executio
 
 **Resolving a report (R-MSG-07).** `message:Resolve` by a dispatcher who oversees the depot, with a note; or `issue.resolved` for a report made from that issue. A resolved report leaves `/api/threads/reports` and stays on the thread. A report names the stop it is about (`outletId`: a store's own outlet, or the issue's), and the timeline draws its sign on that stop.
 
-**Publishes:** `message.posted` (never the body; an excerpt for the notification).
-**Consumes:** `plan.published`, `plan.revised` (open or widen each trip's thread; never narrowed), `issue.raised`, `issue.resolved` (resolves the report made from the issue).
+**The trip's channel (R-MSG-08, FF-04).** `to: channel` is the dispatcher and the stores still waiting. It opens when the driver starts the trip, after loading (`threads.channel_opened_at`, from the first `delivery.started`). Membership is in `messaging.thread_outlets` per outlet: active from the plan, read only once every order of the outlet on the trip is delivered or failed, never back. A store reads the channel while active, plus what came before; the driver and the loaders do not read it. `message:Redirect` takes a post off the channel with a reason (`messaging.message_redirects`); the message never changes.
+
+**Publishes:** `message.posted` (never the body; an excerpt for the notification; `outletIds` of a channel post are the stores still active).
+**Consumes:** `plan.published`, `plan.revised` (open or widen each trip's thread, and set its channel's outlets: an outlet moved off the trip goes read only in the channel, the thread itself is never narrowed), `issue.raised`, `issue.resolved` (resolves the report made from the issue), `delivery.started` (the first opens the channel), `delivery.completed`, `delivery.failed` (an order done for the channel).
 **Queries used:** `IssueQuery.issue`, `ExecutionQuery.deliveryRecord`, `ExecutionQuery.deliveryForOrder`, `IdentityQuery` (`driverOn`, `scopeOf`), `PersonQuery`.
 
 **Invariants.**
@@ -599,7 +611,7 @@ Modules connect three ways: a contract query (synchronous, read only), an event 
 | `loading.started` | Loading | Ordering, Notification |
 | `loading.shortfall` | Loading | Issues, Notification |
 | `loading.interchange_requested` | Loading | Planning |
-| `trip.released` | Loading | Execution, Ordering, Warehouse (shipped), Notification |
+| `trip.released` | Loading | Execution, Ordering, Warehouse (shipped), Notification, Planning (freeze, R-PLN-44) |
 | `delivery.started`, `delivery.completed`, `delivery.failed`, `eta.changed` | Execution | Ordering, Receipt, Warehouse (delivered), Issues, Notification |
 | `delivery.arrived` | Execution | Notification (store: unload and check, R-EXE-25) |
 | `vehicle.at_depot` | Execution | Loading (dock board, R-LOD-12), Notification (loaders, R-EXE-24) |
@@ -609,9 +621,12 @@ Modules connect three ways: a contract query (synchronous, read only), an event 
 | `issue.raised`, `issue.resolved`, `issue.escalated` | Issues | Notification, Messaging (`issue.raised`, `issue.resolved`) |
 | `shortfall.resolved` | Issues | Loading |
 | `redelivery.requested` | Issues | Ordering |
+| `decision.requested`, `decision.answered`, `decision.expired` | Issues | Notification, Messaging and Intelligence (`decision.answered`) |
 | `warehouse.order_status_changed` | Warehouse | Ordering, Notification |
 | `warehouse.discrepancy_found` | Warehouse | Issues |
 | `catalogue.synced` | Warehouse | Ordering |
 | `reference.version_published`, `vehicle.status_changed`, `calendar.overridden` | Reference | Planning, Notification |
 | `message.posted` | Messaging | Notification |
 | `order.outlook_changed` | Intelligence | Notification |
+| `stop.likely_late` | Intelligence | Notification |
+| `attention.raised`, `attention.reminded` | Intelligence | Notification; Issues (`attention.raised`: asks the store, R-ISS-15) |

@@ -6,6 +6,7 @@ import type { PlanPredictionsView } from "../src/shared/domain/intelligence.ts";
 import type { VehicleView } from "../src/shared/domain/referencedata.ts";
 import { board } from "../src/roles/dispatcher/data/plan.ts";
 import {
+  roadConditionsNote,
   NO_FILTER,
   addedByHand,
   daysBetween,
@@ -16,10 +17,17 @@ import {
   largestVehicleM3,
   lastServedText,
   lateRisk,
+  minutesOfDay,
   riskLabel,
   riskTone,
   scoredByEstimate,
+  slackByStop,
+  slackByTrip,
+  slackLabel,
   stopRisks,
+  stopSlack,
+  tightStops,
+  tightTrips,
   tripRisks,
   lowLoad,
   publishBlocker,
@@ -232,4 +240,84 @@ test("every rule the engine names reads as words, never as a code", () => {
   }
   assert.equal(ruleLabel("R-NOPE-99"), "Another rule", "an unknown rule is not shown raw");
   assert.equal(ruleLabel(null), "");
+});
+
+// ---- time to spare before a window closes (roadmap T1-01) ---------------------
+
+test("a stop's spare time is the minutes from planned arrival to window close, toned at 30 and 15", () => {
+  const at = (plannedArrival: string, windowClose: string) => ({ plannedArrival, windowClose });
+  assert.deepEqual(stopSlack(at("04:10:00", "08:00:00")), { minutes: 230, tone: "low" });
+  assert.deepEqual(stopSlack(at("07:31:00", "08:00:00")), { minutes: 29, tone: "watch" });
+  assert.deepEqual(stopSlack(at("07:45:00", "08:00:00")), { minutes: 15, tone: "watch" });
+  assert.deepEqual(stopSlack(at("07:46:00", "08:00:00")), { minutes: 14, tone: "high" });
+  assert.deepEqual(stopSlack(at("08:05:00", "08:00:00")), { minutes: -5, tone: "high" });
+  assert.equal(stopSlack(at("04:10:00", "")), null);
+  assert.equal(minutesOfDay("23:59"), 1439);
+});
+
+test("a trip has as little to spare as its tightest stop, and the tight stops list chilled first", () => {
+  const s = (orderId: string, arrival: string, close: string): StopView => ({ ...stop(orderId, `OUT-${orderId}`, 1), plannedArrival: arrival, windowClose: close });
+  const p = plan(
+    [
+      trip("t-amb", "VEH001", 1, "5", { temperature: "ambient", stops: [s("a", "06:00:00", "06:10:00")] }),
+      trip("t-chl", "VEH002", 1, "5", { stops: [s("b", "04:00:00", "08:00:00"), s("c", "07:40:00", "08:00:00")] }),
+    ],
+    [],
+  );
+  assert.deepEqual(slackByTrip(p).get("t-chl"), { minutes: 20, tone: "watch" });
+  assert.equal(slackByStop(p).get("b")?.minutes, 240);
+  assert.deepEqual(tightStops(p).map((t) => t.stop.orderId), ["c", "a"]);
+  assert.deepEqual(tightTrips(p), { tight: 1, watch: 1 });
+});
+
+test("spare time reads in plain words", () => {
+  assert.equal(slackLabel({ minutes: 12, tone: "high" }), "12 min to spare");
+  assert.equal(slackLabel({ minutes: 0, tone: "high" }), "No time to spare");
+  assert.equal(slackLabel({ minutes: -5, tone: "high" }), "Past the window by 5 min");
+});
+
+test("a risk's reasons read as words, and a code the screen does not know says nothing (MF-08)", async () => {
+  const { reasonText } = await import("../src/roles/dispatcher/data/planViews.ts");
+  assert.equal(reasonText({ code: "TIGHT_WINDOW", value: 14, of: 0 }), "only 14 min before the window closes");
+  assert.equal(reasonText({ code: "TIGHT_WINDOW", value: 0, of: 0 }), "planned at or after the window closes");
+  assert.equal(reasonText({ code: "LATE_IN_ROUTE", value: 6, of: 0 }), "stop 6 of the trip, where delays build up");
+  assert.equal(reasonText({ code: "OUTLET_HISTORY", value: 3, of: 6 }), "late on 3 of its last 6 visits");
+  assert.equal(reasonText({ code: "SOMETHING_NEW", value: 1, of: 0 }), null);
+});
+
+
+// Roadmap MF-07, R-ML-19: how fresh the road conditions behind the predictions are, said only when it matters.
+test("the road conditions are mentioned only for a day past them, or when none are known", () => {
+  const p = (until: string | null | undefined) =>
+    ({ scoring: {} as PlanPredictionsView["scoring"], stops: [], ...(until === undefined ? {} : { roadConditionsUntil: until }) }) as PlanPredictionsView;
+  assert.equal(roadConditionsNote(p("2026-06-28"), "2026-10-05"), "road data ends Sun 28 Jun");
+  assert.equal(roadConditionsNote(p("2026-06-28"), "2026-06-28"), null);
+  assert.equal(roadConditionsNote(p(null), "2026-10-05"), "no road data");
+  assert.equal(roadConditionsNote(p(undefined), "2026-10-05"), null, "an older server that does not say");
+});
+
+
+// Roadmap T2B-01: the deferral policy in words, never raw codes.
+test("each key of the deferral policy reads as a rule and why, in the order given", async () => {
+  const { policyLines } = await import("../src/roles/dispatcher/data/priority.ts");
+  const lines = policyLines(["PRIOR_SKIP", "FRESH", "SOMETHING_NEW"]);
+  assert.equal(lines[0]!.rule, "Deferred on an earlier run");
+  assert.equal(lines[1]!.why, "perishable, and it sells in the morning");
+  assert.deepEqual(lines[2], { rule: "Something new", why: null });
+});
+
+
+// Roadmap AI-1 and AI-2: the solver's answers in words, nothing worked out here.
+test("the closest place, the smallest change and a vehicle's what-if read as plain sentences", async () => {
+  const { fitWords } = await import("../src/roles/dispatcher/data/explain.ts");
+  const { whatIfWords } = await import("../src/roles/dispatcher/data/whatIf.ts");
+  const base = { orderId: "o", orderRef: "R", outletId: "OUT1", fits: false, placesChecked: 4,
+    closest: { vehicleId: "VEH036", tripNumber: 2, joins: true, failed: [{ ruleId: "R-PLN-06", passed: false, reason: "weight 1,095.7 kg exceeds 1,040 kg", slack: "-55.7" }] } };
+  const none = fitWords({ ...base, swap: null });
+  assert.match(none.closest ?? "", /^VEH036, trip 2, joining the trip already planned\. .*weight 1,095.7 kg exceeds 1,040 kg$/);
+  assert.equal(none.change, "No single swap makes room there: it needs more room on a vehicle, another vehicle, or a later day.");
+  assert.deepEqual(fitWords({ ...base, fits: true, closest: null, swap: null }), { closest: null, change: null });
+  const same = whatIfWords({ planId: "p", vehicleId: "VEH035", servedBefore: 74, servedAfter: 74, chilledM3Before: "118.8", chilledM3After: "118.8",
+    vehiclesBefore: 13, vehiclesAfter: 13, tripsBefore: 26, tripsAfter: 26, nowServed: [], nowDeferred: [] });
+  assert.equal(same.whatIf, "It changes nothing on this day: the same 74 orders are served.");
 });

@@ -42,10 +42,17 @@ public class IssueDataQuery implements IssueQuery {
   private final JdbcIssueRepository issues;
   private final AuditLog audit;
 
-  public IssueDataQuery(Database database, JdbcIssueRepository issues, AuditLog audit) {
+  private final com.waypoint.dispatch.issues.infrastructure.JdbcWriteOffs writeOffs;
+  private final com.waypoint.dispatch.issues.infrastructure.JdbcDecisionRequests decisions;
+
+  public IssueDataQuery(Database database, JdbcIssueRepository issues, AuditLog audit,
+      com.waypoint.dispatch.issues.infrastructure.JdbcWriteOffs writeOffs,
+      com.waypoint.dispatch.issues.infrastructure.JdbcDecisionRequests decisions) {
     this.database = database;
     this.issues = issues;
     this.audit = audit;
+    this.writeOffs = writeOffs;
+    this.decisions = decisions;
   }
 
   // ---- contract: as the ambient actor --------------------------------------
@@ -105,6 +112,25 @@ public class IssueDataQuery implements IssueQuery {
         });
   }
 
+  /** FF-03: the write-offs recorded against an issue the actor can see, oldest first. */
+  public List<com.waypoint.dispatch.issues.contract.IssueViews.WriteOffView> writeOffs(Actor actor, UUID issueId) {
+    return read(
+        actor.userId(),
+        () -> {
+          if (issues.find(issueId).isEmpty()) {
+            throw notFound(issueId);
+          }
+          java.math.BigDecimal limit = InquiryHandlers.depotLimit(issues, Instant.now());
+          return writeOffs.ofIssue(issueId).stream()
+              .map(w -> new com.waypoint.dispatch.issues.contract.IssueViews.WriteOffView(
+                  w.writeOffId(), w.issueId(), w.outcome(), w.valueLkr(), w.techLine(),
+                  com.waypoint.dispatch.issues.domain.WriteOffRules.needsHead(w.valueLkr(), w.techLine(), limit),
+                  w.attachmentIds(), w.recordedBy(), w.recordedAt(), w.status(), w.decidedBy(), w.decidedAt(),
+                  w.decisionNote(), w.rowVersion()))
+              .toList();
+        });
+  }
+
   /** Every issue about a subject the actor can see; others' issues are simply not in scope. */
   public List<IssueView> issuesFor(Actor actor, SubjectRef subject) {
     if (subject.type() == null || !Issue.SUBJECT_TYPES.contains(subject.type())) {
@@ -118,6 +144,16 @@ public class IssueDataQuery implements IssueQuery {
 
   private UUID ambient() {
     return database.ambientActor().orElse(null);
+  }
+
+  /**
+   * FF-09: the day's questions asked of stores, newest first. Row-level security
+   * decides the rows: a depot's for the dispatcher who oversees it, a store's own
+   * outlet's for its manager, nothing for anyone else.
+   */
+  public List<com.waypoint.dispatch.issues.contract.IssueViews.DecisionView> decisions(
+      Actor actor, java.time.LocalDate serviceDate, java.util.Optional<String> depotCode) {
+    return read(actor.userId(), () -> decisions.ofDay(serviceDate, depotCode));
   }
 
   private <T> T read(UUID actorId, Supplier<T> work) {

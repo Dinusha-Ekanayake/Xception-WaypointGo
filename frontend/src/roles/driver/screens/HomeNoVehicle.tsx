@@ -2,382 +2,19 @@
 
 import { useState, useRef, useEffect } from "react";
 import { type ReportedVehicleStatus, type VehicleView } from "@shared/domain/types";
-import { isUnread, kindOf } from "@shared/notifications/inbox";
+import { isUnread, kindOf, noteColor } from "@shared/notifications/inbox";
 import type { Inbox } from "@shared/notifications/useInbox";
-import { cx, useDeviceLang, useScrollMemory, VoiceNote } from "@shared/ui";
-import { voiceUrl } from "@shared/messaging/useThread";
+import { cx, useDeviceLang, useScrollMemory, VoiceNotice } from "@shared/ui";
+import { ScrollRevealCard, useRubberBandScroll } from "@shared/ui/scrollReveal";
 import { clock, countdown, dayLabel, hhmm } from "../../../shared/wording/index.ts";
 import type { TripStatus } from "../data/stopView.ts";
 import type { NextRun } from "../data/run.ts";
+import type { FuelPassState } from "../data/fuelPass.ts";
 import { DriverHeader, VoiceMessagePlayer } from "../ui.tsx";
 import FuelPassSheet from "./FuelPassSheet.tsx";
 import { useCappedScroll } from "./cappedScroll.ts";
+import { useT } from "../i18n.tsx";
 
-/**
- * Apple UIScrollView rubber-band resistance formula:
- * f(x) = (x * dimension * c) / (dimension + c * x)
- * where c is Apple's standard rubber band coefficient (0.55).
- */
-function appleRubberBand(offset: number, dimension = 600, coefficient = 0.55): number {
-  const abs = Math.abs(offset);
-  const damped = (abs * dimension * coefficient) / (dimension + coefficient * abs);
-  return offset < 0 ? -damped : damped;
-}
-
-function useRubberBandScroll() {
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-  const [pullY, setPullY] = useState(0);
-  const [isPulling, setIsPulling] = useState(false);
-  const [topFadeSize, setTopFadeSize] = useState(0);
-  const [bottomFadeSize, setBottomFadeSize] = useState(0);
-  // Once the voice list moves, the driver card above it folds up so the voices have the screen.
-  const [compact, setCompact] = useState(false);
-
-  // Gesture tracking
-  const overshootStartY = useRef<number | null>(null);
-  const isMouseDown = useRef(false);
-  const rawWheelOvershoot = useRef(0);
-  const wheelReleaseTimer = useRef<NodeJS.Timeout | null>(null);
-  // A trackpad flick keeps sending wheel events after the list reaches an edge.
-  // Only a gesture that began at the edge pulls the list; momentum that arrives
-  // there must not, or the list is held pushed down for as long as it lasts.
-  const lastWheelAt = useRef(0);
-  const wheelBeganInside = useRef(false);
-
-  const updateMask = (el: HTMLElement) => {
-    const FADE_DISTANCE = 40;
-    // Top fade: strictly 0 at the very top (scrollTop === 0), scaling up to 40px as user scrolls down
-    const top = Math.min(FADE_DISTANCE, Math.max(0, el.scrollTop));
-    const remaining = el.scrollHeight - el.scrollTop - el.clientHeight;
-    const bottom = Math.min(FADE_DISTANCE, Math.max(0, remaining));
-    setTopFadeSize((prev) => (prev !== top ? top : prev));
-    setBottomFadeSize((prev) => (prev !== bottom ? bottom : prev));
-    const folded = el.scrollTop > 16;
-    setCompact((prev) => (prev !== folded ? folded : prev));
-  };
-
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    updateMask(el);
-    const onScroll = () => updateMask(el);
-    el.addEventListener("scroll", onScroll, { passive: true });
-
-    const ro = new ResizeObserver(() => {
-      updateMask(el);
-    });
-    ro.observe(el);
-    return () => {
-      el.removeEventListener("scroll", onScroll);
-      ro.disconnect();
-      if (wheelReleaseTimer.current) clearTimeout(wheelReleaseTimer.current);
-    };
-  }, []);
-
-  const handleScroll = () => {
-    // The event's current target is not always this list, so read the ref.
-    const el = scrollRef.current;
-    if (el) updateMask(el);
-  };
-
-  // 1. Touch Gesture Handling
-  const handleTouchStart = () => {
-    overshootStartY.current = null;
-    setIsPulling(false);
-  };
-
-  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
-    const el = scrollRef.current;
-    if (!el || !e.touches[0]) return;
-    const currentY = e.touches[0].clientY;
-    const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight);
-
-    // Pulling down at top
-    if (el.scrollTop <= 0) {
-      if (overshootStartY.current === null) {
-        overshootStartY.current = currentY;
-      }
-      const rawOvershoot = currentY - overshootStartY.current;
-      if (rawOvershoot > 0) {
-        const damped = appleRubberBand(rawOvershoot, el.clientHeight, 0.55);
-        setIsPulling(true);
-        setPullY(damped);
-        return;
-      } else if (pullY !== 0) {
-        setPullY(0);
-        setIsPulling(false);
-      }
-    }
-    // Pulling up at bottom
-    else if (el.scrollTop >= maxScroll - 1) {
-      if (overshootStartY.current === null) {
-        overshootStartY.current = currentY;
-      }
-      const rawOvershoot = currentY - overshootStartY.current;
-      if (rawOvershoot < 0) {
-        const damped = appleRubberBand(rawOvershoot, el.clientHeight, 0.55);
-        setIsPulling(true);
-        setPullY(damped);
-        return;
-      } else if (pullY !== 0) {
-        setPullY(0);
-        setIsPulling(false);
-      }
-    }
-    // In middle of feed
-    else {
-      overshootStartY.current = null;
-      if (pullY !== 0) {
-        setPullY(0);
-        setIsPulling(false);
-      }
-    }
-  };
-
-  const handleTouchEnd = () => {
-    overshootStartY.current = null;
-    setIsPulling(false);
-    setPullY(0);
-  };
-
-  // 2. Mouse Drag Handling (for desktop testing & preview)
-  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return;
-    isMouseDown.current = true;
-    overshootStartY.current = null;
-    setIsPulling(false);
-  };
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isMouseDown.current) return;
-    const el = scrollRef.current;
-    if (!el) return;
-    const currentY = e.clientY;
-    const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight);
-
-    if (el.scrollTop <= 0) {
-      if (overshootStartY.current === null) {
-        overshootStartY.current = currentY;
-      }
-      const rawOvershoot = currentY - overshootStartY.current;
-      if (rawOvershoot > 0) {
-        const damped = appleRubberBand(rawOvershoot, el.clientHeight, 0.55);
-        setIsPulling(true);
-        setPullY(damped);
-        return;
-      } else if (pullY !== 0) {
-        setPullY(0);
-        setIsPulling(false);
-      }
-    } else if (el.scrollTop >= maxScroll - 1) {
-      if (overshootStartY.current === null) {
-        overshootStartY.current = currentY;
-      }
-      const rawOvershoot = currentY - overshootStartY.current;
-      if (rawOvershoot < 0) {
-        const damped = appleRubberBand(rawOvershoot, el.clientHeight, 0.55);
-        setIsPulling(true);
-        setPullY(damped);
-        return;
-      } else if (pullY !== 0) {
-        setPullY(0);
-        setIsPulling(false);
-      }
-    } else {
-      overshootStartY.current = null;
-      if (pullY !== 0) {
-        setPullY(0);
-        setIsPulling(false);
-      }
-    }
-  };
-
-  const handleMouseUp = () => {
-    if (!isMouseDown.current) return;
-    isMouseDown.current = false;
-    overshootStartY.current = null;
-    setIsPulling(false);
-    setPullY(0);
-  };
-
-  // 3. Mouse Wheel / Trackpad Handling
-  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight);
-
-    if (wheelReleaseTimer.current) {
-      clearTimeout(wheelReleaseTimer.current);
-    }
-
-    if (e.timeStamp - lastWheelAt.current > 150) {
-      const atEdge = (el.scrollTop <= 0 && e.deltaY < 0) || (el.scrollTop >= maxScroll - 1 && e.deltaY > 0);
-      wheelBeganInside.current = !atEdge;
-    }
-    lastWheelAt.current = e.timeStamp;
-    if (wheelBeganInside.current) {
-      if (rawWheelOvershoot.current !== 0) {
-        rawWheelOvershoot.current = 0;
-        setIsPulling(false);
-        setPullY(0);
-      }
-      return;
-    }
-
-    // Wheeling up at top
-    if (el.scrollTop <= 0 && e.deltaY < 0) {
-      rawWheelOvershoot.current += -e.deltaY * 0.85;
-      const damped = appleRubberBand(rawWheelOvershoot.current, el.clientHeight, 0.45);
-      setIsPulling(true);
-      setPullY(damped);
-
-      wheelReleaseTimer.current = setTimeout(() => {
-        setIsPulling(false);
-        setPullY(0);
-        rawWheelOvershoot.current = 0;
-      }, 70);
-    }
-    // Wheeling down at bottom
-    else if (el.scrollTop >= maxScroll - 1 && e.deltaY > 0) {
-      rawWheelOvershoot.current += -e.deltaY * 0.85;
-      const damped = appleRubberBand(rawWheelOvershoot.current, el.clientHeight, 0.45);
-      setIsPulling(true);
-      setPullY(damped);
-
-      wheelReleaseTimer.current = setTimeout(() => {
-        setIsPulling(false);
-        setPullY(0);
-        rawWheelOvershoot.current = 0;
-      }, 70);
-    }
-    // User wheeled back into normal territory while in overscroll
-    else if (rawWheelOvershoot.current !== 0) {
-      rawWheelOvershoot.current = 0;
-      setIsPulling(false);
-      setPullY(0);
-    }
-  };
-
-  const topStop = topFadeSize > 0 ? `transparent 0px, black ${topFadeSize}px` : `black 0px`;
-  const bottomStop = bottomFadeSize > 0 ? `black calc(100% - ${bottomFadeSize}px), transparent 100%` : `black 100%`;
-  const gradient = `linear-gradient(to bottom, ${topStop}, ${bottomStop})`;
-
-  const maskStyle: React.CSSProperties = {
-    WebkitMaskImage: gradient,
-    maskImage: gradient,
-  };
-
-  return {
-    scrollRef,
-    pullY,
-    isPulling,
-    compact,
-    maskStyle,
-    handlers: {
-      onScroll: handleScroll,
-      onTouchStart: handleTouchStart,
-      onTouchMove: handleTouchMove,
-      onTouchEnd: handleTouchEnd,
-      onTouchCancel: handleTouchEnd,
-      onMouseDown: handleMouseDown,
-      onMouseMove: handleMouseMove,
-      onMouseUp: handleMouseUp,
-      onMouseLeave: handleMouseUp,
-      onWheel: handleWheel,
-    },
-  };
-}
-
-function ScrollRevealCard({
-  scrollContainerRef,
-  pullY = 0,
-  children,
-}: {
-  scrollContainerRef: React.RefObject<HTMLDivElement | null>;
-  pullY?: number;
-  children: React.ReactNode;
-}) {
-  const cardRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    const el = cardRef.current;
-    const root = scrollContainerRef.current;
-    if (!el || !root) return;
-
-    let rafId: number | null = null;
-
-    const update = () => {
-      // Layout position, not the drawn one: the feed is translated while it springs
-      // back from a pull, and a card measured mid-spring kept the wrong scale.
-      const y = el.offsetTop - root.offsetTop - root.scrollTop;
-      const H = root.clientHeight;
-
-      // Top Exit Zone: only as card scrolls up past the top edge (y < 0)
-      // When resting at the top (y >= 0), it is 100% visible with zero fade
-      let topProgress = 1;
-      if (y < 0) {
-        topProgress = Math.max(0, Math.min(1, (y + 60) / 60));
-      }
-
-      // Bottom Exit/Entrance Zone: as card scrolls down past the bottom edge
-      let bottomProgress = 1;
-      if (y > H - 60) {
-        bottomProgress = Math.max(0, Math.min(1, (H - y) / 60));
-      }
-
-      if (topProgress < 1) {
-        // Exiting top: limit fade minimum to 0.5, keep scale down effect
-        const scale = 0.90 + 0.10 * topProgress;
-        const opacity = 0.50 + 0.50 * topProgress;
-        el.style.opacity = opacity.toFixed(3);
-        el.style.transform = `scale3d(${scale.toFixed(3)}, ${scale.toFixed(3)}, 1)`;
-        el.style.transformOrigin = "center top";
-      } else if (bottomProgress < 1) {
-        // Exiting/entering bottom: exact same fade minimum 0.5 and scale down to 0.90
-        const scale = 0.90 + 0.10 * bottomProgress;
-        const opacity = 0.50 + 0.50 * bottomProgress;
-        el.style.opacity = opacity.toFixed(3);
-        el.style.transform = `scale3d(${scale.toFixed(3)}, ${scale.toFixed(3)}, 1)`;
-        el.style.transformOrigin = "center bottom";
-      } else {
-        // Fully visible in center
-        el.style.opacity = "1";
-        el.style.transform = "scale3d(1, 1, 1)";
-        el.style.transformOrigin = "center center";
-      }
-    };
-
-    const onScroll = () => {
-      if (rafId) cancelAnimationFrame(rafId);
-      rafId = requestAnimationFrame(update);
-    };
-
-    update();
-    root.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll, { passive: true });
-    // The driver card above folds and unfolds while the feed scrolls, which moves
-    // and resizes this container without a scroll event; a card left in a scroll
-    // zone would stay small and faded until the next scroll.
-    const resizeObserver = new ResizeObserver(onScroll);
-    resizeObserver.observe(root);
-
-    return () => {
-      resizeObserver.disconnect();
-      root.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
-      if (rafId) cancelAnimationFrame(rafId);
-    };
-  }, [scrollContainerRef, pullY]);
-
-  return (
-    <div
-      ref={cardRef}
-      className="w-full snap-start snap-always will-change-[transform,opacity]"
-    >
-      {children}
-    </div>
-  );
-}
 
 export type DriverHomeProps = {
   driverName: string;
@@ -406,31 +43,13 @@ export type DriverHomeProps = {
   onToggleTheme?: () => void;
   hideHeader?: boolean;
   /** Opens the trip's thread, for a message notification (issue #136). */
-  onOpenMessages?: () => void;
+  /** Whose saved copies of voice messages play with no signal (R-MSG-11). */
+  accountId?: string;
+  /** Reads the vehicle's Fuel Pass, or the copy kept on this phone (FF-06b). */
+  loadFuelPass: (vehicleId: string) => Promise<FuelPassState>;
 };
 
 
-/**
- * Figma "Driver: Home" notification cards: the label and its colour by what
- * happened. A driver is routed plan published, plan revised and trip released
- * (R-NOT-08); anything else falls back to the shared label, coloured by urgency.
- */
-function driverKind(eventType: string, isNight: boolean): { label: string; color: string } {
-  const teal = isNight ? "#00BF6A" : "#0E766D";
-  switch (eventType) {
-    case "plan.published":
-      return { label: "Run published", color: "#A9A9A9" };
-    case "plan.revised":
-      return { label: "Run updated", color: teal };
-    case "trip.released":
-      return { label: "Vehicle loaded", color: teal };
-    default: {
-      const kind = kindOf(eventType);
-      const color = kind.tone === "urgent" ? "#E5484D" : kind.tone === "warning" ? "#B7791F" : kind.tone === "good" ? teal : isNight ? "#7FB3E6" : "#16324F";
-      return { label: kind.tone === "urgent" ? "Action needed" : kind.label, color };
-    }
-  }
-}
 
 /** About how long the phone takes to read a notification aloud. */
 function readingTime(text: string): string {
@@ -457,9 +76,11 @@ export default function HomeNoVehicle({
   isNight = false,
   onToggleTheme,
   hideHeader = false,
-  onOpenMessages,
+  accountId,
+  loadFuelPass,
 }: DriverHomeProps): React.JSX.Element {
   const [lang, setLang] = useDeviceLang();
+  const t = useT();
   const [activeAudioId, setActiveAudioId] = useState<string | null>(null);
   const [fuelQr, setFuelQr] = useState(false);
   const [markingRead, setMarkingRead] = useState(false);
@@ -482,7 +103,7 @@ export default function HomeNoVehicle({
     .slice(0, 2)
     .join("") || "D";
 
-  const startLabel = tripStatus === "completed" ? "Trip summary" : tripStatus === "in-progress" ? "Continue trip" : "Start trip";
+  const startLabel = t(tripStatus === "completed" ? "Trip summary" : tripStatus === "in-progress" ? "Continue trip" : "Start trip");
   const card = isNight ? "bg-[#292929]" : "bg-white";
   const ink = isNight ? "text-white" : "text-black";
   const unread = inbox.unread ?? inbox.items.filter(isUnread).length;
@@ -526,7 +147,7 @@ export default function HomeNoVehicle({
               <div className="flex flex-col min-w-0 flex-1">
                 <h1 className={cx("truncate text-[26px] font-medium leading-[33px] tracking-tight", ink)}>{driverName}</h1>
                 <p className="truncate pt-0.5 text-[13px] font-light leading-none text-[#A9A9A9]">
-                  Driver{depotName ? ` · ${depotName} depot` : ""}
+                  {depotName ? t("Driver · {depot} depot", { depot: depotName }) : t("Driver")}
                 </p>
               </div>
               {compact && stopCount > 0 && (
@@ -563,12 +184,12 @@ export default function HomeNoVehicle({
             <div className="flex flex-col gap-3.5">
             {unavailable ? (
               <p role="status" className={cx("text-[14px] leading-[18px]", ink)}>
-                {online ? "Waypoint is not answering." : "This phone is offline."} Today's trip has not been downloaded to this phone
-                yet. It appears here as soon as the connection is back.
+                {t(online ? "Waypoint is not answering." : "This phone is offline.")}{" "}
+                {t("Today's trip has not been downloaded to this phone yet. It appears here as soon as the connection is back.")}
               </p>
             ) : !vehicle ? (
               <p role="status" className={cx("text-[14px] leading-[18px]", ink)}>
-                No vehicle assigned today. Dispatch assigns your vehicle; if you expected one, ask them.
+                {t("No vehicle assigned today. Dispatch assigns your vehicle; if you expected one, ask them.")}
               </p>
             ) : (
               <>
@@ -581,7 +202,7 @@ export default function HomeNoVehicle({
                 >
                   <div className="flex items-start justify-between w-full">
                     <div className="flex flex-col">
-                      <span className={cx("text-[12px] font-light leading-[15px]", ink)}>Vehicle</span>
+                      <span className={cx("text-[12px] font-light leading-[15px]", ink)}>{t("Vehicle")}</span>
                       <span className={cx("text-[28px] font-semibold leading-[35px] tracking-tight", ink)}>{vehicle.vehicleId}</span>
                     </div>
                     <button
@@ -592,7 +213,7 @@ export default function HomeNoVehicle({
                         isNight ? "bg-[#3A3A3A] text-white" : "bg-[#B7F2ED] text-black"
                       )}
                     >
-                      Report problem
+                      {t("Report problem")}
                     </button>
                   </div>
                   <div className="flex items-center justify-between gap-3">
@@ -600,7 +221,7 @@ export default function HomeNoVehicle({
                       type="button"
                       role="switch"
                       aria-checked={vehicleStatus !== "at_workshop" && vehicleStatus !== "fault"}
-                      aria-label="Available"
+                      aria-label={t("Available")}
                       onClick={() => onVehicleStatus((vehicleStatus === "at_workshop" || vehicleStatus === "fault" ? "available" : "at_workshop") as ReportedVehicleStatus)}
                       className="flex items-center gap-2"
                     >
@@ -613,7 +234,7 @@ export default function HomeNoVehicle({
                       >
                         <span className="size-6 rounded-full bg-white shadow" />
                       </span>
-                      <span className={cx("text-[15px] font-medium", ink)}>Available</span>
+                      <span className={cx("text-[15px] font-medium", ink)}>{t("Available")}</span>
                     </button>
                     <button
                       type="button"
@@ -632,7 +253,7 @@ export default function HomeNoVehicle({
                         <rect x="11" y="14.6" width="2.4" height="2.4" rx="0.4" />
                         <rect x="14.6" y="14.6" width="2.4" height="2.4" rx="0.4" />
                       </svg>
-                      Fuel QR
+                      {t("Fuel QR")}
                     </button>
                   </div>
                 </div>
@@ -655,8 +276,8 @@ export default function HomeNoVehicle({
                   <>
                     <p role="status" className={cx("text-[14px] leading-[18px]", ink)}>
                       {nextRun?.departure
-                        ? `Today's trip on ${depotCheckIn.vehicleId} departs ${hhmm(nextRun.departure)}. Collect the vehicle and tell the loader you are at the depot.`
-                        : `Today's trip on ${depotCheckIn.vehicleId} is planned. Collect the vehicle and tell the loader you are at the depot.`}
+                        ? t("Today's trip on {vehicle} departs {time}. Collect the vehicle and tell the loader you are at the depot.", { vehicle: depotCheckIn.vehicleId, time: hhmm(nextRun.departure) })
+                        : t("Today's trip on {vehicle} is planned. Collect the vehicle and tell the loader you are at the depot.", { vehicle: depotCheckIn.vehicleId })}
                     </p>
                     <button
                       type="button"
@@ -666,16 +287,16 @@ export default function HomeNoVehicle({
                         isNight ? "bg-[#00BF6A] text-black hover:bg-[#00d878]" : "bg-[#031B08] text-white hover:bg-[#062613]"
                       )}
                     >
-                      I&apos;m at the depot
+                      {t("I'm at the depot")}
                     </button>
                   </>
                 ) : (
                   <p role="status" className={cx("text-[14px] leading-[18px]", ink)}>
                     {depotCheckIn?.done
-                      ? `At the depot with ${depotCheckIn.vehicleId}. The loader is loading it; your stops appear here when it is released.`
+                      ? t("At the depot with {vehicle}. The loader is loading it; your stops appear here when it is released.", { vehicle: depotCheckIn.vehicleId })
                       : nextRun && !nextRun.released && nextRun.vehicleId && nextRun.departure
-                        ? `Next trip ${dayLabel(nextRun.date)} · ${nextRun.vehicleId} · departs ${hhmm(nextRun.departure)}. It is planned and waiting for the loader to release it; your stops appear here then.`
-                        : `No trip planned for ${vehicle.vehicleId} today. Your stops appear here when the loader releases the vehicle.`}
+                        ? t("Next trip {day} · {vehicle} · departs {time}. It is planned and waiting for the loader to release it; your stops appear here then.", { day: dayLabel(nextRun.date), vehicle: nextRun.vehicleId, time: hhmm(nextRun.departure) })
+                        : t("No trip planned for {vehicle} today. Your stops appear here when the loader releases the vehicle.", { vehicle: vehicle.vehicleId })}
                   </p>
                 )}
               </>
@@ -699,7 +320,7 @@ export default function HomeNoVehicle({
               />
               <path d="M8.3 16.2C8.3 17.1 9.1 17.8 10 17.8C10.9 17.8 11.7 17.1 11.7 16.2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            <h2 className={cx("text-[16px] font-medium leading-none", ink)}>Notifications</h2>
+            <h2 className={cx("text-[16px] font-medium leading-none", ink)}>{t("Notifications")}</h2>
           </div>
           {unread > 0 && (
             <button
@@ -709,14 +330,14 @@ export default function HomeNoVehicle({
                 setMarkingRead(true);
                 void inbox.markAllRead(now).finally(() => setMarkingRead(false));
               }}
-              aria-label={markingRead ? "Marking all read" : `${unread} new. Mark all read`}
+              aria-label={markingRead ? t("Marking all read") : t("{n} new. Mark all read", { n: unread })}
               aria-busy={markingRead || undefined}
               className={cx(
                 "text-[12px] font-medium px-2.5 py-0.5 rounded-[34px] transition-colors disabled:cursor-wait disabled:opacity-70",
                 isNight ? "bg-[#00BF6A] text-black" : "bg-[#B7F2ED] text-black"
               )}
             >
-              {markingRead ? "Marking…" : `${unread > 99 ? "99+" : unread} new`}
+              {markingRead ? t("Marking…") : t("{n} new", { n: unread > 99 ? "99+" : unread })}
             </button>
           )}
         </div>
@@ -727,7 +348,7 @@ export default function HomeNoVehicle({
         <div
           ref={scrollRef}
           {...handlers}
-          aria-label="Notifications"
+          aria-label={t("Notifications")}
           className="h-full touch-none overflow-y-auto overscroll-contain pb-6 short:h-auto short:touch-auto short:overflow-visible no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           <div
@@ -739,12 +360,12 @@ export default function HomeNoVehicle({
           >
             {inbox.savedAt && (
               <p role="status" className="px-2 text-[13px] font-light text-[#A9A9A9]">
-                Offline · showing notifications saved on this phone
+                {t("Offline · showing notifications saved on this phone")}
               </p>
             )}
             {!inbox.savedAt && !inbox.live && inbox.online && inbox.unread !== null && (
               <p role="status" className="px-2 text-[13px] font-light text-[#A9A9A9]">
-                Live updates paused · checking every 30 s
+                {t("Live updates paused · checking every 30 s")}
               </p>
             )}
             {inbox.error && (
@@ -754,16 +375,17 @@ export default function HomeNoVehicle({
             )}
             {inbox.loading && inbox.items.length === 0 && (
               <p role="status" className="px-2 text-[14px] font-light text-[#A9A9A9]">
-                Loading notifications…
+                {t("Loading notifications…")}
               </p>
             )}
             {!inbox.loading && !inbox.error && inbox.items.length === 0 && (
               <p className="px-2 text-[14px] font-light text-[#A9A9A9]">
-                Nothing yet. Dispatch's messages about your trip appear here.
+                {t("Nothing yet. Dispatch's messages about your trip appear here.")}
               </p>
             )}
             {inbox.items.map((item) => {
-              const kind = driverKind(item.eventType, isNight);
+              // One wording and one look for every role's inbox (shared/notifications/inbox.ts).
+              const kind = { label: t(kindOf(item.eventType).label), color: noteColor(item) };
               const id = `msg-${item.notificationId}`;
               return (
                 <ScrollRevealCard key={item.notificationId} scrollContainerRef={scrollRef} pullY={pullY}>
@@ -776,16 +398,7 @@ export default function HomeNoVehicle({
                     {item.eventType === "message.posted" && item.facts?.voiceNoteId && item.subjectId ? (
                       // A voice message plays the person's own voice, never text to speech (issue #136).
                       <div className={cx("mt-1 rounded-[16px] px-2 py-1", isNight ? "bg-[#1f1f1f]" : "bg-[#F1F6F5]")}>
-                        <VoiceNote
-                          src={voiceUrl(item.subjectId, item.facts.voiceNoteId)}
-                          durationMs={item.facts.voiceDurationMs ? Number(item.facts.voiceDurationMs) : null}
-                          {...(item.facts.voicePeaks ? { peaks: item.facts.voicePeaks.split(",").map((p) => Number(p) / 100) } : {})}
-                          seed={item.facts.voiceNoteId}
-                          tone="theirs"
-                          label={`Voice message from ${item.title}`}
-                          heading={item.title}
-                          caption={item.body}
-                        />
+                        <VoiceNotice item={item} tr={t} {...(accountId ? { accountId } : {})} />
                       </div>
                     ) : (
                       <VoiceMessagePlayer
@@ -808,14 +421,14 @@ export default function HomeNoVehicle({
             })}
             {inbox.hasMore && (
               <button type="button" onClick={inbox.more} className={cx("py-2 text-[14px] font-medium underline", ink)}>
-                Show older
+                {t("Show older")}
               </button>
             )}
           </div>
         </div>
       </div>
       {fuelQr && vehicle && (
-        <FuelPassSheet vehicleId={vehicle.vehicleId} kind={vehicle.van ? "Van" : "Truck"} onClose={() => setFuelQr(false)} />
+        <FuelPassSheet vehicleId={vehicle.vehicleId} kind={vehicle.van ? "Van" : "Truck"} load={loadFuelPass} onClose={() => setFuelQr(false)} />
       )}
     </div>
   );

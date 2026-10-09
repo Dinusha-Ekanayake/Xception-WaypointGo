@@ -147,3 +147,20 @@ export function McpButton({ url, compact = false, className }: { url: string | n
     </>
   );
 }
+
+/**
+ * "Connect AI assistant" for a role's Settings, shown only to someone allowed to
+ * connect (R-IAM-40): every dispatcher by default, and anyone else only when an
+ * administrator granted it. The server answers; with no answer, or no, nothing
+ * shows. Mount it only while Settings is open, so it asks only then.
+ */
+export function McpSettingsRow({ className }: { className: string }): React.JSX.Element | null {
+  const access = useResource((signal) => request<{ connect: boolean }>("/api/mcp/access", { signal }), "mcp-access");
+  const allowed = access.data?.connect === true;
+  const resource = useResource(
+    allowed ? (signal: AbortSignal) => request<{ resource: string }>("/api/oauth/protected-resource", { signal }) : null,
+    allowed ? "mcp-resource" : "",
+  );
+  if (!allowed) return null;
+  return <McpButton url={resource.data?.resource ?? null} className={className} />;
+}

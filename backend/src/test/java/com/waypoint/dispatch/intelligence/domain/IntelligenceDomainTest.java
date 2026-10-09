@@ -99,6 +99,47 @@ class IntelligenceDomainTest {
   }
 
   @Test
+  void aNewDepotIsForecastFromTheWeeksItHasNotAnEighthOfThem() {
+    LocalDate origin = LocalDate.of(2026, 10, 5); // a Monday
+    List<LocalDate> week = origin.datesUntil(origin.plusDays(6)).toList(); // Mon-Sat
+    // One week of orders: last Monday 10 m3. Dividing by eight gave 1.25.
+    List<DailyVolume> oneWeek = List.of(new DailyVolume(origin.minusWeeks(1), d("10"), d("4")));
+    WeekVolume f = DeterministicEstimator.weekForecast(oneWeek, origin, week, origin.minusWeeks(1));
+    assertEquals(d("10.0000"), f.totalM3(), "one week behind the depot, so divided by one");
+    assertEquals(d("4.0000"), f.chilledM3());
+
+    // Three weeks of orders, the same 10 m3 each Monday: a mean of 10, not 30 / 8.
+    List<DailyVolume> threeWeeks = new ArrayList<>();
+    for (int w = 1; w <= 3; w++) threeWeeks.add(new DailyVolume(origin.minusWeeks(w), d("10"), d("0")));
+    assertEquals(d("10.0000"), DeterministicEstimator.weekForecast(threeWeeks, origin, week, origin.minusWeeks(3)).totalM3());
+
+    // A depot with more than eight weeks behind it divides by eight, as before.
+    List<DailyVolume> long_ = new ArrayList<>();
+    for (int w = 1; w <= 8; w++) long_.add(new DailyVolume(origin.minusWeeks(w), d("10"), d("0")));
+    assertEquals(d("10.0000"), DeterministicEstimator.weekForecast(long_, origin, week, origin.minusWeeks(20)).totalM3());
+
+    // No orders at all: nothing, never a guess.
+    assertEquals(d("0.0000"), DeterministicEstimator.weekForecast(List.of(), origin, week, null).totalM3());
+  }
+
+  @Test
+  void aWeeksCapacityIsEachDaysOwnFleetAndItsFewestVehicles() {
+    var reefer = new FleetCapacity.Vehicle(d("20"), true);
+    var dry = new FleetCapacity.Vehicle(d("30"), false);
+    // Monday every vehicle, Tuesday the reefer is in the workshop; two trips a day.
+    FleetCapacity.Week w = FleetCapacity.weeklyByDay(List.of(
+        new FleetCapacity.Day(List.of(reefer, dry), 2),
+        new FleetCapacity.Day(List.of(dry), 2)));
+    assertEquals(d("160.00"), w.fleetM3(), "(20 + 30) x 2 on Monday, 30 x 2 on Tuesday");
+    assertEquals(d("40.00"), w.refrigeratedM3(), "the reefer only on Monday");
+    assertEquals(1, w.vehicles(), "the fewest free on any day");
+    assertEquals(0, w.refrigeratedVehicles(), "no reefer on Tuesday, so the week cannot count on one");
+    FleetCapacity.Week none = FleetCapacity.weeklyByDay(List.of());
+    assertEquals(0, none.vehicles());
+    assertEquals(d("0.00"), none.fleetM3());
+  }
+
+  @Test
   void aClosedDayContributesNothing() {
     LocalDate origin = LocalDate.of(2026, 10, 5);
     List<DailyVolume> history = new ArrayList<>();
@@ -128,6 +169,21 @@ class IntelligenceDomainTest {
     assertGate(ModelGate.decide("delivery_risk", true, Optional.of("m@1"), Served.none()), "no delivery_risk model loaded");
     assertGate(ModelGate.decide("delivery_risk", true, Optional.of("m@1"), Served.loaded("m@2")),
         "has m@2 but the active model is m@1");
+  }
+
+  @Test
+  void whereCompetitionModelsAreNotAllowedOneNeverAnswersButOthersDo() {
+    // R-ML-09, roadmap MF-01: production sets ML_ALLOW_DATATHON=false.
+    String datathon = "datathon-task2a@2026.1.1";
+    assertGate(ModelGate.decide("demand_forecast", true, Optional.of(datathon), Served.loaded(datathon), false),
+        "competition data are not allowed");
+    assertTrue(ModelGate.decide("demand_forecast", true, Optional.of(datathon), Served.loaded(datathon), true).useModel(),
+        "allowed on the judge build, CI and preview");
+    String ours = "waypoint-forecast@2027.1.0";
+    assertTrue(ModelGate.decide("demand_forecast", true, Optional.of(ours), Served.loaded(ours), false).useModel(),
+        "a model trained on our own deliveries is not affected");
+    assertTrue(ModelGate.competitionModel("datathon-task1-blend"));
+    assertFalse(ModelGate.competitionModel("waypoint-forecast"));
   }
 
   private static void assertGate(Decision d, String reason) {

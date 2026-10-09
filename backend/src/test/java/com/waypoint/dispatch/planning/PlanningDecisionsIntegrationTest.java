@@ -224,6 +224,52 @@ class PlanningDecisionsIntegrationTest extends PlanningIntegrationSupport {
     assertEquals("SERVED", allocation(draft(), a).get("decision").asText(), "nothing half done");
   }
 
+  // ---- AI-1 and AI-2 previews ---------------------------------------------------
+
+  @Test
+  void whyADeferredOrderCannotGoIsPreviewedAndOnlyInScope() throws Exception {
+    // Roadmap AI-2: deferred by hand, so a place still passes every rule.
+    UUID a = demand("ambient");
+    demand("ambient");
+    UUID planId = UUID.fromString(generate(dispatcher, 200).get("planId").asText());
+    nextPlan(send(dispatcher, defer(planId, 1L, a, "outlet closed for stocktake"), 200));
+
+    JsonNode fit = mapper.readTree(read(dispatcher, "/api/plans/preview/fit?order=" + a, 200));
+    assertEquals(a.toString(), fit.get("orderId").asText());
+    assertTrue(fit.get("fits").asBoolean(), "room exists; the dispatcher chose to defer: " + fit);
+    assertTrue(fit.get("placesChecked").asInt() > 0);
+    assertTrue(fit.get("closest").isNull() && fit.get("swap").isNull(), fit.toString());
+    read(elsewhere, "/api/plans/preview/fit?order=" + a, 404);
+  }
+
+  @Test
+  void aVehicleBackFromTheWorkshopIsPreviewedByTwoRunsAndOnlyInScope() throws Exception {
+    // Roadmap AI-1: one of the depot's vehicles is in the workshop on the day.
+    String out = reference.availableVehicles(depot, serviceDate, null).get(0).vehicleId();
+    send(dispatcher, envelope("vehicle:SetDayStatus", null, "{\"vehicleId\":\"" + out + "\",\"status\":\"in_workshop\","
+        + "\"serviceDate\":\"" + serviceDate + "\",\"reason\":\"brake noise\"}"), 200);
+    demand("ambient");
+    demand("chilled");
+    UUID planId = UUID.fromString(generate(dispatcher, 200).get("planId").asText());
+
+    JsonNode choices = mapper.readTree(read(dispatcher, "/api/plans/" + planId + "/what-if/vehicles", 200));
+    List<String> ids = new ArrayList<>();
+    choices.forEach(c -> ids.add(c.get("vehicleId").asText()));
+    assertTrue(ids.contains(out), "the vehicle in the workshop is a choice: " + ids);
+    read(elsewhere, "/api/plans/" + planId + "/what-if/vehicles", 404);
+    JsonNode w = mapper.readTree(read(dispatcher, "/api/plans/" + planId + "/what-if?vehicle=" + out, 200));
+    assertEquals(out, w.get("vehicleId").asText());
+    assertTrue(w.get("servedAfter").asInt() >= w.get("servedBefore").asInt(), w.toString());
+    assertEquals(w.get("servedAfter").asInt() - w.get("servedBefore").asInt(),
+        w.get("nowServed").size() - w.get("nowDeferred").size());
+
+    String available = reference.availableVehicles(depot, serviceDate, null).get(0).vehicleId();
+    String refused = read(dispatcher, "/api/plans/" + planId + "/what-if?vehicle=" + available, 422);
+    assertTrue(refused.contains("already available"), refused);
+    read(dispatcher, "/api/plans/" + planId + "/what-if?vehicle=NOT-A-VEHICLE", 422);
+    read(elsewhere, "/api/plans/" + planId + "/what-if?vehicle=" + out, 404);
+  }
+
   // ---- keep deferred -----------------------------------------------------------
 
   @Test

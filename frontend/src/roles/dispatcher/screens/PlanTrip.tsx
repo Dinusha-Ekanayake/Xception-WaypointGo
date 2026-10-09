@@ -6,7 +6,7 @@ import { Drawer, Icon, Pill, Popover, PrimaryButton } from "@shared/ui";
 import { checkLabel, hhmm, temperatureLabel } from "@shared/wording";
 import { typeLabel } from "../data/fleet.ts";
 import { after, type TripLoad } from "../data/plan.ts";
-import { riskLabel, riskTone, stopShare, tightLine, type StopRisk } from "../data/planViews.ts";
+import { riskLabel, riskTone, slackLabel, stopShare, tightLine, type Slack, type StopRisk } from "../data/planViews.ts";
 import EditTrip from "./EditTrip.tsx";
 import type { PlanActions } from "./planActions.ts";
 
@@ -26,6 +26,7 @@ export default function PlanTrip({
   canReplan,
   actions,
   risks = null,
+  slack = null,
   onClose,
 }: {
   plan: PlanView;
@@ -36,6 +37,8 @@ export default function PlanTrip({
   canReplan: boolean;
   /** Each stop's late risk, keyed by order, once the published plan is scored (#119). */
   risks?: Map<string, StopRisk> | null;
+  /** Each stop's minutes before its window closes, keyed by order, from the planned times (T1-01). */
+  slack?: Map<string, Slack> | null;
   /** Closes the drawer: a click outside, Escape or its close button. */
   onClose: () => void;
   actions: PlanActions;
@@ -87,7 +90,7 @@ export default function PlanTrip({
         </Popover>
       </div>
 
-      <Timeline plan={plan} load={load} orders={orders} vehicle={vehicle} risks={risks} onLock={editable ? (orderId, held) => void actions.lock(orderId, held) : undefined} />
+      <Timeline plan={plan} load={load} orders={orders} vehicle={vehicle} risks={risks} slack={slack} onLock={editable ? (orderId, held) => void actions.lock(orderId, held) : undefined} />
       </div>
       {(editable || canReplan) && (
         <div className="sticky bottom-0 flex flex-col bg-go-card px-6 pt-2 pb-6">
@@ -129,6 +132,7 @@ function Timeline({
   orders,
   vehicle,
   risks,
+  slack,
   onLock,
 }: {
   plan: PlanView;
@@ -136,6 +140,7 @@ function Timeline({
   orders: Map<string, OrderView>;
   vehicle: VehicleView | undefined;
   risks: Map<string, StopRisk> | null;
+  slack: Map<string, Slack> | null;
   /** Present on an open draft: locks or unlocks a stop's order. */
   onLock?: (orderId: string, locked: boolean) => void;
 }): React.JSX.Element {
@@ -159,6 +164,7 @@ function Timeline({
             note={stop.windowOpen && stop.windowClose ? `${hhmm(stop.windowOpen)}-${hhmm(stop.windowClose)}` : "No window"}
             aside={share === null ? undefined : `${share}%`}
             risk={risks?.get(stop.orderId)}
+            slack={slack?.get(stop.orderId)}
             lock={onLock || held ? { held, onToggle: onLock ? () => onLock(stop.orderId, !held) : undefined, name: stop.outletId } : undefined}
           />
         );
@@ -181,6 +187,7 @@ function Row({
   note,
   aside,
   risk,
+  slack,
   lock,
   first = false,
   last = false,
@@ -191,6 +198,7 @@ function Row({
   note?: string;
   aside?: string;
   risk?: StopRisk;
+  slack?: Slack;
   lock?: { held: boolean; onToggle?: () => void; name: string };
   first?: boolean;
   last?: boolean;
@@ -205,11 +213,22 @@ function Row({
       <span className="min-w-0 flex-1 py-1.5">
         <span className="block truncate text-[14px] leading-5 font-medium text-go-ink">{title}</span>
         {note && <span className="block text-xs text-go-secondary">{note}</span>}
+        {/* MF-08: why it is at risk, when it is, in plain words. */}
+        {risk && riskTone(risk.percent) !== "low" && risk.reasons && risk.reasons.length > 0 && (
+          <span className="block text-xs text-go-secondary" data-testid="risk-reasons">
+            {`Why: ${risk.reasons.join(" · ")}`}
+          </span>
+        )}
       </span>
       <span className="flex shrink-0 items-start gap-1.5 py-1.5">
         {risk && (
           <span title="Chance this stop arrives after its window">
             <Pill tone={RISK_PILL[riskTone(risk.percent)]}>{riskLabel(risk)}</Pill>
+          </span>
+        )}
+        {!risk && slack && slack.tone !== "low" && (
+          <span title="Minutes between the planned arrival and the window closing">
+            <Pill tone={RISK_PILL[slack.tone]}>{slackLabel(slack)}</Pill>
           </span>
         )}
         {aside && (

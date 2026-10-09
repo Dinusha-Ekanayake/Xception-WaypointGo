@@ -120,10 +120,51 @@ class PlanGenerationQueueIntegrationTest extends PlanningIntegrationSupport {
   }
 
   @Test
+  void aWorkerWhoseClaimWasTakenOverCannotOverwriteTheNewWorkersResult() throws Exception {
+    // F-11: the attempt a worker claimed is its claim token.
+    demand("ambient");
+    UUID jobId = UUID.fromString(queue().get("jobId").asText());
+    Instant now = Instant.now();
+    JobRow slow = database.asSystem(ModuleRole.PLANNING, () -> jobs.claim(now, Duration.ofMinutes(2))).orElseThrow();
+    JobRow fresh = database.asSystem(ModuleRole.PLANNING, () -> jobs.claim(now.plusSeconds(180), Duration.ofMinutes(2)))
+        .orElseThrow();
+
+    assertEquals(0, (int) database.asSystem(ModuleRole.PLANNING,
+        () -> jobs.failed(jobId, slow.attempts(), "the slow worker gave up", now.plusSeconds(200))));
+    assertEquals(0, (int) database.asSystem(ModuleRole.PLANNING, () -> jobs.requeue(jobId, slow.attempts(), "again")));
+    assertEquals("running", job(jobId).status(), "the slow worker changed nothing");
+
+    assertEquals(1, (int) database.asSystem(ModuleRole.PLANNING,
+        () -> jobs.failed(jobId, fresh.attempts(), "the new worker's verdict", now.plusSeconds(210))));
+    assertEquals("failed", job(jobId).status());
+    assertEquals(0, (int) database.asSystem(ModuleRole.PLANNING, () -> jobs.requeue(jobId, fresh.attempts(), "too late")),
+        "a finished job is not taken back to the queue");
+  }
+
+  private JobRow job(UUID jobId) {
+    return database.asSystem(ModuleRole.PLANNING, () -> jobs.find(jobId)).orElseThrow();
+  }
+
+  @Test
   void anotherDepotsDispatcherCannotReadTheJob() throws Exception {
     demand("ambient");
     String jobId = queue().get("jobId").asText();
     read(elsewhere, "/api/plans/jobs/" + jobId + "?depot=" + depot, 403);
     read(elsewhere, "/api/plans/jobs?depot=" + depot + "&date=" + serviceDate, 403);
+  }
+
+  @Test
+  void theLiveBoardStreamOpensForTheDispatchersDepotAndRefusesAnother() throws Exception {
+    // F-07b: a depot outside the reader's scope is 403 and an audit row, never a silent stream.
+    org.springframework.test.web.servlet.MvcResult open =
+        http.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/changes/stream?depot=" + depot).cookie(dispatcher))
+            .andReturn();
+    assertEquals(200, open.getResponse().getStatus());
+    assertTrue(open.getRequest().isAsyncStarted(), "the stream stays open");
+
+    org.springframework.test.web.servlet.MvcResult refused =
+        http.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/changes/stream?depot=" + depot).cookie(elsewhere))
+            .andReturn();
+    assertEquals(403, refused.getResponse().getStatus(), refused.getResponse().getContentAsString());
   }
 }

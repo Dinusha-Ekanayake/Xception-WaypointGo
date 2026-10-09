@@ -83,6 +83,12 @@ class ExecutionIntegrationTest {
   static final String PASSWORD = "OnTheRoad2026!";
   static final byte[] PNG = png(40);
 
+  @Autowired com.waypoint.dispatch.execution.application.EtaRefreshJob etaJob;
+  @Autowired com.waypoint.dispatch.execution.infrastructure.JdbcDeliveryRepository deliveryRepository;
+  @Autowired com.waypoint.dispatch.platform.messaging.ChangeSignals changeSignals;
+  @Autowired com.waypoint.dispatch.intelligence.application.OutcomeJob outcomeJob;
+  @Autowired com.waypoint.dispatch.referencedata.infrastructure.ReferenceCache referenceCache;
+  @Autowired com.waypoint.dispatch.referencedata.application.ReferenceBootstrap referenceBootstrap;
   @Autowired MockMvc http;
   @Autowired ObjectMapper mapper;
   @Autowired Migrator migrator;
@@ -629,6 +635,203 @@ class ExecutionIntegrationTest {
     assertEquals(1, outbox("eta.changed", mallStop));
   }
 
+  @Test
+  void aDriversStepReachesTheLiveScreensOfItsDepotOnly() throws Exception {
+    // F-07b: a delivery event names no depot itself; the handler names it, so only this depot re-reads.
+    java.util.List<String> mine = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+    java.util.List<String> others = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+    Runnable stopMine = changeSignals.listen(java.util.Set.of(depot), listener(mine));
+    Runnable stopOthers = changeSignals.listen(java.util.Set.of("NOT-" + depot), listener(others));
+    try {
+      at("05:20");
+      send(driver, "delivery:RecordArrival", 1L, stop(stopA), 200);
+      long until = System.currentTimeMillis() + 3000;
+      while (!mine.contains("delivery|" + depot) && System.currentTimeMillis() < until) {
+        Thread.sleep(50);
+      }
+      assertTrue(mine.contains("delivery|" + depot), "heard: " + mine);
+      assertFalse(others.stream().anyMatch(c -> c.startsWith("delivery|")), "another depot re-read: " + others);
+    } finally {
+      stopMine.run();
+      stopOthers.run();
+    }
+  }
+
+  @Test
+  void anArrivalReachesTheLiveScreenOfItsStoreOnly() throws Exception {
+    // B-04: a store re-reads when a change names its outlet, and hears the topic alone.
+    java.util.List<String> mine = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+    java.util.List<String> elsewhere = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+    Runnable stopMine = changeSignals.listen(java.util.Set.of(), java.util.Set.of(OUTLET), listener(mine));
+    Runnable stopElsewhere = changeSignals.listen(java.util.Set.of(), java.util.Set.of(OTHER_DEPOT_OUTLET), listener(elsewhere));
+    try {
+      at("05:20");
+      send(driver, "delivery:RecordArrival", 1L, stop(stopA), 200);
+      long until = System.currentTimeMillis() + 3000;
+      while (!mine.contains("delivery|null") && System.currentTimeMillis() < until) {
+        Thread.sleep(50);
+      }
+      assertTrue(mine.contains("delivery|null"), "heard, without the depot: " + mine);
+      assertTrue(elsewhere.isEmpty(), "another store re-read: " + elsewhere);
+    } finally {
+      stopMine.run();
+      stopElsewhere.run();
+    }
+
+    // The stream itself: an outlet outside the manager's scope is refused, never a silent stream.
+    read(manager, "/api/changes/stream?outlet=" + OTHER_DEPOT_OUTLET, 403);
+    read(manager, "/api/changes/stream?outlet=" + OUTLET + "&depot=" + depot, 422);
+    read(manager, "/api/changes/stream?outlet=" + OUTLET, 200);
+  }
+
+  private static com.waypoint.dispatch.platform.messaging.ChangeSignals.Listener listener(java.util.List<String> heard) {
+    return new com.waypoint.dispatch.platform.messaging.ChangeSignals.Listener() {
+      @Override
+      public void changed(String topic, String depot) {
+        heard.add(topic + "|" + depot);
+      }
+
+      @Override
+      public void heartbeat() {}
+    };
+  }
+
+  @Test
+  void theFirstStopsStoreHearsTheVehicleIsLateBeforeItArrives() throws Exception {
+    // R-EXE-29: stop A planned 05:20; at 05:50 nothing recorded on the trip.
+    at("05:50");
+    etaJob.runAt(clock.now());
+    assertEquals(instant("05:50"), payload("eta.changed", stopA).get("expectedArrival").asText());
+    assertEquals(1, outbox("eta.changed", stopB), "the stops after it follow");
+    at("05:52");
+    etaJob.runAt(clock.now());
+    assertEquals(1, outbox("eta.changed", stopA), "told again only on a ten-minute move");
+  }
+
+  @Test
+  void aVehicleHeldUpOnTheRoadIsSeenLateBeforeItArrivesAnywhere() throws Exception {
+    // R-EXE-29: left the first stop on time, then nothing recorded for half an hour.
+    at("05:20");
+    send(driver, "delivery:RecordArrival", 1L, stop(stopA), 200);
+    at("05:25");
+    send(driver, "delivery:Record", 2L, record(stopA, "DELIVERED", null, null, null), 200);
+    assertEquals(0, outbox("eta.changed", stopB), "five minutes is not news");
+
+    at("06:10");
+    etaJob.runAt(clock.now());
+    JsonNode eta = payload("eta.changed", stopB);
+    assertEquals(instant("06:10"), eta.get("expectedArrival").asText(), "the next stop, no earlier than now");
+    assertEquals(30, eta.get("delayMinutes").asInt());
+    assertEquals(instant("06:10"), runSheet(driver).get("stops").get(1).get("expectedArrival").asText());
+
+    at("06:15");
+    etaJob.runAt(clock.now());
+    assertEquals(1, outbox("eta.changed", stopB), "told again only on a ten-minute move");
+  }
+
+  @Test
+  void theExpectedMinutesAtAStopMoveTheStopsAfterItAndReachTheStore() throws Exception {
+    // T1-04: the prediction expects stop A to take 45 minutes; the plan carried none.
+    database.asSystem(ModuleRole.EXECUTION, () -> database.update(
+        "UPDATE execution.delivery_records SET expected_service_minutes = 45, expected_service_basis = 'test-model@1'"
+            + " WHERE delivery_id = ?", stopA));
+    at("05:20");
+    send(driver, "delivery:RecordArrival", 1L, stop(stopA), 200);
+    // Arrived on time at 05:20, there 45 minutes: B (planned 05:40, 20 after A) is expected 06:05, 25 late.
+    JsonNode eta = payload("eta.changed", stopB);
+    assertEquals(instant("06:05"), eta.get("expectedArrival").asText());
+    assertEquals(45.0, runSheet(driver).get("stops").get(0).get("expectedServiceMinutes").asDouble(), 1e-9);
+  }
+
+  @Test
+  void theRangeAroundTheExpectedMinutesReachesTheStore() throws Exception {
+    // MF-06, R-ML-20: released with a range from the plan's prediction; the store reads it beside the minutes.
+    database.asSystem(ModuleRole.EXECUTION, () -> deliveryRepository.expectService(stopA, new java.math.BigDecimal("20"),
+        "deterministic", java.util.Optional.of(new java.math.BigDecimal("14.5")),
+        java.util.Optional.of(new java.math.BigDecimal("27"))));
+    JsonNode coming = json(read(manager, "/api/execution/deliveries?outlet=" + OUTLET + "&date=" + day, 200));
+    JsonNode a = null;
+    for (JsonNode d : coming) {
+      if (d.get("deliveryId").asText().equals(stopA.toString())) {
+        a = d;
+      }
+    }
+    assertTrue(a != null, coming.toString());
+    assertEquals(20.0, a.get("expectedServiceMinutes").asDouble(), 1e-9);
+    assertEquals(14.5, a.get("expectedServiceLow").asDouble(), 1e-9);
+    assertEquals(27.0, a.get("expectedServiceHigh").asDouble(), 1e-9);
+    // A range that would not hold the minutes is widened to hold them.
+    database.asSystem(ModuleRole.EXECUTION, () -> deliveryRepository.expectService(stopA, new java.math.BigDecimal("30"),
+        "deterministic", java.util.Optional.of(new java.math.BigDecimal("14.5")),
+        java.util.Optional.of(new java.math.BigDecimal("27"))));
+    assertEquals(30.0, json(read(driver, "/api/execution/deliveries/" + stopA, 200)).get("expectedServiceHigh").asDouble(), 1e-9);
+    // The driver's run sheet carries it too.
+    JsonNode sheetStop = runSheet(driver).get("stops").get(0);
+    assertEquals(14.5, sheetStop.get("expectedServiceLow").asDouble(), 1e-9);
+    assertEquals(30.0, sheetStop.get("expectedServiceHigh").asDouble(), 1e-9);
+  }
+
+  @Test
+  void eachStopsOutcomeIsKeptBesideItsPredictionAndAMissingArrivalIsNoLabel() throws Exception {
+    // MF-02, R-ML-12: stop A arrived on time and delivered; stop B failed with no arrival recorded.
+    at("05:20");
+    send(driver, "delivery:RecordArrival", 1L, stop(stopA), 200);
+    at("05:25");
+    send(driver, "delivery:Record", 2L, record(stopA, "DELIVERED", null, null, null), 200);
+    at("06:30");
+    send(driver, "delivery:Record", 1L, record(stopB, "FAILED", null, "refused", "Returned to the depot"), 200);
+
+    outcomeJob.runAt(clock.now());
+    outcomeJob.runAt(clock.now());
+    Map<String, Object> a = outcome(stopA);
+    assertEquals(false, a.get("late_label"));
+    assertEquals("device", a.get("label_source"));
+    assertEquals("delivered", a.get("outcome"));
+    Map<String, Object> b = outcome(stopB);
+    assertEquals(null, b.get("late_label"), "no arrival: no label, never not late");
+    assertEquals("none", b.get("label_source"));
+  }
+
+  @Test
+  void aStopWithNoArrivalTapIsLabelledFromTheVehiclesGpsAtAnExactOutlet() throws Exception {
+    // R-ML-12: the outlet's point is exact; the driver never taps Arrived at stop B.
+    database.asSystem(ModuleRole.REF, () -> database.update(
+        "UPDATE ref.outlets SET latitude = 6.950000, longitude = 79.900000, location_precision = 'exact' WHERE outlet_id = ?",
+        OUTLET));
+    referenceCache.clear();
+    referenceBootstrap.loadCurrentVersion();
+    try {
+      at("05:20");
+      send(driver, "delivery:RecordArrival", 1L, stop(stopA), 200);
+      at("05:25");
+      send(driver, "delivery:Record", 2L, record(stopA, "DELIVERED", null, null, null), 200);
+      at("06:25");
+      // On the road at 05:40 (about 2 km out), at the outlet at 06:20 (about 30 m).
+      send(driver, "delivery:RecordPositions", null,
+          positions(tripId, fix("05:40", "6.968000", "79.900000", 10), fix("06:20", "6.950200", "79.900150", 10)), 200);
+      at("06:30");
+      send(driver, "delivery:Record", 1L, record(stopB, "FAILED", null, "refused", "Returned to the depot"), 200);
+
+      outcomeJob.runAt(clock.now());
+      Map<String, Object> b = outcome(stopB);
+      assertEquals("geofence", b.get("label_source"));
+      assertEquals(false, b.get("late_label"), "at the outlet at 06:20, before its 07:30 close");
+      assertEquals("device", outcome(stopA).get("label_source"), "a trustworthy tap still wins");
+    } finally {
+      database.asSystem(ModuleRole.REF, () -> database.update(
+          "UPDATE ref.outlets SET location_precision = NULL WHERE outlet_id = ?", OUTLET));
+      referenceCache.clear();
+      referenceBootstrap.loadCurrentVersion();
+    }
+  }
+
+  private Map<String, Object> outcome(UUID deliveryId) {
+    return database.asSystem(
+        com.waypoint.dispatch.platform.db.ModuleRole.ML,
+        () -> database.queryOne(
+            "SELECT late_label, label_source, outcome FROM ml.delivery_outcomes WHERE delivery_id = ?", deliveryId));
+  }
+
   // ---- who may record ----
 
   @Test
@@ -891,6 +1094,16 @@ class ExecutionIntegrationTest {
     JsonNode first = json(command(driver, body, 200));
     assertEquals(3, first.get("result").get("stored").asInt(), "the exact repeat is stored once");
     assertTrue(json(command(driver, body, 200)).get("replayed").asBoolean(), "a replay is answered from its receipt");
+    // F-08: a batch of fixes is an observation; its audit row names who, what and when, with no copy of the points.
+    Map<String, Object> audit =
+        database.asSystemSeparately(
+            ModuleRole.INTEGRATION,
+            () -> database.queryOne(
+                "SELECT decision, before_state::text AS b, after_state::text AS a FROM integration.audit_log WHERE command_id = ?",
+                commandId));
+    assertEquals("ALLOW", audit.get("decision"));
+    assertEquals(null, audit.get("b"));
+    assertEquals(null, audit.get("a"));
 
     // R-EXE-19: the last good fix, never the poor one.
     JsonNode live = json(read(dispatcher, "/api/execution/positions?date=" + day + "&depot=" + depot, 200));

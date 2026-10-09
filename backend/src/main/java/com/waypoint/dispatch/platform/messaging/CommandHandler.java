@@ -33,5 +33,16 @@ public interface CommandHandler {
     return null;
   }
 
+  /**
+   * Whether an applied command's audit row carries the before and after state.
+   * True for every decision (architecture rule 8). A command that only reports
+   * an observation, such as a batch of position fixes, answers false: its row
+   * still records who, what, when and on what, without a copy of the data
+   * (roadmap F-08). A denial is always audited in full.
+   */
+  default boolean auditsState() {
+    return true;
+  }
+
   Object handle(Actor actor, Command command);
 }

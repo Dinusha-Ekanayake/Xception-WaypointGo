@@ -8,6 +8,11 @@ import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryStarted;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.EtaChanged;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.RoadDisruptionReported;
 import com.waypoint.dispatch.execution.contract.ExecutionEvents.VehicleFaultReported;
+import com.waypoint.dispatch.intelligence.contract.AttentionEvents.AttentionRaised;
+import com.waypoint.dispatch.intelligence.contract.AttentionEvents.AttentionReminded;
+import com.waypoint.dispatch.issues.contract.IssueEvents.DecisionAnswered;
+import com.waypoint.dispatch.issues.contract.IssueEvents.DecisionExpired;
+import com.waypoint.dispatch.issues.contract.IssueEvents.DecisionRequested;
 import com.waypoint.dispatch.issues.contract.IssueEvents.IssueEscalated;
 import com.waypoint.dispatch.issues.contract.IssueEvents.IssueRaised;
 import com.waypoint.dispatch.messaging.contract.MessagingEvents.MessagePosted;
@@ -27,6 +32,7 @@ import com.waypoint.dispatch.planning.contract.PlanEvents.PlanPublished;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlanRevised;
 import com.waypoint.dispatch.planning.contract.PlanEvents.StoreContacted;
 import com.waypoint.dispatch.intelligence.contract.OutlookEvents.OrderOutlookChanged;
+import com.waypoint.dispatch.intelligence.contract.NoticeEvents.StopLikelyLate;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlannedStop;
 import com.waypoint.dispatch.planning.contract.PlanEvents.PlannedTrip;
 import com.waypoint.dispatch.platform.db.ModuleRole;
@@ -841,6 +847,8 @@ final class NotificationConsumers {
       Routed r =
           new Routed()
               .fact("audience", e.audience()).fact("heading", heading).fact("excerpt", e.excerpt())
+              // R-MSG-14: which message, so the dispatcher can see whether the driver has read it.
+              .fact("messageId", e.messageId())
               .fact("vehicleId", e.vehicleId()).fact("depotCode", e.depotCode())
               // A voice message plays its own audio in the inbox, never read aloud by text to speech.
               .fact("voiceNoteId", e.voiceNoteId()).fact("voiceDurationMs", e.voiceDurationMs())
@@ -860,6 +868,190 @@ final class NotificationConsumers {
         case "store_manager" -> "Store";
         default -> "Dispatcher";
       };
+    }
+  }
+
+  /**
+   * Roadmap T1-02, R-ML-22: a published stop will likely be late. The routing
+   * table picks who hears it by its audience: the depot's dispatchers while the
+   * flag is learning, the store once it has earned it.
+   */
+  @Component
+  static class OnStopLikelyLate extends NotificationConsumer<StopLikelyLate> {
+    OnStopLikelyLate(Notifier notifier) {
+      super(notifier);
+    }
+
+    @Override
+    public String consumerName() {
+      return "notification.on-stop-likely-late";
+    }
+
+    @Override
+    public Class<StopLikelyLate> eventType() {
+      return StopLikelyLate.class;
+    }
+
+    @Override
+    Routed route(StopLikelyLate e) {
+      String closes = e.windowClose().toString().substring(0, 5);
+      Optional<String> expected = e.expectedArrival().map(t -> t.toString().substring(0, 5));
+      return new Routed()
+          .on(e.serviceDate())
+          .fact("audience", e.audience()).fact("outletId", e.outletId()).fact("percent", e.percent())
+          .fact("closes", closes)
+          .fact("expected", expected.map(t -> "expected about " + t)
+              .orElse("planned " + e.plannedArrival().toString().substring(0, 5)))
+          .fact("storeLine", "likely after your window closes at " + closes
+              + expected.map(t -> ", expected about " + t).orElse(""))
+          .fact("deliveryDay", day(e.serviceDate()))
+          .to(ScopeKind.DEPOT, e.depotCode(), "order", e.orderId())
+          .to(ScopeKind.OUTLET, e.outletId(), "order", e.orderId());
+    }
+  }
+
+  /** Issue #268: the attention watch found a stop at risk; the depot's dispatchers are told, screen open or not. */
+  @Component
+  static class OnAttentionRaised extends NotificationConsumer<AttentionRaised> {
+    OnAttentionRaised(Notifier notifier) {
+      super(notifier);
+    }
+
+    @Override
+    public String consumerName() {
+      return "notification.on-attention-raised";
+    }
+
+    @Override
+    public Class<AttentionRaised> eventType() {
+      return AttentionRaised.class;
+    }
+
+    @Override
+    Routed route(AttentionRaised e) {
+      String left = e.minutesLeft()
+          .map(m -> m > 0 ? "window closes in " + m + " min" : "window closed " + (-m) + " min ago")
+          .orElse("window at risk");
+      return new Routed()
+          .fact("kind", e.kind()).fact("outletId", e.outletId()).fact("vehicleId", e.vehicleId()).fact("left", left)
+          .on(e.serviceDate())
+          .to(ScopeKind.DEPOT, e.depotCode(), "delivery", e.deliveryId());
+    }
+  }
+
+  /** Issue #268: a critical item nobody acknowledged; the dispatchers are reminded, capped by the watch. */
+  @Component
+  static class OnAttentionReminded extends NotificationConsumer<AttentionReminded> {
+    OnAttentionReminded(Notifier notifier) {
+      super(notifier);
+    }
+
+    @Override
+    public String consumerName() {
+      return "notification.on-attention-reminded";
+    }
+
+    @Override
+    public Class<AttentionReminded> eventType() {
+      return AttentionReminded.class;
+    }
+
+    @Override
+    Routed route(AttentionReminded e) {
+      String what = switch (e.kind()) {
+        case "FAILED_STOP" -> "a stop not delivered";
+        case "WINDOW_AT_RISK" -> "a window about to be missed";
+        case "PROOF_OWED" -> "proof of delivery";
+        default -> "a late stop";
+      };
+      return new Routed()
+          .fact("kind", e.kind()).fact("what", what).fact("outletId", e.outletId())
+          .on(e.serviceDate())
+          .to(ScopeKind.DEPOT, e.depotCode(), "delivery", e.deliveryId());
+    }
+  }
+
+  /** FF-09: the dispatcher asked a store a question on a live trip; the store is told. */
+  @Component
+  static class OnDecisionRequested extends NotificationConsumer<DecisionRequested> {
+    OnDecisionRequested(Notifier notifier) {
+      super(notifier);
+    }
+
+    @Override
+    public String consumerName() {
+      return "notification.on-decision-requested";
+    }
+
+    @Override
+    public Class<DecisionRequested> eventType() {
+      return DecisionRequested.class;
+    }
+
+    @Override
+    Routed route(DecisionRequested e) {
+      return new Routed()
+          .fact("question", e.question()).fact("outletId", e.outletId()).fact("vehicleId", e.vehicleId())
+          .fact("deadline", java.time.LocalTime.ofInstant(e.deadline(), Clock.OPERATING_ZONE)
+              .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")))
+          .on(e.serviceDate())
+          .to(ScopeKind.OUTLET, e.outletId(), "decision", e.requestId());
+    }
+  }
+
+  /** FF-09: a store answered (in the app, or by phone through the dispatcher); the dispatcher is told. */
+  @Component
+  static class OnDecisionAnswered extends NotificationConsumer<DecisionAnswered> {
+    OnDecisionAnswered(Notifier notifier) {
+      super(notifier);
+    }
+
+    @Override
+    public String consumerName() {
+      return "notification.on-decision-answered";
+    }
+
+    @Override
+    public Class<DecisionAnswered> eventType() {
+      return DecisionAnswered.class;
+    }
+
+    @Override
+    Routed route(DecisionAnswered e) {
+      return new Routed()
+          .fact("question", e.question()).fact("outletId", e.outletId())
+          .fact("answer", "yes".equals(e.answer()) ? "Yes" : "No").fact("reason", e.reason())
+          .fact("driverNote", e.driverNote())
+          .on(e.serviceDate())
+          .to(ScopeKind.DEPOT, e.depotCode(), "decision", e.requestId())
+          // A Yes changes the driver's stop; the routing rule tells the driver of a Yes only.
+          .to(ScopeKind.VEHICLE, e.vehicleId(), "trip", e.tripId());
+    }
+  }
+
+  /** FF-09: no answer by the deadline; the dispatcher is told to phone the store. */
+  @Component
+  static class OnDecisionExpired extends NotificationConsumer<DecisionExpired> {
+    OnDecisionExpired(Notifier notifier) {
+      super(notifier);
+    }
+
+    @Override
+    public String consumerName() {
+      return "notification.on-decision-expired";
+    }
+
+    @Override
+    public Class<DecisionExpired> eventType() {
+      return DecisionExpired.class;
+    }
+
+    @Override
+    Routed route(DecisionExpired e) {
+      return new Routed()
+          .fact("question", e.question()).fact("outletId", e.outletId())
+          .on(e.serviceDate())
+          .to(ScopeKind.DEPOT, e.depotCode(), "decision", e.requestId());
     }
   }
 

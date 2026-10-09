@@ -185,6 +185,15 @@ class PlanningRevisions {
   /** Every trip of a vehicle that can no longer run, one at a time, never onto itself (PLN-04, FLT-01). */
   PlanningRun replanVehicle(Revision revision, String vehicleId, String reason, UUID actor) {
     PlanningRun run = revision.run();
+    return replanVehicle(run, revision.built(), vehicleId, reason, actor, run.planId(), run.planVersion());
+  }
+
+  /**
+   * The same, on any open draft: the result is {@code nextId} at {@code nextVersion},
+   * or {@code run} itself when the vehicle has no trip on it, so nothing is stored.
+   */
+  PlanningRun replanVehicle(
+      PlanningRun run, Built built, String vehicleId, String reason, UUID actor, UUID nextId, int nextVersion) {
     for (int guard = 0; guard < 10; guard++) {
       boolean busy = run.days().stream().anyMatch(d -> d.vehicleId().equals(vehicleId));
       if (!busy) {
@@ -192,9 +201,9 @@ class PlanningRevisions {
       }
       run =
           run.replanTrip(
-                  run.planId(), run.planVersion(), vehicleId, 1,
-                  candidates(run, revision.built(), vehicleId, Optional.empty()), reason, actor, registry,
-                  revision.built().problem().context())
+                  nextId, nextVersion, vehicleId, 1,
+                  candidates(run, built, vehicleId, Optional.empty()), reason, actor, registry,
+                  built.problem().context())
               .run();
     }
     throw new IllegalStateException("vehicle " + vehicleId + " still has trips after replanning");

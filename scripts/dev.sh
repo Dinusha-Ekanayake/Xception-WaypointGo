@@ -11,11 +11,21 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MODE="${1:-up}"
 
-export DATABASE_URL='postgresql://waypoint:local-testing-only@127.0.0.1:5432/waypoint'
+# DB_PORT from the root .env moves the database off 5432 when another PostgreSQL holds it.
+DB_PORT="$( (grep -E '^DB_PORT=' "$ROOT/.env" 2>/dev/null || true) | tail -1 | cut -d= -f2 )"
+export DB_PORT="${DB_PORT:-5432}"
+export DATABASE_URL="postgresql://waypoint:local-testing-only@127.0.0.1:${DB_PORT}/waypoint"
 export DEMO_MODE=1
 # Plain HTTP on localhost: a Secure cookie would not be sent back by every browser.
 export COOKIE_SECURE=0
 export SEED_PASSWORD="${SEED_PASSWORD:-Waypoint2026!}"
+# The language model gateway (roadmap AI-0) reads its switch and keys from the
+# root .env when it has them. Only these names: the database above stays local.
+if [[ -f "$ROOT/.env" ]]; then
+  while IFS='=' read -r name value; do
+    export "$name=$value"
+  done < <(grep -E '^(AI_ENABLED|AI_PROVIDER|AI_MODEL|AI_DAILY_CALLS|GROQ_API_KEY|OPENROUTER_API_KEY|JEV_ENABLED|JEV_MODEL|SPEECH_URL)=' "$ROOT/.env" || true)
+fi
 
 docker_cmd() {
   if docker info >/dev/null 2>&1; then docker "$@"; else sudo docker "$@"; fi

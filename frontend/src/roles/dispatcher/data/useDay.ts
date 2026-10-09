@@ -14,6 +14,10 @@ import type { ReportMarkView, DepotView, DeferralView, FuelView, IssueHistoryVie
 // other dispatcher; useResource keeps the last answer and its time when a poll
 // fails, and the screen says how old it is.
 
+/**
+ * Without the live stream the board polls this often; with it (F-07b), a read
+ * re-reads when its topics change and polls every 15 s as a safety net.
+ */
 const POLL_MS = 2_000;
 const q = encodeURIComponent;
 
@@ -71,7 +75,7 @@ export function useOrders(depots: string[], date: string): Resource<OrderView[]>
           );
           return perDepot.flat().sort((a, b) => a.orderRef.localeCompare(b.orderRef));
         };
-  return useResource(load, `orders|${depots.join(",")}|${date}`, POLL_MS);
+  return useResource(load, `orders|${depots.join(",")}|${date}`, POLL_MS, { depots, topics: ["order", "plan"] });
 }
 
 /**
@@ -109,7 +113,7 @@ export function usePlans(depots: string[], date: string): Resource<DepotPlans[]>
               return { depot, published, draft };
             }),
           );
-  return useResource(load, `plans|${depots.join(",")}|${date}`, POLL_MS);
+  return useResource(load, `plans|${depots.join(",")}|${date}`, POLL_MS, { depots, topics: ["plan", "order"] });
 }
 
 export type LiveDay = {
@@ -134,7 +138,7 @@ export function useLive(depots: string[], date: string): Resource<LiveDay> {
           sheets.forEach((list, i) => list.forEach((sheet) => (depotOf[sheet.vehicleId] = depots[i]!)));
           return { sheets: sheets.flat(), dock: dock.flat(), depotOf };
         };
-  return useResource(load, `live|${depots.join(",")}|${date}`, POLL_MS);
+  return useResource(load, `live|${depots.join(",")}|${date}`, POLL_MS, { depots, topics: ["trip", "loading", "delivery", "vehicle", "eta", "receipt", "plan"] });
 }
 
 /** Every open and assigned issue at these depots, most severe first per depot. */
@@ -144,7 +148,7 @@ export function useIssues(depots: string[]): Resource<IssueView[]> {
       ? null
       : async (signal: AbortSignal) =>
           (await Promise.all(depots.map((depot) => requestAll<IssueView>(`/api/issues?depot=${q(depot)}`, { signal })))).flat();
-  return useResource(load, `issues|${depots.join(",")}`, POLL_MS);
+  return useResource(load, `issues|${depots.join(",")}`, POLL_MS, { depots, topics: ["issue", "shortfall", "receipt", "loading"] });
 }
 
 /** Issues resolved or closed at these depots in the last week, most recently resolved first. */
@@ -156,7 +160,7 @@ export function useSettledIssues(depots: string[], enabled: boolean): Resource<I
           (await Promise.all(depots.map((depot) => request<IssueView[]>(`/api/issues/settled?depot=${q(depot)}`, { signal }))))
             .flat()
             .sort((a, b) => (b.resolvedAt ?? "").localeCompare(a.resolvedAt ?? ""));
-  return useResource(load, `issues:settled|${depots.join(",")}`, POLL_MS);
+  return useResource(load, `issues:settled|${depots.join(",")}`, POLL_MS, { depots, topics: ["issue", "shortfall", "receipt"] });
 }
 
 export type IssueRecord = { issue: IssueView; history: IssueHistoryView[] };
@@ -186,7 +190,7 @@ export function useDeferrals(depots: string[], date: string): Resource<DeferralV
           (await Promise.all(depots.map((depot) => request<DeferralView[]>(`/api/plans/deferrals?depot=${q(depot)}&date=${q(date)}`, { signal }))))
             .flat()
             .sort((a, b) => b.skipCount - a.skipCount || a.outletId.localeCompare(b.outletId));
-  return useResource(load, `deferrals|${depots.join(",")}|${date}`, POLL_MS);
+  return useResource(load, `deferrals|${depots.join(",")}|${date}`, POLL_MS, { depots, topics: ["plan", "order"] });
 }
 
 /** A vehicle's planned fuel for the week holding the date, from published plans only (D-K). */
@@ -226,7 +230,7 @@ export function useReports(depots: string[], date: string): Resource<ReportMarkV
               depots.map((depot) => request<ReportMarkView[]>(`/api/threads/reports?depot=${q(depot)}&date=${q(date)}`, { signal })),
             )
           ).flat();
-  const reports = useResource(load, `reports|${depots.join(",")}|${date}`, POLL_MS);
+  const reports = useResource(load, `reports|${depots.join(",")}|${date}`, POLL_MS, { depots, topics: ["vehicle", "road", "delivery"] });
   // A report resolved in the thread leaves the timeline now, not at the next poll.
   const { refresh } = reports;
   useEffect(() => {

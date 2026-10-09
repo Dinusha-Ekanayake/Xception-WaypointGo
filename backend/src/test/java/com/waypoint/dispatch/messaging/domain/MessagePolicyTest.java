@@ -54,6 +54,41 @@ class MessagePolicyTest {
   }
 
   @Test
+  void theChannelIsTheDispatchersAndTheStoresStillWaiting() {
+    // R-MSG-08 (FF-04)
+    assertEquals("Running late", MessagePolicy.check(Role.DISPATCHER, post(To.CHANNEL), OUTLETS, true, true, false, DAY, DAY));
+    assertEquals("Running late", MessagePolicy.check(Role.STORE_MANAGER, post(To.CHANNEL), OUTLETS, true, true, true, DAY, DAY));
+    DomainException done =
+        assertThrows(
+            DomainException.class,
+            () -> MessagePolicy.check(Role.STORE_MANAGER, post(To.CHANNEL), OUTLETS, true, true, false, DAY, DAY));
+    assertEquals(ErrorCode.CONFLICT, done.code());
+    assertEquals("R-MSG-08", done.violations().get(0).rule());
+    // Before the driver starts the trip there is no channel, for anyone.
+    for (Role role : List.of(Role.DISPATCHER, Role.STORE_MANAGER)) {
+      DomainException early =
+          assertThrows(
+              DomainException.class,
+              () -> MessagePolicy.check(role, post(To.CHANNEL), OUTLETS, true, false, true, DAY, DAY));
+      assertEquals(ErrorCode.CONFLICT, early.code());
+    }
+    // The driver is driving and the loaders are not on it.
+    refused(Role.DRIVER, post(To.CHANNEL), "R-MSG-02");
+    refused(Role.LOADER, post(To.CHANNEL), "R-MSG-02");
+    // A report stays the dispatcher's alone, even from a store in the channel.
+    refused(Role.STORE_MANAGER, report(To.CHANNEL, "receipt_dispute"), "R-MSG-03");
+  }
+
+  @Test
+  void aRedirectGivesItsReason() {
+    assertEquals("Names another store's order", MessagePolicy.redirectReason("  Names another store's order "));
+    for (String bad : new String[] {null, "", "ok", "x".repeat(501)}) {
+      DomainException e = assertThrows(DomainException.class, () -> MessagePolicy.redirectReason(bad));
+      assertEquals("R-MSG-08", e.violations().get(0).rule());
+    }
+  }
+
+  @Test
   void anOutletMustBeOnTheTrip() {
     refused(Role.DISPATCHER, toOutlet("OUT099"), "R-MSG-02");
   }
@@ -67,13 +102,33 @@ class MessagePolicyTest {
   }
 
   @Test
-  void aLoaderAndAStoreManagerWriteToTheDispatcherOnly() {
+  void aLoaderAndAStoreManagerWriteToTheDispatcher() {
     for (Role role : List.of(Role.LOADER, Role.STORE_MANAGER)) {
       assertEquals("Running late", check(role, post(To.DISPATCH)));
       refused(role, post(To.ALL), "R-MSG-02");
-      refused(role, post(To.DRIVER), "R-MSG-02");
       refused(role, toOutlet("OUT061"), "R-MSG-02");
     }
+  }
+
+  /** R-MSG-16: a store writes to its own driver while it still has a delivery on the trip, never after. */
+  @Test
+  void aStoreWritesToItsDriverOnlyWhileItsDeliveryIsStillToCome() {
+    assertEquals("Running late",
+        MessagePolicy.check(Role.STORE_MANAGER, post(To.DRIVER), OUTLETS, true, false, true, DAY, DAY));
+    DomainException done = assertThrows(DomainException.class,
+        () -> MessagePolicy.check(Role.STORE_MANAGER, post(To.DRIVER), OUTLETS, true, false, false, DAY, DAY));
+    assertEquals(ErrorCode.CONFLICT, done.code());
+    assertThrows(DomainException.class,
+        () -> MessagePolicy.check(Role.STORE_MANAGER, post(To.DRIVER), OUTLETS, false, false, true, DAY, DAY),
+        "no vehicle on the trip, no driver to write to");
+  }
+
+  @Test
+  void aLoaderLeavesTheDriverANoteAboutTheLoadWhenTheTripHasAVehicle() {
+    assertEquals("Running late", check(Role.LOADER, post(To.DRIVER)));
+    DomainException e = assertThrows(
+        DomainException.class, () -> MessagePolicy.check(Role.LOADER, post(To.DRIVER), OUTLETS, false, DAY, DAY));
+    assertTrue(e.violations().stream().anyMatch(v -> v.rule().equals("R-MSG-02")), e.getMessage());
   }
 
   @Test
@@ -84,6 +139,38 @@ class MessagePolicyTest {
     }
     refused(Role.DISPATCHER, report(To.DISPATCH, "other"), "R-MSG-03");
     refused(Role.DRIVER, report(To.DISPATCH, "not_a_type"), "R-MSG-02");
+  }
+
+  @Test
+  void aReadyReplyIsNamedByItsIdVersionAndRankAndNeverOnAReport() {
+    assertEquals(Optional.empty(), MessagePolicy.replyUse(null, null, null, false, false));
+    assertEquals(
+        Optional.of(new MessagePolicy.ReplyUse("driver.bring_back", 1, 2, true)),
+        MessagePolicy.replyUse("driver.bring_back", 1, 2, true, false));
+    for (Runnable bad : List.<Runnable>of(
+        () -> MessagePolicy.replyUse("Bring back", 1, 1, false, false),
+        () -> MessagePolicy.replyUse("driver.bring_back", 0, 1, false, false),
+        () -> MessagePolicy.replyUse("driver.bring_back", 1, 11, false, false),
+        () -> MessagePolicy.replyUse("driver.bring_back", null, 1, false, false),
+        () -> MessagePolicy.replyUse("driver.bring_back", 1, 1, false, true))) {
+      assertThrows(DomainException.class, bad::run);
+    }
+  }
+
+  /** AI-J5: the replies on screen are kept beside the pick, only when they hold the pick at its rank. */
+  @Test
+  void theRepliesOnScreenAreKeptOnlyWhenTheyHoldThePickAtItsRank() {
+    MessagePolicy.ReplyUse use =
+        MessagePolicy.replyUse("store.late", 1, 2, false, false, "store.thanks, store.late,store.next", true).orElseThrow();
+    assertEquals(List.of("store.thanks", "store.late", "store.next"), use.shown());
+    assertTrue(use.explored());
+    assertEquals(List.of(), MessagePolicy.replyUse("store.late", 1, 2, false, false, null, false).orElseThrow().shown());
+    for (Runnable bad : List.<Runnable>of(
+        () -> MessagePolicy.replyUse("store.late", 1, 2, false, false, "store.late,store.thanks", false),
+        () -> MessagePolicy.replyUse("store.late", 1, 3, false, false, "store.a,store.late", false),
+        () -> MessagePolicy.replyUse("store.late", 1, 1, false, false, "store.late,Not an id", false))) {
+      assertThrows(DomainException.class, bad::run);
+    }
   }
 
   @Test

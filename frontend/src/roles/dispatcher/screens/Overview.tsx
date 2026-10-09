@@ -10,6 +10,7 @@ import { useDispatcherInbox } from "../inbox.tsx";
 import Refusal from "./Refusal.tsx";
 import { OrdersCard, SummaryCard } from "./OverviewCards.tsx";
 import PlanDayCard from "./PlanDayCard.tsx";
+import PilotKpisCard from "./PilotKpisCard.tsx";
 import { summarise } from "../data/fleet.ts";
 import { depotStamp, depotToday, greeting } from "../data/scope.ts";
 import { useIssues, useOrders } from "../data/useDay.ts";
@@ -87,6 +88,7 @@ export default function Overview({
             <p className="text-xs text-go-secondary">Counts are vehicles available today; vehicles in the workshop are not listed yet.</p>
           </Card>
 
+          <PilotKpisCard depots={depots} onNavigate={onNavigate} />
           <RecentNotifications onNavigate={onNavigate} />
         </div>
       </div>

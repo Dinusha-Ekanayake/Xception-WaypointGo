@@ -160,9 +160,7 @@ export function voicePath(threadId: string, voiceNoteId: string, durationMs: num
   return `/api/threads/${q(threadId)}/voice/${q(voiceNoteId)}?durationMs=${Math.round(durationMs)}${bars}`;
 }
 
-export function voiceUrl(threadId: string, voiceNoteId: string): string {
-  return `/api/threads/${q(threadId)}/voice/${q(voiceNoteId)}`;
-}
+export { voiceUrl } from "./thread.ts";
 
 /** A message still on this device, waiting for a connection. */
 export type Waiting = { commandId: string; body: string; to: PostMessagePayload["to"]; outletId: string | null; report: boolean; voice: boolean; at: string };
@@ -218,4 +216,14 @@ export async function resolveReport(messageId: string, note: string): Promise<vo
     throw failure;
   }
   globalThis.dispatchEvent?.(new CustomEvent(REPORT_RESOLVED_EVENT, { detail: { messageId } }));
+}
+
+/** The dispatcher moves a post off the trip's channel (R-MSG-08); the message itself never changes. */
+export async function redirectMessage(messageId: string, reason: string): Promise<void> {
+  try {
+    await send(newCommand(MessageCommandKind.redirect, { messageId, reason }));
+  } catch (failure) {
+    if (failure instanceof ApiError) throw new Error(failure.problem.violations[0]?.message ?? failure.message);
+    throw failure;
+  }
 }

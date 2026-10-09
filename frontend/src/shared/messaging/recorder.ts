@@ -13,6 +13,19 @@ export const VOICE_MAX_MS = 120_000;
 /** Shorter than this is a tap, not a voice note. */
 export const VOICE_MIN_MS = 700;
 
+/**
+ * The bitrate to ask for (roadmap M-02). Left alone a browser records at about
+ * 128 kbps; speech stays clear at 32 in Opus and 48 in AAC, a quarter to a half
+ * of the size. Chromium's AAC encoder fails below about 48 (an EncodingError,
+ * and nothing recorded), so AAC is not asked for less. Unknown formats keep the
+ * browser's own rate.
+ */
+export function voiceBitsPerSecond(type: string): number | undefined {
+  if (/opus|webm|ogg/.test(type)) return 32_000;
+  if (/mp4|aac/.test(type)) return 48_000;
+  return undefined;
+}
+
 // MP4 with AAC first: every phone plays it, an iPhone included. Chrome and
 // Safari can record it; Firefox records WebM or Ogg, which iPhones play less
 // reliably, so those come after.
@@ -80,7 +93,8 @@ export function useRecorder(): Recorder {
       setState({ status: "unavailable", reason: "The microphone is not allowed. Allow it in the browser to send a voice note." });
       return false;
     }
-    const rec = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
+    const bits = type ? voiceBitsPerSecond(type) : undefined;
+    const rec = new MediaRecorder(stream, { ...(type ? { mimeType: type } : {}), ...(bits ? { audioBitsPerSecond: bits } : {}) });
     chunks.current = [];
     levels.current = [];
     let analyser: AnalyserNode | null = null;

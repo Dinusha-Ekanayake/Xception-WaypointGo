@@ -34,7 +34,8 @@ import org.springframework.stereotype.Component;
  * row-level security: a thread they do not belong to is a 403 plus an audit row,
  * never "not found" (security rules). How they belong decides what they may
  * write (R-MSG-02, R-MSG-03); the message and its {@code message.posted} commit
- * together, and Notification tells only the people it is for (R-NOT-14).
+ * together, and Notification tells only the people it is for (R-NOT-14). A
+ * post to the trip's channel reaches the stores still active in it (R-MSG-08).
  */
 @Component
 public class PostMessageHandler implements CommandHandler {
@@ -120,8 +121,15 @@ public class PostMessageHandler implements CommandHandler {
     LocalDate today = now.atZone(Clock.OPERATING_ZONE).toLocalDate();
     String body =
         MessagePolicy.check(
-            role, post, thread.outletIds(), thread.vehicleId().isPresent(),
+            role, post, thread.outletIds(), thread.vehicleId().isPresent(), thread.channelOpen(),
+            role == Role.STORE_MANAGER && (post.to() == To.CHANNEL || post.to() == To.DRIVER) && threads.inChannel(threadId),
             thread.serviceDate().orElse(today), today);
+
+    Optional<MessagePolicy.ReplyUse> reply =
+        MessagePolicy.replyUse(
+            payload.text("templateId"), payload.optionalInt("templateVersion"), payload.optionalInt("templateRank"),
+            payload.flag("templateEdited", false), post.reportType().isPresent(), payload.text("templateShown"),
+            payload.flag("templateExplored", false));
 
     UUID messageId = UuidV7.generate(now, random);
     String kind = post.reportType().isPresent() ? "report" : "message";
@@ -129,11 +137,20 @@ public class PostMessageHandler implements CommandHandler {
         messageId, threadId, actor.userId(), role.code(), kind, post.reportType(), post.to().code(), post.outletId(),
         body, voiceNoteId, clientId, Optional.empty(), Optional.empty(), aboutOutlet(role, kind, post, b),
         Optional.of(command.commandId()), now);
+    // FF-08: which ready reply it came from, for measuring the replies' use.
+    reply.ifPresent(r -> {
+      threads.recordReplyUse(messageId, r, actor.userId(), now);
+      metrics.increment(
+          "waypoint.message.reply_used", "template", r.templateId(), "edited", String.valueOf(r.edited()),
+          "rank", String.valueOf(r.rank()));
+    });
 
     List<String> reaches =
         switch (post.to()) {
           case OUTLET -> List.of(post.outletId().orElseThrow());
           case ALL -> thread.outletIds();
+          // R-MSG-08: only the stores still active hear a channel post.
+          case CHANNEL -> threads.activeChannelOutlets(threadId);
           default -> List.of();
         };
     String author = people.person(actor.userId()).map(PersonQuery.PersonView::displayName).orElse(role.code());

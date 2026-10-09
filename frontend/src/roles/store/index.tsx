@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useOnline, useResource } from "@shared/api/useResource";
-import type { OrderView } from "@shared/domain/types";
+import { outletWatch } from "@shared/api/changes";
+import { IssueCommandKind, type DecisionView, type OrderView } from "@shared/domain/types";
+import { friendlyError } from "@shared/api/problem";
+import { queuedSender } from "@shared/messaging/senders";
 import { Notice, useScrollMemory, withTransition } from "@shared/ui";
 import TopBar from "./TopBar.tsx";
 import { LangProvider, useT } from "./i18n.tsx";
@@ -13,6 +16,7 @@ import { useCommands } from "./data/useCommands.ts";
 import { deferralRead, markDeferralRead } from "./data/deferral.ts";
 import DeferredOrder from "./screens/DeferredOrder.tsx";
 import Deliveries from "./screens/deliveries/Deliveries.tsx";
+import Decisions, { type Answer } from "./screens/Decisions.tsx";
 import Home from "./screens/Home.tsx";
 import Issues from "./screens/issues/Issues.tsx";
 import OrderSheet from "./screens/OrderSheet.tsx";
@@ -88,13 +92,21 @@ function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Ele
 
   const forOutlet = <T,>(fn: (id: string, s: AbortSignal) => Promise<T>) => (outletId ? (s: AbortSignal) => fn(outletId, s) : null);
   const outlet = useResource(forOutlet(gateway.outlet), outletId);
-  const orders = useResource(forOutlet(gateway.orders), outletId, 2_000);
-  const pending = useResource(forOutlet(gateway.pendingReceipts), outletId, 2_000);
+  // B-04: re-read when a change names this outlet, else every 15 s; 2 s only with the
+  // live stream down. Three reads every 2 s were 109 requests a minute per store.
+  const live = (topics: string[]) => (outletId ? { depots: [outletWatch(outletId)], topics } : undefined);
+  const orders = useResource(forOutlet(gateway.orders), outletId, 2_000, live(["order", "plan", "trip", "delivery", "receipt"]));
+  const pending = useResource(forOutlet(gateway.pendingReceipts), outletId, 2_000, live(["delivery", "receipt"]));
   const warehouse = useResource((s) => gateway.catalogueStatus(s), "catalogue", 60_000);
   // Today on the business clock, which demo mode can move.
   useClockOffset();
   const today = depotToday();
-  const deliveries = useResource(outletId ? (s) => gateway.deliveries(outletId, today, s) : null, `${outletId}|${today}`, 2_000);
+  const deliveries = useResource(
+    outletId ? (s) => gateway.deliveries(outletId, today, s) : null,
+    `${outletId}|${today}`,
+    2_000,
+    live(["delivery", "eta", "trip", "plan", "receipt"]),
+  );
   const orderIds = recentOrderIds(orders.data ?? [], today);
   const issues = useResource(orderIds.length ? (s) => issuesForOrders(gateway, orderIds, s) : null, orderIds.join(","), 60_000);
 
@@ -110,6 +122,23 @@ function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Ele
   }, [refreshOrders, refreshPending, refreshDeliveries, refreshIssues]);
   const queued = useCallback(() => setWaiting((n) => n + 1), []);
   const commands = useCommands(gateway, online, queued, refresh);
+  // FF-09: the dispatcher's questions to this store, read often while a vehicle is coming.
+  const decisions = useResource((s) => gateway.decisions(today, s), `decisions|${today}`, 10_000, live(["decision"]));
+  const decisionSender = useMemo(() => queuedSender({ accountId: userId, role: "store_manager", online, onQueued: queued }), [userId, online, queued]);
+  const { run: runCommand } = commands;
+  const { refresh: refreshDecisions } = decisions;
+  const answerDecision = useCallback<Answer>(
+    async (d: DecisionView, answer, reason, voiceNoteId) => {
+      const outcome = await runCommand(
+        IssueCommandKind.answerDecision,
+        { requestId: d.requestId, answer, ...(reason ? { reason } : {}), ...(voiceNoteId ? { voiceNoteId } : {}) },
+        d.rowVersion,
+      );
+      refreshDecisions();
+      return outcome.ok ? null : friendlyError(outcome.error);
+    },
+    [runCommand, refreshDecisions],
+  );
 
   // Send kept writes as soon as the connection returns, whichever screen is open.
   useEffect(() => {
@@ -120,7 +149,11 @@ function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Ele
       .then((report) => {
         if (cancelled) return;
         if (report.heldForReview > 0) {
-          setFlushError(`${report.heldForReview} saved ${report.heldForReview === 1 ? "change was" : "changes were"} refused when sent. Check your orders.`);
+          setFlushError(
+            report.heldForReview === 1
+              ? t("1 saved change was refused when sent. Check your orders.")
+              : t("{n} saved changes were refused when sent. Check your orders.", { n: report.heldForReview }),
+          );
         }
         setWaiting(report.remaining - report.heldForReview);
         refresh();
@@ -145,7 +178,7 @@ function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Ele
       .catch(() => undefined)
       .finally(() => setSyncing(false));
   };
-  // A notification opens what it is about: the order, the deliveries or the issues.
+  // A notification opens what it is about: the order, the deliveries, the issues or a question.
   const openSubject = (n: NotificationView) => {
     if (n.subjectType === "thread" && n.subjectId) {
       setInboxOpen(false);
@@ -156,6 +189,10 @@ function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Ele
     if (n.subjectType === "order" && n.subjectId) {
       setTab("orders");
       setOpenOrder(n.subjectId);
+    } else if (n.subjectType === "decision") {
+      // FF-09: the question is answered on the home screen, at the top.
+      setTab("home");
+      refreshDecisions();
     } else if (n.subjectType === "issue") {
       setTab("issues");
     } else if (n.subjectType === "delivery" || n.subjectType === "trip" || n.subjectType === "receipt") {
@@ -190,7 +227,7 @@ function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Ele
 
   let body: React.JSX.Element;
   if (!outletId) {
-    body = <p className="text-[15px] text-go-muted">Your account has no outlet in scope. Ask an administrator to grant one.</p>;
+    body = <p className="text-[15px] text-go-muted">{t("Your account has no outlet in scope. Ask an administrator to grant one.")}</p>;
   } else if (view.kind === "place") {
     body = (
       <PlaceOrder
@@ -280,6 +317,7 @@ function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Ele
         onReceive={receive}
         onTrack={() => openView({ kind: "track" })}
         onRetry={orders.refresh}
+        questions={<Decisions decisions={decisions.data ?? []} accountId={userId} sender={decisionSender} online={online} onAnswer={answerDecision} />}
       />
     );
   } else if (tab === "orders") {
@@ -366,7 +404,7 @@ function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Ele
               warehouse.refresh();
             }}
           >
-            Sample data: {warehouseDown ? "bring the warehouse back" : "take the warehouse down"}
+            {t(warehouseDown ? "Sample data: bring the warehouse back" : "Sample data: take the warehouse down")}
           </button>
           {all.some((o) => o.status === "IN_TRANSIT") && (
             <button
@@ -377,7 +415,7 @@ function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Ele
                 refresh();
               }}
             >
-              Sample data: the truck arrives
+              {t("Sample data: the truck arrives")}
             </button>
           )}
         </div>
@@ -399,7 +437,7 @@ function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Ele
           onSaved={(saved, queued) => {
             setEditing(null);
             setSavedName(saved);
-            setNote(queued ? { title: "Profile saved on this phone", detail: "It is sent when the connection returns" } : { title: "Profile saved" });
+            setNote(queued ? { title: t("Profile saved on this phone"), detail: t("It is sent when the connection returns") } : { title: t("Profile saved") });
           }}
           onClose={() => setEditing(null)}
         />
@@ -414,8 +452,8 @@ function StoreScreens({ userId, displayName, scope }: StoreProps): React.JSX.Ele
             outlet.refresh();
             setNote(
               queued
-                ? { title: "Store details saved on this phone", detail: "They are sent when the connection returns" }
-                : { title: "Store details saved", detail: "A new window or dock is used from the next plan" },
+                ? { title: t("Store details saved on this phone"), detail: t("They are sent when the connection returns") }
+                : { title: t("Store details saved"), detail: t("A new window or dock is used from the next plan") },
             );
           }}
           onClose={() => setEditing(null)}

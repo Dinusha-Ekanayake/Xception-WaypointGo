@@ -1,6 +1,7 @@
 package com.waypoint.dispatch;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -77,6 +78,7 @@ class StoreSelfServiceIntegrationTest {
   @Autowired ReferenceQuery reference;
   @Autowired ReferenceCache cache;
   @Autowired ReferenceVersionReader reader;
+  @Autowired com.waypoint.dispatch.planning.application.ReferenceSnapshotCache planningCache;
 
   @DynamicPropertySource
   static void databaseUrl(DynamicPropertyRegistry registry) {
@@ -171,6 +173,10 @@ class StoreSelfServiceIntegrationTest {
     JsonNode none = mapper.readTree(read(MANAGER, "/api/reference/outlets/" + REAR + "/details", 200));
     assertEquals(0, none.get("rowVersion").asLong());
     assertTrue(none.get("contactPhone").isNull());
+    // F-10: planning has the outlet cached under the version before the edit.
+    UUID version = reference.currentVersionId().orElseThrow();
+    LocalTime before = planningCache.outlet(REAR, version).orElseThrow().windowOpen();
+    long generation = reference.generation();
 
     JsonNode ack =
         mapper.readTree(
@@ -184,6 +190,12 @@ class StoreSelfServiceIntegrationTest {
     assertEquals(LocalTime.of(5, 30), seen.windowOpen(), "the snapshot planning reads has the store's window");
     assertEquals(LocalTime.of(8, 0), seen.effectiveWindowClose().orElseThrow());
     assertEquals("street", seen.dockType());
+    // F-10: the same version, a new generation, and planning's cache reads the edit.
+    assertEquals(version, reference.currentVersionId().orElseThrow());
+    assertTrue(reference.generation() > generation, "the edit moved the generation");
+    assertNotEquals(before, LocalTime.of(5, 30));
+    assertEquals(LocalTime.of(5, 30), planningCache.outlet(REAR, version).orElseThrow().windowOpen(),
+        "planning sees the store's window without a restart");
 
     JsonNode details = mapper.readTree(read(MANAGER, "/api/reference/outlets/" + REAR + "/details", 200));
     assertEquals("0771234567", details.get("contactPhone").asText());

@@ -34,4 +34,17 @@ public interface ScheduledJob {
   default boolean onBusinessClock() {
     return false;
   }
+
+  /**
+   * The outside dependency this job waits on, such as {@code "ml"},
+   * {@code "warehouse"} or {@code "push"}, or null for work inside the process.
+   * A job that names one runs on that dependency's own thread, so a model call
+   * that takes minutes or a warehouse that stops answering cannot hold the
+   * scheduler's threads and delay the 16:00 cutoff or the retention jobs
+   * (roadmap F-09a). A run that comes due while the previous one of the same job
+   * is still waiting is skipped, not queued.
+   */
+  default String bulkhead() {
+    return null;
+  }
 }

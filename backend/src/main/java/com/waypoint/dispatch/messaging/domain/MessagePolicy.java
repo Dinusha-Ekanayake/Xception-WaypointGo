@@ -17,10 +17,17 @@ import java.util.Set;
  *       for everyone, those addressed to them, and their own (row-level security).
  *   <li>R-MSG-02: the dispatcher writes to the driver, the loaders, one outlet or
  *       everyone. The driver writes to the dispatcher or to an outlet on its trip.
- *       A loader and a store manager write to the dispatcher only.
+ *       A loader writes to the dispatcher or, when the trip has a vehicle, to its
+ *       driver (a note about the load, R-MSG-12). A store manager writes to the
+ *       dispatcher only.
  *   <li>R-MSG-03: every report, from whoever, is for the dispatcher alone.
  *   <li>R-MSG-04: a trip's thread takes posts until the end of the day after its
  *       service date, for late replies; then it is read only.
+ *   <li>R-MSG-08: the trip's live channel (FF-04) opens when the driver starts
+ *       the trip, after loading, and is the dispatcher's and the stores' whose
+ *       orders on the trip are not all done. The dispatcher writes
+ *       to it; a store writes to it only while its outlet is active. The driver
+ *       and the loaders neither write to it nor read it.
  * </ul>
  */
 public final class MessagePolicy {
@@ -45,7 +52,8 @@ public final class MessagePolicy {
     DRIVER,
     LOADER,
     OUTLET,
-    ALL;
+    ALL,
+    CHANNEL;
 
     public String code() {
       return name().toLowerCase(Locale.ROOT);
@@ -55,7 +63,7 @@ public final class MessagePolicy {
       try {
         return valueOf(value.trim().toUpperCase(Locale.ROOT));
       } catch (RuntimeException e) {
-        throw invalid("to must be one of dispatch, driver, loader, outlet, all");
+        throw invalid("to must be one of dispatch, driver, loader, outlet, all, channel");
       }
     }
   }
@@ -96,6 +104,18 @@ public final class MessagePolicy {
    */
   public static String check(
       Role role, Post post, List<String> threadOutlets, boolean hasVehicle, LocalDate serviceDate, LocalDate today) {
+    return check(role, post, threadOutlets, hasVehicle, false, false, serviceDate, today);
+  }
+
+  /**
+   * As above, for a thread with a live channel.
+   *
+   * @param channelOpen the driver has started the trip, so its channel takes posts
+   * @param inChannel one of the store's outlets is still active in the trip's channel
+   */
+  public static String check(
+      Role role, Post post, List<String> threadOutlets, boolean hasVehicle, boolean channelOpen, boolean inChannel,
+      LocalDate serviceDate, LocalDate today) {
     String body = post.voice() ? optionalBody(post.body()) : body(post.body());
     if (!open(serviceDate, today)) {
       throw new DomainException(
@@ -126,8 +146,24 @@ public final class MessagePolicy {
         switch (role) {
           case DISPATCHER -> post.to() != To.DISPATCH && (post.to() != To.DRIVER || hasVehicle);
           case DRIVER -> post.to() == To.DISPATCH || post.to() == To.OUTLET;
-          case LOADER, STORE_MANAGER -> post.to() == To.DISPATCH;
+          case LOADER -> post.to() == To.DISPATCH || (post.to() == To.DRIVER && hasVehicle);
+          // R-MSG-16: a store writes to the dispatcher, the common room, or its own driver.
+          case STORE_MANAGER -> post.to() == To.DISPATCH || post.to() == To.CHANNEL || (post.to() == To.DRIVER && hasVehicle);
         };
+    if (allowed && post.to() == To.CHANNEL && !channelOpen) {
+      throw new DomainException(
+          ErrorCode.CONFLICT, "the trip's channel opens when the driver starts the trip", List.of("R-MSG-08"));
+    }
+    if (allowed && role == Role.STORE_MANAGER && post.to() == To.DRIVER && !inChannel) {
+      throw new DomainException(
+          ErrorCode.CONFLICT, "your deliveries on this trip are done, so you no longer write to its driver",
+          List.of("R-MSG-16"));
+    }
+    if (allowed && role == Role.STORE_MANAGER && post.to() == To.CHANNEL && !inChannel) {
+      throw new DomainException(
+          ErrorCode.CONFLICT, "your deliveries on this trip are done, so its channel is read only for you",
+          List.of("R-MSG-08"));
+    }
     if (!allowed) {
       throw rule("a " + role.code().replace('_', ' ') + " cannot write to " + post.to().code(), "R-MSG-02");
     }
@@ -184,8 +220,81 @@ public final class MessagePolicy {
     return body;
   }
 
+  /** A dispatcher's reason for moving a post off the channel (R-MSG-08): 3 to 500 characters. */
+  public static String redirectReason(String raw) {
+    String reason = raw == null ? "" : raw.strip();
+    if (reason.length() < 3 || reason.length() > 500) {
+      throw rule("reason is 3 to 500 characters", "R-MSG-08");
+    }
+    return reason;
+  }
+
   /** Longest note a dispatcher may give when resolving a report (R-MSG-07). */
   public static final int RESOLUTION_MAX = 500;
+
+  /** FF-08: the ready reply a post came from, and whether its words were changed before sending. */
+  /**
+   * @param shown the ready replies on screen, in order, when the screen said (AI-J5); the picked one is at {@code rank}
+   * @param explored the second and third were swapped on purpose, to measure the pull of position
+   */
+  public record ReplyUse(String templateId, int version, int rank, boolean edited, List<String> shown, boolean explored) {
+    public ReplyUse {
+      shown = List.copyOf(shown);
+    }
+
+    public ReplyUse(String templateId, int version, int rank, boolean edited) {
+      this(templateId, version, rank, edited, List.of(), false);
+    }
+  }
+
+  private static final java.util.regex.Pattern TEMPLATE_ID = java.util.regex.Pattern.compile("^[a-z_]+(\\.[a-z_]+)+$");
+
+  /**
+   * The ready reply named on a post, or empty when none is. A report never
+   * comes from one: its words are the person's own.
+   */
+  public static Optional<ReplyUse> replyUse(
+      String templateId, Integer version, Integer rank, boolean edited, boolean report) {
+    if (templateId == null && version == null && rank == null) {
+      return Optional.empty();
+    }
+    if (report) {
+      throw invalid("a report is written, not taken from a ready reply");
+    }
+    if (templateId == null || templateId.length() > 64 || !TEMPLATE_ID.matcher(templateId).matches()) {
+      throw invalid("templateId must name a ready reply, such as driver.bring_back");
+    }
+    if (version == null || version < 1 || version > 1000) {
+      throw invalid("templateVersion must be between 1 and 1000");
+    }
+    if (rank == null || rank < 1 || rank > 10) {
+      throw invalid("templateRank must be between 1 and 10");
+    }
+    return Optional.of(new ReplyUse(templateId, version, rank, edited));
+  }
+
+  /**
+   * As {@link #replyUse(String, Integer, Integer, boolean, boolean)}, with the
+   * replies that were on screen (comma separated, in order). A list that does not
+   * hold the picked reply at its rank is not a record of what happened, so it is
+   * refused rather than stored.
+   */
+  public static Optional<ReplyUse> replyUse(
+      String templateId, Integer version, Integer rank, boolean edited, boolean report, String shown, boolean explored) {
+    Optional<ReplyUse> use = replyUse(templateId, version, rank, edited, report);
+    if (use.isEmpty() || shown == null || shown.isBlank()) {
+      return use;
+    }
+    List<String> ids = List.of(shown.split(",")).stream().map(String::strip).toList();
+    if (ids.size() > 10 || ids.stream().anyMatch(id -> id.length() > 64 || !TEMPLATE_ID.matcher(id).matches())) {
+      throw invalid("templateShown must list at most 10 ready replies");
+    }
+    if (ids.size() < rank || !ids.get(rank - 1).equals(templateId)) {
+      throw invalid("templateShown must hold the picked reply at its rank");
+    }
+    ReplyUse r = use.get();
+    return Optional.of(new ReplyUse(r.templateId(), r.version(), r.rank(), r.edited(), ids, explored));
+  }
 
   /** The note on a resolved report: optional, trimmed, at most {@link #RESOLUTION_MAX}. */
   public static Optional<String> resolutionNote(String raw) {

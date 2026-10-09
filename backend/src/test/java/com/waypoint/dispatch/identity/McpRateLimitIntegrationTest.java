@@ -15,6 +15,7 @@ import com.waypoint.dispatch.platform.db.Migrator;
 import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.referencedata.application.ImportReferenceDataHandler;
 import com.waypoint.dispatch.shared.util.Clock;
+import com.waypoint.dispatch.support.McpGrants;
 import com.waypoint.dispatch.support.TestDatabase;
 import java.nio.file.Path;
 import java.sql.Timestamp;
@@ -86,6 +87,7 @@ class McpRateLimitIntegrationTest {
     migrator.migrate();
     reference.importFrom(Path.of("../data"), null);
     UUID id = accounts.createAccount(email, "MCP Rate", PASSWORD, "store_manager");
+    McpGrants.allow(database, id);
     database.asModule(ModuleRole.IAM, id, () -> database.update(
         "INSERT INTO iam.user_outlet_access (user_id, outlet_id) VALUES (?, 'OUT001')", id));
   }

@@ -94,6 +94,18 @@ public final class CommandPayload {
     }
   }
 
+  /** A whole number, or null when absent; anything else is refused with the field's name. */
+  public Integer optionalInt(String field) {
+    if (node == null || !node.hasNonNull(field)) {
+      return null;
+    }
+    JsonNode v = node.get(field);
+    if (!v.isIntegralNumber() || !v.canConvertToInt()) {
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, field + " must be a whole number");
+    }
+    return v.intValue();
+  }
+
   public boolean flag(String field, boolean whenAbsent) {
     if (node == null || !node.hasNonNull(field)) {
       return whenAbsent;

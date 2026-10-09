@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { ApiError } from "../api/problem.ts";
 import type { MemberRole, MemberView, ReportType } from "../domain/messaging.ts";
-import { defaultAddress, parseMention, plain, REPORT_LABEL, REPORTS_BY_ROLE, sameAddress, type Address, type Translate } from "../messaging/thread.ts";
+import type { Reply } from "../messaging/templates.ts";
+import { channelLeaks, defaultAddress, parseMention, plain, REPORT_LABEL, REPORTS_BY_ROLE, sameAddress, type Address, type Translate } from "../messaging/thread.ts";
 import { useRecorder, type Recording } from "../messaging/recorder.ts";
 import { newId, postCommand } from "../messaging/useThread.ts";
 import { sendNow, type Sender } from "../messaging/senders.ts";
@@ -23,6 +24,9 @@ export function ThreadComposer({
   threadId,
   role,
   members,
+  myOutlets = [],
+  replies = [],
+  repliesNote,
   online,
   sender = sendNow,
   keepsOffline = false,
@@ -33,6 +37,12 @@ export function ThreadComposer({
   threadId: string;
   role: MemberRole;
   members: MemberView[];
+  /** The writer's own outlets on the trip: a store may name them on the channel. */
+  myOutlets?: string[];
+  /** FF-08: ready replies for the trip's state, every value filled by code; a tap fills the draft. */
+  replies?: Reply[];
+  /** AI-J5: how the replies are ordered, said under them ("Suggestions: rules only"). */
+  repliesNote?: string;
   online: boolean;
   sender?: Sender;
   /** The sender keeps a message, voice included, on the device with no signal. */
@@ -46,9 +56,16 @@ export function ThreadComposer({
   const [chosen, setAddress] = useState<Address | null>(draft?.address ?? null);
   const address = chosen ?? defaultAddress(role, members);
   const [body, setBody] = useState(draft?.body ?? "");
+  // FF-08: the ready reply tapped, so the post says which one and whether its words were changed.
+  const [picked, setPicked] = useState<{ reply: Reply; rank: number } | null>(null);
+  const offered = replies.filter((r) => members.some((m) => sameAddress({ to: m.to, outletId: m.outletId }, { to: r.to, outletId: r.outletId })));
+  // Emptied and written afresh: no longer that reply.
+  if (picked && body.trim() === "") setPicked(null);
   const [report, setReport] = useState<ReportType | null>(draft?.report && reports.length > 0 ? reports[0]! : null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The body a writer was asked about before it went to the channel (R-MSG-08).
+  const [asked, setAsked] = useState<string | null>(null);
   const recorder = useRecorder();
   const to: Address = report ? { to: "dispatch", outletId: null } : address;
 
@@ -66,9 +83,17 @@ export function ThreadComposer({
     setBody(text);
   };
 
-  const submit = async (voice?: Recording) => {
+  const leaks = to.to === "channel" ? channelLeaks(body, role === "dispatcher" ? [] : myOutlets) : null;
+  const leaking = leaks !== null && (leaks.outlets.length > 0 || leaks.order);
+
+  const submit = async (voice?: Recording, address: Address = to) => {
     const text = voice ? "" : body.trim();
     if (busy || (!text && !voice)) return;
+    // Every store still waiting reads the channel: ask once before a post that names another.
+    if (!voice && address.to === "channel" && leaking && asked !== text) {
+      setAsked(text);
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -78,15 +103,27 @@ export function ThreadComposer({
         postCommand({
           threadId,
           body: text,
-          to: to.to,
-          ...(to.to === "outlet" && to.outletId ? { outletId: to.outletId } : {}),
+          to: address.to,
+          ...(address.to === "outlet" && address.outletId ? { outletId: address.outletId } : {}),
           ...(report ? { report } : {}),
           ...(voiceNoteId ? { voiceNoteId } : {}),
+          ...(picked && !report && !voice
+            ? {
+                templateId: picked.reply.id,
+                templateVersion: picked.reply.version,
+                templateRank: picked.rank,
+                templateEdited: text.trim() !== picked.reply.body.trim(),
+                templateShown: offered.map((r) => r.id).join(","),
+                templateExplored: offered.some((r) => r.explored === true),
+              }
+            : {}),
           clientMessageId,
         }),
         voice && voiceNoteId ? { threadId, voiceNoteId, blob: voice.blob, durationMs: voice.durationMs, peaks: voice.peaks } : undefined,
       );
       if (!voice) setBody("");
+      setPicked(null);
+      setAsked(null);
       setReport(null);
       recorder.discard();
       onSent(sent.queued);
@@ -106,6 +143,26 @@ export function ThreadComposer({
         void submit();
       }}
     >
+      {replies.length > 0 && !report && body.trim() === "" && (
+        <div role="group" aria-label={tr("Suggested replies")} className="flex flex-wrap gap-1.5">
+          {offered.map((r, i) => (
+              <button
+                key={r.id}
+                type="button"
+                data-template={`${r.id}@${r.version}`}
+                onClick={() => {
+                  setAddress({ to: r.to, outletId: r.outletId });
+                  setBody(r.body);
+                  setPicked({ reply: r, rank: i + 1 });
+                }}
+                className="min-h-8 rounded-full border border-go-divider bg-go-card px-3 text-[13px] font-medium text-go-teal"
+              >
+                {tr(r.label)}
+              </button>
+            ))}
+          {repliesNote && <span className="self-center text-[11px] text-go-muted">{repliesNote}</span>}
+        </div>
+      )}
       {members.length > 1 && !report && (
         <div role="radiogroup" aria-label={tr("Send to")} className="flex flex-wrap gap-1.5">
           {members.map((m) => {
@@ -190,6 +247,38 @@ export function ThreadComposer({
           ) : null
         }
       />
+      {leaking && asked === body.trim() && (
+        <div role="alert" data-testid="channel-nudge" className="flex flex-col gap-2 rounded-go-card-s bg-go-warning-tint px-3.5 py-2.5 text-[13px] text-go-ink">
+          <p>
+            {leaks.outlets.length > 0
+              ? tr("Every store still waiting reads this, and it names {outlets}.", { outlets: leaks.outlets.join(", ") })
+              : tr("Every store still waiting reads this, and it names an order.")}
+          </p>
+          <span className="flex flex-wrap gap-2">
+            {role !== "dispatcher" && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  setAddress({ to: "dispatch", outletId: null });
+                  void submit(undefined, { to: "dispatch", outletId: null });
+                }}
+                className="min-h-8 rounded-full bg-go-teal px-3 text-[13px] font-medium text-white disabled:opacity-50"
+              >
+                {tr("Send to the dispatcher only")}
+              </button>
+            )}
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void submit()}
+              className="min-h-8 rounded-full bg-go-card px-3 text-[13px] font-medium text-go-ink shadow-[inset_0_0_0_1px_rgb(0_0_0/0.08)] disabled:opacity-50"
+            >
+              {tr("Send to every store")}
+            </button>
+          </span>
+        </div>
+      )}
       {!online && !keepsOffline && <p className="text-xs text-go-secondary">{tr("Offline. Voice notes need a connection.")}</p>}
       {error && (
         <p role="alert" className="text-[13px] text-go-danger-strong">

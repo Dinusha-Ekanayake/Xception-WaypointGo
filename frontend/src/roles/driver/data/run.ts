@@ -1,5 +1,12 @@
 import type { Command } from "@shared/api/commands";
 import type { DeliveryOutcome, RunSheetStopView, RunSheetView, StoreAnswerWaiverReason } from "@shared/domain/types";
+
+/**
+ * Marks a gap as a key of data/strings.ts. The screens compare a gap with these
+ * English sentences to place it under its field, so it stays English here and is
+ * translated where it is drawn (FF-00).
+ */
+const t = (english: string): string => english;
 export { clock } from "../../../shared/wording/index.ts";
 
 // The driver's run as the phone believes it is: what the server last said, with
@@ -136,21 +143,21 @@ export function missing(stop: Stop, draft: RecordDraft, timingUncertain: boolean
   const reason = draft.reason.trim();
   const note = draft.dispositionNote.trim();
   if (draft.outcome === "FAILED") {
-    if (!reason) return "Choose why the delivery could not be made.";
-    if (!note) return "Say what happened to the goods.";
+    if (!reason) return t("Choose why the delivery could not be made.");
+    if (!note) return t("Say what happened to the goods.");
     return null;
   }
-  if (stop.outcome !== "ARRIVED") return "Record your arrival first.";
-  if (!canDeliver(stop)) return "The mall's delivery window has closed. Record this stop as not delivered.";
+  if (stop.outcome !== "ARRIVED") return t("Record your arrival first.");
+  if (!canDeliver(stop)) return t("The mall's delivery window has closed. Record this stop as not delivered.");
   if (draft.outcome === "PARTIAL") {
     if (!(draft.deliveredUnits >= 1 && draft.deliveredUnits < stop.itemCount)) {
       return `A partial delivery is between 1 and ${stop.itemCount - 1} units.`;
     }
-    if (!reason) return "Say why the delivery was partial.";
-    if (!note) return "Say what happened to the units not delivered.";
+    if (!reason) return t("Say why the delivery was partial.");
+    if (!note) return t("Say what happened to the units not delivered.");
     return null;
   }
-  if ((stop.lateMinutes ?? 0) > 0 && !timingUncertain && !reason) return "This stop is late. Say why.";
+  if ((stop.lateMinutes ?? 0) > 0 && !timingUncertain && !reason) return t("This stop is late. Say why.");
   return null;
 }
 

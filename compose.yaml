@@ -9,6 +9,7 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    mem_limit: ${MCP_MEM:-256m}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:8081/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
@@ -27,6 +28,9 @@ services:
       - "127.0.0.1:${DB_PORT:-5432}:5432"
     volumes:
       - waypoint-postgres:/var/lib/postgresql/data
+    # F-15: every service has a ceiling, so the two stacks and the log store fit one
+    # 16 GB server (budget in docs/deployment.md). Raise one in .env, never remove it.
+    mem_limit: ${DB_MEM:-1g}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U waypoint -d waypoint"]
       interval: 5s
@@ -48,6 +52,7 @@ services:
       DATABASE_URL: postgresql://waypoint_app:${APP_DB_PASSWORD:-local-testing-only-app}@db:5432/waypoint
       MIGRATION_DATABASE_URL: postgresql://waypoint:${POSTGRES_PASSWORD:-local-testing-only}@db:5432/waypoint
       SEED_PASSWORD: ${SEED_PASSWORD:-123456789123}
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError
     command: ["sh", "/app/compose-init.sh"]
     volumes:
       - ./scripts/compose-init.sh:/app/compose-init.sh:ro
@@ -56,6 +61,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    mem_limit: ${INIT_MEM:-1g}
     restart: "no"
   # Local demo data the init commands do not cover: see scripts/seed-demo.sql.
   seed:
@@ -68,6 +74,7 @@ services:
     depends_on:
       init:
         condition: service_completed_successfully
+    mem_limit: 256m
     restart: "no"
   backend:
     labels:
@@ -104,7 +111,40 @@ services:
       # The model service (issue #16). Not a dependency: with it down the
       # backend uses its deterministic estimates and says so on every plan.
       ML_BASE_URL: ${ML_BASE_URL:-http://ml:8000}
+      # False in production: competition-trained models never answer there (R-ML-09).
+      ML_ALLOW_DATATHON: ${ML_ALLOW_DATATHON:-true}
+      # The language model gateway (roadmap AI-0): off unless AI_ENABLED=true.
+      # Only the backend holds the key; facts are allow-listed and masked first.
+      AI_ENABLED: ${AI_ENABLED:-false}
+      AI_PROVIDER: ${AI_PROVIDER:-groq}
+      AI_MODEL: ${AI_MODEL:-}
+      AI_DAILY_CALLS: ${AI_DAILY_CALLS:-300}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      # Jev in shadow (roadmap AI-J1): guesses issue types, nobody sees it. Off unless true.
+      JEV_ENABLED: ${JEV_ENABLED:-false}
+      JEV_MODEL: ${JEV_MODEL:-typesafe/jev-1.13}
+      # The speech service (R-MSG-10): http://speech:8090 with the "speech" profile; blank turns it off.
+      SPEECH_URL: ${SPEECH_URL:-}
+      # Roadmap M-01: the object store. OBJECT_STORE=s3 with all four S3 values set puts new proofs there.
+      OBJECT_STORE: ${OBJECT_STORE:-}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_REGION: ${S3_REGION:-auto}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+      S3_ENCRYPTION_KEY: ${S3_ENCRYPTION_KEY:-}
+      PUBLISH_RISK_REVIEW: ${PUBLISH_RISK_REVIEW:-true}
+      # Roadmap FF-05: voice note transcription, off while TRANSCRIBE_ENGINE is empty.
+      TRANSCRIBE_ENGINE: ${TRANSCRIBE_ENGINE:-}
+      TRANSCRIBE_MODEL: ${TRANSCRIBE_MODEL:-gemini-3.8-flash}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      AZURE_SPEECH_KEY: ${AZURE_SPEECH_KEY:-}
+      AZURE_SPEECH_REGION: ${AZURE_SPEECH_REGION:-}
       LOG_FORMAT: ecs
+      # F-15: the heap is sized from the container's limit, not the host's memory,
+      # and a JVM out of memory exits so Docker restarts it instead of limping on.
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError
     volumes:
       - ./data:/app/data:ro
       - ./migrations:/app/migrations:ro
@@ -116,6 +156,7 @@ services:
         condition: service_completed_successfully
       seed:
         condition: service_completed_successfully
+    mem_limit: ${BACKEND_MEM:-2g}
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health/readiness | grep -q UP"]
@@ -129,11 +170,26 @@ services:
   # Serves the trained models to the backend (issue #16, ADR-001). Reached only
   # from inside the compose network; it publishes no port. Its model files come
   # from Git LFS, so a checkout needs `git lfs pull` before building.
+  # Text to speech on our own server (R-MSG-10): Piper, English, Sinhala and
+  # Tamil. Off unless started with the "speech" profile and SPEECH_URL is set.
+  speech:
+    profiles: ["speech"]
+    labels:
+      com.waypoint.logs: "true"
+    build:
+      context: ./speech
+    # This machine only, for a backend run natively in development; the backend in compose uses http://speech:8090.
+    ports:
+      - "127.0.0.1:${SPEECH_PORT:-8090}:8090"
+    mem_limit: ${SPEECH_MEM:-1g}
+    restart: unless-stopped
+
   ml:
     labels:
       com.waypoint.logs: "true"
     build:
       context: ./ml-server
+    mem_limit: ${ML_MEM:-1536m}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4)"]
@@ -150,13 +206,12 @@ services:
       - "${PORT:-3000}:3000"
     environment:
       BACKEND_URL: http://backend:8080
-      GROQ_API_KEY: ${GROQ_API_KEY:-}
-      GROQ_MODEL: ${GROQ_MODEL:-}
       MAP_TILE_URL: ${MAP_TILE_URL:-}
       MCP_INTERNAL_URL: http://mcp:8081
     depends_on:
       backend:
         condition: service_healthy
+    mem_limit: ${WEB_MEM:-512m}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
@@ -178,6 +233,7 @@ services:
     volumes:
       - ./observability/loki/config.yaml:/etc/loki/config.yaml:ro
       - loki-data:/loki
+    mem_limit: 512m
     restart: unless-stopped
   alloy:
     image: grafana/alloy:v1.7.1
@@ -192,6 +248,7 @@ services:
       - alloy-data:/var/lib/alloy/data
     depends_on:
       - loki
+    mem_limit: 256m
     restart: unless-stopped
   grafana:
     image: grafana/grafana:11.5.2
@@ -209,6 +266,24 @@ services:
     depends_on:
       - loki
       - prometheus
+    mem_limit: 256m
+    restart: unless-stopped
+  # Alerts: groups what Prometheus raises and sends it to the team's channel
+  # (observability/alertmanager/alertmanager.yml). The channel's address is the
+  # secret ALERT_WEBHOOK_URL in .env, written to a file only this container
+  # reads; without it the alerts still show on Prometheus and in Grafana.
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    profiles: ["observability"]
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - umask 077 && printf '%s' "$$ALERT_WEBHOOK_URL" > /tmp/webhook-url && exec /bin/alertmanager --config.file=/etc/alertmanager/alertmanager.yml --storage.path=/alertmanager
+    environment:
+      ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+    volumes:
+      - ./observability/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
+    mem_limit: 64m
     restart: unless-stopped
   # Metrics: scrapes the backend's /prometheus every 15 s and keeps 15 days.
   # Grafana reads it as the Prometheus datasource; it publishes no port.
@@ -223,7 +298,9 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/prometheus/rules:/etc/prometheus/rules:ro
       - prometheus-data:/prometheus
+    mem_limit: 512m
     restart: unless-stopped
 volumes:
   waypoint-postgres:
@@ -232,3 +309,4 @@ volumes:
   alloy-data:
   grafana-data:
   prometheus-data:
+  alertmanager-data:

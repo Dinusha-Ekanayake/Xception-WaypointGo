@@ -52,6 +52,8 @@ public class ExecutionDataQuery implements ExecutionQuery {
   private final PersonQuery people;
   private final Metrics metrics;
 
+  private final com.waypoint.dispatch.execution.infrastructure.JdbcPositions positions;
+
   public ExecutionDataQuery(
       Database database,
       JdbcExecutionReads reads,
@@ -60,7 +62,9 @@ public class ExecutionDataQuery implements ExecutionQuery {
       AuditLog audit,
       IdentityQuery identity,
       PersonQuery people,
-      Metrics metrics) {
+      Metrics metrics,
+      com.waypoint.dispatch.execution.infrastructure.JdbcPositions positions) {
+    this.positions = positions;
     this.database = database;
     this.reads = reads;
     this.deliveries = deliveries;
@@ -274,6 +278,16 @@ public class ExecutionDataQuery implements ExecutionQuery {
 
   private static Optional<Instant> timestamp(Object value) {
     return Optional.ofNullable((Timestamp) value).map(Timestamp::toInstant);
+  }
+
+  @Override
+  public List<com.waypoint.dispatch.execution.contract.ExecutionViews.TrailPointView> vehicleFixes(
+      String vehicleId, java.time.Instant from, java.time.Instant to, int limit) {
+    return read(ambient(), () -> positions.between(vehicleId, from, to, Math.max(1, Math.min(limit, 5000)))).stream()
+        .map(r -> new com.waypoint.dispatch.execution.contract.ExecutionViews.TrailPointView(
+            ((java.sql.Timestamp) r.get("recorded_at")).toInstant(), (java.math.BigDecimal) r.get("latitude"),
+            (java.math.BigDecimal) r.get("longitude"), Boolean.TRUE.equals(r.get("low_quality"))))
+        .toList();
   }
 
   private UUID ambient() {

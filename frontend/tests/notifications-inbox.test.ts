@@ -73,3 +73,11 @@ test("the bell shows nothing at zero or unknown, the count, then 99+", () => {
   assert.equal(badgeText(99), "99");
   assert.equal(badgeText(140), "99+");
 });
+
+test("one notification colour: the accent while unread, red only for an alarm, grey once read", async () => {
+  const { noteColor } = await import("../src/shared/notifications/inbox.ts");
+  assert.equal(noteColor({ eventType: "plan.published", subjectType: "plan", readAt: null }), "var(--color-go-note-accent)");
+  assert.equal(noteColor({ eventType: "eta.changed", subjectType: "delivery", readAt: null }), "var(--color-go-note-accent)", "a warning is no colour of its own");
+  assert.equal(noteColor({ eventType: "delivery.failed", subjectType: "delivery", readAt: null }), "var(--color-go-note-alarm)");
+  assert.equal(noteColor({ eventType: "delivery.failed", subjectType: "delivery", readAt: "2027-03-01T05:00:00Z" }), "var(--color-go-note-read)");
+});

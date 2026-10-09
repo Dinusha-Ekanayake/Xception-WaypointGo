@@ -65,6 +65,8 @@ public class PlanGenerationWorker implements SmartLifecycle {
   private final List<Thread> workers = new ArrayList<>();
   private volatile boolean running;
 
+  private final com.waypoint.dispatch.platform.messaging.ChangeSignals changes;
+
   public PlanGenerationWorker(
       GeneratePlanHandler generator,
       JdbcGenerationJobs jobs,
@@ -75,7 +77,9 @@ public class PlanGenerationWorker implements SmartLifecycle {
       ObjectMapper json,
       ApplicationArguments arguments,
       @Value("${app.planning.worker.enabled:true}") boolean enabled,
-      @Value("${PLANNING_WORKERS:2}") int threads) {
+      @Value("${PLANNING_WORKERS:2}") int threads,
+      com.waypoint.dispatch.platform.messaging.ChangeSignals changes) {
+    this.changes = changes;
     this.generator = generator;
     this.jobs = jobs;
     this.database = database;
@@ -118,19 +122,29 @@ public class PlanGenerationWorker implements SmartLifecycle {
       Optional<PlanningRun> run =
           database.asModule(ModuleRole.PLANNING, actor.userId(), () -> {
             Optional<PlanningRun> written = generator.persistJob(actor, input, result, now, job.commandId());
-            written.ifPresent(r -> jobs.done(job.jobId(), r.planId(), body(r), now));
+            // F-11: a worker whose claim was taken over writes nothing; the plan rolls back with it.
+            if (written.isPresent() && jobs.done(job.jobId(), job.attempts(), written.get().planId(), body(written.get()), now) == 0) {
+              throw new ClaimLost();
+            }
             return written;
           });
       metrics.record("waypoint.planning.job.duration", ms(writeStart), "stage", "write");
       if (run.isPresent()) {
         metrics.increment("waypoint.planning.job.done");
+        // F-07b: the board of that depot re-reads at once; a draft is not an event of its own.
+        changes.committed("plan.generated", job.depotCode());
         return;
       }
       settle(job, "the orders for the day changed while the plan was being made");
+    } catch (ClaimLost e) {
+      log.warn("Plan generation {} for {} on {}: the claim ran out and another worker has it; nothing written",
+          job.jobId(), job.depotCode(), job.serviceDate());
+      metrics.increment("waypoint.planning.job.claim_lost");
     } catch (DomainException e) {
       // A refusal from the rules does not change on a retry: say why and stop.
-      database.asSystem(ModuleRole.PLANNING, () -> jobs.failed(job.jobId(), e.getMessage(), clock.now()));
+      database.asSystem(ModuleRole.PLANNING, () -> jobs.failed(job.jobId(), job.attempts(), e.getMessage(), clock.now()));
       metrics.increment("waypoint.planning.job.failed", "code", e.code().name());
+      changes.committed("plan.generation_failed", job.depotCode());
     } catch (RuntimeException e) {
       log.warn("Plan generation {} for {} on {} failed", job.jobId(), job.depotCode(), job.serviceDate(), e);
       settle(job, "planning failed: " + e.getClass().getSimpleName());
@@ -141,12 +155,19 @@ public class PlanGenerationWorker implements SmartLifecycle {
   private void settle(JobRow job, String why) {
     database.asSystem(ModuleRole.PLANNING, () -> {
       if (job.attempts() < MAX_ATTEMPTS) {
-        jobs.requeue(job.jobId(), why);
+        jobs.requeue(job.jobId(), job.attempts(), why);
       } else {
-        jobs.failed(job.jobId(), why + " (" + job.attempts() + " attempts)", clock.now());
+        jobs.failed(job.jobId(), job.attempts(), why + " (" + job.attempts() + " attempts)", clock.now());
       }
     });
     metrics.increment("waypoint.planning.job.retried");
+  }
+
+  /** This worker's claim on the job was taken over after its lease ran out (F-11). */
+  private static final class ClaimLost extends RuntimeException {
+    ClaimLost() {
+      super("the generation job's claim was taken over", null, false, false);
+    }
   }
 
   private String body(PlanningRun run) {

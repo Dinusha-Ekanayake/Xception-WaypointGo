@@ -83,6 +83,17 @@ export default function ExplainSheet({ explanation, friendly, onClose }: { expla
       </Part>
       )}
 
+      {explanation.closest && (
+        <Part title="Closest it came">
+          <p className="text-[13px] text-go-ink" data-testid="fit-closest">{explanation.closest}</p>
+        </Part>
+      )}
+      {explanation.change && (
+        <Part title="Smallest change">
+          <p className="text-[13px] text-go-ink" data-testid="fit-change">{explanation.change}</p>
+        </Part>
+      )}
+
       <Part title="What you can do">
         <p className="text-[13px] text-go-ink">{explanation.next}</p>
       </Part>

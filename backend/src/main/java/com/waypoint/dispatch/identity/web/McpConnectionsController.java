@@ -31,10 +31,35 @@ public class McpConnectionsController {
   public static final String MANAGE_CLIENTS = "mcp:ManageClients";
   private final McpConnectionsQuery connections;
   private final RequestAuthorizer authorizer;
+  private final SessionActorResolver actors;
+  private final com.waypoint.dispatch.identity.application.PolicyDecisionPoint decisions;
 
-  public McpConnectionsController(McpConnectionsQuery connections, RequestAuthorizer authorizer) {
+  public McpConnectionsController(
+      McpConnectionsQuery connections,
+      RequestAuthorizer authorizer,
+      SessionActorResolver actors,
+      com.waypoint.dispatch.identity.application.PolicyDecisionPoint decisions) {
     this.connections = connections;
     this.authorizer = authorizer;
+    this.actors = actors;
+    this.decisions = decisions;
+  }
+
+  /** @param connect whether this person may connect an assistant now */
+  public record AccessView(boolean connect) {}
+
+  /**
+   * Whether the signed-in person may connect an AI assistant, so a screen shows
+   * "Connect AI assistant" only to them (R-IAM-40: the dispatcher by role, anyone
+   * else an administrator allowed). A question, not an attempt: the answer is
+   * the policy's, and a no is not audited as a denied request. Every request
+   * that would connect is still authorized and audited as before.
+   */
+  @GetMapping("/access")
+  public AccessView access(HttpServletRequest request) {
+    var actor = actors.resolve(request)
+        .orElseThrow(() -> new DomainException(ErrorCode.UNAUTHENTICATED, "Not signed in"));
+    return new AccessView(decisions.decide(actor, McpAccessHandler.CONNECT, McpAccessHandler.RESOURCE, java.util.Map.of()).allowed());
   }
 
   public record Revoke(String connectionId) {}

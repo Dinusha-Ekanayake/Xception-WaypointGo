@@ -1,9 +1,10 @@
 "use client";
 
 import { cx } from "@shared/ui";
-import { clock, stops as stopsText } from "../../../shared/wording/index.ts";
+import { clock } from "../../../shared/wording/index.ts";
 import type { Stop } from "../data/run.ts";
 import { finishedAt, summaryRows } from "../data/stopView.ts";
+import { useT } from "../i18n.tsx";
 
 export type RunCompleteScreenProps = {
   onBack: () => void;
@@ -34,7 +35,8 @@ export default function RunCompleteScreen({
   writesHeld,
   syncedAt,
 }: RunCompleteScreenProps): React.JSX.Element {
-  const rows = summaryRows(stops, uploadsWaiting);
+  const t = useT();
+  const rows = summaryRows(stops, uploadsWaiting, t);
   const finished = finishedAt(stops);
   const onPhone = writesWaiting + uploadsWaiting;
   return (
@@ -56,7 +58,7 @@ export default function RunCompleteScreen({
             "flex items-center gap-[9px] text-[20px] font-medium leading-[25px] h-[30px] transition-opacity active:opacity-70",
             isNight ? "text-white" : "text-black"
           )}
-          aria-label="Go back"
+          aria-label={t("Go back")}
         >
           <svg width="9" height="14" viewBox="0 0 9 14" fill="none">
             <path
@@ -67,7 +69,7 @@ export default function RunCompleteScreen({
               strokeLinejoin="round"
             />
           </svg>
-          <span>Back</span>
+          <span>{t("Back")}</span>
         </button>
 
         {/* Right header controls */}
@@ -82,7 +84,7 @@ export default function RunCompleteScreen({
             )}
           >
             <span className="text-[16px] font-medium leading-[20px] tracking-tight">
-              {syncedAt ? `Synced ${clock(syncedAt)}` : "Not synced"}
+              {syncedAt ? t("Synced {time}", { time: clock(syncedAt) }) : t("Not synced")}
             </span>
           </div>
 
@@ -96,7 +98,7 @@ export default function RunCompleteScreen({
                 ? "bg-[#292929] text-white shadow-[0px_5px_20px_rgba(0,0,0,0.09)]"
                 : "bg-white text-black shadow-[0px_5px_20px_2px_rgba(0,0,0,0.09)]"
             )}
-            aria-label="Toggle theme"
+            aria-label={t("Toggle theme")}
           >
             {isNight ? (
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -157,7 +159,7 @@ export default function RunCompleteScreen({
             isNight ? "text-white" : "text-black"
           )}
         >
-          Run complete
+          {t("Run complete")}
         </h1>
 
         {/* Subtitle */}
@@ -167,7 +169,8 @@ export default function RunCompleteScreen({
             isNight ? "text-[#A1A1AA]" : "text-[#6B7280]"
           )}
         >
-          All {stopsText(stops.length)} recorded{finished ? ` · finished ${clock(finished)}` : ""}
+          {stops.length === 1 ? t("The 1 stop recorded") : t("All {n} stops recorded", { n: stops.length })}
+          {finished ? t(" · finished {time}", { time: clock(finished) }) : ""}
         </p>
 
         {/* Run summary card */}
@@ -203,10 +206,14 @@ export default function RunCompleteScreen({
           )}
         >
           {writesHeld > 0
-            ? `${writesHeld} ${writesHeld === 1 ? "record was" : "records were"} refused by the server and ${writesHeld === 1 ? "waits" : "wait"} for you under "to review".`
+            ? writesHeld === 1
+              ? t("1 record was refused by Waypoint and waits for you under \"to review\".")
+              : t("{n} records were refused by Waypoint and wait for you under \"to review\".", { n: writesHeld })
             : onPhone > 0
-              ? `${onPhone} ${onPhone === 1 ? "record is" : "records are"} still on this phone and will be sent when the connection is back.`
-              : `Next: return ${vehicleId} to the depot.`}
+              ? onPhone === 1
+                ? t("1 record is still on this phone and will be sent when the connection is back.")
+                : t("{n} records are still on this phone and will be sent when the connection is back.", { n: onPhone })
+              : t("Next: return {vehicle} to the depot.", { vehicle: vehicleId })}
         </p>
       </div>
 
@@ -225,7 +232,7 @@ export default function RunCompleteScreen({
               : "bg-[#031B08] text-white hover:bg-[#031B08]/90"
           )}
         >
-          Back to home
+          {t("Back to home")}
         </button>
       </div>
     </div>

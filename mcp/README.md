@@ -223,7 +223,7 @@ histogram_quantile(0.95, sum by (tool, le) (rate(waypoint_mcp_duration_seconds_b
 sum(rate(waypoint_mcp_calls_total{tool="other"}[15m]))
 ```
 
-Alert rules worth adding where Prometheus alerting runs (there is none in this repository yet):
+The alerts on these, in `observability/prometheus/rules/waypoint.yml` (group `waypoint-mcp`, tested with promtool, sent through Alertmanager):
 
 ```promql
 # An assistant keeps being refused: misconfigured or probing.

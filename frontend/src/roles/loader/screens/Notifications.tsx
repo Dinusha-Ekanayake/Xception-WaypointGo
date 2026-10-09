@@ -1,14 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { cx } from "@shared/ui";
+import { cx, VoiceNotice } from "@shared/ui";
 import type { Inbox } from "@shared/notifications/useInbox";
-import { ago, isUnread, kindOf, toneOf, TONE_STYLE } from "@shared/notifications/inbox";
+import { ago, isUnread, kindOf, noteColor } from "@shared/notifications/inbox";
 import type { NotificationView } from "@shared/domain/types";
 import { useT } from "../i18n.tsx";
 import { localized } from "../data/messages.ts";
 import { SkeletonRows } from "@shared/ui";
 import { BigButton, Sheet } from "../ui.tsx";
+import { ScrollRevealCard, useRubberBandScroll } from "@shared/ui/scrollReveal";
 import { clock, businessNow } from "@shared/wording";
 
 // The loader's notifications (issue #118): plans published or revised for the
@@ -21,12 +22,16 @@ import { clock, businessNow } from "@shared/wording";
 
 export default function Notifications({
   inbox,
+  accountId,
   onClose,
 }: {
   inbox: Inbox;
+  /** Whose saved copies of voice messages play with no signal (R-MSG-11). */
+  accountId?: string;
   onClose: () => void;
 }): React.JSX.Element {
   const tr = useT();
+  const feed = useRubberBandScroll();
   const [lookedAt] = useState(() => businessNow());
   const [error, setError] = useState<string | null>(null);
   const unread = inbox.items.filter(isUnread).length;
@@ -68,38 +73,71 @@ export default function Notifications({
           <p className="py-8 text-center text-[15px] text-go-muted">{tr("No notifications yet")}</p>
         )
       ) : (
-        <ul className="flex max-h-[55dvh] flex-col gap-2.5 overflow-y-auto">
-          {inbox.items.map((n) => {
-            const kind = kindOf(n.eventType);
-            const fresh = isUnread(n);
-            const text = localized(n, tr);
-            const tone = TONE_STYLE[toneOf(n)];
-            return (
-              <li key={n.notificationId}>
-                <button
-                  type="button"
-                  onClick={() => open(n)}
-                  aria-label={`${fresh ? tr("Unread") + ". " : ""}${tr(kind.label)}. ${text.title}. ${text.body}`}
-                  className={cx(
-                    "flex w-full flex-col gap-1 rounded-[20px] border-l-4 px-4 py-3.5 text-left",
-                    tone.edge,
-                    fresh ? tone.tint : "border-y border-r border-y-go-rule border-r-go-rule bg-go-card",
-                  )}
-                >
-                  <span className="flex items-center justify-between gap-2 text-[13px]">
-                    <span className={cx("flex items-center gap-1.5 font-medium", tone.label)}>
-                      <span aria-hidden className={cx("size-2 rounded-full", tone.dot)} />
-                      {tr(kind.label)}
-                    </span>
-                    <span className="text-go-muted">{ago(n.createdAt, now)}</span>
-                  </span>
-                  <span className={cx("text-[16px] text-go-ink", fresh && "font-semibold")}>{text.title}</span>
-                  <span className="text-[14px] text-go-muted">{text.body}</span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+        // The phones' shared list scroll (rubber band, fades, rows easing out), as on the driver and store.
+        <div style={feed.maskStyle} className="relative min-h-0 overflow-hidden">
+          <div
+            ref={feed.scrollRef}
+            {...feed.handlers}
+            className="max-h-[55dvh] overflow-y-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
+            <ul
+              style={{
+                transform: `translate3d(0, ${feed.pullY}px, 0)`,
+                transition: feed.isPulling ? "none" : "transform 250ms cubic-bezier(0.18, 1.12, 0.32, 1.0)",
+              }}
+              className="flex flex-col gap-2.5 will-change-transform"
+            >
+              {inbox.items.map((n) => {
+                const kind = kindOf(n.eventType);
+                const fresh = isUnread(n);
+                const text = localized(n, tr);
+                // One look for every role (Figma): the canvas tint, one accent, red only for an alarm, grey once read.
+                const color = noteColor(n);
+                // A voice message plays here, with its words (FF-05); a play button cannot sit inside a row button.
+                if (n.eventType === "message.posted" && n.facts?.voiceNoteId) {
+                  return (
+                    <li key={n.notificationId}>
+                      <ScrollRevealCard scrollContainerRef={feed.scrollRef} pullY={feed.pullY}>
+                        <div onPointerDown={() => open(n)} className="flex w-full flex-col gap-2 rounded-[22px] bg-go-canvas px-[18px] py-4 text-left">
+                          <span className="flex items-center justify-between gap-2 text-[13px]">
+                            <span className="flex items-center gap-1.5 font-medium" style={{ color }}>
+                              <span aria-hidden className="size-2 rounded-full" style={{ background: color }} />
+                              {tr(kind.label)}
+                            </span>
+                            <span className="text-go-muted">{ago(n.createdAt, now)}</span>
+                          </span>
+                          <VoiceNotice item={n} tr={tr} {...(accountId ? { accountId } : {})} />
+                        </div>
+                      </ScrollRevealCard>
+                    </li>
+                  );
+                }
+                return (
+                  <li key={n.notificationId}>
+                    <ScrollRevealCard scrollContainerRef={feed.scrollRef} pullY={feed.pullY}>
+                      <button
+                        type="button"
+                        onClick={() => open(n)}
+                        aria-label={`${fresh ? tr("Unread") + ". " : ""}${tr(kind.label)}. ${text.title}. ${text.body}`}
+                        className="flex w-full flex-col gap-1 rounded-[22px] bg-go-canvas px-[18px] py-4 text-left"
+                      >
+                        <span className="flex items-center justify-between gap-2 text-[13px]">
+                          <span className="flex items-center gap-1.5 font-medium" style={{ color }}>
+                            <span aria-hidden className="size-2 rounded-full" style={{ background: color }} />
+                            {tr(kind.label)}
+                          </span>
+                          <span className="text-go-muted">{ago(n.createdAt, now)}</span>
+                        </span>
+                        <span className={cx("text-[16px] text-go-ink", fresh && "font-semibold")}>{text.title}</span>
+                        <span className="text-[14px] text-go-muted">{text.body}</span>
+                      </button>
+                    </ScrollRevealCard>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </div>
       )}
       {inbox.hasMore && (
         <button type="button" onClick={inbox.more} disabled={inbox.loading} className="min-h-12 text-[15px] font-medium text-go-teal">

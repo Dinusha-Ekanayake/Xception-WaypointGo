@@ -4,10 +4,12 @@ import { useMemo } from "react";
 import { queuedSender } from "@shared/messaging/senders";
 import { useTripThread } from "@shared/messaging/useThread";
 import { SecondaryButton, Sheet, SkeletonRows, TripThread } from "@shared/ui";
+import { useT } from "../i18n.tsx";
 
 // A trip's thread for the store (issue #136): what the dispatcher or the driver
 // wrote to this store or to everyone on the trip, and the store's own replies
-// and reports, which go to the dispatcher alone (R-MSG-01 to R-MSG-03). Opened
+// and reports, which go to the dispatcher alone (R-MSG-01 to R-MSG-03), and,
+// once the driver has started the trip, the stores' channel (R-MSG-08). Opened
 // from a message notification, or from a delivery's row by its trip. With no
 // signal a message, voice included, is kept on the phone (resilient tier).
 
@@ -26,33 +28,34 @@ export default function TripMessages({
   onQueued: () => void;
   onClose: () => void;
 }): React.JSX.Element {
+  const t = useT();
   const byTrip = useTripThread("tripId" in open ? open.tripId : null, accountId);
   const sender = useMemo(() => queuedSender({ accountId, role: "store_manager", online, onQueued }), [accountId, online, onQueued]);
   const threadId = "threadId" in open ? open.threadId : byTrip.data?.threadId ?? null;
-  const title = "vehicleId" in open ? `Messages · ${open.vehicleId}` : "Trip messages";
+  const title = "vehicleId" in open ? t("Messages · {vehicle}", { vehicle: open.vehicleId }) : t("Trip messages");
   return (
     <Sheet label={title} onClose={onClose}>
       <header className="flex items-start justify-between gap-3 pr-11">
         <div className="flex flex-col gap-1">
           <h2 className="text-[20px] font-medium text-go-ink">{title}</h2>
-          <p className="text-[13px] text-go-secondary">You see what is written to your store or to everyone on the trip. Replies go to the dispatcher.</p>
+          <p className="text-[13px] text-go-secondary">{t("You see what is written to your store or to everyone on the trip. Write to the dispatcher, to your driver while your delivery is on the way, or to the stores still waiting once the truck has left.")}</p>
         </div>
         <button type="button" onClick={onClose} className="min-h-11 shrink-0 rounded-full bg-go-surface px-4 text-sm font-medium text-go-teal">
-          Close
+          {t("Close")}
         </button>
       </header>
       <div className="flex h-[62dvh] min-h-0 flex-col">
         {threadId ? (
-          <TripThread threadId={threadId} online={online} variant="phone" sender={sender} keepsOffline accountId={accountId} />
+          <TripThread threadId={threadId} online={online} variant="phone" sender={sender} keepsOffline accountId={accountId} tr={t} />
         ) : byTrip.loading ? (
-          <SkeletonRows label="Loading messages…" />
+          <SkeletonRows label={t("Loading messages…")} />
         ) : byTrip.error ? (
           <div className="flex flex-col items-center gap-3 py-8">
-            <p className="text-center text-sm text-go-secondary">Messages could not be loaded. Try again when the connection is back.</p>
-            <SecondaryButton onClick={byTrip.refresh}>Try again</SecondaryButton>
+            <p className="text-center text-sm text-go-secondary">{t("Messages could not be loaded. Try again when the connection is back.")}</p>
+            <SecondaryButton onClick={byTrip.refresh}>{t("Try again")}</SecondaryButton>
           </div>
         ) : (
-          <p className="py-8 text-center text-sm text-go-secondary">This trip has no messages yet.</p>
+          <p className="py-8 text-center text-sm text-go-secondary">{t("This trip has no messages yet.")}</p>
         )}
       </div>
     </Sheet>

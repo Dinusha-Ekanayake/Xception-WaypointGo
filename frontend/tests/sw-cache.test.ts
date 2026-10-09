@@ -19,7 +19,7 @@ test("each kind of request has its own rule", () => {
   assert.equal(strategyFor("/map-tiles/12/2953/1914", false, false), "tile");
   assert.equal(strategyFor("/icons/go/truck.svg", false, false), "static");
   assert.equal(strategyFor("/fonts/UN-Malithi-4.ttf", false, false), "static");
-  assert.equal(strategyFor("/assets/proof-sample.png", false, false), "static");
+  assert.equal(strategyFor("/assets/signin_skyline_light.webp", false, false), "static");
   assert.equal(strategyFor("/healthz", false, false), "skip");
 });
 

@@ -11,6 +11,8 @@ import DecisionPanel from "./DecisionPanel.tsx";
 import type { PlanActions } from "./planActions.ts";
 import ReasonPicker, { reasonReady } from "./ReasonPicker.tsx";
 import SwapWindow from "./SwapWindow.tsx";
+import DeferralPolicyCard from "./DeferralPolicyCard.tsx";
+import WhatIfCard from "./WhatIfCard.tsx";
 import TooBigCard from "./TooBigCard.tsx";
 
 // Figma "Plan · 1 Decide": the orders the engine did not place, each with what a
@@ -144,6 +146,8 @@ export default function PlanDecide({
           </ul>
         </section>
         <TooBigCard plan={plan} orders={orders} fleet={fleet} editable={editable} actions={actions} />
+        <DeferralPolicyCard policyVersionId={plan.priorityPolicyVersionId} />
+        <WhatIfCard planId={plan.planId} rowVersion={plan.rowVersion} />
       </div>
 
       {selected && (

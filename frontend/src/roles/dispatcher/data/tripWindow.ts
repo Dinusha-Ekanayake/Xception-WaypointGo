@@ -60,7 +60,7 @@ export function tripTiles(stops: StopView[], orders: Map<string, OrderView>, veh
     },
     { label: "Stops", value: `${stops.length}`, note: "on this trip", percent: null },
     !checked
-      ? { label: "Delivery windows", value: "Not checked yet", note: "the server is timing the trip", percent: null, warn: true }
+      ? { label: "Delivery windows", value: "Not checked yet", note: "the trip is still being timed", percent: null, warn: true }
       : {
           label: "Delivery windows",
           value: stops.length === 0 ? "No stops" : lateCount > 0 ? `${lateCount} late` : unknown > 0 ? `${judged} of ${stops.length} met` : "All met",

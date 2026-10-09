@@ -1,6 +1,6 @@
 "use client";
 
-import { InstallApp, cx, useShell } from "@shared/ui";
+import { InstallApp, McpSettingsRow, cx, useShell } from "@shared/ui";
 import { usePush, type PushState } from "@shared/notifications/push";
 import { LANGS } from "../data/strings.ts";
 import { useLang, useT } from "../i18n.tsx";
@@ -63,6 +63,8 @@ export default function Settings({
             </div>
           </fieldset>
           <InstallApp t={tr} className="flex min-h-14 w-full items-center justify-center gap-2 rounded-[18px] bg-go-card text-[16px] font-medium text-go-ink" />
+          {/* R-IAM-40: only when an administrator allowed this person to connect an AI assistant; nothing otherwise. */}
+          <McpSettingsRow className="flex min-h-14 w-full items-center justify-center gap-2 rounded-[18px] bg-go-card text-[16px] font-medium text-go-ink" />
           <hr className="border-go-rule" />
           <fieldset className="flex flex-col gap-3">
             <legend className="flex flex-col">
@@ -112,7 +114,12 @@ export default function Settings({
               ))}
             </div>
           )}
-          <BigButton tone="plain" onClick={shell.onSignOut}>
+          <BigButton tone="signOut" onClick={shell.onSignOut}>
+            <svg aria-hidden width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
             {tr("Sign out this device")}
           </BigButton>
         </section>
@@ -128,7 +135,7 @@ function pushNote(state: PushState): string {
     case "unsupported":
       return "This browser cannot show alerts";
     case "server-off":
-      return "Alerts are not set up on this server";
+      return "Alerts are not set up yet";
     case "blocked":
       return "Blocked in this browser's settings";
     default:

@@ -3,9 +3,9 @@
 import { type ApiError, friendlyError } from "@shared/api/problem";
 import type { OrderView } from "@shared/domain/types";
 import { Notice, SkeletonRows, cx, usePersistentState } from "@shared/ui";
-import { units, ORDER_STATUS, dayLabel, depotToday, planNote, temperatureLabel } from "../data/format.ts";
+import { ORDER_STATUS, dayLabel, depotToday, planNote, temperatureLabel } from "../data/format.ts";
 import { Chip, Muted } from "../ui.tsx";
-import { useT } from "../i18n.tsx";
+import { useT, useCounts } from "../i18n.tsx";
 
 // Every order for this outlet, newest delivery day first. Tapping one opens its
 // timeline, where it can be changed or cancelled until it is planned. By
@@ -44,6 +44,7 @@ export default function Orders({
   /** Read the orders again after a failure. */
   onRetry?: () => void;
 }): React.JSX.Element {
+  const { units } = useCounts();
   const t = useT();
   const [filter, setFilter] = usePersistentState<Filter>("store:orders:filter", "open");
   const today = depotToday();
@@ -104,7 +105,7 @@ export default function Orders({
                     {o.dateRolled ? t(" · moved from {day}", { day: dayLabel(o.requestedDate) }) : ""}
                     {o.deferralCount > 0 ? t(" · deferred {n}×", { n: o.deferralCount }) : ""}
                   </span>
-                  {planNote(o) && <span className="text-[13px] font-medium text-go-teal">{planNote(o)}</span>}
+                  {planNote(o, t) && <span className="text-[13px] font-medium text-go-teal">{planNote(o, t)}</span>}
                 </button>
               );
             })}

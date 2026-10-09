@@ -42,7 +42,7 @@ export default function TripMessages({
       <header className="flex items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
           <h2 className="text-[20px] font-medium text-go-ink">{tr("Messages for {vehicle}", { vehicle: vehicleId })}</h2>
-          <p className="text-[13px] text-go-secondary">{tr("Write to the dispatcher. A report of missing or damaged items goes to the dispatcher only.")}</p>
+          <p className="text-[13px] text-go-secondary">{tr("Write to the dispatcher, or leave the driver a note about the load. A report of missing or damaged items goes to the dispatcher only.")}</p>
         </div>
         <button type="button" onClick={onClose} className="min-h-11 shrink-0 rounded-full bg-go-surface px-4 text-sm font-medium text-go-teal">
           {tr("Close")}

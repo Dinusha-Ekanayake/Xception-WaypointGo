@@ -1,6 +1,7 @@
 package com.waypoint.dispatch.messaging;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -9,6 +10,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryCompleted;
+import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryFailed;
+import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryStarted;
+import com.waypoint.dispatch.execution.contract.ExecutionViews.DeliveryOutcome;
 import com.waypoint.dispatch.identity.application.AccountAdminUseCase;
 import com.waypoint.dispatch.identity.application.LoginHandler;
 import com.waypoint.dispatch.identity.web.AuthController;
@@ -39,6 +44,7 @@ import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -90,6 +96,8 @@ class MessagingIntegrationTest {
   @Autowired OutboxRelay relay;
   @Autowired OperatorRegistry operators;
   @Autowired com.waypoint.dispatch.messaging.application.VoiceRetentionJob voiceRetention;
+  @Autowired com.waypoint.dispatch.messaging.application.VoiceTranscripts.Job transcribe;
+  @Autowired com.waypoint.dispatch.messaging.application.MessageSpeech.Job speechJob;
 
   String depot;
   LocalDate day;
@@ -110,6 +118,8 @@ class MessagingIntegrationTest {
   UUID loaderId;
   UUID tripId;
   UUID threadId;
+  /** The order each outlet has on the trip, as the last plan named it. */
+  Map<String, UUID> orders = new HashMap<>();
 
   @DynamicPropertySource
   static void databaseUrl(DynamicPropertyRegistry registry) {
@@ -233,10 +243,86 @@ class MessagingIntegrationTest {
   }
 
   @Test
+  void theDispatcherSeesWhetherTheDriverHasReadAMessageAndNoOneElseDoes() throws Exception {
+    // R-MSG-14: the driver's notification of the message, read when Messages is opened.
+    say(dispatcher, "{\"to\":\"driver\",\"body\":\"Take the bypass\"}", 200);
+    say(dispatcher, "{\"to\":\"outlet\",\"outletId\":\"" + OUTLET + "\",\"body\":\"Running late\"}", 200);
+    drain();
+    JsonNode toDriver = message(dispatcher, "Take the bypass");
+    assertFalse(toDriver.get("seenByDriver").asBoolean(), "not read yet");
+    assertTrue(toDriver.get("seenByDriverAt").isNull());
+    assertTrue(message(dispatcher, "Running late").get("seenByDriver").isNull(), "not for the driver: no mark");
+
+    database.asSystemSeparately(ModuleRole.NOTIFICATION, () -> database.update(
+        "UPDATE notification.notifications SET read_at = created_at WHERE recipient_user_id = ?"
+            + " AND event_type = 'message.posted'", driverId));
+    toDriver = message(dispatcher, "Take the bypass");
+    assertTrue(toDriver.get("seenByDriver").asBoolean());
+    assertFalse(toDriver.get("seenByDriverAt").isNull());
+    assertTrue(message(driver, "Take the bypass").get("seenByDriver").isNull(), "the mark is the dispatcher's");
+  }
+
+  private JsonNode message(String who, String body) throws Exception {
+    for (JsonNode m : json(read(who, "/api/threads/" + threadId + "/messages", 200)).get("items")) {
+      if (body.equals(m.get("body").asText())) {
+        return m;
+      }
+    }
+    throw new AssertionError("no message " + body);
+  }
+
+  @Test
+  void aPostFromAReadyReplyRecordsWhichOneAndWhetherItWasChanged() throws Exception {
+    say(dispatcher, "{\"to\":\"driver\",\"body\":\"Noted, carry on.\",\"templateId\":\"driver.noted\","
+        + "\"templateVersion\":1,\"templateRank\":3,\"templateEdited\":false}", 200);
+    say(dispatcher, "{\"to\":\"driver\",\"body\":\"Hi\",\"templateId\":\"Not a template\",\"templateVersion\":1,"
+        + "\"templateRank\":1}", 422);
+    Map<String, Object> use = database.asSystem(ModuleRole.MESSAGING, () -> database.queryOne(
+        "SELECT u.template_id, u.rank, u.edited FROM messaging.reply_uses u"
+            + " JOIN messaging.messages m ON m.message_id = u.message_id WHERE m.thread_id = ?", threadId));
+    assertEquals("driver.noted", use.get("template_id"));
+    assertEquals(3, ((Number) use.get("rank")).intValue());
+    assertEquals(false, use.get("edited"));
+  }
+
+  /** AI-J5: the replies on screen are kept beside the pick, and the ranker reads them as the dispatcher. */
+  @Test
+  void theRepliesOnScreenAreKeptForTheRankerWhichSaysRulesOnlyUntilItHasEnough() throws Exception {
+    say(dispatcher, "{\"to\":\"driver\",\"body\":\"Noted.\",\"templateId\":\"driver.noted\",\"templateVersion\":1,"
+        + "\"templateRank\":2,\"templateShown\":\"driver.bring_back,driver.noted\",\"templateExplored\":true}", 200);
+    // A shown list without the pick at its rank is not a record of what happened.
+    say(dispatcher, "{\"to\":\"driver\",\"body\":\"Noted again.\",\"templateId\":\"driver.noted\",\"templateVersion\":1,"
+        + "\"templateRank\":1,\"templateShown\":\"driver.bring_back,driver.noted\"}", 422);
+    Map<String, Object> use = database.asSystem(ModuleRole.MESSAGING, () -> database.queryOne(
+        "SELECT array_to_string(u.shown, ',') AS shown, u.explored FROM messaging.reply_uses u"
+            + " JOIN messaging.messages m ON m.message_id = u.message_id WHERE m.thread_id = ?", threadId));
+    assertEquals("driver.bring_back,driver.noted", use.get("shown"));
+    assertEquals(true, use.get("explored"));
+
+    JsonNode ranking = json(read(dispatcher, "/api/ml/reply-ranking", 200));
+    assertTrue(ranking.get("posts").asInt() >= 1, ranking.toString());
+    assertFalse(ranking.get("trained").asBoolean(), "far below the minimum, the rule order stays");
+    assertFalse(ranking.get("unavailable").asBoolean());
+    assertEquals(200, ranking.get("minPosts").asInt());
+    read(driver, "/api/ml/reply-ranking", 403);
+  }
+
+  @Test
+  void aLoaderLeavesTheDriverANoteAboutTheLoadThatNoStoreReads() throws Exception {
+    assertEquals(List.of("dispatch", "driver"), members(loader), "R-MSG-12: the dispatcher, or the driver of the trip");
+    say(loader, "{\"to\":\"driver\",\"body\":\"Chilled crates at the back, left side\"}", 200);
+
+    assertTrue(bodies(driver).contains("Chilled crates at the back, left side"));
+    assertTrue(bodies(dispatcher).contains("Chilled crates at the back, left side"));
+    assertTrue(bodies(loader).contains("Chilled crates at the back, left side"), "the loader sees what it wrote");
+    assertFalse(bodies(manager).contains("Chilled crates at the back, left side"), "a store never reads the crew's notes");
+  }
+
+  @Test
   void whoMayWriteToWhomAndWhoMayNotReadAtAll() throws Exception {
     say(manager, "{\"to\":\"all\",\"body\":\"Hello everyone\"}", 422);
     say(driver, "{\"to\":\"all\",\"body\":\"Hello everyone\"}", 422);
-    say(loader, "{\"to\":\"driver\",\"body\":\"Hi\"}", 422);
+    say(loader, "{\"to\":\"outlet\",\"outletId\":\"" + OFF_TRIP_OUTLET + "\",\"body\":\"Hi\"}", 422);
     say(dispatcher, "{\"to\":\"outlet\",\"outletId\":\"" + OFF_TRIP_OUTLET + "\",\"body\":\"Hi\"}", 422);
     say(driver, "{\"to\":\"dispatch\",\"report\":\"vehicle_fault\",\"body\":\"Brakes\"}", 200);
 
@@ -355,6 +441,77 @@ class MessagingIntegrationTest {
     assertEquals(true, row.get("cleared"));
     assertEquals(true, row.get("purged"));
     assertTrue(String.valueOf(row.get("sha256")).length() == 64, "the checksum stays as the record");
+  }
+
+  /** FF-05: a voice note is written down by the engine, shown to who may read it, and cleared with its audio. */
+  @Test
+  void aVoiceNoteIsWrittenDownForItsReadersAndItsWordsGoWithItsAudio() throws Exception {
+    MessagingTestConfig.FAIL_TRANSCRIBE.set(false);
+    UUID voiceId = UUID.randomUUID();
+    upload(driver, voiceId, "audio/webm", new byte[] {0x1a, 0x45, (byte) 0xdf, (byte) 0xa3, 4, 5, 6}, 200);
+    say(driver, "{\"to\":\"dispatch\",\"body\":\"\",\"voiceNoteId\":\"" + voiceId + "\"}", 200);
+    drain();
+    assertEquals("pending", voiceMessage(dispatcher, voiceId).get("transcript").get("status").asText());
+
+    // Notes queued by earlier tests come first; a few runs reach this one.
+    for (int i = 0; i < 20 && !"done".equals(transcriptStatus(voiceId)); i++) transcribe.runAt(clock.now());
+    JsonNode transcript = voiceMessage(dispatcher, voiceId).get("transcript");
+    assertEquals("done", transcript.get("status").asText());
+    assertEquals("ටයරය පැලුණා, මහනුවර පාරේ", transcript.get("text").asText());
+    assertEquals("si", transcript.get("language").asText());
+    // The driver's Home card reads one message's transcript on its own, under the same rules.
+    String messageId = voiceMessage(dispatcher, voiceId).get("messageId").asText();
+    JsonNode one = json(read(dispatcher, "/api/threads/" + threadId + "/messages/" + messageId + "/transcript", 200));
+    assertEquals("ටයරය පැලුණා, මහනුවර පාරේ", one.get("text").asText());
+    int storeReads = http.perform(get("/api/threads/" + threadId + "/messages/" + messageId + "/transcript")
+        .cookie(session(manager))).andReturn().getResponse().getStatus();
+    assertTrue(storeReads == 403 || storeReads == 404, "a store that cannot see the note cannot read its words: " + storeReads);
+    // The store does not read the driver's note to the dispatcher, so neither its words.
+    for (JsonNode m : json(read(manager, "/api/threads/" + threadId + "/messages", 200)).get("items")) {
+      assertFalse(voiceId.toString().equals(m.path("voiceNoteId").asText()), "a store never reads the crew's notes");
+    }
+
+    // The words go with the recording (P-33).
+    java.time.Instant later = clock.now().plus(java.time.Duration.ofDays(401));
+    voiceRetention.runAt(later);
+    transcribe.runAt(later);
+    assertEquals("none", voiceMessage(dispatcher, voiceId).get("transcript").get("status").asText());
+    Map<String, Object> row = database.asSystem(ModuleRole.MESSAGING, () -> database.queryOne(
+        "SELECT transcript, purged_at FROM messaging.voice_transcripts WHERE voice_note_id = ?", voiceId));
+    assertNull(row.get("transcript"));
+    assertTrue(row.get("purged_at") != null);
+  }
+
+  /** FF-05: an engine that keeps failing is tried three times, then the screen says to play the audio. */
+  @Test
+  void aNoteTheEngineCannotWriteDownIsTriedThreeTimesThenPlayed() throws Exception {
+    MessagingTestConfig.FAIL_TRANSCRIBE.set(true);
+    try {
+      UUID voiceId = UUID.randomUUID();
+      upload(driver, voiceId, "audio/webm", new byte[] {0x1a, 0x45, (byte) 0xdf, (byte) 0xa3, 7, 7, 7}, 200);
+      say(driver, "{\"to\":\"dispatch\",\"body\":\"\",\"voiceNoteId\":\"" + voiceId + "\"}", 200);
+      drain();
+      for (int i = 0; i < 60 && !"failed".equals(transcriptStatus(voiceId)); i++) transcribe.runAt(clock.now());
+      assertEquals("none", voiceMessage(dispatcher, voiceId).get("transcript").get("status").asText());
+      Map<String, Object> row = database.asSystem(ModuleRole.MESSAGING, () -> database.queryOne(
+          "SELECT status, attempts FROM messaging.voice_transcripts WHERE voice_note_id = ?", voiceId));
+      assertEquals("failed", row.get("status"));
+      assertEquals(3, ((Number) row.get("attempts")).intValue());
+    } finally {
+      MessagingTestConfig.FAIL_TRANSCRIBE.set(false);
+    }
+  }
+
+  private String transcriptStatus(UUID voiceId) {
+    return (String) database.asSystem(ModuleRole.MESSAGING, () -> database.queryOne(
+        "SELECT status FROM messaging.voice_transcripts WHERE voice_note_id = ?", voiceId)).get("status");
+  }
+
+  private JsonNode voiceMessage(String who, UUID voiceId) throws Exception {
+    for (JsonNode m : json(read(who, "/api/threads/" + threadId + "/messages", 200)).get("items")) {
+      if (voiceId.toString().equals(m.path("voiceNoteId").asText())) return m;
+    }
+    throw new AssertionError("no message with voice note " + voiceId);
   }
 
   @Test
@@ -484,12 +641,210 @@ class MessagingIntegrationTest {
     return r.getResponse().getContentAsString();
   }
 
+  // ---- every message can be heard (R-MSG-10) ----
+
+  @Test
+  void aTypedMessageIsSpokenOnceOnOurServerAndHeardOnlyByThoseWhoMayReadIt() throws Exception {
+    // The job speaks every thread's waiting messages: settle what other tests left before counting.
+    drain();
+    speechJob.runAt(clock.now());
+    // Spoken audio is kept once per text across runs, so each run speaks a text of its own.
+    String sinhala = "OUT001 \u0dc0\u0dd2\u0db1\u0dcf\u0da9\u0dd2 " + java.util.concurrent.ThreadLocalRandom.current().nextInt(1_000, 999_999);
+    UUID first = UUID.fromString(json(say(dispatcher, "{\"to\":\"driver\",\"body\":\"" + sinhala + "\"}", 200))
+        .get("result").get("messageId").asText());
+    UUID again = UUID.fromString(json(say(dispatcher, "{\"to\":\"driver\",\"body\":\"" + sinhala + "\"}", 200))
+        .get("result").get("messageId").asText());
+    drain();
+    read(driver, "/api/threads/" + threadId + "/messages/" + first + "/speech", 404);
+
+    int before = MessagingTestConfig.SPOKEN.get();
+    speechJob.runAt(clock.now());
+    assertEquals(before + 1, MessagingTestConfig.SPOKEN.get(), "the same text in the same language is spoken once");
+    for (UUID id : List.of(first, again)) {
+      MvcResult r = http.perform(get("/api/threads/" + threadId + "/messages/" + id + "/speech").cookie(session(driver)))
+          .andReturn();
+      assertEquals(200, r.getResponse().getStatus());
+      assertEquals("audio/mp4", r.getResponse().getContentType());
+      assertTrue(r.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8).startsWith("AUDIO:si:"),
+          "Sinhala, from the script");
+    }
+    // A store the message was not for hears nothing, and another depot is refused.
+    read(manager, "/api/threads/" + threadId + "/messages/" + first + "/speech", 404);
+    read(farDispatcher, "/api/threads/" + threadId + "/messages/" + first + "/speech", 403);
+  }
+
+  // ---- the trip's live channel (FF-04, R-MSG-08) ----
+
+  @Test
+  void theChannelOpensWhenTheDriverStartsTheTripAfterLoading() throws Exception {
+    assertFalse(members(dispatcher).contains("channel"));
+    assertFalse(members(manager).contains("channel"));
+    assertFalse(json(read(manager, "/api/threads/" + threadId, 200)).get("channelOpen").asBoolean());
+    say(dispatcher, "{\"to\":\"channel\",\"body\":\"Too early\"}", 409);
+    say(manager, "{\"to\":\"channel\",\"body\":\"Too early\"}", 409);
+
+    startTrip();
+    assertTrue(json(read(manager, "/api/threads/" + threadId, 200)).get("channelOpen").asBoolean());
+    assertTrue(members(dispatcher).contains("channel"));
+    assertTrue(members(manager).contains("channel"));
+    assertFalse(members(loader).contains("channel"), "the loaders are not on the channel");
+    say(manager, "{\"to\":\"channel\",\"body\":\"Gate is open\"}", 200);
+    // The second stop's start, or the same event again, changes nothing.
+    startTrip();
+    assertTrue(members(manager).contains("channel"));
+  }
+
+  /** R-MSG-16: a store writes to its own driver while its delivery is to come; it is the driver's, not the other stores'. */
+  @Test
+  void aStoreWritesToItsDriverUntilItsDeliveryIsDone() throws Exception {
+    assertTrue(members(manager).contains("driver"), "its own driver, while its goods are on the trip");
+    say(manager, "{\"to\":\"driver\",\"body\":\"Use the side gate, the front is blocked\"}", 200);
+    assertTrue(bodies(driver).contains("Use the side gate, the front is blocked"), "the driver hears it");
+    assertTrue(bodies(manager).contains("Use the side gate, the front is blocked"), "the store sees what it sent");
+    assertFalse(bodies(secondManager).contains("Use the side gate, the front is blocked"), "another store never reads it");
+    assertTrue(bodies(dispatcher).contains("Use the side gate, the front is blocked"), "the dispatcher oversees the trip");
+
+    at("11:00");
+    publish(
+        ModuleRole.EXECUTION,
+        new DeliveryCompleted(
+            UUID.randomUUID(), orders.get(OUTLET), tripId, OUTLET, DeliveryOutcome.DELIVERED, Optional.of(10),
+            clock.now(), Optional.empty()));
+    drain();
+    at("11:05");
+    assertFalse(members(manager).contains("driver"), "its deliveries are done");
+    say(manager, "{\"to\":\"driver\",\"body\":\"One more thing\"}", 409);
+  }
+
+  @Test
+  void aStoreReadsTheChannelWhileItsGoodsAreOnTheTripAndTheDriverNever() throws Exception {
+    startTrip();
+    say(dispatcher, "{\"to\":\"channel\",\"body\":\"Truck left the depot\"}", 200);
+    say(manager, "{\"to\":\"channel\",\"body\":\"Gate opens at 05:00\"}", 200);
+    say(driver, "{\"to\":\"channel\",\"body\":\"Driving\"}", 422);
+    say(loader, "{\"to\":\"channel\",\"body\":\"Loaded\"}", 422);
+    assertEquals(
+        List.of("Gate opens at 05:00", "Truck left the depot"), sorted(bodies(secondManager)),
+        "every store still waiting reads the channel");
+    assertFalse(bodies(driver).contains("Truck left the depot"), "the driver is driving and not on the channel");
+    assertFalse(bodies(loader).contains("Truck left the depot"));
+    assertTrue(members(manager).contains("channel"));
+    assertTrue(members(dispatcher).contains("channel"));
+    assertFalse(members(driver).contains("channel"));
+
+    // The first store's order is delivered: its part of the channel is read only.
+    at("11:00");
+    publish(
+        ModuleRole.EXECUTION,
+        new DeliveryCompleted(
+            UUID.randomUUID(), orders.get(OUTLET), tripId, OUTLET, DeliveryOutcome.DELIVERED, Optional.of(10),
+            clock.now(), Optional.empty()));
+    drain();
+    at("11:05");
+    say(dispatcher, "{\"to\":\"channel\",\"body\":\"Next stop in 20 min\"}", 200);
+    say(manager, "{\"to\":\"channel\",\"body\":\"Thanks\"}", 409);
+    assertFalse(members(manager).contains("channel"));
+    assertFalse(bodies(manager).contains("Next stop in 20 min"), "nothing new after its deliveries are done");
+    assertTrue(bodies(manager).contains("Truck left the depot"), "what it could read before stays");
+    assertTrue(bodies(secondManager).contains("Next stop in 20 min"));
+
+    // Applying the same delivery twice, or a revision naming the outlet again, changes nothing.
+    publish(
+        ModuleRole.PLANNING,
+        new PlanRevised(
+            UUID.randomUUID(), depot, day, 2, UUID.randomUUID(), "moved a stop",
+            List.of(trip(OUTLET, SECOND_OUTLET)), Optional.empty(), Optional.empty()));
+    drain();
+    assertFalse(members(manager).contains("channel"), "read only never reverts");
+
+    // A failed delivery finishes the second store too.
+    publish(
+        ModuleRole.EXECUTION,
+        new DeliveryFailed(
+            UUID.randomUUID(), orders.get(SECOND_OUTLET), tripId, SECOND_OUTLET, depot, "closed", clock.now()));
+    drain();
+    assertFalse(members(secondManager).contains("channel"));
+  }
+
+  @Test
+  void aChannelPostReachesTheBellsOfTheStoresStillWaiting() throws Exception {
+    startTrip();
+    publish(
+        ModuleRole.EXECUTION,
+        new DeliveryCompleted(
+            UUID.randomUUID(), orders.get(OUTLET), tripId, OUTLET, DeliveryOutcome.DELIVERED, Optional.of(10),
+            clock.now(), Optional.empty()));
+    drain();
+    say(dispatcher, "{\"to\":\"channel\",\"body\":\"Rain ahead\"}", 200);
+    say(secondManager, "{\"to\":\"channel\",\"body\":\"Noted\"}", 200);
+    drain();
+    assertEquals(0, notified(managerId), "a store whose goods are delivered is not told");
+    assertEquals(1, notified(secondManagerId), "the dispatcher's post; never its own");
+    assertEquals(1, notified(dispatcherId), "the store's post");
+    assertEquals(0, notified(driverId));
+  }
+
+  @Test
+  void theDispatcherMovesAPostOffTheChannel() throws Exception {
+    startTrip();
+    UUID posted =
+        UUID.fromString(
+            json(say(manager, "{\"to\":\"channel\",\"body\":\"Where is order 4411 for OUT002?\"}", 200))
+                .get("result").get("messageId").asText());
+    assertTrue(bodies(secondManager).contains("Where is order 4411 for OUT002?"));
+
+    redirect(manager, posted, "Not yours to move", 403);
+    redirect(farDispatcher, posted, "Not my depot", 403);
+    redirect(dispatcher, posted, "no", 422);
+    assertFalse(json(redirect(dispatcher, posted, "Names another store's order", 200))
+        .get("result").get("alreadyRedirected").asBoolean());
+    assertTrue(json(redirect(dispatcher, posted, "Names another store's order", 200))
+        .get("result").get("alreadyRedirected").asBoolean());
+
+    assertFalse(bodies(secondManager).contains("Where is order 4411 for OUT002?"), "the other store no longer sees it");
+    assertTrue(bodies(manager).contains("Where is order 4411 for OUT002?"), "its author still does");
+    JsonNode seen = null;
+    for (JsonNode m : json(read(dispatcher, "/api/threads/" + threadId + "/messages", 200)).get("items")) {
+      if (m.get("messageId").asText().equals(posted.toString())) seen = m;
+    }
+    assertEquals("Names another store's order", seen.get("redirectReason").asText());
+
+    UUID direct =
+        UUID.fromString(
+            json(say(manager, "{\"to\":\"dispatch\",\"body\":\"Private\"}", 200)).get("result").get("messageId").asText());
+    redirect(dispatcher, direct, "Only channel posts move", 422);
+  }
+
+  private String redirect(String who, UUID messageId, String reason, int expected) throws Exception {
+    String envelope =
+        "{\"commandId\":\"" + UUID.randomUUID() + "\",\"kind\":\"message:Redirect\",\"expectedVersion\":null,"
+            + "\"payload\":{\"messageId\":\"" + messageId + "\",\"reason\":\"" + reason + "\"},"
+            + "\"clientRecordedAt\":\"" + clock.now() + "\"}";
+    MvcResult r = http.perform(post("/api/commands").cookie(session(who)).contentType(MediaType.APPLICATION_JSON)
+        .content(envelope)).andReturn();
+    assertEquals(expected, r.getResponse().getStatus(), r.getResponse().getContentAsString());
+    return r.getResponse().getContentAsString();
+  }
+
+  /** The driver's Start on the first stop, after loading released the trip. */
+  private void startTrip() {
+    publish(ModuleRole.EXECUTION, new DeliveryStarted(UUID.randomUUID(), orders.get(OUTLET), tripId, OUTLET));
+    drain();
+  }
+
+  private List<String> members(String who) throws Exception {
+    List<String> out = new ArrayList<>();
+    json(read(who, "/api/threads/" + threadId + "/members", 200)).forEach(m -> out.add(m.get("to").asText()));
+    return out;
+  }
+
   // ---- helpers ----
 
   private PlannedTrip trip(String... outlets) {
     List<PlannedStop> stops = new ArrayList<>();
     for (int i = 0; i < outlets.length; i++) {
-      stops.add(new PlannedStop(i + 1, UUID.randomUUID(), outlets[i], LocalTime.of(5, 20 + i * 10)));
+      UUID order = orders.computeIfAbsent(outlets[i], o -> UUID.randomUUID());
+      stops.add(new PlannedStop(i + 1, order, outlets[i], LocalTime.of(5, 20 + i * 10)));
     }
     return new PlannedTrip(tripId, vehicleId, 1, "Fresh", "Colombo", "ambient", LocalTime.of(4, 30), stops);
   }

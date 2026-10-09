@@ -78,3 +78,80 @@ export async function networkFirst(caches, name, request, fetcher) {
     throw error;
   }
 }
+
+// Roadmap F-05.
+
+/**
+ * Precaches the build. The shell is required: without it the app cannot open
+ * offline, so its failure fails the install and the browser tries again later.
+ * Any other file that fails is left out, to be fetched when first needed,
+ * rather than one bad file blocking the whole install. Returns how many failed.
+ */
+export async function precacheAll(cache, assets, required) {
+  await cache.add(required);
+  const results = await Promise.allSettled(assets.filter((a) => a !== required).map((a) => cache.add(a)));
+  return results.filter((r) => r.status === "rejected").length;
+}
+
+/** How long opening the app waits for the network before the kept shell opens instead. */
+export const NAVIGATE_WAIT_MS = 6000;
+
+/**
+ * The network's page when it answers within `ms`, else the kept shell. A weak
+ * signal in the hills can hold a request open for minutes; the driver should not
+ * stare at a blank screen meanwhile. With nothing kept, waits for the network.
+ */
+export function navigateWithin(network, kept, ms = NAVIGATE_WAIT_MS) {
+  return new Promise((resolve, reject) => {
+    let done = false;
+    const timer = setTimeout(async () => {
+      const shell = await kept();
+      if (shell && !done) {
+        done = true;
+        resolve(shell);
+      }
+    }, ms);
+    network.then(
+      (response) => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        resolve(response);
+      },
+      async (error) => {
+        clearTimeout(timer);
+        if (done) return;
+        const shell = await kept();
+        done = true;
+        if (shell) resolve(shell);
+        else reject(error);
+      },
+    );
+  });
+}
+
+/** How long Background Sync waits for an open page to report its drain. */
+export const DRAIN_WAIT_MS = 60000;
+
+/** Asks one page to send its queue and resolves with whether nothing it can send is left. No answer is false. */
+export function askToDrain(client, ms = DRAIN_WAIT_MS, Channel = MessageChannel) {
+  return new Promise((resolve) => {
+    const channel = new Channel();
+    const timer = setTimeout(() => resolve(false), ms);
+    channel.port1.onmessage = (event) => {
+      clearTimeout(timer);
+      resolve(Boolean(event.data && event.data.done));
+    };
+    client.postMessage({ type: "waypoint:drain" }, [channel.port2]);
+  });
+}
+
+/**
+ * Background Sync with pages open: every page drains its own queue, and the
+ * sync event settles only with their results. Work left over rejects, so the
+ * browser tries the sync again later instead of thinking it is done.
+ */
+export async function drainThroughPages(clients, ms = DRAIN_WAIT_MS, Channel = MessageChannel) {
+  const done = await Promise.all(clients.map((client) => askToDrain(client, ms, Channel)));
+  if (!done.every(Boolean)) throw new Error("work is still waiting to be sent");
+}

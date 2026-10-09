@@ -3,6 +3,7 @@ package com.waypoint.dispatch.loading.contract;
 import com.waypoint.dispatch.loading.contract.LoadingViews.ManifestLineView;
 import com.waypoint.dispatch.loading.contract.LoadingViews.ManifestView;
 import com.waypoint.dispatch.loading.contract.LoadingViews.ReadyTripView;
+import com.waypoint.dispatch.loading.contract.LoadingViews.ReloadSample;
 import com.waypoint.dispatch.loading.contract.LoadingViews.ShortfallView;
 import java.time.LocalDate;
 import java.util.List;
@@ -26,4 +27,7 @@ public interface LoadingQuery {
   List<ReadyTripView> readyTrips(String depotCode, LocalDate serviceDate);
 
   List<ShortfallView> openShortfalls(String depotCode);
+
+  /** Released reloads (trips 2 and later) between these service dates, within the reader's depots. */
+  List<ReloadSample> reloadSamples(LocalDate from, LocalDate to);
 }

@@ -1,9 +1,9 @@
 import { useState } from "react";
 import type { OutletView, PlacedOrder } from "@shared/domain/types";
 import { Icon, Notice } from "@shared/ui";
-import { units, changeDeadline, clock, dayLabel, depotToday, hhmm, temperatureLabel } from "../../data/format.ts";
+import { changeDeadline, clock, dayLabel, depotToday, hhmm, movedReason, temperatureLabel } from "../../data/format.ts";
 import { Badge, Button, Facts, Modal } from "../../ui.tsx";
-import { useT } from "../../i18n.tsx";
+import { useT, useCounts } from "../../i18n.tsx";
 
 // Figma "04 Order sent". Totals are the warehouse's, returned with the order,
 // never summed from product lines here. An order kept on the phone is said to
@@ -28,6 +28,7 @@ export default function OrderSent({
   /** Take what a partial reservation locked; answers an error message or null. */
   onAccept?: (order: PlacedOrder) => Promise<string | null>;
 }): React.JSX.Element {
+  const { units } = useCounts();
   const t = useT();
   const { orders, queued } = sent;
   const unknown = orders.some((o) => o.status === "STOCK_UNKNOWN");
@@ -63,11 +64,17 @@ export default function OrderSent({
               label: t("Delivery window"),
               value: `${dayLabel(deliveryDate)}${outlet ? ` · ${hhmm(outlet.windowOpen)}-${hhmm(outlet.windowClose)}` : ""}`,
             },
-            { label: t("You can change it until"), value: changeDeadline(deliveryDate, depotToday()) },
+            { label: t("You can change it until"), value: changeDeadline(deliveryDate, depotToday(), t) },
           ]}
         />
       )}
-      {rolled && <p className="text-[13px] text-go-warning-text">{t("Moved from {day}, which is not a delivery day.", { day: dayLabel(rolled.requestedDate) })}</p>}
+      {rolled && (
+        <p className="text-[13px] text-go-warning-text">
+          {movedReason(rolled) === "cutoff"
+            ? t("Moved from {day}: your order arrived after the 16:00 cutoff.", { day: dayLabel(rolled.requestedDate) })
+            : t("Moved from {day}: no deliveries that day.", { day: dayLabel(rolled.requestedDate) })}
+        </p>
+      )}
       {onAccept && orders.filter((o) => o.shortfall).map((o) => <ShortfallNotice key={o.orderId} order={o} onAccept={onAccept} />)}
       {queued && orders.length > 0 && <p className="text-[14px] text-go-warning-text">{t("Part of this order is saved on this phone and sent when the connection returns.")}</p>}
       <div className="flex gap-2.5">

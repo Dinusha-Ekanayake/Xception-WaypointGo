@@ -5,13 +5,13 @@ import { useResource } from "@shared/api/useResource";
 import type { DeliveryRecordView, IssueView, OrderView, OutletView, PendingReceiptView } from "@shared/domain/types";
 import { Notice, SkeletonRows, cx, usePersistentState } from "@shared/ui";
 import type { StoreGateway } from "../../data/gateway.ts";
-import { ORDER_STATUS, units, clock, dayLabel, depotToday, hhmm, temperatureLabel } from "../../data/format.ts";
+import { ORDER_STATUS, clock, dayLabel, depotToday, hhmm, temperatureLabel } from "../../data/format.ts";
 import { isOpenIssue } from "../../data/issues.ts";
 import { countStatus, issueBehind, pastWeek, runStatus, runsOf, upcomingDays, type Run, type Status } from "../../data/runs.ts";
 import { Muted } from "../../ui.tsx";
 import MakeUpDrawer from "./MakeUpDrawer.tsx";
 import Row from "./Row.tsx";
-import { useT } from "../../i18n.tsx";
+import { useT, useCounts } from "../../i18n.tsx";
 
 // Figma "05a Deliveries" and "05b make-up delivery". A row is one vehicle's
 // visit: the outlet's orders on one trip, with the time it is expected, its
@@ -50,6 +50,7 @@ export default function Deliveries({
   /** The trip's thread (issue #136). */
   onMessage?: (tripId: string, vehicleId: string) => void;
 }): React.JSX.Element {
+  const { units } = useCounts();
   const t = useT();
   const orderCount = (n: number) => t(n === 1 ? "{n} order" : "{n} orders", { n });
   const deliveryCount = (n: number) => t(n === 1 ? "{n} delivery" : "{n} deliveries", { n });
@@ -134,7 +135,7 @@ export default function Deliveries({
   };
 
   const pastRow = (run: Run) => {
-    const count = countStatus(run.records.map((r) => past.data?.receipts.get(r.orderId) ?? null));
+    const count = countStatus(run.records.map((r) => past.data?.receipts.get(r.orderId) ?? null), t);
     const done = run.completedAt ? ` · ${t(run.signed ? "signed" : "handed over")} ${clock(run.completedAt)}` : "";
     return (
       <Row

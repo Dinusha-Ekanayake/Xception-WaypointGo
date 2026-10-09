@@ -1,4 +1,4 @@
-import type { AllocationView, PlacementView } from "@shared/domain/types";
+import type { AllocationView, FitView, PlacementView } from "@shared/domain/types";
 import { checkLabel, ruleLabel } from "../../../shared/wording/index.ts";
 
 // Why an order was not placed, as one explanation a dispatcher can read out to a
@@ -22,6 +22,10 @@ export type Explanation = {
   fits: string[] | null;
   /** A few places it was tried and refused, with the rule that refused each. */
   refused: Array<{ where: string; why: string }>;
+  /** Roadmap AI-2: the place it came closest to, and what stopped it there; null when it fits or before the solver answers. */
+  closest: string | null;
+  /** Roadmap AI-2: the smallest change the solver found, a swap it checked, or that none makes room. */
+  change: string | null;
   next: string;
 };
 
@@ -41,6 +45,8 @@ export function explainDeferral(input: {
   places?: PlacementView[] | null;
   /** False for an order kept deferred, or on a plan that can no longer be edited. */
   canPlace?: boolean;
+  /** Roadmap AI-2: the solver's answer, when asked. */
+  fit?: FitView | null;
 }): Explanation {
   const { allocation } = input;
   const unknown = input.places === undefined;
@@ -59,6 +65,7 @@ export function explainDeferral(input: {
     met: allocation.checks.filter((check) => check.passed).map((check) => checkLabel(check.ruleId, true)),
     fits: fits === null ? null : fits.map((place) => `${where(place)}: ${place.joins ? "joins the trip already planned" : "opens a new trip"}`),
     refused: refused.map((place) => ({ where: where(place), why: `${ruleLabel(place.bindingRule)}: ${place.reason}` })),
+    ...fitWords(input.fit ?? null),
     next: unknown
       ? "Open the order in Decide to see where it could go, swap it with an order on a trip, or keep it deferred."
       : !canPlace
@@ -68,6 +75,23 @@ export function explainDeferral(input: {
         : fits.length > 0
           ? `It can still go on ${fits.length === 1 ? "one trip" : `${fits.length} trips`}. Choose one and give a reason, and it is placed by hand.`
           : "It fits on no trip of any available vehicle. Swap it with an order on a trip, or keep it deferred: it is offered first on the next plan.",
+  };
+}
+
+/**
+ * Roadmap AI-2, from the solver's own answer: where the order came closest and
+ * what stopped it there, and the smallest change. Nothing is worked out here.
+ */
+export function fitWords(fit: FitView | null): { closest: string | null; change: string | null } {
+  if (!fit || fit.fits || !fit.closest) return { closest: null, change: null };
+  const c = fit.closest;
+  const place = `${c.vehicleId}, trip ${c.tripNumber}, ${c.joins ? "joining the trip already planned" : "as a new trip"}`;
+  const why = c.failed.map((check) => `${checkLabel(check.ruleId, false)}: ${check.reason}`).join("; ");
+  return {
+    closest: `${place}. ${sentence(why)}`,
+    change: fit.swap
+      ? `Swapping it with ${fit.swap.orderRef} for ${fit.swap.outletId}, which ranks lower, makes room on ${fit.swap.vehicleId}, trip ${fit.swap.tripNumber}: every rule passes with that swap.`
+      : "No single swap makes room there: it needs more room on a vehicle, another vehicle, or a later day.",
   };
 }
 

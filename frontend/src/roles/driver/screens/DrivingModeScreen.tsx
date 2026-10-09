@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { cx } from "@shared/ui";
 import type { RouteStop } from "../data/stopView.ts";
+import { useT } from "../i18n.tsx";
 
 export type DrivingModeScreenProps = {
   onExit: () => void;
@@ -13,6 +14,8 @@ export type DrivingModeScreenProps = {
   onToggleTheme?: () => void;
   /** Unread notifications for the bell's badge (issue #118). */
   unread?: number | null;
+  /** Straight-line distance from the phone to the next stop, "3.2 km"; null with no location. */
+  distance?: string | null;
 };
 
 export default function DrivingModeScreen({
@@ -22,7 +25,9 @@ export default function DrivingModeScreen({
   stops,
   onToggleTheme,
   unread,
+  distance = null,
 }: DrivingModeScreenProps): React.JSX.Element {
+  const t = useT();
   const badge = unread ?? 0;
   const safeIndex = Math.min(Math.max(0, stopIndex), Math.max(0, stops.length - 1));
   const activeStop: RouteStop | undefined = stops[safeIndex];
@@ -97,7 +102,7 @@ export default function DrivingModeScreen({
             isNight ? "text-white" : "text-black"
           )}
         >
-          Driving · Controls Hidden
+          {t("Driving · Controls Hidden")}
         </span>
 
         {/* Top Right: Notification Bell & Theme toggle */}
@@ -135,7 +140,7 @@ export default function DrivingModeScreen({
                   "absolute -top-1 -right-1 min-w-[20px] h-[20px] px-1 rounded-full bg-[#E5484D] flex items-center justify-center text-[12px] font-semibold text-white pointer-events-none",
                   isNight ? "border-[2px] border-black" : "border-[2px] border-white"
                 )}
-                aria-label={`${badge} unread notifications`}
+                aria-label={t("{n} unread notifications", { n: badge })}
               >
                 {badge > 9 ? "9+" : badge}
               </div>
@@ -152,8 +157,8 @@ export default function DrivingModeScreen({
                   ? "bg-[#292929] border-[#383838] text-white hover:bg-[#333333]"
                   : "bg-white border-[#dfe7e6] text-black hover:bg-slate-50"
               )}
-              title={isNight ? "Switch to day mode" : "Switch to night mode"}
-              aria-label={isNight ? "Switch to day mode" : "Switch to night mode"}
+              title={t(isNight ? "Switch to day mode" : "Switch to night mode")}
+              aria-label={t(isNight ? "Switch to day mode" : "Switch to night mode")}
             >
               {isNight ? (
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -184,7 +189,7 @@ export default function DrivingModeScreen({
         {/* Component 1: Next Stop Card (Figma: height: 105px, radius: 25px) */}
         <div
           className={cx(
-            "w-full h-[105px] rounded-[25px] px-[25px] py-[20px] flex items-center justify-between shrink-0 transition-colors",
+            "w-full h-[105px] rounded-[25px] px-[25px] py-[20px] flex items-end justify-between shrink-0 transition-colors",
             isNight
               ? "bg-black border border-[#525252]"
               : "bg-white shadow-[0px_5px_20px_7px_rgba(0,0,0,0.09)]"
@@ -198,7 +203,7 @@ export default function DrivingModeScreen({
                 isNight ? "text-white" : "text-black"
               )}
             >
-              Next
+              {t("Next")}
             </span>
             <span
               className={cx(
@@ -206,7 +211,7 @@ export default function DrivingModeScreen({
                 isNight ? "text-white" : "text-black"
               )}
             >
-              Stop {activeStop.stopNumber}
+              {t("Stop {n}", { n: activeStop.stopNumber })}
             </span>
           </div>
 
@@ -217,7 +222,7 @@ export default function DrivingModeScreen({
               isNight ? "text-white" : "text-black"
             )}
           >
-            Fresh
+            {activeStop.brand ?? ""}
           </span>
         </div>
 
@@ -230,7 +235,7 @@ export default function DrivingModeScreen({
               isNight ? "text-white" : "text-black"
             )}
           >
-            {activeStop.name}
+            {activeStop.place ?? activeStop.name}
           </h1>
 
           {/* Component 2: Giant ETA Digits + Distance/Status */}
@@ -238,7 +243,7 @@ export default function DrivingModeScreen({
           <div className="flex flex-col items-center mt-6">
             <span
               className={cx(
-                "text-[76px] font-medium leading-[95px] tracking-tight text-center font-mono sm:font-go",
+                "text-[76px] font-medium leading-[95px] tracking-tight text-center font-go tabular-nums",
                 isNight ? "text-white" : "text-black"
               )}
             >
@@ -250,7 +255,7 @@ export default function DrivingModeScreen({
                 isNight ? "text-white" : "text-black"
               )}
             >
-              {activeStop.etaDistanceTime} · {activeStop.windowStatus}
+              {distance ?? activeStop.etaDistanceTime} · {activeStop.windowStatus}
             </span>
           </div>
         </div>
@@ -280,7 +285,7 @@ export default function DrivingModeScreen({
               sliderX > 40 && "opacity-20"
             )}
           >
-            {isUnlocked ? "Unlocked" : "Slide to exit"}
+            {t(isUnlocked ? "Unlocked" : "Slide to exit")}
           </span>
 
           {/* Draggable Knob (Figma: 56px x 56px, radius: 28px) */}

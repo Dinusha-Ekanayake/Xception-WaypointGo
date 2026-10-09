@@ -70,7 +70,7 @@ export default function TopBar({
         ? tr("Offline · showing {time}", { time: clock(since) })
         : tr("Offline · showing last sync")
     : since
-      ? tr("Server unreachable · showing {time}", { time: clock(since) })
+      ? tr("Can't reach Waypoint · showing {time}", { time: clock(since) })
       : waiting > 0
       ? tr("Sending {n}…", { n: waiting })
       : syncedAt
@@ -86,7 +86,7 @@ export default function TopBar({
   const label = syncing && online ? tr("Syncing…") : sync;
   // Only the connection STATE is announced to screen readers, not the clock inside
   // the visible text, so it does not re-announce on every poll (issue #118 follow-up).
-  const state = !online ? (waiting > 0 ? tr("Offline, {n} saved on this device", { n: waiting }) : tr("Offline")) : since ? tr("Server unreachable") : waiting > 0 ? tr("Sending") : syncing ? tr("Syncing") : tr("Synced");
+  const state = !online ? (waiting > 0 ? tr("Offline, {n} saved on this device", { n: waiting }) : tr("Offline")) : since ? tr("Can't reach Waypoint") : waiting > 0 ? tr("Sending") : syncing ? tr("Syncing") : tr("Synced");
   const announcement = useStateAnnouncement(state);
   const status = (
     <span className={cx("truncate", online ? "text-go-ink/85" : "font-medium text-go-warning-text")}>

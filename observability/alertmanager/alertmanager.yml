@@ -1,0 +1,42 @@
+# Alertmanager: receives the alerts in observability/prometheus/rules/waypoint.yml,
+# groups them per environment, holds back the noise when a whole backend is
+# down, and sends them to the team's channel. Checked with
+# `amtool check-config` in CI.
+#
+# The channel is a Slack-compatible incoming webhook (Slack, Mattermost,
+# Rocket.Chat, or Discord with /slack after the webhook address). Its address
+# is a secret, ALERT_WEBHOOK_URL in .env, which the container writes to a file
+# only it can read (compose.yaml); it is never kept in the repository. Without
+# it Alertmanager logs each failed send, and the alerts still show on its own
+# page, in Prometheus and in Grafana.
+
+route:
+  receiver: team
+  group_by: [alertname, stack]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 12h
+  routes:
+    # A backend that is down, or a disk about to fill, is said again every hour.
+    - matchers: ['severity="critical"']
+      receiver: team
+      repeat_interval: 1h
+    # Information only: on the Alerts page, never a message.
+    - matchers: ['severity="info"']
+      receiver: quiet
+
+inhibit_rules:
+  # With the backend down, its stale gauges would raise a second round of
+  # alerts about the same outage.
+  - source_matchers: ['alertname="BackendDown"']
+    target_matchers: ['alertname!="BackendDown"']
+    equal: [stack]
+
+receivers:
+  - name: team
+    slack_configs:
+      - api_url_file: /tmp/webhook-url
+        send_resolved: true
+        title: '{{ if eq .Status "firing" }}Firing{{ else }}Resolved{{ end }} · {{ .CommonLabels.alertname }} · {{ or .CommonLabels.stack "server" }}'
+        text: '{{ range .Alerts }}{{ .Annotations.summary }}{{ "\n" }}{{ end }}'
+  - name: quiet

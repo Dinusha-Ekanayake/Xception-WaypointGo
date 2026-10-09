@@ -77,3 +77,11 @@ test("activity reads newest first from what the trip recorded", () => {
   assert.deepEqual(activity(run!, "Kandy depot").map((a) => `${a.at} ${a.text}`), ["15:35 Delivered at OUT061", "15:30 Arrived at OUT061", "14:20 Left Kandy depot"]);
   assert.equal(depotClock(at("10:42")), "16:12");
 });
+
+test("needs you groups a trip's cards under its most urgent one, issues on their own", async () => {
+  const { groupByTrip } = await import("../src/roles/dispatcher/data/liveDesk.ts");
+  const card = (id: string, vehicleId: string | null) =>
+    ({ id, kind: vehicleId ? "failed" : "issue", minutesLeft: null, chip: { text: "", tone: "muted" }, meta: "", title: id, detail: "", vehicleId, issueId: null }) as const;
+  const groups = groupByTrip([card("a1", "VEH001"), card("b1", "VEH002"), card("i1", null), card("a2", "VEH001"), card("a3", "VEH001")]);
+  assert.deepEqual(groups.map((g) => [g.lead.id, g.more.map((m) => m.id)]), [["a1", ["a2", "a3"]], ["b1", []], ["i1", []]]);
+});

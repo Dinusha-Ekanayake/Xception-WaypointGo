@@ -92,6 +92,32 @@ class PlanningRevisionIntegrationTest extends PlanningIntegrationSupport {
   }
 
   @Test
+  void aTripThatHasLeftTheDepotCannotBeChangedByARevision() throws Exception {
+    // R-PLN-44: Loading released the trip, so its truck is on the road.
+    demand("ambient");
+    demand("ambient");
+    UUID original = publishedPlan();
+    JsonNode trip = plan(original).get("trips").get(0);
+    UUID tripId = UUID.fromString(trip.get("tripId").asText());
+    deliver("planning.on-trip-released", new com.waypoint.dispatch.loading.contract.LoadingEvents.TripReleased(
+        tripId, original, 1, trip.get("vehicleId").asText(), depot, serviceDate, List.of()));
+
+    // A revision that leaves the released trip as it is publishes as before.
+    UUID nothing =
+        UUID.fromString(mapper.readTree(send(dispatcher, revise(original, 2L, "a second look"), 200)).get("result").get("planId").asText());
+    send(dispatcher, publish(nothing, 1L), 200);
+
+    // Moving the released trip to another vehicle is refused, naming the rule.
+    String replacement = spareTruck(nothing);
+    UUID revision = UUID.fromString(
+        mapper.readTree(send(dispatcher, replan(nothing, 2L, tripId, replacement, "tyre puncture"), 200)).get("result").get("planId").asText());
+    String refused = send(dispatcher, publish(revision, 1L), 409);
+    assertTrue(refused.contains("R-PLN-44"), refused);
+    assertTrue(refused.contains("already left the depot"), refused);
+    assertEquals("PUBLISHED", plan(nothing).get("status").asText(), "the plan on the road stays the published one");
+  }
+
+  @Test
   void replanningAPublishedTripMovesItWholeAndKeepsItsId() throws Exception {
     demand("ambient");
     demand("ambient");
@@ -159,6 +185,53 @@ class PlanningRevisionIntegrationTest extends PlanningIntegrationSupport {
         StreamSupport.stream(view.get("trips").spliterator(), false).noneMatch(t -> t.get("vehicleId").asText().equals(lost)),
         "FLT-01: nothing left on the lost vehicle");
     assertNotEquals(lost, tripById(revision, tripId).get("vehicleId").asText(), "the trip moved whole and kept its id");
+    assertEquals("PUBLISHED", plan(original).get("status").asText(), "only a dispatcher publishes it");
+  }
+
+  @Test
+  void aVehicleLostWhileTheDispatcherRevisesIsReplannedInsideTheirDraft() throws Exception {
+    // PLN-41: the dispatcher's open revision is not cancelled unseen; the lost
+    // vehicle's trips move inside it and their stale screen is told on the next edit.
+    demand("ambient");
+    demand("ambient");
+    UUID original = publishedPlan();
+    JsonNode trip = plan(original).get("trips").get(0);
+    String lost = trip.get("vehicleId").asText();
+    UUID tripId = UUID.fromString(trip.get("tripId").asText());
+    UUID held = UUID.fromString(trip.get("stops").get(0).get("orderId").asText());
+
+    UUID revising =
+        UUID.fromString(mapper.readTree(send(dispatcher, revise(original, 2L, "store asked for a later slot"), 200)).get("result").get("planId").asText());
+    UUID edited =
+        UUID.fromString(mapper.readTree(send(dispatcher, PlanningDecisionsIntegrationTest.planOrder("plan:Lock", revising, held), 200)).get("result").get("planId").asText());
+
+    database.asModule(
+        ModuleRole.REF,
+        null,
+        () ->
+            database.update(
+                "INSERT INTO ref.vehicle_day_status (vehicle_id, service_date, status, reason) VALUES (?, ?, 'in_workshop', 'brakes')",
+                lost,
+                java.sql.Date.valueOf(serviceDate)));
+    VehicleStatusChanged change = new VehicleStatusChanged(lost, serviceDate, "in_workshop", Optional.of("brakes"));
+    deliver("planning.on-vehicle-status-changed", change);
+
+    Map<String, Object> draft = openDraft();
+    UUID now = (UUID) draft.get("plan_id");
+    assertNotEquals(edited, now, "the draft moved to a new version");
+    assertEquals(original, draft.get("supersedes"), "still a revision of the published plan");
+    JsonNode view = plan(now);
+    assertTrue(
+        StreamSupport.stream(view.get("trips").spliterator(), false).noneMatch(t -> t.get("vehicleId").asText().equals(lost)),
+        "FLT-01: nothing left on the lost vehicle");
+    assertNotEquals(lost, tripById(now, tripId).get("vehicleId").asText());
+    assertTrue(PlanningDecisionsIntegrationTest.allocation(view, held).get("locked").asBoolean(), "the dispatcher's lock is kept");
+
+    String stale = send(dispatcher, PlanningDecisionsIntegrationTest.planOrder("plan:Unlock", edited, held), 409);
+    assertTrue(stale.contains("VERSION_CONFLICT") || stale.contains("CONFLICT"), stale);
+
+    deliver("planning.on-vehicle-status-changed", change);
+    assertEquals(now, openDraft().get("plan_id"), "delivered twice, the draft is replanned once");
     assertEquals("PUBLISHED", plan(original).get("status").asText(), "only a dispatcher publishes it");
   }
 

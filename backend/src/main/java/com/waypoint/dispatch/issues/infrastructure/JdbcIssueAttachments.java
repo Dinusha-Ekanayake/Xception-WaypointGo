@@ -1,6 +1,9 @@
 package com.waypoint.dispatch.issues.infrastructure;
 
 import com.waypoint.dispatch.platform.db.Database;
+import com.waypoint.dispatch.platform.db.ModuleRole;
+import com.waypoint.dispatch.platform.storage.MediaTable;
+import com.waypoint.dispatch.platform.storage.S3Objects;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -19,10 +22,26 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public class JdbcIssueAttachments {
-  private final Database database;
+  /** Where issue photos live in the object store (M-01). */
+  public static final String PREFIX = "issues/";
 
-  public JdbcIssueAttachments(Database database) {
+  private final Database database;
+  private final S3Objects objects;
+
+  public JdbcIssueAttachments(Database database, S3Objects objects) {
     this.database = database;
+    this.objects = objects;
+  }
+
+  /** The photos' bytes table, for the object store backfill (M-01). */
+  @org.springframework.stereotype.Component
+  static class Media implements MediaTable {
+    @Override public String table() { return "issues.attachment_content"; }
+    @Override public ModuleRole moduleRole() { return ModuleRole.ISSUES; }
+    @Override public String idColumn() { return "storage_key"; }
+    @Override public String prefix() { return PREFIX; }
+    @Override public String sha256Column() { return null; }
+    @Override public String liveCondition() { return "purged_at IS NULL"; }
   }
 
   /** A photo row as stored. */
@@ -57,8 +76,23 @@ public class JdbcIssueAttachments {
                     (String) r.get("sha256"), (String) r.get("content_type")));
   }
 
-  /** The bytes, as the process. A repeat of the same content under the same key changes nothing. */
+  /**
+   * The bytes, as the process. A repeat of the same content under the same key
+   * changes nothing. With the object store on they go to the bucket and the row
+   * keeps where (M-01).
+   */
   public void putContent(String storageKey, String contentType, byte[] content, Instant at) {
+    if (objects.enabled()) {
+      objects.put(PREFIX + storageKey, content, contentType);
+      database.update(
+          """
+          INSERT INTO issues.attachment_content (storage_key, content_type, size_bytes, object_key, stored_at)
+          VALUES (?, ?, ?, ?, ?)
+          ON CONFLICT (storage_key) DO NOTHING
+          """,
+          storageKey, contentType, content.length, PREFIX + storageKey, Timestamp.from(at));
+      return;
+    }
     database.update(
         """
         INSERT INTO issues.attachment_content (storage_key, content_type, size_bytes, content, stored_at)
@@ -119,8 +153,8 @@ public class JdbcIssueAttachments {
   /** The bytes, as the process; null once cleared past retention. */
   public byte[] content(String storageKey) {
     Map<String, Object> row =
-        database.queryOne("SELECT content FROM issues.attachment_content WHERE storage_key = ?", storageKey);
-    return row == null ? null : (byte[]) row.get("content");
+        database.queryOne("SELECT content, object_key FROM issues.attachment_content WHERE storage_key = ?", storageKey);
+    return row == null ? null : objects.read((byte[]) row.get("content"), (String) row.get("object_key"));
   }
 
   // ---- retention (P-14) ------------------------------------------------------
@@ -138,8 +172,11 @@ public class JdbcIssueAttachments {
 
   /** Clears the bytes and marks the row; the row, its size and its hash stay on record. */
   public void purge(Expired e, Instant at) {
+    Map<String, Object> held = database.queryOne(
+        "SELECT object_key FROM issues.attachment_content WHERE storage_key = ? AND purged_at IS NULL", e.storageKey());
+    if (held != null && held.get("object_key") != null) objects.delete((String) held.get("object_key"));
     database.update(
-        "UPDATE issues.attachment_content SET content = NULL, purged_at = ? WHERE storage_key = ? AND purged_at IS NULL",
+        "UPDATE issues.attachment_content SET content = NULL, object_key = NULL, purged_at = ? WHERE storage_key = ? AND purged_at IS NULL",
         Timestamp.from(at), e.storageKey());
     database.update(
         "UPDATE issues.attachments SET purged_at = ? WHERE attachment_id = ? AND purged_at IS NULL",

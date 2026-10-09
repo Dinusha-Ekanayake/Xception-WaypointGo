@@ -1,6 +1,9 @@
 import type { Page, Route } from "@playwright/test";
 import type { PostMessagePayload } from "../../src/shared/domain/messaging.ts";
-import { postToThread, resolveInThread, threadRead, type ThreadMock } from "../thread-mocks.ts";
+import { answerInMock, askInMock } from "../decision-mocks.ts";
+import type { AnswerDecision, DecisionView } from "../../src/shared/domain/issues.ts";
+import { postToThread, redirectInThread, resolveInThread, threadRead, type ThreadMock } from "../thread-mocks.ts";
+import { nextRun } from "../../src/roles/dispatcher/data/scope.ts";
 import type { RunSheetStopView, RunSheetView } from "../../src/shared/domain/execution.ts";
 import type { ReadyTripView } from "../../src/shared/domain/loading.ts";
 import type { OrderStatus, OrderView } from "../../src/shared/domain/ordering.ts";
@@ -83,6 +86,8 @@ export type Desk = {
   draft: PlanView | null;
   published: PlanView | null;
   sheets: RunSheetView[];
+  /** FF-09: questions asked of stores today. */
+  decisions?: DecisionView[];
   /** Live map (issue #161): last fixes and the selected trip's trail. */
   positions?: unknown[];
   trail?: unknown[];
@@ -95,12 +100,22 @@ export type Desk = {
   commands: Sent[];
   /** Answer the next command of this kind with this problem instead of applying it. */
   refuse: { kind: string; status: number; code: string; detail: string; rules?: string[] } | null;
+  /** Roadmap AI-2: no place fits, and what /api/plans/preview/fit answers. */
+  noPlace?: boolean;
+  fit?: unknown;
+  /** Roadmap AI-1: the vehicles out that day, and what /what-if answers. */
+  whatIfVehicles?: unknown[];
+  whatIf?: unknown;
   /** What /api/ml/models answers: the registry, for the forecast error chip (#119). */
   models?: unknown[];
   /** What /api/ml/plans/{id}/predictions answers for the published plan; none means not scored (#119). */
   predictions?: unknown;
   /** What /api/ml/forecast/overview answers for the depot. */
   forecast: ForecastOverviewView;
+  /** What /api/ml/forecast/accuracy answers (T2-03): the depot's finished weeks; none means not checked yet. */
+  accuracy?: { weeks: Array<Record<string, unknown>>; wape: number | null };
+  /** Capacity decisions recorded on short weeks (roadmap T2-01), newest first. */
+  capacityDecisions?: Array<Record<string, unknown>>;
   /** Saved plans, newest first, and the plan each one holds. */
   snapshots: SnapshotView[];
   savedPlans: Record<string, PlanView>;
@@ -142,9 +157,30 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
 
   const apply = (command: Sent) => {
     const { payload } = command;
+    if (command.kind === "issue:AskDecision") {
+      const p = payload as unknown as { kind: DecisionView["kind"]; deliveryId: string; receiveAt?: string; aboutDeliveryId?: string };
+      const all = desk.sheets.flatMap((s) => s.stops.map((stop) => ({ stop, vehicleId: s.vehicleId })));
+      const asked = all.find((x) => x.stop.deliveryId === p.deliveryId)!;
+      const about = p.aboutDeliveryId ? all.find((x) => x.stop.deliveryId === p.aboutDeliveryId)?.stop : undefined;
+      desk.decisions = desk.decisions ?? [];
+      return askInMock(desk.decisions, p, { outletId: asked.stop.outletId, tripId: asked.stop.tripId, vehicleId: asked.vehicleId },
+        about ? { outletId: about.outletId, units: about.itemCount } : null, new Date(LIVE_NOW));
+    }
+    if (command.kind === "issue:AnswerDecision") return answerInMock(desk.decisions ?? [], payload as unknown as AnswerDecision);
     if (command.kind.startsWith("issue:")) return applyIssue(desk, command);
+    if (command.kind === "ml:RecordCapacityDecision") {
+      const decisionId = `cap-${(desk.capacityDecisions ?? []).length + 1}`;
+      desk.capacityDecisions = [
+        { decisionId, ...payload, vehicles: payload.vehicles ?? null, decidedBy: SESSION.userId, decidedAt: new Date().toISOString() },
+        ...(desk.capacityDecisions ?? []),
+      ];
+      return { decisionId };
+    }
     if (command.kind === "message:Resolve") {
       return resolveInThread(desk.threads ?? [], payload as unknown as { messageId: string; note?: string }, SESSION.displayName, new Date().toISOString());
+    }
+    if (command.kind === "message:Redirect") {
+      return redirectInThread(desk.threads ?? [], payload as unknown as { messageId: string; reason: string }, new Date().toISOString());
     }
     if (command.kind === "message:Post") {
       return postToThread(desk.threads ?? [], payload as unknown as PostMessagePayload, { name: SESSION.displayName, role: "dispatcher" }, new Date().toISOString());
@@ -229,9 +265,10 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
     if (pathname === "/api/session") return route.fulfill(json(SESSION));
     if (pathname === "/api/reference/vehicles") return route.fulfill(json({ items: [vehicle("VEH043"), vehicle("VEH044")], nextCursor: null }));
     if (pathname === "/api/orders/day") {
-      // The desk's orders are today's; tomorrow's run (also on Current) has none unless a test adds them.
+      // The desk's orders wait for the run being planned, which is tomorrow's (scope.ts nextRun, R-ORD-01);
+      // today's run is already planned and on the road, and has none unless a test adds them.
       const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Colombo" }).format(new Date());
-      return route.fulfill(json(url.searchParams.get("date") === today ? desk.orders : []));
+      return route.fulfill(json(url.searchParams.get("date") === nextRun(today) ? desk.orders : []));
     }
     const byId = /^\/api\/orders\/(order-[^/]+)$/.exec(pathname);
     if (byId) {
@@ -250,7 +287,12 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
       }));
     }
     if (pathname === "/api/plans/published") return route.fulfill(desk.published ? json(desk.published) : problem(404, "NOT_FOUND", "No published plan"));
-    if (pathname === "/api/plans/preview/placements") return route.fulfill(json(PLACES));
+    if (pathname === "/api/plans/preview/placements") {
+      return route.fulfill(json(desk.noPlace ? PLACES.map((p) => ({ ...p, feasible: false, bindingRule: p.bindingRule ?? "R-PLN-07", reason: p.feasible ? "no trip left on VEH044" : p.reason })) : PLACES));
+    }
+    if (pathname === "/api/plans/preview/fit") return route.fulfill(json(desk.fit ?? { fits: true, placesChecked: 2, closest: null, swap: null }));
+    if (/^\/api\/plans\/[^/]+\/what-if\/vehicles$/.test(pathname)) return route.fulfill(json(desk.whatIfVehicles ?? []));
+    if (/^\/api\/plans\/[^/]+\/what-if$/.test(pathname)) return route.fulfill(json(desk.whatIf));
     if (pathname === "/api/plans/preview/swap" || pathname === "/api/plans/preview/sequence" || pathname === "/api/plans/preview/trip") return route.fulfill(json(desk.preview));
     if (pathname === "/api/plans/snapshots") return route.fulfill(json(desk.snapshots));
     const saved = /^\/api\/plans\/snapshots\/([^/]+)$/.exec(pathname);
@@ -298,6 +340,7 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
       return route.fulfill(json({ depotCode: code, displayName: code, location: { latitude: "6.960000", longitude: "79.880000", precision: "approximate" } }));
     }
     if (pathname === "/api/loading/trips") return route.fulfill(json(desk.dock));
+    if (pathname === "/api/issues/decisions") return route.fulfill(json(desk.decisions ?? []));
     if (pathname === "/api/issues") return route.fulfill(json({ items: desk.issues.filter((i) => i.status === "OPEN" || i.status === "ASSIGNED"), nextCursor: null }));
     if (pathname === "/api/issues/settled") return route.fulfill(json(desk.issues.filter((i) => i.status === "RESOLVED" || i.status === "CLOSED")));
     const one = /^\/api\/issues\/([^/]+)(\/history)?$/.exec(pathname);
@@ -307,10 +350,17 @@ export async function serve(page: Page, start: Partial<Desk> = {}): Promise<Desk
       return route.fulfill(json(one[2] ? (desk.history[found.issueId] ?? []) : found));
     }
     if (pathname === "/api/plans/deferrals") return route.fulfill(json(desk.deferrals));
+    if (pathname.startsWith("/api/plans/policies/")) {
+      return route.fulfill(json({ policyVersionId: pathname.split("/").pop(), keys: ["PRIOR_SKIP", "FRESH", "CHILLED", "STRICT_WINDOW", "CADENCE", "EARLIEST_CLOSE", "LONGEST_DISTANCE", "LARGEST_VOLUME", "LONGEST_UNSERVED"] }));
+    }
     if (pathname === "/api/ml/models") {
       return route.fulfill(json(desk.models ?? [
         { name: "datathon-task2a", version: "2026.1", kind: "demand_forecast", status: "ACTIVE", metrics: { total_wape: "0.0415", chilled_wape: "0.0439" } },
       ]));
+    }
+    if (pathname === "/api/ml/capacity/decisions") return route.fulfill(json(desk.capacityDecisions ?? []));
+    if (pathname === "/api/ml/forecast/accuracy") {
+      return route.fulfill(json({ depotCode: url.searchParams.get("depot"), ...(desk.accuracy ?? { weeks: [], wape: null }) }));
     }
     if (pathname === "/api/ml/forecast/overview") {
       const weeks = Number(url.searchParams.get("weeks") ?? "10");

@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useOnline } from "@shared/api/useResource";
-import { queuesWrites, useSync, type Role } from "@shared/offline";
-import { keepStorage, watchInstall } from "@shared/pwa";
+import { forgetSaved, queuesWrites, sweepSaved, useSync, type Role } from "@shared/offline";
+import { keepStorage, storageNearlyFull, watchInstall } from "@shared/pwa";
 import { Notice, ShellProvider, SkipLink, StructuredError, cx, setStateScope, type ShellControls } from "@shared/ui";
 import { roleForHost } from "./hostRole.ts";
 import RoleRouter from "./RoleRouter.tsx";
@@ -85,9 +85,16 @@ export default function AppShell(): React.JSX.Element {
   const [pending, setPending] = useState<number | null>(null);
   const [signOutError, setSignOutError] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
+  const [update, setUpdate] = useState<ServiceWorker | null>(null);
+  const updateAsked = useRef(false);
   const sync = useSync(state?.kind === "signed-in" ? state.session.userId : null);
   // Kept screen choices (tabs, filters, scroll) belong to the account signed in.
   setStateScope(state?.kind === "signed-in" ? state.session.userId : null);
+  const userId = state?.kind === "signed-in" ? state.session.userId : null;
+  // Saved reads older than a week, or beyond the cap, go once per sign-in (F-04).
+  useEffect(() => {
+    if (userId) void sweepSaved(userId);
+  }, [userId]);
 
   const check = useCallback(() => {
     setState(null);
@@ -123,8 +130,13 @@ export default function AppShell(): React.JSX.Element {
 
   // A role that queues writes keeps them on the device; ask the browser not to
   // clear that storage when space runs low (issue #201).
+  // And warns while there is still room, so recorded work is not refused at a stop (F-04).
+  const [spaceLow, setSpaceLow] = useState(false);
   useEffect(() => {
-    if (role && role !== "admin" && role !== "auditor" && queuesWrites(role as Role)) void keepStorage();
+    if (role && role !== "admin" && role !== "auditor" && queuesWrites(role as Role)) {
+      void keepStorage();
+      void storageNearlyFull().then(setSpaceLow);
+    }
   }, [role]);
 
   useEffect(() => {
@@ -134,19 +146,30 @@ export default function AppShell(): React.JSX.Element {
     // the build it first loaded. Ask for a new worker when the screen comes
     // back and every 30 minutes; when one takes over, reload into its build.
     // Queued work lives in IndexedDB, so the reload loses nothing.
-    const hadController = sw.controller !== null;
+    // F-05: a new build waits until the person taps Reload, so nobody loses a
+    // half-filled form to a reload they did not ask for. Only the tab that asked
+    // reloads; another open tab keeps its screen.
     let reloaded = false;
     const onControllerChange = () => {
-      if (!hadController || reloaded) return;
+      if (!updateAsked.current || reloaded) return;
       reloaded = true;
       window.location.reload();
+    };
+    const offer = (reg: ServiceWorkerRegistration) => {
+      if (reg.waiting && sw.controller) setUpdate(reg.waiting);
+      reg.addEventListener("updatefound", () => {
+        const next = reg.installing;
+        next?.addEventListener("statechange", () => {
+          if (next.state === "installed" && sw.controller) setUpdate(next);
+        });
+      });
     };
     const check = () => void sw.getRegistration().then((reg) => reg?.update()).catch(() => {});
     const onVisible = () => document.visibilityState === "visible" && check();
     sw.addEventListener("controllerchange", onControllerChange);
     document.addEventListener("visibilitychange", onVisible);
     const timer = window.setInterval(check, UPDATE_CHECK_MS);
-    sw.register("/sw.js").catch(() => {
+    sw.register("/sw.js").then(offer).catch(() => {
       // An unavailable service worker degrades offline support; it must not
       // stop the application loading.
     });
@@ -243,6 +266,9 @@ export default function AppShell(): React.JSX.Element {
     setSigningOut(true);
     try {
       await signOut();
+      // A shared phone carries nothing of the last person's saved reads, their
+      // Fuel Pass included (F-04, FF-06b). Queued work stays for their next sign-in.
+      await forgetSaved(session.userId);
       setPending(null);
       setNotice("You are signed out.");
       setState({ kind: "signed-out" });
@@ -302,6 +328,35 @@ export default function AppShell(): React.JSX.Element {
             </button>
           </div>
         )}
+        {update && (
+          <div className="mx-auto w-full max-w-[720px] px-4 pt-2 font-go">
+            <Notice
+              tone="info"
+              title="A new version of Waypoint is ready."
+              action={
+                <button
+                  type="button"
+                  className="min-h-12 px-2 text-[13px] font-medium text-go-teal"
+                  onClick={() => {
+                    updateAsked.current = true;
+                    update.postMessage({ type: "waypoint:skip-waiting" });
+                  }}
+                >
+                  Reload
+                </button>
+              }
+            />
+          </div>
+        )}
+        {spaceLow && (
+          <div className="mx-auto w-full max-w-[720px] px-4 pt-2 font-go">
+            <Notice
+              tone="warning"
+              title="This phone is nearly out of storage space. Free some space so work recorded with no signal can be saved."
+              action={<button type="button" className="min-h-12 px-2 text-[13px] font-medium text-go-teal" onClick={() => setSpaceLow(false)}>Dismiss</button>}
+            />
+          </div>
+        )}
         {(pending !== null || signOutError) && (
           <div className="mx-auto w-full max-w-[720px] px-4 pt-2 font-go">
             {signOutError ? (
@@ -328,7 +383,7 @@ export default function AppShell(): React.JSX.Element {
                   </span>
                 }
               >
-                {online ? "Send them first: tap sync now, or review any the server refused." : "Reconnect so they can be sent. If you sign out now, they wait here until you sign in again."}
+                {online ? "Send them first: tap sync now, or review any Waypoint refused." : "Reconnect so they can be sent. If you sign out now, they wait here until you sign in again."}
               </Notice>
             )}
           </div>

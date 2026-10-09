@@ -3,11 +3,13 @@
 import { useState } from "react";
 import type { OrderView, PlanView } from "@shared/domain/types";
 import { PrimaryButton, SecondaryButton, cx } from "@shared/ui";
-import { clock, dayLabel, ruleLabel } from "@shared/wording";
+import { clock, dayLabel, hhmm, ruleLabel } from "@shared/wording";
 import { leftOutLine, type PlanSummary, type Working } from "../data/plan.ts";
-import { daysBetween, publishBlocker, type DecisionRow } from "../data/planViews.ts";
+import { SLACK_TIGHT_MINUTES, SLACK_WATCH_MINUTES, daysBetween, publishBlocker, slackLabel, tightStops, type DecisionRow } from "../data/planViews.ts";
 import { useComparison } from "../data/usePlanReads.ts";
 import PublishAudience from "./PublishAudience.tsx";
+import PublishRiskReview from "./PublishRiskReview.tsx";
+import Row from "./PublishRow.tsx";
 import ReasonPicker, { reasonReady } from "./ReasonPicker.tsx";
 
 // Figma "Plan · 3 Publish" (3a blocked, 3b ready, 3c published, 3d send
@@ -17,7 +19,9 @@ import ReasonPicker, { reasonReady } from "./ReasonPicker.tsx";
 // the draft was made, it refuses and names every reason (PLN-07, PLN-14). A
 // published plan is immutable; changing it starts a revision, and sending that
 // revision tells only the drivers and stores it changes (R-NOT-12). The step
-// bar holds the button; this is what it will do.
+// bar holds the button; this is what it will do. Before publishing it also
+// names the stops with little time before their window closes (T1-01), so a
+// dispatcher can look at them while the plan can still change; it never blocks.
 
 const WAITING_DAYS = 3;
 
@@ -57,7 +61,7 @@ export default function PlanPublish({
   /** The step bar's Edit plan was pressed on a published plan. */
   revising: boolean;
   onRevising: (revising: boolean) => void;
-  /** Past 16:00 on the service day: the published plan is final (R-PLN-43). */
+  /** Past 16:00 on the service day: the published plan is final (R-PLN-48). */
   final: boolean;
   reviseReason: string;
   onReviseReason: (reason: string) => void;
@@ -67,6 +71,7 @@ export default function PlanPublish({
   onDecide: (orderId: string) => void;
 }): React.JSX.Element {
   const [showAll, setShowAll] = useState(false);
+  const [showTight, setShowTight] = useState(false);
   const blocker = publishBlocker(rows);
   const blocked = state.stage === "draft" && blocker.open > 0;
   const revises = state.stage === "draft" ? state.revises : null;
@@ -77,6 +82,8 @@ export default function PlanPublish({
   const changes = useComparison(revises ? revises.planId : null, revises ? plan.planId : null);
   const told = changes.data ? changes.data.changedTrips.length : null;
   const published = state.stage === "published";
+  const tight = state.stage === "draft" ? tightStops(plan) : [];
+  const tightChilled = tight.filter((t) => t.trip.temperature === "chilled").length;
   const outletCount = new Set(deferred.map((a) => orders.get(a.orderId)?.outletId).filter(Boolean)).size;
 
   const headline = published
@@ -92,7 +99,7 @@ export default function PlanPublish({
     ? "Sent · you can still edit and publish again"
     : blocked
       ? `${blocker.open} ${blocker.open === 1 ? "order still needs" : "orders still need"} a decision`
-      : "The server checks every rule again when you publish";
+      : "Every rule is checked again when you publish";
 
   return (
     <div className="flex w-full gap-[18px] max-lg:flex-col">
@@ -153,6 +160,27 @@ export default function PlanPublish({
               action={!published ? { label: "Review", onClick: () => onDecide(waiting[0]!.orderId) } : undefined}
             />
           )}
+          {tight.length > 0 && (
+            <Row
+              tone={tight.some((t) => t.slack.tone === "high") ? "danger" : "warning"}
+              title={`${tight.length} ${tight.length === 1 ? "stop has" : "stops have"} under ${SLACK_WATCH_MINUTES} min before the window closes`}
+              note={`${tightChilled ? `${tightChilled} chilled · ` : ""}under ${SLACK_TIGHT_MINUTES} min shown red · from the planned times, publishing is not blocked`}
+              action={{ label: showTight ? "Hide" : "Show", onClick: () => setShowTight((v) => !v) }}
+            />
+          )}
+          {showTight && tight.length > 0 && (
+            <li aria-label="Tight stops" className="flex flex-col pb-2 pl-11">
+              {tight.map(({ trip, stop, slack }) => (
+                <p key={stop.orderId} className="flex flex-wrap gap-x-3 border-t border-go-rule py-1.5 text-xs text-go-ink">
+                  <span className="w-[100px] font-medium">{stop.outletId}</span>
+                  <span className="flex-1 text-go-secondary">{`${trip.vehicleId} Trip ${trip.tripNumber} · ${trip.temperature === "chilled" ? "Chilled" : "Ambient"} · arrives ${hhmm(stop.plannedArrival)}, closes ${hhmm(stop.windowClose)}`}</span>
+                  <span className={slack.tone === "high" ? "text-go-danger-strong" : "text-go-warning-text"}>{slackLabel(slack)}</span>
+                </p>
+              ))}
+            </li>
+          )}
+          {/* T1-01: the stops likely to be late, each kept or swapped with a reason. Advice; never blocks. */}
+          {state.stage === "draft" && <PublishRiskReview planId={plan.planId} online={online} onDecide={onDecide} />}
           {revises && (
             <Row
               tone="warning"
@@ -229,41 +257,6 @@ function Stat({ value, note }: { value: string; note: string }): React.JSX.Eleme
       <span className="text-[20px] font-medium text-go-ink">{value}</span>
       <span className="text-xs text-go-secondary">{note}</span>
     </div>
-  );
-}
-
-function Row({
-  tone,
-  title,
-  note,
-  action,
-}: {
-  tone: "ok" | "warning" | "danger";
-  title: string;
-  note: string;
-  action?: { label: string; onClick: () => void };
-}): React.JSX.Element {
-  return (
-    <li className="flex items-center gap-3 border-t border-go-rule py-3.5">
-      <span
-        aria-hidden
-        className={cx(
-          "flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
-          tone === "ok" ? "bg-go-success-tint text-go-teal" : tone === "warning" ? "bg-go-warning-tint text-go-warning-text" : "bg-go-danger-tint text-go-danger-strong",
-        )}
-      >
-        {tone === "ok" ? "✓" : "!"}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-[14px] font-medium text-go-ink">{title}</span>
-        <span className="block text-xs text-go-secondary">{note}</span>
-      </span>
-      {action && (
-        <button type="button" onClick={action.onClick} className="shrink-0 text-[13px] font-medium text-go-teal">
-          {`${action.label} ›`}
-        </button>
-      )}
-    </li>
   );
 }
 

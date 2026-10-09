@@ -219,7 +219,7 @@ function LoaderWorkspace({
         onSync={syncNow}
         syncing={sync.syncing || trips.loading}
       />}
-      {notificationsOpen && <Notifications inbox={inbox} onClose={() => setNotificationsOpen(false)} />}
+      {notificationsOpen && <Notifications inbox={inbox} accountId={userId} onClose={() => setNotificationsOpen(false)} />}
       {lockError && (
         <div className="px-5 pb-3">
           <Notice
@@ -267,7 +267,7 @@ function LoaderWorkspace({
       ) : !operator ? (
         <OperatorGate key="crew" account={userId} online={online} onOperator={signedIn} recentId={readRecent(userId)} onPinStep={setPinStep} />
       ) : !depot ? (
-        <p className="px-5 text-[15px] text-go-muted">Your account has no depot in scope. Ask an administrator to grant one.</p>
+        <p className="px-5 text-[15px] text-go-muted">{tr("Your account has no depot in scope. Ask an administrator to grant one.")}</p>
       ) : open ? (
         <LoadSheet
           key={open.tripId}

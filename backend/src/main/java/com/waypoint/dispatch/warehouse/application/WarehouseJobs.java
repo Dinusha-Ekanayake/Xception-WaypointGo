@@ -25,6 +25,11 @@ public final class WarehouseJobs {
     }
 
     @Override
+    public String bulkhead() {
+      return "warehouse";
+    }
+
+    @Override
     public String cron() {
       return "15 */2 * * * *";
     }
@@ -51,6 +56,11 @@ public final class WarehouseJobs {
     @Override
     public String name() {
       return "warehouse.reconcile";
+    }
+
+    @Override
+    public String bulkhead() {
+      return "warehouse";
     }
 
     @Override

@@ -33,7 +33,7 @@ export default function ManifestList({
   const items = lines.reduce((n, l) => n + l.items.length, 0);
 
   return (
-    <section aria-label="Load list" className="flex flex-col gap-3">
+    <section aria-label={tr("Load list")} className="flex flex-col gap-3">
       <div className="flex flex-col gap-0.5">
         <h2 className="text-[26px] font-semibold">{tr("Load list")}</h2>
         <p className="text-[14px] text-go-muted">{tr("Last stop loads first. Tick each item.")}</p>
@@ -60,7 +60,7 @@ export default function ManifestList({
                 </span>
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <span className="text-base font-medium">
-                    Stop {String(stop.stopSequence).padStart(2, "0")} · {placeName(stop.outletId, outlets)}
+                    {tr("Stop {n} · {place}", { n: String(stop.stopSequence).padStart(2, "0"), place: placeName(stop.outletId, outlets) })}
                   </span>
                   <span className="text-[13px] text-go-muted">
                     {tr(stop.lines.length === 1 ? "{n} order" : "{n} orders", { n: stop.lines.length })} · {tr("{a} of {b} items loaded", { a: done, b: stopItems.length })}

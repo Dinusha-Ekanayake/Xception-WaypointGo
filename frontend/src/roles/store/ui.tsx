@@ -118,16 +118,17 @@ export function Field({
 
 /** Minus, count, plus. The count turns teal when it differs from the usual. */
 export function Stepper({ value, onChange, label, highlight }: { value: number; onChange: (n: number) => void; label: string; highlight?: boolean }): React.JSX.Element {
+  const tr = useT();
   const round = "flex size-12 shrink-0 items-center justify-center rounded-full bg-go-canvas text-[22px] leading-none disabled:opacity-40";
   return (
     <div className="flex items-center gap-1" role="group" aria-label={label}>
-      <button type="button" className={round} aria-label={`One less ${label}`} disabled={value <= 0} onClick={() => onChange(Math.max(0, value - 1))}>
+      <button type="button" className={round} aria-label={tr("One less {item}", { item: label })} disabled={value <= 0} onClick={() => onChange(Math.max(0, value - 1))}>
         −
       </button>
       <span aria-live="polite" className={cx("w-9 text-center text-[17px] font-semibold", highlight ? "text-[#0f766e]" : "text-black")}>
         {value}
       </span>
-      <button type="button" className={round} aria-label={`One more ${label}`} onClick={() => onChange(value + 1)}>
+      <button type="button" className={round} aria-label={tr("One more {item}", { item: label })} onClick={() => onChange(value + 1)}>
         +
       </button>
     </div>
@@ -136,12 +137,13 @@ export function Stepper({ value, onChange, label, highlight }: { value: number; 
 
 /** A bottom sheet over a blurred page, as in "04 Order sent". Escape, focus and motion come from useOverlay; a phone can swipe it away. */
 export function Sheet({ label, onClose, children }: { label: string; onClose: () => void; children: ReactNode }): React.JSX.Element {
+  const tr = useT();
   const panel = useRef<HTMLDivElement>(null);
   const { closing, requestClose } = useOverlay(panel, onClose);
   useSheetDrag(panel, onClose);
   return (
     <div data-closing={closing || undefined} className="go-overlay fixed inset-0 z-40 flex items-end justify-center md:items-center md:p-6" role="presentation">
-      <button type="button" aria-label="Close" tabIndex={-1} onClick={requestClose} className="go-backdrop absolute inset-0 bg-black/20 backdrop-blur-[6px]" />
+      <button type="button" aria-label={tr("Close")} tabIndex={-1} onClick={requestClose} className="go-backdrop absolute inset-0 bg-black/20 backdrop-blur-[6px]" />
       <div
         ref={panel}
         tabIndex={-1}
@@ -153,7 +155,7 @@ export function Sheet({ label, onClose, children }: { label: string; onClose: ()
         {/* A sheet closes by swipe or the backdrop, and by this button for anyone who cannot swipe. */}
         <button
           type="button"
-          aria-label="Close"
+          aria-label={tr("Close")}
           onClick={requestClose}
           className="absolute top-4 right-4 z-10 flex size-9 items-center justify-center rounded-full bg-go-surface text-go-ink transition-transform active:scale-95"
         >
@@ -174,11 +176,12 @@ export function Sheet({ label, onClose, children }: { label: string; onClose: ()
  * Without onClose it cannot be dismissed (a step that must be finished).
  */
 export function Modal({ label, onClose, children }: { label: string; onClose?: () => void; children: ReactNode }): React.JSX.Element {
+  const tr = useT();
   const panel = useRef<HTMLDivElement>(null);
   const { closing, requestClose } = useOverlay(panel, onClose);
   return (
     <div data-closing={closing || undefined} className="go-overlay fixed inset-0 z-40 flex items-center justify-center p-4" role="presentation">
-      <button type="button" aria-label="Close" tabIndex={-1} onClick={requestClose} className="go-backdrop absolute inset-0 bg-black/20 backdrop-blur-[6px]" />
+      <button type="button" aria-label={tr("Close")} tabIndex={-1} onClick={requestClose} className="go-backdrop absolute inset-0 bg-black/20 backdrop-blur-[6px]" />
       <div
         ref={panel}
         tabIndex={-1}
@@ -195,12 +198,13 @@ export function Modal({ label, onClose, children }: { label: string; onClose?: (
 
 /** A panel from the right over a blurred page, as in "05b make-up delivery"; a bottom sheet on a phone. */
 export function Drawer({ label, onClose, children }: { label: string; onClose: () => void; children: ReactNode }): React.JSX.Element {
+  const tr = useT();
   const panel = useRef<HTMLDivElement>(null);
   const { closing, requestClose } = useOverlay(panel, onClose);
   useSheetDrag(panel, onClose);
   return (
     <div data-closing={closing || undefined} className="go-overlay fixed inset-0 z-40 flex items-end justify-center lg:items-stretch lg:justify-end" role="presentation">
-      <button type="button" aria-label="Close" tabIndex={-1} onClick={requestClose} className="go-backdrop absolute inset-0 bg-black/20 backdrop-blur-[6px]" />
+      <button type="button" aria-label={tr("Close")} tabIndex={-1} onClick={requestClose} className="go-backdrop absolute inset-0 bg-black/20 backdrop-blur-[6px]" />
       <div
         ref={panel}
         tabIndex={-1}
@@ -256,10 +260,11 @@ export function Toast({ note }: { note: { title: string; detail?: string; tone?:
 }
 
 export function BackButton({ onClick, label = "Back" }: { onClick: () => void; label?: string }): React.JSX.Element {
+  const tr = useT();
   return (
     <button type="button" onClick={onClick} className="flex min-h-12 items-center gap-2 self-start pr-3 text-[17px] text-black">
       <Icon name="arrow-left" />
-      {label}
+      {tr(label)}
     </button>
   );
 }

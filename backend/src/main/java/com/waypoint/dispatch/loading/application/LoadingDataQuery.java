@@ -5,6 +5,7 @@ import com.waypoint.dispatch.loading.contract.LoadingViews.ManifestLineView;
 import com.waypoint.dispatch.loading.contract.LoadingViews.ManifestView;
 import com.waypoint.dispatch.loading.contract.LoadingViews.ReadyTripView;
 import com.waypoint.dispatch.loading.contract.LoadingViews.ShortfallView;
+import com.waypoint.dispatch.loading.contract.LoadingViews.ReloadSample;
 import com.waypoint.dispatch.loading.infrastructure.JdbcLoadingReads;
 import com.waypoint.dispatch.platform.audit.AuditEntry;
 import com.waypoint.dispatch.platform.audit.AuditLog;
@@ -67,6 +68,17 @@ public class LoadingDataQuery implements LoadingQuery {
   @Override
   public List<ShortfallView> openShortfalls(String depotCode) {
     return read(ambient(), () -> shortfallsOf(depotCode, true));
+  }
+
+  @Override
+  public List<ReloadSample> reloadSamples(LocalDate from, LocalDate to) {
+    return read(ambient(), () -> reads.reloads(from, to).stream()
+        .map(row -> new ReloadSample(
+            (String) row.get("depot_code"),
+            ((java.sql.Date) row.get("service_date")).toLocalDate(),
+            ((Number) row.get("trip_number")).intValue(),
+            ((Number) row.get("minutes")).longValue()))
+        .toList());
   }
 
   // ---- web: as the signed-in actor -------------------------------------------

@@ -1,6 +1,7 @@
 package com.waypoint.dispatch.issues.contract;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -94,4 +95,60 @@ public final class IssueViews {
       String reason,
       Optional<UUID> actorId,
       Instant at) {}
+
+  /**
+   * FF-03: a write-off recorded by an inquiry, and its decision. {@code needsHead}
+   * says the Head of Distribution must approve it (above the depot limit, or a Tech line).
+   */
+  public record WriteOffView(
+      UUID writeOffId,
+      UUID issueId,
+      String outcome,
+      java.math.BigDecimal valueLkr,
+      boolean techLine,
+      boolean needsHead,
+      List<UUID> attachmentIds,
+      UUID recordedBy,
+      Instant recordedAt,
+      String status,
+      Optional<UUID> decidedBy,
+      Optional<Instant> decidedAt,
+      Optional<String> decisionNote,
+      long rowVersion) {}
+
+  /**
+   * FF-09: a question asked of one store on a live trip, and its answer. The
+   * dispatcher reads the depot's; a store reads its own outlet's.
+   *
+   * @param kind receive_late or dock_help
+   * @param state sent, answered, expired or withdrawn
+   * @param aboutUnits units of the stop whose goods are in front, for dock_help
+   * @param arrivalAt when the vehicle was expected at the store when asked
+   * @param askedBySystem asked by the system when the attention watch found the stop at risk (R-ISS-15)
+   */
+  public record DecisionView(
+      UUID requestId,
+      String kind,
+      String depotCode,
+      LocalDate serviceDate,
+      UUID tripId,
+      String vehicleId,
+      UUID deliveryId,
+      String outletId,
+      Optional<UUID> aboutDeliveryId,
+      Optional<String> aboutOutletId,
+      Optional<Integer> aboutUnits,
+      Optional<Instant> receiveAt,
+      Optional<Instant> arrivalAt,
+      Instant deadline,
+      String state,
+      Optional<String> answer,
+      Optional<String> answeredVia,
+      Optional<Instant> answeredAt,
+      boolean answeredLate,
+      Optional<String> reason,
+      Optional<UUID> voiceNoteId,
+      Instant askedAt,
+      long rowVersion,
+      boolean askedBySystem) {}
 }

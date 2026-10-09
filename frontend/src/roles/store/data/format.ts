@@ -1,5 +1,9 @@
 import type { IsoDate, OrderStatus } from "@shared/domain/types";
 import { addDays, businessNow, dayLabel, hhmm } from "../../../shared/wording/index.ts";
+import { translate, type Translate } from "./strings.ts";
+
+/** These write English unless the screen passes its language (roadmap FF-00). */
+const english: Translate = (text, vars) => translate("en", text, vars);
 export { addDays, clock, dayLabel, depotToday, greeting, hhmm, longDay, productLines, units } from "../../../shared/wording/index.ts";
 
 // Dates and labels for the store screens. The depot clock is Asia/Colombo; the
@@ -29,9 +33,9 @@ export function cutoffLabel(ms: number): string {
  * When an order for `deliveryDate` stops being changeable: 4:00 PM the day
  * before, said as "Today 4:00 PM" while that is still today.
  */
-export function changeDeadline(deliveryDate: IsoDate, today: IsoDate): string {
+export function changeDeadline(deliveryDate: IsoDate, today: IsoDate, t: Translate = english): string {
   const before = addDays(deliveryDate, -1);
-  return `${before === today ? "Today" : dayLabel(before)} ${CUTOFF_HOUR}:00`;
+  return `${before === today ? t("Today") : dayLabel(before)} ${CUTOFF_HOUR}:00`;
 }
 
 export type StatusTone = "mint" | "ink" | "warn" | "danger" | "muted" | "ok";
@@ -58,10 +62,15 @@ export const ORDER_STATUS: Record<OrderStatus, { label: string; tone: StatusTone
  * Issue #224: what the store is promised once the plan is published, "Planned
  * for Fri 9 Oct · stop 3 · planned arrival 06:10"; null while it is not on a plan.
  */
-export function planNote(order: { status: OrderStatus; deliveryDate: string; plannedStop?: number | null; plannedArrival?: string | null }): string | null {
+export function planNote(
+  order: { status: OrderStatus; deliveryDate: string; plannedStop?: number | null; plannedArrival?: string | null },
+  t: Translate = english,
+): string | null {
   if (order.plannedStop == null || !(order.status === "ALLOCATED" || order.status === "LOADING" || order.status === "IN_TRANSIT")) return null;
-  const arrival = order.plannedArrival ? ` · planned arrival ${hhmm(order.plannedArrival)}` : "";
-  return `Planned for ${dayLabel(order.deliveryDate)} · stop ${order.plannedStop}${arrival}`;
+  const vars = { day: dayLabel(order.deliveryDate), n: order.plannedStop };
+  return order.plannedArrival
+    ? t("Planned for {day} · stop {n} · planned arrival {time}", { ...vars, time: hhmm(order.plannedArrival) })
+    : t("Planned for {day} · stop {n}", vars);
 }
 
 export const editable = (status: OrderStatus) => status === "CONFIRMED" || status === "STOCK_UNKNOWN";
@@ -99,3 +108,50 @@ export const dockLabel = (code: string) => DOCKS[code]?.label ?? code.replace(/_
 export const dockWhere = (code: string | null | undefined) => (code ? (DOCKS[code]?.where ?? `at your ${code.replace(/_/g, " ")}`) : "at your store");
 
 export { productLabel } from "../../../shared/wording/index.ts";
+
+/**
+ * Why an order's delivery day moved, in the store's words, or null when it did
+ * not move. Orders for a day close at 16:00 the day before (R-ORD-01): an order
+ * placed at or after that time arrived after the cutoff, for example one saved
+ * on the phone with no signal and sent later. Otherwise the asked-for day had no
+ * deliveries (R-ORD-08). Depot time is Asia/Colombo, UTC+05:30 all year.
+ */
+export function movedWhy(order: MovedOrder, t: Translate = english): string | null {
+  const reason = movedReason(order);
+  if (!reason) return null;
+  const day = dayLabel(order.requestedDate);
+  return reason === "cutoff"
+    ? t("Moved from {day}: your order arrived after the 16:00 cutoff.", { day })
+    : t("Moved from {day}: no deliveries that day.", { day });
+}
+
+type MovedOrder = { dateRolled: boolean; requestedDate: IsoDate; placedAt?: string | null; rolledBecause?: string[] };
+
+/** "cutoff" or "closed-day" for a moved order: the order's own reason when it has one, else from when it was placed. */
+export function movedReason(order: MovedOrder): "cutoff" | "closed-day" | null {
+  if (!order.dateRolled) return null;
+  if (order.rolledBecause) return order.rolledBecause.includes("cutoff") ? "cutoff" : "closed-day";
+  const closed = Date.parse(`${addDays(order.requestedDate, -1)}T16:00:00+05:30`);
+  const placed = order.placedAt ? Date.parse(order.placedAt) : NaN;
+  return placed >= closed ? "cutoff" : "closed-day";
+}
+
+/**
+ * Roadmap T1-04 and MF-06: how long to hold someone at the dock. A range when
+ * the prediction has one ("unloading 15 to 24 min"), else the minutes alone,
+ * else nothing. Returned as a string key and its values, for the store's t().
+ */
+export function unloadingLabel(stop: {
+  expectedServiceMinutes?: number | string | null;
+  expectedServiceLow?: number | string | null;
+  expectedServiceHigh?: number | string | null;
+}): { key: string; values: Record<string, number> } | null {
+  const n = Math.round(Number(stop.expectedServiceMinutes ?? 0));
+  if (!(n > 0)) return null;
+  const low = Math.round(Number(stop.expectedServiceLow ?? NaN));
+  const high = Math.round(Number(stop.expectedServiceHigh ?? NaN));
+  if (Number.isFinite(low) && Number.isFinite(high) && high > low) {
+    return { key: "unloading {low} to {high} min", values: { low: Math.max(1, low), high } };
+  }
+  return { key: "unloading about {n} min", values: { n } };
+}

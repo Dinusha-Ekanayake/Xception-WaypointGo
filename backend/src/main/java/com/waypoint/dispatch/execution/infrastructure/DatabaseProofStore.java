@@ -3,6 +3,7 @@ package com.waypoint.dispatch.execution.infrastructure;
 import com.waypoint.dispatch.execution.domain.ProofStore;
 import com.waypoint.dispatch.platform.config.ExecutionProperties;
 import com.waypoint.dispatch.platform.db.Database;
+
 import com.waypoint.dispatch.platform.db.ModuleRole;
 import com.waypoint.dispatch.shared.domain.Actor;
 import com.waypoint.dispatch.shared.util.Clock;
@@ -84,7 +85,7 @@ public class DatabaseProofStore implements ProofStore {
         Actor.SYSTEM_ID,
         () -> {
           database.update(
-              "UPDATE execution.proof_content SET content = NULL, purged_at = ?"
+              "UPDATE execution.proof_content SET content = NULL, object_key = NULL, purged_at = ?"
                   + " WHERE storage_key = ? AND purged_at IS NULL",
               Timestamp.from(clock.now()), key);
         });

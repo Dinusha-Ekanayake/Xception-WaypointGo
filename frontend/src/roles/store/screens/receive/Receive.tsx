@@ -17,7 +17,7 @@ import {
 import { Icon, Notice } from "@shared/ui";
 import type { StoreGateway } from "../../data/gateway.ts";
 import { clock, dockWhere, temperatureLabel } from "../../data/format.ts";
-import { shrinkPhoto } from "../../data/photo.ts";
+import { preparePhoto } from "@shared/media/useTakenPhotos";
 import { answerFor, counted, knownShortages, LOWERS_COUNT, room as roomFor, type Kind, type Report } from "../../data/receive.ts";
 import { conflictMessage, type useCommands } from "../../data/useCommands.ts";
 import { BackButton, Badge, Button, Modal, Muted } from "../../ui.tsx";
@@ -28,6 +28,10 @@ import ReportCard from "./ReportCard.tsx";
 import ReportedList from "./ReportedList.tsx";
 import SummaryCard from "./SummaryCard.tsx";
 import { businessNow } from "@shared/wording";
+import { useT } from "../../i18n.tsx";
+
+/** "auto closed" from AUTO_CLOSED: the receipt's status in words, translated where drawn. */
+const statusWords = (status: string): string => status.toLowerCase().replace("_", " ");
 
 // Figma "06 Receive delivery", "06-1" to "06-7", "06b" and "07". The store
 // reports what is wrong, item by item, with photos, then submits its count once.
@@ -38,7 +42,7 @@ import { businessNow } from "@shared/wording";
 // carries the one-time handover PIN (R-RCP-09), evidence that never holds
 // anything up.
 
-type Photo = { id: string; blob: Blob; url: string };
+type Photo = { id: string; blob: Blob; url: string; hint: string | null };
 type Done = { queued: boolean; disputed: boolean; units: number; at: string; sent: boolean; pin: IssuedPin | null; confirmedAt: string | null };
 
 export default function Receive({
@@ -65,6 +69,7 @@ export default function Receive({
   onBack: () => void;
   onViewIssues: () => void;
 }): React.JSX.Element {
+  const t = useT();
   const receipt = useResource((s) => gateway.receipt(orderId, s), orderId);
   // The loading check of this order: what the loader kept back. Unknown when Loading cannot say.
   const custody = useResource((s) => gateway.custody(orderId, s), `custody|${orderId}`);
@@ -95,7 +100,7 @@ export default function Receive({
     return (
       <div className="flex flex-col gap-4">
         <BackButton onClick={onBack} />
-        {receipt.error ? <Notice tone="danger" title="Could not open this delivery">{friendlyError(receipt.error)}</Notice> : <Muted>Loading the delivery…</Muted>}
+        {receipt.error ? <Notice tone="danger" title={t("Could not open this delivery")}>{friendlyError(receipt.error)}</Notice> : <Muted>{t("Loading the delivery…")}</Muted>}
       </div>
     );
   }
@@ -114,14 +119,14 @@ export default function Receive({
   const onPhoto = async (file: File | undefined) => {
     if (!file) return;
     try {
-      const blob = await shrinkPhoto(file);
-      const photo = { id: crypto.randomUUID(), blob, url: URL.createObjectURL(blob) };
+      // M-02, FF-01: the shared photo flow; a blurred or dark photo is pointed out, and can still be kept.
+      const photo = await preparePhoto(file);
       urls.current.push(photo.url);
       setPhotos((all) => ({ ...all, [photo.id]: photo }));
       setPending((ids) => [...ids, photo.id]);
       setViewing(photo.id);
     } catch (failure) {
-      setAddError(failure instanceof Error ? failure.message : "The photo could not be used.");
+      setAddError(failure instanceof Error ? failure.message : t("The photo could not be used."));
     }
   };
   const retake = (id: string) => {
@@ -147,7 +152,7 @@ export default function Receive({
     // links them to the investigation whichever arrives first.
     for (const id of reports.flatMap((x) => x.photoIds)) {
       const kept = await gateway.keepPhoto({ id, orderId, receiptId: r.receiptId, blob: photos[id]!.blob });
-      if (!kept.durable) return setError(`A photo could not be kept on this device: ${kept.reason ?? "storage unavailable"}. Remove it or try again.`);
+      if (!kept.durable) return setError(t("A photo could not be kept on this device: {reason}. Remove it or try again.", { reason: kept.reason ?? t("storage unavailable") }));
     }
     void gateway.sendPhotos().catch(() => undefined);
 
@@ -158,7 +163,7 @@ export default function Receive({
           ? await commands.run(ReceiptCommandKind.confirmPartial, { orderId, lines: count, note: answer.note }, r.rowVersion)
           : await commands.run(ReceiptCommandKind.confirm, { orderId }, r.rowVersion);
     if (!outcome.ok) {
-      setError(conflictMessage(outcome.error));
+      setError(conflictMessage(outcome.error, t));
       receipt.refresh();
       return;
     }
@@ -177,7 +182,7 @@ export default function Receive({
         attachmentIds: reports.flatMap((x) => x.photoIds),
       };
       const raised = await commands.run(IssueCommandKind.raise, raise, null);
-      if (!raised.ok) setError(`Your count is recorded, but the remark could not be sent: ${friendlyError(raised.error)}`);
+      if (!raised.ok) setError(t("Your count is recorded, but the remark could not be sent: {reason}", { reason: friendlyError(raised.error) }));
     }
     const issued = outcome.queued ? null : (outcome.ack.result as HandoverIssued);
     setDone({
@@ -199,7 +204,7 @@ export default function Receive({
       const result = ack.result as { handoverPin: string; handoverExpiresAt: string };
       setReissued({ pin: result.handoverPin, expiresAt: result.handoverExpiresAt });
     } catch (failure) {
-      setPinError(failure instanceof ApiError ? conflictMessage(failure) : "A new PIN needs a connection. Try again when you are back online.");
+      setPinError(failure instanceof ApiError ? conflictMessage(failure, t) : t("A new PIN needs a connection. Try again when you are back online."));
       handover.refresh();
     }
   };
@@ -209,23 +214,28 @@ export default function Receive({
     <div className="flex flex-col gap-4">
       <BackButton onClick={onBack} />
       <div className="flex flex-col gap-1">
-        <h1 className="text-[32px] leading-tight font-medium text-black">Receive delivery</h1>
+        <h1 className="text-[32px] leading-tight font-medium text-black">{t("Receive delivery")}</h1>
         <Muted>
-          {delivery ? `${delivery.vehicleId} is ${dockWhere(outlet?.dockType)}${delivery.arrivedAt ? ` · arrived ${clock(delivery.arrivedAt)}` : ""}` : order ? `${order.orderRef} · ${temperatureLabel(order.temperature)}` : "Order"}
-          {r.confirmedAt ? ` · recorded ${clock(r.confirmedAt)}` : ""}
+          {delivery
+            ? t("{vehicle} is {where}", { vehicle: delivery.vehicleId, where: t(dockWhere(outlet?.dockType)) }) +
+              (delivery.arrivedAt ? t(" · arrived {time}", { time: clock(delivery.arrivedAt) }) : "")
+            : order
+              ? `${order.orderRef} · ${t(temperatureLabel(order.temperature))}`
+              : t("Order")}
+          {r.confirmedAt ? t(" · recorded {time}", { time: clock(r.confirmedAt) }) : ""}
         </Muted>
       </div>
       {closed ? (
-        <Notice tone="info" title={`Already recorded as ${r.status.toLowerCase().replace("_", " ")}`} />
+        <Notice tone="info" title={t("Already recorded as {status}", { status: t(statusWords(r.status)) })} />
       ) : (
         <p className="flex items-center gap-3 rounded-[16px] bg-[#d3f0e9] px-4 py-3 text-[15px] text-black">
           <span aria-hidden className="size-2.5 shrink-0 rounded-full bg-go-success" />
-          Report any issues, then submit count
+          {t("Report any issues, then submit count")}
         </p>
       )}
       {custody.error && !closed && (
-        <Notice tone="warning" title="The loading check could not be read">
-          Count what arrived as usual. Anything the loader kept back cannot be marked for you.
+        <Notice tone="warning" title={t("The loading check could not be read")}>
+          {t("Count what arrived as usual. Anything the loader kept back cannot be marked for you.")}
         </Notice>
       )}
       {error && <Notice tone="danger" live title={error} />}
@@ -291,14 +301,14 @@ export default function Receive({
         type="file"
         accept="image/*"
         capture="environment"
-        aria-label="Take a photo of the problem"
+        aria-label={t("Take a photo of the problem")}
         className="hidden"
         onChange={(e) => {
           void onPhoto(e.target.files?.[0]);
           e.target.value = "";
         }}
       />
-      {viewed && <PhotoDialog url={viewed.url} onRetake={() => retake(viewed.id)} onClose={() => setViewing(null)} />}
+      {viewed && <PhotoDialog url={viewed.url} hint={viewed.hint} onRetake={() => retake(viewed.id)} onClose={() => setViewing(null)} />}
 
       {done && done.pin && !done.confirmedAt && (
         <HandoverModal
@@ -325,7 +335,7 @@ export default function Receive({
         />
       )}
       {done && (!done.pin || done.confirmedAt) && (
-        <Modal label="Delivery confirmed" onClose={onBack}>
+        <Modal label={t("Delivery confirmed")} onClose={onBack}>
           {done.queued ? (
             <Badge>
               <Icon name="clock" />
@@ -336,16 +346,16 @@ export default function Receive({
             </span>
           )}
           <div className="flex flex-col items-center gap-1 text-center">
-            <h2 className="text-[26px] font-medium text-black">{done.queued ? "Saved on this phone" : done.disputed ? "Delivery disputed" : "Delivery confirmed"}</h2>
-            <p className="text-[14px] text-go-muted">{done.queued ? "It is sent when the connection returns." : `${done.units} units received · recorded at ${clock(done.at)}`}</p>
+            <h2 className="text-[26px] font-medium text-black">{t(done.queued ? "Saved on this phone" : done.disputed ? "Delivery disputed" : "Delivery confirmed")}</h2>
+            <p className="text-[14px] text-go-muted">{done.queued ? t("It is sent when the connection returns.") : t("{n} units received · recorded at {time}", { n: done.units, time: clock(done.at) })}</p>
           </div>
           {/* "07 Delivery confirmed": what is settled, as a list of checks. */}
           {!done.queued && (
             <ul className="flex flex-col gap-2 rounded-[20px] bg-go-surface px-[18px] py-3.5 text-[14px] text-black">
               {[
-                done.confirmedAt ? `Confirmed with PIN · ${clock(done.confirmedAt)}` : "Your count is on record",
-                ...(done.confirmedAt ? ["Driver can leave for next stop"] : []),
-                ...(done.sent ? ["The dispatcher is told what is wrong"] : []),
+                done.confirmedAt ? t("Confirmed with PIN · {time}", { time: clock(done.confirmedAt) }) : t("Your count is on record"),
+                ...(done.confirmedAt ? [t("Driver can leave for next stop")] : []),
+                ...(done.sent ? [t("The dispatcher is told what is wrong")] : []),
               ].map((line) => (
                 <li key={line} className="flex items-center gap-2">
                   <img alt="" aria-hidden src="/icons/store/list-check.svg" width={16} height={16} />
@@ -357,11 +367,11 @@ export default function Receive({
           <div className="flex gap-2.5">
             {done.sent && !done.queued && (
               <Button tone="plain" large onClick={onViewIssues}>
-                View issue
+                {t("View issue")}
               </Button>
             )}
             <Button large onClick={onBack}>
-              Done
+              {t("Done")}
             </Button>
           </div>
         </Modal>

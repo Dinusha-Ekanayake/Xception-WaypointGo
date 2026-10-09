@@ -131,4 +131,32 @@ class PlanDiffTest {
     assertEquals(List.of(trip1), PlanDiff.removedTrips(a, b));
     assertEquals(List.of(trip2), PlanDiff.changedTrips(a, b));
   }
+
+  @Test
+  void aRevisionMayNotChangeOrRemoveATripThatHasLeftButMayChangeTheOthers() {
+    // R-PLN-44: trip1's truck has left; trip2 is still at the depot.
+    PlanView a =
+        plan(
+            List.of(trip(trip1, "T1", 1, stop(x, "OUT-X", 1, "04:00")), trip(trip2, "T2", 1, stop(y, "OUT-Y", 1, "04:00"))),
+            List.of(served(x, trip1), served(y, trip2)));
+    java.util.Set<UUID> released = java.util.Set.of(trip1);
+
+    PlanView changesTheOther =
+        plan(
+            List.of(trip(trip1, "T1", 1, stop(x, "OUT-X", 1, "04:00")), trip(trip2, "T2", 1, stop(y, "OUT-Y", 1, "04:40"))),
+            List.of(served(x, trip1), served(y, trip2)));
+    assertTrue(ReleasedTripFreeze.touched(a, changesTheOther, released).isEmpty(), "a trip still at the depot may change");
+
+    PlanView movesTheReleased =
+        plan(
+            List.of(trip(trip1, "T3", 1, stop(x, "OUT-X", 1, "04:00")), trip(trip2, "T2", 1, stop(y, "OUT-Y", 1, "04:00"))),
+            List.of(served(x, trip1), served(y, trip2)));
+    assertEquals(List.of(trip1), ReleasedTripFreeze.touched(a, movesTheReleased, released));
+
+    PlanView dropsTheReleased =
+        plan(List.of(trip(trip2, "T2", 1, stop(y, "OUT-Y", 1, "04:00"))), List.of(deferred(x), served(y, trip2)));
+    assertEquals(List.of(trip1), ReleasedTripFreeze.touched(a, dropsTheReleased, released), "removing it is changing it");
+
+    assertTrue(ReleasedTripFreeze.touched(a, movesTheReleased, java.util.Set.of()).isEmpty(), "nothing released, nothing frozen");
+  }
 }

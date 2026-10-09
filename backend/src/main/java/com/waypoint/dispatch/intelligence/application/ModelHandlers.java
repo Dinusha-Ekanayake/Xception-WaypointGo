@@ -1,5 +1,7 @@
 package com.waypoint.dispatch.intelligence.application;
 
+import com.waypoint.dispatch.intelligence.domain.ModelGate;
+import com.waypoint.dispatch.platform.config.IntelligenceProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.waypoint.dispatch.intelligence.contract.ModelViews;
 import com.waypoint.dispatch.intelligence.contract.ModelViews.ModelStatus;
@@ -156,8 +158,11 @@ final class ModelHandlers {
 
   @Component
   static class Activate extends ModelHandler {
-    Activate(JdbcIntelligenceRepository repository, Metrics metrics, Clock clock) {
+    private final boolean allowCompetitionModels;
+
+    Activate(JdbcIntelligenceRepository repository, Metrics metrics, Clock clock, IntelligenceProperties properties) {
       super(repository, metrics, clock);
+      this.allowCompetitionModels = properties.allowCompetitionModels();
     }
 
     @Override
@@ -172,6 +177,10 @@ final class ModelHandlers {
       if (row.view().status() == ModelStatus.RETIRED) {
         throw new DomainException(ErrorCode.CONFLICT, "A retired model cannot be activated",
             List.of("R-ML-03"));
+      }
+      if (!allowCompetitionModels && ModelGate.competitionModel(row.view().name())) {
+        throw new DomainException(ErrorCode.CONFLICT,
+            "Models trained on the competition data cannot be used here", List.of("R-ML-09"));
       }
       if (row.view().status() == ModelStatus.ACTIVE) {
         return result(row, "ACTIVE", expected);

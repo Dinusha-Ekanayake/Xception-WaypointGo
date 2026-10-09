@@ -222,7 +222,7 @@ export function VoiceNote({
           style={{ background: `conic-gradient(currentColor ${Math.round(progress * 360)}deg, transparent 0deg)` }}
         />
         <span className={cx("relative flex size-8 items-center justify-center rounded-full shadow-sm", look.button)}>
-          {playing ? <PauseIcon className="size-[18px]" /> : <PlayIcon className="ml-0.5 size-[18px]" />}
+          {playing ? <PauseIcon className="size-[18px]" /> : <PlayIcon className="size-[18px]" />}
         </span>
       </button>
       {heading && <span className="min-w-0 flex-1 text-left text-[15px] font-medium leading-5 text-inherit">{heading}</span>}

@@ -64,6 +64,12 @@
   --color-go-soft: #b7f2ed;
   --color-go-on-soft: #031b08;
 
+  /* Notifications (Figma "Sign out: confirm"): one accent for every kind, red
+     only for an alarm, grey once read. Never a coloured fill. */
+  --color-go-note-accent: #0e766d;
+  --color-go-note-alarm: #e5484d;
+  --color-go-note-read: #a9a9a9;
+
   --shadow-go-card: 0 6px 24px 0 rgba(0, 0, 0, 0.06);
   --shadow-go-float: 0 5px 10px rgba(0, 0, 0, 0.09);
 }
@@ -98,6 +104,7 @@
   --color-go-warning-tint: #40300f;
   --color-go-info-tint: #172e45;
   --shadow-go-card: 0 6px 24px 0 rgba(0, 0, 0, 0.4);
+  --color-go-note-accent: #00bf6a;
 }
 
 /*

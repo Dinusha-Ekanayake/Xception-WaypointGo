@@ -46,6 +46,21 @@ class PlanningCommandIntegrationTest extends PlanningIntegrationSupport {
   }
 
   @Test
+  void thePriorityPolicyAPlanWasMadeWithIsReadInTheOrderTheEngineApplied() throws Exception {
+    // Roadmap T2B-01, R-PLN-21: the Decide screen shows this list.
+    demand("ambient");
+    JsonNode draft = generate(dispatcher, 200);
+    JsonNode view = mapper.readTree(read(dispatcher, "/api/plans/" + draft.get("planId").asText(), 200));
+    String policyId = view.get("priorityPolicyVersionId").asText();
+    JsonNode policy = mapper.readTree(read(dispatcher, "/api/plans/policies/" + policyId, 200));
+    assertEquals(policyId, policy.get("policyVersionId").asText());
+    java.util.List<String> keys = new java.util.ArrayList<>();
+    policy.get("keys").forEach(k -> keys.add(k.asText()));
+    assertEquals(com.waypoint.dispatch.planning.domain.PriorityPolicy.DEFAULT_KEYS.stream().map(Enum::name).toList(), keys);
+    read(dispatcher, "/api/plans/policies/" + UUID.randomUUID(), 404);
+  }
+
+  @Test
   void theOpenDraftIsFoundByDepotAndDayThroughEveryEdit() throws Exception {
     String path = "/api/plans/draft?depot=" + depot + "&date=" + serviceDate;
     UUID first = demand("ambient");

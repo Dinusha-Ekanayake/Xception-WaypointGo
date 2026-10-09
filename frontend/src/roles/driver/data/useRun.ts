@@ -153,8 +153,10 @@ export function useRun(gateway: DriverGateway, accountId: string, online: boolea
         // Unreachable: Home keeps today's state; the next pass tries again.
       });
     return () => controller.abort();
-    // Every fifteenth read of the day (about every 30 s): it asks a week of days at once.
-  }, [online, date, today, nothingToday, Math.floor(tick / 15), gateway, depot, accountId]);
+    // Every 75th read of the day (about every 2.5 minutes): it asks a week of days at
+    // once, 3 reads each, and those days change a few times a day. Every 30 s took the
+    // phone to 85 requests a minute (B-04); a release today shows on the 2 s run read.
+  }, [online, date, today, nothingToday, Math.floor(tick / 75), gateway, depot, accountId]);
 
   // Keep the day current without a manual reload: every 2 s while the app is on
   // screen and online, and at once when it comes back to the front or back

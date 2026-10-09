@@ -179,6 +179,54 @@ public class JdbcDeliveryRepository {
         .toList();
   }
 
+  /** One stop of a trip with what its estimate needs (roadmap T1-03). */
+  public record TripStop(
+      DeliveryRecord record,
+      Optional<Integer> plannedServiceMinutes,
+      Optional<Instant> expectedArrival,
+      Optional<java.math.BigDecimal> expectedServiceMinutes) {}
+
+  /** Every stop of a trip in order, with the plan's minutes and the arrival its store was last told. */
+  public List<TripStop> tripStops(UUID tripId) {
+    return database
+        .query(
+            "SELECT " + COLUMNS + ", planned_service_minutes, expected_arrival, expected_service_minutes"
+                + " FROM execution.delivery_records"
+                + " WHERE trip_id = ? ORDER BY stop_sequence, delivery_id",
+            tripId)
+        .stream()
+        .map(
+            r ->
+                new TripStop(
+                    record(r),
+                    integer(r.get("planned_service_minutes")),
+                    instant(r.get("expected_arrival")),
+                    Optional.ofNullable((java.math.BigDecimal) r.get("expected_service_minutes"))))
+        .toList();
+  }
+
+  /**
+   * Released trips of the day with a stop still to come that is either after a
+   * stop reached, or already past its planned time (the first stop's store must
+   * hear of a vehicle that never arrived).
+   */
+  public List<UUID> tripsUnderWay(LocalDate serviceDate, java.time.LocalTime now) {
+    return database
+        .query(
+            """
+            SELECT trip_id FROM execution.delivery_records
+             WHERE service_date = ?
+             GROUP BY trip_id
+            HAVING bool_or(outcome = 'pending')
+               AND (bool_or(arrived_at IS NOT NULL OR completed_at IS NOT NULL)
+                    OR min(planned_arrival) FILTER (WHERE outcome = 'pending') < ?)
+            """,
+            Date.valueOf(serviceDate), java.sql.Time.valueOf(now))
+        .stream()
+        .map(r -> (UUID) r.get("trip_id"))
+        .toList();
+  }
+
   /** Stops nobody has reached on the released trips of one depot and day. */
   public List<DeliveryRecord> pendingOfDay(String depotCode, LocalDate serviceDate) {
     return database
@@ -240,6 +288,32 @@ public class JdbcDeliveryRepository {
     database.update(
         "UPDATE execution.delivery_records SET client_arrived_at = ? WHERE delivery_id = ?",
         Timestamp.from(deviceArrivedAt), deliveryId);
+  }
+
+  /** Set once at release: the plan's minutes at the stop (roadmap T1-03). Not a step of the stop. */
+  public void planService(UUID deliveryId, int minutes) {
+    database.update(
+        "UPDATE execution.delivery_records SET planned_service_minutes = ? WHERE delivery_id = ?", minutes, deliveryId);
+  }
+
+  /** Set once at release: the minutes the stored prediction expects at the stop (roadmap T1-04). */
+  public void expectService(UUID deliveryId, java.math.BigDecimal minutes, String basis) {
+    expectService(deliveryId, minutes, basis, Optional.empty(), Optional.empty());
+  }
+
+  /** As above, with the range around the minutes when the prediction has one (roadmap MF-06). */
+  public void expectService(UUID deliveryId, java.math.BigDecimal minutes, String basis,
+      Optional<java.math.BigDecimal> low, Optional<java.math.BigDecimal> high) {
+    java.math.BigDecimal cap = java.math.BigDecimal.valueOf(600);
+    java.math.BigDecimal m = minutes.min(cap).max(java.math.BigDecimal.ZERO);
+    boolean ranged = low.isPresent() && high.isPresent();
+    database.update(
+        "UPDATE execution.delivery_records SET expected_service_minutes = ?, expected_service_basis = ?,"
+            + " expected_service_low = ?, expected_service_high = ? WHERE delivery_id = ?",
+        m, basis,
+        ranged ? low.get().min(m).max(java.math.BigDecimal.ZERO) : null,
+        ranged ? high.get().max(m).min(cap) : null,
+        deliveryId);
   }
 
   /** The expected arrival moved; this is a projection of the trip's delay, not a step of the stop. */

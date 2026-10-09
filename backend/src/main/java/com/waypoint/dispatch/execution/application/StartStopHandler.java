@@ -41,7 +41,8 @@ public class StartStopHandler extends DeliveryCommandHandler {
     long version = deliveries.save(started, expected, ExecutionMessages.stamp(actor, command, now));
 
     events.publish(
-        actor, new DeliveryStarted(deliveryId, started.orderId(), started.tripId(), started.outletId()));
+        actor, new DeliveryStarted(deliveryId, started.orderId(), started.tripId(), started.outletId()),
+        started.depotCode());
     metrics.increment("waypoint.execution.started");
     return ExecutionMessages.result(started, version);
   }

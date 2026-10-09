@@ -135,6 +135,7 @@ public class PlanDataQuery implements PlanQuery {
   private final ReferenceQuery reference;
   private final AuditLog audit;
   private final PlanningDrafts drafts;
+  private final ObjectProvider<com.waypoint.dispatch.planning.domain.AllocationEngine> engine;
   private final PlanningRevisions revisions;
   private final ConstraintRegistry registry;
   private final ObjectProvider<PredictionQuery> predictions;
@@ -151,7 +152,9 @@ public class PlanDataQuery implements PlanQuery {
       ConstraintRegistry registry,
       ObjectProvider<PredictionQuery> predictions,
       ObjectMapper json,
-      JdbcGenerationJobs jobs) {
+      JdbcGenerationJobs jobs,
+      ObjectProvider<com.waypoint.dispatch.planning.domain.AllocationEngine> engine) {
+    this.engine = engine;
     this.database = database;
     this.plans = plans;
     this.reference = reference;
@@ -230,6 +233,56 @@ public class PlanDataQuery implements PlanQuery {
   /** The same places as {@link #previewAssignments}, each naming the vehicle and trip an override sends. */
   public List<PlacementView> previewPlacements(Actor actor, UUID orderId) {
     return read(actor.userId(), () -> options(orderId, PlanDataQuery::toPlacement));
+  }
+
+  /**
+   * Roadmap AI-1: what one vehicle being available would change. The plan's own
+   * problem is rebuilt under the reader, then run twice by the engine with no
+   * transaction open: as it is, and with the vehicle available. Nothing is stored.
+   */
+  public com.waypoint.dispatch.planning.contract.PlanViews.WhatIfView whatIf(Actor actor, UUID planId, String vehicleId) {
+    Opened opened = read(actor.userId(), () -> drafts.rebuild(plans.findRun(planId)
+        .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No plan " + planId))));
+    var problem = opened.built().problem();
+    FleetVehicle vehicle = opened.built().fleet().get(vehicleId);
+    if (vehicle == null) {
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, vehicleId + " is not a vehicle of " + problem.depotCode(),
+          List.of("R-PLN-04"));
+    }
+    if (vehicle.available()) {
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, vehicleId + " is already available that day");
+    }
+    List<FleetVehicle> fleet = problem.fleet().stream()
+        .map(v -> v.vehicleId().equals(vehicleId)
+            ? new FleetVehicle(v.vehicleId(), v.depotCode(), v.van(), v.reefer(), v.weightCapKg(), v.volumeCapM3(),
+                v.kmPerL(), v.weeklyFuelQuotaL(), true, v.fuelUsedThisWeekL())
+            : v)
+        .toList();
+    var changed = new com.waypoint.dispatch.planning.domain.AllocationEngine.Problem(problem.depotCode(),
+        problem.serviceDate(), problem.orders(), fleet, problem.travel(), problem.rules(), problem.policy(),
+        problem.pins(), problem.held());
+    var allocate = engine.getObject();
+    var before = allocate.allocate(problem);
+    var after = allocate.allocate(changed);
+    return com.waypoint.dispatch.planning.domain.WhatIf.compare(planId, vehicleId, problem.orders(), before, after);
+  }
+
+  /** Roadmap AI-1: the depot's vehicles the plan's day cannot use, the what-if's choices. */
+  public List<com.waypoint.dispatch.planning.contract.PlanViews.WhatIfVehicleView> unavailableVehicles(
+      Actor actor, UUID planId) {
+    Opened opened = read(actor.userId(), () -> drafts.rebuild(plans.findRun(planId)
+        .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No plan " + planId))));
+    return opened.built().problem().fleet().stream()
+        .filter(v -> !v.available())
+        .sorted(java.util.Comparator.comparing(FleetVehicle::vehicleId))
+        .map(v -> new com.waypoint.dispatch.planning.contract.PlanViews.WhatIfVehicleView(
+            v.vehicleId(), v.van(), v.reefer(), v.volumeCapM3()))
+        .toList();
+  }
+
+  /** Roadmap AI-2: why a deferred order cannot go, and the smallest change that would let it. */
+  public com.waypoint.dispatch.planning.contract.PlanViews.FitView fit(Actor actor, UUID orderId) {
+    return read(actor.userId(), () -> diagnose(orderId));
   }
 
   public InterchangePreview previewInterchange(Actor actor, UUID tripId, String replacementVehicleId) {
@@ -443,6 +496,13 @@ public class PlanDataQuery implements PlanQuery {
         .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No plan " + planId));
   }
 
+  /** Roadmap T2B-01: the priority policy a plan was made with, so the Decide screen shows the order the engine applied. */
+  public com.waypoint.dispatch.planning.contract.PlanViews.PriorityPolicyView priorityPolicy(Actor actor, UUID policyVersionId) {
+    return read(actor.userId(), () -> plans.policy(policyVersionId))
+        .map(p -> new com.waypoint.dispatch.planning.contract.PlanViews.PriorityPolicyView(p.id(), p.keys().stream().map(Enum::name).toList()))
+        .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No priority policy " + policyVersionId));
+  }
+
   public List<DeferralView> deferralsFor(Actor actor, String depotCode, LocalDate serviceDate) {
     requireDepot(actor, depotCode);
     return read(actor.userId(), () -> deferrals(depotCode, serviceDate));
@@ -511,6 +571,32 @@ public class PlanDataQuery implements PlanQuery {
         .sorted(java.util.Comparator.comparing((Placement p) -> !p.feasible()))
         .map(p -> view.apply(p, tripIds))
         .toList();
+  }
+
+  private com.waypoint.dispatch.planning.contract.PlanViews.FitView diagnose(UUID orderId) {
+    RunRow row =
+        plans.openDraftsWithOrder(orderId).stream().findFirst()
+            .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "order " + orderId + " is in no open draft"));
+    Opened opened = drafts.rebuild(row);
+    PlanOrder order = opened.built().orders().get(orderId);
+    if (order == null) {
+      throw new DomainException(
+          ErrorCode.CONSTRAINT_VIOLATED, "order " + orderId + " is no longer in the demand", List.of("PLN-07"));
+    }
+    PlanningRun run = drafts.run(opened);
+    PlanContext context = opened.built().problem().context();
+    var d = com.waypoint.dispatch.planning.domain.FitDiagnosis.diagnose(
+        run, order, new java.util.ArrayList<>(opened.built().fleet().values()), registry, context,
+        opened.built().problem().policy().comparator(context));
+    Optional<com.waypoint.dispatch.planning.contract.PlanViews.FitSwapView> swap = d.swapOut().flatMap(out ->
+        d.closest().map(at -> new com.waypoint.dispatch.planning.contract.PlanViews.FitSwapView(
+            out.orderId(), out.orderRef(), out.outletId(), at.vehicleId(), at.tripNumber())));
+    return new com.waypoint.dispatch.planning.contract.PlanViews.FitView(
+        orderId, order.orderRef(), order.outletId(), d.fits(), d.placesChecked(),
+        d.fits() ? Optional.empty() : d.closest().map(p -> new com.waypoint.dispatch.planning.contract.PlanViews.FitPlaceView(
+            p.vehicleId(), p.tripNumber(), p.joins(),
+            com.waypoint.dispatch.planning.domain.FitDiagnosis.failed(p).stream().map(PlanDataQuery::toView).toList())),
+        swap);
   }
 
   private static PlacementView toPlacement(Placement p, Map<String, UUID> tripIds) {

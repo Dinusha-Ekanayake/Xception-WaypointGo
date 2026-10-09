@@ -4,6 +4,11 @@ import { useCallback, useState } from "react";
 import { newCommand, type CommandAck } from "@shared/api/commands";
 import { ApiError, friendlyError } from "@shared/api/problem";
 import type { StoreGateway } from "./gateway.ts";
+import { translate, type Translate } from "./strings.ts";
+import { useT } from "../i18n.tsx";
+
+/** English unless the screen passes its language (roadmap FF-00). */
+const english: Translate = (text, vars) => translate("en", text, vars);
 
 // Every store write. The store manager is on the resilient tier: offline, or
 // when a send fails on the network, the command is kept on this device and
@@ -17,6 +22,7 @@ export type Outcome =
   | { ok: false; error: ApiError | Error };
 
 export function useCommands(gateway: StoreGateway, online: boolean, onQueued: () => void, onSent: () => void) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
 
   const run = useCallback(
@@ -24,7 +30,7 @@ export function useCommands(gateway: StoreGateway, online: boolean, onQueued: ()
       const command = newCommand(kind, payload, expectedVersion);
       const keep = async (): Promise<Outcome> => {
         const kept = await gateway.queue(command);
-        if (!kept.durable) return { ok: false, error: new Error(`Not saved on this device: ${kept.reason ?? "storage unavailable"}`) };
+        if (!kept.durable) return { ok: false, error: new Error(t("Not saved on this device: {reason}", { reason: kept.reason ?? t("storage unavailable") })) };
         onQueued();
         return { ok: true, queued: true };
       };
@@ -41,12 +47,12 @@ export function useCommands(gateway: StoreGateway, online: boolean, onQueued: ()
         setBusy(false);
       }
     },
-    [gateway, online, onQueued, onSent],
+    [gateway, online, onQueued, onSent, t],
   );
 
   return { run, busy };
 }
 
-export function conflictMessage(error: ApiError | Error): string {
-  return error instanceof ApiError && error.isVersionConflict ? "This order changed since you opened it. Review it and try again." : friendlyError(error);
+export function conflictMessage(error: ApiError | Error, t: Translate = english): string {
+  return error instanceof ApiError && error.isVersionConflict ? t("This order changed since you opened it. Review it and try again.") : friendlyError(error);
 }

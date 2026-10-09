@@ -72,7 +72,7 @@ test("Home shows the driver's real notifications and marks them read", async ({ 
   ];
   await page.goto("/");
   const feed = page.getByLabel("Notifications", { exact: true });
-  await expect(feed).toContainText("Run published");
+  await expect(feed).toContainText("Plan published");
   await expect(feed).toContainText("Your run for today is ready");
   await expect(page.getByText("Priya")).toHaveCount(0);
 

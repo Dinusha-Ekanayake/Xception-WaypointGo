@@ -59,10 +59,23 @@ export type StopPredictionView = {
   lateProbability: Decimal;
   modelLabel: string;
   degraded: boolean;
+  /** MF-08: why it is at risk, strongest first, at most three; empty or absent when nothing stands out. */
+  reasons?: LateReasonView[];
+  /** MF-06: about four stops in five take between these minutes; null with too little history. */
+  serviceLow?: Decimal | null;
+  serviceHigh?: Decimal | null;
 };
 
+/** One reason a stop is at risk (R-ML-15): the words come from the code and its numbers. */
+export type LateReasonView = { code: "TIGHT_WINDOW" | "LATE_IN_ROUTE" | "OUTLET_HISTORY" | string; value: number; of: number };
+
 /** GET /api/ml/plans/{planId}/predictions */
-export type PlanPredictionsView = { scoring: PlanScoringView; stops: StopPredictionView[] };
+export type PlanPredictionsView = {
+  scoring: PlanScoringView;
+  stops: StopPredictionView[];
+  /** MF-07: the last day road conditions are known; later days are scored without them. */
+  roadConditionsUntil?: IsoDate | null;
+};
 
 /** GET /api/ml/orders/{orderId}/supply-probability (R-RCP-06). */
 export type SupplyProbabilityView = {
@@ -112,9 +125,16 @@ export type RetireModel = { name: string; version: string; reason: string };
 export type OverviewStatus = "READY" | "NONE";
 
 /** One brand's demand in a week; chilled is zero for Style and Tech. */
-export type BrandVolumeView = { brandCode: string; totalM3: Decimal; chilledM3: Decimal };
+export type BrandVolumeView = {
+  brandCode: string;
+  totalM3: Decimal;
+  chilledM3: Decimal;
+  /** MF-06: about four weeks in five the volume ordered falls between these; null with too few finished weeks. */
+  lowM3?: Decimal | null;
+  highM3?: Decimal | null;
+};
 
-/** The depot's reference fleet under each day's effective trip limit (A-40). An upper bound. */
+/** Each day's own fleet (workshop and unavailable vehicles carry nothing that day) under its trip limit; counts are the fewest available on any operating day (A-40, T2-01). */
 export type WeekCapacityView = {
   vehicles: number;
   refrigeratedVehicles: number;
@@ -149,4 +169,170 @@ export type ForecastOverviewView = {
   weeks: ForecastWeekView[];
   /** When the forecast job next runs, as things stand (P-29): hourly in depot time, only when a run is owed. */
   nextRunAt: IsoInstant;
+};
+
+/** Roadmap T2-01: what the dispatcher decided about a week the capacity plan shows short. */
+export type CapacityAction = "HIRE_VEHICLES" | "MOVE_WORKSHOP" | "ADVISE_STORES" | "ACCEPT_SHORTFALL" | "OTHER";
+
+/** Append only: a change of mind is a second decision, so the trail keeps both. */
+export type CapacityDecisionView = {
+  decisionId: Uuid;
+  depotCode: string;
+  isoYear: number;
+  isoWeek: number;
+  action: CapacityAction;
+  vehicles: number | null;
+  refrigerated: boolean;
+  reason: string;
+  decidedBy: Uuid;
+  decidedAt: IsoInstant;
+};
+
+/** ml:RecordCapacityDecision. vehicles is required for HIRE_VEHICLES; reason is 3 to 500 characters. */
+export type RecordCapacityDecision = {
+  depotCode: string;
+  isoYear: number;
+  isoWeek: number;
+  action: CapacityAction;
+  vehicles?: number;
+  refrigerated: boolean;
+  reason: string;
+};
+
+/** GET /api/ml/forecast/accuracy (roadmap T2-03): the last finished weeks, as forecast before each began. */
+export type BrandAccuracyView = {
+  brandCode: string;
+  forecastM3: number | string;
+  orderedM3: number | string;
+  /** T2-03: the mean weekly volume of the 8 weeks before; null with too little history. */
+  baselineM3?: number | string | null;
+};
+export type WeekAccuracyView = {
+  isoYear: number;
+  isoWeek: number;
+  modelLabel: string;
+  forecastM3: number | string;
+  orderedM3: number | string;
+  /** Empty when nothing was ordered that week. */
+  wape: number | string | null;
+  brands: BrandAccuracyView[];
+  baselineWape?: number | string | null;
+};
+export type ForecastAccuracyView = {
+  depotCode: string;
+  weeks: WeekAccuracyView[];
+  wape: number | string | null;
+  /** T2-03: the forecast's and the 8-week mean's error on the same brand-weeks (those with a baseline). */
+  comparedWape?: number | string | null;
+  baselineWape?: number | string | null;
+};
+
+/** Roadmap MF-04, R-ML-16: one finished week of a model's backtest. */
+export type BacktestWeekView = { isoYear: number; isoWeek: number; stops: number; labelled: number; brier: number | string | null };
+export type BacktestVerdict = "BETTER" | "WORSE" | "MIXED" | "NOT_ENOUGH" | "BASELINE";
+/** How one model did on what it predicted; {@code modelLabel} is name@version, or "deterministic" for the built-in estimate. */
+export type ModelBacktestView = {
+  modelLabel: string;
+  stops: number;
+  labelled: number;
+  coverage: number | string;
+  brier: number | string | null;
+  logLoss: number | string | null;
+  calibrationSlope: number | string | null;
+  calibrationIntercept: number | string | null;
+  verdict: BacktestVerdict;
+  weeks: BacktestWeekView[];
+};
+export type BacktestView = { from: string; to: string; minLabels: number; models: ModelBacktestView[] };
+
+/** Roadmap B-05: the pilot's business KPIs, in screen order. */
+export type KpiKey =
+  | "fresh_on_time_pct"
+  | "fresh_before_8_pct"
+  | "deferrals_per_run"
+  | "repeat_deferrals"
+  | "disputes_per_100"
+  | "write_off_lkr"
+  | "calls_per_trip"
+  | "adoption_pct";
+
+/** A figure the depot recorded: append only, the newest per week and KPI is current. */
+export type KpiEntryView = { value: number; note: string | null; enteredBy: Uuid; enteredAt: IsoInstant };
+
+/** A figure the app counted from its own finished stops, and how many it rests on. */
+export type KpiCountedView = { value: number; stops: number };
+
+export type KpiWeekView = {
+  /** The Monday. */
+  weekStart: IsoDate;
+  recorded: Partial<Record<KpiKey, KpiEntryView>>;
+  counted: Partial<Record<KpiKey, KpiCountedView>>;
+};
+
+/** GET /api/ml/kpis?depot=&weeks=: newest week first. */
+export type KpiReportView = { depotCode: string; kpis: KpiKey[]; countedByApp: KpiKey[]; weeks: KpiWeekView[] };
+
+/** ml:RecordKpiWeek. values holds the figures to record; a share is 0 to 100. */
+export type RecordKpiWeek = { depotCode: string; weekStart: IsoDate; values: Partial<Record<KpiKey, number>>; note?: string };
+
+
+/**
+ * Roadmap AI-J5: the ready replies' order learned from the last four weeks
+ * (GET /api/ml/reply-ranking), mirrored from ReplyRankingQuery.ReplyRankingView.
+ * `trained` is false below `minPosts`, and the screen keeps the rule order;
+ * `unavailable` when Messaging did not answer.
+ */
+export type ReplyRankingView = {
+  trained: boolean;
+  unavailable: boolean;
+  posts: number;
+  minPosts: number;
+  topAcceptance: number;
+  scores: Record<string, number>;
+  placeEffect: number[];
+  from: string;
+  to: string;
+};
+
+/**
+ * Roadmap T1-01: a draft's stops likely to be late (GET /api/ml/plans/{id}/risk-review),
+ * mirrored from RiskReviewViews. `estimate` stays true until the trust gates pass.
+ */
+export type RiskReviewView = {
+  reviewId: string;
+  planId: string;
+  orderId: string;
+  choice: "KEEP" | "SWAP";
+  reason: string;
+  decidedBy: string;
+  decidedAt: string;
+};
+
+export type RiskStopView = {
+  orderId: string;
+  tripId: string;
+  vehicleId: string;
+  sequence: number;
+  outletId: string;
+  percent: number;
+  /** Planned this many minutes before the window closes; negative after. */
+  minutesToClose: number;
+  stopOfTrip: number;
+  review: RiskReviewView | null;
+};
+
+export type RiskReviewReport = {
+  planId: string;
+  enabled: boolean;
+  estimate: boolean;
+  thresholdPercent: number;
+  stops: RiskStopView[];
+};
+
+/** ml:RecordRiskReview: keep or swap one stop at risk, with a reason (rule 8). */
+export type RecordRiskReview = {
+  planId: string;
+  orderId: string;
+  choice: "KEEP" | "SWAP";
+  reason: string;
 };

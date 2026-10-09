@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { SettingsPanel, cx, useDeviceLang, useShell } from "@shared/ui";
+import { McpSettingsRow, SettingsPanel, cx, useDeviceLang, useShell } from "@shared/ui";
 
 /**
  * The dispatcher's picture: opens Settings (language, the assistant connection,
@@ -60,6 +60,10 @@ export default function ProfileButton({ displayName, depots, placement }: { disp
               ))}
             </div>
           )}
+          {/* Issue #177, R-IAM-40: asked only while Settings is open; shown to whoever may connect. */}
+          <McpSettingsRow
+            className="flex min-h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-go-surface text-[15px] font-medium text-go-ink"
+          />
           {shell && (
             <button
               type="button"

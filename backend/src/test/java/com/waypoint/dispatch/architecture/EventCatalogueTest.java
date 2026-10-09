@@ -56,6 +56,11 @@ class EventCatalogueTest {
           "issue.escalated",
           "shortfall.resolved",
           "redelivery.requested",
+          "decision.requested",
+          "decision.answered",
+          "decision.expired",
+          "attention.raised",
+          "attention.reminded",
           "warehouse.order_status_changed",
           "warehouse.discrepancy_found",
           "catalogue.synced",
@@ -63,7 +68,8 @@ class EventCatalogueTest {
           "vehicle.status_changed",
           "calendar.overridden",
           "message.posted",
-          "order.outlook_changed");
+          "order.outlook_changed",
+          "stop.likely_late");
 
   @Test
   void everyEventTypeIsUniqueWellFormedAndCatalogued() throws Exception {

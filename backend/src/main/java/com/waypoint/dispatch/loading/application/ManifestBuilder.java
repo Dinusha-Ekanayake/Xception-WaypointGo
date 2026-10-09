@@ -127,7 +127,8 @@ public class ManifestBuilder {
           trip.tripId(), planVersion,
           new StopRow(
               order.orderId(), stop.sequence(), order.orderRef(), order.outletId(), order.temperature(),
-              order.itemCount(), order.weightKg(), order.volumeM3(), stop.plannedArrival()));
+              order.itemCount(), order.weightKg(), order.volumeM3(), stop.plannedArrival(),
+              stop.serviceMinutes().orElse(null)));
       int lineNo = 1;
       for (OrderLineView line : order.lines()) {
         writer.insertItem(trip.tripId(), planVersion, order.orderId(), lineNo++, line.productId(), line.quantity());

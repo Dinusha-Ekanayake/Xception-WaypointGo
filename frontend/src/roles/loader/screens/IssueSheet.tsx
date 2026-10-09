@@ -1,13 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { CheckStatus, FlagShortfall, ItemView, OutletView } from "@shared/domain/types";
-import { Notice, cx } from "@shared/ui";
+import { MicIcon, Notice, VoiceNote, cx } from "@shared/ui";
+import { useRecorder, type Recording } from "@shared/messaging/recorder";
 import { ISSUE_KIND_LABEL, isFlagged, orderLabel, placeName, productName } from "../data/manifest.ts";
 import type { Line } from "../data/useTrip.ts";
 import { BigButton, Sheet } from "../ui.tsx";
+import { useTakenPhotos } from "../../../shared/media/useTakenPhotos.ts";
 import { useT } from "../i18n.tsx";
-import { ChevronDownIcon, CloseIcon, IssueIcon } from "../icons.tsx";
+import { CameraIcon, ChevronDownIcon, CloseIcon, IssueIcon } from "../icons.tsx";
 
 // Figma "03 Report an issue": flag a missing, damaged or ill-fitting item before
 // the vehicle leaves (R-LOD-02). The flagged item is not loaded, the dispatcher
@@ -75,7 +77,11 @@ export default function IssueSheet({
   initial: { line: Line; item: ItemView | null } | null;
   outlets: Map<string, OutletView>;
   busy: boolean;
-  onSend: (payload: Omit<FlagShortfall, "tripId">) => Promise<boolean>;
+  /**
+   * @param photo FF-02: an optional photo of the line, the "left the dock" evidence.
+   * @param voice an optional voice note, heard by the dispatcher beside the report.
+   */
+  onSend: (payload: Omit<FlagShortfall, "tripId">, photo: Blob | null, voice: Recording | null) => Promise<boolean>;
   onClose: () => void;
 }): React.JSX.Element {
   const tr = useT();
@@ -85,6 +91,16 @@ export default function IssueSheet({
   const [kind, setKind] = useState<Kind>("DAMAGED");
   const [units, setUnits] = useState(1);
   const [reason, setReason] = useState("");
+  // FF-02: an optional photo of the damaged or short line, made small on the tablet (FF-01, shared).
+  const taken = useTakenPhotos(1);
+  const photo = taken.photos[0] ?? null;
+  const photoError = taken.error;
+  const camera = useRef<HTMLInputElement>(null);
+  const takePhoto = (file: File | undefined) => taken.add(file);
+  // An optional voice note: what is easier said than typed at the dock.
+  const recorder = useRecorder();
+  const voice = recorder.state.status === "ready" ? recorder.state : null;
+  const recordingNow = recorder.state.status === "recording";
   const line = lines.find((l) => l.orderId === orderId);
   const item = line?.items.find((i) => i.lineNo === lineNo) ?? null;
   // The whole order flags every item not already flagged, in full (the server's rule).
@@ -113,7 +129,7 @@ export default function IssueSheet({
       missingUnits: missing,
       reason: reason.trim(),
       photoAttachmentId: null,
-    });
+    }, photo?.blob ?? null, voice?.recording ?? null);
     if (ok) onClose();
   };
 
@@ -230,6 +246,64 @@ export default function IssueSheet({
           />
         </label>
 
+        <div className="flex flex-col gap-2">
+          {photo ? (
+            <div className="flex items-center gap-3">
+              {/* A local object URL of a photo just taken; nothing for next/image to optimise. */}
+              <img src={photo.url} alt={tr("Photo of the item")} loading="lazy" decoding="async" className="size-16 rounded-[12px] object-cover" />
+              <span className="flex-1 text-[15px]">{tr("Photo added")}</span>
+              <button type="button" onClick={() => taken.remove(photo.id)} className="min-h-12 rounded-full bg-go-surface px-4 text-[15px]">
+                {tr("Remove photo")}
+              </button>
+            </div>
+          ) : (
+            <button type="button" onClick={() => camera.current?.click()} className="flex min-h-12 items-center justify-center gap-2 rounded-[16px] border border-dashed border-go-rule px-4 text-[15px] text-go-muted">
+              <CameraIcon />
+              {tr("Add photo (optional)")}
+            </button>
+          )}
+          {photo?.hint && <p role="status" className="text-[14px] text-go-warning-text">{tr(photo.hint)}</p>}
+          {photoError && <p role="alert" className="text-[14px] text-go-danger">{tr(photoError)}</p>}
+          <input
+            ref={camera}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            aria-label={tr("Take a photo of the item")}
+            className="hidden"
+            onChange={(e) => {
+              void takePhoto(e.target.files?.[0]);
+              e.target.value = "";
+            }}
+          />
+        </div>
+
+        <div className="flex flex-col gap-2">
+          {voice ? (
+            <div className="flex items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <VoiceNote src={voice.url} durationMs={voice.recording.durationMs} peaks={voice.recording.peaks} seed="issue-voice" tone="mine" label={tr("Voice note")} tr={tr} />
+              </div>
+              <button type="button" onClick={() => recorder.discard()} className="min-h-12 rounded-full bg-go-surface px-4 text-[15px]">
+                {tr("Remove voice note")}
+              </button>
+            </div>
+          ) : recorder.state.status === "unavailable" ? null : (
+            <button
+              type="button"
+              onClick={() => void (recordingNow ? recorder.stop() : recorder.start())}
+              aria-pressed={recordingNow}
+              className={cx(
+                "flex min-h-12 items-center justify-center gap-2 rounded-[16px] border border-dashed px-4 text-[15px]",
+                recordingNow ? "border-go-danger text-go-danger" : "border-go-rule text-go-muted",
+              )}
+            >
+              <MicIcon className="size-[20px]" />
+              {tr(recordingNow ? "Recording · tap to stop" : "Add voice note (optional)")}
+            </button>
+          )}
+        </div>
+
         {item !== null && isFlagged(item.status) && (
           <Notice tone="info" title={tr("This item is already reported")}>
             {tr("Sending again records a new report; the earlier one stays on record.")}
@@ -241,7 +315,7 @@ export default function IssueSheet({
             {tr("Cancel")}
           </BigButton>
           <BigButton tone="danger" size="l" type="submit" disabled={!ready} busy={busy}>
-            {tr(busy ? "Sending…" : "Send to dispatcher")}
+            {tr(busy ? "Sending…" : "Send")}
           </BigButton>
         </div>
       </form>

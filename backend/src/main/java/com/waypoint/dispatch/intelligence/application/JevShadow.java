@@ -1,0 +1,164 @@
+package com.waypoint.dispatch.intelligence.application;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.waypoint.dispatch.intelligence.domain.IssueTriage;
+import com.waypoint.dispatch.intelligence.infrastructure.JdbcJevShadow;
+import com.waypoint.dispatch.intelligence.infrastructure.JdbcJevShadow.Pending;
+import com.waypoint.dispatch.issues.contract.IssueEvents.IssueRaised;
+import com.waypoint.dispatch.issues.contract.IssueQuery;
+import com.waypoint.dispatch.platform.config.AiProperties;
+import com.waypoint.dispatch.platform.db.Database;
+import com.waypoint.dispatch.platform.db.ModuleRole;
+import com.waypoint.dispatch.platform.messaging.EventSubscriber;
+import com.waypoint.dispatch.platform.observability.Metrics;
+import com.waypoint.dispatch.platform.scheduling.ScheduledJob;
+import com.waypoint.dispatch.shared.domain.Actor;
+import com.waypoint.dispatch.shared.event.EventEnvelope;
+import com.waypoint.dispatch.shared.util.Clock;
+import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import org.springframework.stereotype.Component;
+
+/**
+ * Jev in shadow (roadmap AI-J1, R-ML-11). Nothing anyone sees changes: each new
+ * issue a person raised in their own words is queued, a job asks Jev which kind
+ * of problem the words describe with no transaction open, and the guess is kept
+ * beside the issue's real type. The agreement rate is what the gate reads before
+ * Jev may advise anyone. Off unless {@code JEV_ENABLED=true}.
+ */
+final class JevShadow {
+  private JevShadow() {}
+
+  /** Queues a person's issue with words of its own; a redelivered event queues nothing new. */
+  @Component
+  static class OnIssueRaised implements EventSubscriber<IssueRaised> {
+    private final AiProperties properties;
+    private final IssueQuery issues;
+    private final JdbcJevShadow shadow;
+    private final Clock clock;
+
+    OnIssueRaised(AiProperties properties, IssueQuery issues, JdbcJevShadow shadow, Clock clock) {
+      this.properties = properties;
+      this.issues = issues;
+      this.shadow = shadow;
+      this.clock = clock;
+    }
+
+    @Override
+    public String consumerName() {
+      return "ml.on-issue-raised-jev";
+    }
+
+    @Override
+    public Class<IssueRaised> eventType() {
+      return IssueRaised.class;
+    }
+
+    @Override
+    public ModuleRole moduleRole() {
+      return ModuleRole.ML;
+    }
+
+    @Override
+    public void on(EventEnvelope<IssueRaised> envelope) {
+      if (!properties.jevEnabled()) {
+        return;
+      }
+      IssueRaised e = envelope.payload();
+      issues.issue(e.issueId())
+          .filter(issue -> !Actor.SYSTEM_ID.equals(issue.raisedBy()))
+          .flatMap(issue -> IssueTriage.state(issue.description()))
+          .ifPresent(text -> shadow.queue(
+              e.issueId(), e.depotCode(), text, e.issueType().name().toLowerCase(java.util.Locale.ROOT),
+              List.copyOf(IssueTriage.shuffled(e.issueId().getMostSignificantBits()).keySet()), clock.now()));
+    }
+  }
+
+  /** Every minute: the queued issues, asked one by one outside any transaction, within the day's cap. */
+  @Component
+  static class Job implements ScheduledJob {
+    static final int BATCH = 20;
+    static final int ATTEMPTS = 3;
+
+    private final AiProperties properties;
+    private final DecisionPort jev;
+    private final JdbcJevShadow shadow;
+    private final Database database;
+    private final ObjectMapper json;
+    private final Metrics metrics;
+    private final Clock clock;
+
+    Job(AiProperties properties, DecisionPort jev, JdbcJevShadow shadow, Database database, ObjectMapper json,
+        Metrics metrics, Clock clock) {
+      this.properties = properties;
+      this.jev = jev;
+      this.shadow = shadow;
+      this.database = database;
+      this.json = json;
+      this.metrics = metrics;
+      this.clock = clock;
+    }
+
+    @Override
+    public String name() {
+      return "ml.jev-shadow";
+    }
+
+    @Override
+    public String cron() {
+      return "30 * * * * *";
+    }
+
+    @Override
+    public ModuleRole moduleRole() {
+      return ModuleRole.ML;
+    }
+
+    @Override
+    public void run(Instant now) {
+      runAt(now);
+    }
+
+    /** @return how many were answered */
+    int runAt(Instant now) {
+      if (!properties.jevEnabled()) {
+        return 0;
+      }
+      Instant dayStart = now.atZone(Clock.OPERATING_ZONE).toLocalDate().atStartOfDay(Clock.OPERATING_ZONE).toInstant();
+      long left = properties.dailyCalls() - database.asSystem(ModuleRole.ML, () -> shadow.answeredSince(dayStart));
+      if (left <= 0) {
+        metrics.increment("waypoint.ai.capped", "port", "jev");
+        return 0;
+      }
+      List<Pending> queued = database.asSystem(ModuleRole.ML, () -> shadow.pending((int) Math.min(BATCH, left)));
+      int answered = 0;
+      for (Pending p : queued) {
+        Map<String, String> options = new LinkedHashMap<>();
+        p.optionOrder().forEach(k -> options.put(k, IssueTriage.OPTIONS.get(k)));
+        // No transaction is open here: a slow provider never holds a connection.
+        Optional<DecisionPort.Choice> choice = jev.choose(p.maskedText(), IssueTriage.INSTRUCTIONS, options);
+        if (choice.isPresent()) {
+          DecisionPort.Choice c = choice.get();
+          boolean agrees = c.option().equals(p.actualType());
+          String probabilities;
+          try {
+            probabilities = json.writeValueAsString(c.probabilities());
+          } catch (Exception e) {
+            probabilities = "{}";
+          }
+          String probs = probabilities;
+          database.asSystem(ModuleRole.ML, () -> shadow.answered(
+              p.issueId(), c.option(), c.confidence(), probs, c.model(), agrees, clock.now()));
+          metrics.increment("waypoint.ai.jev_shadow", "agrees", String.valueOf(agrees));
+          answered++;
+        } else {
+          database.asSystem(ModuleRole.ML, () -> shadow.missed(p.issueId(), p.attempts() + 1 >= ATTEMPTS));
+        }
+      }
+      return answered;
+    }
+  }
+}

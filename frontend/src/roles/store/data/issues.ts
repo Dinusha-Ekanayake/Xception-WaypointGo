@@ -1,7 +1,13 @@
 import type { IssueStatus, IssueType, IssueView, OrderView } from "@shared/domain/types";
 import { addDays, depotToday, type StatusTone } from "./format.ts";
 import type { StoreGateway } from "./gateway.ts";
-import { units as unitsText } from "../../../shared/wording/index.ts";
+import { translate, type Translate } from "./strings.ts";
+
+/** These write English unless the screen passes its language (roadmap FF-00). */
+const english: Translate = (text, vars) => translate("en", text, vars);
+
+/** "1 unit", "3 units", in the store manager's language. */
+const unitsOf = (n: number, t: Translate): string => (n === 1 ? t("1 unit") : t("{n} units", { n }));
 
 // What the store sees of issues: the ones about its own orders. Issues are read
 // per order (`/api/issues/by-subject`), because the list endpoint is per depot
@@ -103,9 +109,14 @@ export type IssueCard = {
 export const loaderShortUnits = (issue: IssueView): number => Number(issue.description.match(/(\d+) units?/)?.[1]) || 0;
 
 /** One issue as a card. `order` names it; without one the issue's own words stand. */
-export function issueCard(issue: IssueView, order: OrderView | null, clock: (instant: string) => string): IssueCard {
-  const of = order ? `${order.orderRef} (${order.temperature === "chilled" ? "Chilled" : "Ambient"})` : "an order";
-  const photos = (issue.attachments?.length ?? 0) > 0 ? " · photos attached" : "";
+export function issueCard(
+  issue: IssueView,
+  order: OrderView | null,
+  clock: (instant: string) => string,
+  t: Translate = english,
+): IssueCard {
+  const of = order ? `${order.orderRef} (${t(order.temperature === "chilled" ? "Chilled" : "Ambient")})` : t("an order");
+  const photos = (issue.attachments?.length ?? 0) > 0 ? t(" · photos attached") : "";
   const closed = !isOpenIssue(issue);
   const at = clock(issue.raisedAt);
 
@@ -114,9 +125,9 @@ export function issueCard(issue: IssueView, order: OrderView | null, clock: (ins
     return {
       label: "Short delivery",
       tone: closed ? "muted" : "ok",
-      title: units ? `${unitsText(units)} of ${of}` : `Short at loading: ${of}`,
-      detail: `Reported by the loader at ${at}`,
-      stamp: `Reported ${at}`,
+      title: units ? t("{units} of {order}", { units: unitsOf(units, t), order: of }) : t("Short at loading: {order}", { order: of }),
+      detail: t("Reported by the loader at {time}", { time: at }),
+      stamp: t("Reported {time}", { time: at }),
     };
   }
   const problems = problemsIn(issue.description);
@@ -134,8 +145,10 @@ export function issueCard(issue: IssueView, order: OrderView | null, clock: (ins
   return {
     label,
     tone: closed ? "muted" : "danger",
-    title: total ? `${unitsText(total)} of ${of}` : `${ISSUE_TYPE[issue.type]}: ${of}`,
-    detail: (problems.length ? problems.map((p) => `${p.units} ${p.word}`).join(" · ") : issue.description) + photos,
-    stamp: closed ? `${ISSUE_STATUS[issue.status].label} ${clock(issue.resolvedAt ?? issue.raisedAt)}` : `Sent ${at}`,
+    title: total ? t("{units} of {order}", { units: unitsOf(total, t), order: of }) : `${t(ISSUE_TYPE[issue.type])}: ${of}`,
+    detail: (problems.length ? problems.map((p) => t(`{n} ${p.word}`, { n: p.units })).join(" · ") : issue.description) + photos,
+    stamp: closed
+      ? `${t(ISSUE_STATUS[issue.status].label)} ${clock(issue.resolvedAt ?? issue.raisedAt)}`
+      : t("Sent {time}", { time: at }),
   };
 }

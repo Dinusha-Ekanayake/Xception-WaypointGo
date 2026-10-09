@@ -184,27 +184,32 @@ public class JdbcIntelligenceRepository {
   public record Prediction(
       UUID planId, UUID orderId, UUID tripId, int sequence, String outletId, String depotCode,
       Optional<UUID> modelVersionId, String modelLabel, BigDecimal serviceMinutes, BigDecimal lateProbability,
-      boolean degraded) {}
+      boolean degraded, Optional<com.waypoint.dispatch.intelligence.domain.ServiceRange.Range> serviceRange) {}
 
   public void insertPrediction(UUID id, Prediction p, Instant at) {
     database.update(
         """
         INSERT INTO ml.delivery_predictions
             (prediction_id, plan_id, order_id, trip_id, stop_sequence, outlet_id, depot_code, model_version_id,
-             model_label, service_min, late_prob, degraded, generated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             model_label, service_min, late_prob, degraded, generated_at, service_low, service_high,
+             service_range_basis)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT (plan_id, order_id, model_label) DO NOTHING
         """,
         id, p.planId(), p.orderId(), p.tripId(), p.sequence(), p.outletId(), p.depotCode(),
         p.modelVersionId().orElse(null), p.modelLabel(), p.serviceMinutes(), p.lateProbability(), p.degraded(),
-        Timestamp.from(at));
+        Timestamp.from(at),
+        p.serviceRange().map(r -> BigDecimal.valueOf(r.low())).orElse(null),
+        p.serviceRange().map(r -> BigDecimal.valueOf(r.high())).orElse(null),
+        p.serviceRange().map(r -> r.basis().name().toLowerCase(java.util.Locale.ROOT)).orElse(null));
   }
 
   /** A plan's predictions, the model's when it scored the plan, else the deterministic ones. */
   public List<Map<String, Object>> predictions(UUID planId) {
     return database.query(
         """
-        SELECT order_id, trip_id, stop_sequence, outlet_id, model_label, service_min, late_prob, degraded
+        SELECT order_id, trip_id, stop_sequence, outlet_id, model_label, service_min, late_prob, degraded,
+               service_low, service_high
           FROM ml.delivery_predictions p
          WHERE plan_id = ?
            AND (NOT degraded OR NOT EXISTS (SELECT 1 FROM ml.delivery_predictions m

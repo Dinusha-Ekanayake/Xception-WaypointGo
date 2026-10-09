@@ -66,6 +66,12 @@ public class ReferenceDataQuery implements ReferenceQuery {
     return cache.loadedVersionId();
   }
 
+  @Override
+  public long generation() {
+    bootstrap.refreshIfStale();
+    return cache.loadedGeneration();
+  }
+
   private ReferenceSnapshot snapshot(UUID versionId) {
     if (versionId == null) {
       bootstrap.refreshIfStale();
@@ -269,6 +275,16 @@ public class ReferenceDataQuery implements ReferenceQuery {
                             ((java.sql.Date) r.get("condition_date")).toLocalDate(),
                             (java.math.BigDecimal) r.get("disruption_index")))
                 .toList());
+  }
+
+  @Override
+  public java.util.Optional<LocalDate> roadConditionsUntil() {
+    return database.readAs(
+        ModuleRole.REF,
+        null,
+        () -> java.util.Optional.ofNullable(
+                database.queryOne("SELECT max(condition_date) AS last FROM ref.road_conditions").get("last"))
+            .map(d -> ((java.sql.Date) d).toLocalDate()));
   }
 
   // ---- mapping to contract views ----

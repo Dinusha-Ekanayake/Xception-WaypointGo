@@ -6,22 +6,25 @@ import PageHeader from "../PageHeader.tsx";
 import Refusal from "./Refusal.tsx";
 import ForecastChart, { seriesColour } from "./ForecastChart.tsx";
 import ForecastRuns from "./ForecastRuns.tsx";
-import { DayNeeds, ForecastActions } from "./ForecastSide.tsx";
+import { DayNeeds, ForecastAccuracy, ForecastActions } from "./ForecastSide.tsx";
+import { ForecastDecisions } from "./ForecastDecisions.tsx";
 import {
   WEEKS,
   actions,
   combine,
+  combineAccuracy,
   dayNeeds,
   forecastError,
   forBrand,
   kpis,
+  likelyLabel,
   m3,
   pct,
   segments,
   weekLabel,
   type BrandFilter,
 } from "../data/forecast.ts";
-import { useForecast, useModels } from "../data/useForecast.ts";
+import { useForecast, useForecastAccuracy, useModels } from "../data/useForecast.ts";
 
 // Figma "Forecast": the next ten weeks of demand for the depots in view, against
 // what the fleet can carry. Read from /api/ml/forecast/overview (#16). Container
@@ -37,6 +40,8 @@ export default function Forecast({
   online: boolean;
 }): React.JSX.Element {
   const resource = useForecast(depots);
+  // T2-03: how the last finished weeks were forecast; a refusal or an outage just hides the panel.
+  const accuracy = useForecastAccuracy(depots);
   const models = useModels(depots.length > 0);
   const [brand, setBrand] = useState<BrandFilter>("all");
   const forecast = useMemo(() => (resource.data ? combine(resource.data) : null), [resource.data]);
@@ -95,7 +100,7 @@ export default function Forecast({
           <div className="flex w-full gap-3.5 max-md:flex-col">
             <KpiCard
               label={k.next ? `Next week · ${weekLabel(k.next.week)}` : "Next week"}
-              value={k.next ? m3(k.next.week.total) : "…"}
+              value={k.next ? <WithRange m3Text={m3(k.next.week.total)} likely={likelyLabel(k.next.week)} /> : "…"}
               note={
                 k.next
                   ? `${pct(k.next.chilledShare)} chilled${k.next.topBrand ? ` · ${k.next.topBrand.code} ${pct(k.next.topBrand.share)}` : ""}`
@@ -104,7 +109,7 @@ export default function Forecast({
             />
             <KpiCard
               label={k.peak ? `Peak week · ${weekLabel(k.peak.week)}${k.peak.week.festival ? ` ${k.peak.week.festival}` : ""}` : "Peak week"}
-              value={k.peak ? m3(k.peak.week.total) : "…"}
+              value={k.peak ? <WithRange m3Text={m3(k.peak.week.total)} likely={likelyLabel(k.peak.week)} /> : "…"}
               valueClassName="text-go-danger"
               note={k.peak ? `+${pct(k.peak.overMedian)} on a typical week` : undefined}
             />
@@ -138,7 +143,9 @@ export default function Forecast({
             </section>
             <div className="flex min-w-[300px] flex-col gap-5 lg:max-w-[380px]">
               <DayNeeds rows={dayNeeds(weeks)} />
+              {accuracy.data && <ForecastAccuracy {...combineAccuracy(accuracy.data)} />}
               <ForecastActions actions={actions(weeks)} />
+              <ForecastDecisions depots={depots} weeks={weeks} />
             </div>
           </div>
         </>
@@ -159,5 +166,15 @@ function Legend({ weeks }: { weeks: Parameters<typeof segments>[0][] }): React.J
         </li>
       ))}
     </ul>
+  );
+}
+
+/** Roadmap MF-06: the week's volume, with its likely range beside it when there is one. */
+function WithRange({ m3Text, likely }: { m3Text: string; likely: string | null }): React.JSX.Element {
+  return (
+    <>
+      {m3Text}
+      {likely && <span className="ml-2 text-xs font-normal text-go-secondary" data-testid="likely-range">{likely}</span>}
+    </>
   );
 }

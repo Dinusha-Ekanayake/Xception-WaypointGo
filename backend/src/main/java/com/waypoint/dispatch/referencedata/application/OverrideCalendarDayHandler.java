@@ -8,7 +8,6 @@ import com.waypoint.dispatch.platform.messaging.Command;
 import com.waypoint.dispatch.platform.messaging.CommandHandler;
 import com.waypoint.dispatch.platform.messaging.CommandPayload;
 import com.waypoint.dispatch.platform.observability.Metrics;
-import com.waypoint.dispatch.referencedata.infrastructure.ReferenceCache;
 import com.waypoint.dispatch.referencedata.infrastructure.ReferenceVersionReader;
 import com.waypoint.dispatch.shared.domain.Actor;
 import com.waypoint.dispatch.shared.error.DomainException;
@@ -34,19 +33,19 @@ public class OverrideCalendarDayHandler implements CommandHandler {
 
   private final Database database;
   private final ReferenceVersionReader reader;
-  private final ReferenceCache cache;
+  private final ReferenceBootstrap bootstrap;
   private final AuditLog audit;
   private final Metrics metrics;
 
   public OverrideCalendarDayHandler(
       Database database,
       ReferenceVersionReader reader,
-      ReferenceCache cache,
+      ReferenceBootstrap bootstrap,
       AuditLog audit,
       Metrics metrics) {
     this.database = database;
     this.reader = reader;
-    this.cache = cache;
+    this.bootstrap = bootstrap;
     this.audit = audit;
     this.metrics = metrics;
   }
@@ -98,12 +97,12 @@ public class OverrideCalendarDayHandler implements CommandHandler {
         reason,
         actor.userId());
 
-    // Reference is read from memory thousands of times per allocation, so the
-    // snapshot has to be rebuilt for the change to be visible at all. Republishing
-    // inside the transaction matches how an import publishes, and is the same
-    // trade: a rollback after this point would leave the cache ahead of the
-    // database until the next publish.
-    cache.loadedVersionId().flatMap(reader::load).ifPresent(cache::publish);
+    // F-10: reference is read from memory, so the edit bumps the generation in
+    // this transaction and the snapshot is rebuilt once it commits: here at once,
+    // on every other process within the bootstrap's check, never ahead of the
+    // database. Planning keys its cache on the generation too.
+    reader.bumpGeneration();
+    bootstrap.reloadAfterCommit();
 
     audit.record(
         AuditEntry.allowed(

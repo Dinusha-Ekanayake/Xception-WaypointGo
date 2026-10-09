@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 
 from src import features_a, features_b, task1_a, task1_b, task2a  # noqa: F401 (vendored)
+from training import planning
 
 TABLES = {
     'outlets': ['outlet_id', 'brand', 'district', 'depot', 'dock_type', 'parking_constraint', 'mall_window',
@@ -93,6 +94,8 @@ def delivery_risk(loaded, routes, reference):
     """[(deliveryId, serviceMin, lateProb, roadConditions)] in request order."""
     g = general(reference)
     _check_known(routes, g)
+    if loaded.planning is not None:
+        return _planning(loaded.planning, routes, g)
     cal = g['calendar'].set_index('date')
     covered = set(zip(g['road_conditions'].district, g['road_conditions'].date))
     with_rc = [r for r in routes if (r.district, r.date) in covered]
@@ -118,6 +121,23 @@ def delivery_risk(loaded, routes, reference):
             svc, late, rc = out[s.deliveryId]
             result.append((s.deliveryId, svc, late, rc))
     return result
+
+
+def _planning(model, routes, g):
+    """A model retrained on our own deliveries: the shared planning-time features, no road conditions (R-ML-18).
+
+    Its service model needs 200 labelled stops; until then each stop's planned
+    allowance is not known here, so the service answer is the model's median
+    of what it learned, never zero.
+    """
+    uses_reference = any(c in planning.REFERENCE for c in model['features'])
+    x = planning.features([r.model_dump() for r in routes], g if uses_reference else None)
+    late = np.clip(model['late'].predict_proba(x[model['features']])[:, 1], 5e-4, 1 - 5e-4)
+    if model.get('service') is not None:
+        svc = np.exp(model['service'].predict(x[model['features']]))
+    else:
+        svc = np.full(len(x), float(model.get('service_median', 15.0)))
+    return [(d, round(float(s), 2), round(float(p), 4), 'fallback') for d, s, p in zip(x.deliveryId, svc, late)]
 
 
 def _blend(loaded, orders, legs, g):

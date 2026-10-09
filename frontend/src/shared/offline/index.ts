@@ -2,7 +2,8 @@ export { enqueue, drain, setBeforeDrain, pendingCount, pendingEntries, heldForRe
 export { offlineTier, queuesWrites, prefetchesWorkingSet, type OfflineTier, type Role } from "./tiers.ts";
 export { useSync, type SyncState } from "./useSync.ts";
 export { registerResolver, type RedoBasis, type Resolver } from "./resolvers.ts";
-export { keep, kept } from "./snapshots.ts";
+export { keep, kept, forgetSaved, sweepSaved, CREDENTIAL_PREFIX } from "./snapshots.ts";
+export { storageFailure } from "./retention.ts";
 export { readThrough, isOutage, keptSince, useKeptSince, KEPT_EVENT } from "./keptReads.ts";
 export { saveUpload, drainUploads, pendingUploads, discardUpload, UPLOADS_EVENT, type UploadReport } from "./uploads.ts";
 export type { Snapshot, StoredUpload } from "./store.ts";

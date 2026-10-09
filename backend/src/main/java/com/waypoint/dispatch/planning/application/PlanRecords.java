@@ -323,7 +323,8 @@ final class PlanRecords {
             .computeIfAbsent(a.tripId().get(), k -> new ArrayList<>())
             .add(
                 new PlannedStop(
-                    a.stopSequence().orElseThrow(), a.orderId(), a.outletId(), a.plannedArrival().orElseThrow()));
+                    a.stopSequence().orElseThrow(), a.orderId(), a.outletId(), a.plannedArrival().orElseThrow(),
+                    Optional.of(a.serviceMinutes().setScale(0, java.math.RoundingMode.CEILING).intValueExact())));
       }
     }
     return trips.stream()

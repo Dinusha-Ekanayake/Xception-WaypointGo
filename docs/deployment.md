@@ -107,7 +107,21 @@ Alloy reads every container labelled `com.waypoint.logs=true` through the read-o
 
 The same profile runs Prometheus, which scrapes the backend's `/prometheus` every 15 seconds and keeps 15 days on `prometheus-data`. `/prometheus` is never routed by nginx. On the VPS the stack runs in preview only, as the log store does, and scrapes both environments: each backend joins the `waypoint-edge` network as `production-backend` or `preview-backend` (`deploy/vps/compose.vps.yaml`, scrape config `observability/prometheus/vps.yml`), and a `node-exporter` reads the server's CPU, memory and disk. The production target is down until production has been redeployed with that overlay. Grafana provisions the dashboard Waypoint > Waypoint operations from `observability/grafana/provisioning/dashboards/`: service health (up, request rate, 5xx share, p95 latency from the SLO buckets in `application.properties`), commands and jobs, outbox and circuit breakers, JVM and connection pool, the server, then the log panels.
 
+Alerts (roadmap B-04). Prometheus evaluates `observability/prometheus/rules/waypoint.yml` (backend down, outbox lag and dead letters, failing jobs, pool waits, retention behind, table growth, disk filling, the model trust gates, the assistant connection) and sends what fires to Alertmanager in the same stack (`observability/alertmanager/alertmanager.yml`). It groups alerts per environment, repeats a critical one hourly and the rest every 12 hours, keeps `info` alerts on its page only, and holds back every other alert of an environment whose backend is down. It posts to `ALERT_WEBHOOK_URL` in `.env`, a Slack-compatible incoming webhook (Slack, Mattermost, Rocket.Chat, or a Discord webhook with `/slack` at the end); with it empty, alerts show only in Prometheus and on Grafana's Alerting page. CI runs `promtool test rules` and `amtool check-config` on every change under `observability/`.
+
 ## Operational limits
+
+**Memory (F-15).** Every container has a ceiling, so production, preview and the log store fit one 16 GB server; CI fails a service without one (`deploy/vps/check-memory-limits.py`). The backend's heap is 75% of its ceiling and it exits on running out, so Docker restarts it. Raise a ceiling in `.env` (`DB_MEM`, `BACKEND_MEM`, `ML_MEM`, `WEB_MEM`, `MCP_MEM`, `INIT_MEM`); scale the server up before adding replicas.
+
+| Per stack | Ceiling | | Shared | Ceiling |
+| --- | --- | --- | --- | --- |
+| db | 1 GB | | loki, prometheus | 512 MB each |
+| backend | 2 GB | | grafana, alloy | 256 MB each |
+| ml | 1.5 GB | | nginx | 128 MB |
+| waypoint | 512 MB | | node-exporter, certbot | 64 MB each |
+| mcp | 256 MB | | init (runs once) | 1 GB |
+
+Two stacks and the log store come to about 12.4 GB at steady state, leaving room for the operating system and the page cache.
 
 What a rollout beyond the competition would have to change, as things stand on 2026-10-02. The full list per module is in [STATUS.md](development-docs/STATUS.md).
 
@@ -135,6 +149,47 @@ Every later change is a command an administrator sends through `POST /api/comman
 
 Three backend commands cover what a fresh instance needs before anyone can send a command: `account-grant-depot`, `operator-pin` for a loader's PIN on a shared dock device, and `demo-accounts` for one account per role. Their variables are in the [README](../README.md#backend-commands).
 
+## Rotating passwords and secrets
+
+Roadmap H-02. A README of an earlier commit (`961d89a`) listed the deployed accounts with their passwords, and the demo accounts were created from a `SEED_PASSWORD` that was public. History keeps them, so the only fix is to change them. Rotate one at a time, check the site works after each, and record in the development log what was rotated and when, never the value. Generate every new value with `openssl rand -base64 32` (passwords for people: at least 16 characters, kept in the team's password manager).
+
+| Secret | Where it lives | How to rotate | What it breaks |
+| --- | --- | --- | --- |
+| Production administrator password | the account | Sign in as the administrator and send `iam:ResetPassword` for the administrator's own `userId` (below). Do this first | Ends that account's sessions |
+| The six demo accounts | the accounts | `iam:ResetPassword` for each, or disable the ones nobody uses (`iam:DisableUser`). Changing `SEED_PASSWORD` alone does nothing to existing accounts | Ends their sessions |
+| `SEED_PASSWORD` | `.env` on the VPS | Set a new private value so accounts created later do not get the public one | Nothing |
+| `APP_DB_PASSWORD` | `.env` on the VPS | Change it and deploy: `migrate` sets `waypoint_app`'s password on every run | Nothing; the pool reconnects |
+| `POSTGRES_PASSWORD` | `.env` on the VPS, and the database | `docker compose exec db psql -U postgres -c "ALTER ROLE postgres PASSWORD '<new>'"`, then change `.env` to match | `init` and `migrate` fail until both match |
+| `PROOF_URL_SECRET` | `.env` on the VPS | Set a fixed value of at least 16 characters per environment, then deploy. Blank gives each process its own random key, so proof links break across replicas | Proof links already handed out (they last minutes) |
+| `GRAFANA_ADMIN_PASSWORD` | `.env` on the VPS | Change and restart Grafana | Grafana sessions |
+| `ALERT_WEBHOOK_URL` | `.env` on the VPS, and the chat workspace | Make a new incoming webhook, change `.env`, `docker compose --profile observability up -d alertmanager`, then delete the old webhook | Alerts between the two steps |
+| `WAREHOUSE_API_KEY`, `WAREHOUSE_WEBHOOK_SECRET` | `.env`, and the warehouse provider | Issue new ones with the provider, change `.env`, deploy, then revoke the old ones | Catalogue sync and webhooks between the two steps |
+| `GROQ_API_KEY` | `.env`, and the provider | Create a new key, change `.env`, deploy, delete the old key | Nothing |
+| `PUSH_VAPID_PUBLIC_KEY`, `PUSH_VAPID_PRIVATE_KEY` | `.env` | Only if exposed: every phone must turn alerts on again | All push subscriptions |
+| `VPS_SSH_KEY`, `VPS_PREVIEW_SSH_KEY` | GitHub secrets (H-03: an Environment each), and `authorized_keys` on the VPS | Make a new key pair, add the public key on the VPS, replace the GitHub secret, run a deploy, then remove the old public key | Deploys between the two steps. Needs admin on the repository |
+
+Resetting a password from the host, with the administrator's session cookie (`__Host-waypoint_session` over HTTPS) in `SESSION` and the account's `userId` and row version from `GET /api/accounts`:
+
+```sh
+curl -sS https://waypointgo.live/api/commands -H 'content-type: application/json' --cookie "__Host-waypoint_session=$SESSION" \
+  -d '{"commandId":"'"$(uuidgen | tr A-Z a-z)"'","kind":"iam:ResetPassword","expectedVersion":<rowVersion>,"payload":{"userId":"<userId>","password":"<new>"}}'
+```
+
+The command never echoes the password, writes an audit row, and ends the account's other sessions. Run it from a shell whose history is off (`set +o history`), or type the password into a file read with `$(cat file)` and delete the file.
+
+## Object store (M-01)
+
+Off by default: every file stays in the database. To move files to an S3-compatible bucket (Cloudflare R2, Backblaze B2, AWS S3):
+
+1. **A private bucket.** No public access, no public `r2.dev` address, no website hosting. Files are only ever served through the backend, which applies row-level security and audit.
+2. **A token for that bucket only.** Object read and write on the one bucket; no account-wide token, no admin rights. Put its id and secret in `S3_ACCESS_KEY_ID` and `S3_SECRET_ACCESS_KEY`, the endpoint in `S3_ENDPOINT`, the bucket in `S3_BUCKET`.
+3. **An encryption key.** `openssl rand -base64 32` into `S3_ENCRYPTION_KEY`. Every file is encrypted with it on the server before upload, so the provider holds only ciphertext. **Without this key the files cannot be read**: keep a copy where the database backups are kept, never in the bucket and never in the repository. Changing it makes every stored file unreadable; there is no rotation yet.
+4. `OBJECT_STORE=s3`, then restart the backend. With a value missing it refuses to start and says which.
+
+New files go to the bucket from then on. `MediaBackfillJob` moves what was stored before, 50 files every ten minutes per table, reading each one back and comparing it before recording the move; the database copy is cleared 30 days later (`S3_MOVE_AFTER`). Watch `waypoint_storage_backfill_total{outcome}`: anything but `moved` is a file left in the database for a look. Once files have moved, do not set `OBJECT_STORE` back: the moved files are then in the bucket only.
+
+The daily off-server backup below copies the database; it does not copy the bucket. Give the bucket its own copy to a second provider (rclone, H-05), with the encryption key kept beside the database backups.
+
 ## Backup and recovery
 
 ### On the VPS
@@ -156,6 +211,33 @@ sudo -u deploy env DEPLOY_REF=<commit> /opt/waypoint/app/deploy/vps/deploy.sh
 ```
 
 Everything written after the dump was taken is in `waypoint_damaged` and not in the restored database; drop that database only once nothing is needed from it. Roles are cluster-wide and are not in the dump, so it restores into the cluster it came from, not into an empty one. These steps have not been exercised on the VPS: rehearse them on preview before relying on them.
+
+### Daily off-server backup
+
+The deploy dumps above survive a bad migration, not a lost disk. [deploy/vps/backup.sh](../deploy/vps/backup.sh) takes a daily dump the same way, reads it back, keeps the newest 7 on the server under `/opt/waypoint/backups/daily-<environment>/`, and copies each one with its sha256 to a second provider through rclone, keeping 30 days there. Proofs, issue photos and voice notes are in the database by default, so the dump covers them.
+
+Set it up once, as root, then as `deploy`:
+
+```sh
+apt-get install -y rclone
+sudo -u deploy rclone config            # create a remote, e.g. "offsite" (Backblaze B2 or a Hetzner Storage Box)
+sudo -u deploy crontab -e               # add the two lines below
+```
+
+```cron
+BACKUP_REMOTE=offsite:waypoint-backups
+15 2 * * * /opt/waypoint/app/deploy/vps/backup.sh production >> /opt/waypoint/backups/backup.log 2>&1
+45 2 * * * /opt/waypoint/preview/deploy/vps/backup.sh preview >> /opt/waypoint/backups/backup.log 2>&1
+```
+
+The rclone credentials stay in `deploy`'s rclone config, never in the repository. A run fails loudly if the dump cannot be read back, if `BACKUP_REMOTE` is unset, or if the remote copy does not match. Each success writes `/opt/waypoint/backups/daily-<environment>/last-success`: a timestamp older than 26 hours means the backup has stopped.
+
+**Restore drill.** Run it on preview first, and time it. The targets are a recovery point of 24 hours or less and a recovery time of 4 hours or less (roadmap H-05).
+
+1. Download the newest preview dump from the remote with `rclone copy`, and check its sha256.
+2. Restore it with the steps under "On the VPS" above.
+3. Sign in and walk one role.
+4. Record the times in the development log.
 
 ### Elsewhere
 

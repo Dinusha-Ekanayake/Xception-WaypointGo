@@ -65,7 +65,7 @@ export function usePush(enabled = true): Push {
         if (cancelled) return;
         setConfig(answer);
         if (!answer.enabled || !answer.publicKey) {
-          setState({ kind: "server-off", reason: answer.reason ?? "Push is not set up on this server." });
+          setState({ kind: "server-off", reason: answer.reason ?? "Alerts are not set up yet." });
           return;
         }
         if (Notification.permission === "denied") {
@@ -76,7 +76,7 @@ export function usePush(enabled = true): Push {
         const sub = reg ? await reg.pushManager.getSubscription() : null;
         if (!cancelled) setState({ kind: sub ? "on" : "off" });
       } catch {
-        if (!cancelled) setState({ kind: "server-off", reason: "Could not ask the server about push." });
+        if (!cancelled) setState({ kind: "server-off", reason: "Could not check whether alerts are set up." });
       }
     })();
     return () => {

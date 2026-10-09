@@ -12,7 +12,13 @@ import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.TimeZone;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import javax.sql.DataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,6 +69,10 @@ public class ScheduledJobRunner implements SmartInitializingSingleton, Disposabl
   private final Clock business;
   private final Metrics metrics;
   private final ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
+  /** One thread per outside dependency (ScheduledJob#bulkhead), so one slow port waits alone. */
+  private final Map<String, ExecutorService> bulkheads = new ConcurrentHashMap<>();
+  /** Jobs with a run in flight on a bulkhead; a run due meanwhile is skipped. */
+  private final Set<String> inFlight = ConcurrentHashMap.newKeySet();
 
   public ScheduledJobRunner(
       List<ScheduledJob> jobs,
@@ -90,16 +100,58 @@ public class ScheduledJobRunner implements SmartInitializingSingleton, Disposabl
         scheduler.scheduleAtFixedRate(
             () -> {
               if (tick.due(business.now())) {
-                runOnce(job);
+                dispatch(job);
               }
             },
             BUSINESS_TICK);
         log.info("Scheduled job {} on '{}' by the business clock", job.name(), job.cron());
       } else {
-        scheduler.schedule(() -> runOnce(job), new CronTrigger(job.cron(), zone));
+        scheduler.schedule(() -> dispatch(job), new CronTrigger(job.cron(), zone));
         log.info("Scheduled job {} on '{}'", job.name(), job.cron());
       }
     }
+  }
+
+  /**
+   * Runs a job where it belongs: on the scheduler's thread for work inside the
+   * process, on its dependency's own thread for a job that waits on something
+   * outside (roadmap F-09a). Returns whether a bulkhead run was started, or the
+   * run's own answer for an inline job.
+   */
+  boolean dispatch(ScheduledJob job) {
+    String name = job.bulkhead();
+    if (name == null || name.isBlank()) {
+      return runOnce(job);
+    }
+    if (!inFlight.add(job.name())) {
+      metrics.increment("waypoint.job.skipped", "job", job.name(), "reason", "still_running");
+      return false;
+    }
+    try {
+      bulkheadFor(name).execute(() -> {
+        try {
+          runOnce(job);
+        } finally {
+          inFlight.remove(job.name());
+        }
+      });
+      return true;
+    } catch (RejectedExecutionException e) {
+      // Shutting down: the run is simply not started.
+      inFlight.remove(job.name());
+      return false;
+    }
+  }
+
+  private ExecutorService bulkheadFor(String name) {
+    return bulkheads.computeIfAbsent(
+        name,
+        n -> Executors.newSingleThreadExecutor(
+            r -> {
+              Thread thread = new Thread(r, "waypoint-port-" + n);
+              thread.setDaemon(true);
+              return thread;
+            }));
   }
 
   /** One run under the job's lease. Public so an operator path or a test can trigger it. */
@@ -189,5 +241,6 @@ public class ScheduledJobRunner implements SmartInitializingSingleton, Disposabl
   @Override
   public void destroy() {
     scheduler.shutdown();
+    bulkheads.values().forEach(ExecutorService::shutdownNow);
   }
 }

@@ -79,6 +79,11 @@ public class PushDeliveryJob implements ScheduledJob {
   }
 
   @Override
+  public String bulkhead() {
+    return "push";
+  }
+
+  @Override
   public String cron() {
     return "*/15 * * * * *";
   }

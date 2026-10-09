@@ -9,7 +9,8 @@ import type { Decimal, IsoDate, IsoInstant, IsoTime, Temperature, Uuid } from ".
 // EventCatalogueTest holds the Java side to the same list; a type added there
 // is added here.
 
-type PlannedStop = { sequence: number; orderId: Uuid; outletId: string; plannedArrival: IsoTime };
+/** serviceMinutes: the plan's minutes at the stop (roadmap T1-03); absent in events written before it. */
+type PlannedStop = { sequence: number; orderId: Uuid; outletId: string; plannedArrival: IsoTime; serviceMinutes?: number | null };
 type PlannedTrip = {
   tripId: Uuid;
   vehicleId: string;

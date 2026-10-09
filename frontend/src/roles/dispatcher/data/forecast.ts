@@ -21,7 +21,8 @@ export type ForecastWeek = {
   paydays: number;
   festival: string | null;
   generatedDays: number;
-  brands: Array<{ code: string; total: number; chilled: number }>;
+  /** low and high are the MF-06 range, null when any part of the sum has none. */
+  brands: Array<{ code: string; total: number; chilled: number; low: number | null; high: number | null }>;
   total: number;
   chilled: number;
   fleetM3: number;
@@ -76,11 +77,15 @@ export function combine(overviews: ForecastOverviewView[]): Forecast {
       for (const b of w.brands) {
         brandCodes.add(b.brandCode);
         const existing = into.brands.find((x) => x.code === b.brandCode);
+        const low = b.lowM3 == null ? null : num(b.lowM3);
+        const high = b.highM3 == null ? null : num(b.highM3);
         if (existing) {
           existing.total += num(b.totalM3);
           existing.chilled += num(b.chilledM3);
+          existing.low = existing.low === null || low === null ? null : existing.low + low;
+          existing.high = existing.high === null || high === null ? null : existing.high + high;
         } else {
-          into.brands.push({ code: b.brandCode, total: num(b.totalM3), chilled: num(b.chilledM3) });
+          into.brands.push({ code: b.brandCode, total: num(b.totalM3), chilled: num(b.chilledM3), low, high });
         }
       }
       into.total += num(w.totalM3);
@@ -120,6 +125,24 @@ export function forBrand(weeks: ForecastWeek[], brand: BrandFilter): ForecastWee
       chilled: brands.reduce((s, b) => s + b.chilled, 0),
     };
   });
+}
+
+/**
+ * MF-06, R-ML-20: the week's likely range, the sum of its brands' ranges, or
+ * null when any brand has none (too few finished weeks to say).
+ */
+export function weekRange(week: ForecastWeek): { low: number; high: number } | null {
+  if (week.brands.length === 0 || week.brands.some((b) => b.low === null || b.high === null)) return null;
+  return {
+    low: week.brands.reduce((s, b) => s + (b.low ?? 0), 0),
+    high: week.brands.reduce((s, b) => s + (b.high ?? 0), 0),
+  };
+}
+
+/** "likely 380 to 450", shown beside the week's m³, or nothing without a range. */
+export function likelyLabel(week: ForecastWeek): string | null {
+  const r = weekRange(week);
+  return r && r.high > r.low ? `likely ${m3(r.low).replace(" m³", "")} to ${m3(r.high).replace(" m³", "")}` : null;
 }
 
 export type Segment = { id: string; label: string; m3: number };
@@ -354,4 +377,106 @@ export function forecastError(models: ModelMetrics[], modelLabel: string | null,
   const chilled = plusMinus(model?.metrics.chilled_wape);
   if (!total && !chilled) return "Forecast error not reported by the model";
   return ["Forecast error", total && `${total} total`, chilled && `${chilled} chilled`].filter(Boolean).join(" · ");
+}
+
+/** One finished week across the depots in scope (T2-03). */
+export type AccuracyRow = {
+  key: string;
+  monday: string;
+  forecast: number;
+  ordered: number;
+  off: number | null;
+  /** T2-03: how far the 8-week mean was off that week, where every brand had one. */
+  baselineOff: number | null;
+};
+
+/** The Monday of an ISO week, as yyyy-mm-dd. */
+export function isoMonday(isoYear: number, isoWeek: number): string {
+  const jan4 = new Date(Date.UTC(isoYear, 0, 4));
+  const monday = new Date(jan4.getTime() - ((jan4.getUTCDay() + 6) % 7) * 86_400_000 + (isoWeek - 1) * 7 * 86_400_000);
+  return monday.toISOString().slice(0, 10);
+}
+
+/**
+ * The depots' finished weeks summed, oldest first, each with how far the
+ * forecast was off (WAPE over its brands), and the error over all of them.
+ * An empty week (nothing ordered) has no figure rather than a perfect one.
+ */
+export function combineAccuracy(views: Array<Pick<import("@shared/domain/types").ForecastAccuracyView, "weeks">>): {
+  rows: AccuracyRow[];
+  off: number | null;
+  /** T2-03: on the brand-weeks with a baseline, the forecast's error and the 8-week mean's. */
+  versus: { forecast: number; average: number } | null;
+} {
+  type Pair = [number, number, number | null];
+  const byWeek = new Map<string, { monday: string; pairs: Pair[] }>();
+  for (const v of views) {
+    for (const w of v.weeks) {
+      const key = `${w.isoYear}-${String(w.isoWeek).padStart(2, "0")}`;
+      const entry = byWeek.get(key) ?? { monday: isoMonday(w.isoYear, w.isoWeek), pairs: [] };
+      for (const b of w.brands) {
+        entry.pairs.push([Number(b.forecastM3), Number(b.orderedM3), b.baselineM3 == null ? null : Number(b.baselineM3)]);
+      }
+      byWeek.set(key, entry);
+    }
+  }
+  const wape = (pairs: Array<[number, number]>): number | null => {
+    const ordered = pairs.reduce((s, [, a]) => s + Math.abs(a), 0);
+    return ordered > 0 ? pairs.reduce((s, [f, a]) => s + Math.abs(f - a), 0) / ordered : null;
+  };
+  const forecastPairs = (pairs: Pair[]) => pairs.map(([f, a]) => [f, a] as [number, number]);
+  const baselinePairs = (pairs: Pair[]) => pairs.filter((p) => p[2] !== null).map(([, a, b]) => [b as number, a] as [number, number]);
+  const rows = [...byWeek.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, e]) => ({
+      key,
+      monday: e.monday,
+      forecast: e.pairs.reduce((s, [f]) => s + f, 0),
+      ordered: e.pairs.reduce((s, [, a]) => s + a, 0),
+      off: wape(forecastPairs(e.pairs)),
+      baselineOff: e.pairs.every((p) => p[2] !== null) ? wape(baselinePairs(e.pairs)) : null,
+    }));
+  const all = [...byWeek.values()].flatMap((e) => e.pairs);
+  const withBaseline = all.filter((p) => p[2] !== null);
+  const fc = wape(forecastPairs(withBaseline));
+  const avg = wape(baselinePairs(withBaseline));
+  return { rows, off: wape(forecastPairs(all)), versus: fc !== null && avg !== null ? { forecast: fc, average: avg } : null };
+}
+
+/**
+ * Roadmap T2-02: what sending a vehicle to the workshop on a day does to that
+ * week's forecast. The vehicle carries nothing that day, so the week's fleet
+ * loses its volume over the day's trips (two, as the forecast's own capacity
+ * counts them); a week whose forecast demand, or for a refrigerated vehicle its
+ * chilled demand, is then over what is left is a clash. Advice only: the
+ * dispatcher can still send it. Null when the day is outside the forecast or
+ * nothing clashes.
+ */
+export function workshopClash(
+  overviews: ForecastOverviewView[],
+  vehicle: { volumeCapM3: Decimal | number; refrigerated: boolean },
+  date: string,
+  tripsPerDay = 2,
+): { week: ForecastWeek; demand: number; left: number; chilled: boolean; alreadyShort: boolean } | null {
+  const week = combine(overviews).weeks.find((w) => {
+    const start = Date.parse(`${w.start}T00:00:00Z`);
+    const day = Date.parse(`${date}T00:00:00Z`);
+    return day >= start && day < start + 7 * 86_400_000;
+  });
+  if (!week) return null;
+  const loss = num(vehicle.volumeCapM3) * tripsPerDay;
+  if (vehicle.refrigerated && week.chilled > week.refrigeratedM3 - loss) {
+    return { week, demand: week.chilled, left: week.refrigeratedM3 - loss, chilled: true, alreadyShort: week.chilled > week.refrigeratedM3 };
+  }
+  if (week.total > week.fleetM3 - loss) {
+    return { week, demand: week.total, left: week.fleetM3 - loss, chilled: false, alreadyShort: week.total > week.fleetM3 };
+  }
+  return null;
+}
+
+/** The warning, in words. */
+export function clashText(vehicleId: string, c: NonNullable<ReturnType<typeof workshopClash>>): string {
+  const what = c.chilled ? "chilled demand" : "demand";
+  const fleet = c.chilled ? "refrigerated capacity" : "fleet capacity";
+  return `The week of ${weekDate(c.week)} is forecast at ${m3(c.demand)} of ${what}; without ${vehicleId} that day the week has ${m3(Math.max(0, c.left))} of ${fleet}${c.alreadyShort ? ", already short before this" : ""}.`;
 }

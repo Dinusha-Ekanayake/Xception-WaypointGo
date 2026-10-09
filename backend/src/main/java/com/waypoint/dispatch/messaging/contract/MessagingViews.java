@@ -16,6 +16,7 @@ public final class MessagingViews {
    * @param memberRole dispatcher, loader, driver or store_manager: the reader's
    *     part here, which decides who they may write to (R-MSG-02)
    * @param myOutlets the reader's own outlets among the subject's, for a store manager
+   * @param channelOpen the driver has started the trip, so its channel takes posts (R-MSG-08)
    */
   public record ThreadView(
       UUID threadId,
@@ -27,7 +28,8 @@ public final class MessagingViews {
       List<String> outletIds,
       String memberRole,
       List<String> myOutlets,
-      boolean open) {
+      boolean open,
+      boolean channelOpen) {
 
     public ThreadView {
       outletIds = List.copyOf(outletIds);
@@ -39,13 +41,15 @@ public final class MessagingViews {
    * One message the reader may see (R-MSG-01).
    *
    * @param authorName the person's name, or the role for a report made from an event
-   * @param audience dispatch, driver, loader, outlet or all
+   * @param audience dispatch, driver, loader, outlet, all or channel
    * @param voiceNoteId set for a voice message or report, played from
    *     {@code /api/threads/{threadId}/voice/{voiceNoteId}}
    * @param mine written by the reader
    * @param voicePeaks the voice note's waveform, 0 to 100 a bar, as the recording
    *     phone measured it; empty when unknown
    * @param resolvedAt when the dispatcher resolved this report (R-MSG-07)
+   * @param redirectedAt when the dispatcher moved this post off the trip's
+   *     channel (R-MSG-08); stores other than its author no longer see it
    */
   public record MessageView(
       UUID messageId,
@@ -64,11 +68,33 @@ public final class MessagingViews {
       List<Integer> voicePeaks,
       Optional<Instant> resolvedAt,
       Optional<String> resolvedByName,
-      Optional<String> resolutionNote) {
+      Optional<String> resolutionNote,
+      Optional<Instant> redirectedAt,
+      Optional<String> redirectReason,
+      /**
+       * R-MSG-14, for the dispatcher only: whether the driver has read this
+       * message for the driver or for everyone, and when. Empty when unknown or
+       * not for the driver.
+       */
+      Optional<Boolean> seenByDriver,
+      Optional<Instant> seenByDriverAt,
+      /** FF-05: a voice note's machine transcript; empty for a typed message. */
+      Optional<TranscriptView> transcript) {
     public MessageView {
       voicePeaks = List.copyOf(voicePeaks);
     }
   }
+
+  /**
+   * FF-05: what a transcription engine heard in a voice note, labelled as a
+   * machine transcript on screen.
+   *
+   * @param status {@code pending} while it is being written down, {@code done}
+   *     with the words, or {@code none} when there is no transcript (no engine,
+   *     the engine failed, or the words were cleared with the audio): play the audio
+   * @param language en, si or ta, as the engine named it
+   */
+  public record TranscriptView(String status, Optional<String> text, Optional<String> language) {}
 
   /** A page of messages, newest first; {@code nextCursor} reads older ones. */
   public record MessagePage(List<MessageView> items, Optional<String> nextCursor) {
@@ -97,7 +123,7 @@ public final class MessagingViews {
   /**
    * Someone the reader may write to on this thread.
    *
-   * @param to dispatch, driver, loader, outlet or all
+   * @param to dispatch, driver, loader, outlet, all or channel
    * @param outletId set when {@code to} is outlet
    * @param label what the screen shows: a name, "Loaders at Kandy", an outlet
    */

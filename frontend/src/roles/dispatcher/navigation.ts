@@ -7,7 +7,7 @@ import { withTransition, type IconName } from "@shared/ui";
 // lives in the URL hash so reload and the back button keep the dispatcher where
 // they were, without adding routes under app/.
 
-export type ViewId = "overview" | "orders" | "plan" | "live" | "vehicles" | "forecast" | "issues";
+export type ViewId = "overview" | "orders" | "plan" | "live" | "vehicles" | "forecast" | "issues" | "kpis";
 
 export const VIEWS: Array<{ id: ViewId; label: string; icon: IconName }> = [
   { id: "overview", label: "Overview", icon: "grid" },
@@ -19,9 +19,15 @@ export const VIEWS: Array<{ id: ViewId; label: string; icon: IconName }> = [
   { id: "issues", label: "Issues", icon: "alert" },
 ];
 
+/**
+ * Pages reached from another screen, not from the sidebar: the pilot KPIs open
+ * from their card on Overview (a weekly task during the pilot, not daily work).
+ */
+const LINKED: ViewId[] = ["kpis"];
+
 function fromHash(): ViewId {
   const id = window.location.hash.replace(/^#\/?/, "");
-  return VIEWS.some((view) => view.id === id) ? (id as ViewId) : "overview";
+  return VIEWS.some((view) => view.id === id) || LINKED.includes(id as ViewId) ? (id as ViewId) : "overview";
 }
 
 export function useView(): [ViewId, (view: ViewId) => void] {

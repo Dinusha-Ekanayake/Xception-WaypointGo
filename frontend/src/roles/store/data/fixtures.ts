@@ -521,6 +521,7 @@ export function sampleGateway(): StoreGateway {
     },
     deliveries: async (_outletId, date) =>
       orders.filter((o) => o.deliveryDate === date && ["IN_TRANSIT", "DELIVERED", "RECEIVED"].includes(o.status)).map((o) => clone(stopOf(o))),
+    decisions: async () => [],
     issuesFor: async (orderId) => clone(issues.filter((i) => i.subjects.some((s) => s.type === "order" && s.id === orderId))),
     send: async (command): Promise<CommandAck> => {
       await wait();

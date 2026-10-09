@@ -79,6 +79,12 @@ public class RecordPositionsHandler implements CommandHandler {
     return ModuleRole.EXECUTION;
   }
 
+  /** F-08: a batch of fixes is an observation, not a decision; its audit row carries no copy of them. */
+  @Override
+  public boolean auditsState() {
+    return false;
+  }
+
   @Override
   public String resource(Command command) {
     return ExecutionMessages.vehicleResource(command);

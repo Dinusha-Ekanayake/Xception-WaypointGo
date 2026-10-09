@@ -1,7 +1,7 @@
 import type { Temperature } from "@shared/domain/types";
-import { productLines, units } from "../../data/format.ts";
+
 import { Button } from "../../ui.tsx";
-import { useT } from "../../i18n.tsx";
+import { useT, useCounts } from "../../i18n.tsx";
 
 // The summary card of "03 Place order": a bottom sheet on a phone, a card beside
 // the list on a desktop. Cases only: weight and volume are the warehouse's,
@@ -30,6 +30,7 @@ export default function OrderSummary({
   onSaveDraft: () => void;
   onSubmit: () => void;
 }): React.JSX.Element {
+  const { productLines, units } = useCounts();
   const tr = useT();
   const total = classes.reduce((s, t) => s + lines(t).units, 0);
   const orders = classes.filter((t) => lines(t).items > 0).length;

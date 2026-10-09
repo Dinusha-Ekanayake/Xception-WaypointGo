@@ -25,6 +25,8 @@ public class ReferenceCache {
   private static final Logger log = LoggerFactory.getLogger(ReferenceCache.class);
 
   private final AtomicReference<ReferenceSnapshot> current = new AtomicReference<>();
+  /** The in-place edit counter the snapshot in use was loaded at (F-10). */
+  private final java.util.concurrent.atomic.AtomicLong generation = new java.util.concurrent.atomic.AtomicLong(-1);
 
   public Optional<ReferenceSnapshot> current() {
     return Optional.ofNullable(current.get());
@@ -37,8 +39,20 @@ public class ReferenceCache {
     log.info("Reference version in use: {} (was {})", snapshot.versionId(), from);
   }
 
+  /** Replaces the pointer and records the edit counter it was loaded at. */
+  public void publish(ReferenceSnapshot snapshot, long atGeneration) {
+    publish(snapshot);
+    generation.set(atGeneration);
+  }
+
+  /** The edit counter of the snapshot in use; -1 until one is loaded with it. */
+  public long loadedGeneration() {
+    return generation.get();
+  }
+
   public void clear() {
     current.set(null);
+    generation.set(-1);
   }
 
   /** Reported by health and by the dispatcher's version indicator, so a stale instance is visible. */

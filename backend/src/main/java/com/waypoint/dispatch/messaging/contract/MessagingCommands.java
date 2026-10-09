@@ -9,7 +9,7 @@ package com.waypoint.dispatch.messaging.contract;
  * <pre>
  * { "threadId": uuid,
  *   "body": "1 to 1000 characters",
- *   "to": "dispatch" | "driver" | "loader" | "outlet" | "all",
+ *   "to": "dispatch" | "driver" | "loader" | "outlet" | "all" | "channel",
  *   "outletId": "OUT063",            only with to = outlet
  *   "report": "loading_shortfall",   optional: a report, always to the dispatcher
  *   "voiceNoteId": uuid,             optional: audio uploaded first to
@@ -26,6 +26,12 @@ public final class MessagingCommands {
    * report stays on the thread with who resolved it, when and why.
    */
   public static final String RESOLVE = "message:Resolve";
+  /**
+   * The dispatcher moves a post off the trip's channel (R-MSG-08): {@code
+   * {"messageId": uuid, "reason": "3 to 500 characters"}}. The message is never
+   * changed; stores stop seeing it, and who, when and why are kept.
+   */
+  public static final String REDIRECT = "message:Redirect";
 
   private MessagingCommands() {}
 }

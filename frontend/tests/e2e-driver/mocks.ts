@@ -68,6 +68,8 @@ export type Server = {
   dropReads: boolean;
   /** Refuse every proof file, as the server does for one that is not an image. */
   refuseUploads: boolean;
+  /** FF-06b: the vehicle's Fuel Pass image, base64 PNG; null answers 404 (none added). */
+  fuelPass: string | null;
   /** The driver's inbox, newest first. */
   notifications: NotificationView[];
   /** The store manager's handover PIN by order; absent until the store answers the receipt. */
@@ -116,6 +118,7 @@ export async function serve(
     expired: false,
     refuse: null,
     refuseUploads: false,
+    fuelPass: null,
     dropReads: false,
     notifications: [],
     pins: {},
@@ -161,7 +164,15 @@ export async function serve(
     if (server.expired) return route.fulfill(problem(401, "UNAUTHENTICATED", "Sign in to continue"));
 
     if (pathname === "/api/session") return route.fulfill(json(SESSION));
+    if (pathname === "/api/session/end" && method === "POST") return route.fulfill({ status: 204, body: "" });
     if (pathname === "/api/execution/vehicles") return route.fulfill(json(["VEH043"]));
+    if (pathname === "/api/execution/vehicles/VEH043/fuel-pass") {
+      return route.fulfill(
+        server.fuelPass
+          ? json({ vehicleId: "VEH043", passId: "00000000-0000-7000-8000-0000000000f1", contentType: "image/png", sha256: "x", image: server.fuelPass, validUntil: today() })
+          : problem(404, "NOT_FOUND", "No Fuel Pass has been added for VEH043 yet. Ask the depot."),
+      );
+    }
     if (pathname === "/api/execution/run-sheets") {
       if (server.dropReads) return route.abort("internetdisconnected");
       return route.fulfill(json(server.stops.length ? [{ vehicleId: "VEH043", serviceDate: today(), stops: server.stops }] : []));
@@ -170,6 +181,11 @@ export async function serve(
       return route.fulfill(json({ vehicleId: "VEH043", depotCode: "KDY", refrigerated: true, van: false }));
     }
     if (pathname.startsWith("/api/execution/trips/")) return route.fulfill(json({ items: [], nextCursor: null }));
+    const record = pathname.match(/^\/api\/execution\/deliveries\/([^/]+)$/);
+    if (record && method === "GET") {
+      const found = server.stops.find((s) => s.deliveryId === decodeURIComponent(record[1]!));
+      return route.fulfill(found ? json({ ...found }) : problem(404, "NOT_FOUND", "No such stop"));
+    }
     if (pathname.startsWith("/api/reference/outlets/")) {
       const outletId = pathname.split("/").pop()!;
       // Issue #161: OUT0101 has a supplied exact point; the rest share the district centroid.

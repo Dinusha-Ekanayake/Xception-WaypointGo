@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { MessageView } from "../domain/messaging.ts";
+import type { MessageView, TranscriptView } from "../domain/messaging.ts";
 import { audienceLabel, byDay, plain, REPORT_LABEL, ROLE_LABEL, voiceLength, type Translate } from "../messaging/thread.ts";
 import { voiceUrl } from "../messaging/useThread.ts";
 import { clock, dayLabel } from "../wording/time.ts";
+import { ChannelRedirect } from "./ChannelRedirect.tsx";
+import { ListenButton } from "./ListenButton.tsx";
 import { cx } from "./primitives.tsx";
 import { VoiceNote } from "./VoiceNote.tsx";
+import { usePlayableUrl } from "../messaging/audioCache.ts";
 
 // The messages of a trip's thread (issue #136), oldest first under a line for
 // each day. A report reads as a warning, red like the timeline sign that opens
@@ -21,6 +24,8 @@ export function ThreadMessages({
   compact,
   tr = plain,
   onResolve,
+  onRedirect,
+  accountId,
 }: {
   messages: MessageView[];
   /** Scrolled to and marked, when a warning sign or a notification opened the thread. */
@@ -31,6 +36,10 @@ export function ThreadMessages({
   tr?: Translate;
   /** The dispatcher's way to resolve a report (R-MSG-07); absent for everyone else. */
   onResolve?: (messageId: string, note: string) => Promise<void>;
+  /** The dispatcher's way to move a post off the trip's channel (R-MSG-08). */
+  onRedirect?: (messageId: string, reason: string) => Promise<void>;
+  /** Plays the audio kept on this phone first (R-MSG-11). */
+  accountId?: string;
 }): React.JSX.Element {
   const end = useRef<HTMLDivElement>(null);
   const focused = useRef<string | null>(null);
@@ -76,6 +85,8 @@ export function ThreadMessages({
                 compact={compact}
                 tr={tr}
                 {...(onResolve ? { onResolve } : {})}
+                {...(onRedirect ? { onRedirect } : {})}
+                {...(accountId ? { accountId } : {})}
               />
             ))}
           </ol>
@@ -86,19 +97,50 @@ export function ThreadMessages({
   );
 }
 
+const LANGUAGE_NAME = { en: "English", si: "Sinhala", ta: "Tamil" } as const;
+
+/**
+ * FF-05: what the engine heard, for every reader of the note. On a phone a note
+ * with no transcript shows just its play button; the desk says so in words.
+ */
+function Transcript({ transcript, compact, tr }: { transcript: TranscriptView | null; compact: boolean; tr: Translate }): React.JSX.Element | null {
+  if (transcript?.status === "done" && transcript.text) {
+    return (
+      <div data-testid="transcript" className="flex flex-col gap-0.5">
+        <span className="text-[11px] font-medium text-go-secondary">
+          {tr("Machine transcript, check audio")}
+          {transcript.language ? ` · ${tr(LANGUAGE_NAME[transcript.language])}` : ""}
+        </span>
+        <p lang={transcript.language ?? undefined} className="whitespace-pre-wrap break-words italic">{transcript.text}</p>
+      </div>
+    );
+  }
+  if (compact && transcript?.status !== "pending") return null;
+  return (
+    <span data-testid="transcript" className="text-[11px] text-go-secondary">
+      {tr(transcript?.status === "pending" ? "Writing down the voice note…" : "No transcript, play audio")}
+    </span>
+  );
+}
+
 function Message({
   message: m,
   focused,
   compact,
   tr,
   onResolve,
+  onRedirect,
+  accountId,
 }: {
   message: MessageView;
   focused: boolean;
   compact: boolean;
   tr: Translate;
   onResolve?: (messageId: string, note: string) => Promise<void>;
+  onRedirect?: (messageId: string, reason: string) => Promise<void>;
+  accountId?: string;
 }): React.JSX.Element {
+  const voiceSrc = usePlayableUrl(accountId, m.voiceNoteId ? voiceUrl(m.threadId, m.voiceNoteId) : "");
   const report = m.kind === "report";
   const resolved = report && m.resolvedAt !== null;
   const open = report && !resolved;
@@ -132,6 +174,8 @@ function Message({
       <span className="px-1 text-xs text-go-secondary">
         {m.mine ? tr("You") : m.authorName === ROLE_LABEL[m.authorRole] ? tr(m.authorName) : m.authorName}
         {!m.mine && m.authorName !== ROLE_LABEL[m.authorRole] ? ` · ${tr(ROLE_LABEL[m.authorRole])}` : ""} · {clock(m.createdAt)}
+        {m.seenByDriver === true && m.seenByDriverAt ? ` · ${tr("Seen {time}", { time: clock(m.seenByDriverAt) })}` : ""}
+        {m.seenByDriver === false ? ` · ${tr("Not seen yet")}` : ""}
       </span>
       <div
         className={cx(
@@ -157,7 +201,7 @@ function Message({
         )}
         {m.voiceNoteId && (
           <VoiceNote
-            src={voiceUrl(m.threadId, m.voiceNoteId)}
+            src={voiceSrc}
             durationMs={m.voiceDurationMs}
             {...(m.voicePeaks?.length ? { peaks: m.voicePeaks.map((p) => p / 100) } : {})}
             seed={m.voiceNoteId}
@@ -166,7 +210,10 @@ function Message({
             tr={tr}
           />
         )}
+        {/* FF-05: the dispatcher reads what was said without playing every note; the phone screens are unchanged. */}
+        {m.voiceNoteId && <Transcript transcript={m.transcript ?? null} compact={compact} tr={tr} />}
         {m.body && <p className="whitespace-pre-wrap break-words">{m.body}</p>}
+        {m.body && !m.voiceNoteId && !m.mine && <ListenButton text={m.body} threadId={m.threadId} messageId={m.messageId} {...(accountId ? { accountId } : {})} tr={tr} className="-ml-2 -mb-1" />}
         {resolved && (
           <p data-testid="resolution" className="flex flex-col gap-0.5 border-t border-go-divider pt-2 text-xs text-go-secondary">
             <span className="flex items-center gap-1.5 font-semibold text-go-teal">
@@ -214,6 +261,9 @@ function Message({
           </form>
         )}
       </div>
+      {m.audience === "channel" && (m.redirectedAt !== null || (onRedirect && !m.mine)) && (
+        <ChannelRedirect message={m} tr={tr} {...(onRedirect && !m.mine ? { onRedirect } : {})} />
+      )}
       <span className="px-1 text-[11px] text-go-secondary">{audienceLabel(m.audience, m.audienceOutlet, tr)}</span>
     </li>
   );

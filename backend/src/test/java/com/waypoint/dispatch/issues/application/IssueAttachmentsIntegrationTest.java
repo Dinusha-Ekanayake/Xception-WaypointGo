@@ -68,6 +68,46 @@ class IssueAttachmentsIntegrationTest extends ReceiptIssuesSupport {
     assertEquals(before + 1, denials(stranger.id(), "issue:AttachPhoto"));
   }
 
+  // ---- a loader's photos of a damaged or short line (FF-02, R-ISS-09) ------------
+
+  @Test
+  void aLoaderPhotographsADamagedLineAndTheShortfallsIssueShowsItWhicheverArrivesFirst() throws Exception {
+    Order order = deliveredOrder(outlet);
+    UUID early = UUID.randomUUID();
+    UUID late = UUID.randomUUID();
+    upload(loader, early, order, null, PHOTO, 200);
+
+    UUID shortfall = UUID.randomUUID();
+    deliver(
+        "issues.on-loading-shortfall",
+        new com.waypoint.dispatch.loading.contract.LoadingEvents.LoadingShortfall(
+            shortfall, UUID.randomUUID(), order.orderId(), depot,
+            com.waypoint.dispatch.loading.contract.LoadingViews.CheckStatus.SHORT, 1, "carton crushed",
+            java.util.List.of(early, late)));
+    UUID issueId =
+        (UUID) database.asSystem(
+            ModuleRole.ISSUES,
+            () -> database.queryOne(
+                "SELECT issue_id FROM issues.issues WHERE source_key = ?", "loading.shortfall:" + shortfall))
+            .get("issue_id");
+    assertEquals(1, read(dispatcher, "/api/issues/" + issueId, 200).get("attachments").size(), "only what has arrived");
+
+    // The second photo was still on the dock tablet; it shows once it arrives.
+    upload(loader, late, order, null, OTHER_PHOTO, 200);
+    assertEquals(2, read(dispatcher, "/api/issues/" + issueId, 200).get("attachments").size());
+    assertArrayEquals(PHOTO, photo(dispatcher, issueId, early, 200));
+  }
+
+  @Test
+  void aDriverWithTheSameDepotCannotAttachAPhotoAndTheRefusalIsAudited() throws Exception {
+    // FF-02: only the loader role is added; a driver also holds depot scope and stays out.
+    Order order = deliveredOrder(outlet);
+    Person depotDriver = person("rdd-" + UUID.randomUUID().toString().substring(0, 8), "driver", java.util.Optional.of(depot), java.util.Optional.empty());
+    long before = denials(depotDriver.id(), "issue:AttachPhoto");
+    upload(depotDriver, UUID.randomUUID(), order, null, PHOTO, 403);
+    assertEquals(before + 1, denials(depotDriver.id(), "issue:AttachPhoto"));
+  }
+
   // ---- linking and reading -------------------------------------------------------
 
   @Test

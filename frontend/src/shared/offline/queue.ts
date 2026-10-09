@@ -3,11 +3,14 @@ import type { Command } from "@shared/api/commands";
 import { ApiError } from "@shared/api/problem";
 import type { OperationView, SubmitBatch, SyncAck } from "@shared/domain/sync";
 import { outcomeAction } from "./outcome.ts";
-import { discardCommand, inRecordedOrder, nextOrder, readyToSend, recordedOrder, redoCommands } from "./review.ts";
+import { discardCommand, nextOrder, recordedOrder, redoCommands } from "./review.ts";
 import type { RedoBasis } from "./resolvers.ts";
 import { all, allUploads, put, putSnapshot, remove, type StoredEntry } from "./store.ts";
+import { extendBacklog, inSendOrder } from "./lanes.ts";
+import { nextAttemptAt, retryAfterOf, waiting } from "./retry.ts";
 import { drainUploads } from "./uploads.ts";
 import { queuesWrites, type Role } from "./tiers.ts";
+import { storageFailure } from "./retention.ts";
 
 // The write queue.
 //
@@ -18,8 +21,9 @@ import { queuesWrites, type Role } from "./tiers.ts";
 //   2. A conflict is never auto-merged. It is held for a person to look at
 //      against the current server record.
 //
-// Draining uses exponential backoff with jitter. Without jitter a regional
-// reconnect arrives in lockstep and the recovery becomes the outage.
+// Draining uses exponential backoff with jitter and honours the server's
+// Retry-After (retry.ts). Without jitter a regional reconnect arrives in
+// lockstep and the recovery becomes the outage.
 
 export const QUEUED_EVENT = "waypoint:queued";
 
@@ -42,7 +46,7 @@ export async function enqueue(
   } catch (error) {
     // Private windows, cleared site data and blocked storage all land here. The
     // user must be told, because the promise of a durable save was not kept.
-    return { durable: false, reason: String(error) };
+    return { durable: false, reason: storageFailure(error) };
   }
 }
 
@@ -75,15 +79,27 @@ function requestBackgroundSync(): void {
   }
 }
 
-export function backoffMs(attempt: number): number {
-  const base = Math.min(1000 * 2 ** attempt, 60_000);
-  const jitter = base * 0.5 * (Math.random() * 2 - 1);
-  return Math.max(250, Math.round(base + jitter));
-}
+export { backoffMs } from "./retry.ts";
 
 export type DrainReport = { sent: number; heldForReview: number; remaining: number };
 
 const running = new Map<string, Promise<DrainReport>>();
+const retryTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+/**
+ * A backoff must try again on its own: without this a write held back for a
+ * second would wait for the next trigger, which can be the 30 s interval. One
+ * timer per account, at the time the waiting write may go.
+ */
+function retryAt(accountId: string, at: number): void {
+  const existing = retryTimers.get(accountId);
+  if (existing !== undefined) clearTimeout(existing);
+  const timer = setTimeout(() => {
+    retryTimers.delete(accountId);
+    void drain(accountId).catch(() => undefined);
+  }, Math.max(0, at - Date.now()));
+  retryTimers.set(accountId, timer);
+}
 const beforeDrain = new Map<string, () => Promise<void>>();
 
 /**
@@ -165,10 +181,17 @@ async function drainOnce(accountId: string): Promise<DrainReport> {
   }
   // In the order they were recorded, so a batch never sends a later write
   // without an earlier one (storage returns them by id).
-  const ready = readyToSend(inRecordedOrder(entries.filter((e) => !e.needsReview)), waitingUploads).slice(0, BATCH);
+  // Business writes first, positions after them (lanes.ts, roadmap F-03).
+  const ready = inSendOrder(entries.filter((e) => !e.needsReview), waitingUploads).slice(0, BATCH);
   let sent = 0;
   let heldForReview = entries.length - entries.filter((e) => !e.needsReview).length;
   if (ready.length === 0) return { sent, heldForReview, remaining: entries.length };
+  // A recent failure set a time before which nothing is sent (retry.ts). Every
+  // trigger lands here, so the backoff holds whichever one fired.
+  if (waiting(ready[0]!, Date.now())) {
+    retryAt(accountId, ready[0]!.nextAttemptAt!);
+    return { sent, heldForReview, remaining: entries.length };
+  }
 
   const device = deviceId();
   await keepDeviceForWorker(accountId, device);
@@ -188,7 +211,10 @@ async function drainOnce(accountId: string): Promise<DrainReport> {
     // is marked for review, because nothing was decided.
     const first = ready[0]!;
     if (!(error instanceof ApiError && error.status === 401)) {
-      await put(accountId, { ...first, attempts: first.attempts + 1, lastError: String(error) });
+      const attempts = first.attempts + 1;
+      const at = nextAttemptAt(Date.now(), attempts, retryAfterOf(error));
+      await put(accountId, { ...first, attempts, lastError: String(error), nextAttemptAt: at });
+      retryAt(accountId, at);
     }
     return { sent, heldForReview, remaining: entries.length };
   }
@@ -213,7 +239,10 @@ async function drainOnce(accountId: string): Promise<DrainReport> {
       });
       heldForReview++;
     } else {
-      await put(accountId, { ...entry, attempts: entry.attempts + 1, lastError: result.detail ?? "Not applied yet" });
+      const attempts = entry.attempts + 1;
+      const at = nextAttemptAt(Date.now(), attempts);
+      await put(accountId, { ...entry, attempts, lastError: result.detail ?? "Not applied yet", nextAttemptAt: at });
+      retryAt(accountId, at);
       break;
     }
   }
@@ -287,7 +316,15 @@ async function withServerVersion(entry: StoredEntry, forRedo = false): Promise<S
 let lastOrder = 0;
 
 async function keepCommand(accountId: string, command: Command, waitsFor: string[] = []): Promise<void> {
-  const order = nextOrder(command.clientRecordedAt, await all(accountId), lastOrder);
+  const entries = await all(accountId);
+  // F-08: offline, fixes join the last batch still waiting rather than queue one command each.
+  const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+  const extended = offline ? extendBacklog(entries, { kind: command.kind, payload: command }) : null;
+  if (extended) {
+    await put(accountId, extended);
+    return;
+  }
+  const order = nextOrder(command.clientRecordedAt, entries, lastOrder);
   lastOrder = order;
   await put(accountId, {
     commandId: command.commandId,

@@ -15,14 +15,16 @@ import { CatalogueScreen, PeopleScreen, PersonasScreen } from "./screens";
 import { ActionsScreen } from "./RoleActionScreens";
 import { AuditConsole } from "./audit/AuditConsole";
 import { SystemConstraintsScreen } from "./SystemConstraintsScreen";
+import { ModelsScreen } from "./ModelsScreen";
 import AssistantsConsole from "../assistants/AssistantsConsole";
 import DemoControlRoom from "../demo/DemoControlRoom";
 import { fetchRoles, fetchActions } from "../data/access";
 import { fetchAccounts, fetchAccount, accountToMember, submitCreateUser, submitGrantScope, submitUpdateUser, submitDisableUser } from "../data/accounts";
 import type { RoleView, ActionView } from "@shared/domain/identity";
+import { ProfilePhotoDialog } from "./ProfilePhotoDialog";
 import "./access-demo.css";
 
-type Tab = "people" | "personas" | "actions" | "catalogue" | "history" | "audit" | "assistants" | "forecasts" | "vehicles" | "depots" | "outlets" | "orders" | "trips" | "trips_planned" | "trips_live" | "constraints" | "demo";
+type Tab = "people" | "personas" | "actions" | "catalogue" | "history" | "audit" | "assistants" | "forecasts" | "models" | "vehicles" | "depots" | "outlets" | "orders" | "trips" | "trips_planned" | "trips_live" | "constraints" | "demo";
 type Route = { tab: Tab; member: string | null; persona: Persona | null };
 type Draft = { target: "member" | "persona"; id: string; action: string; choice: Decision; reason: string; place: string; expires: string; stage: "edit" | "review" };
 type Details = { capability: Capability; member?: Member; persona?: Persona };
@@ -40,7 +42,7 @@ const DEFAULT_ADMIN: Member = {
 function routeFromHash(): Route {
   if (typeof window === "undefined") return { tab: "people", member: null, persona: null };
   const [rawTab, id] = window.location.hash.replace(/^#\/?/, "").split("/");
-  const tab: Tab = rawTab === "roles" ? "personas" : (rawTab === "personas" || rawTab === "actions" || rawTab === "catalogue" || rawTab === "history" || rawTab === "audit" || rawTab === "assistants" || rawTab === "forecasts" || rawTab === "vehicles" || rawTab === "depots" || rawTab === "outlets" || rawTab === "orders" || rawTab === "trips" || rawTab === "trips_planned" || rawTab === "trips_live" || rawTab === "constraints" || rawTab === "demo" ? rawTab : "people");
+  const tab: Tab = rawTab === "roles" ? "personas" : (rawTab === "personas" || rawTab === "actions" || rawTab === "catalogue" || rawTab === "history" || rawTab === "audit" || rawTab === "assistants" || rawTab === "forecasts" || rawTab === "models" || rawTab === "vehicles" || rawTab === "depots" || rawTab === "outlets" || rawTab === "orders" || rawTab === "trips" || rawTab === "trips_planned" || rawTab === "trips_live" || rawTab === "constraints" || rawTab === "demo" ? rawTab : "people");
   return { tab, member: tab === "people" && id || null, persona: tab === "personas" && PERSONAS.some((item) => item.id === id && item.id !== "super_admin") ? id as Persona : null };
 }
 
@@ -52,6 +54,7 @@ const NAV: Array<{ tab: Tab; label: string; icon: IconName; also?: Tab[] }> = [
   { tab: "orders", label: "Orders", icon: "box" },
   { tab: "vehicles", label: "Vehicles", icon: "truck" },
   { tab: "forecasts", label: "Forecasts", icon: "chart-line" },
+  { tab: "models", label: "Models", icon: "model" },
   { tab: "audit", label: "Audit console", icon: "grid" },
   { tab: "constraints", label: "System constraints", icon: "permission-list" },
   { tab: "demo", label: "Demo control room", icon: "live" },
@@ -80,6 +83,7 @@ const TITLES: Record<Tab, [string, string]> = {
   assistants: ["AI assistants", "Review connected assistant apps, their activity, and access."],
   demo: ["Demo control room", "Run the live demo: demo clock, demo day, accounts and the path through every role."],
   forecasts: ["Forecasts", "See order demand and fleet needs."],
+  models: ["Models", "Choose which trained model answers each prediction."],
   vehicles: ["Vehicles", "Review fleet by depot and day status."],
   depots: ["Operating depots", "Operational hub assignments connecting people, vehicle fleet capacity, and served retail outlets."],
   outlets: ["Retail outlets", "Receiving store destinations, unloading dock capabilities, and delivery time windows."],
@@ -129,6 +133,7 @@ export default function AccessDemo({ userId, displayName = "Administrator" }: { 
   const [toast, setToast] = useState("");
   const [pendingCreation, setPendingCreation] = useState<{ email: string; userId: string } | null>(null);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
+  const [photoMember, setPhotoMember] = useState<Member | null>(null);
   const [memberName, setMemberName] = useState("");
   const [memberEmail, setMemberEmail] = useState("");
   const [memberError, setMemberError] = useState("");
@@ -179,7 +184,7 @@ export default function AccessDemo({ userId, displayName = "Administrator" }: { 
     if (member?.source === "live" && member.rowVersion !== undefined) {
       setEditingMember(member); setMemberName(member.name); setMemberEmail(member.email); setMemberError(""); return;
     }
-    setToast("Permission editing is unavailable until policy attachments and versioned commands are exposed by the server.");
+    setToast("Permission editing is not available yet: policy attachments and versioned commands are still to come.");
   }
 
   async function saveMember() {
@@ -232,7 +237,7 @@ export default function AccessDemo({ userId, displayName = "Administrator" }: { 
     const targetName = draftMember?.name ?? labelFor(draft.id as Persona);
     const description = (choice: Decision, member: boolean) => choice === "inherit" ? member ? "Use persona access" : "Use published default" : choice === "allow" ? member ? "Allow for this member" : "Allow" : choice === "deny" ? member ? "Block for this member" : "Block" : "Do not grant";
 
-    setToast("Permission editing is unavailable until the server exposes a versioned policy command.");
+    setToast("Permission editing is not available yet: a versioned policy command is still to come.");
   }
 
   async function createMember(input: NewMember): Promise<string | null> {
@@ -531,6 +536,7 @@ export default function AccessDemo({ userId, displayName = "Administrator" }: { 
         />
       )}
       {route.tab === "forecasts" && <ForecastsScreen />}
+      {route.tab === "models" && <ModelsScreen />}
       {route.tab === "vehicles" && <VehiclesScreen state={state} />}
     </div></div>
   {details && <Modal title={details.capability.label} onClose={() => setDetails(null)}><div className="space-y-4 text-sm"><p>{details.capability.description}</p><div className="flex flex-wrap gap-2"><Badge tone={details.capability.implemented ? "green" : "amber"}>{details.capability.implemented ? "Catalogue entry" : "Unavailable"}</Badge><Badge>{details.capability.module}</Badge></div><p className="text-go-secondary">This catalogue entry does not establish effective access for a member or role.</p><details className="text-go-secondary"><summary className="cursor-pointer font-medium">Technical details</summary><code className="mt-2 block rounded-xl bg-go-subtle p-3">{details.capability.action}</code></details><button className={secondary} onClick={() => setDetails(null)}>Close</button></div></Modal>}
@@ -538,6 +544,8 @@ export default function AccessDemo({ userId, displayName = "Administrator" }: { 
   {editingMember && <Modal title={`Edit ${editingMember.name}`} onClose={() => setEditingMember(null)}><div className="space-y-4">
     <label className="block text-sm font-semibold">Full name<input className={`${field} mt-2`} value={memberName} maxLength={80} onChange={(event) => setMemberName(event.target.value)} /></label>
     <label className="block text-sm font-semibold">Email<input className={`${field} mt-2`} type="email" value={memberEmail} onChange={(event) => setMemberEmail(event.target.value)} /></label>
+    {/* Roadmap FF-07: a live account's photo, with consent on record. */}
+    {editingMember.rowVersion !== undefined && <button type="button" className={secondary} onClick={() => setPhotoMember(editingMember)}>Photo</button>}
     {memberError && <p role="alert" className="text-sm text-go-danger">{memberError}</p>}
     <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-go-subtle">
       {editingMember.active ? (
@@ -562,6 +570,7 @@ export default function AccessDemo({ userId, displayName = "Administrator" }: { 
       </div>
     </div>
   </div></Modal>}
+  {photoMember && <ProfilePhotoDialog userId={photoMember.id} name={photoMember.name} onClose={() => setPhotoMember(null)} />}
   {draft && <Modal title={draft.stage === "review" ? "Review access change" : draft.target === "member" ? "Member exception" : "Persona capability"} onClose={() => setDraft(null)} wide>
     {draft.stage === "edit" ? <div className="space-y-5"><div className="rounded-xl bg-go-subtle p-4 text-sm"><strong>{draftMember?.name ?? (draftPersona && labelFor(draftPersona))}</strong><p className="mt-1 text-go-secondary">{draft.target === "persona" ? `This shared choice applies to all ${assigned} assigned members, within their existing places.` : "This choice applies to one member within existing assigned places."}</p></div>
       <label className="block text-sm font-semibold">Capability<select className={`${field} mt-2`} value={draft.action} onChange={(event) => { const action = event.target.value; const ex = draftMember && activeException(state, draftMember.id, action); setDraft({ ...draft, action, choice: draftMember ? ex?.decision ?? "inherit" : personaChoice(state, draftPersona!, action), place: ex?.place ?? "", expires: ex?.expires ?? "" }); }}><option value="">Select a capability</option>{(draftMember ? editOptions : CAPABILITIES.filter((item) => item.implemented && item.relevant.includes(draftPersona!))).map((item) => <option key={item.action} value={item.action}>{item.module} · {item.label}</option>)}</select></label>

@@ -28,7 +28,10 @@ final class ExecutionViewMapper {
         r.deliveryId(), r.tripId(), r.sequence(), r.orderId(), r.outletId(), r.itemCount(), r.mallOutlet(),
         r.plannedArrival(), r.window().open(), r.window().close(), instant(row.get("expected_arrival")),
         r.startedAt(), r.arrivedAt(), r.completedAt(), r.waitMinutes(), r.lateMinutes(), r.outcome(), r.deliveredUnits(),
-        r.proofId().isPresent(), r.rowVersion(), lines(row), Optional.ofNullable((String) row.get("store_answer_waived")));
+        r.proofId().isPresent(), r.rowVersion(), lines(row), Optional.ofNullable((String) row.get("store_answer_waived")),
+        Optional.ofNullable((java.math.BigDecimal) row.get("expected_service_minutes")),
+        Optional.ofNullable((java.math.BigDecimal) row.get("expected_service_low")),
+        Optional.ofNullable((java.math.BigDecimal) row.get("expected_service_high")));
   }
 
   /** One sheet per vehicle, in the order the rows came: trips as they left, stops as planned. */
@@ -58,7 +61,9 @@ final class ExecutionViewMapper {
         ((Timestamp) row.get("server_recorded_at")).toInstant(), r.rowVersion(), lines(row),
         r.sequence(), Optional.ofNullable((Integer) row.get("trip_stop_count")), r.plannedArrival(),
         instant(row.get("expected_arrival")), ((Timestamp) row.get("released_at")).toInstant(),
-        r.startedAt(), Optional.empty());
+        r.startedAt(), Optional.empty(), Optional.ofNullable((java.math.BigDecimal) row.get("expected_service_minutes")),
+        Optional.ofNullable((java.math.BigDecimal) row.get("expected_service_low")),
+        Optional.ofNullable((java.math.BigDecimal) row.get("expected_service_high")));
   }
 
   /** The products of a record, read as one JSON array with the record so a run sheet stays one query. */

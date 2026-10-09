@@ -24,10 +24,19 @@ public final class ExecutionCommands {
   public static final String RECORD_POSITIONS = "delivery:RecordPositions";
   /** R-EXE-24: the driver is at the depot with the vehicle, ready for it to be loaded. */
   public static final String ARRIVE_AT_DEPOT = "delivery:ArriveAtDepot";
+  /** FF-06b: an administrator uploads a vehicle's official Fuel Pass QR, replacing the one before. */
+  public static final String SET_FUEL_PASS = "vehicle:SetFuelPass";
+  /** FF-06b: an administrator withdraws a vehicle's Fuel Pass QR, with a reason. */
+  public static final String REVOKE_FUEL_PASS = "vehicle:RevokeFuelPass";
+  /** FF-06b: the driver reads the Fuel Pass QR of the vehicle they drive today or tomorrow. */
+  public static final String READ_FUEL_PASS = "delivery:ReadFuelPass";
 
   public record StartStop(UUID deliveryId) {}
 
   public record ArriveAtDepot(String vehicleId) {}
+
+  /** Expected version: the pass's row version. */
+  public record RevokeFuelPass(String vehicleId, UUID passId, String reason) {}
 
   public record RecordArrival(UUID deliveryId, Optional<Instant> deviceArrivedAt) {}
 

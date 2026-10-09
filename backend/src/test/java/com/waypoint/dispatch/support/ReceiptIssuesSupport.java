@@ -135,7 +135,7 @@ public abstract class ReceiptIssuesSupport {
     loader = person("rlo-" + run, "loader", Optional.of(depot), Optional.empty());
   }
 
-  private Person person(String prefix, String role, Optional<String> depotScope, Optional<String> outletScope) {
+  protected Person person(String prefix, String role, Optional<String> depotScope, Optional<String> outletScope) {
     String email = prefix + "@receipt-issues.test";
     UUID id = accounts.createAccount(email, prefix, PASSWORD, role);
     depotScope.ifPresent(d -> accounts.grantDepot(email, d));

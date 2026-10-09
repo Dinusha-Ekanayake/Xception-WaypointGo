@@ -3,7 +3,9 @@
 import { useRef } from "react";
 import { request } from "@shared/api/client";
 import { useResource } from "@shared/api/useResource";
-import type { ThreadView } from "@shared/domain/types";
+import type { DecisionView, ReplyRankingView, RunSheetView, ThreadView } from "@shared/domain/types";
+import { rankReplies, replies } from "@shared/messaging/templates";
+import { rankingNote } from "./data/replyRanking.ts";
 import { TripThread, useOverlay } from "@shared/ui";
 import { dayLabel } from "@shared/wording";
 import { useDispatcherInbox, type OpenThread } from "./inbox.tsx";
@@ -38,6 +40,38 @@ function ThreadSheetPanel({
     `thread-head|${threadId}`,
   );
   const head = thread.data && thread.data.threadId === open.threadId ? thread.data : null;
+  // FF-08: the trip's state, for the ready replies: its run sheet and the stores' answers today.
+  const date = head?.serviceDate ?? null;
+  const sheets = useResource(
+    date ? (signal: AbortSignal) => request<RunSheetView[]>(`/api/execution/run-sheets?date=${encodeURIComponent(date)}`, { signal }) : null,
+    `thread-sheets|${date}`,
+    30_000,
+  );
+  const answers = useResource(
+    date ? (signal: AbortSignal) => request<DecisionView[]>(`/api/issues/decisions?date=${encodeURIComponent(date)}`, { signal }) : null,
+    `thread-decisions|${date}`,
+    30_000,
+  );
+  // AI-J5: the order learned from which replies dispatchers take; the rules' order until there is enough.
+  const ranking = useResource(
+    (signal: AbortSignal) => request<ReplyRankingView>("/api/ml/reply-ranking", { signal }),
+    "reply-ranking",
+    30 * 60_000,
+  );
+  // One roll per open sheet, so the order does not change under the dispatcher's finger.
+  const roll = useRef(Math.random());
+  const sheet = (sheets.data ?? []).find((s) => s.vehicleId === head?.vehicleId) ?? null;
+  const tripStops = sheet && head ? sheet.stops.filter((s) => s.tripId === head.subjectId) : [];
+  const ready =
+    head && date && tripStops.length > 0
+      ? replies({
+          stops: tripStops,
+          decisions: (answers.data ?? []).filter((d) => d.tripId === head.subjectId),
+          channelOpen: head.channelOpen,
+          serviceDate: date,
+        })
+      : [];
+  const ordered = rankReplies(ready, ranking.data ?? null, roll.current);
 
   return (
     <div data-closing={closing || undefined} className="go-overlay fixed inset-0 z-50 flex justify-end" role="presentation">
@@ -76,6 +110,7 @@ function ThreadSheetPanel({
           variant="desk"
           focusMessageId={open.messageId ?? null}
           {...(open.draft ? { draft: open.draft } : {})}
+          {...(ordered.length > 0 ? { replies: ordered, repliesNote: rankingNote(ranking.data ?? null, ranking.error != null) } : {})}
         />
       </section>
     </div>

@@ -4,12 +4,12 @@ import { useEffect, useState } from "react";
 import { type ApiError, friendlyError } from "@shared/api/problem";
 import type { DeliveryRecordView, IssueView, OrderStatus, OrderView, OutletView, PendingReceiptView } from "@shared/domain/types";
 import { Icon, Notice, SkeletonRows, cx } from "@shared/ui";
-import { units, addDays, clock, dayLabel, depotToday, editable, greeting, hhmm, onTheWay, temperatureLabel, untilCutoff } from "../data/format.ts";
+import { addDays, clock, dayLabel, depotToday, editable, greeting, hhmm, onTheWay, temperatureLabel, untilCutoff } from "../data/format.ts";
 import { isOpenIssue, issueCard, loaderShortUnits } from "../data/issues.ts";
 import { aheadLabel, nextDelivery } from "../data/nextDelivery.ts";
 import NextStop from "./NextStop.tsx";
 import { Button, Card, Chip, Muted } from "../ui.tsx";
-import { cutoffWords, useT } from "../i18n.tsx";
+import { cutoffWords, useT, useCounts } from "../i18n.tsx";
 
 // Figma "02 Home": the next delivery, what needs attention, and tomorrow's order
 // against the 16:00 cutoff. ETA before a plan is published is the outlet's
@@ -27,7 +27,7 @@ export function Progress({ status }: { status: OrderStatus }): React.JSX.Element
   return (
     <ol className="flex w-full" aria-label={t("Delivery progress")}>
       {STEPS.map((step, i) => (
-        <li key={step} className="relative flex flex-1 flex-col items-center gap-1" aria-current={i === done ? "step" : undefined}>
+        <li key={step} className="relative flex min-w-0 flex-1 flex-col items-center gap-1" aria-current={i === done ? "step" : undefined}>
           {i > 0 && <span aria-hidden className={cx("absolute top-3 left-[calc(-50%+13px)] h-0.5 w-[calc(100%-26px)] transition-colors duration-[250ms]", i <= done ? "bg-go-success" : "bg-[#dfe7e6]")} />}
           <span
             className={cx(
@@ -37,7 +37,7 @@ export function Progress({ status }: { status: OrderStatus }): React.JSX.Element
           >
             {i < done && <Icon name="check-white" />}
           </span>
-          <span className={cx("text-[12px] font-medium", i < done || (i === done && underWay) ? "text-black" : "text-[#a9a9a9]")}>{t(step)}</span>
+          <span className={cx("w-full text-center text-[12px] leading-tight font-medium [overflow-wrap:anywhere] [:lang(ta)_&]:text-[10px]", i < done || (i === done && underWay) ? "text-black" : "text-[#a9a9a9]")}>{t(step)}</span>
         </li>
       ))}
     </ol>
@@ -59,6 +59,7 @@ export default function Home({
   onReceive,
   onTrack,
   onRetry,
+  questions,
 }: {
   orders: OrderView[];
   loading: boolean;
@@ -77,7 +78,10 @@ export default function Home({
   onTrack: () => void;
   /** Read the orders again after a failure. */
   onRetry?: () => void;
+  /** FF-09: the dispatcher's questions, first under the greeting. */
+  questions?: React.ReactNode;
 }): React.JSX.Element {
+  const { units } = useCounts();
   const t = useT();
   const [left, setLeft] = useState(() => untilCutoff());
   useEffect(() => {
@@ -107,12 +111,14 @@ export default function Home({
       </div>
 
       <div className="flex min-w-0 flex-col gap-5">
+        {questions}
         {error && <Notice tone="danger" title={t("Could not load your orders")} onRetry={onRetry}>{friendlyError(error)}</Notice>}
 
         {/* Moves into Track's first card when the delivery is tracked (shared element, UX polish 4). */}
         <Card label={t("Next delivery")} style={{ viewTransitionName: "vt-delivery" }}>
-          <div className="flex items-center gap-1.5">
-            <p className="flex-1 text-[13px] font-light text-go-muted">
+          {/* The chips wrap under the label when a language needs the room, never squeezing it to one letter a line. */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <p className="min-w-[6.5rem] flex-1 text-[13px] font-light text-go-muted">
               {next_
                 ? next_.when === "today"
                   ? t("Next delivery · {position} of {total} today", { position: next_.position, total: next_.ofDay })
@@ -140,8 +146,12 @@ export default function Home({
                   </span>
                   <span className="text-[20px] font-medium text-black">
                     {loaderShortUnits(shortage) > 0
-                      ? `${units(loaderShortUnits(shortage))} short - ${Math.max(0, coming.itemCount - loaderShortUnits(shortage))} of ${coming.itemCount} coming`
-                      : issueCard(shortage, coming, clock).title}
+                      ? t("{units} short - {coming} of {total} coming", {
+                          units: units(loaderShortUnits(shortage)),
+                          coming: Math.max(0, coming.itemCount - loaderShortUnits(shortage)),
+                          total: coming.itemCount,
+                        })
+                      : issueCard(shortage, coming, clock, t).title}
                   </span>
                   <span className="text-[13px] text-go-secondary">{t("Reported at loading · comes next delivery")}</span>
                 </button>

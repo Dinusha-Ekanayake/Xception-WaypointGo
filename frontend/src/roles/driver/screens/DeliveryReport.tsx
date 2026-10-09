@@ -5,6 +5,7 @@ import { FailureReasons, type FailureReason, type OutletView } from "@shared/dom
 import { canDeliver, clock, missing, type RecordDraft, type Stop } from "../data/run.ts";
 import { ActionButton, Banner, Field, OutlineButton, Panel, PinnedAction, input } from "../ui.tsx";
 import ProofCapture, { EMPTY_PROOF, proofMissing, type ProofDraft } from "./ProofCapture.tsx";
+import { useT } from "../i18n.tsx";
 
 // Figma "Delivery report": expected against delivered, then confirm. In the
 // design the store confirms the count on the driver's phone with a PIN; the
@@ -12,7 +13,8 @@ import ProofCapture, { EMPTY_PROOF, proofMissing, type ProofDraft } from "./Proo
 // confirms separately in its own screens (R-RCP-07), so neither record
 // overwrites the other.
 
-const REASON_LABEL: Record<FailureReason, string> = {
+/** Drawn translated; tests/driver-strings.test.ts checks each has its row. */
+export const REASON_LABEL: Record<FailureReason, string> = {
   outlet_closed: "No one at the outlet",
   refused: "The outlet refused the goods",
   mall_window_closed: "The mall's delivery window has closed",
@@ -45,6 +47,7 @@ export default function DeliveryReport({
   error: string | null;
   onConfirm: (report: Report) => void;
 }): React.JSX.Element {
+  const t = useT();
   const deliverable = stop.outcome === "ARRIVED" && canDeliver(stop);
   // Not delivered is the driver's choice, or the only outcome a stop not reached (or a late mall) can take.
   const [choseFailed, setChoseFailed] = useState(startFailed !== null);
@@ -74,65 +77,68 @@ export default function DeliveryReport({
   // partial range) has no single field and stays in the banner below.
   const REASON_GAPS = ["Choose why the delivery could not be made.", "Say why the delivery was partial.", "This stop is late. Say why."];
   const NOTE_GAPS = ["Say what happened to the goods.", "Say what happened to the units not delivered."];
-  const reasonError = problem && REASON_GAPS.includes(problem) ? problem : undefined;
-  const noteError = problem && NOTE_GAPS.includes(problem) ? problem : undefined;
-  const bannerProblem = problem && !reasonError && !noteError ? problem : null;
+  // The gaps are compared in English and drawn in the driver's language.
+  const reasonError = problem && REASON_GAPS.includes(problem) ? t(problem) : undefined;
+  const noteError = problem && NOTE_GAPS.includes(problem) ? t(problem) : undefined;
+  const bannerProblem = problem && !reasonError && !noteError ? t(problem) : null;
 
   return (
     <div className="flex flex-col gap-4 px-5 pb-8 pt-2">
       <div>
         <p className="text-[15px] text-go-ink">
-          Stop {String(stop.sequence).padStart(2, "0")} of {String(total).padStart(2, "0")} · Delivery report
+          {t("Stop {n} of {total} · Delivery report", { n: String(stop.sequence).padStart(2, "0"), total: String(total).padStart(2, "0") })}
         </p>
         <h1 className="mt-2 text-[40px] font-medium leading-[1.05] text-go-ink">{stop.outletId}</h1>
         {outlet && <p className="mt-1 text-[15px] text-go-muted">{outlet.districtName} · {outlet.brandCode}</p>}
       </div>
 
       {stop.outcome === "ARRIVED" && waited > 0 && (
-        <Banner tone="neutral" title={`Arrived ${waited} min before the window opens at ${clock(stop.windowOpen)}`}>
-          Wait for the window. The wait is recorded separately from the delivery.
+        <Banner tone="neutral" title={t("Arrived {n} min before the window opens at {time}", { n: waited, time: clock(stop.windowOpen) })}>
+          {t("Wait for the window. The wait is recorded separately from the delivery.")}
         </Banner>
       )}
       {late > 0 && (
-        <Banner tone={stop.mallOutlet ? "bad" : "warn"} title={`Arrived ${late} min after the window closed at ${clock(stop.windowClose)}`}>
-          {stop.mallOutlet
-            ? "A mall takes no deliveries outside its window. Record this stop as not delivered."
-            : timingUncertain
-              ? "The time will be confirmed when this phone is back online."
-              : "The goods are still delivered. Say why the stop was late."}
+        <Banner tone={stop.mallOutlet ? "bad" : "warn"} title={t("Arrived {n} min after the window closed at {time}", { n: late, time: clock(stop.windowClose) })}>
+          {t(
+            stop.mallOutlet
+              ? "A mall takes no deliveries outside its window. Record this stop as not delivered."
+              : timingUncertain
+                ? "The time will be confirmed when this phone is back online."
+                : "The goods are still delivered. Say why the stop was late.",
+          )}
         </Banner>
       )}
 
       {!failed && (
-        <Panel label="Units">
+        <Panel label={t("Units")}>
           <div className="grid grid-cols-2 divide-x divide-go-rule text-center">
             <div className="px-2">
-              <p className="text-[22px] font-medium text-go-ink">Expected</p>
+              <p className="text-[22px] font-medium text-go-ink">{t("Expected")}</p>
               <p className="text-[44px] font-semibold leading-tight tabular-nums text-go-ink">
-                {stop.itemCount} <span className="text-[14px] font-normal">units</span>
+                {stop.itemCount} <span className="text-[14px] font-normal">{t("units")}</span>
               </p>
             </div>
             <div className="px-2">
-              <p className="text-[22px] font-medium text-go-ink">Delivered</p>
+              <p className="text-[22px] font-medium text-go-ink">{t("Delivered")}</p>
               <p className="text-[44px] font-semibold leading-tight tabular-nums text-go-ink" aria-live="polite">
-                {units} <span className="text-[14px] font-normal">units</span>
+                {units} <span className="text-[14px] font-normal">{t("units")}</span>
               </p>
             </div>
           </div>
           <div className="mt-4 flex items-center gap-3">
             <button
               type="button"
-              aria-label="One unit fewer delivered"
+              aria-label={t("One unit fewer delivered")}
               disabled={units <= 1}
               onClick={() => setUnits((n) => Math.max(1, n - 1))}
               className="flex size-14 items-center justify-center rounded-full bg-go-surface text-[28px] text-go-ink disabled:opacity-40"
             >
               −
             </button>
-            <p className="flex-1 text-center text-[14px] text-go-muted">Change only if some units were not handed over.</p>
+            <p className="flex-1 text-center text-[14px] text-go-muted">{t("Change only if some units were not handed over.")}</p>
             <button
               type="button"
-              aria-label="One unit more delivered"
+              aria-label={t("One unit more delivered")}
               disabled={units >= stop.itemCount}
               onClick={() => setUnits((n) => Math.min(stop.itemCount, n + 1))}
               className="flex size-14 items-center justify-center rounded-full bg-go-surface text-[28px] text-go-ink disabled:opacity-40"
@@ -144,8 +150,8 @@ export default function DeliveryReport({
       )}
 
       {failed && (
-        <Panel label="Not delivered">
-          <Field label="Why could it not be delivered?" error={reasonError} errorId="reason-error">
+        <Panel label={t("Not delivered")}>
+          <Field label={t("Why could it not be delivered?")} error={reasonError} errorId="reason-error">
             <select
               className={input}
               value={reason}
@@ -154,11 +160,11 @@ export default function DeliveryReport({
               aria-describedby={reasonError ? "reason-error" : undefined}
             >
               <option value="" disabled>
-                Choose a reason
+                {t("Choose a reason")}
               </option>
               {FailureReasons.map((code) => (
                 <option key={code} value={code}>
-                  {REASON_LABEL[code]}
+                  {t(REASON_LABEL[code])}
                 </option>
               ))}
             </select>
@@ -167,10 +173,10 @@ export default function DeliveryReport({
       )}
 
       {(failed || outcome === "PARTIAL" || (late > 0 && !timingUncertain)) && (
-        <Panel label="Details">
+        <Panel label={t("Details")}>
           <div className="flex flex-col gap-4">
             {!failed && (
-              <Field label={outcome === "PARTIAL" ? "Why were some units not delivered?" : "Why was the stop late?"} error={reasonError} errorId="reason-error">
+              <Field label={t(outcome === "PARTIAL" ? "Why were some units not delivered?" : "Why was the stop late?")} error={reasonError} errorId="reason-error">
                 <input
                   className={input}
                   value={reason}
@@ -182,12 +188,17 @@ export default function DeliveryReport({
               </Field>
             )}
             {(failed || outcome === "PARTIAL") && (
-              <Field label="What happened to the goods not delivered?" hint="There is no returns process. This note is the record." error={noteError} errorId="note-error">
+              <Field
+                label={t("What happened to the goods not delivered?")}
+                hint={t("There is no returns process. This note is the record.")}
+                error={noteError}
+                errorId="note-error"
+              >
                 <input
                   className={input}
                   value={note}
                   maxLength={500}
-                  placeholder="For example: kept on the vehicle, returning to the depot"
+                  placeholder={t("For example: kept on the vehicle, returning to the depot")}
                   onChange={(event) => setNote(event.target.value)}
                   aria-invalid={noteError ? true : undefined}
                   aria-describedby={noteError ? "note-error" : undefined}
@@ -199,8 +210,8 @@ export default function DeliveryReport({
       )}
 
       {stop.outcome === "ARRIVED" && (
-        <Panel label="Proof of delivery">
-          <h2 className="mb-4 text-[19px] font-medium text-go-ink">{failed ? "Evidence (optional)" : "Proof of delivery"}</h2>
+        <Panel label={t("Proof of delivery")}>
+          <h2 className="mb-4 text-[19px] font-medium text-go-ink">{t(failed ? "Evidence (optional)" : "Proof of delivery")}</h2>
           <ProofCapture proof={proof} onChange={setProof} />
         </Panel>
       )}
@@ -209,7 +220,7 @@ export default function DeliveryReport({
 
       <PinnedAction on="canvas">
         <ActionButton busy={busy} onClick={confirm}>
-          {busy ? "Sending…" : failed ? "Record as not delivered" : "Confirm"}
+          {t(busy ? "Sending…" : failed ? "Record as not delivered" : "Confirm")}
         </ActionButton>
       </PinnedAction>
       {deliverable && (
@@ -220,7 +231,7 @@ export default function DeliveryReport({
             setProblem(null);
           }}
         >
-          {failed ? "Back to the delivery" : "Could not deliver"}
+          {t(failed ? "Back to the delivery" : "Could not deliver")}
         </OutlineButton>
       )}
     </div>

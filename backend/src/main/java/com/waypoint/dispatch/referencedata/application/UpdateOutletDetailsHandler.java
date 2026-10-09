@@ -13,7 +13,6 @@ import com.waypoint.dispatch.referencedata.contract.ReferenceQuery;
 import com.waypoint.dispatch.referencedata.domain.DeliveryWindow;
 import com.waypoint.dispatch.referencedata.domain.Outlet;
 import com.waypoint.dispatch.referencedata.domain.OutletDetails;
-import com.waypoint.dispatch.referencedata.infrastructure.ReferenceCache;
 import com.waypoint.dispatch.referencedata.infrastructure.ReferenceVersionReader;
 import com.waypoint.dispatch.shared.domain.Actor;
 import com.waypoint.dispatch.shared.error.DomainException;
@@ -46,7 +45,7 @@ public class UpdateOutletDetailsHandler implements CommandHandler {
   private final Database database;
   private final ReferenceQuery reference;
   private final ReferenceVersionReader reader;
-  private final ReferenceCache cache;
+  private final ReferenceBootstrap bootstrap;
   private final ReferenceScope scope;
   private final AuditLog audit;
   private final Metrics metrics;
@@ -55,14 +54,14 @@ public class UpdateOutletDetailsHandler implements CommandHandler {
       Database database,
       ReferenceQuery reference,
       ReferenceVersionReader reader,
-      ReferenceCache cache,
+      ReferenceBootstrap bootstrap,
       ReferenceScope scope,
       AuditLog audit,
       Metrics metrics) {
     this.database = database;
     this.reference = reference;
     this.reader = reader;
-    this.cache = cache;
+    this.bootstrap = bootstrap;
     this.scope = scope;
     this.audit = audit;
     this.metrics = metrics;
@@ -174,9 +173,12 @@ public class UpdateOutletDetailsHandler implements CommandHandler {
     was.put("dockType", before.dockType().code());
     AuditContext.before(was);
 
-    // Reference is read from memory, so the snapshot is rebuilt for the change to
-    // be seen at all, inside this transaction as the calendar override does.
-    cache.loadedVersionId().flatMap(reader::load).ifPresent(cache::publish);
+    // F-10: reference is read from memory, so the edit bumps the generation in
+    // this transaction and the snapshot is rebuilt once it commits: here at once,
+    // on every other process within the bootstrap's check, never ahead of the
+    // database. Planning keys its cache on the generation too.
+    reader.bumpGeneration();
+    bootstrap.reloadAfterCommit();
 
     Outlet after = next.applyTo(published);
     boolean windowChanged = !after.window().equals(before.window());

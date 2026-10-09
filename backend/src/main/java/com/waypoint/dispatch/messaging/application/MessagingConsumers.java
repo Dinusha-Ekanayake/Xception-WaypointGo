@@ -1,8 +1,12 @@
 package com.waypoint.dispatch.messaging.application;
 
+import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryCompleted;
+import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryFailed;
+import com.waypoint.dispatch.execution.contract.ExecutionEvents.DeliveryStarted;
 import com.waypoint.dispatch.execution.contract.ExecutionQuery;
 import com.waypoint.dispatch.execution.contract.ExecutionViews.DeliveryRecordView;
 import com.waypoint.dispatch.identity.contract.IdentityQuery;
+import com.waypoint.dispatch.issues.contract.IssueEvents.DecisionAnswered;
 import com.waypoint.dispatch.issues.contract.IssueEvents.IssueRaised;
 import com.waypoint.dispatch.issues.contract.IssueEvents.IssueResolved;
 import com.waypoint.dispatch.issues.contract.IssueQuery;
@@ -26,8 +30,11 @@ import com.waypoint.dispatch.shared.util.UuidV7;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
 
@@ -43,6 +50,9 @@ import org.springframework.stereotype.Component;
  *       missing units. It is posted on its trip's thread for the dispatcher alone
  *       (R-MSG-03), once per event. It publishes nothing: the issue already told
  *       the dispatcher, and nobody hears the same thing twice (R-MSG-05).
+ *   <li>The driver's first start on a trip, after loading, opens its channel (R-MSG-08).
+ *   <li>A delivered or failed order finishes its store's part of the trip; once
+ *       all its orders are done the store's channel goes read only (R-MSG-08).
  * </ul>
  */
 final class MessagingConsumers {
@@ -60,6 +70,9 @@ final class MessagingConsumers {
           now)) {
         metrics.increment("waypoint.message.thread_opened", "subject", "trip");
       }
+      Map<String, List<UUID>> orders = new TreeMap<>();
+      trip.stops().forEach(s -> orders.computeIfAbsent(s.outletId(), k -> new ArrayList<>()).add(s.orderId()));
+      threads.joinChannel(trip.tripId().toString(), orders, now);
     }
   }
 
@@ -130,6 +143,162 @@ final class MessagingConsumers {
     public void on(EventEnvelope<PlanRevised> envelope) {
       PlanRevised e = envelope.payload();
       openTrips(threads, clock, random, e.depotCode(), e.serviceDate(), e.trips(), metrics);
+    }
+  }
+
+  /**
+   * FF-09: a store said Yes; the driver is told on the trip's thread, written by
+   * the system from the answer, so nobody types the store or the time. A No is
+   * the dispatcher's to act on. Once per event: the event id is kept on the
+   * message. The driver's bell is rung by Notification from the same event.
+   */
+  @Component
+  static class OnDecisionAnswered implements EventSubscriber<DecisionAnswered> {
+    private final JdbcThreadRepository threads;
+    private final Clock clock;
+    private final Metrics metrics;
+    private final SecureRandom random = new SecureRandom();
+
+    OnDecisionAnswered(JdbcThreadRepository threads, Clock clock, Metrics metrics) {
+      this.threads = threads;
+      this.clock = clock;
+      this.metrics = metrics;
+    }
+
+    @Override
+    public String consumerName() {
+      return "messaging.on-decision-answered";
+    }
+
+    @Override
+    public Class<DecisionAnswered> eventType() {
+      return DecisionAnswered.class;
+    }
+
+    @Override
+    public ModuleRole moduleRole() {
+      return ModuleRole.MESSAGING;
+    }
+
+    @Override
+    public void on(EventEnvelope<DecisionAnswered> envelope) {
+      DecisionAnswered e = envelope.payload();
+      if (!"yes".equals(e.answer())) {
+        return;
+      }
+      Optional<Thread> thread = threads.bySubject("trip", e.tripId().toString());
+      if (thread.isEmpty()) {
+        return;
+      }
+      String body = e.driverNote();
+      Instant now = clock.now();
+      UUID messageId = UuidV7.generate(now, random);
+      boolean posted =
+          threads.insert(
+              messageId, thread.get().threadId(), Actor.SYSTEM_ID, Role.DISPATCHER.code(), "message", Optional.empty(),
+              "driver", Optional.empty(), body, Optional.empty(), Optional.empty(), Optional.of(envelope.eventId()),
+              Optional.empty(), Optional.empty(), Optional.empty(), now);
+      if (posted) {
+        metrics.increment("waypoint.message.decision_told", "kind", e.kind());
+      }
+    }
+  }
+
+  /** R-MSG-08: the driver started the trip, after loading: its channel opens. Later starts change nothing. */
+  @Component
+  static class OnDeliveryStarted implements EventSubscriber<DeliveryStarted> {
+    private final JdbcThreadRepository threads;
+    private final Clock clock;
+
+    OnDeliveryStarted(JdbcThreadRepository threads, Clock clock) {
+      this.threads = threads;
+      this.clock = clock;
+    }
+
+    @Override
+    public String consumerName() {
+      return "messaging.on-delivery-started";
+    }
+
+    @Override
+    public Class<DeliveryStarted> eventType() {
+      return DeliveryStarted.class;
+    }
+
+    @Override
+    public ModuleRole moduleRole() {
+      return ModuleRole.MESSAGING;
+    }
+
+    @Override
+    public void on(EventEnvelope<DeliveryStarted> envelope) {
+      threads.openChannel(envelope.payload().tripId().toString(), clock.now());
+    }
+  }
+
+  /** R-MSG-08: a delivered order is done for the trip's channel. */
+  @Component
+  static class OnDeliveryCompleted implements EventSubscriber<DeliveryCompleted> {
+    private final JdbcThreadRepository threads;
+    private final Clock clock;
+
+    OnDeliveryCompleted(JdbcThreadRepository threads, Clock clock) {
+      this.threads = threads;
+      this.clock = clock;
+    }
+
+    @Override
+    public String consumerName() {
+      return "messaging.on-delivery-completed";
+    }
+
+    @Override
+    public Class<DeliveryCompleted> eventType() {
+      return DeliveryCompleted.class;
+    }
+
+    @Override
+    public ModuleRole moduleRole() {
+      return ModuleRole.MESSAGING;
+    }
+
+    @Override
+    public void on(EventEnvelope<DeliveryCompleted> envelope) {
+      DeliveryCompleted e = envelope.payload();
+      threads.orderDone(e.tripId().toString(), e.outletId(), e.orderId(), clock.now());
+    }
+  }
+
+  /** R-MSG-08: a failed order is done for the trip's channel too: nothing more is coming on this trip. */
+  @Component
+  static class OnDeliveryFailed implements EventSubscriber<DeliveryFailed> {
+    private final JdbcThreadRepository threads;
+    private final Clock clock;
+
+    OnDeliveryFailed(JdbcThreadRepository threads, Clock clock) {
+      this.threads = threads;
+      this.clock = clock;
+    }
+
+    @Override
+    public String consumerName() {
+      return "messaging.on-delivery-failed";
+    }
+
+    @Override
+    public Class<DeliveryFailed> eventType() {
+      return DeliveryFailed.class;
+    }
+
+    @Override
+    public ModuleRole moduleRole() {
+      return ModuleRole.MESSAGING;
+    }
+
+    @Override
+    public void on(EventEnvelope<DeliveryFailed> envelope) {
+      DeliveryFailed e = envelope.payload();
+      threads.orderDone(e.tripId().toString(), e.outletId(), e.orderId(), clock.now());
     }
   }
 

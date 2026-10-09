@@ -24,6 +24,13 @@ public interface ReferenceQuery {
   /** The version a plan should stamp when it is built. */
   Optional<UUID> currentVersionId();
 
+  /**
+   * Counts in-place edits of the current version, such as an outlet's window or a
+   * calendar override (F-10). A version id alone does not change with them, so a
+   * cache of reference answers keys on this as well and is refreshed when it moves.
+   */
+  long generation();
+
   /** A depot in the requested snapshot; historical snapshots may have no location. */
   Optional<ReferenceViews.DepotView> depot(String code, UUID versionId);
 
@@ -72,6 +79,9 @@ public interface ReferenceQuery {
    * known disruption: the supplied series ends, and nothing forecasts it.
    */
   List<RoadConditionView> roadConditions(LocalDate from, LocalDate to);
+
+  /** The last day any district's road conditions are known; empty when none were supplied (MF-07). */
+  java.util.Optional<LocalDate> roadConditionsUntil();
 
   /** The depots of the current version, sorted. */
   List<String> depotCodes();

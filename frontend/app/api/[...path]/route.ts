@@ -19,6 +19,8 @@ const FORWARD_REQUEST = [
   // Media plays and seeks through byte ranges (Safari needs them to replay a voice note).
   "range",
   "if-range",
+  // F-07: a polled read the browser holds is asked about again; an unchanged one comes back 304.
+  "if-none-match",
   "user-agent",
   "traceparent",
   "tracestate",
@@ -27,7 +29,7 @@ const FORWARD_REQUEST = [
 
 // Response headers a client acts on. Everything else stays on this side.
 /** Long-lived responses: tied to the browser's connection instead of the 25 second limit. */
-const STREAMS = new Set(["/api/notifications/stream", "/api/execution/positions/stream"]);
+const STREAMS = new Set(["/api/notifications/stream", "/api/execution/positions/stream", "/api/changes/stream"]);
 
 const FORWARD_RESPONSE = [
   "content-type",
@@ -41,7 +43,18 @@ const FORWARD_RESPONSE = [
   "retry-after",
   "www-authenticate",
   "x-correlation-id",
+  // F-07: the backend decides what may be revalidated (CacheablePaths); sign-out clears it.
+  "etag",
+  "cache-control",
+  "clear-site-data",
 ];
+
+// The sample session and data below are for development only, never a
+// production build (the same rule as the loader's sample data, D-D). Without
+// this guard, a production backend that was down answered every visitor with a
+// signed-in session holding every role and depot: deny by default broken, and
+// an outage dressed up as a working screen (architecture rule 9).
+const MOCKS_ALLOWED = process.env.NODE_ENV !== "production";
 
 function mockFallback(request: NextRequest, path: string): Response | null {
   const json = (data: unknown, status = 200) =>
@@ -150,16 +163,17 @@ async function proxy(request: NextRequest): Promise<Response> {
     } as RequestInit);
 
     // If backend is unreachable or returns 404/502/503 for session, fall back to standalone mock in dev mode
-    if (!response.ok && (response.status === 404 || response.status >= 500) && (process.env.NEXT_PUBLIC_LOADER_FIXTURES === "1" || process.env.NODE_ENV !== "production")) {
+    if (!response.ok && (response.status === 404 || response.status >= 500) && MOCKS_ALLOWED) {
       const fallback = mockFallback(request, path);
       if (fallback) return fallback;
     }
   } catch {
-    const fallback = mockFallback(request, path);
+    const fallback = MOCKS_ALLOWED ? mockFallback(request, path) : null;
     if (fallback) return fallback;
     return problem(503, "DEPENDENCY_UNAVAILABLE", "Service unavailable", "Backend unavailable. Saved commands can be retried.", path);
   }
 
+  // No-store unless the backend said otherwise for a read it tagged (F-07).
   const outgoing = new Headers({ "Cache-Control": "no-store" });
   for (const name of FORWARD_RESPONSE) {
     const value = response.headers.get(name);
@@ -172,7 +186,8 @@ async function proxy(request: NextRequest): Promise<Response> {
   // get("set-cookie") joins several cookies into one comma-separated header,
   // which the browser then reads as one broken cookie. Forward each one.
   for (const cookie of response.headers.getSetCookie()) outgoing.append("set-cookie", cookie);
-  return new Response(response.body, { status: response.status, headers: outgoing });
+  // A 304 carries no body, and a Response with one refuses to build.
+  return new Response(response.status === 304 ? null : response.body, { status: response.status, headers: outgoing });
 }
 // Every write is a POST to /api/commands today. The other methods are forwarded
 // so that what the browser can reach and what curl can reach against the backend

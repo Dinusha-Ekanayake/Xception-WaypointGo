@@ -105,7 +105,7 @@ export default function SignIn({
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[480px] bg-cover bg-[position:72%_top] md:bottom-0 md:h-auto md:bg-bottom"
-        style={{ backgroundImage: `url(/assets/signin_skyline_${dark ? "dark" : "light"}.png)` }}
+        style={{ backgroundImage: `url(/assets/signin_skyline_${dark ? "dark" : "light"}.webp)` }}
       >
         <div className="absolute inset-0 bg-linear-to-b from-go-canvas/25 via-go-canvas/45 via-45% to-go-canvas to-92% md:from-go-canvas md:from-0% md:via-go-canvas/75 md:via-50% md:to-transparent md:to-100%" />
       </div>

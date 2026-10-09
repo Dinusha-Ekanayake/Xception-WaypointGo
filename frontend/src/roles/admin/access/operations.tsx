@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge, Empty, VehicleTypeIcon, card, field, primary, secondary } from "./components";
 import { todayInColombo, type DemoState } from "./model";
+import { FuelPassDialog } from "./FuelPassDialog";
 import { createAdminVehicle, fetchAdminVehicles, fetchAdminDepots, updateAdminVehicle, submitSetVehicleDayStatus } from "../data/reference";
 import {
   fetchAccounts,
@@ -80,6 +81,7 @@ export function VehiclesScreen({ state }: { state?: DemoState } = {}) {
   const [newVehicleEfficiency, setNewVehicleEfficiency] = useState("11.2");
 
   const [statusModalVehicle, setStatusModalVehicle] = useState<Vehicle | null>(null);
+  const [fuelPassVehicle, setFuelPassVehicle] = useState<string | null>(null);
   const [statusChoice, setStatusChoice] = useState<"available" | "in_workshop" | "unavailable">("available");
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [statusError, setStatusError] = useState("");
@@ -674,6 +676,13 @@ export function VehiclesScreen({ state }: { state?: DemoState } = {}) {
                         >
                           {item.lastDriver ? "Change driver" : "Assign driver"}
                         </button>
+                        <button
+                          type="button"
+                          className={`${secondary} min-h-8 px-3 text-xs`}
+                          onClick={() => setFuelPassVehicle(item.id)}
+                        >
+                          Fuel Pass
+                        </button>
                         <span className="text-xs text-go-secondary ml-1">
                           Depot base: <strong className="font-semibold text-go-ink">{item.depot}</strong>
                         </span>
@@ -764,6 +773,13 @@ export function VehiclesScreen({ state }: { state?: DemoState } = {}) {
                         onClick={() => openStatusModal(item)}
                       >
                         Change status
+                      </button>
+                      <button
+                        type="button"
+                        className={`${secondary} text-xs`}
+                        onClick={() => setFuelPassVehicle(item.id)}
+                      >
+                        Fuel Pass
                       </button>
                       <button
                         type="button"
@@ -1119,6 +1135,8 @@ export function VehiclesScreen({ state }: { state?: DemoState } = {}) {
           </div>
         </div>
       )}
+
+      {fuelPassVehicle && <FuelPassDialog vehicleId={fuelPassVehicle} onClose={() => setFuelPassVehicle(null)} />}
 
       {/* Set Vehicle Day Status Modal */}
       {statusModalVehicle && (

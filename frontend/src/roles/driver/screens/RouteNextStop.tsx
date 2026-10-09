@@ -2,8 +2,11 @@
 
 import { useState, useEffect, useRef } from "react";
 import { cx, useScrollMemory } from "@shared/ui";
+import { ScrollRevealCard, useRubberBandScroll } from "@shared/ui/scrollReveal";
 import type { RouteStop } from "../data/stopView.ts";
 import { SlideToConfirm } from "../ui.tsx";
+import { useT } from "../i18n.tsx";
+import type { Translate } from "../data/strings.ts";
 
 export type RouteNextStopProps = {
   /** Whether this phone is in step with the server, in words. */
@@ -26,319 +29,20 @@ export type RouteNextStopProps = {
 
 const MOVING = { viewTransitionName: "vt-stop" };
 
-/**
- * Apple UIScrollView rubber-band resistance formula:
- * f(x) = (x * dimension * c) / (dimension + c * x)
- * where c is Apple's standard rubber band coefficient (0.55).
- */
-function appleRubberBand(offset: number, dimension = 600, coefficient = 0.55): number {
-  const abs = Math.abs(offset);
-  const damped = (abs * dimension * coefficient) / (dimension + coefficient * abs);
-  return offset < 0 ? -damped : damped;
-}
 
-function useRubberBandScroll() {
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-  const [pullY, setPullY] = useState(0);
-  const [isPulling, setIsPulling] = useState(false);
-  const [topFadeSize, setTopFadeSize] = useState(0);
+/** A finished row's words: grey, a step back from the card. */
+const DONE_TEXT = (night: boolean): string => (night ? "text-white/45" : "text-black/40");
 
-  // Gesture tracking
-  const overshootStartY = useRef<number | null>(null);
-  const isMouseDown = useRef(false);
-  const rawWheelOvershoot = useRef(0);
-  const wheelReleaseTimer = useRef<NodeJS.Timeout | null>(null);
-
-  const updateMask = (el: HTMLElement) => {
-    const FADE_DISTANCE = 40;
-    const top = Math.min(FADE_DISTANCE, Math.max(0, el.scrollTop));
-    setTopFadeSize((prev) => (prev !== top ? top : prev));
-  };
-
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    updateMask(el);
-
-    const ro = new ResizeObserver(() => {
-      updateMask(el);
-    });
-    ro.observe(el);
-    return () => {
-      ro.disconnect();
-      if (wheelReleaseTimer.current) clearTimeout(wheelReleaseTimer.current);
-    };
-  }, []);
-
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    updateMask(e.currentTarget);
-  };
-
-  // 1. Touch Gesture Handling
-  const handleTouchStart = () => {
-    overshootStartY.current = null;
-    setIsPulling(false);
-  };
-
-  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
-    const el = scrollRef.current;
-    if (!el || !e.touches[0]) return;
-    const currentY = e.touches[0].clientY;
-    const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight);
-
-    if (el.scrollTop <= 0) {
-      if (overshootStartY.current === null) {
-        overshootStartY.current = currentY;
-      }
-      const rawOvershoot = currentY - overshootStartY.current;
-      if (rawOvershoot > 0) {
-        const damped = appleRubberBand(rawOvershoot, el.clientHeight, 0.55);
-        setIsPulling(true);
-        setPullY(damped);
-        return;
-      } else if (pullY !== 0) {
-        setPullY(0);
-        setIsPulling(false);
-      }
-    } else if (el.scrollTop >= maxScroll - 1) {
-      if (overshootStartY.current === null) {
-        overshootStartY.current = currentY;
-      }
-      const rawOvershoot = currentY - overshootStartY.current;
-      if (rawOvershoot < 0) {
-        const damped = appleRubberBand(rawOvershoot, el.clientHeight, 0.55);
-        setIsPulling(true);
-        setPullY(damped);
-        return;
-      } else if (pullY !== 0) {
-        setPullY(0);
-        setIsPulling(false);
-      }
-    } else {
-      overshootStartY.current = null;
-      if (pullY !== 0) {
-        setPullY(0);
-        setIsPulling(false);
-      }
-    }
-  };
-
-  const handleTouchEnd = () => {
-    overshootStartY.current = null;
-    setIsPulling(false);
-    setPullY(0);
-  };
-
-  // 2. Mouse Drag Handling
-  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return;
-    isMouseDown.current = true;
-    overshootStartY.current = null;
-    setIsPulling(false);
-  };
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isMouseDown.current) return;
-    const el = scrollRef.current;
-    if (!el) return;
-    const currentY = e.clientY;
-    const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight);
-
-    if (el.scrollTop <= 0) {
-      if (overshootStartY.current === null) {
-        overshootStartY.current = currentY;
-      }
-      const rawOvershoot = currentY - overshootStartY.current;
-      if (rawOvershoot > 0) {
-        const damped = appleRubberBand(rawOvershoot, el.clientHeight, 0.55);
-        setIsPulling(true);
-        setPullY(damped);
-        return;
-      } else if (pullY !== 0) {
-        setPullY(0);
-        setIsPulling(false);
-      }
-    } else if (el.scrollTop >= maxScroll - 1) {
-      if (overshootStartY.current === null) {
-        overshootStartY.current = currentY;
-      }
-      const rawOvershoot = currentY - overshootStartY.current;
-      if (rawOvershoot < 0) {
-        const damped = appleRubberBand(rawOvershoot, el.clientHeight, 0.55);
-        setIsPulling(true);
-        setPullY(damped);
-        return;
-      } else if (pullY !== 0) {
-        setPullY(0);
-        setIsPulling(false);
-      }
-    } else {
-      overshootStartY.current = null;
-      if (pullY !== 0) {
-        setPullY(0);
-        setIsPulling(false);
-      }
-    }
-  };
-
-  const handleMouseUp = () => {
-    if (!isMouseDown.current) return;
-    isMouseDown.current = false;
-    overshootStartY.current = null;
-    setIsPulling(false);
-    setPullY(0);
-  };
-
-  // 3. Mouse Wheel / Trackpad Handling
-  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight);
-
-    if (wheelReleaseTimer.current) {
-      clearTimeout(wheelReleaseTimer.current);
-    }
-
-    if (el.scrollTop <= 0 && e.deltaY < 0) {
-      rawWheelOvershoot.current += -e.deltaY * 0.85;
-      const damped = appleRubberBand(rawWheelOvershoot.current, el.clientHeight, 0.45);
-      setIsPulling(true);
-      setPullY(damped);
-
-      wheelReleaseTimer.current = setTimeout(() => {
-        setIsPulling(false);
-        setPullY(0);
-        rawWheelOvershoot.current = 0;
-      }, 70);
-    } else if (el.scrollTop >= maxScroll - 1 && e.deltaY > 0) {
-      rawWheelOvershoot.current += -e.deltaY * 0.85;
-      const damped = appleRubberBand(rawWheelOvershoot.current, el.clientHeight, 0.45);
-      setIsPulling(true);
-      setPullY(damped);
-
-      wheelReleaseTimer.current = setTimeout(() => {
-        setIsPulling(false);
-        setPullY(0);
-        rawWheelOvershoot.current = 0;
-      }, 70);
-    } else if (rawWheelOvershoot.current !== 0) {
-      rawWheelOvershoot.current = 0;
-      setIsPulling(false);
-      setPullY(0);
-    }
-  };
-
-  const topStop = topFadeSize > 0 ? `transparent 0px, black ${topFadeSize}px` : `black 0px`;
-  const maskStyle: React.CSSProperties = {
-    WebkitMaskImage: `linear-gradient(to bottom, ${topStop}, black 100%)`,
-    maskImage: `linear-gradient(to bottom, ${topStop}, black 100%)`,
-  };
-
-  return {
-    scrollRef,
-    pullY,
-    isPulling,
-    maskStyle,
-    handlers: {
-      onScroll: handleScroll,
-      onTouchStart: handleTouchStart,
-      onTouchMove: handleTouchMove,
-      onTouchEnd: handleTouchEnd,
-      onTouchCancel: handleTouchEnd,
-      onMouseDown: handleMouseDown,
-      onMouseMove: handleMouseMove,
-      onMouseUp: handleMouseUp,
-      onMouseLeave: handleMouseUp,
-      onWheel: handleWheel,
-    },
-  };
-}
-
-function ScrollRevealCard({
-  scrollContainerRef,
-  pullY = 0,
-  children,
-}: {
-  scrollContainerRef: React.RefObject<HTMLDivElement | null>;
-  pullY?: number;
-  children: React.ReactNode;
-}) {
-  const cardRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    const el = cardRef.current;
-    const root = scrollContainerRef.current;
-    if (!el || !root) return;
-
-    let rafId: number | null = null;
-
-    const update = () => {
-      const rootRect = root.getBoundingClientRect();
-      const elRect = el.getBoundingClientRect();
-      const y = elRect.top - rootRect.top;
-      const H = rootRect.height;
-
-      // Top Exit Zone: only as card scrolls up past the top edge (y < 0)
-      let topProgress = 1;
-      if (y < 0) {
-        topProgress = Math.max(0, Math.min(1, (y + 50) / 50));
-      }
-
-      // Bottom Exit/Entrance Zone: as item scrolls near the bottom edge
-      let bottomProgress = 1;
-      if (y > H - 80) {
-        bottomProgress = Math.max(0, Math.min(1, (H - y) / 80));
-      }
-
-      if (topProgress < 1) {
-        const scale = 0.90 + 0.10 * topProgress;
-        const opacity = 0.50 + 0.50 * topProgress;
-        el.style.opacity = opacity.toFixed(3);
-        el.style.transform = `scale3d(${scale.toFixed(3)}, ${scale.toFixed(3)}, 1)`;
-        el.style.transformOrigin = "center top";
-      } else if (bottomProgress < 1) {
-        const scale = 0.90 + 0.10 * bottomProgress;
-        const opacity = 0.50 + 0.50 * bottomProgress;
-        el.style.opacity = opacity.toFixed(3);
-        el.style.transform = `scale3d(${scale.toFixed(3)}, ${scale.toFixed(3)}, 1)`;
-        el.style.transformOrigin = "center bottom";
-      } else {
-        el.style.opacity = "1";
-        el.style.transform = "scale3d(1, 1, 1)";
-        el.style.transformOrigin = "center center";
-      }
-    };
-
-    const onScroll = () => {
-      if (rafId) cancelAnimationFrame(rafId);
-      rafId = requestAnimationFrame(update);
-    };
-
-    update();
-    root.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll, { passive: true });
-
-    return () => {
-      root.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
-      if (rafId) cancelAnimationFrame(rafId);
-    };
-  }, [scrollContainerRef, pullY]);
-
-  return (
-    <div
-      ref={cardRef}
-      className="w-full will-change-[transform,opacity]"
-    >
-      {children}
-    </div>
-  );
+/** A finished stop: its outcome and when, "Delivered 05:42", and whether it is still only on this phone. */
+function doneState(stop: RouteStop, t: Translate): string {
+  const state = stopState(stop, t);
+  return stop.doneAt && !stop.onPhone ? `${state} ${stop.doneAt}` : state;
 }
 
 /** What a stop in the list says: its outcome, or still to do, and whether it is only on this phone. */
-function stopState(stop: RouteStop): string {
-  const state = stop.finished ? stop.windowStatus : "To do";
-  return stop.onPhone ? `${state} · on phone` : state;
+function stopState(stop: RouteStop, t: Translate): string {
+  const state = stop.finished ? stop.windowStatus : t("To do");
+  return stop.onPhone ? t("{state} · on phone", { state }) : state;
 }
 
 export default function RouteNextStop({
@@ -355,6 +59,7 @@ export default function RouteNextStop({
   movingStop = null,
   hideHeader = false,
 }: RouteNextStopProps): React.JSX.Element {
+  const t = useT();
   const [hasArrived, setHasArrived] = useState(false);
 
   // Dynamic top fade on scroll & rubber band bounce (matching HomeNoVehicle message feed)
@@ -387,7 +92,7 @@ export default function RouteNextStop({
   if (!activeStop) {
     return (
       <div className={cx("flex h-full items-center justify-center px-8 text-center font-go text-[17px]", isNight ? "bg-[#161616] text-white" : "bg-[#E7F3F2] text-black")}>
-        No stops on today's run sheet.
+        {t("No stops on today's run sheet.")}
       </div>
     );
   }
@@ -412,7 +117,7 @@ export default function RouteNextStop({
               "flex items-center gap-[9px] text-[20px] font-medium leading-[25px] h-[30px] transition-opacity active:opacity-70",
               isNight ? "text-white" : "text-black"
             )}
-            aria-label="Go back"
+            aria-label={t("Go back")}
           >
             <svg width="9" height="14" viewBox="0 0 9 14" fill="none">
               <path
@@ -423,7 +128,7 @@ export default function RouteNextStop({
                 strokeLinejoin="round"
               />
             </svg>
-            <span>Back</span>
+            <span>{t("Back")}</span>
           </button>
 
           {/* Right header controls: Sync pill + Theme toggle */}
@@ -452,7 +157,7 @@ export default function RouteNextStop({
                   ? "bg-[#292929] text-white shadow-[0px_5px_20px_rgba(0,0,0,0.09)]"
                   : "bg-white text-black shadow-[0px_5px_20px_2px_rgba(0,0,0,0.09)]"
               )}
-              aria-label="Toggle theme"
+              aria-label={t("Toggle theme")}
             >
               {isNight ? (
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -495,27 +200,33 @@ export default function RouteNextStop({
             {completedStops.length > 0 && (
               <div className="flex flex-col gap-3 mb-5 px-2 animate-fade-in">
                 {completedStops.map((stop, i) => (
-                  <ScrollRevealCard key={stop.id} scrollContainerRef={scrollRef} pullY={pullY}>
+                  <ScrollRevealCard
+                    key={stop.id}
+                    scrollContainerRef={scrollRef}
+                    pullY={pullY}
+                    depth={completedStops.length - i}
+                    towardCard="bottom"
+                  >
                     <button
                       type="button"
                       onClick={() => onSelectStop?.(stop.stopIndex)}
-                      aria-label={`Stop ${stop.stopNumber} ${stop.name} · ${stopState(stop)}`}
+                      aria-label={t("Stop {n} {name} · {state}", { n: stop.stopNumber, name: stop.name, state: doneState(stop, t) })}
                       className="w-full flex flex-col gap-3 text-left cursor-pointer active:opacity-70 transition-opacity"
                     >
                       <div className="flex items-center justify-between text-[14px] font-light leading-[18px]">
                       <div className="flex items-center gap-3" style={stop.id === movingStop ? MOVING : undefined}>
-                        <span className={cx(isNight ? "text-white" : "text-black")}>{stop.stopNumber}</span>
-                        <span className={cx(isNight ? "text-white" : "text-black")}>{stop.name}</span>
+                        <span className={DONE_TEXT(isNight)}>{stop.stopNumber}</span>
+                        <span className={DONE_TEXT(isNight)}>{stop.name}</span>
                       </div>
-                      {stop.windowStatus === "Delivered" && !stop.onPhone ? (
-                        <div className="w-[22px] h-[22px] rounded-full bg-[#00BF6A] flex items-center justify-center shrink-0 shadow-sm">
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round">
+                      {/* Done: dulled, with when it was recorded, so the eye goes to the card. */}
+                      <span className={cx("flex items-center gap-1.5", DONE_TEXT(isNight))}>
+                        {stop.delivered && !stop.onPhone && (
+                          <svg aria-hidden width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={isNight ? "#4ADE80" : "#00BF6A"} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                             <polyline points="20 6 9 17 4 12" />
                           </svg>
-                        </div>
-                      ) : (
-                        <span className={cx(isNight ? "text-white" : "text-black")}>{stopState(stop)}</span>
-                      )}
+                        )}
+                        {doneState(stop, t)}
+                      </span>
                       </div>
                       {/* The same rule as between the stops still to come, below the card. */}
                       {i < completedStops.length - 1 && (
@@ -544,7 +255,7 @@ export default function RouteNextStop({
                   isNight ? "text-[#7C7583]" : "text-[#A9A9A9]"
                 )}
               >
-                Next · stop {activeStop.stopNumber} of {String(activeStop.totalStops).padStart(2, "0")}
+                {t("Next · stop {n} of {total}", { n: activeStop.stopNumber, total: String(activeStop.totalStops).padStart(2, "0") })}
               </span>
 
               {/* Dock tag */}
@@ -590,7 +301,7 @@ export default function RouteNextStop({
                 )}
               >
                 <span className={cx("text-[12px] font-light leading-[15px]", isNight ? "text-white" : "text-black")}>
-                  Expected
+                  {t("Expected")}
                 </span>
                 <span className={cx("text-[42px] font-medium leading-[50px] tracking-tight", isNight ? "text-white" : "text-black")}>
                   {activeStop.eta}
@@ -605,7 +316,7 @@ export default function RouteNextStop({
                 className="h-[105px] rounded-[24px] border border-[#B7F2ED] flex flex-col items-center justify-center p-2"
               >
                 <span className={cx("text-[12px] font-light leading-[15px]", isNight ? "text-white" : "text-black")}>
-                  Window
+                  {t("Window")}
                 </span>
                 <span className={cx("text-[42px] font-medium leading-[50px] tracking-tight", isNight ? "text-white" : "text-black")}>
                   {activeStop.window}
@@ -648,13 +359,13 @@ export default function RouteNextStop({
                     <line x1="8" y1="2" x2="8" y2="18" />
                     <line x1="16" y1="6" x2="16" y2="22" />
                   </svg>
-                  <span className="text-[18px] font-medium leading-[23px]">Open map</span>
+                  <span className="text-[18px] font-medium leading-[23px]">{t("Open map")}</span>
                 </button>
 
                 <SlideToConfirm
                   id="arrived-btn"
-                  label="I've arrived"
-                  doneLabel="Arrived · Unloading"
+                  label={t("I've arrived")}
+                  doneLabel={t("Arrived · Unloading")}
                   done={hasArrived}
                   isNight={isNight}
                   onConfirm={() => {
@@ -683,7 +394,7 @@ export default function RouteNextStop({
                       <line x1="8" y1="2" x2="8" y2="18" />
                       <line x1="16" y1="6" x2="16" y2="22" />
                     </svg>
-                    <span className="text-[18px] font-medium leading-[23px]">Map</span>
+                    <span className="text-[18px] font-medium leading-[23px]">{t("Map")}</span>
                   </button>
 
                   {/* Report Problem button */}
@@ -697,15 +408,15 @@ export default function RouteNextStop({
                         : "bg-[#B7F2ED] text-black hover:bg-[#a8eae4]"
                     )}
                   >
-                    <span className="text-[18px] font-medium leading-[23px] truncate">Report problem</span>
+                    <span className="text-[18px] font-medium leading-[23px] truncate">{t("Report problem")}</span>
                   </button>
                 </div>
 
                 <div className="mt-3.5">
                   <SlideToConfirm
                     id="arrived-btn"
-                    label="I've arrived"
-                    doneLabel="Arrived · Unloading"
+                    label={t("I've arrived")}
+                    doneLabel={t("Arrived · Unloading")}
                     done={hasArrived}
                     isNight={isNight}
                     onConfirm={() => {
@@ -727,11 +438,11 @@ export default function RouteNextStop({
           {upcomingStops.length > 0 && (
             <div className="mt-7 px-2 flex flex-col gap-3">
               {upcomingStops.map((stop, i) => (
-                <ScrollRevealCard key={stop.id} scrollContainerRef={scrollRef} pullY={pullY}>
+                <ScrollRevealCard key={stop.id} scrollContainerRef={scrollRef} pullY={pullY} depth={i + 1} towardCard="top">
                   <button
                     type="button"
                     onClick={() => onSelectStop?.(stop.stopIndex)}
-                    aria-label={`Stop ${stop.stopNumber} ${stop.name} · ${stopState(stop)}`}
+                    aria-label={t("Stop {n} {name} · {state}", { n: stop.stopNumber, name: stop.name, state: stopState(stop, t) })}
                     className="w-full text-left flex flex-col gap-3 cursor-pointer active:opacity-70 transition-opacity"
                   >
                     <div className="flex items-center justify-between text-[14px] font-light leading-[18px]">
@@ -739,7 +450,7 @@ export default function RouteNextStop({
                         <span className={cx(isNight ? "text-white" : "text-black")}>{stop.stopNumber}</span>
                         <span className={cx(isNight ? "text-white" : "text-black")}>{stop.name}</span>
                       </div>
-                      <span className={cx(isNight ? "text-white" : "text-black")}>{stop.finished ? stopState(stop) : stop.eta}</span>
+                      <span className={cx(isNight ? "text-white" : "text-black")}>{stop.finished ? stopState(stop, t) : stop.eta}</span>
                     </div>
 
                     {i < upcomingStops.length - 1 && (

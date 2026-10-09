@@ -6,7 +6,7 @@ import { useResource } from "@shared/api/useResource";
 import { OrderCommandKind, type LineAvailability, type OrderView, type PlacedOrder, type OutletView, type Temperature } from "@shared/domain/types";
 import { Notice, cx } from "@shared/ui";
 import type { StoreGateway } from "../../data/gateway.ts";
-import { addDays, clock, dayLabel, depotToday, hhmm, longDay, untilCutoff, units } from "../../data/format.ts";
+import { addDays, clock, dayLabel, depotToday, hhmm, longDay, untilCutoff } from "../../data/format.ts";
 import { clearDraft, loadDraft, saveDraft } from "../../data/draft.ts";
 import { classOf, rowsOf, usualOf } from "../../data/lines.ts";
 import { conflictMessage, type useCommands } from "../../data/useCommands.ts";
@@ -17,7 +17,7 @@ import OrderSummary from "./OrderSummary.tsx";
 import DateStrip from "./DateStrip.tsx";
 import RideAlongHint from "./RideAlongHint.tsx";
 import { businessNow } from "@shared/wording";
-import { cutoffWords, useT } from "../../i18n.tsx";
+import { cutoffWords, useT, useCounts } from "../../i18n.tsx";
 
 // Figma "03 Place order", "03b chilled", "03c add item", "03d item added" and
 // "03e draft saved". Chilled and ambient are separate orders (R-ORD-06), so one
@@ -52,6 +52,7 @@ export default function PlaceOrder({
   onEdit: (orderId: string) => void;
   onBack: () => void;
 }): React.JSX.Element {
+  const { units } = useCounts();
   const tr = useT();
   const today = depotToday();
   const left = untilCutoff();
@@ -128,7 +129,7 @@ export default function PlaceOrder({
 
   const acceptShortfall = async (o: PlacedOrder): Promise<string | null> => {
     const outcome = await commands.run(OrderCommandKind.acceptShortfall, { orderId: o.orderId }, o.rowVersion);
-    return outcome.ok ? null : conflictMessage(outcome.error);
+    return outcome.ok ? null : conflictMessage(outcome.error, tr);
   };
 
   const submit = async () => {
@@ -156,7 +157,7 @@ export default function PlaceOrder({
               { n: availability.length, kind: tr(t) },
             ),
           );
-        } else setError(conflictMessage(e));
+        } else setError(conflictMessage(e, tr));
         // What went through already stays placed; take it out of the draft.
         if (placed.length || queued) setSent({ orders: placed, queued, requestedDate: date });
         return;

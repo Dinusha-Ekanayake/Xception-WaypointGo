@@ -17,6 +17,8 @@ RUN pip install --disable-pip-version-check -r requirements.txt
 COPY manifest.json .
 COPY app ./app
 COPY datathon ./datathon
+# The planning-time features: one definition for retraining and serving (MF-05).
+COPY training ./training
 COPY models ./models
 
 RUN useradd --uid 10002 --no-create-home ml && chown -R ml /srv

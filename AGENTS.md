@@ -149,7 +149,7 @@ A walkthrough explains; it does not replace the rule catalogue, the edge case re
 
 ## Commit and Pull Requests
 
-`dev` is the integration branch: branch from it and open pull requests into it, and every push to it deploys the preview. `main` is what production runs and moves only by a release pull request from `dev`. Keep Maven `target/` and `*.class` untracked. Short, imperative subjects such as `fix: reject stale delivery commands`. Do not add co-author, agent or AI attribution trailers to commits or pull request descriptions. Branches are short-lived and rebased daily; long-lived branches across a schema change lose weekends. In pull requests, explain the behaviour changed, link the issue, list verification performed, and include screenshots for visible UI changes.
+`dev` is the integration branch: branch from it and open pull requests into it. Every push to it runs the checks; the preview is deployed only when the "Deploy preview" workflow is run by hand, which J.V. Ransika approves. `main` is what production runs and moves only by a release pull request from `dev`. Keep Maven `target/` and `*.class` untracked. Short, imperative subjects such as `fix: reject stale delivery commands`. Do not add co-author, agent or AI attribution trailers to commits or pull request descriptions. Branches are short-lived and rebased daily; long-lived branches across a schema change lose weekends. In pull requests, explain the behaviour changed, link the issue, list verification performed, and include screenshots for visible UI changes.
 
 ## Configuration and Data Safety
 

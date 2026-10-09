@@ -1,6 +1,8 @@
 package com.waypoint.dispatch.intelligence.web;
 
 import com.waypoint.dispatch.intelligence.application.AttentionQuery;
+import com.waypoint.dispatch.intelligence.application.CapacityDecisionQuery;
+import com.waypoint.dispatch.intelligence.contract.CapacityViews.CapacityDecisionView;
 import com.waypoint.dispatch.intelligence.application.DateOutlookQuery;
 import com.waypoint.dispatch.intelligence.application.IntelligenceDataQuery;
 import com.waypoint.dispatch.intelligence.contract.AttentionViews.AttentionBoardView;
@@ -11,6 +13,8 @@ import com.waypoint.dispatch.intelligence.contract.PredictionViews.PlanPredictio
 import com.waypoint.dispatch.intelligence.contract.PredictionViews.SupplyProbabilityView;
 import com.waypoint.dispatch.intelligence.contract.PredictionViews.TrainingDeliveryView;
 import com.waypoint.dispatch.intelligence.contract.TravelAndServiceEstimator.DemandForecast;
+import com.waypoint.dispatch.intelligence.application.KpiQuery;
+import com.waypoint.dispatch.intelligence.contract.KpiViews;
 import com.waypoint.dispatch.platform.web.RequestAuthorizer;
 import com.waypoint.dispatch.shared.domain.Actor;
 import com.waypoint.dispatch.shared.domain.Page;
@@ -41,17 +45,52 @@ public class IntelligenceController {
   private final IntelligenceDataQuery intelligence;
   private final DateOutlookQuery outlook;
   private final AttentionQuery attention;
+  private final CapacityDecisionQuery capacityDecisions;
+  private final com.waypoint.dispatch.intelligence.application.ReplyRankingQuery replyRanking;
+  private final com.waypoint.dispatch.intelligence.application.RiskReviewQuery riskReviews;
+  private final KpiQuery kpis;
   private final RequestAuthorizer authorizer;
+  private final com.waypoint.dispatch.intelligence.application.AiExplainer explainer;
 
   public IntelligenceController(
       IntelligenceDataQuery intelligence,
       DateOutlookQuery outlook,
       AttentionQuery attention,
-      RequestAuthorizer authorizer) {
+      CapacityDecisionQuery capacityDecisions,
+      KpiQuery kpis,
+      com.waypoint.dispatch.intelligence.application.ReplyRankingQuery replyRanking,
+      com.waypoint.dispatch.intelligence.application.RiskReviewQuery riskReviews,
+      RequestAuthorizer authorizer,
+      com.waypoint.dispatch.intelligence.application.AiExplainer explainer) {
+    this.explainer = explainer;
     this.intelligence = intelligence;
     this.outlook = outlook;
     this.attention = attention;
+    this.capacityDecisions = capacityDecisions;
+    this.kpis = kpis;
+    this.replyRanking = replyRanking;
+    this.riskReviews = riskReviews;
     this.authorizer = authorizer;
+  }
+
+  /** What a screen asks the gateway to reword: its key and the explanation the rules already wrote. */
+  public record ExplainRequest(String key, java.util.Map<String, Object> facts) {}
+
+  /** {@code state} off, worded or rules_only; {@code text} the model's words when worded. */
+  public record ExplainAnswer(String state, String text) {}
+
+  /**
+   * A plan's or an order's explanation in friendlier words, through the language
+   * model gateway (roadmap AI-0, R-ML-10). Needs {@code plan:Read} on that plan;
+   * off unless {@code AI_ENABLED=true}, and the screen keeps the rules' text.
+   */
+  @org.springframework.web.bind.annotation.PostMapping("/explain")
+  public ExplainAnswer explain(
+      @org.springframework.web.bind.annotation.RequestBody ExplainRequest body, HttpServletRequest request) {
+    java.util.UUID planId = com.waypoint.dispatch.intelligence.application.AiExplainer.planOf(body.key());
+    Actor actor = authorizer.require(request, "plan:Read", "wpt:plan:plan:" + planId);
+    var worded = explainer.explain(actor, body.key(), body.facts());
+    return new ExplainAnswer(worded.state(), worded.text().orElse(null));
   }
 
   /**
@@ -66,9 +105,33 @@ public class IntelligenceController {
     return attention.board(read(request, "wpt:ml:attention:" + depot), depot, date);
   }
 
+  /** What the dispatcher decided about short weeks from this week on (roadmap T2-01), under the forecast's read. */
+  /** Roadmap B-05: the depot's pilot KPIs, recorded and counted, newest week first. */
+  @GetMapping("/kpis")
+  public KpiViews.KpiReportView kpis(
+      @RequestParam String depot, @RequestParam(defaultValue = "8") int weeks, HttpServletRequest request) {
+    return kpis.weeks(read(request, "wpt:ml:kpi:" + depot), depot, weeks);
+  }
+
+  @GetMapping("/capacity/decisions")
+  public List<CapacityDecisionView> capacityDecisions(@RequestParam String depot, HttpServletRequest request) {
+    return capacityDecisions.fromThisWeek(read(request, "wpt:ml:forecast:" + depot), depot);
+  }
+
   @GetMapping("/models")
   public List<ModelVersionView> models(HttpServletRequest request) {
     return intelligence.models(read(request, "wpt:ml:model:*"));
+  }
+
+  /**
+   * Roadmap MF-04: each model's predictions over the last finished weeks beside
+   * what happened, and whether it beat the built-in estimate. Shown when an
+   * administrator chooses a model.
+   */
+  @GetMapping("/models/backtest")
+  public com.waypoint.dispatch.intelligence.contract.PredictionViews.BacktestView backtest(
+      @RequestParam(required = false, defaultValue = "8") int weeks, HttpServletRequest request) {
+    return intelligence.backtest(read(request, "wpt:ml:model:*"), weeks);
   }
 
   /** Every stop's expected service minutes and P(late), and whether a model or the fallback answered. */
@@ -87,6 +150,15 @@ public class IntelligenceController {
       HttpServletRequest request) {
     Actor actor = read(request, "wpt:ml:forecast:" + depot);
     return intelligence.forecast(actor, depot, brand, week(from, "from"), week(to, "to"));
+  }
+
+  /** Roadmap T2-03: how the last finished weeks' forecasts did against what was ordered. */
+  @GetMapping("/forecast/accuracy")
+  public com.waypoint.dispatch.intelligence.contract.PredictionViews.ForecastAccuracyView forecastAccuracy(
+      @RequestParam String depot,
+      @RequestParam(required = false, defaultValue = "4") int weeks,
+      HttpServletRequest request) {
+    return intelligence.forecastAccuracy(read(request, "wpt:ml:forecast:" + depot), depot, weeks);
   }
 
   /**
@@ -132,6 +204,34 @@ public class IntelligenceController {
       HttpServletRequest request) {
     Actor actor = authorizer.require(request, IntelligenceDataQuery.EXPORT, "wpt:ml:training:" + depot);
     return intelligence.trainingDeliveries(actor, depot, from, to, Optional.ofNullable(after), limit);
+  }
+
+  /** Roadmap MF-05: scored routes as the model read them, with their outcomes, for retraining. */
+  @GetMapping("/training/routes")
+  public Page<com.waypoint.dispatch.intelligence.contract.PredictionViews.TrainingRouteView> trainingRoutes(
+      @RequestParam String depot,
+      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+      @RequestParam(required = false) String after,
+      @RequestParam(required = false) Integer limit,
+      HttpServletRequest request) {
+    Actor actor = authorizer.require(request, IntelligenceDataQuery.EXPORT, "wpt:ml:training:" + depot);
+    return intelligence.trainingRoutes(actor, depot, from, to, Optional.ofNullable(after), limit);
+  }
+
+  /** T1-01: a draft's stops likely to be late, each with the dispatcher's latest keep or swap. */
+  @GetMapping("/plans/{planId}/risk-review")
+  public com.waypoint.dispatch.intelligence.contract.RiskReviewViews.RiskReviewReport riskReview(
+      @PathVariable UUID planId, HttpServletRequest request) {
+    Actor actor = authorizer.require(request, "plan:Read", "wpt:plan:plan:" + planId);
+    return riskReviews.report(actor, planId);
+  }
+
+  /** AI-J5: the ready replies' learned order for the composer, or "rules only" while there is too little to learn from. */
+  @GetMapping("/reply-ranking")
+  public com.waypoint.dispatch.intelligence.application.ReplyRankingQuery.ReplyRankingView replyRanking(
+      HttpServletRequest request) {
+    return replyRanking.ranking(read(request, "wpt:ml:replies:*"));
   }
 
   private Actor read(HttpServletRequest request, String resource) {

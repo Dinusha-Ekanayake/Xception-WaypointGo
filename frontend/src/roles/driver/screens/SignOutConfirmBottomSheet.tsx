@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { cx } from "@shared/ui";
+import { useT } from "../i18n.tsx";
 
 export type SignOutConfirmBottomSheetProps = {
   isOpen: boolean;
@@ -21,6 +22,7 @@ export default function SignOutConfirmBottomSheet({
   waiting = 0,
   online = true,
 }: SignOutConfirmBottomSheetProps): React.JSX.Element | null {
+  const t = useT();
   const [isRendered, setIsRendered] = useState(isOpen);
   const [isVisible, setIsVisible] = useState(false);
 
@@ -74,7 +76,7 @@ export default function SignOutConfirmBottomSheet({
   return (
     <div
       role={isVisible ? "dialog" : undefined}
-      aria-label={isVisible ? "Sign out" : undefined}
+      aria-label={isVisible ? t("Sign out") : undefined}
       aria-modal={isVisible ? "true" : undefined}
       aria-hidden={!isVisible}
       data-state={isVisible ? "open" : "closed"}
@@ -124,7 +126,7 @@ export default function SignOutConfirmBottomSheet({
                   isNight ? "text-[#00BF6A]" : "text-[#0E766D]"
                 )}
               >
-                Sign out
+                {t("Sign out")}
               </span>
             </div>
             <span
@@ -133,7 +135,7 @@ export default function SignOutConfirmBottomSheet({
                 isNight ? "text-[#A9A9A9]" : "text-[#6B6B6B]"
               )}
             >
-              Now
+              {t("Now")}
             </span>
           </div>
 
@@ -144,7 +146,7 @@ export default function SignOutConfirmBottomSheet({
               isNight ? "text-white" : "text-black"
             )}
           >
-            Sign out of GO?
+            {t("Sign out of GO?")}
           </h3>
 
           {/* Body */}
@@ -154,13 +156,20 @@ export default function SignOutConfirmBottomSheet({
               isNight ? "text-[#A9A9A9]" : "text-[#6B6B6B]"
             )}
           >
-            {waiting > 0
-              ? `${waiting} ${waiting === 1 ? "record is" : "records are"} still only on this phone. ${
-                  online
-                    ? `Wait for ${waiting === 1 ? "it" : "them"} to be sent, or review anything the server refused, before you sign out.`
-                    : `Reconnect so ${waiting === 1 ? "it" : "they"} can be sent before you sign out.`
-                }`
-              : "You'll need your email and password to sign in again. Your work is saved and sent."}
+            {waiting === 0
+              ? t("You'll need your email and password to sign in again. Your work is saved and sent.")
+              : waiting === 1
+                ? t(
+                    online
+                      ? "1 record is still only on this phone. Wait for it to be sent, or review anything Waypoint refused, before you sign out."
+                      : "1 record is still only on this phone. Reconnect so it can be sent before you sign out.",
+                  )
+                : t(
+                    online
+                      ? "{n} records are still only on this phone. Wait for them to be sent, or review anything Waypoint refused, before you sign out."
+                      : "{n} records are still only on this phone. Reconnect so they can be sent before you sign out.",
+                    { n: waiting },
+                  )}
           </p>
         </div>
 
@@ -179,7 +188,7 @@ export default function SignOutConfirmBottomSheet({
                 : "bg-[#031B08] text-white hover:bg-[#031B08]/90"
             )}
           >
-            Sign out
+            {t("Sign out")}
           </button>
 
             </>
@@ -196,7 +205,7 @@ export default function SignOutConfirmBottomSheet({
                 : "border-[#6B6B6B] text-black hover:bg-black/5"
             )}
           >
-            {waiting === 0 ? "Cancel" : "Stay signed in"}
+            {t(waiting === 0 ? "Cancel" : "Stay signed in")}
           </button>
         </div>
       </div>

@@ -55,6 +55,8 @@ export function audienceLabel(audience: MessageAudience, outlet: string | null, 
       return outlet ? tr("To {outlet}", { outlet }) : tr("To a store");
     case "all":
       return tr("To everyone on the trip");
+    case "channel":
+      return tr("To the stores still waiting");
   }
 }
 
@@ -79,9 +81,23 @@ export function parseMention(text: string, members: MemberView[]): { address: Ad
     : word === "loader" || word === "loaders" ? { to: "loader", outletId: null }
     : word === "all" || word === "everyone" ? { to: "all", outletId: null }
     : word === "dispatcher" || word === "dispatch" ? { to: "dispatch", outletId: null }
+    : word === "stores" || word === "channel" ? { to: "channel", outletId: null }
     : { to: "outlet", outletId: match[1]!.toUpperCase() };
   const allowed = members.some((m) => sameAddress({ to: m.to, outletId: m.outletId }, wanted));
   return allowed ? { address: wanted, body: text.slice(match[0].length) } : { address: null, body: text };
+}
+
+/**
+ * What a post to the trip's channel gives away (R-MSG-08): another store's code,
+ * or an order number, which every store still waiting would read. The writer is
+ * asked before it goes; nothing is blocked. `myOutlets` are the writer's own,
+ * which a store may name.
+ */
+export function channelLeaks(body: string, myOutlets: string[]): { outlets: string[]; order: boolean } {
+  const mine = new Set(myOutlets.map((o) => o.toUpperCase()));
+  const outlets = [...new Set([...body.matchAll(/\bOUT\d{3,}\b/gi)].map((m) => m[0].toUpperCase()))].filter((o) => !mine.has(o));
+  const order = /\border\s*(?:no\.?|number|#)?\s*[A-Z0-9-]*\d{3,}/i.test(body);
+  return { outlets, order };
 }
 
 /** Pages arrive newest first; the thread reads oldest first, each message once. */
@@ -128,4 +144,14 @@ export function defaultAddress(role: MemberRole, members: MemberView[]): Address
   const preferred: MessageAudience = role === "dispatcher" ? "driver" : "dispatch";
   const found = members.find((m) => m.to === preferred) ?? members[0];
   return found ? { to: found.to, outletId: found.outletId } : { to: "dispatch", outletId: null };
+}
+
+/** Where a voice note is played from. */
+export function voiceUrl(threadId: string, voiceNoteId: string): string {
+  return `/api/threads/${encodeURIComponent(threadId)}/voice/${encodeURIComponent(voiceNoteId)}`;
+}
+
+/** Where the server's spoken copy of a typed message is played from (R-MSG-10). */
+export function speechUrl(threadId: string, messageId: string): string {
+  return `/api/threads/${encodeURIComponent(threadId)}/messages/${encodeURIComponent(messageId)}/speech`;
 }

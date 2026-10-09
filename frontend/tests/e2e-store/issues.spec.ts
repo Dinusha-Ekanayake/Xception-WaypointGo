@@ -17,7 +17,7 @@ test("damaged items found after unpacking are sent to the dispatcher with a phot
   await dialog.getByLabel("Comment (optional)").fill("carton wet");
   await dialog.getByLabel("Take a photo of the problem").setInputFiles({ name: "wet.png", mimeType: "image/png", buffer: PNG });
   await page.getByRole("dialog", { name: "Product photo" }).getByRole("button", { name: "Close" }).click();
-  await dialog.getByRole("button", { name: "Send to dispatcher" }).click();
+  await dialog.getByRole("button", { name: "Send", exact: true }).click();
 
   await expect(page.getByRole("dialog", { name: "Issue sent" })).toBeVisible();
   const raise = sent.find((c) => c.kind === "issue:Raise")!.payload as Record<string, unknown>;
@@ -40,7 +40,7 @@ test("missing items are raised as other, which the store may raise, with the wor
   await page.getByRole("button", { name: "Report an issue" }).click();
   const dialog = page.getByRole("dialog", { name: "Report an issue" });
   await dialog.getByRole("radio", { name: "Missing items" }).click();
-  await dialog.getByRole("button", { name: "Send to dispatcher" }).click();
+  await dialog.getByRole("button", { name: "Send", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "Issue sent" })).toBeVisible();
   expect(sent.find((c) => c.kind === "issue:Raise")!.payload).toMatchObject({ type: "OTHER", description: "ORD0092336: Missing: Fresh milk 1 L x1." });
 });
@@ -51,7 +51,7 @@ test("nothing is sent until what is wrong is chosen", async ({ page }) => {
   await page.getByRole("button", { name: /^Issues/ }).click();
   await page.getByRole("button", { name: "Report an issue" }).click();
   const dialog = page.getByRole("dialog", { name: "Report an issue" });
-  await dialog.getByRole("button", { name: "Send to dispatcher" }).click();
+  await dialog.getByRole("button", { name: "Send", exact: true }).click();
   await expect(dialog).toContainText("Choose what is wrong.");
   expect(sent.filter((c) => c.kind === "issue:Raise")).toHaveLength(0);
 });

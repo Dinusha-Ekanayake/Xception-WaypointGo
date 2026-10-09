@@ -9,10 +9,20 @@ test("home shows the next delivery, its shortfall and the Issues count", async (
   await expect(page.getByText("VEH043").first()).toBeVisible();
   await expect(page.getByText("Rashmika Dilshan")).toBeVisible();
   await expect(page.getByText(/stop 3 of 7/)).toBeVisible();
+  // T1-04: how long to hold someone at the dock, from the plan's prediction.
+  await expect(page.getByText("unloading about 18 min")).toBeVisible();
   // "Shortage notice" of "02 Home": a grey card in the next delivery, not a yellow warning.
   await expect(page.getByText("1 unit short - 4 of 5 coming")).toBeVisible();
   await expect(page.getByText("Reported at loading · comes next delivery")).toBeVisible();
   await expect(page.getByRole("button", { name: /Issues/ })).toContainText("1");
+});
+
+// Roadmap MF-06: with enough earlier stops the unloading time is a range.
+test("the unloading time reads as a range when the prediction has one", async ({ page }) => {
+  await mockStore(page, { unloadingRange: true });
+  await page.goto("/");
+  await expect(page.getByText("unloading 15 to 24 min")).toBeVisible();
+  await expect(page.getByText("unloading about 18 min")).toHaveCount(0);
 });
 
 test("a damaged line with a photo lowers the count and is one report: the receipt's note, with the photo", async ({ page }) => {

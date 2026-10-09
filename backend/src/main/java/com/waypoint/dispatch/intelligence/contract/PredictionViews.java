@@ -53,6 +53,14 @@ public final class PredictionViews {
   }
 
   /** One stop's expected service minutes and probability of arriving after its window closes. */
+  /**
+   * One reason a stop is at risk (roadmap MF-08, R-ML-15): {@code TIGHT_WINDOW}
+   * with the minutes left, {@code LATE_IN_ROUTE} with the stop's number,
+   * {@code OUTLET_HISTORY} with late visits {@code value} of {@code of}.
+   */
+  public record LateReasonView(String code, int value, int of) {}
+
+  /** @param reasons why it is at risk, strongest first, at most three; empty when nothing stands out */
   public record StopPredictionView(
       UUID orderId,
       UUID tripId,
@@ -61,9 +69,24 @@ public final class PredictionViews {
       BigDecimal serviceMinutes,
       BigDecimal lateProbability,
       String modelLabel,
-      boolean degraded) {}
+      boolean degraded,
+      List<LateReasonView> reasons,
+      Optional<BigDecimal> serviceLow,
+      Optional<BigDecimal> serviceHigh) {
+    public StopPredictionView {
+      reasons = reasons == null ? List.of() : List.copyOf(reasons);
+      serviceLow = serviceLow == null ? Optional.empty() : serviceLow;
+      serviceHigh = serviceHigh == null ? Optional.empty() : serviceHigh;
+    }
+  }
 
-  public record PlanPredictionsView(PlanScoringView scoring, List<StopPredictionView> stops) {
+  /**
+   * A plan's scoring and its stops. {@code roadConditionsUntil} is the last day
+   * the road conditions are known (roadmap MF-07, R-ML-19): later days are
+   * scored without them, and the screen says so.
+   */
+  public record PlanPredictionsView(
+      PlanScoringView scoring, List<StopPredictionView> stops, Optional<LocalDate> roadConditionsUntil) {
 
     public PlanPredictionsView {
       stops = List.copyOf(stops);
@@ -139,6 +162,23 @@ public final class PredictionViews {
       String outcome,
       boolean timingUncertain) {}
 
+  /**
+   * One route as the model server read it when its plan was scored, and each
+   * stop's outcome of that plan (roadmap MF-05, R-ML-18): {@code route} has the
+   * scoring request's own fields, so a model retrains on what it will be given.
+   * A label's {@code late} is null when the stop has no trustworthy arrival;
+   * {@code answeredBy} and {@code answeredLateProb} are what was in use then,
+   * so a candidate is replayed against it on the same stops (MF-04).
+   */
+  public record TrainingRouteView(
+      UUID planId, String routeId, LocalDate serviceDate, Optional<UUID> referenceVersionId,
+      java.util.Map<String, Object> route, List<java.util.Map<String, Object>> labels) {
+    public TrainingRouteView {
+      route = java.util.Map.copyOf(route);
+      labels = List.copyOf(labels);
+    }
+  }
+
   public enum OverviewStatus {
     /** A forecast run covers these weeks. */
     READY,
@@ -147,11 +187,26 @@ public final class PredictionViews {
   }
 
   /** One brand's demand in a week; chilled is zero for Style and Tech. */
-  public record BrandVolumeView(String brandCode, BigDecimal totalM3, BigDecimal chilledM3) {}
+  /**
+   * One brand's demand in a week; chilled is zero for Style and Tech. About four
+   * weeks in five the volume ordered falls between {@code lowM3} and
+   * {@code highM3} (MF-06, R-ML-20); both empty with too few finished weeks.
+   */
+  public record BrandVolumeView(
+      String brandCode, BigDecimal totalM3, BigDecimal chilledM3, Optional<BigDecimal> lowM3,
+      Optional<BigDecimal> highM3) {
+    public BrandVolumeView {
+      lowM3 = lowM3 == null ? Optional.empty() : lowM3;
+      highM3 = highM3 == null ? Optional.empty() : highM3;
+    }
+  }
 
   /**
-   * What the depot's reference fleet can carry in the week: every vehicle, two
-   * trips a day, each operating day (A-40). An upper bound, not availability.
+   * What the depot can carry in the week with each day's own fleet: vehicles in
+   * the workshop or unavailable that day carry nothing, each available vehicle
+   * runs that day's trip limit (A-40, roadmap T2-01). The counts are the fewest
+   * available on any operating day. Days with no status set count every vehicle,
+   * so weeks far ahead are still an upper bound until workshop days are booked.
    */
   public record WeekCapacityView(
       int vehicles, int refrigeratedVehicles, BigDecimal fleetM3, BigDecimal refrigeratedM3) {}
@@ -178,6 +233,66 @@ public final class PredictionViews {
 
     public ForecastWeekView {
       brands = List.copyOf(brands);
+    }
+  }
+
+  /** One brand of a finished week: the forecast made before the week, beside what was ordered (T2-03). */
+  public record BrandAccuracyView(
+      String brandCode, BigDecimal forecastM3, BigDecimal orderedM3, Optional<BigDecimal> baselineM3) {
+    public BrandAccuracyView {
+      baselineM3 = baselineM3 == null ? Optional.empty() : baselineM3;
+    }
+  }
+
+  /**
+   * A finished ISO week of a depot (roadmap T2-03, R-ML-13): its brands' forecasts
+   * as made before the week began, and what was ordered; {@code wape} is empty
+   * when nothing was ordered.
+   */
+  public record WeekAccuracyView(
+      int isoYear, int isoWeek, String modelLabel, BigDecimal forecastM3, BigDecimal orderedM3,
+      Optional<BigDecimal> wape, List<BrandAccuracyView> brands, Optional<BigDecimal> baselineWape) {
+    public WeekAccuracyView {
+      brands = List.copyOf(brands);
+    }
+  }
+
+  /** One finished ISO week of a model's backtest: its stops, the labelled ones, and its Brier score. */
+  public record BacktestWeekView(int isoYear, int isoWeek, int stops, int labelled, Optional<BigDecimal> brier) {}
+
+  /**
+   * How one model did on the predictions it made over the last finished weeks
+   * (roadmap MF-04, R-ML-16), and its verdict against the built-in estimate:
+   * {@code BETTER}, {@code WORSE}, {@code MIXED}, {@code NOT_ENOUGH} or, for the
+   * estimate itself, {@code BASELINE}.
+   */
+  public record ModelBacktestView(
+      String modelLabel, int stops, int labelled, BigDecimal coverage, Optional<BigDecimal> brier,
+      Optional<BigDecimal> logLoss, Optional<BigDecimal> calibrationSlope, Optional<BigDecimal> calibrationIntercept,
+      String verdict, List<BacktestWeekView> weeks) {
+    public ModelBacktestView {
+      weeks = List.copyOf(weeks);
+    }
+  }
+
+  /** The backtest window, Monday to Sunday inclusive, and each model that answered in it. */
+  public record BacktestView(LocalDate from, LocalDate to, int minLabels, List<ModelBacktestView> models) {
+    public BacktestView {
+      models = List.copyOf(models);
+    }
+  }
+
+  /**
+   * The last finished weeks, oldest first, and the error over all of them. Over
+   * the brand-weeks that have a baseline (T2-03, R-ML-21), {@code comparedWape}
+   * is the forecast's error and {@code baselineWape} the 8-week mean's, on the
+   * same weeks, so the two can be compared.
+   */
+  public record ForecastAccuracyView(
+      String depotCode, List<WeekAccuracyView> weeks, Optional<BigDecimal> wape, Optional<BigDecimal> comparedWape,
+      Optional<BigDecimal> baselineWape) {
+    public ForecastAccuracyView {
+      weeks = List.copyOf(weeks);
     }
   }
 
