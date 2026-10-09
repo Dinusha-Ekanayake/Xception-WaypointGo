@@ -54,27 +54,30 @@ function DriverProfileButton({
         createPortal(
           <SettingsPanel displayName={displayName} roleLabel={t("Driver")} lang={lang} onLang={(l) => onLang?.(l)} placement="frame"
             installT={t}
-            rows={<McpSettingsRow className="flex min-h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-go-surface text-[15px] font-medium text-go-ink" />}
+            rows={
+              <>
+                <McpSettingsRow className="flex min-h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-go-surface text-[15px] font-medium text-go-ink" />
+                {onSignOut && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpen(false);
+                      onSignOut();
+                    }}
+                    className="flex min-h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-go-danger-tint text-[15px] font-medium text-go-danger-strong active:scale-95"
+                  >
+                    <svg aria-hidden width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                      <polyline points="16 17 21 12 16 7" />
+                      <line x1="21" y1="12" x2="9" y2="12" />
+                    </svg>
+                    {t("Sign out")}
+                  </button>
+                )}
+              </>
+            }
             onClose={() => setOpen(false)}
-          >
-            {onSignOut && (
-              <button
-                type="button"
-                onClick={() => {
-                  setOpen(false);
-                  onSignOut();
-                }}
-                className="flex h-11 shrink-0 items-center gap-2 rounded-full border border-go-danger-strong px-4 text-[15px] font-medium text-go-danger-strong active:scale-95"
-              >
-                <svg aria-hidden width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                  <polyline points="16 17 21 12 16 7" />
-                  <line x1="21" y1="12" x2="9" y2="12" />
-                </svg>
-                {t("Sign out")}
-              </button>
-            )}
-          </SettingsPanel>,
+          />,
           host,
         )}
     </>

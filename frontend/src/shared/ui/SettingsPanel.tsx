@@ -144,10 +144,11 @@ export function SettingsPanel({
         {framed && children}
       </div>
       <h2 className="text-[18px] font-medium">Settings</h2>
-      <fieldset className={cx("flex gap-2", framed ? "flex-row flex-wrap items-center gap-x-4" : "flex-col rounded-[14px] bg-go-canvas p-3")}>
+      <fieldset className={cx("flex flex-col gap-2", !framed && "rounded-[14px] bg-go-canvas p-3")}>
         <legend className="sr-only">Language</legend>
         <span className="text-[14px] font-medium">Language</span>
-        <div className="flex gap-1">
+        {/* On the driver's phone the choice is three full-width buttons, like the rows below it. */}
+        <div className={framed ? "grid grid-cols-3 gap-2" : "flex gap-1"}>
           {APP_LANGS.map((l) => (
             <button
               key={l.value}
@@ -156,7 +157,11 @@ export function SettingsPanel({
               aria-label={l.label}
               aria-pressed={lang === l.value}
               onClick={() => onLang(l.value)}
-              className={cx(segment, lang === l.value ? "bg-go-card font-medium text-go-ink shadow-go-float" : "text-go-muted")}
+              className={
+                framed
+                  ? cx("flex min-h-12 items-center justify-center rounded-[14px] text-[15px]", lang === l.value ? "bg-go-ink font-medium text-go-card" : "bg-go-surface text-go-ink")
+                  : cx(segment, lang === l.value ? "bg-go-card font-medium text-go-ink shadow-go-float" : "text-go-muted")
+              }
             >
               {l.short}
             </button>
