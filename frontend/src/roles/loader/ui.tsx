@@ -50,7 +50,7 @@ export function StatusChip({ status }: { status: SessionStatus }): React.JSX.Ele
   );
 }
 
-type Tone = "mint" | "danger" | "ink" | "plain" | "muted" | "grey";
+type Tone = "mint" | "danger" | "ink" | "plain" | "muted" | "grey" | "signOut";
 const TONE: Record<Tone, string> = {
   mint: "bg-go-soft text-go-on-soft",
   danger: "bg-[#ea2525] text-white",
@@ -58,6 +58,8 @@ const TONE: Record<Tone, string> = {
   plain: "border-[1.5px] border-go-rule bg-go-card text-go-ink",
   muted: "bg-go-divider text-go-muted",
   grey: "bg-go-surface text-go-ink",
+  /** Leaving: a red outline and red words, as the driver's and the store's sign out. */
+  signOut: "border-[1.5px] border-go-danger-strong bg-go-card text-go-danger-strong",
 };
 
 export function BigButton({
