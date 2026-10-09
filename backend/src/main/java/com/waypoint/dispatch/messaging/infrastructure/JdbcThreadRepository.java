@@ -2,6 +2,9 @@ package com.waypoint.dispatch.messaging.infrastructure;
 
 import com.waypoint.dispatch.messaging.domain.MessagePolicy;
 import com.waypoint.dispatch.platform.db.Database;
+import com.waypoint.dispatch.platform.db.ModuleRole;
+import com.waypoint.dispatch.platform.storage.MediaTable;
+import com.waypoint.dispatch.platform.storage.S3Objects;
 import java.sql.Array;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -23,8 +26,24 @@ import org.springframework.stereotype.Repository;
 public class JdbcThreadRepository {
   private final Database database;
 
-  public JdbcThreadRepository(Database database) {
+  /** Where voice notes live in the object store (M-01). */
+  public static final String VOICE_PREFIX = "voice/";
+
+  private final S3Objects objects;
+
+  public JdbcThreadRepository(Database database, S3Objects objects) {
     this.database = database;
+    this.objects = objects;
+  }
+
+  /** The voice notes' table, for the object store backfill (M-01). */
+  @org.springframework.stereotype.Component
+  static class VoiceMedia implements MediaTable {
+    @Override public String table() { return "messaging.voice_notes"; }
+    @Override public ModuleRole moduleRole() { return ModuleRole.MESSAGING; }
+    @Override public String idColumn() { return "voice_note_id"; }
+    @Override public String prefix() { return VOICE_PREFIX; }
+    @Override public String liveCondition() { return "purged_at IS NULL"; }
   }
 
   /** A thread as stored. */
@@ -320,15 +339,22 @@ public class JdbcThreadRepository {
   public boolean insertVoice(
       UUID voiceNoteId, UUID threadId, UUID uploadedBy, String contentType, byte[] content, Optional<Integer> durationMs,
       String sha256, Instant now, Instant retainUntil, List<Integer> peaks) {
+    // M-01: with the object store on, the audio goes to the bucket first and the row keeps where.
+    String objectKey = null;
+    if (objects.enabled()) {
+      objectKey = VOICE_PREFIX + voiceNoteId;
+      objects.put(objectKey, content, contentType);
+    }
     return database.update(
             """
             INSERT INTO messaging.voice_notes
                 (voice_note_id, thread_id, uploaded_by, content_type, size_bytes, duration_ms, sha256, content,
-                 uploaded_at, retain_until, peaks)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::smallint[])
+                 object_key, uploaded_at, retain_until, peaks)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::smallint[])
             ON CONFLICT (voice_note_id) DO NOTHING
             """,
-            voiceNoteId, threadId, uploadedBy, contentType, content.length, durationMs.orElse(null), sha256, content,
+            voiceNoteId, threadId, uploadedBy, contentType, content.length, durationMs.orElse(null), sha256,
+            objectKey == null ? content : null, objectKey,
             Timestamp.from(now), Timestamp.from(retainUntil), peaks.isEmpty() ? null : peaks.toArray(Integer[]::new))
         > 0;
   }
@@ -350,8 +376,9 @@ public class JdbcThreadRepository {
   public Optional<byte[]> voiceContent(UUID voiceNoteId) {
     return Optional.ofNullable(
             database.queryOne(
-                "SELECT content FROM messaging.voice_notes WHERE voice_note_id = ? AND purged_at IS NULL", voiceNoteId))
-        .map(r -> (byte[]) r.get("content"));
+                "SELECT content, object_key FROM messaging.voice_notes WHERE voice_note_id = ? AND purged_at IS NULL",
+                voiceNoteId))
+        .map(r -> objects.read((byte[]) r.get("content"), (String) r.get("object_key")));
   }
 
   /** Voice notes past their retention, oldest first. */
@@ -368,8 +395,11 @@ public class JdbcThreadRepository {
 
   /** Clears the audio; the row, its size and its SHA-256 stay. Running twice changes nothing. */
   public boolean purgeVoice(UUID voiceNoteId, Instant now) {
+    Map<String, Object> held = database.queryOne(
+        "SELECT object_key FROM messaging.voice_notes WHERE voice_note_id = ? AND purged_at IS NULL", voiceNoteId);
+    if (held != null && held.get("object_key") != null) objects.delete((String) held.get("object_key"));
     return database.update(
-            "UPDATE messaging.voice_notes SET content = NULL, purged_at = ?"
+            "UPDATE messaging.voice_notes SET content = NULL, object_key = NULL, purged_at = ?"
                 + " WHERE voice_note_id = ? AND purged_at IS NULL",
             Timestamp.from(now), voiceNoteId)
         > 0;

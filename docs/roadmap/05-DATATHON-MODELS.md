@@ -197,6 +197,8 @@ SHAP is not used: a SHAP value on one part of a blend plus a simulator does not 
 
 ### T1-01 Publish risk section (Phase 1.5)
 
+**Status.** Built 2026-10-09 (R-ML-25, ML-37). The Publish step lists the draft's stops at 35% or more, labelled "estimate: learning", each kept or swapped with a reason (`ml:RecordRiskReview`; the action is in the ML module, which owns the record, rather than `plan:`). Computed on request from the tuned deterministic estimate, so a draft is reviewed without a model call.
+
 **What the dispatcher sees.** Before Publish, trips and stops at or above the risk threshold are listed. The dispatcher reviews, swaps or keeps each.
 
 **Recording.** The choice is recorded with a reason (`plan:RecordRiskReview`).

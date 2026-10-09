@@ -22,6 +22,11 @@ import org.springframework.stereotype.Component;
  * path-style so any S3-compatible service works. A module reaches it through
  * its own port (such as {@code ProofStore}); none of them sees a bucket.
  *
+ * <p>Every object is encrypted before it leaves the server and decrypted after
+ * it returns ({@link ObjectCipher}, AES-256-GCM with the object's key bound in),
+ * so the provider holds only ciphertext and an object moved to another key, or
+ * changed, fails to open instead of being served.
+ *
  * <p>Every failure is {@code DEPENDENCY_UNAVAILABLE}: the caller says so on
  * screen and the phone keeps the upload queued (rule 9). A missing object is
  * empty, not an error.
@@ -33,10 +38,12 @@ public class S3Objects {
   private final ObjectStoreProperties properties;
   private final Metrics metrics;
   private final HttpClient http;
+  private final ObjectCipher cipher;
 
   public S3Objects(ObjectStoreProperties properties, Metrics metrics) {
     this.properties = properties;
     this.metrics = metrics;
+    this.cipher = properties.s3() ? new ObjectCipher(properties.encryptionKey()) : null;
     this.http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).followRedirects(HttpClient.Redirect.NEVER).build();
   }
 
@@ -46,7 +53,8 @@ public class S3Objects {
 
   /** Returns once the store has the object. */
   public void put(String key, byte[] content, String contentType) {
-    HttpResponse<byte[]> r = call("PUT", key, content, Map.of("content-type", contentType));
+    HttpResponse<byte[]> r =
+        call("PUT", key, cipher.seal(key, content), Map.of("content-type", "application/octet-stream"));
     if (r.statusCode() / 100 != 2) throw unavailable("put", r.statusCode());
   }
 
@@ -54,7 +62,22 @@ public class S3Objects {
     HttpResponse<byte[]> r = call("GET", key, null, Map.of());
     if (r.statusCode() == 404) return Optional.empty();
     if (r.statusCode() != 200) throw unavailable("get", r.statusCode());
-    return Optional.of(r.body());
+    try {
+      return Optional.of(cipher.open(key, r.body()));
+    } catch (java.security.GeneralSecurityException e) {
+      metrics.increment("waypoint.storage.unreadable");
+      throw new DomainException(ErrorCode.DEPENDENCY_UNAVAILABLE, "A stored file failed its integrity check");
+    }
+  }
+
+  /**
+   * A row's file, wherever it is: the bytes still in the database, else the
+   * object its {@code object_key} names. Null when neither holds it (cleared).
+   */
+  public byte[] read(byte[] content, String objectKey) {
+    if (content != null) return content;
+    if (objectKey == null) return null;
+    return get(objectKey).orElse(null);
   }
 
   /** Deleting an object that is not there succeeds, as S3 does. */

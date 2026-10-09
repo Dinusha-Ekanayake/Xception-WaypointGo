@@ -1133,6 +1133,57 @@ class IntelligenceIntegrationTest {
     assertEquals(1, warnings(booked).size(), "R-ML-08: once per order, day and status");
   }
 
+  /** T1-01: before Publish the dispatcher keeps or swaps each stop likely to be late, with a reason. */
+  @Test
+  void aDraftsStopsAtRiskAreListedAndEachChoiceIsRecordedWithItsReasonInScope() throws Exception {
+    demand();
+    demand();
+    JsonNode queued = result(send(dispatcher, envelope("plan:Generate", null,
+        "{\"depotCode\":\"" + depot + "\",\"serviceDate\":\"" + serviceDate + "\"}"), 200));
+    worker.runPending();
+    UUID planId = UUID.fromString(read(dispatcher, "/api/plans/jobs/" + queued.get("jobId").asText() + "?depot=" + depot, 200)
+        .get("planId").asText());
+    // One stop planned at the very minute its window closes: the estimate must list it.
+    database.asSystem(ModuleRole.PLANNING, () -> database.update(
+        "UPDATE planning.allocations SET window_close = planned_arrival WHERE plan_id = ?"
+            + " AND order_id = (SELECT order_id FROM planning.allocations WHERE plan_id = ? AND planned_arrival IS NOT NULL"
+            + " ORDER BY order_id LIMIT 1)", planId, planId));
+
+    JsonNode report = read(dispatcher, "/api/ml/plans/" + planId + "/risk-review", 200);
+    assertTrue(report.get("enabled").asBoolean());
+    assertTrue(report.get("estimate").asBoolean(), "labelled an estimate until the trust gates pass");
+    assertTrue(report.get("stops").size() >= 1, report.toString());
+    JsonNode stop = report.get("stops").get(0);
+    String orderId = stop.get("orderId").asText();
+    assertTrue(stop.get("percent").asInt() >= 35);
+    assertTrue(stop.get("review").isNull(), "not reviewed yet");
+
+    send(dispatcher, envelope("ml:RecordRiskReview", null,
+        "{\"planId\":\"" + planId + "\",\"orderId\":\"" + orderId + "\",\"choice\":\"KEEP\",\"reason\":\"The store receives early\"}"), 200);
+    JsonNode reviewed = read(dispatcher, "/api/ml/plans/" + planId + "/risk-review", 200).get("stops").get(0);
+    assertEquals("KEEP", reviewed.at("/review/choice").asText());
+    assertEquals("The store receives early", reviewed.at("/review/reason").asText());
+
+    // A change of mind is a new row; the latest is shown, both are kept.
+    send(dispatcher, envelope("ml:RecordRiskReview", null,
+        "{\"planId\":\"" + planId + "\",\"orderId\":\"" + orderId + "\",\"choice\":\"SWAP\",\"reason\":\"Move it to the earlier trip\"}"), 200);
+    assertEquals("SWAP", read(dispatcher, "/api/ml/plans/" + planId + "/risk-review", 200).at("/stops/0/review/choice").asText());
+    assertEquals(2L, ((Number) database.asSystem(ModuleRole.ML, () -> database.queryOne(
+        "SELECT count(*) AS n FROM ml.risk_reviews WHERE plan_id = ? AND order_id = ?::uuid", planId, orderId)).get("n")).longValue());
+
+    // No reason, or a stop not at risk, is refused; another depot's dispatcher reaches neither.
+    send(dispatcher, envelope("ml:RecordRiskReview", null,
+        "{\"planId\":\"" + planId + "\",\"orderId\":\"" + orderId + "\",\"choice\":\"KEEP\",\"reason\":\"\"}"), 422);
+    send(dispatcher, envelope("ml:RecordRiskReview", null,
+        "{\"planId\":\"" + planId + "\",\"orderId\":\"" + UUID.randomUUID() + "\",\"choice\":\"KEEP\",\"reason\":\"Fine\"}"), 422);
+    int strangerRead = http.perform(get("/api/ml/plans/" + planId + "/risk-review").cookie(stranger)).andReturn().getResponse().getStatus();
+    assertTrue(strangerRead == 403 || strangerRead == 404, "another depot's plan is not read: " + strangerRead);
+    int strangerWrite = http.perform(post("/api/commands").cookie(stranger).contentType(MediaType.APPLICATION_JSON).content(
+        envelope("ml:RecordRiskReview", null, "{\"planId\":\"" + planId + "\",\"orderId\":\"" + orderId
+            + "\",\"choice\":\"KEEP\",\"reason\":\"Not mine\"}"))).andReturn().getResponse().getStatus();
+    assertTrue(strangerWrite == 403 || strangerWrite == 404, "nor reviewed: " + strangerWrite);
+  }
+
   // ---- helpers --------------------------------------------------------------------------------
 
   private UUID publishedPlan() throws Exception {

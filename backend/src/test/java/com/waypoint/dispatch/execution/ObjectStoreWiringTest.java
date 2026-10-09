@@ -18,7 +18,8 @@ import org.springframework.test.context.DynamicPropertySource;
     "app.storage.endpoint=https://example.invalid",
     "app.storage.bucket=proofs-test",
     "app.storage.access-key-id=test",
-    "app.storage.secret-access-key=test"})
+    "app.storage.secret-access-key=test",
+    "app.storage.encryption-key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="})
 @ExtendWith(TestDatabase.class)
 class ObjectStoreWiringTest {
   @Autowired ProofStore proofs;

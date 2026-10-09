@@ -10,8 +10,10 @@ import org.junit.jupiter.api.Test;
 
 /** M-01: the process refuses to start with the store half configured, and the secret is never printed. */
 class ObjectStorePropertiesTest {
+  static final String KEY = java.util.Base64.getEncoder().encodeToString(new byte[32]);
+
   static ObjectStoreProperties of(String store, String endpoint, String bucket, String key, String secret) {
-    return new ObjectStoreProperties(store, endpoint, bucket, "auto", key, secret, Duration.ofSeconds(30));
+    return new ObjectStoreProperties(store, endpoint, bucket, "auto", key, secret, Duration.ofSeconds(30), KEY, Duration.ofDays(30));
   }
 
   @Test
@@ -25,8 +27,20 @@ class ObjectStorePropertiesTest {
   }
 
   @Test
+  void theStoreOnNeedsA32ByteEncryptionKey() {
+    var noKey = new ObjectStoreProperties("s3", "https://e", "b", "auto", "id", "s", Duration.ofSeconds(30), "", Duration.ofDays(30));
+    var shortKey = new ObjectStoreProperties("s3", "https://e", "b", "auto", "id", "s", Duration.ofSeconds(30),
+        java.util.Base64.getEncoder().encodeToString(new byte[16]), Duration.ofDays(30));
+    assertFalse(noKey.isKeyValid());
+    assertFalse(shortKey.isKeyValid());
+    assertTrue(of("s3", "https://e", "b", "id", "s").isKeyValid());
+    assertTrue(of("", "", "", "", "").isKeyValid(), "no key needed with the store off");
+  }
+
+  @Test
   void theSecretIsNotInTheTextForm() {
     assertFalse(of("s3", "https://e", "b", "id", "very-secret").toString().contains("very-secret"));
+    assertFalse(of("s3", "https://e", "b", "id", "s").toString().contains(KEY), "nor the encryption key");
   }
 
   @Test

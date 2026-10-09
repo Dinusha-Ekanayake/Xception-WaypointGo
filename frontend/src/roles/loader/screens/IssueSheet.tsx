@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type { CheckStatus, FlagShortfall, ItemView, OutletView } from "@shared/domain/types";
 import { Notice, cx } from "@shared/ui";
 import { ISSUE_KIND_LABEL, isFlagged, orderLabel, placeName, productName } from "../data/manifest.ts";
 import type { Line } from "../data/useTrip.ts";
 import { BigButton, Sheet } from "../ui.tsx";
-import { QUALITY_HINT, checkPhoto, encodePhoto } from "../../../shared/media/photo.ts";
+import { useTakenPhotos } from "../../../shared/media/useTakenPhotos.ts";
 import { useT } from "../i18n.tsx";
 import { CameraIcon, ChevronDownIcon, CloseIcon, IssueIcon } from "../icons.tsx";
 
@@ -87,24 +87,12 @@ export default function IssueSheet({
   const [kind, setKind] = useState<Kind>("DAMAGED");
   const [units, setUnits] = useState(1);
   const [reason, setReason] = useState("");
-  // FF-02: an optional photo of the damaged or short line, made small on the tablet.
-  const [photo, setPhoto] = useState<{ blob: Blob; url: string; hint: string | null } | null>(null);
-  const [photoError, setPhotoError] = useState<string | null>(null);
+  // FF-02: an optional photo of the damaged or short line, made small on the tablet (FF-01, shared).
+  const taken = useTakenPhotos(1);
+  const photo = taken.photos[0] ?? null;
+  const photoError = taken.error;
   const camera = useRef<HTMLInputElement>(null);
-  useEffect(() => () => {
-    if (photo) URL.revokeObjectURL(photo.url);
-  }, [photo]);
-  const takePhoto = async (file: File | undefined) => {
-    if (!file) return;
-    setPhotoError(null);
-    try {
-      const { blob } = await encodePhoto(file);
-      const quality = await checkPhoto(blob);
-      setPhoto({ blob, url: URL.createObjectURL(blob), hint: quality === "ok" ? null : QUALITY_HINT[quality] });
-    } catch (failure) {
-      setPhotoError(failure instanceof Error ? failure.message : "The photo could not be used.");
-    }
-  };
+  const takePhoto = (file: File | undefined) => taken.add(file);
   const line = lines.find((l) => l.orderId === orderId);
   const item = line?.items.find((i) => i.lineNo === lineNo) ?? null;
   // The whole order flags every item not already flagged, in full (the server's rule).
@@ -256,7 +244,7 @@ export default function IssueSheet({
               {/* A local object URL of a photo just taken; nothing for next/image to optimise. */}
               <img src={photo.url} alt={tr("Photo of the item")} loading="lazy" decoding="async" className="size-16 rounded-[12px] object-cover" />
               <span className="flex-1 text-[15px]">{tr("Photo added")}</span>
-              <button type="button" onClick={() => setPhoto(null)} className="min-h-12 rounded-full bg-go-surface px-4 text-[15px]">
+              <button type="button" onClick={() => taken.remove(photo.id)} className="min-h-12 rounded-full bg-go-surface px-4 text-[15px]">
                 {tr("Remove photo")}
               </button>
             </div>

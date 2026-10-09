@@ -17,8 +17,7 @@ import {
 import { Icon, Notice } from "@shared/ui";
 import type { StoreGateway } from "../../data/gateway.ts";
 import { clock, dockWhere, temperatureLabel } from "../../data/format.ts";
-import { shrinkPhoto } from "../../data/photo.ts";
-import { QUALITY_HINT, checkPhoto } from "@shared/media/photo";
+import { preparePhoto } from "@shared/media/useTakenPhotos";
 import { answerFor, counted, knownShortages, LOWERS_COUNT, room as roomFor, type Kind, type Report } from "../../data/receive.ts";
 import { conflictMessage, type useCommands } from "../../data/useCommands.ts";
 import { BackButton, Badge, Button, Modal, Muted } from "../../ui.tsx";
@@ -120,10 +119,8 @@ export default function Receive({
   const onPhoto = async (file: File | undefined) => {
     if (!file) return;
     try {
-      const blob = await shrinkPhoto(file);
-      // M-02: a blurred or dark photo is pointed out before it is sent; it can still be kept.
-      const quality = await checkPhoto(blob);
-      const photo = { id: crypto.randomUUID(), blob, url: URL.createObjectURL(blob), hint: quality === "ok" ? null : QUALITY_HINT[quality] };
+      // M-02, FF-01: the shared photo flow; a blurred or dark photo is pointed out, and can still be kept.
+      const photo = await preparePhoto(file);
       urls.current.push(photo.url);
       setPhotos((all) => ({ ...all, [photo.id]: photo }));
       setPending((ids) => [...ids, photo.id]);

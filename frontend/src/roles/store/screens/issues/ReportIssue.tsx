@@ -7,8 +7,7 @@ import { Icon, Notice, cx } from "@shared/ui";
 import type { StoreGateway } from "../../data/gateway.ts";
 import { dayLabel, temperatureLabel } from "../../data/format.ts";
 import { REPORT_KINDS, type ReportKind } from "../../data/issues.ts";
-import { shrinkPhoto } from "../../data/photo.ts";
-import { QUALITY_HINT, checkPhoto } from "@shared/media/photo";
+import { useTakenPhotos } from "@shared/media/useTakenPhotos";
 import { LOWERS_COUNT, noteOf } from "../../data/receive.ts";
 import type { useCommands } from "../../data/useCommands.ts";
 import { Badge, Button, Field, Modal, Stepper } from "../../ui.tsx";
@@ -19,8 +18,6 @@ import { useT, useCounts } from "../../i18n.tsx";
 // The report names its order and item so the dispatcher can act on it; photos
 // go through the same offline queue as the count's, and the issue links them
 // whichever reaches the server first.
-
-type Photo = { id: string; blob: Blob; url: string; hint: string | null };
 
 export default function ReportIssue({
   gateway,
@@ -50,7 +47,9 @@ export default function ReportIssue({
   const [kind, setKind] = useState<ReportKind | null>(preset);
   const [units, setUnits] = useState(1);
   const [comment, setComment] = useState("");
-  const [photos, setPhotos] = useState<Photo[]>([]);
+  // FF-01: the shared photo flow (M-02 encoding, blur and darkness check, previews released on close).
+  const taken = useTakenPhotos();
+  const photos = taken.photos;
   const [viewing, setViewing] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [orderError, setOrderError] = useState<string | null>(null);
@@ -60,17 +59,9 @@ export default function ReportIssue({
 
   const takePhoto = () => camera.current?.click();
   const onPhoto = async (file: File | undefined) => {
-    if (!file) return;
-    try {
-      const blob = await shrinkPhoto(file);
-      // M-02: a blurred or dark photo is pointed out on the phone, before it is sent; it can still be kept.
-      const quality = await checkPhoto(blob);
-      const photo = { id: crypto.randomUUID(), blob, url: URL.createObjectURL(blob), hint: quality === "ok" ? null : QUALITY_HINT[quality] };
-      setPhotos((all) => [...all, photo]);
-      setViewing(photo.id);
-    } catch (failure) {
-      setError(failure instanceof Error ? failure.message : t("The photo could not be used."));
-    }
+    // M-02: a blurred or dark photo is pointed out on the phone, before it is sent; it can still be kept.
+    const photo = await taken.add(file);
+    if (photo) setViewing(photo.id);
   };
 
   const send = async () => {
@@ -211,7 +202,7 @@ export default function ReportIssue({
               + Add photo (optional)
             </button>
           </div>
-          {error && <Notice tone="danger" live title={error} />}
+          {(error ?? taken.error) && <Notice tone="danger" live title={error ?? t(taken.error!)} />}
           <div className="flex gap-2.5">
             <Button tone="plain" large onClick={onClose}>
               {t("Cancel")}
@@ -240,7 +231,7 @@ export default function ReportIssue({
           url={viewed.url}
           hint={viewed.hint}
           onRetake={() => {
-            setPhotos((all) => all.filter((p) => p.id !== viewed.id));
+            taken.remove(viewed.id);
             setViewing(null);
             takePhoto();
           }}

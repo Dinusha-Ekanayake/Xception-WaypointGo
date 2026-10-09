@@ -1,6 +1,9 @@
 package com.waypoint.dispatch.execution.infrastructure;
 
 import com.waypoint.dispatch.platform.db.Database;
+import com.waypoint.dispatch.platform.db.ModuleRole;
+import com.waypoint.dispatch.platform.storage.MediaTable;
+import com.waypoint.dispatch.platform.storage.S3Objects;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
@@ -16,10 +19,25 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public class JdbcFuelPasses {
-  private final Database database;
+  /** Where Fuel Pass images live in the object store (M-01). */
+  public static final String PREFIX = "fuel-passes/";
 
-  public JdbcFuelPasses(Database database) {
+  private final Database database;
+  private final S3Objects objects;
+
+  public JdbcFuelPasses(Database database, S3Objects objects) {
     this.database = database;
+    this.objects = objects;
+  }
+
+  /** The passes' table, for the object store backfill (M-01). A revoked pass is kept as it was. */
+  @org.springframework.stereotype.Component
+  static class Media implements MediaTable {
+    @Override public String table() { return "execution.fuel_passes"; }
+    @Override public ModuleRole moduleRole() { return ModuleRole.EXECUTION; }
+    @Override public String idColumn() { return "pass_id"; }
+    @Override public String prefix() { return PREFIX; }
+    @Override public String liveCondition() { return "TRUE"; }
   }
 
   /** One stored pass. {@code content} is empty when the caller asked for the row without the image. */
@@ -48,9 +66,12 @@ public class JdbcFuelPasses {
     return Optional.ofNullable(
             database.queryOne(
                 "SELECT pass_id, vehicle_id, content_type, size_bytes, sha256, uploaded_at, revoked_at, row_version,"
-                    + " content FROM execution.fuel_passes WHERE vehicle_id = ? AND revoked_at IS NULL",
+                    + " content, object_key FROM execution.fuel_passes WHERE vehicle_id = ? AND revoked_at IS NULL",
                 vehicleId))
-        .map(JdbcFuelPasses::pass);
+        .map(row -> {
+          row.put("content", objects.read((byte[]) row.get("content"), (String) row.get("object_key")));
+          return pass(row);
+        });
   }
 
   /** How many passes the vehicle ever had: the expected version of its next upload. */
@@ -73,13 +94,20 @@ public class JdbcFuelPasses {
 
   public void insert(
       UUID passId, String vehicleId, byte[] content, String contentType, String sha256, UUID actor, Instant now) {
+    // M-01: with the object store on, the image goes to the bucket first and the row keeps where.
+    String objectKey = null;
+    if (objects.enabled()) {
+      objectKey = PREFIX + passId;
+      objects.put(objectKey, content, contentType);
+    }
     database.update(
         """
         INSERT INTO execution.fuel_passes
-            (pass_id, vehicle_id, content, content_type, size_bytes, sha256, uploaded_by, uploaded_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (pass_id, vehicle_id, content, object_key, content_type, size_bytes, sha256, uploaded_by, uploaded_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        passId, vehicleId, content, contentType, content.length, sha256, actor, Timestamp.from(now));
+        passId, vehicleId, objectKey == null ? content : null, objectKey, contentType, content.length, sha256, actor,
+        Timestamp.from(now));
   }
 
   /** Revokes whatever pass is current for the vehicle; zero rows when there is none. */

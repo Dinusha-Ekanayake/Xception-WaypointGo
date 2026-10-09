@@ -177,6 +177,19 @@ curl -sS https://waypointgo.live/api/commands -H 'content-type: application/json
 
 The command never echoes the password, writes an audit row, and ends the account's other sessions. Run it from a shell whose history is off (`set +o history`), or type the password into a file read with `$(cat file)` and delete the file.
 
+## Object store (M-01)
+
+Off by default: every file stays in the database. To move files to an S3-compatible bucket (Cloudflare R2, Backblaze B2, AWS S3):
+
+1. **A private bucket.** No public access, no public `r2.dev` address, no website hosting. Files are only ever served through the backend, which applies row-level security and audit.
+2. **A token for that bucket only.** Object read and write on the one bucket; no account-wide token, no admin rights. Put its id and secret in `S3_ACCESS_KEY_ID` and `S3_SECRET_ACCESS_KEY`, the endpoint in `S3_ENDPOINT`, the bucket in `S3_BUCKET`.
+3. **An encryption key.** `openssl rand -base64 32` into `S3_ENCRYPTION_KEY`. Every file is encrypted with it on the server before upload, so the provider holds only ciphertext. **Without this key the files cannot be read**: keep a copy where the database backups are kept, never in the bucket and never in the repository. Changing it makes every stored file unreadable; there is no rotation yet.
+4. `OBJECT_STORE=s3`, then restart the backend. With a value missing it refuses to start and says which.
+
+New files go to the bucket from then on. `MediaBackfillJob` moves what was stored before, 50 files every ten minutes per table, reading each one back and comparing it before recording the move; the database copy is cleared 30 days later (`S3_MOVE_AFTER`). Watch `waypoint_storage_backfill_total{outcome}`: anything but `moved` is a file left in the database for a look. Once files have moved, do not set `OBJECT_STORE` back: the moved files are then in the bucket only.
+
+The daily off-server backup below copies the database; it does not copy the bucket. Give the bucket its own copy to a second provider (rclone, H-05), with the encryption key kept beside the database backups.
+
 ## Backup and recovery
 
 ### On the VPS

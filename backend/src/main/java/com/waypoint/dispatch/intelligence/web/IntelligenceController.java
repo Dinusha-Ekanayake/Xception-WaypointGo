@@ -47,6 +47,7 @@ public class IntelligenceController {
   private final AttentionQuery attention;
   private final CapacityDecisionQuery capacityDecisions;
   private final com.waypoint.dispatch.intelligence.application.ReplyRankingQuery replyRanking;
+  private final com.waypoint.dispatch.intelligence.application.RiskReviewQuery riskReviews;
   private final KpiQuery kpis;
   private final RequestAuthorizer authorizer;
   private final com.waypoint.dispatch.intelligence.application.AiExplainer explainer;
@@ -58,6 +59,7 @@ public class IntelligenceController {
       CapacityDecisionQuery capacityDecisions,
       KpiQuery kpis,
       com.waypoint.dispatch.intelligence.application.ReplyRankingQuery replyRanking,
+      com.waypoint.dispatch.intelligence.application.RiskReviewQuery riskReviews,
       RequestAuthorizer authorizer,
       com.waypoint.dispatch.intelligence.application.AiExplainer explainer) {
     this.explainer = explainer;
@@ -67,6 +69,7 @@ public class IntelligenceController {
     this.capacityDecisions = capacityDecisions;
     this.kpis = kpis;
     this.replyRanking = replyRanking;
+    this.riskReviews = riskReviews;
     this.authorizer = authorizer;
   }
 
@@ -214,6 +217,14 @@ public class IntelligenceController {
       HttpServletRequest request) {
     Actor actor = authorizer.require(request, IntelligenceDataQuery.EXPORT, "wpt:ml:training:" + depot);
     return intelligence.trainingRoutes(actor, depot, from, to, Optional.ofNullable(after), limit);
+  }
+
+  /** T1-01: a draft's stops likely to be late, each with the dispatcher's latest keep or swap. */
+  @GetMapping("/plans/{planId}/risk-review")
+  public com.waypoint.dispatch.intelligence.contract.RiskReviewViews.RiskReviewReport riskReview(
+      @PathVariable UUID planId, HttpServletRequest request) {
+    Actor actor = authorizer.require(request, "plan:Read", "wpt:plan:plan:" + planId);
+    return riskReviews.report(actor, planId);
   }
 
   /** AI-J5: the ready replies' learned order for the composer, or "rules only" while there is too little to learn from. */

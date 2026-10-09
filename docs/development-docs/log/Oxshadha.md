@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-09 - feat: every file in the encrypted bucket, the risk review before Publish, one photo flow (M-01, T1-01, FF-01)
+
+`dev` · @Oxshadha
+
+- M-01: with `OBJECT_STORE=s3`, proofs, issue photos, voice notes, Fuel Passes and profile photos go to the bucket, encrypted on the server first (AES-256-GCM, `S3_ENCRYPTION_KEY`, object key bound in; a changed object is refused). Each module declares its table (`MediaTable`); `MediaBackfillJob` moves older files, reads them back, compares, and clears the database copy 30 days later. Deployment steps for a private bucket and a bucket-only token in deployment.md. R-PLT-08, PLT-20.
+- T1-01: the Publish step lists the draft's stops at 35% or more (the tuned estimate, "estimate: learning"), each kept or swapped with a reason (`ml:RecordRiskReview`, append only). Never blocks Publish. R-ML-25, ML-37.
+- FF-01: one photo flow for every report sheet (`shared/media/useTakenPhotos.ts`), each role keeping its own look and command; the store's report sheet no longer leaks previews. One visual sheet would change the loader's look (J.V.). M-02 needed nothing more; its status corrected.
+
+---
+
 ## 2026-10-09 - fix: MCP for the dispatcher only; the driver can install the app
 
 `dev` · @Oxshadha

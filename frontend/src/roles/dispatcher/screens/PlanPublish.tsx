@@ -8,6 +8,8 @@ import { leftOutLine, type PlanSummary, type Working } from "../data/plan.ts";
 import { SLACK_TIGHT_MINUTES, SLACK_WATCH_MINUTES, daysBetween, publishBlocker, slackLabel, tightStops, type DecisionRow } from "../data/planViews.ts";
 import { useComparison } from "../data/usePlanReads.ts";
 import PublishAudience from "./PublishAudience.tsx";
+import PublishRiskReview from "./PublishRiskReview.tsx";
+import Row from "./PublishRow.tsx";
 import ReasonPicker, { reasonReady } from "./ReasonPicker.tsx";
 
 // Figma "Plan · 3 Publish" (3a blocked, 3b ready, 3c published, 3d send
@@ -177,6 +179,8 @@ export default function PlanPublish({
               ))}
             </li>
           )}
+          {/* T1-01: the stops likely to be late, each kept or swapped with a reason. Advice; never blocks. */}
+          {state.stage === "draft" && <PublishRiskReview planId={plan.planId} online={online} onDecide={onDecide} />}
           {revises && (
             <Row
               tone="warning"
@@ -253,41 +257,6 @@ function Stat({ value, note }: { value: string; note: string }): React.JSX.Eleme
       <span className="text-[20px] font-medium text-go-ink">{value}</span>
       <span className="text-xs text-go-secondary">{note}</span>
     </div>
-  );
-}
-
-function Row({
-  tone,
-  title,
-  note,
-  action,
-}: {
-  tone: "ok" | "warning" | "danger";
-  title: string;
-  note: string;
-  action?: { label: string; onClick: () => void };
-}): React.JSX.Element {
-  return (
-    <li className="flex items-center gap-3 border-t border-go-rule py-3.5">
-      <span
-        aria-hidden
-        className={cx(
-          "flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
-          tone === "ok" ? "bg-go-success-tint text-go-teal" : tone === "warning" ? "bg-go-warning-tint text-go-warning-text" : "bg-go-danger-tint text-go-danger-strong",
-        )}
-      >
-        {tone === "ok" ? "✓" : "!"}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-[14px] font-medium text-go-ink">{title}</span>
-        <span className="block text-xs text-go-secondary">{note}</span>
-      </span>
-      {action && (
-        <button type="button" onClick={action.onClick} className="shrink-0 text-[13px] font-medium text-go-teal">
-          {`${action.label} ›`}
-        </button>
-      )}
-    </li>
   );
 }
 

@@ -293,3 +293,46 @@ export type ReplyRankingView = {
   from: string;
   to: string;
 };
+
+/**
+ * Roadmap T1-01: a draft's stops likely to be late (GET /api/ml/plans/{id}/risk-review),
+ * mirrored from RiskReviewViews. `estimate` stays true until the trust gates pass.
+ */
+export type RiskReviewView = {
+  reviewId: string;
+  planId: string;
+  orderId: string;
+  choice: "KEEP" | "SWAP";
+  reason: string;
+  decidedBy: string;
+  decidedAt: string;
+};
+
+export type RiskStopView = {
+  orderId: string;
+  tripId: string;
+  vehicleId: string;
+  sequence: number;
+  outletId: string;
+  percent: number;
+  /** Planned this many minutes before the window closes; negative after. */
+  minutesToClose: number;
+  stopOfTrip: number;
+  review: RiskReviewView | null;
+};
+
+export type RiskReviewReport = {
+  planId: string;
+  enabled: boolean;
+  estimate: boolean;
+  thresholdPercent: number;
+  stops: RiskStopView[];
+};
+
+/** ml:RecordRiskReview: keep or swap one stop at risk, with a reason (rule 8). */
+export type RecordRiskReview = {
+  planId: string;
+  orderId: string;
+  choice: "KEEP" | "SWAP";
+  reason: string;
+};
