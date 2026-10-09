@@ -46,7 +46,7 @@ export default function TripMessages({
       </header>
       <div className="flex h-[62dvh] min-h-0 flex-col">
         {threadId ? (
-          <TripThread threadId={threadId} online={online} variant="phone" sender={sender} keepsOffline accountId={accountId} />
+          <TripThread threadId={threadId} online={online} variant="phone" sender={sender} keepsOffline accountId={accountId} tr={t} />
         ) : byTrip.loading ? (
           <SkeletonRows label={t("Loading messages…")} />
         ) : byTrip.error ? (

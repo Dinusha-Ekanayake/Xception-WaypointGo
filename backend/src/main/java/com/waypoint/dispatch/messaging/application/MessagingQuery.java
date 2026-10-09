@@ -277,6 +277,22 @@ public class MessagingQuery {
     return clock.now().atZone(Clock.OPERATING_ZONE).toLocalDate();
   }
 
+  /**
+   * FF-05: one voice message's transcript, for a screen that shows the message
+   * outside its thread (the driver's Home). Read as the reader: a message they
+   * cannot see is not found, and a thread outside their scope is refused.
+   */
+  public TranscriptView transcriptOf(Actor actor, UUID threadId, UUID messageId) {
+    thread(actor, threadId);
+    UUID voiceNoteId =
+        read(actor, () -> threads.message(messageId).filter(m -> m.threadId().equals(threadId)))
+            .flatMap(Message::voiceNoteId)
+            .orElseThrow(() -> new DomainException(ErrorCode.NOT_FOUND, "No voice message " + messageId + " here"));
+    Map<UUID, JdbcTranscripts.Transcript> heard =
+        database.readAs(ModuleRole.MESSAGING, actor.userId(), () -> transcripts.of(List.of(voiceNoteId)));
+    return transcript(heard.get(voiceNoteId));
+  }
+
   private <T> Optional<T> read(Actor actor, Supplier<Optional<T>> work) {
     return database.readAs(ModuleRole.MESSAGING, actor.userId(), work);
   }

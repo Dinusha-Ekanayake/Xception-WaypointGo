@@ -4,6 +4,8 @@
 // were reviewed by a native speaker (2026-10-09). Dates, times, order
 // references and counts of units stay as the shared wording writes them.
 
+import { THREAD_STRINGS } from "../../../shared/messaging/threadStrings.ts";
+
 export type Lang = "en" | "si" | "ta";
 
 /** [Sinhala, Tamil] for each English string. `{name}` marks a value filled in at run time. */
@@ -714,7 +716,8 @@ export type Translate = (english: string, vars?: Vars) => string;
 
 /** Pure: the text for `english` in `lang`, with `{name}` values filled in. */
 export function translate(lang: Lang, english: string, vars?: Vars): string {
-  const row = STRINGS[english];
+  // The shared trip thread's words are kept once, for every role (FF-00).
+  const row = STRINGS[english] ?? THREAD_STRINGS[english];
   const text = lang === "en" || !row ? english : row[lang === "si" ? 0 : 1];
   return vars ? text.replace(/\{(\w+)\}/g, (whole, key: string) => (key in vars ? String(vars[key]) : whole)) : text;
 }

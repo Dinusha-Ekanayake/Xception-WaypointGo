@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-09 - feat: transcripts and listening for every reader of a voice note; the driver hears messages on Home
+
+`dev` · @Oxshadha
+
+- A voice note's machine transcript now shows wherever the note is read: the driver's Home (a play button and the words, no waveform, `VoiceNotice`, read through `GET /api/threads/{id}/messages/{id}/transcript`), and the driver's, loader's and store's threads. R-MSG-15 updated.
+- The driver's and store's threads were English in Sinhala and Tamil: they now pass the role's translator, and the thread's words are kept once in `shared/messaging/threadStrings.ts` (the loader's reviewed rows plus 22 new ones, marked for the native-speaker review).
+- `.env.example` documents `TRANSCRIBE_MODEL` and `PUBLISH_RISK_REVIEW`.
+
+---
+
 ## 2026-10-09 - feat: every file in the encrypted bucket, the risk review before Publish, one photo flow (M-01, T1-01, FF-01)
 
 `dev` · @Oxshadha

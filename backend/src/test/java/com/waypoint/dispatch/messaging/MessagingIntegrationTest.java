@@ -459,6 +459,13 @@ class MessagingIntegrationTest {
     assertEquals("done", transcript.get("status").asText());
     assertEquals("ටයරය පැලුණා, මහනුවර පාරේ", transcript.get("text").asText());
     assertEquals("si", transcript.get("language").asText());
+    // The driver's Home card reads one message's transcript on its own, under the same rules.
+    String messageId = voiceMessage(dispatcher, voiceId).get("messageId").asText();
+    JsonNode one = json(read(dispatcher, "/api/threads/" + threadId + "/messages/" + messageId + "/transcript", 200));
+    assertEquals("ටයරය පැලුණා, මහනුවර පාරේ", one.get("text").asText());
+    int storeReads = http.perform(get("/api/threads/" + threadId + "/messages/" + messageId + "/transcript")
+        .cookie(session(manager))).andReturn().getResponse().getStatus();
+    assertTrue(storeReads == 403 || storeReads == 404, "a store that cannot see the note cannot read its words: " + storeReads);
     // The store does not read the driver's note to the dispatcher, so neither its words.
     for (JsonNode m : json(read(manager, "/api/threads/" + threadId + "/messages", 200)).get("items")) {
       assertFalse(voiceId.toString().equals(m.path("voiceNoteId").asText()), "a store never reads the crew's notes");

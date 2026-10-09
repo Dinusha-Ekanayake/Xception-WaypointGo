@@ -141,6 +141,14 @@ public class ThreadController {
    * voice note. 404 while it is not ready or the service is off: the phone then
    * reads it with its own voice and says so.
    */
+  /** FF-05: a voice message's machine transcript, for the driver's Home card; status "none" when there is none. */
+  @GetMapping("/{threadId}/messages/{messageId}/transcript")
+  public com.waypoint.dispatch.messaging.contract.MessagingViews.TranscriptView transcript(
+      @PathVariable UUID threadId, @PathVariable UUID messageId, HttpServletRequest request) {
+    var actor = authorizer.require(request, READ, "wpt:message:thread:" + threadId);
+    return query.transcriptOf(actor, threadId, messageId);
+  }
+
   @GetMapping("/{threadId}/messages/{messageId}/speech")
   public ResponseEntity<Resource> speech(
       @PathVariable UUID threadId, @PathVariable UUID messageId, HttpServletRequest request) {

@@ -110,6 +110,26 @@ test("a voice message under the driver's notifications plays the voice itself, n
   expect(spoke).toBe(false);
 });
 
+test("a voice message on Home shows a play button and its machine transcript, no waveform", async ({ page }) => {
+  const server = await serve(page);
+  server.threads = [tripThread(TRIP, "VEH043", ["OUT0101"], "driver")];
+  server.notifications = [
+    {
+      notificationId: "n-voice", eventType: "message.posted", title: "Dinusha Bawantha · VEH043", body: "Voice message",
+      subjectType: "thread", subjectId: `thread-${TRIP}`, createdAt: new Date().toISOString(), readAt: null,
+      facts: { voiceNoteId: "voice-1", messageId: "msg-1", voiceDurationMs: "4000" },
+    } as never,
+  ];
+  await page.route(`**/api/threads/thread-${TRIP}/messages/msg-1/transcript`, (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ status: "done", text: "Akuressa road is closed, take the bypass", language: "en" }) }),
+  );
+  await page.goto("/");
+  const note = page.getByRole("group", { name: /^Voice message from/ });
+  await expect(note).toContainText("Akuressa road is closed, take the bypass");
+  await expect(note.getByRole("button", { name: "Play", exact: true })).toBeVisible();
+  await expect(note.getByRole("slider")).toHaveCount(0);
+});
+
 test("a voice message replays after it ends, and starting another note is not a failure", async ({ page }) => {
   const server = await serve(page);
   server.threads = [tripThread(TRIP, "VEH043", ["OUT0101"], "driver")];

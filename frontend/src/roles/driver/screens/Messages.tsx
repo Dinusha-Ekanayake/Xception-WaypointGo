@@ -65,8 +65,8 @@ export default function Messages({
           <BackIcon />
         </button>
         <div className="flex flex-col">
-          <h1 className="text-[22px] font-medium leading-tight">Messages</h1>
-          <p className="text-[13px] text-go-secondary">{vehicleId ? `${vehicleId} · dispatcher and stores on this trip` : "Your trip"}</p>
+          <h1 className="text-[22px] font-medium leading-tight">{t("Messages")}</h1>
+          <p className="text-[13px] text-go-secondary">{vehicleId ? `${vehicleId} · ${t("dispatcher and stores on this trip")}` : t("Your trip")}</p>
         </div>
       </header>
       {!online && (
@@ -116,7 +116,7 @@ export default function Messages({
           <p className="py-8 text-center text-sm text-go-secondary">This trip has no messages yet.</p>
         ) : (
           <div inert={blocked} aria-hidden={blocked || undefined} className="flex min-h-0 flex-1 flex-col">
-            <TripThread threadId={threadId} online={online} variant="phone" sender={sender} keepsOffline accountId={accountId} playAll={!blocked} />
+            <TripThread threadId={threadId} online={online} variant="phone" sender={sender} keepsOffline accountId={accountId} playAll={!blocked} tr={t} />
           </div>
         )}
       </div>

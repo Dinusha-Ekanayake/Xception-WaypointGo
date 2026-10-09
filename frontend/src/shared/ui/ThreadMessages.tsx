@@ -99,20 +99,26 @@ export function ThreadMessages({
 
 const LANGUAGE_NAME = { en: "English", si: "Sinhala", ta: "Tamil" } as const;
 
-function Transcript({ transcript }: { transcript: TranscriptView | null }): React.JSX.Element {
+/**
+ * FF-05: what the engine heard, for every reader of the note. On a phone a note
+ * with no transcript shows just its play button; the desk says so in words.
+ */
+function Transcript({ transcript, compact, tr }: { transcript: TranscriptView | null; compact: boolean; tr: Translate }): React.JSX.Element | null {
   if (transcript?.status === "done" && transcript.text) {
     return (
       <div data-testid="transcript" className="flex flex-col gap-0.5">
         <span className="text-[11px] font-medium text-go-secondary">
-          Machine transcript, check audio{transcript.language ? ` · ${LANGUAGE_NAME[transcript.language]}` : ""}
+          {tr("Machine transcript, check audio")}
+          {transcript.language ? ` · ${tr(LANGUAGE_NAME[transcript.language])}` : ""}
         </span>
         <p lang={transcript.language ?? undefined} className="whitespace-pre-wrap break-words italic">{transcript.text}</p>
       </div>
     );
   }
+  if (compact && transcript?.status !== "pending") return null;
   return (
     <span data-testid="transcript" className="text-[11px] text-go-secondary">
-      {transcript?.status === "pending" ? "Writing down the voice note…" : "No transcript, play audio"}
+      {tr(transcript?.status === "pending" ? "Writing down the voice note…" : "No transcript, play audio")}
     </span>
   );
 }
@@ -205,7 +211,7 @@ function Message({
           />
         )}
         {/* FF-05: the dispatcher reads what was said without playing every note; the phone screens are unchanged. */}
-        {m.voiceNoteId && !compact && <Transcript transcript={m.transcript ?? null} />}
+        {m.voiceNoteId && <Transcript transcript={m.transcript ?? null} compact={compact} tr={tr} />}
         {m.body && <p className="whitespace-pre-wrap break-words">{m.body}</p>}
         {m.body && !m.voiceNoteId && !m.mine && <ListenButton text={m.body} threadId={m.threadId} messageId={m.messageId} {...(accountId ? { accountId } : {})} tr={tr} className="-ml-2 -mb-1" />}
         {resolved && (

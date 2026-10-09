@@ -4,9 +4,9 @@ import { useState, useRef, useEffect } from "react";
 import { type ReportedVehicleStatus, type VehicleView } from "@shared/domain/types";
 import { isUnread, kindOf, noteColor } from "@shared/notifications/inbox";
 import type { Inbox } from "@shared/notifications/useInbox";
-import { cx, useDeviceLang, useScrollMemory, VoiceNote } from "@shared/ui";
+import { cx, useDeviceLang, useScrollMemory } from "@shared/ui";
+import VoiceNotice from "./VoiceNotice.tsx";
 import { ScrollRevealCard, useRubberBandScroll } from "@shared/ui/scrollReveal";
-import { voiceUrl } from "@shared/messaging/useThread";
 import { clock, countdown, dayLabel, hhmm } from "../../../shared/wording/index.ts";
 import type { TripStatus } from "../data/stopView.ts";
 import type { NextRun } from "../data/run.ts";
@@ -398,16 +398,7 @@ export default function HomeNoVehicle({
                     {item.eventType === "message.posted" && item.facts?.voiceNoteId && item.subjectId ? (
                       // A voice message plays the person's own voice, never text to speech (issue #136).
                       <div className={cx("mt-1 rounded-[16px] px-2 py-1", isNight ? "bg-[#1f1f1f]" : "bg-[#F1F6F5]")}>
-                        <VoiceNote
-                          src={voiceUrl(item.subjectId, item.facts.voiceNoteId)}
-                          durationMs={item.facts.voiceDurationMs ? Number(item.facts.voiceDurationMs) : null}
-                          {...(item.facts.voicePeaks ? { peaks: item.facts.voicePeaks.split(",").map((p) => Number(p) / 100) } : {})}
-                          seed={item.facts.voiceNoteId}
-                          tone="theirs"
-                          label={t("Voice message from {name}", { name: item.title })}
-                          heading={item.title}
-                          caption={item.body}
-                        />
+                        <VoiceNotice item={item} />
                       </div>
                     ) : (
                       <VoiceMessagePlayer

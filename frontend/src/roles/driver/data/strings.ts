@@ -8,6 +8,7 @@
 // terms follow the loader's and the store's (stop නැවතුම / நிறுத்தம், trip ගමන /
 // பயணம்). Times, dates and counts of units stay as the shared wording writes them.
 
+import { THREAD_STRINGS } from "../../../shared/messaging/threadStrings.ts";
 import type { AppLang } from "@shared/ui";
 
 export type Vars = Record<string, string | number>;
@@ -138,6 +139,8 @@ export const STRINGS: Record<string, [string, string]> = {
   "Message": ["පණිවිඩය", "செய்தி"],
   "Message not seen": ["පණිවිඩය නොබැලුවා", "செய்தி பார்க்கப்படவில்லை"],
   "Messages": ["පණිවිඩ", "செய்திகள்"],
+  "Your trip": ["ඔබේ ගමන", "உங்கள் பயணம்"],
+  "dispatcher and stores on this trip": ["මෙම ගමනේ යැවීම් භාරකරු සහ වෙළඳසැල්", "இந்தப் பயணத்தின் அனுப்புநரும் கடைகளும்"],
   "Messages wait here. Stop the vehicle to read and write them.": ["පණිවිඩ මෙහි රැඳී ඇත. ඒවා කියවීමට සහ ලිවීමට වාහනය නවත්වන්න.", "செய்திகள் இங்கே காத்திருக்கின்றன. படிக்கவும் எழுதவும் வாகனத்தை நிறுத்துங்கள்."],
   "Messages, {n} new": ["පණිවිඩ, අලුත් {n}", "செய்திகள், புதியவை {n}"],
   "Name of the person receiving": ["භාරගන්නාගේ නම", "பெறுபவரின் பெயர்"],
@@ -323,6 +326,7 @@ export const STRINGS: Record<string, [string, string]> = {
   "Vehicle status saved on this phone.": ["වාහනයේ තත්ත්වය මෙම දුරකථනයේ සුරැකුණා.", "வாகன நிலை இந்தத் தொலைபேசியில் சேமிக்கப்பட்டது."],
   "Vehicle status sent to dispatch.": ["වාහනයේ තත්ත්වය යැවීම් අංශයට යැව්වා.", "வாகன நிலை அனுப்புதல் பிரிவுக்கு அனுப்பப்பட்டது."],
   "View run sheet": ["ගමන් පත්‍රය බලන්න", "பயணத் தாளைப் பார்"],
+  "Voice message": ["හඬ පණිවිඩය", "குரல் செய்தி"],
   "Voice message from {name}": ["{name} ගෙන් හඬ පණිවිඩයක්", "{name}-இடமிருந்து குரல் செய்தி"],
   "Wait for the window. The wait is recorded separately from the delivery.": ["කාල සීමාව තෙක් රැඳී සිටින්න. රැඳී සිටීම බෙදාහැරීමෙන් වෙනම සටහන් වේ.", "நேரம் வரும் வரை காத்திருங்கள். காத்திருப்பு விநியோகத்திலிருந்து தனியாகப் பதிவாகும்."],
   "Waiting for store confirmation": ["වෙළඳසැලේ තහවුරු කිරීම එනතුරු", "கடையின் உறுதிப்படுத்தலுக்குக் காத்திருக்கிறது"],
@@ -369,7 +373,8 @@ export const STRINGS: Record<string, [string, string]> = {
 };
 
 export function translate(lang: AppLang, english: string, vars?: Vars): string {
-  const row = STRINGS[english];
+  // The shared trip thread's words are kept once, for every role (FF-00).
+  const row = STRINGS[english] ?? THREAD_STRINGS[english];
   const text = lang === "en" || !row ? english : row[lang === "si" ? 0 : 1];
   return vars ? text.replace(/\{(\w+)\}/g, (whole, key: string) => (key in vars ? String(vars[key]) : whole)) : text;
 }
