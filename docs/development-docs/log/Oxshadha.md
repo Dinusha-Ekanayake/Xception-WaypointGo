@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-10-09 - feat: proofs in the S3-compatible object store when OBJECT_STORE=s3 (M-01, first step)
+
+`dev` · @Oxshadha
+
+- `platform/storage/S3Objects`: put, get, delete over path-style HTTPS with Signature V4 written out (`SigV4`, tested against AWS's published example) instead of the AWS SDK. `ObjectStoreProperties` refuses to start with the store half configured and never prints the secret.
+- `S3ProofStore` takes new proofs under `proofs/`; older ones are still read from the database and a purge clears both. Live check on the team's account: one bucket, `storage`; a round trip matched. Other media stay in the database for now. EXE-44; roadmap 02 M-01 updated.
+
+---
+
 ## 2026-10-09 - feat: voice notes written down by Gemini for the dispatcher (FF-05)
 
 `dev` · @Oxshadha

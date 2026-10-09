@@ -126,7 +126,7 @@ services:
       JEV_MODEL: ${JEV_MODEL:-typesafe/jev-1.13}
       # The speech service (R-MSG-10): http://speech:8090 with the "speech" profile; blank turns it off.
       SPEECH_URL: ${SPEECH_URL:-}
-      # Roadmap M-01: the object store, used once all four S3 values are set.
+      # Roadmap M-01: the object store. OBJECT_STORE=s3 with all four S3 values set puts new proofs there.
       OBJECT_STORE: ${OBJECT_STORE:-}
       S3_ENDPOINT: ${S3_ENDPOINT:-}
       S3_BUCKET: ${S3_BUCKET:-}

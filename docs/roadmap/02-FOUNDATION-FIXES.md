@@ -190,6 +190,8 @@ Not on the pilot's critical path. FF-02, FF-03 and FF-06 ship first on the exist
 
 ### M-01 Object store
 
+**Status.** First step built 2026-10-09: `platform/storage/S3Objects` (path-style, Signature V4 written out and checked against AWS's published example, no SDK) and `S3ProofStore`, chosen with `OBJECT_STORE=s3`. New proof photos and signatures go to the bucket; older ones are still read from the database, and a purge clears both (EXE-44). Checked live against the team's S3-compatible account: credentials list one bucket, `storage`, and a put, read back and delete round trip matched. Still to do: the other ports (issue photos, voice, Fuel Pass, profile photos), the backfill with a SHA-256 check of every object, dropping the `bytea` copies 30 days later, and the nightly copy to a second provider (H-05).
+
 - **Ports:** each module keeps its own port in its domain package:
   - `ProofStore` (exists);
   - `IssuePhotoStore`;
