@@ -8,8 +8,8 @@
 
 `dev` · @Oxshadha
 
-- Decision: an AI assistant over MCP is the dispatcher's. The driver, loader and store manager roles lose `WaypointMcpReader` and `WaypointMcpWriter` (migration `20261009T1300`), so they are refused; an administrator can still grant one named person. MCP tests that used those roles now grant their test user first (`support/McpGrants`). R-IAM-40, SEC-48.
-- Install: Chrome reports every role address installable (own name, three icons, active worker, no manifest errors). The driver's Settings had no "Install app" (`showInstall={false}` with no other way); it now has the shared row, in Sinhala and Tamil as the loader says it.
+- Decision: an AI assistant over MCP is the dispatcher's. The driver, loader and store manager roles lose `WaypointMcpReader` and `WaypointMcpWriter` (migration `20261009T1300`), so they are refused; an administrator can still grant one named person. MCP tests that used those roles now grant their test user first (`support/McpGrants`). The button follows the permission: `GET /api/mcp/access` answers from the policy, and `McpSettingsRow` in every role's Settings shows only on a yes, so an administrator's grant or block shows on the next visit. R-IAM-40, SEC-48.
+- Install: Chrome reports every role address installable (own name, three icons, active worker, no manifest errors). The driver's Settings had no "Install app" (`showInstall={false}` with no other way); it now has the shared row under Language (`SettingsPanel` `installT`, `rows`), in Sinhala and Tamil as the loader says it.
 
 ---
 

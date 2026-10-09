@@ -208,6 +208,32 @@ class McpConnectionIntegrationTest {
     }
   }
 
+  /** R-IAM-40: the screen asks whether to show "Connect AI assistant"; the policy answers, and a no is not a denial. */
+  @Test
+  void theConnectButtonIsOfferedOnlyToWhoeverMayConnect() throws Exception {
+    String dispatcher = "mcp-ask-d-" + UUID.randomUUID() + "@waypoint.test";
+    accounts.createAccount(dispatcher, "Ask Dispatcher", PASSWORD, "dispatcher");
+    String driver = "mcp-ask-r-" + UUID.randomUUID() + "@waypoint.test";
+    UUID driverId = accounts.createAccount(driver, "Ask Driver", PASSWORD, "driver");
+    assertTrue(access(dispatcher), "every dispatcher, by role");
+    assertFalse(access(driver), "no driver by role");
+    long denials = database.readAs(ModuleRole.INTEGRATION, null, () -> database.query(
+        "SELECT 1 FROM integration.audit_log WHERE actor_id = ? AND decision = 'DENY'", driverId)).size();
+    assertEquals(0, denials, "asking is not an attempt, so a no is not audited as one");
+    McpGrants.allow(database, driverId);
+    assertTrue(access(driver), "a driver an administrator allowed");
+    // An assistant cannot ask on the person's behalf: the route is outside its boundary.
+    String token = connect(driver);
+    http.perform(get("/api/mcp/access").header("Authorization", "Bearer " + token)).andExpect(status().isForbidden());
+    http.perform(get("/api/mcp/access")).andExpect(status().isUnauthorized());
+  }
+
+  private boolean access(String email) throws Exception {
+    Cookie session = new Cookie(AuthController.COOKIE, login.login(email, PASSWORD, null, "127.0.0.1"));
+    return mapper.readTree(http.perform(get("/api/mcp/access").cookie(session)).andExpect(status().isOk())
+        .andReturn().getResponse().getContentAsString()).get("connect").asBoolean();
+  }
+
   /** Decision 2026-10-09: MCP is the dispatcher's; the field roles do not connect unless granted one by one. */
   @Test
   void theDriverLoaderAndStoreManagerDoNotConnectByRole() throws Exception {

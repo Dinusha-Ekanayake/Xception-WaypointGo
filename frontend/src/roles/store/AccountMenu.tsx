@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { OutletView } from "@shared/domain/types";
-import { APP_LANGS, InstallApp, cx, useShell } from "@shared/ui";
+import { APP_LANGS, InstallApp, McpSettingsRow, cx, useShell } from "@shared/ui";
 import { usePush, type PushState } from "@shared/notifications/push";
 import { dockLabel } from "./data/format.ts";
 import { useLang, useT } from "./i18n.tsx";
@@ -202,6 +202,8 @@ function SettingsRows(): React.JSX.Element {
       </div>
       <span className="text-[12px] text-go-secondary">{t("Your choice is kept on this device.")}</span>
       <InstallApp className="flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-go-surface text-[14px] font-medium text-black" />
+      {/* R-IAM-40: only when an administrator allowed this person to connect an AI assistant; nothing otherwise. */}
+      <McpSettingsRow className="flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-go-surface text-[14px] font-medium text-black" />
     </div>
   );
 }

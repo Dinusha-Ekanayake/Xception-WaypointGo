@@ -66,6 +66,8 @@ export function SettingsPanel({
   translated = true,
   placement = "sheet",
   showInstall = true,
+  installT,
+  rows,
   onClose,
   children,
 }: {
@@ -79,6 +81,10 @@ export function SettingsPanel({
   placement?: "popover" | "sheet" | "frame";
   /** False where the role has its own way to install, or none. */
   showInstall?: boolean;
+  /** Translates the install row for a role with its own dictionary; English otherwise. */
+  installT?: (text: string) => string;
+  /** Rows under the install row, in every placement (the assistant connection, R-IAM-40). */
+  rows?: ReactNode;
   onClose: () => void;
   /** Rows a role adds below the language and the assistant connection. */
   children?: ReactNode;
@@ -159,8 +165,12 @@ export function SettingsPanel({
         {!translated && <span className="w-full text-[12px] text-go-muted">These screens are in English for now; your choice is kept on this device.</span>}
       </fieldset>
       {showInstall && (
-        <InstallApp className="flex min-h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-go-surface text-[15px] font-medium text-go-ink" />
+        <InstallApp
+          {...(installT ? { t: installT } : {})}
+          className="flex min-h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-go-surface text-[15px] font-medium text-go-ink"
+        />
       )}
+      {rows}
       {!framed && children}
     </>
   );

@@ -1,7 +1,7 @@
 export { CountBadge } from "./CountBadge.tsx";
 export { Icon, ICON_NAMES, type IconName } from "./Icon.tsx";
 export { InstallApp } from "./InstallApp.tsx";
-export { McpButton, scopeWords } from "./McpConnect.tsx";
+export { McpButton, McpSettingsRow, scopeWords } from "./McpConnect.tsx";
 export { Menu, type MenuItem } from "./Menu.tsx";
 export { Notice, Pending } from "./Notice.tsx";
 export { Drawer } from "./Drawer.tsx";

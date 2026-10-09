@@ -1,6 +1,6 @@
 "use client";
 
-import { InstallApp, cx, useShell } from "@shared/ui";
+import { InstallApp, McpSettingsRow, cx, useShell } from "@shared/ui";
 import { usePush, type PushState } from "@shared/notifications/push";
 import { LANGS } from "../data/strings.ts";
 import { useLang, useT } from "../i18n.tsx";
@@ -63,6 +63,8 @@ export default function Settings({
             </div>
           </fieldset>
           <InstallApp t={tr} className="flex min-h-14 w-full items-center justify-center gap-2 rounded-[18px] bg-go-card text-[16px] font-medium text-go-ink" />
+          {/* R-IAM-40: only when an administrator allowed this person to connect an AI assistant; nothing otherwise. */}
+          <McpSettingsRow className="flex min-h-14 w-full items-center justify-center gap-2 rounded-[18px] bg-go-card text-[16px] font-medium text-go-ink" />
           <hr className="border-go-rule" />
           <fieldset className="flex flex-col gap-3">
             <legend className="flex flex-col">
