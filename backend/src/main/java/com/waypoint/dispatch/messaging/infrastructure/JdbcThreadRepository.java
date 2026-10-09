@@ -305,11 +305,13 @@ public class JdbcThreadRepository {
     database.update(
         """
         INSERT INTO messaging.reply_uses
-            (message_id, template_id, template_version, rank, edited, author_user_id, used_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+            (message_id, template_id, template_version, rank, edited, author_user_id, used_at, shown, explored)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT (message_id) DO NOTHING
         """,
-        messageId, use.templateId(), use.version(), use.rank(), use.edited(), authorUserId, Timestamp.from(at));
+        messageId, use.templateId(), use.version(), use.rank(), use.edited(), authorUserId, Timestamp.from(at),
+        use.shown().isEmpty() ? null : use.shown().toArray(String[]::new),
+        use.shown().isEmpty() ? null : use.explored());
   }
 
   // ---- voice notes --------------------------------------------------------------

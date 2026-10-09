@@ -29,6 +29,7 @@ export function TripThread({
   accountId,
   draft,
   replies,
+  repliesNote,
   playAll = false,
   tr = plain,
 }: {
@@ -44,6 +45,8 @@ export function TripThread({
   draft?: Draft;
   /** FF-08: the dispatcher's ready replies for the trip's state. */
   replies?: import("../messaging/templates.ts").Reply[];
+  /** AI-J5: how the ready replies are ordered. */
+  repliesNote?: string;
   /** A "Play messages" bar for the messages not heard yet (the driver's, when stopped). */
   playAll?: boolean;
   /** The reader's language; English when absent. */
@@ -134,6 +137,7 @@ export function TripThread({
           members={members}
           myOutlets={thread.myOutlets}
           {...(replies ? { replies } : {})}
+          {...(repliesNote ? { repliesNote } : {})}
           online={online}
           keepsOffline={keepsOffline}
           tr={tr}

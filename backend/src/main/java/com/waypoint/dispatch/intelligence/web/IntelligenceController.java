@@ -46,6 +46,7 @@ public class IntelligenceController {
   private final DateOutlookQuery outlook;
   private final AttentionQuery attention;
   private final CapacityDecisionQuery capacityDecisions;
+  private final com.waypoint.dispatch.intelligence.application.ReplyRankingQuery replyRanking;
   private final KpiQuery kpis;
   private final RequestAuthorizer authorizer;
   private final com.waypoint.dispatch.intelligence.application.AiExplainer explainer;
@@ -56,6 +57,7 @@ public class IntelligenceController {
       AttentionQuery attention,
       CapacityDecisionQuery capacityDecisions,
       KpiQuery kpis,
+      com.waypoint.dispatch.intelligence.application.ReplyRankingQuery replyRanking,
       RequestAuthorizer authorizer,
       com.waypoint.dispatch.intelligence.application.AiExplainer explainer) {
     this.explainer = explainer;
@@ -64,6 +66,7 @@ public class IntelligenceController {
     this.attention = attention;
     this.capacityDecisions = capacityDecisions;
     this.kpis = kpis;
+    this.replyRanking = replyRanking;
     this.authorizer = authorizer;
   }
 
@@ -211,6 +214,13 @@ public class IntelligenceController {
       HttpServletRequest request) {
     Actor actor = authorizer.require(request, IntelligenceDataQuery.EXPORT, "wpt:ml:training:" + depot);
     return intelligence.trainingRoutes(actor, depot, from, to, Optional.ofNullable(after), limit);
+  }
+
+  /** AI-J5: the ready replies' learned order for the composer, or "rules only" while there is too little to learn from. */
+  @GetMapping("/reply-ranking")
+  public com.waypoint.dispatch.intelligence.application.ReplyRankingQuery.ReplyRankingView replyRanking(
+      HttpServletRequest request) {
+    return replyRanking.ranking(read(request, "wpt:ml:replies:*"));
   }
 
   private Actor read(HttpServletRequest request, String resource) {

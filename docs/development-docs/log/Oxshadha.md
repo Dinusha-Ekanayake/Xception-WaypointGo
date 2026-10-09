@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-10-09 - feat: the ready replies' order learned from what dispatchers take (AI-J5)
+
+`dev` · @Oxshadha
+
+- A post from a ready reply now records the replies that were on screen and whether the second and third were swapped on purpose (`messaging.reply_uses.shown`, `explored`; refused when the pick is not at its rank). Picks alone cannot say what was passed over.
+- `ReplyRanker`: logistic regression on every reply shown with its place as a separate feature, read as the dispatcher through Messaging's new `ReplyUseQuery`; `GET /api/ml/reply-ranking`. The composer reorders only the replies the rules offer, swaps 2 and 3 one time in ten, and says "Suggestions: rules only" until 200 posts in 28 days. R-ML-24, ML-36; roadmap 06 updated.
+
+---
+
 ## 2026-10-09 - feat: profile photos, shown to the people who work with that person today (FF-07)
 
 `dev` · @Oxshadha

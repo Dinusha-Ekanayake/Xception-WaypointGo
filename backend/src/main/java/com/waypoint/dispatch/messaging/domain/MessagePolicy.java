@@ -227,7 +227,19 @@ public final class MessagePolicy {
   public static final int RESOLUTION_MAX = 500;
 
   /** FF-08: the ready reply a post came from, and whether its words were changed before sending. */
-  public record ReplyUse(String templateId, int version, int rank, boolean edited) {}
+  /**
+   * @param shown the ready replies on screen, in order, when the screen said (AI-J5); the picked one is at {@code rank}
+   * @param explored the second and third were swapped on purpose, to measure the pull of position
+   */
+  public record ReplyUse(String templateId, int version, int rank, boolean edited, List<String> shown, boolean explored) {
+    public ReplyUse {
+      shown = List.copyOf(shown);
+    }
+
+    public ReplyUse(String templateId, int version, int rank, boolean edited) {
+      this(templateId, version, rank, edited, List.of(), false);
+    }
+  }
 
   private static final java.util.regex.Pattern TEMPLATE_ID = java.util.regex.Pattern.compile("^[a-z_]+(\\.[a-z_]+)+$");
 
@@ -253,6 +265,29 @@ public final class MessagePolicy {
       throw invalid("templateRank must be between 1 and 10");
     }
     return Optional.of(new ReplyUse(templateId, version, rank, edited));
+  }
+
+  /**
+   * As {@link #replyUse(String, Integer, Integer, boolean, boolean)}, with the
+   * replies that were on screen (comma separated, in order). A list that does not
+   * hold the picked reply at its rank is not a record of what happened, so it is
+   * refused rather than stored.
+   */
+  public static Optional<ReplyUse> replyUse(
+      String templateId, Integer version, Integer rank, boolean edited, boolean report, String shown, boolean explored) {
+    Optional<ReplyUse> use = replyUse(templateId, version, rank, edited, report);
+    if (use.isEmpty() || shown == null || shown.isBlank()) {
+      return use;
+    }
+    List<String> ids = List.of(shown.split(",")).stream().map(String::strip).toList();
+    if (ids.size() > 10 || ids.stream().anyMatch(id -> id.length() > 64 || !TEMPLATE_ID.matcher(id).matches())) {
+      throw invalid("templateShown must list at most 10 ready replies");
+    }
+    if (ids.size() < rank || !ids.get(rank - 1).equals(templateId)) {
+      throw invalid("templateShown must hold the picked reply at its rank");
+    }
+    ReplyUse r = use.get();
+    return Optional.of(new ReplyUse(r.templateId(), r.version(), r.rank(), r.edited(), ids, explored));
   }
 
   /** The note on a resolved report: optional, trimmed, at most {@link #RESOLUTION_MAX}. */

@@ -275,3 +275,21 @@ export type KpiReportView = { depotCode: string; kpis: KpiKey[]; countedByApp: K
 /** ml:RecordKpiWeek. values holds the figures to record; a share is 0 to 100. */
 export type RecordKpiWeek = { depotCode: string; weekStart: IsoDate; values: Partial<Record<KpiKey, number>>; note?: string };
 
+
+/**
+ * Roadmap AI-J5: the ready replies' order learned from the last four weeks
+ * (GET /api/ml/reply-ranking), mirrored from ReplyRankingQuery.ReplyRankingView.
+ * `trained` is false below `minPosts`, and the screen keeps the rule order;
+ * `unavailable` when Messaging did not answer.
+ */
+export type ReplyRankingView = {
+  trained: boolean;
+  unavailable: boolean;
+  posts: number;
+  minPosts: number;
+  topAcceptance: number;
+  scores: Record<string, number>;
+  placeEffect: number[];
+  from: string;
+  to: string;
+};

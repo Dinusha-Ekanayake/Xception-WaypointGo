@@ -122,6 +122,8 @@ Recorded as ADR-005.
 
 ### AI-J5 Reply ranking for FF-08
 
+**Status.** Step 1 built 2026-10-09 (R-ML-24, ML-36). The posts now carry the replies that were on screen, which the logs lacked: a ranker cannot learn what was passed over from the picks alone. It turns on by itself once 200 such posts exist in 28 days; until then the chips say "Suggestions: rules only". The ranking is computed on each read rather than stored in `intelligence.reply_suggestions`, which is not needed at this volume. `topAcceptance` on the endpoint is the step 2 trigger.
+
 **Step 1.** A logistic-regression acceptance ranker trained on the FF-08 logs. The second and third slots are randomised 10% of the time, to remove position bias.
 
 **Step 2.** Jev ranks the code-allowed set only if step 1's top-1 acceptance stays under 50% for four weeks.

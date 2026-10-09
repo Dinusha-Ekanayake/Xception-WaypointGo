@@ -128,7 +128,8 @@ public class PostMessageHandler implements CommandHandler {
     Optional<MessagePolicy.ReplyUse> reply =
         MessagePolicy.replyUse(
             payload.text("templateId"), payload.optionalInt("templateVersion"), payload.optionalInt("templateRank"),
-            payload.flag("templateEdited", false), post.reportType().isPresent());
+            payload.flag("templateEdited", false), post.reportType().isPresent(), payload.text("templateShown"),
+            payload.flag("templateExplored", false));
 
     UUID messageId = UuidV7.generate(now, random);
     String kind = post.reportType().isPresent() ? "report" : "message";

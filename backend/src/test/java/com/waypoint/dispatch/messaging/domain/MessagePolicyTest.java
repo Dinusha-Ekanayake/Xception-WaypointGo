@@ -145,6 +145,22 @@ class MessagePolicyTest {
     }
   }
 
+  /** AI-J5: the replies on screen are kept beside the pick, only when they hold the pick at its rank. */
+  @Test
+  void theRepliesOnScreenAreKeptOnlyWhenTheyHoldThePickAtItsRank() {
+    MessagePolicy.ReplyUse use =
+        MessagePolicy.replyUse("store.late", 1, 2, false, false, "store.thanks, store.late,store.next", true).orElseThrow();
+    assertEquals(List.of("store.thanks", "store.late", "store.next"), use.shown());
+    assertTrue(use.explored());
+    assertEquals(List.of(), MessagePolicy.replyUse("store.late", 1, 2, false, false, null, false).orElseThrow().shown());
+    for (Runnable bad : List.<Runnable>of(
+        () -> MessagePolicy.replyUse("store.late", 1, 2, false, false, "store.late,store.thanks", false),
+        () -> MessagePolicy.replyUse("store.late", 1, 3, false, false, "store.a,store.late", false),
+        () -> MessagePolicy.replyUse("store.late", 1, 1, false, false, "store.late,Not an id", false))) {
+      assertThrows(DomainException.class, bad::run);
+    }
+  }
+
   @Test
   void theThreadTakesPostsUntilTheEndOfTheNextDay() {
     assertTrue(MessagePolicy.open(DAY, DAY));

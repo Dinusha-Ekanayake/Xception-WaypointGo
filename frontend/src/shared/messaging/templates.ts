@@ -20,7 +20,36 @@ export type Reply = {
   to: MessageAudience;
   outletId: string | null;
   body: string;
+  /** AI-J5: this list had its second and third swapped on purpose, to measure the pull of place. */
+  explored?: boolean;
 };
+
+/** AI-J5: each reply's learned pull, from GET /api/ml/reply-ranking; empty while the order is the rules'. */
+export type LearnedOrder = { trained: boolean; scores: Record<string, number> };
+
+/** How often the second and third replies swap places, so the pull of place can be told apart from the reply's. */
+export const EXPLORE_RATE = 0.1;
+
+/**
+ * The rule order, with the replies the ranker knows reordered by their learned
+ * pull among the places they already hold; a reply it has never seen keeps its
+ * place. Then, one time in ten, the second and third swap. Which replies are
+ * offered is never the ranker's to decide, only their order.
+ */
+export function rankReplies(list: Reply[], order: LearnedOrder | null, roll: number): Reply[] {
+  let out = [...list];
+  if (order?.trained) {
+    const known = out.map((r, i) => (r.id in order.scores ? i : -1)).filter((i) => i >= 0);
+    const sorted = known.map((i) => out[i]!).sort((a, b) => order.scores[b.id]! - order.scores[a.id]!);
+    known.forEach((slot, k) => {
+      out[slot] = sorted[k]!;
+    });
+  }
+  if (out.length >= 3 && roll < EXPLORE_RATE) {
+    out = [out[0]!, out[2]!, out[1]!, ...out.slice(3)].map((r) => ({ ...r, explored: true }));
+  }
+  return out;
+}
 
 export type TripState = {
   stops: RunSheetStopView[];

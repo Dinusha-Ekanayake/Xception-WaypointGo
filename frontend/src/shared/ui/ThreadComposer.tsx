@@ -26,6 +26,7 @@ export function ThreadComposer({
   members,
   myOutlets = [],
   replies = [],
+  repliesNote,
   online,
   sender = sendNow,
   keepsOffline = false,
@@ -40,6 +41,8 @@ export function ThreadComposer({
   myOutlets?: string[];
   /** FF-08: ready replies for the trip's state, every value filled by code; a tap fills the draft. */
   replies?: Reply[];
+  /** AI-J5: how the replies are ordered, said under them ("Suggestions: rules only"). */
+  repliesNote?: string;
   online: boolean;
   sender?: Sender;
   /** The sender keeps a message, voice included, on the device with no signal. */
@@ -55,6 +58,7 @@ export function ThreadComposer({
   const [body, setBody] = useState(draft?.body ?? "");
   // FF-08: the ready reply tapped, so the post says which one and whether its words were changed.
   const [picked, setPicked] = useState<{ reply: Reply; rank: number } | null>(null);
+  const offered = replies.filter((r) => members.some((m) => sameAddress({ to: m.to, outletId: m.outletId }, { to: r.to, outletId: r.outletId })));
   // Emptied and written afresh: no longer that reply.
   if (picked && body.trim() === "") setPicked(null);
   const [report, setReport] = useState<ReportType | null>(draft?.report && reports.length > 0 ? reports[0]! : null);
@@ -109,6 +113,8 @@ export function ThreadComposer({
                 templateVersion: picked.reply.version,
                 templateRank: picked.rank,
                 templateEdited: text.trim() !== picked.reply.body.trim(),
+                templateShown: offered.map((r) => r.id).join(","),
+                templateExplored: offered.some((r) => r.explored === true),
               }
             : {}),
           clientMessageId,
@@ -139,9 +145,7 @@ export function ThreadComposer({
     >
       {replies.length > 0 && !report && body.trim() === "" && (
         <div role="group" aria-label={tr("Suggested replies")} className="flex flex-wrap gap-1.5">
-          {replies
-            .filter((r) => members.some((m) => sameAddress({ to: m.to, outletId: m.outletId }, { to: r.to, outletId: r.outletId })))
-            .map((r, i) => (
+          {offered.map((r, i) => (
               <button
                 key={r.id}
                 type="button"
@@ -156,6 +160,7 @@ export function ThreadComposer({
                 {tr(r.label)}
               </button>
             ))}
+          {repliesNote && <span className="self-center text-[11px] text-go-muted">{repliesNote}</span>}
         </div>
       )}
       {members.length > 1 && !report && (

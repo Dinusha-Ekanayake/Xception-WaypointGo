@@ -111,6 +111,9 @@ export type PostMessagePayload = {
   templateVersion?: number;
   templateRank?: number;
   templateEdited?: boolean;
+  /** AI-J5: the ready replies on screen, comma separated in order, and whether the second and third were swapped on purpose. */
+  templateShown?: string;
+  templateExplored?: boolean;
 };
 
 /** message:Resolve: the dispatcher marks a report resolved; its sign leaves the timeline. */

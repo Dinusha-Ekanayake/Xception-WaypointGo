@@ -283,6 +283,28 @@ class MessagingIntegrationTest {
     assertEquals(false, use.get("edited"));
   }
 
+  /** AI-J5: the replies on screen are kept beside the pick, and the ranker reads them as the dispatcher. */
+  @Test
+  void theRepliesOnScreenAreKeptForTheRankerWhichSaysRulesOnlyUntilItHasEnough() throws Exception {
+    say(dispatcher, "{\"to\":\"driver\",\"body\":\"Noted.\",\"templateId\":\"driver.noted\",\"templateVersion\":1,"
+        + "\"templateRank\":2,\"templateShown\":\"driver.bring_back,driver.noted\",\"templateExplored\":true}", 200);
+    // A shown list without the pick at its rank is not a record of what happened.
+    say(dispatcher, "{\"to\":\"driver\",\"body\":\"Noted again.\",\"templateId\":\"driver.noted\",\"templateVersion\":1,"
+        + "\"templateRank\":1,\"templateShown\":\"driver.bring_back,driver.noted\"}", 422);
+    Map<String, Object> use = database.asSystem(ModuleRole.MESSAGING, () -> database.queryOne(
+        "SELECT array_to_string(u.shown, ',') AS shown, u.explored FROM messaging.reply_uses u"
+            + " JOIN messaging.messages m ON m.message_id = u.message_id WHERE m.thread_id = ?", threadId));
+    assertEquals("driver.bring_back,driver.noted", use.get("shown"));
+    assertEquals(true, use.get("explored"));
+
+    JsonNode ranking = json(read(dispatcher, "/api/ml/reply-ranking", 200));
+    assertTrue(ranking.get("posts").asInt() >= 1, ranking.toString());
+    assertFalse(ranking.get("trained").asBoolean(), "far below the minimum, the rule order stays");
+    assertFalse(ranking.get("unavailable").asBoolean());
+    assertEquals(200, ranking.get("minPosts").asInt());
+    read(driver, "/api/ml/reply-ranking", 403);
+  }
+
   @Test
   void aLoaderLeavesTheDriverANoteAboutTheLoadThatNoStoreReads() throws Exception {
     assertEquals(List.of("dispatch", "driver"), members(loader), "R-MSG-12: the dispatcher, or the driver of the trip");

@@ -3,8 +3,9 @@
 import { useRef } from "react";
 import { request } from "@shared/api/client";
 import { useResource } from "@shared/api/useResource";
-import type { DecisionView, RunSheetView, ThreadView } from "@shared/domain/types";
-import { replies } from "@shared/messaging/templates";
+import type { DecisionView, ReplyRankingView, RunSheetView, ThreadView } from "@shared/domain/types";
+import { rankReplies, replies } from "@shared/messaging/templates";
+import { rankingNote } from "./data/replyRanking.ts";
 import { TripThread, useOverlay } from "@shared/ui";
 import { dayLabel } from "@shared/wording";
 import { useDispatcherInbox, type OpenThread } from "./inbox.tsx";
@@ -51,6 +52,14 @@ function ThreadSheetPanel({
     `thread-decisions|${date}`,
     30_000,
   );
+  // AI-J5: the order learned from which replies dispatchers take; the rules' order until there is enough.
+  const ranking = useResource(
+    (signal: AbortSignal) => request<ReplyRankingView>("/api/ml/reply-ranking", { signal }),
+    "reply-ranking",
+    30 * 60_000,
+  );
+  // One roll per open sheet, so the order does not change under the dispatcher's finger.
+  const roll = useRef(Math.random());
   const sheet = (sheets.data ?? []).find((s) => s.vehicleId === head?.vehicleId) ?? null;
   const tripStops = sheet && head ? sheet.stops.filter((s) => s.tripId === head.subjectId) : [];
   const ready =
@@ -62,6 +71,7 @@ function ThreadSheetPanel({
           serviceDate: date,
         })
       : [];
+  const ordered = rankReplies(ready, ranking.data ?? null, roll.current);
 
   return (
     <div data-closing={closing || undefined} className="go-overlay fixed inset-0 z-50 flex justify-end" role="presentation">
@@ -100,7 +110,7 @@ function ThreadSheetPanel({
           variant="desk"
           focusMessageId={open.messageId ?? null}
           {...(open.draft ? { draft: open.draft } : {})}
-          {...(ready.length > 0 ? { replies: ready } : {})}
+          {...(ordered.length > 0 ? { replies: ordered, repliesNote: rankingNote(ranking.data ?? null, ranking.error != null) } : {})}
         />
       </section>
     </div>

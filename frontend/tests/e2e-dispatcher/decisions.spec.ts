@@ -60,6 +60,39 @@ test("the trip's thread offers ready replies filled from the run sheet, and a ta
   expect(desk.commands.find((c) => c.kind === "message:Post")?.payload).toMatchObject({
     templateId: "store.running_late", templateVersion: 1, templateEdited: false,
   });
+  // AI-J5: and which replies were on screen beside it, for the ranker.
+  const post = desk.commands.find((c) => c.kind === "message:Post")?.payload as { templateShown?: string; templateRank?: number };
+  expect(post.templateShown?.split(",")[post.templateRank! - 1]).toBe("store.running_late");
+  // Nothing learned in this mock: the screen says the rules order the replies.
+  await expect(ready).toContainText("Suggestions: rules only");
+});
+
+test("a learned order puts the reply dispatchers take most first, among the ones the rules offer", async ({ page }) => {
+  await page.addInitScript(() => {
+    Math.random = () => 0.5;
+  });
+  await serve(page, { ...liveDay(), threads: [tripThread("t-VEH020", "VEH020", ["OUT061", "OUT063"], "dispatcher")] });
+  await page.goto("/#/live");
+  await page.getByRole("button", { name: "Timeline", exact: true }).click();
+  await page.getByRole("button", { name: "VEH020 · Style · Matara, At risk" }).click();
+  await page.getByRole("button", { name: "All messages ›" }).click();
+  const ready = page.getByRole("dialog", { name: "Trip messages" }).getByRole("group", { name: "Suggested replies" });
+  await expect(ready.getByRole("button").nth(1)).toBeVisible();
+  const rulesOrder = await ready.getByRole("button").evaluateAll((bs) => bs.map((b) => b.getAttribute("data-template")));
+  expect(rulesOrder.length).toBeGreaterThan(1);
+  const last = rulesOrder[rulesOrder.length - 1]!.split("@")[0]!;
+
+  await page.route("**/api/ml/reply-ranking", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ trained: true, unavailable: false, posts: 340, minPosts: 200, topAcceptance: 0.4, scores: Object.fromEntries(rulesOrder.map((t, i) => [t!.split("@")[0], t!.startsWith(last) ? 5 : -i])), placeEffect: [-0.6, -0.9, -1.1], from: "", to: "" }),
+    }),
+  );
+  await page.getByRole("dialog", { name: "Trip messages" }).getByRole("button", { name: "Close" }).click();
+  await page.getByRole("button", { name: "All messages ›" }).click();
+  await expect(ready).toContainText("Order learned from 340 replies");
+  await expect(ready.getByRole("button").first()).toHaveAttribute("data-template", new RegExp(`^${last.replace(".", "\\.")}@`));
 });
 
 test("what happened on a stop is listed from the record", async ({ page }) => {
